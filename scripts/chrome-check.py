@@ -995,9 +995,12 @@ def main():
         worker.evaluate(
             f"dmReady.then(m => m.on_menu_clicked({{menuItemId: 'dm-all-links', pageUrl: '{origin}/page.html',"
             f" frameId: 0}}, {{id: {tab_id}}}))")
-        got = wait_for(lambda: len(queued_main()) - before >= 6 and len(queued_main()) - before, 20)
-        check("'Download all links with dm' hands the page's seven links to dm's queue",
-              got == 7, f"{len(queued_main()) - before} queued")
+        # Counted off the page rather than written down: a link added to the
+        # page for another check must not fail this one.
+        on_page = tab.evaluate("document.links.length")
+        got = wait_for(lambda: len(queued_main()) - before >= on_page and len(queued_main()) - before, 20)
+        check("'Download all links with dm' hands every link on the page to dm's queue",
+              got == on_page, f"{len(queued_main()) - before} queued of {on_page} links")
         before = len(queued_main())
         tab.evaluate("(() => { const r = document.createRange();"
                      " r.setStartBefore(document.querySelectorAll('p')[0]);"
