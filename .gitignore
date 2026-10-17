@@ -1,0 +1,6 @@
+dist/
+target/
+pkg/
+__pycache__/
+.DS_Store
+.claude/

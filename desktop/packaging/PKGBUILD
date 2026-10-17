@@ -1,0 +1,73 @@
+# Maintainer: pranavo72bex <pranavj304@gmail.com>
+#
+# Built from source rather than repackaging a .deb, so it links against
+# Arch's own libraries rather than an older runner's.
+pkgname=dm
+pkgver=0.1.0
+pkgrel=1
+pkgdesc="A download manager: many connections, resume, and a queue"
+arch=('x86_64' 'aarch64')
+url="https://github.com/pranavo72bex/Easy-Download-Manager"
+license=('MIT')
+
+# The window is drawn in Rust (egui) with no web view. Its tray is a
+# StatusNotifier item over the session D-Bus; winit and glow need xkbcommon
+# and a GL driver.
+# What winit and glow open at run time: X11 (with Xcursor, Xi), Wayland,
+# xkbcommon and GL.
+depends=('hicolor-icon-theme' 'libx11' 'libxcursor' 'libxi' 'libxkbcommon-x11' 'wayland' 'libglvnd')
+makedepends=('rust' 'cargo' 'pkgconf' 'git')
+optdepends=('yt-dlp: downloads from sites that serve video through a player')
+
+# No debug package: the release profile strips the binary, so makepkg's
+# debuginfo flags only made the fat-LTO link of dm-desktop hold the whole
+# program's debug information at once, which ran x86_64 builders out of
+# memory (killed by signal 9 in build()).
+# No makepkg LTO: its -flto=auto turns the C inside aws-lc-sys and ring into
+# GCC bytecode that Rust's linker (lld) cannot read, so their symbols went
+# missing at the link. Cargo's release profile does Rust's own LTO.
+options=('!debug' '!lto')
+
+source=("$pkgname-$pkgver.tar.gz::$url/archive/refs/tags/desktop-v$pkgver.tar.gz")
+sha256sums=('SKIP')
+
+# The name GitHub gives the extracted tag archive, which is the repository
+# name and not the package name.
+_srcdir="Easy-Download-Manager-desktop-v$pkgver/desktop"
+
+prepare() {
+  cd "$srcdir/$_srcdir"
+  # Vendored offline so the build does not depend on crates.io being
+  # reachable, which is what a clean chroot build assumes.
+  export RUSTUP_TOOLCHAIN=stable
+  cargo fetch --locked
+}
+
+build() {
+  cd "$srcdir/$_srcdir"
+  export RUSTUP_TOOLCHAIN=stable
+  # Arch builds with its own optimisation flags; the release profile in
+  # Cargo.toml already asks for LTO and a stripped binary.
+  export CARGO_TARGET_DIR=target
+  cargo build --release --frozen -p dm-desktop
+}
+
+check() {
+  cd "$srcdir/$_srcdir"
+  export RUSTUP_TOOLCHAIN=stable
+  # The engine, not the window: the tests need no display, and a package
+  # that cannot be checked in a headless chroot is one nobody checks.
+  cargo test --frozen -p dm-core
+}
+
+package() {
+  cd "$srcdir/$_srcdir"
+
+  install -Dm755 "target/release/dm-desktop" "$pkgdir/usr/bin/dm"
+  install -Dm644 "packaging/dm.desktop" "$pkgdir/usr/share/applications/dm.desktop"
+  install -Dm644 "crates/dm-desktop/icons/icon.png" \
+    "$pkgdir/usr/share/icons/hicolor/512x512/apps/dm.png"
+  install -Dm644 "crates/dm-desktop/icons/128x128.png" \
+    "$pkgdir/usr/share/icons/hicolor/128x128/apps/dm.png"
+  install -Dm644 "../LICENSE" "$pkgdir/usr/share/licenses/$pkgname/LICENSE"
+}

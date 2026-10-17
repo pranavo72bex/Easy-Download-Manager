@@ -1,0 +1,50 @@
+# The .rpm (Fedora, openSUSE, RHEL and their kin), built by nfpm from the
+# release binary, laid out as the Arch package is:
+#
+#   VERSION=0.1.0 ARCH=amd64 nfpm package -f desktop/packaging/nfpm.yaml -p rpm -t dist/
+#
+# Run from the repository root; ARCH is nfpm's name (amd64, arm64).
+name: dm
+version: ${VERSION}
+arch: ${ARCH}
+platform: linux
+section: net
+priority: optional
+maintainer: dm <noreply@users.noreply.github.com>
+description: |
+  Multi-connection downloads that resume.
+  dm splits a file across several connections, resumes what was
+  interrupted, and takes over the downloads you start in a browser.
+homepage: https://github.com/pranavo72bex/Easy-Download-Manager
+license: MIT
+
+# What the binary opens at run time (winit and glow load them, so rpm's own
+# scan of the binary does not see them): winit's X11 and Wayland libraries,
+# xkbcommon and GL. Named by library rather than by package, since Fedora
+# and openSUSE package them under different names.
+depends:
+  - libX11.so.6()(64bit)
+  - libXcursor.so.1()(64bit)
+  - libX11-xcb.so.1()(64bit)
+  - libXi.so.6()(64bit)
+  - libxkbcommon.so.0()(64bit)
+  - libxkbcommon-x11.so.0()(64bit)
+  - libwayland-client.so.0()(64bit)
+  - libwayland-egl.so.1()(64bit)
+  - libEGL.so.1()(64bit)
+  - libGL.so.1()(64bit)
+  - hicolor-icon-theme
+
+contents:
+  - src: desktop/target/release/dm-desktop
+    dst: /usr/bin/dm
+    file_info:
+      mode: 0755
+  - src: desktop/packaging/dm.desktop
+    dst: /usr/share/applications/dm.desktop
+  - src: desktop/crates/dm-desktop/icons/icon.png
+    dst: /usr/share/icons/hicolor/512x512/apps/dm.png
+  - src: desktop/crates/dm-desktop/icons/128x128.png
+    dst: /usr/share/icons/hicolor/128x128/apps/dm.png
+  - src: LICENSE
+    dst: /usr/share/licenses/dm/LICENSE

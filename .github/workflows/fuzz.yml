@@ -1,0 +1,56 @@
+name: Deep fuzz
+
+# The fuzz tests run a few hundred cases in every ordinary test run; this is
+# the deep hunt: hundreds of thousands of
+# random and hostile inputs to every reader of outside data, weekly and on
+# request. Stable Rust and GitHub's free runners only — nothing to pay for.
+on:
+  schedule:
+    - cron: '17 3 * * 1'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  desktop:
+    name: Engine, shell, protocol, window
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: dtolnay/rust-toolchain@b725eda525362e7cf34af9a7243cac1e3f01a7ec # stable
+        with:
+          toolchain: stable
+      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2
+        with:
+          workspaces: desktop
+      - name: Libraries the window links
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libgtk-3-dev libxdo-dev libayatana-appindicator3-dev
+      - name: Hunt
+        working-directory: desktop
+        env:
+          PROPTEST_CASES: '100000'
+        run: |
+          cargo test --release -p dm-core --test fuzz
+          cargo test --release -p dm-shell --test fuzz
+          cargo test --release -p dm-protocol --test fuzz
+          PROPTEST_CASES=5000 cargo test --release -p dm-desktop --test fuzz
+
+  extension:
+    name: The extension's decisions
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: dtolnay/rust-toolchain@b725eda525362e7cf34af9a7243cac1e3f01a7ec # stable
+        with:
+          toolchain: stable
+      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2
+        with:
+          workspaces: browser
+      - name: Hunt
+        working-directory: browser
+        env:
+          PROPTEST_CASES: '100000'
+        run: cargo test --release --test fuzz

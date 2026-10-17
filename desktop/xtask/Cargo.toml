@@ -1,0 +1,10 @@
+[package]
+name = "xtask"
+version = "0.1.0"
+license = "MIT"
+edition = "2021"
+publish = false
+description = "dm's own checks: the scorecard, the layering of the crates, and that nothing phones home"
+
+[dependencies]
+toml = "0.8"

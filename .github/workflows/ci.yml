@@ -1,0 +1,94 @@
+name: CI
+
+# The browser extension: Rust (browser/) compiled to WebAssembly, a loader
+# and two manifests (extension/). Its deciding parts are tested on the
+# runner; the WebAssembly is built and zipped for both browsers; and the
+# built extension is loaded into Chrome for Testing and watched handing a
+# download to a real dm. The desktop app has its own workflow.
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  extension:
+    name: Extension (Rust, WebAssembly)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: dtolnay/rust-toolchain@b725eda525362e7cf34af9a7243cac1e3f01a7ec # stable
+        with:
+          toolchain: stable
+          targets: wasm32-unknown-unknown
+          components: clippy, rustfmt
+      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2
+        with:
+          workspaces: browser
+
+      - name: Test what it decides
+        working-directory: browser
+        run: cargo test
+
+      # Twice: the host build sees only the deciding parts, the wasm32 build
+      # the browser side as well.
+      - name: Refuse warnings
+        working-directory: browser
+        run: |
+          cargo clippy --all-targets -- -D warnings
+          cargo clippy --target wasm32-unknown-unknown -- -D warnings
+
+      - name: Check formatting
+        working-directory: browser
+        run: cargo fmt -- --check
+
+      # Installs the wasm-bindgen CLI matching browser/Cargo.lock, builds the
+      # WebAssembly, and refuses a build missing anything a manifest names or
+      # carrying JavaScript other than the loader and wasm-bindgen's module.
+      - name: Build both store zips
+        run: sh scripts/package.sh
+
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: extension-zips
+          path: dist/*.zip
+
+  browser:
+    name: In Chrome for Testing, handing off to dm
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: dtolnay/rust-toolchain@b725eda525362e7cf34af9a7243cac1e3f01a7ec # stable
+        with:
+          toolchain: stable
+          targets: wasm32-unknown-unknown
+      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2
+        with:
+          workspaces: |
+            browser
+            desktop
+
+      - name: Linux libraries dm links and Chrome needs
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libgtk-3-dev libxdo-dev libayatana-appindicator3-dev xvfb \
+            libnss3 libgbm1 libxkbcommon0 libxkbcommon-x11-0 libxdamage1 libxfixes3 libxrandr2 \
+            libatk1.0-0 libatk-bridge2.0-0 libcups2 libpango-1.0-0 libcairo2
+          sudo apt-get install -y libasound2t64 || sudo apt-get install -y libasound2
+
+      # The toolbar check hands a page with a video to dm, which fetches it
+      # with yt-dlp; without one the row fails, as it would for a person.
+      # pipx puts it in ~/.local/bin, which dm searches.
+      - name: yt-dlp
+        run: pipx install yt-dlp
+
+      - name: Build dm and the extension
+        run: |
+          (cd desktop && cargo build -p dm-desktop)
+          sh scripts/package.sh
+
+      - name: Load it and watch a hand-off
+        run: xvfb-run --auto-servernum python3 scripts/chrome-check.py

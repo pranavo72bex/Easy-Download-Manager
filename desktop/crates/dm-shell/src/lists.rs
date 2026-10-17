@@ -1,0 +1,473 @@
+//! Lists of downloads, the ways dm takes them in and gives them out: a
+//! numbered series made from one address with a wildcard, dm's own
+//! `.dmlist` file for export and import, and the links on a page for
+//! "Find files on a site".
+
+// Reads outside input: an index out of range here is a crash a server or
+// a file could cause, so every access is checked.
+#![cfg_attr(not(test), deny(clippy::indexing_slicing))]
+/// "Add numbered series": one address with a `*` standing for a number
+/// or a letter, filled in from `from` to `to`.
+///
+/// Numbers can be padded to `width` digits (`file*.jpg`, 1 to 12, width 2 →
+/// `file01.jpg` … `file12.jpg`); letters run `a` to `z` or `A` to `Z`.
+pub fn series(template: &str, from: &str, to: &str, width: usize) -> Result<Vec<String>, String> {
+    let template = template.trim();
+    if template.matches('*').count() != 1 {
+        return Err("the address needs exactly one * to fill in".into());
+    }
+    let fill = |part: String| template.replacen('*', &part, 1);
+    let (from, to) = (from.trim(), to.trim());
+
+    if let (Ok(a), Ok(b)) = (from.parse::<u64>(), to.parse::<u64>()) {
+        if a > b {
+            return Err("the range runs backwards".into());
+        }
+        if b - a >= 10_000 {
+            return Err("ten thousand addresses is more than a batch".into());
+        }
+        return Ok((a..=b).map(|n| fill(format!("{n:0width$}"))).collect());
+    }
+
+    let letter = |s: &str| {
+        let mut chars = s.chars();
+        match (chars.next(), chars.next()) {
+            (Some(c), None) if c.is_ascii_alphabetic() => Some(c),
+            _ => None,
+        }
+    };
+    match (letter(from), letter(to)) {
+        (Some(a), Some(b)) if a.is_ascii_lowercase() == b.is_ascii_lowercase() && a <= b => {
+            Ok((a..=b).map(|c| fill(c.to_string())).collect())
+        }
+        _ => Err("from and to must both be numbers, or both letters of one case".into()),
+    }
+}
+
+/// One download in a saved list: an address and the page it came from.
+#[derive(Debug, Clone, Default, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+pub struct Listed {
+    pub url: String,
+    #[serde(default, skip_serializing_if = "String::is_empty")]
+    pub referrer: String,
+}
+
+/// dm's own list file (`.dmlist`): JSON, saying what it is, so a file of
+/// something else is not read as one.
+#[derive(serde::Serialize, serde::Deserialize)]
+struct ListFile {
+    format: String,
+    version: u32,
+    downloads: Vec<Listed>,
+}
+
+const LIST_FORMAT: &str = "dm download list";
+
+/// Writes downloads as a `.dmlist` file.
+pub fn to_list(rows: &[Listed]) -> String {
+    let file = ListFile {
+        format: LIST_FORMAT.into(),
+        version: 1,
+        downloads: rows.to_vec(),
+    };
+    serde_json::to_string_pretty(&file).unwrap_or_default()
+}
+
+/// Reads a `.dmlist` file, or any text with links in it, one or more a
+/// line — what people more often have. Anything that is not a link dm can
+/// fetch is skipped.
+pub fn from_list(text: &str) -> Vec<Listed> {
+    if let Ok(file) = serde_json::from_str::<ListFile>(text) {
+        if file.format == LIST_FORMAT {
+            return file
+                .downloads
+                .into_iter()
+                .filter(|row| dm_core::queue::accepted(&row.url))
+                .collect();
+        }
+    }
+    text.split_whitespace()
+        .filter(|word| dm_core::queue::accepted(word))
+        .map(|word| Listed {
+            url: word.to_string(),
+            referrer: String::new(),
+        })
+        .collect()
+}
+
+/// Every link and embedded file on a page, resolved against its address:
+/// `href` and `src`. Each once, in page
+/// order, and only what dm can fetch.
+pub fn links_on_page(base: &str, html: &str) -> Vec<String> {
+    let Ok(base) = url::Url::parse(base) else {
+        return Vec::new();
+    };
+    let mut found: Vec<String> = Vec::new();
+    let lower = html.to_ascii_lowercase();
+    for attribute in ["href", "src"] {
+        let mut from = 0;
+        while let Some(at) = lower[from..].find(attribute) {
+            let start = from + at + attribute.len();
+            from = start;
+            let rest = html[start..].trim_start();
+            let Some(rest) = rest.strip_prefix('=') else {
+                continue;
+            };
+            let rest = rest.trim_start();
+            let value = match rest.chars().next() {
+                Some(q @ ('"' | '\'')) => rest[1..].split(q).next().unwrap_or(""),
+                _ => rest
+                    .split(|c: char| c.is_whitespace() || c == '>')
+                    .next()
+                    .unwrap_or(""),
+            };
+            let value = value.replace("&amp;", "&");
+            if let Ok(link) = base.join(value.trim()) {
+                let mut link = link;
+                link.set_fragment(None);
+                let link = link.to_string();
+                if dm_core::queue::accepted(&link) && !found.contains(&link) {
+                    found.push(link);
+                }
+            }
+        }
+    }
+    found
+}
+
+/// Whether a link's file has one of `extensions` (without dots, any case).
+/// An empty list keeps everything.
+pub fn has_extension(link: &str, extensions: &[String]) -> bool {
+    if extensions.is_empty() {
+        return true;
+    }
+    let path = url::Url::parse(link)
+        .map(|u| u.path().to_string())
+        .unwrap_or_default();
+    let ext = path
+        .rsplit('/')
+        .next()
+        .and_then(|name| name.rsplit_once('.'))
+        .map(|(_, e)| e.to_ascii_lowercase())
+        .unwrap_or_default();
+    extensions
+        .iter()
+        .any(|want| want.trim_start_matches('.').eq_ignore_ascii_case(&ext))
+}
+
+/// "Find files on a site", one page deep: the page fetched, and the links on it
+/// with the wanted extensions.
+pub async fn grab(page: &str, extensions: &[String]) -> Result<Vec<String>, String> {
+    let search = Search {
+        page: page.to_string(),
+        types: extensions.to_vec(),
+        depth: 0,
+        ..Search::default()
+    };
+    crawl(&dm_core::client(), &search).await.map(|c| c.files)
+}
+
+/// What "Find files on a site" looks for, and how far. Saved under a name,
+/// it is run again by hand or every so many hours, and what it finds that
+/// is not already in the list is added for later.
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+#[serde(default)]
+pub struct Search {
+    /// Its name once saved; empty for one run once.
+    pub name: String,
+    pub page: String,
+    /// File types wanted, without dots; empty takes every file.
+    pub types: Vec<String>,
+    /// Pages past the start page to read, 0 to [`MAX_DEPTH`]. Only pages on
+    /// the start page's site are read.
+    pub depth: u8,
+    /// Only files whose path has one of these in it; empty is any.
+    pub include: Vec<String>,
+    /// Files and pages whose path has one of these in it are skipped.
+    pub exclude: Vec<String>,
+    /// Hours between runs on its own; 0 is only by hand.
+    pub every_hours: u64,
+    /// When it last ran, in seconds since 1970; 0 is never.
+    pub last_run: u64,
+    /// What it has found before, without logins: added once, not again
+    /// after the list is cleared or a login changed the row's address.
+    pub seen: Vec<String>,
+}
+
+/// The most a saved search remembers having found.
+pub const MOST_SEEN: usize = 10_000;
+
+/// An address without its user and password, for telling two apart.
+pub fn bare(url: &str) -> String {
+    match url::Url::parse(url) {
+        Ok(mut parsed) => {
+            let _ = parsed.set_username("");
+            let _ = parsed.set_password(None);
+            parsed.to_string()
+        }
+        Err(_) => url.to_string(),
+    }
+}
+
+impl Default for Search {
+    fn default() -> Self {
+        Search {
+            name: String::new(),
+            page: String::new(),
+            types: DEFAULT_TYPES.split(' ').map(str::to_string).collect(),
+            depth: 0,
+            include: Vec::new(),
+            exclude: Vec::new(),
+            every_hours: 0,
+            last_run: 0,
+            seen: Vec::new(),
+        }
+    }
+}
+
+/// The file types a search starts with.
+pub const DEFAULT_TYPES: &str = "zip rar 7z exe msi dmg iso mp4 mkv mp3 pdf jpg png";
+
+/// How many pages past the start page a search can be asked to read.
+pub const MAX_DEPTH: u8 = 5;
+
+/// How many pages one search reads at most, however deep: a site is not
+/// the Web, and a search that never ends is not a search.
+pub const MAX_PAGES: usize = 100;
+
+/// What a search found.
+#[derive(Debug, Clone, PartialEq, Eq, Default)]
+pub struct Crawled {
+    pub files: Vec<String>,
+    /// How many pages were read.
+    pub pages: usize,
+}
+
+/// A link's path, for the filters: lower-cased, decoded.
+fn path_of(link: &str) -> String {
+    url::Url::parse(link)
+        .map(|u| dm_core::probe::decode(u.path()).to_ascii_lowercase())
+        .unwrap_or_default()
+}
+
+fn has_any(path: &str, words: &[String]) -> bool {
+    words
+        .iter()
+        .map(|w| w.trim().to_ascii_lowercase())
+        .filter(|w| !w.is_empty())
+        .any(|w| path.contains(&w))
+}
+
+/// Whether a link is one more page of the site rather than a file: a
+/// folder, a bare name, or one of the extensions pages are served with.
+pub fn looks_like_page(link: &str) -> bool {
+    let path = path_of(link);
+    if path.is_empty() || path.ends_with('/') {
+        return true;
+    }
+    let last = path.rsplit('/').next().unwrap_or_default();
+    match last.rsplit_once('.') {
+        None => true,
+        Some((_, ext)) => matches!(
+            ext,
+            "html" | "htm" | "xhtml" | "shtml" | "php" | "asp" | "aspx" | "jsp" | "cgi" | "do"
+        ),
+    }
+}
+
+fn same_site(a: &url::Url, link: &str) -> bool {
+    url::Url::parse(link).ok().is_some_and(|b| {
+        a.host_str().map(str::to_ascii_lowercase) == b.host_str().map(str::to_ascii_lowercase)
+    })
+}
+
+/// One page, as text: its final address and its HTML. A file is refused as
+/// a page, whatever it is called.
+async fn fetch_page(
+    client: &dm_core::reqwest::Client,
+    page: &str,
+    start: bool,
+) -> Result<(String, String), String> {
+    let res = client.get(page).send().await.map_err(|e| e.to_string())?;
+    if !res.status().is_success() {
+        return Err(format!("the page answered {}", res.status()));
+    }
+    let kind = res
+        .headers()
+        .get(dm_core::reqwest::header::CONTENT_TYPE)
+        .and_then(|v| v.to_str().ok())
+        .map(|v| dm_core::probe::mime_essence(Some(v)))
+        .unwrap_or_default();
+    // Past the start page, an answer that does not say it is a page is not
+    // read as one: a bare `/download/123` is usually the file itself.
+    let html = kind == "text/html" || kind == "application/xhtml+xml";
+    if !(html || (start && kind.is_empty())) {
+        return Err(format!("{page} is a file ({kind}), not a page of links"));
+    }
+    let base = res.url().to_string();
+    // A page, not a file: past a few megabytes this is not HTML to read,
+    // and it is not read past them — not buffered whole and then cut.
+    const CAP: usize = 8 * 1024 * 1024;
+    let mut bytes = Vec::new();
+    let mut body = res.bytes_stream();
+    while let Some(chunk) = futures_util::StreamExt::next(&mut body).await {
+        let chunk = chunk.map_err(|e| e.to_string())?;
+        let room = CAP - bytes.len();
+        bytes.extend_from_slice(chunk.get(..room.min(chunk.len())).unwrap_or_default());
+        if bytes.len() >= CAP {
+            break;
+        }
+    }
+    Ok((base, String::from_utf8_lossy(&bytes).into_owned()))
+}
+
+/// Reads the start page and, `depth` pages deep on the same site, the
+/// pages it links to, and gathers the files wanted. Each page once, at most
+/// [`MAX_PAGES`] of them. A start page that cannot be read is the error;
+/// a page further in that cannot is skipped.
+pub async fn crawl(client: &dm_core::reqwest::Client, search: &Search) -> Result<Crawled, String> {
+    use std::collections::{HashSet, VecDeque};
+    let start = url::Url::parse(search.page.trim())
+        .map_err(|e| format!("that is not a page address: {e}"))?;
+    let depth = search.depth.min(MAX_DEPTH);
+    let mut found = Crawled::default();
+    let mut seen: HashSet<String> = HashSet::new();
+    let mut frontier: VecDeque<(String, u8)> = VecDeque::new();
+    seen.insert(start.to_string());
+    frontier.push_back((start.to_string(), 0));
+
+    while let Some((page, level)) = frontier.pop_front() {
+        if found.pages >= MAX_PAGES {
+            break;
+        }
+        let (base, html) = match fetch_page(client, &page, found.pages == 0).await {
+            Ok(read) => read,
+            Err(e) if found.pages == 0 => return Err(e),
+            Err(_) => continue,
+        };
+        found.pages += 1;
+        for link in links_on_page(&base, &html) {
+            let path = path_of(&link);
+            if has_any(&path, &search.exclude) {
+                continue;
+            }
+            let is_file = if search.types.is_empty() {
+                !looks_like_page(&link)
+            } else {
+                has_extension(&link, &search.types)
+            };
+            if is_file {
+                let wanted = search.include.iter().all(|w| w.trim().is_empty())
+                    || has_any(&path, &search.include);
+                if wanted && !found.files.contains(&link) {
+                    found.files.push(link);
+                }
+                continue;
+            }
+            if level < depth
+                && looks_like_page(&link)
+                && same_site(&start, &link)
+                && seen.insert(link.clone())
+            {
+                frontier.push_back((link, level + 1));
+            }
+        }
+    }
+    Ok(found)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn a_batch_fills_the_star_with_numbers_or_letters() {
+        assert_eq!(
+            series("https://e.com/img*.jpg", "8", "11", 2).unwrap(),
+            [
+                "https://e.com/img08.jpg",
+                "https://e.com/img09.jpg",
+                "https://e.com/img10.jpg",
+                "https://e.com/img11.jpg"
+            ]
+        );
+        assert_eq!(
+            series("https://e.com/part-*.zip", "a", "c", 0).unwrap(),
+            [
+                "https://e.com/part-a.zip",
+                "https://e.com/part-b.zip",
+                "https://e.com/part-c.zip"
+            ]
+        );
+        assert!(series("https://e.com/no-star", "1", "2", 0).is_err());
+        assert!(series("https://e.com/*/*", "1", "2", 0).is_err());
+        assert!(series("https://e.com/*", "5", "1", 0).is_err());
+        assert!(series("https://e.com/*", "a", "Z", 0).is_err());
+        assert!(series("https://e.com/*", "0", "99999", 0).is_err());
+    }
+
+    #[test]
+    fn a_list_reads_back_as_it_was_written() {
+        let rows = vec![
+            Listed {
+                url: "https://e.com/a.zip".into(),
+                referrer: "https://e.com/page".into(),
+            },
+            Listed {
+                url: "magnet:?xt=urn:btih:abc".into(),
+                referrer: String::new(),
+            },
+        ];
+        let written = to_list(&rows);
+        assert!(written.contains("dm download list"));
+        assert_eq!(from_list(&written), rows);
+        assert_eq!(from_list(&to_list(&[])), []);
+    }
+
+    #[test]
+    fn a_list_file_keeps_only_what_dm_can_fetch() {
+        let file = r#"{"format":"dm download list","version":1,"downloads":[
+            {"url":"https://e.com/a.zip","referrer":"https://e.com/"},
+            {"url":"javascript:alert(1)"},{"url":"file:///etc/passwd"}]}"#;
+        assert_eq!(
+            from_list(file),
+            [Listed {
+                url: "https://e.com/a.zip".into(),
+                referrer: "https://e.com/".into()
+            }]
+        );
+    }
+
+    #[test]
+    fn plain_text_with_links_reads_too() {
+        let plain = "https://e.com/1.iso\n\nnot a link\nhttps://e.com/2.iso ftp://e.com/3.iso\n";
+        assert_eq!(from_list(plain).len(), 3);
+        assert!(from_list("").is_empty());
+        // JSON that is not dm's list is read for its links, not as a list.
+        assert!(from_list(r#"{"format":"other","downloads":[]}"#).is_empty());
+    }
+
+    #[test]
+    fn the_site_file_finder_finds_links_and_files_on_a_page() {
+        let page = r#"<a href="/files/a.zip">a</a> <A HREF='b.ZIP'>b</A>
+            <img src="pic.png"> <a href=c.zip#x>c</a> <a href="mailto:x@e.com">m</a>
+            <a href="/files/a.zip">again</a> <a href="?q=1&amp;r=2">q</a>"#;
+        let found = links_on_page("https://e.com/dir/index.html", page);
+        assert_eq!(
+            found,
+            [
+                "https://e.com/files/a.zip",
+                "https://e.com/dir/b.ZIP",
+                "https://e.com/dir/c.zip",
+                "https://e.com/dir/index.html?q=1&r=2",
+                "https://e.com/dir/pic.png",
+            ]
+        );
+        let zips: Vec<_> = found
+            .iter()
+            .filter(|l| has_extension(l, &["zip".into()]))
+            .collect();
+        assert_eq!(zips.len(), 3);
+        assert!(has_extension("https://e.com/x", &[]));
+    }
+}

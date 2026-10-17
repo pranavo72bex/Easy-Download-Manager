@@ -1,0 +1,35 @@
+name: Audit
+
+# Known vulnerabilities in what dm depends on, from the RustSec database.
+# Weekly as well as on a change, because an advisory can be published
+# against a lockfile nobody has touched. Advisories looked at and found
+# unreachable are listed, each with its reason, in desktop/.cargo/audit.toml.
+on:
+  push:
+    branches: [main]
+    paths: ['**/Cargo.lock', '**/Cargo.toml', '**/audit.toml', '.github/workflows/audit.yml']
+  pull_request:
+    paths: ['**/Cargo.lock', '**/Cargo.toml', '**/audit.toml', '.github/workflows/audit.yml']
+  schedule:
+    - cron: '0 6 * * 1'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  audit:
+    name: cargo audit (${{ matrix.dir }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        dir: [desktop, browser]
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: taiki-e/install-action@8cca0918f8471c33515202b73f56ab27f2bed283 # v2
+        with:
+          tool: cargo-audit
+      - name: cargo audit
+        working-directory: ${{ matrix.dir }}
+        run: cargo audit --deny warnings

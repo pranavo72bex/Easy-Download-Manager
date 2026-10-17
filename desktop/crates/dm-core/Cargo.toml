@@ -1,0 +1,60 @@
+[package]
+name = "dm-core"
+version = "0.1.0"
+license = "MIT"
+edition = "2021"
+
+[dependencies]
+# Already in the tree through reqwest; named for its chunk type.
+bytes = "1"
+tokio = { version = "1", features = ["rt-multi-thread", "macros", "fs", "io-util", "sync", "time", "process"] }
+# rustls rather than the system OpenSSL: a download manager that fails to
+# build on a machine without libssl headers is one nobody can package.
+reqwest = { version = "0.12", default-features = false, features = ["stream", "rustls-tls", "gzip", "brotli", "system-proxy"] }
+# FTP through a SOCKS proxy: the handshake, after which the connection is a
+# plain one. HTTP CONNECT is a few lines and is written here.
+tokio-socks = "0.5"
+# The `Proxy-Authorization` an HTTP CONNECT to a proxy with a login carries.
+base64 = "0.22"
+futures-util = "0.3"
+thiserror = "2"
+# The shell sends these straight into a webview; deriving here beats
+# maintaining a parallel set of near-identical types in the GUI crate.
+serde = { version = "1", features = ["derive"] }
+# The queue is written to disk so a restart does not lose it.
+serde_json = "1"
+# Already in the tree via reqwest's url dependency; named so the hand-rolled
+# byte-scanner it replaces cannot come back.
+percent-encoding = "2"
+chrono = { version = "0.4.45", default-features = false, features = ["clock", "std"] }
+sha2 = "0.11.0"
+md-5 = "0.11.0"
+hex = "0.4.3"
+quick-xml = "0.42.0"
+url = "2.5.8"
+aes = "0.9.3"
+cbc = { version = "0.2.1", features = ["block-padding", "alloc"] }
+# BitTorrent, the one kind of download the browser side cannot do at all: an
+# extension has no sockets. rustls to match reqwest above, so the binary
+# carries one TLS stack rather than two.
+librqbit = { version = "9.0.1", default-features = false, features = ["rust-tls"] }
+tokio-util = "0.7"
+dirs = "7.0.0"
+
+[dev-dependencies]
+# Random and hostile input for the readers of outside data (tests/fuzz.rs),
+# on stable Rust inside cargo test.
+proptest = "1"
+# The zoo's gzip-serving case.
+flate2 = "1"
+tokio = { version = "1", features = ["full"] }
+axum = "0.7"
+rand = "0.8"
+# Cleans up after itself. The hand-rolled version left a directory of
+# downloaded parts behind on every run.
+tempfile = "3"
+sha2 = "0.11.0"
+hex = "0.4.3"
+memory-stats = "1.2.0"
+aes = "0.9.3"
+cbc = { version = "0.2.1", features = ["block-padding", "alloc"] }

@@ -1,0 +1,16 @@
+# The engine is its own crate, deliberately.
+#
+# It is the product: everything a download manager is judged on — many connections, resume,
+# throughput — lives here, and none of it needs a window. Keeping it free of
+# the GUI means it can be tested against real servers in milliseconds rather
+# than driven through a webview, and the shell becomes a thin thing on top
+# rather than the place the logic hides.
+[workspace]
+resolver = "2"
+members = ["crates/dm-core", "crates/dm-protocol", "crates/dm-shell", "crates/dm-desktop", "xtask"]
+
+[profile.release]
+opt-level = 3
+lto = true
+codegen-units = 1
+strip = true

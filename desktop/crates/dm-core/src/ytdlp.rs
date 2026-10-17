@@ -1,0 +1,812 @@
+//! Downloading from sites that serve video through their own player.
+//!
+//! dm fetches files and HLS itself; what it cannot do is turn a page like a
+//! video site's watch URL into a file, because the address of the media is
+//! not in the page — it is minted by the site's own player at play time.
+//! `yt-dlp` is the tool that knows how, for a thousand sites, and it is the
+//! one dm hands those to. dm does not reimplement any of that: it runs the
+//! yt-dlp the user installed, the way a person would at a shell, and places
+//! what it produces like any other download.
+//!
+//! So this is deliberately a thin wrapper around a child process — no site
+//! logic, no token minting, no signature work of dm's own — and it is used
+//! only when the URL turned out to be a web page rather than a file and a
+//! yt-dlp is actually on the machine.
+
+use std::path::{Path, PathBuf};
+use std::process::Stdio;
+
+use tokio::io::{AsyncBufReadExt, BufReader};
+use tokio::process::Command;
+
+use crate::download::{Finished, Options, Update};
+use crate::stream::Quality;
+use crate::{category, Error};
+
+/// The line prefix yt-dlp is told to stamp on its progress, so dm can pick
+/// its own numbers out of everything else the tool prints.
+const MARK: &str = "@dm@";
+
+/// Whether a yt-dlp is on the machine to hand pages to.
+///
+/// Checked rather than assumed: dm works without one, and a page it cannot
+/// hand anywhere is reported as such rather than failing to launch a program
+/// that is not there.
+pub fn available() -> bool {
+    which("yt-dlp").is_some()
+}
+
+/// Where yt-dlp actually is, resolved the same way `available` decides.
+fn binary() -> Option<PathBuf> {
+    which("yt-dlp")
+}
+
+/// The ffmpeg dm can run, if any: for joining picture and sound, and for
+/// putting a transport stream into an MP4.
+pub(crate) fn ffmpeg() -> Option<PathBuf> {
+    which("ffmpeg")
+}
+
+/// The first `yt-dlp` on `PATH`, or in the places package managers put it.
+///
+/// `PATH` alone is not enough, and this is the bug that made "YouTube does
+/// not download" true on a machine with yt-dlp installed. A program launched
+/// from the Dock, a desktop entry, or by a browser's native messaging host
+/// inherits the session's minimal `PATH` — `/usr/bin:/bin` and little else —
+/// not the shell's, so `/opt/homebrew/bin` and `~/.local/bin` are invisible to
+/// it even though `which yt-dlp` at a terminal finds it fine. The usual homes
+/// are searched after `PATH`, so the tool a person installed is the tool the
+/// app finds.
+///
+/// `DM_YTDLP` (and `DM_FFMPEG`) name the binary outright, for an install in
+/// none of those places; set to nothing, they say there is no such tool,
+/// which is how a test pins down what dm does without one on a machine that
+/// has one.
+fn which(program: &str) -> Option<PathBuf> {
+    let override_var = format!("DM_{}", program.replace('-', "").to_ascii_uppercase());
+    if let Some(named) = std::env::var_os(&override_var) {
+        return (!named.is_empty())
+            .then(|| PathBuf::from(named))
+            .filter(|p| p.is_file());
+    }
+    let on_path = std::env::var_os("PATH")
+        .map(|p| std::env::split_paths(&p).collect::<Vec<_>>())
+        .unwrap_or_default();
+    let home = dirs::home_dir().unwrap_or_default();
+    let usual = [
+        PathBuf::from("/opt/homebrew/bin"),
+        PathBuf::from("/usr/local/bin"),
+        PathBuf::from("/usr/bin"),
+        home.join(".local/bin"),
+        home.join("bin"),
+        PathBuf::from("/snap/bin"),
+        home.join("Library/Python/3.13/bin"),
+        home.join("Library/Python/3.12/bin"),
+    ];
+    on_path
+        .into_iter()
+        .chain(usual)
+        .map(|dir| dir.join(program))
+        .find(|candidate| candidate.is_file())
+}
+
+/// Writes `text` to `path` readable by this account alone.
+async fn write_private(path: &Path, text: &str) -> Result<(), Error> {
+    let _ = tokio::fs::remove_file(path).await;
+    let mut open = tokio::fs::OpenOptions::new();
+    open.write(true).create_new(true);
+    #[cfg(unix)]
+    open.mode(0o600);
+    let mut file = open.open(path).await?;
+    tokio::io::AsyncWriteExt::write_all(&mut file, text.as_bytes()).await?;
+    Ok(())
+}
+
+/// Removes a file when it goes out of scope: a run's private cookies file,
+/// whichever way the run ends.
+struct RemoveOnDrop(PathBuf);
+
+impl Drop for RemoveOnDrop {
+    fn drop(&mut self) {
+        let _ = std::fs::remove_file(&self.0);
+    }
+}
+
+/// Whether a response is a web page rather than a file dm fetches itself.
+///
+/// A file has a body dm can range over; a web page does not, and saving the
+/// page's HTML as though it were the download is the wrong answer whether or
+/// not a yt-dlp is there to do better. So this is decided on the content type
+/// alone, and the caller decides between handing it to yt-dlp and refusing.
+pub fn is_page(content_type: Option<&str>) -> bool {
+    crate::probe::mime_essence(content_type) == "text/html"
+}
+
+/// The `-f` selector for a wanted quality, in yt-dlp's language.
+///
+/// The best picture and the best sound are usually separate streams, and
+/// joining them is ffmpeg's job. Without an ffmpeg to join with, asking for a
+/// pair gets two files and no video, so the choice falls to the best single
+/// stream that already carries both — lower quality than a joined pair, but
+/// a video that plays, which is the point.
+fn format_for(quality: Quality, can_merge: bool) -> String {
+    match (quality, can_merge) {
+        (Quality::Best, true) => "bv*+ba/b".to_string(),
+        (Quality::UpTo(height), true) => {
+            format!("bv*[height<={height}]+ba/b[height<={height}]/b")
+        }
+        (Quality::Best, false) => "b".to_string(),
+        (Quality::UpTo(height), false) => format!("b[height<={height}]/b"),
+        // The best audio-only stream — what "audio" means for a video site.
+        (Quality::Audio, _) => "ba/b".to_string(),
+    }
+}
+
+/// yt-dlp's format-sort preference for the container a panel line named, so
+/// what arrives is what the list said: MP4 picture with M4A sound, WebM with
+/// WebM, or the named sound alone. With none named (Add URL, a page handed
+/// over whole) it is MP4: left to itself
+/// yt-dlp picks YouTube's WebM. An MP4 is joined into an MP4 even when the
+/// best picture at that height is only in WebM, and H.264 is preferred over
+/// AV1 at the same height, since it plays everywhere.
+fn container_sort(container: Option<&str>) -> Vec<String> {
+    let mp4 = || {
+        [
+            "-S",
+            "res,ext:mp4:m4a,vcodec:h264",
+            "--merge-output-format",
+            "mp4",
+        ]
+        .map(String::from)
+        .to_vec()
+    };
+    let sort = match container {
+        Some("mp4") | None => return mp4(),
+        Some("webm") => "ext:webm:webm",
+        Some("m4a") => "ext:m4a:m4a",
+        Some(other) if !other.is_empty() => return vec!["-S".into(), format!("ext:{other}")],
+        _ => return mp4(),
+    };
+    vec!["-S".into(), sort.into()]
+}
+
+/// One choice the "Download video" panel offers:
+/// a quality and the size it comes to.
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+pub struct Choice {
+    /// What the list says, such as "MP4 1280×720" or "M4A audio".
+    pub label: String,
+    /// The quality to download it at, in `Quality::named`'s words.
+    pub quality: String,
+    /// Bytes, where yt-dlp knows or estimates them.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub size: Option<u64>,
+}
+
+/// The choices in yt-dlp's `-J` description of a page: one per picture
+/// height, tallest first, each with the biggest file at that height (and the
+/// sound it would be joined with), then the best sound alone. Nothing it
+/// cannot read is listed; garbage gives an empty list, not an error.
+pub fn choices(described: &str) -> Vec<Choice> {
+    let Ok(page) = serde_json::from_str::<serde_json::Value>(described) else {
+        return Vec::new();
+    };
+    let formats = page
+        .get("formats")
+        .and_then(|f| f.as_array())
+        .cloned()
+        .unwrap_or_default();
+    let size_of = |f: &serde_json::Value| {
+        f.get("filesize")
+            .and_then(|v| v.as_u64())
+            .or_else(|| f.get("filesize_approx").and_then(|v| v.as_u64()))
+    };
+    let has = |f: &serde_json::Value, key: &str| {
+        f.get(key)
+            .and_then(|v| v.as_str())
+            .is_some_and(|c| c != "none")
+    };
+    let is = |f: &serde_json::Value, ext: &str| f.get("ext").and_then(|v| v.as_str()) == Some(ext);
+    // The sound on its own that a picture-only format is joined with: M4A
+    // first, as MP4 is what the list offers first, then the best of the rest.
+    let audio = formats
+        .iter()
+        .filter(|f| has(f, "acodec") && !has(f, "vcodec"))
+        .max_by_key(|f| {
+            (
+                is(f, "m4a"),
+                f.get("abr").and_then(|v| v.as_f64()).unwrap_or(0.0) as u64,
+            )
+        });
+    let audio_size = audio.and_then(size_of);
+
+    let mut by_height: Vec<(u32, String, String, Option<u64>)> = Vec::new();
+    for f in &formats {
+        let Some(height) = f.get("height").and_then(|v| v.as_u64()).map(|h| h as u32) else {
+            continue;
+        };
+        if height == 0 || !has(f, "vcodec") {
+            continue;
+        }
+        let width = f.get("width").and_then(|v| v.as_u64()).unwrap_or(0);
+        let ext = f.get("ext").and_then(|v| v.as_str()).unwrap_or("video");
+        let label = if width > 0 {
+            format!("{} {width}×{height}", ext.to_ascii_uppercase())
+        } else {
+            format!("{} {height}p", ext.to_ascii_uppercase())
+        };
+        // A picture alone is joined with the sound, so its size counts both.
+        let size = match (size_of(f), has(f, "acodec")) {
+            (Some(s), true) => Some(s),
+            (Some(s), false) => Some(s + audio_size.unwrap_or(0)),
+            (None, _) => None,
+        };
+        let ext = ext.to_ascii_lowercase();
+        // MP4 at a height wherever there is one; another container only where MP4 has nothing that tall.
+        let rank = |ext: &str, size: Option<u64>| (ext == "mp4", size);
+        match by_height.iter_mut().find(|(h, _, _, _)| *h == height) {
+            Some(slot) if rank(&ext, size) > rank(&slot.2, slot.3) => {
+                *slot = (height, label, ext, size)
+            }
+            Some(_) => {}
+            None => by_height.push((height, label, ext, size)),
+        }
+    }
+    by_height.sort_by_key(|slot| std::cmp::Reverse(slot.0));
+    let mut list: Vec<Choice> = by_height
+        .into_iter()
+        .map(|(height, label, ext, size)| Choice {
+            label,
+            quality: format!("{height}/{ext}"),
+            size,
+        })
+        .collect();
+    if let Some(audio) = audio {
+        let ext = audio.get("ext").and_then(|v| v.as_str()).unwrap_or("audio");
+        list.push(Choice {
+            label: format!("{} audio", ext.to_ascii_uppercase()),
+            quality: format!("audio/{}", ext.to_ascii_lowercase()),
+            size: audio_size,
+        });
+    }
+    list
+}
+
+/// Asks yt-dlp what a page offers, for the panel's list. Bounded: a page
+/// yt-dlp cannot read in half a minute gets no list, and the panel falls
+/// back to downloading the best.
+pub async fn list_choices(
+    url: &str,
+    referrer: Option<&str>,
+    proxy: Option<&str>,
+) -> Result<Vec<Choice>, Error> {
+    let binary = binary().ok_or_else(|| Error::Internal("yt-dlp is not installed".into()))?;
+    let mut command = Command::new(binary);
+    crate::no_window_async(&mut command);
+    command
+        .arg("-J")
+        .arg("--no-playlist")
+        .arg("--no-warnings")
+        .arg("--socket-timeout")
+        .arg("15")
+        .stdout(Stdio::piped())
+        .stderr(Stdio::null())
+        .kill_on_drop(true);
+    if let Some(proxy) = proxy {
+        command.arg("--proxy").arg(proxy);
+    }
+    if let Some(referrer) = referrer {
+        command.arg("--referer").arg(referrer);
+    }
+    // The cookies file a person chose, so a video that needs them signed
+    // in (or a site's "not a bot" check) is fetched as their browser would.
+    if let Some(cookies) = crate::cookies::file() {
+        command.arg("--cookies").arg(cookies);
+    }
+    command.arg(url);
+    let run = command.output();
+    let output = tokio::time::timeout(std::time::Duration::from_secs(30), run)
+        .await
+        .map_err(|_| Error::Internal("yt-dlp took too long to read the page".into()))?
+        .map_err(|e| Error::Internal(format!("yt-dlp would not start: {e}")))?;
+    if !output.status.success() {
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        return Err(Error::Internal(
+            refusal(&stderr).unwrap_or_else(|| "yt-dlp could not read that page".into()),
+        ));
+    }
+    Ok(choices(&String::from_utf8_lossy(&output.stdout)))
+}
+
+/// Runs yt-dlp for one page, reporting progress and placing the result.
+///
+/// Staged into the download's own directory and moved into place on success,
+/// the same shape every other download follows: nothing lands in the finished
+/// folder until it is finished.
+pub async fn download_ytdlp(
+    url: &str,
+    options: &Options,
+    report: Option<tokio::sync::mpsc::Sender<Update>>,
+) -> Result<Finished, Error> {
+    let staging = &options.parts_dir;
+    tokio::fs::create_dir_all(staging)
+        .await
+        .map_err(Error::Disk)?;
+    // Where yt-dlp writes the final path it settled on, away from the noise
+    // of its progress so dm reads it back cleanly.
+    let result_file = staging.join(".dm-ytdlp-result");
+    let _ = tokio::fs::remove_file(&result_file).await;
+
+    // Spawned by its resolved path, not its bare name: the bare name goes
+    // through `PATH`, which is exactly what a GUI-launched app lacks, so
+    // finding it in /opt/homebrew/bin and then failing to start it would be
+    // the same bug one step later.
+    let binary = binary().ok_or_else(|| Error::Internal("yt-dlp is not installed".into()))?;
+    // ffmpeg is what joins a separate picture and sound, and yt-dlp finds it
+    // on the same minimal PATH that hid yt-dlp itself — so it is resolved the
+    // same way and handed over explicitly. Without one, the format asks for a
+    // single stream that needs no joining.
+    let ffmpeg = which("ffmpeg");
+    let mut command = Command::new(binary);
+    crate::no_window_async(&mut command);
+    command
+        .arg("--no-playlist")
+        .arg("--no-color")
+        .arg("--newline")
+        // Resume from a part left by a previous run, which is what a pause and
+        // a later start turn into.
+        .arg("--continue")
+        .arg("-o")
+        .arg(staging.join("%(title).200B [%(id)s].%(ext)s"))
+        .arg("-f")
+        .arg(format_for(options.quality, ffmpeg.is_some()))
+        .args(container_sort(options.container.as_deref()))
+        .arg("--progress-template")
+        .arg(format!(
+            "download:{MARK}%(progress.downloaded_bytes)s %(progress.total_bytes)s %(progress.total_bytes_estimate)s"
+        ))
+        .arg("--print-to-file")
+        .arg("after_move:filepath")
+        .arg(&result_file)
+        // Bounded, where yt-dlp's defaults are ten tries per fragment with
+        // no socket timeout: a segment host answering 503 would otherwise
+        // keep the row "running" for minutes before dm hears it failed.
+        .arg("--retries")
+        .arg("3")
+        .arg("--fragment-retries")
+        .arg("3")
+        .arg("--socket-timeout")
+        .arg("15")
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .kill_on_drop(true);
+
+    if let Some(ffmpeg) = &ffmpeg {
+        command.arg("--ffmpeg-location").arg(ffmpeg);
+        // Subtitles ride inside the file, which is ffmpeg's work; without
+        // one they would land beside it as files dm does not place.
+        if options.subtitles {
+            command.args(["--write-subs", "--sub-langs", "all", "--embed-subs"]);
+        }
+    }
+
+    /* The same two things every request of dm's own carries. yt-dlp makes
+     * its own connections, so the proxy the client was built with does not
+     * reach it unless it is told — and a machine where everything must go
+     * through the proxy is exactly where a direct connection is the one
+     * outcome nobody wants. The referrer is what a hotlink-protected page
+     * checks for, and the probe that routed here already needed it. */
+    if let Some(proxy) = options.proxy_for(url) {
+        command.arg("--proxy").arg(proxy);
+    }
+    if let Some(referrer) = &options.referrer {
+        command.arg("--referer").arg(referrer);
+    }
+    /* The site's sign-in goes in a cookies file of this run's own, readable
+     * by this account alone and removed when the run ends — never on the
+     * command line, where any local user's `ps` reads it — and scoped to the
+     * site's own domain, so yt-dlp sends it there and nowhere else. A
+     * cookies file a person chose is copied in beside it, since yt-dlp
+     * takes one. */
+    let _signed = match options
+        .sign_in
+        .as_ref()
+        .filter(|s| s.for_url(url).is_some())
+    {
+        Some(sign_in) => {
+            let mut text = String::from("# Netscape HTTP Cookie File\n");
+            if let Some(chosen) = crate::cookies::file() {
+                if let Ok(theirs) = tokio::fs::read_to_string(&chosen).await {
+                    text.push_str(&theirs);
+                    if !text.ends_with('\n') {
+                        text.push('\n');
+                    }
+                }
+            }
+            text.push_str(&sign_in.netscape_lines());
+            let path = staging.join("sign-in.cookies.txt");
+            write_private(&path, &text).await?;
+            command.arg("--cookies").arg(&path);
+            Some(RemoveOnDrop(path))
+        }
+        None => {
+            if let Some(cookies) = crate::cookies::file() {
+                command.arg("--cookies").arg(cookies);
+            }
+            None
+        }
+    };
+
+    // This run's part of the shared ceiling, if one is set, held until it
+    // ends. yt-dlp takes bytes per second, once: it keeps the part it was
+    // given when others start or finish.
+    let _share = options.limiter.share();
+    let rate = options.limiter.part().await;
+    if rate > 0 {
+        command.arg("--limit-rate").arg(rate.to_string());
+    }
+
+    command.arg(url);
+
+    let mut child = command
+        .spawn()
+        .map_err(|e| Error::Internal(format!("yt-dlp would not start: {e}")))?;
+
+    // Drained on its own task, not left in the pipe. A long download that
+    // logged more warnings than the pipe holds would otherwise block yt-dlp
+    // writing to a stderr nobody is reading. Kept to report on a failure.
+    let stderr = child
+        .stderr
+        .take()
+        .ok_or_else(|| Error::Internal("yt-dlp started without its error output".into()))?;
+    let errors = tokio::spawn(async move {
+        use tokio::io::AsyncReadExt;
+        let mut text = String::new();
+        let _ = BufReader::new(stderr).read_to_string(&mut text).await;
+        text
+    });
+
+    let stdout = child
+        .stdout
+        .take()
+        .ok_or_else(|| Error::Internal("yt-dlp started without its output".into()))?;
+    let mut lines = BufReader::new(stdout).lines();
+    let mut named = false;
+
+    loop {
+        tokio::select! {
+            line = lines.next_line() => {
+                let Some(line) = line.map_err(Error::Disk)? else { break };
+
+                if let Some(rest) = line.strip_prefix(MARK) {
+                    if let Some(tx) = &report {
+                        if let Some(progress) = parse_progress(rest) {
+                            let _ = tx.send(Update::Progress(progress)).await;
+                        }
+                    }
+                } else if let Some(dest) = line.strip_prefix("[download] Destination: ") {
+                    // An early name, before the merge settles the final one.
+                    if !named {
+                        if let Some(name) = Path::new(dest.trim()).file_name() {
+                            let name = name.to_string_lossy().into_owned();
+                            if let Some(tx) = &report {
+                                let _ = tx
+                                    .send(Update::Named {
+                                        category: category::classify(&name, None),
+                                        name,
+                                    })
+                                    .await;
+                            }
+                            named = true;
+                        }
+                    }
+                }
+            }
+            // Between lines, so a pause or cancel is honoured even while
+            // yt-dlp is quiet. Killing the child leaves its part behind for
+            // --continue to resume from; a cancel throws that away.
+            _ = tokio::time::sleep(std::time::Duration::from_millis(250)) => {
+                if let Err(stop) = options.control.check() {
+                    let _ = child.kill().await;
+                    if matches!(stop, Error::Cancelled) {
+                        let _ = tokio::fs::remove_dir_all(staging).await;
+                    }
+                    return Err(stop);
+                }
+            }
+        }
+    }
+
+    let status = child
+        .wait()
+        .await
+        .map_err(|e| Error::Internal(format!("yt-dlp did not finish: {e}")))?;
+
+    // Checked after draining stdout, so a pause noticed on the last line wins.
+    options.control.check()?;
+
+    if !status.success() {
+        let stderr = errors.await.unwrap_or_default();
+        let tail = stderr
+            .lines()
+            .rev()
+            .find(|l| !l.trim().is_empty())
+            .unwrap_or("");
+        /* With no ffmpeg the format asks for one stream carrying both
+         * picture and sound, and a stream that only comes as two has none:
+         * yt-dlp says "Requested format is not available", which names
+         * neither the cause nor the fix. */
+        if let Some(said) = refusal(&stderr) {
+            return Err(Error::Internal(said));
+        }
+        if ffmpeg.is_none() && tail.contains("Requested format is not available") {
+            return Err(Error::Internal(
+                "that stream's picture and sound are separate and joining them needs \
+                 ffmpeg — install ffmpeg"
+                    .into(),
+            ));
+        }
+        return Err(Error::Internal(format!(
+            "yt-dlp could not download that{}",
+            if tail.is_empty() {
+                String::new()
+            } else {
+                format!(": {tail}")
+            }
+        )));
+    }
+
+    let produced = tokio::fs::read_to_string(&result_file)
+        .await
+        .ok()
+        .and_then(|s| s.lines().next_back().map(str::trim).map(PathBuf::from))
+        .filter(|p| !p.as_os_str().is_empty())
+        .ok_or_else(|| Error::Internal("yt-dlp reported no output file".into()))?;
+
+    place(&produced, options).await
+}
+
+/// Moves a finished yt-dlp file into its category folder under the download
+/// directory, the same placement every other download gets.
+async fn place(produced: &Path, options: &Options) -> Result<Finished, Error> {
+    // yt-dlp names the file it meant to leave; if it is not there, the usual
+    // cause is a join that never happened, and "No such file" says nothing.
+    if !produced.is_file() {
+        return Err(Error::Internal(
+            "yt-dlp finished but the file it named is missing — install ffmpeg so \
+             separate video and audio can be joined"
+                .into(),
+        ));
+    }
+    let name = produced
+        .file_name()
+        .map(|n| n.to_string_lossy().into_owned())
+        .unwrap_or_else(|| "download".to_string());
+
+    /* Placed by the same code as every other download — the category
+     * folder, a name nothing else has, a rename that falls back to a copy
+     * across filesystems, the digest checked and a failing file removed.
+     * This used to be a second copy of all of that, one rule at a time. */
+    let (dest, bytes, category) =
+        crate::download::finish(&name, None, &[produced.to_path_buf()], options).await?;
+    let _ = tokio::fs::remove_dir_all(&options.parts_dir).await;
+
+    Ok(Finished {
+        path: dest,
+        bytes,
+        // yt-dlp manages its own connections; the column would be guessing.
+        connections: 1,
+        category,
+        verified: options.checksum.is_some(),
+        mirrors: 0,
+    })
+}
+
+/// Reads one progress line, `<downloaded> <total> <estimate>`.
+///
+/// yt-dlp writes `NA` where it does not know, and knows the total only for
+/// some formats — an estimate stands in until then, and neither is fatal.
+fn parse_progress(rest: &str) -> Option<crate::Progress> {
+    let mut fields = rest.split_whitespace();
+    let downloaded: u64 = fields.next()?.parse().ok()?;
+    let total = fields.next().and_then(|s| s.parse::<u64>().ok());
+    let estimate = fields.next().and_then(|s| s.parse::<u64>().ok());
+
+    Some(crate::Progress {
+        downloaded,
+        total: total.or(estimate),
+        // yt-dlp's own speed line is separate; dm's watcher is not on this
+        // path, so speed and ETA are left for the numbers that are certain.
+        speed: 0.0,
+        eta: None,
+    })
+}
+
+/// What a site's refusal means, in words a person can act on, when yt-dlp's
+/// error output shows one of the common ones. A live run against YouTube
+/// failed with yt-dlp's raw "HTTP Error 429" after Google sent it to its
+/// "sorry" page; the row should say the network was rate-limited, and that
+/// waiting is the fix, not that dm broke.
+pub fn refusal(stderr: &str) -> Option<String> {
+    let said = stderr.to_ascii_lowercase();
+    let has = |needle: &str| said.contains(needle);
+    if has("http error 429") || has("too many requests") || has("google.com/sorry") {
+        return Some(
+            "the site is limiting downloads from this network right now (HTTP 429); \
+             try again later"
+                .into(),
+        );
+    }
+    if has("confirm you") && has("not a bot") {
+        return Some(
+            "the site wants this network to prove it is not a bot; open the video in \
+             the browser, or try again later"
+                .into(),
+        );
+    }
+    if has("sign in") || has("log in") || has("login required") || has("logged-in") {
+        return Some("the site only shows this to someone signed in".into());
+    }
+    if has("private video") {
+        return Some("that video is private".into());
+    }
+    if has("video unavailable") || has("this video has been removed") || has("http error 404") {
+        return Some("that video is not available any more".into());
+    }
+    if has("unsupported url") {
+        return Some("yt-dlp does not know this site".into());
+    }
+    // A stream encrypted for the site's own player alone. Neither yt-dlp
+    // nor dm takes protection off, and yt-dlp's advice to pick another
+    // format leads nowhere when every format is protected (Vimeo's, seen
+    // 2026-10-16 through the panel).
+    if has("drm protected") || has("drm-protected") {
+        return Some(
+            "that video is copy-protected (DRM), so only the site's own player can play it; \
+             dm does not download protected video"
+                .into(),
+        );
+    }
+    None
+}
+
+#[cfg(test)]
+mod tests {
+    use super::refusal;
+
+    #[test]
+    fn a_sites_refusal_is_said_in_words_a_person_can_act_on() {
+        let limited = "WARNING: [youtube] got redirected to https://www.google.com/sorry/index\n\
+                       ERROR: [youtube] jNQXAC9IVRw: Unable to download webpage: HTTP Error 429: Too Many Requests";
+        assert!(refusal(limited).unwrap().contains("try again later"));
+        assert!(
+            refusal("ERROR: Sign in to confirm you're not a bot. Use --cookies")
+                .unwrap()
+                .contains("not a bot")
+        );
+        assert!(
+            refusal("ERROR: [vimeo] 1: The web client only works when logged-in")
+                .unwrap()
+                .contains("signed in")
+        );
+        assert_eq!(
+            refusal("ERROR: [youtube] x: Private video").as_deref(),
+            Some("that video is private")
+        );
+        assert!(refusal("ERROR: Unsupported URL: https://e.com/")
+            .unwrap()
+            .contains("does not know"));
+        assert!(refusal(
+            "ERROR: This format is DRM protected; Try selecting another format with --format"
+        )
+        .is_some_and(|said| said.contains("copy-protected")));
+        assert_eq!(refusal("ERROR: something else entirely"), None);
+    }
+
+    use super::*;
+
+    #[test]
+    fn the_list_offers_mp4_where_there_is_one_as_youtube_lists_webm_bigger() {
+        // YouTube's real shape: VP9 WebM bigger than H.264 MP4 at a height,
+        // Opus sound at a higher bitrate than M4A, and 4K only in WebM.
+        let described = serde_json::json!({"formats": [
+            {"ext": "m4a", "vcodec": "none", "acodec": "mp4a", "abr": 129.0, "filesize": 1_000},
+            {"ext": "webm", "vcodec": "none", "acodec": "opus", "abr": 140.0, "filesize": 1_100},
+            {"ext": "mp4", "vcodec": "avc1", "acodec": "none", "width": 1920, "height": 1080, "filesize": 9_000},
+            {"ext": "webm", "vcodec": "vp9", "acodec": "none", "width": 1920, "height": 1080, "filesize": 12_000},
+            {"ext": "webm", "vcodec": "vp9", "acodec": "none", "width": 3840, "height": 2160, "filesize": 40_000},
+        ]})
+        .to_string();
+        let list = choices(&described);
+        let labels: Vec<&str> = list.iter().map(|c| c.label.as_str()).collect();
+        assert_eq!(labels, ["WEBM 3840×2160", "MP4 1920×1080", "M4A audio"]);
+        assert_eq!(list[1].quality, "1080/mp4");
+        assert_eq!(list[1].size, Some(10_000), "joined with the M4A sound");
+    }
+
+    #[test]
+    fn a_pages_formats_become_one_choice_per_height_and_the_sound_alone() {
+        let described = serde_json::json!({"formats": [
+            {"format_id": "140", "ext": "m4a", "vcodec": "none", "acodec": "mp4a", "abr": 129.5, "filesize": 1_000},
+            {"format_id": "249", "ext": "webm", "vcodec": "none", "acodec": "opus", "abr": 50.0, "filesize": 400},
+            {"format_id": "18", "ext": "mp4", "vcodec": "avc1", "acodec": "mp4a", "width": 640, "height": 360, "filesize": 5_000},
+            {"format_id": "136", "ext": "mp4", "vcodec": "avc1", "acodec": "none", "width": 1280, "height": 720, "filesize": 9_000},
+            {"format_id": "247", "ext": "webm", "vcodec": "vp9", "acodec": "none", "width": 1280, "height": 720, "filesize_approx": 7_000},
+            {"format_id": "sb0", "ext": "mhtml", "vcodec": "none", "acodec": "none", "height": 90},
+        ]})
+        .to_string();
+        let list = choices(&described);
+        let labels: Vec<&str> = list.iter().map(|c| c.label.as_str()).collect();
+        assert_eq!(labels, ["MP4 1280×720", "MP4 640×360", "M4A audio"]);
+        assert_eq!(list[0].quality, "720/mp4");
+        assert_eq!(
+            list[0].size,
+            Some(10_000),
+            "the picture and the sound it is joined with"
+        );
+        assert_eq!(list[1].size, Some(5_000), "already carries its sound");
+        assert_eq!(list[2].quality, "audio/m4a");
+        assert_eq!(Quality::named(&list[0].quality), Quality::UpTo(720));
+        assert_eq!(Quality::named(&list[2].quality), Quality::Audio);
+        assert_eq!(
+            Quality::container_of(&list[0].quality).as_deref(),
+            Some("mp4")
+        );
+        assert_eq!(Quality::container_of("720"), None);
+        assert_eq!(Quality::container_of("720/../x"), None, "only a plain word");
+        assert_eq!(
+            container_sort(Some("mp4")),
+            [
+                "-S",
+                "res,ext:mp4:m4a,vcodec:h264",
+                "--merge-output-format",
+                "mp4"
+            ]
+        );
+        assert_eq!(
+            container_sort(None),
+            container_sort(Some("mp4")),
+            "MP4 unless a line asked otherwise"
+        );
+        assert_eq!(container_sort(Some("webm")), ["-S", "ext:webm:webm"]);
+        assert!(choices("not json").is_empty());
+        assert!(choices("{}").is_empty());
+    }
+
+    #[test]
+    fn a_quality_becomes_a_format_selector() {
+        assert_eq!(format_for(Quality::Best, true), "bv*+ba/b");
+        assert_eq!(format_for(Quality::Audio, true), "ba/b");
+        assert!(format_for(Quality::UpTo(720), true).contains("height<=720"));
+    }
+
+    #[test]
+    fn without_ffmpeg_a_single_stream_is_asked_for() {
+        // Two streams and no way to join them is two files and no video, so
+        // the selector must not ask for a pair when nothing can merge it.
+        assert_eq!(format_for(Quality::Best, false), "b");
+        assert_eq!(format_for(Quality::UpTo(480), false), "b[height<=480]/b");
+        assert!(!format_for(Quality::Best, false).contains('+'));
+    }
+
+    #[test]
+    fn progress_reads_bytes_and_falls_back_to_the_estimate() {
+        let p = parse_progress("500 1000 1000").unwrap();
+        assert_eq!(p.downloaded, 500);
+        assert_eq!(p.total, Some(1000));
+
+        // Total unknown, estimate present: the estimate stands in.
+        let p = parse_progress("500 NA 2000").unwrap();
+        assert_eq!(p.total, Some(2000));
+
+        // Neither known yet: a count with no total is still honest.
+        let p = parse_progress("500 NA NA").unwrap();
+        assert_eq!(p.downloaded, 500);
+        assert_eq!(p.total, None);
+    }
+
+    #[test]
+    fn a_line_without_the_numbers_is_ignored() {
+        assert!(parse_progress("not numbers here").is_none());
+    }
+}

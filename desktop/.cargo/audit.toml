@@ -1,0 +1,15 @@
+# `cargo audit` reads this. Each advisory ignored here was looked at and is
+# unreachable in dm; the reason is beside it, and the line goes when the
+# crate is upgraded past it.
+[advisories]
+ignore = [
+    # ringbuf 0.4 (through librqbit-utp): a double free when an element's
+    # Drop panics in skip/clear. librqbit-utp's ring holds u8, which has no
+    # Drop. The fix is ringbuf 0.5, which librqbit has not moved to yet.
+    "RUSTSEC-2026-0293",
+    # glib 0.18 and proc-macro-error (through drag's Linux GTK support).
+    # drag is a dependency on macOS and Windows only, so neither crate is
+    # compiled for any target dm ships; they are in Cargo.lock, not in dm.
+    "RUSTSEC-2024-0429",
+    "RUSTSEC-2024-0370",
+]

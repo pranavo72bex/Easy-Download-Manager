@@ -1,0 +1,16 @@
+name: Feature request
+description: Something dm should do
+labels: [enhancement]
+body:
+  - type: textarea
+    id: need
+    attributes:
+      label: What you want to do
+      description: The task you are trying to get done, rather than the button you imagine.
+    validations:
+      required: true
+  - type: textarea
+    id: how
+    attributes:
+      label: How you do it today
+      description: A workaround, another tool, or not at all.

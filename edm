@@ -1,0 +1,52 @@
+#!/bin/sh
+# dm, spelled the way the repository is named.
+#
+# A thin front on the Makefile, so that cloning and installing is the one
+# command it looks like it should be:
+#
+#     ./edm --install
+#
+# Everything here is `make` underneath; `make help` says the same things.
+
+set -eu
+
+here=$(cd "$(dirname "$0")" && pwd)
+
+usage() {
+  cat <<'TEXT'
+edm — a download manager
+
+  ./edm --install              build and install the client and the extension
+  ./edm --register [ext-id]    let the extension hand downloads to the client
+                               (no id for the unpacked build or Firefox;
+                               a Chrome Web Store build's id otherwise)
+  ./edm --unregister           stop it
+  ./edm --uninstall            remove all of it
+
+  ./edm --client               just the desktop client
+  ./edm --extension            just build the extension (Rust to WebAssembly)
+  ./edm --test                 the whole suite
+  ./edm --doctor               what is installed and what is missing
+
+Anything else is passed to make, so `./edm app` is `make app`.
+TEXT
+}
+
+# No arguments is a question, not an error.
+[ $# -eq 0 ] && { usage; exit 0; }
+
+case "$1" in
+  --help|-h|help)   usage ;;
+  --install)        exec make -C "$here" install ;;
+  --client)         exec make -C "$here" client ;;
+  --extension)      exec make -C "$here" extension ;;
+  --uninstall)      exec make -C "$here" uninstall ;;
+  --test)           exec make -C "$here" test ;;
+  --doctor)         exec make -C "$here" doctor ;;
+  --register)
+    shift
+    # The client tells a Chrome id from a Firefox one itself.
+    exec make -C "$here" register EXT_ID="$*" ;;
+  --unregister)     exec make -C "$here" unregister ;;
+  *) exec make -C "$here" "$@" ;;
+esac
