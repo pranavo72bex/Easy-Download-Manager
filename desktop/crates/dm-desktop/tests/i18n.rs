@@ -26,6 +26,9 @@ fn wanted() -> BTreeSet<String> {
             "Said::new(",
             "Said::naming(",
             "primary(ui,",
+            "tn(",
+            "Said::counting(",
+            "Said::counting_naming(",
         ] {
             let mut rest = text;
             while let Some(at) = rest.find(opener) {
@@ -83,13 +86,36 @@ fn every_translated_word_is_in_every_catalog() {
                 missing.push(format!("{code}: {key:?}"));
             }
         }
-        // Each `{}` of the English is in the translation as often.
+        // Each `{}` of the English is in the translation as often: in
+        // each of its forms, where it has forms for a count.
+        let forms = dm_desktop::i18n::FORMS;
         for (english, translated) in &have {
-            assert_eq!(
-                dm_desktop::i18n::placeholders(english),
-                dm_desktop::i18n::placeholders(translated),
-                "{code}: {english:?} → {translated:?} takes other values"
-            );
+            let first = english.split(forms).next().unwrap_or_default();
+            for form in translated.split(forms) {
+                assert_eq!(
+                    dm_desktop::i18n::placeholders(first),
+                    dm_desktop::i18n::placeholders(form),
+                    "{code}: {english:?} → {translated:?} takes other values"
+                );
+            }
+            if english.contains(forms) {
+                // As many forms as the language's grammar has.
+                let wanted = match code {
+                    "ru" | "pl" => 3,
+                    "id" | "tr" => 1,
+                    _ => 2,
+                };
+                assert_eq!(
+                    translated.split(forms).count(),
+                    wanted,
+                    "{code}: {english:?} → {translated:?} has the wrong number of forms"
+                );
+            } else {
+                assert!(
+                    !translated.contains(forms),
+                    "{code}: {english:?} → {translated:?} has forms the English has not"
+                );
+            }
             assert!(
                 !translated.trim().is_empty(),
                 "{code}: {english:?} is empty"

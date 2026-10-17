@@ -53,8 +53,36 @@ pub struct FileInfo {
     pub no_chooser: bool,
     /// The name the server gives the file, once asked (gap 138), and
     /// whether a person typed in Save as since, which it then leaves alone.
-    pub probed: Option<std::sync::Arc<std::sync::Mutex<Option<String>>>>,
+    pub probed: Option<std::sync::Arc<std::sync::Mutex<Option<Probed>>>>,
     pub name_typed: bool,
+}
+
+/// What Download details learned by asking the server: the name the file
+/// will have, where it gives one, and its size, where it says.
+#[derive(Debug, Clone, Default, PartialEq)]
+pub struct Probed {
+    pub name: Option<String>,
+    pub size: Option<u64>,
+}
+
+/// The name an HLS stream at `url` is saved under: the engine's own naming
+/// for streams (a manifest called `index.m3u8` takes its folder's name),
+/// as a transport stream, and as an MP4 where `remux` puts it into one
+/// (gap 156). `None` for an address that is not a stream.
+pub fn stream_name(url: &str, content_type: Option<&str>, remux: bool) -> Option<String> {
+    if dm_core::stream::kind_of(url, content_type) != Some(dm_core::stream::Kind::Hls) {
+        return None;
+    }
+    // The engine names a stream from its address and what its segments
+    // are; asked with one transport-stream segment, it names it as one.
+    let one = "#EXTM3U\n#EXTINF:1,\nsegment.ts\n#EXT-X-ENDLIST\n";
+    let named = dm_core::stream::media_playlist(one, url, url, Default::default())
+        .ok()?
+        .filename;
+    match named.strip_suffix(".ts") {
+        Some(stem) if remux => Some(format!("{stem}.mp4")),
+        _ => Some(named),
+    }
 }
 
 /// What dm learned of one link by asking its server.
@@ -804,8 +832,41 @@ fn primary_worded(ui: &mut egui::Ui, text: &str) -> egui::Response {
 /// A text field with a name a screen reader says.
 fn field(ui: &mut egui::Ui, label: &str, text: &mut String, width: f32) -> egui::Response {
     let name = ui.label(label);
-    ui.add(egui::TextEdit::singleline(text).desired_width(width))
-        .labelled_by(name.id)
+    ui.scope(|ui| {
+        selection_seen(ui);
+        ui.add(egui::TextEdit::singleline(text).desired_width(width))
+    })
+    .inner
+    .labelled_by(name.id)
+}
+
+/// Selected text drawn in the list's selection colours, which read on a
+/// field: the looks' own selection fill is a pale grey for the tree, and a
+/// link selected in Add URL could not be told from one that was not (gap
+/// 160).
+fn selection_seen(ui: &mut egui::Ui) {
+    let tokens = crate::theme::Tokens::get(ui.ctx());
+    let selection = &mut ui.visuals_mut().selection;
+    selection.bg_fill = tokens.row_selected;
+    selection.stroke.color = tokens.row_selected_text;
+}
+
+/// A dialog's warning, under its fields, with its room kept while there is
+/// nothing to say: appearing, it grew the dialog, which is placed by its
+/// middle, and the whole dialog jumped (gap 160). Two lines, which is what
+/// the dialogs' warnings take at their widths.
+fn warning_line(ui: &mut egui::Ui, says: &str) {
+    let line = ui.text_style_height(&egui::TextStyle::Body);
+    let room = line * 2.0 + ui.spacing().item_spacing.y;
+    // As wide as what is above it: the room it could have would widen
+    // a dialog that sizes itself to its contents.
+    let width = ui.min_rect().width().max(160.0);
+    ui.allocate_ui(egui::vec2(width, room), |ui| {
+        ui.set_min_size(egui::vec2(width, room));
+        if !says.is_empty() {
+            ui.add(egui::Label::new(RichText::new(says).color(WARN)).wrap());
+        }
+    });
 }
 
 /// Enter pressed in a field: the dialog's default button, as in any
@@ -1103,11 +1164,35 @@ fn confirm_exit(app: &mut DmApp, ctx: &egui::Context) {
         return;
     }
     let (mut exit, mut stay) = (false, false);
+    // Running and waiting counted apart: a queued row is not running, and
+    // counting it as one told of downloads that were not (gap 157).
+    let (busy, waiting) = app.running_and_waiting();
     window("Exit dm?").show(ctx, |ui| {
-        ui.label(tf(
-            "{} download(s) are still running. Exiting stops them; they go on from where they were the next time dm opens.",
-            &[&running],
-        ));
+        let mut said = Vec::new();
+        if busy > 0 {
+            said.push(crate::i18n::tn(
+                "{} download is still running.||{} downloads are still running.",
+                busy as u64,
+                &[&busy],
+            ));
+        }
+        if waiting > 0 && busy > 0 {
+            said.push(crate::i18n::tn(
+                "{} more is waiting to start.||{} more are waiting to start.",
+                waiting as u64,
+                &[&waiting],
+            ));
+        } else if waiting > 0 {
+            said.push(crate::i18n::tn(
+                "{} download is waiting to start.||{} downloads are waiting to start.",
+                waiting as u64,
+                &[&waiting],
+            ));
+        }
+        said.push(
+            t("Exiting stops them; each goes on from where it was the next time dm opens.").into(),
+        );
+        ui.label(said.join(" "));
         ui.horizontal(|ui| {
             exit = primary(ui, "Exit").clicked();
             stay = ui.button(t("Keep downloading")).clicked();
@@ -1154,7 +1239,7 @@ fn skip_offer(app: &mut DmApp, ctx: &egui::Context) {
 }
 
 /// An address without its login, for telling two rows apart.
-fn bare(url: &str) -> String {
+pub(crate) fn bare(url: &str) -> String {
     url::Url::parse(url)
         .map(|mut u| {
             let _ = u.set_username("");
@@ -1274,7 +1359,8 @@ fn duplicate(app: &mut DmApp, ctx: &egui::Context) {
         ui.label(RichText::new(format::shown_url(&address)).monospace());
         ui.label(tf("This address is already in the list ({}).", &[&status]));
         ui.horizontal(|ui| {
-            again = primary(ui, "Download again").clicked();
+            // Enter presses it, as in every other dialog (gap 154).
+            again = primary(ui, "Download again").clicked() || enter_free(ui);
             show = ui.button(t("Show it")).clicked();
             cancel = ui.button(t("Cancel")).clicked();
         });
@@ -1319,9 +1405,7 @@ fn add_url(app: &mut DmApp, ctx: &egui::Context) {
                 ok |= entered(&password);
             });
         });
-        if !d.says.is_empty() {
-            ui.colored_label(WARN, &d.says);
-        }
+        warning_line(ui, &d.says);
         ui.horizontal(|ui| {
             ok |= primary(ui, "OK").clicked() || enter_free(ui);
             cancel = ui.button(t("Cancel")).clicked();
@@ -1376,7 +1460,8 @@ fn file_info(app: &mut DmApp, ctx: &egui::Context) {
     // The server is asked what it calls the file, once, as the dialog
     // opens; Save as had only the address's last part to show.
     if d.probed.is_none() && d.urls.len() == 1 && d.name.is_empty() {
-        let slot: std::sync::Arc<std::sync::Mutex<Option<String>>> = Default::default();
+        let slot: std::sync::Arc<std::sync::Mutex<Option<Probed>>> = Default::default();
+        let remux = app.applied.remux_ts;
         d.probed = Some(slot.clone());
         let url = d.urls.first().cloned().unwrap_or_default();
         if url.starts_with("http://") || url.starts_with("https://") {
@@ -1398,19 +1483,33 @@ fn file_info(app: &mut DmApp, ctx: &egui::Context) {
                     ),
                 )
                 .await;
-                // A web page's name ("watch") is no file's: left unsaid.
+                // A web page's name ("watch") and size are no file's: left
+                // unsaid. A stream's are its file's, not its playlist's.
                 if let Ok(Ok(probe)) = asked {
-                    if !probe.filename.is_empty()
-                        && !dm_core::ytdlp::is_page(probe.content_type.as_deref())
-                    {
-                        *dm_core::lock(&slot) = Some(probe.filename);
-                        ctx.request_repaint();
-                    }
+                    let kind = probe.content_type.as_deref();
+                    let found = if let Some(name) = stream_name(&url, kind, remux) {
+                        Probed {
+                            name: Some(name),
+                            size: None,
+                        }
+                    } else if dm_core::ytdlp::is_page(kind) {
+                        Probed::default()
+                    } else {
+                        Probed {
+                            name: Some(probe.filename).filter(|n| !n.is_empty()),
+                            size: probe.size,
+                        }
+                    };
+                    *dm_core::lock(&slot) = Some(found);
+                    ctx.request_repaint();
                 }
             });
         }
     }
-    let server_name = d.probed.as_ref().and_then(|p| dm_core::lock(p).clone());
+    let probed = d.probed.as_ref().and_then(|p| dm_core::lock(p).clone());
+    let server_name = probed.as_ref().and_then(|p| p.name.clone());
+    let size = probed.and_then(|p| p.size);
+    let remux = app.applied.remux_ts;
     if let Some(name) = &server_name {
         if !d.name_typed && d.name.is_empty() {
             d.name = name.clone();
@@ -1458,7 +1557,10 @@ fn file_info(app: &mut DmApp, ctx: &egui::Context) {
                         let save_as = ui
                             .add(
                                 egui::TextEdit::singleline(&mut d.name)
-                                    .hint_text(format::provisional(&first))
+                                    .hint_text(
+                                        stream_name(&first, None, remux)
+                                            .unwrap_or_else(|| format::provisional(&first)),
+                                    )
                                     .desired_width(360.0),
                             )
                             .labelled_by(name.id);
@@ -1468,6 +1570,17 @@ fn file_info(app: &mut DmApp, ctx: &egui::Context) {
                         if entered(&save_as) {
                             chosen = Some(false);
                         }
+                        ui.end_row();
+                    }
+                    // The size, once the server has said it (gap 160): its
+                    // line is there from the start, so the buttons below do
+                    // not move when the answer comes.
+                    if d.urls.len() == 1 {
+                        ui.label(t("Size"));
+                        match size {
+                            Some(size) => ui.label(format::bytes(size)),
+                            None => ui.label(RichText::new("—").weak()),
+                        };
                         ui.end_row();
                     }
                     let name = ui.label(t("Note"));
@@ -1622,7 +1735,10 @@ fn progress(app: &mut DmApp, ctx: &egui::Context) {
                         .max_col_width(room - 110.0)
                         .show(ui, |ui| {
                             ui.label(t("Status"));
-                            ui.add(egui::Label::new(status_of(&row)).wrap());
+                            let status = ui.add(egui::Label::new(status_of(&row)).wrap());
+                            if let Some(raw) = crate::app::failure_as_said(&row) {
+                                status.on_hover_text(raw);
+                            }
                             ui.end_row();
                             ui.label(t("File size"));
                             ui.label(
@@ -1646,8 +1762,14 @@ fn progress(app: &mut DmApp, ctx: &egui::Context) {
                                 String::new()
                             });
                             ui.end_row();
+                            // Only while it runs: a stopped download has
+                            // no time left to tell (gap 157).
                             ui.label(t("Time left"));
-                            ui.label(format::clock(p.eta));
+                            ui.label(if row.state == State::Running {
+                                format::clock(p.eta)
+                            } else {
+                                String::new()
+                            });
                             ui.end_row();
                             ui.label(t("Can resume"));
                             // What the server said when the download was planned, not
@@ -1691,24 +1813,38 @@ fn progress(app: &mut DmApp, ctx: &egui::Context) {
                                     .weak(),
                                 );
                             }
-                            let working = connections
-                                .iter()
-                                .enumerate()
-                                .filter(|(_, c)| c.done > 0 && c.done < span_of(c));
-                            for (n, c) in working {
+                            // Every piece of the plan: those under way with
+                            // their bars, the rest said to be waiting or
+                            // done, so the list does not grow and shrink as
+                            // connections start (gap 160).
+                            for (n, c) in connections.iter().enumerate() {
                                 let span = span_of(c);
                                 ui.horizontal(|ui| {
                                     ui.label(format!("{:>3}", n + 1));
-                                    bar(
-                                        ui,
-                                        c.done as f32 / span.max(1) as f32,
-                                        260.0,
-                                        &format!(
-                                            "{} of {}",
-                                            format::bytes(c.done),
-                                            format::bytes(span)
-                                        ),
-                                    );
+                                    if c.done >= span {
+                                        ui.label(
+                                            RichText::new(tf("done, {}", &[&format::bytes(span)]))
+                                                .weak(),
+                                        );
+                                    } else if c.done == 0 && row.state == State::Running {
+                                        ui.label(
+                                            RichText::new(tf(
+                                                "waiting, {}",
+                                                &[&format::bytes(span)],
+                                            ))
+                                            .weak(),
+                                        );
+                                    } else {
+                                        bar(
+                                            ui,
+                                            c.done as f32 / span.max(1) as f32,
+                                            260.0,
+                                            &tf(
+                                                "{} of {}",
+                                                &[&format::bytes(c.done), &format::bytes(span)],
+                                            ),
+                                        );
+                                    }
                                 });
                             }
                         });
@@ -1932,7 +2068,18 @@ fn properties(app: &mut DmApp, ctx: &egui::Context) {
                                 said(ui, &d.name);
                                 ui.end_row();
                                 ui.label(t("Status"));
-                                ui.label(status_of(&row));
+                                // Held to the values' column like the rest:
+                                // a long engine error, unwrapped, stretched
+                                // every row of the grid (gap 153).
+                                let status = status_of(&row);
+                                match crate::app::failure_as_said(&row) {
+                                    Some(raw) => {
+                                        ui.scope(|ui| said(ui, &status))
+                                            .response
+                                            .on_hover_text(raw);
+                                    }
+                                    None => said(ui, &status),
+                                }
                                 ui.end_row();
                                 ui.label(t("Size"));
                                 said(
@@ -2126,7 +2273,11 @@ fn series(app: &mut DmApp, ctx: &egui::Context) {
             };
             match app.add(&urls, with) {
                 Ok(n) => {
-                    app.said = crate::i18n::Said::new("Added {} download(s).", &[&n]);
+                    app.said = crate::i18n::Said::counting(
+                        "Added {} download.||Added {} downloads.",
+                        n as u64,
+                        &[&n],
+                    );
                     app.dialogs.series = None;
                 }
                 Err(e) => d_says(&mut app.dialogs.series, e),
@@ -2274,10 +2425,19 @@ fn links(app: &mut DmApp, ctx: &egui::Context) {
         };
         match added {
             Ok(n) if later => {
-                app.said =
-                    crate::i18n::Said::naming("Added {} download(s) to {}.", &[&n, &MAIN_QUEUE])
+                app.said = crate::i18n::Said::counting_naming(
+                    "Added {} download to {}.||Added {} downloads to {}.",
+                    n as u64,
+                    &[&n, &MAIN_QUEUE],
+                )
             }
-            Ok(n) => app.said = crate::i18n::Said::new("Started {} download(s).", &[&n]),
+            Ok(n) => {
+                app.said = crate::i18n::Said::counting(
+                    "Started {} download.||Started {} downloads.",
+                    n as u64,
+                    &[&n],
+                )
+            }
             Err(e) => app.said = e.into(),
         }
         return;
@@ -2326,10 +2486,19 @@ fn clip_links(app: &mut DmApp, ctx: &egui::Context) {
         };
         match app.add(&chosen, with) {
             Ok(n) if later => {
-                app.said =
-                    crate::i18n::Said::naming("Added {} download(s) to {}.", &[&n, &MAIN_QUEUE])
+                app.said = crate::i18n::Said::counting_naming(
+                    "Added {} download to {}.||Added {} downloads to {}.",
+                    n as u64,
+                    &[&n, &MAIN_QUEUE],
+                )
             }
-            Ok(n) => app.said = crate::i18n::Said::new("Started {} download(s).", &[&n]),
+            Ok(n) => {
+                app.said = crate::i18n::Said::counting(
+                    "Started {} download.||Started {} downloads.",
+                    n as u64,
+                    &[&n],
+                )
+            }
             Err(e) => app.said = e.into(),
         }
         open = false;
@@ -2479,7 +2648,11 @@ fn site_files(app: &mut DmApp, ctx: &egui::Context) {
             ..AddOptions::default()
         };
         if let Ok(n) = app.add(&chosen, with) {
-            app.said = crate::i18n::Said::naming("Added {} download(s) to {}.", &[&n, &MAIN_QUEUE]);
+            app.said = crate::i18n::Said::counting_naming(
+                "Added {} download to {}.||Added {} downloads to {}.",
+                n as u64,
+                &[&n, &MAIN_QUEUE],
+            );
         }
         open = false;
     }
@@ -3100,9 +3273,7 @@ fn options(app: &mut DmApp, ctx: &egui::Context) {
             }
         }
             });
-        if !d.says.is_empty() {
-            ui.colored_label(WARN, &d.says);
-        }
+        warning_line(ui, &d.says);
         ui.separator();
         ui.horizontal(|ui| {
             ok = primary(ui, "OK").clicked() || enter_free(ui);
@@ -3302,5 +3473,28 @@ mod changed_only_tests {
         assert_eq!(wanted.connections, 4, "Options' own change");
         assert_eq!(wanted.language, "de", "the language picked meanwhile");
         assert!(wanted.schedule.enabled, "the schedule set meanwhile");
+    }
+}
+
+#[cfg(test)]
+mod stream_name_tests {
+    use super::*;
+
+    /// Gap 156: a stream is suggested under the name it will be saved as,
+    /// the engine's own: its folder's name, as an MP4 where it is remuxed.
+    #[test]
+    fn a_stream_is_suggested_under_the_name_it_is_saved_as() {
+        let url = "http://127.0.0.1:8000/hls/index.m3u8";
+        assert_eq!(stream_name(url, None, true).as_deref(), Some("hls.mp4"));
+        assert_eq!(stream_name(url, None, false).as_deref(), Some("hls.ts"));
+        assert_eq!(
+            stream_name("http://h/live/lecture.m3u8?t=1", None, true).as_deref(),
+            Some("lecture.mp4")
+        );
+        assert_eq!(
+            stream_name("http://h/x", Some("application/vnd.apple.mpegurl"), true).as_deref(),
+            Some("x.mp4")
+        );
+        assert_eq!(stream_name("http://h/file.zip", None, true), None);
     }
 }

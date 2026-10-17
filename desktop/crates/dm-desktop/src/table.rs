@@ -88,11 +88,32 @@ pub fn show(app: &mut DmApp, ui: &mut egui::Ui) {
     // End and Down could not bring clear of it (gap 147).
     ui.spacing_mut().scroll = crate::theme::steady_scroll();
     let mut list_clip = None;
-    egui::ScrollArea::horizontal()
+    /* The up-and-down bar is the list's own, drawn in a strip at the
+     * visible right edge. The table's would sit at its right edge, inside
+     * the sideways scroll area, so it was out of sight whenever the columns
+     * ran past the window (gap 152): the table's is hidden and this one
+     * follows it, or moves it when dragged or wheeled. */
+    let bar_room = ui.spacing().scroll.allocated_width();
+    let whole = ui.available_rect_before_wrap();
+    let list_rect = egui::Rect::from_min_max(
+        whole.min,
+        egui::pos2((whole.max.x - bar_room).max(whole.min.x), whole.max.y),
+    );
+    let moved = app.list_bar_moved.take();
+    // From the left at launch: an offset egui kept from the last session
+    // opened the list with Name scrolled out of view.
+    let first = !std::mem::replace(&mut app.list_drawn, true);
+    let mut body_out: Option<(f32, f32, egui::Rect)> = None;
+    let mut sideways = egui::ScrollArea::horizontal()
         .id_salt("list-sideways")
-        .auto_shrink([false, false])
-        .show(ui, |ui| {
+        .auto_shrink([false, false]);
+    if first {
+        sideways = sideways.horizontal_scroll_offset(0.0);
+    }
+    ui.scope_builder(egui::UiBuilder::new().max_rect(list_rect), |ui| {
+        sideways.show(ui, |ui| {
             let mut table = TableBuilder::new(ui)
+                .scroll_bar_visibility(egui::scroll_area::ScrollBarVisibility::AlwaysHidden)
                 // Kept apart by how much room the name was given, so a
                 // narrower window starts from widths that fit it.
                 .id_salt(("list", (name_width / 25.0) as i32, queue_empty))
@@ -119,7 +140,10 @@ pub fn show(app: &mut DmApp, ui: &mut egui::Ui) {
             {
                 table = table.scroll_to_row(i, None);
             }
-            table
+            if let Some(y) = moved {
+                table = table.vertical_scroll_offset(y);
+            }
+            let out = table
                 .header(22.0, |mut header| {
                     for column in &columns {
                         header.col(|ui| heading(app, ui, *column));
@@ -154,7 +178,39 @@ pub fn show(app: &mut DmApp, ui: &mut egui::Ui) {
                         response.context_menu(|ui| row_menu(app, ui));
                     });
                 });
+            body_out = Some((
+                out.state.clamped_offset().y,
+                out.content_size.y,
+                out.inner_rect,
+            ));
         });
+    });
+    app.list_bar = None;
+    if let Some((offset, tall, seen)) = body_out {
+        let strip = egui::Rect::from_min_max(
+            egui::pos2(list_rect.max.x, seen.min.y),
+            egui::pos2(whole.max.x, seen.max.y),
+        );
+        if tall > seen.height() + 0.5 {
+            app.list_bar = Some(strip);
+            let bar = ui.scope_builder(egui::UiBuilder::new().max_rect(strip), |ui| {
+                egui::ScrollArea::vertical()
+                    .id_salt("list-bar")
+                    .auto_shrink([false, false])
+                    .max_height(strip.height())
+                    .vertical_scroll_offset(offset)
+                    .scroll_bar_visibility(egui::scroll_area::ScrollBarVisibility::AlwaysVisible)
+                    .show(ui, |ui| {
+                        ui.allocate_space(egui::vec2(0.0, tall));
+                    })
+            });
+            let to = bar.inner.state.clamped_offset().y;
+            if (to - offset).abs() > 0.5 {
+                app.list_bar_moved = Some(to);
+                ui.ctx().request_repaint();
+            }
+        }
+    }
 
     if let Some((i, modifiers)) = clicked {
         select(app, &rows, i, modifiers);
@@ -568,8 +624,13 @@ fn status_cell(ui: &mut egui::Ui, entry: &Entry, held: Option<&str>, selected: b
         State::Failed(_) => {
             // The whole reason on hover, with where to sign in when the
             // server wants it.
+            // In plain words, and below them what the engine said.
+            let hover = match crate::app::failure_as_said(entry) {
+                Some(raw) => format!("{text}\n\n{raw}"),
+                None => text,
+            };
             ui.colored_label(on_row(tokens.error), t("Error"))
-                .on_hover_text(text);
+                .on_hover_text(hover);
         }
         State::Paused if entry.paused_by_schedule => {
             let label = ui.label(text);

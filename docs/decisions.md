@@ -793,3 +793,35 @@ What it can do: a drop holding no link says how to add one (Add URL, the
 browser's right-click menu, or a dropped `.url`/`.webloc` file), and the
 empty list says the same.
 
+## A hand-off of a listed address is said, not asked (2026-10-18, gap 159)
+
+Add URL asks before adding an address already in the list. A browser's
+hand-off cannot be asked about the same way: the native host files it in the
+inbox, the inbox adds it to the queue (`shell::watch_inbox`, before the
+window hears of it), and the browser has already cancelled and erased its
+own download. A question then could only throw the download away, and a
+window in the tray would hold it unanswered. So the window says it in the
+status line — "Added file.zip again: that address was already in the list."
+— where a person who did not mean it can remove the second row.
+
+## Plurals: forms divided by `||` (2026-10-18, gap 157)
+
+A sentence about a count holds its forms in one catalog key, divided by
+`||` ("Added {} download.||Added {} downloads."); the translation holds its
+language's own forms the same way, and `i18n::form` picks one by CLDR's
+integer rules: English, German, Spanish, Italian, Dutch two (one, other),
+French and Portuguese two with 0 singular, Polish and Russian three, and
+Indonesian and Turkish one. Separate keys per form would not have served
+Polish and Russian. `tests/i18n.rs` holds every form to the English's
+placeholders and every language to its number of forms.
+
+## The list draws its own up-and-down bar (2026-10-18, gap 152)
+
+egui_extras' table has no sideways scrolling, so the list sits in a sideways
+scroll area, and the table's up-and-down bar was at the columns' far edge,
+out of sight whenever they ran past the window. The table's bar is hidden
+and the list draws one of its own in a strip at the visible right edge: it
+follows the table's offset, and a drag or a wheel on it is handed to the
+table on the next frame. The sideways offset egui keeps across launches is
+reset to the left edge on the first frame.
+

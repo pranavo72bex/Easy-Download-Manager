@@ -220,6 +220,8 @@ struct Job {
     tries: u32,
     /// The site's sign-in, sent with each range to its server.
     sign_in: Option<crate::cookies::SignIn>,
+    /// Where a retry is said, if anyone is listening.
+    report: Option<tokio::sync::mpsc::Sender<Update>>,
     /// Bytes on disk across every range.
     ///
     /// An atomic rather than a field under the segment lock: this is written
@@ -302,6 +304,13 @@ pub enum Update {
     Progress(Progress),
     /// The server's ETag or Last-Modified for the file being fetched.
     Validator(String),
+    /// A range failed and is about to be tried again: attempt `attempt`
+    /// (the first try is 1) of `of`, 0 being "keep trying". Over once bytes
+    /// arrive again.
+    Retrying {
+        attempt: u32,
+        of: u32,
+    },
 }
 
 pub async fn download_reporting(
@@ -355,8 +364,14 @@ async fn fetch_reporting(
     };
 
     // The probe is as worth retrying as anything after it: a server that is
-    // briefly busy should not fail a download before it has begun.
-    let mut info = retry::run_up_to(&options.control, options.attempts, || {
+    // briefly busy should not fail a download before it has begun. Each
+    // retry is said, as a range's is.
+    let retrying = |attempt, of| {
+        if let Some(tx) = &report {
+            let _ = tx.try_send(Update::Retrying { attempt, of });
+        }
+    };
+    let mut info = retry::run_up_to_telling(&options.control, options.attempts, retrying, || {
         or_stop(
             &options.control,
             probe(
@@ -510,6 +525,7 @@ async fn fetch_reporting(
         referrer: options.referrer.clone(),
         tries: options.attempts,
         sign_in: options.sign_in.clone(),
+        report: report.clone(),
     });
 
     // Anything already staged from a previous run counts as done. Read from
@@ -1259,13 +1275,20 @@ async fn fetch_segment(
             0
         }
     };
-    let outcome = retry::run_making_progress(&job.control, job.tries, on_disk, || {
-        // Counted before the attempt, so the next one picks a different
-        // mirror where there is one to pick.
-        job.attempts[index].fetch_add(1, Ordering::Relaxed);
-        attempt_segment(client, job, index, resumable)
-    })
-    .await;
+    // Said while it waits, so the row tells a retry from a stall.
+    let retrying = |attempt, of| {
+        if let Some(tx) = &job.report {
+            let _ = tx.try_send(Update::Retrying { attempt, of });
+        }
+    };
+    let outcome =
+        retry::run_making_progress_telling(&job.control, job.tries, on_disk, retrying, || {
+            // Counted before the attempt, so the next one picks a different
+            // mirror where there is one to pick.
+            job.attempts[index].fetch_add(1, Ordering::Relaxed);
+            attempt_segment(client, job, index, resumable)
+        })
+        .await;
 
     match outcome {
         // Asked to stop, so stop — including not treating it as a short range

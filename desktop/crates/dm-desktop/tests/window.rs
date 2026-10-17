@@ -211,6 +211,21 @@ fn world() -> World {
                         .unwrap()
                 }),
             );
+        // A connection that ends after a thousand bytes of a million, every
+        // time, with no ranges to resume from: retried, then failed.
+        let app = app.route(
+            "/drops.bin",
+            axum::routing::get(|| async {
+                let some = futures_util::stream::iter([
+                    Ok::<Vec<u8>, std::io::Error>(vec![7u8; 1000]),
+                    Err(std::io::Error::other("cut")),
+                ]);
+                Response::builder()
+                    .header("content-length", "1000000")
+                    .body(Body::from_stream(some))
+                    .unwrap()
+            }),
+        );
         let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
         let addr = listener.local_addr().unwrap();
         tokio::spawn(async move { axum::serve(listener, app).await.unwrap() });
@@ -5526,4 +5541,283 @@ fn a_drop_with_no_link_says_how_to_add_one() {
             >= 2,
         "the drop was ignored without a word"
     );
+}
+
+/// Gap 152: the list's up-and-down bar is at its visible right edge when
+/// the columns run past the window, and dragging it scrolls the list.
+#[test]
+fn the_lists_bar_stays_in_view_when_the_columns_run_past_it() {
+    let world = world();
+    let mut harness = Harness::builder()
+        .with_size(egui::vec2(720.0, 460.0))
+        .build_ui_state(|ui, app: &mut DmApp| app.ui(ui), world.app());
+    harness.state_mut().hidden_columns.clear();
+    let links: Vec<String> = (0..40)
+        .map(|i| world.url(&format!("gone-{i:02}.bin")))
+        .collect();
+    harness.state().backend().pause_all();
+    for link in &links {
+        harness
+            .state()
+            .backend()
+            .add_with(
+                link,
+                dm_core::AddOptions {
+                    later: true,
+                    ..Default::default()
+                },
+            )
+            .unwrap();
+    }
+    harness.state_mut().refresh();
+    harness.run_steps(4);
+    let bar = harness.state().list_bar.expect("a bar for 40 rows");
+    let clip = harness.state().list_clip.expect("the list was drawn");
+    assert!(bar.right() <= 720.0, "the bar {bar:?} is past the window");
+    assert!(
+        bar.left() >= clip.right() - 1.0,
+        "the bar {bar:?} is not beside the list {clip:?}"
+    );
+    let first = harness.state().visible()[0].id;
+    let top = harness.state().row_rects[&first].top();
+    // Dragged from its top to its bottom, as a person drags it.
+    let from = egui::pos2(bar.center().x, bar.top() + 6.0);
+    let to = egui::pos2(bar.center().x, bar.bottom() - 2.0);
+    let input = |h: &mut Harness<'_, DmApp>, event: egui::Event| {
+        h.input_mut().events.push(event);
+        h.run_steps(2);
+    };
+    input(&mut harness, egui::Event::PointerMoved(from));
+    input(
+        &mut harness,
+        egui::Event::PointerButton {
+            pos: from,
+            button: egui::PointerButton::Primary,
+            pressed: true,
+            modifiers: egui::Modifiers::NONE,
+        },
+    );
+    for step in 1..=8 {
+        let at = from + (to - from) * (step as f32 / 8.0);
+        input(&mut harness, egui::Event::PointerMoved(at));
+    }
+    input(
+        &mut harness,
+        egui::Event::PointerButton {
+            pos: to,
+            button: egui::PointerButton::Primary,
+            pressed: false,
+            modifiers: egui::Modifiers::NONE,
+        },
+    );
+    harness.run_steps(4);
+    let moved = harness
+        .state()
+        .row_rects
+        .get(&first)
+        .map(|r| r.top())
+        .unwrap_or(f32::NEG_INFINITY);
+    assert!(
+        moved < top - 100.0,
+        "the list did not scroll: {top} to {moved}"
+    );
+}
+
+/// Gap 153: a failed row's status is a plain reason, in Properties held to
+/// its column; the engine's words are kept for hover.
+#[test]
+fn a_cut_connection_is_said_plainly() {
+    let world = world();
+    let mut harness = Harness::builder()
+        .with_size(egui::vec2(1100.0, 720.0))
+        .build_ui_state(
+            |ui, app: &mut DmApp| app.ui(ui),
+            world.app_with(Settings {
+                download_dir: world.dir.path().join("out"),
+                connections: 1,
+                attempts: 1,
+                show_progress: false,
+                show_complete: false,
+                language: "en".into(),
+                ..Settings::default()
+            }),
+        );
+    harness
+        .state()
+        .backend()
+        .add(&world.url("drops.bin"))
+        .unwrap();
+    until(&mut harness, "the cut download to fail", |app| {
+        app.rows()
+            .iter()
+            .any(|r| matches!(r.state, State::Failed(_)))
+    });
+    let row = harness.state().rows()[0].clone();
+    let status = dm_desktop::app::status_of(&row);
+    assert_eq!(
+        status, "Error: the server ended the connection before the file was complete",
+        "{:?}",
+        row.state
+    );
+    assert!(dm_desktop::app::failure_as_said(&row).is_some());
+    harness.state_mut().selected = [row.id].into();
+    harness.state_mut().queued.push(Command::Properties);
+    harness.run_steps(4);
+    let shown = harness.get_by_label(&status);
+    let rect = shown.rect();
+    assert!(rect.height() < 60.0, "the status stands {rect:?} tall");
+}
+
+/// Gap 155: while a range waits to be tried again, the row says which
+/// attempt it is on.
+#[test]
+fn a_retry_says_its_attempt() {
+    let world = world();
+    let mut harness = Harness::builder()
+        .with_size(egui::vec2(1100.0, 720.0))
+        .build_ui_state(
+            |ui, app: &mut DmApp| app.ui(ui),
+            world.app_with(Settings {
+                download_dir: world.dir.path().join("out"),
+                connections: 1,
+                attempts: 5,
+                show_progress: false,
+                show_complete: false,
+                language: "en".into(),
+                ..Settings::default()
+            }),
+        );
+    harness
+        .state()
+        .backend()
+        .add(&world.url("drops.bin"))
+        .unwrap();
+    until(&mut harness, "the row to say it retries", |app| {
+        app.rows()
+            .first()
+            .is_some_and(|r| dm_desktop::app::status_of(r).starts_with("Retrying (attempt 2 of 5)"))
+    });
+}
+
+/// Gap 154: Enter presses Download again in "Already in the list".
+#[test]
+fn enter_downloads_again_when_already_listed() {
+    let world = world();
+    let mut harness = world.harness();
+    let url = world.url("file.zip");
+    add_url(&mut harness, &url, "Add for later");
+    click(&mut harness, "Add URL");
+    type_into(&mut harness, "Address", &url);
+    click(&mut harness, "OK");
+    assert!(harness.query_by_label("Already in the list").is_some());
+    harness.key_press(egui::Key::Enter);
+    harness.run_steps(3);
+    assert!(harness.query_by_label("Already in the list").is_none());
+    assert!(harness.query_by_label("Download details").is_some());
+}
+
+/// Gap 157: a row added for later is queued, not stopped; Exit counts the
+/// running alone; counts take real plurals.
+#[test]
+fn statuses_and_counts_say_what_is_so() {
+    let world = world();
+    let mut harness = world.harness();
+    add_url(&mut harness, &world.url("file.zip"), "Add for later");
+    let row = harness.state().rows()[0].clone();
+    assert_eq!(dm_desktop::app::status_of(&row), "Queued");
+    harness
+        .state()
+        .backend()
+        .add(&world.url("stalled.bin"))
+        .unwrap();
+    until(&mut harness, "the stalled one to run", |app| {
+        app.rows().iter().any(|r| r.state == State::Running)
+    });
+    harness.state_mut().ask_quit();
+    harness.run_steps(3);
+    assert!(
+        harness
+            .query_by_label_contains("1 download is still running.")
+            .is_some(),
+        "the Exit question counts the running one, singular"
+    );
+    assert!(harness.query_by_label_contains("(s)").is_none());
+}
+
+/// Gap 159: a hand-off of an address already listed is added, and said.
+#[test]
+fn a_hand_off_of_a_listed_address_is_said_to_be_added_again() {
+    let world = world();
+    let mut harness = world.harness();
+    add_url(&mut harness, &world.url("file.zip"), "Add for later");
+    harness.state_mut().refresh();
+    harness.run_steps(2);
+    // As the inbox adds a browser's hand-off: to the queue, not by the
+    // window.
+    harness
+        .state()
+        .backend()
+        .add_with(&world.url("file.zip"), dm_core::AddOptions::default())
+        .unwrap();
+    harness.state_mut().refresh();
+    harness.run_steps(2);
+    assert_eq!(
+        harness.state().said.english(),
+        "Added file.zip again: that address was already in the list."
+    );
+}
+
+/// Gap 160: Add URL keeps its place when its warning appears, and
+/// Download details shows the size once the server says it.
+#[test]
+fn dialogs_keep_their_place_and_show_the_size() {
+    let world = world();
+    let mut harness = world.harness();
+    click(&mut harness, "Add URL");
+    harness.run_steps(4);
+    let before = harness.get_by_label("OK").rect();
+    let two = format!("{}{}", world.url("a.zip"), world.url("b.zip"));
+    type_into(&mut harness, "Address", &two);
+    click(&mut harness, "OK");
+    harness.run_steps(4);
+    assert!(harness.query_by_label_contains("two addresses").is_some());
+    let after = harness.get_by_label("OK").rect();
+    assert!(
+        (before.top() - after.top()).abs() < 1.0,
+        "OK moved from {before:?} to {after:?}"
+    );
+    harness.state_mut().dialogs.add_url = None;
+    harness.run_steps(2);
+    harness
+        .state_mut()
+        .dialogs
+        .open_file_info(vec![world.url("file.zip")]);
+    until(&mut harness, "the size to be shown", |_| true);
+    let deadline = Instant::now() + Duration::from_secs(10);
+    while harness.query_by_label("256.0 KB").is_none() {
+        assert!(Instant::now() < deadline, "no size in Download details");
+        harness.run_steps(2);
+        std::thread::sleep(Duration::from_millis(25));
+    }
+}
+
+/// Gap 156: a finished row's size is its file's on disk, as a stream's
+/// MP4 is once remuxed.
+#[test]
+fn a_finished_rows_size_is_its_files() {
+    let world = world();
+    let mut harness = world.harness();
+    harness
+        .state()
+        .backend()
+        .add(&world.url("file.zip"))
+        .unwrap();
+    until(&mut harness, "the file to finish", |app| {
+        app.rows().iter().any(|r| r.state == State::Completed)
+    });
+    let path = harness.state().rows()[0].path.clone();
+    std::fs::write(&path, vec![0u8; 1000]).unwrap();
+    harness.state_mut().saved.clear();
+    harness.state_mut().refresh();
+    assert_eq!(harness.state().rows()[0].progress.total, Some(1000));
 }

@@ -195,6 +195,10 @@ struct Slot {
     /// Started by a person outside the schedule (`start_outside_schedule`):
     /// the schedule and the download limit leave this run alone.
     outside_schedule: bool,
+    /// The attempt a range of this run is on after a failure, and how many
+    /// there may be (0 for no end), until bytes arrive again. Not saved: it
+    /// is about this run.
+    retrying: Option<(u32, u32)>,
 }
 
 impl Slot {
@@ -462,6 +466,7 @@ impl Queue {
             control: Control::new(),
             task: None,
             outside_schedule: false,
+            retrying: None,
         };
 
         self.inner.slots.lock().await.insert(id, slot);
@@ -577,6 +582,7 @@ impl Queue {
                     control: Control::new(),
                     task: None,
                     outside_schedule: false,
+                    retrying: None,
                 },
             );
         }
@@ -846,6 +852,20 @@ impl Queue {
         }
         self.save().await;
         removed.len()
+    }
+
+    /// The rows a range is being retried for, now: each with the attempt
+    /// it is on (the first try is 1) and how many there may be, 0 for no
+    /// end. Over once bytes arrive again.
+    pub async fn retrying(&self) -> HashMap<Id, (u32, u32)> {
+        self.inner
+            .slots
+            .lock()
+            .await
+            .iter()
+            .filter(|(_, s)| s.entry.state == State::Running)
+            .filter_map(|(id, s)| s.retrying.map(|r| (*id, r)))
+            .collect()
     }
 
     /// Every row, in the order they were added.
@@ -1368,6 +1388,10 @@ impl Queue {
                                 // against the download limit.
                                 let arrived = reported
                                     .map_or(0, |before| progress.downloaded.saturating_sub(before));
+                                // Bytes again: the retry is over.
+                                if progress.downloaded > slot.entry.progress.downloaded {
+                                    slot.retrying = None;
+                                }
                                 reported = Some(progress.downloaded);
                                 crate::lock(&queue.inner.quota)
                                     .add(arrived, std::time::SystemTime::now());
@@ -1378,6 +1402,13 @@ impl Queue {
                             }
                             crate::download::Update::Validator(validator) => {
                                 slot.entry.validator = Some(validator);
+                            }
+                            // The highest attempt of any range is the row's.
+                            crate::download::Update::Retrying { attempt, of } => {
+                                let now = slot.retrying.map_or(0, |(a, _)| a);
+                                if attempt >= now {
+                                    slot.retrying = Some((attempt, of));
+                                }
                             }
                         }
                     }
@@ -1510,6 +1541,7 @@ impl Queue {
                 return;
             };
 
+            slot.retrying = None;
             slot.entry.state = match outcome {
                 Ok(finished) => {
                     // Usually the name the probe already reported, but

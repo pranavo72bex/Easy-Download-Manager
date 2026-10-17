@@ -88,6 +88,9 @@ thread_local! {
     /// can put one window in German while another is in English.
     static NOW: Cell<Option<&'static Catalog>> = const { Cell::new(None) };
 
+    /// The code of the language in force on this thread, for its plurals.
+    static CODE: Cell<&'static str> = const { Cell::new("en") };
+
     /// What was asked for and had no translation, on this thread, while a
     /// test is recording; `None`, and nothing kept, otherwise.
     static MISSED: RefCell<Option<BTreeSet<&'static str>>> = const { RefCell::new(None) };
@@ -97,6 +100,12 @@ thread_local! {
 /// is English.
 pub fn set(code: &str) {
     NOW.with(|now| now.set(catalog(code)));
+    let known = CATALOGS
+        .iter()
+        .map(|(c, _)| *c)
+        .find(|c| *c == code)
+        .unwrap_or("en");
+    CODE.with(|now| now.set(known));
 }
 
 /// The code of a language dm offers, as `LANGUAGES` spells it.
@@ -307,6 +316,67 @@ impl<'a> Iterator for Pieces<'a> {
     }
 }
 
+/* ------------------------------------------------------------ plurals */
+
+/// What divides a sentence's forms for a count: "{} file||{} files". A
+/// language has as many as its grammar wants — English two, Polish and
+/// Russian three, Indonesian and Turkish one — in the order `form` numbers
+/// them.
+pub const FORMS: &str = "||";
+
+/// Which of a language's forms a count takes: 0 for one, then the rest, as
+/// each language's grammar has them (CLDR's cardinal rules for integers).
+pub fn form(code: &str, n: u64) -> usize {
+    let (ten, hundred) = (n % 10, n % 100);
+    let few = (2..=4).contains(&ten) && !(12..=14).contains(&hundred);
+    match code {
+        // One form whatever the number.
+        "id" | "tr" => 0,
+        // 0 and 1 are both singular.
+        "fr" | "pt-BR" => usize::from(n > 1),
+        "ru" => {
+            if ten == 1 && hundred != 11 {
+                0
+            } else if few {
+                1
+            } else {
+                2
+            }
+        }
+        "pl" => {
+            if n == 1 {
+                0
+            } else if few {
+                1
+            } else {
+                2
+            }
+        }
+        _ => usize::from(n != 1),
+    }
+}
+
+/// The form of `template` (forms divided by `FORMS`) that `n` takes in
+/// language `code`; the last where it has fewer.
+pub fn form_of<'a>(template: &'a str, code: &str, n: u64) -> &'a str {
+    let forms: Vec<&str> = template.split(FORMS).collect();
+    let at = form(code, n).min(forms.len().saturating_sub(1));
+    forms.get(at).copied().unwrap_or(template)
+}
+
+/// A sentence about a count, in the form the count takes in the language
+/// in force: `english` holds its English forms divided by `FORMS`, and its
+/// translation the language's own.
+pub fn tn(english: &'static str, n: u64, values: &[&dyn Display]) -> String {
+    let translated = t(english);
+    let code = if std::ptr::eq(translated, english) {
+        "en"
+    } else {
+        CODE.with(Cell::get)
+    };
+    fill(form_of(translated, code, n), values)
+}
+
 /// A sentence with values in it. Each `{}` takes the next value in turn;
 /// a translation whose word order differs names them instead, `{0}` for the
 /// first and `{1}` for the second, in whatever order it needs.
@@ -367,6 +437,8 @@ enum Sentence {
         /// Whether the values are names dm may give (a queue's), worded
         /// with the sentence; a file name or a number never is.
         names: bool,
+        /// The count whose form the sentence takes, where it has forms.
+        count: Option<u64>,
     },
 }
 
@@ -389,11 +461,31 @@ impl Said {
         Said::worded(template, values, true)
     }
 
+    /// One about a count, worded in the form the count takes (`tn`).
+    pub fn counting(template: &'static str, n: u64, values: &[&dyn Display]) -> Self {
+        Said::counted(template, values, false, Some(n))
+    }
+
+    /// One about a count whose values are names, as `naming`.
+    pub fn counting_naming(template: &'static str, n: u64, values: &[&dyn Display]) -> Self {
+        Said::counted(template, values, true, Some(n))
+    }
+
     fn worded(template: &'static str, values: &[&dyn Display], names: bool) -> Self {
+        Said::counted(template, values, names, None)
+    }
+
+    fn counted(
+        template: &'static str,
+        values: &[&dyn Display],
+        names: bool,
+        count: Option<u64>,
+    ) -> Self {
         Said(Sentence::Worded {
             template,
             values: values.iter().map(ToString::to_string).collect(),
             names,
+            count,
         })
     }
 
@@ -405,13 +497,21 @@ impl Said {
                 template,
                 values,
                 names,
+                count,
             } => {
                 let shown: Vec<String> = if *names {
                     values.iter().map(|v| name(v)).collect()
                 } else {
                     values.clone()
                 };
-                filled(t(template), &shown)
+                match count {
+                    Some(n) => {
+                        let shown: Vec<&dyn Display> =
+                            shown.iter().map(|v| v as &dyn Display).collect();
+                        tn(template, *n, &shown)
+                    }
+                    None => filled(t(template), &shown),
+                }
             }
         }
     }
@@ -421,8 +521,14 @@ impl Said {
         match &self.0 {
             Sentence::Plain(plain) => plain.clone(),
             Sentence::Worded {
-                template, values, ..
-            } => filled(template, values),
+                template,
+                values,
+                count,
+                ..
+            } => match count {
+                Some(n) => filled(form_of(template, "en", *n), values),
+                None => filled(template, values),
+            },
         }
     }
 
@@ -751,25 +857,68 @@ mod tests {
 
     #[test]
     fn a_sentence_is_english_for_scripts_and_translated_for_people() {
-        let said = Said::new("Imported {} download(s).", &[&3]);
+        let said = Said::counting("Imported {} download.||Imported {} downloads.", 3, &[&3]);
         in_language("de", || {
-            assert_eq!(said.english(), "Imported 3 download(s).");
-            assert_eq!(said.shown(), "3 Download(s) importiert.");
+            assert_eq!(said.english(), "Imported 3 downloads.");
+            assert_eq!(said.shown(), "3 Downloads importiert.");
         });
         assert_eq!(said.shown(), said.english(), "in English, the same");
     }
 
     #[test]
     fn a_sentence_naming_a_queue_names_it_as_the_tree_does() {
-        let said = Said::naming("Started {} download(s) in {}.", &[&2, &dm_core::MAIN_QUEUE]);
+        let said = Said::counting_naming(
+            "Started {} download in {}.||Started {} downloads in {}.",
+            2,
+            &[&2, &dm_core::MAIN_QUEUE],
+        );
         in_language("de", || {
             assert!(
                 said.shown().contains("Haupt-Warteschlange"),
                 "{}",
                 said.shown()
             );
-            assert_eq!(said.english(), "Started 2 download(s) in Main queue.");
+            assert_eq!(said.english(), "Started 2 downloads in Main queue.");
         });
+    }
+
+    /// Gap 157: a count takes its language's form, not "(s)".
+    #[test]
+    fn a_count_takes_the_form_its_language_gives_it() {
+        let added = "Added {} download.||Added {} downloads.";
+        let one = |n: u64| tn(added, n, &[&n]);
+        assert_eq!(one(1), "Added 1 download.");
+        assert_eq!(one(2), "Added 2 downloads.");
+        assert_eq!(one(0), "Added 0 downloads.");
+        in_language("de", || {
+            // Gap 158: the status bar's sentence, in German.
+            let running = "{} downloading at {}||{} downloading at {}";
+            assert_eq!(
+                tn(running, 1, &[&1, &"5 KB/s"]),
+                "1 Download läuft mit 5 KB/s"
+            );
+            assert_eq!(
+                tn(running, 3, &[&3, &"5 KB/s"]),
+                "3 Downloads laufen mit 5 KB/s"
+            );
+            assert_eq!(one(1), "1 Download hinzugefügt.");
+            assert_eq!(one(4), "4 Downloads hinzugefügt.");
+        });
+        in_language("ru", || {
+            let forms: Vec<String> = [1, 3, 5, 11, 21, 22, 25].map(one).to_vec();
+            assert_eq!(forms[0], forms[4].replace("21", "1"), "21 is singular");
+            assert_eq!(forms[1], forms[5].replace("22", "3"), "22 is a few");
+            assert_eq!(forms[2], forms[3].replace("11", "5"), "11 is many");
+            assert_ne!(forms[0], forms[1].replace('3', "1"));
+            assert_ne!(forms[1], forms[2].replace('5', "3"));
+        });
+        assert_eq!(form("pl", 1), 0);
+        assert_eq!(form("pl", 22), 1);
+        assert_eq!(form("pl", 12), 2);
+        assert_eq!(form("fr", 0), 0);
+        assert_eq!(form("tr", 7), 0);
+        assert_eq!(form("en", 1), 0);
+        assert_eq!(form("en", 7), 1);
     }
 
     #[test]
