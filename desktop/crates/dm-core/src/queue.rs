@@ -1191,7 +1191,15 @@ impl Queue {
             let mut slots = self.inner.slots.lock().await;
             let mut held = false;
             for slot in slots.values_mut() {
-                if matches!(slot.entry.state, State::Running | State::Queued) {
+                // One that already has every byte is only putting its file
+                // together: held there, it was paused at 100 % and left for
+                // the next window, for bytes it no longer needed to fetch.
+                let fetched = slot
+                    .entry
+                    .progress
+                    .total
+                    .is_some_and(|total| slot.entry.progress.downloaded >= total);
+                if matches!(slot.entry.state, State::Running | State::Queued) && !fetched {
                     slot.hold(true);
                     held = true;
                 }
