@@ -303,6 +303,9 @@ pub struct Dialogs {
     pub check_update: bool,
     /// Rows Delete was pressed on that are not finished: asked about first.
     pub confirm_remove: Option<Vec<Id>>,
+    /// Rows the schedule or the download limit holds that a person asked to
+    /// start: asked whether to start them now, outside the schedule.
+    pub confirm_outside: Option<Vec<Id>>,
     /// An address typed in that is already a row: the address and the row.
     pub duplicate: Option<(String, Id)>,
     /// A site whose handed-over downloads were cancelled twice running:
@@ -481,6 +484,49 @@ impl Dialogs {
             .any(|n| n != "Download progress" && n != "Download complete")
     }
 
+    /// The windows of the dialogs in front that keep the keyboard to
+    /// themselves: Tab goes round their own controls and never to the menu
+    /// bar or the list behind, which take no clicks while one is open.
+    /// Find is left out: it finds rows in the list, which stays usable
+    /// beside it.
+    fn modal_layers(&self) -> Vec<egui::LayerId> {
+        let mut ids: Vec<egui::Id> = [
+            (self.confirm_exit, "Exit dm?"),
+            (self.confirm_remove.is_some(), "Delete unfinished downloads"),
+            (
+                self.confirm_outside.is_some(),
+                "Start outside the schedule?",
+            ),
+            (self.duplicate.is_some(), "Already in the list"),
+            (self.skip_offer.is_some(), "Leave this site to the browser?"),
+            (self.add_url.is_some(), "Add URL"),
+            (self.file_info.is_some(), "Download details"),
+            (self.series.is_some(), "Add numbered series"),
+            (self.clip_links.is_some(), "Links on the clipboard"),
+            (self.links.is_some(), "Download links"),
+            (self.site_files.is_some(), "Files on a site"),
+            (self.update_link.is_some(), "Update download link"),
+            (self.move_to_queue.is_some(), "Move to queue"),
+            (self.rename.is_some(), "Move/Rename"),
+            (self.scheduler.is_some(), "Scheduler"),
+            (self.limiter.is_some(), "Speed limiter"),
+            (self.options.is_some(), "Options"),
+            (self.about_open, "About dm"),
+        ]
+        .into_iter()
+        .filter(|(open, _)| *open)
+        .map(|(_, title)| window_id(title))
+        .collect();
+        ids.extend(
+            self.properties
+                .keys()
+                .map(|id| egui::Id::unique(("properties", *id))),
+        );
+        ids.into_iter()
+            .map(|id| egui::LayerId::new(egui::Order::Middle, id))
+            .collect()
+    }
+
     pub fn open_scheduler(&mut self, settings: &Settings) {
         if self.keep("Scheduler", self.scheduler.is_some()) {
             return;
@@ -489,6 +535,7 @@ impl Dialogs {
     }
 
     pub fn open_limiter(&mut self, settings: &Settings) {
+        self.focus_on("Speed limiter");
         if self.keep("Speed limiter", self.limiter.is_some()) {
             return;
         }
@@ -531,6 +578,10 @@ impl Dialogs {
         };
         say(self.confirm_exit, "Exit dm?");
         say(self.confirm_remove.is_some(), "Delete unfinished downloads");
+        say(
+            self.confirm_outside.is_some(),
+            "Start outside the schedule?",
+        );
         say(self.duplicate.is_some(), "Already in the list");
         say(self.skip_offer.is_some(), "Leave this site to the browser?");
         say(self.add_url.is_some(), "Add URL");
@@ -561,6 +612,7 @@ impl Dialogs {
     pub fn close_top(&mut self) -> bool {
         if std::mem::take(&mut self.confirm_exit)
             || self.confirm_remove.take().is_some()
+            || self.confirm_outside.take().is_some()
             || self.duplicate.take().is_some()
             || self.skip_offer.take().is_some()
         {
@@ -591,8 +643,10 @@ impl Dialogs {
             self.properties.remove(&id);
             return true;
         }
-        if let Some(id) = self.complete.iter().last().copied() {
-            self.complete.remove(&id);
+        // One window for every finished file: Escape closes it, all of it,
+        // as its close box does.
+        if !self.complete.is_empty() {
+            self.complete.clear();
             return true;
         }
         if let Some(id) = self.progress.iter().last().copied() {
@@ -682,6 +736,19 @@ fn entered(field: &egui::Response) -> bool {
     field.lost_focus() && field.ctx.input(|i| i.key_pressed(egui::Key::Enter))
 }
 
+/// Enter pressed in the dialog in front with none of its controls holding
+/// the keyboard: its default button, as a field's Enter is. A button of its
+/// own that has the keyboard takes Enter for itself instead.
+fn enter_free(ui: &egui::Ui) -> bool {
+    let ctx = ui.ctx();
+    let in_front = ctx.memory(|m| m.top_modal_layer()) == Some(ui.layer_id());
+    let own = ctx
+        .memory(|m| m.focused())
+        .and_then(|id| ctx.read_response(id))
+        .is_some_and(|r| r.layer_id == ui.layer_id());
+    in_front && !own && ui.input(|i| i.key_pressed(egui::Key::Enter))
+}
+
 /// Gives a field the keyboard when `now` says, and passes it on.
 fn focused(field: egui::Response, now: bool) -> egui::Response {
     if now {
@@ -706,11 +773,27 @@ fn folder_field(
 }
 
 /// A Browse… button beside a folder's field: the folder picked goes in it.
+/// Where the desktop has no folder chooser (a Linux desktop with neither
+/// the portal's nor zenity), says so beside the button and to type the
+/// path: the chooser's absence looked like a Cancel, and the button did
+/// nothing.
 fn browse(ui: &mut egui::Ui, platform: &dyn crate::backend::Platform, folder: &mut String) {
+    let missing = ui.scope_id().with("no-folder-chooser");
     if ui.button(t("Browse…")).clicked() {
-        if let Some(picked) = platform.choose_folder() {
-            *folder = picked.display().to_string();
+        if platform.can_choose_folder() {
+            ui.data_mut(|d| d.remove::<bool>(missing));
+            if let Some(picked) = platform.choose_folder() {
+                *folder = picked.display().to_string();
+            }
+        } else {
+            ui.data_mut(|d| d.insert_temp(missing, true));
         }
+    }
+    if ui.data(|d| d.get_temp::<bool>(missing)).unwrap_or(false) {
+        ui.colored_label(
+            WARN,
+            t("No folder chooser on this desktop; type the folder's path."),
+        );
     }
 }
 
@@ -722,6 +805,7 @@ pub fn show(app: &mut DmApp, ctx: &egui::Context) {
     confirm_exit(app, ctx);
     links(app, ctx);
     confirm_remove(app, ctx);
+    confirm_outside(app, ctx);
     duplicate(app, ctx);
     skip_offer(app, ctx);
     add_url(app, ctx);
@@ -751,31 +835,112 @@ pub fn show(app: &mut DmApp, ctx: &egui::Context) {
         app.dialogs.close_top();
     }
     app.popup_was_open = ctx.any_popup_open();
+    // The topmost of the dialogs in front keeps the keyboard and the
+    // clicks: egui takes the highest layer given.
+    for layer in app.dialogs.modal_layers() {
+        ctx.memory_mut(|m| m.set_modal_layer(layer));
+    }
 }
 
+/// Asked before Remove, however it was asked for — the Delete key, the
+/// toolbar, the menus: the Delete key took finished rows off at once while
+/// the toolbar asked. Unfinished rows lose what was fetched; finished ones
+/// only leave the list.
 fn confirm_remove(app: &mut DmApp, ctx: &egui::Context) {
     let Some(ids) = app.dialogs.confirm_remove.clone() else {
         return;
     };
+    let unfinished = ids
+        .iter()
+        .filter_map(|id| app.row(*id))
+        .any(|r| r.state != State::Completed);
     let (mut yes, mut no) = (false, false);
-    window("Delete unfinished downloads").show(ctx, |ui| {
-        // Whole sentences, one for each number, since languages do not build
-        // them from the same pieces.
-        ui.label(if ids.len() == 1 {
-            t("This download is not finished. Deleting it throws away what has been fetched.")
-        } else {
-            t("Some of these are not finished. Deleting them throws away what has been fetched.")
+    let title = if unfinished {
+        t("Delete unfinished downloads")
+    } else {
+        t("Remove from the list")
+    };
+    egui::Window::new(title)
+        .id(window_id("Delete unfinished downloads"))
+        .collapsible(false)
+        .resizable(false)
+        .min_width(440.0)
+        .anchor(egui::Align2::CENTER_CENTER, [0.0, 0.0])
+        .show(ctx, |ui| {
+            // Whole sentences, one for each number, since languages do not
+            // build them from the same pieces.
+            ui.label(match (unfinished, ids.len()) {
+                (true, 1) => t(
+                    "This download is not finished. Deleting it throws away what has been fetched.",
+                ),
+                (true, _) => t(
+                    "Some of these are not finished. Deleting them throws away what has been fetched.",
+                ),
+                (false, 1) => t("Take this download off the list? Its file stays where it is."),
+                (false, _) => {
+                    t("Take these downloads off the list? Their files stay where they are.")
+                }
+            });
+            ui.horizontal(|ui| {
+                yes = ui.button(t("Yes, delete")).clicked() || enter_free(ui);
+                no = ui.button(t("Keep them")).clicked();
+            });
         });
-        ui.horizontal(|ui| {
-            yes = ui.button(t("Yes, delete")).clicked();
-            no = ui.button(t("Keep them")).clicked();
-        });
-    });
     if yes {
         app.dialogs.confirm_remove = None;
         app.remove_now(&ids);
     } else if no {
         app.dialogs.confirm_remove = None;
+    }
+}
+
+/// Asked when Resume is pressed on a download the schedule or the
+/// download limit holds: start it now anyway, for this one only, or let it
+/// wait.
+fn confirm_outside(app: &mut DmApp, ctx: &egui::Context) {
+    let Some(ids) = app.dialogs.confirm_outside.clone() else {
+        return;
+    };
+    let (mut start, mut wait) = (false, false);
+    let names: Vec<String> = ids
+        .iter()
+        .filter_map(|id| app.row(*id))
+        .map(name_of)
+        .collect();
+    let why = app.held_because().unwrap_or_default();
+    window("Start outside the schedule?").show(ctx, |ui| {
+        ui.label(if names.len() == 1 {
+            tf(
+                "{} waits for the schedule or the download limit.",
+                &[&names.join(", ")],
+            )
+        } else {
+            tf(
+                "{} downloads wait for the schedule or the download limit.",
+                &[&names.len()],
+            )
+        });
+        if !why.is_empty() {
+            ui.label(RichText::new(why).small().weak());
+        }
+        ui.label(t(
+            "Start it now anyway? Only what you picked starts; the rest keep waiting.",
+        ));
+        ui.horizontal(|ui| {
+            start = primary(ui, "Start now").clicked() || enter_free(ui);
+            wait = ui.button(t("Keep waiting")).clicked();
+        });
+    });
+    if start {
+        app.dialogs.confirm_outside = None;
+        for id in &ids {
+            if app.backend.start_outside_schedule(*id) && app.applied.show_progress {
+                app.dialogs.progress.insert(*id);
+            }
+        }
+        app.refresh();
+    } else if wait {
+        app.dialogs.confirm_outside = None;
     }
 }
 
@@ -921,7 +1086,7 @@ fn add_url(app: &mut DmApp, ctx: &egui::Context) {
             ui.colored_label(WARN, &d.says);
         }
         ui.horizontal(|ui| {
-            ok |= primary(ui, "OK").clicked();
+            ok |= primary(ui, "OK").clicked() || enter_free(ui);
             cancel = ui.button(t("Cancel")).clicked();
         });
     });
@@ -1029,7 +1194,7 @@ fn file_info(app: &mut DmApp, ctx: &egui::Context) {
         }
         ui.separator();
         ui.horizontal(|ui| {
-            if primary(ui, "Start now").clicked() {
+            if primary(ui, "Start now").clicked() || enter_free(ui) {
                 chosen = Some(false);
             }
             if ui.button(t("Add for later")).clicked() {
@@ -1099,102 +1264,134 @@ fn progress(app: &mut DmApp, ctx: &egui::Context) {
         let resumable = app.backend.resumable(id);
         let mut open = true;
         let (mut pause, mut resume, mut cancel) = (false, false, false);
+        // No wider or taller than the screen leaves room for: a long
+        // status (a server's refusal, with where to sign in) wraps, and a
+        // window too tall scrolls rather than running off the bottom.
+        let screen = ctx.content_rect();
+        let room = (screen.width() - 48.0).clamp(300.0, 560.0);
         egui::Window::new(tf("Download progress — {}", &[&name_of(&row)]))
             .id(egui::Id::unique(("progress", id)))
             .collapsible(false)
             .resizable(false)
-            .default_width(460.0)
+            .constrain(true)
+            .default_width(room.min(460.0))
+            .max_width(room)
             .open(&mut open)
             .show(ctx, |ui| {
-                ui.label(RichText::new(format::shown_url(&row.url)).small().weak());
-                let p = &row.progress;
-                egui::Grid::new(("progress-grid", id))
-                    .num_columns(2)
+                egui::ScrollArea::vertical()
+                    .max_height((screen.height() - 170.0).max(120.0))
                     .show(ui, |ui| {
-                        ui.label(t("Status"));
-                        ui.label(status_of(&row));
-                        ui.end_row();
-                        ui.label(t("File size"));
-                        ui.label(
-                            p.total
-                                .map(format::bytes)
-                                .unwrap_or_else(|| t("unknown").into()),
-                        );
-                        ui.end_row();
-                        ui.label(t("Downloaded"));
-                        ui.label(match p.fraction() {
-                            Some(f) => {
-                                format!("{} ({:.2}%)", format::bytes(p.downloaded), f * 100.0)
-                            }
-                            None => format::bytes(p.downloaded),
-                        });
-                        ui.end_row();
-                        ui.label(t("Speed"));
-                        ui.label(if row.state == State::Running {
-                            format::rate(p.speed)
-                        } else {
-                            String::new()
-                        });
-                        ui.end_row();
-                        ui.label(t("Time left"));
-                        ui.label(format::clock(p.eta));
-                        ui.end_row();
-                        ui.label(t("Can resume"));
-                        // What the server said when the download was planned, not
-                        // a guess from the size: a known size says nothing about
-                        // whether a server serves ranges.
-                        ui.label(match resumable {
-                            Some(true) => t("Yes"),
-                            Some(false) => t("No — a stop starts it again from the beginning"),
-                            None => t("Unknown until the server answers"),
-                        });
-                        ui.end_row();
-                    });
-                let fraction = p.fraction().unwrap_or(0.0) as f32;
-                bar(ui, fraction, 420.0, &format!("{:.0}%", fraction * 100.0));
-                egui::CollapsingHeader::new(t("Connections"))
-                    .default_open(true)
-                    .id_salt(("connections", id))
-                    .show(ui, |ui| {
-                        if connections.is_empty() {
-                            ui.label(RichText::new(t("Nothing fetched yet.")).weak());
-                        }
-                        // The file is cut into more pieces than connections,
-                        // and each connection takes the next piece when it is
-                        // done: the pieces under way are the connections at
-                        // work, and the rest is a count.
-                        let span_of = |c: &dm_core::Connection| (c.end - c.start).saturating_add(1);
-                        let finished = connections.iter().filter(|c| c.done >= span_of(c)).count();
-                        if !connections.is_empty() {
-                            ui.label(
-                                RichText::new(tf(
-                                    "{} of {} pieces done",
-                                    &[&finished, &connections.len()],
-                                ))
-                                .weak(),
-                            );
-                        }
-                        let working = connections
-                            .iter()
-                            .enumerate()
-                            .filter(|(_, c)| c.done > 0 && c.done < span_of(c));
-                        for (n, c) in working {
-                            let span = span_of(c);
-                            ui.horizontal(|ui| {
-                                ui.label(format!("{:>3}", n + 1));
-                                bar(
-                                    ui,
-                                    c.done as f32 / span.max(1) as f32,
-                                    260.0,
-                                    &format!(
-                                        "{} of {}",
-                                        format::bytes(c.done),
-                                        format::bytes(span)
-                                    ),
+                        ui.add(
+                            egui::Label::new(
+                                RichText::new(format::shown_url(&row.url)).small().weak(),
+                            )
+                            .truncate(),
+                        )
+                        .on_hover_text(&row.url);
+                        let p = &row.progress;
+                        egui::Grid::new(("progress-grid", id))
+                            .num_columns(2)
+                            .max_col_width(room - 110.0)
+                            .show(ui, |ui| {
+                                ui.label(t("Status"));
+                                ui.add(egui::Label::new(status_of(&row)).wrap());
+                                ui.end_row();
+                                ui.label(t("File size"));
+                                ui.label(
+                                    p.total
+                                        .map(format::bytes)
+                                        .unwrap_or_else(|| t("unknown").into()),
                                 );
+                                ui.end_row();
+                                ui.label(t("Downloaded"));
+                                ui.label(match p.fraction() {
+                                    Some(f) => {
+                                        format!(
+                                            "{} ({:.2}%)",
+                                            format::bytes(p.downloaded),
+                                            f * 100.0
+                                        )
+                                    }
+                                    None => format::bytes(p.downloaded),
+                                });
+                                ui.end_row();
+                                ui.label(t("Speed"));
+                                ui.label(if row.state == State::Running {
+                                    format::rate(p.speed)
+                                } else {
+                                    String::new()
+                                });
+                                ui.end_row();
+                                ui.label(t("Time left"));
+                                ui.label(format::clock(p.eta));
+                                ui.end_row();
+                                ui.label(t("Can resume"));
+                                // What the server said when the download was planned, not
+                                // a guess from the size: a known size says nothing about
+                                // whether a server serves ranges.
+                                ui.label(match resumable {
+                                    Some(true) => t("Yes"),
+                                    Some(false) => {
+                                        t("No — a stop starts it again from the beginning")
+                                    }
+                                    None => t("Unknown until the server answers"),
+                                });
+                                ui.end_row();
                             });
-                        }
+                        let fraction = p.fraction().unwrap_or(0.0) as f32;
+                        bar(
+                            ui,
+                            fraction,
+                            (room - 60.0).min(420.0),
+                            &format!("{:.0}%", fraction * 100.0),
+                        );
+                        egui::CollapsingHeader::new(t("Connections"))
+                            .default_open(true)
+                            .id_salt(("connections", id))
+                            .show(ui, |ui| {
+                                if connections.is_empty() {
+                                    ui.label(RichText::new(t("Nothing fetched yet.")).weak());
+                                }
+                                // The file is cut into more pieces than connections,
+                                // and each connection takes the next piece when it is
+                                // done: the pieces under way are the connections at
+                                // work, and the rest is a count.
+                                let span_of =
+                                    |c: &dm_core::Connection| (c.end - c.start).saturating_add(1);
+                                let finished =
+                                    connections.iter().filter(|c| c.done >= span_of(c)).count();
+                                if !connections.is_empty() {
+                                    ui.label(
+                                        RichText::new(tf(
+                                            "{} of {} pieces done",
+                                            &[&finished, &connections.len()],
+                                        ))
+                                        .weak(),
+                                    );
+                                }
+                                let working = connections
+                                    .iter()
+                                    .enumerate()
+                                    .filter(|(_, c)| c.done > 0 && c.done < span_of(c));
+                                for (n, c) in working {
+                                    let span = span_of(c);
+                                    ui.horizontal(|ui| {
+                                        ui.label(format!("{:>3}", n + 1));
+                                        bar(
+                                            ui,
+                                            c.done as f32 / span.max(1) as f32,
+                                            260.0,
+                                            &format!(
+                                                "{} of {}",
+                                                format::bytes(c.done),
+                                                format::bytes(span)
+                                            ),
+                                        );
+                                    });
+                                }
+                            });
                     });
+                // The buttons below what scrolls, always in view.
                 ui.horizontal(|ui| {
                     if matches!(row.state, State::Running | State::Queued) {
                         pause = ui.button(t("Pause")).clicked();
@@ -1217,6 +1414,11 @@ fn progress(app: &mut DmApp, ctx: &egui::Context) {
         if resume {
             match row.state {
                 State::Failed(_) => app.backend.retry(id),
+                // Held by the schedule: Resume would only put it back to be
+                // held again. Asked whether to start it outside the schedule.
+                State::Paused if row.paused_by_schedule => {
+                    app.dialogs.confirm_outside = Some(vec![id]);
+                }
                 _ => app.backend.resume(id),
             }
         }
@@ -1252,52 +1454,80 @@ fn complete(app: &mut DmApp, ctx: &egui::Context) {
     let mut done: Vec<Id> = Vec::new();
     let mut close = false;
     let mut shut = true;
-    window("Download complete").open(&mut shut).show(ctx, |ui| {
-        if rows.len() > 1 {
-            ui.label(tf("{} downloads finished.", &[&rows.len()]));
+    // In the corner above the status bar, out of the way of the rows a
+    // person is clicking while a batch finishes, rather than over them in
+    // the middle; resizable, and no wider than the window.
+    let screen = ctx.content_rect();
+    let width = (screen.width() - 32.0).clamp(280.0, 440.0);
+    egui::Window::new(t("Download complete"))
+        .id(window_id("Download complete"))
+        .collapsible(false)
+        .resizable(true)
+        .constrain(true)
+        .pivot(egui::Align2::RIGHT_BOTTOM)
+        .default_pos(screen.right_bottom() - egui::vec2(16.0, 40.0))
+        .default_width(width)
+        .max_width(width)
+        .min_height(160.0)
+        .default_height(360.0_f32.min(screen.height() - 120.0))
+        .open(&mut shut)
+        .show(ctx, |ui| {
+            if rows.len() > 1 {
+                ui.label(tf("{} downloads finished.", &[&rows.len()]));
+                ui.separator();
+            }
+            // Every file reachable: the list scrolls in what height the window
+            // has, its buttons below it always in view.
+            let below = ui.spacing().interact_size.y + 24.0;
+            egui::ScrollArea::vertical()
+                .id_salt("complete-list")
+                .auto_shrink([false, true])
+                .max_height((ui.available_height() - below).max(80.0))
+                .show(ui, |ui| {
+                    for row in &rows {
+                        let name = name_of(row);
+                        // A long name is cut short, all of it on hover, so the
+                        // buttons stay on screen.
+                        ui.add(egui::Label::new(RichText::new(&name).strong()).truncate())
+                            .on_hover_text(&name);
+                        ui.label(format::bytes(
+                            row.progress.total.unwrap_or(row.progress.downloaded),
+                        ));
+                        ui.add(
+                            egui::Label::new(RichText::new(&row.path).small().weak()).truncate(),
+                        )
+                        .on_hover_text(&row.path);
+                        ui.horizontal(|ui| {
+                            // Named for its file where there are several, so a
+                            // screen reader says which Open this is.
+                            let named = |ui: &mut egui::Ui, word: &str, said: String| {
+                                let button = ui.button(word);
+                                if rows.len() > 1 {
+                                    button.widget_info(|| {
+                                        egui::WidgetInfo::labeled(egui::Role::Button, true, &said)
+                                    });
+                                }
+                                button.clicked()
+                            };
+                            if named(ui, t("Open"), tf("Open {}", &[&name])) {
+                                if let Err(e) = app.backend.platform.open(&row.path) {
+                                    app.said = e.into();
+                                }
+                                done.push(row.id);
+                            }
+                            if named(ui, t("Open folder"), tf("Open the folder of {}", &[&name])) {
+                                if let Err(e) = app.backend.platform.reveal(&row.path) {
+                                    app.said = e.into();
+                                }
+                                done.push(row.id);
+                            }
+                        });
+                        ui.add_space(6.0);
+                    }
+                });
             ui.separator();
-        }
-        egui::ScrollArea::vertical()
-            .max_height(320.0)
-            .show(ui, |ui| {
-                for row in &rows {
-                    let name = name_of(row);
-                    ui.label(RichText::new(&name).strong());
-                    ui.label(format::bytes(
-                        row.progress.total.unwrap_or(row.progress.downloaded),
-                    ));
-                    ui.label(RichText::new(&row.path).small().weak());
-                    ui.horizontal(|ui| {
-                        // Named for its file where there are several, so a
-                        // screen reader says which Open this is.
-                        let named = |ui: &mut egui::Ui, word: &str, said: String| {
-                            let button = ui.button(word);
-                            if rows.len() > 1 {
-                                button.widget_info(|| {
-                                    egui::WidgetInfo::labeled(egui::Role::Button, true, &said)
-                                });
-                            }
-                            button.clicked()
-                        };
-                        if named(ui, t("Open"), tf("Open {}", &[&name])) {
-                            if let Err(e) = app.backend.platform.open(&row.path) {
-                                app.said = e.into();
-                            }
-                            done.push(row.id);
-                        }
-                        if named(ui, t("Open folder"), tf("Open the folder of {}", &[&name])) {
-                            if let Err(e) = app.backend.platform.reveal(&row.path) {
-                                app.said = e.into();
-                            }
-                            done.push(row.id);
-                        }
-                    });
-                    ui.add_space(6.0);
-                }
-            });
-        ui.separator();
-        close = ui.button(t("Close")).clicked();
-    });
+            close = ui.button(t("Close")).clicked();
+        });
     if close || !shut {
         app.dialogs.complete.clear();
     }
@@ -1445,7 +1675,7 @@ fn properties(app: &mut DmApp, ctx: &egui::Context) {
                     open_file = ui
                         .add_enabled(can_open, egui::Button::new(t("Open")))
                         .clicked();
-                    ok |= primary(ui, "OK").clicked();
+                    ok |= primary(ui, "OK").clicked() || enter_free(ui);
                     cancel = ui.button(t("Cancel")).clicked();
                 });
             });
@@ -1466,7 +1696,8 @@ fn properties(app: &mut DmApp, ctx: &egui::Context) {
             if description != row.description {
                 app.backend.set_description(id, &description);
             }
-            let result = if address.trim() != row.url {
+            let changed = address.trim() != row.url;
+            let result = if changed {
                 app.backend.set_url(id, &address)
             } else {
                 Ok(())
@@ -1474,6 +1705,15 @@ fn properties(app: &mut DmApp, ctx: &egui::Context) {
             match result {
                 Ok(()) => {
                     app.dialogs.properties.remove(&id);
+                    // A sign-in given to a download that failed for want
+                    // of one is what it was waiting for: tried again with it.
+                    if changed && wants_login {
+                        app.backend.retry(id);
+                        app.said = crate::i18n::Said::new(
+                            "Trying {} again with the sign-in.",
+                            &[&name_of(&row)],
+                        );
+                    }
                 }
                 Err(e) => {
                     if let Some(d) = app.dialogs.properties.get_mut(&id) {
@@ -1521,7 +1761,7 @@ fn series(app: &mut DmApp, ctx: &egui::Context) {
                 ui.colored_label(WARN, &d.says);
             }
             ui.horizontal(|ui| {
-                if primary(ui, "Start now").clicked() || enter {
+                if primary(ui, "Start now").clicked() || enter || enter_free(ui) {
                     add = Some(false);
                 }
                 if ui.button(t("Add for later")).clicked() {
@@ -1816,7 +2056,7 @@ fn site_files(app: &mut DmApp, ctx: &egui::Context) {
             }
         }
         ui.separator();
-        look |= ui.button(t("Find files")).clicked();
+        look |= ui.button(t("Find files")).clicked() || enter_free(ui);
         let mut state = dm_core::lock(&d.state);
         match &mut *state {
             Grab::Idle => {}
@@ -1926,7 +2166,7 @@ fn update_link(app: &mut DmApp, ctx: &egui::Context) {
             if !says.is_empty() {
                 ui.colored_label(WARN, says.as_str());
             }
-            ok |= primary(ui, "OK").clicked();
+            ok |= primary(ui, "OK").clicked() || enter_free(ui);
         });
     if ok {
         match app.backend.set_url(*id, address) {
@@ -1959,7 +2199,7 @@ fn move_to_queue(app: &mut DmApp, ctx: &egui::Context) {
             field(ui, t("Or a new queue"), queue, 240.0),
             focus,
         ));
-        ok |= primary(ui, "OK").clicked();
+        ok |= primary(ui, "OK").clicked() || enter_free(ui);
     });
     if ok && !queue.trim().is_empty() {
         let named = crate::i18n::queue_named(queue);
@@ -1982,7 +2222,7 @@ fn rename(app: &mut DmApp, ctx: &egui::Context) {
     let mut ok = false;
     window("Move/Rename").open(&mut open).show(ctx, |ui| {
         ok = entered(&focused(field(ui, t("New name"), name, 320.0), focus));
-        ok |= primary(ui, "OK").clicked();
+        ok |= primary(ui, "OK").clicked() || enter_free(ui);
     });
     if ok {
         match app.backend.rename(*id, name) {
@@ -2007,7 +2247,13 @@ fn find(app: &mut DmApp, ctx: &egui::Context) {
             field(ui, t("Find what"), &mut app.dialogs.find_text, 260.0),
             focus,
         );
-        next = ui.button(t("Find next")).clicked() || entered(&r);
+        // Enter finds the next and the field keeps the keyboard, so the
+        // next Enter finds the one after and typing goes on into it.
+        let typed = entered(&r);
+        if typed {
+            r.request_focus();
+        }
+        next = ui.button(t("Find next")).clicked() || typed;
     });
     if next {
         app.find_next();
@@ -2054,7 +2300,7 @@ fn scheduler(app: &mut DmApp, ctx: &egui::Context) {
         if !says.is_empty() {
             ui.colored_label(WARN, says.as_str());
         }
-        apply |= ui.button(t("Apply")).clicked();
+        apply |= ui.button(t("Apply")).clicked() || enter_free(ui);
     });
     if apply
         && schedule.enabled
@@ -2084,6 +2330,7 @@ fn scheduler(app: &mut DmApp, ctx: &egui::Context) {
 }
 
 fn limiter(app: &mut DmApp, ctx: &egui::Context) {
+    let focus = app.dialogs.take_focus("Speed limiter");
     let Some((limit, says, mb, hours)) = app.dialogs.limiter.as_mut() else {
         return;
     };
@@ -2092,30 +2339,40 @@ fn limiter(app: &mut DmApp, ctx: &egui::Context) {
     window("Speed limiter").open(&mut open).show(ctx, |ui| {
         ui.horizontal(|ui| {
             let name = ui.label(t("Maximum, KB/s across every download (0 for none)"));
-            ui.add(egui::DragValue::new(limit).range(0..=1024 * 1024).speed(16))
-                .labelled_by(name.id);
+            // The limit takes the keyboard as the dialog opens, and Enter
+            // in it applies, as in any other dialog's field.
+            let field = focused(
+                ui.add(egui::DragValue::new(limit).range(0..=1024 * 1024).speed(16))
+                    .labelled_by(name.id),
+                focus,
+            );
+            apply |= entered(&field);
         });
         ui.add_space(8.0);
         // Download limits, for a link with a fair-use
         // allowance: downloads are held once it is used and go on after.
         ui.horizontal(|ui| {
             let name = ui.label(t("Download no more than, MB (0 for no limit)"));
-            ui.add(
-                egui::DragValue::new(mb)
-                    .range(0..=1024 * 1024 * 1024)
-                    .speed(16),
-            )
-            .labelled_by(name.id);
+            let mb_field = ui
+                .add(
+                    egui::DragValue::new(mb)
+                        .range(0..=1024 * 1024 * 1024)
+                        .speed(16),
+                )
+                .labelled_by(name.id);
+            apply |= entered(&mb_field);
         });
         ui.horizontal(|ui| {
             let name = ui.label(t("every, hours"));
-            ui.add(egui::DragValue::new(hours).range(1..=24 * 31))
+            let hours_field = ui
+                .add(egui::DragValue::new(hours).range(1..=24 * 31))
                 .labelled_by(name.id);
+            apply |= entered(&hours_field);
         });
         if !says.is_empty() {
             ui.colored_label(WARN, says.as_str());
         }
-        apply = ui.button(t("Apply")).clicked();
+        apply |= ui.button(t("Apply")).clicked() || enter_free(ui);
     });
     if apply {
         let mut wanted = app.applied.clone();
@@ -2263,7 +2520,21 @@ fn options(app: &mut DmApp, ctx: &egui::Context) {
                         for (i, c) in Category::ALL.iter().enumerate() {
                             let name = ui.label(format::titled(&category_word(*c)));
                             if let Some(folder) = s.category_folders.get_mut(i) {
-                                ui.add(egui::TextEdit::singleline(folder).desired_width(180.0))
+                                // Sized to what it holds, and given that
+                                // size: a field in a grid took the width its
+                                // column had, and the first column's were
+                                // cut to two letters.
+                                let font = egui::TextStyle::Body.resolve(ui.style());
+                                let wide = ui
+                                    .painter()
+                                    .layout_no_wrap(folder.clone(), font, egui::Color32::PLACEHOLDER)
+                                    .size()
+                                    .x;
+                                let size = egui::vec2(
+                                    (wide + 28.0).clamp(140.0, 280.0),
+                                    ui.spacing().interact_size.y,
+                                );
+                                ui.add_sized(size, egui::TextEdit::singleline(folder))
                                     .labelled_by(name.id);
                             }
                             if i % 2 == 1 {
@@ -2469,7 +2740,7 @@ fn options(app: &mut DmApp, ctx: &egui::Context) {
         }
         ui.separator();
         ui.horizontal(|ui| {
-            ok = primary(ui, "OK").clicked();
+            ok = primary(ui, "OK").clicked() || enter_free(ui);
             cancel = ui.button(t("Cancel")).clicked();
         });
     });

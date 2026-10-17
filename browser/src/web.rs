@@ -36,6 +36,8 @@ thread_local! {
     /// Whether "update the dm app" has been said in this worker's life: once
     /// is a notice, every caught download would be nagging.
     static TOLD_OLD: std::cell::Cell<bool> = const { std::cell::Cell::new(false) };
+    /// Chrome's file name questions, held while dm decides (gap 122).
+    static HOLDS: RefCell<decide::Holds<Function>> = RefCell::new(decide::Holds::default());
 }
 
 /* ------------------------------------------------------------- plumbing */
@@ -578,11 +580,17 @@ pub fn started() {
 /// it; otherwise left exactly as it was.
 #[wasm_bindgen]
 pub async fn on_download_created(item: JsValue) {
+    let item: DownloadItem = serde_json::from_value(from_js(&item)).unwrap_or_default();
+    // However this ends, Chrome's question about the file's name is
+    // answered, or dropped with the download dm took (gap 122).
+    let mut decided = Decided {
+        id: item.id.map(|n| n as i64),
+        taken: false,
+    };
     // The toolbar popup's switch: off, the browser keeps every download.
     if !catching().await {
         return log("debug", "left with the browser: catching is switched off");
     }
-    let item: DownloadItem = serde_json::from_value(from_js(&item)).unwrap_or_default();
     let found = match first_look(&item, &own_id()) {
         Ok(found) => found,
         Err(why) => return log("debug", &format!("left with the browser: {why}")),
@@ -677,11 +685,14 @@ pub async fn on_download_created(item: JsValue) {
                 decide::BrowserCopy::Cancel => ("cancelled", "cancel"),
                 decide::BrowserCopy::Remove => ("removed", "removeFile"),
             };
-            if let Err(why) = call("downloads", what, std::slice::from_ref(&id)).await {
-                log(
+            match call("downloads", what, std::slice::from_ref(&id)).await {
+                // Gone from the browser before it named the file: its Save
+                // dialog, where it would have asked, never opens.
+                Ok(_) => decided.taken = true,
+                Err(why) => log(
                     "warn",
                     &format!("the browser's copy could not be {verb}: {why}"),
-                );
+                ),
             }
             let query = to_js(&serde_json::json!({ "id": found.id }));
             let _ = call("downloads", "erase", &[query]).await;
@@ -697,6 +708,65 @@ pub async fn on_download_created(item: JsValue) {
             if paused {
                 give_back(&id, &found.url).await;
             }
+        }
+    }
+}
+
+/// Chrome asking what to name a download (Chrome only; Firefox has no such
+/// event). Held until `on_download_created` has decided, so a download dm
+/// takes is gone before Chrome would open its Save dialog for it: it asks
+/// when the name is too long for the disk, or when "Ask where to save each
+/// file" is on, and a dialog opened before the cancel stayed open (gap 122).
+/// The loader returns `true` for it, which tells Chrome the answer comes later.
+#[wasm_bindgen]
+pub fn on_determining_filename(item: JsValue, suggest: JsValue) {
+    let Ok(suggest) = suggest.dyn_into::<Function>() else {
+        return;
+    };
+    let Some(id) = get(&item, "id").as_f64().map(|n| n as i64) else {
+        return name_as_the_browser_would(&suggest);
+    };
+    if let Some(now) = HOLDS.with(|h| h.borrow_mut().ask(id, suggest)) {
+        return name_as_the_browser_would(&now);
+    }
+    // Whatever happens to the decision, the browser is not held for ever.
+    wasm_bindgen_futures::spawn_local(async move {
+        sleep(decide::DETERMINE_WITHIN_MS).await;
+        if let Some(late) = HOLDS.with(|h| h.borrow_mut().expire(id)) {
+            log(
+                "warn",
+                "a download's name was held too long; the browser names it",
+            );
+            name_as_the_browser_would(&late);
+        }
+    });
+}
+
+/// Answers Chrome's question with no suggestion: the name it chose stands.
+fn name_as_the_browser_would(suggest: &Function) {
+    if let Err(why) = suggest.call0(&JsValue::UNDEFINED) {
+        log(
+            "debug",
+            &format!("the browser's name question: {}", say(&why)),
+        );
+    }
+}
+
+/// Settles Chrome's file name question for a download once its `onCreated`
+/// has run its course, on every way out of it.
+struct Decided {
+    id: Option<i64>,
+    /// Taken by dm and cancelled or removed in the browser.
+    taken: bool,
+}
+
+impl Drop for Decided {
+    fn drop(&mut self) {
+        let Some(id) = self.id else { return };
+        if self.taken {
+            HOLDS.with(|h| h.borrow_mut().drop_taken(id));
+        } else if let Some(suggest) = HOLDS.with(|h| h.borrow_mut().decide(id)) {
+            name_as_the_browser_would(&suggest);
         }
     }
 }
@@ -987,14 +1057,40 @@ async fn page_links(
     if tab_id.as_f64().is_none() {
         return Err("that is not a page dm can read links from".into());
     }
+    let frame_id = get(info, "frameId").as_f64().unwrap_or(0.0);
     let asked = to_js(&serde_json::json!({ "type": decide::LINKS_MESSAGE, "selected": selected }));
-    let frame =
-        to_js(&serde_json::json!({ "frameId": get(info, "frameId").as_f64().unwrap_or(0.0) }));
-    let answer = call("tabs", "sendMessage", &[tab_id, asked, frame])
-        .await
-        .map_err(|_| {
-            "this page has no links dm can read (reload it once dm is installed)".to_string()
-        })?;
+    let frame = to_js(&serde_json::json!({ "frameId": frame_id }));
+    let args = [tab_id.clone(), asked, frame];
+    let ask = || call("tabs", "sendMessage", &args);
+    let answer = match ask().await {
+        Ok(answer) => answer,
+        // No page script answered: a tab open before dm was installed or
+        // updated (Chromium puts content scripts only into pages loaded
+        // since). It is given one now, where the browser allows, and asked
+        // again (gap 122).
+        Err(first) => {
+            if !decide::injectable(page) {
+                return Err(decide::NO_LINKS_HERE.into());
+            }
+            let target = to_js(&serde_json::json!({
+                "target": { "tabId": tab_id.as_f64(), "frameIds": [frame_id] },
+                "files": ["content.js"],
+                // Now, not once the page has finished arriving.
+                "injectImmediately": true,
+            }));
+            if let Err(why) = call("scripting", "executeScript", &[target]).await {
+                log("info", &format!("the links reader could not be put into {page}: {why} (asked first: {first})"));
+                return Err(decide::NO_LINKS_HERE.into());
+            }
+            ask().await.map_err(|why| {
+                log(
+                    "info",
+                    &format!("{page} did not answer for its links: {why}"),
+                );
+                decide::NO_LINKS_HERE.to_string()
+            })?
+        }
+    };
     let hrefs: Vec<String> =
         serde_json::from_value(from_js(&get(&answer, "links"))).unwrap_or_default();
     let urls = decide::links_from(&hrefs, page);

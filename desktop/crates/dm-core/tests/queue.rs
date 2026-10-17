@@ -847,6 +847,47 @@ async fn nothing_starts_while_the_schedule_is_closed() {
     assert!(!dir.path().join("out/f.bin").exists());
 }
 
+/// Gap 126: one row a person starts now runs to the end with the schedule
+/// still closed, and the schedule holds the rest as before.
+#[tokio::test]
+async fn one_row_started_outside_the_schedule_runs_while_the_rest_wait() {
+    let (addr, _) = serve().await;
+    let dir = tempdir();
+    let q = queue(dir.path(), 2);
+    q.set_schedule(closed_now());
+
+    let id = q.add(&format!("http://{addr}/f.bin")).await.unwrap();
+    let other = q.add(&format!("http://{addr}/g.bin")).await.unwrap();
+    q.run().await;
+    assert_eq!(q.get(id).await.unwrap().state, DownloadState::Paused);
+
+    assert!(q.start_outside_schedule(id).await);
+    // The scheduler ticking under the closed window does not put it down.
+    let serving = tokio::spawn({
+        let q = q.clone();
+        async move { q.run().await }
+    });
+    let deadline = std::time::Instant::now() + Duration::from_secs(10);
+    while q.get(id).await.unwrap().state != DownloadState::Completed {
+        assert!(
+            std::time::Instant::now() < deadline,
+            "the row started outside the schedule did not finish: {:?}",
+            q.get(id).await.unwrap().state
+        );
+        tokio::time::sleep(Duration::from_millis(20)).await;
+    }
+    serving.await.unwrap();
+    assert!(dir.path().join("out/f.bin").exists());
+    let held = q.get(other).await.unwrap();
+    assert_eq!(held.state, DownloadState::Paused);
+    assert!(
+        held.paused_by_schedule,
+        "the other row is still the schedule's"
+    );
+    // A row already finished is not started again.
+    assert!(!q.start_outside_schedule(id).await);
+}
+
 #[tokio::test]
 async fn the_window_opening_puts_back_what_it_stopped() {
     let (addr, _) = serve().await;

@@ -62,7 +62,7 @@ verified (Firefox 145 install, its own Chrome suite) was of different code
 and is not carried over.
 - [x] Chrome/Chromium extension — `scripts/chrome-check.py` loads the built
       `dist/chrome` into Chrome for Testing 155 (macOS arm64): the worker
-      starts, the WebAssembly loads, all five listeners are registered on the
+      starts, the WebAssembly loads, all seven listeners are registered on the
       first turn, the id is the one the manifest key fixes, and the worker
       logs no errors. Also in CI under Xvfb (written, not yet run there)
 - [x] Firefox extension — `dist/firefox` (Firefox MV3, `background.scripts`,

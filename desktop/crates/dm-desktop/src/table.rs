@@ -64,6 +64,10 @@ pub fn show(app: &mut DmApp, ui: &mut egui::Ui) {
     } else {
         22.0
     };
+    // In a narrow window the file name gives up width first, down to
+    // 120 points, so Status is still in view beside it: the name took its
+    // 220 and pushed Status off the edge.
+    let name_width = name_width(&columns, ui.available_width());
     // Wider than the window, the columns scroll sideways rather than
     // running off its edge: at the default size the Note, Referrer and
     // Folder columns were past it with no way to reach them.
@@ -72,6 +76,9 @@ pub fn show(app: &mut DmApp, ui: &mut egui::Ui) {
         .auto_shrink([false, false])
         .show(ui, |ui| {
             let mut table = TableBuilder::new(ui)
+                // Kept apart by how much room the name was given, so a
+                // narrower window starts from widths that fit it.
+                .id_salt(("list", (name_width / 25.0) as i32))
                 .striped(striped)
                 .resizable(true)
                 // Dragged as well as clicked: a finished file is dragged out of the
@@ -81,9 +88,19 @@ pub fn show(app: &mut DmApp, ui: &mut egui::Ui) {
             for (n, column) in columns.iter().enumerate() {
                 table = table.column(if n + 1 == columns.len() {
                     Width::remainder().at_least(80.0).clip(true)
+                } else if *column == Column::Name {
+                    Width::initial(name_width).at_least(120.0).clip(true)
                 } else {
                     width(*column)
                 });
+            }
+            // The row the keys moved to, brought into view.
+            if let Some(i) = app
+                .scroll_to
+                .take()
+                .and_then(|id| rows.iter().position(|r| r.id == id))
+            {
+                table = table.scroll_to_row(i, None);
             }
             table
                 .header(22.0, |mut header| {
@@ -162,6 +179,37 @@ fn files_to_drag(app: &DmApp, rows: &[Entry], i: usize) -> Vec<std::path::PathBu
         .map(|r| std::path::PathBuf::from(&r.path))
         .filter(|p| p.is_absolute())
         .collect()
+}
+
+/// How wide the file name starts in `room`: its 220 points where the
+/// columns up to Status fit beside it, else what is left after them, but
+/// never under 120.
+pub fn name_width(columns: &[Column], room: f32) -> f32 {
+    let through_status = columns
+        .iter()
+        .position(|c| *c == Column::Status)
+        .unwrap_or(columns.len().saturating_sub(1));
+    let others: f32 = columns
+        .iter()
+        .take(through_status + 1)
+        .filter(|c| **c != Column::Name)
+        .map(|c| initial(*c) + 8.0)
+        .sum();
+    (room - others - 24.0).clamp(120.0, 220.0)
+}
+
+/// Where each column but the name starts, in points.
+fn initial(column: Column) -> f32 {
+    match column {
+        Column::Name => 220.0,
+        Column::Queue => 110.0,
+        Column::Size => 76.0,
+        Column::Status => 130.0,
+        Column::TimeLeft => 88.0,
+        Column::Rate => 92.0,
+        Column::LastTry => 100.0,
+        Column::Description | Column::Referrer | Column::Folder => 160.0,
+    }
 }
 
 /// How wide a column starts.
@@ -276,6 +324,68 @@ fn heading(app: &mut DmApp, ui: &mut egui::Ui, column: Column) {
 fn select(app: &mut DmApp, rows: &[Entry], i: usize, modifiers: egui::Modifiers) {
     let ids: Vec<Id> = rows.iter().map(|r| r.id).collect();
     (app.selected, app.anchor) = selection(&ids, &app.selected, app.anchor, i, modifiers);
+    app.cursor = ids.get(i).copied();
+}
+
+/// A move of the keyboard's place in the list.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Step {
+    Up,
+    Down,
+    First,
+    Last,
+}
+
+/// The selection after Up, Down, Home or End, the row a later Shift
+/// extends from, and the row now moved to. From the row last moved to or
+/// clicked; with nothing there yet, Down starts at the top and Up at the
+/// bottom. Shift selects the run from where it was started to the row
+/// moved to.
+pub fn stepped(
+    rows: &[Id],
+    selected: &BTreeSet<Id>,
+    anchor: Option<Id>,
+    cursor: Option<Id>,
+    step: Step,
+    shift: bool,
+) -> (BTreeSet<Id>, Option<Id>, Option<Id>) {
+    let Some(last) = rows.len().checked_sub(1) else {
+        return (selected.clone(), anchor, cursor);
+    };
+    let from = cursor
+        .and_then(|c| rows.iter().position(|r| *r == c))
+        .or_else(|| rows.iter().position(|r| selected.contains(r)));
+    let to = match (step, from) {
+        (Step::First, _) => 0,
+        (Step::Last, _) => last,
+        (Step::Up, Some(at)) => at.saturating_sub(1),
+        (Step::Down, Some(at)) => (at + 1).min(last),
+        (Step::Up, None) => last,
+        (Step::Down, None) => 0,
+    };
+    let Some(&id) = rows.get(to) else {
+        return (selected.clone(), anchor, cursor);
+    };
+    if shift {
+        let start = anchor
+            .and_then(|a| rows.iter().position(|r| *r == a))
+            .or(from)
+            .unwrap_or(to);
+        let (a, b) = if start <= to {
+            (start, to)
+        } else {
+            (to, start)
+        };
+        let run = rows
+            .get(a..=b)
+            .unwrap_or_default()
+            .iter()
+            .copied()
+            .collect();
+        (run, rows.get(start).copied(), Some(id))
+    } else {
+        (BTreeSet::from([id]), Some(id), Some(id))
+    }
 }
 
 /// The rows selected after a click on the `i`th, and the row a later
@@ -428,6 +538,50 @@ fn status_cell(ui: &mut egui::Ui, entry: &Entry, held: Option<&str>) {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// Gap 125: in a narrow window the name gives way so Status fits.
+    #[test]
+    fn the_name_gives_way_first_in_a_narrow_window() {
+        let columns = Column::ALL.to_vec();
+        assert_eq!(name_width(&columns, 1200.0), 220.0);
+        let narrow = name_width(&columns, 480.0);
+        assert!((120.0..220.0).contains(&narrow), "{narrow}");
+        // What it gave is what Queue, Size and Status need beside it.
+        assert!(
+            narrow + 110.0 + 76.0 + 130.0 + 3.0 * 8.0 <= 480.0,
+            "{narrow}"
+        );
+        assert_eq!(name_width(&columns, 200.0), 120.0, "never under 120");
+    }
+
+    /// Gap 117: the arrow keys, Home and End move the selection, and Shift
+    /// extends it from where it started.
+    #[test]
+    fn the_arrow_keys_move_the_selection_and_shift_extends_it() {
+        let rows: Vec<Id> = (1..=5).collect();
+        let none = BTreeSet::new();
+        let (picked, anchor, cursor) = stepped(&rows, &none, None, None, Step::Down, false);
+        assert_eq!((picked.clone(), cursor), (BTreeSet::from([1]), Some(1)));
+        let (picked, anchor, cursor) = stepped(&rows, &picked, anchor, cursor, Step::Down, false);
+        assert_eq!(picked, BTreeSet::from([2]));
+        let (picked, anchor, cursor) = stepped(&rows, &picked, anchor, cursor, Step::Down, true);
+        let (picked, anchor, cursor) = stepped(&rows, &picked, anchor, cursor, Step::Down, true);
+        assert_eq!(picked, BTreeSet::from([2, 3, 4]));
+        let (picked, anchor, cursor) = stepped(&rows, &picked, anchor, cursor, Step::Up, true);
+        assert_eq!(picked, BTreeSet::from([2, 3]));
+        let (picked, anchor, cursor) = stepped(&rows, &picked, anchor, cursor, Step::Last, false);
+        assert_eq!((picked.clone(), cursor), (BTreeSet::from([5]), Some(5)));
+        let (picked, _, _) = stepped(&rows, &picked, anchor, cursor, Step::Down, false);
+        assert_eq!(picked, BTreeSet::from([5]), "the bottom stays the bottom");
+        let (picked, _, cursor) = stepped(&rows, &picked, anchor, cursor, Step::First, false);
+        assert_eq!((picked, cursor), (BTreeSet::from([1]), Some(1)));
+        let (picked, _, _) = stepped(&rows, &none, None, None, Step::Up, false);
+        assert_eq!(
+            picked,
+            BTreeSet::from([5]),
+            "Up with nothing picked starts at the bottom"
+        );
+    }
 
     #[test]
     fn shift_click_extends_from_the_row_last_clicked() {

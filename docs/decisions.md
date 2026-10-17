@@ -644,3 +644,68 @@ Considered: leaving the browser's copy and handing over too (two copies of
 every fast PDF, which is what the hold-then-complete race already did);
 keeping the rule and lowering latency (the race is lost before
 `onCreated` runs).
+
+## Chrome's file name answer is held while dm decides; `scripting` added (2026-10-18, gap 122)
+
+Chrome asks where to save a download (its Save dialog) when the name is too
+long for the disk, or when "Ask where to save each file" is on, and it asks
+only after every `downloads.onDeterminingFilename` listener has answered. A
+dialog opened while dm was being asked stayed open after the extension
+cancelled the download it had taken, and caught the next clicks. So the
+extension now listens there (Chrome only; Firefox has no such event) and
+holds its answer until `onCreated` has decided: a download dm takes is
+cancelled before Chrome asks anything, one it leaves is answered with no
+suggestion, as if dm were not installed. The hold lasts at most
+`DETERMINE_WITHIN_MS` (handshake, settings and hand-off times plus 5 s) and
+is then answered whatever happened. Considered: suggesting a shorter name
+(fixes only the long name, not the "ask" setting); cancelling sooner (the
+dialog can open before the app has answered).
+
+"Download all/selected links" asks the page script for the page's links;
+Chromium puts declared content scripts only into pages loaded after the
+extension, so a tab open before dm was installed, updated or reloaded had
+nobody to answer. The extension now puts `content.js` into that frame with
+`scripting.executeScript` and asks again. That needs the `scripting`
+permission (both manifests); with `<all_urls>` already granted it adds no
+install warning in Chrome, but the Firefox listing needs a new version.
+`content.js` replaces a predecessor cut off by a reload rather than
+deferring to it. Pages no extension may enter (the browser's own, stores)
+get a message saying so.
+
+## Dialogs in front are modal; Remove always asks (2026-10-18, gaps 119, 128)
+
+The dialogs that stand in front of the list (every one but Find, the
+progress windows and Download complete) are egui's modal layer: Tab goes
+round their own controls and the menu bar and list behind take no clicks
+until they close, which is what "focus stays in the dialog" takes in egui.
+Find stays beside the list, since finding selects rows a person may then
+click. Enter with none of the dialog's controls focused presses its default
+button; a focused button of its own takes Enter itself. Remove now asks for
+finished rows too, whichever way it was asked for — the Delete key took
+them off at once while the toolbar asked — except headless, where nobody
+can answer. Considered: asking only from the key (two behaviours for one
+command).
+
+## Non-Latin names use the computer's fonts, read on demand (2026-10-18, gap 116)
+
+Selawik and egui's fonts have no Chinese, Japanese, Korean, Arabic, Hebrew,
+Thai or Devanagari. Bundling Noto CJK would add tens of megabytes to a
+7.9 MB installer, so the computer's own font for the script is read the
+first time a row's name, path or note needs it (fontconfig's answer on
+Linux, the usual files on macOS and Windows) and appended after dm's fonts.
+A computer without one draws what it can, as before. The files are read
+into memory (no memory-mapping crate in the window), once a process.
+
+## Starting one row outside the schedule (2026-10-18, gap 126)
+
+`Queue::start_outside_schedule` starts the row at once and marks its slot so
+the schedule and the download limit do not put it down; a pause, a cancel
+or the row going back in line clears the mark. The mark is not saved: after
+a restart the row is the schedule's again. Considered: turning the schedule
+off for a while (holds every other row's start too).
+
+## In progress is what is under way (2026-10-18, gap 124)
+
+"In progress" lists running, queued and schedule-held rows only, matching
+the status bar's count. Failed and stopped rows are under All and their
+kind, not here.

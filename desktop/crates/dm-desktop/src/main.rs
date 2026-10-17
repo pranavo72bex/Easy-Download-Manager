@@ -144,6 +144,18 @@ impl Platform for Desktop {
         rfd::FileDialog::new().pick_folder()
     }
 
+    /// On Linux the chooser is the desktop portal's, else zenity's; with
+    /// neither, rfd answers as if cancelled. Elsewhere the system has one.
+    fn can_choose_folder(&self) -> bool {
+        #[cfg(target_os = "linux")]
+        return dm_desktop::backend::chooser_here(
+            file_chooser_portal(),
+            std::env::var_os("PATH").as_deref(),
+        );
+        #[cfg(not(target_os = "linux"))]
+        true
+    }
+
     fn choose_file(&self, save: bool, suggested: &str) -> Option<std::path::PathBuf> {
         let dialog = rfd::FileDialog::new().add_filter("Download lists", &["dmlist", "txt"]);
         if save {
@@ -475,6 +487,21 @@ fn tray_host() -> bool {
     {
         true
     }
+}
+
+/// Whether the desktop portal offers its file chooser on the session bus.
+#[cfg(target_os = "linux")]
+fn file_chooser_portal() -> bool {
+    let Ok(connection) = zbus::blocking::Connection::session() else {
+        return false;
+    };
+    let proxy = zbus::blocking::proxy::Builder::<zbus::blocking::Proxy>::new(&connection)
+        .destination("org.freedesktop.portal.Desktop")
+        .and_then(|b| b.path("/org/freedesktop/portal/desktop"))
+        .and_then(|b| b.interface("org.freedesktop.portal.FileChooser"))
+        .map(|b| b.cache_properties(zbus::proxy::CacheProperties::No))
+        .and_then(|b| b.build());
+    proxy.is_ok_and(|p| p.get_property::<u32>("version").is_ok())
 }
 
 /// dm's tray item and the StatusNotifierWatcher that panels (GNOME's

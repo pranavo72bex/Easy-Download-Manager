@@ -362,5 +362,15 @@
  "{} download(s) are still running. Exiting stops them; they go on from where they were the next time dm opens.": "Todavía hay {} descarga(s) en curso. Salir las detiene; continúan donde quedaron la próxima vez que se abra dm.",
  "{} downloads finished.": "{} descargas terminadas.",
  "· waiting for the schedule": "· esperando al programador",
- "· waiting for the schedule (opens at {})": "· esperando al programador (abre a las {})"
+ "· waiting for the schedule (opens at {})": "· esperando al programador (abre a las {})",
+ "Keep waiting": "Seguir esperando",
+ "No folder chooser on this desktop; type the folder's path.": "No hay selector de carpetas en este escritorio; escriba la ruta de la carpeta.",
+ "Remove from the list": "Quitar de la lista",
+ "Start it now anyway? Only what you picked starts; the rest keep waiting.": "¿Iniciarla ahora de todos modos? Solo empieza lo que eligió; el resto sigue esperando.",
+ "Start outside the schedule?": "¿Iniciar fuera del horario?",
+ "Take these downloads off the list? Their files stay where they are.": "¿Quitar estas descargas de la lista? Sus archivos se quedan donde están.",
+ "Take this download off the list? Its file stays where it is.": "¿Quitar esta descarga de la lista? Su archivo se queda donde está.",
+ "Trying {} again with the sign-in.": "Intentando {} de nuevo con el inicio de sesión.",
+ "{} downloads wait for the schedule or the download limit.": "{} descargas esperan al horario o al límite de descarga.",
+ "{} waits for the schedule or the download limit.": "{} espera al horario o al límite de descarga."
 }

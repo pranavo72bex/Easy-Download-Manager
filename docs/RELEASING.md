@@ -98,8 +98,9 @@ review, given the AMO API key as the secrets `AMO_JWT_ISSUER` and
 exist as a listed submission in the Developer Hub. Mozilla accepts each
 version once, so bump `extension/manifest.json`,
 `extension/manifest.firefox.json` and `browser/Cargo.toml` together (the
-release checks all three agree with the tag). Version 3.0.0 was already
-submitted unlisted; the next version is 3.0.1.
+release checks all three agree with the tag). 3.0.0 went to the deleted
+unlisted add-on and 3.0.1 to the listed one; 3.0.2 adds the `scripting`
+permission (to read links on a tab open before the extension was).
 
 ## Verifying a release actually works
 

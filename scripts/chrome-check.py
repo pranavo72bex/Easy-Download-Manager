@@ -29,6 +29,11 @@ What it proves, against a local server and nothing else on the network:
   7. with the host unregistered, a download is left to the browser and
      finishes there — nothing is lost
   8. nothing the worker logged was an error
+  9. a file whose name is too long for the disk (Chromium would ask where
+     to save it) goes to dm with no Save dialog left open (looked for with
+     xdotool where there is an X display), and "Download all links" works
+     on a page whose page script is not in it (one still arriving, as a
+     tab open before dm was installed has none) (gap 122)
 
 Everything lives in temporary directories: a profile, the browser's download
 folder, and DM_HOME for the app, whose settings, queue, inbox and lock are
@@ -233,6 +238,10 @@ class Target:
 
 SIZE = 1024 * 1024
 requests = []
+# A name too long for the disk once Chromium adds ".crdownload": Chromium
+# asks where to save it rather than shorten it (gap 122).
+LONG = "very" + "long" * 61 + ".bin"
+ARRIVING = ("early1.bin", "early2.bin", "early3.bin")
 
 
 def body(name):
@@ -341,10 +350,23 @@ class Handler(http.server.BaseHTTPRequestHandler):
             self.end_headers()
             self.wfile.write(page)
             return
+        if path == "/arriving.html":
+            # Its links at once, the rest of the page much later: the page
+            # script, which runs once the page is in, is not there yet.
+            self.send_response(200)
+            self.send_header("Content-Type", "text/html")
+            self.send_header("Connection", "close")
+            self.end_headers()
+            self.wfile.write(("<!doctype html><title>arriving</title>" + "".join(
+                f'<p><a href="/files/{n}">{n}</a></p>' for n in ARRIVING) + " " * 4096).encode())
+            self.wfile.flush()
+            time.sleep(25)
+            self.close_connection = True
+            return
         if path == "/page.html":
             links = "".join(f'<p><a id="{n}" href="/files/{n}">{n}</a></p>' for n in
                             ("caught.bin", "notes.txt", "kept.zip", "private.bin", "absent.bin",
-                             "alt.bin", "off.bin", "forced.txt", "small.pdf", "small.bin"))
+                             "alt.bin", "off.bin", "forced.txt", "small.pdf", "small.bin", LONG))
             page = f"<!doctype html><title>dm check</title>{links}".encode()
             self.send_response(200)
             self.send_header("Content-Type", "text/html")
@@ -477,6 +499,16 @@ def loaded(tab, want, selector="", seconds=20):
     except RuntimeError as e:
         where = e
     raise RuntimeError(f"{want} never loaded (last answer {last!r}; the tab is at {where})")
+
+
+def save_dialogs():
+    """The browser's Save dialogs open on the X display, or None where they
+    cannot be looked for (no display, no xdotool: macOS, headless)."""
+    if not (os.environ.get("DISPLAY") and shutil.which("xdotool")):
+        return None
+    found = subprocess.run(["xdotool", "search", "--onlyvisible", "--name", "^(Save File|Save As)$"],
+                           capture_output=True, text=True, timeout=20).stdout.split()
+    return found
 
 
 def click(base, origin, link):
@@ -924,10 +956,11 @@ def main():
             check("the WebAssembly loads and its handlers are there", False, str(e))
             return
         listeners = worker.evaluate(
-            "['downloads.onCreated','contextMenus.onClicked','action.onClicked',"
-            "'runtime.onInstalled','runtime.onStartup','webRequest.onResponseStarted'].filter(p => {"
+            "['downloads.onCreated','downloads.onDeterminingFilename','contextMenus.onClicked',"
+            "'action.onClicked','runtime.onInstalled','runtime.onStartup',"
+            "'webRequest.onResponseStarted'].filter(p => {"
             " const [a, b] = p.split('.'); return chrome[a][b].hasListeners(); }).length")
-        check("every listener is registered on the first turn", listeners == 6, f"{listeners} of 6")
+        check("every listener is registered on the first turn", listeners == 7, f"{listeners} of 7")
 
         # 2. A link click, caught and handed over.
         page = f"{origin}/page.html"
@@ -945,6 +978,24 @@ def main():
               f"browser list {left}, browser folder {sorted(p.name for p in browser_dl.iterdir())}")
         check("the app answered", "present" in (worker.evaluate("dmReady.then(m => m.app_status())") or ""),
               worker.evaluate("dmReady.then(m => m.app_status())"))
+
+        # A name too long for the disk: Chromium would ask where to save it,
+        # and its Save dialog stayed open over a download dm had taken.
+        long_tab = click(base, origin, LONG)
+        long_in_dm = lambda: [p.name for p in engine_dl.iterdir()
+                              if p.name.startswith("verylong") and p.read_bytes() == body(LONG)]
+        landed = wait_for(long_in_dm, 60)
+        time.sleep(3)
+        dialogs = save_dialogs()
+        left = worker.evaluate("chrome.downloads.search({}).then(l => l.filter(d => d.url.includes('verylong'))"
+                               ".map(d => d.state + ' ' + d.filename.length))")
+        check("a file whose name is too long for the disk goes to dm, and the browser asks nothing",
+              bool(landed) and left == [] and not dialogs,
+              f"dm folder: {[n[:20] + '…' for n in long_in_dm()]}; browser list {left}; "
+              f"Save dialogs: {'not looked for (no X display)' if dialogs is None else len(dialogs)}")
+        if dialogs:
+            subprocess.run(["xdotool", "key", "--window", dialogs[0], "Escape"], check=False)
+        long_tab.call("Page.navigate", url="about:blank")
 
         # A PDF Chromium finishes before it can be held: served fast, it is
         # complete by the time the extension asks (or completes despite the
@@ -1089,6 +1140,25 @@ def main():
         # has no site in front, and says so.
         label = wait_for(lambda: popup.evaluate("document.getElementById('catchall-label').textContent"), 5)
         check("the popup has the 'Take every download from this site' switch", bool(label), label)
+
+        # A tab whose page script cannot answer, as one open before dm was
+        # installed (Chromium puts page scripts only into pages loaded
+        # since): a page still arriving, whose script is not in yet. The
+        # links reader is put in when it is asked for, and the menu works.
+        stale = open_tab(base, f"{origin}/arriving.html")
+        wait_for(lambda: stale.evaluate("document.links.length") == len(ARRIVING), 10)
+        stale_tab = worker.evaluate(f"chrome.tabs.query({{}}).then(t => t.filter(x => x.url === '{origin}/arriving.html').map(x => x.id))")
+        alive = worker.evaluate(f"chrome.tabs.sendMessage({stale_tab[-1]}, {{type: 'dm.links'}})"
+                                ".then(() => 'answered', e => String(e))")
+        before = len(queued_main())
+        worker.evaluate(
+            f"dmReady.then(m => m.on_menu_clicked({{menuItemId: 'dm-all-links', pageUrl: '{origin}/arriving.html',"
+            f" frameId: 0}}, {{id: {stale_tab[-1]}}}))")
+        got = wait_for(lambda: len(queued_main()) - before >= len(ARRIVING) and len(queued_main()) - before, 20)
+        check("'Download all links' works on a page with no page script, by putting one in",
+              got == len(ARRIVING) and alive != "answered",
+              f"asked first: {alive}; {len(queued_main()) - before} queued of {len(ARRIVING)} links")
+        stale.call("Page.navigate", url="about:blank")
 
         # 8. No app: the browser keeps it.
         registration.unlink()

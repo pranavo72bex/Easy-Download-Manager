@@ -219,6 +219,101 @@ pub fn after_taken(state: Option<&str>) -> BrowserCopy {
     }
 }
 
+/// How long Chrome's choice of a download's file name is held while the app
+/// is asked about it: the handshake, the settings and the hand-off, with a
+/// little to spare. Past it the browser carries on whatever happens.
+pub const DETERMINE_WITHIN_MS: f64 =
+    HELLO_WITHIN_MS + SETTINGS_WITHIN_MS + TAKEN_WITHIN_MS + 5_000.0;
+
+/// Downloads whose file name Chrome is waiting on (gap 122). Chrome picks a
+/// download's name, and asks where to save it when it must (a name too long
+/// for the disk, or "Ask where to save each file" on), only once every
+/// `onDeterminingFilename` listener has answered. So the answer is held
+/// until dm has decided: one dm takes is cancelled before any Save dialog
+/// can open, and one it leaves is answered at once, as if dm were not there.
+///
+/// `T` is the browser's answer function; plain here so it can be tested.
+/// Chrome may ask before or after the download's `onCreated` is decided, so
+/// a decision that comes first is remembered for the question that follows.
+#[derive(Debug)]
+pub struct Holds<T> {
+    waiting: Vec<(i64, T)>,
+    decided: Vec<i64>,
+}
+
+impl<T> Default for Holds<T> {
+    fn default() -> Self {
+        Holds {
+            waiting: Vec::new(),
+            decided: Vec::new(),
+        }
+    }
+}
+
+/// How many decided ids are remembered for a question still to come.
+const DECIDED_KEPT: usize = 64;
+
+impl<T> Holds<T> {
+    /// Chrome asks about `id`. The answer comes back to be given now when
+    /// that download is already decided; otherwise it is held.
+    pub fn ask(&mut self, id: i64, answer: T) -> Option<T> {
+        if let Some(at) = self.decided.iter().position(|d| *d == id) {
+            self.decided.remove(at);
+            return Some(answer);
+        }
+        self.waiting.push((id, answer));
+        None
+    }
+
+    /// `id` is decided: the held answer, if Chrome asked, to be given now.
+    pub fn decide(&mut self, id: i64) -> Option<T> {
+        match self.waiting.iter().position(|(w, _)| *w == id) {
+            Some(at) => Some(self.waiting.remove(at).1),
+            None => {
+                if self.decided.len() >= DECIDED_KEPT {
+                    self.decided.remove(0);
+                }
+                self.decided.push(id);
+                None
+            }
+        }
+    }
+
+    /// `id` was taken by dm and cancelled in the browser: the held answer
+    /// is dropped, never given, since there is no download left to name.
+    pub fn drop_taken(&mut self, id: i64) {
+        self.waiting.retain(|(w, _)| *w != id);
+    }
+
+    /// The held answer for `id` when the time to hold it ran out.
+    pub fn expire(&mut self, id: i64) -> Option<T> {
+        let at = self.waiting.iter().position(|(w, _)| *w == id)?;
+        Some(self.waiting.remove(at).1)
+    }
+}
+
+/// Whether the browser lets an extension run a script in a page at `url`,
+/// so a page opened before dm was installed can be given dm's links reader
+/// (gap 122). Its own pages, other extensions' and the stores' are closed
+/// to every extension.
+pub fn injectable(url: &str) -> bool {
+    let lower = url.trim().to_ascii_lowercase();
+    let web = lower.starts_with("http://") || lower.starts_with("https://");
+    if !(web || lower.starts_with("file://")) {
+        return false;
+    }
+    let host = site_of(&lower).unwrap_or_default();
+    let store = host == "chromewebstore.google.com"
+        || host == "addons.mozilla.org"
+        || host == "microsoftedge.microsoft.com"
+        || (host == "chrome.google.com" && lower.contains("/webstore"));
+    !store
+}
+
+/// Why a page's links could not be read where the browser keeps dm out.
+pub const NO_LINKS_HERE: &str =
+    "the browser does not let extensions read this page, so dm cannot see its links";
+
 /// What a context menu click or the toolbar button asks for.
 #[derive(Debug, Clone, PartialEq)]
 pub struct Target {
@@ -1202,6 +1297,56 @@ mod tests {
         let import = script.find("import(").unwrap();
         assert!(script.find("addEventListener('click'").unwrap() < import);
         assert!(script.find("onMessage.addListener").unwrap() < import);
+    }
+
+    #[test]
+    fn chromes_file_name_question_is_held_until_dm_has_decided() {
+        let mut holds: Holds<&str> = Holds::default();
+        // Asked first, decided after: held, then given.
+        assert_eq!(holds.ask(1, "one"), None);
+        assert_eq!(holds.decide(1), Some("one"));
+        assert_eq!(holds.decide(1), None, "given once");
+        // Decided first (left with the browser): the question that follows
+        // is answered at once, and only that once.
+        holds.decide(2);
+        assert_eq!(holds.ask(2, "two"), Some("two"));
+        assert_eq!(holds.ask(2, "again"), None);
+        assert_eq!(holds.expire(2), Some("again"));
+        // Taken by dm: the answer is dropped, so no Save dialog can follow.
+        assert_eq!(holds.ask(3, "three"), None);
+        holds.drop_taken(3);
+        assert_eq!(holds.decide(3), None);
+        assert_eq!(holds.expire(3), None);
+        // A hold nobody decides runs out, and is answered then.
+        assert_eq!(holds.ask(4, "four"), None);
+        assert_eq!(holds.expire(4), Some("four"));
+        // Decisions no question follows are not kept for ever.
+        for id in 100..300 {
+            holds.decide(id);
+        }
+        assert!(holds.decided.len() <= DECIDED_KEPT);
+        assert!(DETERMINE_WITHIN_MS > HELLO_WITHIN_MS + TAKEN_WITHIN_MS);
+    }
+
+    #[test]
+    fn a_page_open_before_dm_gets_the_links_reader_where_the_browser_allows() {
+        assert!(injectable("https://e.com/files/"));
+        assert!(injectable("http://127.0.0.1:8000/odd.html"));
+        assert!(injectable("file:///home/u/list.html"));
+        for closed in [
+            "chrome://newtab/",
+            "about:blank",
+            "edge://settings",
+            "chrome-extension://abc/popup.html",
+            "moz-extension://abc/popup.html",
+            "view-source:https://e.com/",
+            "https://chromewebstore.google.com/detail/x",
+            "https://chrome.google.com/webstore/detail/x",
+            "https://addons.mozilla.org/firefox/addon/x",
+            "",
+        ] {
+            assert!(!injectable(closed), "{closed}");
+        }
     }
 
     #[test]

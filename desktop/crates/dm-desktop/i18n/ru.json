@@ -362,5 +362,15 @@
  "{} download(s) are still running. Exiting stops them; they go on from where they were the next time dm opens.": "Ещё идут загрузки: {}. Выход их остановит; при следующем запуске dm они продолжатся с того же места.",
  "{} downloads finished.": "Завершено загрузок: {}.",
  "· waiting for the schedule": "· ждёт расписания",
- "· waiting for the schedule (opens at {})": "· ждёт расписания (откроется в {})"
+ "· waiting for the schedule (opens at {})": "· ждёт расписания (откроется в {})",
+ "Keep waiting": "Продолжать ждать",
+ "No folder chooser on this desktop; type the folder's path.": "На этом рабочем столе нет окна выбора папки; введите путь к папке.",
+ "Remove from the list": "Убрать из списка",
+ "Start it now anyway? Only what you picked starts; the rest keep waiting.": "Всё равно запустить сейчас? Запустится только выбранное; остальное продолжит ждать.",
+ "Start outside the schedule?": "Запустить вне расписания?",
+ "Take these downloads off the list? Their files stay where they are.": "Убрать эти загрузки из списка? Их файлы останутся на месте.",
+ "Take this download off the list? Its file stays where it is.": "Убрать эту загрузку из списка? Её файл останется на месте.",
+ "Trying {} again with the sign-in.": "Повторная попытка {} со входом.",
+ "{} downloads wait for the schedule or the download limit.": "Загрузок, ждущих расписания или лимита загрузки: {}.",
+ "{} waits for the schedule or the download limit.": "{} ждёт расписания или лимита загрузки."
 }

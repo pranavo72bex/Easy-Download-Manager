@@ -7,8 +7,14 @@
 // loads it. Message names are those in browser/src/decide.rs.
 (() => {
   const ext = globalThis.browser ?? globalThis.chrome;
-  if (globalThis.__dmPage) return;
-  globalThis.__dmPage = true;
+  // Put in again by the background when it found no page script answering
+  // (a tab open before dm was installed or reloaded). One still connected
+  // to dm stays; one cut off by a reload (its runtime has no id) is replaced.
+  const before = globalThis.__dmPage;
+  if (typeof before === 'function' ? before() : before) return;
+  globalThis.__dmPage = () => {
+    try { return Boolean(ext.runtime?.id); } catch { return false; }
+  };
 
   // Alt-click: the background is told before the download starts.
   // Capturing, so a page that stops the click on its way up cannot hide the

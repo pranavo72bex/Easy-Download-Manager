@@ -14,6 +14,14 @@ const forward = (name) => (...args) => {
 };
 
 ext.downloads.onCreated.addListener(forward('on_download_created'));
+// Chrome only: its choice of the file's name, held while dm decides, so a
+// download dm takes never reaches the browser's Save dialog. `true` says the
+// answer comes later; a failure to load still answers.
+ext.downloads.onDeterminingFilename?.addListener((item, suggest) => {
+  ready.then((m) => m.on_determining_filename(item, suggest))
+    .catch((e) => { console.error('dm: on_determining_filename:', e); suggest(); });
+  return true;
+});
 ext.contextMenus.onClicked.addListener(forward('on_menu_clicked'));
 ext.action.onClicked.addListener(forward('on_action_clicked'));
 ext.runtime.onInstalled.addListener(forward('on_installed'));
