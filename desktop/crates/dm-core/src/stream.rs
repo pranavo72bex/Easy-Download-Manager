@@ -70,7 +70,7 @@ pub struct Part {
 pub struct Stream {
     pub parts: Vec<Part>,
     pub key: Option<Key>,
-    /// `ts`, `mp4` or `aac` — what the concatenation will actually be.
+    /// `ts`, `mp4`, `m4a` or `aac` — what the concatenation will actually be.
     pub container: String,
     pub filename: String,
 }
@@ -221,6 +221,17 @@ pub fn beyond_dm(
         .collect();
     if keys.len() > 1 {
         return Some("this stream changes its encryption part-way through");
+    }
+    /* One initialisation segment leads the file; a second, different one
+     * belongs to the segments after it, and joined as one file they decode
+     * against the wrong one. Restated unchanged, it is still one. */
+    let maps: std::collections::BTreeSet<String> = lines(media)
+        .iter()
+        .filter(|l| l.to_ascii_uppercase().starts_with("#EXT-X-MAP"))
+        .map(|l| l.trim().to_string())
+        .collect();
+    if maps.len() > 1 {
+        return Some("this stream changes its initialisation segment part-way through");
     }
     // An initialisation segment listed after a key that encrypts is
     // encrypted too; `METHOD=NONE` encrypts nothing.
@@ -410,8 +421,18 @@ pub fn media_playlist(
 
         if upper.starts_with("#EXT-X-MAP") {
             if let Some(uri) = attribute(row, "URI") {
+                let url = join(url, &uri)?;
+                // A second, different one would have replaced the first,
+                // and every segment before it decoded against the wrong one.
+                if init.as_ref().is_some_and(|first| first.url != url) {
+                    return Err(Error::Internal(
+                        "this stream changes its initialisation segment part-way through, \
+                         which dm cannot join into one file"
+                            .into(),
+                    ));
+                }
                 init = Some(Part {
-                    url: join(url, &uri)?,
+                    url,
                     init: true,
                     sequence: 0,
                 });
@@ -436,8 +457,23 @@ pub fn media_playlist(
     }) {
         container = "mp4";
     }
-    if quality == Quality::Audio {
+    /* Sound alone is named for what its segments are, not for the quality
+     * asked: fMP4 sound is an `.m4a`, and sound in a transport stream stays
+     * a `.ts`, which the remux puts into an MP4 where it can. Called `.aac`
+     * whatever it was, neither opened as what its name said. Packed audio
+     * (`.aac` segments) joins into an `.aac` and is one. */
+    let packed_audio = parts.iter().all(|p| {
+        p.url
+            .split(['?', '#'])
+            .next()
+            .unwrap_or("")
+            .to_ascii_lowercase()
+            .ends_with(".aac")
+    });
+    if packed_audio {
         container = "aac";
+    } else if quality == Quality::Audio && container == "mp4" {
+        container = "m4a";
     }
 
     // The initialisation segment leads the file or nothing will decode.
@@ -537,6 +573,43 @@ pub fn decrypt(key: &[u8], iv: &[u8; 16], data: &[u8]) -> Result<Vec<u8>, Error>
 #[cfg(test)]
 mod tests {
     #[test]
+    fn sound_alone_is_named_for_what_its_segments_are() {
+        /* Called `.aac` whatever it was: fMP4 sound is an MP4 file and a
+         * transport stream is a transport stream, and neither opened as the
+         * raw AAC its name promised. */
+        let at = "http://h/a/index.m3u8";
+        let from = "http://h/show/master.m3u8";
+        let fmp4 = "#EXTM3U\n#EXT-X-MAP:URI=\"init.mp4\"\n#EXTINF:4,\na.m4s\n#EXT-X-ENDLIST\n";
+        let read = media_playlist(fmp4, at, from, Quality::Audio).unwrap();
+        assert_eq!(
+            (read.container.as_str(), read.filename.as_str()),
+            ("m4a", "show.m4a")
+        );
+        let ts = "#EXTM3U\n#EXTINF:4,\na.ts\n#EXT-X-ENDLIST\n";
+        let read = media_playlist(ts, at, from, Quality::Audio).unwrap();
+        assert_eq!(
+            (read.container.as_str(), read.filename.as_str()),
+            ("ts", "show.ts")
+        );
+        let packed = "#EXTM3U\n#EXTINF:4,\na.aac\n#EXTINF:4,\nb.aac\n#EXT-X-ENDLIST\n";
+        let read = media_playlist(packed, at, from, Quality::Audio).unwrap();
+        assert_eq!(read.container, "aac");
+    }
+
+    #[test]
+    fn a_second_initialisation_segment_is_refused_not_swapped_in() {
+        let remapped = "#EXTM3U\n#EXT-X-MAP:URI=\"i1.mp4\"\na.m4s\n#EXT-X-MAP:URI=\"i2.mp4\"\nb.m4s\n#EXT-X-ENDLIST\n";
+        assert!(media_playlist(remapped, "http://h/v/i.m3u8", "x", Quality::Best).is_err());
+        let restated = "#EXTM3U\n#EXT-X-MAP:URI=\"i.mp4\"\na.m4s\n#EXT-X-MAP:URI=\"i.mp4\"\nb.m4s\n#EXT-X-ENDLIST\n";
+        let read = media_playlist(restated, "http://h/v/i.m3u8", "x", Quality::Best).unwrap();
+        assert_eq!(
+            read.parts.len(),
+            3,
+            "one initialisation segment and two of media"
+        );
+    }
+
+    #[test]
     fn streams_dm_cannot_assemble_itself_are_named() {
         let plain = "#EXTM3U\n#EXTINF:4,\na.ts\n#EXT-X-ENDLIST\n";
         assert_eq!(beyond_dm(None, None, plain), None);
@@ -551,6 +624,12 @@ mod tests {
         );
         let fmp4 = "#EXTM3U\n#EXT-X-MAP:URI=\"i.mp4\"\n#EXTINF:4,\na.m4s\n#EXT-X-ENDLIST\n";
         assert_eq!(beyond_dm(None, None, fmp4), None);
+        let remapped = "#EXTM3U\n#EXT-X-MAP:URI=\"i1.mp4\"\na.m4s\n#EXT-X-MAP:URI=\"i2.mp4\"\nb.m4s\n#EXT-X-ENDLIST\n";
+        assert!(beyond_dm(None, None, remapped)
+            .unwrap()
+            .contains("initialisation"));
+        let restated_map = "#EXTM3U\n#EXT-X-MAP:URI=\"i.mp4\"\na.m4s\n#EXT-X-MAP:URI=\"i.mp4\"\nb.m4s\n#EXT-X-ENDLIST\n";
+        assert_eq!(beyond_dm(None, None, restated_map), None);
         let none_then_map =
             "#EXTM3U\n#EXT-X-KEY:METHOD=NONE\n#EXT-X-MAP:URI=\"i.mp4\"\na.m4s\n#EXT-X-ENDLIST\n";
         assert_eq!(beyond_dm(None, None, none_then_map), None);

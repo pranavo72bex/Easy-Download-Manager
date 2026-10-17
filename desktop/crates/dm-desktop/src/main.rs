@@ -215,8 +215,9 @@ impl eframe::App for Window {
             ctx.send_viewport_cmd(egui::ViewportCommand::Visible(false));
         }
         self.app.logic(ctx);
-        // Program › Exit, as the tray's Quit does.
-        if std::mem::take(&mut self.app.quit_asked) {
+        // Program › Exit, as the tray's Quit does; and a logout, `kill` or
+        // a service manager stopping dm, which ask the same.
+        if std::mem::take(&mut self.app.quit_asked) || SIGNALLED.load(Ordering::SeqCst) {
             self.quitting = true;
             ctx.send_viewport_cmd(egui::ViewportCommand::Close);
         }
@@ -481,6 +482,81 @@ fn panic_text(panic: &(dyn std::any::Any + Send)) -> String {
         .unwrap_or_else(|| "the tray service could not start".into())
 }
 
+/// Set when the system asks dm to end: SIGTERM, SIGINT or SIGHUP (a
+/// logout, `kill`, a service manager stopping it, Ctrl+C in a terminal),
+/// or Windows' console close, logoff and shutdown events.
+static SIGNALLED: AtomicBool = AtomicBool::new(false);
+
+/// Ends dm as Program › Exit does when the system asks, rather than being
+/// cut off where it stood: its downloads were stopped by nothing, a
+/// yt-dlp run under it went on alone, and `control.port` was left naming a
+/// port nobody listened on. A second signal while closing ends it at once.
+fn on_signal(runtime: &tokio::runtime::Runtime, wake: impl Fn() + Send + Sync + 'static) {
+    let wake = Arc::new(wake);
+    // The handlers are installed here, now: a stream made inside the task
+    // would leave the default action in place until the task first ran.
+    let _inside = runtime.enter();
+    let mut asked: Vec<std::pin::Pin<Box<dyn std::future::Future<Output = ()> + Send>>> =
+        Vec::new();
+    #[cfg(unix)]
+    {
+        use tokio::signal::unix::{signal, SignalKind};
+        for kind in [
+            SignalKind::terminate(),
+            SignalKind::interrupt(),
+            SignalKind::hangup(),
+        ] {
+            if let Ok(mut stream) = signal(kind) {
+                asked.push(Box::pin(async move {
+                    while stream.recv().await.is_some() {
+                        if quit_on_signal() {
+                            return;
+                        }
+                    }
+                }));
+            }
+        }
+    }
+    #[cfg(windows)]
+    {
+        use tokio::signal::windows;
+        macro_rules! listen {
+            ($make:expr) => {
+                if let Ok(mut stream) = $make {
+                    asked.push(Box::pin(async move {
+                        while stream.recv().await.is_some() {
+                            if quit_on_signal() {
+                                return;
+                            }
+                        }
+                    }));
+                }
+            };
+        }
+        listen!(windows::ctrl_c());
+        listen!(windows::ctrl_close());
+        listen!(windows::ctrl_logoff());
+        listen!(windows::ctrl_shutdown());
+    }
+    for each in asked {
+        let wake = Arc::clone(&wake);
+        runtime.spawn(async move {
+            each.await;
+            wake();
+        });
+    }
+}
+
+/// The first signal asks dm to quit; a second, while it is still closing,
+/// ends it there. Says whether this one asked.
+fn quit_on_signal() -> bool {
+    if SIGNALLED.swap(true, Ordering::SeqCst) {
+        dm_desktop::control::forget_port(&settings::home());
+        std::process::exit(130);
+    }
+    true
+}
+
 /// Starts the control protocol and says where in dm's home.
 fn start_control(app: &mut DmApp, port: u16, ctx: &egui::Context) {
     let home = settings::home();
@@ -536,11 +612,37 @@ fn main() {
 
     // One dm at a time. The lock is held for the life of this process by
     // living to the end of `main`.
-    let Some(_running) = instance::claim(&settings::home()) else {
-        shell::hand_to_running(&settings::home(), &handed);
-        return;
+    let headless = args.iter().any(|a| a == "--headless");
+    let _running = match instance::claim(&settings::home()) {
+        Ok(Some(lock)) => lock,
+        Ok(None) => {
+            shell::hand_to_running(&settings::home(), &handed);
+            return;
+        }
+        // Not taken for a running dm, which it used to be: dm exited without
+        // a word, every time. Nor started without it: a second dm started
+        // the same way would write the same queue. Said, where a person
+        // launching from the Dock will see it too.
+        Err(e) => {
+            let why = format!(
+                "dm cannot tell whether another dm is running, so it has not started: {e}. \
+                 Remove that file, or make it yours, and start dm again."
+            );
+            eprintln!("dm: {why}");
+            if !headless {
+                let _ = rfd::MessageDialog::new()
+                    .set_title("dm could not start")
+                    .set_description(&why)
+                    .set_level(rfd::MessageLevel::Error)
+                    .show();
+            }
+            std::process::exit(1);
+        }
     };
 
+    // Made before the signals are listened for, so one arriving during
+    // startup still reaches the window once there is one.
+    let repaint_early: Arc<std::sync::OnceLock<egui::Context>> = Arc::default();
     let runtime = match tokio::runtime::Runtime::new() {
         Ok(runtime) => runtime,
         Err(e) => {
@@ -548,6 +650,14 @@ fn main() {
             std::process::exit(1);
         }
     };
+    on_signal(&runtime, {
+        let repaint = Arc::clone(&repaint_early);
+        move || {
+            if let Some(ctx) = repaint.get() {
+                ctx.request_repaint();
+            }
+        }
+    });
     let shell::Started {
         queue,
         settings: saved,
@@ -579,7 +689,7 @@ fn main() {
     // Anything a browser handed over while the app was closed is waiting in
     // the inbox; anything that was mid-flight came back queued.
     let show_asked = Arc::new(AtomicBool::new(false));
-    let repaint: Arc<std::sync::OnceLock<egui::Context>> = Arc::default();
+    let repaint = repaint_early;
     let handed: Arc<Mutex<std::collections::VecDeque<dm_shell::host::Request>>> = Arc::default();
     {
         let (watched, flag, repaint) =
@@ -615,17 +725,18 @@ fn main() {
 
     // `--headless`: the queue, the browser hand-off and the control
     // protocol, with no window — for a server, a script or an agent.
-    if args.iter().any(|a| a == "--headless") {
+    if headless {
         let ctx = egui::Context::default();
         let mut app = DmApp::new(backend);
         app.headless = true;
         if let Some(port) = control {
             start_control(&mut app, port, &ctx);
         }
-        while !app.quit_asked {
+        while !app.quit_asked && !SIGNALLED.load(Ordering::SeqCst) {
             app.logic(&ctx);
             std::thread::sleep(std::time::Duration::from_millis(50));
         }
+        dm_desktop::control::closing();
         dm_desktop::control::forget_port(&settings::home());
         return;
     }
@@ -702,6 +813,7 @@ fn main() {
             }))
         }),
     );
+    dm_desktop::control::closing();
     dm_desktop::control::forget_port(&settings::home());
     if let Err(e) = result {
         eprintln!("dm: the window could not be opened: {e}");

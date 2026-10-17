@@ -44,12 +44,29 @@ pub fn series(template: &str, from: &str, to: &str, width: usize) -> Result<Vec<
     }
 }
 
-/// One download in a saved list: an address and the page it came from.
+/// One download in a saved list: an address and the page it came from,
+/// and what a person gave the row — its queue, note, name and digest — so
+/// a list moved to another computer is the same list there.
+///
+/// Each beyond the address may be missing, as it is from a list written
+/// before they were kept, and is then nothing.
 #[derive(Debug, Clone, Default, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub struct Listed {
     pub url: String,
     #[serde(default, skip_serializing_if = "String::is_empty")]
     pub referrer: String,
+    /// The named queue it waits in; empty for none.
+    #[serde(default, skip_serializing_if = "String::is_empty")]
+    pub queue: String,
+    /// The Note column.
+    #[serde(default, skip_serializing_if = "String::is_empty")]
+    pub note: String,
+    /// The name a person chose over the server's.
+    #[serde(default, skip_serializing_if = "String::is_empty")]
+    pub name: String,
+    /// The digest it is held to, as `sha256:…`.
+    #[serde(default, skip_serializing_if = "String::is_empty")]
+    pub checksum: String,
 }
 
 /// dm's own list file (`.dmlist`): JSON, saying what it is, so a file of
@@ -87,12 +104,37 @@ pub fn from_list(text: &str) -> Vec<Listed> {
         }
     }
     text.split_whitespace()
+        .map(link_in)
         .filter(|word| dm_core::queue::accepted(word))
         .map(|word| Listed {
             url: word.to_string(),
-            referrer: String::new(),
+            ..Listed::default()
         })
         .collect()
+}
+
+/// A link as it sits in prose, without what the prose put around it: the
+/// `<…>` it was wrapped in, the quotes or brackets before it, and the
+/// comma, full stop or closing bracket after it. A closing bracket the link
+/// opened is its own and kept — `…/Rust_(programming_language)`.
+fn link_in(word: &str) -> &str {
+    let mut link = word.trim_start_matches(['<', '(', '[', '"', '\'']);
+    loop {
+        let Some(last) = link.chars().last() else {
+            return link;
+        };
+        let opened = |open: char| link.matches(open).count() >= link.matches(last).count();
+        let stray = match last {
+            ',' | ';' | '.' | '>' | '\'' | '"' | ':' | '!' | '?' => true,
+            ')' => !opened('('),
+            ']' => !opened('['),
+            _ => false,
+        };
+        if !stray {
+            return link;
+        }
+        link = link.strip_suffix(last).unwrap_or_default();
+    }
 }
 
 /// Every link and embedded file on a page, resolved against its address:
@@ -335,6 +377,10 @@ pub async fn crawl(client: &dm_core::reqwest::Client, search: &Search) -> Result
     let mut frontier: VecDeque<(String, u8)> = VecDeque::new();
     seen.insert(start.to_string());
     frontier.push_back((start.to_string(), 0));
+    // The site is where the start page was typed and where it really is:
+    // `example.com` that sends everyone on to `www.example.com` links only
+    // to the second, and held to the first nothing past the start was read.
+    let mut sites = vec![start.clone()];
 
     while let Some((page, level)) = frontier.pop_front() {
         if found.pages >= MAX_PAGES {
@@ -345,6 +391,12 @@ pub async fn crawl(client: &dm_core::reqwest::Client, search: &Search) -> Result
             Err(e) if found.pages == 0 => return Err(e),
             Err(_) => continue,
         };
+        if found.pages == 0 {
+            if let Ok(landed) = url::Url::parse(&base) {
+                seen.insert(landed.to_string());
+                sites.push(landed);
+            }
+        }
         found.pages += 1;
         for link in links_on_page(&base, &html) {
             let path = path_of(&link);
@@ -366,7 +418,7 @@ pub async fn crawl(client: &dm_core::reqwest::Client, search: &Search) -> Result
             }
             if level < depth
                 && looks_like_page(&link)
-                && same_site(&start, &link)
+                && sites.iter().any(|site| same_site(site, &link))
                 && seen.insert(link.clone())
             {
                 frontier.push_back((link, level + 1));
@@ -412,10 +464,14 @@ mod tests {
             Listed {
                 url: "https://e.com/a.zip".into(),
                 referrer: "https://e.com/page".into(),
+                queue: "Nightly".into(),
+                note: "the big one".into(),
+                name: "mine.zip".into(),
+                checksum: format!("sha256:{}", "a".repeat(64)),
             },
             Listed {
                 url: "magnet:?xt=urn:btih:abc".into(),
-                referrer: String::new(),
+                ..Listed::default()
             },
         ];
         let written = to_list(&rows);
@@ -433,7 +489,8 @@ mod tests {
             from_list(file),
             [Listed {
                 url: "https://e.com/a.zip".into(),
-                referrer: "https://e.com/".into()
+                referrer: "https://e.com/".into(),
+                ..Listed::default()
             }]
         );
     }
@@ -445,6 +502,38 @@ mod tests {
         assert!(from_list("").is_empty());
         // JSON that is not dm's list is read for its links, not as a list.
         assert!(from_list(r#"{"format":"other","downloads":[]}"#).is_empty());
+    }
+
+    #[test]
+    fn a_link_in_prose_is_read_without_the_punctuation_around_it() {
+        /* "see https://e.com/a.zip, then…" was queued as `a.zip,`, which
+         * the server does not have. */
+        let prose = "Get https://e.com/a.zip, then <https://e.com/b.zip>. \
+            (\"https://e.com/c.zip\"); also https://e.com/d.zip) and \
+            https://en.wikipedia.org/wiki/Rust_(programming_language). \
+            https://e.com/q?x=[1]]";
+        let urls: Vec<String> = from_list(prose).into_iter().map(|l| l.url).collect();
+        assert_eq!(
+            urls,
+            [
+                "https://e.com/a.zip",
+                "https://e.com/b.zip",
+                "https://e.com/c.zip",
+                "https://e.com/d.zip",
+                "https://en.wikipedia.org/wiki/Rust_(programming_language)",
+                "https://e.com/q?x=[1]",
+            ]
+        );
+    }
+
+    #[test]
+    fn a_list_written_before_rows_kept_more_than_an_address_still_reads() {
+        let old = r#"{"format":"dm download list","version":1,"downloads":[
+            {"url":"https://e.com/a.zip","referrer":"https://e.com/"}]}"#;
+        let read = from_list(old);
+        assert_eq!(read.len(), 1);
+        assert_eq!(read[0].referrer, "https://e.com/");
+        assert!(read[0].queue.is_empty() && read[0].name.is_empty());
     }
 
     #[test]

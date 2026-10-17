@@ -256,6 +256,8 @@
  "Stop download": "Download stoppen",
  "Stop queue": "Warteschlange stoppen",
  "Stopped": "Gestoppt",
+ "Waiting": "Wartet",
+ "Waiting for the schedule or the download limit; it starts by itself when allowed.": "Wartet auf den Zeitplan oder das Download-Limit; startet von selbst, sobald es erlaubt ist.",
  "Stopped {} download(s) in {}.": "{} Download(s) in {} gestoppt.",
  "Sun": "So",
  "Take downloads of these types from the browser": "Downloads dieser Typen vom Browser übernehmen",

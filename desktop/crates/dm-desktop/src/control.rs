@@ -21,9 +21,9 @@
 use std::io::{BufRead, BufReader, Read, Write};
 use std::net::{TcpListener, TcpStream};
 use std::path::Path;
-use std::sync::atomic::{AtomicUsize, Ordering};
-use std::sync::{mpsc, Arc};
-use std::time::Duration;
+use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
+use std::sync::{mpsc, Arc, Mutex};
+use std::time::{Duration, Instant};
 
 use serde_json::{json, Value};
 
@@ -35,8 +35,26 @@ pub struct Request {
 }
 
 const MAX_LINE: u64 = 1024 * 1024;
+/// The first line, before the token: an `auth` request is a few dozen bytes.
+const MAX_AUTH_LINE: u64 = 4096;
+/// Authenticated connections at once.
 const MAX_CONNECTIONS: usize = 16;
+/// Connections not yet authenticated at once: past this, the oldest is
+/// closed to make room, so a newcomer — the owner, with the token — is
+/// never the one turned away.
+const MAX_WAITING: usize = 16;
+/// How long a connection has to present the token.
+const AUTH_WITHIN: Duration = Duration::from_secs(5);
 const ANSWER_WITHIN: Duration = Duration::from_secs(60);
+
+/// Set as dm quits: a request still waiting is told so, not left to time
+/// out with "the window did not answer in time".
+static CLOSING: AtomicBool = AtomicBool::new(false);
+
+/// Says dm is quitting, to every connection.
+pub fn closing() {
+    CLOSING.store(true, Ordering::SeqCst);
+}
 
 /// The token a client must present, made on first use.
 pub fn token(home: &Path) -> std::io::Result<String> {
@@ -63,6 +81,52 @@ pub fn token(home: &Path) -> std::io::Result<String> {
     Ok(token)
 }
 
+/// Connections that have not presented the token yet, oldest first, each
+/// with when it came and a handle to close it by.
+///
+/// They used to share the sixteen slots with everyone, held for the
+/// five-minute read timeout: sixteen idle connections from any program on
+/// the machine kept the owner out, and a line that was not JSON was
+/// answered and the connection kept.
+#[derive(Default)]
+struct Waiting {
+    next: u64,
+    list: std::collections::VecDeque<(u64, Instant, TcpStream)>,
+}
+
+impl Waiting {
+    /// Takes in a new connection, closing the oldest waiting one if full.
+    fn admit(&mut self, stream: &TcpStream) -> Option<u64> {
+        let handle = stream.try_clone().ok()?;
+        while self.list.len() >= MAX_WAITING {
+            if let Some((_, _, oldest)) = self.list.pop_front() {
+                let _ = oldest.shutdown(std::net::Shutdown::Both);
+            }
+        }
+        self.next += 1;
+        self.list.push_back((self.next, Instant::now(), handle));
+        Some(self.next)
+    }
+
+    /// No longer waiting: authenticated, refused or gone.
+    fn leave(&mut self, id: u64) {
+        self.list.retain(|(each, _, _)| *each != id);
+    }
+
+    /// Closes every connection that has waited past `AUTH_WITHIN`, however
+    /// slowly it is still sending.
+    fn expire(&mut self) {
+        let now = Instant::now();
+        self.list.retain(|(_, came, stream)| {
+            let keep = now.duration_since(*came) < AUTH_WITHIN;
+            if !keep {
+                let _ = stream.shutdown(std::net::Shutdown::Both);
+            }
+            keep
+        });
+    }
+}
+
 /// Listens on loopback and hands each authenticated request to `to_window`,
 /// calling `wake` so a hidden window still answers. Returns the port.
 pub fn listen(
@@ -75,25 +139,73 @@ pub fn listen(
     let port = listener.local_addr()?.port();
     let wake = Arc::new(wake);
     let open = Arc::new(AtomicUsize::new(0));
+    let waiting = Arc::new(Mutex::new(Waiting::default()));
+    {
+        let waiting = Arc::downgrade(&waiting);
+        std::thread::spawn(move || {
+            while let Some(waiting) = waiting.upgrade() {
+                dm_core::lock(&waiting).expire();
+                drop(waiting);
+                std::thread::sleep(Duration::from_millis(250));
+            }
+        });
+    }
     std::thread::spawn(move || {
         for stream in listener.incoming().flatten() {
-            if open.load(Ordering::SeqCst) >= MAX_CONNECTIONS {
+            let Some(id) = dm_core::lock(&waiting).admit(&stream) else {
                 continue;
-            }
-            open.fetch_add(1, Ordering::SeqCst);
-            let (token, to_window, wake, open) = (
+            };
+            let (token, to_window, wake, open, waiting) = (
                 token.clone(),
                 to_window.clone(),
                 Arc::clone(&wake),
                 Arc::clone(&open),
+                Arc::clone(&waiting),
             );
             std::thread::spawn(move || {
-                let _ = serve(stream, &token, &to_window, &*wake);
-                open.fetch_sub(1, Ordering::SeqCst);
+                let connection = Connection {
+                    id,
+                    open: &open,
+                    waiting: &waiting,
+                    counted: false,
+                };
+                let _ = serve(stream, &token, &to_window, &*wake, connection);
             });
         }
     });
     Ok(port)
+}
+
+/// One connection's place in the counts, given back however it ends.
+struct Connection<'a> {
+    id: u64,
+    open: &'a AtomicUsize,
+    waiting: &'a Mutex<Waiting>,
+    counted: bool,
+}
+
+impl Connection<'_> {
+    /// Out of the waiting list and into a slot, if there is one.
+    fn authenticated(&mut self) -> bool {
+        dm_core::lock(self.waiting).leave(self.id);
+        let taken = self
+            .open
+            .fetch_update(Ordering::SeqCst, Ordering::SeqCst, |n| {
+                (n < MAX_CONNECTIONS).then_some(n + 1)
+            })
+            .is_ok();
+        self.counted = taken;
+        taken
+    }
+}
+
+impl Drop for Connection<'_> {
+    fn drop(&mut self) {
+        dm_core::lock(self.waiting).leave(self.id);
+        if self.counted {
+            self.open.fetch_sub(1, Ordering::SeqCst);
+        }
+    }
 }
 
 fn serve(
@@ -101,28 +213,42 @@ fn serve(
     token: &str,
     to_window: &mpsc::Sender<Request>,
     wake: &(dyn Fn() + Send + Sync),
+    mut connection: Connection<'_>,
 ) -> std::io::Result<()> {
-    stream.set_read_timeout(Some(Duration::from_secs(300)))?;
+    stream.set_read_timeout(Some(AUTH_WITHIN))?;
     let mut out = stream.try_clone()?;
     let mut reader = BufReader::new(stream);
     let mut authenticated = false;
     loop {
         let mut line = String::new();
-        let read = (&mut reader).take(MAX_LINE).read_line(&mut line)?;
+        let limit = if authenticated {
+            MAX_LINE
+        } else {
+            MAX_AUTH_LINE
+        };
+        let read = (&mut reader).take(limit).read_line(&mut line)?;
         if read == 0 {
             return Ok(());
         }
-        if !line.ends_with('\n') && read as u64 >= MAX_LINE {
+        if !line.ends_with('\n') && read as u64 >= limit {
             write_reply(
                 &mut out,
                 &Value::Null,
-                Err("a request may be at most 1 MiB".into()),
+                Err(if authenticated {
+                    "a request may be at most 1 MiB".into()
+                } else {
+                    "authenticate first".into()
+                }),
             )?;
             return Ok(());
         }
         let Ok(message) = serde_json::from_str::<Value>(&line) else {
             write_reply(&mut out, &Value::Null, Err("that is not JSON".into()))?;
-            continue;
+            if authenticated {
+                continue;
+            }
+            // Before the token, nothing but the token is answered twice.
+            return Ok(());
         };
         let id = message.get("id").cloned().unwrap_or(Value::Null);
         let method = message
@@ -135,7 +261,18 @@ fn serve(
         if !authenticated {
             let given = params.get("token").and_then(Value::as_str).unwrap_or("");
             if method == "auth" && constant_time_eq(given.as_bytes(), token.as_bytes()) {
+                if !connection.authenticated() {
+                    write_reply(
+                        &mut out,
+                        &id,
+                        Err(format!(
+                            "dm takes {MAX_CONNECTIONS} connections at once; close one first"
+                        )),
+                    )?;
+                    return Ok(());
+                }
                 authenticated = true;
+                out.set_read_timeout(Some(Duration::from_secs(300)))?;
                 write_reply(&mut out, &id, Ok(json!({ "authenticated": true })))?;
                 continue;
             }
@@ -144,6 +281,10 @@ fn serve(
             return Ok(());
         }
 
+        if CLOSING.load(Ordering::SeqCst) {
+            write_reply(&mut out, &id, Err("dm is closing".into()))?;
+            return Ok(());
+        }
         let (reply, answered) = mpsc::channel();
         if to_window
             .send(Request {
@@ -157,10 +298,30 @@ fn serve(
             return Ok(());
         }
         wake();
-        let answer = answered
-            .recv_timeout(ANSWER_WITHIN)
-            .unwrap_or_else(|_| Err("the window did not answer in time".into()));
+        let answer = wait_for(&answered, &CLOSING, ANSWER_WITHIN);
         write_reply(&mut out, &id, answer)?;
+    }
+}
+
+/// The window's answer; or, when dm quits first, that it is closing.
+fn wait_for(
+    answered: &mpsc::Receiver<Result<Value, String>>,
+    closing: &AtomicBool,
+    within: Duration,
+) -> Result<Value, String> {
+    let until = Instant::now() + within;
+    loop {
+        match answered.recv_timeout(Duration::from_millis(100)) {
+            Ok(answer) => return answer,
+            Err(mpsc::RecvTimeoutError::Disconnected) => return Err("dm is closing".into()),
+            Err(mpsc::RecvTimeoutError::Timeout) if closing.load(Ordering::SeqCst) => {
+                return Err("dm is closing".into())
+            }
+            Err(mpsc::RecvTimeoutError::Timeout) if Instant::now() >= until => {
+                return Err("the window did not answer in time".into())
+            }
+            Err(mpsc::RecvTimeoutError::Timeout) => {}
+        }
     }
 }
 
@@ -273,5 +434,99 @@ mod tests {
         let mut reply = String::new();
         BufReader::new(stream).read_line(&mut reply).unwrap();
         assert!(reply.contains("\"ok\":false"), "{reply}");
+    }
+
+    fn auth(port: u16, token: &str) -> String {
+        let mut stream = TcpStream::connect(("127.0.0.1", port)).unwrap();
+        stream
+            .set_read_timeout(Some(Duration::from_secs(10)))
+            .unwrap();
+        let line = json!({ "id": 1, "method": "auth", "params": { "token": token } });
+        stream.write_all(format!("{line}\n").as_bytes()).unwrap();
+        let mut reply = String::new();
+        let _ = BufReader::new(stream).read_line(&mut reply);
+        reply
+    }
+
+    #[test]
+    fn idle_connections_without_the_token_do_not_keep_the_owner_out() {
+        /* Sixteen connections that said nothing held every slot for the
+         * five-minute read timeout, and the owner's was closed unanswered. */
+        let token = "b".repeat(64);
+        let (to_window, _from_net) = mpsc::channel();
+        let port = listen(0, token.clone(), to_window, || {}).unwrap();
+        let idle: Vec<TcpStream> = (0..MAX_WAITING + 4)
+            .map(|_| TcpStream::connect(("127.0.0.1", port)).unwrap())
+            .collect();
+        std::thread::sleep(Duration::from_millis(200));
+        let reply = auth(port, &token);
+        assert!(reply.contains("\"authenticated\":true"), "{reply:?}");
+        drop(idle);
+    }
+
+    #[test]
+    fn a_connection_that_does_not_authenticate_in_time_is_closed() {
+        let (to_window, _from_net) = mpsc::channel();
+        let port = listen(0, "c".repeat(64), to_window, || {}).unwrap();
+        let mut stream = TcpStream::connect(("127.0.0.1", port)).unwrap();
+        stream.set_read_timeout(Some(AUTH_WITHIN * 3)).unwrap();
+        let started = Instant::now();
+        // A byte now and then, never a whole line: each read is quick, so
+        // only a deadline for the whole of it ends this.
+        let mut writer = stream.try_clone().unwrap();
+        std::thread::spawn(move || {
+            for _ in 0..40 {
+                if writer.write_all(b"{").is_err() {
+                    return;
+                }
+                std::thread::sleep(Duration::from_millis(500));
+            }
+        });
+        let mut rest = Vec::new();
+        let _ = stream.read_to_end(&mut rest);
+        let took = started.elapsed();
+        assert!(
+            took < AUTH_WITHIN + Duration::from_secs(3),
+            "held for {took:?}"
+        );
+    }
+
+    #[test]
+    fn a_line_that_is_not_json_before_the_token_ends_the_connection() {
+        let (to_window, _from_net) = mpsc::channel();
+        let port = listen(0, "d".repeat(64), to_window, || {}).unwrap();
+        let mut stream = TcpStream::connect(("127.0.0.1", port)).unwrap();
+        stream
+            .set_read_timeout(Some(Duration::from_secs(10)))
+            .unwrap();
+        stream.write_all(b"garbage\n").unwrap();
+        let mut reader = BufReader::new(stream.try_clone().unwrap());
+        let mut reply = String::new();
+        reader.read_line(&mut reply).unwrap();
+        assert!(reply.contains("not JSON"), "{reply}");
+        let _ = stream.write_all(b"garbage\n");
+        let mut more = String::new();
+        assert_eq!(
+            reader.read_line(&mut more).unwrap_or(0),
+            0,
+            "answered again: {more}"
+        );
+    }
+
+    #[test]
+    fn a_request_waiting_as_dm_quits_is_told_dm_is_closing() {
+        let (_reply, answered) = mpsc::channel();
+        let closing = AtomicBool::new(true);
+        let started = Instant::now();
+        let answer = wait_for(&answered, &closing, Duration::from_secs(30));
+        assert_eq!(answer, Err("dm is closing".to_string()));
+        assert!(started.elapsed() < Duration::from_secs(5));
+
+        // And when the window that would have answered is gone.
+        let (reply, answered) = mpsc::channel::<Result<Value, String>>();
+        drop(reply);
+        let closing = AtomicBool::new(false);
+        let answer = wait_for(&answered, &closing, Duration::from_secs(30));
+        assert_eq!(answer, Err("dm is closing".to_string()));
     }
 }

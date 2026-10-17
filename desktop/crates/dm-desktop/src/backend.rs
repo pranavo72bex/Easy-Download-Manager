@@ -343,9 +343,19 @@ impl Backend {
             // Without a login in the address: a list file is shared and
             // kept, and a password is not something to leave in it. Options
             // › Sign-ins puts the login back on import.
+            // What a person gave the row goes with it: a list that came
+            // back without its queues, notes, names and digests was a list
+            // of addresses, and the rest had to be done again by hand.
             .map(|e| lists::Listed {
                 url: without_login(&e.url),
                 referrer: e.referrer,
+                queue: e.queue,
+                note: e.description,
+                name: e.save_name.unwrap_or_default(),
+                checksum: e
+                    .checksum
+                    .map(|c| format!("{}:{}", c.algorithm.name(), c.expected))
+                    .unwrap_or_default(),
             })
             .collect();
         lists::to_list(&rows)
@@ -353,17 +363,41 @@ impl Backend {
 
     /// Adds what a `.dmlist` file or a plain list holds, saying how many.
     pub fn import(&self, text: &str) -> usize {
-        let items = lists::from_list(text)
-            .into_iter()
+        let rows = lists::from_list(text);
+        let items = rows
+            .iter()
             .map(|row| {
                 let with = AddOptions {
-                    referrer: row.referrer,
+                    referrer: row.referrer.clone(),
+                    queue: row.queue.clone(),
+                    description: row.note.clone(),
+                    save_name: (!row.name.is_empty()).then(|| row.name.clone()),
+                    // Held until its digest is on it: started at once, it
+                    // could be fetched and finished before the check was
+                    // there to be made.
+                    later: !row.checksum.is_empty(),
                     ..AddOptions::default()
                 };
-                (row.url, with)
+                (row.url.clone(), with)
             })
             .collect();
-        self.add_each(items).iter().filter(|r| r.is_ok()).count()
+        let added = self.add_each(items);
+        let mut held = false;
+        for (row, id) in rows.iter().zip(&added) {
+            let Ok(id) = id else { continue };
+            if row.checksum.is_empty() {
+                continue;
+            }
+            // A digest that does not read is left off rather than failing
+            // the row: the download is still the one listed.
+            let _ = self.set_checksum(*id, &row.checksum);
+            self.block_on(self.queue.resume(*id));
+            held = true;
+        }
+        if held {
+            self.block_on(async { shell::wake(&self.queue) });
+        }
+        added.iter().filter(|r| r.is_ok()).count()
     }
 }
 
@@ -417,12 +451,100 @@ mod admit_tests {
         let admitted = admit("https://files.example/a.zip", home).unwrap();
         let saved = admitted.save_dir.unwrap();
         assert!(!saved.contains('~') && std::path::Path::new(&saved).is_absolute());
-        assert!(admit("magnet:?xt=urn:btih:abc", AddOptions::default()).is_ok());
+        assert!(admit(
+            "magnet:?xt=urn:btih:0123456789abcdef0123456789abcdef01234567",
+            AddOptions::default()
+        )
+        .is_ok());
     }
 }
 
 #[cfg(test)]
 mod export_tests {
+    struct Nothing;
+
+    impl super::Platform for Nothing {
+        fn set_login_item(&self, _: bool) -> Result<(), String> {
+            Ok(())
+        }
+        fn notify(&self, _: &str, _: &str) {}
+        fn clipboard(&self) -> Option<String> {
+            None
+        }
+        fn reveal(&self, _: &str) -> Result<(), String> {
+            Ok(())
+        }
+        fn open(&self, _: &str) -> Result<(), String> {
+            Ok(())
+        }
+        fn chime(&self) {}
+        fn power(&self, _: crate::power::WhenDone, _: crate::power::Report) -> Result<(), String> {
+            Ok(())
+        }
+        fn choose_app(&self) -> Option<std::path::PathBuf> {
+            None
+        }
+        fn open_with(&self, _: &str, _: &std::path::Path) -> Result<(), String> {
+            Ok(())
+        }
+        fn choose_file(&self, _: bool, _: &str) -> Option<std::path::PathBuf> {
+            None
+        }
+    }
+
+    fn backend(runtime: &tokio::runtime::Runtime, dir: &std::path::Path) -> super::Backend {
+        let settings = dm_shell::Settings {
+            download_dir: dir.join("out"),
+            ..dm_shell::Settings::default()
+        };
+        let queue = dm_core::Queue::new(
+            dm_core::client(),
+            settings.options(dir.join("parts"), dm_core::Limiter::unlimited()),
+            settings.concurrency,
+        );
+        super::Backend::new(
+            runtime.handle().clone(),
+            queue,
+            settings,
+            Vec::new(),
+            std::sync::Arc::new(Nothing),
+        )
+    }
+
+    #[test]
+    fn an_exported_list_brings_back_queue_note_name_and_digest() {
+        /* Only the address and the page went out, so a list moved to
+         * another computer came back without the rest. Held for later so
+         * nothing is fetched; nothing listens on the port anyway. */
+        let runtime = tokio::runtime::Runtime::new().unwrap();
+        let dir = tempfile::tempdir().unwrap();
+        let from = backend(&runtime, dir.path());
+        let digest = "a".repeat(64);
+        let id = from
+            .add_with(
+                "http://127.0.0.1:9/a.zip",
+                dm_core::AddOptions {
+                    referrer: "http://127.0.0.1:9/page".into(),
+                    queue: "Nightly".into(),
+                    description: "the big one".into(),
+                    save_name: Some("mine.zip".into()),
+                    later: true,
+                    ..dm_core::AddOptions::default()
+                },
+            )
+            .unwrap();
+        from.set_checksum(id, &format!("sha256:{digest}")).unwrap();
+
+        let to = backend(&runtime, dir.path());
+        assert_eq!(to.import(&from.export()), 1);
+        let row = to.list().pop().unwrap();
+        assert_eq!(row.referrer, "http://127.0.0.1:9/page");
+        assert_eq!(row.queue, "Nightly");
+        assert_eq!(row.description, "the big one");
+        assert_eq!(row.save_name.as_deref(), Some("mine.zip"));
+        assert_eq!(row.checksum.map(|c| c.expected), Some(digest));
+    }
+
     #[test]
     fn an_exported_address_carries_no_login() {
         assert_eq!(

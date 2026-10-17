@@ -24,21 +24,46 @@ pub const HOST_MANIFEST: &str = "com.dm.engine.json";
 /// the binary opens a window, writes nothing to stdout, and the browser sits
 /// holding a port that never answers. That is exactly what Firefox did.
 ///
-/// - **Chrome** passes the calling extension's origin, `chrome-extension://…`.
-/// - **Firefox** passes the path of the app manifest and nothing else — no
-///   extension id, whatever the shape of the Chrome case suggests.
+/// - **Chrome** (and the browsers built on it) passes the calling
+///   extension's origin, `chrome-extension://<id>/`, and on Windows a
+///   `--parent-window=<handle>` after it.
+/// - **Firefox** passes the path of the app manifest, and in some versions
+///   the extension's id after it: never a link, never a flag.
 ///
 /// Detecting both is what lets one binary be both the window and the host,
 /// with no shim script in between to install, sign and keep in step.
+///
+/// The whole command line has to be that shape, not one argument somewhere
+/// in it: a link ending in `com.dm.engine.json`, a `--name` of that, or a
+/// `chrome-extension://` link passed by a person turned their launch into
+/// a host that read nothing from stdin and dropped the link.
 pub fn browser_launch(args: &[String]) -> bool {
-    args.iter().any(|arg| {
-        arg != "--desktop"
-            && (arg == "--native-host"
-            || arg.starts_with("chrome-extension://")
-            || arg.starts_with("moz-extension://")
-            // Firefox, which says nothing else about itself.
-            || arg.ends_with(HOST_MANIFEST))
-    })
+    match args {
+        // dm's own way in, for scripts and the installers' checks.
+        [only] if only == "--native-host" => true,
+        [origin, rest @ ..]
+            if origin.starts_with("chrome-extension://")
+                || origin.starts_with("moz-extension://") =>
+        {
+            rest.len() <= 1 && rest.iter().all(|arg| arg.starts_with("--parent-window="))
+        }
+        [manifest, rest @ ..] if is_host_manifest(manifest) => {
+            rest.len() <= 1
+                && rest
+                    .iter()
+                    .all(|id| !id.is_empty() && !id.starts_with('-') && !id.contains("://"))
+        }
+        _ => false,
+    }
+}
+
+/// A path to dm's own app manifest, as Firefox gives it: a file path, not
+/// a link that happens to end the same way.
+fn is_host_manifest(arg: &str) -> bool {
+    let path = Path::new(arg);
+    !arg.contains("://")
+        && path.has_root()
+        && path.file_name().is_some_and(|name| name == HOST_MANIFEST)
 }
 
 /// This process's arguments, less its own name.
@@ -352,14 +377,27 @@ pub fn wake(queue: &Queue) {
 /// Why `url` cannot be added, where that can be told before fetching: a
 /// web or FTP address with no site in it (`http://`) was accepted and only
 /// failed later with "builder error: empty host".
+///
+/// Read from the text as typed, not only as parsed: the parser turns
+/// `http:///x` into a site called `x`, and that row failed sixteen seconds
+/// later with a name lookup error. A magnet with no torrent hash in it is
+/// refused here too, rather than failing once the engine has it.
 pub fn unusable(url: &str) -> Option<String> {
     let url = url.trim();
     let lower = url.to_ascii_lowercase();
-    if !["http://", "https://", "ftp://", "ftps://"]
+    if lower.starts_with("magnet:") {
+        return (!magnet_names_a_torrent(url))
+            .then(|| format!("{url} names no torrent to download (no valid xt=urn:btih: hash)"));
+    }
+    let rest = ["http://", "https://", "ftp://", "ftps://"]
         .iter()
-        .any(|scheme| lower.starts_with(scheme))
-    {
-        return None;
+        .find_map(|scheme| lower.strip_prefix(scheme))?;
+    // The authority as typed: up to the first `/`, `?` or `#`, less any
+    // `user:password@`.
+    let authority = rest.split(['/', '?', '#']).next().unwrap_or("");
+    let site = authority.rsplit('@').next().unwrap_or("");
+    if site.is_empty() || site.starts_with(':') {
+        return Some(format!("{url} names no site to download from"));
     }
     match url::Url::parse(url) {
         Ok(parsed) if parsed.host_str().is_some_and(|h| !h.is_empty()) => None,
@@ -368,6 +406,29 @@ pub fn unusable(url: &str) -> Option<String> {
         }
         Err(e) => Some(format!("{url} is not a link dm can read ({e})")),
     }
+}
+
+/// Whether a magnet carries a torrent's hash: an `xt` of `urn:btih:` with
+/// 40 hex digits or 32 base32 letters, or a v2 `urn:btmh:` multihash.
+fn magnet_names_a_torrent(url: &str) -> bool {
+    let query = url.split_once('?').map_or("", |(_, q)| q);
+    url::form_urlencoded::parse(query.as_bytes())
+        .filter(|(key, _)| key == "xt" || key.starts_with("xt."))
+        .any(|(_, topic)| {
+            let topic = topic.to_ascii_lowercase();
+            if let Some(hash) = topic.strip_prefix("urn:btih:") {
+                (hash.len() == 40 && hash.chars().all(|c| c.is_ascii_hexdigit()))
+                    || (hash.len() == 32
+                        && hash.chars().all(|c| matches!(c, 'a'..='z' | '2'..='7')))
+            } else if let Some(hash) = topic.strip_prefix("urn:btmh:") {
+                // sha2-256 multihash: `1220` and 64 hex digits.
+                hash.len() == 68
+                    && hash.starts_with("1220")
+                    && hash.chars().all(|c| c.is_ascii_hexdigit())
+            } else {
+                false
+            }
+        })
 }
 
 /// Queues a URL, or several pasted together.
@@ -396,10 +457,10 @@ pub async fn add(queue: &Queue, text: &str) -> Result<Added, String> {
         queue.add_all(&urls).await
     };
     if ids.len() < urls.len() {
-        skipped.push(format!(
-            "{} of the links are not ones dm can download",
-            urls.len() - ids.len()
-        ));
+        skipped.push(match urls.len() - ids.len() {
+            1 => "one of the links is not one dm can download".to_string(),
+            n => format!("{n} of the links are not ones dm can download"),
+        });
     }
     if ids.is_empty() {
         return Err(skipped
@@ -721,7 +782,52 @@ mod tests {
             .unwrap()
             .contains("names no site"));
         assert_eq!(super::unusable("https://files.example/a.zip"), None);
-        assert_eq!(super::unusable("magnet:?xt=urn:btih:abc"), None);
+    }
+
+    #[test]
+    fn a_link_with_no_site_as_typed_is_refused_though_it_parses() {
+        // The parser reads `http:///x` as a site called `x`.
+        for typed in [
+            "http:///x",
+            "https:///files/a.zip",
+            "ftp:///pub/a",
+            "http://user:pw@/x",
+            "http://:8080/x",
+            "http://?q",
+        ] {
+            let why = super::unusable(typed).unwrap_or_default();
+            assert!(why.contains("names no site"), "{typed}: {why:?}");
+        }
+        for fine in [
+            "http://user:pw@e.com/x",
+            "HTTP://E.COM/A",
+            "http://127.0.0.1:9/a",
+            "http://[::1]:9/a",
+        ] {
+            assert_eq!(super::unusable(fine), None, "{fine}");
+        }
+    }
+
+    #[test]
+    fn a_magnet_without_a_torrent_hash_is_refused_at_add() {
+        for bad in [
+            "magnet:?xt=urn:btih:zz",
+            "magnet:?xt=urn:btih:abc",
+            "magnet:?dn=film",
+            "magnet:",
+            "magnet:?xt=urn:sha1:0123456789abcdef0123456789abcdef01234567",
+            "magnet:?xt=urn:btih:0123456789abcdef0123456789abcdef0123456g",
+        ] {
+            let why = super::unusable(bad).unwrap_or_default();
+            assert!(why.contains("names no torrent"), "{bad}: {why:?}");
+        }
+        for good in [
+            "magnet:?xt=urn:btih:0123456789ABCDEF0123456789abcdef01234567&dn=x",
+            "magnet:?dn=x&xt=urn:btih:ABCDEFGHIJKLMNOPQRSTUVWXYZ234567",
+            "magnet:?xt=urn:btmh:12200123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
+        ] {
+            assert_eq!(super::unusable(good), None, "{good}");
+        }
     }
 
     #[test]
@@ -778,6 +884,49 @@ mod tests {
         assert!(!browser_launch(&args(&["--help"])));
         assert!(!browser_launch(&args(&["--desktop"])));
         assert!(!browser_launch(&args(&["/Users/x/notes.json"])));
+    }
+
+    /* A link or a name that merely ends like the manifest, or a link to an
+     * extension's page, is a person's download: it used to make the launch
+     * a host that read nothing and dropped the link. */
+    #[test]
+    fn a_link_or_a_name_never_makes_a_launch_the_browsers() {
+        let args = |v: &[&str]| v.iter().map(|s| s.to_string()).collect::<Vec<_>>();
+        // Firefox's own shape, with the extension's id after it.
+        assert!(browser_launch(&args(&[
+            "/home/x/.mozilla/native-messaging-hosts/com.dm.engine.json",
+            "dm@example.org"
+        ])));
+        assert!(browser_launch(&args(&[
+            "chrome-extension://abcdefghijklmnop/"
+        ])));
+        assert!(browser_launch(&args(&["--native-host"])));
+
+        for person in [
+            &["--later", "https://127.0.0.1:9/dir/com.dm.engine.json"][..],
+            &["https://127.0.0.1:9/dir/com.dm.engine.json"],
+            &[
+                "--later",
+                "--name",
+                "com.dm.engine.json",
+                "https://e.com/b.zip",
+            ],
+            &["--name", "/tmp/com.dm.engine.json", "https://e.com/b.zip"],
+            &[
+                "https://e.com/a.zip",
+                "chrome-extension://abcdefghijklmnop/",
+            ],
+            &[
+                "chrome-extension://abcdefghijklmnop/",
+                "https://e.com/a.zip",
+            ],
+            &["/home/x/com.dm.engine.json", "https://e.com/a.zip"],
+            &["/home/x/com.dm.engine.json", "--later"],
+            &["com.dm.engine.json"],
+            &["https://e.com/a.zip", "--native-host"],
+        ] {
+            assert!(!browser_launch(&args(person)), "{person:?}");
+        }
     }
 
     fn argv(v: &[&str]) -> Vec<String> {

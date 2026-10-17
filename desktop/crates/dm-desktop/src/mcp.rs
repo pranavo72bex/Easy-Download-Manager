@@ -86,14 +86,38 @@ fn method_of(tool: &str) -> Option<&'static str> {
     })
 }
 
-/// A connection to the running dm's control protocol.
+/// Where the running dm listens and the token it wants, read afresh each
+/// time a connection is made.
+type Finder = Box<dyn Fn() -> Result<(u16, String), String> + Send>;
+
+/// A connection to the running dm's control protocol, made again when dm
+/// has gone and come back.
+///
+/// It used to be made once: after dm restarted, every call failed until
+/// the AI client restarted `dm mcp` too — and dm's port is a new one each
+/// start, so the port and token are read again rather than reused.
 pub struct Control {
-    out: TcpStream,
-    replies: BufReader<TcpStream>,
+    link: Option<(TcpStream, BufReader<TcpStream>)>,
+    find: Finder,
 }
 
 impl Control {
+    /// Connects to `port` with `token`, and to the same again later.
     pub fn connect(port: u16, token: &str) -> Result<Control, String> {
+        let token = token.to_string();
+        Control::with(Box::new(move || Ok((port, token.clone()))))
+    }
+
+    /// Connects wherever `find` says, now and on each reconnection.
+    pub fn with(find: Finder) -> Result<Control, String> {
+        let mut control = Control { link: None, find };
+        control.reconnect()?;
+        Ok(control)
+    }
+
+    fn reconnect(&mut self) -> Result<(), String> {
+        self.link = None;
+        let (port, token) = (self.find)()?;
         let stream = TcpStream::connect(("127.0.0.1", port)).map_err(|e| {
             // Most often a port file left by a dm that has since gone.
             format!(
@@ -102,21 +126,55 @@ impl Control {
             )
         })?;
         let replies = BufReader::new(stream.try_clone().map_err(|e| e.to_string())?);
-        let mut control = Control {
-            out: stream,
-            replies,
+        self.link = Some((stream, replies));
+        if let Err(why) = self.exchange("auth", json!({ "token": token })) {
+            self.link = None;
+            return Err(why);
+        }
+        Ok(())
+    }
+
+    /// Whether the connection is still there: dm, quitting, closes it, and
+    /// a write to it would seem to succeed until the reply never came.
+    fn alive(&self) -> bool {
+        let Some((stream, replies)) = &self.link else {
+            return false;
         };
-        control.call("auth", json!({ "token": token }))?;
-        Ok(control)
+        if !replies.buffer().is_empty() {
+            return true;
+        }
+        if stream.set_nonblocking(true).is_err() {
+            return false;
+        }
+        let mut byte = [0u8; 1];
+        let open = match stream.peek(&mut byte) {
+            Ok(0) => false,
+            Ok(_) => true,
+            Err(e) => e.kind() == std::io::ErrorKind::WouldBlock,
+        };
+        stream.set_nonblocking(false).is_ok() && open
     }
 
     pub fn call(&mut self, method: &str, params: Value) -> Result<Value, String> {
+        if !self.alive() {
+            self.reconnect()?;
+        }
+        let answer = self.exchange(method, params);
+        if answer.is_err() && !self.alive() {
+            // Gone mid-call: the next call connects again.
+            self.link = None;
+        }
+        answer
+    }
+
+    fn exchange(&mut self, method: &str, params: Value) -> Result<Value, String> {
+        let Some((out, replies)) = &mut self.link else {
+            return Err("dm closed the connection".into());
+        };
         let line = json!({ "id": 1, "method": method, "params": params });
-        writeln!(self.out, "{line}").map_err(|e| e.to_string())?;
+        writeln!(out, "{line}").map_err(|e| e.to_string())?;
         let mut reply = String::new();
-        self.replies
-            .read_line(&mut reply)
-            .map_err(|e| e.to_string())?;
+        replies.read_line(&mut reply).map_err(|e| e.to_string())?;
         let reply: Value =
             serde_json::from_str(&reply).map_err(|_| "dm closed the connection".to_string())?;
         if reply.get("ok") == Some(&Value::Bool(true)) {
@@ -208,17 +266,23 @@ pub fn main(args: &[String], home: &Path) -> i32 {
             .and_then(|i| args.get(i + 1))
             .cloned()
     };
-    let port = value("--port")
-        .or_else(|| std::fs::read_to_string(home.join("control.port")).ok())
-        .and_then(|p| p.trim().parse::<u16>().ok());
-    let token = value("--token-file")
-        .map(std::path::PathBuf::from)
-        .unwrap_or_else(|| home.join("control.token"));
-    let (Some(port), Ok(token)) = (port, std::fs::read_to_string(&token)) else {
-        eprintln!("dm mcp: no running dm to talk to — start dm with --control 0 first");
-        return 2;
+    let (port, token_file) = (value("--port"), value("--token-file"));
+    let home = home.to_path_buf();
+    let find = move || {
+        let port = port
+            .clone()
+            .or_else(|| std::fs::read_to_string(home.join("control.port")).ok())
+            .and_then(|p| p.trim().parse::<u16>().ok());
+        let token = token_file
+            .clone()
+            .map(std::path::PathBuf::from)
+            .unwrap_or_else(|| home.join("control.token"));
+        match (port, std::fs::read_to_string(&token)) {
+            (Some(port), Ok(token)) => Ok((port, token.trim().to_string())),
+            _ => Err("no running dm to talk to — start dm with --control 0 first".to_string()),
+        }
     };
-    let mut control = match Control::connect(port, token.trim()) {
+    let mut control = match Control::with(Box::new(find)) {
         Ok(control) => control,
         Err(why) => {
             eprintln!("dm mcp: {why}");
@@ -232,5 +296,51 @@ pub fn main(args: &[String], home: &Path) -> i32 {
             eprintln!("dm mcp: {e}");
             1
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::net::TcpListener;
+    use std::sync::{Arc, Mutex};
+
+    /// A stand-in for dm's control protocol that answers every line, and
+    /// closes after `lines` of them as a dm quitting does.
+    fn fake_dm(lines: usize) -> u16 {
+        let listener = TcpListener::bind(("127.0.0.1", 0)).unwrap();
+        let port = listener.local_addr().unwrap().port();
+        std::thread::spawn(move || {
+            let (stream, _) = listener.accept().unwrap();
+            let mut out = stream.try_clone().unwrap();
+            let mut reader = BufReader::new(stream);
+            for _ in 0..lines {
+                let mut line = String::new();
+                if reader.read_line(&mut line).unwrap_or(0) == 0 {
+                    return;
+                }
+                writeln!(out, "{}", json!({ "id": 1, "ok": true, "result": port })).unwrap();
+            }
+        });
+        port
+    }
+
+    #[test]
+    fn a_dm_that_restarts_is_connected_to_again() {
+        /* Connected once: after dm restarted, on a new port, every call
+         * failed until the AI client restarted `dm mcp` as well. */
+        let first = fake_dm(2);
+        let at = Arc::new(Mutex::new(first));
+        let found = Arc::clone(&at);
+        let mut control =
+            Control::with(Box::new(move || Ok((*found.lock().unwrap(), "t".into())))).unwrap();
+        assert_eq!(control.call("queue.list", json!({})), Ok(json!(first)));
+
+        // dm quits, and starts again elsewhere.
+        let second = fake_dm(3);
+        *at.lock().unwrap() = second;
+        std::thread::sleep(std::time::Duration::from_millis(100));
+        assert_eq!(control.call("queue.list", json!({})), Ok(json!(second)));
+        assert_eq!(control.call("queue.list", json!({})), Ok(json!(second)));
     }
 }

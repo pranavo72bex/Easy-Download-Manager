@@ -256,6 +256,8 @@
  "Stop download": "Arrêter le téléchargement",
  "Stop queue": "Arrêter la file",
  "Stopped": "Arrêté",
+ "Waiting": "En attente",
+ "Waiting for the schedule or the download limit; it starts by itself when allowed.": "En attente du planning ou de la limite de téléchargement ; démarre d'elle-même dès que c'est permis.",
  "Stopped {} download(s) in {}.": "{} téléchargement(s) arrêté(s) dans {}.",
  "Sun": "Dim",
  "Take downloads of these types from the browser": "Prendre au navigateur les téléchargements de ces types",

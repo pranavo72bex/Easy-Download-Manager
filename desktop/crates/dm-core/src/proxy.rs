@@ -27,7 +27,10 @@ impl Kind {
             Kind::Http => "http",
             Kind::Https => "https",
             Kind::Socks4 => "socks4",
-            Kind::Socks5 => "socks5",
+            /* `socks5h`: the proxy resolves the name. Resolved here, a name
+             * only the proxy's side knows fails, and the lookup itself goes
+             * out around the proxy, telling the local resolver every site. */
+            Kind::Socks5 => "socks5h",
             Kind::System => "",
         }
     }
@@ -247,14 +250,14 @@ mod tests {
         };
         assert_eq!(
             proxy.url_for_tools().as_deref(),
-            Some("socks5://me%40work:p%3Ass%2Fw%40rd@h:1080")
+            Some("socks5h://me%40work:p%3Ass%2Fw%40rd@h:1080")
         );
         // Without a user there is nothing to add, and no stray `:@`.
         let plain = Proxy {
             username: String::new(),
             ..proxy
         };
-        assert_eq!(plain.url_for_tools().as_deref(), Some("socks5://h:1080"));
+        assert_eq!(plain.url_for_tools().as_deref(), Some("socks5h://h:1080"));
     }
 
     #[test]
@@ -262,7 +265,8 @@ mod tests {
         for (kind, expected) in [
             (Kind::Http, "http://h:8080"),
             (Kind::Https, "https://h:8080"),
-            (Kind::Socks5, "socks5://h:8080"),
+            (Kind::Socks5, "socks5h://h:8080"),
+            (Kind::Socks4, "socks4://h:8080"),
         ] {
             let proxy = Proxy {
                 enabled: true,

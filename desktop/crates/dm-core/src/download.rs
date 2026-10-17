@@ -410,16 +410,28 @@ async fn fetch_reporting(
             ));
         }
     } else if page {
+        /* An address that names a document — `notes.html`, `feed.xml` —
+         * is that document, unless yt-dlp knows the site: some video sites
+         * do end their watch pages in `.html`. Handed to yt-dlp and nothing
+         * else, a plain page could not be downloaded at all ("yt-dlp does
+         * not know this site", or "install yt-dlp"). A watch address with
+         * no extension, or a script's (`.php?v=`), is still yt-dlp's. */
+        let document = names_a_document(url);
         if crate::ytdlp::available() {
-            return crate::ytdlp::download_ytdlp(url, options, report).await;
+            match crate::ytdlp::download_ytdlp(url, options, report.clone()).await {
+                Err(Error::Internal(said)) if document && said == crate::ytdlp::UNKNOWN_SITE => {}
+                other => return other,
+            }
+        } else if !document {
+            /* No yt-dlp, so nothing can turn this page into a file. Saving
+             * the page's own HTML and calling it the download is how
+             * "YouTube does not download" looks like success — refused
+             * plainly instead, with the one thing that fixes it. */
+            return Err(Error::Internal(
+                "that is a web page, not a file — install yt-dlp to download from video sites"
+                    .into(),
+            ));
         }
-        /* No yt-dlp, so nothing can turn this page into a file. Saving the
-         * page's own HTML and calling it the download is how "YouTube does
-         * not download" looks like success — refused plainly instead, with
-         * the one thing that fixes it. */
-        return Err(Error::Internal(
-            "that is a web page, not a file — install yt-dlp to download from video sites".into(),
-        ));
     }
 
     let mut checksum = options.checksum.clone();
@@ -578,6 +590,29 @@ fn names_a_file(url: &str) -> bool {
         .and_then(|mut s| s.next_back())
         .unwrap_or("");
     name.contains('.') && crate::category::classify(name, None) != crate::category::Category::Other
+}
+
+/// Whether the address's last segment names a document by its extension —
+/// `.html`, `.xml`, `.txt` — rather than a script that makes pages
+/// (`.php`, `.aspx`, `.cgi`), which is how a watch page is often reached.
+fn names_a_document(url: &str) -> bool {
+    const SCRIPTS: [&str; 12] = [
+        "php", "php5", "asp", "aspx", "jsp", "jspx", "cgi", "pl", "py", "do", "action", "cfm",
+    ];
+    let Ok(parsed) = url::Url::parse(url) else {
+        return false;
+    };
+    let name = parsed
+        .path_segments()
+        .and_then(|mut s| s.next_back())
+        .unwrap_or("");
+    let Some((stem, extension)) = name.rsplit_once('.') else {
+        return false;
+    };
+    !stem.is_empty()
+        && (1..=5).contains(&extension.len())
+        && extension.chars().all(|c| c.is_ascii_alphanumeric())
+        && !SCRIPTS.iter().any(|s| s.eq_ignore_ascii_case(extension))
 }
 
 /// Whether the body at `url` begins as an HTML document, from its first
@@ -815,6 +850,15 @@ async fn agreeing_mirrors(
     let mut reference: Option<Probe> = None;
     let mut sources = Vec::new();
     let mut last_error = None;
+    // A mirror that states no length, kept in case none states the right one.
+    let mut lengthless: Option<Probe> = None;
+    let mut disagreed = false;
+
+    /* The document's length, where it states one, is the reference: it is
+     * what the publisher signed off on. Taken from the best mirror instead,
+     * a stale first mirror set the length and the current ones were dropped
+     * as the ones that disagreed. */
+    let expected = listed.size;
 
     // In the document's order, which is best first, so the reference is the
     // best mirror that answered rather than whichever answered first.
@@ -826,37 +870,56 @@ async fn agreeing_mirrors(
                 continue;
             }
         };
-
-        match &reference {
-            None => {
-                sources.push(Source {
-                    url: found.final_url.clone(),
-                    validator: found.validator.clone(),
-                });
-                reference = Some(found);
-            }
-            Some(first) => {
-                // An unstated length cannot be shown to agree, so it does not
-                // get to join in.
-                if found.size.is_some() && found.size == first.size {
-                    sources.push(Source {
-                        url: found.final_url.clone(),
-                        validator: found.validator.clone(),
-                    });
+        let agrees = match (expected, &reference) {
+            (Some(_), _) if found.size.is_none() => {
+                if lengthless.is_none() {
+                    lengthless = Some(found);
                 }
+                continue;
             }
+            (Some(size), _) => found.size == Some(size),
+            (None, None) => true,
+            // An unstated length cannot be shown to agree, so it does not
+            // get to join in.
+            (None, Some(first)) => found.size.is_some() && found.size == first.size,
+        };
+        if !agrees {
+            disagreed = true;
+            continue;
+        }
+        sources.push(Source {
+            url: found.final_url.clone(),
+            validator: found.validator.clone(),
+        });
+        if reference.is_none() {
+            reference = Some(found);
+        }
+    }
+
+    /* No mirror stated the document's length, but one stated none: fetched
+     * alone, held to the document's length, rather than refused. */
+    if reference.is_none() {
+        if let Some(only) = lengthless {
+            sources.push(Source {
+                url: only.final_url.clone(),
+                validator: only.validator.clone(),
+            });
+            reference = Some(only);
         }
     }
 
     match reference {
         Some(mut agreed) => {
-            // The document's length is worth believing when no mirror stated
-            // one; it is what the publisher signed off on.
             if agreed.size.is_none() {
                 agreed.size = listed.size;
             }
             Ok((sources, agreed))
         }
+        None if disagreed => Err(Error::Internal(
+            "no mirror in that Metalink has the file it describes: every one that answered \
+             disagreed about its length"
+                .into(),
+        )),
         None => Err(last_error
             .unwrap_or_else(|| Error::Internal("not one mirror in that Metalink answered".into()))),
     }
@@ -1382,6 +1445,26 @@ async fn attempt_segment(
                 forget_plan(job).await;
                 return Err(Error::Changed);
             }
+            /* Zeros from the front of the window to the difference: what
+             * was lost may reach further back than the window does. A power
+             * cut that lost a quarter of a megabyte had its zeros before the
+             * window trusted, and the file came out the right length, wrong,
+             * and Completed. The part is cut back to where the zeros begin,
+             * to a block, and the next attempt checks the window there. */
+            let leading = tail.get(..agree as usize).unwrap_or(&[]);
+            if base > 0 && leading.iter().all(|&b| b == 0) {
+                let zeros_from = zeros_ending_at(&job.part_path(index), base).await?;
+                let cut = zeros_from - zeros_from % DISK_BLOCK;
+                if cut < base {
+                    file.set_len(cut).await?;
+                    job.downloaded.fetch_sub(already - cut, Ordering::Relaxed);
+                    crate::lock(&job.live[index]).reserved = cut;
+                    return Err(Error::Incomplete {
+                        got: cut,
+                        expected: span,
+                    });
+                }
+            }
         }
         carry = rest;
         let keep = already - check + agree;
@@ -1575,6 +1658,28 @@ async fn discard_staged(dir: &Path) {
 /// than resuming into a file that no longer exists on the server.
 async fn forget_plan(job: &Job) {
     let _ = fs::remove_file(crate::plan::record_path(&job.parts)).await;
+}
+
+/// Where the run of zeros that ends at `end` in this file begins: `end`
+/// itself when the byte before it is not zero. Read backwards a block of
+/// reads at a time, so a long run costs reads, not memory.
+async fn zeros_ending_at(path: &Path, end: u64) -> Result<u64, Error> {
+    const STEP: u64 = 64 * 1024;
+    let mut file = tokio::fs::File::open(path).await?;
+    let mut buf = vec![0u8; STEP as usize];
+    let mut at = end;
+    while at > 0 {
+        let from = at.saturating_sub(STEP);
+        let len = (at - from) as usize;
+        let chunk = buf.get_mut(..len).unwrap_or(&mut []);
+        file.seek(std::io::SeekFrom::Start(from)).await?;
+        tokio::io::AsyncReadExt::read_exact(&mut file, chunk).await?;
+        if let Some(last) = chunk.iter().rposition(|&b| b != 0) {
+            return Ok(from + last as u64 + 1);
+        }
+        at = from;
+    }
+    Ok(0)
 }
 
 /// Reads `tail.len()` bytes off the stream against `tail`: how many agree
@@ -1886,7 +1991,7 @@ async fn resolve_stream(
     options: &Options,
 ) -> Result<Resolved, Error> {
     let quality = options.quality;
-    let text = fetch_text(client, url, MANIFEST_CAP, options).await?;
+    let (text, landed) = fetch_playlist(client, url, options).await?;
     if !text.contains("#EXTM3U") {
         return Err(Error::Internal("that is not an HLS playlist".into()));
     }
@@ -1894,20 +1999,69 @@ async fn resolve_stream(
     // A master playlist lists renditions; a media playlist lists segments.
     // Either way the name comes from the URL the person reached for.
     if text.to_ascii_uppercase().contains("#EXT-X-STREAM-INF") {
-        let chosen = stream::pick(stream::variants(&text, url), quality)
+        let chosen = stream::pick(stream::variants(&text, &landed), quality)
             .ok_or_else(|| Error::Internal("no playable rendition in that stream".into()))?;
-        let media = fetch_text(client, &chosen.url, MANIFEST_CAP, options).await?;
+        let (media, media_landed) = fetch_playlist(client, &chosen.url, options).await?;
         if let Some(why) = stream::beyond_dm(Some(&text), chosen.audio.as_deref(), &media) {
             return Ok(Resolved::Beyond(why));
         }
-        let listed = stream::media_playlist(&media, &chosen.url, url, quality)?;
+        let listed = stream::media_playlist(&media, &media_landed, url, quality)?;
         return Ok(Resolved::Own(listed, chosen.url));
     }
     if let Some(why) = stream::beyond_dm(None, None, &text) {
         return Ok(Resolved::Beyond(why));
     }
-    let listed = stream::media_playlist(&text, url, url, quality)?;
+    let listed = stream::media_playlist(&text, &landed, url, quality)?;
     Ok(Resolved::Own(listed, url.to_string()))
+}
+
+/// A playlist's text and the address it was finally served from.
+///
+/// A playlist's relative entries are relative to where it was served, which
+/// after a redirect is not where it was asked for: a short link that sends
+/// a player to a CDN's directory has its renditions and segments there.
+/// Joined against the asked address, every one of them was a 404.
+async fn fetch_playlist(
+    client: &reqwest::Client,
+    url: &str,
+    options: &Options,
+) -> Result<(String, String), Error> {
+    let res = retry::run_up_to(&options.control, options.attempts, || async {
+        or_stop(
+            &options.control,
+            crate::auth::send(
+                client,
+                get(
+                    client,
+                    url,
+                    options.referrer.as_deref(),
+                    options.sign_in.as_ref(),
+                ),
+                url,
+            ),
+        )
+        .await
+    })
+    .await?;
+    let res = Error::refused_or(res).await?;
+    let landed = res.url().to_string();
+    let mut body = Vec::new();
+    let mut chunks = res.bytes_stream();
+    while let Some(chunk) = next_or_stop(&mut chunks, &options.control).await? {
+        let chunk = chunk?;
+        if body.len() + chunk.len() > MANIFEST_CAP {
+            return Err(Error::Internal(format!(
+                "{url} is larger than any playlist should be"
+            )));
+        }
+        body.extend_from_slice(&chunk);
+        or_stop(&options.control, async {
+            options.limiter.take(chunk.len() as u64).await;
+            Ok(())
+        })
+        .await?;
+    }
+    Ok((String::from_utf8_lossy(&body).into_owned(), landed))
 }
 
 /// Discards staged segments that belong to a different rendition.

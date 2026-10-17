@@ -100,7 +100,7 @@ pub fn inbox(home: &Path) -> PathBuf {
 /// being a plain name: `../../../.bashrc` is a perfectly well-formed id, and
 /// anything that writes where it is told by a message is a program that
 /// writes wherever the sender likes.
-pub fn deposit(home: &Path, id: &str, request: &Request) -> std::io::Result<()> {
+pub fn deposit(home: &Path, id: &str, request: &Request) -> std::io::Result<PathBuf> {
     let named: String = id
         .chars()
         .filter(|c| c.is_ascii_alphanumeric() || matches!(c, '-' | '_'))
@@ -113,8 +113,66 @@ pub fn deposit(home: &Path, id: &str, request: &Request) -> std::io::Result<()> 
         ));
     }
 
-    let path = inbox(home).join(format!("{named}.json"));
-    dm_core::write_atomic(&path, serde_json::to_string(request)?.as_bytes())
+    file_new(
+        &inbox(home),
+        &named,
+        serde_json::to_string(request)?.as_bytes(),
+    )
+}
+
+/// Writes `bytes` under `<name>.json` in `dir`, or `<name>-2.json` and on
+/// when that is taken: never over a request already filed.
+///
+/// Two ids can come to the same name once held to a plain one (`a.1` and
+/// `a1`, or any two that share their first 64 characters), and the file
+/// was simply replaced: the first download gone, and the browser told both
+/// were taken. Written whole beside the name, then linked to it, which
+/// fails rather than replaces when the name is in use.
+fn file_new(dir: &Path, name: &str, bytes: &[u8]) -> std::io::Result<PathBuf> {
+    use std::sync::atomic::{AtomicU64, Ordering};
+    static NEXT: AtomicU64 = AtomicU64::new(0);
+
+    std::fs::create_dir_all(dir)?;
+    // Not `.json`, so the app passes it by while it is being written.
+    let temp = dir.join(format!(
+        ".{name}.{}.{}.tmp",
+        std::process::id(),
+        NEXT.fetch_add(1, Ordering::Relaxed)
+    ));
+    let filed = (|| {
+        let mut open = std::fs::OpenOptions::new();
+        open.write(true).create_new(true);
+        // Readable by this account alone: a hand-off can carry a site's
+        // sign-in.
+        #[cfg(unix)]
+        std::os::unix::fs::OpenOptionsExt::mode(&mut open, 0o600);
+        let mut file = open.open(&temp)?;
+        file.write_all(bytes)?;
+        file.sync_all()?;
+        drop(file);
+        for n in 1..=1000u32 {
+            let path = if n == 1 {
+                dir.join(format!("{name}.json"))
+            } else {
+                dir.join(format!("{name}-{n}.json"))
+            };
+            match std::fs::hard_link(&temp, &path) {
+                Ok(()) => return Ok(path),
+                Err(e) if e.kind() == std::io::ErrorKind::AlreadyExists => continue,
+                // A file system without hard links: the name is checked and
+                // then taken, which only another hand-off in the same
+                // instant could come between.
+                Err(_) if !path.exists() => return std::fs::rename(&temp, &path).map(|()| path),
+                Err(e) => return Err(e),
+            }
+        }
+        Err(std::io::Error::new(
+            std::io::ErrorKind::AlreadyExists,
+            "the app has a thousand requests under that name still to read",
+        ))
+    })();
+    let _ = std::fs::remove_file(&temp);
+    filed
 }
 
 /// Starts the normal desktop process so an app that is closed can consume
@@ -206,11 +264,16 @@ struct Here<'a> {
 }
 
 impl World for Here<'_> {
+    /// A lock that cannot be read is not a running dm: `launch` then says
+    /// why, and the browser keeps its download.
     fn app_running(&mut self) -> bool {
-        self.started || crate::instance::running(self.home)
+        self.started || crate::instance::running(self.home).unwrap_or(false)
     }
 
     fn launch(&mut self) -> std::io::Result<()> {
+        // A dm started now would find the same lock it cannot take, and
+        // stop; the browser must not be told it has the download.
+        crate::instance::running(self.home)?;
         launch_desktop()?;
         self.started = true;
         Ok(())
@@ -336,10 +399,13 @@ pub fn answer(
                     },
                 );
                 match filed {
-                    Ok(()) if world.app_running() => Reply::Started { id },
-                    Ok(()) => match world.launch() {
+                    Ok(_) if world.app_running() => Reply::Started { id },
+                    Ok(filed) => match world.launch() {
                         Ok(()) => Reply::Started { id },
+                        // Taken back out: the browser keeps it, and a dm
+                        // started later must not download it a second time.
                         Err(e) => {
+                            let _ = std::fs::remove_file(&filed);
                             Reply::failed(&id, format!("dm could not be started to take it: {e}"))
                         }
                     },
@@ -422,12 +488,15 @@ pub fn answer(
                         ..Request::default()
                     },
                 ) {
-                    Ok(()) if world.app_running() => Reply::Started { id },
-                    Ok(()) => match world.launch() {
+                    Ok(_) if world.app_running() => Reply::Started { id },
+                    Ok(filed) => match world.launch() {
                         Ok(()) => Reply::Started { id },
                         // Filed, but nothing will read it: said now, not
-                        // discovered when the file never appears.
+                        // discovered when the file never appears — and taken
+                        // back out, since the browser keeps the download and
+                        // a dm started later must not fetch it as well.
                         Err(e) => {
+                            let _ = std::fs::remove_file(&filed);
                             Reply::failed(&id, format!("dm could not be started to take it: {e}"))
                         }
                     },
@@ -598,6 +667,40 @@ mod tests {
 
         // An id with nothing usable in it is refused rather than guessed at.
         assert!(deposit(dir.path(), "../..", &request).is_err());
+    }
+
+    #[test]
+    fn two_hand_offs_never_share_one_file() {
+        /* Ids that come to one name once made plain used to be written over
+         * each other: the first download lost, both reported taken. */
+        let dir = tempfile::tempdir().unwrap();
+        let long = "X".repeat(64);
+        let ids = ["a.1", "a1", "a1", &format!("{long}A"), &format!("{long}B")];
+        for (n, id) in ids.iter().enumerate() {
+            let request = Request {
+                url: format!("https://e.com/{n}.zip"),
+                ..Request::default()
+            };
+            deposit(dir.path(), id, &request).unwrap();
+        }
+        let mut urls: Vec<String> = std::fs::read_dir(inbox(dir.path()))
+            .unwrap()
+            .flatten()
+            .map(|e| e.path())
+            .filter(|p| p.extension().is_some_and(|e| e == "json"))
+            .map(|p| {
+                serde_json::from_str::<Request>(&std::fs::read_to_string(p).unwrap())
+                    .unwrap()
+                    .url
+            })
+            .collect();
+        urls.sort();
+        assert_eq!(
+            urls,
+            (0..ids.len())
+                .map(|n| format!("https://e.com/{n}.zip"))
+                .collect::<Vec<_>>()
+        );
     }
 
     #[test]
@@ -997,6 +1100,15 @@ mod tests {
         };
         assert_eq!(id, "b");
         assert!(failure.unwrap().message.contains("could not be started"));
+        // The browser keeps it, so nothing of it is left for a dm started
+        // later to fetch a second time: only "a" is filed.
+        let left: Vec<_> = std::fs::read_dir(inbox(dir.path()))
+            .unwrap()
+            .flatten()
+            .map(|e| e.file_name().to_string_lossy().into_owned())
+            .filter(|n| n.ends_with(".json"))
+            .collect();
+        assert_eq!(left, ["a.json"]);
     }
 
     #[test]

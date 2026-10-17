@@ -138,6 +138,12 @@ pub struct Entry {
     /// row's, so a resume reaches the server signed in. Empty for none.
     #[serde(default)]
     pub cookies: String,
+    /// The finished file a recheck found changed on its server, kept until
+    /// the new version is whole and then replaced by it. Fetched beside it
+    /// rather than after deleting it: a server that fails halfway through
+    /// the new version left a person with neither.
+    #[serde(default)]
+    pub replaces: Option<String>,
 }
 
 /// How one connection of a download is getting on: its range of the file
@@ -263,6 +269,11 @@ struct Inner {
     /// window showed the state the failure had just failed to record. Held
     /// until something asks, then handed over once.
     problems: std::sync::Mutex<Vec<String>>,
+    /// The runs of rows deleted while they ran, with the queue each was in,
+    /// until they have let go: still holding a connection, they count
+    /// against the limit as a paused row's run does. Dropped with the row,
+    /// they let a limit of one run two.
+    leaving: std::sync::Mutex<Vec<(String, tokio::task::JoinHandle<()>)>>,
 }
 
 /// A queue of downloads.
@@ -304,6 +315,7 @@ impl Queue {
                 store: Mutex::new(None),
                 saving: Mutex::new(()),
                 problems: std::sync::Mutex::new(Vec::new()),
+                leaving: std::sync::Mutex::new(Vec::new()),
                 scheduling: AtomicBool::new(false),
                 rechecking: AtomicBool::new(false),
                 concurrency: AtomicUsize::new(concurrency.max(1)),
@@ -429,6 +441,7 @@ impl Queue {
                 quality: None,
                 parts_dir: String::new(),
                 cookies: String::new(),
+                replaces: None,
             },
             control: Control::new(),
             task: None,
@@ -866,7 +879,16 @@ impl Queue {
         {
             let mut slots = self.inner.slots.lock().await;
             for slot in slots.values_mut() {
-                if slot.entry.state.settled() || slot.entry.state == State::Paused {
+                if slot.entry.state.settled() {
+                    continue;
+                }
+                // Already held by the schedule, it is now held by a person
+                // too: left the schedule's, the window opening started it
+                // again, undoing the "Pause all" that came after.
+                if slot.entry.state == State::Paused {
+                    if std::mem::take(&mut slot.entry.paused_by_schedule) {
+                        paused += 1;
+                    }
                     continue;
                 }
                 slot.hold(false);
@@ -954,6 +976,9 @@ impl Queue {
         if !slot.entry.state.settled() {
             slot.control.cancel();
         }
+        if let Some(task) = slot.task.filter(|task| !task.is_finished()) {
+            crate::lock(&self.inner.leaving).push((slot.entry.queue.clone(), task));
+        }
         self.inner.order.lock().await.retain(|x| *x != id);
         // The folder the row recorded, read from the row just taken: looked
         // up afresh it is no longer there, and the setting's folder is not
@@ -1036,11 +1061,18 @@ impl Queue {
 
             // A row paused or cancelled whose task has not yet let go still
             // holds its connections; counting only `Running` let a limit of
-            // one run two for as long as a read timeout.
+            // one run two for as long as a read timeout. So does a deleted
+            // row's, which no slot is left to count.
+            let leaving: Vec<String> = {
+                let mut leaving = crate::lock(&self.inner.leaving);
+                leaving.retain(|(_, task)| !task.is_finished());
+                leaving.iter().map(|(queue, _)| queue.clone()).collect()
+            };
             let running = slots
                 .values()
                 .filter(|s| s.entry.state == State::Running || s.still_stopping())
-                .count();
+                .count()
+                + leaving.len();
             let room = self
                 .inner
                 .concurrency
@@ -1052,6 +1084,9 @@ impl Queue {
             // goes to the next queued row of another queue.
             let limits = crate::lock(&self.inner.queue_limits).clone();
             let mut per_queue: HashMap<String, usize> = HashMap::new();
+            for queue in leaving {
+                *per_queue.entry(queue).or_insert(0) += 1;
+            }
             for s in slots.values() {
                 if s.entry.state == State::Running || s.still_stopping() {
                     *per_queue.entry(s.entry.queue.clone()).or_insert(0) += 1;
@@ -1311,6 +1346,7 @@ impl Queue {
                 .save_name
                 .clone()
                 .filter(|n| !n.trim().is_empty());
+            let replaces = slot.entry.replaces.clone().filter(|p| !p.is_empty());
             drop(slots);
             let outcome = match (outcome, wanted) {
                 (Ok(mut finished), Some(name)) => {
@@ -1320,6 +1356,26 @@ impl Queue {
                             "{} could not be renamed to {name}: {e}",
                             finished.path.display()
                         )),
+                    }
+                    Ok(finished)
+                }
+                (outcome, _) => outcome,
+            };
+            // A recheck's new version, whole now: it takes the old one's
+            // place, which was kept until this moment so that a fetch that
+            // failed left the old file rather than nothing.
+            let outcome = match (outcome, &replaces) {
+                (Ok(mut finished), Some(old)) => {
+                    let old = PathBuf::from(old);
+                    if finished.path != old {
+                        match tokio::fs::rename(&finished.path, &old).await {
+                            Ok(()) => finished.path = old,
+                            Err(e) => queue.note(format!(
+                                "the new version of {} could not replace it, and is at {}: {e}",
+                                old.display(),
+                                finished.path.display()
+                            )),
+                        }
                     }
                     Ok(finished)
                 }
@@ -1347,13 +1403,23 @@ impl Queue {
                     slot.entry.category = Some(finished.category);
                     slot.entry.verified = finished.verified;
                     slot.entry.mirrors = finished.mirrors;
+                    slot.entry.replaces = None;
                     State::Completed
                 }
                 // Both were asked for, and the queue has already recorded
                 // them; overwriting would undo a pause the moment it landed.
                 Err(Error::Paused) => State::Paused,
                 Err(Error::Cancelled) => State::Cancelled,
-                Err(error) => State::Failed(error.to_string()),
+                // The row still points at the old file, which is still
+                // there; said, so a failed recheck does not read as a lost
+                // file. Retry fetches the new version again.
+                Err(error) => match &replaces {
+                    Some(old) => State::Failed(format!(
+                        "the new version could not be fetched, so the old one is kept at {old}: \
+                         {error}"
+                    )),
+                    None => State::Failed(error.to_string()),
+                },
             };
             // What turns a settled row into history.
             if slot.entry.state.settled() {
@@ -1509,6 +1575,13 @@ impl Queue {
 
     /// "Redownload": the same address fetched again from nothing.
     pub async fn redownload(&self, id: Id) -> bool {
+        self.fetch_again(id, None).await
+    }
+
+    /// Fetched again from nothing; with `replacing`, the finished file the
+    /// row keeps pointing at until the new version is whole and takes its
+    /// place.
+    async fn fetch_again(&self, id: Id, replacing: Option<String>) -> bool {
         let reset = {
             let mut slots = self.inner.slots.lock().await;
             match slots.get_mut(&id) {
@@ -1521,7 +1594,8 @@ impl Queue {
                         speed: 0.0,
                         eta: None,
                     };
-                    slot.entry.path = String::new();
+                    slot.entry.path = replacing.clone().unwrap_or_default();
+                    slot.entry.replaces = replacing;
                     slot.entry.verified = false;
                     true
                 }
@@ -1578,7 +1652,8 @@ impl Queue {
     /// there: a different ETag or Last-Modified, or a different length.
     /// Returns how many were checked and which are being fetched again. A
     /// server that cannot be reached, or says nothing to compare, leaves its
-    /// row alone.
+    /// row alone; a row whose address is a page yt-dlp read or a stream's
+    /// playlist has nothing to compare and is not counted as checked.
     pub async fn synchronize(&self, queue: &str) -> (usize, Vec<Id>) {
         // One at a time: a second check over the same rows, from a click
         // while the timer's runs, held the old validators and fetched again
@@ -1592,15 +1667,23 @@ impl Queue {
     }
 
     async fn synchronize_now(&self, queue: &str) -> (usize, Vec<Id>) {
+        // A scheme is case-insensitive: an `HTTP://` row is as much a
+        // server's file as an `http://` one, and was never asked about.
+        let web = |url: &str| {
+            ["http://", "https://"].iter().any(|scheme| {
+                url.get(..scheme.len())
+                    .is_some_and(|s| s.eq_ignore_ascii_case(scheme))
+            })
+        };
         let rows: Vec<Entry> = self
             .list()
             .await
             .into_iter()
             .filter(|e| e.queue == queue && e.state == State::Completed)
-            .filter(|e| e.url.starts_with("http://") || e.url.starts_with("https://"))
+            .filter(|e| web(&e.url))
             .collect();
         let client = self.inner.client.lock().await.clone();
-        let mut changed = Vec::new();
+        let (mut checked, mut changed) = (0, Vec::new());
         for row in &rows {
             let referrer = (!row.referrer.is_empty()).then_some(row.referrer.as_str());
             let sign_in = crate::cookies::SignIn::new(&row.url, &row.cookies);
@@ -1608,7 +1691,14 @@ impl Queue {
             else {
                 continue;
             };
-            if !differs(row, &now) {
+            let Some(different) = self
+                .compare(&client, row, &now, referrer, sign_in.as_ref())
+                .await
+            else {
+                continue;
+            };
+            checked += 1;
+            if !different {
                 continue;
             }
             // Asked a moment ago, from a list taken at the start: the row
@@ -1623,16 +1713,66 @@ impl Queue {
             if !same {
                 continue;
             }
-            // The outdated copy goes, so the new one takes its name rather
-            // than arriving beside it as "name (1)".
-            if !row.path.is_empty() {
-                let _ = tokio::fs::remove_file(&row.path).await;
-            }
-            if self.redownload(row.id).await {
+            // The outdated copy stays until the new one is whole, then the
+            // new one takes its name rather than arriving beside it as
+            // "name (1)". Deleted first, a failed fetch left neither.
+            let keep = (!row.path.is_empty()).then(|| row.path.clone());
+            if self.fetch_again(row.id, keep).await {
                 changed.push(row.id);
             }
         }
-        (rows.len(), changed)
+        (checked, changed)
+    }
+
+    /// Whether a finished row's file differs from what its address serves
+    /// now; `None` where there is nothing comparable to ask, which is not
+    /// counted as checked.
+    ///
+    /// What the row recorded is of the file, and the address is not always
+    /// the file's: a Metalink row's address is the mirror list, a yt-dlp
+    /// row's is a web page, a stream's is its playlist. Compared with the
+    /// file's length and ETag, the document always differed, and every such
+    /// row was fetched again on every check.
+    async fn compare(
+        &self,
+        client: &reqwest::Client,
+        row: &Entry,
+        now: &crate::Probe,
+        referrer: Option<&str>,
+        sign_in: Option<&crate::cookies::SignIn>,
+    ) -> Option<bool> {
+        let kind = now.content_type.as_deref();
+        // A page yt-dlp made a video of, or a playlist of segments: what the
+        // address serves says nothing about the file made from it.
+        if crate::ytdlp::is_page(kind) || crate::stream::kind_of(&row.url, kind).is_some() {
+            return None;
+        }
+        if !crate::metalink::is_metalink(&row.url, kind) {
+            return Some(differs(row, now));
+        }
+        // The file a Metalink names: its length, as the document states it
+        // or as a mirror reports it. Not its ETag: the row's is the one
+        // mirror's it was probed from, and every mirror has its own.
+        let listed = metalink_of(client, &now.final_url, referrer, sign_in).await?;
+        let size = match listed.size {
+            Some(size) => Some(size),
+            None => {
+                let mut size = None;
+                for mirror in &listed.mirrors {
+                    if let Ok(probed) = crate::probe::probe(client, mirror, None, None).await {
+                        size = probed.size;
+                        break;
+                    }
+                }
+                size
+            }
+        };
+        let file = crate::Probe {
+            size,
+            validator: None,
+            ..now.clone()
+        };
+        Some(differs(row, &file))
     }
 
     /// Has the recheck queue ask its servers again every `every` on its
@@ -1675,10 +1815,17 @@ impl Queue {
         {
             let mut slots = self.inner.slots.lock().await;
             for slot in slots.values_mut() {
-                if slot.entry.queue == queue
-                    && matches!(slot.entry.state, State::Queued | State::Running)
-                {
+                if slot.entry.queue != queue {
+                    continue;
+                }
+                if matches!(slot.entry.state, State::Queued | State::Running) {
                     slot.hold(false);
+                    stopped += 1;
+                } else if slot.entry.state == State::Paused
+                    && std::mem::take(&mut slot.entry.paused_by_schedule)
+                {
+                    // Held by the schedule, now stopped by a person: not
+                    // started again when the window opens.
                     stopped += 1;
                 }
             }
@@ -1768,6 +1915,39 @@ pub fn differs(row: &Entry, now: &crate::Probe) -> bool {
     let validator = matches!((&row.validator, &now.validator), (Some(a), Some(b)) if a != b);
     let length = matches!((row.progress.total, now.size), (Some(a), Some(b)) if a != b);
     validator || length
+}
+
+/// The Metalink at `url`, read for a recheck; `None` when it cannot be
+/// fetched or names nothing.
+async fn metalink_of(
+    client: &reqwest::Client,
+    url: &str,
+    referrer: Option<&str>,
+    sign_in: Option<&crate::cookies::SignIn>,
+) -> Option<crate::Metalink> {
+    // A mirror list is a few kilobytes; a server that sends more than this
+    // is not sending one.
+    const MOST: usize = 4 * 1024 * 1024;
+    let mut request = client.get(url);
+    if let Some(cookies) = crate::cookies::header_with(sign_in, url) {
+        request = request.header(reqwest::header::COOKIE, cookies);
+    }
+    if let Some(referrer) = referrer {
+        request = request.header(reqwest::header::REFERER, referrer);
+    }
+    let mut response = crate::auth::send(client, request, url)
+        .await
+        .ok()?
+        .error_for_status()
+        .ok()?;
+    let mut body = Vec::new();
+    while let Some(chunk) = response.chunk().await.ok()? {
+        body.extend_from_slice(&chunk);
+        if body.len() > MOST {
+            return None;
+        }
+    }
+    crate::metalink::parse(&String::from_utf8_lossy(&body))
 }
 
 /// What an earlier run left under `dir` that the download limit counted

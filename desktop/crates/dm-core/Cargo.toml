@@ -10,7 +10,9 @@ bytes = "1"
 tokio = { version = "1", features = ["rt-multi-thread", "macros", "fs", "io-util", "sync", "time", "process"] }
 # rustls rather than the system OpenSSL: a download manager that fails to
 # build on a machine without libssl headers is one nobody can package.
-reqwest = { version = "0.12", default-features = false, features = ["stream", "rustls-tls", "gzip", "brotli", "system-proxy"] }
+# `socks`, or a SOCKS proxy in the settings failed every HTTP download with
+# "unsupported scheme".
+reqwest = { version = "0.12", default-features = false, features = ["stream", "rustls-tls", "gzip", "brotli", "system-proxy", "socks"] }
 # FTP through a SOCKS proxy: the handshake, after which the connection is a
 # plain one. HTTP CONNECT is a few lines and is written here.
 tokio-socks = "0.5"

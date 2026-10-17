@@ -88,6 +88,10 @@ pub fn parse(xml: &str) -> Option<Metalink> {
     }
     let mut collecting: Option<Collecting> = None;
     let mut text = String::new();
+    /* Set while inside `<pieces>`, whose `<hash>` elements are each of one
+     * piece. Taken as the whole file's, one of them was the digest a
+     * finished download was held to, and a correct file failed it. */
+    let mut pieces_depth: Option<usize> = None;
 
     loop {
         match reader.read_event() {
@@ -109,7 +113,8 @@ pub fn parse(xml: &str) -> Option<Metalink> {
                             .unwrap_or_default();
                     }
                     "size" if in_file => collecting = Some(Collecting::Size),
-                    "hash" if in_file => {
+                    "pieces" if in_file => pieces_depth = Some(depth),
+                    "hash" if in_file && pieces_depth.is_none() => {
                         collecting = Some(Collecting::Hash(
                             attribute(&tag, "type").unwrap_or_default(),
                         ));
@@ -163,6 +168,9 @@ pub fn parse(xml: &str) -> Option<Metalink> {
                 }
                 text.clear();
 
+                if name == "pieces" && pieces_depth == Some(depth) {
+                    pieces_depth = None;
+                }
                 if name == "file" && in_file && depth == file_depth {
                     in_file = false;
                     // The first file is the one dm takes; the rest of the
@@ -301,6 +309,38 @@ mod tests {
         let checksum = read.checksum.unwrap();
         assert_eq!(checksum.algorithm, crate::checksum::Algorithm::Sha256);
         assert_eq!(checksum.expected.len(), 64);
+    }
+
+    #[test]
+    fn a_digest_of_one_piece_is_not_taken_for_the_whole_file() {
+        /* A sha-512 of one piece outranked the file's sha-256 by length, and
+         * a correct download failed the check it was held to. */
+        let file = "a".repeat(64);
+        let piece = "b".repeat(128);
+        let both = format!(
+            r#"<metalink xmlns="urn:ietf:params:xml:ns:metalink"><file name="f.bin">
+            <pieces length="262144" type="sha-512"><hash>{piece}</hash></pieces>
+            <hash type="sha-256">{file}</hash>
+            <url>http://h/f.bin</url></file></metalink>"#
+        );
+        let checksum = parse(&both).unwrap().checksum.unwrap();
+        assert_eq!(checksum.expected, file);
+        // Pieces alone say nothing about the whole file.
+        let only_pieces = format!(
+            r#"<metalink xmlns="urn:ietf:params:xml:ns:metalink"><file name="f.bin">
+            <pieces length="262144" type="sha-512"><hash>{piece}</hash></pieces>
+            <url>http://h/f.bin</url></file></metalink>"#
+        );
+        assert_eq!(parse(&only_pieces).unwrap().checksum, None);
+        // Version 3 keeps both under <verification>; the same rule holds.
+        let v3 = format!(
+            r#"<metalink version="3.0" xmlns="http://www.metalinker.org/"><files><file name="f.bin">
+            <verification><hash type="sha256">{file}</hash>
+            <pieces length="262144" type="sha512"><hash piece="0">{piece}</hash></pieces>
+            </verification><resources><url type="http">http://h/f.bin</url></resources>
+            </file></files></metalink>"#
+        );
+        assert_eq!(parse(&v3).unwrap().checksum.unwrap().expected, file);
     }
 
     #[test]
