@@ -15,7 +15,7 @@ reqwest = { version = "0.12", default-features = false, features = ["stream", "r
 # plain one. HTTP CONNECT is a few lines and is written here.
 tokio-socks = "0.5"
 # The `Proxy-Authorization` an HTTP CONNECT to a proxy with a login carries.
-base64 = "0.22"
+base64 = "0.23"
 futures-util = "0.3"
 thiserror = "2"
 # The shell sends these straight into a webview; deriving here beats
