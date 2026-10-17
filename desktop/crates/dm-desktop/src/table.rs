@@ -5,7 +5,7 @@
 use crate::i18n::t;
 use std::collections::BTreeSet;
 
-use dm_core::{Entry, State};
+use dm_core::{Entry, Id, State};
 use egui::RichText;
 use egui_extras::{Column as Width, TableBuilder};
 
@@ -260,24 +260,46 @@ fn heading(app: &mut DmApp, ui: &mut egui::Ui, column: Column) {
 }
 
 fn select(app: &mut DmApp, rows: &[Entry], i: usize, modifiers: egui::Modifiers) {
-    let id = rows[i].id;
+    let ids: Vec<Id> = rows.iter().map(|r| r.id).collect();
+    (app.selected, app.anchor) = selection(&ids, &app.selected, app.anchor, i, modifiers);
+}
+
+/// The rows selected after a click on the `i`th, and the row a later
+/// shift-click extends from. That is the row last clicked without shift,
+/// as every file list has it; extending from the topmost selected row
+/// turned "click row 5, shift-click row 8" into rows 1 to 8 whenever row 1
+/// was already ticked.
+pub fn selection(
+    rows: &[Id],
+    selected: &BTreeSet<Id>,
+    anchor: Option<Id>,
+    i: usize,
+    modifiers: egui::Modifiers,
+) -> (BTreeSet<Id>, Option<Id>) {
+    let Some(&id) = rows.get(i) else {
+        return (selected.clone(), anchor);
+    };
     if modifiers.command {
-        if !app.selected.remove(&id) {
-            app.selected.insert(id);
+        let mut now = selected.clone();
+        if !now.remove(&id) {
+            now.insert(id);
         }
-    } else if modifiers.shift && !app.selected.is_empty() {
-        let anchor = rows
-            .iter()
-            .position(|r| app.selected.contains(&r.id))
+        (now, Some(id))
+    } else if modifiers.shift && !selected.is_empty() {
+        let from = anchor
+            .and_then(|a| rows.iter().position(|r| *r == a))
+            .or_else(|| rows.iter().position(|r| selected.contains(r)))
             .unwrap_or(i);
-        let (a, b) = if anchor <= i {
-            (anchor, i)
-        } else {
-            (i, anchor)
-        };
-        app.selected = rows[a..=b].iter().map(|r| r.id).collect();
+        let (a, b) = if from <= i { (from, i) } else { (i, from) };
+        let now = rows
+            .get(a..=b)
+            .unwrap_or_default()
+            .iter()
+            .copied()
+            .collect();
+        (now, anchor.or(Some(id)))
     } else {
-        app.selected = BTreeSet::from([id]);
+        (BTreeSet::from([id]), Some(id))
     }
 }
 
@@ -293,13 +315,18 @@ fn row_menu(app: &mut DmApp, ui: &mut egui::Ui) {
         menu_item(app, ui, command, command.title());
     }
     ui.separator();
-    menu_item(app, ui, Command::DownloadNow, t("Resume download"));
+    menu_item(app, ui, Command::DownloadNow, Command::DownloadNow.title());
     menu_item(app, ui, Command::StopDownload, t("Stop download"));
     menu_item(app, ui, Command::UpdateLink, t("Update download link"));
     menu_item(app, ui, Command::Remove, t("Remove"));
     ui.separator();
     menu_item(app, ui, Command::MoveToQueue, t("Move to queue"));
-    menu_item(app, ui, Command::RemoveFromQueue, t("Delete from queue"));
+    menu_item(
+        app,
+        ui,
+        Command::RemoveFromQueue,
+        Command::RemoveFromQueue.title(),
+    );
     ui.separator();
     menu_item(app, ui, Command::Properties, t("Properties"));
 }
@@ -363,5 +390,27 @@ fn status_cell(ui: &mut egui::Ui, entry: &Entry) {
         _ => {
             ui.label(text);
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn shift_click_extends_from_the_row_last_clicked() {
+        let rows: Vec<Id> = (1..=10).collect();
+        let shift = egui::Modifiers::SHIFT;
+        let command = egui::Modifiers::COMMAND;
+        let none = egui::Modifiers::NONE;
+        // Row 1 ticked, then row 5 added with the command key: row 5 is
+        // where a shift-click now extends from.
+        let (picked, anchor) = selection(&rows, &BTreeSet::new(), None, 0, none);
+        let (picked, anchor) = selection(&rows, &picked, anchor, 4, command);
+        let (picked, anchor) = selection(&rows, &picked, anchor, 7, shift);
+        assert_eq!(picked, (5..=8).collect::<BTreeSet<Id>>());
+        // And again from the same place, the other way.
+        let (picked, _) = selection(&rows, &picked, anchor, 2, shift);
+        assert_eq!(picked, (3..=5).collect::<BTreeSet<Id>>());
     }
 }

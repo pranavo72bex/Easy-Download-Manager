@@ -1204,14 +1204,17 @@ impl Queue {
                 }
             }
 
+            // What an earlier run already staged, which the download limit
+            // counted then. Read off the disk rather than taken as the run's
+            // first report: a small file can be whole by its first report,
+            // and then nothing it fetched was counted at all.
+            let staged = staged_bytes(&options.parts_dir).await;
             let (tx, mut rx) = tokio::sync::mpsc::channel(32);
             let watcher = {
                 let queue = queue.clone();
                 tokio::spawn(async move {
-                    // What this run has reported so far. Its first report
-                    // is what was already on disk (staged by an earlier
-                    // run), which the download limit counted then.
-                    let mut reported: Option<u64> = None;
+                    // What this run has reported so far, from what it found.
+                    let mut reported: Option<u64> = staged;
                     while let Some(update) = rx.recv().await {
                         let mut slots = queue.inner.slots.lock().await;
                         let Some(slot) = slots.get_mut(&id) else {
@@ -1322,6 +1325,11 @@ impl Queue {
                 }
                 (outcome, _) => outcome,
             };
+            // Finished, its parts are spent: the folder they were staged in
+            // goes too, when nothing else is left in it.
+            if outcome.is_ok() {
+                let _ = tokio::fs::remove_dir(&options.parts_dir).await;
+            }
             let mut slots = inner.slots.lock().await;
             let Some(slot) = slots.get_mut(&id) else {
                 return;
@@ -1760,6 +1768,28 @@ pub fn differs(row: &Entry, now: &crate::Probe) -> bool {
     let validator = matches!((&row.validator, &now.validator), (Some(a), Some(b)) if a != b);
     let length = matches!((row.progress.total, now.size), (Some(a), Some(b)) if a != b);
     validator || length
+}
+
+/// What an earlier run left under `dir` that the download limit counted
+/// then: the bytes of its part files; none for a folder that is empty or
+/// missing; and `None` for one holding only another route's files (a
+/// torrent's pieces, yt-dlp's `.part`), whose own first report says how
+/// much of them there is.
+async fn staged_bytes(dir: &std::path::Path) -> Option<u64> {
+    let Ok(mut listing) = tokio::fs::read_dir(dir).await else {
+        return Some(0);
+    };
+    let (mut parts, mut total, mut others) = (0, 0, 0);
+    while let Ok(Some(entry)) = listing.next_entry().await {
+        let name = entry.file_name().to_string_lossy().into_owned();
+        if name.starts_with("part-") {
+            parts += 1;
+            total += entry.metadata().await.map(|m| m.len()).unwrap_or(0);
+        } else if name != "plan.json" {
+            others += 1;
+        }
+    }
+    (parts > 0 || others == 0).then_some(total)
 }
 
 /// The queue dm keeps finished files in to check them again for changes on

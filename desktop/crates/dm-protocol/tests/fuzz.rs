@@ -17,11 +17,13 @@ proptest! {
         enabled in any::<bool>(),
     ) {
         let rules = CatchRules { enabled, extensions, min_size_kb: min, skip_hosts: skip };
-        let candidate = Candidate { url: &url, filename: &filename, mime: &mime, size };
+        let candidate = Candidate { url: &url, asked_url: &filename, referrer: &mime, filename: &filename, mime: &mime, size };
+        let _ = rules.takes(&candidate, enabled);
         let _ = rules.catches(&candidate);
         let _ = host_of(&url);
         let _ = extension_of(&filename);
         let _ = extension_for_mime(&mime);
+        let _ = dm_protocol::page_instead_of_file(&mime, &url, &filename);
     }
 
     #[test]

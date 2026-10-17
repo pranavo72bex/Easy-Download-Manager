@@ -18,8 +18,14 @@ impl World for Nowhere {
     fn launch(&mut self) -> std::io::Result<()> {
         Ok(())
     }
-    fn reachable(&mut self, _url: &str, _referrer: &str, _cookies: &str) -> Result<(), String> {
-        Ok(())
+    fn reachable(
+        &mut self,
+        _url: &str,
+        _referrer: &str,
+        _cookies: &str,
+        _within_ms: u64,
+    ) -> Result<String, String> {
+        Ok(String::new())
     }
     fn formats(&mut self, _url: &str, _referrer: &str) -> Result<Vec<dm_protocol::Choice>, String> {
         Ok(Vec::new())

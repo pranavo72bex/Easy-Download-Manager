@@ -31,8 +31,13 @@ pub trait Platform: Send + Sync {
     fn alert(&self) {
         self.chime();
     }
-    /// Puts the computer to sleep or shuts it down, when done.
-    fn power(&self, action: crate::power::WhenDone) -> Result<(), String>;
+    /// Puts the computer to sleep or shuts it down, when done. A failure to
+    /// start is the answer; a refusal that comes later goes to `report`.
+    fn power(
+        &self,
+        action: crate::power::WhenDone,
+        report: crate::power::Report,
+    ) -> Result<(), String>;
     /// Asks for an application to open a file with. `None` when the person
     /// cancels.
     fn choose_app(&self) -> Option<std::path::PathBuf>;
@@ -84,7 +89,7 @@ impl Backend {
         self.block_on(self.queue.list())
     }
 
-    pub fn add(&self, text: &str) -> Result<Vec<Id>, String> {
+    pub fn add(&self, text: &str) -> Result<shell::Added, String> {
         self.block_on(shell::add(&self.queue, text))
     }
 
@@ -147,19 +152,46 @@ impl Backend {
 
     /// Applies a change and writes it down, returning what is now in force.
     ///
-    /// The login item first, since it is what can fail; then the queue; then
-    /// the record of what is held, before the save that might fail — this is
-    /// what the queue is actually running, so it is what the next change is
-    /// compared against.
+    /// Whole or not at all. What the change refuses (a relative folder, a
+    /// time that is not one) and a proxy that cannot be built are found
+    /// first, before anything is touched; then the login item, the other
+    /// thing that can fail; then the queue, putting the login item back if
+    /// that fails after all. Before, the login item changed and then a
+    /// refused proxy left it so, beside settings that said otherwise. Then
+    /// the record of what is held, before the save that might fail — this
+    /// is what the queue is actually running, so it is what the next change
+    /// is compared against.
     pub fn set_settings(&self, settings: Settings) -> Result<Settings, String> {
-        let settings = settings.clamped();
         let previous = self.settings();
-        if previous.start_on_login != settings.start_on_login {
+        // Judged as typed, before `clamped` quietly mends what it can: a
+        // relative download folder is refused, not swapped for the default.
+        if let Some(why) = settings.refusal(&previous) {
+            return Err(why);
+        }
+        let settings = settings.clamped();
+        shell::check(&settings, Some(&previous))?;
+        let login_changed = previous.start_on_login != settings.start_on_login;
+        if login_changed {
             self.platform
                 .set_login_item(settings.start_on_login)
                 .map_err(|e| format!("could not change start-on-login: {e}"))?;
         }
-        self.block_on(shell::apply(&settings, Some(&previous), &self.queue))?;
+        let problems = match self.block_on(shell::apply(&settings, Some(&previous), &self.queue)) {
+            Ok(problems) => problems,
+            Err(e) => {
+                if login_changed {
+                    if let Err(back) = self.platform.set_login_item(previous.start_on_login) {
+                        self.note(format!(
+                            "start-on-login could not be put back as it was: {back}"
+                        ));
+                    }
+                }
+                return Err(e);
+            }
+        };
+        for problem in problems {
+            self.note(problem);
+        }
         *dm_core::lock(&self.settings) = settings.clone();
         settings
             .save()
@@ -189,6 +221,7 @@ impl Backend {
     /// Adds with what the "Download details" dialog chose. Site logins
     /// are put on the address here, so every way in gets them.
     pub fn add_with(&self, url: &str, with: AddOptions) -> Result<Id, String> {
+        let with = admit(url, with)?;
         let url = self.settings().with_login(url.trim());
         let later = with.later;
         let id = self
@@ -204,17 +237,38 @@ impl Backend {
     /// writing the queue once. One result per address, in order.
     pub fn add_each(&self, items: Vec<(String, AddOptions)>) -> Vec<Result<Id, String>> {
         let settings = self.settings();
-        let starts = items.iter().any(|(_, with)| !with.later);
-        let items: Vec<(String, AddOptions)> = items
+        // Each refused here is answered in its place; the rest are added in
+        // one go, writing the queue once.
+        let admitted: Vec<Result<(String, AddOptions), String>> = items
             .into_iter()
-            .map(|(url, with)| (settings.with_login(url.trim()), with))
+            .map(|(url, with)| {
+                let with = admit(&url, with)?;
+                Ok((settings.with_login(url.trim()), with))
+            })
             .collect();
-        let ids = self.block_on(self.queue.add_each(items));
+        let starts = admitted
+            .iter()
+            .any(|item| item.as_ref().is_ok_and(|(_, with)| !with.later));
+        let ids = self.block_on(
+            self.queue.add_each(
+                admitted
+                    .iter()
+                    .filter_map(|item| item.as_ref().ok().cloned())
+                    .collect(),
+            ),
+        );
         if starts {
             self.block_on(async { shell::wake(&self.queue) });
         }
-        ids.into_iter()
-            .map(|id| id.ok_or_else(|| "that is not a URL dm can download".to_string()))
+        let mut ids = ids.into_iter();
+        admitted
+            .into_iter()
+            .map(|item| {
+                item?;
+                ids.next()
+                    .flatten()
+                    .ok_or_else(|| "that is not a URL dm can download".to_string())
+            })
             .collect()
     }
 
@@ -313,6 +367,24 @@ impl Backend {
     }
 }
 
+/// A download as the queue may keep it, or why not: an address with no
+/// site in it, or a folder that is not a full path. `~` is the home folder;
+/// a relative folder is refused, because a row keeps it and Open and Open
+/// folder would read it later from wherever dm was started — `/` from the
+/// Dock — and `~/x` made a folder called `~`.
+fn admit(url: &str, mut with: AddOptions) -> Result<AddOptions, String> {
+    if let Some(why) = shell::unusable(url) {
+        return Err(why);
+    }
+    if let Some(typed) = with.save_dir.take().filter(|f| !f.trim().is_empty()) {
+        let full = dm_shell::settings::full_folder(&typed, None).ok_or_else(|| {
+            format!("the folder must be a full path, such as ~/Downloads, not {typed:?}")
+        })?;
+        with.save_dir = Some(full.display().to_string());
+    }
+    Ok(with)
+}
+
 /// An address with no user or password in it.
 fn without_login(url: &str) -> String {
     match url::Url::parse(url) {
@@ -322,6 +394,30 @@ fn without_login(url: &str) -> String {
             parsed.to_string()
         }
         _ => url.to_string(),
+    }
+}
+
+#[cfg(test)]
+mod admit_tests {
+    use super::*;
+
+    #[test]
+    fn a_download_is_refused_with_no_site_or_a_relative_folder() {
+        let no_host = admit("http://", AddOptions::default()).unwrap_err();
+        assert!(no_host.contains("names no site"), "{no_host}");
+        let relative = AddOptions {
+            save_dir: Some("out".into()),
+            ..AddOptions::default()
+        };
+        assert!(admit("https://files.example/a.zip", relative).is_err());
+        let home = AddOptions {
+            save_dir: Some("~/x".into()),
+            ..AddOptions::default()
+        };
+        let admitted = admit("https://files.example/a.zip", home).unwrap();
+        let saved = admitted.save_dir.unwrap();
+        assert!(!saved.contains('~') && std::path::Path::new(&saved).is_absolute());
+        assert!(admit("magnet:?xt=urn:btih:abc", AddOptions::default()).is_ok());
     }
 }
 

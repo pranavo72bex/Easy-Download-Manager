@@ -185,9 +185,47 @@ fn constant_time_eq(a: &[u8], b: &[u8]) -> bool {
     a.len() == b.len() && a.iter().zip(b).fold(0u8, |acc, (x, y)| acc | (x ^ y)) == 0
 }
 
+/// The port this dm wrote to `control.port`, if it wrote one.
+static WRITTEN: std::sync::atomic::AtomicU16 = std::sync::atomic::AtomicU16::new(0);
+
+/// Says where the protocol is listening, for `dm mcp` and scripts to find.
+pub fn write_port(home: &Path, port: u16) -> std::io::Result<()> {
+    std::fs::write(home.join("control.port"), port.to_string())?;
+    WRITTEN.store(port, Ordering::Relaxed);
+    Ok(())
+}
+
+/// Takes `control.port` away as dm quits, so `dm mcp` run later is not
+/// sent to a port nobody listens on — or that something else has since
+/// taken. Only the port this dm wrote: one another dm wrote since is its.
+pub fn forget_port(home: &Path) {
+    let port = WRITTEN.swap(0, Ordering::Relaxed);
+    let file = home.join("control.port");
+    let ours = std::fs::read_to_string(&file)
+        .ok()
+        .and_then(|text| text.trim().parse::<u16>().ok())
+        .is_some_and(|written| port != 0 && written == port);
+    if ours {
+        let _ = std::fs::remove_file(file);
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn the_port_file_goes_as_dm_quits_unless_another_dm_wrote_it() {
+        let home = tempfile::tempdir().unwrap();
+        write_port(home.path(), 4711).unwrap();
+        forget_port(home.path());
+        assert!(!home.path().join("control.port").exists());
+
+        write_port(home.path(), 4711).unwrap();
+        std::fs::write(home.path().join("control.port"), "4712").unwrap();
+        forget_port(home.path());
+        assert!(home.path().join("control.port").exists(), "another dm's");
+    }
 
     #[test]
     fn a_token_is_made_once_kept_and_private() {

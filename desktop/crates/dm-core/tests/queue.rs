@@ -745,6 +745,22 @@ async fn a_finished_row_records_when_it_finished() {
 }
 
 #[tokio::test]
+async fn a_finished_download_leaves_no_parts_folder_behind() {
+    let (addr, _) = serve().await;
+    let dir = tempdir();
+    let q = queue(dir.path(), 1);
+    let id = q.add(&format!("http://{addr}/f.bin")).await.unwrap();
+    q.run().await;
+    let row = q.get(id).await.unwrap();
+    assert_eq!(row.state, dm_core::State::Completed);
+    assert!(
+        !std::path::Path::new(&row.parts_dir).exists(),
+        "{} is still there",
+        row.parts_dir
+    );
+}
+
+#[tokio::test]
 async fn clearing_the_history_keeps_what_has_not_finished() {
     let (addr, _) = serve().await;
     let dir = tempdir();

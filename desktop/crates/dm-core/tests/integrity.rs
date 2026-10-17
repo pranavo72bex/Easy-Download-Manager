@@ -138,6 +138,82 @@ async fn a_file_republished_between_runs_is_not_spliced_into_the_old_parts() {
     );
 }
 
+/// Ranges with no ETag and no Last-Modified: nothing names the version.
+fn ranged_unnamed(data: &[u8], headers: &HeaderMap) -> Response {
+    let (parts, body) = ranged(data, "", headers).into_parts();
+    let mut resp = Response::from_parts(parts, body);
+    resp.headers_mut().remove("etag");
+    resp
+}
+
+#[tokio::test]
+async fn a_file_changed_while_paused_on_a_server_naming_no_version_is_not_spliced() {
+    /* Same length, no validator: the probe cannot tell the versions apart,
+     * so only the bytes can. The resume check fetched the end of each part
+     * again, found them different, and took that for a power cut — cut the
+     * part back and carried on, finishing a file half one version and half
+     * the other, reported Completed. */
+    let old = Arc::new(body(4 * 1024 * 1024, 1));
+    let new = Arc::new(body(4 * 1024 * 1024, 99));
+    let dir = tempdir();
+
+    let served = old.clone();
+    let slow = axum::Router::new().route(
+        "/f.bin",
+        get(move |h: HeaderMap| {
+            let data = served.clone();
+            async move {
+                let resp = ranged_unnamed(&data, &h);
+                if resp.status() != 206 {
+                    return resp;
+                }
+                let (parts, b) = resp.into_parts();
+                let bytes = axum::body::to_bytes(b, usize::MAX).await.unwrap();
+                let chunks: Vec<_> = bytes
+                    .chunks(16 * 1024)
+                    .map(bytes::Bytes::copy_from_slice)
+                    .collect();
+                let s = futures_util::stream::iter(chunks).then(|c| async move {
+                    tokio::time::sleep(Duration::from_millis(20)).await;
+                    Ok::<_, std::io::Error>(c)
+                });
+                Response::from_parts(parts, Body::from_stream(s))
+            }
+        }),
+    );
+    let first = serve(slow).await;
+    let o = options(dir.path());
+    let control = o.control.clone();
+    let parts = dir.path().to_path_buf();
+    tokio::spawn(async move {
+        while staged(&parts) < 256 * 1024 {
+            tokio::time::sleep(Duration::from_millis(10)).await;
+        }
+        control.pause();
+    });
+    let paused = download(&client(), &format!("http://{first}/f.bin"), &o).await;
+    assert!(paused.is_err(), "the first run was meant to be paused");
+
+    let served = new.clone();
+    let changed = axum::Router::new().route(
+        "/f.bin",
+        get(move |h: HeaderMap| {
+            let data = served.clone();
+            async move { ranged_unnamed(&data, &h) }
+        }),
+    );
+    let second = serve(changed).await;
+    let url = format!("http://{second}/f.bin");
+    // Found changed, it starts again from nothing, and gets the new file.
+    let done = download(&client(), &url, &options(dir.path()))
+        .await
+        .expect("fetching the changed file afresh failed");
+    assert!(
+        std::fs::read(&done.path).unwrap() == *new,
+        "a file of two versions was called finished"
+    );
+}
+
 #[tokio::test]
 async fn a_server_without_ranges_is_fetched_again_from_the_start() {
     /* No Range header is sent to such a server, but the writer still sought
@@ -524,4 +600,134 @@ async fn a_site_that_takes_only_browsers_is_asked_as_a_browser_last() {
     .await
     .expect("a site that takes only browsers failed the download");
     assert_eq!(std::fs::read(&done.path).unwrap(), *data);
+}
+
+#[tokio::test]
+async fn a_file_served_as_a_web_page_is_saved_as_the_file_it_is() {
+    /* A .zip with a careless text/html type went to yt-dlp as a page, and
+     * was saved as "page [html].unknown_video". */
+    let data = Arc::new(body(300 * 1024, 7));
+    let served = data.clone();
+    let app = axum::Router::new().route(
+        "/files/page.zip",
+        get(move |h: HeaderMap| {
+            let data = served.clone();
+            async move {
+                let (mut parts, b) = ranged(&data, "\"z\"", &h).into_parts();
+                parts
+                    .headers
+                    .insert("content-type", "text/html".parse().unwrap());
+                Response::from_parts(parts, b)
+            }
+        }),
+    );
+    let at = serve(app).await;
+    let dir = tempdir();
+    let done = download(
+        &client(),
+        &format!("http://{at}/files/page.zip"),
+        &options(dir.path()),
+    )
+    .await
+    .expect("the zip was not downloaded");
+    assert!(done.path.ends_with("page.zip"), "{}", done.path.display());
+    assert!(std::fs::read(&done.path).unwrap() == *data);
+}
+
+#[tokio::test]
+async fn a_web_page_answering_for_a_file_is_said_to_be_one() {
+    // A sign-in page, or an expired link's apology, where a .zip was asked.
+    let app = axum::Router::new().route(
+        "/files/report.zip",
+        get(|| async {
+            Response::builder()
+                .header("content-type", "text/html; charset=utf-8")
+                .body(Body::from(
+                    "<!DOCTYPE html><html><head><title>Sign in</title></head></html>",
+                ))
+                .unwrap()
+        }),
+    );
+    let at = serve(app).await;
+    let dir = tempdir();
+    let failed = download(
+        &client(),
+        &format!("http://{at}/files/report.zip"),
+        &options(dir.path()),
+    )
+    .await
+    .expect_err("a sign-in page was saved as the zip");
+    assert!(
+        failed.to_string().contains("web page rather than the file"),
+        "{failed}"
+    );
+}
+
+#[tokio::test]
+async fn a_failed_download_leaves_no_connection_still_fetching() {
+    /* One range failing for good fails the download. The other connections
+     * were left running behind it — writing parts and the plan under a
+     * download already over, or under the fresh attempt a changed file
+     * starts. Once the failure is returned, nothing more is fetched. */
+    let data = Arc::new(body(8 * 1024 * 1024, 3));
+    let sent = Arc::new(AtomicUsize::new(0));
+    let (served, counted) = (data.clone(), sent.clone());
+    let app = axum::Router::new().route(
+        "/f.bin",
+        get(move |h: HeaderMap| {
+            let (data, counted) = (served.clone(), counted.clone());
+            async move {
+                let range = h
+                    .get("range")
+                    .and_then(|v| v.to_str().ok())
+                    .unwrap_or("")
+                    .to_string();
+                // The first connection's range, awaited first, is answered
+                // as another version of the file: a failure for good.
+                if range.starts_with("bytes=0-") && range != "bytes=0-0" {
+                    return Response::builder()
+                        .status(200)
+                        .header("etag", "\"other\"")
+                        .header("content-length", data.len())
+                        .body(Body::from(data.to_vec()))
+                        .unwrap();
+                }
+                let resp = ranged(&data, "\"v\"", &h);
+                if resp.status() != 206 || range == "bytes=0-0" {
+                    return resp;
+                }
+                let (parts, b) = resp.into_parts();
+                let bytes = axum::body::to_bytes(b, usize::MAX).await.unwrap();
+                let chunks: Vec<_> = bytes
+                    .chunks(16 * 1024)
+                    .map(bytes::Bytes::copy_from_slice)
+                    .collect();
+                let s = futures_util::stream::iter(chunks).then(move |c| {
+                    let counted = counted.clone();
+                    async move {
+                        tokio::time::sleep(Duration::from_millis(40)).await;
+                        counted.fetch_add(c.len(), Ordering::SeqCst);
+                        Ok::<_, std::io::Error>(c)
+                    }
+                });
+                Response::from_parts(parts, Body::from_stream(s))
+            }
+        }),
+    );
+    let at = serve(app).await;
+    let dir = tempdir();
+    let failed = download(
+        &client(),
+        &format!("http://{at}/f.bin"),
+        &options(dir.path()),
+    )
+    .await;
+    assert!(failed.is_err(), "a refused range did not fail the download");
+    let then = sent.load(Ordering::SeqCst);
+    tokio::time::sleep(Duration::from_millis(400)).await;
+    let later = sent.load(Ordering::SeqCst);
+    assert!(
+        later <= then + 64 * 1024,
+        "connections kept fetching after the download failed: {then} then {later} bytes"
+    );
 }

@@ -91,8 +91,12 @@ impl Platform for Desktop {
         dm_desktop::power::alert();
     }
 
-    fn power(&self, action: dm_desktop::power::WhenDone) -> Result<(), String> {
-        dm_desktop::power::run(action)
+    fn power(
+        &self,
+        action: dm_desktop::power::WhenDone,
+        report: dm_desktop::power::Report,
+    ) -> Result<(), String> {
+        dm_desktop::power::run(action, report)
     }
 
     fn choose_app(&self) -> Option<std::path::PathBuf> {
@@ -485,7 +489,7 @@ fn start_control(app: &mut DmApp, port: u16, ctx: &egui::Context) {
         let wake = ctx.clone();
         let port =
             dm_desktop::control::listen(port, token, to_window, move || wake.request_repaint())?;
-        std::fs::write(home.join("control.port"), port.to_string())?;
+        dm_desktop::control::write_port(&home, port)?;
         Ok((port, requests))
     });
     match started {
@@ -622,6 +626,7 @@ fn main() {
             app.logic(&ctx);
             std::thread::sleep(std::time::Duration::from_millis(50));
         }
+        dm_desktop::control::forget_port(&settings::home());
         return;
     }
 
@@ -697,6 +702,7 @@ fn main() {
             }))
         }),
     );
+    dm_desktop::control::forget_port(&settings::home());
     if let Err(e) = result {
         eprintln!("dm: the window could not be opened: {e}");
         // Said in the exit status too: a launcher, a login entry or a

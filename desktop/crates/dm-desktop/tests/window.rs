@@ -38,6 +38,7 @@ struct Fake {
     notified: Mutex<Vec<String>>,
     clipboard: Mutex<Option<String>>,
     login_fails: Mutex<bool>,
+    power_fails: Mutex<bool>,
     login: Mutex<Option<bool>>,
     opened: Mutex<Vec<String>>,
     chosen: Mutex<Option<std::path::PathBuf>>,
@@ -77,11 +78,22 @@ impl Platform for Fake {
     fn alert(&self) {
         self.opened.lock().unwrap().push("alert".into());
     }
-    fn power(&self, action: dm_desktop::power::WhenDone) -> Result<(), String> {
+    fn power(
+        &self,
+        action: dm_desktop::power::WhenDone,
+        report: dm_desktop::power::Report,
+    ) -> Result<(), String> {
         self.opened
             .lock()
             .unwrap()
             .push(format!("power {action:?}"));
+        if *self.power_fails.lock().unwrap() {
+            // As the system's command does: started, and refusing later.
+            std::thread::spawn(move || {
+                std::thread::sleep(std::time::Duration::from_millis(100));
+                report("could not put the computer to sleep: not allowed".into());
+            });
+        }
         Ok(())
     }
     fn open_with(&self, path: &str, app: &std::path::Path) -> Result<(), String> {
@@ -1884,7 +1896,11 @@ fn a_handed_over_videos_sign_in_survives_download_details() {
 }
 
 #[test]
-fn an_option_that_cannot_be_applied_is_put_back_and_said() {
+fn an_option_that_cannot_be_applied_is_said_and_what_was_typed_is_kept() {
+    /* A failed OK used to reopen Options on the settings in force, which
+     * threw away every edit in the dialog to say what was wrong with one.
+     * The edits stay, with the reason, and OK again once the cause is gone
+     * puts them in force. */
     let _file = SETTINGS_FILE.lock().unwrap_or_else(|e| e.into_inner());
     let world = world();
     *world.fake.login_fails.lock().unwrap() = true;
@@ -1893,20 +1909,179 @@ fn an_option_that_cannot_be_applied_is_put_back_and_said() {
     harness
         .get_by_label_contains("Start dm when you log in")
         .click();
+    harness
+        .get_by_label_contains("Play a sound when a download finishes")
+        .click();
     harness.run_steps(2);
     click(&mut harness, "OK");
-    assert!(!harness.state().backend().settings().start_on_login);
+    let held = harness.state().backend().settings();
+    assert!(!held.start_on_login);
+    assert!(
+        !held.sound_on_complete,
+        "half of the change was put in force"
+    );
     assert!(harness
         .query_by_label_contains("could not change start-on-login")
         .is_some());
-    assert_eq!(
-        harness
-            .get_by_label_contains("Start dm when you log in")
-            .accesskit_node()
-            .toggled(),
-        Some(egui::accesskit::Toggled::False),
-        "the box still shows what is not in force"
+    for typed in [
+        "Start dm when you log in",
+        "Play a sound when a download finishes",
+    ] {
+        assert_eq!(
+            harness
+                .get_by_label_contains(typed)
+                .accesskit_node()
+                .toggled(),
+            Some(egui::accesskit::Toggled::True),
+            "{typed}: the edit was thrown away"
+        );
+    }
+
+    *world.fake.login_fails.lock().unwrap() = false;
+    click(&mut harness, "OK");
+    let held = harness.state().backend().settings();
+    assert!(held.start_on_login && held.sound_on_complete);
+    assert!(harness.state().dialogs.options.is_none());
+}
+
+#[test]
+fn a_sleep_the_system_refuses_is_said_in_the_problems() {
+    let world = world();
+    *world.fake.power_fails.lock().unwrap() = true;
+    let mut harness = world.harness();
+    harness.state_mut().countdown = Some((
+        dm_desktop::power::WhenDone::Sleep,
+        std::time::Instant::now(),
+    ));
+    harness.state_mut().countdown_tick();
+    until(&mut harness, "the refusal in the problems", |app| {
+        app.problems
+            .iter()
+            .any(|p| p.contains("could not put the computer to sleep"))
+    });
+}
+
+#[test]
+fn the_scheduler_refuses_a_time_that_is_not_one_and_says_why() {
+    let _file = SETTINGS_FILE.lock().unwrap_or_else(|e| e.into_inner());
+    let world = world();
+    let mut harness = world.harness();
+    harness.state_mut().run(Command::Scheduler);
+    harness.run_steps(2);
+    if let Some((schedule, _)) = harness.state_mut().dialogs.scheduler.as_mut() {
+        schedule.enabled = true;
+        schedule.from = "25:00".into();
+        schedule.to = "1am".into();
+    }
+    harness.run_steps(2);
+    click(&mut harness, "Apply");
+    assert!(
+        harness.state().dialogs.scheduler.is_some(),
+        "closed as if taken"
     );
+    assert!(harness
+        .query_by_label_contains("times are HH:MM in 24 hours")
+        .is_some());
+    assert!(!harness.state().backend().settings().schedule.enabled);
+
+    // No day ticked is every day, as the dialog says, and is taken.
+    if let Some((schedule, _)) = harness.state_mut().dialogs.scheduler.as_mut() {
+        schedule.from = "01:00".into();
+        schedule.to = "07:00".into();
+        schedule.days.clear();
+    }
+    harness.run_steps(2);
+    click(&mut harness, "Apply");
+    let held = harness.state().backend().settings().schedule;
+    assert!(held.enabled && held.days.is_empty());
+    assert!(held.open_at(0, 2 * 60) && held.open_at(3, 2 * 60));
+    let mut back = harness.state().backend().settings();
+    back.schedule.enabled = false;
+    harness.state_mut().apply_settings(back).unwrap();
+}
+
+#[test]
+fn a_bad_category_options_opened_with_does_not_fail_an_unrelated_ok() {
+    let _file = SETTINGS_FILE.lock().unwrap_or_else(|e| e.into_inner());
+    let world = world();
+    let mut harness = world.harness();
+    click(&mut harness, "Options");
+    let bad = dm_core::Custom {
+        name: "Work/Docs".into(),
+        extensions: vec!["pdf".into()],
+        ..Default::default()
+    };
+    if let Some(d) = harness.state_mut().dialogs.options.as_mut() {
+        // As if an older dm had saved it.
+        d.opened.custom_categories.push(bad);
+        d.custom
+            .push(["Work/Docs".into(), "pdf".into(), String::new()]);
+        d.draft.sound_on_failure = !d.draft.sound_on_failure;
+    }
+    let wanted = !harness.state().backend().settings().sound_on_failure;
+    harness.run_steps(2);
+    click(&mut harness, "OK");
+    assert!(
+        harness.state().dialogs.options.is_none(),
+        "the OK was refused"
+    );
+    assert_eq!(
+        harness.state().backend().settings().sound_on_failure,
+        wanted
+    );
+    let mut back = harness.state().backend().settings();
+    back.sound_on_failure = !wanted;
+    harness.state_mut().apply_settings(back).unwrap();
+}
+
+#[test]
+fn options_refuses_a_category_that_is_not_one_folder_and_a_relative_download_folder() {
+    let _file = SETTINGS_FILE.lock().unwrap_or_else(|e| e.into_inner());
+    let world = world();
+    let mut harness = world.harness();
+    let before = harness.state().backend().settings();
+    click(&mut harness, "Options");
+    if let Some(d) = harness.state_mut().dialogs.options.as_mut() {
+        d.custom
+            .push(["Work/Docs".into(), "pdf".into(), String::new()]);
+    }
+    harness.run_steps(2);
+    click(&mut harness, "OK");
+    assert!(harness
+        .query_by_label_contains("cannot be a category")
+        .is_some());
+    assert_eq!(
+        harness.state().backend().settings().custom_categories,
+        before.custom_categories
+    );
+
+    if let Some(d) = harness.state_mut().dialogs.options.as_mut() {
+        d.custom.clear();
+        d.draft.download_dir = "Downloads/dm".into();
+    }
+    harness.run_steps(2);
+    click(&mut harness, "OK");
+    assert!(harness
+        .query_by_label_contains("must be a full path")
+        .is_some());
+    assert_eq!(
+        harness.state().backend().settings().download_dir,
+        before.download_dir
+    );
+
+    // From the home folder is a full path, and is expanded.
+    if let Some(d) = harness.state_mut().dialogs.options.as_mut() {
+        d.draft.download_dir = "~/dm-test-downloads".into();
+    }
+    harness.run_steps(2);
+    click(&mut harness, "OK");
+    assert_eq!(
+        harness.state().backend().settings().download_dir,
+        std::path::PathBuf::from(std::env::var_os("HOME").unwrap()).join("dm-test-downloads")
+    );
+    let mut back = harness.state().backend().settings();
+    back.download_dir = before.download_dir;
+    harness.state_mut().apply_settings(back).unwrap();
 }
 
 #[test]
@@ -2335,7 +2510,7 @@ fn the_control_protocol_runs_commands_and_reads_the_window_back() {
         assert_eq!(opened["ok"], true, "{opened}");
         let seen = call("ui.inspect", serde_json::json!({}));
         let dialogs = seen["result"]["dialogs"].as_array().unwrap().clone();
-        assert!(dialogs.iter().any(|d| d == "New download"), "{dialogs:?}");
+        assert!(dialogs.iter().any(|d| d == "Add URL"), "{dialogs:?}");
         let unknown = call("nonsense", serde_json::json!({}));
         assert_eq!(unknown["ok"], false);
         url
@@ -2690,7 +2865,7 @@ fn every_menu_item_clicked_does_what_it_says() {
     h.run_steps(2);
 
     // Tasks
-    press(&mut h, &["Program", "New download"]);
+    press(&mut h, &["Program", "Add URL"]);
     assert!(
         h.state().dialogs.add_url.is_some(),
         "Program › Add new download"
@@ -2799,10 +2974,10 @@ fn every_menu_item_clicked_does_what_it_says() {
         .iter()
         .position(|r| dm_desktop::app::name_of(r) == "other.pdf");
     assert_eq!(back, before, "File › Move down");
-    press(&mut h, &["File", "Delete from queue"]);
+    press(&mut h, &["File", "Take out of queue"]);
     assert!(
         row(&h, "other.pdf").queue.is_empty(),
-        "File › Delete from queue"
+        "File › Take out of queue"
     );
 
     // File, on the running row
@@ -2830,8 +3005,8 @@ fn every_menu_item_clicked_does_what_it_says() {
         "File › Update download link"
     );
     h.state_mut().dialogs.update_link = None;
-    press(&mut h, &["File", "Download now"]);
-    until(&mut h, "Download now", |app| {
+    press(&mut h, &["File", "Resume download"]);
+    until(&mut h, "Resume download", |app| {
         app.rows()
             .iter()
             .any(|r| r.filename == "stalled.bin" && r.state != State::Paused)

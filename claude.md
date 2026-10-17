@@ -94,7 +94,14 @@ and is not carried over.
       are unit-tested for what they hand over; the link handler is driven
       from the worker in `chrome-check.py`. The toolbar popup's "Take every
       download from this site" takes a site's downloads whatever the rules
-      say about type or size; two cancelled hand-offs from one site have
+      say about type or size — matched on the asked-for address, the served
+      one and the referrer, so a site's redirect to its file host is covered
+      — but not past the app's master switch or its sites to skip, which are
+      matched the same way. A hand-off carries when the extension stops
+      waiting, and the host refuses rather than files one it would answer
+      late, so a slow host does not have the file fetched twice. Nothing
+      from a private window is handed over, by download, menu or panel
+      (unit-tested, 2026-10-17); two cancelled hand-offs from one site have
       the app offer to leave that site to the browser. In Firefox the menu is used for
       real: `scripts/linux-firefox-check.sh` right-clicks a link with X11
       input and picks "Download link with dm" with real keys, and dm fetches
@@ -110,7 +117,10 @@ and is not carried over.
       carries the page's referrer (`chrome-check.py` sees dm's requests carry
       it). The host asks the server once before taking a caught download, so a link
       only the signed-in browser can fetch is refused and finishes in the
-      browser (`chrome-check.py`, a cookie-gated file)
+      browser (`chrome-check.py`, a cookie-gated file) — and so is one the
+      site answers dm with a sign-in page for: the browser's type goes with
+      the hand-off, and HTML served to dm for a download the browser was not
+      getting as HTML is refused (`host.rs`, unit-tested, 2026-10-17)
 - [x] Handle redirects — the browser's `finalUrl` is what is handed over
 
 ## Media

@@ -20,8 +20,8 @@ use wasm_bindgen::JsCast;
 use wasm_bindgen_futures::JsFuture;
 
 use crate::decide::{
-    self, absent_text, first_look, hand_id, App, DownloadItem, Known, MenuClick, Probe, Released,
-    Target,
+    self, absent_text, first_look, hand_id, App, Catchable, DownloadItem, Known, MenuClick, Probe,
+    Released, Target,
 };
 
 thread_local! {
@@ -306,9 +306,10 @@ async fn catching() -> bool {
     field(&got, decide::CATCHING_KEY).as_bool() != Some(false)
 }
 
-/// Whether the toolbar popup has every download from `url`'s site taken,
-/// whatever the app's rules say about its type or size.
-async fn forced_for(url: &str) -> bool {
+/// Whether the toolbar popup has every download from the download's site
+/// taken, whatever the app's rules say about its type or size: the site it
+/// was asked for on, served from, or started from.
+async fn forced_for(found: &Catchable) -> bool {
     let Ok(got) = call(
         "storage.local",
         "get",
@@ -320,7 +321,7 @@ async fn forced_for(url: &str) -> bool {
     };
     let list: Vec<String> =
         serde_json::from_value(from_js(&field(&got, decide::CATCH_ALL_KEY))).unwrap_or_default();
-    decide::forced(&list, url)
+    decide::forced_download(&list, found)
 }
 
 /// The browser's cookies for `url`, as the header it would send, where the
@@ -450,8 +451,14 @@ async fn hand(port: Option<Port>, start: Start) -> Result<(), String> {
         None => Port::open()?,
     };
     let id = start.id.clone();
-    port.send(&Request::Start(start))?;
+    // The app is told when this stops waiting, so it does not take what has
+    // been given back to the browser by then.
     let deadline = now() + decide::TAKEN_WITHIN_MS;
+    let start = Start {
+        deadline: Some(deadline.max(0.0) as u64),
+        ..start
+    };
+    port.send(&Request::Start(start))?;
     let outcome = loop {
         match port.next(deadline).await {
             Heard::Frame(frame) => {
@@ -540,19 +547,18 @@ pub async fn on_download_created(item: JsValue) {
     };
     // With nothing remembered yet (before the app has ever answered), every
     // candidate is held; one the app turns out not to want is given back.
-    // A site the popup takes everything from is held whatever the rules say.
-    let forced = forced_for(&found.url).await;
-    let early = forced
-        || remembered_rules()
-            .await
-            .is_none_or(|rules| rules.catches(&found.candidate()).is_ok());
+    // A site the popup takes everything from is held whatever the rules say
+    // about type and size; the app's own switch and skip list still hold.
+    let forced = forced_for(&found).await;
+    let early = remembered_rules()
+        .await
+        .is_none_or(|rules| rules.takes(&found.candidate(), forced).is_ok());
     let mut paused = early && pause().await;
 
     let (app, port) = app().await;
     let verdict = match &app {
-        App::Present { .. } if forced => Ok(()),
         App::Present { rules, .. } => rules
-            .catches(&found.candidate())
+            .takes(&found.candidate(), forced)
             .map_err(|left| left.reason().to_string()),
         App::Absent { .. } => Err("no app to hand it to".to_string()),
     };
@@ -578,6 +584,9 @@ pub async fn on_download_created(item: JsValue) {
         caught: true,
         // The site's sign-in, where the popup has that on for the site.
         cookies: cookies_for(&found.url).await,
+        // What the browser is being sent, so the app can tell a sign-in
+        // page served to it in the file's place, and refuse.
+        mime: found.mime.clone(),
         ..Start::default()
     };
     match hand(port, start).await {
@@ -699,6 +708,7 @@ async fn hand_chosen(
         quality,
         label,
         ask,
+        ..Start::default()
     };
     if let Err(why) = hand(port, start).await {
         return in_browser_instead(&target, &why).await;
@@ -800,6 +810,7 @@ pub async fn on_page_message(message: JsValue, sender: JsValue) -> JsValue {
         _ => {}
     }
     let tab_url = get(&sender, "tab.url").as_string().unwrap_or_default();
+    let private = get(&sender, "tab.incognito").as_bool() == Some(true);
     let click: decide::PanelClick = serde_json::from_value(from_js(&message)).unwrap_or_default();
     // Alt-click: the download about to start is the browser's.
     if click.kind == decide::SKIP_MESSAGE {
@@ -811,7 +822,7 @@ pub async fn on_page_message(message: JsValue, sender: JsValue) -> JsValue {
             Err(why) => answer(false, &why),
         };
     }
-    let target = match decide::panel_target(&click, &tab_url) {
+    let target = match decide::panel_target(&click, &tab_url, private) {
         Ok(target) => target,
         Err(why) => return answer(false, &why),
     };
@@ -918,9 +929,13 @@ async fn page_links(
 #[wasm_bindgen]
 pub async fn on_menu_clicked(info: JsValue, tab: JsValue) {
     let click: MenuClick = serde_json::from_value(from_js(&info)).unwrap_or_default();
+    let private = get(&tab, "incognito").as_bool() == Some(true);
     // "Download all links" and "Download selected links".
     let item = click.menu_item_id.as_str().unwrap_or_default();
     if item == decide::MENU_ALL_LINKS || item == decide::MENU_SELECTED_LINKS {
+        if let Err(why) = decide::not_private(private) {
+            return notify("dm cannot take those links", &why);
+        }
         let page = get(&info, "frameUrl")
             .as_string()
             .or_else(|| get(&info, "pageUrl").as_string())
@@ -931,7 +946,7 @@ pub async fn on_menu_clicked(info: JsValue, tab: JsValue) {
         }
         return;
     }
-    match decide::menu_target(&click) {
+    match decide::menu_target(&click, private) {
         Ok(target) => hand_asked(target).await,
         Err(why) => notify("dm cannot take that", &why),
     }

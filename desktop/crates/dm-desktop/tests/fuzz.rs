@@ -36,7 +36,11 @@ impl Platform for Nothing {
         None
     }
     fn chime(&self) {}
-    fn power(&self, _: dm_desktop::power::WhenDone) -> Result<(), String> {
+    fn power(
+        &self,
+        _: dm_desktop::power::WhenDone,
+        _: dm_desktop::power::Report,
+    ) -> Result<(), String> {
         Ok(())
     }
     fn open_with(&self, _: &str, _: &std::path::Path) -> Result<(), String> {

@@ -256,6 +256,15 @@ pub fn sanitize(name: &str) -> String {
     let last = name.rsplit(['/', '\\']).next().unwrap_or(name);
     let cleaned: String = last
         .chars()
+        // Direction controls go: a right-to-left override shows
+        // "invoice\u{202e}fdp.exe" as "invoiceexe.pdf", a program
+        // dressed as a document.
+        .filter(|c| {
+            !matches!(
+                *c,
+                '\u{202a}'..='\u{202e}' | '\u{2066}'..='\u{2069}' | '\u{200e}' | '\u{200f}' | '\u{061c}'
+            )
+        })
         .map(|c| {
             if "<>:\"|?*".contains(c) || (c as u32) < 0x20 || c as u32 == 0x7f {
                 '_'
@@ -448,6 +457,12 @@ mod tests {
         let cut = sanitize(&long);
         assert!(cut.ends_with(".mkv"), "the extension was cut off: {cut}");
         assert_eq!(cut.chars().count(), 200);
+    }
+
+    #[test]
+    fn a_name_cannot_turn_its_extension_around() {
+        assert_eq!(sanitize("invoice\u{202e}fdp.exe"), "invoicefdp.exe");
+        assert_eq!(sanitize("a\u{2067}b\u{2069}.zip"), "ab.zip");
     }
 
     #[test]

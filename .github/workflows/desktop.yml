@@ -190,6 +190,19 @@ jobs:
           version=$(sed -n 's/^version = "\(.*\)"/\1/p' desktop/crates/dm-desktop/Cargo.toml | head -1)
           sh scripts/linux/nfpm.sh desktop/target/release/dm-desktop "$version" desktop/target/release/bundle
 
+      # cargo-packager names the .deb, the AppImage and the Windows installer
+      # after the binary (dm-desktop_…) and only the .dmg after the product;
+      # one name for all of them, the one the README and the update check use.
+      - name: Name the installers dm
+        shell: bash
+        working-directory: desktop/target/release/bundle
+        run: |
+          for f in dm-desktop_*; do
+            [ -e "$f" ] || continue
+            mv -v "$f" "dm_${f#dm-desktop_}"
+          done
+          ls
+
       - name: Keep the installers
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:

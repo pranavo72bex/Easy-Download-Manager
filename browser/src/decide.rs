@@ -97,7 +97,10 @@ pub struct DownloadItem {
 #[derive(Debug, Clone, PartialEq)]
 pub struct Catchable {
     pub id: i64,
+    /// Where the bytes come from: after redirects, where the browser says.
     pub url: String,
+    /// The address the download was asked for, before any redirect.
+    pub asked_url: String,
     pub referrer: String,
     pub filename: String,
     pub mime: String,
@@ -108,6 +111,8 @@ impl Catchable {
     pub fn candidate(&self) -> Candidate<'_> {
         Candidate {
             url: &self.url,
+            asked_url: &self.asked_url,
+            referrer: &self.referrer,
             filename: &self.filename,
             mime: &self.mime,
             size: self.size,
@@ -147,9 +152,10 @@ pub fn first_look(item: &DownloadItem, own_id: &str) -> Result<Catchable, &'stat
         return Err("from a private window");
     }
     let id = item.id.ok_or("the browser gave it no id")? as i64;
+    let asked_url = text(&item.url);
     let url = match text(&item.final_url) {
         found if !found.is_empty() => found,
-        _ => text(&item.url),
+        _ => asked_url.clone(),
     };
     // blob:, data: and the like are bytes a page already holds; nothing
     // outside the browser can fetch them.
@@ -164,6 +170,7 @@ pub fn first_look(item: &DownloadItem, own_id: &str) -> Result<Catchable, &'stat
     Ok(Catchable {
         id,
         url,
+        asked_url,
         referrer: text(&item.referrer),
         filename: text(&item.filename),
         mime: text(&item.mime),
@@ -203,8 +210,24 @@ fn handable(url: &str) -> bool {
             .is_some_and(|s| s.eq_ignore_ascii_case("ftp://"))
 }
 
-/// What a menu click hands over, or why nothing.
-pub fn menu_target(click: &MenuClick) -> Result<Target, String> {
+/// Why nothing is handed over from a private window's tab: the rule
+/// [`first_look`] applies to a private window's downloads, applied to what
+/// is asked for there from a menu or the panel. Handed over, it would sit in
+/// the app's queue and history after the window had closed; and the
+/// browser's cookies read for it would be the normal profile's, not the
+/// private window's.
+pub fn not_private(private: bool) -> Result<(), String> {
+    if private {
+        Err("dm does not take anything from a private window; the browser can download it".into())
+    } else {
+        Ok(())
+    }
+}
+
+/// What a menu click hands over, or why nothing. `private` is whether the
+/// tab it was in is in a private window.
+pub fn menu_target(click: &MenuClick, private: bool) -> Result<Target, String> {
+    not_private(private)?;
     let page = text(&click.page_url);
     let frame = text(&click.frame_url);
     let item = click.menu_item_id.as_str().unwrap_or("");
@@ -561,7 +584,7 @@ pub fn skip_url(click: &PanelClick) -> Result<String, String> {
 
 /// What a panel click hands over: the file, or the page for a player that
 /// has none. `tab_url` is the top page, as the browser says it.
-pub fn panel_target(click: &PanelClick, tab_url: &str) -> Result<Target, String> {
+pub fn panel_target(click: &PanelClick, tab_url: &str, private: bool) -> Result<Target, String> {
     if click.kind != PANEL_MESSAGE && click.kind != FORMATS_MESSAGE {
         return Err("that is not a message from dm's panel".into());
     }
@@ -572,7 +595,7 @@ pub fn panel_target(click: &PanelClick, tab_url: &str) -> Result<Target, String>
         frame_url: Some(click.frame.clone()).filter(|f| !f.is_empty() && f != tab_url),
         ..MenuClick::default()
     };
-    menu_target(&menu)
+    menu_target(&menu, private)
 }
 
 /* ---------------------------------------------------- the panel's sites */
@@ -621,6 +644,17 @@ pub const CATCH_ALL_KEY: &str = "dm.catch.all";
 /// the browser can fetch.
 pub fn forced(all: &[String], url: &str) -> bool {
     site_listed(all, url)
+}
+
+/// Whether a download is from a site whose every download is taken: where
+/// it was asked for, where it is served from or the page it came from. A
+/// site's files are often served from another host (`github.com` sends them
+/// to `objects.githubusercontent.com`), and the switch was turned on for the
+/// site, not for its file host.
+pub fn forced_download(all: &[String], found: &Catchable) -> bool {
+    [&found.url, &found.asked_url, &found.referrer]
+        .iter()
+        .any(|url| forced(all, url))
 }
 
 /// Where the sites whose sign-in (their cookies) goes to dm with a download
@@ -1316,7 +1350,7 @@ mod tests {
             ..Default::default()
         };
         assert_eq!(
-            menu_target(&click),
+            menu_target(&click, false),
             Ok(Target {
                 url: "https://e.com/f.zip".into(),
                 referrer: "https://e.com/list".into(),
@@ -1332,9 +1366,9 @@ mod tests {
             link_url: Some("magnet:?xt=urn:btih:abc".into()),
             ..Default::default()
         };
-        assert!(menu_target(&click).is_ok());
+        assert!(menu_target(&click, false).is_ok());
         click.link_url = Some("javascript:void(0)".into());
-        let refused = menu_target(&click).unwrap_err();
+        let refused = menu_target(&click, false).unwrap_err();
         assert!(refused.contains("javascript:"), "{refused}");
     }
 
@@ -1346,19 +1380,19 @@ mod tests {
             page_url: Some("https://e.com/watch?v=1".into()),
             ..Default::default()
         };
-        let file = menu_target(&click).unwrap();
+        let file = menu_target(&click, false).unwrap();
         assert_eq!(file.url, "https://cdn.e.com/clip.mp4");
         assert!(!file.page);
 
         click.src_url = Some("blob:https://e.com/5c1d".into());
-        let page = menu_target(&click).unwrap();
+        let page = menu_target(&click, false).unwrap();
         assert_eq!(page.url, "https://e.com/watch?v=1");
         assert!(page.page, "a player page goes to the app's yt-dlp");
 
         // In a frame, the frame is the player's page.
         click.frame_url = Some("https://player.e.com/embed/1".into());
         assert_eq!(
-            menu_target(&click).unwrap().url,
+            menu_target(&click, false).unwrap().url,
             "https://player.e.com/embed/1"
         );
     }
@@ -1379,7 +1413,9 @@ mod tests {
             menu_item_id: json!("someone-elses"),
             ..Default::default()
         };
-        assert!(menu_target(&click).unwrap_err().contains("someone-elses"));
+        assert!(menu_target(&click, false)
+            .unwrap_err()
+            .contains("someone-elses"));
     }
 
     #[test]
@@ -1581,12 +1617,12 @@ mod tests {
             ..PanelClick::default()
         };
         let page = "https://www.e.com/watch?v=1";
-        let file = panel_target(&click("https://cdn.e.com/clip.mp4", page), page).unwrap();
+        let file = panel_target(&click("https://cdn.e.com/clip.mp4", page), page, false).unwrap();
         assert_eq!(
             (file.url.as_str(), file.referrer.as_str(), file.page),
             ("https://cdn.e.com/clip.mp4", page, false)
         );
-        let player = panel_target(&click("blob:https://www.e.com/x", page), page).unwrap();
+        let player = panel_target(&click("blob:https://www.e.com/x", page), page, false).unwrap();
         assert_eq!((player.url.as_str(), player.page), (page, true));
         // An embedded player hands its own frame's page, which is the one
         // that knows the video.
@@ -1596,6 +1632,7 @@ mod tests {
                 "https://player.v.com/embed/9",
             ),
             page,
+            false,
         )
         .unwrap();
         assert_eq!(embedded.url, "https://player.v.com/embed/9");
@@ -1604,8 +1641,112 @@ mod tests {
                 kind: "other".into(),
                 ..click("https://e.com/a.mp4", "")
             },
-            page
+            page,
+            false
         )
         .is_err());
+    }
+
+    #[test]
+    fn nothing_from_a_private_window_is_handed_over_from_a_menu_or_the_panel() {
+        // As a private window's downloads are left with the browser.
+        let link = MenuClick {
+            menu_item_id: json!(MENU_LINK),
+            link_url: Some("https://e.com/f.zip".into()),
+            page_url: Some("https://e.com/list".into()),
+            ..Default::default()
+        };
+        let said = menu_target(&link, true).unwrap_err();
+        assert!(said.contains("private window"), "{said}");
+        assert!(menu_target(&link, false).is_ok());
+        let media = MenuClick {
+            menu_item_id: json!(MENU_MEDIA),
+            src_url: Some("blob:https://e.com/1".into()),
+            page_url: Some("https://e.com/watch?v=1".into()),
+            ..Default::default()
+        };
+        assert!(menu_target(&media, true).is_err());
+        let click = PanelClick {
+            kind: PANEL_MESSAGE.into(),
+            src: "https://cdn.e.com/clip.mp4".into(),
+            ..PanelClick::default()
+        };
+        assert!(panel_target(&click, "https://e.com/watch", true).is_err());
+        assert!(panel_target(&click, "https://e.com/watch", false).is_ok());
+        let formats = PanelClick {
+            kind: FORMATS_MESSAGE.into(),
+            ..click
+        };
+        assert!(panel_target(&formats, "https://e.com/watch", true).is_err());
+        assert!(not_private(true).is_err() && not_private(false).is_ok());
+    }
+
+    #[test]
+    fn a_site_whose_every_download_is_taken_covers_its_redirects_and_its_pages() {
+        let all = with_site(&[], "github.com", true);
+        // Asked for on the site, redirected (Chrome's finalUrl) to its file host.
+        let redirected = first_look(
+            &item(json!({
+                "id": 1,
+                "url": "https://github.com/o/r/releases/download/v1/f.weird",
+                "finalUrl": "https://objects.githubusercontent.com/123?sig=x",
+            })),
+            OWN,
+        )
+        .unwrap();
+        assert!(forced_download(&all, &redirected));
+        // Started from one of its pages, served from elsewhere.
+        let from_page = first_look(
+            &item(json!({
+                "id": 2, "url": "https://cdn.example/f.weird",
+                "referrer": "https://github.com/o/r",
+            })),
+            OWN,
+        )
+        .unwrap();
+        assert!(forced_download(&all, &from_page));
+        let elsewhere = first_look(
+            &item(json!({ "id": 3, "url": "https://cdn.example/f.weird" })),
+            OWN,
+        )
+        .unwrap();
+        assert!(!forced_download(&all, &elsewhere));
+    }
+
+    #[test]
+    fn a_forced_site_still_answers_to_the_apps_switch_and_skip_list() {
+        let found = first_look(
+            &item(json!({
+                "id": 1, "url": "https://github.com/o/r/notes.txt",
+                "referrer": "https://github.com/o/r",
+            })),
+            OWN,
+        )
+        .unwrap();
+        let rules = CatchRules::default();
+        assert!(
+            rules.catches(&found.candidate()).is_err(),
+            "not a type caught"
+        );
+        assert!(rules.takes(&found.candidate(), true).is_ok(), "but forced");
+        let off = CatchRules {
+            enabled: false,
+            ..CatchRules::default()
+        };
+        assert!(off.takes(&found.candidate(), true).is_err());
+        let skipping = CatchRules {
+            skip_hosts: vec!["github.com".into()],
+            ..CatchRules::default()
+        };
+        assert!(skipping.takes(&found.candidate(), true).is_err());
+    }
+
+    #[test]
+    fn the_host_answers_well_before_the_extension_stops_waiting() {
+        // The host's probe and its margin for answering fit inside the wait,
+        // with room left for the host to start: a late "taken" after the
+        // browser was given its download back is a file downloaded twice.
+        let host_ms = (dm_protocol::PROBE_WITHIN_MS + dm_protocol::ANSWER_MARGIN_MS) as f64;
+        assert!(host_ms + 5_000.0 <= TAKEN_WITHIN_MS, "{host_ms}");
     }
 }

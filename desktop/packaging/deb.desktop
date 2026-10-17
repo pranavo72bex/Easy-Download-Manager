@@ -1,0 +1,12 @@
+[Desktop Entry]
+Type=Application
+Name={{name}}
+GenericName=Download Manager
+Comment=Download files over many connections, with resume and a queue
+Exec={{exec}} %u
+Icon={{icon}}
+Terminal=false
+Categories=Network;FileTransfer;
+Keywords=download;manager;http;resume;
+StartupWMClass=dm
+MimeType=x-scheme-handler/magnet;

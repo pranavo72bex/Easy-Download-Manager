@@ -15,7 +15,7 @@ bought, and no amount of code substitutes for one.
 | Update check | `latest.json` is written by the release job; dm reads it and says when a newer version is out. It does not install anything, so nothing is signed |
 | macOS is notarised | Needs an Apple Developer ID — $99/year |
 | Windows is signed | Needs an Authenticode certificate |
-| Firefox add-on is installable permanently | Needs an addons.mozilla.org submission |
+| Firefox add-on is installable permanently | Signed by Mozilla (unlisted) in `release.yml` when `AMO_JWT_ISSUER` and `AMO_JWT_SECRET` are set; 3.0.0 was signed by hand |
 
 ## One-time setup
 
@@ -89,10 +89,16 @@ WebAssembly with the wasm-bindgen CLI matching `browser/Cargo.lock`. The
 Chrome zip carries the manifest `key` that fixes the unpacked id; remove it
 before a Web Store upload (the store assigns its own id, which is then
 registered with `dm-desktop --register <id>`). Chrome's needs uploading to the
-Web Store; Firefox will not permanently install an unsigned add-on at all, so
-`dist/dm-firefox-*.zip` has to go through addons.mozilla.org. Until then,
-Firefox users load it from `about:debugging` and it is gone when the browser
-closes.
+Web Store.
+
+Firefox installs only add-ons Mozilla has signed. A `v*` tag signs the
+Firefox build as an unlisted add-on and attaches the `.xpi` to that release,
+given the addons.mozilla.org API key as the secrets `AMO_JWT_ISSUER` and
+`AMO_JWT_SECRET` (Developer Hub › Manage API Keys). Mozilla accepts each
+version once, so a tag must carry a version not uploaded before: bump
+`extension/manifest.json`, `extension/manifest.firefox.json` and
+`browser/Cargo.toml` together (the release checks all three agree with the
+tag). Version 3.0.0 was submitted by hand, so the first tag is `v3.0.1`.
 
 ## Verifying a release actually works
 

@@ -146,6 +146,73 @@ pub struct Start {
     /// site's sign-in" on in the toolbar popup. Empty otherwise.
     #[serde(default, skip_serializing_if = "String::is_empty")]
     pub cookies: String,
+    /// What the browser said the download was (its `DownloadItem.mime`), for
+    /// a download it had started. A server that sends the browser a zip and
+    /// dm, without the browser's sign-in, a login page is not one dm can
+    /// fetch; this is how the host tells. Empty where the browser did not say.
+    #[serde(default, skip_serializing_if = "String::is_empty")]
+    pub mime: String,
+    /// When the extension stops waiting for an answer, in milliseconds since
+    /// the Unix epoch on this computer's clock, which both sides read. Past
+    /// it the extension has given the download back to the browser, so a
+    /// host that would answer later refuses instead of filing a second copy.
+    /// Absent from an older extension.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub deadline: Option<u64>,
+}
+
+/// The longest the host spends asking a server about a caught download.
+/// Well inside the extension's wait for an answer (20 seconds), which also
+/// has to cover the host's own start.
+pub const PROBE_WITHIN_MS: u64 = 10_000;
+
+/// Kept back from the extension's deadline for filing the download and
+/// sending the answer back.
+pub const ANSWER_MARGIN_MS: u64 = 2_000;
+
+/// How long the host may still spend on a hand-off whose answer is due by
+/// `deadline`, or `None` when it is too late to take it at all: the extension
+/// will have given it back to the browser before an answer could arrive, and
+/// taking it then has the file downloaded twice.
+pub fn time_left(now_ms: u64, deadline: Option<u64>) -> Option<u64> {
+    let Some(by) = deadline else {
+        return Some(PROBE_WITHIN_MS);
+    };
+    by.checked_sub(now_ms)?
+        .checked_sub(ANSWER_MARGIN_MS)
+        .filter(|left| *left > 0)
+        .map(|left| left.min(PROBE_WITHIN_MS))
+}
+
+/// Whether what dm was served is a page standing in for the file the browser
+/// is downloading: typically a sign-in page that a site redirects a request
+/// without its cookies to. `served` is the type dm's request ended at, after
+/// redirects; `browser_mime` what the browser was given; `url` the download.
+///
+/// Only an HTML answer is suspect, and only when the browser was not getting
+/// HTML itself. Where the browser did not say, the address's own file type
+/// decides: `report.pdf` answered with a page is not the report.
+pub fn page_instead_of_file(browser_mime: &str, url: &str, served: &str) -> bool {
+    let is_page = |mime: &str| {
+        let essence = mime
+            .split(';')
+            .next()
+            .unwrap_or("")
+            .trim()
+            .to_ascii_lowercase();
+        essence == "text/html" || essence == "application/xhtml+xml"
+    };
+    if !is_page(served) {
+        return false;
+    }
+    if !browser_mime.trim().is_empty() {
+        return !is_page(browser_mime);
+    }
+    // Names that are pages, or scripts that usually answer with one.
+    const PAGES: &[&str] = &[
+        "html", "htm", "xhtml", "shtml", "php", "asp", "aspx", "jsp", "cgi", "pl",
+    ];
+    extension_of(base_name(path_of(url))).is_some_and(|ext| !PAGES.contains(&ext.as_str()))
 }
 
 /// What the host answers.
@@ -326,6 +393,13 @@ impl Default for CatchRules {
 pub struct Candidate<'a> {
     /// Where the bytes come from, after redirects when the browser knows.
     pub url: &'a str,
+    /// The address the download was asked for, before any redirect. A
+    /// site's downloads are often served from another host
+    /// (`github.com` to `objects.githubusercontent.com`), and a site on the
+    /// skip list means its downloads, wherever they are served from.
+    pub asked_url: &'a str,
+    /// The page the download was started from.
+    pub referrer: &'a str,
     /// The name the browser chose, if it has chosen; a full path is fine.
     pub filename: &'a str,
     pub mime: &'a str,
@@ -355,21 +429,40 @@ impl Left {
 impl CatchRules {
     /// Whether the app wants this download.
     pub fn catches(&self, download: &Candidate<'_>) -> Result<(), Left> {
+        self.takes(download, false)
+    }
+
+    /// Whether the app wants this download, where `every_type` says the
+    /// toolbar popup takes every download from its site. That switch is
+    /// about type and size only: the master switch and the sites to leave
+    /// alone, both the app's, still hold.
+    pub fn takes(&self, download: &Candidate<'_>, every_type: bool) -> Result<(), Left> {
         if !self.enabled {
             return Err(Left::Off);
         }
 
-        let host = host_of(download.url);
+        // Where it is served from, where it was asked for, and the page it
+        // came from: any of them on the list leaves it with the browser.
+        let hosts: Vec<String> = [download.url, download.asked_url, download.referrer]
+            .iter()
+            .map(|url| host_of(url))
+            .filter(|host| !host.is_empty())
+            .collect();
         let skipped = self.skip_hosts.iter().any(|skip| {
             let skip = skip.trim().trim_start_matches("*.").to_ascii_lowercase();
             !skip.is_empty()
-                && (host == skip
-                    || host
-                        .strip_suffix(skip.as_str())
-                        .is_some_and(|rest| rest.ends_with('.')))
+                && hosts.iter().any(|host| {
+                    *host == skip
+                        || host
+                            .strip_suffix(skip.as_str())
+                            .is_some_and(|rest| rest.ends_with('.'))
+                })
         });
         if skipped {
             return Err(Left::SkippedHost);
+        }
+        if every_type {
+            return Ok(());
         }
 
         if self.min_size_kb > 0
@@ -776,6 +869,140 @@ mod tests {
             .map(|n| (b'a' + n) as char)
             .collect();
         assert_eq!(id, CHROME_EXTENSION_ID);
+    }
+
+    #[test]
+    fn a_site_on_the_skip_list_keeps_downloads_served_from_elsewhere_and_its_pages() {
+        let rules = CatchRules {
+            skip_hosts: vec!["github.com".into()],
+            ..Default::default()
+        };
+        // Asked for on the site, redirected to its file host.
+        let redirected = Candidate {
+            url: "https://objects.githubusercontent.com/f.zip",
+            asked_url: "https://github.com/o/r/releases/download/v1/f.zip",
+            ..Default::default()
+        };
+        assert_eq!(rules.catches(&redirected), Err(Left::SkippedHost));
+        // Started from one of the site's pages.
+        let from_page = Candidate {
+            url: "https://cdn.example/f.zip",
+            referrer: "https://github.com/o/r/releases",
+            ..Default::default()
+        };
+        assert_eq!(rules.catches(&from_page), Err(Left::SkippedHost));
+        let elsewhere = Candidate {
+            url: "https://cdn.example/f.zip",
+            asked_url: "https://cdn.example/f.zip",
+            referrer: "https://example.org/",
+            ..Default::default()
+        };
+        assert_eq!(rules.catches(&elsewhere), Ok(()));
+    }
+
+    #[test]
+    fn taking_every_download_from_a_site_overrides_type_and_size_only() {
+        let page = Candidate {
+            url: "https://e.com/notes.txt",
+            size: Some(10),
+            ..Default::default()
+        };
+        let rules = CatchRules {
+            min_size_kb: 100,
+            ..Default::default()
+        };
+        assert!(rules.catches(&page).is_err());
+        assert_eq!(rules.takes(&page, true), Ok(()));
+        // The app's own master switch and skip list still stand.
+        let off = CatchRules {
+            enabled: false,
+            ..Default::default()
+        };
+        assert_eq!(off.takes(&page, true), Err(Left::Off));
+        let skipping = CatchRules {
+            skip_hosts: vec!["e.com".into()],
+            ..Default::default()
+        };
+        assert_eq!(skipping.takes(&page, true), Err(Left::SkippedHost));
+    }
+
+    #[test]
+    fn a_page_served_to_dm_for_a_file_served_to_the_browser_is_told_apart() {
+        let html = "text/html; charset=utf-8";
+        // The browser was getting a zip; dm, without its cookies, a login page.
+        assert!(page_instead_of_file(
+            "application/zip",
+            "https://e.com/get?id=1",
+            html
+        ));
+        assert!(page_instead_of_file(
+            "",
+            "https://e.com/files/report.pdf",
+            html
+        ));
+        assert!(page_instead_of_file(
+            "application/octet-stream",
+            "https://e.com/x",
+            "application/xhtml+xml"
+        ));
+        // A page the browser was saving as a page, the same thing to dm.
+        assert!(!page_instead_of_file(
+            "text/html",
+            "https://e.com/f.zip",
+            html
+        ));
+        // Nothing said and nothing in the name: no way to tell, so taken.
+        assert!(!page_instead_of_file(
+            "",
+            "https://e.com/download?id=5",
+            html
+        ));
+        assert!(!page_instead_of_file(
+            "",
+            "https://e.com/get.php?id=5",
+            html
+        ));
+        // A file served as a file.
+        assert!(!page_instead_of_file(
+            "application/zip",
+            "https://e.com/f.zip",
+            "application/zip"
+        ));
+        assert!(!page_instead_of_file("", "https://e.com/f.zip", ""));
+    }
+
+    #[test]
+    fn a_hand_off_is_given_only_the_time_the_extension_still_waits() {
+        // An older extension says nothing: the probe's own limit.
+        assert_eq!(time_left(5_000, None), Some(PROBE_WITHIN_MS));
+        // Plenty left: the probe's limit, no more.
+        assert_eq!(time_left(0, Some(60_000)), Some(PROBE_WITHIN_MS));
+        // Little left: what remains short of the margin.
+        assert_eq!(time_left(10_000, Some(15_000)), Some(3_000));
+        // Within the margin or past it: too late to take.
+        assert_eq!(time_left(10_000, Some(10_000 + ANSWER_MARGIN_MS)), None);
+        assert_eq!(time_left(30_000, Some(20_000)), None);
+    }
+
+    #[test]
+    fn a_hand_offs_type_and_deadline_cross_and_an_older_one_has_neither() {
+        let start = Request::Start(Start {
+            id: "b1".into(),
+            url: "https://e.com/f".into(),
+            mime: "application/zip".into(),
+            deadline: Some(1_700_000_000_000),
+            ..Start::default()
+        });
+        let frame = start.to_frame();
+        assert_eq!(frame["mime"], "application/zip");
+        assert_eq!(frame["deadline"], 1_700_000_000_000u64);
+        assert_eq!(Request::from_frame(&frame), Ok(start));
+        let older =
+            json!({ "protocolVersion": 1, "type": "download.start", "id": "x", "url": "u" });
+        let Ok(Request::Start(older)) = Request::from_frame(&older) else {
+            panic!("not read")
+        };
+        assert_eq!((older.mime.as_str(), older.deadline), ("", None));
     }
 
     #[test]

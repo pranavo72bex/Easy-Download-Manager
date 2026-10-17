@@ -188,20 +188,20 @@ impl Command {
     /// protocol lists.
     pub fn label(self) -> &'static str {
         match self {
-            Command::AddUrl => "New download",
+            Command::AddUrl => "Add URL",
             Command::AddSeries => "Add numbered series",
             Command::AddFromClipboard => "Add links from clipboard",
             Command::Import => "Import",
             Command::Export => "Export",
             Command::SiteFiles => "Find files on a site",
             Command::Quit => "Exit",
-            Command::DownloadNow => "Download now",
+            Command::DownloadNow => "Resume download",
             Command::StopDownload => "Stop download",
             Command::Remove => "Remove",
             Command::Redownload => "Redownload",
             Command::UpdateLink => "Update download link",
             Command::MoveToQueue => "Move to queue",
-            Command::RemoveFromQueue => "Delete from queue",
+            Command::RemoveFromQueue => "Take out of queue",
             Command::MoveUp => "Move up",
             Command::MoveDown => "Move down",
             Command::Properties => "Properties",

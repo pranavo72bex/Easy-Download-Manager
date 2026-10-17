@@ -9,3 +9,4 @@ Terminal=false
 Categories=Network;FileTransfer;
 Keywords=download;manager;http;resume;
 StartupWMClass=dm
+MimeType=x-scheme-handler/magnet;

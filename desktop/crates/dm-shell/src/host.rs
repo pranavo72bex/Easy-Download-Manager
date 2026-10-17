@@ -178,10 +178,25 @@ pub trait World {
     fn app_running(&mut self) -> bool;
     /// Starts one.
     fn launch(&mut self) -> std::io::Result<()>;
-    /// Whether dm, from outside the browser, can fetch `url` at all.
-    fn reachable(&mut self, url: &str, referrer: &str, cookies: &str) -> Result<(), String>;
+    /// Whether dm, from outside the browser, can fetch `url` at all, asked
+    /// for no longer than `within_ms`; when it can, the type the server
+    /// said it was sending, after redirects (empty where it said none).
+    fn reachable(
+        &mut self,
+        url: &str,
+        referrer: &str,
+        cookies: &str,
+        within_ms: u64,
+    ) -> Result<String, String>;
     /// The qualities a page's video comes in, as yt-dlp reads them.
     fn formats(&mut self, url: &str, referrer: &str) -> Result<Vec<Choice>, String>;
+    /// Milliseconds since the Unix epoch, the clock the extension's
+    /// deadline is read against.
+    fn now_ms(&mut self) -> u64 {
+        std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .map_or(0, |d| u64::try_from(d.as_millis()).unwrap_or(u64::MAX))
+    }
 }
 
 /// The real one: the instance lock, this binary, and dm's own client.
@@ -203,9 +218,15 @@ impl World for Here<'_> {
 
     /// One ranged request, made the way the queue will make it: through the
     /// saved proxy, with the page as referrer. A magnet has no server to ask.
-    fn reachable(&mut self, url: &str, referrer: &str, cookies: &str) -> Result<(), String> {
+    fn reachable(
+        &mut self,
+        url: &str,
+        referrer: &str,
+        cookies: &str,
+        within_ms: u64,
+    ) -> Result<String, String> {
         if !(url.starts_with("http://") || url.starts_with("https://")) {
-            return Ok(());
+            return Ok(String::new());
         }
         let settings = saved(self.home);
         // The same cookies the app sends, so a download they make possible
@@ -220,7 +241,7 @@ impl World for Here<'_> {
         let referrer = (!referrer.is_empty()).then_some(referrer);
         runtime.block_on(async {
             match tokio::time::timeout(
-                std::time::Duration::from_secs(15),
+                std::time::Duration::from_millis(within_ms),
                 dm_core::probe::probe(
                     &client,
                     // A site's saved sign-in (Options › Sign-ins), as the
@@ -233,9 +254,12 @@ impl World for Here<'_> {
             )
             .await
             {
-                Ok(Ok(_)) => Ok(()),
+                Ok(Ok(probe)) => Ok(probe.content_type.unwrap_or_default()),
                 Ok(Err(e)) => Err(e.to_string()),
-                Err(_) => Err("the server did not answer dm within 15 seconds".into()),
+                Err(_) => Err(format!(
+                    "the server did not answer dm within {} seconds",
+                    within_ms.div_ceil(1000)
+                )),
             }
         })
     }
@@ -362,6 +386,8 @@ pub fn answer(
             label,
             ask,
             cookies,
+            mime,
+            deadline,
         })) => {
             let url = url.trim().to_string();
             if url.is_empty() {
@@ -373,19 +399,15 @@ pub fn answer(
                     &id,
                     "dm downloads http(s) and ftp links, magnets and .torrent files only",
                 )
-            } else if let Some(why) = caught
-                .then(|| world.reachable(&url, &referrer, &cookies).err())
-                .flatten()
+            } else if let Some(why) =
+                checked(world, caught, &url, &referrer, &cookies, &mime, deadline)
             {
                 // Before anything is filed: the browser fetches this with its
                 // cookies and its session, and dm has neither. A link only
                 // the signed-in browser can fetch is refused here, while the
                 // browser still holds it, rather than taken from the browser
                 // and failed in dm — a download caught and then lost.
-                Reply::failed(
-                    &id,
-                    format!("dm cannot fetch this without the browser: {why}"),
-                )
+                Reply::failed(&id, why)
             } else {
                 match deposit(
                     home,
@@ -419,6 +441,43 @@ pub fn answer(
         Err(_) => return None,
     };
     Some(reply.to_frame())
+}
+
+/// Why a hand-off must not be taken, or `None` when it can be filed.
+///
+/// Too late first: past the extension's deadline it has given the download
+/// back to the browser, and a download filed now is fetched twice. Then, for
+/// a download the browser holds, whether dm can fetch it at all — and
+/// whether what dm is served is the file and not a sign-in page the site
+/// sends a request without the browser's cookies to, which a check for
+/// errors alone passed, losing the browser's copy for a page of HTML. The
+/// time is checked again after asking, since asking takes most of it.
+fn checked(
+    world: &mut dyn World,
+    caught: bool,
+    url: &str,
+    referrer: &str,
+    cookies: &str,
+    mime: &str,
+    deadline: Option<u64>,
+) -> Option<String> {
+    let late = "the browser stopped waiting for dm, so it keeps the download";
+    let Some(within) = dm_protocol::time_left(world.now_ms(), deadline) else {
+        return Some(late.into());
+    };
+    if !caught {
+        return None;
+    }
+    match world.reachable(url, referrer, cookies, within) {
+        Err(why) => Some(format!("dm cannot fetch this without the browser: {why}")),
+        Ok(served) if dm_protocol::page_instead_of_file(mime, url, &served) => Some(format!(
+            "dm cannot fetch this without the browser: the site answers dm with a page \
+             ({}) rather than the file, usually a sign-in",
+            served.trim()
+        )),
+        Ok(_) if dm_protocol::time_left(world.now_ms(), deadline).is_none() => Some(late.into()),
+        Ok(_) => None,
+    }
 }
 
 /// Runs as the browser's native messaging host until the browser closes it.
@@ -575,6 +634,14 @@ mod tests {
         asked: Vec<(String, String)>,
         /// The cookies each probe was asked with.
         cookies_seen: Vec<String>,
+        /// The type the server sends dm.
+        serves: &'static str,
+        /// The time, as milliseconds since the epoch, and how far a probe
+        /// moves it on.
+        clock: u64,
+        probe_takes_ms: u64,
+        /// How long each probe was allowed.
+        budgets: Vec<u64>,
     }
 
     impl World for Pretend {
@@ -586,10 +653,22 @@ mod tests {
             self.launches
                 .map_err(|()| std::io::Error::other("no such program"))
         }
-        fn reachable(&mut self, url: &str, referrer: &str, cookies: &str) -> Result<(), String> {
+        fn reachable(
+            &mut self,
+            url: &str,
+            referrer: &str,
+            cookies: &str,
+            within_ms: u64,
+        ) -> Result<String, String> {
             self.asked.push((url.into(), referrer.into()));
             self.cookies_seen.push(cookies.into());
-            self.refuses.map_or(Ok(()), |why| Err(why.into()))
+            self.budgets.push(within_ms);
+            self.clock += self.probe_takes_ms;
+            self.refuses
+                .map_or(Ok(self.serves.to_string()), |why| Err(why.into()))
+        }
+        fn now_ms(&mut self) -> u64 {
+            self.clock
         }
         fn formats(&mut self, url: &str, _referrer: &str) -> Result<Vec<Choice>, String> {
             if url.contains("unreadable") {
@@ -733,6 +812,10 @@ mod tests {
             refuses: None,
             asked: Vec::new(),
             cookies_seen: Vec::new(),
+            serves: "application/zip",
+            clock: 0,
+            probe_takes_ms: 0,
+            budgets: Vec::new(),
         };
         let reply = answer(dir.path(), &frame, &mut world).map(|r| Reply::from_frame(&r).unwrap());
         assert_eq!(reply, Some(Reply::Started { id: "c1".into() }));
@@ -798,6 +881,10 @@ mod tests {
             refuses: None,
             asked: Vec::new(),
             cookies_seen: Vec::new(),
+            serves: "application/zip",
+            clock: 0,
+            probe_takes_ms: 0,
+            budgets: Vec::new(),
         };
         let reply = answer(home, &frame, &mut world);
         (
@@ -936,6 +1023,10 @@ mod tests {
             refuses: Some("server returned 403 Forbidden"),
             asked: Vec::new(),
             cookies_seen: Vec::new(),
+            serves: "application/zip",
+            clock: 0,
+            probe_takes_ms: 0,
+            budgets: Vec::new(),
         };
         let reply = answer(
             dir.path(),
@@ -962,6 +1053,151 @@ mod tests {
         assert!(!inbox(dir.path()).join("p.json").exists(), "nothing filed");
     }
 
+    fn pretend(serves: &'static str, clock: u64, probe_takes_ms: u64) -> Pretend {
+        Pretend {
+            running: true,
+            launches: Ok(()),
+            launched: false,
+            refuses: None,
+            asked: Vec::new(),
+            cookies_seen: Vec::new(),
+            serves,
+            clock,
+            probe_takes_ms,
+            budgets: Vec::new(),
+        }
+    }
+
+    fn caught(id: &str, url: &str, mime: &str, deadline: Option<u64>) -> serde_json::Value {
+        dm_protocol::Request::Start(Start {
+            id: id.into(),
+            url: url.into(),
+            referrer: "https://e.com/page".into(),
+            caught: true,
+            mime: mime.into(),
+            deadline,
+            ..Start::default()
+        })
+        .to_frame()
+    }
+
+    fn refused(reply: Option<serde_json::Value>) -> String {
+        match reply.map(|r| Reply::from_frame(&r).unwrap()) {
+            Some(Reply::Failed { failure, .. }) => failure.unwrap().message,
+            other => panic!("taken: {other:?}"),
+        }
+    }
+
+    #[test]
+    fn a_sign_in_page_served_in_place_of_the_file_leaves_it_with_the_browser() {
+        /* The site sends dm, without the browser's cookies, a redirect to
+         * its sign-in page: a 200 of HTML, which a check for errors alone
+         * passed. Taken, the browser's copy was cancelled and dm saved the
+         * sign-in page. */
+        let html = "text/html; charset=utf-8";
+        let dir = tempfile::tempdir().unwrap();
+        let mut world = pretend(html, 0, 0);
+        let said = refused(answer(
+            dir.path(),
+            &caught("s1", "https://e.com/get?id=1", "application/zip", None),
+            &mut world,
+        ));
+        assert!(
+            said.contains("without the browser") && said.contains("text/html"),
+            "{said}"
+        );
+        assert!(!inbox(dir.path()).join("s1.json").exists(), "nothing filed");
+
+        // The browser did not say, but the address names a file.
+        let said = refused(answer(
+            dir.path(),
+            &caught("s2", "https://e.com/files/report.pdf", "", None),
+            &mut world,
+        ));
+        assert!(said.contains("rather than the file"), "{said}");
+        assert!(!inbox(dir.path()).join("s2.json").exists());
+
+        // A page the browser was saving as a page is the same page to dm.
+        let reply = answer(
+            dir.path(),
+            &caught("s3", "https://e.com/article", "text/html", None),
+            &mut world,
+        )
+        .map(|r| Reply::from_frame(&r).unwrap());
+        assert_eq!(reply, Some(Reply::Started { id: "s3".into() }));
+
+        // And the file itself, served as one, is taken.
+        let mut world = pretend("application/zip", 0, 0);
+        let reply = answer(
+            dir.path(),
+            &caught("s4", "https://e.com/get?id=1", "application/zip", None),
+            &mut world,
+        )
+        .map(|r| Reply::from_frame(&r).unwrap());
+        assert_eq!(reply, Some(Reply::Started { id: "s4".into() }));
+    }
+
+    #[test]
+    fn a_hand_off_the_extension_has_stopped_waiting_for_is_not_filed() {
+        /* The extension waits so long for an answer and then gives the
+         * download back to the browser. A host that took it after that had
+         * the file downloaded twice: by the browser and by dm. */
+        let dir = tempfile::tempdir().unwrap();
+        let now = 1_700_000_000_000;
+
+        // Already too late on arrival: not asked about, not filed.
+        let mut world = pretend("application/zip", now, 0);
+        let said = refused(answer(
+            dir.path(),
+            &caught("t1", "https://e.com/f.zip", "", Some(now + 500)),
+            &mut world,
+        ));
+        assert!(said.contains("stopped waiting"), "{said}");
+        assert!(world.asked.is_empty(), "the server was asked anyway");
+        assert!(!inbox(dir.path()).join("t1.json").exists());
+
+        // The probe is given what is left, short of the margin for answering,
+        // and never more than its own limit.
+        let mut world = pretend("application/zip", now, 0);
+        let reply = answer(
+            dir.path(),
+            &caught("t2", "https://e.com/f.zip", "", Some(now + 5_000)),
+            &mut world,
+        )
+        .map(|r| Reply::from_frame(&r).unwrap());
+        assert_eq!(reply, Some(Reply::Started { id: "t2".into() }));
+        assert_eq!(world.budgets, [5_000 - dm_protocol::ANSWER_MARGIN_MS]);
+        let mut world = pretend("application/zip", now, 0);
+        let _ = answer(
+            dir.path(),
+            &caught("t3", "https://e.com/f.zip", "", Some(now + 60_000)),
+            &mut world,
+        );
+        assert_eq!(world.budgets, [dm_protocol::PROBE_WITHIN_MS]);
+
+        // A server slow enough to use it all: too late once it answers.
+        let mut world = pretend("application/zip", now, 4_000);
+        let said = refused(answer(
+            dir.path(),
+            &caught("t4", "https://e.com/f.zip", "", Some(now + 5_000)),
+            &mut world,
+        ));
+        assert!(said.contains("stopped waiting"), "{said}");
+        assert!(!inbox(dir.path()).join("t4.json").exists());
+
+        // A link asked for from a menu is not filed late either.
+        let mut world = pretend("application/zip", now, 0);
+        let late = dm_protocol::Request::Start(Start {
+            id: "t5".into(),
+            url: "https://e.com/watch".into(),
+            deadline: Some(now - 1),
+            ..Start::default()
+        })
+        .to_frame();
+        let _ = refused(answer(dir.path(), &late, &mut world));
+        assert!(!inbox(dir.path()).join("t5.json").exists());
+    }
+
     #[test]
     fn a_link_handed_over_on_request_is_taken_without_asking_the_server() {
         // The browser holds nothing to give back, and asking the server now
@@ -974,6 +1210,10 @@ mod tests {
             refuses: Some("unreachable"),
             asked: Vec::new(),
             cookies_seen: Vec::new(),
+            serves: "application/zip",
+            clock: 0,
+            probe_takes_ms: 0,
+            budgets: Vec::new(),
         };
         let asked = dm_protocol::Request::Start(Start {
             id: "m1".into(),
@@ -994,7 +1234,10 @@ mod tests {
             home: dir.path(),
             started: false,
         };
-        assert_eq!(here.reachable("magnet:?xt=urn:btih:abc", "", ""), Ok(()));
+        assert_eq!(
+            here.reachable("magnet:?xt=urn:btih:abc", "", "", 1000),
+            Ok(String::new())
+        );
     }
 
     #[test]

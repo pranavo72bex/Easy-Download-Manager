@@ -39,6 +39,20 @@ impl Place {
         self.dir.parent().unwrap_or(&self.dir)
     }
 
+    /// Whether the browser is installed. Firefox as a Snap (Ubuntu's own)
+    /// keeps its profile under ~/snap/firefox, so a fresh Ubuntu has no
+    /// ~/.mozilla at all; its native messaging still reads the manifest
+    /// from ~/.mozilla/native-messaging-hosts.
+    fn installed(&self) -> bool {
+        let browser = self.browser();
+        browser.is_dir()
+            || (self.family == Family::Firefox
+                && browser.file_name() == Some(std::ffi::OsStr::new(".mozilla"))
+                && browser
+                    .parent()
+                    .is_some_and(|home| home.join("snap/firefox").is_dir()))
+    }
+
     pub fn manifest(&self) -> PathBuf {
         self.dir.join(format!("{NATIVE_HOST}.json"))
     }
@@ -346,7 +360,7 @@ pub fn register(home: &Path, exe: &Path, allowed: &Allowed) -> Result<Vec<PathBu
 
     let mut written = Vec::new();
     for place in places(home) {
-        if !place.browser().is_dir() {
+        if !place.installed() {
             continue; // that browser is not installed
         }
         let text = serde_json::to_string_pretty(&manifest(place.family, exe, allowed))
@@ -393,7 +407,7 @@ pub fn ensure(home: &Path, exe: &Path) -> Result<Option<Vec<PathBuf>>, String> {
     } else {
         places(home)
             .into_iter()
-            .filter(|place| place.browser().is_dir())
+            .filter(|place| place.installed())
             .map(|place| place.manifest())
             .collect()
     };
@@ -594,6 +608,23 @@ mod tests {
         }
     }
 
+    #[cfg(target_os = "linux")]
+    #[test]
+    fn firefox_as_a_snap_is_registered_though_it_has_no_mozilla_folder() {
+        let home = tempfile::tempdir().unwrap();
+        std::fs::create_dir_all(home.path().join("snap/firefox/common")).unwrap();
+        let elsewhere = tempfile::tempdir().unwrap();
+        let exe = program(elsewhere.path());
+        let written = register(home.path(), &exe, &Allowed::with(&[]).unwrap()).unwrap();
+        assert_eq!(
+            written,
+            [home
+                .path()
+                .join(".mozilla/native-messaging-hosts")
+                .join(format!("{NATIVE_HOST}.json"))]
+        );
+    }
+
     #[test]
     fn with_no_browser_installed_there_is_nothing_to_do() {
         let home = tempfile::tempdir().unwrap();
@@ -617,7 +648,7 @@ mod tests {
 
         for place in places(home.path()) {
             let file = place.manifest();
-            if !place.browser().is_dir() {
+            if !place.installed() {
                 assert!(!file.exists(), "{} is not installed", place.dir.display());
                 continue;
             }
