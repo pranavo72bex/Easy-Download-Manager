@@ -216,8 +216,11 @@ and is not carried over.
       driven in the window test too
 - [ ] Drag and drop — winit delivers dropped files only, so a `.webloc`,
       `.url` or text file dropped on the window is read for links and they
-      are queued; a bare link dragged from a browser is not received at all
-      (the web window took those). Not watched with a real drop
+      are queued: a `.url` file dropped from a real GTK file chooser was
+      watched queuing and downloading (round 9, 2026-10-18). A drop with no
+      link in it says how to add one, and so does the empty list. Links
+      dragged from a browser are still not received at all (the web window
+      took those)
 - [x] Start on login — an opt-in setting, off by default, registers dm as a
       login item so a browser hand-off always has an app to land in.
       Launched by the login item it stays in the tray (`--hidden`) rather

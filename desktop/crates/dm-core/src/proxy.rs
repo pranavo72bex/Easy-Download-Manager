@@ -190,6 +190,16 @@ pub fn client_with_timeout(
      * for the kind that asks for them; off, or a proxy of dm's own, goes
      * out as told and not as the environment says. */
     let system = proxy.enabled && proxy.kind == Kind::System;
+    // Turned on with no host or port is a proxy asked for and not usable:
+    // building a client without one sent every download out directly, and
+    // a saved one like it went direct at every launch, unsaid (gap 141).
+    if proxy.enabled && !system && proxy.url().is_none() {
+        return Err(if proxy.host.trim().is_empty() {
+            "the proxy has no host".into()
+        } else {
+            "the proxy has no port".into()
+        });
+    }
     let mut builder = crate::builder_with(read_timeout, system);
 
     if let Some(url) = proxy.url() {
@@ -341,6 +351,30 @@ mod tests {
         };
         assert!(all.bypasses("anything.example"));
         assert!(!Proxy::default().bypasses("anything.example"));
+    }
+
+    #[test]
+    fn a_proxy_turned_on_with_no_host_or_port_is_refused_not_gone_around() {
+        let no_host = Proxy {
+            enabled: true,
+            ..Default::default()
+        };
+        assert!(client_with(&no_host).is_err());
+        let no_port = Proxy {
+            enabled: true,
+            host: "proxy.example".into(),
+            port: 0,
+            ..Default::default()
+        };
+        assert!(client_with(&no_port).is_err());
+        // Off, or the computer's own settings, needs neither.
+        assert!(client_with(&Proxy::default()).is_ok());
+        let system = Proxy {
+            enabled: true,
+            kind: Kind::System,
+            ..Default::default()
+        };
+        assert!(client_with(&system).is_ok());
     }
 
     #[test]

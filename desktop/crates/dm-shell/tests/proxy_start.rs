@@ -1,0 +1,40 @@
+//! A saved proxy that is turned on with no host is not gone around in
+//! silence at launch: it is turned off for every route, and the window is
+//! told why (gap 141).
+
+use dm_shell::settings::Settings;
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn a_saved_proxy_with_no_host_is_turned_off_and_said_at_launch() {
+    let home = tempfile::tempdir().unwrap();
+    // The one test in this binary, so the process-wide home is its own.
+    unsafe { std::env::set_var("DM_HOME", home.path()) };
+    let mut saved = Settings {
+        download_dir: home.path().join("out"),
+        ..Settings::default()
+    };
+    saved.proxy.enabled = true;
+    saved.proxy.host = String::new();
+    saved.save().unwrap();
+
+    let started = dm_shell::shell::start(&dm_shell::shell::orders(&[])).await;
+    assert!(
+        !started.settings.proxy.enabled,
+        "the unusable proxy stayed on for the tools while dm's own went direct"
+    );
+    assert!(
+        started
+            .notices
+            .iter()
+            .any(|n| n.contains("saved proxy could not be used") && n.contains("no host")),
+        "nothing said: {:?}",
+        started.notices
+    );
+    assert_eq!(
+        started
+            .settings
+            .options(home.path().into(), dm_core::Limiter::unlimited())
+            .proxy,
+        None
+    );
+}

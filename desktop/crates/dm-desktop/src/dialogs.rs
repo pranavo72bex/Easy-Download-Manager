@@ -284,6 +284,24 @@ pub struct OptionsDialog {
     pub fresh: bool,
 }
 
+/// A list to import, some of whose addresses are already rows.
+pub struct ImportAsk {
+    pub text: String,
+    /// How many of its addresses are already rows, and how many it holds.
+    pub already: usize,
+    pub total: usize,
+}
+
+/// The path of a list to import or export, typed where there is no file
+/// chooser to ask with.
+#[derive(Default)]
+pub struct ListFile {
+    /// Export (true) or Import.
+    pub save: bool,
+    pub path: String,
+    pub says: String,
+}
+
 #[derive(Default)]
 pub struct Dialogs {
     pub add_url: Option<AddUrl>,
@@ -315,6 +333,12 @@ pub struct Dialogs {
     pub confirm_outside: Option<Vec<Id>>,
     /// An address typed in that is already a row: the address and the row.
     pub duplicate: Option<(String, Id)>,
+    /// A list being imported that holds addresses already in the list:
+    /// asked once, for all of them, whether to skip them or add them again.
+    pub import_ask: Option<ImportAsk>,
+    /// Import or Export where the desktop has no file chooser: the file's
+    /// path, typed.
+    pub list_file: Option<ListFile>,
     /// A site whose handed-over downloads were cancelled twice running:
     /// asked whether to leave its downloads to the browser from now on.
     pub skip_offer: Option<String>,
@@ -505,6 +529,15 @@ impl Dialogs {
                 "Start outside the schedule?",
             ),
             (self.duplicate.is_some(), "Already in the list"),
+            (self.import_ask.is_some(), "Some are already in the list"),
+            (
+                self.list_file.as_ref().is_some_and(|f| !f.save),
+                "Import a list",
+            ),
+            (
+                self.list_file.as_ref().is_some_and(|f| f.save),
+                "Export the list",
+            ),
             (self.skip_offer.is_some(), "Leave this site to the browser?"),
             (self.add_url.is_some(), "Add URL"),
             (self.file_info.is_some(), "Download details"),
@@ -590,6 +623,15 @@ impl Dialogs {
             "Start outside the schedule?",
         );
         say(self.duplicate.is_some(), "Already in the list");
+        say(self.import_ask.is_some(), "Some are already in the list");
+        say(
+            self.list_file.as_ref().is_some_and(|f| !f.save),
+            "Import a list",
+        );
+        say(
+            self.list_file.as_ref().is_some_and(|f| f.save),
+            "Export the list",
+        );
         say(self.skip_offer.is_some(), "Leave this site to the browser?");
         say(self.add_url.is_some(), "Add URL");
         say(self.file_info.is_some(), "Download details");
@@ -621,6 +663,7 @@ impl Dialogs {
             || self.confirm_remove.take().is_some()
             || self.confirm_outside.take().is_some()
             || self.duplicate.take().is_some()
+            || self.import_ask.take().is_some()
             || self.skip_offer.take().is_some()
         {
             return true;
@@ -633,6 +676,7 @@ impl Dialogs {
             || self.update_link.take().is_some()
             || self.move_to_queue.take().is_some()
             || self.rename.take().is_some()
+            || self.list_file.take().is_some()
             || self.add_url.take().is_some()
             || self.clip_links.take().is_some()
             || self.series.take().is_some()
@@ -713,11 +757,17 @@ fn bar(ui: &mut egui::Ui, fraction: f32, width: f32, words: &str) {
         - 8.0;
     let width = width.min(room).max(60.0);
     if !t.modern {
-        ui.add(
-            egui::ProgressBar::new(fraction)
-                .desired_width(width)
-                .text(words),
-        );
+        // egui's bar, its track in a colour that shows on the dialog: in
+        // the classic look the track was the dialog's own colour, and a
+        // bar at 0% was a bare pill around its words (gap 151).
+        ui.scope(|ui| {
+            ui.visuals_mut().extreme_bg_color = t.border;
+            ui.add(
+                egui::ProgressBar::new(fraction)
+                    .desired_width(width)
+                    .text(words),
+            );
+        });
         return;
     }
     ui.horizontal(|ui| {
@@ -735,7 +785,11 @@ fn bar(ui: &mut egui::Ui, fraction: f32, width: f32, words: &str) {
 /// colour (the classic look draws it like any other).
 fn primary(ui: &mut egui::Ui, text: &'static str) -> egui::Response {
     // The button's words in the language in force.
-    let text = crate::i18n::t(text);
+    primary_worded(ui, crate::i18n::t(text))
+}
+
+/// [`primary`], with words already in the language in force.
+fn primary_worded(ui: &mut egui::Ui, text: &str) -> egui::Response {
     let t = crate::theme::Tokens::get(ui.ctx());
     if !t.modern {
         return ui.button(text);
@@ -865,6 +919,8 @@ pub fn show(app: &mut DmApp, ctx: &egui::Context) {
     confirm_remove(app, ctx);
     confirm_outside(app, ctx);
     duplicate(app, ctx);
+    import_ask(app, ctx);
+    list_file(app, ctx);
     skip_offer(app, ctx);
     add_url(app, ctx);
     file_info(app, ctx);
@@ -939,14 +995,45 @@ fn confirm_remove(app: &mut DmApp, ctx: &egui::Context) {
                     t("Take these downloads off the list? Their files stay where they are.")
                 }
             });
+            // The buttons say what the sentence asked, in its number, and
+            // Enter is the one that loses nothing (gap 149).
+            let (go, keep) = match (unfinished, ids.len()) {
+                (true, 1) => (t("Yes, delete"), t("Keep it")),
+                (true, _) => (t("Yes, delete"), t("Keep them")),
+                (false, 1) => (t("Take it off"), t("Keep it")),
+                (false, _) => (t("Take them off"), t("Keep them")),
+            };
             ui.horizontal(|ui| {
-                yes = ui.button(t("Yes, delete")).clicked() || enter_free(ui);
-                no = ui.button(t("Keep them")).clicked();
+                yes = ui.button(go).clicked();
+                no = primary_worded(ui, keep).clicked() || enter_free(ui);
             });
         });
     if yes {
         app.dialogs.confirm_remove = None;
+        // The selection goes to the row after those removed, or the one
+        // before where they were the last: it was lost, and the keys had
+        // nowhere to go on from.
+        let shown: Vec<Id> = app.visible().iter().map(|r| r.id).collect();
+        let next = shown
+            .iter()
+            .rposition(|id| ids.contains(id))
+            .and_then(|last| {
+                shown
+                    .get(last + 1..)
+                    .and_then(|after| after.iter().find(|id| !ids.contains(id)))
+                    .or_else(|| {
+                        shown
+                            .get(..last)
+                            .and_then(|before| before.iter().rev().find(|id| !ids.contains(id)))
+                    })
+            })
+            .copied();
         app.remove_now(&ids);
+        if let Some(id) = next {
+            app.selected.insert(id);
+            app.cursor = Some(id);
+            app.anchor = Some(id);
+        }
     } else if no {
         app.dialogs.confirm_remove = None;
     }
@@ -1077,8 +1164,97 @@ fn bare(url: &str) -> String {
         .unwrap_or_else(|_| url.to_string())
 }
 
+/// Asked when a list being imported holds addresses already in the list,
+/// as Add URL asks of one address: once, for all of them (gap 143).
+fn import_ask(app: &mut DmApp, ctx: &egui::Context) {
+    let Some(ask) = app.dialogs.import_ask.as_ref() else {
+        return;
+    };
+    let (already, total) = (ask.already, ask.total);
+    let (mut skip, mut again, mut cancel) = (false, false, false);
+    window("Some are already in the list").show(ctx, |ui| {
+        ui.label(tf(
+            "{} of the {} addresses in this list are already in dm's list.",
+            &[&already, &total],
+        ));
+        ui.horizontal(|ui| {
+            skip = primary(ui, "Skip them").clicked() || enter_free(ui);
+            again = ui.button(t("Add them again")).clicked();
+            cancel = ui.button(t("Cancel")).clicked();
+        });
+    });
+    if skip || again {
+        if let Some(ask) = app.dialogs.import_ask.take() {
+            app.import_text(&ask.text, skip);
+        }
+    } else if cancel {
+        app.dialogs.import_ask = None;
+    }
+}
+
+/// Import or Export's file, typed where the desktop has no file chooser:
+/// both did nothing there, without a word (gap 144).
+fn list_file(app: &mut DmApp, ctx: &egui::Context) {
+    let focus = app.dialogs.take_focus("List file");
+    let Some(d) = app.dialogs.list_file.as_mut() else {
+        return;
+    };
+    let mut open = true;
+    let (mut ok, mut cancel) = (false, false);
+    let dialog = if d.save {
+        window("Export the list")
+    } else {
+        window("Import a list")
+    };
+    dialog.open(&mut open).show(ctx, |ui| {
+        ui.label(t("No file chooser on this desktop; type the file's path."));
+        let path = focused(field(ui, t("File's path"), &mut d.path, 420.0), focus);
+        ok |= entered(&path);
+        if !d.says.is_empty() {
+            ui.colored_label(WARN, &d.says);
+        }
+        ui.horizontal(|ui| {
+            ok |= primary(ui, "OK").clicked() || enter_free(ui);
+            cancel = ui.button(t("Cancel")).clicked();
+        });
+    });
+    if cancel || !open {
+        app.dialogs.list_file = None;
+        return;
+    }
+    if !ok {
+        return;
+    }
+    let typed = d.path.trim();
+    let path = match typed.strip_prefix("~/") {
+        Some(rest) => std::env::var_os("HOME")
+            .map(|home| std::path::PathBuf::from(home).join(rest))
+            .unwrap_or_else(|| typed.into()),
+        None => std::path::PathBuf::from(typed),
+    };
+    if typed.is_empty() || !path.is_absolute() {
+        d.says = tf(
+            "Type the file's full path, such as {}.",
+            &[&default_list_path(&app.applied).display()],
+        );
+        return;
+    }
+    let save = d.save;
+    app.dialogs.list_file = None;
+    if save {
+        app.export_to(&path);
+    } else {
+        app.import_from(&path);
+    }
+}
+
+/// Where Export offers to write the list when its path is typed.
+pub fn default_list_path(settings: &Settings) -> std::path::PathBuf {
+    settings.download_dir.join("downloads.dmlist")
+}
+
 /// The row already holding `address`, if one does and was not cancelled.
-fn already_listed(app: &DmApp, address: &str) -> Option<Id> {
+pub(crate) fn already_listed(app: &DmApp, address: &str) -> Option<Id> {
     let wanted = bare(address);
     app.rows()
         .iter()
@@ -1124,6 +1300,9 @@ fn add_url(app: &mut DmApp, ctx: &egui::Context) {
     let (mut ok, mut cancel) = (false, false);
     window("Add URL").open(&mut open).show(ctx, |ui| {
         let address = focused(field(ui, t("Address"), &mut d.address, 420.0), focus);
+        // The link it was opened with is selected, so a link pasted or
+        // typed replaces it rather than joining it (gap 142).
+        select_on_focus(ui, &address, &d.address);
         ok |= entered(&address);
         ui.checkbox(&mut d.authorize, t("Needs a sign-in"));
         ui.add_enabled_ui(d.authorize, |ui| {
@@ -1157,7 +1336,11 @@ fn add_url(app: &mut DmApp, ctx: &egui::Context) {
     }
     let mut address = d.address.trim().to_string();
     if crate::app::looks_downloadable(&address).is_none() {
-        d.says = "That is not a link dm can download.".into();
+        d.says = t("That is not a link dm can download.").into();
+        return;
+    }
+    if crate::app::two_addresses(&address) {
+        d.says = t("That is two addresses run together. Add one at a time, or several with Program › Add links from clipboard.").into();
         return;
     }
     if d.authorize && !d.login.is_empty() {
@@ -2623,6 +2806,10 @@ fn options(app: &mut DmApp, ctx: &egui::Context) {
         ui.separator();
         // Room kept below for a warning and the buttons.
         let body = (ui.available_height() - 80.0).max(120.0);
+        // A bar that is always drawn where a tab is longer than the room,
+        // rather than one that shows only under the pointer: at 960 px
+        // General's last line was cut off with no sign of more (gap 148).
+        ui.spacing_mut().scroll = crate::theme::steady_scroll();
         egui::ScrollArea::vertical()
             .id_salt("options-tab")
             .max_height(body)
@@ -2955,6 +3142,36 @@ fn options(app: &mut DmApp, ctx: &egui::Context) {
         // before that works here keeps working. The built-in kinds' folders
         // (Options › Folders) likewise, where this edit renamed one; empty
         // leaves that kind unsorted.
+        // A proxy turned on with nowhere to connect to was taken, and every
+        // download then went out directly without a word (gap 141).
+        {
+            use dm_core::proxy::Kind;
+            let p = &wanted.proxy;
+            if p.enabled && p.kind != Kind::System {
+                let host = p.host.trim();
+                let why = if host.is_empty() {
+                    Some(t("A proxy needs a host: type its name or address, or untick \"Connect through a proxy\".").to_string())
+                } else if host.contains("://")
+                    || host
+                        .chars()
+                        .any(|c| c.is_whitespace() || "/@?#".contains(c))
+                {
+                    Some(tf(
+                        "\"{}\" is not a proxy host: type only its name or address, such as proxy.example.com, with the port in its own field.",
+                        &[&host],
+                    ))
+                } else if p.port == 0 {
+                    Some(t("A proxy needs a port from 1 to 65535.").to_string())
+                } else {
+                    None
+                };
+                if let Some(why) = why {
+                    d.says = why;
+                    d.tab = Tab::Proxy;
+                    return;
+                }
+            }
+        }
         let new_custom = wanted
             .custom_categories
             .iter()

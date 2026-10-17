@@ -76,8 +76,11 @@ pub fn host(url: &str) -> String {
 pub fn shown_url(url: &str) -> String {
     match url::Url::parse(url) {
         Ok(mut parsed) if parsed.password().is_some() => {
-            let _ = parsed.set_password(Some("•••"));
-            parsed.to_string()
+            // Masked after formatting: put into the URL, the dots were
+            // percent-encoded and read "user:%E2%80%A2…@" (gap 146). The
+            // first ":mask@" is the user's, whose own `:` and `@` are encoded.
+            let _ = parsed.set_password(Some("dmmasked"));
+            parsed.to_string().replacen(":dmmasked@", ":•••@", 1)
         }
         _ => url.to_string(),
     }
@@ -265,6 +268,12 @@ mod tests {
         let shown = shown_url("https://e.com/f.zip");
         assert!(!shown.contains("secret"), "{shown}");
         assert!(shown.contains("me:"));
+        // Dots a person can read, not their percent-encoding (gap 146).
+        assert_eq!(shown, "https://e.com/f.zip");
+        assert_eq!(
+            shown_url("https://e.com/f.zip"),
+            "https://e.com/f.zip"
+        );
         assert_eq!(shown_url("https://e.com/f.zip"), "https://e.com/f.zip");
     }
 

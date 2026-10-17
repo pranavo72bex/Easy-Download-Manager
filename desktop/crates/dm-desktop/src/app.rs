@@ -245,6 +245,37 @@ pub fn looks_downloadable(text: &str) -> Option<String> {
     .then(|| first.to_string())
 }
 
+/// Whether `text` holds a second address after its first: two links
+/// pasted into one field, run together ("…/a.ziphttps://…") or with a
+/// space between them (gap 142). A scheme after `=`, `/`, `?`, `&`, `#` or
+/// `%` is part of the first address — a redirect's parameter, or an
+/// archive's copy of a page — and is not counted.
+pub fn two_addresses(text: &str) -> bool {
+    let text = text.trim();
+    let lower = text.to_ascii_lowercase();
+    let schemes = ["http://", "https://", "ftp://", "magnet:?"];
+    let starts = |at: usize| {
+        lower
+            .get(at..)
+            .is_some_and(|rest| schemes.iter().any(|s| rest.starts_with(s)))
+    };
+    if text.split_whitespace().count() > 1
+        && text
+            .split_whitespace()
+            .skip(1)
+            .any(|w| looks_downloadable(w).is_some())
+    {
+        return true;
+    }
+    lower.char_indices().skip(1).any(|(at, _)| {
+        starts(at)
+            && lower[..at]
+                .chars()
+                .next_back()
+                .is_some_and(|before| !"=/?&#%".contains(before))
+    })
+}
+
 /// Links inside some text: a dropped `.webloc` or `.url` file, a list, the
 /// clipboard.
 pub fn links_in(text: &str) -> Vec<String> {
@@ -300,6 +331,12 @@ pub fn dropped_links(file: &dyn egui::DroppedFile) -> Vec<String> {
     links_in(&String::from_utf8_lossy(&head))
 }
 
+/// What a drop with no link in it is answered with, and what the empty list
+/// says: a link dragged from a browser is not handed to dm by the window
+/// system, only files are.
+pub const DROP_HINT: &str =
+    "Links can't be dropped here yet; use Add URL, or the browser's right-click menu. A .url or .webloc file, or a text file of links, can be dropped.";
+
 /// The clipboard watcher's memory: offered once, never again once dismissed,
 /// and nothing offered for what was copied before it was turned on.
 #[derive(Default)]
@@ -348,6 +385,10 @@ pub struct DmApp {
     /// Where each row was drawn last frame, in window points, so the control
     /// protocol can tell a test where to point.
     pub row_rects: HashMap<Id, egui::Rect>,
+    /// What of the list's rows could be seen last frame, in window points.
+    pub list_clip: Option<egui::Rect>,
+    /// How many rows Page Up and Page Down move: a screenful, less one.
+    pub list_page: usize,
     pub dialogs: Dialogs,
 
     pub problems: Vec<String>,
@@ -449,6 +490,8 @@ impl DmApp {
             queued: Vec::new(),
             drag_out: Vec::new(),
             row_rects: HashMap::new(),
+            list_clip: None,
+            list_page: 1,
             dialogs: Dialogs::default(),
             problems: Vec::new(),
             notified: HashSet::new(),
@@ -763,7 +806,12 @@ impl DmApp {
         self.last_state = self.rows.iter().map(|r| (r.id, r.state.clone())).collect();
         // After the first pass every completion already on disk is seeded.
         self.notify_ready = true;
-        self.problems.extend(self.backend.problems());
+        self.problems.extend(
+            self.backend
+                .problems()
+                .into_iter()
+                .map(|p| worded_problem(&p)),
+        );
     }
 
     /// "When done": once everything that was downloading has settled,
@@ -1375,41 +1423,28 @@ impl DmApp {
                 }
             }
             Command::Import => {
-                if let Some(path) = self.backend.platform.choose_file(false, "") {
-                    match std::fs::read_to_string(&path) {
-                        Ok(text) => {
-                            let before: HashSet<Id> =
-                                self.backend.list().iter().map(|r| r.id).collect();
-                            let added = self.backend.import(&text);
-                            // A list is not a run of progress windows.
-                            self.own.extend(
-                                self.backend
-                                    .list()
-                                    .iter()
-                                    .map(|r| r.id)
-                                    .filter(|id| !before.contains(id)),
-                            );
-                            self.said =
-                                crate::i18n::Said::new("Imported {} download(s).", &[&added]);
-                        }
-                        Err(e) => {
-                            self.said = crate::i18n::Said::new(
-                                "{} could not be read: {}",
-                                &[&path.display(), &e],
-                            )
-                        }
-                    }
+                if !self.backend.platform.can_choose_file() {
+                    // No chooser to ask with: the path is typed (gap 144).
+                    self.dialogs.focus_on("List file");
+                    self.dialogs.list_file = Some(crate::dialogs::ListFile::default());
+                } else if let Some(path) = self.backend.platform.choose_file(false, "") {
+                    self.import_from(&path);
                 }
             }
             Command::Export => {
-                if let Some(path) = self.backend.platform.choose_file(true, "downloads.dmlist") {
-                    self.said = match std::fs::write(&path, self.backend.export()) {
-                        Ok(()) => crate::i18n::Said::new("Exported to {}.", &[&path.display()]),
-                        Err(e) => crate::i18n::Said::new(
-                            "{} could not be written: {}",
-                            &[&path.display(), &e],
-                        ),
-                    };
+                if !self.backend.platform.can_choose_file() {
+                    self.dialogs.focus_on("List file");
+                    self.dialogs.list_file = Some(crate::dialogs::ListFile {
+                        save: true,
+                        path: crate::dialogs::default_list_path(&self.applied)
+                            .display()
+                            .to_string(),
+                        says: String::new(),
+                    });
+                } else if let Some(path) =
+                    self.backend.platform.choose_file(true, "downloads.dmlist")
+                {
+                    self.export_to(&path);
                 }
             }
             Command::SiteFiles => self.dialogs.open_site_files(),
@@ -1623,6 +1658,66 @@ impl DmApp {
 
     /// Takes rows out of the list, with their staged parts; finished files
     /// stay on disk.
+    /// Imports the list in the file at `path`. Addresses already in the
+    /// list are asked about first, as Add URL asks (gap 143).
+    pub fn import_from(&mut self, path: &std::path::Path) {
+        let text = match std::fs::read_to_string(path) {
+            Ok(text) => text,
+            Err(e) => {
+                self.said =
+                    crate::i18n::Said::new("{} could not be read: {}", &[&path.display(), &e]);
+                return;
+            }
+        };
+        let listed = Backend::listed(&text);
+        let already = listed
+            .iter()
+            .filter(|url| crate::dialogs::already_listed(self, url).is_some())
+            .count();
+        if already > 0 {
+            self.dialogs.import_ask = Some(crate::dialogs::ImportAsk {
+                text,
+                already,
+                total: listed.len(),
+            });
+            return;
+        }
+        self.import_text(&text, false);
+    }
+
+    /// Adds the downloads a list holds; `skip_listed`, not those whose
+    /// address is already a row.
+    pub fn import_text(&mut self, text: &str, skip_listed: bool) {
+        let before: HashSet<Id> = self.backend.list().iter().map(|r| r.id).collect();
+        let listed: HashSet<String> = if skip_listed {
+            Backend::listed(text)
+                .into_iter()
+                .filter(|url| crate::dialogs::already_listed(self, url).is_some())
+                .collect()
+        } else {
+            HashSet::new()
+        };
+        let added = self.backend.import_where(text, |url| !listed.contains(url));
+        // A list is not a run of progress windows.
+        self.own.extend(
+            self.backend
+                .list()
+                .iter()
+                .map(|r| r.id)
+                .filter(|id| !before.contains(id)),
+        );
+        self.said = crate::i18n::Said::new("Imported {} download(s).", &[&added]);
+        self.refresh();
+    }
+
+    /// Writes the list to `path`, and says where or why not.
+    pub fn export_to(&mut self, path: &std::path::Path) {
+        self.said = match std::fs::write(path, self.backend.export()) {
+            Ok(()) => crate::i18n::Said::new("Exported to {}.", &[&path.display()]),
+            Err(e) => crate::i18n::Said::new("{} could not be written: {}", &[&path.display(), &e]),
+        };
+    }
+
     pub fn remove_now(&mut self, ids: &[Id]) {
         self.backend.remove_many(ids);
         // What the status line said may have named one of them.
@@ -2009,6 +2104,14 @@ impl DmApp {
                     (egui::Key::ArrowDown, crate::table::Step::Down),
                     (egui::Key::Home, crate::table::Step::First),
                     (egui::Key::End, crate::table::Step::Last),
+                    (
+                        egui::Key::PageUp,
+                        crate::table::Step::PageUp(self.list_page),
+                    ),
+                    (
+                        egui::Key::PageDown,
+                        crate::table::Step::PageDown(self.list_page),
+                    ),
                 ]
                 .into_iter()
                 .find(|(key, _)| i.key_pressed(*key))
@@ -2046,7 +2149,9 @@ impl DmApp {
                             | egui::Key::ArrowUp
                             | egui::Key::ArrowDown
                             | egui::Key::Home
-                            | egui::Key::End,
+                            | egui::Key::End
+                            | egui::Key::PageUp
+                            | egui::Key::PageDown,
                         pressed: true,
                         ..
                     }
@@ -2070,8 +2175,13 @@ impl DmApp {
             .and_then(|id| ctx.read_response(id));
         let (rect, layer) = match focused {
             Some(r) => (r.interact_rect, r.layer_id),
+            // Kept inside the list's frame: a row is as wide as every
+            // column, and its ring ran past the frame's edge (gap 148).
             None => match self.cursor.and_then(|id| self.row_rects.get(&id)) {
-                Some(rect) => (*rect, egui::LayerId::background()),
+                Some(rect) => (
+                    self.list_clip.map_or(*rect, |clip| rect.intersect(clip)),
+                    egui::LayerId::background(),
+                ),
                 None => return,
             },
         };
@@ -2095,11 +2205,17 @@ impl DmApp {
     fn take_drops(&mut self, ctx: &egui::Context) {
         let dropped = ctx.input(|i| i.raw.dropped_files.clone());
         let mut links = Vec::new();
-        for file in dropped {
+        for file in &dropped {
             links.extend(dropped_links(file.as_ref()));
         }
         if !links.is_empty() {
             let _ = self.add(&links, Default::default());
+        } else if !dropped.is_empty() {
+            // A drop with no link in it was ignored without a word (gap
+            // 150). A link dragged from a browser does not reach dm at all
+            // (the window system hands over files only), so the empty
+            // list says the same.
+            self.said = crate::i18n::Said::new(DROP_HINT, &[]);
         }
     }
 
@@ -2193,24 +2309,7 @@ impl DmApp {
                     // right: as a checkbox its words started further in
                     // than the item below (gap 140).
                     let on = self.applied.speed_limit > 0;
-                    let title = Command::SpeedLimiterToggle.title();
-                    let item = ui.add(egui::Button::new(title).right_text("    "));
-                    item.widget_info(|| {
-                        egui::WidgetInfo::selected(egui::Role::CheckBox, true, on, title)
-                    });
-                    if on {
-                        let r = item.rect;
-                        let at = egui::pos2(r.right() - 12.0, r.center().y);
-                        let colour = ui.style().interact(&item).fg_stroke.color;
-                        ui.painter().line(
-                            vec![
-                                at + egui::vec2(-5.0, 0.0),
-                                at + egui::vec2(-1.5, 3.5),
-                                at + egui::vec2(5.0, -4.0),
-                            ],
-                            egui::Stroke::new(1.6, colour),
-                        );
-                    }
+                    let item = ticked_item(ui, Command::SpeedLimiterToggle.title(), on);
                     if item.clicked() {
                         self.queued.push(Command::SpeedLimiterToggle);
                         ui.close();
@@ -2247,13 +2346,15 @@ impl DmApp {
                 self.item(ui, Command::Options);
             });
             ui.menu_button(t("View"), |ui| {
-                let mut categories = self.show_categories;
-                if ui.checkbox(&mut categories, t("Categories")).clicked() {
+                // Menu items with their tick at the right, so their words
+                // start where the items under them do (gap 148).
+                if ticked_item(ui, t("Categories"), self.show_categories).clicked() {
                     self.queued.push(Command::ToggleCategories);
+                    ui.close();
                 }
-                let mut toolbar = self.show_toolbar;
-                if ui.checkbox(&mut toolbar, t("Toolbar")).clicked() {
+                if ticked_item(ui, t("Toolbar"), self.show_toolbar).clicked() {
                     self.queued.push(Command::ToggleToolbar);
+                    ui.close();
                 }
                 // "Columns": each column on or off; the file
                 // name stays, since a row without one is no row.
@@ -2655,6 +2756,22 @@ impl DmApp {
     }
 }
 
+/// A problem from outside the window, in the language in force where the
+/// window knows its words: a saved proxy turned off at launch is said in
+/// the language the person reads (gap 141). Others are shown as written.
+pub fn worded_problem(problem: &str) -> String {
+    let proxy = problem
+        .strip_prefix("the saved proxy could not be used (")
+        .and_then(|rest| rest.split_once("), so it is turned off"));
+    match proxy {
+        Some((why, _)) => crate::i18n::tf(
+            "The saved proxy could not be used ({}), so it is turned off and downloads go out directly. Fix it under Options › Proxy and tick it again.",
+            &[&why],
+        ),
+        None => problem.to_string(),
+    }
+}
+
 /// What a right-click on a place in the category tree can ask for.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum TreeAction {
@@ -2719,6 +2836,7 @@ pub fn run_time_words() -> Vec<&'static str> {
     words.extend(crate::power::WhenDone::ALL.iter().map(|w| w.verb()));
     words.extend(crate::i18n::BUILT_IN_NAMES);
     words.extend(crate::format::MONTHS);
+    words.push(DROP_HINT);
     for place in [
         Place::All,
         Place::Unfinished,
@@ -2984,6 +3102,28 @@ impl ToolStyle {
 
 /// One toolbar button. Small ones show only the icon, text-only ones only
 /// the name; the name stays for a screen reader either way.
+/// A menu item that is on or off: a plain item, its words where the other
+/// items' start, with a tick drawn at its right while it is on. As a
+/// checkbox its words started further in than the items around it.
+fn ticked_item(ui: &mut egui::Ui, title: &str, on: bool) -> egui::Response {
+    let item = ui.add(egui::Button::new(title).right_text("    "));
+    item.widget_info(|| egui::WidgetInfo::selected(egui::Role::CheckBox, true, on, title));
+    if on {
+        let r = item.rect;
+        let at = egui::pos2(r.right() - 12.0, r.center().y);
+        let colour = ui.style().interact(&item).fg_stroke.color;
+        ui.painter().line(
+            vec![
+                at + egui::vec2(-5.0, 0.0),
+                at + egui::vec2(-1.5, 3.5),
+                at + egui::vec2(5.0, -4.0),
+            ],
+            egui::Stroke::new(1.6, colour),
+        );
+    }
+    item
+}
+
 fn tool(
     ui: &mut egui::Ui,
     icon: Icon,
@@ -2997,13 +3137,28 @@ fn tool(
         return modern_tool(ui, icon, (label, widest), enabled, primary, &t, false);
     }
     let small = style == ToolStyle::Icons;
+    // Each button as wide as its longest name needs, measured in the font
+    // it is drawn in: a fixed 72 points ran German's names into each other
+    // in the classic look (gap 145).
+    let fits = |size: f32| {
+        [label, widest]
+            .iter()
+            .map(|text| {
+                ui.painter()
+                    .layout_no_wrap(
+                        text.to_string(),
+                        egui::FontId::proportional(size),
+                        egui::Color32::WHITE,
+                    )
+                    .size()
+                    .x
+            })
+            .fold(0.0_f32, f32::max)
+    };
     let size = match style {
         ToolStyle::Icons => egui::vec2(34.0, 30.0),
-        ToolStyle::Text => egui::vec2(
-            label.chars().count().max(widest.chars().count()) as f32 * 7.0 + 18.0,
-            28.0,
-        ),
-        ToolStyle::Both => egui::vec2(72.0, 52.0),
+        ToolStyle::Text => egui::vec2(fits(12.0) + 18.0, 28.0),
+        ToolStyle::Both => egui::vec2((fits(11.0) + 12.0).max(72.0), 52.0),
     };
     let (rect, response) = ui.allocate_exact_size(
         size,
@@ -3202,6 +3357,45 @@ fn save_png(image: &egui::ColorImage, path: &std::path::Path) -> Result<(), Stri
         .ok_or("the screenshot had no pixels")?
         .save(path)
         .map_err(|e| e.to_string())
+}
+
+#[cfg(test)]
+mod two_addresses_tests {
+    use super::*;
+
+    #[test]
+    fn the_saved_proxy_turned_off_at_launch_is_said_in_the_windows_words() {
+        let said = worded_problem(
+            "the saved proxy could not be used (the proxy has no host), so it is turned off and downloads \
+             go out directly. Fix it under Options › Proxy and tick it again.",
+        );
+        assert!(
+            said.starts_with("The saved proxy could not be used (the proxy has no host)"),
+            "{said}"
+        );
+        assert_eq!(worded_problem("something else"), "something else");
+    }
+
+    #[test]
+    fn two_links_pasted_into_one_field_are_seen() {
+        for two in [
+            "https://e.com/a.ziphttps://e.com/b.zip",
+            "https://e.com/a.zip https://e.com/b.zip",
+            "http://e.com/a.zipftp://e.com/b",
+            "https://e.com/a.zipmagnet:?xt=urn:btih:abc",
+        ] {
+            assert!(two_addresses(two), "{two}");
+        }
+        for one in [
+            "https://e.com/a.zip",
+            "https://e.com/go?to=https://f.com/b.zip",
+            "https://archive.example/web/2020/https://e.com/a.zip",
+            "https://e.com/r?u=https%3A//f.com&next=http://g.com",
+            "magnet:?xt=urn:btih:abc&tr=http://tracker.example/announce",
+        ] {
+            assert!(!two_addresses(one), "{one}");
+        }
+    }
 }
 
 #[cfg(test)]

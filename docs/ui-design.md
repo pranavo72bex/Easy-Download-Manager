@@ -45,6 +45,11 @@ smaller one under menus.
   (Classic's row is `#0072d0`); the focus ring is two lines, the accent one
   for the list and the frame and a white one inside it for whatever is
   itself in the accent colour (a primary button, a selected row).
+- **Scroll bars** in the list and Options take their own room and are
+  drawn whether or not the pointer is over them (`theme::steady_scroll`),
+  the handle in the text colour; the focus ring is kept inside the list's
+  frame. Classic's toolbar buttons are as wide as their longest name, and
+  its progress bar's track is drawn in the border colour.
 - **Right-to-left names** (Arabic, Hebrew) are put into reading order
   before egui draws them (`bidi.rs`), which lays out a line in stored
   order; a screen reader is given the name as stored.

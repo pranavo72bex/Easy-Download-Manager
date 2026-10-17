@@ -799,3 +799,32 @@ mod tests {
         assert!(ctx.fonts_mut(|f| f.has_glyphs(&font, "report")));
     }
 }
+
+/// Scroll bars that take their own room and can be seen whether or not
+/// the pointer is over them, in the text colour: egui's own showed their
+/// handle only under the pointer, in a button's fill, which the looks keep
+/// clear, so a list or a tab with more below gave no sign of it (gaps 147,
+/// 148).
+pub fn steady_scroll() -> egui::style::ScrollStyle {
+    egui::style::ScrollStyle {
+        foreground_color: true,
+        dormant_background_opacity: 0.15,
+        dormant_handle_opacity: 0.45,
+        active_handle_opacity: 0.6,
+        ..egui::style::ScrollStyle::solid()
+    }
+}
+
+#[cfg(test)]
+mod scroll_tests {
+    #[test]
+    fn scroll_bars_are_seen_without_the_pointer_and_take_their_own_room() {
+        let style = super::steady_scroll();
+        assert!(!style.floating, "a bar over the last row hides it");
+        assert!(style.dormant_handle_opacity > 0.0, "seen only on hover");
+        assert!(
+            style.foreground_color,
+            "drawn in a fill the looks keep clear"
+        );
+    }
+}
