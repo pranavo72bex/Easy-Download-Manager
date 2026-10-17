@@ -434,6 +434,7 @@ impl Settings {
             attempts: self.attempts,
             host_limits: self.host_limits.clone(),
             subtitles: self.subtitles,
+            room: Default::default(),
             remux: self.remux_ts,
             sign_in: None,
             system_proxy: self.proxy.enabled && self.proxy.kind == dm_core::proxy::Kind::System,

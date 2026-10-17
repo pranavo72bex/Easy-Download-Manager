@@ -23,38 +23,51 @@ struct Desktop;
 
 impl Platform for Desktop {
     /// Only when the setting and the system disagree — or when the login
-    /// item starts another copy of dm (the app moved, or was reinstalled
-    /// elsewhere) and this one may claim it (`autostart::may_claim`: a
-    /// release build, not a test's dm). Registering writes the path of the
-    /// running binary, so doing it on every launch would point the login
-    /// item at whatever ran last — a debug build, the app on a mounted disk
-    /// image or in macOS's AppTranslocation, both of which are gone by the
-    /// next login and so are refused. Not being able to read the state is
-    /// fatal only for registering: a login item that cannot be read must
-    /// still be one a person can get rid of.
+    /// item starts another copy of dm that is gone (the app moved, or was
+    /// removed and installed elsewhere) and this one may claim it
+    /// (`autostart::takes_over`, `autostart::may_claim`: a release build,
+    /// not a test's dm). A copy still there keeps it, so two installed
+    /// copies do not take it from each other at every launch. Registering
+    /// writes the path of the running binary, so a copy that will not be
+    /// there at the next login, or that macOS keeps from starting there, is
+    /// refused (`autostart::refused_at_login`). Not being able to read the
+    /// state is fatal only for registering: a login item that cannot be
+    /// read must still be one a person can get rid of.
     fn set_login_item(&self, wanted: bool) -> Result<(), String> {
         // Linux's entry is dm's own: see `autostart`.
         if cfg!(target_os = "linux") {
             return dm_desktop::autostart::set(wanted);
         }
         let exe = std::env::current_exe().map_err(|e| e.to_string())?;
-        if wanted && dm_shell::register::transient(&exe) {
-            return Err(format!(
-                "{} is a copy macOS runs from a disk image or a temporary place, gone by the \
-                 next login. Move dm to Applications and open it from there",
-                exe.display()
-            ));
+        if wanted {
+            let home = std::env::var_os("HOME")
+                .map(std::path::PathBuf::from)
+                .unwrap_or_default();
+            if let Some(why) = dm_desktop::autostart::refused_at_login(
+                &exe,
+                &home,
+                cfg!(target_os = "macos"),
+                dm_shell::register::mounted_read_only,
+            ) {
+                return Err(why);
+            }
         }
         let launcher = login_launcher(&exe)?;
         match launcher.is_enabled() {
             Ok(now) if now == wanted => {
-                if !wanted
-                    || !dm_desktop::autostart::may_claim()
-                    || login_item_starts(&exe) != Some(false)
-                {
+                let gone = wanted
+                    && login_item_program().is_some_and(|found| {
+                        dm_desktop::autostart::takes_over(
+                            &found,
+                            &exe,
+                            dm_desktop::autostart::may_claim(),
+                            |p| p.exists(),
+                        )
+                    });
+                if !gone {
                     return Ok(());
                 }
-                // Enabled for another copy: written again for this one.
+                // Enabled for a copy that is gone: written again for this one.
             }
             Ok(_) => {}
             Err(e) if wanted => return Err(e.to_string()),
@@ -655,15 +668,16 @@ fn login_launcher(exe: &std::path::Path) -> Result<auto_launch::AutoLaunch, Stri
         .map_err(|e| e.to_string())
 }
 
-/// Whether the login item `auto-launch` wrote starts `exe`: on macOS its
-/// launch agent's plist, on Windows the Run key's value. `None` when it
-/// cannot be read, which is not taken as a reason to rewrite it.
-fn login_item_starts(exe: &std::path::Path) -> Option<bool> {
+/// The program the login item `auto-launch` wrote starts: on macOS its
+/// launch agent's plist, on Windows the Run key's value. `None` when there
+/// is none or it cannot be read, which is not taken as a reason to rewrite
+/// it.
+fn login_item_program() -> Option<std::path::PathBuf> {
     if cfg!(target_os = "macos") {
         let plist = std::path::PathBuf::from(std::env::var_os("HOME")?)
             .join("Library/LaunchAgents/dm.plist");
         let text = std::fs::read_to_string(plist).ok()?;
-        return Some(dm_desktop::autostart::plist_starts(&text, exe));
+        return dm_desktop::autostart::plist_program(&text);
     }
     if cfg!(target_os = "windows") {
         let out = dm_core::no_window(&mut std::process::Command::new("reg"))
@@ -678,39 +692,80 @@ fn login_item_starts(exe: &std::path::Path) -> Option<bool> {
         if !out.status.success() {
             return None;
         }
-        let text = String::from_utf8_lossy(&out.stdout);
-        return Some(dm_desktop::autostart::run_key_starts(&text, exe));
+        return dm_desktop::autostart::run_key_program(&String::from_utf8_lossy(&out.stdout));
     }
     None
 }
 
-/// `--unregister`'s other half: dm's login item, removed, and what it was
-/// said. The browsers' manifests are `register::from_args`'s.
+/// `--unregister`'s other half: dm's login item, removed, and what was
+/// done said. Only this copy's, or one whose program is gone: uninstalling
+/// a second copy must not take the login item from the installed one.
+/// The browsers' manifests are `register::from_args`'s.
 fn remove_login_item() {
-    let removed = if cfg!(target_os = "linux") {
-        dm_desktop::autostart::entry_path().map(|path| {
-            dm_desktop::autostart::set_at(&path, false, std::path::Path::new(""), true)
-                .map(|gone| gone.then(|| path.display().to_string()))
-        })
+    use dm_desktop::autostart::{self, Removal};
+    let removed: Result<Removal, String> = if cfg!(target_os = "linux") {
+        match (autostart::entry_path(), autostart::program()) {
+            (Some(path), Ok(this)) => autostart::remove_at(&path, &this, |p| p.exists()),
+            (None, _) => Ok(Removal::None),
+            (_, Err(e)) => Err(e.to_string()),
+        }
     } else {
-        std::env::current_exe().ok().map(|exe| {
-            let launcher = login_launcher(&exe)?;
-            if !launcher.is_enabled().unwrap_or(true) {
-                return Ok(None);
-            }
-            launcher.disable().map_err(|e| e.to_string())?;
-            Ok(Some(if cfg!(target_os = "macos") {
-                "the login item (~/Library/LaunchAgents/dm.plist)".to_string()
-            } else {
-                r"the login item (HKCU\Software\Microsoft\Windows\CurrentVersion\Run\dm)"
-                    .to_string()
-            }))
-        })
+        std::env::current_exe()
+            .map_err(|e| e.to_string())
+            .and_then(|exe| {
+                let found = login_item_program();
+                if let Some(found) = found
+                    .as_deref()
+                    .filter(|f| !autostart::removes(Some(f), &exe, |p| p.exists()))
+                {
+                    return Ok(Removal::Other(found.to_path_buf()));
+                }
+                let launcher = login_launcher(&exe)?;
+                // On Windows, unconditionally: a login item turned off in
+                // Task Manager reads as not enabled while its Run value is
+                // still there, and a missing value is no error.
+                let there = found.is_some() || launcher.is_enabled().unwrap_or(true);
+                if !there && !cfg!(target_os = "windows") {
+                    return Ok(Removal::None);
+                }
+                launcher.disable().map_err(|e| e.to_string())?;
+                Ok(if there {
+                    Removal::Removed(if cfg!(target_os = "macos") {
+                        "the login item (~/Library/LaunchAgents/dm.plist)".to_string()
+                    } else {
+                        r"the login item (HKCU\Software\Microsoft\Windows\CurrentVersion\Run\dm)"
+                            .to_string()
+                    })
+                } else {
+                    Removal::None
+                })
+            })
     };
     match removed {
-        Some(Ok(Some(what))) => println!("removed {what}"),
-        Some(Ok(None)) | None => println!("dm had no login item"),
-        Some(Err(why)) => eprintln!("dm: the login item could not be removed: {why}"),
+        Ok(Removal::Removed(what)) => println!("removed {what}"),
+        Ok(Removal::None) => println!("dm had no login item"),
+        Ok(Removal::Other(program)) => println!(
+            "the login item starts another copy of dm, at {}; left alone",
+            program.display()
+        ),
+        Err(why) => eprintln!("dm: the login item could not be removed: {why}"),
+    }
+}
+
+/// On Windows a release build is a GUI program with no console, so what
+/// `--register` and `--unregister` print went nowhere when run from cmd or
+/// PowerShell (gap 90). Attached to the console of whatever started it,
+/// `println!` reaches the terminal; with none (started from Explorer)
+/// nothing changes.
+fn attach_console() {
+    #[cfg(windows)]
+    {
+        use windows_sys::Win32::System::Console::{AttachConsole, ATTACH_PARENT_PROCESS};
+        // SAFETY: no pointers; it fails harmlessly when there is no parent
+        // console or one is already attached.
+        unsafe {
+            AttachConsole(ATTACH_PARENT_PROCESS);
+        }
     }
 }
 
@@ -732,6 +787,12 @@ fn main() {
 
     // `--register [id…]` / `--unregister`: the browsers' host manifests,
     // written or removed, and nothing else. No window, no lock.
+    if matches!(
+        args.first().map(String::as_str),
+        Some("--register" | "--unregister")
+    ) {
+        attach_console();
+    }
     if args.first().map(String::as_str) == Some("--unregister") {
         remove_login_item();
     }

@@ -43,6 +43,10 @@ pub struct Options {
     /// The shared speed ceiling. Cloned from the queue's, so every download
     /// draws on one budget rather than each getting the whole of it.
     pub limiter: Limiter,
+    /// Disk space promised to downloads under way, shared like the
+    /// limiter, so downloads started together do not each count the same
+    /// free space (gap 94).
+    pub room: Room,
     /// Whether finished files are sorted into folders by kind, and what
     /// those folders are called.
     pub categories: Categories,
@@ -512,10 +516,10 @@ async fn fetch_reporting(
     // the files rather than remembered, because the files are the truth.
     adopt_staged(&job).await;
 
-    if let Some(size) = info.size {
-        let staged = job.downloaded.load(Ordering::Relaxed);
-        room_for(size, staged, options)?;
-    }
+    let claimed = match info.size {
+        Some(size) => Some(room_for(size, &job.downloaded, options)?),
+        None => None,
+    };
 
     if let Some(tx) = &report {
         // Before the first byte: this is the whole point of sending it.
@@ -554,6 +558,8 @@ async fn fetch_reporting(
             connections: 1,
             ..options.clone()
         };
+        // Its own claim is made again by the run on one connection.
+        drop(claimed);
         return Box::pin(download_reporting(client, url, &one, again)).await;
     }
     outcome?;
@@ -2487,33 +2493,156 @@ pub(crate) async fn finish(
     Ok((path, bytes, category))
 }
 
+/// Disk space promised to the downloads under way. Each download that
+/// passes the free-space check claims what it still needs; the next one is
+/// checked against the free space less what the others still need on the
+/// same disk. Without it, downloads started together each saw the whole
+/// free space and together could still fill the disk (gap 94).
+///
+/// A part's claim shrinks as its bytes arrive (they are then counted by the
+/// file system's own free space instead); the finished file's claim on
+/// another disk is whole until the download ends.
+#[derive(Clone, Default)]
+pub struct Room {
+    inner: Arc<std::sync::Mutex<Claims>>,
+    /// Where the free space is read; `free_space` unless a test says.
+    free: Option<Arc<FreeSpace>>,
+}
+
+/// A reader of a folder's free space.
+type FreeSpace = dyn Fn(&Path) -> Option<u64> + Send + Sync;
+
+#[derive(Default)]
+struct Claims {
+    next: u64,
+    held: std::collections::HashMap<u64, Claim>,
+}
+
+struct Claim {
+    dir: PathBuf,
+    size: u64,
+    /// The download's bytes so far, for a part's claim; `None` for a
+    /// finished file's, which is whole until the end.
+    done: Option<Arc<AtomicU64>>,
+}
+
+impl Claim {
+    fn outstanding(&self) -> u64 {
+        match &self.done {
+            Some(done) => self.size.saturating_sub(done.load(Ordering::Relaxed)),
+            None => self.size,
+        }
+    }
+}
+
+impl std::fmt::Debug for Room {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("Room").finish_non_exhaustive()
+    }
+}
+
+impl Room {
+    /// A ledger that reads free space through `free`: for tests, a disk of
+    /// any size.
+    pub fn with_free_space(free: impl Fn(&Path) -> Option<u64> + Send + Sync + 'static) -> Self {
+        Room {
+            inner: Arc::default(),
+            free: Some(Arc::new(free)),
+        }
+    }
+
+    fn free_space(&self, dir: &Path) -> Option<u64> {
+        match &self.free {
+            Some(free) => free(dir),
+            None => free_space(dir),
+        }
+    }
+}
+
+/// What one download has claimed, given back when it ends however it ends.
+pub struct Claimed {
+    room: Room,
+    ids: Vec<u64>,
+}
+
+impl Drop for Claimed {
+    fn drop(&mut self) {
+        let mut claims = crate::lock(&self.room.inner);
+        for id in &self.ids {
+            claims.held.remove(id);
+        }
+    }
+}
+
 /// Refuses a download the disk cannot hold, before a byte of it is fetched
 /// (gap 60). Without it a stated 100 TB ran until the disk was full,
 /// taking every other program's room with it. The parts need what is not
 /// yet staged; the finished file needs its whole length where it lands,
 /// when that is another disk (on the same one, assembly frees each part as
-/// it goes). Where the free space cannot be read, nothing is refused.
-fn room_for(size: u64, staged: u64, options: &Options) -> Result<(), Error> {
-    let remaining = size.saturating_sub(staged);
+/// it goes). What other downloads under way still need on the same disk is
+/// taken from the free space first (`Room`). Where the free space cannot be
+/// read, nothing is refused. The claim lasts as long as what is returned.
+fn room_for(size: u64, done: &Arc<AtomicU64>, options: &Options) -> Result<Claimed, Error> {
+    let room = &options.room;
     let parts = &options.parts_dir;
     let dest = &options.dest_dir;
-    let mut needs = vec![(parts, remaining)];
+    let mut needs = vec![(parts, Some(Arc::clone(done)))];
     if !same_disk(parts, dest) {
-        needs.push((dest, size));
+        needs.push((dest, None));
     }
-    for (dir, need) in needs {
-        if let Some(free) = free_space(dir) {
-            if need > free {
-                return Err(Error::Internal(format!(
-                    "not enough room: the file needs {}, and {} has {} free",
-                    amount(need),
-                    dir.display(),
-                    amount(free)
-                )));
-            }
+    // Held across the check and the claim, so two downloads starting at
+    // once cannot both pass against the same space.
+    let mut claims = crate::lock(&room.inner);
+    for (dir, counts) in &needs {
+        let need = match counts {
+            Some(done) => size.saturating_sub(done.load(Ordering::Relaxed)),
+            None => size,
+        };
+        let Some(free) = room.free_space(dir) else {
+            continue;
+        };
+        let promised: u64 = claims
+            .held
+            .values()
+            .filter(|c| same_disk(&c.dir, dir))
+            .map(Claim::outstanding)
+            .sum();
+        if need > free.saturating_sub(promised) {
+            let others = if promised > 0 {
+                format!(
+                    ", {} of it already needed by downloads under way",
+                    amount(promised.min(free))
+                )
+            } else {
+                String::new()
+            };
+            return Err(Error::Internal(format!(
+                "not enough room: the file needs {}, and {} has {} free{others}",
+                amount(need),
+                dir.display(),
+                amount(free)
+            )));
         }
     }
-    Ok(())
+    let mut ids = Vec::new();
+    for (dir, counts) in needs {
+        claims.next += 1;
+        let id = claims.next;
+        claims.held.insert(
+            id,
+            Claim {
+                dir: dir.clone(),
+                size,
+                done: counts,
+            },
+        );
+        ids.push(id);
+    }
+    drop(claims);
+    Ok(Claimed {
+        room: room.clone(),
+        ids,
+    })
 }
 
 /// Bytes as a person reads them.
@@ -2789,6 +2918,7 @@ mod tests {
             host_limits: Vec::new(),
             proxy_bypass: Vec::new(),
             subtitles: false,
+            room: Default::default(),
             remux: false,
             sign_in: None,
             system_proxy: false,

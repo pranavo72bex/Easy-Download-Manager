@@ -29,6 +29,7 @@ pub fn options(dir: &Path) -> Options {
         host_limits: Vec::new(),
         proxy_bypass: Vec::new(),
         subtitles: false,
+        room: Default::default(),
         remux: false,
         sign_in: None,
         system_proxy: false,

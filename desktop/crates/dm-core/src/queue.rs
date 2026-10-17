@@ -706,7 +706,13 @@ impl Queue {
     pub async fn set_options(&self, options: Options) {
         let mut current = self.inner.options.lock().await;
         let limiter = current.limiter.clone();
-        *current = Options { limiter, ..options };
+        // Nor is the ledger of disk space promised to downloads under way.
+        let room = current.room.clone();
+        *current = Options {
+            limiter,
+            room,
+            ..options
+        };
     }
 
     /// The shared ceiling, in bytes per second. Zero means none.

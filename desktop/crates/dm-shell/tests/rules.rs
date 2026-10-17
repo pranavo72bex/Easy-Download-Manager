@@ -34,6 +34,7 @@ async fn a_held_download_goes_on_when_the_limit_lets_it() {
             host_limits: Vec::new(),
             proxy_bypass: Vec::new(),
             subtitles: false,
+            room: Default::default(),
             remux: false,
             sign_in: None,
             system_proxy: false,

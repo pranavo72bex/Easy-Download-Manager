@@ -536,14 +536,35 @@ not done, and the choice stays armed for the next stretch. Failed rows are
 settled, because nothing retries them without a person and their parts stay
 for Retry.
 
-## Login item and host manifests follow the installed copy (2026-10-17, gaps 84-85)
+## Login item and host manifests follow the installed copy (2026-10-17, gaps 84-85, 88-93)
 
-On launch an installed release dm (no `DM_HOME`) takes both the host
-manifests and the login item when they name another copy or do not allow
-this version's extension ids. A development build fixes only a missing one.
-The ids already allowed are kept, including Firefox's retired
+On launch an installed release dm (no `DM_HOME`) rewrites the host
+manifests when they name another copy or do not allow this version's
+extension ids. A development build fixes only a missing one. The ids
+already allowed are kept, including Firefox's retired
 `dm@pranavo72bex.github.io`: that is harmless, and it keeps an old copy of
-the extension working until it is replaced. A copy macOS runs from
-`/Volumes` or AppTranslocation is never registered, because it is gone by
-the next launch.
+the extension working until it is replaced.
+
+The login item is taken from another copy only when that copy's program is
+gone. Otherwise two installed copies (a .deb and an AppImage) would take it
+from each other at every launch. `--unregister` removes only this copy's
+item, one whose program is gone, or one it cannot read, and it names the
+copy it leaves alone. On Windows it calls `disable()` unconditionally,
+because an item turned off in Task Manager reads as not enabled.
+
+On macOS a copy is transient when it runs from AppTranslocation, or from a
+read-only mount under `/Volumes` (a disk image). A writable external disk
+is an install like any other. A transient copy, or one in Downloads,
+Desktop or Documents, is never registered with the browsers or as the
+login item.
+
+## Free space is shared between downloads under way (2026-10-17, gap 94)
+
+The free-space check (gap 60) is made against a ledger shared through
+`Options::room`, not by each download alone. Each download that passes
+claims what it still needs. A part's claim falls as its bytes arrive,
+because the file system's free space then counts those bytes. A finished
+file on another disk claims its whole length until the download ends. The
+check and the claim happen under one lock, so two downloads starting
+together cannot both pass against the same space.
 

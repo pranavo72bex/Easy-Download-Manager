@@ -177,6 +177,7 @@ async fn a_torrent_is_fetched_from_a_real_swarm() {
         host_limits: Vec::new(),
         proxy_bypass: Vec::new(),
         subtitles: false,
+        room: Default::default(),
         remux: false,
         sign_in: None,
         system_proxy: false,

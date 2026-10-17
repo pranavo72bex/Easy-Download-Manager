@@ -58,6 +58,11 @@ drag = "2.1"
 objc2 = "0.6"
 objc2-app-kit = { version = "0.3", default-features = false, features = ["std", "NSApplication", "NSResponder"] }
 
+# AttachConsole, so `--register` and `--unregister` print to the terminal
+# that ran them (gap 90). Already in the tree through dm-core.
+[target.'cfg(windows)'.dependencies]
+windows-sys = { version = "0.61", features = ["Win32_System_Console"] }
+
 [target.'cfg(target_os = "linux")'.dependencies]
 zbus = { version = "5", default-features = false, features = ["blocking-api"] }
 

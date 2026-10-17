@@ -462,6 +462,7 @@ async fn a_remux_that_fails_keeps_the_stream_whole_as_ts() {
     std::env::set_var("DM_FFMPEG", "/usr/bin/false");
     let dir = tempdir();
     let asked = Options {
+        room: Default::default(),
         remux: true,
         ..options(dir.path(), dm_core::stream::Quality::Best)
     };
@@ -540,6 +541,7 @@ async fn a_transport_stream_is_saved_as_an_mp4_where_ffmpeg_can_and_as_ts_where_
 
     let dir = tempdir();
     let as_mp4 = Options {
+        room: Default::default(),
         remux: true,
         ..options(dir.path(), dm_core::stream::Quality::Best)
     };
@@ -645,6 +647,7 @@ async fn a_pause_during_the_remux_keeps_the_stream_and_a_resume_fetches_nothing_
 
     let dir = tempdir();
     let first = Options {
+        room: Default::default(),
         remux: true,
         ..options(dir.path(), dm_core::stream::Quality::Best)
     };
