@@ -965,9 +965,11 @@ pub async fn on_page_message(message: JsValue, sender: JsValue) -> JsValue {
                         "bad": bad,
                     })
                 }
+                // With no host, the popup's Open dm has nothing to ask.
                 App::Absent { reason } => serde_json::json!({
                     "ok": false,
-                    "said": absent_text(&reason, &own_id(), is_firefox()),
+                    "said": decide::absent_popup_text(&reason, &own_id(), is_firefox()),
+                    "host": !decide::not_connected(&reason),
                 }),
             });
         }

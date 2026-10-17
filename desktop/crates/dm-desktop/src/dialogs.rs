@@ -48,6 +48,13 @@ pub struct FileInfo {
     pub handed: bool,
     /// The site's sign-in the browser handed over with it, if any.
     pub cookies: String,
+    /// Browse… was pressed on a desktop with no folder chooser: said in
+    /// this opening of the dialog only (gap 133: it stayed for the next).
+    pub no_chooser: bool,
+    /// The name the server gives the file, once asked (gap 138), and
+    /// whether a person typed in Save as since, which it then leaves alone.
+    pub probed: Option<std::sync::Arc<std::sync::Mutex<Option<String>>>>,
+    pub name_typed: bool,
 }
 
 /// What dm learned of one link by asking its server.
@@ -688,6 +695,23 @@ fn window_id(title: &'static str) -> egui::Id {
 fn bar(ui: &mut egui::Ui, fraction: f32, width: f32, words: &str) {
     let t = crate::theme::Tokens::get(ui.ctx());
     let fraction = fraction.clamp(0.0, 1.0);
+    // At most `width`, and short enough that its words fit beside it
+    // clear of a scroll bar: "91%" was cut off at the edge (gap 140).
+    let words_width = ui
+        .painter()
+        .layout_no_wrap(
+            words.to_string(),
+            egui::TextStyle::Small.resolve(ui.style()),
+            Color32::WHITE,
+        )
+        .size()
+        .x;
+    let room = ui.available_width()
+        - words_width
+        - ui.spacing().item_spacing.x
+        - ui.spacing().scroll.bar_width
+        - 8.0;
+    let width = width.min(room).max(60.0);
     if !t.modern {
         ui.add(
             egui::ProgressBar::new(fraction)
@@ -749,6 +773,24 @@ fn enter_free(ui: &egui::Ui) -> bool {
     in_front && !own && ui.input(|i| i.key_pressed(egui::Key::Enter))
 }
 
+/// A number's field has all of its digits selected as it takes the
+/// keyboard, so what is typed replaces them: "500" typed into the limit's
+/// 0 made 0500 (gap 140).
+fn select_on_focus(ui: &egui::Ui, field: &egui::Response, text: &str) {
+    let key = field.id.with("dm-selected-on-focus");
+    let done = ui.data(|d| d.get_temp::<bool>(key)).unwrap_or(false);
+    if field.has_focus() && !done {
+        let mut state = egui::TextEdit::load_state(ui.ctx(), field.id).unwrap_or_default();
+        state
+            .cursor
+            .set_char_range(Some(egui::text::CCursorRange::select_all_str(text)));
+        state.store(ui.ctx(), field.id);
+        ui.data_mut(|d| d.insert_temp(key, true));
+    } else if !field.has_focus() && done {
+        ui.data_mut(|d| d.remove::<bool>(key));
+    }
+}
+
 /// Gives a field the keyboard when `now` says, and passes it on.
 fn focused(field: egui::Response, now: bool) -> egui::Response {
     if now {
@@ -779,12 +821,9 @@ fn folder_field(
 /// nothing.
 fn browse(ui: &mut egui::Ui, platform: &dyn crate::backend::Platform, folder: &mut String) {
     let missing = ui.scope_id().with("no-folder-chooser");
-    if ui.button(t("Browse…")).clicked() {
-        if platform.can_choose_folder() {
+    if let Some(chose) = browse_button(ui, platform, folder) {
+        if chose {
             ui.data_mut(|d| d.remove::<bool>(missing));
-            if let Some(picked) = platform.choose_folder() {
-                *folder = picked.display().to_string();
-            }
         } else {
             ui.data_mut(|d| d.insert_temp(missing, true));
         }
@@ -795,6 +834,25 @@ fn browse(ui: &mut egui::Ui, platform: &dyn crate::backend::Platform, folder: &m
             t("No folder chooser on this desktop; type the folder's path."),
         );
     }
+}
+
+/// The Browse… button itself: `None` when not pressed, else whether the
+/// desktop had a folder chooser to ask.
+fn browse_button(
+    ui: &mut egui::Ui,
+    platform: &dyn crate::backend::Platform,
+    folder: &mut String,
+) -> Option<bool> {
+    if !ui.button(t("Browse…")).clicked() {
+        return None;
+    }
+    if !platform.can_choose_folder() {
+        return Some(false);
+    }
+    if let Some(picked) = platform.choose_folder() {
+        *folder = picked.display().to_string();
+    }
+    Some(true)
 }
 
 pub fn show(app: &mut DmApp, ctx: &egui::Context) {
@@ -1132,84 +1190,151 @@ fn file_info(app: &mut DmApp, ctx: &egui::Context) {
         default_dir
     };
     let platform = std::sync::Arc::clone(&app.backend.platform);
+    // The server is asked what it calls the file, once, as the dialog
+    // opens; Save as had only the address's last part to show.
+    if d.probed.is_none() && d.urls.len() == 1 && d.name.is_empty() {
+        let slot: std::sync::Arc<std::sync::Mutex<Option<String>>> = Default::default();
+        d.probed = Some(slot.clone());
+        let url = d.urls.first().cloned().unwrap_or_default();
+        if url.starts_with("http://") || url.starts_with("https://") {
+            let client = dm_core::proxy::client_with(&app.backend.settings().proxy)
+                .unwrap_or_else(|_| dm_core::client());
+            let sign_in = dm_core::cookies::SignIn::new(&url, &d.cookies);
+            let referrer = d.referrer.clone();
+            let ctx = ctx.clone();
+            app.backend.runtime.spawn(async move {
+                let asked = tokio::time::timeout(
+                    std::time::Duration::from_secs(20),
+                    dm_core::probe::probe(
+                        &client,
+                        &url,
+                        Some(&referrer)
+                            .filter(|r| !r.is_empty())
+                            .map(String::as_str),
+                        sign_in.as_ref(),
+                    ),
+                )
+                .await;
+                // A web page's name ("watch") is no file's: left unsaid.
+                if let Ok(Ok(probe)) = asked {
+                    if !probe.filename.is_empty()
+                        && !dm_core::ytdlp::is_page(probe.content_type.as_deref())
+                    {
+                        *dm_core::lock(&slot) = Some(probe.filename);
+                        ctx.request_repaint();
+                    }
+                }
+            });
+        }
+    }
+    let server_name = d.probed.as_ref().and_then(|p| dm_core::lock(p).clone());
+    if let Some(name) = &server_name {
+        if !d.name_typed && d.name.is_empty() {
+            d.name = name.clone();
+        }
+    }
     let mut open = true;
     let mut chosen: Option<bool> = None; // Some(later)
     let mut cancel = false;
-    window("Download details").open(&mut open).show(ctx, |ui| {
-        let first = d.urls.first().cloned().unwrap_or_default();
-        ui.label(RichText::new(format::shown_url(&first)).monospace());
-        if d.urls.len() > 1 {
-            ui.label(tf("and {} more", &[&(d.urls.len() - 1)]));
-        }
-        ui.separator();
-        egui::Grid::new("file-info")
-            .num_columns(2)
-            .spacing([12.0, 8.0])
-            .show(ui, |ui| {
-                let name = ui.label(t("Save to folder"));
-                ui.horizontal(|ui| {
-                    let folder = ui
-                        .add(
-                            egui::TextEdit::singleline(&mut d.folder)
-                                .hint_text(&default_dir)
-                                .desired_width(280.0),
-                        )
-                        .labelled_by(name.id);
-                    if entered(&folder) {
-                        chosen = Some(false);
+    // No wider than the window: a warning in it wraps rather than pushing
+    // Start now off the edge (gap 133).
+    let room = (ctx.content_rect().width() - 32.0).clamp(360.0, 600.0);
+    window("Download details")
+        .max_width(room)
+        .open(&mut open)
+        .show(ctx, |ui| {
+            let first = d.urls.first().cloned().unwrap_or_default();
+            ui.label(RichText::new(format::shown_url(&first)).monospace());
+            if d.urls.len() > 1 {
+                ui.label(tf("and {} more", &[&(d.urls.len() - 1)]));
+            }
+            ui.separator();
+            egui::Grid::new("file-info")
+                .num_columns(2)
+                .spacing([12.0, 8.0])
+                .show(ui, |ui| {
+                    let name = ui.label(t("Save to folder"));
+                    ui.horizontal(|ui| {
+                        let folder = ui
+                            .add(
+                                egui::TextEdit::singleline(&mut d.folder)
+                                    .hint_text(&default_dir)
+                                    .desired_width(280.0),
+                            )
+                            .labelled_by(name.id);
+                        if entered(&folder) {
+                            chosen = Some(false);
+                        }
+                        if let Some(chose) = browse_button(ui, &*platform, &mut d.folder) {
+                            d.no_chooser = !chose;
+                        }
+                    });
+                    ui.end_row();
+                    if d.urls.len() == 1 {
+                        let name = ui.label(t("Save as"));
+                        let save_as = ui
+                            .add(
+                                egui::TextEdit::singleline(&mut d.name)
+                                    .hint_text(format::provisional(&first))
+                                    .desired_width(360.0),
+                            )
+                            .labelled_by(name.id);
+                        if save_as.changed() {
+                            d.name_typed = true;
+                        }
+                        if entered(&save_as) {
+                            chosen = Some(false);
+                        }
+                        ui.end_row();
                     }
-                    browse(ui, &*platform, &mut d.folder);
-                });
-                ui.end_row();
-                if d.urls.len() == 1 {
-                    let name = ui.label(t("Save as"));
-                    let save_as = ui
-                        .add(
-                            egui::TextEdit::singleline(&mut d.name)
-                                .hint_text(format::provisional(&first))
-                                .desired_width(360.0),
-                        )
+                    let name = ui.label(t("Note"));
+                    let note = ui
+                        .add(egui::TextEdit::singleline(&mut d.description).desired_width(360.0))
                         .labelled_by(name.id);
-                    if entered(&save_as) {
+                    if entered(&note) {
                         chosen = Some(false);
                     }
                     ui.end_row();
-                }
-                let name = ui.label(t("Note"));
-                let note = ui
-                    .add(egui::TextEdit::singleline(&mut d.description).desired_width(360.0))
-                    .labelled_by(name.id);
-                if entered(&note) {
+                    if let Some(label) = &d.label {
+                        ui.label(t("Quality"));
+                        ui.label(label);
+                        ui.end_row();
+                    }
+                });
+            // Below the fields and wrapped to the dialog's width: beside
+            // Browse… it widened the dialog past a 720 px window.
+            if d.no_chooser {
+                ui.add(
+                    egui::Label::new(
+                        RichText::new(t(
+                            "No folder chooser on this desktop; type the folder's path.",
+                        ))
+                        .color(WARN),
+                    )
+                    .wrap(),
+                );
+            }
+            if !d.says.is_empty() {
+                ui.add(egui::Label::new(RichText::new(&d.says).color(WARN)).wrap());
+            }
+            ui.separator();
+            ui.horizontal(|ui| {
+                if primary(ui, "Start now").clicked() || enter_free(ui) {
                     chosen = Some(false);
                 }
-                ui.end_row();
-                if let Some(label) = &d.label {
-                    ui.label(t("Quality"));
-                    ui.label(label);
-                    ui.end_row();
+                if ui.button(t("Add for later")).clicked() {
+                    chosen = Some(true);
                 }
+                egui::ComboBox::from_label(t("into"))
+                    .selected_text(crate::i18n::name(&d.queue))
+                    .show_ui(ui, |ui| {
+                        for q in &queues {
+                            ui.selectable_value(&mut d.queue, q.clone(), crate::i18n::name(q));
+                        }
+                    });
+                cancel = ui.button(t("Cancel")).clicked();
             });
-        if !d.says.is_empty() {
-            ui.colored_label(WARN, &d.says);
-        }
-        ui.separator();
-        ui.horizontal(|ui| {
-            if primary(ui, "Start now").clicked() || enter_free(ui) {
-                chosen = Some(false);
-            }
-            if ui.button(t("Add for later")).clicked() {
-                chosen = Some(true);
-            }
-            egui::ComboBox::from_label(t("into"))
-                .selected_text(crate::i18n::name(&d.queue))
-                .show_ui(ui, |ui| {
-                    for q in &queues {
-                        ui.selectable_value(&mut d.queue, q.clone(), crate::i18n::name(q));
-                    }
-                });
-            cancel = ui.button(t("Cancel")).clicked();
         });
-    });
     if cancel || !open {
         let site = app
             .dialogs
@@ -1236,7 +1361,11 @@ fn file_info(app: &mut DmApp, ctx: &egui::Context) {
             String::new()
         },
         save_dir: Some(d.folder.trim().to_string()).filter(|f| !f.is_empty()),
-        save_name: Some(d.name.trim().to_string()).filter(|n| !n.is_empty()),
+        // The server's own name, untouched, is what dm names the file
+        // anyway: left for it to place as it always does.
+        save_name: Some(d.name.trim().to_string())
+            .filter(|n| !n.is_empty())
+            .filter(|n| d.name_typed || server_name.as_deref() != Some(n.as_str())),
         later,
         referrer: d.referrer.clone(),
         quality: d.quality.clone(),
@@ -1244,7 +1373,15 @@ fn file_info(app: &mut DmApp, ctx: &egui::Context) {
     };
     let urls = d.urls.clone();
     match app.add(&urls, with) {
-        Ok(_) => app.dialogs.file_info = None,
+        Ok(_) => {
+            app.dialogs.file_info = None;
+            // Start now while the schedule or the download limit holds
+            // downloads: asked, as Resume asks, whether to start it outside
+            // the schedule; it only waited, without a word (gap 139).
+            if !later && !app.headless && app.held_because().is_some() {
+                app.dialogs.confirm_outside = Some(app.last_added.clone());
+            }
+        }
         Err(e) => {
             if let Some(d) = app.dialogs.file_info.as_mut() {
                 d.says = e;
@@ -1269,145 +1406,147 @@ fn progress(app: &mut DmApp, ctx: &egui::Context) {
         // window too tall scrolls rather than running off the bottom.
         let screen = ctx.content_rect();
         let room = (screen.width() - 48.0).clamp(300.0, 560.0);
-        egui::Window::new(tf("Download progress — {}", &[&name_of(&row)]))
-            .id(egui::Id::unique(("progress", id)))
-            .collapsible(false)
-            .resizable(false)
-            .constrain(true)
-            .default_width(room.min(460.0))
-            .max_width(room)
-            .open(&mut open)
-            .show(ctx, |ui| {
-                egui::ScrollArea::vertical()
-                    .max_height((screen.height() - 170.0).max(120.0))
-                    .show(ui, |ui| {
-                        ui.add(
-                            egui::Label::new(
-                                RichText::new(format::shown_url(&row.url)).small().weak(),
-                            )
+        egui::Window::new(tf(
+            "Download progress — {}",
+            &[&crate::bidi::visual(&name_of(&row))],
+        ))
+        .id(egui::Id::unique(("progress", id)))
+        .collapsible(false)
+        .resizable(false)
+        .constrain(true)
+        .default_width(room.min(460.0))
+        .min_width(room.min(460.0))
+        .max_width(room)
+        .open(&mut open)
+        .show(ctx, |ui| {
+            // One height whatever it holds: grown and shrunk as
+            // connections came and went, the window jumped about
+            // the screen, kept on it by being moved (gap 140).
+            let tall = (screen.height() - 170.0).clamp(120.0, 400.0);
+            egui::ScrollArea::vertical()
+                .auto_shrink([false, false])
+                .max_height(tall)
+                .min_scrolled_height(tall)
+                .show(ui, |ui| {
+                    ui.add(
+                        egui::Label::new(RichText::new(format::shown_url(&row.url)).small().weak())
                             .truncate(),
-                        )
-                        .on_hover_text(&row.url);
-                        let p = &row.progress;
-                        egui::Grid::new(("progress-grid", id))
-                            .num_columns(2)
-                            .max_col_width(room - 110.0)
-                            .show(ui, |ui| {
-                                ui.label(t("Status"));
-                                ui.add(egui::Label::new(status_of(&row)).wrap());
-                                ui.end_row();
-                                ui.label(t("File size"));
+                    )
+                    .on_hover_text(&row.url);
+                    let p = &row.progress;
+                    egui::Grid::new(("progress-grid", id))
+                        .num_columns(2)
+                        .max_col_width(room - 110.0)
+                        .show(ui, |ui| {
+                            ui.label(t("Status"));
+                            ui.add(egui::Label::new(status_of(&row)).wrap());
+                            ui.end_row();
+                            ui.label(t("File size"));
+                            ui.label(
+                                p.total
+                                    .map(format::bytes)
+                                    .unwrap_or_else(|| t("unknown").into()),
+                            );
+                            ui.end_row();
+                            ui.label(t("Downloaded"));
+                            ui.label(match p.fraction() {
+                                Some(f) => {
+                                    format!("{} ({:.2}%)", format::bytes(p.downloaded), f * 100.0)
+                                }
+                                None => format::bytes(p.downloaded),
+                            });
+                            ui.end_row();
+                            ui.label(t("Speed"));
+                            ui.label(if row.state == State::Running {
+                                format::rate(p.speed)
+                            } else {
+                                String::new()
+                            });
+                            ui.end_row();
+                            ui.label(t("Time left"));
+                            ui.label(format::clock(p.eta));
+                            ui.end_row();
+                            ui.label(t("Can resume"));
+                            // What the server said when the download was planned, not
+                            // a guess from the size: a known size says nothing about
+                            // whether a server serves ranges.
+                            ui.label(match resumable {
+                                Some(true) => t("Yes"),
+                                Some(false) => t("No — a stop starts it again from the beginning"),
+                                // Failed before the server said: a 401
+                                // is an answer, but not to this.
+                                None if matches!(row.state, State::Failed(_)) => {
+                                    t("Not yet known (the server refused the request)")
+                                }
+                                None => t("Unknown until the server answers"),
+                            });
+                            ui.end_row();
+                        });
+                    let fraction = p.fraction().unwrap_or(0.0) as f32;
+                    bar(ui, fraction, 420.0, &format!("{:.0}%", fraction * 100.0));
+                    egui::CollapsingHeader::new(t("Connections"))
+                        .default_open(true)
+                        .id_salt(("connections", id))
+                        .show(ui, |ui| {
+                            if connections.is_empty() {
+                                ui.label(RichText::new(t("Nothing fetched yet.")).weak());
+                            }
+                            // The file is cut into more pieces than connections,
+                            // and each connection takes the next piece when it is
+                            // done: the pieces under way are the connections at
+                            // work, and the rest is a count.
+                            let span_of =
+                                |c: &dm_core::Connection| (c.end - c.start).saturating_add(1);
+                            let finished =
+                                connections.iter().filter(|c| c.done >= span_of(c)).count();
+                            if !connections.is_empty() {
                                 ui.label(
-                                    p.total
-                                        .map(format::bytes)
-                                        .unwrap_or_else(|| t("unknown").into()),
+                                    RichText::new(tf(
+                                        "{} of {} pieces done",
+                                        &[&finished, &connections.len()],
+                                    ))
+                                    .weak(),
                                 );
-                                ui.end_row();
-                                ui.label(t("Downloaded"));
-                                ui.label(match p.fraction() {
-                                    Some(f) => {
-                                        format!(
-                                            "{} ({:.2}%)",
-                                            format::bytes(p.downloaded),
-                                            f * 100.0
-                                        )
-                                    }
-                                    None => format::bytes(p.downloaded),
-                                });
-                                ui.end_row();
-                                ui.label(t("Speed"));
-                                ui.label(if row.state == State::Running {
-                                    format::rate(p.speed)
-                                } else {
-                                    String::new()
-                                });
-                                ui.end_row();
-                                ui.label(t("Time left"));
-                                ui.label(format::clock(p.eta));
-                                ui.end_row();
-                                ui.label(t("Can resume"));
-                                // What the server said when the download was planned, not
-                                // a guess from the size: a known size says nothing about
-                                // whether a server serves ranges.
-                                ui.label(match resumable {
-                                    Some(true) => t("Yes"),
-                                    Some(false) => {
-                                        t("No — a stop starts it again from the beginning")
-                                    }
-                                    None => t("Unknown until the server answers"),
-                                });
-                                ui.end_row();
-                            });
-                        let fraction = p.fraction().unwrap_or(0.0) as f32;
-                        bar(
-                            ui,
-                            fraction,
-                            (room - 60.0).min(420.0),
-                            &format!("{:.0}%", fraction * 100.0),
-                        );
-                        egui::CollapsingHeader::new(t("Connections"))
-                            .default_open(true)
-                            .id_salt(("connections", id))
-                            .show(ui, |ui| {
-                                if connections.is_empty() {
-                                    ui.label(RichText::new(t("Nothing fetched yet.")).weak());
-                                }
-                                // The file is cut into more pieces than connections,
-                                // and each connection takes the next piece when it is
-                                // done: the pieces under way are the connections at
-                                // work, and the rest is a count.
-                                let span_of =
-                                    |c: &dm_core::Connection| (c.end - c.start).saturating_add(1);
-                                let finished =
-                                    connections.iter().filter(|c| c.done >= span_of(c)).count();
-                                if !connections.is_empty() {
-                                    ui.label(
-                                        RichText::new(tf(
-                                            "{} of {} pieces done",
-                                            &[&finished, &connections.len()],
-                                        ))
-                                        .weak(),
+                            }
+                            let working = connections
+                                .iter()
+                                .enumerate()
+                                .filter(|(_, c)| c.done > 0 && c.done < span_of(c));
+                            for (n, c) in working {
+                                let span = span_of(c);
+                                ui.horizontal(|ui| {
+                                    ui.label(format!("{:>3}", n + 1));
+                                    bar(
+                                        ui,
+                                        c.done as f32 / span.max(1) as f32,
+                                        260.0,
+                                        &format!(
+                                            "{} of {}",
+                                            format::bytes(c.done),
+                                            format::bytes(span)
+                                        ),
                                     );
-                                }
-                                let working = connections
-                                    .iter()
-                                    .enumerate()
-                                    .filter(|(_, c)| c.done > 0 && c.done < span_of(c));
-                                for (n, c) in working {
-                                    let span = span_of(c);
-                                    ui.horizontal(|ui| {
-                                        ui.label(format!("{:>3}", n + 1));
-                                        bar(
-                                            ui,
-                                            c.done as f32 / span.max(1) as f32,
-                                            260.0,
-                                            &format!(
-                                                "{} of {}",
-                                                format::bytes(c.done),
-                                                format::bytes(span)
-                                            ),
-                                        );
-                                    });
-                                }
-                            });
-                    });
-                // The buttons below what scrolls, always in view.
-                ui.horizontal(|ui| {
-                    if matches!(row.state, State::Running | State::Queued) {
-                        pause = ui.button(t("Pause")).clicked();
-                    }
-                    // A failed download is tried again, and the button says so.
-                    if matches!(row.state, State::Failed(_)) {
-                        resume = ui.button(t("Retry")).clicked();
-                    }
-                    if row.state == State::Paused {
-                        resume = ui.button(t("Resume")).clicked();
-                    }
-                    if !row.state.settled() {
-                        cancel = ui.button(t("Cancel")).clicked();
-                    }
+                                });
+                            }
+                        });
                 });
+            // The buttons below what scrolls, always in view.
+            ui.horizontal(|ui| {
+                if matches!(row.state, State::Running | State::Queued) {
+                    pause = ui.button(t("Pause")).clicked();
+                }
+                // A failed download is tried again, and the button says so.
+                if matches!(row.state, State::Failed(_)) {
+                    resume = ui.button(t("Retry")).clicked();
+                }
+                if row.state == State::Paused {
+                    resume = ui.button(t("Resume")).clicked();
+                }
+                if !row.state.settled() {
+                    cancel = ui.button(t("Cancel")).clicked();
+                }
             });
+        });
         if pause {
             app.backend.pause(id);
         }
@@ -1488,15 +1627,25 @@ fn complete(app: &mut DmApp, ctx: &egui::Context) {
                         let name = name_of(row);
                         // A long name is cut short, all of it on hover, so the
                         // buttons stay on screen.
-                        ui.add(egui::Label::new(RichText::new(&name).strong()).truncate())
-                            .on_hover_text(&name);
+                        let drawn = ui.add(
+                            egui::Label::new(RichText::new(&*crate::bidi::visual(&name)).strong())
+                                .truncate(),
+                        );
+                        crate::bidi::said_as(&drawn, &name);
+                        drawn.on_hover_text(&name);
                         ui.label(format::bytes(
                             row.progress.total.unwrap_or(row.progress.downloaded),
                         ));
-                        ui.add(
-                            egui::Label::new(RichText::new(&row.path).small().weak()).truncate(),
-                        )
-                        .on_hover_text(&row.path);
+                        let drawn = ui.add(
+                            egui::Label::new(
+                                RichText::new(&*crate::bidi::visual(&row.path))
+                                    .small()
+                                    .weak(),
+                            )
+                            .truncate(),
+                        );
+                        crate::bidi::said_as(&drawn, &row.path);
+                        drawn.on_hover_text(&row.path);
                         ui.horizontal(|ui| {
                             // Named for its file where there are several, so a
                             // screen reader says which Open this is.
@@ -1577,7 +1726,11 @@ fn properties(app: &mut DmApp, ctx: &egui::Context) {
                     }
                     ui.scope(|ui| {
                         ui.set_max_width(value);
-                        ui.add(egui::Label::new(text).wrap_mode(egui::TextWrapMode::Wrap));
+                        let drawn = ui.add(
+                            egui::Label::new(&*crate::bidi::visual(text))
+                                .wrap_mode(egui::TextWrapMode::Wrap),
+                        );
+                        crate::bidi::said_as(&drawn, text);
                     });
                 };
                 // The fields scroll inside a window too short for them, so
@@ -1713,6 +1866,7 @@ fn properties(app: &mut DmApp, ctx: &egui::Context) {
                             "Trying {} again with the sign-in.",
                             &[&name_of(&row)],
                         );
+                        app.said_about = Some((id, app.said.clone(), false));
                     }
                 }
                 Err(e) => {
@@ -1889,7 +2043,7 @@ fn links(app: &mut DmApp, ctx: &egui::Context) {
             });
         ui.separator();
         ui.horizontal(|ui| {
-            if primary(ui, "Start now").clicked() {
+            if primary(ui, "Start now").clicked() || enter_free(ui) {
                 chosen = Some(false);
             }
             if ui.button(t("Add for later")).clicked() {
@@ -1964,7 +2118,7 @@ fn clip_links(app: &mut DmApp, ctx: &egui::Context) {
             pick_list(ui, links);
             ui.separator();
             ui.horizontal(|ui| {
-                if primary(ui, "Start now").clicked() {
+                if primary(ui, "Start now").clicked() || enter_free(ui) {
                     add = Some(false);
                 }
                 if ui.button(t("Add for later")).clicked() {
@@ -2242,7 +2396,28 @@ fn find(app: &mut DmApp, ctx: &egui::Context) {
     let focus = app.dialogs.take_focus("Find");
     let mut open = true;
     let mut next = false;
-    window("Find").open(&mut open).show(ctx, |ui| {
+    // Never over the row it found: moved above or below that row where
+    // it would cover it (gap 136), else in the middle.
+    let screen = ctx.content_rect();
+    let found = app.cursor.and_then(|id| app.row_rects.get(&id)).copied();
+    let size = ctx
+        .memory(|m| m.area_rect(window_id("Find")))
+        .map(|r| r.size())
+        .unwrap_or(egui::vec2(440.0, 170.0));
+    let mut place = window("Find");
+    if let Some(row) = found {
+        let middle = egui::Rect::from_center_size(screen.center(), size);
+        if middle.expand(4.0).intersects(row) {
+            let below = row.bottom() + 12.0;
+            let top = if below + size.y <= screen.bottom() - 8.0 {
+                below
+            } else {
+                (row.top() - 12.0 - size.y).max(screen.top())
+            };
+            place = place.anchor(egui::Align2::CENTER_TOP, [0.0, top - screen.top()]);
+        }
+    }
+    place.open(&mut open).show(ctx, |ui| {
         let r = focused(
             field(ui, t("Find what"), &mut app.dialogs.find_text, 260.0),
             focus,
@@ -2346,6 +2521,7 @@ fn limiter(app: &mut DmApp, ctx: &egui::Context) {
                     .labelled_by(name.id),
                 focus,
             );
+            select_on_focus(ui, &field, &limit.to_string());
             apply |= entered(&field);
         });
         ui.add_space(8.0);
@@ -2360,6 +2536,7 @@ fn limiter(app: &mut DmApp, ctx: &egui::Context) {
                         .speed(16),
                 )
                 .labelled_by(name.id);
+            select_on_focus(ui, &mb_field, &mb.to_string());
             apply |= entered(&mb_field);
         });
         ui.horizontal(|ui| {
@@ -2367,6 +2544,7 @@ fn limiter(app: &mut DmApp, ctx: &egui::Context) {
             let hours_field = ui
                 .add(egui::DragValue::new(hours).range(1..=24 * 31))
                 .labelled_by(name.id);
+            select_on_focus(ui, &hours_field, &hours.to_string());
             apply |= entered(&hours_field);
         });
         if !says.is_empty() {

@@ -17,6 +17,7 @@
 pub mod app;
 pub mod autostart;
 pub mod backend;
+pub mod bidi;
 pub mod commands;
 pub mod control;
 pub mod dialogs;

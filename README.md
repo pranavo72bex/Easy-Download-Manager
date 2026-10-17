@@ -134,7 +134,17 @@ dm is on Firefox Add-ons, Mozilla's own store.
    to; dm leaves private-window downloads with the browser either way.
 
 On Ubuntu, where Firefox comes as a Snap, open dm once *before* adding the
-extension, so that it can tell Firefox where it is.
+extension, so that it can tell Firefox where it is. If you installed Firefox
+while dm was already running, open dm again (from the Start menu,
+Applications folder or app menu): it connects to browsers installed since
+each time you open it.
+
+Firefox may briefly show its downloads panel when dm takes a download; dm
+has the download. Firefox opens that panel itself for every download it
+starts, sooner than dm can hear back from the app, and does not let an
+extension turn it off. When dm's was the only download listed, the panel
+closes again by itself; with older downloads listed it stays open showing
+them, until you click elsewhere or press Esc.
 
 ## Step 5 — Try it
 

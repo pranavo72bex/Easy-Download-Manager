@@ -403,6 +403,12 @@ pub struct DmApp {
     /// row that appears running — a browser's hand-off, a second launch's
     /// link — opens one when it is first seen.
     own: HashSet<Id>,
+    /// The rows the last `add` made, in order.
+    pub last_added: Vec<Id>,
+    /// A sentence about one row ("Trying … again with the sign-in."),
+    /// cleared once that row has run and stopped (gap 140), and whether it
+    /// has been seen running yet.
+    pub said_about: Option<(Id, crate::i18n::Said, bool)>,
     /// Sizes a dialog learned from the server before a row was added for
     /// later, shown until the row learns its own.
     pub sizes_told: HashMap<Id, u64>,
@@ -475,6 +481,8 @@ impl DmApp {
             headless: false,
             control: None,
             own: HashSet::new(),
+            last_added: Vec::new(),
+            said_about: None,
             sizes_told: HashMap::new(),
             said_at: None,
         };
@@ -684,6 +692,7 @@ impl DmApp {
         self.refreshed = Some(Instant::now());
         let ids: HashSet<Id> = self.rows.iter().map(|r| r.id).collect();
         self.selected.retain(|id| ids.contains(id));
+        self.forget_said_about();
 
         let mut finished = Vec::new();
         let mut failed = Vec::new();
@@ -1705,6 +1714,28 @@ impl DmApp {
         }
     }
 
+    /// Clears a sentence about one row once that row has run again and
+    /// stopped, or is gone: "Trying … again with the sign-in." stood on
+    /// after the download it spoke of had long finished.
+    fn forget_said_about(&mut self) {
+        let Some((id, said, seen_running)) = self.said_about.as_mut() else {
+            return;
+        };
+        if *said != self.said {
+            self.said_about = None;
+            return;
+        }
+        let state = self.rows.iter().find(|r| r.id == *id).map(|r| &r.state);
+        match state {
+            Some(State::Running | State::Queued) => *seen_running = true,
+            Some(_) if !*seen_running => {}
+            _ => {
+                self.said = crate::i18n::Said::default();
+                self.said_about = None;
+            }
+        }
+    }
+
     /// How many downloads are running or about to.
     pub fn downloading(&self) -> usize {
         self.rows
@@ -1768,6 +1799,10 @@ impl DmApp {
         match found {
             Some(row) => {
                 self.selected = BTreeSet::from([row.id]);
+                // Brought into view, the keys going on from it.
+                self.cursor = Some(row.id);
+                self.anchor = Some(row.id);
+                self.scroll_to = Some(row.id);
                 self.said = crate::i18n::Said::new("Found {}.", &[&name_of(row)]);
             }
             None => {
@@ -1792,11 +1827,13 @@ impl DmApp {
     ) -> Result<usize, String> {
         let mut added = 0;
         let mut last_error = None;
+        self.last_added.clear();
         let items = urls.iter().map(|u| (u.clone(), with.clone())).collect();
         for (url, outcome) in urls.iter().zip(self.backend.add_each(items)) {
             match outcome {
                 Ok(id) => {
                     added += 1;
+                    self.last_added.push(id);
                     self.own.insert(id);
                     if let Some(size) = sizes.get(url) {
                         self.sizes_told.insert(id, *size);
@@ -2039,10 +2076,16 @@ impl DmApp {
             },
         };
         if rect.is_positive() {
-            ctx.layer_painter(layer).rect_stroke(
-                rect.shrink(1.0),
-                egui::CornerRadius::same(t.radius),
-                stroke,
+            // Two lines: the accent one, and inside it one in a light
+            // colour, which is what shows on a primary button or a
+            // selected row: those are filled with the accent colour itself.
+            let painter = ctx.layer_painter(layer);
+            let radius = egui::CornerRadius::same(t.radius);
+            painter.rect_stroke(rect.shrink(1.0), radius, stroke, egui::StrokeKind::Inside);
+            painter.rect_stroke(
+                rect.shrink(3.0),
+                radius,
+                egui::Stroke::new(1.5, t.focus_inner),
                 egui::StrokeKind::Inside,
             );
             self.focus_ring = Some(rect);
@@ -2146,11 +2189,29 @@ impl DmApp {
                 ui.menu_button(t("Speed limiter"), |ui| {
                     // Ticked while a limit is in force: the item says
                     // whether the limiter is on, not only that it toggles.
-                    let mut on = self.applied.speed_limit > 0;
-                    if ui
-                        .checkbox(&mut on, Command::SpeedLimiterToggle.title())
-                        .clicked()
-                    {
+                    // A menu item like the one under it, its tick at the
+                    // right: as a checkbox its words started further in
+                    // than the item below (gap 140).
+                    let on = self.applied.speed_limit > 0;
+                    let title = Command::SpeedLimiterToggle.title();
+                    let item = ui.add(egui::Button::new(title).right_text("    "));
+                    item.widget_info(|| {
+                        egui::WidgetInfo::selected(egui::Role::CheckBox, true, on, title)
+                    });
+                    if on {
+                        let r = item.rect;
+                        let at = egui::pos2(r.right() - 12.0, r.center().y);
+                        let colour = ui.style().interact(&item).fg_stroke.color;
+                        ui.painter().line(
+                            vec![
+                                at + egui::vec2(-5.0, 0.0),
+                                at + egui::vec2(-1.5, 3.5),
+                                at + egui::vec2(5.0, -4.0),
+                            ],
+                            egui::Stroke::new(1.6, colour),
+                        );
+                    }
+                    if item.clicked() {
                         self.queued.push(Command::SpeedLimiterToggle);
                         ui.close();
                     }
@@ -2246,15 +2307,29 @@ impl DmApp {
             })
             .collect();
         let failed_only = self.failed_only();
-        let buttons: Vec<(Command, Icon, &'static str)> = buttons
+        // Each button with the name it shows and the widest it can show,
+        // which is the room it takes: Resume becoming Retry moved every
+        // button after it (gap 140).
+        let buttons: Vec<(Command, Icon, &'static str, &'static str)> = buttons
             .into_iter()
             .map(|(command, icon, label)| {
-                let label = if command == Command::DownloadNow && failed_only {
-                    "Retry"
+                let names = if command == Command::DownloadNow {
+                    vec![crate::i18n::t(label), crate::i18n::t("Retry")]
                 } else {
-                    label
+                    vec![crate::i18n::t(label)]
                 };
-                (command, icon, crate::i18n::t(label))
+                let shown = if command == Command::DownloadNow && failed_only {
+                    crate::i18n::t("Retry")
+                } else {
+                    crate::i18n::t(label)
+                };
+                let widest = names
+                    .into_iter()
+                    .max_by(|a, b| {
+                        modern_width(ui, a, false).total_cmp(&modern_width(ui, b, false))
+                    })
+                    .unwrap_or(shown);
+                (command, icon, shown, widest)
             })
             .collect();
         // Every button keeps its name. The modern toolbar puts each name
@@ -2268,7 +2343,7 @@ impl DmApp {
         let width = |stacked: bool| -> f32 {
             buttons
                 .iter()
-                .map(|(_, _, label)| modern_width(ui, label, stacked) + spacing)
+                .map(|(_, _, _, widest)| modern_width(ui, widest, stacked) + spacing)
                 .sum()
         };
         let modern = t.modern && chosen == ToolStyle::Both;
@@ -2277,13 +2352,14 @@ impl DmApp {
         // looks' fixed buttons do not.
         let wrap = (stacked && width(true) > room) || !modern;
         let mut draw = |ui: &mut egui::Ui| {
-            for (command, icon, name) in &buttons {
+            for (command, icon, name, widest) in &buttons {
                 // The modern toolbar leads with one primary action.
                 let primary = *command == Command::AddUrl;
+                let enabled = self.enabled(*command);
                 let response = if stacked {
-                    modern_tool(ui, *icon, name, self.enabled(*command), primary, &t, true)
+                    modern_tool(ui, *icon, (name, widest), enabled, primary, &t, true)
                 } else {
-                    tool(ui, *icon, name, self.enabled(*command), chosen, primary)
+                    tool(ui, *icon, (name, widest), enabled, chosen, primary)
                 };
                 if response.on_hover_text(self.title_of(*command)).clicked() {
                     self.queued.push(*command);
@@ -2524,8 +2600,11 @@ impl DmApp {
                 let room = (ui.available_width() - 120.0).max(80.0);
                 ui.scope(|ui| {
                     ui.set_max_width(room);
-                    ui.add(egui::Label::new(format!("· {short}")).truncate())
-                        .on_hover_text(whole);
+                    let drawn = ui.add(
+                        egui::Label::new(format!("· {}", crate::bidi::visual(&short))).truncate(),
+                    );
+                    crate::bidi::said_as(&drawn, &format!("· {short}"));
+                    drawn.on_hover_text(whole);
                 });
                 ui.ctx().request_repaint_after(SAID_FOR);
             }
@@ -2534,8 +2613,14 @@ impl DmApp {
             ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                 if ui.available_width() > 40.0 {
                     let folder = self.applied.download_dir.display().to_string();
-                    ui.add(egui::Label::new(RichText::new(&folder).small().weak()).truncate())
-                        .on_hover_text(folder);
+                    let drawn = ui.add(
+                        egui::Label::new(
+                            RichText::new(&*crate::bidi::visual(&folder)).small().weak(),
+                        )
+                        .truncate(),
+                    );
+                    crate::bidi::said_as(&drawn, &folder);
+                    drawn.on_hover_text(folder);
                 }
             });
         });
@@ -2695,7 +2780,7 @@ fn modern_width(ui: &egui::Ui, label: &str, stacked: bool) -> f32 {
 fn modern_tool(
     ui: &mut egui::Ui,
     icon: Icon,
-    label: &str,
+    (label, widest): (&str, &str),
     enabled: bool,
     primary: bool,
     t: &crate::theme::Tokens,
@@ -2713,9 +2798,9 @@ fn modern_tool(
         .painter()
         .layout_no_wrap(label.to_string(), font, text_color);
     let size = if stacked {
-        egui::vec2(modern_width(ui, label, true), 44.0)
+        egui::vec2(modern_width(ui, widest, true), 44.0)
     } else {
-        egui::vec2(modern_width(ui, label, false), 32.0)
+        egui::vec2(modern_width(ui, widest, false), 32.0)
     };
     let (rect, response) = ui.allocate_exact_size(
         size,
@@ -2902,19 +2987,22 @@ impl ToolStyle {
 fn tool(
     ui: &mut egui::Ui,
     icon: Icon,
-    label: &str,
+    (label, widest): (&str, &str),
     enabled: bool,
     style: ToolStyle,
     primary: bool,
 ) -> egui::Response {
     let t = crate::theme::Tokens::get(ui.ctx());
     if t.modern && style == ToolStyle::Both {
-        return modern_tool(ui, icon, label, enabled, primary, &t, false);
+        return modern_tool(ui, icon, (label, widest), enabled, primary, &t, false);
     }
     let small = style == ToolStyle::Icons;
     let size = match style {
         ToolStyle::Icons => egui::vec2(34.0, 30.0),
-        ToolStyle::Text => egui::vec2(label.chars().count() as f32 * 7.0 + 18.0, 28.0),
+        ToolStyle::Text => egui::vec2(
+            label.chars().count().max(widest.chars().count()) as f32 * 7.0 + 18.0,
+            28.0,
+        ),
         ToolStyle::Both => egui::vec2(72.0, 52.0),
     };
     let (rect, response) = ui.allocate_exact_size(

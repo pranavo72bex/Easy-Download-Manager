@@ -709,3 +709,53 @@ off for a while (holds every other row's start too).
 "In progress" lists running, queued and schedule-held rows only, matching
 the status bar's count. Failed and stopped rows are under All and their
 kind, not here.
+
+## Every opening of dm registers with the browsers (2026-10-18, gap 131)
+
+Registration ran only in the copy that opened the window, so opening dm
+again while it ran (what the README says to do after installing a browser)
+handed off and exited without telling the new browser. Now a launch that
+hands off registers first, and the running dm checks again whenever it is
+asked to show itself. `ensure` is idempotent and reads a few small files,
+so it costs nothing when nothing changed. A failure is said in the window
+once until it changes. The extension with no host cannot know whether dm
+runs, so its words cover both: open dm, again if it is open.
+
+## Firefox's downloads panel is left to Firefox (2026-10-18, gap 137)
+
+Firefox opens its panel for every download it starts. Measured: cancelling
+and erasing inside `onCreated`, before asking anything, keeps it shut, but
+dm may cancel only after the app has taken the download (never lose one),
+and the app's answer comes later than the panel. No extension API closes
+the panel or sets `browser.download.alwaysOpenPanel`. Considered and
+dropped: cancelling at once and restarting the download if the app refuses
+(a restart is a second request — a one-time link or a POST is lost, and the
+restart is caught again); erasing at once and cancelling later (an erased
+download leaves the list the extension's pause, cancel and resume act on,
+so it could not be given back; reasoned from Firefox's code, not run). The README says the panel may show and dm has the download.
+
+
+## Right-to-left names reordered before egui draws them (2026-10-18, gap 130)
+
+egui 0.37 has no bidirectional layout: a line is laid out in stored order,
+and its shaper (harfrust, guessing each font run's direction) turns each
+Arabic or Hebrew word round, but not the order of the words. dm does not
+wait for egui: `bidi::visual` runs the Unicode bidirectional algorithm
+(`unicode-bidi`, a left-to-right line, as dm's window is) and hands egui the
+runs in drawing order, keeping each right-to-left word in stored order so
+the shaper's own turn is not undone, and mirroring brackets. It is applied
+only where a name or a path is drawn; text a person edits is left alone,
+since a reordered string in a text field would be edited backwards. A
+screen reader is given the stored name. The one case it gets wrong is an
+Arabic-Indic number touching an Arabic word in the same font, which egui
+shapes as one run; a name with one is rare.
+
+## A selected row is filled with the accent, its words white (2026-10-18, gap 132)
+
+The light grey selection (235 on 255) was invisible on many screens. The
+list's selection is now a 3:1 fill with 4.5:1 words, the way desktop file
+lists draw it, and every coloured word on a selected row (red Error, faded
+File missing, the progress bar) takes the selection's text colour. Text
+selection in fields keeps the soft tint. The focus ring gained a white inner
+line, which is what shows on a primary button or a selected row, both in the
+accent colour; the colours are tested as numbers in `theme.rs`.

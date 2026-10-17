@@ -56,6 +56,9 @@ impl Theme {
                 selection: hex(0xebebeb),
                 selection_edge: hex(0xd1d1d1),
                 selection_text: hex(0x242424),
+                row_selected: hex(0x0f6cbd),
+                row_selected_text: Color32::WHITE,
+                focus_inner: Color32::WHITE,
                 hover: hex(0xf5f5f5),
                 pressed: hex(0xe0e0e0),
                 accent: hex(0x0f6cbd),
@@ -88,6 +91,9 @@ impl Theme {
                 selection: hex(0x383838),
                 selection_edge: hex(0x525252),
                 selection_text: Color32::WHITE,
+                row_selected: hex(0x1c76d0),
+                row_selected_text: Color32::WHITE,
+                focus_inner: Color32::WHITE,
                 hover: hex(0x3d3d3d),
                 pressed: hex(0x2e2e2e),
                 accent: hex(0x479ef5),
@@ -120,6 +126,9 @@ impl Theme {
                 selection: hex(0xcce8ff),
                 selection_edge: hex(0x99d1ff),
                 selection_text: hex(0x1a1a1a),
+                row_selected: hex(0x0072d0),
+                row_selected_text: Color32::WHITE,
+                focus_inner: Color32::WHITE,
                 hover: hex(0xe5f3ff),
                 pressed: hex(0xcce8ff),
                 accent: hex(0x0078d7),
@@ -137,6 +146,23 @@ impl Theme {
             },
         }
     }
+}
+
+/// How far apart two colours are to the eye, as WCAG measures it: 1 for
+/// the same colour, 21 for black on white.
+pub fn contrast(a: Color32, b: Color32) -> f32 {
+    fn channel(c: u8) -> f32 {
+        let c = c as f32 / 255.0;
+        if c <= 0.04045 {
+            c / 12.92
+        } else {
+            ((c + 0.055) / 1.055).powf(2.4)
+        }
+    }
+    let luminance =
+        |c: Color32| 0.2126 * channel(c.r()) + 0.7152 * channel(c.g()) + 0.0722 * channel(c.b());
+    let (a, b) = (luminance(a), luminance(b));
+    (a.max(b) + 0.05) / (a.min(b) + 0.05)
 }
 
 const fn hex(rgb: u32) -> Color32 {
@@ -168,6 +194,13 @@ pub struct Tokens {
     pub selection: Color32,
     pub selection_edge: Color32,
     pub selection_text: Color32,
+    /// A selected row of the download list, and its words: a fill that
+    /// stands out from the list at 3:1 or more, words on it at 4.5:1.
+    pub row_selected: Color32,
+    pub row_selected_text: Color32,
+    /// The focus ring's inner line, inside its `accent` one: seen on a
+    /// primary button or a selected row, which are in the accent colour.
+    pub focus_inner: Color32,
     pub hover: Color32,
     pub pressed: Color32,
     pub accent: Color32,
@@ -668,6 +701,45 @@ mod tests {
                 "{theme:?}"
             );
         }
+    }
+
+    /// Gap 132: the focus ring shows on a primary button and on a selected
+    /// row, and a selected row stands out from the list, in every look.
+    /// The ring was the accent colour drawn on the accent-filled button;
+    /// the selection was 235 on 255.
+    #[test]
+    fn the_focus_ring_and_the_selection_can_be_seen_in_every_look() {
+        for theme in [Theme::Light, Theme::Dark, Theme::Classic] {
+            let t = theme.tokens();
+            assert!(
+                contrast(t.row_selected, t.list) >= 3.0,
+                "{theme:?}: selection on the list {}",
+                contrast(t.row_selected, t.list)
+            );
+            assert!(
+                contrast(t.row_selected_text, t.row_selected) >= 4.5,
+                "{theme:?}: words on the selection {}",
+                contrast(t.row_selected_text, t.row_selected)
+            );
+            // The ring's outer line on the list, its inner one on what
+            // carries the accent: a primary button and a selected row.
+            assert!(
+                contrast(t.accent, t.list) >= 3.0,
+                "{theme:?}: ring on the list"
+            );
+            assert!(
+                contrast(t.accent, t.frame) >= 3.0,
+                "{theme:?}: ring on the frame"
+            );
+            for filled in [t.brand, t.row_selected] {
+                assert!(
+                    contrast(t.focus_inner, filled) >= 3.0,
+                    "{theme:?}: ring on {filled:?} {}",
+                    contrast(t.focus_inner, filled)
+                );
+            }
+        }
+        assert!((contrast(Color32::BLACK, Color32::WHITE) - 21.0).abs() < 0.01);
     }
 
     #[test]

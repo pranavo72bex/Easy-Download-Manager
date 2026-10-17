@@ -640,6 +640,47 @@ pub fn ensure_this_copy() -> Result<Option<Vec<PathBuf>>, String> {
     ensure(&home, &exe, &Programs::here(&home))
 }
 
+/// Whether this copy of dm may write the browsers' registration: an
+/// installed, release dm — not a development build or a test's dm
+/// (`DM_HOME`), which must not take the browsers from the installed one.
+pub fn may_claim() -> bool {
+    !cfg!(debug_assertions) && std::env::var_os("DM_HOME").is_none()
+}
+
+/// [`ensure_this_copy`] when this copy [`may_claim`] the browsers, and
+/// nothing otherwise. Run at every launch — the one that hands off to a
+/// running dm too, before it hands off (gap 131) — and each time the running
+/// dm is asked to show itself, so a browser installed since is registered
+/// the next time the person opens dm.
+pub fn ensure_if_claimed() -> Result<Option<Vec<PathBuf>>, String> {
+    if may_claim() {
+        ensure_this_copy()
+    } else {
+        Ok(None)
+    }
+}
+
+/// What to say about a registration check, given what was last said: a
+/// failure is said once, not again at every opening of the window while it
+/// stays the same; one that clears is forgotten, so it is said again if it
+/// comes back.
+pub fn worth_saying(
+    last: &mut Option<String>,
+    result: Result<Option<Vec<PathBuf>>, String>,
+) -> Option<String> {
+    match result {
+        Ok(_) => {
+            *last = None;
+            None
+        }
+        Err(why) if last.as_deref() == Some(why.as_str()) => None,
+        Err(why) => {
+            *last = Some(why.clone());
+            Some(why)
+        }
+    }
+}
+
 /// `--register [id…]` or `--unregister`, run and finished with an exit code;
 /// `None` when neither was asked for.
 pub fn from_args(args: &[String]) -> Option<i32> {
@@ -780,6 +821,67 @@ mod tests {
             if let Some(origins) = manifest.get("allowed_origins") {
                 assert!(origins.to_string().contains(&store), "{origins}");
             }
+        }
+    }
+
+    /// Gap 131: dm registered with Chrome, then Firefox installed. The next
+    /// check (a second launch, or the running dm asked to show itself)
+    /// writes Firefox's manifest and leaves Chrome's as it was.
+    #[cfg(not(target_os = "windows"))]
+    #[test]
+    fn a_browser_installed_after_dm_registered_is_registered_at_the_next_check() {
+        let home = tempfile::tempdir().unwrap();
+        let chrome: Vec<Place> = places(home.path())
+            .into_iter()
+            .filter(|p| p.family == Family::Chromium)
+            .collect();
+        std::fs::create_dir_all(chrome[0].browser()).unwrap();
+        let elsewhere = tempfile::tempdir().unwrap();
+        let exe = program(elsewhere.path());
+        let first = ensure(home.path(), &exe).unwrap().expect("Chrome");
+        assert!(first
+            .iter()
+            .all(|f| !f.to_string_lossy().contains("ozilla")));
+
+        let firefox = places(home.path())
+            .into_iter()
+            .find(|p| p.family == Family::Firefox)
+            .unwrap();
+        std::fs::create_dir_all(firefox.browser()).unwrap();
+        let second = ensure(home.path(), &exe)
+            .unwrap()
+            .expect("Firefox, installed since, was not registered");
+        assert!(second.contains(&firefox.manifest()), "{second:?}");
+        assert_eq!(read(&firefox.manifest())["path"], exe.to_str().unwrap());
+        assert_eq!(ensure(home.path(), &exe).unwrap(), None);
+    }
+
+    #[test]
+    fn a_registration_failure_is_said_once_until_it_changes_or_clears() {
+        let mut last = None;
+        assert_eq!(
+            worth_saying(&mut last, Err("a".into())).as_deref(),
+            Some("a")
+        );
+        assert_eq!(worth_saying(&mut last, Err("a".into())), None);
+        assert_eq!(
+            worth_saying(&mut last, Err("b".into())).as_deref(),
+            Some("b")
+        );
+        assert_eq!(worth_saying(&mut last, Ok(Some(vec![]))), None);
+        assert_eq!(
+            worth_saying(&mut last, Err("b".into())).as_deref(),
+            Some("b")
+        );
+    }
+
+    #[test]
+    fn a_development_build_does_not_claim_the_browsers() {
+        // A debug build (these tests, mostly): the installed dm's
+        // registration is kept, and nothing is written.
+        if cfg!(debug_assertions) {
+            assert!(!may_claim());
+            assert_eq!(ensure_if_claimed(), Ok(None));
         }
     }
 

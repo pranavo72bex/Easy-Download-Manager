@@ -368,6 +368,108 @@ def mozilla_hosts():
     return home / ".mozilla/native-messaging-hosts"
 
 
+# The state of Firefox's downloads panel, read in its parent process: the
+# panel element is made the first time it opens, so 'none' is never opened.
+PANEL = """(() => {
+  const w = Services.wm.getMostRecentWindow('navigator:browser');
+  const p = w.document.getElementById('downloadsPanel');
+  return p ? p.state : 'none';
+})()"""
+
+
+def downloads_panel(rdp, evaluate, resolve, origin, engine_dl, browser_dl):
+    """Gap 137: whether Firefox opens its downloads panel for a download dm
+    takes, as a person clicking a link sees it — and whether erasing the
+    browser's copy at once, in onCreated before anything else, keeps it shut.
+    Firefox opens the panel itself when a download is added to its list
+    (browser.download.alwaysOpenPanel, which no extension may set); this
+    records what it does, and the README says so."""
+    print("\n=== Firefox's downloads panel (gap 137) ===")
+    proc = rdp.ask("root", "getProcess", id=0)
+    parent = rdp.ask(proc["processDescriptor"]["actor"], "getTarget")["process"]["consoleActor"]
+
+    def panel():
+        return (evaluate(PANEL, parent) or {}).get("result")
+
+    def close_panel():
+        evaluate("Services.wm.getMostRecentWindow('navigator:browser').DownloadsPanel.hidePanel(), 1", parent)
+        time.sleep(0.5)
+
+    resolve("the page with links, in front",
+            f"browser.tabs.update({{url: '{origin}/page.html'}}).then(() => 'yes')")
+    page = tab_console(rdp, "/page.html")
+    time.sleep(1)
+    window = (xdo("search", "--onlyvisible", "--class", "firefox").split() or [""])[-1]
+    if window:
+        xdo("windowactivate", "--sync", window)
+
+    def shoot(name):
+        shots = os.environ.get("DM_SHOTS")
+        if shots and shutil.which("import"):
+            pathlib.Path(shots).mkdir(parents=True, exist_ok=True)
+            subprocess.run(["import", "-window", "root", f"{shots}/{name}.png"], check=False)
+
+    def click(name, shot):
+        """The states the panel goes through in the six seconds after a real
+        click on the link `name`, with the screen shot when it first opens."""
+        where = page and common.wait_for(lambda: (evaluate(
+            f"(() => {{ const a = document.getElementById('{name}'); if (!a) return 0;"
+            " const r = a.getBoundingClientRect();"
+            " return Math.round(mozInnerScreenX + r.left + r.width / 2) + ','"
+            " + Math.round(mozInnerScreenY + r.top + r.height / 2); })()", page) or {}).get("result") or None, 20)
+        if not where:
+            return None
+        x, y = where.split(",")
+        xdo("mousemove", "--sync", x, y)
+        xdo("click", "1")
+        seen, until, shot_taken = [], time.time() + 6, False
+        while time.time() < until:
+            state = panel()
+            if not seen or seen[-1] != state:
+                seen.append(state)
+            if state == "open" and not shot_taken:
+                shoot(shot)
+                shot_taken = True
+            time.sleep(0.05)
+        return seen
+
+    def opened(seen):
+        return bool(seen) and any(s in ("showing", "open") for s in seen)
+
+    listed = ("browser.downloads.search({}).then(l => JSON.stringify("
+              "l.map(d => [d.filename.split('/').pop(), d.state])))")
+
+    close_panel()
+    seen = click("small.bin", "ff-panel-taken")
+    landed = seen is not None and common.wait_for(lambda: common.whole(engine_dl, "small.bin"), 30)
+    print(f"  {'a real click on a caught link':<40} {'dm took it' if landed else 'NO: dm did not take it'}")
+    print(f"  {'Firefox opened its downloads panel':<40} {'yes' if opened(seen) else 'no'} (states seen: {seen})")
+    resolve("the browser's list after", listed)
+
+    # The soonest an extension can act: cancelled and erased in its own
+    # onCreated listener, before dm's handler has asked the app anything.
+    close_panel()
+    resolve("an erase-at-once listener",
+            "(globalThis.__dmEraser = d => browser.downloads.cancel(d.id)"
+            ".then(() => browser.downloads.erase({id: d.id}))),"
+            " browser.downloads.onCreated.addListener(globalThis.__dmEraser), 'added'")
+    seen = click("alt.bin", "ff-panel-erased-at-once")
+    print(f"  {'erased in onCreated, it still opens':<40} {'yes' if opened(seen) else 'no'} (states seen: {seen})")
+    resolve("the listener taken out",
+            "browser.downloads.onCreated.removeListener(globalThis.__dmEraser), 'removed'")
+
+    # With a download of the browser's own in its list (one dm's rules
+    # leave), the panel dm's opens has that one left in it.
+    close_panel()
+    click("kept.zip", "ff-panel-browsers-own")
+    common.wait_for(lambda: common.whole(browser_dl, "kept.zip"), 30)
+    close_panel()
+    seen = click("off.bin", "ff-panel-with-an-older-one")
+    print(f"  {'with an older download listed':<40} {'opens' if opened(seen) else 'stays shut'} (states seen: {seen})")
+    resolve("the browser's list then", listed)
+    close_panel()
+
+
 def main():
     global FIREFOX
     if not FIREFOX:
@@ -524,6 +626,7 @@ def main():
 
             if REAL:
                 real_menu_click(rdp, evaluate, resolve, origin, engine_dl)
+                downloads_panel(rdp, evaluate, resolve, origin, engine_dl, browser_dl)
 
             print("\n=== streams a page's player loads ===")
             resolve("a page whose player loads an HLS playlist",

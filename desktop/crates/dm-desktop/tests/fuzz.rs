@@ -151,6 +151,34 @@ proptest! {
         let _ = format::provisional(&url);
         let _ = format::host(&url);
     }
+
+    /// Any name, in any mix of scripts and directions, is put into drawing
+    /// order without a crash, and keeps every character it had (brackets
+    /// may face the other way).
+    #[test]
+    fn any_name_is_laid_out_with_all_its_letters(name in prop_oneof![
+        any::<String>(),
+        "[a-z .()\\[\\]0-9\u{05d0}-\u{05ea}\u{0627}-\u{064a}\u{0660}-\u{0669}\u{064b}\u{200f}\u{202e}]{0,24}".prop_map(|s| s),
+    ]) {
+        let shown = dm_desktop::bidi::visual(&name);
+        let plain = |s: &str| {
+            let mut c: Vec<char> = s
+                .chars()
+                .map(|c| match c {
+                    ')' => '(',
+                    ']' => '[',
+                    '}' => '{',
+                    '>' => '<',
+                    '»' => '«',
+                    '›' => '‹',
+                    c => c,
+                })
+                .collect();
+            c.sort_unstable();
+            c
+        };
+        prop_assert_eq!(plain(&shown), plain(&name));
+    }
 }
 
 /// The control listener the socket fuzzing talks to, made once.

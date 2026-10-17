@@ -372,5 +372,6 @@
  "Take this download off the list? Its file stays where it is.": "Убрать эту загрузку из списка? Её файл останется на месте.",
  "Trying {} again with the sign-in.": "Повторная попытка {} со входом.",
  "{} downloads wait for the schedule or the download limit.": "Загрузок, ждущих расписания или лимита загрузки: {}.",
- "{} waits for the schedule or the download limit.": "{} ждёт расписания или лимита загрузки."
+ "{} waits for the schedule or the download limit.": "{} ждёт расписания или лимита загрузки.",
+ "Not yet known (the server refused the request)": "Пока неизвестно (сервер отклонил запрос)"
 }

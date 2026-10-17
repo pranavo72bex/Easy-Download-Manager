@@ -16,7 +16,8 @@
 //!
 //! A switch turned off on part of a listed site turns it off for the listed
 //! site too, and says so.
-//! - **Open dm**: the app's window to the front, or the app started.
+//! - **Open dm**: the app's window to the front, or the app started; not
+//!   shown when the browser has no host for dm, which it would need.
 //!
 //! The page is `extension/popup.html`; this wires it. What a site is, and
 //! whether the panel is kept off one, is decided in [`crate::decide`].
@@ -315,6 +316,17 @@ pub fn popup_start(ext: JsValue) {
                 .unwrap_or(false);
             say(&text(&reply, "line"), bad);
         } else {
+            // No host: Open dm could not reach dm, so it is not offered;
+            // the status says how to connect instead.
+            let host = Reflect::get(&reply, &"host".into())
+                .ok()
+                .and_then(|v| v.as_bool())
+                .unwrap_or(true);
+            if !host {
+                if let Some(open) = by_id("open-actions") {
+                    let _ = open.set_attribute("hidden", "");
+                }
+            }
             let said = text(&reply, "said");
             say(
                 if said.is_empty() {
