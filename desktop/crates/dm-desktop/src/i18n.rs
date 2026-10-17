@@ -221,6 +221,18 @@ pub fn name(text: &str) -> String {
     }
 }
 
+/// The queue a name typed or picked means: dm's own queues by their name
+/// in the language in force (or in English), as stored; any other as
+/// typed, trimmed. The inverse of `name` for the queues.
+pub fn queue_named(typed: &str) -> String {
+    let typed = typed.trim();
+    [dm_core::MAIN_QUEUE, dm_core::RECHECK_QUEUE]
+        .into_iter()
+        .find(|q| *q == typed || t(q) == typed)
+        .unwrap_or(typed)
+        .to_owned()
+}
+
 /* ------------------------------------------------------ placeholders */
 
 /// A piece of a template: words as written, or a value's place, `{}` in
@@ -454,6 +466,16 @@ mod tests {
 
     fn pieces_of(template: &str) -> Vec<Piece<'_>> {
         pieces(template).collect()
+    }
+
+    #[test]
+    fn a_built_in_queue_typed_in_the_language_shown_is_that_queue() {
+        let shown = in_language("es", || name(dm_core::MAIN_QUEUE));
+        assert_eq!(shown, "Cola principal");
+        let main = in_language("es", || queue_named(" Cola principal "));
+        assert_eq!(main, dm_core::MAIN_QUEUE);
+        assert_eq!(queue_named(dm_core::MAIN_QUEUE), dm_core::MAIN_QUEUE);
+        assert_eq!(queue_named(" Nightly "), "Nightly");
     }
 
     /* ---------------------------------------------------------- t */

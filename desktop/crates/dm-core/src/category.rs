@@ -193,8 +193,9 @@ impl Custom {
 
 /// A folder name that stays one folder under the download folder. Names come
 /// from a hand-editable settings file, and one with a separator in it would
-/// put files somewhere else entirely.
-fn one_folder(name: &str) -> bool {
+/// put files somewhere else entirely. Public so Options can refuse such a
+/// name as it is typed, rather than accept it and have it sort nothing.
+pub fn one_folder(name: &str) -> bool {
     // Judged as it will be used, trimmed: " .. " passed as a name and was
     // joined as "..", the folder above the download folder.
     let name = name.trim();

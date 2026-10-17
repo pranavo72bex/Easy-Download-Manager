@@ -17,7 +17,8 @@ license=('MIT')
 # xkbcommon and GL.
 depends=('hicolor-icon-theme' 'libx11' 'libxcursor' 'libxi' 'libxkbcommon-x11' 'wayland' 'libglvnd')
 makedepends=('rust' 'cargo' 'pkgconf' 'git')
-optdepends=('yt-dlp: downloads from sites that serve video through a player')
+optdepends=('yt-dlp: downloads from sites that serve video through a player'
+            'ffmpeg: joins separate picture and sound, and turns .ts streams into .mp4')
 
 # No debug package: the release profile strips the binary, so makepkg's
 # debuginfo flags only made the fat-LTO link of dm-desktop hold the whole

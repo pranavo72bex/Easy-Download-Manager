@@ -90,7 +90,18 @@ pub fn orders(args: &[String]) -> Orders {
     while let Some(arg) = args.get(i) {
         match arg.as_str() {
             "--save-to" => {
-                next.save_dir = args.get(i + 1).cloned();
+                // Made full here, against this command's own folder: the
+                // dm it is handed to runs elsewhere, and a row keeps it.
+                let here = std::env::current_dir().ok();
+                next.save_dir = args.get(i + 1).and_then(|typed| {
+                    let full = settings::full_folder(typed, here.as_deref());
+                    if full.is_none() {
+                        eprintln!(
+                            "dm: {typed} is not a folder dm can use; saving to the usual one"
+                        );
+                    }
+                    full.map(|p| p.display().to_string())
+                });
                 i += 1;
             }
             "--name" => {
@@ -171,12 +182,15 @@ pub async fn start(orders: &Orders) -> Started {
         Err(why) => {
             notices.push(format!(
                 "the saved proxy could not be used ({why}), so it is turned off and downloads \
-                 go out directly. Fix it under Settings › Proxy and tick it again."
+                 go out directly. Fix it under Options › Proxy and tick it again."
             ));
             saved.proxy.enabled = false;
             dm_core::client()
         }
     };
+    // The cookies file, read now rather than at the first change of a
+    // setting: before, a download that needed it failed until then.
+    notices.extend(use_cookies(&saved));
 
     let queue = Queue::new(
         client,
@@ -217,8 +231,58 @@ pub async fn start(orders: &Orders) -> Started {
     }
 }
 
+/// Whether the client must be built again for a change from `previous`.
+fn new_client(settings: &Settings, previous: Option<&Settings>) -> bool {
+    previous.is_none_or(|held| {
+        held.proxy != settings.proxy || held.read_timeout != settings.read_timeout
+    })
+}
+
+/// Why a change cannot be put into force, found before any of it is: a
+/// value it refuses, or a proxy that cannot be built. `apply` after this
+/// changes everything or nothing, where before a proxy refused halfway left
+/// the half before it live.
+pub fn check(settings: &Settings, previous: Option<&Settings>) -> Result<(), String> {
+    if let Some(why) = previous.and_then(|held| settings.refusal(held)) {
+        return Err(why);
+    }
+    if new_client(settings, previous) {
+        dm_core::proxy::client_with_timeout(&settings.proxy, settings.read_timeout())?;
+    }
+    Ok(())
+}
+
+/// Puts the cookies file in force: read again each time, so one exported
+/// again since is in force without choosing it again. One that can no
+/// longer be read is a problem to show, not a reason to refuse the change
+/// it came with — a cookies file moved away used to fail every change of
+/// every setting after it, the language and a saved search's last run
+/// among them. Said once, until it reads again or another problem replaces
+/// it, since this runs on every change.
+pub fn use_cookies(settings: &Settings) -> Option<String> {
+    static SAID: std::sync::Mutex<Option<String>> = std::sync::Mutex::new(None);
+    let outcome = dm_core::cookies::use_file(Path::new(settings.cookies_file.trim()));
+    let mut said = dm_core::lock(&SAID);
+    match outcome {
+        Ok(_) => {
+            *said = None;
+            None
+        }
+        Err(why) if said.as_deref() == Some(why.as_str()) => None,
+        Err(why) => {
+            *said = Some(why.clone());
+            Some(format!(
+                "{why}; downloads go without its cookies until it is back or another is \
+                 chosen in Options › Network"
+            ))
+        }
+    }
+}
+
 /// Puts settings into effect on a running queue — everything but the login
-/// item, which belongs to whichever window registers it.
+/// item, which belongs to whichever window registers it. What can fail is
+/// tried first (`check`), so a change is in force whole or not at all; the
+/// problems it found that do not stop it come back to be shown.
 ///
 /// The client is only rebuilt when the proxy actually changed. A new client
 /// means a new TLS backend, a fresh root store, and every keep-alive
@@ -227,17 +291,14 @@ pub async fn apply(
     settings: &Settings,
     previous: Option<&Settings>,
     queue: &Queue,
-) -> Result<(), String> {
-    if previous.is_none_or(|held| {
-        held.proxy != settings.proxy || held.read_timeout != settings.read_timeout
-    }) {
+) -> Result<Vec<String>, String> {
+    check(settings, previous)?;
+    if new_client(settings, previous) {
         queue
             .set_client(&settings.proxy, settings.read_timeout())
             .await?;
     }
-    // Read again on every apply, so a cookies file re-exported since is in
-    // force without choosing it again.
-    dm_core::cookies::use_file(std::path::Path::new(settings.cookies_file.trim()))?;
+    let problems: Vec<String> = use_cookies(settings).into_iter().collect();
 
     let current = queue.options().await;
     // The limiter belongs to the running queue. The parts folder is the
@@ -253,7 +314,7 @@ pub async fn apply(
     queue.set_allowance(settings.allowance());
     queue.set_recheck_every(settings.recheck_every());
     queue.set_queue_limits(settings.queue_limit_map());
-    Ok(())
+    Ok(problems)
 }
 
 /// Starts the scheduler again when the schedule's window opens or the
@@ -288,19 +349,73 @@ pub fn wake(queue: &Queue) {
     tokio::spawn(async move { queue.run().await });
 }
 
+/// Why `url` cannot be added, where that can be told before fetching: a
+/// web or FTP address with no site in it (`http://`) was accepted and only
+/// failed later with "builder error: empty host".
+pub fn unusable(url: &str) -> Option<String> {
+    let url = url.trim();
+    let lower = url.to_ascii_lowercase();
+    if !["http://", "https://", "ftp://", "ftps://"]
+        .iter()
+        .any(|scheme| lower.starts_with(scheme))
+    {
+        return None;
+    }
+    match url::Url::parse(url) {
+        Ok(parsed) if parsed.host_str().is_some_and(|h| !h.is_empty()) => None,
+        Ok(_) | Err(url::ParseError::EmptyHost) => {
+            Some(format!("{url} names no site to download from"))
+        }
+        Err(e) => Some(format!("{url} is not a link dm can read ({e})")),
+    }
+}
+
 /// Queues a URL, or several pasted together.
 ///
 /// Whitespace-separated rather than one at a time: pasting a list is the
 /// normal way people add more than one. What counts as a URL is the queue's
 /// to decide, so the window and the browser hand-off cannot disagree.
-pub async fn add(queue: &Queue, text: &str) -> Result<Vec<Id>, String> {
-    let urls: Vec<&str> = text.split_whitespace().collect();
-    let ids = queue.add_all(&urls).await;
+///
+/// A link in the list that cannot be used is skipped, not the whole paste:
+/// the rest are added, and what was skipped comes back with the reason.
+pub async fn add(queue: &Queue, text: &str) -> Result<Added, String> {
+    let mut skipped = Vec::new();
+    let urls: Vec<&str> = text
+        .split_whitespace()
+        .filter(|u| match unusable(u) {
+            Some(why) => {
+                skipped.push(why);
+                false
+            }
+            None => true,
+        })
+        .collect();
+    let ids = if urls.is_empty() {
+        Vec::new()
+    } else {
+        queue.add_all(&urls).await
+    };
+    if ids.len() < urls.len() {
+        skipped.push(format!(
+            "{} of the links are not ones dm can download",
+            urls.len() - ids.len()
+        ));
+    }
     if ids.is_empty() {
-        return Err("that is not a URL dm can download".into());
+        return Err(skipped
+            .into_iter()
+            .next()
+            .unwrap_or_else(|| "that is not a URL dm can download".into()));
     }
     wake(queue);
-    Ok(ids)
+    Ok(Added { ids, skipped })
+}
+
+/// What `add` added, and why any link was skipped.
+#[derive(Debug, Default)]
+pub struct Added {
+    pub ids: Vec<Id>,
+    pub skipped: Vec<String>,
 }
 
 /// A digest typed against a row: empty clears it, which is how one pasted by
@@ -562,6 +677,52 @@ pub fn run_after(command: &str, file: &Path) -> Result<(), String> {
 
 #[cfg(test)]
 mod tests {
+
+    #[test]
+    fn a_relative_save_folder_is_the_callers_and_never_kept_relative() {
+        let args: Vec<String> = ["--save-to", "myout", "https://files.example/a.zip"]
+            .map(String::from)
+            .to_vec();
+        let orders = super::orders(&args);
+        let here = std::env::current_dir().unwrap();
+        assert_eq!(
+            orders.downloads[0].save_dir.as_deref(),
+            Some(here.join("myout").display().to_string().as_str())
+        );
+    }
+
+    #[tokio::test]
+    async fn a_pasted_list_skips_the_link_it_cannot_use_and_adds_the_rest() {
+        let dir = tempfile::tempdir().unwrap();
+        let settings = crate::settings::Settings {
+            download_dir: dir.path().join("out"),
+            ..Default::default()
+        };
+        let queue = dm_core::Queue::new(
+            dm_core::client(),
+            settings.options(dir.path().join("parts"), dm_core::Limiter::unlimited()),
+            1,
+        );
+        let added = super::add(
+            &queue,
+            "http:// http://127.0.0.1:9/a.bin http://127.0.0.1:9/b.bin",
+        )
+        .await
+        .expect("one bad link refused the whole paste");
+        assert_eq!(added.ids.len(), 2);
+        assert_eq!(added.skipped.len(), 1, "{:?}", added.skipped);
+        assert!(added.skipped[0].contains("names no site"));
+        assert!(super::add(&queue, "http://").await.is_err());
+    }
+
+    #[test]
+    fn an_address_with_no_site_is_refused_with_a_plain_reason() {
+        assert!(super::unusable("http://")
+            .unwrap()
+            .contains("names no site"));
+        assert_eq!(super::unusable("https://files.example/a.zip"), None);
+        assert_eq!(super::unusable("magnet:?xt=urn:btih:abc"), None);
+    }
 
     #[test]
     fn a_command_line_is_split_as_a_shell_splits_it() {

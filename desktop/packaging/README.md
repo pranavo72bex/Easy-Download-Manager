@@ -29,7 +29,7 @@ consulted for sites that serve video through their own player.
 The tagged release carries an AppImage, which needs nothing installed:
 
 ```sh
-chmod +x dm-*.AppImage && ./dm-*.AppImage
+chmod +x dm_*.AppImage && ./dm_*.AppImage
 ```
 
 It is built on Ubuntu 22.04 deliberately — an AppImage built against a newer

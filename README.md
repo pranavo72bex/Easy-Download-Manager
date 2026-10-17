@@ -34,7 +34,7 @@ computer, and the extension for your browser:
 | Your browser | Download this file |
 |---|---|
 | Chrome, Edge, Brave, Vivaldi or Opera | `dm-chrome-….zip` |
-| Firefox | `dm-firefox-….zip` |
+| Firefox | `dm-firefox-….xpi`, from the newest release whose name starts with **v3** (the extension's own release) |
 
 Not built yet: Macs with an Intel chip.
 
@@ -45,10 +45,13 @@ you the first time. That is expected; here is how to get past it.
 
 ### Windows
 
-1. Double-click `dm_…_x64-setup.exe`.
-2. If you see **"Windows protected your PC"**, click **More info**, then
+1. If your browser says the file "isn't commonly downloaded" or might be
+   harmful, open its downloads list and choose **Keep** (in Edge: **…** →
+   **Keep** → **Show more** → **Keep anyway**).
+2. Double-click `dm_…_x64-setup.exe`.
+3. If you see **"Windows protected your PC"**, click **More info**, then
    **Run anyway**.
-3. Click through the installer.
+4. Click through the installer.
 
 ### Mac
 
@@ -123,18 +126,15 @@ close its window, so your browser always has it to hand downloads to.
 
 ### Firefox
 
-Firefox only keeps extensions it has signed itself, and dm is not
-published there. So in the regular Firefox the extension lasts until
-Firefox is closed:
+The Firefox extension is signed by Mozilla, so it installs like any other
+and stays installed.
 
-1. Type `about:debugging#/runtime/this-firefox` in the address bar.
-2. Click **Load Temporary Add-on…** and choose `dm-firefox-….zip`.
+1. Drag `dm-firefox-….xpi` onto a Firefox window (or open `about:addons`,
+   click the gear icon and choose **Install Add-on From File…**).
+2. Click **Add**.
 
-To keep it for good, use **Firefox Developer Edition** or **Firefox ESR**:
-type `about:config` in the address bar, set
-`xpinstall.signatures.required` to **false**, then open
-`about:addons`, click the gear icon, choose **Install Add-on From File…**,
-and pick `dm-firefox-….zip`.
+On Ubuntu, where Firefox comes as a Snap, open dm once *before* adding the
+extension, so that it can tell Firefox where it is.
 
 ## Step 5 — Try it
 
@@ -154,7 +154,8 @@ It appears in dm instead of in the browser, and downloads there.
 - **Add a link by hand:** in dm, click **Add URL** and paste it. Web
   (`https://`), FTP (`ftp://`) and magnet links all work.
 - **Change the language:** **View › Language** — English, Español,
-  Português, Français, Deutsch, Русский, Bahasa Indonesia or Türkçe. dm
+  Português, Français, Deutsch, Italiano, Nederlands, Polski, Русский,
+  Bahasa Indonesia or Türkçe. dm
   starts in your computer's language when it has it.
 
 **Videos from sites like YouTube** need two free tools, installed once:

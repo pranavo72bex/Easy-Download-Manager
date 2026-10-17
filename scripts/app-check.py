@@ -439,7 +439,7 @@ def main():
               f"{slowest:.2f}s" if slowest >= 1.0 else "ok", "ok")
         check("a command runs in the window", call("command.run", id="program.add_url")["ok"], True)
         dialogs = call("ui.inspect")["result"]["dialogs"]
-        check("and the window shows what it opened", "New download" in dialogs)
+        check("and the window shows what it opened", "Add URL" in dialogs)
         shot = call("ui.screenshot", name="control-check")
         if shot.get("ok"):
             png = pathlib.Path(shot["result"]["path"])

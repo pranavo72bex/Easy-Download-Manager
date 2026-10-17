@@ -1,3 +1,9 @@
 # `cargo xtask <job>`: the project's own checks.
 [alias]
 xtask = "run --quiet -p xtask --"
+
+# The C runtime linked into the Windows binary rather than loaded from
+# VCRUNTIME140.dll, which a clean Windows does not have and the installer
+# does not bring: without it dm would not start there at all.
+[target.x86_64-pc-windows-msvc]
+rustflags = ["-C", "target-feature=+crt-static"]

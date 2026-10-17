@@ -52,6 +52,7 @@ pub struct Settings {
     /// Categories a person made: a name that is also a folder, file types,
     /// and optionally the only sites they come from. Looked at before the
     /// built-in kinds.
+    #[serde(deserialize_with = "lenient::custom_categories")]
     pub custom_categories: Vec<dm_core::Custom>,
 
     /// Which rendition to take from an adaptive stream: `best`, `audio`, or
@@ -60,9 +61,11 @@ pub struct Settings {
     pub stream_quality: String,
 
     /// When the queue may run.
+    #[serde(deserialize_with = "lenient::schedule")]
     pub schedule: Schedule,
 
     /// Where downloads connect through.
+    #[serde(deserialize_with = "lenient::proxy")]
     pub proxy: Proxy,
 
     /// Watch the clipboard for links and offer to download them. Off by
@@ -112,7 +115,7 @@ pub struct Settings {
     pub toolbar_hidden: Vec<String>,
     /// Sign-ins: a user and password used for downloads from a
     /// host, so a protected file need not be typed for each time.
-    #[serde(default)]
+    #[serde(default, deserialize_with = "lenient::site_logins")]
     pub site_logins: Vec<SiteLogin>,
 
     /// Which downloads the browser extension takes from the browser —
@@ -144,7 +147,7 @@ pub struct Settings {
     #[serde(default = "default_read_timeout")]
     pub read_timeout: u64,
     /// Sites that take fewer connections at once than `connections`.
-    #[serde(default)]
+    #[serde(default, deserialize_with = "lenient::host_limits")]
     pub host_limits: Vec<dm_core::HostLimit>,
     /// Hours between the recheck queue asking its servers again on its
     /// own. Zero asks only when "Start queue" is clicked on it.
@@ -165,7 +168,7 @@ pub struct Settings {
     #[serde(default)]
     pub site_searches: Vec<crate::lists::Search>,
     /// Queues that run fewer files at once than `concurrency`.
-    #[serde(default)]
+    #[serde(default, deserialize_with = "lenient::queue_limits")]
     pub queue_limits: Vec<QueueLimit>,
     /// Put a `.ts` stream into an MP4 where an ffmpeg is there to do it.
     #[serde(default = "yes")]
@@ -178,6 +181,7 @@ pub struct Settings {
 
 /// Fewer files at once for one named queue.
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(default)]
 pub struct QueueLimit {
     pub queue: String,
     pub files: usize,
@@ -202,6 +206,7 @@ fn yes() -> bool {
 
 /// One entry in Options › Sign-ins.
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(default)]
 pub struct SiteLogin {
     /// The host, or a suffix of it: `example.com` covers `dl.example.com`.
     pub host: String,
@@ -296,18 +301,9 @@ impl Settings {
         // A folder for unfinished downloads is a full path: `~` is the home
         // folder, and a relative one is no folder — a Dock launch starts in
         // `/`, where nothing can be written, and every download would fail.
-        let parts = self.parts_dir.trim();
-        self.parts_dir = match parts.strip_prefix('~') {
-            Some(rest) if rest.is_empty() || rest.starts_with('/') => dirs::home_dir()
-                .map(|home| {
-                    home.join(rest.trim_start_matches('/'))
-                        .display()
-                        .to_string()
-                })
-                .unwrap_or_default(),
-            _ if std::path::Path::new(parts).is_absolute() => parts.to_string(),
-            _ => String::new(),
-        };
+        self.parts_dir = full_path(&self.parts_dir)
+            .map(|path| path.display().to_string())
+            .unwrap_or_default();
         self.queue_limits
             .retain(|limit| !limit.queue.trim().is_empty());
         for limit in &mut self.queue_limits {
@@ -320,15 +316,77 @@ impl Settings {
             limit.host = limit.host.trim().to_ascii_lowercase();
             limit.connections = limit.connections.clamp(CONNECTIONS.0, CONNECTIONS.1);
         }
-        if self.download_dir.as_os_str().is_empty() {
-            self.download_dir = Settings::default().download_dir;
-        }
+        // The download folder is held to the same rule. Options refuses a
+        // relative one as it is typed (`refusal`); one in a file edited by
+        // hand falls back to the default rather than to wherever dm was
+        // started from.
+        self.download_dir = full_path(&self.download_dir.display().to_string())
+            .unwrap_or_else(|| Settings::default().download_dir);
         // One name per category, always: the engine indexes this list by
         // category, and a short one read from a hand-edited file would leave
         // the kinds past its end unsorted for no stated reason.
         self.category_folders
             .resize(Category::ALL.len(), String::new());
         self
+    }
+
+    /// Why a change from `previous` to this cannot be put into force, if
+    /// it cannot: a time the schedule cannot read, a download folder that
+    /// is not a full path, a category name that is not one folder, a
+    /// cookies file that cannot be read. Judged on what changed only, so a
+    /// value already saved, however odd, never blocks an unrelated change
+    /// — the language, a saved search's last run.
+    pub fn refusal(&self, previous: &Settings) -> Option<String> {
+        if self.schedule != previous.schedule
+            && self.schedule.enabled
+            && !(dm_core::schedule::is_time(&self.schedule.from)
+                && dm_core::schedule::is_time(&self.schedule.to))
+        {
+            return Some(format!(
+                "the schedule's times must be HH:MM in 24 hours, not {:?} and {:?}",
+                self.schedule.from, self.schedule.to
+            ));
+        }
+        if self.download_dir != previous.download_dir {
+            let typed = self.download_dir.display().to_string();
+            if full_path(&typed).is_none() {
+                return Some(format!(
+                    "the download folder must be a full path, such as {}, not {typed:?}",
+                    Settings::default().download_dir.display()
+                ));
+            }
+        }
+        if self.parts_dir.trim() != previous.parts_dir.trim()
+            && !self.parts_dir.trim().is_empty()
+            && full_path(&self.parts_dir).is_none()
+        {
+            return Some(format!(
+                "the folder for unfinished downloads must be a full path, not {:?}",
+                self.parts_dir
+            ));
+        }
+        if let Some(bad) = self.custom_categories.iter().find(|c| {
+            !dm_core::category::one_folder(&c.name)
+                && !previous.custom_categories.iter().any(|p| p.name == c.name)
+        }) {
+            return Some(format!(
+                "a category's name is also its folder, so it cannot be {:?}",
+                bad.name
+            ));
+        }
+        let cookies = self.cookies_file.trim();
+        if cookies != previous.cookies_file.trim() && !cookies.is_empty() {
+            if let Err(e) = std::fs::metadata(cookies).and_then(|m| {
+                if m.is_file() {
+                    Ok(())
+                } else {
+                    Err(std::io::Error::other("it is not a file"))
+                }
+            }) {
+                return Some(format!("the cookies file {cookies} could not be read: {e}"));
+            }
+        }
+        None
     }
 
     /// The engine's view of all of this.
@@ -448,24 +506,90 @@ impl Settings {
         let Ok(text) = std::fs::read_to_string(path) else {
             return (Settings::default().clamped(), None);
         };
-        match serde_json::from_str::<Settings>(&text) {
-            Ok(settings) => (settings.clamped(), None),
-            Err(e) => {
-                let aside = path.with_extension("json.unreadable");
-                let notice = match std::fs::rename(path, &aside) {
-                    Ok(()) => format!(
-                        "the saved settings could not be read ({e}); they were kept as {} and \
-                         the defaults are in use",
-                        aside.display()
-                    ),
-                    Err(io) => format!(
-                        "the saved settings could not be read ({e}) or moved aside ({io}); the \
-                         defaults are in use and the next change will replace them"
-                    ),
-                };
-                (Settings::default().clamped(), Some(notice))
-            }
+        lenient::take();
+        let (read, mut dropped) = match serde_json::from_str::<Settings>(&text) {
+            Ok(settings) => (settings, Vec::new()),
+            // One odd entry costs that entry: the rest is read, field by
+            // field, and what was left out is named below.
+            Err(e) => match lenient::settings(&text) {
+                Some(read) => read,
+                None => {
+                    let aside = path.with_extension("json.unreadable");
+                    let notice = match std::fs::rename(path, &aside) {
+                        Ok(()) => format!(
+                            "the saved settings could not be read ({e}); they were kept as {} \
+                             and the defaults are in use",
+                            aside.display()
+                        ),
+                        Err(io) => format!(
+                            "the saved settings could not be read ({e}) or moved aside ({io}); \
+                             the defaults are in use and the next change will replace them"
+                        ),
+                    };
+                    return (Settings::default().clamped(), Some(notice));
+                }
+            },
+        };
+        // What the lenient readers inside left out: a proxy type, a field
+        // of a schedule, an entry of a list or a field of one.
+        dropped.extend(lenient::take());
+        dropped.dedup();
+        let (settings, mut notes) = read.readable();
+        if !dropped.is_empty() {
+            notes.insert(
+                0,
+                format!(
+                    "some saved settings could not be read ({}), so their defaults are in use",
+                    dropped.join(", ")
+                ),
+            );
         }
+        if notes.is_empty() {
+            return (settings, None);
+        }
+        // Whatever was left out or changed, the file as it was is kept
+        // before the next save writes over it.
+        let aside = path.with_extension("json.unreadable");
+        notes.push(match std::fs::copy(path, &aside) {
+            Ok(_) => format!("the file as it was is kept as {}", aside.display()),
+            Err(io) => format!("the file as it was could not be kept aside ({io})"),
+        });
+        (settings, Some(notes.join("; ")))
+    }
+
+    /// What was read, held to what the engine takes, with a word about each
+    /// thing that had to be changed to be used: a schedule whose times
+    /// cannot be read (ignored anyway, so now off, and said to be), and a
+    /// category whose name is not one folder (it sorted nothing, and would
+    /// otherwise sit in Options failing every OK).
+    fn readable(self) -> (Self, Vec<String>) {
+        let mut settings = self.clamped();
+        let mut notes = Vec::new();
+        let schedule = &mut settings.schedule;
+        if schedule.enabled
+            && !(dm_core::schedule::is_time(&schedule.from)
+                && dm_core::schedule::is_time(&schedule.to))
+        {
+            schedule.enabled = false;
+            notes.push(format!(
+                "the saved schedule's times ({:?} to {:?}) are not HH:MM, so the schedule is \
+                 off; set it again in the Scheduler",
+                schedule.from, schedule.to
+            ));
+        }
+        let (kept, bad): (Vec<_>, Vec<_>) = std::mem::take(&mut settings.custom_categories)
+            .into_iter()
+            .partition(|c| dm_core::category::one_folder(&c.name));
+        settings.custom_categories = kept;
+        if !bad.is_empty() {
+            let names: Vec<String> = bad.iter().map(|c| format!("{:?}", c.name)).collect();
+            notes.push(format!(
+                "the categories {} were left out: a category's name is also its folder, and \
+                 these are not one folder",
+                names.join(", ")
+            ));
+        }
+        (settings, notes)
     }
 
     pub fn save(&self) -> std::io::Result<()> {
@@ -504,6 +628,201 @@ impl Settings {
             }
             _ => url.to_string(),
         }
+    }
+}
+
+/// A folder typed or read as a full path: `~` is the home folder, and a
+/// relative one is no folder — a Dock launch starts in `/`, where nothing
+/// can be written, and every download would fail. `None` for those and for
+/// nothing at all.
+fn full_path(typed: &str) -> Option<PathBuf> {
+    let typed = typed.trim();
+    match typed.strip_prefix('~') {
+        Some(rest) if rest.is_empty() || rest.starts_with('/') || rest.starts_with('\\') => {
+            dirs::home_dir().map(|home| home.join(rest.trim_start_matches(['/', '\\'])))
+        }
+        _ if !typed.is_empty() && std::path::Path::new(typed).is_absolute() => {
+            Some(PathBuf::from(typed))
+        }
+        _ => None,
+    }
+}
+
+/// A folder for one download, as a full path: `~` is the home folder, and a
+/// relative one is taken against `base` — the folder of the command that
+/// asked, which a running dm handed the request does not share (a Dock
+/// launch's is `/`). With no base, a relative folder is `None`: a row must
+/// never hold one, since Open and Open folder read it later from wherever
+/// dm happens to be.
+pub fn full_folder(typed: &str, base: Option<&std::path::Path>) -> Option<PathBuf> {
+    full_path(typed).or_else(|| {
+        let typed = typed.trim();
+        (!typed.is_empty() && !typed.starts_with('~'))
+            .then_some(base?.join(typed))
+            .filter(|p| p.is_absolute())
+    })
+}
+
+/// Reading parts of the file one at a time, so one odd entry — a proxy type
+/// a later dm wrote, a field left out by hand — costs that entry and not
+/// every setting beside it.
+mod lenient {
+    use serde::de::{DeserializeOwned, Deserializer};
+    use serde::{Deserialize, Serialize};
+    use serde_json::Value;
+
+    thread_local! {
+        /// What the readers below left out, by where it was in the file,
+        /// for `load_from` to name. Serde gives a field's reader no way to
+        /// say so, and reading happens on the caller's thread.
+        static DROPPED: std::cell::RefCell<Vec<String>> = const { std::cell::RefCell::new(Vec::new()) };
+    }
+
+    fn note(what: String) {
+        DROPPED.with(|d| {
+            let mut d = d.borrow_mut();
+            if !d.contains(&what) {
+                d.push(what);
+            }
+        });
+    }
+
+    /// What was left out since the last call, which forgets it.
+    pub(super) fn take() -> Vec<String> {
+        DROPPED.with(|d| std::mem::take(&mut *d.borrow_mut()))
+    }
+
+    /// `merged`, saying under `at` what was left out.
+    fn read_at<T: Serialize + DeserializeOwned>(base: &T, given: Value, at: &str) -> Option<T> {
+        match merged(base, given) {
+            Some((read, dropped)) => {
+                for key in dropped {
+                    note(format!("{at}.{key}"));
+                }
+                Some(read)
+            }
+            None => {
+                note(at.to_string());
+                None
+            }
+        }
+    }
+
+    /// `given` laid over `base` one field at a time: each field that reads
+    /// is kept, each that does not is left at the base's. The names of
+    /// those left out come back with it.
+    pub(super) fn merged<T: Serialize + DeserializeOwned>(
+        base: &T,
+        given: Value,
+    ) -> Option<(T, Vec<String>)> {
+        let Value::Object(mut fields) = serde_json::to_value(base).ok()? else {
+            return None;
+        };
+        let Value::Object(given) = given else {
+            return None;
+        };
+        let mut dropped = Vec::new();
+        for (key, value) in given {
+            let before = fields.insert(key.clone(), value);
+            if serde_json::from_value::<T>(Value::Object(fields.clone())).is_err() {
+                match before {
+                    Some(old) => fields.insert(key.clone(), old),
+                    None => fields.remove(&key),
+                };
+                dropped.push(key);
+            }
+        }
+        serde_json::from_value(Value::Object(fields))
+            .ok()
+            .map(|read| (read, dropped))
+    }
+
+    pub(super) fn schedule<'de, D: Deserializer<'de>>(d: D) -> Result<dm_core::Schedule, D::Error> {
+        let value = Value::deserialize(d)?;
+        Ok(read_at(&dm_core::Schedule::default(), value, "schedule").unwrap_or_default())
+    }
+
+    /// A proxy whose type this dm does not know is turned off rather than
+    /// used as some other kind: its host and port mean nothing without it.
+    pub(super) fn proxy<'de, D: Deserializer<'de>>(d: D) -> Result<dm_core::Proxy, D::Error> {
+        let value = Value::deserialize(d)?;
+        Ok(match merged(&dm_core::Proxy::default(), value) {
+            Some((mut read, dropped)) => {
+                if dropped.iter().any(|k| k == "type") {
+                    if read.enabled {
+                        read.enabled = false;
+                        note("proxy.type (so the proxy is off)".into());
+                    } else {
+                        note("proxy.type".into());
+                    }
+                }
+                for key in dropped.into_iter().filter(|k| k != "type") {
+                    note(format!("proxy.{key}"));
+                }
+                read
+            }
+            None => {
+                note("proxy".into());
+                dm_core::Proxy::default()
+            }
+        })
+    }
+
+    /// A list called `at`, each entry read over `base` and one that is not
+    /// an entry at all left out, each said.
+    fn list_of<'de, D, T>(d: D, base: &T, at: &str) -> Result<Vec<T>, D::Error>
+    where
+        D: Deserializer<'de>,
+        T: Serialize + DeserializeOwned,
+    {
+        let Value::Array(items) = Value::deserialize(d)? else {
+            note(at.to_string());
+            return Ok(Vec::new());
+        };
+        Ok(items
+            .into_iter()
+            .enumerate()
+            .filter_map(|(i, item)| read_at(base, item, &format!("{at}[{i}]")))
+            .collect())
+    }
+
+    pub(super) fn custom_categories<'de, D: Deserializer<'de>>(
+        d: D,
+    ) -> Result<Vec<dm_core::Custom>, D::Error> {
+        list_of(d, &dm_core::Custom::default(), "custom_categories")
+    }
+
+    pub(super) fn site_logins<'de, D: Deserializer<'de>>(
+        d: D,
+    ) -> Result<Vec<super::SiteLogin>, D::Error> {
+        list_of(d, &super::SiteLogin::default(), "site_logins")
+    }
+
+    pub(super) fn queue_limits<'de, D: Deserializer<'de>>(
+        d: D,
+    ) -> Result<Vec<super::QueueLimit>, D::Error> {
+        list_of(d, &super::QueueLimit::default(), "queue_limits")
+    }
+
+    /// The same for site limits, whose type has no default of its own: no
+    /// site (dropped when clamped) and one connection.
+    pub(super) fn host_limits<'de, D: Deserializer<'de>>(
+        d: D,
+    ) -> Result<Vec<dm_core::HostLimit>, D::Error> {
+        let base = dm_core::HostLimit {
+            host: String::new(),
+            connections: 1,
+        };
+        list_of(d, &base, "host_limits")
+    }
+
+    /// The whole file the same way, for when it does not read as it is.
+    pub(super) fn settings(text: &str) -> Option<(super::Settings, Vec<String>)> {
+        let value: Value = serde_json::from_str(text).ok()?;
+        let Value::Object(_) = value else {
+            return None;
+        };
+        merged(&super::Settings::default(), value)
     }
 }
 
@@ -571,6 +890,182 @@ mod tests {
         assert_eq!(
             std::fs::read_to_string(kept).unwrap(),
             "{ \"connections\": 8, }"
+        );
+    }
+
+    #[test]
+    fn one_odd_entry_costs_that_entry_and_not_every_setting() {
+        /* A file edited by hand, or written by a later dm: a proxy type this
+         * one does not know, a schedule and limits missing fields, a login
+         * with no password, and a number written as a word. Each of these
+         * used to move the whole file aside and start from the defaults. */
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("settings.json");
+        let text = r#"{
+            "connections": 4,
+            "language": "de",
+            "proxy": {"enabled": true, "type": "quic", "host": "p.example", "port": 3128},
+            "schedule": {"enabled": true, "from": "02:00"},
+            "host_limits": [{"host": "slow.example"}],
+            "queue_limits": [{"queue": "Nightly"}],
+            "site_logins": [{"host": "files.example", "username": "me"}],
+            "custom_categories": [{"name": "Books"}],
+            "concurrency": "three"
+        }"#;
+        std::fs::write(&path, text).unwrap();
+
+        let (read, notice) = Settings::load_from(&path);
+        assert_eq!(read.connections, 4);
+        assert_eq!(read.language, "de");
+        assert!(
+            !read.proxy.enabled,
+            "an unknown proxy type is off, not another kind"
+        );
+        assert_eq!(read.proxy.host, "p.example");
+        assert!(read.schedule.enabled);
+        assert_eq!(read.schedule.from, "02:00");
+        assert_eq!(read.schedule.to, Schedule::default().to);
+        assert_eq!(read.host_limits[0].host, "slow.example");
+        assert_eq!(read.host_limits[0].connections, 1);
+        assert_eq!(read.queue_limits[0].queue, "Nightly");
+        assert_eq!(read.queue_limits[0].files, 1, "clamped up from none");
+        assert_eq!(read.site_logins[0].username, "me");
+        assert_eq!(read.custom_categories[0].name, "Books");
+        assert_eq!(read.concurrency, Settings::default().concurrency);
+        let notice = notice.expect("the entry left out went unmentioned");
+        assert!(notice.contains("concurrency"), "{notice}");
+        assert_eq!(
+            std::fs::read_to_string(dir.path().join("settings.json.unreadable")).unwrap(),
+            text,
+            "the file as it was is kept"
+        );
+    }
+
+    #[test]
+    fn what_a_reader_inside_left_out_is_named_and_the_file_kept() {
+        /* The file reads as a whole — every odd value is inside a part read
+         * leniently — so nothing failed at the top. An unknown proxy type,
+         * a list entry that is not one, a bad field in an entry and a
+         * category that is not one folder were each dropped without a
+         * word, and the next save wrote over the only copy. */
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("settings.json");
+        let text = r#"{
+            "proxy": {"enabled": true, "type": "quic", "host": "p.example", "port": 3128},
+            "site_logins": [7, {"host": "a.example", "username": "me"}],
+            "queue_limits": [{"queue": "Nightly", "files": "two"}],
+            "host_limits": [{"host": "slow.example", "connections": -1}],
+            "custom_categories": [{"name": "Work/Docs", "extensions": ["pdf"]}, {"name": "Books"}]
+        }"#;
+        std::fs::write(&path, text).unwrap();
+        let (read, notice) = Settings::load_from(&path);
+        let notice = notice.expect("what was left out went unmentioned");
+        for named in [
+            "proxy.type",
+            "site_logins[0]",
+            "queue_limits[0].files",
+            "host_limits[0].connections",
+            "Work/Docs",
+        ] {
+            assert!(notice.contains(named), "{named} not named: {notice}");
+        }
+        assert!(!read.proxy.enabled);
+        assert_eq!(read.site_logins.len(), 1);
+        assert_eq!(read.queue_limits[0].queue, "Nightly");
+        assert_eq!(
+            read.custom_categories.len(),
+            1,
+            "the bad category is left out"
+        );
+        assert_eq!(
+            std::fs::read_to_string(dir.path().join("settings.json.unreadable")).unwrap(),
+            text,
+            "the file as it was is kept before a save writes over it"
+        );
+
+        // A clean file says nothing and keeps no copy.
+        let clean = tempfile::tempdir().unwrap();
+        let path = clean.path().join("settings.json");
+        std::fs::write(&path, serde_json::to_string(&Settings::default()).unwrap()).unwrap();
+        assert_eq!(Settings::load_from(&path).1, None);
+        assert!(!clean.path().join("settings.json.unreadable").exists());
+    }
+
+    #[test]
+    fn a_saved_schedule_with_unreadable_times_is_turned_off_and_said() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("settings.json");
+        std::fs::write(
+            &path,
+            r#"{"schedule": {"enabled": true, "from": "25:00", "to": "1am", "days": []}}"#,
+        )
+        .unwrap();
+        let (read, notice) = Settings::load_from(&path);
+        assert!(!read.schedule.enabled);
+        assert!(notice.unwrap().contains("not HH:MM"));
+    }
+
+    #[test]
+    fn a_change_that_cannot_work_is_refused_and_an_old_one_blocks_nothing() {
+        let before = Settings::default();
+        let with = |change: fn(&mut Settings)| {
+            let mut s = before.clone();
+            change(&mut s);
+            s.refusal(&before)
+        };
+        assert!(with(|s| {
+            s.schedule.enabled = true;
+            s.schedule.from = "25:00".into();
+        })
+        .is_some());
+        assert!(with(|s| s.download_dir = "Downloads".into()).is_some());
+        assert!(with(|s| s.download_dir = "~/Downloads".into()).is_none());
+        assert!(with(|s| s.parts_dir = "parts".into()).is_some());
+        assert!(with(|s| s.custom_categories = vec![dm_core::Custom {
+            name: "Work/Docs".into(),
+            ..Default::default()
+        }])
+        .is_some());
+        assert!(with(|s| s.cookies_file = "/no/such/cookies.txt".into()).is_some());
+        assert!(with(|s| s.language = "de".into()).is_none());
+
+        // Saved before, and so not this change's doing.
+        let odd = Settings {
+            cookies_file: "/no/such/cookies.txt".into(),
+            ..before.clone()
+        };
+        let mut next = odd.clone();
+        next.language = "fr".into();
+        assert_eq!(next.refusal(&odd), None);
+    }
+
+    #[test]
+    fn a_download_folder_from_home_is_expanded_and_a_relative_one_is_not_kept() {
+        let at = |typed: &str| {
+            Settings {
+                download_dir: typed.into(),
+                ..Default::default()
+            }
+            .clamped()
+            .download_dir
+        };
+        let home = dirs::home_dir().unwrap();
+        assert_eq!(at("~/Downloads"), home.join("Downloads"));
+        assert_eq!(at("Downloads"), Settings::default().download_dir);
+    }
+
+    #[test]
+    fn a_folder_for_one_download_is_made_full_or_refused() {
+        let home = dirs::home_dir().unwrap();
+        let caller = std::env::temp_dir().join("caller");
+        assert_eq!(full_folder("~/x", None), Some(home.join("x")));
+        assert_eq!(full_folder("out", Some(&caller)), Some(caller.join("out")));
+        assert_eq!(full_folder("out", None), None);
+        assert_eq!(full_folder("~someone/x", Some(&caller)), None);
+        let absolute = caller.join("abs");
+        assert_eq!(
+            full_folder(&absolute.display().to_string(), None),
+            Some(absolute)
         );
     }
 

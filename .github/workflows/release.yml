@@ -46,12 +46,21 @@ jobs:
         run: |
           set -e
           tag="${GITHUB_REF_NAME#v}"
-          manifest=$(python3 -c "import json; print(json.load(open('extension/manifest.json'))['version'])")
-          if [ "$tag" != "$manifest" ]; then
-            echo "tag v$tag does not match manifest version $manifest"
+          # Three places name the version, and the Firefox build is signed
+          # under whatever its own manifest says.
+          for f in extension/manifest.json extension/manifest.firefox.json; do
+            v=$(python3 -c "import json,sys; print(json.load(open(sys.argv[1]))['version'])" "$f")
+            if [ "$tag" != "$v" ]; then
+              echo "tag v$tag does not match $f ($v)"
+              exit 1
+            fi
+          done
+          crate=$(sed -n 's/^version = "\(.*\)"/\1/p' browser/Cargo.toml | head -1)
+          if [ "$tag" != "$crate" ]; then
+            echo "tag v$tag does not match browser/Cargo.toml ($crate)"
             exit 1
           fi
-          echo "v$tag matches the manifest"
+          echo "v$tag matches both manifests and the crate"
 
       - name: Build both store zips
         run: sh scripts/package.sh
@@ -69,6 +78,8 @@ jobs:
             --upload-source-code dist/source.zip \
             --api-key "$AMO_JWT_ISSUER" --api-secret "$AMO_JWT_SECRET"
           rm dist/source.zip
+          # Mozilla names the file after the add-on; named as the README says.
+          for x in dist/signed/*.xpi; do mv "$x" "dist/signed/dm-firefox-${GITHUB_REF_NAME#v}.xpi"; done
           ls dist/signed
 
       - name: Publish

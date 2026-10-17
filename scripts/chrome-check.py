@@ -1050,8 +1050,13 @@ def main():
               kept and off_rows() == before_off,
               f"catching: {catching()}; in the browser's folder: {sorted(p.name for p in browser_dl.iterdir())}; "
               f"new dm rows: {off_rows() - before_off}")
+        # A popup opened afresh, as a person would open it again: the one
+        # opened before the download can be a minute stale by now.
+        popup = open_tab(base, f"chrome-extension://{ext_id}/popup.html")
+        loaded(popup, "/popup.html", "#catching")
+        wait_for(lambda: popup.evaluate("document.getElementById('catching').checked === false"), 5)
         popup.evaluate("document.getElementById('catching').click(), 1", gesture=True)
-        check("and switching it back on is kept", wait_for(lambda: catching() == "true", 5), catching())
+        check("and switching it back on is kept", wait_for(lambda: catching() == "true", 10), catching())
         # The per-site switch is there; opened as a tab of its own the popup
         # has no site in front, and says so.
         label = wait_for(lambda: popup.evaluate("document.getElementById('catchall-label').textContent"), 5)

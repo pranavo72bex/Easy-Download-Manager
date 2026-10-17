@@ -223,23 +223,47 @@ pub fn links_in(text: &str) -> Vec<String> {
     found
 }
 
-/// Links in a dropped browser item, reading from bytes when available and from
-/// the dropped path as a fallback for drag sources that hand over a URL or a
-/// temporary text file instead of a normal file blob.
+/// How much of a dropped file is looked at for links.
+const DROP_LOOK: u64 = 64 * 1024;
+
+/// The kinds of file a drop is read for links: a browser's link file, a
+/// list, a page. Anything else — a PDF, an ISO, a photo — is not a list of
+/// links, and the addresses that happen to be inside one are not what the
+/// person dropping it wanted queued.
+const DROP_KINDS: [&str; 6] = ["webloc", "url", "txt", "text", "html", "htm"];
+
+/// Links in a dropped browser item: the address itself where a drag source
+/// hands one over as the path, else the first 64 KB of a text-like file.
+/// Read from the path, and only that much: the whole file used to be read,
+/// on the window's thread, to look at the start of it, and a dropped 4 GB
+/// image held the window until it had. The file's bytes as the drop hands
+/// them over are the fallback where the path cannot be opened.
 pub fn dropped_links(file: &dyn egui::DroppedFile) -> Vec<String> {
-    let bytes = file.bytes().ok().or_else(|| {
-        let path = file.path();
-        let text = path.to_string_lossy();
-        if text.contains("://") || text.starts_with("magnet:?") {
-            return Some(text.as_bytes().to_vec());
-        }
-        std::fs::read(path).ok()
-    });
-    let Some(bytes) = bytes else {
+    use std::io::Read;
+    let path = file.path();
+    let text = path.to_string_lossy();
+    if text.contains("://") || text.starts_with("magnet:?") {
+        return links_in(&text);
+    }
+    let kind = path
+        .extension()
+        .map(|e| e.to_string_lossy().to_ascii_lowercase());
+    if kind.is_some_and(|kind| !DROP_KINDS.contains(&kind.as_str())) {
         return Vec::new();
-    };
-    let text = String::from_utf8_lossy(&bytes[..bytes.len().min(64 * 1024)]);
-    links_in(&text)
+    }
+    let mut head = Vec::new();
+    let read = std::fs::File::open(path)
+        .and_then(|f| f.take(DROP_LOOK).read_to_end(&mut head))
+        .is_ok();
+    if !read {
+        head = file.bytes().unwrap_or_default();
+        head.truncate(DROP_LOOK as usize);
+    }
+    // A file with no extension is read only if it looks like text.
+    if head.contains(&0) {
+        return Vec::new();
+    }
+    links_in(&String::from_utf8_lossy(&head))
 }
 
 /// The clipboard watcher's memory: offered once, never again once dismissed,
@@ -262,6 +286,9 @@ pub struct DmApp {
 
     pub place: Place,
     pub selected: BTreeSet<Id>,
+    /// The row a shift-click extends the selection from: the last one
+    /// clicked without shift.
+    pub anchor: Option<Id>,
     pub sort: Option<(Column, bool)>,
     pub show_categories: bool,
     pub show_toolbar: bool,
@@ -346,6 +373,7 @@ impl DmApp {
             last_state: HashMap::new(),
             place: Place::All,
             selected: BTreeSet::new(),
+            anchor: None,
             sort: None,
             show_categories: true,
             show_toolbar: true,
@@ -522,7 +550,11 @@ impl DmApp {
                         }
                         let over = search.seen.len().saturating_sub(dm_shell::lists::MOST_SEEN);
                         search.seen.drain(..over);
-                        let _ = self.apply_settings(settings);
+                        if let Err(e) = self.apply_settings(settings) {
+                            self.problem(format!(
+                                "what the search {name} has seen could not be saved: {e}"
+                            ));
+                        }
                     }
                 }
                 Err(e) => self.problems.push(format!("the search {name} failed: {e}")),
@@ -558,9 +590,23 @@ impl DmApp {
                 search.last_run = epoch;
             }
         }
-        let _ = self.apply_settings(settings);
+        if let Err(e) = self.apply_settings(settings) {
+            // Still run, and not again for a minute; but said, since an
+            // unsaved last run means the search runs again at every launch.
+            self.problem(format!(
+                "when the saved searches last ran could not be saved: {e}"
+            ));
+        }
         for search in due {
             self.run_search(search);
+        }
+    }
+
+    /// A problem for the list above the downloads, once: one that recurs
+    /// each minute is not a new line each minute.
+    pub fn problem(&mut self, text: String) {
+        if !self.problems.contains(&text) {
+            self.problems.push(text);
         }
     }
 
@@ -702,7 +748,15 @@ impl DmApp {
         if let Some((action, at)) = self.countdown {
             if Instant::now() >= at {
                 self.countdown = None;
-                if let Err(e) = self.backend.platform.power(action) {
+                // In the list of problems as well as the status line: whoever
+                // set it is likely away, and a status line is overwritten.
+                // A refusal that comes back later is left for the list too,
+                // as anything running apart from the window does.
+                let notices = self.backend.notices();
+                let report: crate::power::Report =
+                    Box::new(move |why| dm_core::lock(&notices).push(why));
+                if let Err(e) = self.backend.platform.power(action, report) {
+                    self.problem(e.clone());
                     self.said = e.into();
                 }
             }
@@ -751,7 +805,12 @@ impl DmApp {
                 .map_or(0, |d| d.as_secs());
             if crate::update::due(self.applied.update_checked, now) {
                 self.weekly_pending = true;
-                crate::update::check(&self.backend.runtime, Arc::clone(&self.update), ctx.clone());
+                crate::update::check(
+                    &self.backend.runtime,
+                    self.client(),
+                    Arc::clone(&self.update),
+                    ctx.clone(),
+                );
                 let mut wanted = self.applied.clone();
                 wanted.update_checked = now;
                 if let Err(e) = self.apply_settings(wanted) {
@@ -1262,7 +1321,8 @@ impl DmApp {
             Command::MoveToQueue => {
                 self.dialogs.move_to_queue = Some((
                     targets.iter().map(|r| r.id).collect(),
-                    MAIN_QUEUE.to_string(),
+                    // As the dialog shows it; taken back to dm's own on OK.
+                    crate::i18n::name(MAIN_QUEUE),
                 ))
             }
             Command::RemoveFromQueue => {
@@ -1516,8 +1576,14 @@ impl DmApp {
             }
         }
         self.refresh();
+        let failed = urls.len().saturating_sub(added);
         match (added, last_error) {
             (0, Some(e)) => Err(e),
+            (_, Some(e)) => {
+                // The rest went in; the ones that did not are said, not lost.
+                self.problem(format!("{failed} of the links were not added: {e}"));
+                Ok(added)
+            }
             _ => Ok(added),
         }
     }
@@ -2156,6 +2222,7 @@ pub fn run_time_words() -> Vec<&'static str> {
     words.extend(crate::dialogs::TABS.iter().map(|(_, w)| *w));
     words.extend(crate::dialogs::THEMES.iter().map(|(_, w)| *w));
     words.extend(crate::dialogs::QUALITIES.iter().map(|(_, w)| *w));
+    words.extend(crate::dialogs::DAYS);
     words.extend(TOOL_STYLES.iter().map(|(_, w)| *w));
     words.extend(TOOLBAR.iter().map(|(_, _, w)| *w));
     words.extend(Command::ALL.iter().map(|c| c.label()));
@@ -2582,5 +2649,42 @@ mod toolbar_tests {
         assert_eq!(found, vec!["https://example.com/file.bin"]);
 
         let _ = std::fs::remove_file(path);
+    }
+
+    #[test]
+    fn a_dropped_file_is_read_for_links_only_if_it_is_text_and_only_its_start() {
+        #[derive(Debug)]
+        struct Dropped(std::path::PathBuf);
+        impl egui::DroppedFile for Dropped {
+            fn path(&self) -> &std::path::Path {
+                &self.0
+            }
+            fn bytes(&self) -> Result<Vec<u8>, String> {
+                // What a drop hands over: the whole file.
+                std::fs::read(&self.0).map_err(|e| e.to_string())
+            }
+        }
+        let dir = tempfile::tempdir().unwrap();
+
+        // A PDF with an address inside it queues nothing.
+        let pdf = dir.path().join("paper.pdf");
+        std::fs::write(&pdf, b"%PDF-1.7 https://example.com/cited.zip").unwrap();
+        assert!(dropped_links(&Dropped(pdf)).is_empty());
+
+        // A list is read, but only its first 64 KB.
+        let list = dir.path().join("links.txt");
+        let mut text = String::from("https://example.com/first.bin\n");
+        text.push_str(&" ".repeat(DROP_LOOK as usize));
+        text.push_str("https://example.com/past-the-start.bin\n");
+        std::fs::write(&list, text).unwrap();
+        assert_eq!(
+            dropped_links(&Dropped(list)),
+            vec!["https://example.com/first.bin"]
+        );
+
+        // A file with no extension that is not text is not read for links.
+        let blob = dir.path().join("blob");
+        std::fs::write(&blob, b"\0\x01https://example.com/x.bin").unwrap();
+        assert!(dropped_links(&Dropped(blob)).is_empty());
     }
 }

@@ -55,7 +55,8 @@ proptest! {
     #[test]
     fn any_menu_click_is_answered(value in any_json()) {
         if let Ok(click) = serde_json::from_value::<MenuClick>(value) {
-            let _ = menu_target(&click);
+            let _ = menu_target(&click, false);
+            let _ = menu_target(&click, true);
         }
     }
 

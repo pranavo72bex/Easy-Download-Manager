@@ -95,7 +95,11 @@ pub struct Control {
 impl Control {
     pub fn connect(port: u16, token: &str) -> Result<Control, String> {
         let stream = TcpStream::connect(("127.0.0.1", port)).map_err(|e| {
-            format!("dm is not answering on port {port} ({e}); start it with --control 0")
+            // Most often a port file left by a dm that has since gone.
+            format!(
+                "dm is not running: nothing answers on port {port} ({e}); start it with \
+                 --control 0"
+            )
         })?;
         let replies = BufReader::new(stream.try_clone().map_err(|e| e.to_string())?);
         let mut control = Control {

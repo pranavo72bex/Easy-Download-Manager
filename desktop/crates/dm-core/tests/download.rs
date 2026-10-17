@@ -331,6 +331,31 @@ async fn a_part_whose_end_never_reached_the_disk_is_repaired_on_resume() {
 }
 
 #[tokio::test]
+async fn a_power_cut_that_lost_a_block_before_written_ones_is_repaired_not_restarted() {
+    /* A disk puts blocks down in its own order, so a power cut can lose a
+     * block and keep the ones after it. The first difference then falls in
+     * a block of zeros with written bytes beyond it: still a power cut, to
+     * be repaired from there, not a changed file that starts everything
+     * again. */
+    let body = bytes(8 * MB);
+    let (addr, _, asked) = spawn_watched(Mode::Honest, body.clone(), None).await;
+    let dir = tempdir();
+    let opts = options(dir.path());
+    let mut part = body[MB..2 * MB].to_vec();
+    let lost = part.len() - 20 * 1024;
+    part[lost..lost + 4096].fill(0);
+    staged(&opts, &body, &[(0, body[..MB / 2].to_vec()), (1, part)]);
+
+    let done = download(&client(), &format!("http://{addr}/f.bin"), &opts)
+        .await
+        .unwrap();
+
+    assert!(std::fs::read(&done.path).unwrap() == body);
+    let from_start = asked.lock().unwrap().iter().any(|&(a, b)| a == 0 && b > a);
+    assert!(!from_start, "a power cut was taken for a changed file");
+}
+
+#[tokio::test]
 async fn a_part_that_agrees_with_the_server_is_kept() {
     let body = bytes(8 * MB);
     let (addr, _, asked) = spawn_watched(Mode::Honest, body.clone(), None).await;
@@ -687,9 +712,17 @@ async fn serve_stalled() -> (SocketAddr, Arc<AtomicUsize>) {
                         .unwrap();
                 }
                 let stalled = futures_util::stream::pending::<Result<Vec<u8>, std::io::Error>>();
+                // Each range's own, so each connection stalls on an honest
+                // answer rather than being refused for a dishonest one.
+                let asked = headers
+                    .get("range")
+                    .and_then(|r| r.to_str().ok())
+                    .and_then(|r| r.strip_prefix("bytes="))
+                    .unwrap_or("0-1048575")
+                    .to_string();
                 Response::builder()
                     .status(StatusCode::PARTIAL_CONTENT)
-                    .header("content-range", "bytes 0-1048575/8388608")
+                    .header("content-range", format!("bytes {asked}/8388608"))
                     .header("accept-ranges", "bytes")
                     .body(Body::from_stream(stalled))
                     .unwrap()

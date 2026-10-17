@@ -455,7 +455,7 @@ impl Dialogs {
         say(self.confirm_remove.is_some(), "Delete unfinished downloads");
         say(self.duplicate.is_some(), "Already in the list");
         say(self.skip_offer.is_some(), "Leave this site to the browser?");
-        say(self.add_url.is_some(), "New download");
+        say(self.add_url.is_some(), "Add URL");
         say(self.file_info.is_some(), "Download details");
         say(!self.progress.is_empty(), "Download progress");
         say(!self.complete.is_empty(), "Download complete");
@@ -740,7 +740,7 @@ fn add_url(app: &mut DmApp, ctx: &egui::Context) {
     };
     let mut open = true;
     let (mut ok, mut cancel) = (false, false);
-    window("New download").open(&mut open).show(ctx, |ui| {
+    window("Add URL").open(&mut open).show(ctx, |ui| {
         field(ui, t("Address"), &mut d.address, 420.0);
         ui.checkbox(&mut d.authorize, t("Needs a sign-in"));
         ui.add_enabled_ui(d.authorize, |ui| {
@@ -1124,7 +1124,7 @@ fn properties(app: &mut DmApp, ctx: &egui::Context) {
                         ui.label(t("Saved to"));
                         ui.label(&row.path);
                         ui.end_row();
-                        ui.label(t("Referer"));
+                        ui.label(t("Referrer"));
                         ui.label(&row.referrer);
                         ui.end_row();
                         let name = ui.label(t("Address"));
@@ -1557,7 +1557,12 @@ fn site_files(app: &mut DmApp, ctx: &egui::Context) {
     if let Some(name) = delete_saved {
         let mut settings = app.applied.clone();
         settings.site_searches.retain(|s| s.name != name);
-        let _ = app.apply_settings(settings);
+        if let Err(e) = app.apply_settings(settings) {
+            match app.dialogs.site_files.as_mut() {
+                Some(d) => d.says = e,
+                None => app.problem(e),
+            }
+        }
     }
     if let Some(chosen) = add {
         let with = AddOptions {
@@ -1609,16 +1614,21 @@ fn move_to_queue(app: &mut DmApp, ctx: &egui::Context) {
     let mut open = true;
     let mut ok = false;
     let known = app.backend.queues();
+    // The queue is held as shown, so the field reads in the language in
+    // force, and taken back to dm's own name on OK: typing "Principal" in
+    // Spanish is the Main queue, not a new one beside it.
     window("Move to queue").open(&mut open).show(ctx, |ui| {
         for q in &known {
-            ui.radio_value(queue, q.clone(), crate::i18n::name(q));
+            let shown = crate::i18n::name(q);
+            ui.radio_value(queue, shown.clone(), shown);
         }
         field(ui, t("Or a new queue"), queue, 240.0);
         ok = primary(ui, "OK").clicked();
     });
     if ok && !queue.trim().is_empty() {
+        let named = crate::i18n::queue_named(queue);
         for id in ids.iter() {
-            app.backend.set_queue(*id, queue.trim());
+            app.backend.set_queue(*id, &named);
         }
         open = false;
     }
@@ -1665,6 +1675,9 @@ fn find(app: &mut DmApp, ctx: &egui::Context) {
     app.dialogs.find_open = open;
 }
 
+/// The Scheduler's days, Sunday first, as `Schedule::days` numbers them.
+pub const DAYS: [&str; 7] = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+
 fn scheduler(app: &mut DmApp, ctx: &egui::Context) {
     let Some((schedule, says)) = app.dialogs.scheduler.as_mut() else {
         return;
@@ -1672,7 +1685,10 @@ fn scheduler(app: &mut DmApp, ctx: &egui::Context) {
     let mut open = true;
     let mut apply = false;
     window("Scheduler").open(&mut open).show(ctx, |ui| {
-        ui.label(tf("When {} and every other download may run.", &[&MAIN_QUEUE]));
+        ui.label(tf(
+            "When {} and every other download may run.",
+            &[&crate::i18n::name(MAIN_QUEUE)],
+        ));
         ui.checkbox(&mut schedule.enabled, t("Only download between set hours"));
         ui.add_enabled_ui(schedule.enabled, |ui| {
             ui.horizontal(|ui| {
@@ -1680,10 +1696,10 @@ fn scheduler(app: &mut DmApp, ctx: &egui::Context) {
                 field(ui, t("Stop at"), &mut schedule.to, 60.0);
             });
             ui.horizontal(|ui| {
-                for (day, word) in ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"].iter().enumerate() {
+                for (day, word) in DAYS.iter().enumerate() {
                     let day = day as u8;
                     let mut on = schedule.days.contains(&day);
-                    if ui.checkbox(&mut on, *word).changed() {
+                    if ui.checkbox(&mut on, t(word)).changed() {
                         if on {
                             schedule.days.push(day);
                             schedule.days.sort_unstable();
@@ -1700,7 +1716,17 @@ fn scheduler(app: &mut DmApp, ctx: &egui::Context) {
         }
         apply = ui.button(t("Apply")).clicked();
     });
-    if apply {
+    if apply
+        && schedule.enabled
+        && !(dm_core::schedule::is_time(&schedule.from) && dm_core::schedule::is_time(&schedule.to))
+    {
+        // Refused here, where it was typed: saved, "25:00" or "1am" turned
+        // the schedule off without a word.
+        *says = tf(
+            "\"{}\" to \"{}\": times are HH:MM in 24 hours, such as 01:00 or 23:30.",
+            &[&schedule.from, &schedule.to],
+        );
+    } else if apply {
         let mut wanted = app.applied.clone();
         wanted.schedule = schedule.clone();
         match app.apply_settings(wanted) {
@@ -1793,6 +1819,10 @@ pub fn changed_only(
 }
 
 fn options(app: &mut DmApp, ctx: &egui::Context) {
+    if app.dialogs.options.is_none() {
+        return;
+    }
+    let queues = app.backend.queues();
     let Some(d) = app.dialogs.options.as_mut() else {
         return;
     };
@@ -1918,7 +1948,21 @@ fn options(app: &mut DmApp, ctx: &egui::Context) {
                 let mut remove = None;
                 for (i, limit) in s.queue_limits.iter_mut().enumerate() {
                     ui.horizontal(|ui| {
-                        field(ui, t("Queue"), &mut limit.queue, 160.0);
+                        // Chosen from the queues there are, shown in the
+                        // language in force and kept by dm's own name: a
+                        // typed name had to be the English one to match.
+                        egui::ComboBox::new(("queue limit", i), t("Queue"))
+                            .selected_text(crate::i18n::name(&limit.queue))
+                            .show_ui(ui, |ui| {
+                                let mut offered = queues.clone();
+                                if !offered.contains(&limit.queue) {
+                                    offered.push(limit.queue.clone());
+                                }
+                                for q in offered {
+                                    let shown = crate::i18n::name(&q);
+                                    ui.selectable_value(&mut limit.queue, q, shown);
+                                }
+                            });
                         let name = ui.label(t("Files at once"));
                         ui.add(egui::DragValue::new(&mut limit.files).range(1..=10)).labelled_by(name.id);
                         if ui.button(t("Delete queue limit")).clicked() {
@@ -2077,19 +2121,31 @@ fn options(app: &mut DmApp, ctx: &egui::Context) {
                 sites: words(sites),
             })
             .collect();
-        let tab = d.tab;
+        // A category's name is its folder: one that is not one folder
+        // would be saved and then sort nothing, without a word.
+        // Only those this edit made or renamed: one an older dm saved is
+        // left out as the settings load, and must not fail every OK after.
+        if let Some(bad) = wanted.custom_categories.iter().find(|c| {
+            !dm_core::category::one_folder(&c.name)
+                && !d.opened.custom_categories.iter().any(|o| o.name == c.name)
+        }) {
+            d.says = tf(
+                "\"{}\" cannot be a category: its name is also its folder, so it cannot hold / or \\ or be . or ..",
+                &[&bad.name],
+            );
+            d.tab = Tab::SaveTo;
+            return;
+        }
         let applied = changed_only(&d.opened, &wanted, &app.applied)
             .and_then(|wanted| app.apply_settings(wanted));
         match applied {
             Ok(()) => app.dialogs.options = None,
             Err(e) => {
-                // Opened again on what is in force, rather than left showing
-                // what is not: the draft, the words typed and what OK
-                // compares against all start from there.
-                let back = app.applied.clone();
-                app.dialogs.open_options(&back);
+                // Left open with what was typed, and why it was not taken:
+                // reopening it on what is in force threw every edit away to
+                // say what was wrong with one. OK compares against what it
+                // opened on, so another try changes only what was changed.
                 if let Some(d) = app.dialogs.options.as_mut() {
-                    d.tab = tab;
                     d.says = e;
                 }
             }
@@ -2136,10 +2192,16 @@ fn about(app: &mut DmApp, ctx: &egui::Context) {
         if ui.button(t("Check for updates")).clicked()
             || std::mem::take(&mut app.dialogs.check_update)
         {
-            crate::update::check(&app.backend.runtime, Arc::clone(&app.update), ctx.clone());
+            let client = app.client();
+            crate::update::check(
+                &app.backend.runtime,
+                client,
+                Arc::clone(&app.update),
+                ctx.clone(),
+            );
         }
         let state = dm_core::lock(&app.update).clone();
-        ui.label(RichText::new(state.to_string()).weak());
+        ui.label(RichText::new(state.shown()).weak());
         if let crate::update::Update::Newer(_, Some(installer)) = state {
             if ui.button(t("Download the update")).clicked() {
                 app.said = match app.backend.add(&installer) {

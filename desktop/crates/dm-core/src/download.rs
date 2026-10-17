@@ -302,6 +302,29 @@ pub async fn download_reporting(
     options: &Options,
     report: Option<tokio::sync::mpsc::Sender<Update>>,
 ) -> Result<Finished, Error> {
+    /* A file found changed on the server has had its staged parts disowned
+     * (their plan is gone), so a second go starts from nothing and fetches
+     * the version that is there now — what anyone asking for the file
+     * wants, rather than a failed row and a Retry. Once: a server whose
+     * bytes differ on every request fails the second time and says so. */
+    match fetch_reporting(client, url, options, report.clone()).await {
+        Err(Error::Changed) => {
+            // The parts go as well as their plan: a connection that was
+            // writing the plan down as the change was found can put it back,
+            // and a plan with no parts to point at adopts nothing.
+            discard_staged(&options.parts_dir).await;
+            fetch_reporting(client, url, options, report).await
+        }
+        outcome => outcome,
+    }
+}
+
+async fn fetch_reporting(
+    client: &reqwest::Client,
+    url: &str,
+    options: &Options,
+    report: Option<tokio::sync::mpsc::Sender<Update>>,
+) -> Result<Finished, Error> {
     // Before anything is fetched, by every route below.
     writable(&options.dest_dir).await?;
 
@@ -371,7 +394,22 @@ pub async fn download_reporting(
      * Where a yt-dlp is installed to make sense of that, the page is handed
      * to it rather than saved as its own HTML, which is never the download
      * anyone meant. */
-    if crate::ytdlp::is_page(info.content_type.as_deref()) {
+    /* Unless the address names a file. A `.zip` link answered as text/html
+     * is either the zip with a careless type, which is fetched as the file
+     * it is, or a page standing in for it — a sign-in, an expired link —
+     * which is said for what it is rather than handed to yt-dlp, which
+     * would save the page as a "video" or fail about an unknown site. The
+     * first bytes tell the two apart. */
+    let page = crate::ytdlp::is_page(info.content_type.as_deref());
+    if page && names_a_file(url) {
+        if starts_as_html(client, url, options).await {
+            return Err(Error::Internal(
+                "that link answered with a web page rather than the file — it may have expired, \
+                 or need a sign-in"
+                    .into(),
+            ));
+        }
+    } else if page {
         if crate::ytdlp::available() {
             return crate::ytdlp::download_ytdlp(url, options, report).await;
         }
@@ -528,6 +566,69 @@ const MANIFEST_CAP: usize = 8 * 1024 * 1024;
 /// body and a `.torrent` file all went out bare, so a download the browser
 /// had just made with its page named failed in the app with a 403 one
 /// request after the probe had passed.
+/// Whether the address's last path segment names a file by a type dm knows
+/// as one — an archive, a program, a document, media. Not any dotted name:
+/// `/details/night.of.the.living.dead` and `/@some.handle` are pages.
+fn names_a_file(url: &str) -> bool {
+    let Ok(parsed) = url::Url::parse(url) else {
+        return false;
+    };
+    let name = parsed
+        .path_segments()
+        .and_then(|mut s| s.next_back())
+        .unwrap_or("");
+    name.contains('.') && crate::category::classify(name, None) != crate::category::Category::Other
+}
+
+/// Whether the body at `url` begins as an HTML document, from its first
+/// bytes: a few hundred are asked for, and a server that sends the whole
+/// body anyway is read no further than that.
+async fn starts_as_html(client: &reqwest::Client, url: &str, options: &Options) -> bool {
+    let request = get(
+        client,
+        url,
+        options.referrer.as_deref(),
+        options.sign_in.as_ref(),
+    )
+    .header(reqwest::header::RANGE, "bytes=0-1023");
+    let Ok(res) = request.send().await else {
+        return false;
+    };
+    // An error page is not the file either, whatever it starts with.
+    if !res.status().is_success() {
+        return true;
+    }
+    let mut stream = res.bytes_stream();
+    let mut head = Vec::new();
+    while head.len() < 1024 {
+        match futures_util::StreamExt::next(&mut stream).await {
+            Some(Ok(chunk)) => head.extend_from_slice(&chunk),
+            _ => break,
+        }
+    }
+    looks_like_html(&head)
+}
+
+/// HTML by its opening: past any byte-order mark and white space, a
+/// doctype, `<html`, `<head`, or a comment followed by one of them.
+fn looks_like_html(head: &[u8]) -> bool {
+    let text = String::from_utf8_lossy(head.get(..1024).unwrap_or(head)).to_ascii_lowercase();
+    let text = text.trim_start_matches('\u{feff}').trim_start();
+    [
+        "<!doctype html",
+        "<html",
+        "<head",
+        "<!--",
+        "<body",
+        "<title",
+        "<meta",
+        "<script",
+        "<link",
+    ]
+    .iter()
+    .any(|tag| text.starts_with(tag))
+}
+
 pub(crate) fn get(
     client: &reqwest::Client,
     url: &str,
@@ -864,11 +965,11 @@ async fn run(
     // Ranges a connection gave up on, for the others to take.
     let orphans = Arc::new(std::sync::Mutex::new(Vec::<usize>::new()));
     let active = Arc::new(std::sync::atomic::AtomicUsize::new(workers.max(1)));
-    let mut running = Vec::new();
+    let mut running = tokio::task::JoinSet::new();
     for _ in 0..workers.max(1) {
         let (client, job, next) = (client.clone(), Arc::clone(job), Arc::clone(&next));
         let (orphans, active) = (Arc::clone(&orphans), Arc::clone(&active));
-        running.push(tokio::spawn(async move {
+        running.spawn(async move {
             loop {
                 let index = next.fetch_add(1, Ordering::Relaxed);
                 let orphan = if index < planned {
@@ -904,13 +1005,57 @@ async fn run(
             }
             active.fetch_sub(1, Ordering::SeqCst);
             Ok::<(), Error>(())
-        }));
+        });
     }
 
-    for worker in running {
+    /* The first failure is the download's. The other connections are then
+     * stopped and waited out before it is returned: dropping their handles
+     * leaves them running, still writing parts and the plan beside them —
+     * under a download that has already failed, or under the fresh attempt
+     * a changed file starts, which would find the old version's parts
+     * adopted again. A pause or a cancel stops every connection by itself,
+     * each flushing what it has, so those get a moment to; one stalled
+     * where the stop does not reach it is stopped after that. */
+    let mut failed = None;
+    // Once a pause or a cancel is in, how long the rest get to flush.
+    let mut grace: Option<tokio::time::Instant> = None;
+    // As each connection ends, in whatever order: a failure is seen when it
+    // happens, not after the connections spawned before it are done.
+    loop {
+        let ended = match grace {
+            Some(until) => match tokio::time::timeout_at(until, running.join_next()).await {
+                Ok(ended) => ended,
+                // One stalled where no stop reaches it: stopped here.
+                Err(_) => {
+                    running.abort_all();
+                    grace = None;
+                    continue;
+                }
+            },
+            None => running.join_next().await,
+        };
+        let Some(ended) = ended else { break };
         // A worker that panicked is a bug, not a network condition, and is
-        // worth surfacing as itself rather than as a download failure.
-        worker.await.map_err(|e| Error::Internal(e.to_string()))??;
+        // worth surfacing as itself rather than as a download failure. One
+        // stopped here on purpose is not news.
+        let outcome = match ended {
+            Ok(outcome) => outcome,
+            Err(e) if e.is_cancelled() => continue,
+            Err(e) => Err(Error::Internal(e.to_string())),
+        };
+        if let Err(e) = outcome {
+            if failed.is_none() {
+                if matches!(e, Error::Paused | Error::Cancelled) {
+                    grace = Some(tokio::time::Instant::now() + STOP_GRACE);
+                } else {
+                    running.abort_all();
+                }
+                failed = Some(e);
+            }
+        }
+    }
+    if let Some(e) = failed {
+        return Err(e);
     }
     // A range given up on after the others had finished: fetched now, on
     // one connection, its failure this download's.
@@ -1155,6 +1300,9 @@ async fn attempt_segment(
         // of the whole file that way, and that is the file.
         let all_of_it = from == 0 && stated == Some(end + 1);
         if !(same && all_of_it) {
+            if !same {
+                forget_plan(job).await;
+            }
             return Err(if same {
                 Error::RangesIgnored
             } else {
@@ -1210,6 +1358,31 @@ async fn attempt_segment(
         tokio::io::AsyncReadExt::read_exact(&mut on_disk, &mut tail).await?;
         drop(on_disk);
         let (agree, rest) = compare_tail(&mut stream, &tail, &job.control).await?;
+        /* What a power cut leaves is blocks never written: zeros, a whole
+         * disk block at a time, and not always the last ones — a disk puts
+         * blocks down in its own order. So the block the first difference
+         * falls in decides. All zeros, it never reached the disk, and the
+         * part is cut back to there and fetched again. Written and still
+         * different, it is another version of the file — republished by a
+         * server that names no version, so nothing else noticed — and
+         * cutting back would splice the two into one file and call it
+         * finished. Everything staged belongs to the old one. */
+        let differs = (agree as usize) < tail.len() && rest.is_some();
+        if differs {
+            let base = already - check;
+            let at = base + agree;
+            // From the first difference to the end of its block: the bytes
+            // before it agree, so they say nothing either way.
+            let block_end = (at - at % DISK_BLOCK + DISK_BLOCK).min(already);
+            let written = tail
+                .get(agree as usize..(block_end - base) as usize)
+                .unwrap_or(&[]);
+            if written.iter().any(|&b| b != 0) {
+                drop(file);
+                forget_plan(job).await;
+                return Err(Error::Changed);
+            }
+        }
         carry = rest;
         let keep = already - check + agree;
         if keep < already {
@@ -1377,6 +1550,32 @@ async fn attempt_segment(
 /// than a filesystem leaves unwritten at a power cut, little enough to cost
 /// nothing beside the rest.
 const RESUME_CHECK: u64 = 64 * 1024;
+
+/// How long the other connections get to put what they hold on disk after a
+/// pause or a cancel, before the ones still going are stopped.
+const STOP_GRACE: Duration = Duration::from_secs(1);
+
+/// The unit a disk writes in, and so the unit a power cut loses.
+const DISK_BLOCK: u64 = 4096;
+
+/// Removes the plan and the part files staged under `dir`.
+async fn discard_staged(dir: &Path) {
+    let _ = fs::remove_file(crate::plan::record_path(dir)).await;
+    if let Ok(mut listing) = fs::read_dir(dir).await {
+        while let Ok(Some(entry)) = listing.next_entry().await {
+            if entry.file_name().to_string_lossy().starts_with("part-") {
+                let _ = fs::remove_file(entry.path()).await;
+            }
+        }
+    }
+}
+
+/// After the file is found changed: the plan its parts were fetched under
+/// goes, so the next attempt adopts none of them and starts afresh, rather
+/// than resuming into a file that no longer exists on the server.
+async fn forget_plan(job: &Job) {
+    let _ = fs::remove_file(crate::plan::record_path(&job.parts)).await;
+}
 
 /// Reads `tail.len()` bytes off the stream against `tail`: how many agree
 /// from the front, and whatever the stream gave past them (from the first
@@ -2069,7 +2268,8 @@ fn part_path(parts_dir: &Path, index: usize) -> PathBuf {
 async fn writable(dir: &Path) -> Result<(), Error> {
     let said = |e: std::io::Error| {
         Error::Internal(format!(
-            "the download folder {} cannot be written to ({e}); choose another under Settings",
+            "the folder {} cannot be written to ({e}); choose another for this download \
+             (Move/Rename) or for every download (Options › Folders)",
             dir.display()
         ))
     };
@@ -2155,6 +2355,26 @@ mod tests {
     }
 
     use super::*;
+
+    #[test]
+    fn only_a_known_file_type_makes_an_address_a_file() {
+        assert!(names_a_file("https://e.com/files/report.zip"));
+        assert!(names_a_file("https://e.com/a/b/Setup.EXE?x=1"));
+        assert!(!names_a_file(
+            "https://archive.org/details/night.of.the.living.dead"
+        ));
+        assert!(!names_a_file("https://video.example/@some.handle"));
+        assert!(!names_a_file("https://e.com/view.php?id=4"));
+        assert!(!names_a_file("https://e.com/watch"));
+    }
+
+    #[test]
+    fn a_page_is_known_by_its_opening() {
+        assert!(looks_like_html(b"\xef\xbb\xbf  <!DOCTYPE html><html>"));
+        assert!(looks_like_html(b"\n<script>location='/login'</script>"));
+        assert!(!looks_like_html(b"PK\x03\x04 zip bytes"));
+        assert!(!looks_like_html(b"%PDF-1.7"));
+    }
 
     #[tokio::test]
     async fn two_files_finishing_at_once_never_share_a_name() {

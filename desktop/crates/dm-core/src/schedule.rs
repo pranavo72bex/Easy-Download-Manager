@@ -11,13 +11,20 @@
 use chrono::{Datelike, Local, Timelike};
 
 /// A window in the local week.
+///
+/// Every field has a default, so a settings file written by hand or by an
+/// older dm with one of them missing still reads, rather than taking the
+/// whole file down with it.
 #[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+#[serde(default)]
 pub struct Schedule {
     pub enabled: bool,
     /// `HH:MM`, local time.
     pub from: String,
     pub to: String,
-    /// Days the window applies on, 0 = Sunday through 6 = Saturday.
+    /// Days the window applies on, 0 = Sunday through 6 = Saturday. None
+    /// listed means every day, which is what the Scheduler says under its
+    /// day boxes: unticking them all is not a way to switch it off.
     pub days: Vec<u8>,
 }
 
@@ -30,6 +37,13 @@ impl Default for Schedule {
             days: (0..=6).collect(),
         }
     }
+}
+
+/// Whether `text` is a time a schedule can use, `HH:MM` in 24 hours. The
+/// Scheduler refuses anything else rather than saving a window that would
+/// then be quietly ignored.
+pub fn is_time(text: &str) -> bool {
+    minutes(text).is_some()
 }
 
 /// Minutes past local midnight, or `None` if that is not a time.
@@ -64,9 +78,10 @@ impl Schedule {
         if from == to {
             return true;
         }
+        let on = |day: u8| self.days.is_empty() || self.days.contains(&day);
 
         if from < to {
-            self.days.contains(&weekday) && (from..to).contains(&minute_of_day)
+            on(weekday) && (from..to).contains(&minute_of_day)
         } else {
             /* Wrapping past midnight, which is the ordinary case.
              *
@@ -75,10 +90,9 @@ impl Schedule {
              * window at two in the morning, and checking today's date at
              * that point would close it. */
             if minute_of_day >= from {
-                self.days.contains(&weekday)
+                on(weekday)
             } else if minute_of_day < to {
-                let yesterday = (weekday + 6) % 7;
-                self.days.contains(&yesterday)
+                on((weekday + 6) % 7)
             } else {
                 false
             }
@@ -151,6 +165,35 @@ mod tests {
         };
         assert!(weekdays.open_at(3, 2 * 60));
         assert!(!weekdays.open_at(0, 2 * 60), "Sunday was not listed");
+    }
+
+    #[test]
+    fn no_day_ticked_means_every_day() {
+        let any_day = Schedule {
+            days: Vec::new(),
+            ..nightly()
+        };
+        for day in 0..=6 {
+            assert!(any_day.open_at(day, 2 * 60), "day {day} at 02:00");
+            assert!(!any_day.open_at(day, 12 * 60), "day {day} at midday");
+        }
+    }
+
+    #[test]
+    fn only_a_24_hour_time_is_a_time() {
+        for good in ["00:00", "7:05", "23:59", " 01:00 "] {
+            assert!(is_time(good), "{good}");
+        }
+        for bad in ["25:00", "1am", "12:60", "", "12", "ab:cd"] {
+            assert!(!is_time(bad), "{bad}");
+        }
+    }
+
+    #[test]
+    fn a_schedule_missing_fields_reads_with_defaults() {
+        let read: Schedule = serde_json::from_str(r#"{"enabled": true}"#).unwrap_or_default();
+        assert!(read.enabled);
+        assert_eq!(read.from, Schedule::default().from);
     }
 
     #[test]

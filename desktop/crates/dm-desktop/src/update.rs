@@ -9,6 +9,8 @@
 
 use std::sync::{Arc, Mutex};
 
+use crate::i18n::{t, tf};
+
 /// Where dm's documentation is: the project's README.
 pub const HELP: &str = "https://github.com/pranavo72bex/Easy-Download-Manager#readme";
 
@@ -30,32 +32,23 @@ pub enum Update {
     Failed(String),
 }
 
-impl std::fmt::Display for Update {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+impl Update {
+    /// What About says, in the language in force.
+    pub fn shown(&self) -> String {
+        let running = env!("CARGO_PKG_VERSION");
         match self {
-            Update::NotAsked => write!(
-                f,
-                "Asked for rather than done behind your back — a download manager that \
-                 restarted itself mid-transfer would be worse than the bug."
+            Update::NotAsked => t("Not checked yet.").to_owned(),
+            Update::Asking => t("Checking…").to_owned(),
+            Update::Current => tf("This is the newest version ({}).", &[&running]),
+            Update::Newer(v, Some(_)) => tf(
+                "dm {} is out (this is {}). Its installer can be downloaded in dm, and opened when it has finished.",
+                &[v, &running],
             ),
-            Update::Asking => write!(f, "Checking…"),
-            Update::Current => write!(
-                f,
-                "This is the newest version ({}).",
-                env!("CARGO_PKG_VERSION")
+            Update::Newer(v, None) => tf(
+                "dm {} is out (this is {}). It is on the project's releases page.",
+                &[v, &running],
             ),
-            Update::Newer(v, Some(_)) => write!(
-                f,
-                "dm {v} is out (this is {}). Its installer can be downloaded in dm, \
-                 and opened when it has finished.",
-                env!("CARGO_PKG_VERSION")
-            ),
-            Update::Newer(v, None) => write!(
-                f,
-                "dm {v} is out (this is {}). It is on the project's releases page.",
-                env!("CARGO_PKG_VERSION")
-            ),
-            Update::Failed(why) => write!(f, "Could not reach the update server: {why}"),
+            Update::Failed(why) => tf("Could not reach the update server: {}", &[why]),
         }
     }
 }
@@ -81,8 +74,14 @@ pub fn version_in(manifest: &str) -> Option<String> {
 /// among the addresses a `latest.json` lists under `installers`, by the
 /// names cargo-packager gives them: `dm_1.2.3_aarch64.dmg`,
 /// `dm_1.2.3_x64-setup.exe`, `dm_1.2.3_amd64.deb`, `dm_1.2.3_x86_64.AppImage`.
-/// On Linux the AppImage, which runs on any distribution.
-pub fn installer_in(manifest: &str, os: &str, arch: &str) -> Option<String> {
+/// On Linux only for a dm that is itself an AppImage (`appimage`): one
+/// installed from a .deb, an .rpm or the Arch package is updated through
+/// the package manager, and an AppImage beside it would be a second copy
+/// that takes the browser's hand-offs over from the installed one.
+pub fn installer_in(manifest: &str, os: &str, arch: &str, appimage: bool) -> Option<String> {
+    if os == "linux" && !appimage {
+        return None;
+    }
     let value: serde_json::Value = serde_json::from_str(manifest).ok()?;
     let all: Vec<&str> = value
         .get("installers")?
@@ -121,11 +120,19 @@ pub fn due(last: u64, now: u64) -> bool {
     now < last || now - last >= WEEK
 }
 
-pub fn check(runtime: &tokio::runtime::Handle, into: Arc<Mutex<Update>>, ctx: egui::Context) {
+/// Asks, with `client`: the one built from the settings, so the question
+/// goes through the proxy downloads go through. A plain client went out
+/// directly, past a proxy a person had set so that nothing would.
+pub fn check(
+    runtime: &tokio::runtime::Handle,
+    client: dm_core::reqwest::Client,
+    into: Arc<Mutex<Update>>,
+    ctx: egui::Context,
+) {
     *dm_core::lock(&into) = Update::Asking;
     runtime.spawn(async move {
         let outcome = async {
-            let res = dm_core::client()
+            let res = client
                 .get(ENDPOINT)
                 .send()
                 .await
@@ -136,7 +143,12 @@ pub fn check(runtime: &tokio::runtime::Handle, into: Arc<Mutex<Update>>, ctx: eg
             let text = res.text().await.map_err(|e| e.to_string())?;
             let published = version_in(&text).ok_or("the release names no version")?;
             Ok(if newer(&published, env!("CARGO_PKG_VERSION")) {
-                let installer = installer_in(&text, std::env::consts::OS, std::env::consts::ARCH);
+                let installer = installer_in(
+                    &text,
+                    std::env::consts::OS,
+                    std::env::consts::ARCH,
+                    std::env::var_os("APPIMAGE").is_some(),
+                );
                 Update::Newer(published, installer)
             } else {
                 Update::Current
@@ -189,7 +201,7 @@ mod tests {
             ],
         })
         .to_string();
-        let pick = |os, arch| installer_in(&manifest, os, arch);
+        let pick = |os, arch| installer_in(&manifest, os, arch, true);
         assert_eq!(
             pick("macos", "aarch64"),
             Some(format!("{base}/dm_1.2.3_aarch64.dmg"))
@@ -214,7 +226,12 @@ mod tests {
         );
         assert_eq!(pick("freebsd", "x86_64"), None);
         assert_eq!(
-            installer_in(r#"{"version":"1"}"#, "macos", "aarch64"),
+            installer_in(&manifest, "linux", "x86_64", false),
+            None,
+            "a packaged dm is updated by its package manager"
+        );
+        assert_eq!(
+            installer_in(r#"{"version":"1"}"#, "macos", "aarch64", false),
             None,
             "an older manifest"
         );

@@ -1,6 +1,7 @@
 [package]
 name = "dm-desktop"
 version = "0.1.0"
+authors = ["pranavo72bex <pranavj304@gmail.com>"]
 license = "MIT"
 edition = "2021"
 description = "dm — a download manager, with a window drawn in Rust"
@@ -105,6 +106,11 @@ signingIdentity = "-"
 # used to bring the X11 ones along; without it a system lacking them could
 # not open the window ("Failed to load one of xlib's shared libraries").
 [package.metadata.packager.deb]
+# dm's own entry rather than the one generated from the binary's name: the
+# window's app id is "dm", and a launcher without StartupWMClass=dm is not
+# matched to its window on Wayland (a second, generic icon in the dock).
+# It also makes dm the handler for magnet links.
+desktopTemplate = "../../packaging/deb.desktop"
 depends = [
   "libx11-6",
   "libxcursor1",
