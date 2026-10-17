@@ -182,6 +182,10 @@ for i in range(desktop.childCount):
             r, n = node.getRoleName(), node.name or ""
         except Exception:
             return
+        # A newer at-spi2-core (2.54 on Fedora 41, Arch's) names the role
+        # "button"; Debian 12's (2.46) says "push button". The same control.
+        if r == "button":
+            r = "push button"
         if dump and n:
             seen.append(f"{r}: {n}")
         if r in ("document web", "document frame") and role not in ("document web", "*doc"):

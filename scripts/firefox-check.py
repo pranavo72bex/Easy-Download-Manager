@@ -408,7 +408,7 @@ def main():
             kept = registration.read_bytes()
         registration.write_text(json.dumps({
             "name": "com.dm.engine", "description": "dm (firefox-check)", "path": str(shim),
-            "type": "stdio", "allowed_extensions": ["dm@pranavo72bex.github.io"],
+            "type": "stdio", "allowed_extensions": ["easy-download-manager@pranavo72bex.github.io"],
         }))
         server = common.Server(("127.0.0.1", 0), common.Handler)
         threading.Thread(target=server.serve_forever, daemon=True).start()

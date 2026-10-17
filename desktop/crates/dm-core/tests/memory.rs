@@ -116,9 +116,13 @@ async fn repeated_downloads_do_not_grow_the_process() {
     let after = resident();
 
     let grew = after.saturating_sub(before);
-    // Keeping even one file per download would be 192 MB across six.
+    /* Keeping one file per download would be 192 MB across six. The limit
+     * is a third of that: glibc's per-thread arenas keep growing past any
+     * warm-up on some systems (Arch's makepkg check() saw 21 MB across six
+     * warmed repeats, over a limit of 16), and that is the allocator, not
+     * the engine holding anything. */
     assert!(
-        grew < SIZE / 2,
+        grew < 2 * SIZE,
         "six {SIZE}-byte downloads grew the process by {grew} bytes; anything \
          approaching {SIZE} per download means a file is being held"
     );

@@ -537,7 +537,7 @@ impl Dialogs {
 /// that translate alike stay two windows.
 fn window(title: &'static str) -> egui::Window<'static> {
     egui::Window::new(t(title))
-        .id(egui::Id::new(("dm-dialog", title)))
+        .id(egui::Id::unique(("dm-dialog", title)))
         .collapsible(false)
         .resizable(false)
         // Wide enough for its title in the 18 px heading.
@@ -915,7 +915,7 @@ fn progress(app: &mut DmApp, ctx: &egui::Context) {
         let mut open = true;
         let (mut pause, mut resume, mut cancel) = (false, false, false);
         egui::Window::new(tf("Download progress — {}", &[&name_of(&row)]))
-            .id(egui::Id::new(("progress", id)))
+            .id(egui::Id::unique(("progress", id)))
             .collapsible(false)
             .resizable(false)
             .default_width(460.0)
@@ -1052,7 +1052,7 @@ fn complete(app: &mut DmApp, ctx: &egui::Context) {
         };
         let mut close = false;
         egui::Window::new(t("Download complete"))
-            .id(egui::Id::new(("complete", id)))
+            .id(egui::Id::unique(("complete", id)))
             .collapsible(false)
             .resizable(false)
             .show(ctx, |ui| {
@@ -1097,7 +1097,7 @@ fn properties(app: &mut DmApp, ctx: &egui::Context) {
             continue;
         };
         egui::Window::new(t("File properties"))
-            .id(egui::Id::new(("properties", id)))
+            .id(egui::Id::unique(("properties", id)))
             .collapsible(false)
             .resizable(false)
             .show(ctx, |ui| {

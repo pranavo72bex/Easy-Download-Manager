@@ -3,6 +3,7 @@
 #
 #   sh scripts/package.sh                 # builds dist/firefox
 #   sh scripts/linux-firefox-check.sh
+#   DM_DISTRO=ubuntu2204 sh scripts/linux-firefox-check.sh   # or fedora
 #
 # Runs `firefox-check.py native` with DM_REAL_INPUT=1 under Xvfb with a window
 # manager and xdotool, so besides everything that check drives, a real
@@ -12,6 +13,16 @@
 # extension is ignored by git, so it is added to the stream.
 set -e
 cd "$(dirname "$0")/.."
+# DM_DISTRO runs the same check in Ubuntu 22.04's or Fedora 41's own image,
+# dm built here in Debian and copied in (scripts/linux/human-distro.sh), with
+# the screen shot every few seconds into ./human-shots/firefox-<distro>.
+# Fedora's Firefox is its own package; Ubuntu's is a snap, which cannot run
+# in a container, so there it is Mozilla's tarball, fetched as below.
+case "${DM_DISTRO:-debian}" in
+  debian) ;;
+  ubuntu2204|fedora) exec sh scripts/linux/human-distro.sh firefox "$DM_DISTRO" ;;
+  *) echo "DM_DISTRO is debian, ubuntu2204 or fedora"; exit 2 ;;
+esac
 [ -f dist/firefox/pkg/dm_catcher_bg.wasm ] || { echo "no dist/firefox — run: sh scripts/package.sh"; exit 1; }
 docker build -t dm-linux-check scripts/linux
 { git ls-files -z --cached --others --exclude-standard; find dist/firefox -type f -print0; } \

@@ -412,6 +412,21 @@ ends, as the cookies already were: any local user's `ps` reads a command
 line. The process group is ended with `libc::killpg`, not by running
 `kill`, which a minimal `PATH` may not find.
 
+## 2026-10-17: egui 0.37, for screen readers on at-spi2-core 2.62
+
+at-spi2-core 2.62 (Arch since 2026) dropped the bus's `ScreenReaderEnabled`
+property and keeps only `IsEnabled`. egui 0.36's accesskit_unix 0.21 waited
+for a change to `ScreenReaderEnabled` before putting the window on the
+accessibility bus, so there dm was invisible to Orca and to every AT-SPI
+lookup; accesskit_unix 0.24 (egui-winit 0.37) listens to `IsEnabled`. A
+`[patch.crates-io]` of accesskit_winit alone was the fallback, not needed.
+What 0.37 changed under dm, kept as it was: eframe's clipboard and egui's
+emoji fonts became opt-in features (`clipboard`, `monochrome_emoji_fonts`),
+both turned on; a screenshot is now a callback (`request_screenshot`), not
+an input event. 0.37's test harness panics on a glyph no font has, which
+found the table's sort arrows (↑ ↓) drawn as boxes all along: Hack, already
+bundled, is now the last fallback for the proportional families.
+
 ## Tried and dropped
 
 - **A JSON-RPC server speaking another download tool's protocol** — built,

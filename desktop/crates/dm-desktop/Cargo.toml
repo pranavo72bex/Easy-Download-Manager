@@ -21,10 +21,12 @@ path = "src/lib.rs"
 [dependencies]
 dm-core = { path = "../dm-core" }
 dm-shell = { path = "../dm-shell" }
-eframe = { version = "0.36", default-features = false, features = ["default_fonts", "glow", "persistence", "wayland", "x11", "accesskit"] }
-egui = "0.36"
+eframe = { version = "0.37", default-features = false, features = ["default_fonts", "glow", "persistence", "wayland", "x11", "accesskit", "clipboard"] }
+# The emoji fonts 0.36 bundled (◀ ▶ and the like in menus and buttons),
+# which 0.37 left out of its default fonts.
+egui = { version = "0.37", features = ["monochrome_emoji_fonts"] }
 # The download list: a sortable, resizable table.
-egui_extras = "0.36"
+egui_extras = "0.37"
 # `signal`: a logout or `kill` quits dm as Program › Exit does.
 tokio = { version = "1", features = ["rt-multi-thread", "time", "sync", "signal"] }
 serde_json = "1"
@@ -64,7 +66,7 @@ proptest = "1"
 dm-protocol = { path = "../dm-protocol" }
 # The window driven the way a person drives it, through its accessibility
 # tree, and rendered offscreen for a picture of what it draws.
-egui_kittest = { version = "0.36", features = ["wgpu", "snapshot"] }
+egui_kittest = { version = "0.37", features = ["wgpu", "snapshot"] }
 tempfile = "3"
 axum = "0.7"
 futures-util = "0.3"

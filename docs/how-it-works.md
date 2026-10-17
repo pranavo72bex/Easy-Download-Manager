@@ -124,8 +124,8 @@ one click, because an installer may name a Store extension in a policy.
 
 The unpacked Chrome build's id is fixed by the public key in its manifest
 (`fojpndfjodldkfbamkofdmnfedgjjejo`) and Firefox's by its manifest
-(`dm@pranavo72bex.github.io`), so registering needs no id unless the
-extension came from a store. `make help` lists the rest. `PREFIX=/usr/local sudo make install`
+(`easy-download-manager@pranavo72bex.github.io`), so registering needs no
+id unless the extension came from a store. `make help` lists the rest. `PREFIX=/usr/local sudo make install`
 installs system-wide instead of under `~/.local`.
 
 ### Or by hand

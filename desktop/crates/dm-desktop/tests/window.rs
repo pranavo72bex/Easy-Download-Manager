@@ -2784,8 +2784,11 @@ fn press(h: &mut Harness<'_, DmApp>, path: &[&str]) {
                         .is_some_and(|key| !key.starts_with(|c: char| c.is_lowercase()))
             })
         } else {
-            // A submenu's name carries its arrow.
-            h.query_all_by_label_contains(name).last()
+            // A submenu's name may carry its arrow. Text on screen that
+            // merely mentions the name ("Speed limiter on: 100 KB/s." in
+            // the status bar) is not the submenu.
+            h.query_all_by_label_contains(name)
+                .rfind(|n| n.accesskit_node().role() != egui::accesskit::Role::Label)
         };
         found
             .unwrap_or_else(|| panic!("{name:?} is not on screen (clicking {path:?})"))
@@ -2808,7 +2811,8 @@ fn greyed(h: &mut Harness<'_, DmApp>, path: &[&str]) -> bool {
         let menu = if i == 0 {
             h.query_all_by_label(name).last()
         } else {
-            h.query_all_by_label_contains(name).last()
+            h.query_all_by_label_contains(name)
+                .rfind(|n| n.accesskit_node().role() != egui::accesskit::Role::Label)
         };
         menu.unwrap_or_else(|| panic!("{name:?} is not on screen"))
             .click();

@@ -363,11 +363,6 @@ pub struct DmApp {
     pub headless: bool,
     /// Requests from the control protocol, when it is on.
     control: Option<std::sync::mpsc::Receiver<crate::control::Request>>,
-    /// Screenshots asked for and not yet taken, with where to put them.
-    shots: Vec<(
-        std::sync::mpsc::Sender<Result<serde_json::Value, String>>,
-        std::path::PathBuf,
-    )>,
 }
 
 impl DmApp {
@@ -425,7 +420,6 @@ impl DmApp {
             countdown: None,
             headless: false,
             control: None,
-            shots: Vec::new(),
         };
         app.set_clipboard_watch(app.applied.watch_clipboard);
         app.refresh();
@@ -867,31 +861,19 @@ impl DmApp {
                 let path = dm_shell::home()
                     .join("screenshots")
                     .join(format!("{name}.png"));
-                ctx.send_viewport_cmd(egui::ViewportCommand::Screenshot(egui::UserData::default()));
+                // Answered when the integration has read the frame's pixels.
+                let reply = request.reply;
+                ctx.request_screenshot(move |image| {
+                    let _ = reply.send(
+                        save_png(&image, &path)
+                            .map(|()| serde_json::json!({ "path": path.display().to_string() })),
+                    );
+                });
                 ctx.request_repaint();
-                self.shots.push((request.reply, path));
                 continue;
             }
             let answer = self.control_call(&request.method, &request.params);
             let _ = request.reply.send(answer);
-        }
-
-        if self.shots.is_empty() {
-            return;
-        }
-        let image = ctx.input(|i| {
-            i.raw.events.iter().find_map(|e| match e {
-                egui::Event::Screenshot { image, .. } => Some(image.clone()),
-                _ => None,
-            })
-        });
-        if let Some(image) = image {
-            for (reply, path) in std::mem::take(&mut self.shots) {
-                let _ = reply.send(
-                    save_png(&image, &path)
-                        .map(|()| serde_json::json!({ "path": path.display().to_string() })),
-                );
-            }
         }
     }
 
@@ -2237,7 +2219,7 @@ fn move_buttons(
         }),
     ] {
         let button = ui.add_enabled(enabled, egui::Button::new(arrow).small());
-        button.widget_info(|| egui::WidgetInfo::labeled(egui::WidgetType::Button, enabled, &said));
+        button.widget_info(|| egui::WidgetInfo::labeled(egui::Role::Button, enabled, &said));
         if button.on_hover_text(said.clone()).clicked() {
             moved = Some(to);
         }
@@ -2332,7 +2314,7 @@ fn modern_tool(
             egui::Sense::hover()
         },
     );
-    response.widget_info(|| egui::WidgetInfo::labeled(egui::WidgetType::Button, enabled, label));
+    response.widget_info(|| egui::WidgetInfo::labeled(egui::Role::Button, enabled, label));
     let pressed = response.is_pointer_button_down_on();
     let fill = match (primary && enabled, response.hovered() && enabled, pressed) {
         (true, _, true) => t.brand_hover,
@@ -2376,9 +2358,7 @@ fn nav_item(
     let width = ui.available_width().max(120.0);
     let (rect, response) = ui.allocate_exact_size(egui::vec2(width, 32.0), egui::Sense::click());
     let name = format!("{label} ({count})");
-    response.widget_info(|| {
-        egui::WidgetInfo::selected(egui::WidgetType::SelectableLabel, true, selected, &name)
-    });
+    response.widget_info(|| egui::WidgetInfo::selected(egui::Role::Button, true, selected, &name));
     let fill = if selected {
         t.selection
     } else if response.hovered() {
@@ -2527,7 +2507,7 @@ fn tool(
             egui::Sense::hover()
         },
     );
-    response.widget_info(|| egui::WidgetInfo::labeled(egui::WidgetType::Button, enabled, label));
+    response.widget_info(|| egui::WidgetInfo::labeled(egui::Role::Button, enabled, label));
     let visuals = if enabled {
         ui.style().interact(&response)
     } else {
