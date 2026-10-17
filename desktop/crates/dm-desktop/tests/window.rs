@@ -3214,7 +3214,7 @@ fn every_menu_item_clicked_does_what_it_says() {
         ("Do nothing", dm_desktop::power::WhenDone::Nothing),
     ];
     // Greyed where the computer has no such command (macOS).
-    if dm_desktop::power::command(dm_desktop::power::WhenDone::Hibernate, std::env::consts::OS)
+    if dm_desktop::power::way(dm_desktop::power::WhenDone::Hibernate, std::env::consts::OS)
         .is_some()
     {
         when_done.insert(2, ("Hibernate", dm_desktop::power::WhenDone::Hibernate));

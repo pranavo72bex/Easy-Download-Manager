@@ -205,7 +205,14 @@ First tell your browsers dm is going, and remove its login item (Start on
 login), so nothing is left pointing at a program that is not there. Quit dm,
 then run:
 
-- **Windows:** `"%LOCALAPPDATA%\dm\dm-desktop.exe" --unregister`
+- **Windows:** in Command Prompt,
+  `start "" /wait "%LOCALAPPDATA%\dm\dm-desktop.exe" --unregister`, or in
+  PowerShell,
+  `Start-Process -Wait -NoNewWindow "$env:LOCALAPPDATA\dm\dm-desktop.exe" --unregister`.
+  dm is a windowed program, so without `start /wait` (or `-Wait`) the prompt
+  comes back before dm has finished and what it says lands after it;
+  `echo %errorlevel%` then shows 0 for success. dm's uninstaller also runs
+  this before it removes the files.
 - **Mac:** `/Applications/dm.app/Contents/MacOS/dm-desktop --unregister`
 - **Ubuntu / Debian (.deb):** `dm-desktop --unregister`
 - **Fedora / openSUSE / Arch:** `dm --unregister`
