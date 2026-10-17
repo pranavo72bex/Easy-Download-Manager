@@ -251,8 +251,7 @@ fn heading(app: &mut DmApp, ui: &mut egui::Ui, column: Column) {
         text.strong()
     };
     let response = ui.add(egui::Button::new(text).frame(false));
-    response
-        .widget_info(|| egui::WidgetInfo::labeled(egui::WidgetType::Button, true, column.title()));
+    response.widget_info(|| egui::WidgetInfo::labeled(egui::Role::Button, true, column.title()));
     if response.clicked() {
         app.sort_by(column);
     }

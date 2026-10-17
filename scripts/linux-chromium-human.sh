@@ -5,6 +5,7 @@
 #   sh scripts/package.sh                       # builds dist/chrome
 #   sh scripts/linux-chromium-human.sh          # screenshots into ./human-shots
 #   DM_SHOTS=/some/folder sh scripts/linux-chromium-human.sh
+#   DM_DISTRO=fedora sh scripts/linux-chromium-human.sh   # or arch
 #
 # Runs scripts/chromium-human.py under Xvfb with a window manager (openbox),
 # xdotool and the accessibility bus: dm opened with its window, Chromium
@@ -20,6 +21,16 @@
 # mount a folder under ~/Downloads.
 set -e
 cd "$(dirname "$0")/.."
+# DM_DISTRO runs the same check in Fedora 41's or Arch's own image with the
+# distribution's own Chromium, dm built here in Debian and copied in
+# (scripts/linux/human-distro.sh). Not Ubuntu: its Chromium is a snap, and
+# snapd does not run in a container.
+case "${DM_DISTRO:-debian}" in
+  debian) ;;
+  fedora|arch) exec sh scripts/linux/human-distro.sh chromium "$DM_DISTRO" ;;
+  ubuntu*) echo "Ubuntu's Chromium is a snap, which cannot run in a container: not checked there"; exit 2 ;;
+  *) echo "DM_DISTRO is debian, fedora or arch"; exit 2 ;;
+esac
 [ -f dist/chrome/pkg/dm_catcher_bg.wasm ] || { echo "no dist/chrome — run: sh scripts/package.sh"; exit 1; }
 SHOTS="${DM_SHOTS:-$PWD/human-shots}"
 docker build -q -t dm-linux-check scripts/linux >/dev/null

@@ -42,7 +42,7 @@ pub const NATIVE_HOST: &str = "com.dm.engine";
 
 /// The id `manifest.firefox.json` gives the extension. Firefox host manifests
 /// name extensions by this, not by an origin.
-pub const FIREFOX_EXTENSION_ID: &str = "dm@pranavo72bex.github.io";
+pub const FIREFOX_EXTENSION_ID: &str = "easy-download-manager@pranavo72bex.github.io";
 
 /// The id Chrome gives the unpacked extension, fixed by the public `key` in
 /// `extension/manifest.json`. A store build gets another id from the store,

@@ -190,7 +190,7 @@ pub struct Tokens {
 impl Tokens {
     /// The tokens in force, as `apply` left them.
     pub fn get(ctx: &Context) -> Tokens {
-        ctx.data(|d| d.get_temp::<Tokens>(egui::Id::new("dm-tokens")))
+        ctx.data(|d| d.get_temp::<Tokens>(egui::Id::unique("dm-tokens")))
             .unwrap_or_else(|| Theme::Light.tokens())
     }
 
@@ -235,13 +235,13 @@ pub fn bold(ctx: &Context) -> FontFamily {
 /// number rather than asked of egui, which panics if asked before its
 /// first frame.
 pub fn fonts_ready(ctx: &Context) -> bool {
-    ctx.data(|d| d.get_temp::<u64>(egui::Id::new("dm-fonts-pass")))
+    ctx.data(|d| d.get_temp::<u64>(egui::Id::unique("dm-fonts-pass")))
         .is_some_and(|set| ctx.cumulative_pass_nr() > set)
 }
 
 /// Embeds Selawik once, an openly licensed typeface (SIL OFL).
 fn fonts(ctx: &Context) {
-    let id = egui::Id::new("dm-fonts-pass");
+    let id = egui::Id::unique("dm-fonts-pass");
     if ctx.data(|d| d.get_temp::<u64>(id)).is_some() {
         return;
     }
@@ -256,6 +256,9 @@ fn fonts(ctx: &Context) {
     );
     if let Some(family) = fonts.families.get_mut(&FontFamily::Proportional) {
         family.insert(0, "selawik".into());
+        // Last: the sort arrows (↑ ↓) are in none of the others, and were
+        // drawn as a missing-glyph box until egui 0.37 made that visible.
+        family.push("Hack".into());
     }
     let mut semibold = vec!["selawik-semibold".to_string()];
     semibold.extend(
@@ -380,7 +383,7 @@ pub fn apply(ctx: &Context, theme: Theme) {
             style.spacing.window_margin = egui::Margin::same(16);
         }
     });
-    ctx.data_mut(|d| d.insert_temp(egui::Id::new("dm-tokens"), t));
+    ctx.data_mut(|d| d.insert_temp(egui::Id::unique("dm-tokens"), t));
 }
 
 #[cfg(test)]

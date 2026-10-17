@@ -1,0 +1,22 @@
+# Arch as a person has it, for the Chromium check run elsewhere than Debian
+# (DM_DISTRO=arch in linux-chromium-human.sh). Arch's own images are x86_64;
+# on arm64 BASE is Arch Linux ARM (menci/archlinuxarm), as arch-check.sh
+# uses. dm is built in the Debian image and copied in. Installed: Chromium
+# from Arch's repositories, what the PKGBUILD depends on, Mesa for GL under
+# Xvfb, and the test's own X server, window manager, xdotool, the
+# accessibility bus and ffmpeg for screenshots.
+ARG BASE=archlinux:base-devel
+FROM $BASE
+ARG BROWSER=chromium
+RUN set -e; \
+    [ "$BROWSER" = chromium ] || { echo "Arch is checked with Chromium only"; exit 1; }; \
+    # pacman 7's download sandbox needs Landlock, which a container's kernel
+    # may not offer (as scripts/arch/inside.sh says).
+    grep -q '^DisableSandbox$' /etc/pacman.conf || sed -i '0,/^\[options\]/s//[options]\nDisableSandbox/' /etc/pacman.conf; \
+    sed -i 's/^DownloadUser/#DownloadUser/' /etc/pacman.conf; \
+    pacman -Syu --noconfirm --needed \
+      xorg-server-xvfb openbox xdotool python dbus glib2 ffmpeg ttf-dejavu \
+      hicolor-icon-theme libx11 libxcursor libxi libxkbcommon-x11 wayland libglvnd mesa \
+      chromium at-spi2-core python-atspi; \
+    pacman -Scc --noconfirm
+WORKDIR /work

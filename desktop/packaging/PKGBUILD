@@ -58,7 +58,9 @@ check() {
   export RUSTUP_TOOLCHAIN=stable
   # The engine, not the window: the tests need no display, and a package
   # that cannot be checked in a headless chroot is one nobody checks.
-  cargo test --frozen -p dm-core
+  # Without debug info or incremental files: a check() that needs several
+  # gigabytes more than the build ran a small build machine out of disk.
+  CARGO_INCREMENTAL=0 CARGO_PROFILE_DEV_DEBUG=0 cargo test --frozen -p dm-core
 }
 
 package() {
