@@ -23,6 +23,7 @@ fn stand_in(dir: &Path) -> PathBuf {
     std::fs::write(
         &script,
         r#"#!/bin/sh
+PATH=/bin:/usr/bin; export PATH
 echo "@dm@1000 2000 NA"
 echo "@dm@2000 2000 NA"
 echo "@dm@0 NA 500.5"
@@ -39,7 +40,7 @@ wait
 }
 
 fn alive(pid: &str) -> bool {
-    std::process::Command::new("kill")
+    std::process::Command::new("/bin/kill")
         .args(["-0", pid])
         .stderr(std::process::Stdio::null())
         .status()
@@ -79,6 +80,30 @@ async fn started(
 #[tokio::test(flavor = "multi_thread")]
 async fn a_pause_ends_what_yt_dlp_started_not_only_yt_dlp() {
     let _turn = ONE_AT_A_TIME.lock().await;
+    pause_ends_the_tree().await;
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn a_pause_ends_the_tree_under_a_path_with_no_kill_on_it() {
+    /* A browser's native host or the Dock starts dm with a minimal PATH.
+     * The tree was ended by running `kill`, looked up there; not found,
+     * the error went unread and the child ran on. */
+    let _turn = ONE_AT_A_TIME.lock().await;
+    struct Restore(Option<std::ffi::OsString>);
+    impl Drop for Restore {
+        fn drop(&mut self) {
+            if let Some(path) = self.0.take() {
+                std::env::set_var("PATH", path);
+            }
+        }
+    }
+    let empty = tempdir();
+    let _restore = Restore(std::env::var_os("PATH"));
+    std::env::set_var("PATH", empty.path());
+    pause_ends_the_tree().await;
+}
+
+async fn pause_ends_the_tree() {
     let dir = tempdir();
     let (run, control, _rx, child) = started(dir.path()).await;
     assert!(alive(&child));
@@ -104,7 +129,7 @@ async fn a_pause_ends_what_yt_dlp_started_not_only_yt_dlp() {
         tokio::time::sleep(Duration::from_millis(50)).await;
     }
     if !gone {
-        let _ = std::process::Command::new("kill").arg(&child).status();
+        let _ = std::process::Command::new("/bin/kill").arg(&child).status();
     }
     assert!(gone, "yt-dlp's child {child} ran on after the pause");
 }

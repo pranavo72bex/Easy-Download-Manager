@@ -163,18 +163,36 @@ impl Error {
     /// One place, because both the probe and the range fetch need it and the
     /// second one used to build it by hand with an empty body — so a refusal
     /// that happened mid-download explained nothing at all.
-    pub async fn from_response(res: reqwest::Response) -> Error {
+    pub async fn from_response(mut res: reqwest::Response) -> Error {
         let status = res.status().as_u16();
         let url = res.url().to_string();
         // A refusal's body is either a short explanation or a whole error
         // page, whose sentence comes after its styles; it is read down to
         // that sentence rather than shown as markup.
         let retry_after = crate::retry::retry_after(res.headers());
-        let body = res
-            .text()
-            .await
-            .map(|t| readable(&t.chars().take(16_000).collect::<String>()))
-            .unwrap_or_default();
+        /* Read only as far as an explanation goes, and for no longer than
+         * a person would wait for one. Read whole (and decompressed whole)
+         * before it was cut down, a 500 whose body never ended, or a small
+         * gzip that unpacks to gigabytes, ran dm out of memory. */
+        const MOST: usize = 64 * 1024;
+        let mut head = Vec::new();
+        let _ = tokio::time::timeout(std::time::Duration::from_secs(5), async {
+            while head.len() < MOST {
+                match res.chunk().await {
+                    Ok(Some(chunk)) => head.extend_from_slice(&chunk),
+                    _ => break,
+                }
+            }
+        })
+        .await;
+        drop(res);
+        head.truncate(MOST);
+        let body = readable(
+            &String::from_utf8_lossy(&head)
+                .chars()
+                .take(16_000)
+                .collect::<String>(),
+        );
         Error::Refused {
             status,
             url,

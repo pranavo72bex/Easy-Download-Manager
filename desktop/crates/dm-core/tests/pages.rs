@@ -93,3 +93,52 @@ async fn a_page_named_as_a_document_is_saved_when_yt_dlp_does_not_know_the_site(
     .unwrap_err();
     assert!(err.to_string().contains("does not know"), "{err}");
 }
+
+#[cfg(unix)]
+#[tokio::test(flavor = "multi_thread")]
+async fn a_page_named_as_a_document_is_fetched_by_dm_when_yt_dlp_is_refused() {
+    /* yt-dlp goes first — some video sites end a watch page in `.html` —
+     * but only its "unknown site" used to fall back to dm's own client: a
+     * page served only to a request naming its referrer, which yt-dlp was
+     * refused (a 403), failed the row. Any refusal now falls back. */
+    use axum::http::{HeaderMap, StatusCode};
+    use std::os::unix::fs::PermissionsExt;
+    let _turn = ONE_AT_A_TIME.lock().await;
+    let dir = tempdir();
+    let ran = dir.path().join("ran");
+    let script = dir.path().join("yt-dlp");
+    std::fs::write(
+        &script,
+        format!(
+            "#!/bin/sh\ntouch '{}'\necho 'ERROR: HTTP Error 403: Forbidden' >&2\nexit 1\n",
+            ran.display()
+        ),
+    )
+    .unwrap();
+    std::fs::set_permissions(&script, std::fs::Permissions::from_mode(0o755)).unwrap();
+    std::env::set_var("DM_YTDLP", &script);
+    std::env::set_var("DM_FFMPEG", "");
+    const PAGE_URL: &str = "http://example.test/reports";
+    let gated = |headers: HeaderMap| async move {
+        if headers.get("referer").and_then(|r| r.to_str().ok()) != Some(PAGE_URL) {
+            return (StatusCode::FORBIDDEN, [("content-type", "text/html")], "no").into_response();
+        }
+        ([("content-type", "text/html; charset=utf-8")], PAGE).into_response()
+    };
+    use axum::response::IntoResponse;
+    let addr = serve(Router::new().route("/docs/report.html", get(gated))).await;
+
+    let downloads = dir.path().join("downloads");
+    let done = dm_core::download(
+        &dm_core::client(),
+        &format!("http://{addr}/docs/report.html"),
+        &dm_core::Options {
+            referrer: Some(PAGE_URL.into()),
+            ..options(&downloads)
+        },
+    )
+    .await
+    .unwrap();
+    assert_eq!(std::fs::read(&done.path).unwrap(), PAGE.as_bytes());
+    assert!(ran.exists(), "yt-dlp was not asked first");
+}

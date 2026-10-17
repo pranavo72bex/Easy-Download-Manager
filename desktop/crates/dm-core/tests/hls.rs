@@ -844,3 +844,54 @@ async fn relative_entries_are_joined_against_where_a_redirect_landed() {
     let expected: Vec<u8> = (0..2).flat_map(segment).collect();
     assert_eq!(std::fs::read(&done.path).unwrap(), expected);
 }
+
+#[tokio::test]
+async fn packed_audio_from_tokenised_addresses_is_saved_as_aac() {
+    /* Packed audio was told only by every segment's path ending in `.aac`;
+     * from addresses that are tokens it was called a transport stream and
+     * handed to the remux. The first segment's first bytes say what it is:
+     * here ADTS, behind the ID3 tag that carries its timestamp. */
+    let _turn = FFMPEG_ENV.lock().await;
+    std::env::set_var("DM_FFMPEG", "");
+    fn frames(index: u8) -> Vec<u8> {
+        let mut out = b"ID3\x04\0\0\0\0\0\x03".to_vec();
+        out.extend([0, 0, index]);
+        for n in 0..64u8 {
+            out.extend([0xFF, 0xF1, 0x50, 0x80, 0x02, 0x1F, 0xFC, index, n]);
+        }
+        out
+    }
+    let playlist = "#EXTM3U\n#EXT-X-TARGETDURATION:4\n#EXTINF:4,\nseg/0?token=a1\n\
+                    #EXTINF:4,\nseg/1?token=b2\n#EXT-X-ENDLIST\n";
+    let app = axum::Router::new()
+        .route(
+            "/radio/index.m3u8",
+            axum::routing::get(move || async move {
+                (
+                    [("content-type", "application/vnd.apple.mpegurl")],
+                    playlist,
+                )
+            }),
+        )
+        .route(
+            "/radio/seg/:n",
+            axum::routing::get(
+                |axum::extract::Path(n): axum::extract::Path<u8>| async move {
+                    ([("content-type", "application/octet-stream")], frames(n))
+                },
+            ),
+        );
+    let addr = common::serve(app).await;
+    let dir = tempdir();
+    let done = download(
+        &client(),
+        &format!("http://{addr}/radio/index.m3u8"),
+        &common::options(dir.path()),
+    )
+    .await
+    .unwrap();
+    assert_eq!(done.path.file_name().unwrap(), "radio.aac");
+    let mut both = frames(0);
+    both.extend(frames(1));
+    assert_eq!(std::fs::read(&done.path).unwrap(), both);
+}

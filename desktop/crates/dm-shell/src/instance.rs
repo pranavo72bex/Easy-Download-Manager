@@ -36,7 +36,13 @@ pub fn claim(home: &Path) -> std::io::Result<Option<File>> {
     let deadline = std::time::Instant::now() + CLAIM_FOR;
     loop {
         match try_claim(home)? {
-            Some(file) => return Ok(Some(file)),
+            // dm itself, starting: its home is made its account's alone.
+            // Not on the browser's "is it running?" probe, which should
+            // change nothing.
+            Some(file) => {
+                private(home);
+                return Ok(Some(file));
+            }
             None if std::time::Instant::now() >= deadline => return Ok(None),
             None => std::thread::sleep(Duration::from_millis(25)),
         }
@@ -55,6 +61,20 @@ fn try_claim(home: &Path) -> std::io::Result<Option<File>> {
             format!("{} could not be locked: {e}", lock_path(home).display()),
         )),
     }
+}
+
+/// dm's home readable by this account alone. Settings, the queue and the
+/// token are written 0600 already, but unfinished parts are not, and a home
+/// made with the default umask (0755 on Linux) let any user on the computer
+/// list and read downloads in progress.
+fn private(home: &Path) {
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        let _ = std::fs::set_permissions(home, std::fs::Permissions::from_mode(0o700));
+    }
+    #[cfg(not(unix))]
+    let _ = home;
 }
 
 fn open(home: &Path) -> std::io::Result<File> {
@@ -99,6 +119,17 @@ pub fn running(home: &Path) -> std::io::Result<bool> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[cfg(unix)]
+    #[test]
+    fn dms_home_is_this_accounts_alone() {
+        use std::os::unix::fs::PermissionsExt;
+        let parent = tempfile::tempdir().unwrap();
+        let home = parent.path().join("dm");
+        let _held = claim(&home).unwrap();
+        let mode = std::fs::metadata(&home).unwrap().permissions().mode() & 0o777;
+        assert_eq!(mode, 0o700, "{mode:o}");
+    }
 
     #[test]
     fn the_lock_is_held_for_as_long_as_the_handle_lives() {

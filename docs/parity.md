@@ -71,9 +71,9 @@ Rust compiled to WebAssembly. Test paths are under
 | File republished between runs (ETag/Last-Modified) | PASS | `integrity.rs` `a_file_republished_between_runs_is_not_spliced_into_the_old_parts` |
 | Connection setting changed before a resume | PASS | `a_changed_connection_setting_does_not_corrupt_a_resumed_download` |
 | Parts with no plan beside them | PASS | `parts_staged_under_no_known_plan_are_not_trusted` |
-| A power cut that lost more than the end checked at resume | PASS | `download.rs` `a_power_cut_that_lost_more_than_the_checked_end_is_repaired_whole` (256 KiB of zeros: byte-exact, not fetched from the start) |
+| A power cut that lost more than the end checked at resume | PASS | `download.rs` `a_power_cut_that_lost_more_than_the_checked_end_is_repaired_whole` (256 KiB of zeros: byte-exact, not fetched from the start); a repair steps back at most 4 MiB at a time without spending a retry, so a file's own zeros before a torn end are not all fetched again: `a_torn_end_after_a_files_own_zeros_is_not_followed_back_through_them` |
 | Pause or cancel of a magnet whose metadata never comes | PASS | `torrent.rs` `a_magnet_with_no_peers_stops_when_paused` |
-| Pause of yt-dlp ends what it started (its ffmpeg) | PASS (unix) | `ytdlp_tree.rs` `a_pause_ends_what_yt_dlp_started_not_only_yt_dlp`; Windows uses `taskkill /T`, not run |
+| Pause of yt-dlp ends what it started (its ffmpeg) | PASS (unix) | `ytdlp_tree.rs` `a_pause_ends_what_yt_dlp_started_not_only_yt_dlp`, `a_pause_ends_the_tree_under_a_path_with_no_kill_on_it` (`killpg`, no `kill` program); Windows uses `taskkill /T`, started and not waited for, not run |
 
 ## D. Multiple connections
 
@@ -181,6 +181,7 @@ the host and the extension.
 | Toolbar popup | PASS | Clicking dm's icon opens a popup: whether the app answers (or the fix, naming `dm-desktop --register`), "Catch downloads" (off: the browser keeps every download), the video panel on this site, and "Open dm", which brings dm's window up and downloads nothing. `chrome-check.py` opens it and drives each (2026-10-14) |
 | Registering with the browsers (`--register`) | PASS | `register.rs` tests against a temporary home: both manifest families, unregistering, ids, a protected folder refused; the CLI run against a temporary home |
 | The unpacked Chrome id is the one registered | PASS | `dm-protocol` `the_manifest_key_yields_the_id_the_host_is_registered_for`; `chrome-check.py` reads the id Chrome assigned |
+| Used by hand in Chromium, with dm's real window: real pointer and keys only | PASS | `scripts/linux-chromium-human.sh` (Debian 12 Chromium 155, arm64, Xvfb + openbox, xdotool; `scripts/chromium-human.py`): dm registered with `--register` and opened with its window; a clicked .zip lands byte-exact in dm with the browser's list empty and the row Complete; a real right-click and the browser's own "Download link with dm" item; the pointer resting on a playing video raises "Download video", its click and dm's Start now land the video; an Alt-clicked link finishes in the browser; dm's row clicked, Stop, Resume (the file byte-exact) and Delete; the Extensions button, dm's popup and its "Catch downloads" switched off, after which a clicked link stays in the browser. DevTools and the control protocol only read and take screenshots. 26/26 (2026-10-17) |
 | Alt-click a link: the browser keeps it | PASS | `decide.rs` `an_alt_click_leaves_a_web_address_with_the_browser_and_nothing_else`; `chrome-check.py` Alt-clicks a link of a type the app catches and the file finishes in the browser, not in dm |
 | The panel lists a player page's qualities with sizes | PASS | `ytdlp.rs` `a_pages_formats_become_one_choice_per_height_and_the_sound_alone`; `host.rs` formats tests; `chrome-check.py` (32/32) lists two lines from a stand-in yt-dlp and the picked one reaches dm as `720/mp4`; `youtube-check.py` (27/27) lists the real video's three qualities and the picked MP4 arrives as .mp4 |
 | A panel video opens "Download details" in the app | PASS | `window.rs` (the panel video test); on by default, Options › General turns it off |
@@ -212,9 +213,13 @@ the host and the extension.
 | Direct media files | PASS | ordinary downloads |
 | HLS, including AES-128 and resume | PASS | `hls.rs`; `app-check.py` |
 | HLS behind redirects: entries joined against where each playlist landed | PASS | `hls.rs` `relative_entries_are_joined_against_where_a_redirect_landed` |
-| Sound alone named for its segments (`.m4a`, `.ts`, `.aac`); a second initialisation segment refused | PASS | `stream.rs` `sound_alone_is_named_for_what_its_segments_are`, `a_second_initialisation_segment_is_refused_not_swapped_in` |
+| Sound alone named for what its segments are: by their first bytes (TS, fMP4, ADTS bare or behind ID3), else by their addresses (`.m4a`, `.ts`, `.aac`); a second, different initialisation segment (compared as resolved addresses) goes to yt-dlp | PASS | `stream.rs` `sound_alone_is_named_for_what_its_segments_are`, `segments_are_told_apart_by_their_first_bytes`, `a_second_initialisation_segment_is_refused_not_swapped_in`; `hls.rs` `packed_audio_from_tokenised_addresses_is_saved_as_aac` |
+| A refusal's body is read no further than 64 KiB and for no longer than 5 s | PASS | `errors.rs` `a_refusal_whose_body_never_ends_is_answered_promptly` (a 500 whose body never ends) |
+| yt-dlp is given the proxy in a 0600 config file of the run's own, never on its command line | PASS | `dash.rs` `with_ytdlp_a_dash_manifest_is_handed_over_with_the_proxy_and_the_page` (no password in argv; the file gone after the run); a real yt-dlp 2026.08.19 read the file's quoting (`--verbose` proxy map) |
+| A torrent's own name is cleaned before its folder is made | PASS | `torrent.rs` `a_torrents_own_name_cannot_lead_out_of_the_download_folder` (`../.config/autostart`) |
+| A cleared row's run still winding down counts against the limit | PASS | `queue.rs` `a_cleared_row_holds_its_slot_until_its_run_lets_go` |
 | yt-dlp progress over picture then sound only goes forward | PASS | `ytdlp_tree.rs` `progress_across_picture_and_sound_only_goes_forward`; `ytdlp.rs` unit tests (float estimates) |
-| A link to a page named as a document (`notes.html`) is saved when yt-dlp is absent or does not know the site | PASS | `pages.rs` |
+| A link to a page named as a document (`notes.html`) is fetched by dm's own client, with the row's referrer and cookies, whether or not yt-dlp is there; a quality picked in the browser's panel still goes to yt-dlp | PASS | `pages.rs` (`a_page_named_as_a_document_is_fetched_by_dm_even_where_yt_dlp_is_refused`: a referrer-gated `report.html`, the stand-in yt-dlp never run) |
 | DASH | PASS | handed to yt-dlp; refused with the reason without it (`dash.rs`) |
 | Player pages | PASS | handed to the user's yt-dlp; `ytdlp.rs` against a loopback server |
 | DRM or site-specific extraction | N/A | not done, by design |

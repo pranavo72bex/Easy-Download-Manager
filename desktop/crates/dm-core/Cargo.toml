@@ -43,6 +43,11 @@ librqbit = { version = "9.0.1", default-features = false, features = ["rust-tls"
 tokio-util = "0.7"
 dirs = "7.0.0"
 
+# `killpg`, to end yt-dlp's process group without running a `kill` program
+# that a minimal `PATH` may not find. Already in the tree through tokio.
+[target.'cfg(unix)'.dependencies]
+libc = "0.2"
+
 [dev-dependencies]
 # Random and hostile input for the readers of outside data (tests/fuzz.rs),
 # on stable Rust inside cargo test.

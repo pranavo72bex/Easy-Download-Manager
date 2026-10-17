@@ -376,10 +376,41 @@ to the login directory, as RFC 1738 has it, and `%2F` reaches the root.
 ## 2026-10-17: A page named as a document is that document
 
 A link whose last segment names a document (`.html`, `.xml`, `.txt`, not a
-script's `.php` or `.aspx`) still goes to yt-dlp first, since some video
-sites end watch pages in `.html`; when yt-dlp is absent or says it does not
-know the site, the page itself is saved. A watch address with no extension
-is yt-dlp's or refused, as before.
+script's `.php` or `.aspx`) is fetched by dm's own client, with the row's
+referrer and cookies, and never handed to yt-dlp. It used to go to yt-dlp
+first, falling back only on "unknown site"; any other refusal (a 403 to a
+request without the page's sign-in, a 429) failed a page dm could save.
+Some video sites do end watch pages in `.html`: a quality picked in the
+browser's video panel (which carries a container) still goes to yt-dlp. A
+watch address with no extension, or a script's, is yt-dlp's or refused.
+
+## 2026-10-17: How far a power-cut repair looks back
+
+A resume compares a part's last 64 KiB with the server; where the disk has
+zeros the server does not, the part is cut back to where the zeros begin.
+That scan stops 4 MiB back: far more than a disk block or a write buffer,
+and little to fetch again where the zeros were the file's own (a disk
+image, a sparse archive), which unbounded meant gigabytes. A longer loss is
+still found, 4 MiB at a time: the window at the cut opens on zeros the
+server does not have and is cut again. Each step goes straight to the next
+attempt rather than spending one of the range's retries.
+
+## 2026-10-17: A stream's segments are named by their bytes
+
+The first segment's first 4 KiB (from the staged part on a resume) decide
+TS, fMP4 or packed ADTS audio; the playlist's addresses decide only where
+the bytes say nothing or are encrypted. Tokenised segment addresses have no
+extension, and ADTS from them was called `.ts` and sent to the remux. A
+changed initialisation segment is decided once, in `beyond_dm`, on resolved
+addresses, and goes to yt-dlp.
+
+## 2026-10-17: Secrets stay off yt-dlp's command line
+
+The proxy (with any user name and password) goes in a 0600 config file of
+the run's own, passed with `--config-locations` and removed when the run
+ends, as the cookies already were: any local user's `ps` reads a command
+line. The process group is ended with `libc::killpg`, not by running
+`kill`, which a minimal `PATH` may not find.
 
 ## Tried and dropped
 

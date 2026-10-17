@@ -333,13 +333,27 @@ async fn place(
     tokio::fs::create_dir_all(&options.dest_dir)
         .await
         .map_err(Error::Disk)?;
-    let dest = crate::download::claim_dir(&options.dest_dir, name).await?;
+    let folder = folder_name(name);
+    let dest = crate::download::claim_dir(&options.dest_dir, &folder).await?;
     if let Err(e) = move_tree(staged, &dest).await {
         // Only the empty folder this claimed; never anything with files in.
         let _ = tokio::fs::remove_dir(&dest).await;
         return Err(e);
     }
-    Ok((dest, category::classify(name, None), false))
+    Ok((dest, category::classify(&folder, None), false))
+}
+
+/// The folder a torrent of several files lands in, from the name the
+/// torrent gives itself — which is the torrent's to say, and so cleaned as
+/// any remote name is: `../.config/autostart` must not leave the download
+/// folder, nor arrive hidden.
+fn folder_name(name: &str) -> String {
+    let cleaned = crate::probe::sanitize(name);
+    if cleaned.is_empty() {
+        "torrent".into()
+    } else {
+        cleaned
+    }
 }
 
 /// Moves a directory: a rename where the two are on one filesystem, a copy
@@ -496,6 +510,21 @@ mod tests {
             panic!("an HTTP proxy was accepted for a swarm");
         };
         assert!(refused.to_string().contains("SOCKS5"), "{refused}");
+    }
+
+    #[tokio::test]
+    async fn a_torrents_own_name_cannot_lead_out_of_the_download_folder() {
+        assert_eq!(folder_name("../.config/autostart"), "autostart");
+        assert_eq!(folder_name(".."), "torrent");
+        assert_eq!(folder_name(""), "torrent");
+        assert_eq!(folder_name("Album (2024)"), "Album (2024)");
+        let dir = tempfile::tempdir().unwrap();
+        let downloads = dir.path().join("Downloads");
+        tokio::fs::create_dir_all(&downloads).await.unwrap();
+        let claimed = crate::download::claim_dir(&downloads, &folder_name("../.config/autostart"))
+            .await
+            .unwrap();
+        assert_eq!(claimed.parent(), Some(downloads.as_path()));
     }
 
     #[test]

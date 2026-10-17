@@ -2095,6 +2095,56 @@ async fn a_deleted_row_holds_its_slot_until_its_run_lets_go() {
     let _ = tokio::time::timeout(Duration::from_secs(5), serving_again).await;
 }
 
+#[tokio::test]
+async fn a_cleared_row_holds_its_slot_until_its_run_lets_go() {
+    /* Clearing finished rows dropped a cancelled row whose run still held
+     * a stalled read, and nothing counted that connection: with a limit of
+     * one, the next row started beside it. Measured at the server. */
+    let (addr, hits, open) = serve_stalled_counting().await;
+    let dir = tempdir();
+    let q = queue(dir.path(), 1);
+
+    let first = q.add(&format!("http://{addr}/a.bin")).await.unwrap();
+    let serving = {
+        let q = q.clone();
+        tokio::spawn(async move { q.run().await })
+    };
+    let asked = async {
+        while hits.load(Ordering::SeqCst) < 1 {
+            tokio::time::sleep(Duration::from_millis(20)).await;
+        }
+    };
+    tokio::time::timeout(Duration::from_secs(5), asked)
+        .await
+        .expect("the first range was never asked for");
+
+    q.cancel(first).await;
+    assert_eq!(q.clear_finished().await, 1);
+    let second = q.add(&format!("http://{addr}/b.bin")).await.unwrap();
+    let serving_again = {
+        let q = q.clone();
+        tokio::spawn(async move { q.run().await })
+    };
+    let started = async {
+        while hits.load(Ordering::SeqCst) < 2 {
+            tokio::time::sleep(Duration::from_millis(20)).await;
+        }
+    };
+    tokio::time::timeout(Duration::from_secs(5), started)
+        .await
+        .expect("the next download never started");
+    tokio::time::sleep(Duration::from_millis(200)).await;
+    assert_eq!(
+        open.most.load(Ordering::SeqCst),
+        1,
+        "the next download started while the cleared one still held the only slot"
+    );
+
+    q.cancel(second).await;
+    let _ = tokio::time::timeout(Duration::from_secs(5), serving).await;
+    let _ = tokio::time::timeout(Duration::from_secs(5), serving_again).await;
+}
+
 /// A file republished on demand that can also be made to vanish, its ETag
 /// naming its version.
 fn versioned(version: Arc<AtomicUsize>, gone: Arc<std::sync::atomic::AtomicBool>) -> axum::Router {

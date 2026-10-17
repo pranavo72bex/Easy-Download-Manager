@@ -411,16 +411,18 @@ async fn fetch_reporting(
         }
     } else if page {
         /* An address that names a document — `notes.html`, `feed.xml` —
-         * is that document, unless yt-dlp knows the site: some video sites
-         * do end their watch pages in `.html`. Handed to yt-dlp and nothing
-         * else, a plain page could not be downloaded at all ("yt-dlp does
-         * not know this site", or "install yt-dlp"). A watch address with
-         * no extension, or a script's (`.php?v=`), is still yt-dlp's. */
+         * may be the document itself, or a video site's watch page that
+         * happens to end in `.html`. yt-dlp is asked first, and if it
+         * cannot make a video of it, for whatever reason (an unknown site,
+         * a 403 to a request without the page's sign-in, a 429), dm's own
+         * client fetches the document with the row's cookies and referrer.
+         * A watch address with no extension, or a script's (`.php?v=`), is
+         * yt-dlp's alone: its HTML is never the download anyone meant. */
         let document = names_a_document(url);
         if crate::ytdlp::available() {
             match crate::ytdlp::download_ytdlp(url, options, report.clone()).await {
-                Err(Error::Internal(said)) if document && said == crate::ytdlp::UNKNOWN_SITE => {}
-                other => return other,
+                Err(e) if document && !matches!(e, Error::Paused | Error::Cancelled) => {}
+                outcome => return outcome,
             }
         } else if !document {
             /* No yt-dlp, so nothing can turn this page into a file. Saving
@@ -689,12 +691,18 @@ pub(crate) fn get(
 /// reading — a body that keeps coming is stopped, not buffered whole and
 /// then trimmed — and the bytes count against the ceiling and can be paused
 /// like any others.
-async fn fetch_capped(
+///
+/// With the address it was finally served from: a playlist's relative
+/// entries are relative to that, which after a redirect is not where it was
+/// asked for — a short link that sends a player to a CDN's directory has its
+/// renditions and segments there. Joined against the asked address, every
+/// one of them was a 404.
+pub(crate) async fn fetch_capped(
     client: &reqwest::Client,
     url: &str,
     most: usize,
     options: &Options,
-) -> Result<Vec<u8>, Error> {
+) -> Result<Fetched, Error> {
     let res = retry::run_up_to(&options.control, options.attempts, || async {
         or_stop(
             &options.control,
@@ -713,6 +721,7 @@ async fn fetch_capped(
     })
     .await?;
     let res = Error::refused_or(res).await?;
+    let landed = res.url().to_string();
     let mut body = Vec::new();
     let mut chunks = res.bytes_stream();
     while let Some(chunk) = next_or_stop(&mut chunks, &options.control).await? {
@@ -729,27 +738,30 @@ async fn fetch_capped(
         })
         .await?;
     }
-    Ok(body)
+    Ok(Fetched { body, landed })
 }
 
-/// The same, as text.
-async fn fetch_text(
-    client: &reqwest::Client,
-    url: &str,
-    most: usize,
-    options: &Options,
-) -> Result<String, Error> {
-    let body = fetch_capped(client, url, most, options).await?;
-    Ok(String::from_utf8_lossy(&body).into_owned())
+/// Something small fetched whole, and where it was finally served from.
+pub(crate) struct Fetched {
+    pub body: Vec<u8>,
+    pub landed: String,
+}
+
+impl Fetched {
+    pub fn text(&self) -> String {
+        String::from_utf8_lossy(&self.body).into_owned()
+    }
 }
 
 /// Reads the mirror list a Metalink URL points at.
-async fn fetch_metalink(
+pub(crate) async fn fetch_metalink(
     client: &reqwest::Client,
     url: &str,
     options: &Options,
 ) -> Result<Metalink, Error> {
-    let text = fetch_text(client, url, 4 * 1024 * 1024, options).await?;
+    let text = fetch_capped(client, url, 4 * 1024 * 1024, options)
+        .await?
+        .text();
     metalink::parse(&text)
         .ok_or_else(|| Error::Internal("that Metalink names no file dm can fetch over HTTP".into()))
 }
@@ -1450,19 +1462,38 @@ async fn attempt_segment(
              * cut that lost a quarter of a megabyte had its zeros before the
              * window trusted, and the file came out the right length, wrong,
              * and Completed. The part is cut back to where the zeros begin,
-             * to a block, and the next attempt checks the window there. */
-            let leading = tail.get(..agree as usize).unwrap_or(&[]);
-            if base > 0 && leading.iter().all(|&b| b == 0) {
-                let zeros_from = zeros_ending_at(&job.part_path(index), base).await?;
+             * to a block, and the next attempt checks the window there.
+             *
+             * Only where the disk's zeros run unbroken from the window's
+             * front through the byte that differed — a zero observed where
+             * the server has something else, not merely an empty stretch
+             * before it. And no further than `ZERO_RUN_STEP` back: a file
+             * can be zeros for gigabytes (a disk image, a sparse archive),
+             * and following them all to their start fetched every one of
+             * them again for a torn last block. A loss longer than a step
+             * is still found, a step at a time: the window at the cut opens
+             * on zeros the server does not have, and is cut again. */
+            let zeros_through_difference = tail
+                .get(..=agree as usize)
+                .is_some_and(|run| run.iter().all(|&b| b == 0));
+            if base > 0 && zeros_through_difference {
+                let floor = base.saturating_sub(ZERO_RUN_STEP);
+                let zeros_from = zeros_ending_at(&job.part_path(index), base, floor).await?;
                 let cut = zeros_from - zeros_from % DISK_BLOCK;
                 if cut < base {
                     file.set_len(cut).await?;
+                    drop(file);
+                    // Its connection goes before the next is opened: a site
+                    // held to one connection would refuse the repair's.
+                    drop(stream);
                     job.downloaded.fetch_sub(already - cut, Ordering::Relaxed);
                     crate::lock(&job.live[index]).reserved = cut;
-                    return Err(Error::Incomplete {
-                        got: cut,
-                        expected: span,
-                    });
+                    /* Straight on to the window at the cut, rather than
+                     * as a failed attempt: a repair stepping back through a
+                     * long loss is getting somewhere, and spending the
+                     * retry budget on it failed the range part-way. Each
+                     * step leaves the part shorter, so it ends. */
+                    return Box::pin(attempt_segment(client, job, index, resumable)).await;
                 }
             }
         }
@@ -1660,16 +1691,23 @@ async fn forget_plan(job: &Job) {
     let _ = fs::remove_file(crate::plan::record_path(&job.parts)).await;
 }
 
-/// Where the run of zeros that ends at `end` in this file begins: `end`
-/// itself when the byte before it is not zero. Read backwards a block of
-/// reads at a time, so a long run costs reads, not memory.
-async fn zeros_ending_at(path: &Path, end: u64) -> Result<u64, Error> {
+/// How far back past the checked window one repair follows a run of zeros
+/// in a part. Far more than a disk block or the write buffer a power cut
+/// loses at once, and still little to fetch again where the zeros were the
+/// file's own; a longer loss is followed a step of this at a time.
+const ZERO_RUN_STEP: u64 = 4 * 1024 * 1024;
+
+/// Where the run of zeros that ends at `end` in this file begins, looking
+/// no further back than `floor`: `end` itself when the byte before it is not
+/// zero, `floor` when the run reaches it. Read backwards a block of reads at
+/// a time, so a long run costs reads, not memory.
+async fn zeros_ending_at(path: &Path, end: u64, floor: u64) -> Result<u64, Error> {
     const STEP: u64 = 64 * 1024;
     let mut file = tokio::fs::File::open(path).await?;
     let mut buf = vec![0u8; STEP as usize];
     let mut at = end;
-    while at > 0 {
-        let from = at.saturating_sub(STEP);
+    while at > floor {
+        let from = at.saturating_sub(STEP).max(floor);
         let len = (at - from) as usize;
         let chunk = buf.get_mut(..len).unwrap_or(&mut []);
         file.seek(std::io::SeekFrom::Start(from)).await?;
@@ -1679,7 +1717,7 @@ async fn zeros_ending_at(path: &Path, end: u64) -> Result<u64, Error> {
         }
         at = from;
     }
-    Ok(0)
+    Ok(floor)
 }
 
 /// Reads `tail.len()` bytes off the stream against `tail`: how many agree
@@ -1731,7 +1769,7 @@ async fn download_stream(
     options: &Options,
     report: Option<tokio::sync::mpsc::Sender<Update>>,
 ) -> Result<Finished, Error> {
-    let (listed, rendition) = match resolve_stream(client, url, options).await? {
+    let (mut listed, rendition) = match resolve_stream(client, url, options).await? {
         Resolved::Own(listed, rendition) => (listed, rendition),
         // As a DASH stream is: yt-dlp reads these shapes properly; without
         // it the stream is refused rather than saved wrong and called done.
@@ -1747,6 +1785,9 @@ async fn download_stream(
 
     fs::create_dir_all(&options.parts_dir).await?;
     keep_only_parts_of(&options.parts_dir, &rendition).await?;
+    if let Some(found) = first_segment_is(client, &listed, options).await {
+        listed.found_to_be(found, url, options.quality);
+    }
 
     if let Some(tx) = &report {
         let _ = tx
@@ -1760,7 +1801,7 @@ async fn download_stream(
     let key = match &listed.key {
         // Once, not once per segment: a playlist of a thousand segments
         // would otherwise be a thousand requests for the same sixteen bytes.
-        Some(key) => Some(fetch_capped(client, &key.uri, 1024, options).await?),
+        Some(key) => Some(fetch_capped(client, &key.uri, 1024, options).await?.body),
         None => None,
     };
 
@@ -1830,6 +1871,66 @@ async fn download_stream(
         verified: options.checksum.is_some(),
         mirrors: 1,
     })
+}
+
+/// What the stream's first segment is, from its first few kilobytes; see
+/// `stream::container_of_head`. `None` where it cannot be read or says
+/// nothing, and the playlist's words stand: an initialisation segment
+/// already says fMP4, and an encrypted segment's first bytes are
+/// ciphertext. Read from what is staged where a resume has it, so a
+/// resume asks the server for nothing it already has.
+async fn first_segment_is(
+    client: &reqwest::Client,
+    listed: &stream::Stream,
+    options: &Options,
+) -> Option<&'static str> {
+    const HEAD: usize = 4096;
+    if listed.key.is_some() || listed.parts.iter().any(|p| p.init) {
+        return None;
+    }
+    for staged in [
+        part_path(&options.parts_dir, 0),
+        options.parts_dir.join(GATHERED),
+    ] {
+        if let Ok(mut file) = fs::File::open(&staged).await {
+            let mut head = Vec::with_capacity(HEAD);
+            let read = tokio::io::AsyncReadExt::read_buf(
+                &mut tokio::io::AsyncReadExt::take(&mut file, HEAD as u64),
+                &mut head,
+            )
+            .await;
+            if read.is_ok_and(|n| n > 0) {
+                return stream::container_of_head(&head);
+            }
+        }
+    }
+    let first = listed.parts.first()?;
+    let request = get(
+        client,
+        &first.url,
+        options.referrer.as_deref(),
+        options.sign_in.as_ref(),
+    )
+    .header(reqwest::header::RANGE, format!("bytes=0-{}", HEAD - 1));
+    let res = or_stop(
+        &options.control,
+        crate::auth::send(client, request, &first.url),
+    )
+    .await
+    .ok()?;
+    if !res.status().is_success() {
+        return None;
+    }
+    // Read no further than the head, whether or not the range was honoured.
+    let mut chunks = res.bytes_stream();
+    let mut head = Vec::new();
+    while head.len() < HEAD {
+        match next_or_stop(&mut chunks, &options.control).await {
+            Ok(Some(Ok(chunk))) => head.extend_from_slice(&chunk),
+            _ => break,
+        }
+    }
+    stream::container_of_head(&head)
 }
 
 /// A request's answer, or the stop asked for meanwhile. A server that takes
@@ -2002,66 +2103,30 @@ async fn resolve_stream(
         let chosen = stream::pick(stream::variants(&text, &landed), quality)
             .ok_or_else(|| Error::Internal("no playable rendition in that stream".into()))?;
         let (media, media_landed) = fetch_playlist(client, &chosen.url, options).await?;
-        if let Some(why) = stream::beyond_dm(Some(&text), chosen.audio.as_deref(), &media) {
+        if let Some(why) =
+            stream::beyond_dm(Some(&text), chosen.audio.as_deref(), &media, &media_landed)
+        {
             return Ok(Resolved::Beyond(why));
         }
         let listed = stream::media_playlist(&media, &media_landed, url, quality)?;
         return Ok(Resolved::Own(listed, chosen.url));
     }
-    if let Some(why) = stream::beyond_dm(None, None, &text) {
+    if let Some(why) = stream::beyond_dm(None, None, &text, &landed) {
         return Ok(Resolved::Beyond(why));
     }
     let listed = stream::media_playlist(&text, &landed, url, quality)?;
     Ok(Resolved::Own(listed, url.to_string()))
 }
 
-/// A playlist's text and the address it was finally served from.
-///
-/// A playlist's relative entries are relative to where it was served, which
-/// after a redirect is not where it was asked for: a short link that sends
-/// a player to a CDN's directory has its renditions and segments there.
-/// Joined against the asked address, every one of them was a 404.
+/// A playlist's text and the address it was finally served from, which
+/// its relative entries are joined against.
 async fn fetch_playlist(
     client: &reqwest::Client,
     url: &str,
     options: &Options,
 ) -> Result<(String, String), Error> {
-    let res = retry::run_up_to(&options.control, options.attempts, || async {
-        or_stop(
-            &options.control,
-            crate::auth::send(
-                client,
-                get(
-                    client,
-                    url,
-                    options.referrer.as_deref(),
-                    options.sign_in.as_ref(),
-                ),
-                url,
-            ),
-        )
-        .await
-    })
-    .await?;
-    let res = Error::refused_or(res).await?;
-    let landed = res.url().to_string();
-    let mut body = Vec::new();
-    let mut chunks = res.bytes_stream();
-    while let Some(chunk) = next_or_stop(&mut chunks, &options.control).await? {
-        let chunk = chunk?;
-        if body.len() + chunk.len() > MANIFEST_CAP {
-            return Err(Error::Internal(format!(
-                "{url} is larger than any playlist should be"
-            )));
-        }
-        body.extend_from_slice(&chunk);
-        or_stop(&options.control, async {
-            options.limiter.take(chunk.len() as u64).await;
-            Ok(())
-        })
-        .await?;
-    }
-    Ok((String::from_utf8_lossy(&body).into_owned(), landed))
+    let fetched = fetch_capped(client, url, MANIFEST_CAP, options).await?;
+    Ok((fetched.text(), fetched.landed))
 }
 
 /// Discards staged segments that belong to a different rendition.

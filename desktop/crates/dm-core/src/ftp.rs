@@ -482,16 +482,34 @@ struct Described {
     size: Option<u64>,
     resumable: bool,
     validator: Option<String>,
+    /// The path from the root, where the file was found there and not
+    /// relative to the login folder.
+    absolute: Option<String>,
 }
 
 async fn describe(target: &Target) -> Result<Described, Error> {
     let mut session = Session::open(target).await?;
-    let (code, text) = session.command(&format!("SIZE {}", target.path)).await?;
+    let (mut code, mut text) = session.command(&format!("SIZE {}", target.path)).await?;
+    /* Not there relative to the login folder: asked for from the root, as
+     * dm read every FTP address before it read them as RFC 1738 says. A
+     * server that does not keep a user in their home folder had that file
+     * at `/home/user/f` for a link `ftp://user@host/home/user/f`, and such
+     * a link, queued then, still works. */
+    let mut absolute = None;
+    if code == 550 && !target.path.starts_with('/') {
+        let rooted = format!("/{}", target.path);
+        let (again, said) = session.command(&format!("SIZE {rooted}")).await?;
+        if again == 213 {
+            (code, text) = (again, said);
+            absolute = Some(rooted);
+        }
+    }
+    let path = absolute.as_deref().unwrap_or(&target.path);
     let size = if code == 213 { number_in(&text) } else { None };
     if code == 550 {
         return Err(refusal(code, &text, &target.path));
     }
-    let (code, text) = session.command(&format!("MDTM {}", target.path)).await?;
+    let (code, text) = session.command(&format!("MDTM {path}")).await?;
     let validator = (code == 213)
         .then(|| text.get(4..).unwrap_or("").trim().to_string())
         .filter(|v| !v.is_empty());
@@ -502,6 +520,7 @@ async fn describe(target: &Target) -> Result<Described, Error> {
         size,
         resumable: code == 350 && size.is_some(),
         validator,
+        absolute,
     })
 }
 
@@ -528,6 +547,10 @@ pub async fn download_ftp(
         or_stop(&options.control, describe(&target))
     })
     .await?;
+    let target = Target {
+        path: described.absolute.clone().unwrap_or(target.path.clone()),
+        ..target
+    };
     let name = crate::probe::filename_for(None, url, None);
 
     fs::create_dir_all(&options.parts_dir).await?;

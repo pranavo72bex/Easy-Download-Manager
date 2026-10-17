@@ -188,12 +188,22 @@ impl Connection<'_> {
     /// Out of the waiting list and into a slot, if there is one.
     fn authenticated(&mut self) -> bool {
         dm_core::lock(self.waiting).leave(self.id);
-        let taken = self
-            .open
-            .fetch_update(Ordering::SeqCst, Ordering::SeqCst, |n| {
-                (n < MAX_CONNECTIONS).then_some(n + 1)
-            })
-            .is_ok();
+        // A compare-and-swap loop rather than `fetch_update`, which newer
+        // compilers have renamed (and warn about) and older ones lack the
+        // new name of.
+        let mut n = self.open.load(Ordering::SeqCst);
+        let taken = loop {
+            if n >= MAX_CONNECTIONS {
+                break false;
+            }
+            match self
+                .open
+                .compare_exchange(n, n + 1, Ordering::SeqCst, Ordering::SeqCst)
+            {
+                Ok(_) => break true,
+                Err(now) => n = now,
+            }
+        };
         self.counted = taken;
         taken
     }

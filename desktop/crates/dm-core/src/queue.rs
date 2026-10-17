@@ -808,7 +808,7 @@ impl Queue {
             let mut slots = self.inner.slots.lock().await;
             let mut order = self.inner.order.lock().await;
             for id in &removed {
-                slots.remove(id);
+                self.take_slot(&mut slots, *id);
             }
             // A set, because the history is the queue: clearing a thousand
             // finished rows out of a thousand is a million comparisons with
@@ -964,21 +964,31 @@ impl Queue {
         self.save().await;
     }
 
+    /// Takes a row out of the map, the one way a row leaves it: stopped if
+    /// it was not already, and a run still winding down kept in `leaving`,
+    /// where it counts against the limit until it lets go. `remove` did
+    /// this and `clear_finished` did not, so clearing a cancelled row whose
+    /// run still held a stalled read let a limit of one run two.
+    fn take_slot(&self, slots: &mut HashMap<Id, Slot>, id: Id) -> Option<Slot> {
+        let mut slot = slots.remove(&id)?;
+        if !slot.entry.state.settled() {
+            slot.control.cancel();
+        }
+        if let Some(task) = slot.task.take().filter(|task| !task.is_finished()) {
+            crate::lock(&self.inner.leaving).push((slot.entry.queue.clone(), task));
+        }
+        Some(slot)
+    }
+
     /// Forgets a download entirely, stopping it first if it was running.
     ///
     /// Not `cancel` and then forget: that discarded the parts and wrote the
     /// queue twice, once for a Cancelled state nobody would ever see.
     pub async fn remove(&self, id: Id) {
-        let taken = self.inner.slots.lock().await.remove(&id);
+        let taken = self.take_slot(&mut *self.inner.slots.lock().await, id);
         let Some(slot) = taken else {
             return;
         };
-        if !slot.entry.state.settled() {
-            slot.control.cancel();
-        }
-        if let Some(task) = slot.task.filter(|task| !task.is_finished()) {
-            crate::lock(&self.inner.leaving).push((slot.entry.queue.clone(), task));
-        }
         self.inner.order.lock().await.retain(|x| *x != id);
         // The folder the row recorded, read from the row just taken: looked
         // up afresh it is no longer there, and the setting's folder is not
@@ -1280,12 +1290,23 @@ impl Queue {
                             }
                         }
                     }
+                    reported
                 })
             };
 
             let client = inner.client.lock().await.clone();
             let outcome = download_reporting(&client, &url, &options, Some(tx)).await;
-            let _ = watcher.await;
+            let reported = watcher.await.ok().flatten();
+            /* Reports are samples: a file whole before the next one was
+             * sent had bytes no report carried, and a small download could
+             * go uncounted by the download limit altogether. What a
+             * finished file holds past the last report counts now. */
+            if let (Ok(finished), Some(reported)) = (&outcome, reported) {
+                let unreported = finished.bytes.saturating_sub(reported);
+                if unreported > 0 {
+                    crate::lock(&inner.quota).add(unreported, std::time::SystemTime::now());
+                }
+            }
 
             let mut slots = inner.slots.lock().await;
             let Some(slot) = slots.get_mut(&id) else {
@@ -1753,7 +1774,21 @@ impl Queue {
         // The file a Metalink names: its length, as the document states it
         // or as a mirror reports it. Not its ETag: the row's is the one
         // mirror's it was probed from, and every mirror has its own.
-        let listed = metalink_of(client, &now.final_url, referrer, sign_in).await?;
+        // Fetched as a download fetches it: retried, under the speed
+        // ceiling, and capped. Retried a bounded number of times even where
+        // the setting says to keep trying: nobody is waiting on a check.
+        let mut options = crate::Options {
+            control: Control::new(),
+            referrer: referrer.map(str::to_string),
+            sign_in: sign_in.cloned(),
+            ..self.inner.options.lock().await.clone()
+        };
+        if options.attempts == 0 {
+            options.attempts = crate::retry::MAX_ATTEMPTS;
+        }
+        let listed = crate::download::fetch_metalink(client, &now.final_url, &options)
+            .await
+            .ok()?;
         let size = match listed.size {
             Some(size) => Some(size),
             None => {
@@ -1915,39 +1950,6 @@ pub fn differs(row: &Entry, now: &crate::Probe) -> bool {
     let validator = matches!((&row.validator, &now.validator), (Some(a), Some(b)) if a != b);
     let length = matches!((row.progress.total, now.size), (Some(a), Some(b)) if a != b);
     validator || length
-}
-
-/// The Metalink at `url`, read for a recheck; `None` when it cannot be
-/// fetched or names nothing.
-async fn metalink_of(
-    client: &reqwest::Client,
-    url: &str,
-    referrer: Option<&str>,
-    sign_in: Option<&crate::cookies::SignIn>,
-) -> Option<crate::Metalink> {
-    // A mirror list is a few kilobytes; a server that sends more than this
-    // is not sending one.
-    const MOST: usize = 4 * 1024 * 1024;
-    let mut request = client.get(url);
-    if let Some(cookies) = crate::cookies::header_with(sign_in, url) {
-        request = request.header(reqwest::header::COOKIE, cookies);
-    }
-    if let Some(referrer) = referrer {
-        request = request.header(reqwest::header::REFERER, referrer);
-    }
-    let mut response = crate::auth::send(client, request, url)
-        .await
-        .ok()?
-        .error_for_status()
-        .ok()?;
-    let mut body = Vec::new();
-    while let Some(chunk) = response.chunk().await.ok()? {
-        body.extend_from_slice(&chunk);
-        if body.len() > MOST {
-            return None;
-        }
-    }
-    crate::metalink::parse(&String::from_utf8_lossy(&body))
 }
 
 /// What an earlier run left under `dir` that the download limit counted

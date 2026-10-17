@@ -195,7 +195,12 @@ fn status_in(row: &Entry, words: fn(&'static str) -> &'static str) -> String {
         // Held by the schedule or the download limit, not by a person: it
         // goes on by itself, which "Stopped" would not say.
         State::Paused if row.paused_by_schedule => words("Waiting").into(),
-        State::Paused => words("Stopped").into(),
+        // How far it got, so a stopped row is not mistaken for one that
+        // never started.
+        State::Paused => match row.progress.fraction() {
+            Some(f) if f > 0.0 => format!("{} · {:.0}%", words("Stopped"), f * 100.0),
+            _ => words("Stopped").into(),
+        },
         State::Completed => words("Complete").into(),
         State::Failed(reason) => crate::i18n::fill(words("Error: {}"), &[reason]),
         State::Cancelled => words("Cancelled").into(),
@@ -906,6 +911,14 @@ impl DmApp {
                 let id = params.get("id").and_then(|v| v.as_str()).unwrap_or("");
                 let command =
                     Command::from_id(id).ok_or_else(|| format!("no command is called {id}"))?;
+                // Opening a downloaded file runs it, on Windows, if it is a
+                // program: a person's click in the window, never a script's
+                // or an AI client's that a web page may have talked into it.
+                if matches!(command, Command::OpenFile | Command::OpenWith) {
+                    return Err(format!(
+                        "{id} is done in the window by a person, not over this connection"
+                    ));
+                }
                 if !self.enabled(command) {
                     return Err(format!("{id} has nothing to act on"));
                 }
@@ -1308,6 +1321,8 @@ impl DmApp {
                 }
                 for row in &targets {
                     match row.state {
+                        // Held: asking would only requeue it to be held again.
+                        State::Paused if row.paused_by_schedule => {}
                         State::Paused => self.backend.resume(row.id),
                         State::Failed(_) => self.backend.retry(row.id),
                         _ => {}
@@ -2655,6 +2670,10 @@ mod status_tests {
     fn a_row_held_by_the_schedule_or_the_limit_is_waiting_not_stopped() {
         assert_eq!(status_in_english(&paused(true)), "Waiting");
         assert_eq!(status_in_english(&paused(false)), "Stopped");
+        let mut part_way = paused(false);
+        part_way.progress.downloaded = 45;
+        part_way.progress.total = Some(100);
+        assert_eq!(status_in_english(&part_way), "Stopped · 45%");
     }
 }
 

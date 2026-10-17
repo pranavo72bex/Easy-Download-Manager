@@ -28,6 +28,8 @@ struct Quirks {
     endless: bool,
     /// Every transfer stops halfway and says so: 426 on the control line.
     aborts: bool,
+    /// Where the file is, if not `f.bin` in the login directory.
+    at: Option<&'static str>,
 }
 
 #[derive(Clone)]
@@ -101,8 +103,8 @@ async fn session(stream: TcpStream, s: Server) {
             // The file is in the login directory, which is not the root: an
             // address's path is relative to it (RFC 1738), and `/f.bin`, the
             // root's, is another file this server has not got.
-            "SIZE" if arg == "f.bin" => format!("213 {}", s.body.len()),
-            "SIZE" | "RETR" if arg != "f.bin" => "550 No such file.".into(),
+            "SIZE" if arg == s.quirks.at.unwrap_or("f.bin") => format!("213 {}", s.body.len()),
+            "SIZE" | "RETR" if arg != s.quirks.at.unwrap_or("f.bin") => "550 No such file.".into(),
             "MDTM" => "213 20260101120000".into(),
             "REST" if s.quirks.bare => "502 no REST here".into(),
             "REST" => {
@@ -273,6 +275,31 @@ async fn a_dropped_ftp_transfer_is_tried_again_from_where_it_stopped() {
     let starts = server.starts.lock().unwrap().clone();
     assert_eq!(starts.len(), 2, "{starts:?}");
     assert!(starts[1] > 0, "the retry started over: {starts:?}");
+}
+
+#[tokio::test]
+async fn a_file_only_found_from_the_root_is_fetched_from_there() {
+    /* A server that does not keep a user in their home folder has the
+     * file at `/srv/x/f.bin`; the link names it so, and was fetched that
+     * way before addresses were read relative to the login folder. */
+    let body: Vec<u8> = (0..300_000u32).map(|i| (i % 251) as u8).collect();
+    let (addr, _) = serve(
+        body.clone(),
+        Quirks {
+            at: Some("/srv/x/f.bin"),
+            ..Quirks::default()
+        },
+    )
+    .await;
+    let dir = tempdir();
+    let done = download(
+        &client(),
+        &format!("ftp://{addr}/srv/x/f.bin"),
+        &options(dir.path()),
+    )
+    .await
+    .unwrap();
+    assert!(std::fs::read(&done.path).unwrap() == body);
 }
 
 #[tokio::test]

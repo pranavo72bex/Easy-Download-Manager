@@ -102,6 +102,26 @@ async fn write_private(path: &Path, text: &str) -> Result<(), Error> {
     Ok(())
 }
 
+/// Hands yt-dlp the proxy in a config file of the run's own under `dir`,
+/// readable by this account alone and removed when the run ends. On the
+/// command line, the proxy's user name and password were there for any
+/// local user's `ps` to read, as the cookies were before them.
+async fn proxy_by_file(
+    command: &mut Command,
+    dir: &Path,
+    proxy: &str,
+) -> Result<RemoveOnDrop, Error> {
+    static RUNS: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
+    let run = RUNS.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+    let path = dir.join(format!("dm-proxy-{}-{run}.conf", std::process::id()));
+    // yt-dlp splits its config as a POSIX shell does: single quotes keep
+    // everything, and a quote inside is closed, escaped and reopened.
+    let quoted = proxy.replace('\'', r"'\''");
+    write_private(&path, &format!("--proxy '{quoted}'\n")).await?;
+    command.arg("--config-locations").arg(&path);
+    Ok(RemoveOnDrop(path))
+}
+
 /// Removes a file when it goes out of scope: a run's private cookies file,
 /// whichever way the run ends.
 struct RemoveOnDrop(PathBuf);
@@ -292,9 +312,10 @@ pub async fn list_choices(
         .stdout(Stdio::piped())
         .stderr(Stdio::null())
         .kill_on_drop(true);
-    if let Some(proxy) = proxy {
-        command.arg("--proxy").arg(proxy);
-    }
+    let _proxied = match proxy {
+        Some(proxy) => Some(proxy_by_file(&mut command, &std::env::temp_dir(), proxy).await?),
+        None => None,
+    };
     if let Some(referrer) = referrer {
         command.arg("--referer").arg(referrer);
     }
@@ -401,9 +422,10 @@ pub async fn download_ytdlp(
      * through the proxy is exactly where a direct connection is the one
      * outcome nobody wants. The referrer is what a hotlink-protected page
      * checks for, and the probe that routed here already needed it. */
-    if let Some(proxy) = options.proxy_for(url) {
-        command.arg("--proxy").arg(proxy);
-    }
+    let _proxied = match options.proxy_for(url) {
+        Some(proxy) => Some(proxy_by_file(&mut command, staging, proxy).await?),
+        None => None,
+    };
     if let Some(referrer) = &options.referrer {
         command.arg("--referer").arg(referrer);
     }
@@ -458,7 +480,7 @@ pub async fn download_ytdlp(
         .map_err(|e| Error::Internal(format!("yt-dlp would not start: {e}")))?;
     // Declared after the child, so dropped before it: the group is ended
     // while yt-dlp, its leader, is still there to name it.
-    let mut tree = Tree(child.id());
+    let mut tree = Tree::of(child.id());
 
     // Drained on its own task, not left in the pipe. A long download that
     // logged more warnings than the pipe holds would otherwise block yt-dlp
@@ -534,7 +556,7 @@ pub async fn download_ytdlp(
         .await
         .map_err(|e| Error::Internal(format!("yt-dlp did not finish: {e}")))?;
     // Reaped: its number may now be another program's, never to be killed.
-    tree.0 = None;
+    tree.disarm();
 
     // Checked after draining stdout, so a pause noticed on the last line wins.
     options.control.check()?;
@@ -618,30 +640,69 @@ async fn place(produced: &Path, options: &Options) -> Result<Finished, Error> {
 
 /// yt-dlp and everything it started, ended together.
 ///
-/// On unix yt-dlp leads a process group of its own and the group is killed;
-/// on Windows `taskkill /T` ends the tree under it. `None` once the run has
-/// been reaped, when the number may belong to someone else.
+/// On unix yt-dlp leads a process group of its own and the group is sent
+/// SIGKILL by `killpg`; on Windows `taskkill /T` ends the tree under it.
+/// `None` once the run has been reaped, when the number may belong to
+/// someone else.
+///
+/// No `kill` program on unix: looked up on `PATH`, it was not found under
+/// the minimal one a browser's native host or the Dock starts dm with, the
+/// error went unread, and the ffmpeg under yt-dlp ran on. And nothing here
+/// waits: `end` is called from the async task and from `Drop`, where
+/// waiting for a program to run held a runtime thread.
 struct Tree(Option<u32>);
 
+/// Every yt-dlp tree still running, for `end_all`.
+static LIVE: std::sync::Mutex<Vec<u32>> = std::sync::Mutex::new(Vec::new());
+
+/// Ends every yt-dlp tree still running. For a dm leaving at once (a second
+/// interrupt) without the unwinding that would end each on its own: yt-dlp
+/// runs in a process group of its own, which a terminal's Ctrl+C no longer
+/// reaches, so nothing else would stop it and its ffmpeg.
+pub fn end_all() {
+    let pids = std::mem::take(&mut *crate::lock(&LIVE));
+    for pid in pids {
+        Tree(Some(pid)).end();
+    }
+}
+
 impl Tree {
+    fn of(pid: Option<u32>) -> Self {
+        if let Some(pid) = pid {
+            crate::lock(&LIVE).push(pid);
+        }
+        Tree(pid)
+    }
+
+    /// yt-dlp has been reaped: its number may be another process's now.
+    fn disarm(&mut self) {
+        if let Some(pid) = self.0.take() {
+            crate::lock(&LIVE).retain(|p| *p != pid);
+        }
+    }
+
     fn end(&mut self) {
         let Some(pid) = self.0.take() else {
             return;
         };
+        crate::lock(&LIVE).retain(|p| *p != pid);
         #[cfg(unix)]
-        let _ = std::process::Command::new("kill")
-            .args(["-KILL", "--", &format!("-{pid}")])
-            .stdin(Stdio::null())
-            .stdout(Stdio::null())
-            .stderr(Stdio::null())
-            .status();
+        if let Ok(group) = libc::pid_t::try_from(pid) {
+            // SAFETY: `killpg` takes two integers and touches no memory of
+            // ours. The group is yt-dlp's own (`process_group(0)` at spawn)
+            // and is not yet reaped, so the number is still its.
+            let _ = unsafe { libc::killpg(group, libc::SIGKILL) };
+        }
         #[cfg(windows)]
-        let _ = crate::no_window(&mut std::process::Command::new("taskkill"))
-            .args(["/T", "/F", "/PID", &pid.to_string()])
-            .stdin(Stdio::null())
-            .stdout(Stdio::null())
-            .stderr(Stdio::null())
-            .status();
+        {
+            // Started and not waited for: it ends the tree on its own.
+            let _ = crate::no_window(&mut std::process::Command::new("taskkill"))
+                .args(["/T", "/F", "/PID", &pid.to_string()])
+                .stdin(Stdio::null())
+                .stdout(Stdio::null())
+                .stderr(Stdio::null())
+                .spawn();
+        }
     }
 }
 
