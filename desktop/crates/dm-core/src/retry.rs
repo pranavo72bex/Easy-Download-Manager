@@ -92,6 +92,24 @@ pub async fn run_making_progress<F, Fut, T>(
     control: &Control,
     attempts: u32,
     progress: impl Fn() -> u64,
+    op: F,
+) -> Result<T, Error>
+where
+    F: FnMut() -> Fut,
+    Fut: Future<Output = Result<T, Error>>,
+{
+    run_making_progress_telling(control, attempts, progress, |_, _| {}, op).await
+}
+
+/// As [`run_making_progress`], with `retrying` told of each attempt after a
+/// failed one, before the wait for it: the attempt's number (the first try
+/// is 1) and how many there may be (0 for "keep trying"), so a row can say
+/// it is retrying rather than drop back and climb without a word.
+pub async fn run_making_progress_telling<F, Fut, T>(
+    control: &Control,
+    attempts: u32,
+    progress: impl Fn() -> u64,
+    retrying: impl Fn(u32, u32),
     mut op: F,
 ) -> Result<T, Error>
 where
@@ -113,6 +131,7 @@ where
                 if attempt >= limit || !transient(&error) {
                     return Err(error);
                 }
+                retrying(attempt.saturating_add(1), attempts);
                 wait(control, backoff(attempt, error.retry_after())).await?;
             }
         }
@@ -124,7 +143,22 @@ where
 /// more than five, and one who asked for "keep trying" (zero) wants no
 /// end but a pause or a cancel. The backoff stops growing at eight
 /// seconds, so an endless retry asks about seven times a minute.
-pub async fn run_up_to<F, Fut, T>(control: &Control, attempts: u32, mut op: F) -> Result<T, Error>
+pub async fn run_up_to<F, Fut, T>(control: &Control, attempts: u32, op: F) -> Result<T, Error>
+where
+    F: FnMut() -> Fut,
+    Fut: Future<Output = Result<T, Error>>,
+{
+    run_up_to_telling(control, attempts, |_, _| {}, op).await
+}
+
+/// As [`run_up_to`], with `retrying` told of each attempt after a failed
+/// one, as [`run_making_progress_telling`] tells it.
+pub async fn run_up_to_telling<F, Fut, T>(
+    control: &Control,
+    attempts: u32,
+    retrying: impl Fn(u32, u32),
+    mut op: F,
+) -> Result<T, Error>
 where
     F: FnMut() -> Fut,
     Fut: Future<Output = Result<T, Error>>,
@@ -140,6 +174,7 @@ where
                 if attempt >= limit || !transient(&error) {
                     return Err(error);
                 }
+                retrying(attempt.saturating_add(1), attempts);
                 wait(control, backoff(attempt, error.retry_after())).await?;
             }
         }
@@ -286,6 +321,32 @@ mod tests {
             started.elapsed() < Duration::from_secs(5),
             "the cancel waited out the backoff"
         );
+    }
+
+    /// Gap 155: each attempt after a failed one is told, numbered from the
+    /// first try, with the number there may be.
+    #[tokio::test]
+    async fn each_retry_is_told_with_its_number() {
+        let control = Control::new();
+        let heard = std::sync::Mutex::new(Vec::new());
+        let tries = std::sync::atomic::AtomicU32::new(0);
+        let outcome: Result<(), Error> = run_making_progress_telling(
+            &control,
+            3,
+            || 0,
+            |attempt, of| heard.lock().unwrap().push((attempt, of)),
+            || async {
+                tries.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+                Err(Error::Incomplete {
+                    got: 0,
+                    expected: 1,
+                })
+            },
+        )
+        .await;
+        assert!(matches!(outcome, Err(Error::Incomplete { .. })));
+        assert_eq!(tries.load(std::sync::atomic::Ordering::Relaxed), 3);
+        assert_eq!(*heard.lock().unwrap(), [(2, 3), (3, 3)]);
     }
 
     #[test]

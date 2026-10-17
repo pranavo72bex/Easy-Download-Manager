@@ -338,6 +338,14 @@ Evidence is `dm-desktop/tests/window.rs` unless it says otherwise.
 | Page Up/Down move a screenful; End shows the last row whole; the focus ring stays inside the list; scroll bars are seen without hovering | PASS | `page_keys_move_a_page_and_end_shows_the_last_row_whole`; `theme.rs` `scroll_bars_are_seen_without_the_pointer_and_take_their_own_room` (gaps 147, 148, 2026-10-18) |
 | The Remove dialog's buttons say what its sentence asks; Enter keeps; the next row is selected after a removal | PASS | `remove_says_one_thing_enter_keeps_and_the_next_row_is_selected` (gap 149, 2026-10-18) |
 | A drop with no link in it, and the empty list, say how to add a link | PASS | `a_drop_with_no_link_says_how_to_add_one` (gap 150, 2026-10-18). A link dragged from a browser is not received at all: winit delivers files only |
+| The list's up-and-down bar stays at its visible right edge when columns overflow, and drags the list | PASS | `the_lists_bar_stays_in_view_when_the_columns_run_past_it` (gap 152, 2026-10-18) |
+| A failed row says why in plain words, the engine's own on hover | PASS | `a_cut_connection_is_said_plainly`, `common_failures_have_plain_reasons` (gap 153, 2026-10-18) |
+| Enter presses Download again in "Already in the list" | PASS | `enter_downloads_again_when_already_listed` (gap 154, 2026-10-18) |
+| A retry says its attempt while it waits | PASS | `a_retry_says_its_attempt`, `each_retry_is_told_with_its_number` (gap 155, 2026-10-18) |
+| An HLS address is suggested under the name it is saved as; a finished row's size is its file's | PASS | `a_stream_is_suggested_under_the_name_it_is_saved_as`, `a_finished_rows_size_is_its_files` (gap 156, 2026-10-18) |
+| Added for later reads Queued; Exit counts the running; counts take real plurals in every language | PASS | `statuses_and_counts_say_what_is_so`, `a_count_takes_the_form_its_language_gives_it` (gaps 157, 158, 2026-10-18) |
+| A browser hand-off of a listed address says it was added again | PASS | `a_hand_off_of_a_listed_address_is_said_to_be_added_again` (gap 159, 2026-10-18) |
+| Add URL keeps its place when its warning appears; Download details shows the size | PASS | `dialogs_keep_their_place_and_show_the_size` (gap 160, 2026-10-18) |
 | The window comes back from the tray where it was | NOT VERIFIED | position kept on hide and sent on show (`main.rs`); not watched with a real window manager |
 
 ## N. Measured

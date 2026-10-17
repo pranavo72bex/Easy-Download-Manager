@@ -640,7 +640,7 @@ async fn progress_is_reported_while_the_file_arrives() {
             match update {
                 dm_core::Update::Progress(p) => seen.push(p),
                 dm_core::Update::Named { name, .. } => names.push(name),
-                dm_core::Update::Validator(_) => {}
+                dm_core::Update::Validator(_) | dm_core::Update::Retrying { .. } => {}
             }
         }
         (seen, names)

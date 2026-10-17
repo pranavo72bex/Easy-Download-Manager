@@ -166,6 +166,41 @@ pub fn status_of(row: &Entry) -> String {
     status_in(row, t)
 }
 
+thread_local! {
+    /// The rows a range is being retried for, as the last refresh found
+    /// them: the attempt and how many there may be (0 for no end). Kept
+    /// beside the rows, which the engine hands over without it.
+    static RETRYING: std::cell::RefCell<HashMap<Id, (u32, u32)>> =
+        std::cell::RefCell::new(HashMap::new());
+}
+
+/// What the engine now says about retries, for the statuses drawn next.
+pub fn set_retrying(now: HashMap<Id, (u32, u32)>) {
+    RETRYING.with(|r| *r.borrow_mut() = now);
+}
+
+fn retrying(id: Id) -> Option<(u32, u32)> {
+    RETRYING.with(|r| r.borrow().get(&id).copied())
+}
+
+/// What the engine said of a failure, word for word, where the status
+/// says it in plainer words: shown on hover (gap 153).
+pub fn failure_as_said(row: &Entry) -> Option<&str> {
+    match &row.state {
+        State::Failed(raw) if format::reason(raw).is_some() => Some(raw),
+        _ => None,
+    }
+}
+
+/// Whether a row was added for later and waits for its queue: stopped,
+/// in a queue, nothing fetched and not held by the schedule.
+fn waits_for_its_queue(row: &Entry) -> bool {
+    row.state == State::Paused
+        && !row.paused_by_schedule
+        && !row.queue.is_empty()
+        && row.progress.downloaded == 0
+}
+
 /// The folder a row's file is in, once finished, or the one it was asked
 /// to go to; empty where that is the download folder's own choice.
 pub fn folder_of(row: &Entry) -> String {
@@ -187,6 +222,15 @@ pub fn status_in_english(row: &Entry) -> String {
 
 fn status_in(row: &Entry, words: fn(&'static str) -> &'static str) -> String {
     match &row.state {
+        // Said while a range waits to be tried again: the bar drops back
+        // and climbs, which read as a fault (gap 155).
+        State::Running if retrying(row.id).is_some() => match retrying(row.id) {
+            Some((attempt, of)) if of > 0 => {
+                crate::i18n::fill(words("Retrying (attempt {} of {})"), &[&attempt, &of])
+            }
+            Some((attempt, _)) => crate::i18n::fill(words("Retrying (attempt {})"), &[&attempt]),
+            None => String::new(),
+        },
         State::Running => match row.progress.fraction() {
             Some(f) => format!("{:.2}%", f * 100.0),
             // A length the server did not say: what has arrived, and how
@@ -208,6 +252,8 @@ fn status_in(row: &Entry, words: fn(&'static str) -> &'static str) -> String {
         // Held by the schedule or the download limit, not by a person: it
         // goes on by itself, which "Stopped" would not say.
         State::Paused if row.paused_by_schedule => words("Waiting").into(),
+        // Added for later: it is in line for its queue, not stopped.
+        State::Paused if waits_for_its_queue(row) => words("Queued").into(),
         // How far it got, so a stopped row is not mistaken for one that
         // never started.
         State::Paused => match row.progress.fraction() {
@@ -221,7 +267,11 @@ fn status_in(row: &Entry, words: fn(&'static str) -> &'static str) -> String {
             crate::i18n::fill(words("Error: {}"), &[reason]),
             words("it needs a sign-in: Properties › Login")
         ),
-        State::Failed(reason) => crate::i18n::fill(words("Error: {}"), &[reason]),
+        // In plain words where dm knows them; the engine's own on hover.
+        State::Failed(reason) => crate::i18n::fill(
+            words("Error: {}"),
+            &[&format::reason(reason).map_or(reason.as_str(), words)],
+        ),
         State::Cancelled => words("Cancelled").into(),
     }
 }
@@ -387,6 +437,14 @@ pub struct DmApp {
     pub row_rects: HashMap<Id, egui::Rect>,
     /// What of the list's rows could be seen last frame, in window points.
     pub list_clip: Option<egui::Rect>,
+    /// Where the list's up-and-down scroll bar is drawn: at the list's
+    /// visible right edge, whatever is scrolled sideways (gap 152).
+    pub list_bar: Option<egui::Rect>,
+    /// A place that bar was dragged or wheeled to, for the list to take.
+    pub list_bar_moved: Option<f32>,
+    /// Whether the list has been drawn since launch: it starts at its
+    /// left edge, with Name in view, whatever egui remembered.
+    pub list_drawn: bool,
     /// How many rows Page Up and Page Down move: a screenful, less one.
     pub list_page: usize,
     pub dialogs: Dialogs,
@@ -453,6 +511,10 @@ pub struct DmApp {
     /// Sizes a dialog learned from the server before a row was added for
     /// later, shown until the row learns its own.
     pub sizes_told: HashMap<Id, u64>,
+    /// Each finished file's size on disk, by the path it was read at: a
+    /// stream put into an MP4 is not the size of the joined stream the
+    /// engine counted (gap 156). Read once a path.
+    pub saved: HashMap<Id, (String, u64)>,
     /// The status line's sentence and when it was said: an old one is not
     /// left standing beside rows it no longer describes.
     said_at: Option<(crate::i18n::Said, Instant)>,
@@ -491,6 +553,9 @@ impl DmApp {
             drag_out: Vec::new(),
             row_rects: HashMap::new(),
             list_clip: None,
+            list_bar: None,
+            list_bar_moved: None,
+            list_drawn: false,
             list_page: 1,
             dialogs: Dialogs::default(),
             problems: Vec::new(),
@@ -527,6 +592,7 @@ impl DmApp {
             last_added: Vec::new(),
             said_about: None,
             sizes_told: HashMap::new(),
+            saved: HashMap::new(),
             said_at: None,
         };
         app.sort = Column::from_key(&app.applied.sort_column)
@@ -642,8 +708,9 @@ impl DmApp {
                         );
                         match added {
                             Ok(n) => {
-                                self.said = crate::i18n::Said::naming(
-                                    "Added {} download(s) to {}.",
+                                self.said = crate::i18n::Said::counting_naming(
+                                    "Added {} download to {}.||Added {} downloads to {}.",
+                                    n as u64,
                                     &[&n, &dm_core::MAIN_QUEUE],
                                 );
                             }
@@ -732,6 +799,8 @@ impl DmApp {
     /// announcing what finished, collecting problems.
     pub fn refresh(&mut self) {
         self.rows = self.backend.list();
+        set_retrying(self.backend.retrying());
+        self.saved_sizes();
         self.refreshed = Some(Instant::now());
         let ids: HashSet<Id> = self.rows.iter().map(|r| r.id).collect();
         self.selected.retain(|id| ids.contains(id));
@@ -796,6 +865,30 @@ impl DmApp {
                 }
             }
         }
+        // A browser's hand-off of an address already listed: added by the
+        // inbox before the window hears of it, and the browser has let its
+        // own download go, so there is nothing left to ask. Said, as Add
+        // URL would have asked (gap 159).
+        if self.notify_ready {
+            let fresh = |row: &&Entry| {
+                !self.last_state.contains_key(&row.id) && !self.own.contains(&row.id)
+            };
+            let again = self.rows.iter().filter(fresh).find(|row| {
+                let address = crate::dialogs::bare(&row.url);
+                self.rows.iter().any(|other| {
+                    other.id != row.id
+                        && other.state != State::Cancelled
+                        && self.last_state.contains_key(&other.id)
+                        && crate::dialogs::bare(&other.url) == address
+                })
+            });
+            if let Some(row) = again {
+                self.said = crate::i18n::Said::new(
+                    "Added {} again: that address was already in the list.",
+                    &[&name_of(row)],
+                );
+            }
+        }
         self.own.retain(|id| ids.contains(id));
         // A size told by a dialog stands only until the row has its own.
         let rows = &self.rows;
@@ -812,6 +905,36 @@ impl DmApp {
                 .into_iter()
                 .map(|p| worded_problem(&p)),
         );
+    }
+
+    /// A finished row's size is its file's: read once from the disk for
+    /// each path, and put in place of the bytes the engine counted, which
+    /// for a stream remuxed into an MP4 were the joined stream's.
+    fn saved_sizes(&mut self) {
+        let saved = &mut self.saved;
+        saved.retain(|id, _| {
+            self.rows
+                .iter()
+                .any(|r| r.id == *id && r.state == State::Completed)
+        });
+        for row in &mut self.rows {
+            if row.state != State::Completed || row.path.is_empty() {
+                continue;
+            }
+            let known = saved.get(&row.id).filter(|(path, _)| *path == row.path);
+            let size = match known {
+                Some((_, size)) => *size,
+                None => match std::fs::metadata(&row.path) {
+                    Ok(meta) if meta.is_file() => {
+                        saved.insert(row.id, (row.path.clone(), meta.len()));
+                        meta.len()
+                    }
+                    _ => continue,
+                },
+            };
+            row.progress.total = Some(size);
+            row.progress.downloaded = size;
+        }
     }
 
     /// "When done": once everything that was downloading has settled,
@@ -1566,9 +1689,9 @@ impl DmApp {
             }
             Command::DeleteCompleted => {
                 let n = self.backend.clear_finished();
-                self.said = crate::i18n::Said::new(
-                    "Deleted {} completed or cancelled download(s) from the list.",
-                    &[&n],
+                self.said = crate::i18n::Said::counting(
+                    "Deleted {} completed or cancelled download from the list.||Deleted {} completed or cancelled downloads from the list.",
+                    n as u64, &[&n],
                 );
             }
             Command::Find => {
@@ -1580,8 +1703,11 @@ impl DmApp {
             Command::StartQueue => {
                 let queue = self.current_queue();
                 let n = self.backend.start_queue(&queue);
-                self.said =
-                    crate::i18n::Said::naming("Started {} download(s) in {}.", &[&n, &queue]);
+                self.said = crate::i18n::Said::counting_naming(
+                    "Started {} download in {}.||Started {} downloads in {}.",
+                    n as u64,
+                    &[&n, &queue],
+                );
                 // Asked in the background: a server at a time, each up to
                 // its timeouts, which held the window for minutes when it
                 // was done here. The counts are said when it is done.
@@ -1599,8 +1725,11 @@ impl DmApp {
             Command::StopQueue => {
                 let queue = self.current_queue();
                 let n = self.backend.stop_queue(&queue);
-                self.said =
-                    crate::i18n::Said::naming("Stopped {} download(s) in {}.", &[&n, &queue]);
+                self.said = crate::i18n::Said::counting_naming(
+                    "Stopped {} download in {}.||Stopped {} downloads in {}.",
+                    n as u64,
+                    &[&n, &queue],
+                );
             }
             Command::SpeedLimiterToggle => {
                 let mut wanted = self.applied.clone();
@@ -1706,7 +1835,11 @@ impl DmApp {
                 .map(|r| r.id)
                 .filter(|id| !before.contains(id)),
         );
-        self.said = crate::i18n::Said::new("Imported {} download(s).", &[&added]);
+        self.said = crate::i18n::Said::counting(
+            "Imported {} download.||Imported {} downloads.",
+            added as u64,
+            &[&added],
+        );
         self.refresh();
     }
 
@@ -1829,6 +1962,12 @@ impl DmApp {
                 self.said_about = None;
             }
         }
+    }
+
+    /// How many downloads are running, and how many are in line to start.
+    pub fn running_and_waiting(&self) -> (usize, usize) {
+        let count = |state: State| self.rows.iter().filter(|r| r.state == state).count();
+        (count(State::Running), count(State::Queued))
     }
 
     /// How many downloads are running or about to.
@@ -2028,7 +2167,10 @@ impl DmApp {
                 .default_size(if t.modern { 230.0 } else { 200.0 })
                 .frame(flat(t.frame, 8, 4))
                 .show(ui, |ui| {
-                    // More places than fit scroll, rather than being cut off.
+                    // More places than fit scroll, rather than being cut off,
+                    // with a bar that shows it: hidden until hovered, a tree
+                    // cut by a two-row toolbar looked as though it ended there.
+                    ui.spacing_mut().scroll = crate::theme::steady_scroll();
                     egui::ScrollArea::vertical()
                         .auto_shrink([false, false])
                         .show(ui, |ui| self.categories(ui));
@@ -2224,7 +2366,7 @@ impl DmApp {
     fn item(&mut self, ui: &mut egui::Ui, command: Command) {
         let mut button = egui::Button::new(self.title_of(command));
         if let Some(shortcut) = command.shortcut() {
-            button = button.shortcut_text(ui.ctx().format_shortcut(&shortcut));
+            button = button.shortcut_text(format::shortcut(ui.ctx(), &shortcut));
         }
         if ui.add_enabled(self.enabled(command), button).clicked() {
             self.queued.push(command);
@@ -2650,8 +2792,9 @@ impl DmApp {
             ui.label(if running.is_empty() {
                 t("Nothing downloading").to_string()
             } else {
-                tf(
-                    "{} downloading at {}",
+                crate::i18n::tn(
+                    "{} downloading at {}||{} downloading at {}",
+                    running.len() as u64,
                     &[&running.len(), &format::rate(rate)],
                 )
             });
@@ -2837,6 +2980,7 @@ pub fn run_time_words() -> Vec<&'static str> {
     words.extend(crate::i18n::BUILT_IN_NAMES);
     words.extend(crate::format::MONTHS);
     words.push(DROP_HINT);
+    words.extend(format::REASONS.iter().map(|(_, plain)| *plain));
     for place in [
         Place::All,
         Place::Unfinished,

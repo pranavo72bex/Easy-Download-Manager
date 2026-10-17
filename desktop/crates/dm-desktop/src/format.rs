@@ -200,9 +200,131 @@ pub fn titled(word: &str) -> String {
     }
 }
 
+/// The common engine failures in plain words, by what their text holds
+/// (lower case): the engine's own sentence where it has one, and a plain
+/// one for what the network library says in its own terms ("error decoding
+/// response body" is a connection cut mid-file). The first that matches
+/// wins; anything else is shown as the engine said it.
+pub const REASONS: [(&[&str], &str); 9] = [
+    (
+        &[
+            "error decoding response body",
+            "error reading a body",
+            "unexpected eof",
+            "unexpected end of file",
+            "connection reset",
+            "connection closed before",
+            "broken pipe",
+            "the connection ended after",
+            "incomplete message",
+        ],
+        "the server ended the connection before the file was complete",
+    ),
+    (
+        &["the server sent ", "bytes of a file it said was"],
+        "the server sent less than the whole file",
+    ),
+    (
+        &["the server's name could not be found"],
+        "the server's name could not be found (check the address)",
+    ),
+    (
+        &["the server refused the connection"],
+        "the server refused the connection",
+    ),
+    (
+        &["the server did not answer in time", "timed out"],
+        "the server did not answer in time",
+    ),
+    (
+        &["certificate"],
+        "the server's security certificate could not be checked",
+    ),
+    (
+        &["no space left", "os error 28", "disk full"],
+        "the disk is full",
+    ),
+    (
+        &["disk: permission denied", "os error 13"],
+        "dm may not write to that folder",
+    ),
+    (
+        &["the server answered 404"],
+        "the server has no file at this address (404)",
+    ),
+];
+
+/// A failure's plain reason, in English, if it is one dm knows; see
+/// `REASONS`.
+pub fn reason(raw: &str) -> Option<&'static str> {
+    let lower = raw.to_lowercase();
+    REASONS
+        .iter()
+        .find(|(signs, _)| signs.iter().any(|sign| lower.contains(sign)))
+        .map(|(_, plain)| *plain)
+}
+
+/// A key shortcut as a menu shows it: the modifiers as egui names them
+/// (symbols on a Mac), and the key by its symbol where it has one — "." and
+/// "," rather than "Period" and "Comma", which no keyboard prints and no
+/// translation turns into anything (gap 158).
+pub fn shortcut(ctx: &egui::Context, shortcut: &egui::KeyboardShortcut) -> String {
+    let said = ctx.format_shortcut(shortcut);
+    let key = shortcut.logical_key;
+    // The arrows' symbols are not in every font; their names are words.
+    let arrow = matches!(
+        key,
+        egui::Key::ArrowUp | egui::Key::ArrowDown | egui::Key::ArrowLeft | egui::Key::ArrowRight
+    );
+    match said.strip_suffix(key.name()) {
+        Some(modifiers) if !arrow => format!("{modifiers}{}", key.symbol_or_name()),
+        _ => said,
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// Gap 158: a key with a symbol is shown by it.
+    #[test]
+    fn a_shortcut_shows_its_keys_symbol() {
+        let ctx = egui::Context::default();
+        let mut out = ctx.run_ui(egui::RawInput::default(), |_| {});
+        out.textures_delta.clear();
+        let ctrl = |key| egui::KeyboardShortcut::new(egui::Modifiers::COMMAND, key);
+        let shown = shortcut(&ctx, &ctrl(egui::Key::Period));
+        assert!(shown.ends_with('.'), "{shown}");
+        assert!(!shown.contains("Period"), "{shown}");
+        assert!(shortcut(&ctx, &ctrl(egui::Key::Comma)).ends_with(','));
+        assert!(shortcut(&ctx, &ctrl(egui::Key::R)).ends_with('R'));
+        let plain = egui::KeyboardShortcut::new(egui::Modifiers::NONE, egui::Key::Delete);
+        assert_eq!(shortcut(&ctx, &plain), "Delete");
+    }
+
+    /// Gap 153: the network library's words for a cut connection are said
+    /// plainly; what dm does not know is left as it was.
+    #[test]
+    fn common_failures_have_plain_reasons() {
+        let cut = "network: error decoding response body: error reading a body from connection";
+        assert_eq!(
+            reason(cut),
+            Some("the server ended the connection before the file was complete")
+        );
+        assert_eq!(
+            reason("network: connection reset by peer (os error 54)"),
+            reason(cut)
+        );
+        assert_eq!(
+            reason("the connection ended after 10 of 20 bytes"),
+            reason(cut)
+        );
+        assert_eq!(
+            reason("disk: No space left on device (os error 28)"),
+            Some("the disk is full")
+        );
+        assert_eq!(reason("a sentence of the engine's own"), None);
+    }
 
     #[test]
     fn sizes_read_the_way_the_web_window_read_them() {
