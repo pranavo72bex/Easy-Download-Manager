@@ -1867,7 +1867,7 @@ impl DmApp {
                         // (macOS does not hibernate), rather than failing
                         // when the queue runs dry.
                         let can = matches!(w, WhenDone::Nothing | WhenDone::Quit)
-                            || crate::power::command(w, std::env::consts::OS).is_some();
+                            || crate::power::way(w, std::env::consts::OS).is_some();
                         if ui
                             .add_enabled(
                                 can,

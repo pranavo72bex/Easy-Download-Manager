@@ -540,10 +540,16 @@ pub async fn download_ytdlp(
             // --continue to resume from; a cancel throws that away.
             _ = tokio::time::sleep(std::time::Duration::from_millis(250)) => {
                 if let Err(stop) = options.control.check() {
-                    tree.end();
+                    // The tree first, and waited for, off the runtime: on
+                    // Windows `taskkill /T` finds yt-dlp's workers through
+                    // yt-dlp, and a launcher killed first left them
+                    // running (gap 98).
+                    if let Some(pid) = tree.take() {
+                        let _ = tokio::task::spawn_blocking(move || end_tree(pid)).await;
+                    }
                     let _ = child.kill().await;
                     if matches!(stop, Error::Cancelled) {
-                        let _ = tokio::fs::remove_dir_all(staging).await;
+                        remove_staging(staging).await;
                     }
                     return Err(stop);
                 }
@@ -648,10 +654,19 @@ async fn place(produced: &Path, options: &Options) -> Result<Finished, Error> {
 ///
 /// No `kill` program on unix: looked up on `PATH`, it was not found under
 /// the minimal one a browser's native host or the Dock starts dm with, the
-/// error went unread, and the ffmpeg under yt-dlp ran on. And nothing here
-/// waits: `end` is called from the async task and from `Drop`, where
-/// waiting for a program to run held a runtime thread.
+/// error went unread, and the ffmpeg under yt-dlp ran on. On unix nothing
+/// here waits. On Windows `taskkill` is waited for, at most
+/// [`TREE_KILL_WAIT`], before yt-dlp itself is killed: the one-file yt-dlp
+/// is a launcher with the real yt-dlp as its child, and `/T` finds that
+/// child through the launcher, so a launcher killed first (dm used to start
+/// taskkill and kill yt-dlp at once) left the worker and its ffmpeg running
+/// (gap 98). The async path waits off the runtime; `Drop`, the rare path of
+/// a run abandoned mid-way, waits where it is.
 struct Tree(Option<u32>);
+
+/// How long `taskkill` is given to end a tree.
+#[cfg_attr(not(windows), allow(dead_code))]
+const TREE_KILL_WAIT: std::time::Duration = std::time::Duration::from_secs(5);
 
 /// Every yt-dlp tree still running, for `end_all`.
 static LIVE: std::sync::Mutex<Vec<u32>> = std::sync::Mutex::new(Vec::new());
@@ -659,11 +674,13 @@ static LIVE: std::sync::Mutex<Vec<u32>> = std::sync::Mutex::new(Vec::new());
 /// Ends every yt-dlp tree still running. For a dm leaving at once (a second
 /// interrupt) without the unwinding that would end each on its own: yt-dlp
 /// runs in a process group of its own, which a terminal's Ctrl+C no longer
-/// reaches, so nothing else would stop it and its ffmpeg.
+/// reaches, so nothing else would stop it and its ffmpeg. Each tree is
+/// waited for (on Windows, briefly) before dm exits and takes yt-dlp's
+/// launcher down with it.
 pub fn end_all() {
     let pids = std::mem::take(&mut *crate::lock(&LIVE));
     for pid in pids {
-        Tree(Some(pid)).end();
+        end_tree(pid);
     }
 }
 
@@ -677,39 +694,79 @@ impl Tree {
 
     /// yt-dlp has been reaped: its number may be another process's now.
     fn disarm(&mut self) {
-        if let Some(pid) = self.0.take() {
-            crate::lock(&LIVE).retain(|p| *p != pid);
-        }
+        let _ = self.take();
     }
 
-    fn end(&mut self) {
-        let Some(pid) = self.0.take() else {
-            return;
-        };
+    /// The number to end, handed over once and forgotten here.
+    fn take(&mut self) -> Option<u32> {
+        let pid = self.0.take()?;
         crate::lock(&LIVE).retain(|p| *p != pid);
-        #[cfg(unix)]
-        if let Ok(group) = libc::pid_t::try_from(pid) {
-            // SAFETY: `killpg` takes two integers and touches no memory of
-            // ours. The group is yt-dlp's own (`process_group(0)` at spawn)
-            // and is not yet reaped, so the number is still its.
-            let _ = unsafe { libc::killpg(group, libc::SIGKILL) };
-        }
-        #[cfg(windows)]
-        {
-            // Started and not waited for: it ends the tree on its own.
-            let _ = crate::no_window(&mut std::process::Command::new("taskkill"))
-                .args(["/T", "/F", "/PID", &pid.to_string()])
-                .stdin(Stdio::null())
-                .stdout(Stdio::null())
-                .stderr(Stdio::null())
-                .spawn();
-        }
+        Some(pid)
     }
 }
 
 impl Drop for Tree {
     fn drop(&mut self) {
-        self.end();
+        if let Some(pid) = self.take() {
+            end_tree(pid);
+        }
+    }
+}
+
+/// Ends the tree under `pid`, and on Windows returns once `taskkill` has.
+fn end_tree(pid: u32) {
+    #[cfg(unix)]
+    if let Ok(group) = libc::pid_t::try_from(pid) {
+        // SAFETY: `killpg` takes two integers and touches no memory of
+        // ours. The group is yt-dlp's own (`process_group(0)` at spawn)
+        // and is not yet reaped, so the number is still its.
+        let _ = unsafe { libc::killpg(group, libc::SIGKILL) };
+    }
+    #[cfg(windows)]
+    if let Ok(mut taskkill) = crate::no_window(&mut std::process::Command::new("taskkill"))
+        .args(["/T", "/F", "/PID", &pid.to_string()])
+        .stdin(Stdio::null())
+        .stdout(Stdio::null())
+        .stderr(Stdio::null())
+        .spawn()
+    {
+        wait_at_most(&mut taskkill, TREE_KILL_WAIT);
+    }
+}
+
+/// Waits for `child` up to `limit`, then kills it rather than wait on.
+/// Whether it ended on its own in time.
+#[cfg_attr(not(windows), allow(dead_code))]
+fn wait_at_most(child: &mut std::process::Child, limit: std::time::Duration) -> bool {
+    let start = std::time::Instant::now();
+    loop {
+        match child.try_wait() {
+            Ok(Some(_)) => return true,
+            Ok(None) if start.elapsed() < limit => {
+                std::thread::sleep(std::time::Duration::from_millis(20));
+            }
+            _ => {
+                let _ = child.kill();
+                let _ = child.wait();
+                return false;
+            }
+        }
+    }
+}
+
+/// A cancelled run's staging folder, removed. Tried again for a few
+/// seconds: on Windows a file still open by a process that is only now
+/// ending cannot be deleted, and the first try left the folder behind.
+async fn remove_staging(dir: &Path) {
+    for attempt in 0..15 {
+        match tokio::fs::remove_dir_all(dir).await {
+            Ok(()) => return,
+            Err(e) if e.kind() == std::io::ErrorKind::NotFound => return,
+            Err(_) if attempt < 14 => {
+                tokio::time::sleep(std::time::Duration::from_millis(200)).await;
+            }
+            Err(_) => return,
+        }
     }
 }
 
@@ -827,6 +884,40 @@ pub fn refusal(stderr: &str) -> Option<String> {
 #[cfg(test)]
 mod tests {
     use super::refusal;
+
+    /// Gap 98: the tree's killer is waited for, but never for ever.
+    #[cfg(unix)]
+    #[test]
+    fn the_trees_killer_is_waited_for_but_not_for_ever() {
+        use std::time::{Duration, Instant};
+        let mut quick = std::process::Command::new("sh")
+            .args(["-c", "exit 0"])
+            .spawn()
+            .unwrap();
+        assert!(super::wait_at_most(&mut quick, Duration::from_secs(5)));
+
+        let mut stuck = std::process::Command::new("sleep")
+            .arg("30")
+            .spawn()
+            .unwrap();
+        let at = Instant::now();
+        assert!(!super::wait_at_most(&mut stuck, Duration::from_millis(200)));
+        assert!(at.elapsed() < Duration::from_secs(5), "waited on");
+        assert!(stuck.try_wait().unwrap().is_some(), "killed and reaped");
+    }
+
+    #[tokio::test]
+    async fn a_cancelled_runs_staging_is_removed_and_a_missing_one_is_no_wait() {
+        let dir = tempfile::tempdir().unwrap();
+        let staging = dir.path().join("parts");
+        std::fs::create_dir_all(staging.join("deeper")).unwrap();
+        std::fs::write(staging.join("deeper/a.part"), b"x").unwrap();
+        super::remove_staging(&staging).await;
+        assert!(!staging.exists());
+        let at = std::time::Instant::now();
+        super::remove_staging(&staging).await;
+        assert!(at.elapsed() < std::time::Duration::from_millis(150));
+    }
 
     #[test]
     fn a_sites_refusal_is_said_in_words_a_person_can_act_on() {

@@ -43,24 +43,34 @@ impl WhenDone {
     }
 }
 
-/// The program and arguments that put the machine to sleep or shut it down
-/// on `os` (as `std::env::consts::OS` names it). `None` for anything else.
-pub fn command(action: WhenDone, os: &str) -> Option<(&'static str, Vec<&'static str>)> {
+/// How the machine is put to sleep or shut down on one system.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum Way {
+    /// A program of the system's, with its arguments.
+    Run(&'static str, Vec<&'static str>),
+    /// Windows' `SetSuspendState`, called directly, `hibernate` its first
+    /// argument. Through `rundll32 powrprof.dll,SetSuspendState 0,1,0` it
+    /// was not: rundll32 hands the function its window handle where the
+    /// first argument goes, never zero, so Sleep hibernated wherever
+    /// hibernation was on (gap 42).
+    Suspend { hibernate: bool },
+}
+
+/// How `action` is done on `os` (as `std::env::consts::OS` names it).
+/// `None` for anything else, and the menu greys it.
+pub fn way(action: WhenDone, os: &str) -> Option<Way> {
     match (action, os) {
-        (WhenDone::Sleep, "macos") => Some(("pmset", vec!["sleepnow"])),
-        (WhenDone::ShutDown, "macos") => Some((
+        (WhenDone::Sleep, "macos") => Some(Way::Run("pmset", vec!["sleepnow"])),
+        (WhenDone::ShutDown, "macos") => Some(Way::Run(
             "osascript",
             vec!["-e", "tell application \"System Events\" to shut down"],
         )),
-        (WhenDone::Sleep, "linux") => Some(("systemctl", vec!["suspend"])),
-        (WhenDone::Hibernate, "linux") => Some(("systemctl", vec!["hibernate"])),
-        (WhenDone::ShutDown, "linux") => Some(("systemctl", vec!["poweroff"])),
-        (WhenDone::Sleep, "windows") => Some((
-            "rundll32.exe",
-            vec!["powrprof.dll,SetSuspendState", "0,1,0"],
-        )),
-        (WhenDone::Hibernate, "windows") => Some(("shutdown", vec!["/h"])),
-        (WhenDone::ShutDown, "windows") => Some(("shutdown", vec!["/s", "/t", "0"])),
+        (WhenDone::Sleep, "linux") => Some(Way::Run("systemctl", vec!["suspend"])),
+        (WhenDone::Hibernate, "linux") => Some(Way::Run("systemctl", vec!["hibernate"])),
+        (WhenDone::ShutDown, "linux") => Some(Way::Run("systemctl", vec!["poweroff"])),
+        (WhenDone::Sleep, "windows") => Some(Way::Suspend { hibernate: false }),
+        (WhenDone::Hibernate, "windows") => Some(Way::Suspend { hibernate: true }),
+        (WhenDone::ShutDown, "windows") => Some(Way::Run("shutdown", vec!["/s", "/t", "0"])),
         _ => None,
     }
 }
@@ -69,14 +79,47 @@ pub fn command(action: WhenDone, os: &str) -> Option<(&'static str, Vec<&'static
 /// problems.
 pub type Report = Box<dyn FnOnce(String) + Send>;
 
-/// Runs the system's command for `action` on this machine. That it could
-/// not be started is the answer; a refusal it gives later goes to `report`.
+/// Does `action` on this machine. That it could not be started is the
+/// answer; a refusal it gives later goes to `report`.
 pub fn run(action: WhenDone, report: Report) -> Result<(), String> {
-    let (program, args) = command(action, std::env::consts::OS)
-        .ok_or_else(|| format!("dm cannot {} on this system", action.verb()))?;
-    let mut command = std::process::Command::new(program);
-    dm_core::no_window(&mut command).args(args);
-    watch(action, &mut command, report)
+    match way(action, std::env::consts::OS)
+        .ok_or_else(|| format!("dm cannot {} on this system", action.verb()))?
+    {
+        Way::Run(program, args) => {
+            let mut command = std::process::Command::new(program);
+            dm_core::no_window(&mut command).args(args);
+            watch(action, &mut command, report)
+        }
+        Way::Suspend { hibernate } => suspend(action, hibernate, report),
+    }
+}
+
+/// `SetSuspendState` on a thread of its own: it returns only on waking.
+#[cfg(windows)]
+fn suspend(action: WhenDone, hibernate: bool, report: Report) -> Result<(), String> {
+    std::thread::Builder::new()
+        .name("dm-suspend".into())
+        .spawn(move || {
+            // SAFETY: three booleans in, one out; no memory of ours is
+            // touched. Not forced, wake events left on.
+            let done = unsafe {
+                windows_sys::Win32::System::Power::SetSuspendState(hibernate, false, false)
+            };
+            if !done {
+                report(format!(
+                    "could not {}: {}",
+                    action.verb(),
+                    std::io::Error::last_os_error()
+                ));
+            }
+        })
+        .map(|_| ())
+        .map_err(|e| format!("could not {}: {e}", action.verb()))
+}
+
+#[cfg(not(windows))]
+fn suspend(action: WhenDone, _hibernate: bool, _report: Report) -> Result<(), String> {
+    Err(format!("dm cannot {} on this system", action.verb()))
 }
 
 /// Starts `command` and waits for it on a thread of its own, telling
@@ -116,50 +159,64 @@ fn watch(
     Ok(())
 }
 
-/// Plays the system's own short sound for a failed download: a different
-/// one from the finish, so the ear tells them apart across the room.
-pub fn alert() {
-    let (program, args): (&str, Vec<&str>) = match std::env::consts::OS {
-        "macos" => ("afplay", vec!["/System/Library/Sounds/Basso.aiff"]),
-        "windows" => (
-            "powershell",
-            vec![
-                "-NoProfile",
-                "-Command",
-                "[System.Media.SystemSounds]::Hand.Play()",
-            ],
-        ),
-        _ => (
+/// Which sound: a failure has a different one from the finish, so the
+/// ear tells them apart across the room.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Sound {
+    Finished,
+    Failed,
+}
+
+/// The program that plays `sound` on `os`. `None` on Windows, where
+/// `MessageBeep` plays it in this process: PowerShell's
+/// `[SystemSounds]::X.Play()` took about a second to start and played
+/// asynchronously, so its own exit could cut the sound off (gap 100).
+pub fn sound_program(sound: Sound, os: &str) -> Option<(&'static str, Vec<&'static str>)> {
+    match (os, sound) {
+        ("windows", _) => None,
+        ("macos", Sound::Finished) => Some(("afplay", vec!["/System/Library/Sounds/Glass.aiff"])),
+        ("macos", Sound::Failed) => Some(("afplay", vec!["/System/Library/Sounds/Basso.aiff"])),
+        (_, Sound::Finished) => Some((
+            "canberra-gtk-play",
+            vec!["-i", "complete", "-d", "dm download finished"],
+        )),
+        (_, Sound::Failed) => Some((
             "canberra-gtk-play",
             vec!["-i", "dialog-error", "-d", "dm download failed"],
-        ),
-    };
-    let _ = dm_core::no_window(&mut std::process::Command::new(program))
-        .args(args)
-        .spawn();
+        )),
+    }
+}
+
+/// Plays `sound`. One that cannot be played is not worth a word about.
+pub fn play(sound: Sound) {
+    #[cfg(windows)]
+    {
+        use windows_sys::Win32::UI::WindowsAndMessaging::{MB_ICONHAND, MB_OK};
+        let kind = match sound {
+            Sound::Finished => MB_OK,
+            Sound::Failed => MB_ICONHAND,
+        };
+        // SAFETY: an integer in, an integer out. It queues the system's
+        // sound and returns; the sound plays to its end whatever dm does.
+        unsafe {
+            windows_sys::Win32::System::Diagnostics::Debug::MessageBeep(kind);
+        }
+    }
+    if let Some((program, args)) = sound_program(sound, std::env::consts::OS) {
+        let _ = dm_core::no_window(&mut std::process::Command::new(program))
+            .args(args)
+            .spawn();
+    }
+}
+
+/// Plays the system's own short sound for a failed download.
+pub fn alert() {
+    play(Sound::Failed);
 }
 
 /// Plays the system's own short sound for a finished download.
 pub fn chime() {
-    let (program, args): (&str, Vec<&str>) = match std::env::consts::OS {
-        "macos" => ("afplay", vec!["/System/Library/Sounds/Glass.aiff"]),
-        "windows" => (
-            "powershell",
-            vec![
-                "-NoProfile",
-                "-Command",
-                "[System.Media.SystemSounds]::Asterisk.Play()",
-            ],
-        ),
-        _ => (
-            "canberra-gtk-play",
-            vec!["-i", "complete", "-d", "dm download finished"],
-        ),
-    };
-    // A sound that cannot be played is not worth a word about.
-    let _ = dm_core::no_window(&mut std::process::Command::new(program))
-        .args(args)
-        .spawn();
+    play(Sound::Finished);
 }
 
 #[cfg(test)]
@@ -198,32 +255,58 @@ mod tests {
     #[test]
     fn each_system_is_asked_with_its_own_command_and_nothing_is_not_run() {
         assert_eq!(
-            command(WhenDone::Sleep, "macos"),
-            Some(("pmset", vec!["sleepnow"]))
+            way(WhenDone::Sleep, "macos"),
+            Some(Way::Run("pmset", vec!["sleepnow"]))
         );
         assert_eq!(
-            command(WhenDone::ShutDown, "linux"),
-            Some(("systemctl", vec!["poweroff"]))
+            way(WhenDone::ShutDown, "linux"),
+            Some(Way::Run("systemctl", vec!["poweroff"]))
         );
         assert_eq!(
-            command(WhenDone::ShutDown, "windows"),
-            Some(("shutdown", vec!["/s", "/t", "0"]))
+            way(WhenDone::ShutDown, "windows"),
+            Some(Way::Run("shutdown", vec!["/s", "/t", "0"]))
         );
         assert_eq!(
-            command(WhenDone::Hibernate, "linux"),
-            Some(("systemctl", vec!["hibernate"]))
+            way(WhenDone::Hibernate, "linux"),
+            Some(Way::Run("systemctl", vec!["hibernate"]))
+        );
+        assert_eq!(way(WhenDone::Hibernate, "macos"), None, "no such command");
+        assert_eq!(way(WhenDone::Nothing, "macos"), None);
+        assert_eq!(way(WhenDone::Quit, "linux"), None, "dm quits itself");
+        assert_eq!(way(WhenDone::Sleep, "freebsd"), None);
+    }
+
+    /// Gap 42: Sleep on Windows is `SetSuspendState(FALSE, …)`, not rundll32,
+    /// which passed its window handle as "hibernate".
+    #[test]
+    fn windows_sleeps_and_hibernates_by_its_own_call_not_rundll32() {
+        assert_eq!(
+            way(WhenDone::Sleep, "windows"),
+            Some(Way::Suspend { hibernate: false })
         );
         assert_eq!(
-            command(WhenDone::Hibernate, "windows"),
-            Some(("shutdown", vec!["/h"]))
+            way(WhenDone::Hibernate, "windows"),
+            Some(Way::Suspend { hibernate: true })
         );
-        assert_eq!(
-            command(WhenDone::Hibernate, "macos"),
-            None,
-            "no such command"
-        );
-        assert_eq!(command(WhenDone::Nothing, "macos"), None);
-        assert_eq!(command(WhenDone::Quit, "linux"), None, "dm quits itself");
-        assert_eq!(command(WhenDone::Sleep, "freebsd"), None);
+        for action in WhenDone::ALL {
+            for os in ["windows", "macos", "linux"] {
+                if let Some(Way::Run(program, _)) = way(action, os) {
+                    assert_ne!(program, "rundll32.exe");
+                }
+            }
+        }
+    }
+
+    /// Gap 100: no PowerShell for a sound on Windows; two different sounds
+    /// elsewhere.
+    #[test]
+    fn windows_plays_its_sounds_without_a_program_and_others_tell_them_apart() {
+        assert_eq!(sound_program(Sound::Finished, "windows"), None);
+        assert_eq!(sound_program(Sound::Failed, "windows"), None);
+        for os in ["macos", "linux"] {
+            let finished = sound_program(Sound::Finished, os);
+            assert!(finished.is_some());
+            assert_ne!(finished, sound_program(Sound::Failed, os), "{os}");
+        }
     }
 }

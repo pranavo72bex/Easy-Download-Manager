@@ -294,15 +294,128 @@ pub fn plist_program(plist: &str) -> Option<PathBuf> {
     (!path.is_empty()).then(|| PathBuf::from(path))
 }
 
-/// The program `reg query`'s output for Windows' Run key shows dm's value
-/// starting: the value is `<path> --hidden`, unquoted.
-pub fn run_key_program(query: &str) -> Option<PathBuf> {
-    query.lines().find_map(|line| {
-        let (_, value) = line.split_once("REG_SZ")?;
-        let value = value.trim();
-        let path = value.strip_suffix(" --hidden").unwrap_or(value).trim();
-        (!path.is_empty()).then(|| PathBuf::from(path))
-    })
+/// Where Windows keeps the login items, under the current user's hive.
+pub const RUN_KEY: &str = r"Software\Microsoft\Windows\CurrentVersion\Run";
+/// Where Task Manager's Startup tab records an item turned on or off.
+pub const STARTUP_APPROVED_KEY: &str =
+    r"Software\Microsoft\Windows\CurrentVersion\Explorer\StartupApproved\Run";
+
+/// The program Windows' Run value for dm starts: `<path> --hidden`, as
+/// `auto-launch` writes it (unquoted), or quoted.
+pub fn run_value_program(value: &str) -> Option<PathBuf> {
+    let value = value.trim();
+    let path = value.strip_suffix("--hidden").unwrap_or(value).trim();
+    let path = path
+        .strip_prefix('"')
+        .and_then(|p| p.strip_suffix('"'))
+        .unwrap_or(path);
+    (!path.is_empty()).then(|| PathBuf::from(path))
+}
+
+/// A registry string as the registry API hands it over: UTF-16, little
+/// endian, usually ending in a NUL. Read this way rather than from
+/// `reg query`'s text, which comes in the console's code page and garbled
+/// a user name outside it (gap 99).
+pub fn utf16_value(bytes: &[u8]) -> String {
+    let units: Vec<u16> = bytes
+        .as_chunks::<2>()
+        .0
+        .iter()
+        .map(|pair| u16::from_le_bytes(*pair))
+        .collect();
+    let end = units.iter().position(|u| *u == 0).unwrap_or(units.len());
+    String::from_utf16_lossy(units.get(..end).unwrap_or_default())
+}
+
+/// Whether Task Manager's StartupApproved value says the item was turned
+/// off: its first byte is 2 or 6 when on, 3 or 7 (odd) when off. No value
+/// means never touched there, which is on.
+pub fn turned_off_in_task_manager(approved: &[u8]) -> bool {
+    approved.first().is_some_and(|first| first & 1 == 1)
+}
+
+/// What the login item does at launch.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum AtLaunch {
+    /// Made to match the saved setting.
+    Follow(bool),
+    /// The setting is on, but the person turned the item off outside dm
+    /// (Task Manager): left off, and the setting turned off to say so.
+    /// `auto-launch` reads such an item as not enabled, and dm used to
+    /// enable it again at every launch, over the person's choice (gap 96).
+    TurnedOffOutside,
+}
+
+/// The login item's course at launch, from the saved setting and whether
+/// the system says it was turned off outside dm.
+pub fn at_launch(wanted: bool, turned_off_outside: bool) -> AtLaunch {
+    if wanted && turned_off_outside {
+        AtLaunch::TurnedOffOutside
+    } else {
+        AtLaunch::Follow(wanted)
+    }
+}
+
+/// The current user's registry, read through its own API (gaps 96, 99).
+#[cfg(windows)]
+pub mod registry {
+    use windows_sys::Win32::Foundation::{ERROR_MORE_DATA, ERROR_SUCCESS};
+    use windows_sys::Win32::System::Registry::{
+        RegGetValueW, HKEY_CURRENT_USER, REG_ROUTINE_FLAGS, RRF_RT_REG_BINARY, RRF_RT_REG_SZ,
+    };
+
+    fn wide(text: &str) -> Vec<u16> {
+        text.encode_utf16().chain(Some(0)).collect()
+    }
+
+    /// `name` under HKCU\`subkey`, of the type `flags` allows. `None` when
+    /// it is not there or cannot be read.
+    fn read(subkey: &str, name: &str, flags: REG_ROUTINE_FLAGS) -> Option<Vec<u8>> {
+        let (subkey, name) = (wide(subkey), wide(name));
+        let mut size: u32 = 0;
+        // A value that grows between asking its size and reading it is
+        // asked about again, a few times.
+        for _ in 0..4 {
+            let mut buffer = vec![0u8; size as usize];
+            let data = if buffer.is_empty() {
+                std::ptr::null_mut()
+            } else {
+                buffer.as_mut_ptr().cast()
+            };
+            // SAFETY: both names are NUL-terminated and outlive the call;
+            // `data` is null (asking only the size) or `size` bytes we own.
+            let status = unsafe {
+                RegGetValueW(
+                    HKEY_CURRENT_USER,
+                    subkey.as_ptr(),
+                    name.as_ptr(),
+                    flags,
+                    std::ptr::null_mut(),
+                    data,
+                    &mut size,
+                )
+            };
+            match status {
+                ERROR_SUCCESS if !buffer.is_empty() || size == 0 => {
+                    buffer.truncate(size as usize);
+                    return Some(buffer);
+                }
+                ERROR_SUCCESS | ERROR_MORE_DATA => continue,
+                _ => return None,
+            }
+        }
+        None
+    }
+
+    /// A string value, decoded from UTF-16.
+    pub fn string(subkey: &str, name: &str) -> Option<String> {
+        read(subkey, name, RRF_RT_REG_SZ).map(|bytes| super::utf16_value(&bytes))
+    }
+
+    /// A binary value's bytes.
+    pub fn binary(subkey: &str, name: &str) -> Option<Vec<u8>> {
+        read(subkey, name, RRF_RT_REG_BINARY)
+    }
 }
 
 #[cfg(test)]
@@ -420,14 +533,55 @@ mod tests {
         );
         assert_eq!(plist_program("<dict></dict>"), None);
 
-        let query =
-            "\r\nHKEY_CURRENT_USER\\Software\\Microsoft\\Windows\\CurrentVersion\\Run\r\n    \
-                     dm    REG_SZ    C:\\Program Files\\dm\\dm-desktop.exe --hidden\r\n";
         assert_eq!(
-            run_key_program(query).as_deref(),
+            run_value_program(r"C:\Program Files\dm\dm-desktop.exe --hidden").as_deref(),
             Some(Path::new(r"C:\Program Files\dm\dm-desktop.exe"))
         );
-        assert_eq!(run_key_program("ERROR: not found"), None);
+        assert_eq!(
+            run_value_program(r#""C:\Program Files\dm\dm-desktop.exe" --hidden"#).as_deref(),
+            Some(Path::new(r"C:\Program Files\dm\dm-desktop.exe"))
+        );
+        assert_eq!(run_value_program("  "), None);
+    }
+
+    /// Gap 99: the Run value is read as UTF-16, so a user name outside the
+    /// console's code page comes back whole.
+    #[test]
+    fn a_registry_string_is_decoded_from_utf16_whatever_the_user_is_called() {
+        let path = r"C:\Users\Zoë Ñúñez 李\AppData\Local\dm\dm-desktop.exe --hidden";
+        let mut bytes: Vec<u8> = path.encode_utf16().flat_map(u16::to_le_bytes).collect();
+        bytes.extend([0, 0]);
+        let value = utf16_value(&bytes);
+        assert_eq!(value, path);
+        assert_eq!(
+            run_value_program(&value).as_deref(),
+            Some(Path::new(
+                r"C:\Users\Zoë Ñúñez 李\AppData\Local\dm\dm-desktop.exe"
+            ))
+        );
+        assert_eq!(utf16_value(&[]), "");
+        assert_eq!(utf16_value(&[0x61]), "", "an odd byte is not half a letter");
+    }
+
+    /// Gap 96: an item Task Manager turned off is left off, and the setting
+    /// follows it; one turned on, or never touched there, follows the
+    /// setting.
+    #[test]
+    fn a_login_item_turned_off_in_task_manager_is_left_off() {
+        let on = [0x02, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0];
+        let off = [
+            0x03, 0, 0, 0, 0x12, 0x9c, 0x3e, 0x5a, 0x1f, 0xd9, 0xda, 0x01,
+        ];
+        assert!(!turned_off_in_task_manager(&on));
+        assert!(!turned_off_in_task_manager(&[0x06, 0, 0, 0]));
+        assert!(turned_off_in_task_manager(&off));
+        assert!(turned_off_in_task_manager(&[0x07, 0, 0, 0]));
+        assert!(!turned_off_in_task_manager(&[]), "never touched there");
+
+        assert_eq!(at_launch(true, true), AtLaunch::TurnedOffOutside);
+        assert_eq!(at_launch(true, false), AtLaunch::Follow(true));
+        assert_eq!(at_launch(false, true), AtLaunch::Follow(false));
+        assert_eq!(at_launch(false, false), AtLaunch::Follow(false));
     }
 
     #[test]

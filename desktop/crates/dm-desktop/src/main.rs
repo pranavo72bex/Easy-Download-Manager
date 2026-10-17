@@ -664,6 +664,10 @@ fn login_launcher(exe: &std::path::Path) -> Result<auto_launch::AutoLaunch, Stri
         .set_app_path(&exe.to_string_lossy())
         // The login item launches into the tray, not onto the desktop.
         .set_args(&["--hidden"])
+        // The current user's Run key, never the machine's: run elevated,
+        // the default wrote HKLM, which dm unelevated can neither see nor
+        // remove (gap 97).
+        .set_windows_enable_mode(auto_launch::WindowsEnableMode::CurrentUser)
         .build()
         .map_err(|e| e.to_string())
 }
@@ -679,22 +683,26 @@ fn login_item_program() -> Option<std::path::PathBuf> {
         let text = std::fs::read_to_string(plist).ok()?;
         return dm_desktop::autostart::plist_program(&text);
     }
-    if cfg!(target_os = "windows") {
-        let out = dm_core::no_window(&mut std::process::Command::new("reg"))
-            .args([
-                "query",
-                r"HKCU\Software\Microsoft\Windows\CurrentVersion\Run",
-                "/v",
-                "dm",
-            ])
-            .output()
-            .ok()?;
-        if !out.status.success() {
-            return None;
-        }
-        return dm_desktop::autostart::run_key_program(&String::from_utf8_lossy(&out.stdout));
+    #[cfg(windows)]
+    {
+        use dm_desktop::autostart::{registry, run_value_program, RUN_KEY};
+        registry::string(RUN_KEY, "dm").and_then(|value| run_value_program(&value))
     }
+    #[cfg(not(windows))]
     None
+}
+
+/// Whether the person turned dm's login item off outside dm: on Windows,
+/// in Task Manager's Startup tab. Elsewhere there is no such switch.
+fn login_item_turned_off_outside() -> bool {
+    #[cfg(windows)]
+    {
+        use dm_desktop::autostart::{registry, turned_off_in_task_manager, STARTUP_APPROVED_KEY};
+        registry::binary(STARTUP_APPROVED_KEY, "dm")
+            .is_some_and(|approved| turned_off_in_task_manager(&approved))
+    }
+    #[cfg(not(windows))]
+    false
 }
 
 /// `--unregister`'s other half: dm's login item, removed, and what was
@@ -852,7 +860,7 @@ fn main() {
     });
     let shell::Started {
         queue,
-        settings: saved,
+        settings: mut saved,
         mut notices,
     } = runtime.block_on(shell::start(&handed));
     let hidden = shell::launched_at_login(&args);
@@ -871,11 +879,28 @@ fn main() {
 
     let platform: Arc<dyn Platform> = Arc::new(Desktop);
     // The login item follows the saved setting, so a reinstall lands in the
-    // state the person last chose. Said in the window, not fatal.
-    if let Err(why) = platform.set_login_item(saved.start_on_login) {
-        notices.push(format!(
-            "could not change start-on-login: {why}; start on login is not in force"
-        ));
+    // state the person last chose. Said in the window, not fatal. One the
+    // person turned off in Task Manager stays off, and so does the setting.
+    match dm_desktop::autostart::at_launch(saved.start_on_login, login_item_turned_off_outside()) {
+        dm_desktop::autostart::AtLaunch::TurnedOffOutside => {
+            saved.start_on_login = false;
+            notices.push(match saved.save() {
+                Ok(()) => "start on login was turned off in Task Manager, so dm has turned it \
+                           off too; Options › General turns it back on"
+                    .to_string(),
+                Err(e) => format!(
+                    "start on login was turned off in Task Manager and dm leaves it off, \
+                     but the setting could not be saved: {e}"
+                ),
+            });
+        }
+        dm_desktop::autostart::AtLaunch::Follow(wanted) => {
+            if let Err(why) = platform.set_login_item(wanted) {
+                notices.push(format!(
+                    "could not change start-on-login: {why}; start on login is not in force"
+                ));
+            }
+        }
     }
 
     // Anything a browser handed over while the app was closed is waiting in

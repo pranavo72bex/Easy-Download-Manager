@@ -59,9 +59,18 @@ objc2 = "0.6"
 objc2-app-kit = { version = "0.3", default-features = false, features = ["std", "NSApplication", "NSResponder"] }
 
 # AttachConsole, so `--register` and `--unregister` print to the terminal
-# that ran them (gap 90). Already in the tree through dm-core.
+# that ran them (gap 90); SetSuspendState for Sleep (gap 42); RegGetValueW
+# for the login item, read as UTF-16 (gaps 96, 99); MessageBeep for the
+# sounds (gap 100). Already in the tree through dm-core.
 [target.'cfg(windows)'.dependencies]
-windows-sys = { version = "0.61", features = ["Win32_System_Console"] }
+windows-sys = { version = "0.61", features = [
+  "Win32_Foundation",
+  "Win32_System_Console",
+  "Win32_System_Diagnostics_Debug",
+  "Win32_System_Power",
+  "Win32_System_Registry",
+  "Win32_UI_WindowsAndMessaging",
+] }
 
 [target.'cfg(target_os = "linux")'.dependencies]
 zbus = { version = "5", default-features = false, features = ["blocking-api"] }
@@ -133,3 +142,16 @@ depends = [
   # Open and Open folder go through xdg-open (dm-shell/src/shell.rs).
   "xdg-utils",
 ]
+
+# The uninstaller tells the browsers dm is going and removes its login item
+# before the files go: `--unregister`, as the README asks a person to run
+# by hand elsewhere. An uninstaller section ("un.") placed here comes before
+# the template's own `Section Uninstall`, so it runs first. Upgrading through
+# "uninstall first" runs it too; the next launch writes both back
+# (`register::ensure_this_copy`, the login item following the setting).
+[package.metadata.packager.nsis]
+preinstallSection = """
+Section "un.dmUnregister"
+  ExecWait '"$INSTDIR\\${MAINBINARYNAME}.exe" --unregister'
+SectionEnd
+"""
