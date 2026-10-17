@@ -975,7 +975,7 @@ fn the_toolbar_acts_on_the_selected_row() {
     assert!(harness
         .query_by_label("Delete unfinished downloads")
         .is_some());
-    click(&mut harness, "Keep them");
+    click(&mut harness, "Keep it");
     assert_eq!(harness.state().rows().len(), 1, "Keep deleted it");
     click(&mut harness, "Delete");
     click(&mut harness, "Yes, delete");
@@ -4375,39 +4375,53 @@ fn browse_picks_the_folder_a_download_goes_to() {
 /// still shows its name, rather than a picture to guess at.
 #[test]
 fn the_toolbar_keeps_its_names_narrow_and_in_german() {
-    let world = world();
-    let app = world.app_with(Settings {
-        download_dir: world.dir.path().join("out"),
-        show_progress: false,
-        show_complete: false,
-        language: "de".into(),
-        ..Settings::default()
-    });
-    let mut harness = Harness::builder()
-        .with_size(egui::vec2(720.0, 460.0))
-        .build_ui_state(|ui, app: &mut DmApp| app.ui(ui), app);
-    harness.run_steps(4);
-    for (_, _, label) in dm_desktop::app::toolbar_in(&[]) {
-        let name = dm_desktop::i18n::t(label);
-        let node = harness.get_by_role_and_label(egui::accesskit::Role::Button, name);
-        let bounds = node.accesskit_node().bounding_box().unwrap();
-        let shown = harness
-            .ctx
-            .fonts_mut(|f| {
-                f.layout_no_wrap(
-                    name.into(),
-                    egui::FontId::proportional(11.5),
-                    egui::Color32::WHITE,
-                )
-            })
-            .size()
-            .x;
-        assert!(
-            bounds.width() as f32 >= shown,
-            "{name}: {} wide, its name {shown}",
-            bounds.width()
-        );
-        assert!(bounds.x1 <= 720.0, "{name} is past the window's edge");
+    // And in the classic look, whose buttons were a fixed 72 points and
+    // ran German's names into each other when the toolbar wrapped (gap 145).
+    for look in ["light", "classic"] {
+        let world = world();
+        let app = world.app_with(Settings {
+            download_dir: world.dir.path().join("out"),
+            show_progress: false,
+            show_complete: false,
+            language: "de".into(),
+            theme: look.into(),
+            ..Settings::default()
+        });
+        let mut harness = Harness::builder()
+            .with_size(egui::vec2(720.0, 460.0))
+            .build_ui_state(|ui, app: &mut DmApp| app.ui(ui), app);
+        harness.run_steps(4);
+        let mut seen: Vec<(String, egui::accesskit::Rect)> = Vec::new();
+        for (_, _, label) in dm_desktop::app::toolbar_in(&[]) {
+            let name = dm_desktop::i18n::t(label);
+            let node = harness.get_by_role_and_label(egui::accesskit::Role::Button, name);
+            let bounds = node.accesskit_node().bounding_box().unwrap();
+            let shown = harness
+                .ctx
+                .fonts_mut(|f| {
+                    f.layout_no_wrap(
+                        name.into(),
+                        egui::FontId::proportional(11.5),
+                        egui::Color32::WHITE,
+                    )
+                })
+                .size()
+                .x;
+            assert!(
+                bounds.width() as f32 >= shown,
+                "{name}: {} wide, its name {shown}",
+                bounds.width()
+            );
+            assert!(bounds.x1 <= 720.0, "{name} is past the window's edge");
+            for (other, at) in &seen {
+                let meet = bounds.x0 < at.x1 - 0.5
+                    && at.x0 < bounds.x1 - 0.5
+                    && bounds.y0 < at.y1 - 0.5
+                    && at.y0 < bounds.y1 - 0.5;
+                assert!(!meet, "{look}: {name} runs into {other}");
+            }
+            seen.push((name.to_string(), bounds));
+        }
     }
     dm_desktop::i18n::set("en");
 }
@@ -4771,13 +4785,13 @@ fn the_delete_key_asks_and_the_limiter_takes_enter() {
     harness.run_steps(3);
     assert_eq!(harness.state().rows().len(), 1, "Delete removed it at once");
     assert!(harness.query_by_label("Remove from the list").is_some());
-    click(&mut harness, "Keep them");
+    click(&mut harness, "Keep it");
     click(&mut harness, "Delete");
     assert!(
         harness.state().dialogs.confirm_remove.is_some(),
         "the toolbar's Delete asks the same"
     );
-    click(&mut harness, "Yes, delete");
+    click(&mut harness, "Take it off");
     assert!(harness.state().rows().is_empty());
 
     harness.state_mut().run(Command::SpeedLimiterSettings);
@@ -5197,4 +5211,319 @@ fn the_small_things_of_round_eight() {
     assert!(harness.query_by_label("Retry").is_some());
     let retry = delete_at(&harness);
     assert_eq!(resume, retry, "Delete moved when Resume became Retry");
+}
+
+/// Gap 151: in the classic look at 720 px, the progress window's bar keeps
+/// its width after an error rather than shrinking to a pill.
+#[test]
+fn the_progress_bar_keeps_its_width_in_the_classic_look() {
+    let world = world();
+    let app = world.app_with(Settings {
+        download_dir: world.dir.path().join("out"),
+        connections: 1,
+        show_progress: true,
+        show_complete: false,
+        language: "en".into(),
+        theme: "classic".into(),
+        ..Settings::default()
+    });
+    let mut harness = Harness::builder()
+        .with_size(egui::vec2(720.0, 600.0))
+        .build_ui_state(|ui, app: &mut DmApp| app.ui(ui), app);
+    add_url(&mut harness, &world.url("secret.zip"), "Start now");
+    until(&mut harness, "the refusal", |app| {
+        app.rows()
+            .iter()
+            .any(|r| matches!(r.state, State::Failed(_)))
+    });
+    harness.run_steps(6);
+    let bar = harness
+        .query_all_by_role(egui::accesskit::Role::ProgressIndicator)
+        .map(|n| n.accesskit_node().bounding_box().unwrap())
+        .fold(0.0_f64, |w, b| w.max(b.width()));
+    assert!(bar >= 300.0, "the bar is {bar} wide");
+    // And its track can be seen: at 0% the bar was drawn in the dialog's
+    // own colour, all but its words' pill gone.
+    let at = harness
+        .query_all_by_role(egui::accesskit::Role::ProgressIndicator)
+        .map(|n| n.accesskit_node().bounding_box().unwrap())
+        .max_by(|a, b| a.width().total_cmp(&b.width()))
+        .unwrap();
+    let image = harness.render().expect("the window could not be rendered");
+    let scale = image.width() as f64 / 720.0;
+    let pixel = |x: f64, y: f64| *image.get_pixel((x * scale) as u32, (y * scale) as u32);
+    let track = pixel(at.x0 + at.width() * 0.8, (at.y0 + at.y1) / 2.0);
+    let dialog = pixel(at.x0 + at.width() * 0.8, at.y1 + 4.0);
+    assert_ne!(track, dialog, "the bar's track is the dialog's own colour");
+}
+
+/// Gap 141: OK refuses a proxy turned on with no host, or with an address
+/// where its host goes, and says why on the Proxy tab; nothing is put in force.
+#[test]
+fn options_refuses_a_proxy_with_no_host() {
+    let _file = SETTINGS_FILE.lock().unwrap_or_else(|e| e.into_inner());
+    let world = world();
+    let mut harness = world.harness();
+    click(&mut harness, "Options");
+    click(&mut harness, "Proxy");
+    click(&mut harness, "Connect through a proxy");
+    click(&mut harness, "OK");
+    assert!(
+        harness.state().dialogs.options.is_some(),
+        "OK took a proxy with no host"
+    );
+    assert!(harness
+        .query_by_label_contains("A proxy needs a host")
+        .is_some());
+    assert!(!harness.state().backend().settings().proxy.enabled);
+    type_into(&mut harness, "Host", "http://proxy.example:3128");
+    click(&mut harness, "OK");
+    assert!(harness
+        .query_by_label_contains("is not a proxy host")
+        .is_some());
+    assert!(!harness.state().backend().settings().proxy.enabled);
+    click(&mut harness, "Cancel");
+}
+
+/// Gap 142: the link Add URL opens with is selected, so a link pasted over
+/// it replaces it; two addresses run together are refused with a reason.
+#[test]
+fn add_url_selects_its_link_and_refuses_two_run_together() {
+    let world = world();
+    let mut harness = world.harness();
+    let first = world.url("file.zip");
+    let second = world.url("other.pdf");
+    harness
+        .state_mut()
+        .dialogs
+        .open_add_url(Some(first.clone()));
+    harness.run_steps(4);
+    harness.event(egui::Event::Text(second.clone()));
+    harness.run_steps(2);
+    assert_eq!(
+        harness
+            .state()
+            .dialogs
+            .add_url
+            .as_ref()
+            .map(|d| d.address.clone()),
+        Some(second.clone()),
+        "the pasted link joined the one already there"
+    );
+    if let Some(d) = harness.state_mut().dialogs.add_url.as_mut() {
+        d.address = format!("{first}{second}");
+    }
+    harness.run_steps(2);
+    click(&mut harness, "OK");
+    assert!(harness
+        .query_by_label_contains("two addresses run together")
+        .is_some());
+    assert!(harness.query_by_label("Download details").is_none());
+    assert!(harness.state().rows().is_empty());
+}
+
+/// Gap 143: Import asks, once, about addresses already in the list: Skip
+/// them adds only the new ones, Add them again adds them all.
+#[test]
+fn import_asks_about_addresses_already_listed() {
+    let world = world();
+    let mut harness = world.harness();
+    add_url(&mut harness, &world.url("file.zip"), "Add for later");
+    let file = world.dir.path().join("two.txt");
+    std::fs::write(
+        &file,
+        format!("{}\n{}\n", world.url("file.zip"), world.url("other.pdf")),
+    )
+    .unwrap();
+    *world.fake.chosen.lock().unwrap() = Some(file.clone());
+    harness.state().backend().pause_all();
+    harness.state_mut().run(Command::Import);
+    harness.run_steps(3);
+    assert_eq!(harness.state().rows().len(), 1, "imported without asking");
+    assert!(harness
+        .query_by_label_contains("1 of the 2 addresses in this list")
+        .is_some());
+    click(&mut harness, "Skip them");
+    harness.state_mut().refresh();
+    assert_eq!(harness.state().rows().len(), 2, "only the new one is added");
+
+    harness.state_mut().run(Command::Import);
+    harness.run_steps(3);
+    click(&mut harness, "Add them again");
+    harness.state_mut().refresh();
+    assert_eq!(harness.state().rows().len(), 4);
+}
+
+/// Gap 144: where there is no file chooser, Import and Export ask for the
+/// file's path, rather than doing nothing.
+#[test]
+fn import_and_export_take_a_typed_path_without_a_file_chooser() {
+    let world = world();
+    let mut harness = world.harness();
+    *world.fake.no_chooser.lock().unwrap() = true;
+    add_url(&mut harness, &world.url("file.zip"), "Add for later");
+    let file = world.dir.path().join("typed.dmlist");
+    harness.state_mut().run(Command::Export);
+    harness.run_steps(3);
+    assert!(harness
+        .query_by_label("No file chooser on this desktop; type the file's path.")
+        .is_some());
+    if let Some(d) = harness.state_mut().dialogs.list_file.as_mut() {
+        assert!(d.path.ends_with("downloads.dmlist"), "{}", d.path);
+        d.path = file.display().to_string();
+    }
+    harness.run_steps(2);
+    click(&mut harness, "OK");
+    assert!(file.is_file(), "nothing was exported");
+
+    let mut other = world.harness();
+    other.state_mut().run(Command::Import);
+    other.run_steps(3);
+    type_into(&mut other, "File's path", "relative.dmlist");
+    click(&mut other, "OK");
+    assert!(other.query_by_label_contains("full path").is_some());
+    if let Some(d) = other.state_mut().dialogs.list_file.as_mut() {
+        d.path = file.display().to_string();
+    }
+    other.run_steps(2);
+    click(&mut other, "OK");
+    other.state_mut().refresh();
+    assert_eq!(other.state().rows().len(), 1, "nothing was imported");
+    *world.fake.no_chooser.lock().unwrap() = false;
+}
+
+/// Gaps 147 and 148: Page Down and Page Up move a screenful; End brings the
+/// last row wholly into view, clear of the sideways scroll bar; the focus
+/// ring stays inside the list.
+#[test]
+fn page_keys_move_a_page_and_end_shows_the_last_row_whole() {
+    let world = world();
+    let mut harness = Harness::builder()
+        .with_size(egui::vec2(720.0, 460.0))
+        .build_ui_state(|ui, app: &mut DmApp| app.ui(ui), world.app());
+    let links: Vec<String> = (0..40)
+        .map(|i| world.url(&format!("stalled-{i:02}.bin")))
+        .collect();
+    harness.state().backend().pause_all();
+    harness.state().backend().add(&links.join(" ")).unwrap();
+    harness.state().backend().pause_all();
+    harness.state_mut().refresh();
+    harness.run_steps(3);
+    let at = |h: &Harness<'_, DmApp>| {
+        let ids: Vec<_> = h.state().visible().iter().map(|r| r.id).collect();
+        h.state()
+            .cursor
+            .and_then(|c| ids.iter().position(|i| *i == c))
+    };
+    harness.key_press(egui::Key::Home);
+    harness.run_steps(2);
+    assert_eq!(at(&harness), Some(0));
+    let page = harness.state().list_page;
+    assert!(page > 2, "a page of {page} rows");
+    harness.key_press(egui::Key::PageDown);
+    harness.run_steps(3);
+    assert_eq!(at(&harness), Some(page), "Page Down did not move a page");
+    harness.key_press(egui::Key::PageUp);
+    harness.run_steps(3);
+    assert_eq!(at(&harness), Some(0), "Page Up did not move back");
+
+    harness.key_press(egui::Key::End);
+    harness.run_steps(4);
+    assert_eq!(at(&harness), Some(39));
+    let clip = harness.state().list_clip.expect("the list was drawn");
+    let last = harness.state().visible()[39].id;
+    let row = harness.state().row_rects[&last];
+    assert!(
+        row.bottom() <= clip.bottom() + 0.5,
+        "the last row {row:?} is under the list's edge {clip:?}"
+    );
+    let ring = harness
+        .state()
+        .focus_ring
+        .expect("a ring where the keys are");
+    assert!(
+        clip.expand(0.5).contains_rect(ring),
+        "the ring {ring:?} runs past the list {clip:?}"
+    );
+}
+
+/// Gap 149: the Remove dialog's buttons agree with its sentence, Enter
+/// keeps, and after a removal the next row is selected.
+#[test]
+fn remove_says_one_thing_enter_keeps_and_the_next_row_is_selected() {
+    let world = world();
+    let mut harness = world.harness();
+    for name in ["a.bin", "b.bin", "c.bin"] {
+        harness
+            .state()
+            .backend()
+            .add_with(
+                &world.url(&format!("stalled-{name}")),
+                dm_core::AddOptions {
+                    later: true,
+                    ..Default::default()
+                },
+            )
+            .unwrap();
+    }
+    harness.state_mut().refresh();
+    harness.run_steps(3);
+    let ids: Vec<_> = harness.state().visible().iter().map(|r| r.id).collect();
+    harness.state_mut().selected = [ids[1]].into();
+    harness.run_steps(1);
+    harness.key_press(egui::Key::Delete);
+    harness.run_steps(3);
+    assert!(harness.query_by_label("Keep it").is_some());
+    assert!(harness.query_by_label("Keep them").is_none());
+    harness.key_press(egui::Key::Enter);
+    harness.run_steps(3);
+    assert!(harness.state().dialogs.confirm_remove.is_none());
+    assert_eq!(harness.state().rows().len(), 3, "Enter deleted it");
+
+    harness.key_press(egui::Key::Delete);
+    harness.run_steps(3);
+    click(&mut harness, "Yes, delete");
+    harness.state_mut().refresh();
+    assert_eq!(harness.state().rows().len(), 2);
+    assert_eq!(
+        harness.state().selected,
+        [ids[2]].into(),
+        "the selection was lost"
+    );
+}
+
+/// Gap 150: a drop with no link in it says how links are added, rather
+/// than nothing; the empty list says so too.
+#[test]
+fn a_drop_with_no_link_says_how_to_add_one() {
+    let world = world();
+    let mut harness = world.harness();
+    assert!(harness
+        .query_by_label_contains("Links can't be dropped here yet")
+        .is_some());
+    let file = world.dir.path().join("picture.png");
+    std::fs::write(&file, [0u8, 1, 2, 3]).unwrap();
+    #[derive(Debug)]
+    struct Dropped(std::path::PathBuf);
+    impl egui::DroppedFile for Dropped {
+        fn path(&self) -> &std::path::Path {
+            &self.0
+        }
+        fn bytes(&self) -> Result<Vec<u8>, String> {
+            std::fs::read(&self.0).map_err(|e| e.to_string())
+        }
+    }
+    harness
+        .input_mut()
+        .dropped_files
+        .push(Arc::new(Dropped(file)));
+    harness.run_steps(3);
+    assert!(harness.state().rows().is_empty());
+    assert!(
+        harness
+            .query_all_by_label_contains("Links can't be dropped here yet")
+            .count()
+            >= 2,
+        "the drop was ignored without a word"
+    );
 }

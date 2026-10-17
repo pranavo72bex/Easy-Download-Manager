@@ -57,6 +57,12 @@ pub trait Platform: Send + Sync {
     fn can_choose_folder(&self) -> bool {
         true
     }
+    /// Whether this desktop has a file chooser to ask with, for Import and
+    /// Export. Where it has none, they ask for the file's path instead of
+    /// doing nothing (gap 144).
+    fn can_choose_file(&self) -> bool {
+        self.can_choose_folder()
+    }
 }
 
 /// Whether the file chooser dm's dialogs use (the desktop portal's, else
@@ -399,7 +405,21 @@ impl Backend {
 
     /// Adds what a `.dmlist` file or a plain list holds, saying how many.
     pub fn import(&self, text: &str) -> usize {
-        let rows = lists::from_list(text);
+        self.import_where(text, |_| true)
+    }
+
+    /// The addresses a list holds, in its order.
+    pub fn listed(text: &str) -> Vec<String> {
+        lists::from_list(text)
+            .into_iter()
+            .map(|row| row.url)
+            .collect()
+    }
+
+    /// [`Self::import`], of only the rows whose address `keep` keeps.
+    pub fn import_where(&self, text: &str, keep: impl Fn(&str) -> bool) -> usize {
+        let mut rows = lists::from_list(text);
+        rows.retain(|row| keep(&row.url));
         let items = rows
             .iter()
             .map(|row| {

@@ -759,3 +759,37 @@ File missing, the progress bar) takes the selection's text colour. Text
 selection in fields keeps the soft tint. The focus ring gained a white inner
 line, which is what shows on a primary button or a selected row, both in the
 accent colour; the colours are tested as numbers in `theme.rs`.
+
+## Scroll bars that take their room and can be seen (2026-10-18, gaps 147, 148)
+
+egui's default scroll bars float over the content and, in dm's looks, are
+invisible until the pointer is over them: their handle is drawn in a
+button's fill, which the looks keep clear, and at zero opacity while
+dormant. A tester found Options › General cut off with no sign of more, and
+End leaving the list's last row under the sideways bar. The list and the
+Options tabs use `theme::steady_scroll`: solid bars that take their own
+room, the handle in the text colour at a low opacity even when the pointer
+is elsewhere. Other scroll areas (small dialogs that rarely scroll) keep
+egui's.
+
+## An enabled proxy with no host is a refusal, in the engine too (2026-10-18, gap 141)
+
+`Proxy::url` is `None` for a proxy turned on with no host or port, and
+`client_with` used to build a direct client from that: every download went
+out around the proxy someone had asked for. `client_with` now refuses it,
+which is what the launch path already turns into "the saved proxy could not
+be used, so it is turned off" for every route (dm's own client and the
+tools), said in the window in its language. Options refuses it before it
+gets that far. The native host's pre-check (`host.rs`) still falls back to a
+direct client when its proxy cannot be built; it only asks the server
+whether a caught download can be fetched, but it is a direct request, and
+is left for a change of its own.
+
+## Link drags from a browser: a hint, not a fix (2026-10-18, gap 150)
+
+winit delivers dropped files only, and reports nothing while a link is
+dragged over the window, so dm cannot tell that a link was dropped on it.
+What it can do: a drop holding no link says how to add one (Add URL, the
+browser's right-click menu, or a dropped `.url`/`.webloc` file), and the
+empty list says the same.
+

@@ -42,6 +42,9 @@ pub fn show(app: &mut DmApp, ui: &mut egui::Ui) {
                 })
                 .weak(),
             );
+            if app.rows.is_empty() {
+                ui.label(RichText::new(t(crate::app::DROP_HINT)).small().weak());
+            }
         });
         return;
     }
@@ -80,6 +83,11 @@ pub fn show(app: &mut DmApp, ui: &mut egui::Ui) {
     // Wider than the window, the columns scroll sideways rather than
     // running off its edge: at the default size the Note, Referrer and
     // Folder columns were past it with no way to reach them.
+    // Scroll bars that take their own room, always drawn where needed:
+    // floating over the list, the sideways one covered its last row, which
+    // End and Down could not bring clear of it (gap 147).
+    ui.spacing_mut().scroll = crate::theme::steady_scroll();
+    let mut list_clip = None;
     egui::ScrollArea::horizontal()
         .id_salt("list-sideways")
         .auto_shrink([false, false])
@@ -117,7 +125,10 @@ pub fn show(app: &mut DmApp, ui: &mut egui::Ui) {
                         header.col(|ui| heading(app, ui, *column));
                     }
                 })
-                .body(|body| {
+                .body(|mut body| {
+                    // What of the list can be seen: the focus ring is kept
+                    // inside it, and Page Up and Down move by it (gaps 147, 148).
+                    list_clip = Some(body.ui_mut().clip_rect());
                     body.rows(row_height, rows.len(), |mut row| {
                         let i = row.index();
                         let entry = &rows[i];
@@ -148,6 +159,12 @@ pub fn show(app: &mut DmApp, ui: &mut egui::Ui) {
     if let Some((i, modifiers)) = clicked {
         select(app, &rows, i, modifiers);
     }
+    app.list_clip = list_clip;
+    app.list_page = list_clip
+        .map(|clip| (clip.height() / row_height).floor().max(1.0) as usize)
+        .unwrap_or(1)
+        .saturating_sub(1)
+        .max(1);
     // Kept in place rather than rebuilt: only the control protocol reads it.
     app.row_rects.clear();
     app.row_rects.extend(drawn);
@@ -356,6 +373,9 @@ pub enum Step {
     Down,
     First,
     Last,
+    /// Page Up and Page Down: this many rows.
+    PageUp(usize),
+    PageDown(usize),
 }
 
 /// The selection after Up, Down, Home or End, the row a later Shift
@@ -382,8 +402,10 @@ pub fn stepped(
         (Step::Last, _) => last,
         (Step::Up, Some(at)) => at.saturating_sub(1),
         (Step::Down, Some(at)) => (at + 1).min(last),
-        (Step::Up, None) => last,
-        (Step::Down, None) => 0,
+        (Step::PageUp(n), Some(at)) => at.saturating_sub(n.max(1)),
+        (Step::PageDown(n), Some(at)) => (at + n.max(1)).min(last),
+        (Step::Up | Step::PageUp(_), None) => last,
+        (Step::Down | Step::PageDown(_), None) => 0,
     };
     let Some(&id) = rows.get(to) else {
         return (selected.clone(), anchor, cursor);

@@ -178,9 +178,10 @@ It appears in dm instead of in the browser, and downloads there.
 
 ## What dm cannot do (yet)
 
-- **Dragging a link from a browser onto dm's window does nothing.** Right-click
-  the link and pick **Download link with dm**, or copy it and use **Add URL**.
-  Dropping a saved link file (`.url`, `.webloc` or a text file of links) works.
+- **Dragging a link from a browser onto dm's window does nothing** (dm says
+  so when a drop holds no link). Right-click the link and pick **Download link
+  with dm**, or copy it and use **Add URL**. Dropping a saved link file
+  (`.url`, `.webloc` or a text file of links) works.
 - **On Linux, finished files cannot be dragged out of dm's window.** Use
   **Open folder** on the row instead. On Mac and Windows they can.
 

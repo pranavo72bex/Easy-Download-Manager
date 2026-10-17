@@ -314,8 +314,12 @@ impl World for Here<'_> {
         // The same cookies the app sends, so a download they make possible
         // is taken rather than left with the browser.
         let _ = dm_core::cookies::use_file(std::path::Path::new(settings.cookies_file.trim()));
-        let client =
-            dm_core::proxy::client_with(&settings.proxy).unwrap_or_else(|_| dm_core::client());
+        // Never around the proxy: a proxy that cannot be built here must
+        // not turn into a direct request, which is the server seeing the
+        // address the person set a proxy to hide. The browser keeps it.
+        let client = dm_core::proxy::client_with(&settings.proxy).map_err(|e| {
+            format!("dm's proxy setting cannot be used ({e}), so it did not ask the server")
+        })?;
         let runtime = tokio::runtime::Builder::new_current_thread()
             .enable_all()
             .build()
@@ -1408,6 +1412,43 @@ mod tests {
         assert_eq!(reply, Some(Reply::Started { id: "m1".into() }));
         assert!(world.asked.is_empty(), "the server was asked");
         assert!(inbox(dir.path()).join("m1.json").exists());
+    }
+
+    #[test]
+    fn a_proxy_that_cannot_be_used_is_not_gone_around_to_ask_the_server() {
+        /* The server would see the address the person set a proxy to hide:
+         * the check refuses, and the browser keeps the download. A server
+         * on loopback counts every request it gets. */
+        use std::io::{Read, Write};
+        let listener = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
+        let addr = listener.local_addr().unwrap();
+        listener.set_nonblocking(true).unwrap();
+        let dir = tempfile::tempdir().unwrap();
+        std::fs::write(
+            dir.path().join("settings.json"),
+            serde_json::json!({
+                "proxy": { "enabled": true, "type": "http", "host": "", "port": 8080 }
+            })
+            .to_string(),
+        )
+        .unwrap();
+        let mut here = Here {
+            home: dir.path(),
+            started: false,
+        };
+        let asked = here.reachable(&format!("http://{addr}/f.zip"), "", "", 2000);
+        assert!(asked.is_err(), "{asked:?}");
+        let mut contacted = false;
+        if let Ok((mut stream, _)) = listener.accept() {
+            contacted = true;
+            let mut buf = [0u8; 64];
+            let _ = stream.read(&mut buf);
+            let _ = stream.write_all(b"HTTP/1.1 200 OK\r\ncontent-length: 0\r\n\r\n");
+        }
+        assert!(
+            !contacted,
+            "the server was asked directly, around the proxy"
+        );
     }
 
     #[test]
