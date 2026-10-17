@@ -39,7 +39,7 @@ pub use reqwest;
 pub use category::{Categories, Category, Custom};
 pub use checksum::Checksum;
 pub use control::{Control, Wanted};
-pub use download::{download, download_reporting, Finished, HostLimit, Options, Update};
+pub use download::{download, download_reporting, Finished, HostLimit, Options, Room, Update};
 pub use limit::Limiter;
 pub use metalink::Metalink;
 pub use plan::Segment;

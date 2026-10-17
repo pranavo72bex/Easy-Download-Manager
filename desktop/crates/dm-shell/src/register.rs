@@ -327,29 +327,60 @@ pub fn manifest(family: Family, exe: &Path, allowed: &Allowed) -> serde_json::Va
 /// waits on a prompt nobody sees, and the extension reports that dm did not
 /// answer. Found by the Chrome hand-off check, with this repository under
 /// ~/Downloads.
-///
-/// Also a copy macOS runs from somewhere that is gone by the next launch:
-/// see [`transient_on`].
 pub fn protected(exe: &Path, home: &Path, macos: bool) -> bool {
     macos
-        && (["Downloads", "Desktop", "Documents"]
+        && ["Downloads", "Desktop", "Documents"]
             .iter()
             .any(|folder| exe.starts_with(home.join(folder)))
-            || transient_on(exe, true))
 }
 
 /// Whether macOS is running `exe` from a place that will not be there next
-/// time: a mounted disk image (`/Volumes`), or AppTranslocation — the
-/// randomised read-only copy macOS runs a quarantined app from when it was
-/// opened where it was downloaded rather than moved to Applications. A
-/// browser manifest or login item naming either starts nothing later.
-pub fn transient_on(exe: &Path, macos: bool) -> bool {
-    macos && (exe.starts_with("/Volumes") || exe.to_string_lossy().contains("/AppTranslocation/"))
+/// time: a mounted disk image, or AppTranslocation — the randomised
+/// read-only copy macOS runs a quarantined app from when it was opened
+/// where it was downloaded rather than moved to Applications. A browser
+/// manifest or login item naming either starts nothing later.
+///
+/// A disk image is told by being mounted read-only under `/Volumes`
+/// (`read_only` says whether the mount holding a path is). An external
+/// disk is mounted there too, writable, and an install on it is a place
+/// like any other — refusing it left that install with no browser
+/// registration and no login item (gap 88).
+pub fn transient_on(exe: &Path, macos: bool, read_only: impl FnOnce(&Path) -> bool) -> bool {
+    macos
+        && (exe.to_string_lossy().contains("/AppTranslocation/")
+            || (exe.starts_with("/Volumes") && read_only(exe)))
 }
 
-/// [`transient_on`] for the system this runs on.
+/// [`transient_on`] for the system this runs on, the mount's flags read.
 pub fn transient(exe: &Path) -> bool {
-    transient_on(exe, cfg!(target_os = "macos"))
+    transient_on(exe, cfg!(target_os = "macos"), mounted_read_only)
+}
+
+/// Whether the file system holding `path` is mounted read-only. Unreadable
+/// is taken as writable: the answer that refuses nothing.
+pub fn mounted_read_only(path: &Path) -> bool {
+    #[cfg(unix)]
+    {
+        use std::os::unix::ffi::OsStrExt;
+        let Ok(c) = std::ffi::CString::new(path.as_os_str().as_bytes()) else {
+            return false;
+        };
+        let mut stat = std::mem::MaybeUninit::<libc::statvfs>::zeroed();
+        // SAFETY: `c` is a valid NUL-terminated string and `stat` is
+        // writable memory of the right size, filled only on success.
+        let done = unsafe { libc::statvfs(c.as_ptr(), stat.as_mut_ptr()) };
+        if done != 0 {
+            return false;
+        }
+        // SAFETY: statvfs returned 0, so it filled `stat`.
+        let stat = unsafe { stat.assume_init() };
+        (stat.f_flag & libc::ST_RDONLY) != 0
+    }
+    #[cfg(not(unix))]
+    {
+        let _ = path;
+        false
+    }
 }
 
 /// Writes a manifest for every installed browser, naming `exe` and the
@@ -368,9 +399,10 @@ pub fn register(home: &Path, exe: &Path, allowed: &Allowed) -> Result<Vec<PathBu
     // may not run is the failure this exists to prevent.
     if transient(exe) {
         return Err(format!(
-            "{}\nis a copy macOS runs from a disk image or a temporary place, gone by the next \
-             launch. Drag dm to Applications and open it from there, so your browser can hand \
-             it downloads.",
+            "{}\nis a copy macOS runs from a disk image or from a temporary copy it made \
+             (AppTranslocation), gone by the next launch. Drag dm to Applications (or any \
+             folder on a disk you can write to) and open it from there, so your browser can \
+             hand it downloads.",
             exe.display()
         ));
     }
@@ -788,21 +820,32 @@ mod tests {
 
     /// Gap 85: a quarantined dm.app opened where it was downloaded runs from
     /// a randomised AppTranslocation copy that is gone by the next launch.
+    /// Gap 88: an install on an external disk, mounted writable under
+    /// /Volumes, is not a disk image and is not refused.
     #[test]
-    fn a_translocated_or_mounted_copy_is_refused_on_macos_only() {
-        let home = Path::new("/Users/someone");
-        for refused in [
-            "/private/var/folders/xy/abc/T/AppTranslocation/1F2E-3D4C/d/dm.app/Contents/MacOS/dm-desktop",
-            "/Volumes/dm/dm.app/Contents/MacOS/dm-desktop",
-        ] {
-            assert!(transient_on(Path::new(refused), true), "{refused}");
-            assert!(protected(Path::new(refused), home, true), "{refused}");
-            assert!(!transient_on(Path::new(refused), false), "{refused}");
-        }
+    fn a_translocated_copy_or_a_disk_image_is_refused_on_macos_only() {
+        let translocated =
+            Path::new("/private/var/folders/xy/abc/T/AppTranslocation/1F2E-3D4C/d/dm.app/Contents/MacOS/dm-desktop");
+        let image = Path::new("/Volumes/dm/dm.app/Contents/MacOS/dm-desktop");
+        let external = Path::new("/Volumes/External/Applications/dm.app/Contents/MacOS/dm-desktop");
+        assert!(transient_on(translocated, true, |_| false));
+        assert!(
+            transient_on(image, true, |_| true),
+            "a read-only disk image"
+        );
+        assert!(
+            !transient_on(external, true, |_| false),
+            "a writable external disk"
+        );
+        assert!(!transient_on(translocated, false, |_| true));
+        assert!(!transient_on(image, false, |_| true));
         assert!(!transient_on(
             Path::new("/Applications/dm.app/Contents/MacOS/dm-desktop"),
-            true
+            true,
+            |_| true
         ));
+        // The real flags: this test's own folder is writable.
+        assert!(!mounted_read_only(&std::env::temp_dir()));
     }
 
     /// Gap 84: 0.1.0 allowed Firefox's old id. Upgraded in place, the path

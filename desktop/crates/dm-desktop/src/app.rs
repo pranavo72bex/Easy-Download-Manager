@@ -368,10 +368,8 @@ pub struct DmApp {
     /// Handed-over downloads cancelled, by site, since one was accepted:
     /// at two, the site is offered to the browser.
     cancelled_hand_offs: std::collections::HashMap<String, u32>,
-    /// Something was downloading since the queue last ran dry.
-    busy_seen: bool,
-    /// A row finished or failed since the queue last ran dry.
-    settled_seen: bool,
+    /// What "When done" has seen since the queue last ran dry.
+    dry: DryWatch,
     /// A sleep or shut down waiting out its countdown.
     pub countdown: Option<(crate::power::WhenDone, Instant)>,
     /// Running without a window (`--headless`).
@@ -432,8 +430,7 @@ impl DmApp {
             popup_was_open: false,
             rechecked: Arc::default(),
             cancelled_hand_offs: std::collections::HashMap::new(),
-            busy_seen: false,
-            settled_seen: false,
+            dry: DryWatch::default(),
             countdown: None,
             headless: false,
             control: None,
@@ -710,29 +707,7 @@ impl DmApp {
     /// stretch that ended with nothing finished or failed (a person pressed
     /// Stop all) is not "done": the choice stays armed for the next one.
     fn when_queue_dry(&mut self) {
-        let settled = self.rows.iter().any(|r| {
-            matches!(r.state, State::Completed | State::Failed(_))
-                && self
-                    .last_state
-                    .get(&r.id)
-                    .is_some_and(|was| *was != r.state)
-        });
-        if settled {
-            self.settled_seen = true;
-        }
-        let busy = self.rows.iter().any(|r| match r.state {
-            State::Running | State::Queued => true,
-            State::Paused => r.paused_by_schedule,
-            _ => false,
-        });
-        if busy {
-            self.busy_seen = true;
-            return;
-        }
-        if !std::mem::take(&mut self.busy_seen) {
-            return;
-        }
-        if !std::mem::take(&mut self.settled_seen) {
+        if !self.dry.look(&self.rows, &self.last_state) {
             return;
         }
         use crate::power::WhenDone;
@@ -2673,6 +2648,47 @@ fn compare(column: Column, a: &Entry, b: &Entry) -> std::cmp::Ordering {
     }
 }
 
+/// What "When done" watches the list for, apart from the window so it can
+/// be tested: see `DmApp::when_queue_dry` for what counts as done.
+#[derive(Debug, Default)]
+struct DryWatch {
+    /// Something was downloading since the queue last ran dry.
+    busy_seen: bool,
+    /// A row finished or failed since the queue last ran dry.
+    settled_seen: bool,
+}
+
+impl DryWatch {
+    /// One look at the list, with each row's state at the last look. True
+    /// once, when a stretch of downloading has just ended with something
+    /// finished or failed and nothing left that dm will finish by itself.
+    fn look(&mut self, rows: &[Entry], last: &HashMap<Id, State>) -> bool {
+        let settled = rows.iter().any(|r| {
+            matches!(r.state, State::Completed | State::Failed(_))
+                && last.get(&r.id).is_some_and(|was| *was != r.state)
+        });
+        if settled {
+            self.settled_seen = true;
+        }
+        let busy = rows.iter().any(|r| match r.state {
+            State::Running | State::Queued => true,
+            State::Paused => r.paused_by_schedule,
+            _ => false,
+        });
+        if busy {
+            self.busy_seen = true;
+            return false;
+        }
+        // Both taken at every dry look, so neither outlives the stretch it
+        // was seen in: a row that settled while nothing was busy (a late
+        // outcome written over a paused row) once left `settled_seen` set,
+        // and a later stretch ended by Stop all fired (gap 92).
+        let busy_seen = std::mem::take(&mut self.busy_seen);
+        let settled_seen = std::mem::take(&mut self.settled_seen);
+        busy_seen && settled_seen
+    }
+}
+
 /// Writes what egui captured as a PNG.
 fn save_png(image: &egui::ColorImage, path: &std::path::Path) -> Result<(), String> {
     if let Some(dir) = path.parent() {
@@ -2690,7 +2706,7 @@ fn save_png(image: &egui::ColorImage, path: &std::path::Path) -> Result<(), Stri
 mod status_tests {
     use super::*;
 
-    fn paused(by_schedule: bool) -> Entry {
+    pub(super) fn paused(by_schedule: bool) -> Entry {
         Entry {
             id: 1,
             url: "https://e.com/f.bin".into(),
@@ -2868,5 +2884,54 @@ mod toolbar_tests {
         let blob = dir.path().join("blob");
         std::fs::write(&blob, b"\0\x01https://example.com/x.bin").unwrap();
         assert!(dropped_links(&Dropped(blob)).is_empty());
+    }
+}
+
+#[cfg(test)]
+mod dry_tests {
+    use super::*;
+
+    fn row(id: Id, state: State) -> Entry {
+        let mut row = status_tests::paused(false);
+        row.id = id;
+        row.state = state;
+        row
+    }
+
+    fn states(rows: &[Entry]) -> HashMap<Id, State> {
+        rows.iter().map(|r| (r.id, r.state.clone())).collect()
+    }
+
+    /// Gap 92: a row that settled while nothing was busy (a late outcome
+    /// over a paused row) must not count for a later stretch that a person
+    /// ended with Stop all.
+    #[test]
+    fn a_settle_seen_while_idle_does_not_carry_into_the_next_stretch() {
+        let mut watch = DryWatch::default();
+        let paused = vec![row(1, State::Paused)];
+        let mut last = states(&paused);
+        let done = vec![row(1, State::Completed)];
+        assert!(!watch.look(&done, &last), "nothing was busy");
+        last = states(&done);
+
+        // A new stretch, ended by a person's stop with nothing finished.
+        let running = vec![row(1, State::Completed), row(2, State::Running)];
+        assert!(!watch.look(&running, &last));
+        last = states(&running);
+        let stopped = vec![row(1, State::Completed), row(2, State::Paused)];
+        assert!(
+            !watch.look(&stopped, &last),
+            "fired on a queue a person stopped"
+        );
+    }
+
+    #[test]
+    fn a_stretch_that_finishes_something_fires_once() {
+        let mut watch = DryWatch::default();
+        let running = vec![row(1, State::Running)];
+        assert!(!watch.look(&running, &HashMap::new()));
+        let done = vec![row(1, State::Completed)];
+        assert!(watch.look(&done, &states(&running)));
+        assert!(!watch.look(&done, &states(&done)), "fired twice");
     }
 }

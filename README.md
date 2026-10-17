@@ -228,6 +228,10 @@ in case you install it again. Delete that folder too if you want them gone:
 - **Mac:** `~/Library/Application Support/dm-engine`
 - **Linux:** `~/.local/share/dm-engine`
 
+The window's size and place are kept in one more folder:
+`%APPDATA%\dm\data` on Windows, `~/Library/Application Support/dm` on a
+Mac, `~/.local/share/dm` on Linux.
+
 ## Use it responsibly
 
 Only download what you have the right to download. dm does not get around

@@ -101,3 +101,64 @@ async fn a_file_larger_than_the_disk_is_refused_before_it_is_fetched() {
     assert!(said.contains("100.0 PB"), "{said}");
     assert_eq!(fetched.load(Ordering::SeqCst), 0, "ranges were fetched");
 }
+
+/// Gap 94: two downloads started together each checked the free space
+/// alone, so together they could still fill the disk. The second is
+/// checked against what the first still needs, and passes once the first
+/// has ended.
+#[tokio::test]
+async fn downloads_under_way_count_against_the_free_space_of_the_next() {
+    use axum::body::Body;
+    const SIZE: usize = 6 * 1024 * 1024;
+    let app = axum::Router::new()
+        .route(
+            "/stalled.bin",
+            axum::routing::get(|| async {
+                let never = futures_util::stream::pending::<Result<Vec<u8>, std::io::Error>>();
+                axum::response::Response::builder()
+                    .header("content-length", SIZE)
+                    .body(Body::from_stream(never))
+                    .unwrap()
+            }),
+        )
+        .route(
+            "/whole.bin",
+            axum::routing::get(|| async { Body::from(vec![7u8; SIZE]) }),
+        );
+    let addr = common::serve(app).await;
+    let dir = tempdir();
+    // A disk with room for one of the two, not both.
+    let room = dm_core::Room::with_free_space(|_| Some(10 * 1024 * 1024));
+    let base = |name: &str| dm_core::Options {
+        attempts: 1,
+        parts_dir: dir.path().join(name),
+        dest_dir: dir.path().join("out"),
+        room: room.clone(),
+        ..options(dir.path())
+    };
+
+    let first = base("first");
+    let control = first.control.clone();
+    let (tx, mut rx) = tokio::sync::mpsc::channel(64);
+    let url = format!("http://{addr}/stalled.bin");
+    let running = tokio::spawn(async move {
+        dm_core::download_reporting(&dm_core::client(), &url, &first, Some(tx)).await
+    });
+    // Named is sent once the free-space check has passed and claimed.
+    while !matches!(rx.recv().await, Some(dm_core::Update::Named { .. }) | None) {}
+
+    let whole = format!("http://{addr}/whole.bin");
+    let said = dm_core::download(&dm_core::client(), &whole, &base("second"))
+        .await
+        .unwrap_err()
+        .to_string();
+    assert!(said.starts_with("not enough room"), "{said}");
+    assert!(said.contains("under way"), "{said}");
+
+    control.cancel();
+    let _ = running.await;
+    let done = dm_core::download(&dm_core::client(), &whole, &base("third"))
+        .await
+        .expect("refused after the first download ended");
+    assert_eq!(done.bytes, SIZE as u64);
+}
