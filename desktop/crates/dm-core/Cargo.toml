@@ -62,7 +62,7 @@ proptest = "1"
 flate2 = "1"
 tokio = { version = "1", features = ["full"] }
 axum = "0.7"
-rand = "0.8"
+rand = "0.10"
 # Cleans up after itself. The hand-rolled version left a directory of
 # downloaded parts behind on every run.
 tempfile = "3"
