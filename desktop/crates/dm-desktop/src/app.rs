@@ -189,6 +189,19 @@ fn status_in(row: &Entry, words: fn(&'static str) -> &'static str) -> String {
     match &row.state {
         State::Running => match row.progress.fraction() {
             Some(f) => format!("{:.2}%", f * 100.0),
+            // A length the server did not say: what has arrived, and how
+            // fast, rather than "Starting…" for the whole run.
+            None if row.progress.downloaded > 0 => {
+                if row.progress.speed > 1.0 {
+                    format!(
+                        "{} · {}",
+                        format::bytes(row.progress.downloaded),
+                        format::rate(row.progress.speed)
+                    )
+                } else {
+                    format::bytes(row.progress.downloaded)
+                }
+            }
             None => words("Starting…").into(),
         },
         State::Queued => words("Queued").into(),
@@ -394,11 +407,12 @@ impl DmApp {
             problems: Vec::new(),
             notified: HashSet::new(),
             notify_ready: false,
-            last_limit: if settings.speed_limit > 0 {
-                settings.speed_limit
-            } else {
-                512
-            },
+            // The limit in force, else the one last turned off — kept in
+            // the settings, so it survives a restart — else 512 KB/s.
+            last_limit: [settings.speed_limit, settings.last_speed_limit]
+                .into_iter()
+                .find(|kb| *kb > 0)
+                .unwrap_or(512),
             applied: settings,
             clipboard: Clipboard::default(),
             update: Arc::new(Mutex::new(Update::NotAsked)),
@@ -578,9 +592,7 @@ impl DmApp {
             .applied
             .site_searches
             .iter()
-            .filter(|s| {
-                s.every_hours > 0 && epoch.saturating_sub(s.last_run) >= s.every_hours * 3600
-            })
+            .filter(|s| s.due(epoch))
             .cloned()
             .collect();
         if due.is_empty() {
@@ -1250,7 +1262,7 @@ impl DmApp {
         let targets = self.targets();
         match command {
             Command::AddUrl => self.dialogs.open_add_url(self.backend.platform.clipboard()),
-            Command::AddSeries => self.dialogs.series = Some(Default::default()),
+            Command::AddSeries => self.dialogs.open_series(),
             Command::AddFromClipboard => {
                 let text = self.backend.platform.clipboard().unwrap_or_default();
                 let found = links_in(&text);
@@ -1288,7 +1300,7 @@ impl DmApp {
                     };
                 }
             }
-            Command::SiteFiles => self.dialogs.site_files = Some(Default::default()),
+            Command::SiteFiles => self.dialogs.open_site_files(),
             Command::Quit => self.quit_asked = true,
 
             Command::DownloadNow => {
@@ -1427,6 +1439,7 @@ impl DmApp {
                 let mut wanted = self.applied.clone();
                 if wanted.speed_limit > 0 {
                     self.last_limit = wanted.speed_limit;
+                    wanted.last_speed_limit = wanted.speed_limit;
                     wanted.speed_limit = 0;
                 } else {
                     wanted.speed_limit = self.last_limit.max(1);
@@ -1479,8 +1492,8 @@ impl DmApp {
     /// Takes rows out of the list, with their staged parts; finished files
     /// stay on disk.
     pub fn remove_now(&mut self, ids: &[Id]) {
+        self.backend.remove_many(ids);
         for id in ids {
-            self.backend.remove(*id);
             self.dialogs.forget(*id);
         }
         self.selected.clear();
@@ -1709,19 +1722,31 @@ impl DmApp {
     }
 
     fn keys(&mut self, ctx: &egui::Context) {
+        // F3 types nothing: it finds the next one even from Find's own field.
+        if self.dialogs.find_open && ctx.egui_wants_keyboard_input() {
+            let f3 = egui::KeyboardShortcut::new(egui::Modifiers::NONE, egui::Key::F3);
+            if ctx.input_mut(|i| i.consume_shortcut(&f3)) {
+                self.queued.push(Command::FindNext);
+            }
+        }
         // Not while typing: Delete in a text field must delete a letter, not
         // a download.
         if ctx.egui_wants_keyboard_input() {
             return;
         }
-        for command in Command::ALL {
-            if let Some(shortcut) = command.shortcut() {
-                if ctx.input_mut(|i| i.consume_shortcut(&shortcut)) {
-                    self.queued.push(*command);
-                }
+        // A dialog in front has the keys: Delete or Enter pressed in Options
+        // must not remove or open the downloads selected behind it. The
+        // windows each download opens on its own are not in front of the list
+        // that way, and leave it its keys.
+        let behind = self.dialogs.in_front();
+        for command in ctx.input_mut(Command::pressed) {
+            // F3 is what Find is open for: it finds behind its own dialog.
+            let finding = command == Command::FindNext && self.dialogs.find_open;
+            if !(behind && command.acts_on_the_list()) || finding {
+                self.queued.push(command);
             }
         }
-        if ctx.input(|i| i.key_pressed(egui::Key::Enter)) && !self.selected.is_empty() {
+        if !behind && ctx.input(|i| i.key_pressed(egui::Key::Enter)) && !self.selected.is_empty() {
             self.queued.push(Command::ShowProgress);
         }
     }
@@ -2155,18 +2180,22 @@ impl DmApp {
             if let Some(wait) = self.backend.queue.allowance_spent() {
                 ui.label(tf(
                     "· download limit of {} MB reached, held for {}",
-                    &[&self.applied.limit_mb, &format::clock(Some(wait))],
+                    &[&self.applied.limit_mb, &format::span(wait)],
                 ));
             }
-            if !self.said.is_empty() {
+            // The limiter's own sentence is not said again beside the
+            // standing "limited to" above.
+            if !self.said.is_empty() && !self.said.is_limiter() {
                 ui.label(format!("· {}", self.said.shown()));
             }
+            // The folder in what room is left, cut short with an ellipsis
+            // (its whole path on hover) rather than drawn over the words.
             ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                ui.label(
-                    RichText::new(self.applied.download_dir.display().to_string())
-                        .small()
-                        .weak(),
-                );
+                if ui.available_width() > 40.0 {
+                    let folder = self.applied.download_dir.display().to_string();
+                    ui.add(egui::Label::new(RichText::new(&folder).small().weak()).truncate())
+                        .on_hover_text(folder);
+                }
             });
         });
     }
@@ -2250,6 +2279,7 @@ pub fn run_time_words() -> Vec<&'static str> {
     words.extend(Column::ALL.iter().map(|c| c.english()));
     words.extend(crate::power::WhenDone::ALL.iter().map(|w| w.verb()));
     words.extend(crate::i18n::BUILT_IN_NAMES);
+    words.extend(crate::format::MONTHS);
     for place in [
         Place::All,
         Place::Unfinished,
@@ -2563,9 +2593,12 @@ fn tool(
 /// How two rows compare under a column, for sorting.
 fn compare(column: Column, a: &Entry, b: &Entry) -> std::cmp::Ordering {
     match column {
-        Column::Name => name_of(a).to_lowercase().cmp(&name_of(b).to_lowercase()),
+        // "part 2" before "part 10", as a person reads them.
+        Column::Name => format::natural(&name_of(a), &name_of(b)),
         Column::Queue => a.queue.cmp(&b.queue),
-        Column::Size => a.progress.total.cmp(&b.progress.total),
+        // By the size the column shows, which for a file of unknown length
+        // is what has arrived of it.
+        Column::Size => crate::table::shown_size(a).cmp(&crate::table::shown_size(b)),
         // By state, then how far along: the same order in every language,
         // and 9% before 45% rather than after it as text would put it.
         Column::Status => {
@@ -2584,12 +2617,25 @@ fn compare(column: Column, a: &Entry, b: &Entry) -> std::cmp::Ordering {
                     .unwrap_or(std::cmp::Ordering::Equal)
             })
         }
-        Column::TimeLeft => a.progress.eta.cmp(&b.progress.eta),
-        Column::Rate => a
-            .progress
-            .speed
-            .partial_cmp(&b.progress.speed)
-            .unwrap_or(std::cmp::Ordering::Equal),
+        // Only a running row shows a time left or a speed; a stopped one's
+        // last figures are stale, and sorted as the blank they are shown as.
+        Column::TimeLeft => {
+            let left = |e: &Entry| {
+                (e.state == State::Running)
+                    .then_some(e.progress.eta)
+                    .flatten()
+                    .filter(|d| !d.is_zero())
+            };
+            left(a).cmp(&left(b))
+        }
+        Column::Rate => {
+            let speed = |e: &Entry| {
+                (e.state == State::Running && e.progress.speed > 1.0).then_some(e.progress.speed)
+            };
+            speed(a)
+                .partial_cmp(&speed(b))
+                .unwrap_or(std::cmp::Ordering::Equal)
+        }
         Column::LastTry => a.finished_at.cmp(&b.finished_at),
         Column::Description => a.description.cmp(&b.description),
         Column::Referrer => a.referrer.cmp(&b.referrer),
@@ -2654,6 +2700,46 @@ mod status_tests {
         part_way.progress.downloaded = 45;
         part_way.progress.total = Some(100);
         assert_eq!(status_in_english(&part_way), "Stopped · 45%");
+    }
+
+    #[test]
+    fn a_download_of_unknown_length_says_what_has_arrived_and_how_fast() {
+        let mut row = paused(false);
+        row.state = State::Running;
+        assert_eq!(status_in_english(&row), "Starting…");
+        row.progress.downloaded = 3 * 1024 * 1024;
+        row.progress.speed = 2048.0;
+        assert_eq!(status_in_english(&row), "3.0 MB · 2.0 KB/s");
+    }
+
+    #[test]
+    fn columns_sort_by_what_they_show() {
+        use std::cmp::Ordering::*;
+        let named = |name: &str| {
+            let mut row = paused(false);
+            row.filename = name.into();
+            row
+        };
+        // Names: numbers by value.
+        assert_eq!(
+            compare(Column::Name, &named("part 2"), &named("part 10")),
+            Less
+        );
+        // Size: what has arrived of a file of unknown length is its size.
+        let (mut big, mut small) = (named("a"), named("b"));
+        big.progress.downloaded = 5000;
+        small.progress.total = Some(10);
+        assert_eq!(compare(Column::Size, &big, &small), Greater);
+        // Speed and time left: a stopped row's last figures are not shown,
+        // and do not sort it ahead of one that is running.
+        let (mut stopped, mut running) = (named("a"), named("b"));
+        stopped.progress.speed = 9e9;
+        stopped.progress.eta = Some(std::time::Duration::from_secs(1));
+        running.state = State::Running;
+        running.progress.speed = 100.0;
+        running.progress.eta = Some(std::time::Duration::from_secs(500));
+        assert_eq!(compare(Column::Rate, &stopped, &running), Less);
+        assert_eq!(compare(Column::TimeLeft, &stopped, &running), Less);
     }
 }
 

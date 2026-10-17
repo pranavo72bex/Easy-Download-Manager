@@ -187,7 +187,7 @@ impl World {
     fn app(&self) -> DmApp {
         // Without the progress and complete windows unless a test asks:
         // most tests are about the list, not about windows over it.
-        let settings = Settings {
+        self.app_with(Settings {
             download_dir: self.dir.path().join("out"),
             connections: 1,
             show_progress: false,
@@ -196,7 +196,11 @@ impl World {
             // machine running them is set to.
             language: "en".into(),
             ..Settings::default()
-        };
+        })
+    }
+
+    /// A window over these settings, as a launch that read them would be.
+    fn app_with(&self, settings: Settings) -> DmApp {
         let queue = Queue::new(
             dm_core::client(),
             settings.options(self.dir.path().join("parts"), dm_core::Limiter::unlimited()),
@@ -3420,4 +3424,364 @@ fn every_row_menu_item_clicked_does_what_it_says() {
             .iter()
             .any(|r| r.id == done.id && r.state == State::Completed && r.path != done.path)
     });
+}
+
+#[test]
+fn command_shift_n_opens_the_numbered_series_not_add_url() {
+    let world = world();
+    let mut harness = world.harness();
+    harness.key_press_modifiers(
+        egui::Modifiers::COMMAND | egui::Modifiers::SHIFT,
+        egui::Key::N,
+    );
+    harness.run_steps(3);
+    assert!(
+        harness.state().dialogs.series.is_some(),
+        "no numbered series"
+    );
+    assert!(
+        harness.state().dialogs.add_url.is_none(),
+        "Add URL opened too"
+    );
+    // And ⌘N alone is still Add URL.
+    harness.key_press(egui::Key::Escape);
+    harness.key_press_modifiers(egui::Modifiers::COMMAND, egui::Key::N);
+    harness.run_steps(3);
+    assert!(harness.state().dialogs.add_url.is_some());
+}
+
+#[test]
+fn a_dialog_asked_for_while_open_keeps_what_was_typed_in_it() {
+    let world = world();
+    let mut harness = world.harness();
+    click(&mut harness, "Add URL");
+    type_into(&mut harness, "Address", "https://e.com/typed.zip");
+    harness.state_mut().run(Command::AddUrl);
+    harness.run_steps(2);
+    assert_eq!(
+        harness
+            .state()
+            .dialogs
+            .add_url
+            .as_ref()
+            .map(|d| d.address.as_str()),
+        Some("https://e.com/typed.zip"),
+        "Add URL asked for again threw away the address"
+    );
+    harness.state_mut().run(Command::Options);
+    harness
+        .state_mut()
+        .dialogs
+        .options
+        .as_mut()
+        .unwrap()
+        .draft
+        .connections = 3;
+    harness.state_mut().run(Command::Options);
+    harness.run_steps(2);
+    assert_eq!(
+        harness
+            .state()
+            .dialogs
+            .options
+            .as_ref()
+            .map(|o| o.draft.connections),
+        Some(3),
+        "Options asked for again lost its unsaved change"
+    );
+    for (command, open) in [
+        (Command::Scheduler, "Scheduler"),
+        (Command::AddSeries, "Add numbered series"),
+        (Command::SiteFiles, "Files on a site"),
+        (Command::SpeedLimiterSettings, "Speed limiter"),
+    ] {
+        harness.state_mut().run(command);
+        harness.state_mut().run(command);
+        assert!(harness
+            .state()
+            .dialogs
+            .open_names()
+            .iter()
+            .any(|n| n == open));
+    }
+}
+
+#[test]
+fn the_lists_keys_do_not_reach_it_from_behind_a_dialog() {
+    let world = world();
+    let mut harness = world.harness();
+    add_url(&mut harness, &world.url("file.zip"), "Start now");
+    until(&mut harness, "the download to complete", |app| {
+        app.rows().iter().any(|r| r.state == State::Completed)
+    });
+    select(&mut harness, "file.zip");
+    harness.state_mut().run(Command::Options);
+    harness.run_steps(2);
+    harness.key_press(egui::Key::Delete);
+    harness.key_press(egui::Key::Enter);
+    harness.run_steps(3);
+    assert_eq!(
+        harness.state().rows().len(),
+        1,
+        "Delete behind Options removed it"
+    );
+    assert!(
+        harness.state().dialogs.progress.is_empty(),
+        "Enter reached the list"
+    );
+    assert!(harness.state().dialogs.confirm_remove.is_none());
+    // With the dialog gone, Delete is the list's again.
+    harness.state_mut().dialogs.options = None;
+    harness.run_steps(2);
+    harness.key_press(egui::Key::Delete);
+    until(&mut harness, "Delete to act on the list", |app| {
+        app.rows().is_empty() || app.dialogs.confirm_remove.is_some()
+    });
+}
+
+#[test]
+fn every_column_is_reached_at_the_default_window_size() {
+    use egui::accesskit::Role;
+    let world = world();
+    let mut harness = Harness::builder()
+        .with_size(egui::vec2(960.0, 660.0))
+        .build_ui_state(|ui, app: &mut DmApp| app.ui(ui), world.app());
+    add_url(&mut harness, &world.url("file.zip"), "Add for later");
+    harness.run_steps(3);
+    let folder = harness.get_by_role_and_label(Role::Button, "Folder");
+    assert!(
+        folder.rect().max.x > 960.0,
+        "the premise: Folder starts past the edge"
+    );
+    folder.scroll_to_me();
+    harness.run_steps(5);
+    let at = harness.get_by_role_and_label(Role::Button, "Folder").rect();
+    assert!(
+        at.min.x >= 0.0 && at.max.x <= 960.0,
+        "the Folder column cannot be reached: {at:?}"
+    );
+}
+
+#[test]
+fn the_status_bars_folder_never_covers_what_it_says() {
+    let world = world();
+    let mut harness = Harness::builder()
+        .with_size(egui::vec2(960.0, 660.0))
+        .build_ui_state(|ui, app: &mut DmApp| app.ui(ui), world.app());
+    let deep = world.dir.path().join("a-long-folder-name-".repeat(12));
+    harness.state_mut().applied.download_dir = deep.clone();
+    harness.state_mut().said =
+        "Something long was said here, long enough to fill much of the status bar.".into();
+    harness.run_steps(3);
+    let words = harness.get_by_label_contains("Nothing downloading").rect();
+    let said = harness
+        .get_by_label_contains("Something long was said")
+        .rect();
+    if let Some(folder) = harness.query_by_label_contains("a-long-folder-name-") {
+        let at = folder.rect();
+        assert!(
+            at.min.x >= said.max.x.max(words.max.x) - 0.5,
+            "the folder {at:?} is drawn over the status {said:?}"
+        );
+        assert!(at.max.x <= 960.0);
+    }
+}
+
+#[test]
+fn the_speed_limit_last_turned_off_comes_back_after_a_restart() {
+    let _file = SETTINGS_FILE.lock().unwrap_or_else(|e| e.into_inner());
+    let world = world();
+    let mut harness = world.harness();
+    let mut wanted = harness.state().applied.clone();
+    wanted.speed_limit = 300;
+    harness.state_mut().apply_settings(wanted).unwrap();
+    harness.state_mut().run(Command::SpeedLimiterToggle);
+    let (saved, _) = Settings::load();
+    assert_eq!((saved.speed_limit, saved.last_speed_limit), (0, 300));
+    // The next launch, from what was saved.
+    let mut next = Harness::builder()
+        .with_size(egui::vec2(1100.0, 720.0))
+        .build_ui_state(|ui, app: &mut DmApp| app.ui(ui), world.app_with(saved));
+    next.state_mut().run(Command::SpeedLimiterToggle);
+    assert_eq!(next.state().backend().settings().speed_limit, 300);
+}
+
+#[test]
+fn properties_fit_a_small_window_and_close_from_the_title_bar() {
+    let world = world();
+    let mut harness = Harness::builder()
+        .with_size(egui::vec2(720.0, 460.0))
+        .build_ui_state(|ui, app: &mut DmApp| app.ui(ui), world.app());
+    let long = format!("https://example.com/{}", "very-long-page-name/".repeat(30));
+    harness
+        .state_mut()
+        .add(
+            &[world.url("file.zip")],
+            dm_core::AddOptions {
+                referrer: long,
+                later: true,
+                ..Default::default()
+            },
+        )
+        .unwrap();
+    harness.state_mut().refresh();
+    harness.run_steps(2);
+    select(&mut harness, "file.zip");
+    harness.state_mut().run(Command::Properties);
+    harness.run_steps(4);
+    let ok = harness.get_by_label("OK").rect();
+    assert!(
+        ok.max.x <= 720.0 && ok.max.y <= 460.0,
+        "OK is off the window: {ok:?}"
+    );
+    harness.get_by_label("Close window").click();
+    harness.run_steps(3);
+    assert!(
+        harness.state().dialogs.properties.is_empty(),
+        "no way to close it"
+    );
+}
+
+#[test]
+fn f3_finds_the_next_one_while_find_is_open() {
+    let world = world();
+    let mut harness = world.harness();
+    for name in ["alpha.bin", "beta.bin", "alphabet.bin"] {
+        harness
+            .state()
+            .backend()
+            .add_with(
+                &world.url(name),
+                dm_core::AddOptions {
+                    later: true,
+                    ..Default::default()
+                },
+            )
+            .unwrap();
+    }
+    harness.state_mut().refresh();
+    harness.state_mut().run(Command::Find);
+    harness.run_steps(2);
+    type_into(&mut harness, "Find what", "alpha");
+    let picked = |h: &Harness<'_, DmApp>| {
+        h.state()
+            .targets()
+            .iter()
+            .map(dm_desktop::app::name_of)
+            .collect::<Vec<_>>()
+    };
+    // From Find's own field.
+    harness.key_press(egui::Key::F3);
+    harness.run_steps(2);
+    assert_eq!(picked(&harness), ["alpha.bin"], "F3 in the field");
+    // Enter finds too, and leaves the field: F3 still finds behind Find.
+    harness.key_press(egui::Key::Enter);
+    harness.run_steps(2);
+    assert_eq!(picked(&harness), ["alphabet.bin"]);
+    assert!(
+        !harness.ctx.egui_wants_keyboard_input(),
+        "the premise: the field let go"
+    );
+    harness.key_press(egui::Key::F3);
+    harness.run_steps(2);
+    assert_eq!(picked(&harness), ["alpha.bin"], "F3 with Find open");
+    assert!(harness.state().dialogs.find_open);
+    harness.key_press(egui::Key::Escape);
+    harness.run_steps(2);
+    assert!(
+        !harness.state().dialogs.find_open,
+        "Escape still closes Find"
+    );
+}
+
+#[test]
+fn options_holds_only_new_or_renamed_folders_to_every_computers_rules() {
+    let _file = SETTINGS_FILE.lock().unwrap_or_else(|e| e.into_inner());
+    let world = world();
+    // Saved before by a dm that took them, and usable on this computer: a
+    // kind's folder and a category with a colon in it.
+    let mut saved = Settings {
+        download_dir: world.dir.path().join("out"),
+        connections: 1,
+        show_progress: false,
+        show_complete: false,
+        language: "en".into(),
+        ..Settings::default()
+    };
+    saved.category_folders[1] = "Audio: 2024".into();
+    saved.custom_categories.push(dm_core::Custom {
+        name: "Live: 2024".into(),
+        extensions: vec!["mkv".into()],
+        sites: Vec::new(),
+    });
+    let before = saved.clone();
+    let mut harness = Harness::builder()
+        .with_size(egui::vec2(1100.0, 720.0))
+        .build_ui_state(|ui, app: &mut DmApp| app.ui(ui), world.app_with(saved));
+    // An unrelated change goes through.
+    click(&mut harness, "Options");
+    harness
+        .state_mut()
+        .dialogs
+        .options
+        .as_mut()
+        .unwrap()
+        .draft
+        .connections = 4;
+    harness.run_steps(2);
+    click(&mut harness, "OK");
+    assert!(
+        harness.state().dialogs.options.is_none(),
+        "a name saved before blocked OK"
+    );
+    let now = harness.state().backend().settings();
+    assert_eq!(now.connections, 4);
+    assert_eq!(
+        now.category_folders[1], "Audio: 2024",
+        "a saved folder kept"
+    );
+    assert!(now.custom_categories.iter().any(|c| c.name == "Live: 2024"));
+    // A kind's folder renamed to one Windows cannot make is refused.
+    click(&mut harness, "Options");
+    harness
+        .state_mut()
+        .dialogs
+        .options
+        .as_mut()
+        .unwrap()
+        .draft
+        .category_folders[0] = "Clips|new".into();
+    harness.run_steps(2);
+    click(&mut harness, "OK");
+    assert!(
+        harness
+            .query_by_label_contains("not a folder name every computer can use")
+            .is_some(),
+        "{:?} {:?}",
+        harness
+            .state()
+            .dialogs
+            .options
+            .as_ref()
+            .map(|d| d.says.clone()),
+        harness.state().backend().settings().category_folders
+    );
+    assert_eq!(
+        harness.state().backend().settings().category_folders[0],
+        before.category_folders[0]
+    );
+    // And a new category.
+    {
+        let d = harness.state_mut().dialogs.options.as_mut().unwrap();
+        d.draft.category_folders[0] = before.category_folders[0].clone();
+        d.custom
+            .push(["Notes?".into(), "txt".into(), String::new()]);
+    }
+    harness.run_steps(2);
+    click(&mut harness, "OK");
+    assert!(
+        harness.state().dialogs.options.is_some(),
+        "a new bad name was taken"
+    );
+    harness.state_mut().dialogs.options = None;
 }

@@ -10,6 +10,22 @@
 //! Native messaging frames are JSON objects. Every one carries
 //! `protocolVersion` and a `type`; the rest depends on the type.
 //!
+//! A frame's `protocolVersion` is the oldest version that reads it
+//! correctly, not the newest its writer knows: a host older than a frame's
+//! version does not answer it, so everything an older side reads correctly
+//! goes out at the old number and only what it would misread goes out at
+//! the new one. Each side reads every version from [`OLDEST_PROTOCOL`] to
+//! [`PROTOCOL_VERSION`], and the host's hello says the newest it reads
+//! (`protocol`), which is how the extension knows what the app can judge.
+//!
+//! | version | what it added                                                |
+//! |---------|--------------------------------------------------------------|
+//! | 1       | everything else                                              |
+//! | 2       | `download.start` with `caught`: the host judges `mime`, the  |
+//! |         | `cookies` and the `deadline`, refusing a sign-in page served |
+//! |         | in the file's place. A version-1 app ignored those fields    |
+//! |         | and took the page, and the browser's copy was erased         |
+//!
 //! | extension sends   | host answers                                  |
 //! |-------------------|-----------------------------------------------|
 //! | `engine.hello`    | `engine.hello` with `engineVersion`, `ytdlp`  |
@@ -33,8 +49,18 @@
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
-/// Carried by every frame. A frame with another version is not read.
-pub const PROTOCOL_VERSION: u64 = 1;
+/// The newest version this side reads and writes. A frame of a version
+/// outside [`OLDEST_PROTOCOL`]`..=PROTOCOL_VERSION` is not read.
+pub const PROTOCOL_VERSION: u64 = 2;
+
+/// The oldest version still read: what an older extension or app sends.
+pub const OLDEST_PROTOCOL: u64 = 1;
+
+/// The first version whose host judges a caught download by what the
+/// browser said it was (`mime`), so it refuses a sign-in page served to dm
+/// in the file's place. The extension hands a download the browser holds,
+/// and will erase, only to an app at least this new.
+pub const JUDGES_PAGES_SINCE: u64 = 2;
 
 /// The native messaging host's name, which is also its manifest's file name
 /// without the `.json`.
@@ -159,6 +185,13 @@ pub struct Start {
     /// Absent from an older extension.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub deadline: Option<u64>,
+    /// The browser holds this download, paused, and erases its copy once
+    /// the app has taken it: a sign-in page taken for the file loses it.
+    /// Only such a hand-off needs a host that judges `mime` (version 2); a
+    /// file a person asked for from a menu or the panel, which the browser
+    /// never started, is checked (`caught`) at version 1 as before.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub held: bool,
 }
 
 /// The longest the host spends asking a server about a caught download.
@@ -256,6 +289,25 @@ pub struct Hello {
     /// host too old to say, which is not the same as `false`.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub ytdlp: Option<bool>,
+    /// The newest protocol version the app reads. Absent from an app of
+    /// version 1, which said nothing of it.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub protocol: Option<u64>,
+}
+
+impl Hello {
+    /// The newest protocol version the app reads.
+    pub fn protocol(&self) -> u64 {
+        self.protocol.unwrap_or(OLDEST_PROTOCOL)
+    }
+
+    /// Whether the app refuses a sign-in page served to it in place of a
+    /// file the browser is downloading — without which a download the
+    /// browser holds must not be handed to it, since the browser's copy is
+    /// erased once the app has taken it.
+    pub fn judges_pages(&self) -> bool {
+        self.protocol() >= JUDGES_PAGES_SINCE
+    }
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Default)]
@@ -282,26 +334,27 @@ pub enum Unreadable {
 impl std::fmt::Display for Unreadable {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            Unreadable::Version(Some(v)) => {
-                write!(f, "protocol version {v} is not {PROTOCOL_VERSION}")
-            }
+            Unreadable::Version(Some(v)) => write!(
+                f,
+                "protocol version {v} is not one of {OLDEST_PROTOCOL} to {PROTOCOL_VERSION}"
+            ),
             Unreadable::Version(None) => write!(f, "a frame with no protocol version"),
             Unreadable::Shape(why) => write!(f, "a frame that could not be read: {why}"),
         }
     }
 }
 
-fn envelope<T: Serialize>(message: &T) -> Value {
+fn envelope<T: Serialize>(message: &T, version: u64) -> Value {
     let mut value = serde_json::to_value(message).unwrap_or(Value::Null);
     if let Value::Object(map) = &mut value {
-        map.insert("protocolVersion".into(), PROTOCOL_VERSION.into());
+        map.insert("protocolVersion".into(), version.into());
     }
     value
 }
 
 fn open<T: serde::de::DeserializeOwned>(frame: &Value) -> Result<T, Unreadable> {
     match frame.get("protocolVersion").and_then(Value::as_u64) {
-        Some(PROTOCOL_VERSION) => {}
+        Some(v) if (OLDEST_PROTOCOL..=PROTOCOL_VERSION).contains(&v) => {}
         other => return Err(Unreadable::Version(other)),
     }
     // Keys a message does not use — `protocolVersion`, or the `filename` an
@@ -310,9 +363,22 @@ fn open<T: serde::de::DeserializeOwned>(frame: &Value) -> Result<T, Unreadable> 
 }
 
 impl Request {
-    /// The frame, version included.
+    /// The frame, at the oldest version that reads it correctly.
     pub fn to_frame(&self) -> Value {
-        envelope(self)
+        envelope(self, self.needs())
+    }
+
+    /// The oldest protocol version that reads this request correctly. A
+    /// download the browser holds (`held`) needs a host that judges what it
+    /// is served (version 2): a version-1 host would take a sign-in page for
+    /// the file, so it is sent at 2, which such a host does not answer, and
+    /// the extension gives the download back when no answer comes. Anything
+    /// else, a file asked for from a menu included, a version-1 host reads.
+    pub fn needs(&self) -> u64 {
+        match self {
+            Request::Start(start) if start.held => JUDGES_PAGES_SINCE,
+            _ => OLDEST_PROTOCOL,
+        }
     }
 
     pub fn from_frame(frame: &Value) -> Result<Self, Unreadable> {
@@ -321,8 +387,10 @@ impl Request {
 }
 
 impl Reply {
+    /// The frame, at version 1: every reply is one a version-1 extension
+    /// reads correctly (the hello's `protocol` is a key it ignores).
     pub fn to_frame(&self) -> Value {
-        envelope(self)
+        envelope(self, OLDEST_PROTOCOL)
     }
 
     pub fn from_frame(frame: &Value) -> Result<Self, Unreadable> {
@@ -608,7 +676,7 @@ mod tests {
             }),
         ] {
             let frame = request.to_frame();
-            assert_eq!(frame["protocolVersion"], 1);
+            assert_eq!(frame["protocolVersion"], request.needs());
             assert_eq!(Request::from_frame(&frame), Ok(request));
         }
     }
@@ -631,6 +699,7 @@ mod tests {
         let hello = Reply::Hello(Hello {
             engine_version: "1.2".into(),
             ytdlp: Some(false),
+            protocol: None,
         })
         .to_frame();
         assert_eq!(hello["engineVersion"], "1.2");
@@ -639,10 +708,15 @@ mod tests {
 
     #[test]
     fn a_frame_of_another_version_is_not_read() {
-        let frame = json!({ "protocolVersion": 2, "type": "engine.hello" });
+        let frame = json!({ "protocolVersion": 3, "type": "engine.hello" });
         assert_eq!(
             Request::from_frame(&frame),
-            Err(Unreadable::Version(Some(2)))
+            Err(Unreadable::Version(Some(3)))
+        );
+        let frame = json!({ "protocolVersion": 0, "type": "engine.hello" });
+        assert_eq!(
+            Request::from_frame(&frame),
+            Err(Unreadable::Version(Some(0)))
         );
         let frame = json!({ "type": "engine.hello" });
         assert_eq!(Request::from_frame(&frame), Err(Unreadable::Version(None)));
@@ -669,6 +743,71 @@ mod tests {
             Request::from_frame(&pause),
             Err(Unreadable::Shape(_))
         ));
+    }
+
+    #[test]
+    fn a_caught_download_goes_out_at_the_version_that_judges_pages() {
+        // Version 1 hosts answer only version 1 frames, and ignore `mime`:
+        // a download the browser holds is sent where one cannot take it.
+        let caught = Request::Start(Start {
+            id: "b1".into(),
+            url: "https://e.com/f.zip".into(),
+            caught: true,
+            held: true,
+            mime: "application/zip".into(),
+            ..Start::default()
+        });
+        assert_eq!(caught.to_frame()["protocolVersion"], JUDGES_PAGES_SINCE);
+        // A file asked for from a menu or the panel is checked too, but the
+        // browser holds nothing: a version-1 host must still answer it.
+        let chosen = Request::Start(Start {
+            id: "m1".into(),
+            url: "https://e.com/f.zip".into(),
+            caught: true,
+            ..Start::default()
+        });
+        assert_eq!(chosen.to_frame()["protocolVersion"], 1);
+        // Everything an older host reads correctly still reaches it.
+        for old in [
+            Request::Hello,
+            Request::Settings,
+            Request::Show,
+            Request::Start(Start {
+                id: "m1".into(),
+                url: "https://e.com/watch".into(),
+                ..Start::default()
+            }),
+        ] {
+            assert_eq!(old.to_frame()["protocolVersion"], 1);
+        }
+        // Both versions are read here, and replies go out at 1, which an
+        // older extension reads.
+        for v in [1, 2] {
+            let frame = json!({ "protocolVersion": v, "type": "engine.hello" });
+            assert_eq!(Request::from_frame(&frame), Ok(Request::Hello));
+        }
+        let hello = Reply::Hello(Hello {
+            protocol: Some(PROTOCOL_VERSION),
+            ..Hello::default()
+        })
+        .to_frame();
+        assert_eq!(hello["protocolVersion"], 1);
+        assert_eq!(hello["protocol"], PROTOCOL_VERSION);
+    }
+
+    #[test]
+    fn an_app_that_does_not_say_its_protocol_does_not_judge_pages() {
+        let old = json!({ "protocolVersion": 1, "type": "engine.hello", "engineVersion": "2.0.0" });
+        let Ok(Reply::Hello(hello)) = Reply::from_frame(&old) else {
+            panic!("not read")
+        };
+        assert_eq!(hello.protocol(), 1);
+        assert!(!hello.judges_pages());
+        let new = json!({ "protocolVersion": 1, "type": "engine.hello", "protocol": 2 });
+        let Ok(Reply::Hello(hello)) = Reply::from_frame(&new) else {
+            panic!("not read")
+        };
+        assert!(hello.judges_pages());
     }
 
     #[test]

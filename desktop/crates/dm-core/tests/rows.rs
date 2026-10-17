@@ -286,3 +286,64 @@ async fn a_login_in_the_address_is_sent_as_basic_auth() {
     assert_eq!(row.state, State::Completed, "{:?}", row.state);
     assert_eq!(std::fs::read(&row.path).unwrap(), BODY);
 }
+
+/// Gap 58: removing a selection wrote the whole queue file once per row —
+/// 10,000 rows of a 6.5 MB file at 32 ms a save. A batch is one save.
+#[tokio::test]
+async fn removing_many_rows_writes_the_queue_once() {
+    let addr = serve().await;
+    let dir = tempdir();
+    let q = queue(dir.path());
+    q.persist_to(dir.path().join("queue.json")).await;
+    let items = (0..200)
+        .map(|n| {
+            (
+                format!("http://{addr}/row{n}.bin"),
+                AddOptions {
+                    later: true,
+                    ..AddOptions::default()
+                },
+            )
+        })
+        .collect();
+    let ids: Vec<_> = q.add_each(items).await.into_iter().flatten().collect();
+    assert_eq!(ids.len(), 200);
+    let kept = ids[0];
+
+    let before = q.saves_written();
+    q.remove_many(&ids[1..]).await;
+    assert_eq!(q.saves_written() - before, 1, "one save for the batch");
+    let rows = q.list().await;
+    assert_eq!(rows.len(), 1);
+    assert_eq!(rows[0].id, kept);
+    let saved = std::fs::read_to_string(dir.path().join("queue.json")).unwrap();
+    assert!(
+        !saved.contains("row1.bin"),
+        "the file still lists a removed row"
+    );
+}
+
+/// Gap 62: changing only the case of a name on a case-insensitive disk
+/// (macOS's and Windows' default) found the name "taken" by the file itself
+/// and gave "report (1).pdf".
+#[tokio::test]
+async fn a_rename_that_changes_only_the_case_is_done_in_place() {
+    let addr = serve().await;
+    let dir = tempdir();
+    let q = queue(dir.path());
+    let id = q.add(&format!("http://{addr}/Report.pdf")).await.unwrap();
+    q.run().await;
+    q.rename(id, "report.pdf").await.unwrap();
+    let row = q.get(id).await.unwrap();
+    assert_eq!(row.filename, "report.pdf");
+    assert_eq!(std::fs::read(&row.path).unwrap(), BODY);
+    let names: Vec<String> = std::fs::read_dir(std::path::Path::new(&row.path).parent().unwrap())
+        .unwrap()
+        .map(|e| e.unwrap().file_name().to_string_lossy().into_owned())
+        .collect();
+    assert_eq!(
+        names,
+        ["report.pdf"],
+        "spelt as asked, nothing left beside it"
+    );
+}

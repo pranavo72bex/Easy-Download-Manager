@@ -38,6 +38,10 @@ pub struct Settings {
     /// Kilobytes rather than bytes because that is the unit people think in
     /// for a link, and it is what the extension's setting has always used.
     pub speed_limit: u64,
+    /// The limit the speed limiter last had on, in KB/s, so turning it back
+    /// on — in this run or the next — restores it. Zero for never set.
+    #[serde(default)]
+    pub last_speed_limit: u64,
 
     /// The download limit: no more than this many megabytes
     /// every `limit_hours` hours. Zero is none.
@@ -250,6 +254,7 @@ impl Default for Settings {
                 .unwrap_or_else(|| dirs::home_dir().unwrap_or_default())
                 .join("dm"),
             speed_limit: 0,
+            last_speed_limit: 0,
             limit_mb: 0,
             limit_hours: 1,
             categorize: false,
@@ -289,6 +294,9 @@ impl Settings {
         self.connections = self.connections.clamp(CONNECTIONS.0, CONNECTIONS.1);
         self.concurrency = self.concurrency.clamp(CONCURRENCY.0, CONCURRENCY.1);
         self.speed_limit = self.speed_limit.clamp(SPEED_LIMIT_KB.0, SPEED_LIMIT_KB.1);
+        self.last_speed_limit = self
+            .last_speed_limit
+            .clamp(SPEED_LIMIT_KB.0, SPEED_LIMIT_KB.1);
         self.limit_mb = self.limit_mb.min(LIMIT_MB);
         self.limit_hours = self.limit_hours.clamp(1, LIMIT_HOURS);
         self.attempts = self.attempts.clamp(ATTEMPTS.0, ATTEMPTS.1);
@@ -365,14 +373,26 @@ impl Settings {
                 self.parts_dir
             ));
         }
-        if let Some(bad) = self.custom_categories.iter().find(|c| {
-            !dm_core::category::one_folder(&c.name)
-                && !previous.custom_categories.iter().any(|p| p.name == c.name)
-        }) {
-            return Some(format!(
-                "a category's name is also its folder, so it cannot be {:?}",
-                bad.name
-            ));
+        // A name made or renamed is held to every computer's rules, since
+        // settings travel; one already saved is not (gap 77).
+        for c in &self.custom_categories {
+            if previous.custom_categories.iter().any(|p| p.name == c.name) {
+                continue;
+            }
+            if let Err(why) = dm_core::category::portable_folder(&c.name) {
+                return Some(format!(
+                    "a category's name is also its folder, so it cannot be {:?}: {why}",
+                    c.name
+                ));
+            }
+        }
+        for (at, folder) in self.category_folders.iter().enumerate() {
+            if folder.trim().is_empty() || previous.category_folders.get(at) == Some(folder) {
+                continue;
+            }
+            if let Err(why) = dm_core::category::portable_folder(folder) {
+                return Some(format!("a folder cannot be called {folder:?}: {why}"));
+            }
         }
         let cookies = self.cookies_file.trim();
         if cookies != previous.cookies_file.trim() && !cookies.is_empty() {
@@ -585,8 +605,24 @@ impl Settings {
             let names: Vec<String> = bad.iter().map(|c| format!("{:?}", c.name)).collect();
             notes.push(format!(
                 "the categories {} were left out: a category's name is also its folder, and \
-                 these are not one folder",
+                 these cannot be a folder on this computer",
                 names.join(", ")
+            ));
+        }
+        // A kind's folder that cannot be used here sorts into the download
+        // folder itself; said, rather than done without a word (gap 77).
+        // Empty is "not nested", on purpose.
+        let unusable: Vec<String> = settings
+            .category_folders
+            .iter()
+            .filter(|f| !f.trim().is_empty() && !dm_core::category::one_folder(f))
+            .map(|f| format!("{f:?}"))
+            .collect();
+        if !unusable.is_empty() {
+            notes.push(format!(
+                "the folders {} cannot be a folder on this computer, so those kinds of file \
+                 land in the download folder itself; rename them in Options",
+                unusable.join(", ")
             ));
         }
         (settings, notes)
@@ -891,6 +927,55 @@ mod tests {
             std::fs::read_to_string(kept).unwrap(),
             "{ \"connections\": 8, }"
         );
+    }
+
+    /// Gap 77: a category saved on a Mac or Linux with a name Windows
+    /// cannot make ("Live: 2024", "Misc.") was dropped at load, and the
+    /// next save deleted it. It is kept where it works; only a new or
+    /// renamed name is held to every computer's rules. A kind's folder
+    /// that cannot be used here is said, not filed into the root silently.
+    #[test]
+    fn a_saved_category_that_works_here_is_kept_and_a_new_one_is_portable() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("settings.json");
+        std::fs::write(
+            &path,
+            r#"{"custom_categories": [{"name": "Live: 2024", "extensions": ["mkv"]},
+                {"name": "Misc."}, {"name": "a/b"}],
+                "category_folders": ["Videos/HD", "Music"]}"#,
+        )
+        .unwrap();
+        let (read, notice) = Settings::load_from(&path);
+        let names: Vec<&str> = read
+            .custom_categories
+            .iter()
+            .map(|c| c.name.as_str())
+            .collect();
+        if cfg!(windows) {
+            assert!(names.is_empty(), "{names:?}");
+        } else {
+            assert_eq!(names, ["Live: 2024", "Misc."]);
+            assert_eq!(read.custom_categories[0].extensions, ["mkv"]);
+        }
+        let notice = notice.expect("nothing said");
+        assert!(notice.contains("\"a/b\""), "{notice}");
+        assert!(notice.contains("\"Videos/HD\""), "{notice}");
+
+        // Kept, it does not block an unrelated change; a new one is held to
+        // every computer's rules, and so is a renamed kind's folder.
+        let mut changed = read.clone();
+        changed.connections = 3;
+        assert_eq!(changed.refusal(&read), None);
+        changed.custom_categories.push(dm_core::Custom {
+            name: "Docs: work".into(),
+            ..Default::default()
+        });
+        assert!(changed
+            .refusal(&read)
+            .is_some_and(|r| r.contains("Windows")));
+        let mut renamed = read.clone();
+        renamed.category_folders[1] = "CON".into();
+        assert!(renamed.refusal(&read).is_some());
     }
 
     #[test]

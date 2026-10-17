@@ -856,16 +856,40 @@ async fn a_pause_on_a_stalled_connection_is_honoured_within_the_read_timeout() {
 
 /// Every byte under `dir`, however deeply nested.
 fn bytes_under(dir: &std::path::Path) -> u64 {
+    let mut seen = std::collections::HashSet::new();
+    bytes_under_once(dir, &mut seen)
+}
+
+/// Each file counted once, by what it is on disk rather than by its name:
+/// the walk reads one folder after another, and a file renamed from the
+/// parts folder into the download folder between the two reads was counted
+/// in both — a move sampled as twice the size, which failed a check now and
+/// then on a loaded machine.
+fn bytes_under_once(
+    dir: &std::path::Path,
+    seen: &mut std::collections::HashSet<(u64, u64)>,
+) -> u64 {
     let Ok(entries) = std::fs::read_dir(dir) else {
         return 0;
     };
-    entries
-        .flatten()
-        .map(|entry| match entry.file_type() {
-            Ok(kind) if kind.is_dir() => bytes_under(&entry.path()),
-            _ => entry.metadata().map(|m| m.len()).unwrap_or(0),
-        })
-        .sum()
+    let mut total = 0;
+    for entry in entries.flatten() {
+        match entry.file_type() {
+            Ok(kind) if kind.is_dir() => total += bytes_under_once(&entry.path(), seen),
+            _ => {
+                let Ok(meta) = entry.metadata() else { continue };
+                #[cfg(unix)]
+                {
+                    use std::os::unix::fs::MetadataExt;
+                    if !seen.insert((meta.dev(), meta.ino())) {
+                        continue;
+                    }
+                }
+                total += meta.len();
+            }
+        }
+    }
+    total
 }
 
 #[tokio::test]

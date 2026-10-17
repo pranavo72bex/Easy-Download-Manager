@@ -27,15 +27,15 @@ How servers behave in the wild, one case each, against what dm must do. The coun
 | query-string | the name before a query string | save the bytes, named right | PASS | saved 307200 bytes as setup.exe | same |
 | redirect-chain | 302 then 301 then 307 | save the bytes, named right | PASS | saved 307200 bytes as landed.bin | same |
 | redirect-relative | a relative Location | save the bytes, named right | PASS | saved 307200 bytes as target.bin | same |
-| redirect-loop | redirects to itself | refuse, saving nothing | PASS | refused: network: error following redirect for url (http://…/redirect-loop/x) | — |
-| not-found | 404 | refuse, saving nothing | PASS | refused: the server answered 404 for http://…/status/404 — <html><body>No.</body></html> | — |
-| gone | 410 | refuse, saving nothing | PASS | refused: the server answered 410 for http://…/status/410 — <html><body>No.</body></html> | — |
-| unauthorized | 401 | refuse, saving nothing | PASS | refused: the server answered 401 for http://…/status/401 — <html><body>No.</body></html> | — |
+| redirect-loop | redirects to itself | refuse, saving nothing | PASS | refused: network: error following redirect for url (http://…/redirect-loop/x): too many redirects | — |
+| not-found | 404 | refuse, saving nothing | PASS | refused: the server answered 404 Not Found for http://…/status/404 — No. | — |
+| gone | 410 | refuse, saving nothing | PASS | refused: the server answered 410 Gone for http://…/status/410 — No. | — |
+| unauthorized | 401 | refuse, saving nothing | PASS | refused: the server answered 401 Unauthorized for http://…/status/401 — No. | — |
 | busy-then-ok | 503 once, then the file | save the bytes exactly | PASS | saved 307200 bytes as file.bin | same |
 | rate-limited | 429 with Retry-After: 1, then the file | save the bytes exactly | PASS | saved 307200 bytes as file.bin | same |
-| short-body | promises more than it sends, then closes | refuse, saving nothing | PASS | refused: network: error sending request for url (http://…/short-body/file.bin) | — |
+| short-body | promises more than it sends, then closes | refuse, saving nothing | PASS | refused: network: error sending request for url (http://…/short-body/file.bin): client error (SendRequest): connection closed before message completed | — |
 | dropped-once | drops one range mid-body | save the bytes exactly | PASS | saved 3145728 bytes as file.bin | same |
-| changes-midway | the file is republished during the download | save the right bytes or refuse | PASS | refused: the file changed on the server, so the download has to start again | — |
+| changes-midway | the file is republished during the download | save the right bytes or refuse | PASS | saved 3145728 bytes as file.bin | — |
 | slow-trickle | a few kilobytes at a time, slowly | save the bytes exactly | PASS | saved 65536 bytes as file.bin | same |
-| html-error-page | a 500 with an HTML page | refuse, saving nothing | PASS | refused: the server answered 500 for http://…/status/500 — <html><body>No.</body></html> | — |
+| html-error-page | a 500 with an HTML page | refuse, saving nothing | PASS | refused: the server answered 500 Internal Server Error for http://…/status/500 — No. | — |
 | accept-ranges-none | says Accept-Ranges: none but answers ranges | save the bytes exactly | PASS | saved 3145728 bytes as file.bin | same |

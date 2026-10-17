@@ -140,10 +140,50 @@ pub async fn probe(
 ///
 /// Kept out on every platform: a download folder is copied between machines,
 /// and a file called `con.txt` is one that cannot be written on the other end.
+// COM0/LPT0, the superscript digits Windows also takes as ports, and the
+// console's CONIN$/CONOUT$ were missing (gap 63).
 const RESERVED: &[&str] = &[
-    "con", "prn", "aux", "nul", "com1", "com2", "com3", "com4", "com5", "com6", "com7", "com8",
-    "com9", "lpt1", "lpt2", "lpt3", "lpt4", "lpt5", "lpt6", "lpt7", "lpt8", "lpt9",
+    "con",
+    "prn",
+    "aux",
+    "nul",
+    "conin$",
+    "conout$",
+    "com0",
+    "com1",
+    "com2",
+    "com3",
+    "com4",
+    "com5",
+    "com6",
+    "com7",
+    "com8",
+    "com9",
+    "com\u{b9}",
+    "com\u{b2}",
+    "com\u{b3}",
+    "lpt0",
+    "lpt1",
+    "lpt2",
+    "lpt3",
+    "lpt4",
+    "lpt5",
+    "lpt6",
+    "lpt7",
+    "lpt8",
+    "lpt9",
+    "lpt\u{b9}",
+    "lpt\u{b2}",
+    "lpt\u{b3}",
 ];
+
+/// Whether Windows takes a name for a device rather than a file: the part
+/// before the first dot, any case, trailing spaces ignored. `CON.tar.gz`
+/// is refused as surely as `CON`.
+pub fn reserved_on_windows(name: &str) -> bool {
+    let device = name.split('.').next().unwrap_or("").trim_end();
+    RESERVED.contains(&device.to_ascii_lowercase().as_str())
+}
 
 /// An extension for a URL that ends in a bare path, from what the server said
 /// it was sending. Matches `MIME_EXTENSION` in `naming.js`.
@@ -312,10 +352,7 @@ pub fn sanitize(name: &str) -> String {
 
     let extension = extension_of(&trimmed);
 
-    // Windows reserves the name before the *first* dot: `CON.tar.gz` is
-    // refused as surely as `CON.txt`.
-    let device = trimmed.split('.').next().unwrap_or("").trim_end();
-    let mut out = if RESERVED.contains(&device.to_ascii_lowercase().as_str()) {
+    let mut out = if reserved_on_windows(&trimmed) {
         format!("_{trimmed}")
     } else {
         trimmed
@@ -340,7 +377,12 @@ pub fn sanitize(name: &str) -> String {
             }
             keep.push(c);
         }
-        out = keep + &tail;
+        // A cut can end on a space or a dot, which Windows drops and the
+        // next clean trims: the name recorded and the name on disk differ.
+        out = keep
+            .trim_end_matches(|c: char| c == '.' || c.is_whitespace())
+            .to_string()
+            + &tail;
     }
     out
 }
@@ -499,5 +541,28 @@ mod tests {
         // itself as a tail and the truncation does nothing.
         let long = format!("a.{}", "b".repeat(300));
         assert_eq!(sanitize(&long).chars().count(), 200);
+    }
+
+    /// Gap 63: the reserved list lacked COM0, LPT0, the superscript ports
+    /// and the console's names; and a cut could end on a space or a dot.
+    #[test]
+    fn every_windows_device_name_is_kept_off_and_a_cut_ends_cleanly() {
+        for name in [
+            "COM0.txt",
+            "lpt0",
+            "COM\u{b9}.log",
+            "LPT\u{b3}",
+            "CONIN$",
+            "conout$.txt",
+        ] {
+            assert_eq!(sanitize(name), format!("_{name}"), "{name}");
+        }
+        assert_eq!(sanitize("COM10.txt"), "COM10.txt");
+        let cut_on_a_space = format!("{} tail", "a".repeat(199));
+        let once = sanitize(&cut_on_a_space);
+        assert_eq!(once, "a".repeat(199));
+        assert_eq!(sanitize(&once), once);
+        let cut_on_a_dot = format!("{}.{}", "a".repeat(199), "b".repeat(40));
+        assert_eq!(sanitize(&cut_on_a_dot), "a".repeat(199));
     }
 }

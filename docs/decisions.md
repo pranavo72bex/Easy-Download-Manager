@@ -3,6 +3,52 @@
 Decisions that shape dm and are not obvious from the code, newest first. Each says what was decided and why, so a later change
 can see what it is undoing.
 
+## 2026-10-17: A key is taken by the command that asks for the most modifiers
+
+egui matches a shortcut ignoring an extra Shift, so ⌘N matched ⌘⇧N and Add
+URL opened in place of the numbered series. Rather than match modifiers
+exactly (which would break a key whose character needs Shift on some
+keyboards), every command's keys are tried with the most modifiers first,
+and the first that matches consumes the press. Remove follows the platform:
+⌘⌫ (shown) and ⌫ on macOS, whose keyboards have no Delete without Fn, and
+Delete elsewhere. Keys that act on the selection do nothing while a dialog
+is in front; the per-download progress and completion windows do not count
+as in front. A dialog asked for while it is open is raised, not rebuilt.
+Window state (`persist_window`) goes to `$DM_HOME/window.ron` when `DM_HOME`
+is set, so test and screenshot runs leave the person's own alone.
+
+## 2026-10-17: A frame carries the oldest protocol version that reads it
+
+`download.start` gained `cookies`, `mime` and `deadline` while
+`PROTOCOL_VERSION` stayed 1, and serde ignores keys it does not know: a
+newer extension (stores update it on their own) talking to an older app
+had `mime` ignored, so a sign-in page served in a caught file's place was
+taken and the browser's copy erased. Bumping the number alone was not
+enough: a version-1 host does not answer a frame of another version at
+all, so a hello at 2 would read as "no app" and the menus would stop
+working too. So a frame's `protocolVersion` is the oldest version that
+reads it correctly: a `download.start` for a download the browser holds
+(`held`) goes at 2; everything else, a file chosen from a menu or the
+panel included (checked, but the browser holds nothing to lose), and every
+reply, at 1. Both sides read 1 and 2. The hello says the newest
+version the app reads (`protocol`, absent from a version-1 app), and the
+extension hands a download the browser holds only to an app that says 2 or
+more; an older app keeps getting what a person asks for from the menus and
+the panel, which the browser never started, and the popup and one
+notification say "update the dm app". A caught download sent to an older
+app anyway is not answered and is given back after the wait. A frame of a
+version outside 1..=2 now names the side to update, not `--register`.
+
+## 2026-10-17: Alt-click and the page's links are plain JavaScript
+
+They were registered by the WebAssembly page script, so on a page whose
+policy forbids WebAssembly (where Firefox applies it to content scripts)
+Alt-click no longer kept a download in the browser and "Download all
+links" said to reload. They are a few lines each and read nothing
+WebAssembly decides, so `extension/content.js` registers them before it
+imports anything; the panel stays Rust. A unit test holds the message
+names in the script to the constants in `decide.rs`.
+
 ## 2026-10-17: A lock dm cannot read stops dm, and says so
 
 `instance.lock` that cannot be opened or locked (a directory in its place,
@@ -443,3 +489,37 @@ bundled, is now the last fallback for the proportional families.
   is derived from the user data directory, and `chrome-check.py` registers
   the host in `<profile>/NativeMessagingHosts` only and it is found. What
   had hung was a host binary under `~/Downloads`.
+
+## Free space is checked once, at the start (2026-10-17, gap 60)
+
+A download whose stated length exceeds the free space is refused before a
+range is fetched: the parts' disk must hold what is not yet staged, and the
+destination's disk the whole file when it is another disk (on one disk,
+assembly frees each part as it is consumed, so the length is enough). Read
+with `statvfs` on Unix (`libc`, already a dependency) and
+`GetDiskFreeSpaceExW` on Windows through `windows-sys` — already in the
+tree through tokio and others, only its `Win32_Storage_FileSystem` feature
+named; a crate of its own for one call was not worth it. Where the space
+cannot be read nothing is refused. Space taken by other programs during the
+download is not watched: a disk that fills midway fails the write as before.
+
+## A refusal's body is said only when it says something (2026-10-17, gap 69)
+
+"the server answered 404 Not Found" carries the canonical reason. The body
+is read down to its text as before, and then dropped when, without the
+status, its reason phrase, filler words and a server signature, nothing is
+left — the boilerplate pages of Python's http.server, nginx and Go. A body
+with words of its own (a rate-limit sentence) is kept.
+
+A file system that reports no total size (some FUSE and SMB mounts answer
+0 free of 0) is taken as unknown and not checked (gap 78).
+
+## A folder name: usable here to load, portable to make (2026-10-17, gap 77)
+
+`one_folder` decides whether a saved category or kind's folder is loaded
+and used: one folder, not `.` or `..`, and on Windows a name Windows can
+make. `portable_folder` adds every computer's rules (no `<>:"|?*` or control
+characters, no trailing dot, no device name) and is applied only to a name
+being made or renamed. Holding saved names to it dropped "Live: 2024" made
+on a Mac at the next launch, and the next save deleted it with its types
+and sites.

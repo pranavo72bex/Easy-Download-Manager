@@ -153,7 +153,10 @@ struct Window {
     /// icon, asking for the window back.
     show_asked: Arc<AtomicBool>,
     /// Kept alive for as long as the window: dropping the icon removes it.
-    _icon: Option<tray_icon::TrayIcon>,
+    /// With its menu's items, relabelled when the language changes.
+    icon: Option<(tray_icon::TrayIcon, Vec<tray_icon::menu::MenuItem>)>,
+    /// The language the tray's words are in.
+    tray_language: String,
 }
 
 impl Window {
@@ -215,6 +218,16 @@ impl eframe::App for Window {
             ctx.send_viewport_cmd(egui::ViewportCommand::Visible(false));
         }
         self.app.logic(ctx);
+        if self.app.applied.language != self.tray_language {
+            self.tray_language = self.app.applied.language.clone();
+            if let Some((icon, items)) = &self.icon {
+                let words = tray_words();
+                for (item, word) in items.iter().zip(words) {
+                    item.set_text(word);
+                }
+                let _ = icon.set_tooltip(Some(words[4]));
+            }
+        }
         // Program › Exit, as the tray's Quit does; and a logout, `kill` or
         // a service manager stopping dm, which ask the same.
         if std::mem::take(&mut self.app.quit_asked) || SIGNALLED.load(Ordering::SeqCst) {
@@ -260,11 +273,35 @@ fn drag_out(_frame: &eframe::Frame, _files: Vec<std::path::PathBuf>) -> Result<(
 #[cfg(any(target_os = "macos", target_os = "windows"))]
 const DRAG_ICON: &[u8] = include_bytes!("../icons/32x32.png");
 
+/// Where the window's size and place are kept: under a `DM_HOME` when one
+/// is set, beside that run's own settings and queue, so a test's or a
+/// screenshot's dm does not write the person's real window state; the
+/// system's place for dm otherwise.
+fn window_state_file(home: Option<std::ffi::OsString>) -> Option<std::path::PathBuf> {
+    home.filter(|h| !h.is_empty())
+        .map(|h| std::path::PathBuf::from(h).join("window.ron"))
+}
+
+/// The tray's words in the language in force: its four menu items, then
+/// its tooltip.
+fn tray_words() -> [&'static str; 5] {
+    use dm_desktop::i18n::t;
+    [
+        t("Show dm"),
+        t("Speed limiter on/off"),
+        t("Scheduler…"),
+        t("Quit dm"),
+        t("dm — downloads keep running here"),
+    ]
+}
+
 /// The tray icon: Show, the speed limiter and Scheduler, and Quit.
 ///
 /// Optional: a desktop may not expose a StatusNotifier host. In that case dm
 /// says so in the window and closing it quits instead of hiding without a tray.
-fn tray(wake: egui::Context, send: mpsc::Sender<Tray>) -> Result<tray_icon::TrayIcon, String> {
+type TrayMade = (tray_icon::TrayIcon, Vec<tray_icon::menu::MenuItem>);
+
+fn tray(wake: egui::Context, send: mpsc::Sender<Tray>) -> Result<TrayMade, String> {
     use tray_icon::menu::{Menu, MenuEvent, MenuItem};
     use tray_icon::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent};
 
@@ -276,10 +313,17 @@ fn tray(wake: egui::Context, send: mpsc::Sender<Tray>) -> Result<tray_icon::Tray
 
     use dm_desktop::commands::Command;
     use tray_icon::menu::PredefinedMenuItem;
-    let show = MenuItem::new("Show dm", true, None);
-    let limiter = MenuItem::new("Speed limiter on/off", true, None);
-    let scheduler = MenuItem::new("Scheduler…", true, None);
-    let quit = MenuItem::new("Quit dm", true, None);
+    let [show, limiter, scheduler, quit, tooltip] = tray_words();
+    let show = MenuItem::new(show, true, None);
+    let limiter = MenuItem::new(limiter, true, None);
+    let scheduler = MenuItem::new(scheduler, true, None);
+    let quit = MenuItem::new(quit, true, None);
+    let items = vec![
+        show.clone(),
+        limiter.clone(),
+        scheduler.clone(),
+        quit.clone(),
+    ];
     let menu = Menu::with_items(&[
         &show,
         &PredefinedMenuItem::separator(),
@@ -325,10 +369,11 @@ fn tray(wake: egui::Context, send: mpsc::Sender<Tray>) -> Result<tray_icon::Tray
 
     TrayIconBuilder::new()
         .with_icon(icon)
-        .with_tooltip("dm — downloads keep running here")
+        .with_tooltip(tooltip)
         .with_menu(Box::new(menu))
         .with_menu_on_left_click(false)
         .build()
+        .map(|icon| (icon, items))
         .map_err(|e| e.to_string())
 }
 
@@ -337,10 +382,7 @@ fn tray(wake: egui::Context, send: mpsc::Sender<Tray>) -> Result<tray_icon::Tray
 /// On Linux, KSNI runs its D-Bus service on its own thread. Elsewhere the
 /// tray is made on the window's thread, after the event loop has started,
 /// which macOS requires.
-fn start_tray(
-    wake: egui::Context,
-    send: mpsc::Sender<Tray>,
-) -> Result<Option<tray_icon::TrayIcon>, String> {
+fn start_tray(wake: egui::Context, send: mpsc::Sender<Tray>) -> Result<Option<TrayMade>, String> {
     #[cfg(target_os = "linux")]
     {
         // Made whether or not a tray host is up yet: at login dm can start
@@ -758,6 +800,7 @@ fn main() {
         viewport,
         // Remembers where the window was and how big, across launches.
         persist_window: true,
+        persistence_path: window_state_file(std::env::var_os("DM_HOME")),
         ..Default::default()
     };
 
@@ -777,6 +820,9 @@ fn main() {
                 });
             }
             let (send, receive) = mpsc::channel();
+            // The tray's words in the window's language.
+            let language = backend.settings().language;
+            dm_desktop::i18n::set(dm_desktop::i18n::chosen(&language));
             let built = start_tray(cc.egui_ctx.clone(), send);
             if let Err(why) = &built {
                 backend.note(format!(
@@ -812,7 +858,8 @@ fn main() {
                     .then(|| std::time::Instant::now() + std::time::Duration::from_secs(10)),
                 quitting: false,
                 show_asked,
-                _icon: icon,
+                icon,
+                tray_language: language,
             }))
         }),
     );
@@ -823,5 +870,18 @@ fn main() {
         // Said in the exit status too: a launcher, a login entry or a
         // script asking whether dm started must not be told it did.
         std::process::exit(1);
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    #[test]
+    fn a_run_with_its_own_home_keeps_its_window_state_there() {
+        assert_eq!(
+            super::window_state_file(Some("/tmp/dm-test".into())),
+            Some(std::path::PathBuf::from("/tmp/dm-test/window.ron"))
+        );
+        assert_eq!(super::window_state_file(None), None, "the system's place");
+        assert_eq!(super::window_state_file(Some("".into())), None);
     }
 }

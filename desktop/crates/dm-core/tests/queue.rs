@@ -1921,6 +1921,38 @@ async fn the_recheck_queue_remembers_when_it_last_ran_across_a_restart() {
     assert!(again.recheck_if_due().await.is_none());
 }
 
+/// Gap 59: a last run written while the clock was set decades ahead held
+/// the recheck until that date. It is stale: the count starts from now.
+#[tokio::test]
+async fn a_recheck_time_in_the_future_is_stale_not_waited_out() {
+    let dir = tempdir();
+    let store = dir.path().join("queue.json");
+    let now = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .unwrap()
+        .as_millis() as u64;
+    let forty_years_on = now + 40 * 365 * 24 * 3600 * 1000;
+    std::fs::write(dir.path().join("recheck-at"), forty_years_on.to_string()).unwrap();
+    let q = queue(dir.path(), 1);
+    q.set_recheck_every(Some(Duration::from_millis(1)));
+    q.persist_to(store).await;
+    assert!(
+        q.recheck_if_due().await.is_none(),
+        "reset, counted from now"
+    );
+    let kept: u64 = std::fs::read_to_string(dir.path().join("recheck-at"))
+        .unwrap()
+        .trim()
+        .parse()
+        .unwrap();
+    assert!(kept < forty_years_on, "the stale time was kept on disk");
+    tokio::time::sleep(Duration::from_millis(20)).await;
+    assert!(
+        q.recheck_if_due().await.is_some(),
+        "held by a time decades away"
+    );
+}
+
 #[tokio::test]
 async fn the_stalled_server_sees_a_dropped_response_let_go() {
     // What the two tests below measure with: a client dropping a stalled

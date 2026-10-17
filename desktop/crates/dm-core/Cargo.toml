@@ -48,6 +48,12 @@ dirs = "7.0.0"
 [target.'cfg(unix)'.dependencies]
 libc = "0.2"
 
+# The free space on a disk, so a file too large for it is refused at the
+# start (gap 60). Already in the tree through tokio and others; only its
+# file-system module is named.
+[target.'cfg(windows)'.dependencies]
+windows-sys = { version = "0.61", features = ["Win32_Storage_FileSystem"] }
+
 [dev-dependencies]
 # Random and hostile input for the readers of outside data (tests/fuzz.rs),
 # on stable Rust inside cargo test.

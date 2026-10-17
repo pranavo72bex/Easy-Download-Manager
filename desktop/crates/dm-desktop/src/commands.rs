@@ -244,29 +244,81 @@ impl Command {
 
     /// The key that runs it, said the way the menu shows it.
     pub fn shortcut(self) -> Option<egui::KeyboardShortcut> {
+        self.keys().first().copied()
+    }
+
+    /// Every key that runs it, the one the menu shows first. Delete
+    /// removes a download where the keyboard has that key; a Mac's has
+    /// none without Fn, so there it is ⌘⌫ as in the Finder, or ⌫ alone.
+    pub fn keys(self) -> Vec<egui::KeyboardShortcut> {
         use egui::{Key, KeyboardShortcut, Modifiers};
-        let cmd = |key| Some(KeyboardShortcut::new(Modifiers::COMMAND, key));
-        let shift = |key| {
-            Some(KeyboardShortcut::new(
-                Modifiers::COMMAND | Modifiers::SHIFT,
-                key,
-            ))
-        };
+        let cmd = |key| vec![KeyboardShortcut::new(Modifiers::COMMAND, key)];
+        let plain = |key| vec![KeyboardShortcut::new(Modifiers::NONE, key)];
         match self {
             Command::AddUrl => cmd(Key::N),
-            Command::AddSeries => shift(Key::N),
+            Command::AddSeries => vec![KeyboardShortcut::new(
+                Modifiers::COMMAND | Modifiers::SHIFT,
+                Key::N,
+            )],
             Command::Find => cmd(Key::F),
-            Command::FindNext => Some(KeyboardShortcut::new(Modifiers::NONE, Key::F3)),
+            Command::FindNext => plain(Key::F3),
             Command::SelectAll => cmd(Key::A),
-            Command::Remove => Some(KeyboardShortcut::new(Modifiers::NONE, Key::Delete)),
+            Command::Remove if cfg!(target_os = "macos") => vec![
+                KeyboardShortcut::new(Modifiers::COMMAND, Key::Backspace),
+                KeyboardShortcut::new(Modifiers::NONE, Key::Backspace),
+                KeyboardShortcut::new(Modifiers::NONE, Key::Delete),
+            ],
+            Command::Remove => plain(Key::Delete),
             Command::Properties => cmd(Key::I),
             Command::Options => cmd(Key::Comma),
             Command::DownloadNow => cmd(Key::R),
             Command::StopDownload => cmd(Key::Period),
             Command::Quit => cmd(Key::Q),
-            Command::Help => Some(KeyboardShortcut::new(Modifiers::NONE, Key::F1)),
-            _ => None,
+            Command::Help => plain(Key::F1),
+            _ => Vec::new(),
         }
+    }
+
+    /// Whether its key acts on the list's selection, and so must not reach
+    /// the list from behind a dialog.
+    pub fn acts_on_the_list(self) -> bool {
+        matches!(
+            self,
+            Command::Remove
+                | Command::SelectAll
+                | Command::Properties
+                | Command::DownloadNow
+                | Command::StopDownload
+                | Command::FindNext
+        )
+    }
+
+    /// The commands whose keys were pressed, each key taken by one command.
+    ///
+    /// egui matches a shortcut ignoring an extra Shift, so ⌘⇧N matched
+    /// ⌘N first and opened Add URL rather than the numbered series: the
+    /// keys with more modifiers are tried first, and the one that matches
+    /// takes the key press.
+    pub fn pressed(input: &mut egui::InputState) -> Vec<Command> {
+        let mut keys: Vec<(Command, egui::KeyboardShortcut)> = Command::ALL
+            .iter()
+            .flat_map(|c| c.keys().into_iter().map(move |k| (*c, k)))
+            .collect();
+        let held = |k: &egui::KeyboardShortcut| {
+            let m = k.modifiers;
+            [m.alt, m.shift, m.ctrl || m.command || m.mac_cmd]
+                .iter()
+                .filter(|on| **on)
+                .count()
+        };
+        keys.sort_by_key(|(_, k)| std::cmp::Reverse(held(k)));
+        let mut ran = Vec::new();
+        for (command, key) in keys {
+            if input.consume_shortcut(&key) && !ran.contains(&command) {
+                ran.push(command);
+            }
+        }
+        ran
     }
 
     /// Looks a command up by the name the control protocol sends.
@@ -294,9 +346,66 @@ mod tests {
 
     #[test]
     fn no_two_commands_share_a_key() {
-        let keys: Vec<_> = Command::ALL.iter().filter_map(|c| c.shortcut()).collect();
+        let keys: Vec<_> = Command::ALL.iter().flat_map(|c| c.keys()).collect();
         for (i, a) in keys.iter().enumerate() {
             assert!(!keys[i + 1..].contains(a), "{a:?} runs two commands");
         }
+    }
+
+    /// Presses a key with its modifiers in a frame of its own, and says
+    /// what the window would run.
+    fn press(key: egui::KeyboardShortcut) -> Vec<Command> {
+        let ctx = egui::Context::default();
+        let input = egui::RawInput {
+            events: vec![egui::Event::Key {
+                key: key.logical_key,
+                physical_key: None,
+                pressed: true,
+                repeat: false,
+                modifiers: key.modifiers,
+            }],
+            ..Default::default()
+        };
+        let mut ran = Vec::new();
+        let mut out = ctx.run_ui(input, |ui| {
+            ran = ui.ctx().input_mut(Command::pressed);
+        });
+        out.textures_delta.clear();
+        ran
+    }
+
+    #[test]
+    fn each_key_runs_its_own_command_and_no_other() {
+        let mut checked = 0;
+        for command in Command::ALL {
+            for key in command.keys() {
+                assert_eq!(press(key), vec![*command], "{key:?}");
+                checked += 1;
+            }
+        }
+        assert!(checked >= 12, "only {checked} keys");
+        // The one that went wrong: ⌘⇧N is the numbered series, not Add URL.
+        let series = egui::KeyboardShortcut::new(
+            egui::Modifiers::COMMAND | egui::Modifiers::SHIFT,
+            egui::Key::N,
+        );
+        assert_eq!(press(series), vec![Command::AddSeries]);
+    }
+
+    #[test]
+    fn a_mac_removes_with_backspace_and_others_with_delete() {
+        let backspace = egui::KeyboardShortcut::new(egui::Modifiers::NONE, egui::Key::Backspace);
+        let delete = egui::KeyboardShortcut::new(egui::Modifiers::NONE, egui::Key::Delete);
+        if cfg!(target_os = "macos") {
+            assert_eq!(press(backspace), vec![Command::Remove]);
+            assert_eq!(
+                Command::Remove.shortcut().map(|k| k.logical_key),
+                Some(egui::Key::Backspace),
+                "the menu shows ⌘⌫"
+            );
+        } else {
+            assert!(press(backspace).is_empty());
+        }
+        assert_eq!(press(delete), vec![Command::Remove]);
     }
 }

@@ -62,50 +62,58 @@ pub fn show(app: &mut DmApp, ui: &mut egui::Ui) {
     } else {
         22.0
     };
-    let mut table = TableBuilder::new(ui)
-        .striped(striped)
-        .resizable(true)
-        // Dragged as well as clicked: a finished file is dragged out of the
-        // list into a folder, a mail or a chat.
-        .sense(egui::Sense::click_and_drag())
-        .cell_layout(egui::Layout::left_to_right(egui::Align::Center));
-    for (n, column) in columns.iter().enumerate() {
-        table = table.column(if n + 1 == columns.len() {
-            Width::remainder().at_least(80.0).clip(true)
-        } else {
-            width(*column)
-        });
-    }
-    table
-        .header(22.0, |mut header| {
-            for column in &columns {
-                header.col(|ui| heading(app, ui, *column));
+    // Wider than the window, the columns scroll sideways rather than
+    // running off its edge: at the default size the Note, Referrer and
+    // Folder columns were past it with no way to reach them.
+    egui::ScrollArea::horizontal()
+        .id_salt("list-sideways")
+        .auto_shrink([false, false])
+        .show(ui, |ui| {
+            let mut table = TableBuilder::new(ui)
+                .striped(striped)
+                .resizable(true)
+                // Dragged as well as clicked: a finished file is dragged out of the
+                // list into a folder, a mail or a chat.
+                .sense(egui::Sense::click_and_drag())
+                .cell_layout(egui::Layout::left_to_right(egui::Align::Center));
+            for (n, column) in columns.iter().enumerate() {
+                table = table.column(if n + 1 == columns.len() {
+                    Width::remainder().at_least(80.0).clip(true)
+                } else {
+                    width(*column)
+                });
             }
-        })
-        .body(|body| {
-            body.rows(row_height, rows.len(), |mut row| {
-                let i = row.index();
-                let entry = &rows[i];
-                row.set_selected(app.selected.contains(&entry.id));
-                for column in &columns {
-                    row.col(|ui| cell(ui, *column, entry));
-                }
-                let response = row.response();
-                drawn.push((entry.id, response.rect));
-                if response.clicked() {
-                    clicked = Some((i, response.ctx.input(|input| input.modifiers)));
-                }
-                if response.double_clicked() {
-                    double = Some(i);
-                }
-                if response.secondary_clicked() {
-                    menu = Some(i);
-                }
-                if response.drag_started_by(egui::PointerButton::Primary) {
-                    dragged = Some(i);
-                }
-                response.context_menu(|ui| row_menu(app, ui));
-            });
+            table
+                .header(22.0, |mut header| {
+                    for column in &columns {
+                        header.col(|ui| heading(app, ui, *column));
+                    }
+                })
+                .body(|body| {
+                    body.rows(row_height, rows.len(), |mut row| {
+                        let i = row.index();
+                        let entry = &rows[i];
+                        row.set_selected(app.selected.contains(&entry.id));
+                        for column in &columns {
+                            row.col(|ui| cell(ui, *column, entry));
+                        }
+                        let response = row.response();
+                        drawn.push((entry.id, response.rect));
+                        if response.clicked() {
+                            clicked = Some((i, response.ctx.input(|input| input.modifiers)));
+                        }
+                        if response.double_clicked() {
+                            double = Some(i);
+                        }
+                        if response.secondary_clicked() {
+                            menu = Some(i);
+                        }
+                        if response.drag_started_by(egui::PointerButton::Primary) {
+                            dragged = Some(i);
+                        }
+                        response.context_menu(|ui| row_menu(app, ui));
+                    });
+                });
         });
 
     if let Some((i, modifiers)) = clicked {
@@ -161,7 +169,7 @@ fn width(column: Column) -> Width {
         Column::Queue => Width::initial(24.0),
         Column::Size => Width::initial(76.0),
         Column::Status => Width::initial(130.0).clip(true),
-        Column::TimeLeft => Width::initial(72.0),
+        Column::TimeLeft => Width::initial(88.0),
         Column::Rate => Width::initial(92.0),
         Column::LastTry => Width::initial(100.0),
         Column::Description => Width::initial(160.0).clip(true),
@@ -195,7 +203,7 @@ fn cell(ui: &mut egui::Ui, column: Column, entry: &Entry) {
         Column::Status => status_cell(ui, entry),
         Column::TimeLeft => {
             if entry.state == State::Running {
-                ui.label(format::clock(entry.progress.eta).replace(" left", ""));
+                ui.label(entry.progress.eta.map(format::span).unwrap_or_default());
             }
         }
         Column::Rate => {
@@ -226,13 +234,17 @@ fn cell(ui: &mut egui::Ui, column: Column, entry: &Entry) {
 
 fn header_only(app: &mut DmApp, ui: &mut egui::Ui) {
     ui.add_space(10.0);
-    ui.horizontal(|ui| {
-        for column in app.column_order.clone() {
-            if !app.hidden_columns.contains(&column) {
-                heading(app, ui, column);
-            }
-        }
-    });
+    egui::ScrollArea::horizontal()
+        .id_salt("headings-sideways")
+        .show(ui, |ui| {
+            ui.horizontal(|ui| {
+                for column in app.column_order.clone() {
+                    if !app.hidden_columns.contains(&column) {
+                        heading(app, ui, column);
+                    }
+                }
+            });
+        });
 }
 
 /// A heading that sorts by its column, saying which way.
@@ -341,11 +353,16 @@ fn menu_item(app: &mut DmApp, ui: &mut egui::Ui, command: Command, label: &str) 
 }
 
 fn size_of(entry: &Entry) -> String {
-    match entry.progress.total {
-        Some(total) => format::bytes(total),
-        None if entry.progress.downloaded > 0 => format::bytes(entry.progress.downloaded),
-        None => String::new(),
-    }
+    shown_size(entry).map(format::bytes).unwrap_or_default()
+}
+
+/// The size the Size column shows: the file's, or what has arrived of one
+/// whose length the server did not say. The column sorts by it.
+pub fn shown_size(entry: &Entry) -> Option<u64> {
+    entry
+        .progress
+        .total
+        .or(Some(entry.progress.downloaded).filter(|n| *n > 0))
 }
 
 /// A finished row whose file is no longer where dm saved it.

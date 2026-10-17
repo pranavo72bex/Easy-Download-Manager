@@ -628,6 +628,7 @@ async fn place(produced: &Path, options: &Options) -> Result<Finished, Error> {
     let _ = tokio::fs::remove_dir_all(&options.parts_dir).await;
 
     Ok(Finished {
+        left_behind: None,
         path: dest,
         bytes,
         // yt-dlp manages its own connections; the column would be guessing.

@@ -432,7 +432,16 @@ impl Said {
             Sentence::Worded { template, .. } => template.is_empty(),
         }
     }
+
+    /// Whether it says the speed limiter was turned on, which the status
+    /// bar already says standing.
+    pub fn is_limiter(&self) -> bool {
+        matches!(&self.0, Sentence::Worded { template, .. } if *template == LIMITER_ON)
+    }
 }
+
+/// What turning the speed limiter on says.
+pub const LIMITER_ON: &str = "Speed limiter on: {} KB/s.";
 
 /// `fill` with values already turned to text.
 fn filled(template: &str, values: &[String]) -> String {

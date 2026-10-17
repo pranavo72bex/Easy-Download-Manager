@@ -8,6 +8,10 @@
 
 use std::time::{Duration, SystemTime};
 
+/// How far ahead of now a period's start may be before it is taken for a
+/// clock that was wrong rather than a clock corrected back a little.
+const STALE_AHEAD: Duration = Duration::from_secs(3600);
+
 /// How much may be downloaded, and over how long.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub struct Allowance {
@@ -37,9 +41,19 @@ impl Meter {
         self.allowance
     }
 
+    /// Starts a new period when the current one is over — or began well
+    /// after now, which is a clock that was once set ahead: counted as not
+    /// yet begun, a spent allowance held downloads until that date came
+    /// round, decades away for a clock set to 2070. A small step back (a
+    /// time-server correction) keeps the period and what it has used
+    /// (gap 79).
     fn roll(&mut self, now: SystemTime) {
         if let Some(began) = self.began {
-            if now.duration_since(began).unwrap_or_default() >= self.allowance.period {
+            let over = match now.duration_since(began) {
+                Ok(since) => since >= self.allowance.period,
+                Err(ahead) => ahead.duration() > STALE_AHEAD,
+            };
+            if over {
                 self.began = None;
                 self.used = 0;
             }
@@ -64,8 +78,9 @@ impl Meter {
         self.roll(now);
         let began = self.began?;
         (self.used >= self.allowance.bytes).then(|| {
-            (began + self.allowance.period)
-                .duration_since(now)
+            began
+                .checked_add(self.allowance.period)
+                .and_then(|end| end.duration_since(now).ok())
                 .unwrap_or_default()
         })
     }
@@ -96,7 +111,10 @@ impl Meter {
         };
         if let Some(used) = used {
             self.used = used;
-            self.began = began.map(|ms| SystemTime::UNIX_EPOCH + Duration::from_millis(ms));
+            // Checked: a corrupt huge number past what the platform's
+            // clock holds panicked on adding (Windows' range is narrower).
+            self.began =
+                began.and_then(|ms| SystemTime::UNIX_EPOCH.checked_add(Duration::from_millis(ms)));
         }
     }
 }
@@ -151,6 +169,47 @@ mod tests {
         );
         again.restore("rubbish");
         assert_eq!(again.used(), 0, "rolled over");
+    }
+
+    /// Gaps 59 and 70: a period that began in the future (the clock was
+    /// once set ahead) held a spent allowance until that date; a corrupt
+    /// huge start must not panic.
+    #[test]
+    fn a_period_begun_in_the_future_is_stale_and_a_corrupt_one_is_harmless() {
+        let now = SystemTime::now();
+        let allowance = Allowance {
+            bytes: 1000,
+            period: Duration::from_secs(3600),
+        };
+        let mut meter = Meter::default();
+        meter.set(allowance);
+        meter.add(1000, now + Duration::from_secs(40 * 365 * 24 * 3600));
+        assert_eq!(meter.spent(now), None, "held until a date decades away");
+        assert_eq!(meter.used(), 0);
+
+        let mut corrupt = Meter::default();
+        corrupt.set(allowance);
+        corrupt.restore(&format!("{} 5000", u64::MAX));
+        assert_eq!(corrupt.used(), 5000);
+        let _ = corrupt.spent(now);
+        corrupt.add(1, now);
+        assert_eq!(corrupt.spent(now), None, "a fresh period, not spent");
+    }
+
+    /// Gap 79: a clock stepped back a few seconds (a time-server
+    /// correction) handed the whole allowance back.
+    #[test]
+    fn a_small_step_back_of_the_clock_keeps_the_period() {
+        let now = SystemTime::now();
+        let mut meter = Meter::default();
+        meter.set(Allowance {
+            bytes: 1000,
+            period: Duration::from_secs(3600),
+        });
+        meter.add(1000, now);
+        let back = now - Duration::from_secs(2);
+        assert!(meter.spent(back).is_some(), "the allowance came back");
+        assert_eq!(meter.used(), 1000);
     }
 
     #[test]

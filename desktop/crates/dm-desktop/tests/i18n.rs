@@ -168,3 +168,17 @@ fn every_translation_is_drawn_in_the_windows_fonts() {
         &boxes[..boxes.len().min(10)]
     );
 }
+
+/// "Everything" heads the category tree and "All" is its first child: one
+/// word for both read as the same place twice.
+#[test]
+fn everything_and_all_are_two_words_in_every_language() {
+    for (code, text) in CATALOGS {
+        let have = catalog(text);
+        assert_ne!(
+            have.get("Everything"),
+            have.get("All"),
+            "{code} names the tree and its first place alike"
+        );
+    }
+}

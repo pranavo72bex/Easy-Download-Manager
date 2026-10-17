@@ -25,6 +25,7 @@
     deny(clippy::unwrap_used, clippy::expect_used, clippy::panic)
 )]
 pub mod decide;
+pub mod panel;
 
 #[cfg(target_arch = "wasm32")]
 mod content;

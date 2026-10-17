@@ -731,3 +731,48 @@ async fn a_failed_download_leaves_no_connection_still_fetching() {
         "connections kept fetching after the download failed: {then} then {later} bytes"
     );
 }
+
+#[tokio::test]
+async fn a_weak_etag_is_not_sent_as_a_range_condition() {
+    /* A strict server answers `If-Range` with a weak ETag by sending the
+     * whole file, as the standard says; every range came back whole and
+     * the download fell to one connection. */
+    let data = Arc::new(body(4 * 1024 * 1024, 5));
+    let whole_answers = Arc::new(AtomicUsize::new(0));
+    let (served, counted) = (data.clone(), whole_answers.clone());
+    let app = axum::Router::new().route(
+        "/f.bin",
+        get(move |h: HeaderMap| {
+            let (data, counted) = (served.clone(), counted.clone());
+            async move {
+                let weak = h
+                    .get("if-range")
+                    .and_then(|v| v.to_str().ok())
+                    .is_some_and(|v| v.starts_with("W/"));
+                if weak {
+                    counted.fetch_add(1, Ordering::SeqCst);
+                    let mut plain = HeaderMap::new();
+                    plain.insert("x", "y".parse().unwrap());
+                    return ranged(&data, "W/\"v\"", &plain);
+                }
+                ranged(&data, "W/\"v\"", &h)
+            }
+        }),
+    );
+    let at = serve(app).await;
+    let dir = tempdir();
+    let done = download(
+        &client(),
+        &format!("http://{at}/f.bin"),
+        &options(dir.path()),
+    )
+    .await
+    .expect("the download failed");
+    assert!(std::fs::read(&done.path).unwrap() == *data);
+    assert_eq!(
+        whole_answers.load(Ordering::SeqCst),
+        0,
+        "a weak ETag was sent as If-Range"
+    );
+    assert!(done.connections > 1, "it fell back to one connection");
+}

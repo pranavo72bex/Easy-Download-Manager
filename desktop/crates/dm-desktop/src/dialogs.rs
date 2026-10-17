@@ -305,11 +305,16 @@ pub struct Dialogs {
     /// A site whose handed-over downloads were cancelled twice running:
     /// asked whether to leave its downloads to the browser from now on.
     pub skip_offer: Option<String>,
+    /// Windows asked for again while open, to be brought to the front.
+    pub raise: Vec<egui::Id>,
 }
 
 impl Dialogs {
     /// Add URL, offering a link already on the clipboard.
     pub fn open_add_url(&mut self, clipboard: Option<String>) {
+        if self.keep("Add URL", self.add_url.is_some()) {
+            return;
+        }
         let address = clipboard
             .as_deref()
             .and_then(crate::app::looks_downloadable)
@@ -400,6 +405,10 @@ impl Dialogs {
     }
 
     pub fn open_properties(&mut self, row: &dm_core::Entry) {
+        if self.properties.contains_key(&row.id) {
+            self.raise.push(egui::Id::unique(("properties", row.id)));
+            return;
+        }
         let (address, login, password) = split_login(&row.url);
         self.properties.insert(
             row.id,
@@ -414,11 +423,48 @@ impl Dialogs {
         );
     }
 
+    /// An open dialog is brought forward and kept as it is, with what was
+    /// typed in it: asking for it again used to start it afresh, and
+    /// Options lost every change not yet saved. True if it was open.
+    fn keep(&mut self, title: &'static str, open: bool) -> bool {
+        if open {
+            self.raise.push(window_id(title));
+        }
+        open
+    }
+
+    pub fn open_series(&mut self) {
+        if !self.keep("Add numbered series", self.series.is_some()) {
+            self.series = Some(Default::default());
+        }
+    }
+
+    pub fn open_site_files(&mut self) {
+        if !self.keep("Files on a site", self.site_files.is_some()) {
+            self.site_files = Some(Default::default());
+        }
+    }
+
+    /// Whether a dialog is in front of the list, which then keeps its
+    /// keys from the list. The windows a download opens on its own (its
+    /// progress, its completion) are not counted.
+    pub fn in_front(&self) -> bool {
+        self.open_names()
+            .iter()
+            .any(|n| n != "Download progress" && n != "Download complete")
+    }
+
     pub fn open_scheduler(&mut self, settings: &Settings) {
+        if self.keep("Scheduler", self.scheduler.is_some()) {
+            return;
+        }
         self.scheduler = Some((settings.schedule.clone(), String::new()));
     }
 
     pub fn open_limiter(&mut self, settings: &Settings) {
+        if self.keep("Speed limiter", self.limiter.is_some()) {
+            return;
+        }
         self.limiter = Some((
             settings.speed_limit,
             String::new(),
@@ -428,6 +474,9 @@ impl Dialogs {
     }
 
     pub fn open_options(&mut self, settings: &Settings) {
+        if self.keep("Options", self.options.is_some()) {
+            return;
+        }
         self.options = Some(OptionsDialog {
             tab: Tab::General,
             draft: settings.clone(),
@@ -537,12 +586,17 @@ impl Dialogs {
 /// that translate alike stay two windows.
 fn window(title: &'static str) -> egui::Window<'static> {
     egui::Window::new(t(title))
-        .id(egui::Id::unique(("dm-dialog", title)))
+        .id(window_id(title))
         .collapsible(false)
         .resizable(false)
         // Wide enough for its title in the 18 px heading.
         .min_width(440.0)
         .anchor(egui::Align2::CENTER_CENTER, [0.0, 0.0])
+}
+
+/// The id of a dialog's window, by its English title.
+fn window_id(title: &'static str) -> egui::Id {
+    egui::Id::unique(("dm-dialog", title))
 }
 
 /// A progress bar: a thin track with the brand fill and its words
@@ -593,6 +647,9 @@ fn field(ui: &mut egui::Ui, label: &str, text: &mut String, width: f32) -> egui:
 }
 
 pub fn show(app: &mut DmApp, ctx: &egui::Context) {
+    for id in std::mem::take(&mut app.dialogs.raise) {
+        ctx.move_to_top(egui::LayerId::new(egui::Order::Middle, id));
+    }
     countdown(app, ctx);
     links(app, ctx);
     confirm_remove(app, ctx);
@@ -933,7 +990,7 @@ fn progress(app: &mut DmApp, ctx: &egui::Context) {
                         ui.label(
                             p.total
                                 .map(format::bytes)
-                                .unwrap_or_else(|| "unknown".into()),
+                                .unwrap_or_else(|| t("unknown").into()),
                         );
                         ui.end_row();
                         ui.label(t("Downloaded"));
@@ -959,9 +1016,9 @@ fn progress(app: &mut DmApp, ctx: &egui::Context) {
                         // a guess from the size: a known size says nothing about
                         // whether a server serves ranges.
                         ui.label(match resumable {
-                            Some(true) => "Yes",
-                            Some(false) => "No — a stop starts it again from the beginning",
-                            None => "Unknown until the server answers",
+                            Some(true) => t("Yes"),
+                            Some(false) => t("No — a stop starts it again from the beginning"),
+                            None => t("Unknown until the server answers"),
                         });
                         ui.end_row();
                     });
@@ -1096,65 +1153,102 @@ fn properties(app: &mut DmApp, ctx: &egui::Context) {
         let Some(d) = app.dialogs.properties.get_mut(&id) else {
             continue;
         };
+        // No wider than the window leaves room for, however long a name,
+        // path or referrer: they wrap, rather than pushing the buttons off
+        // the screen.
+        let room = (ctx.content_rect().width() - 48.0).clamp(320.0, 620.0);
+        // A close box in its title bar, as every other window has.
+        let mut shut = true;
         egui::Window::new(t("File properties"))
             .id(egui::Id::unique(("properties", id)))
             .collapsible(false)
             .resizable(false)
+            .open(&mut shut)
+            .max_width(room)
+            .constrain(true)
             .show(ctx, |ui| {
-                egui::Grid::new(("props", id))
-                    .num_columns(2)
-                    .spacing([12.0, 6.0])
+                ui.set_max_width(room);
+                // The values' column: what is left beside the headings.
+                let value = (room - 130.0).max(160.0);
+                let said = |ui: &mut egui::Ui, text: &str| {
+                    ui.scope(|ui| {
+                        ui.set_max_width(value);
+                        ui.add(egui::Label::new(text).wrap_mode(egui::TextWrapMode::Wrap));
+                    });
+                };
+                // The fields scroll inside a window too short for them, so
+                // the buttons below stay on the screen.
+                let tall = (ctx.content_rect().height() - 150.0).max(120.0);
+                egui::ScrollArea::vertical()
+                    .id_salt(("props-scroll", id))
+                    .max_height(tall)
                     .show(ui, |ui| {
-                        ui.label(t("File name"));
-                        ui.label(&d.name);
-                        ui.end_row();
-                        ui.label(t("Status"));
-                        ui.label(status_of(&row));
-                        ui.end_row();
-                        ui.label(t("Size"));
-                        ui.label(row.progress.total.map(format::bytes).unwrap_or_default());
-                        ui.end_row();
-                        ui.label(t("Category"));
-                        ui.label(
-                            row.category
-                                .map(|c| format::titled(&category_word(c)))
-                                .unwrap_or_default(),
-                        );
-                        ui.end_row();
-                        ui.label(t("Saved to"));
-                        ui.label(&row.path);
-                        ui.end_row();
-                        ui.label(t("Referrer"));
-                        ui.label(&row.referrer);
-                        ui.end_row();
-                        let name = ui.label(t("Address"));
-                        let editable = !matches!(row.state, State::Running | State::Completed);
-                        ui.add_enabled(
-                            editable,
-                            egui::TextEdit::singleline(&mut d.address).desired_width(360.0),
-                        )
-                        .labelled_by(name.id);
-                        ui.end_row();
-                        let name = ui.label(t("Login"));
-                        ui.add_enabled(
-                            editable,
-                            egui::TextEdit::singleline(&mut d.login).desired_width(200.0),
-                        )
-                        .labelled_by(name.id);
-                        ui.end_row();
-                        let name = ui.label(t("Password"));
-                        ui.add_enabled(
-                            editable,
-                            egui::TextEdit::singleline(&mut d.password)
-                                .password(true)
-                                .desired_width(200.0),
-                        )
-                        .labelled_by(name.id);
-                        ui.end_row();
-                        let name = ui.label(t("Note"));
-                        ui.add(egui::TextEdit::singleline(&mut d.description).desired_width(360.0))
-                            .labelled_by(name.id);
-                        ui.end_row();
+                        egui::Grid::new(("props", id))
+                            .num_columns(2)
+                            .spacing([12.0, 6.0])
+                            .max_col_width(value)
+                            .show(ui, |ui| {
+                                ui.label(t("File name"));
+                                said(ui, &d.name);
+                                ui.end_row();
+                                ui.label(t("Status"));
+                                ui.label(status_of(&row));
+                                ui.end_row();
+                                ui.label(t("Size"));
+                                ui.label(row.progress.total.map(format::bytes).unwrap_or_default());
+                                ui.end_row();
+                                ui.label(t("Category"));
+                                // In the window's language, as the category tree
+                                // names it.
+                                ui.label(
+                                    row.category
+                                        .map(|c| {
+                                            crate::i18n::name(&format::titled(&category_word(c)))
+                                        })
+                                        .unwrap_or_default(),
+                                );
+                                ui.end_row();
+                                ui.label(t("Saved to"));
+                                said(ui, &row.path);
+                                ui.end_row();
+                                ui.label(t("Referrer"));
+                                said(ui, &row.referrer);
+                                ui.end_row();
+                                let name = ui.label(t("Address"));
+                                let editable =
+                                    !matches!(row.state, State::Running | State::Completed);
+                                ui.add_enabled(
+                                    editable,
+                                    egui::TextEdit::singleline(&mut d.address)
+                                        .desired_width(value.min(360.0)),
+                                )
+                                .labelled_by(name.id);
+                                ui.end_row();
+                                let name = ui.label(t("Login"));
+                                ui.add_enabled(
+                                    editable,
+                                    egui::TextEdit::singleline(&mut d.login)
+                                        .desired_width(value.min(200.0)),
+                                )
+                                .labelled_by(name.id);
+                                ui.end_row();
+                                let name = ui.label(t("Password"));
+                                ui.add_enabled(
+                                    editable,
+                                    egui::TextEdit::singleline(&mut d.password)
+                                        .password(true)
+                                        .desired_width(value.min(200.0)),
+                                )
+                                .labelled_by(name.id);
+                                ui.end_row();
+                                let name = ui.label(t("Note"));
+                                ui.add(
+                                    egui::TextEdit::singleline(&mut d.description)
+                                        .desired_width(value.min(360.0)),
+                                )
+                                .labelled_by(name.id);
+                                ui.end_row();
+                            });
                     });
                 if !d.says.is_empty() {
                     ui.colored_label(WARN, &d.says);
@@ -1169,6 +1263,7 @@ fn properties(app: &mut DmApp, ctx: &egui::Context) {
                     cancel = ui.button(t("Cancel")).clicked();
                 });
             });
+        let cancel = cancel || !shut;
         if open_file {
             if let Err(e) = app.backend.platform.open(&row.path) {
                 d.says = e;
@@ -2125,13 +2220,31 @@ fn options(app: &mut DmApp, ctx: &egui::Context) {
         // would be saved and then sort nothing, without a word.
         // Only those this edit made or renamed: one an older dm saved is
         // left out as the settings load, and must not fail every OK after.
-        if let Some(bad) = wanted.custom_categories.iter().find(|c| {
-            !dm_core::category::one_folder(&c.name)
-                && !d.opened.custom_categories.iter().any(|o| o.name == c.name)
-        }) {
+        // Held to every computer's rules, since settings travel; one saved
+        // before that works here keeps working. The built-in kinds' folders
+        // (Options › Folders) likewise, where this edit renamed one; empty
+        // leaves that kind unsorted.
+        let new_custom = wanted
+            .custom_categories
+            .iter()
+            .map(|c| c.name.clone())
+            .filter(|name| !d.opened.custom_categories.iter().any(|o| o.name == *name));
+        let renamed_kinds = wanted
+            .category_folders
+            .iter()
+            .enumerate()
+            .filter(|(i, name)| {
+                !name.trim().is_empty()
+                    && d.opened.category_folders.get(*i).map(|o| o.trim()) != Some(name.trim())
+            })
+            .map(|(_, name)| name.trim().to_string());
+        if let Some(bad) = new_custom
+            .chain(renamed_kinds)
+            .find(|name| !portable_folder(name))
+        {
             d.says = tf(
-                "\"{}\" cannot be a category: its name is also its folder, so it cannot hold / or \\ or be . or ..",
-                &[&bad.name],
+                "\"{}\" cannot be a category: its name is also its folder, and that is not a folder name every computer can use (no / \\ : * ? \" < > |, no name like CON, nothing ending in a dot or space)",
+                &[&bad],
             );
             d.tab = Tab::SaveTo;
             return;
@@ -2215,6 +2328,12 @@ fn about(app: &mut DmApp, ctx: &egui::Context) {
         }
     });
     app.dialogs.about_open = open;
+}
+
+/// A folder name every computer can make: what a category made or renamed
+/// in Options is held to, since settings travel between computers.
+fn portable_folder(name: &str) -> bool {
+    dm_core::category::portable_folder(name).is_ok()
 }
 
 #[cfg(test)]

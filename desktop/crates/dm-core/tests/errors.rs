@@ -64,3 +64,40 @@ async fn a_refusal_whose_body_never_ends_is_answered_promptly() {
     .expect("a refusal's endless body was read to its end");
     assert!(said.contains("500"), "{said}");
 }
+
+/// Gap 60: a stated 100 TB was fetched until the disk was full. It is
+/// refused before a byte is fetched, saying how much it needs.
+#[tokio::test]
+async fn a_file_larger_than_the_disk_is_refused_before_it_is_fetched() {
+    use axum::body::Body;
+    use axum::http::HeaderMap;
+    use std::sync::atomic::{AtomicUsize, Ordering};
+    use std::sync::Arc;
+    const HUGE: u64 = 100 * 1024 * 1024 * 1024 * 1024 * 1024;
+    let fetched = Arc::new(AtomicUsize::new(0));
+    let counter = Arc::clone(&fetched);
+    let handler = move |headers: HeaderMap| {
+        let counter = Arc::clone(&counter);
+        async move {
+            let range = headers
+                .get("range")
+                .and_then(|v| v.to_str().ok())
+                .unwrap_or_default()
+                .to_string();
+            if range != "bytes=0-0" {
+                counter.fetch_add(1, Ordering::SeqCst);
+            }
+            axum::response::Response::builder()
+                .status(206)
+                .header("content-range", format!("bytes 0-0/{HUGE}"))
+                .header("content-length", 1)
+                .body(Body::from(vec![0u8]))
+                .unwrap()
+        }
+    };
+    let addr = common::serve(axum::Router::new().fallback(handler)).await;
+    let said = failure(&format!("http://{addr}/huge.iso")).await;
+    assert!(said.starts_with("not enough room"), "{said}");
+    assert!(said.contains("100.0 PB"), "{said}");
+    assert_eq!(fetched.load(Ordering::SeqCst), 0, "ranges were fetched");
+}

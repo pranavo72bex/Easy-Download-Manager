@@ -33,7 +33,7 @@ futures-util = { version = "0.3", default-features = false, features = ["std", "
 web-sys = { version = "0.3", features = [
   "Window", "Document", "Element", "HtmlElement", "HtmlMediaElement", "Node",
   "NodeList", "Selection", "console",
-  "EventTarget", "Event", "MouseEvent", "DomRect", "CssStyleDeclaration",
+  "EventTarget", "Event", "MouseEvent", "KeyboardEvent", "DomRect", "CssStyleDeclaration",
   "ShadowRoot", "ShadowRootInit", "ShadowRootMode", "DocumentFragment", "Location",
   # The toolbar popup's switches.
   "HtmlInputElement",

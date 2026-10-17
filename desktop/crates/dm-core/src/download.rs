@@ -168,6 +168,10 @@ pub struct Finished {
     /// How many mirrors the bytes came from. One unless a Metalink named
     /// others that agreed about the file.
     pub mirrors: usize,
+    /// Something left behind that the person should hear of, though the
+    /// download itself is whole: a torrent's staged copy that could not be
+    /// removed after it was copied across disks.
+    pub left_behind: Option<String>,
 }
 
 /// One place the same bytes can be fetched from.
@@ -508,6 +512,11 @@ async fn fetch_reporting(
     // the files rather than remembered, because the files are the truth.
     adopt_staged(&job).await;
 
+    if let Some(size) = info.size {
+        let staged = job.downloaded.load(Ordering::Relaxed);
+        room_for(size, staged, options)?;
+    }
+
     if let Some(tx) = &report {
         // Before the first byte: this is the whole point of sending it.
         let _ = tx
@@ -561,6 +570,7 @@ async fn fetch_reporting(
     let (path, bytes, category) = assemble(&job, &info, options).await?;
 
     Ok(Finished {
+        left_behind: None,
         path,
         bytes,
         connections: workers,
@@ -1343,7 +1353,13 @@ async fn attempt_segment(
         // republished file answers 200 instead, which is how a changed file
         // is noticed rather than spliced into the old one. The validator is
         // this mirror's own — another server's would simply not match.
-        if let Some(validator) = &source.validator {
+        // Never a weak ETag (`W/"…"`): `If-Range` takes only a strong one
+        // (RFC 9110), and a strict server answers a weak one with the whole
+        // file, every range, so the download fell back to one connection
+        // and a resume failed as though ranges had stopped. Without the
+        // condition, a changed file is still caught: by the validator the
+        // answer carries, and by the bytes the resume compares.
+        if let Some(validator) = source.validator.as_ref().filter(|v| !v.starts_with("W/")) {
             request = request.header(reqwest::header::IF_RANGE, validator);
         }
     }
@@ -1829,6 +1845,7 @@ async fn download_stream(
         let (path, bytes, category) =
             finish(&format!("{stem}.mp4"), None, &[remuxed], options).await?;
         return Ok(Finished {
+            left_behind: None,
             path,
             bytes,
             connections: 1,
@@ -1864,6 +1881,7 @@ async fn download_stream(
     let (path, bytes, category) = finish(&filename, None, &parts, options).await?;
 
     Ok(Finished {
+        left_behind: None,
         path,
         bytes,
         connections: 1,
@@ -2469,6 +2487,133 @@ pub(crate) async fn finish(
     Ok((path, bytes, category))
 }
 
+/// Refuses a download the disk cannot hold, before a byte of it is fetched
+/// (gap 60). Without it a stated 100 TB ran until the disk was full,
+/// taking every other program's room with it. The parts need what is not
+/// yet staged; the finished file needs its whole length where it lands,
+/// when that is another disk (on the same one, assembly frees each part as
+/// it goes). Where the free space cannot be read, nothing is refused.
+fn room_for(size: u64, staged: u64, options: &Options) -> Result<(), Error> {
+    let remaining = size.saturating_sub(staged);
+    let parts = &options.parts_dir;
+    let dest = &options.dest_dir;
+    let mut needs = vec![(parts, remaining)];
+    if !same_disk(parts, dest) {
+        needs.push((dest, size));
+    }
+    for (dir, need) in needs {
+        if let Some(free) = free_space(dir) {
+            if need > free {
+                return Err(Error::Internal(format!(
+                    "not enough room: the file needs {}, and {} has {} free",
+                    amount(need),
+                    dir.display(),
+                    amount(free)
+                )));
+            }
+        }
+    }
+    Ok(())
+}
+
+/// Bytes as a person reads them.
+fn amount(bytes: u64) -> String {
+    const UNITS: [&str; 6] = ["bytes", "KB", "MB", "GB", "TB", "PB"];
+    let mut value = bytes as f64;
+    let mut unit = 0;
+    while value >= 1024.0 && unit < UNITS.len() - 1 {
+        value /= 1024.0;
+        unit += 1;
+    }
+    if unit == 0 {
+        format!("{bytes} bytes")
+    } else {
+        format!("{value:.1} {}", UNITS.get(unit).unwrap_or(&"bytes"))
+    }
+}
+
+/// Whether two folders are on one disk. Unix by device number; Windows by
+/// drive. Unreadable is taken as one disk, the check that asks less.
+fn same_disk(a: &Path, b: &Path) -> bool {
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::MetadataExt;
+        match (std::fs::metadata(a), std::fs::metadata(b)) {
+            (Ok(a), Ok(b)) => a.dev() == b.dev(),
+            _ => true,
+        }
+    }
+    #[cfg(not(unix))]
+    {
+        let drive = |p: &Path| {
+            std::path::absolute(p).ok().and_then(|p| {
+                p.components()
+                    .next()
+                    .map(|c| c.as_os_str().to_ascii_lowercase())
+            })
+        };
+        drive(a) == drive(b)
+    }
+}
+
+/// The space this account may still write in the folder's file system.
+#[cfg(unix)]
+pub fn free_space(dir: &Path) -> Option<u64> {
+    use std::os::unix::ffi::OsStrExt;
+    let path = std::ffi::CString::new(dir.as_os_str().as_bytes()).ok()?;
+    let mut stat = std::mem::MaybeUninit::<libc::statvfs>::zeroed();
+    // SAFETY: `path` is a NUL-terminated string that outlives the call, and
+    // `stat` is a buffer of the type statvfs fills; it is read only when the
+    // call says it succeeded.
+    let done = unsafe { libc::statvfs(path.as_ptr(), stat.as_mut_ptr()) };
+    if done != 0 {
+        return None;
+    }
+    // SAFETY: statvfs returned 0, so it filled the buffer.
+    let stat = unsafe { stat.assume_init() };
+    // The field types differ between systems; u64 holds each.
+    #[allow(clippy::unnecessary_cast)]
+    reported_free(
+        (stat.f_bavail as u64).saturating_mul(stat.f_frsize as u64),
+        (stat.f_blocks as u64).saturating_mul(stat.f_frsize as u64),
+    )
+}
+
+/// The free space a file system reported, or unknown when it reported no
+/// size at all. Some FUSE and network mounts answer zero free of zero
+/// total, and taken at their word every download of known length was
+/// refused (gap 78).
+fn reported_free(free: u64, total: u64) -> Option<u64> {
+    (total > 0).then_some(free)
+}
+
+/// The space this account may still write in the folder's volume.
+#[cfg(windows)]
+pub fn free_space(dir: &Path) -> Option<u64> {
+    use std::os::windows::ffi::OsStrExt;
+    let wide: Vec<u16> = dir.as_os_str().encode_wide().chain(Some(0)).collect();
+    let (mut free, mut total) = (0u64, 0u64);
+    // SAFETY: `wide` is NUL-terminated and outlives the call; the two
+    // out-pointers are live u64s and the third may be null.
+    let done = unsafe {
+        windows_sys::Win32::Storage::FileSystem::GetDiskFreeSpaceExW(
+            wide.as_ptr(),
+            &mut free,
+            &mut total,
+            std::ptr::null_mut(),
+        )
+    };
+    if done == 0 {
+        return None;
+    }
+    reported_free(free, total)
+}
+
+#[cfg(not(any(unix, windows)))]
+pub fn free_space(_dir: &Path) -> Option<u64> {
+    None
+}
+
 /// Where one range of a download is staged.
 ///
 /// The name is a contract across runs — a part file the next run cannot find
@@ -2648,6 +2793,15 @@ mod tests {
             sign_in: None,
             system_proxy: false,
         }
+    }
+
+    /// Gap 78: a mount reporting zero free of zero total is unknown, not
+    /// full; every download of known length was refused on one.
+    #[test]
+    fn a_file_system_that_reports_no_size_is_not_taken_as_full() {
+        assert_eq!(reported_free(0, 0), None);
+        assert_eq!(reported_free(0, 1 << 30), Some(0));
+        assert_eq!(reported_free(5, 10), Some(5));
     }
 
     #[tokio::test]

@@ -74,6 +74,8 @@ def main():
         "show_complete": False,
         # DM_SHOT_THEME=light|dark|classic|system picks the look to photograph.
         "theme": os.environ.get("DM_SHOT_THEME", "system"),
+        # DM_SHOT_LANG=de|fr|... photographs it in that language.
+        "language": os.environ.get("DM_SHOT_LANG", ""),
     }))
     env = dict(os.environ, DM_HOME=str(home))
     app = subprocess.Popen([BINARY, "--control", "0"], env=env,

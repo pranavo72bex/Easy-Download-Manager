@@ -125,4 +125,6 @@ depends = [
   "libwayland-egl1",
   "libegl1",
   "libgl1",
+  # Open and Open folder go through xdg-open (dm-shell/src/shell.rs).
+  "xdg-utils",
 ]

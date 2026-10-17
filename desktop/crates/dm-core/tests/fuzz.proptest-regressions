@@ -5,3 +5,4 @@
 # It is recommended to check this file in to source control so that
 # everyone who runs the test benefits from these saved cases.
 cc 3f5f4e01af4a6b3cb71658d6882c8f55c01fb042d92bb0211d54ab2b241e6680 # shrinks to name = ". A"
+cc d5554d31a8641143cd167a7e84022c353cdc36459593f8b7074232fe3ce10c56 # shrinks to name = "中aaaa中中a中a中中中中中中中aaa中中a中a中aaa中a中a中中aa中aa中aa中aaaaaa中中a中a中aa中a中aaaa中aa中a中中aaa中aaaaaaaaa中a中aa中a中中aaaaaaaa中中中中aa中中中a中\u{3000} \u{3000}..a.a.. ...a   a. aaa .  ...aaaaaaaaaaaaaaaaaaaaa"

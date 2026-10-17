@@ -31,6 +31,11 @@ thread_local! {
     static RELEASED: RefCell<Released> = RefCell::new(Released::default());
     /// Media each tab has loaded, for the panel's list.
     static STREAMS: RefCell<decide::Streams> = RefCell::new(decide::Streams::default());
+    /// Which page each tab is on, so an `Add` that outlives its page is dropped.
+    static PAGES: RefCell<decide::Pages> = RefCell::new(decide::Pages::default());
+    /// Whether "update the dm app" has been said in this worker's life: once
+    /// is a notice, every caught download would be nagging.
+    static TOLD_OLD: std::cell::Cell<bool> = const { std::cell::Cell::new(false) };
 }
 
 /* ------------------------------------------------------------- plumbing */
@@ -327,7 +332,9 @@ async fn forced_for(found: &Catchable) -> bool {
 /// The browser's cookies for `url`, as the header it would send, where the
 /// toolbar popup has that switched on for the site and the browser granted
 /// the `cookies` permission; empty otherwise, and empty on any failure.
-async fn cookies_for(url: &str) -> String {
+/// `store` is the cookie store (Firefox's container) the download or tab
+/// belongs to, whose cookies are its sign-in.
+async fn cookies_for(url: &str, store: Option<&str>) -> String {
     let Ok(got) = call(
         "storage.local",
         "get",
@@ -352,7 +359,7 @@ async fn cookies_for(url: &str) -> String {
     if !granted {
         return String::new();
     }
-    let query = to_js(&serde_json::json!({ "url": url }));
+    let query = to_js(&decide::cookie_query(url, store));
     let Ok(listed) = call("cookies", "getAll", &[query]).await else {
         return String::new();
     };
@@ -379,36 +386,81 @@ pub async fn on_response_started(details: JsValue) {
     if tab < 0 {
         return;
     }
-    let before = STREAMS.with(|s| s.borrow().raw(tab));
-    STREAMS.with(|s| s.borrow_mut().absorb(&seen));
-    let after = STREAMS.with(|s| s.borrow().raw(tab));
-    if after == before {
-        return;
-    }
-    let key = streams_key(tab);
-    let kept = if after.is_empty() {
-        call("storage.session", "remove", &[JsValue::from_str(&key)]).await
-    } else {
-        let item = to_js(&serde_json::json!({ key: after }));
-        call("storage.session", "set", &[item]).await
+    let kept = match decide::keep(&seen) {
+        decide::Keep::Nothing => return,
+        // A new page: the old one's streams go from memory and from the
+        // kept copy, which a worker woken by this navigation never read.
+        decide::Keep::Forget => {
+            PAGES.with(|p| p.borrow_mut().next(tab));
+            STREAMS.with(|s| s.borrow_mut().forget(tab));
+            forget_kept(tab).await;
+            return;
+        }
+        decide::Keep::Add => {
+            // What was kept before the worker slept, merged in first, so the
+            // copy written back adds to it rather than replacing it.
+            let page = PAGES.with(|p| p.borrow().now(tab));
+            if !STREAMS.with(|s| s.borrow().knows(tab)) {
+                let kept = kept_streams(tab).await;
+                // The tab moved on while the copy was read: this response
+                // and the copy are the old page's.
+                if !PAGES.with(|p| p.borrow().still(tab, page)) {
+                    return;
+                }
+                STREAMS.with(|s| s.borrow_mut().restore(tab, kept));
+            }
+            let before = STREAMS.with(|s| s.borrow().raw(tab));
+            STREAMS.with(|s| s.borrow_mut().absorb(&seen));
+            let after = STREAMS.with(|s| s.borrow().raw(tab));
+            if after == before {
+                return;
+            }
+            let item = to_js(&serde_json::json!({ streams_key(tab): after }));
+            call("storage.session", "set", &[item]).await
+        }
     };
     if let Err(why) = kept {
         log("debug", &format!("a tab's streams were not kept: {why}"));
     }
 }
 
+/// A tab's streams as kept in the session's storage.
+async fn kept_streams(tab: i64) -> Vec<decide::Stream> {
+    let key = streams_key(tab);
+    match call("storage.session", "get", &[JsValue::from_str(&key)]).await {
+        Ok(got) => serde_json::from_value(from_js(&field(&got, &key))).unwrap_or_default(),
+        Err(_) => Vec::new(),
+    }
+}
+
+/// Removes the kept copy of a tab's streams.
+async fn forget_kept(tab: i64) {
+    let key = streams_key(tab);
+    if let Err(why) = call("storage.session", "remove", &[JsValue::from_str(&key)]).await {
+        log(
+            "debug",
+            &format!("a tab's streams were not forgotten: {why}"),
+        );
+    }
+}
+
+/// A tab closed: what it loaded is forgotten, here and in the kept copy.
+#[wasm_bindgen]
+pub async fn on_tab_removed(tab: JsValue, _info: JsValue) {
+    let Some(tab) = tab.as_f64().map(|t| t as i64).filter(|t| *t >= 0) else {
+        return;
+    };
+    PAGES.with(|p| p.borrow_mut().next(tab));
+    STREAMS.with(|s| s.borrow_mut().forget(tab));
+    forget_kept(tab).await;
+}
+
 /// What a tab has loaded, from this worker or, after it stopped, from the
 /// session's storage.
 async fn streams_of(tab: i64) -> Vec<decide::Stream> {
     if tab >= 0 && !STREAMS.with(|s| s.borrow().knows(tab)) {
-        let key = streams_key(tab);
-        if let Ok(got) = call("storage.session", "get", &[JsValue::from_str(&key)]).await {
-            if let Ok(kept) =
-                serde_json::from_value::<Vec<decide::Stream>>(from_js(&field(&got, &key)))
-            {
-                STREAMS.with(|s| s.borrow_mut().restore(tab, kept));
-            }
-        }
+        let kept = kept_streams(tab).await;
+        STREAMS.with(|s| s.borrow_mut().restore(tab, kept));
     }
     STREAMS.with(|s| s.borrow().of(tab))
 }
@@ -493,6 +545,17 @@ fn notify(title: &str, message: &str) {
     });
 }
 
+/// The cookie store (Firefox's container) of the tab at `path` in `from`
+/// ("" for `from` itself), if the browser names one. Chrome does not.
+fn tab_store(from: &JsValue, path: &str) -> Option<String> {
+    let key = if path.is_empty() {
+        "cookieStoreId".to_string()
+    } else {
+        format!("{path}.cookieStoreId")
+    };
+    get(from, &key).as_string().filter(|s| !s.is_empty())
+}
+
 fn own_id() -> String {
     api("runtime.id").as_string().unwrap_or_default()
 }
@@ -557,9 +620,19 @@ pub async fn on_download_created(item: JsValue) {
 
     let (app, port) = app().await;
     let verdict = match &app {
-        App::Present { rules, .. } => rules
+        App::Present { rules, hello } => rules
             .takes(&found.candidate(), forced)
-            .map_err(|left| left.reason().to_string()),
+            .map_err(|left| left.reason().to_string())
+            .and_then(|()| {
+                // An app too old to tell a sign-in page from the file would
+                // take the page, and the browser's copy would be erased.
+                decide::takes_caught(hello).map_err(|old| {
+                    if !TOLD_OLD.with(|t| t.replace(true)) {
+                        notify("Update the dm app", old);
+                    }
+                    old.to_string()
+                })
+            }),
         App::Absent { .. } => Err("no app to hand it to".to_string()),
     };
     if let Err(why) = verdict {
@@ -580,10 +653,12 @@ pub async fn on_download_created(item: JsValue) {
         id: hand_id("b", found.id, now()),
         url: found.url.clone(),
         referrer: found.referrer.clone(),
-        // The browser holds it: dm checks it can fetch it before taking it.
+        // The browser holds it: dm checks it can fetch it before taking it,
+        // and only an app that judges what it is served may take it.
         caught: true,
+        held: true,
         // The site's sign-in, where the popup has that on for the site.
-        cookies: cookies_for(&found.url).await,
+        cookies: cookies_for(&found.url, found.store.as_deref()).await,
         // What the browser is being sent, so the app can tell a sign-in
         // page served to it in the file's place, and refuse.
         mime: found.mime.clone(),
@@ -674,8 +749,8 @@ async fn in_browser_instead(target: &Target, why: &str) -> Result<String, String
 
 /// Hands something a person asked for. `Ok` carries a word for whoever
 /// asked; `Err` why it could not be done.
-async fn hand_target(target: Target) -> Result<String, String> {
-    hand_chosen(target, None, None, false).await
+async fn hand_target(target: Target, store: Option<String>) -> Result<String, String> {
+    hand_chosen(target, store, None, None, false).await
 }
 
 /// Hands one download over, with the quality picked from the panel's list
@@ -683,6 +758,7 @@ async fn hand_target(target: Target) -> Result<String, String> {
 /// "Download details" before it starts.
 async fn hand_chosen(
     target: Target,
+    store: Option<String>,
     quality: Option<String>,
     label: Option<String>,
     ask: bool,
@@ -695,7 +771,7 @@ async fn hand_chosen(
         }
         App::Present { hello, .. } => hello,
     };
-    let cookies = cookies_for(&target.url).await;
+    let cookies = cookies_for(&target.url, store.as_deref()).await;
     let start = Start {
         id: hand_id("m", 0, now()),
         url: target.url.clone(),
@@ -768,8 +844,8 @@ async fn formats_of(target: &Target) -> Result<Vec<dm_protocol::Choice>, String>
 }
 
 /// Hands something a person asked for, and says so when it cannot.
-async fn hand_asked(target: Target) {
-    match hand_target(target).await {
+async fn hand_asked(target: Target, store: Option<String>) {
+    match hand_target(target, store).await {
         Ok(said) if said == decide::NO_YTDLP => notify("dm", &said),
         Ok(_) => {}
         Err(why) => notify("dm could not take that", &why),
@@ -790,11 +866,16 @@ pub async fn on_page_message(message: JsValue, sender: JsValue) -> JsValue {
         Some(decide::STATUS_MESSAGE) => {
             let (app, _) = app().await;
             return to_js(&match app {
-                App::Present { hello, .. } => serde_json::json!({
-                    "ok": true,
-                    "version": hello.engine_version,
-                    "ytdlp": hello.ytdlp,
-                }),
+                App::Present { hello, .. } => {
+                    let (line, bad) = decide::status_line(&hello);
+                    serde_json::json!({
+                        "ok": true,
+                        "version": hello.engine_version,
+                        "ytdlp": hello.ytdlp,
+                        "line": line,
+                        "bad": bad,
+                    })
+                }
                 App::Absent { reason } => serde_json::json!({
                     "ok": false,
                     "said": absent_text(&reason, &own_id(), is_firefox()),
@@ -860,7 +941,15 @@ pub async fn on_page_message(message: JsValue, sender: JsValue) -> JsValue {
     }
     // A click on the bar or on a line of its list: handed over to be asked
     // about in the app, which opens "Download details".
-    match hand_chosen(target, click.quality, click.label, true).await {
+    match hand_chosen(
+        target,
+        tab_store(&sender, "tab"),
+        click.quality,
+        click.label,
+        true,
+    )
+    .await
+    {
         Ok(said) => answer(true, &said),
         Err(why) => answer(false, &why),
     }
@@ -947,7 +1036,7 @@ pub async fn on_menu_clicked(info: JsValue, tab: JsValue) {
         return;
     }
     match decide::menu_target(&click, private) {
-        Ok(target) => hand_asked(target).await,
+        Ok(target) => hand_asked(target, tab_store(&tab, "")).await,
         Err(why) => notify("dm cannot take that", &why),
     }
 }
