@@ -100,7 +100,7 @@ pub fn inbox(home: &Path) -> PathBuf {
 /// being a plain name: `../../../.bashrc` is a perfectly well-formed id, and
 /// anything that writes where it is told by a message is a program that
 /// writes wherever the sender likes.
-pub fn deposit(home: &Path, id: &str, request: &Request) -> std::io::Result<PathBuf> {
+pub fn deposit(home: &Path, id: &str, request: &Request) -> std::io::Result<Filed> {
     let named: String = id
         .chars()
         .filter(|c| c.is_ascii_alphanumeric() || matches!(c, '-' | '_'))
@@ -120,6 +120,14 @@ pub fn deposit(home: &Path, id: &str, request: &Request) -> std::io::Result<Path
     )
 }
 
+/// A request in the inbox: where, and whether this hand-off put it there
+/// or found the very same one already waiting.
+#[derive(Debug, PartialEq)]
+pub struct Filed {
+    pub path: PathBuf,
+    pub new: bool,
+}
+
 /// Writes `bytes` under `<name>.json` in `dir`, or `<name>-2.json` and on
 /// when that is taken: never over a request already filed.
 ///
@@ -128,7 +136,7 @@ pub fn deposit(home: &Path, id: &str, request: &Request) -> std::io::Result<Path
 /// was simply replaced: the first download gone, and the browser told both
 /// were taken. Written whole beside the name, then linked to it, which
 /// fails rather than replaces when the name is in use.
-fn file_new(dir: &Path, name: &str, bytes: &[u8]) -> std::io::Result<PathBuf> {
+fn file_new(dir: &Path, name: &str, bytes: &[u8]) -> std::io::Result<Filed> {
     use std::sync::atomic::{AtomicU64, Ordering};
     static NEXT: AtomicU64 = AtomicU64::new(0);
 
@@ -157,12 +165,23 @@ fn file_new(dir: &Path, name: &str, bytes: &[u8]) -> std::io::Result<PathBuf> {
                 dir.join(format!("{name}-{n}.json"))
             };
             match std::fs::hard_link(&temp, &path) {
-                Ok(()) => return Ok(path),
+                Ok(()) => return Ok(Filed { path, new: true }),
+                // The very same request again — a hand-off resent before
+                // the app read the first — is the one already filed, not a
+                // second download of the same thing.
+                Err(e)
+                    if e.kind() == std::io::ErrorKind::AlreadyExists
+                        && std::fs::read(&path).is_ok_and(|filed| filed == bytes) =>
+                {
+                    return Ok(Filed { path, new: false })
+                }
                 Err(e) if e.kind() == std::io::ErrorKind::AlreadyExists => continue,
                 // A file system without hard links: the name is checked and
                 // then taken, which only another hand-off in the same
                 // instant could come between.
-                Err(_) if !path.exists() => return std::fs::rename(&temp, &path).map(|()| path),
+                Err(_) if !path.exists() => {
+                    return std::fs::rename(&temp, &path).map(|()| Filed { path, new: true })
+                }
                 Err(e) => return Err(e),
             }
         }
@@ -405,7 +424,11 @@ pub fn answer(
                         // Taken back out: the browser keeps it, and a dm
                         // started later must not download it a second time.
                         Err(e) => {
-                            let _ = std::fs::remove_file(&filed);
+                            // Only one this hand-off filed: the same request
+                            // already waiting was answered Started before.
+                            if filed.new {
+                                let _ = std::fs::remove_file(&filed.path);
+                            }
                             Reply::failed(&id, format!("dm could not be started to take it: {e}"))
                         }
                     },
@@ -496,7 +519,11 @@ pub fn answer(
                         // back out, since the browser keeps the download and
                         // a dm started later must not fetch it as well.
                         Err(e) => {
-                            let _ = std::fs::remove_file(&filed);
+                            // Only one this hand-off filed: the same request
+                            // already waiting was answered Started before.
+                            if filed.new {
+                                let _ = std::fs::remove_file(&filed.path);
+                            }
                             Reply::failed(&id, format!("dm could not be started to take it: {e}"))
                         }
                     },
@@ -701,6 +728,25 @@ mod tests {
                 .map(|n| format!("https://e.com/{n}.zip"))
                 .collect::<Vec<_>>()
         );
+    }
+
+    #[test]
+    fn the_same_hand_off_sent_twice_is_filed_once() {
+        let dir = tempfile::tempdir().unwrap();
+        let request = Request {
+            url: "https://e.com/f.zip".into(),
+            ..Request::default()
+        };
+        let first = deposit(dir.path(), "a1", &request).unwrap();
+        let again = deposit(dir.path(), "a1", &request).unwrap();
+        assert_eq!(first.path, again.path);
+        assert!(first.new && !again.new);
+        let filed = std::fs::read_dir(inbox(dir.path()))
+            .unwrap()
+            .flatten()
+            .filter(|e| e.path().extension().is_some_and(|x| x == "json"))
+            .count();
+        assert_eq!(filed, 1, "one download, filed twice");
     }
 
     #[test]

@@ -38,3 +38,29 @@ async fn a_refused_connection_is_said_plainly() {
     );
     assert!(!said.contains("error sending request"), "{said}");
 }
+
+#[tokio::test]
+async fn a_refusal_whose_body_never_ends_is_answered_promptly() {
+    /* The body of a 500 was read whole, decompressed, before it was cut to
+     * an explanation's length: one that never ended held the download and
+     * grew without bound. Read through a whole download, with one attempt. */
+    use axum::body::Body;
+    let endless = || async {
+        let chunk = bytes::Bytes::from(vec![b'x'; 64 * 1024]);
+        let forever =
+            futures_util::stream::repeat_with(move || Ok::<_, std::io::Error>(chunk.clone()));
+        axum::response::Response::builder()
+            .status(500)
+            .header("content-type", "text/plain")
+            .body(Body::from_stream(forever))
+            .unwrap()
+    };
+    let addr = common::serve(axum::Router::new().fallback(endless)).await;
+    let said = tokio::time::timeout(
+        std::time::Duration::from_secs(10),
+        failure(&format!("http://{addr}/f.bin")),
+    )
+    .await
+    .expect("a refusal's endless body was read to its end");
+    assert!(said.contains("500"), "{said}");
+}

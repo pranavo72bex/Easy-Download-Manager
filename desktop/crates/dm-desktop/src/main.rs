@@ -552,6 +552,9 @@ fn on_signal(runtime: &tokio::runtime::Runtime, wake: impl Fn() + Send + Sync + 
 fn quit_on_signal() -> bool {
     if SIGNALLED.swap(true, Ordering::SeqCst) {
         dm_desktop::control::forget_port(&settings::home());
+        // Leaving without unwinding: what yt-dlp runs is ended here, or it
+        // would go on downloading with nobody to stop it.
+        dm_core::ytdlp::end_all();
         std::process::exit(130);
     }
     true

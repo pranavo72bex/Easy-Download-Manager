@@ -387,6 +387,47 @@ async fn a_power_cut_that_lost_more_than_the_checked_end_is_repaired_whole() {
 }
 
 #[tokio::test]
+async fn a_torn_end_after_a_files_own_zeros_is_not_followed_back_through_them() {
+    /* A file can be zeros for megabytes — a disk image, a sparse archive.
+     * A torn last block after such a run had the repair follow the zeros
+     * back to where they began and fetch every one of them again. One step
+     * of the repair goes back 4 MiB at most; here the run is 5 MiB, and the
+     * file still comes out whole. */
+    let part = 6 * MB;
+    let mut body = bytes(8 * part);
+    let run = part + MB / 2..part + 5 * MB + MB / 2;
+    body[run.clone()].fill(0);
+    let (addr, _, asked) = spawn_watched(Mode::Honest, body.clone(), None).await;
+    let dir = tempdir();
+    let opts = options(dir.path());
+    // Part 1 staged up to 32 KiB past the run, those 32 KiB lost.
+    let staged_to = run.end + 32 * 1024;
+    let mut torn = body[part..staged_to].to_vec();
+    let lost = torn.len() - 32 * 1024;
+    torn[lost..].fill(0);
+    staged(&opts, &body, &[(1, torn)]);
+
+    let done = download(&client(), &format!("http://{addr}/f.bin"), &opts)
+        .await
+        .unwrap();
+
+    assert!(std::fs::read(&done.path).unwrap() == body);
+    let deepest = asked
+        .lock()
+        .unwrap()
+        .iter()
+        .map(|&(a, _)| a)
+        .filter(|a| (part..2 * part).contains(a))
+        .min()
+        .unwrap();
+    assert!(
+        deepest >= run.start + MB / 2,
+        "the repair went back to {deepest}, through the file's own zeros from {}",
+        run.start
+    );
+}
+
+#[tokio::test]
 async fn a_part_that_agrees_with_the_server_is_kept() {
     let body = bytes(8 * MB);
     let (addr, _, asked) = spawn_watched(Mode::Honest, body.clone(), None).await;

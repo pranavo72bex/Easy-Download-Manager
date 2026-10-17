@@ -2626,6 +2626,20 @@ fn the_control_protocol_refuses_nothing_to_add_and_a_queue_that_is_not_there() {
         .is_ok());
 }
 
+/// Opening a file runs it if it is a program: never at a script's word.
+#[test]
+fn opening_a_file_is_refused_over_the_control_protocol() {
+    let world = world();
+    let mut harness = world.harness();
+    let app = harness.state_mut();
+    for id in ["file.open", "file.open_with"] {
+        let refused = app
+            .control_call("command.run", &serde_json::json!({ "id": id }))
+            .expect_err(id);
+        assert!(refused.contains("by a person"), "{refused}");
+    }
+}
+
 #[test]
 fn a_batch_runs_its_steps_in_order() {
     let world = world();

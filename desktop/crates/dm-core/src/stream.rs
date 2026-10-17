@@ -198,11 +198,13 @@ fn lines(text: &str) -> Vec<&str> {
 /// was saved as the wrong file and reported Completed — the whole source
 /// repeated, a silent film, ciphertext — so they go to yt-dlp, which reads
 /// them properly, or are refused. `master` is the master playlist where
-/// there was one; `media` the media playlist that would be fetched.
+/// there was one; `media` the media playlist that would be fetched, and
+/// `media_url` where it was served from, which its entries are relative to.
 pub fn beyond_dm(
     master: Option<&str>,
     audio_group: Option<&str>,
     media: &str,
+    media_url: &str,
 ) -> Option<&'static str> {
     let upper = media.to_ascii_uppercase();
     if upper.contains("#EXT-X-BYTERANGE") || upper.contains("BYTERANGE=") {
@@ -224,11 +226,19 @@ pub fn beyond_dm(
     }
     /* One initialisation segment leads the file; a second, different one
      * belongs to the segments after it, and joined as one file they decode
-     * against the wrong one. Restated unchanged, it is still one. */
+     * against the wrong one. Restated unchanged, it is still one — however
+     * it is written: compared as the addresses they resolve to, so
+     * `URI="i.mp4"` and `URI="./i.mp4"`, or the same line with its
+     * attributes in another order, are one segment. The one place this is
+     * decided; `media_playlist` reads only what passed here. */
     let maps: std::collections::BTreeSet<String> = lines(media)
         .iter()
         .filter(|l| l.to_ascii_uppercase().starts_with("#EXT-X-MAP"))
-        .map(|l| l.trim().to_string())
+        .map(|l| {
+            attribute(l, "URI")
+                .and_then(|uri| join(media_url, &uri).ok())
+                .unwrap_or_else(|| l.trim().to_string())
+        })
         .collect();
     if maps.len() > 1 {
         return Some("this stream changes its initialisation segment part-way through");
@@ -421,21 +431,16 @@ pub fn media_playlist(
 
         if upper.starts_with("#EXT-X-MAP") {
             if let Some(uri) = attribute(row, "URI") {
-                let url = join(url, &uri)?;
-                // A second, different one would have replaced the first,
-                // and every segment before it decoded against the wrong one.
-                if init.as_ref().is_some_and(|first| first.url != url) {
-                    return Err(Error::Internal(
-                        "this stream changes its initialisation segment part-way through, \
-                         which dm cannot join into one file"
-                            .into(),
-                    ));
+                // Restated, it is the same one: `beyond_dm` has already
+                // sent a stream whose initialisation segment changes to
+                // yt-dlp, so the first is the only one.
+                if init.is_none() {
+                    init = Some(Part {
+                        url: join(url, &uri)?,
+                        init: true,
+                        sequence: 0,
+                    });
                 }
-                init = Some(Part {
-                    url,
-                    init: true,
-                    sequence: 0,
-                });
                 container = "mp4";
             }
             continue;
@@ -487,6 +492,64 @@ pub fn media_playlist(
         key,
         container: container.to_string(),
     })
+}
+
+/// What a stream's segments are, from the first bytes of one: a transport
+/// stream, fragmented MP4, or packed ADTS audio (bare, or behind the ID3
+/// tag that carries its timestamp). `None` where the bytes say none of
+/// these, and the playlist's own words decide.
+pub fn container_of_head(head: &[u8]) -> Option<&'static str> {
+    let adts = |at: usize| {
+        matches!(
+            (head.get(at), head.get(at + 1)),
+            (Some(0xFF), Some(second)) if second & 0xF6 == 0xF0
+        )
+    };
+    if head.first() == Some(&0x47) && head.get(188).is_none_or(|&b| b == 0x47) {
+        return Some("ts");
+    }
+    if matches!(head.get(4..8), Some(b"ftyp" | b"styp" | b"moof" | b"sidx")) {
+        return Some("mp4");
+    }
+    if adts(0) {
+        return Some("aac");
+    }
+    if head.get(..3) == Some(b"ID3") {
+        // A syncsafe length: seven bits a byte, after a ten-byte header,
+        // with a ten-byte footer where the flags say there is one.
+        let size = head
+            .get(6..10)?
+            .iter()
+            .fold(0usize, |n, &b| (n << 7) | usize::from(b & 0x7F));
+        let footer = if head.get(5).is_some_and(|f| f & 0x10 != 0) {
+            10
+        } else {
+            0
+        };
+        if adts(10 + size + footer) {
+            return Some("aac");
+        }
+    }
+    None
+}
+
+impl Stream {
+    /// Names the stream for what its segments turned out to be, read from
+    /// their first bytes (`container_of_head`): a playlist's addresses are
+    /// often tokens with no extension to go by, and packed audio from such
+    /// addresses was called a transport stream and handed to the remux.
+    pub fn found_to_be(&mut self, found: &str, name_from: &str, quality: Quality) {
+        let container = match found {
+            "mp4" if quality == Quality::Audio => "m4a",
+            "mp4" => "mp4",
+            "aac" => "aac",
+            _ => "ts",
+        };
+        if container != self.container {
+            self.container = container.to_string();
+            self.filename = name_for(name_from, container);
+        }
+    }
 }
 
 /// A name for the finished file, from the URL the person reached for.
@@ -597,9 +660,28 @@ mod tests {
     }
 
     #[test]
+    fn segments_are_told_apart_by_their_first_bytes() {
+        let mut ts = vec![0u8; 376];
+        ts[0] = 0x47;
+        ts[188] = 0x47;
+        assert_eq!(container_of_head(&ts), Some("ts"));
+        assert_eq!(container_of_head(b"\0\0\0\x18ftypiso5"), Some("mp4"));
+        assert_eq!(container_of_head(b"\0\0\0\x18stypmsdh"), Some("mp4"));
+        assert_eq!(container_of_head(&[0xFF, 0xF1, 0x50, 0x80]), Some("aac"));
+        let mut tagged = b"ID3\x04\0\0\0\0\0\x05".to_vec();
+        tagged.extend([1, 2, 3, 4, 5, 0xFF, 0xF9, 0x50]);
+        assert_eq!(container_of_head(&tagged), Some("aac"));
+        assert_eq!(container_of_head(b"<html>"), None);
+        assert_eq!(container_of_head(&[]), None);
+    }
+
+    #[test]
     fn a_second_initialisation_segment_is_refused_not_swapped_in() {
         let remapped = "#EXTM3U\n#EXT-X-MAP:URI=\"i1.mp4\"\na.m4s\n#EXT-X-MAP:URI=\"i2.mp4\"\nb.m4s\n#EXT-X-ENDLIST\n";
-        assert!(media_playlist(remapped, "http://h/v/i.m3u8", "x", Quality::Best).is_err());
+        assert!(beyond_dm(None, None, remapped, "http://h/v/i.m3u8").is_some());
+        // The same segment written two ways is one: compared as addresses.
+        let rewritten = "#EXTM3U\n#EXT-X-MAP:URI=\"i.mp4\"\na.m4s\n#EXT-X-MAP:URI=\"./i.mp4\"\nb.m4s\n#EXT-X-ENDLIST\n";
+        assert_eq!(beyond_dm(None, None, rewritten, "http://h/v/i.m3u8"), None);
         let restated = "#EXTM3U\n#EXT-X-MAP:URI=\"i.mp4\"\na.m4s\n#EXT-X-MAP:URI=\"i.mp4\"\nb.m4s\n#EXT-X-ENDLIST\n";
         let read = media_playlist(restated, "http://h/v/i.m3u8", "x", Quality::Best).unwrap();
         assert_eq!(
@@ -612,56 +694,76 @@ mod tests {
     #[test]
     fn streams_dm_cannot_assemble_itself_are_named() {
         let plain = "#EXTM3U\n#EXTINF:4,\na.ts\n#EXT-X-ENDLIST\n";
-        assert_eq!(beyond_dm(None, None, plain), None);
+        assert_eq!(beyond_dm(None, None, plain, "http://h/v/i.m3u8"), None);
         let one_key =
             "#EXTM3U\n#EXT-X-KEY:METHOD=AES-128,URI=\"k\"\n#EXTINF:4,\na.ts\n#EXT-X-ENDLIST\n";
-        assert_eq!(beyond_dm(None, None, one_key), None);
+        assert_eq!(beyond_dm(None, None, one_key, "http://h/v/i.m3u8"), None);
         let restated = "#EXTM3U\n#EXT-X-KEY:METHOD=AES-128,URI=\"k\"\na.ts\n#EXT-X-KEY:METHOD=AES-128,URI=\"k\"\nb.ts\n#EXT-X-ENDLIST\n";
         assert_eq!(
-            beyond_dm(None, None, restated),
+            beyond_dm(None, None, restated, "http://h/v/i.m3u8"),
             None,
             "the same key said twice"
         );
         let fmp4 = "#EXTM3U\n#EXT-X-MAP:URI=\"i.mp4\"\n#EXTINF:4,\na.m4s\n#EXT-X-ENDLIST\n";
-        assert_eq!(beyond_dm(None, None, fmp4), None);
+        assert_eq!(beyond_dm(None, None, fmp4, "http://h/v/i.m3u8"), None);
         let remapped = "#EXTM3U\n#EXT-X-MAP:URI=\"i1.mp4\"\na.m4s\n#EXT-X-MAP:URI=\"i2.mp4\"\nb.m4s\n#EXT-X-ENDLIST\n";
-        assert!(beyond_dm(None, None, remapped)
+        assert!(beyond_dm(None, None, remapped, "http://h/v/i.m3u8")
             .unwrap()
             .contains("initialisation"));
         let restated_map = "#EXTM3U\n#EXT-X-MAP:URI=\"i.mp4\"\na.m4s\n#EXT-X-MAP:URI=\"i.mp4\"\nb.m4s\n#EXT-X-ENDLIST\n";
-        assert_eq!(beyond_dm(None, None, restated_map), None);
+        assert_eq!(
+            beyond_dm(None, None, restated_map, "http://h/v/i.m3u8"),
+            None
+        );
         let none_then_map =
             "#EXTM3U\n#EXT-X-KEY:METHOD=NONE\n#EXT-X-MAP:URI=\"i.mp4\"\na.m4s\n#EXT-X-ENDLIST\n";
-        assert_eq!(beyond_dm(None, None, none_then_map), None);
+        assert_eq!(
+            beyond_dm(None, None, none_then_map, "http://h/v/i.m3u8"),
+            None
+        );
         let vod = "#EXTM3U\n#EXT-X-PLAYLIST-TYPE:VOD\n#EXTINF:4,\na.ts\n";
-        assert_eq!(beyond_dm(None, None, vod), None, "VOD without an end tag");
+        assert_eq!(
+            beyond_dm(None, None, vod, "http://h/v/i.m3u8"),
+            None,
+            "VOD without an end tag"
+        );
         let ranged = "#EXTM3U\n#EXT-X-BYTERANGE:100@0\nmain.ts\n#EXT-X-ENDLIST\n";
-        assert!(beyond_dm(None, None, ranged)
+        assert!(beyond_dm(None, None, ranged, "http://h/v/i.m3u8")
             .unwrap()
             .contains("byte ranges"));
         let ranged_map =
             "#EXTM3U\n#EXT-X-MAP:URI=\"m.mp4\",BYTERANGE=\"720@0\"\nm.mp4\n#EXT-X-ENDLIST\n";
-        assert!(beyond_dm(None, None, ranged_map).is_some());
+        assert!(beyond_dm(None, None, ranged_map, "http://h/v/i.m3u8").is_some());
         let live = "#EXTM3U\n#EXTINF:4,\na.ts\n";
-        assert!(beyond_dm(None, None, live).unwrap().contains("live"));
+        assert!(beyond_dm(None, None, live, "http://h/v/i.m3u8")
+            .unwrap()
+            .contains("live"));
         let rotated = "#EXTM3U\n#EXT-X-KEY:METHOD=AES-128,URI=\"k1\"\na.ts\n#EXT-X-KEY:METHOD=NONE\nb.ts\n#EXT-X-ENDLIST\n";
-        assert!(beyond_dm(None, None, rotated)
+        assert!(beyond_dm(None, None, rotated, "http://h/v/i.m3u8")
             .unwrap()
             .contains("encryption"));
         let sealed_init = "#EXTM3U\n#EXT-X-KEY:METHOD=AES-128,URI=\"k\"\n#EXT-X-MAP:URI=\"i.mp4\"\na.m4s\n#EXT-X-ENDLIST\n";
-        assert!(beyond_dm(None, None, sealed_init).is_some());
+        assert!(beyond_dm(None, None, sealed_init, "http://h/v/i.m3u8").is_some());
         let separate = "#EXTM3U\n#EXT-X-MEDIA:TYPE=AUDIO,GROUP-ID=\"a\",DEFAULT=YES,URI=\"audio.m3u8\"\n#EXT-X-STREAM-INF:BANDWIDTH=1,AUDIO=\"a\"\nv.m3u8\n";
-        assert!(beyond_dm(Some(separate), Some("a"), plain)
-            .unwrap()
-            .contains("sound"));
+        assert!(
+            beyond_dm(Some(separate), Some("a"), plain, "http://h/v/i.m3u8")
+                .unwrap()
+                .contains("sound")
+        );
         // Sound in the picture, with a commentary track listed apart.
         let commentary =
             "#EXTM3U\n#EXT-X-MEDIA:TYPE=AUDIO,GROUP-ID=\"a\",NAME=\"English\",DEFAULT=YES\n\
             #EXT-X-MEDIA:TYPE=AUDIO,GROUP-ID=\"a\",NAME=\"Commentary\",URI=\"c.m3u8\"\n\
             #EXT-X-STREAM-INF:BANDWIDTH=1,AUDIO=\"a\"\nv.m3u8\n";
-        assert_eq!(beyond_dm(Some(commentary), Some("a"), plain), None);
+        assert_eq!(
+            beyond_dm(Some(commentary), Some("a"), plain, "http://h/v/i.m3u8"),
+            None
+        );
         // A rendition with no audio group plays its own sound.
-        assert_eq!(beyond_dm(Some(separate), None, plain), None);
+        assert_eq!(
+            beyond_dm(Some(separate), None, plain, "http://h/v/i.m3u8"),
+            None
+        );
     }
 
     use super::*;

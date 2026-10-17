@@ -355,9 +355,15 @@ fn build(document: &Document) -> Option<Panel> {
 /// script made up (`isTrusted` false) is ignored. The panel's root is open,
 /// so a page could otherwise press its buttons itself, and a press can hand
 /// a file to dm or, without dm, start the browser's download of it.
+///
+/// A click also needs the panel to be as dm drew it. A page cannot press
+/// it, but it can restyle the element that holds it — invisible and over
+/// the whole window — so that a person's next click anywhere lands on it
+/// and hands the page's choice of file to dm.
 fn listen(target: &web_sys::EventTarget, name: &str, handler: impl Fn(Event) + 'static) {
+    let click = name == "click";
     let closure = Closure::<dyn Fn(Event)>::new(move |event: Event| {
-        if event.is_trusted() {
+        if event.is_trusted() && (!click || as_drawn()) {
             handler(event);
         }
     });
@@ -365,6 +371,35 @@ fn listen(target: &web_sys::EventTarget, name: &str, handler: impl Fn(Event) + '
     // Listeners live as long as the page.
     closure.forget();
 }
+
+/// Whether the panel is shown as dm drew it: opaque, visible, and no
+/// larger than its open list, wherever a page's styles would have it.
+fn as_drawn() -> bool {
+    let Some(host) = with_panel(|panel| panel.host.clone()) else {
+        return false;
+    };
+    let Some(window) = window() else {
+        return false;
+    };
+    let Ok(Some(style)) = window.get_computed_style(&host) else {
+        return false;
+    };
+    let value = |name: &str| style.get_property_value(name).unwrap_or_default();
+    let rect = host.get_bounding_client_rect();
+    let opaque = value("opacity")
+        .trim()
+        .parse::<f64>()
+        .is_ok_and(|o| o >= 0.99);
+    opaque
+        && value("visibility").trim() == "visible"
+        && value("filter").trim() == "none"
+        && value("clip-path").trim() == "none"
+        && rect.width() <= MAX_DRAWN.0
+        && rect.height() <= MAX_DRAWN.1
+}
+
+/// The panel's largest size, with its quality list open.
+const MAX_DRAWN: (f64, f64) = (480.0, 640.0);
 
 fn with_panel<T>(f: impl FnOnce(&mut Panel) -> T) -> Option<T> {
     PANEL.with(|cell| cell.borrow_mut().as_mut().map(f))

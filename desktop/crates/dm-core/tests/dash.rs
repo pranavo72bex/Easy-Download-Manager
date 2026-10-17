@@ -77,6 +77,11 @@ fn fake_ytdlp(dir: &Path) -> PathBuf {
         &script,
         r#"#!/bin/sh
 printf '%s\n' "$@" > "$DM_FAKE_RECORD"
+prev=""
+for a in "$@"; do
+  [ "$prev" = "--config-locations" ] && cat "$a" > "$DM_FAKE_RECORD.config"
+  prev="$a"
+done
 if [ -n "$DM_FAKE_FAIL" ]; then
   echo "ERROR: [generic] manifest: Requested format is not available" >&2
   exit 1
@@ -170,7 +175,18 @@ async fn with_ytdlp_a_dash_manifest_is_handed_over_with_the_proxy_and_the_page()
             .position(|a| a == flag)
             .map(|i| argv[i + 1].as_str())
     };
-    assert_eq!(after("--proxy"), Some("socks5://127.0.0.1:1080"));
+    /* The proxy, with its password, in a file of the run's own rather
+     * than on the command line, where any local user's `ps` reads it. */
+    assert!(
+        !argv.iter().any(|a| a.contains("secret")),
+        "the proxy's password was on yt-dlp's command line: {argv:?}"
+    );
+    let config = std::fs::read_to_string(record.with_extension("config")).unwrap_or_default();
+    assert_eq!(config.trim(), "--proxy 'socks5://127.0.0.1:1080'");
+    assert!(
+        !Path::new(after("--config-locations").unwrap()).exists(),
+        "the proxy's file outlived the run"
+    );
     assert_eq!(after("--referer"), Some("https://page.example/watch"));
     // No ffmpeg, so one stream that carries both — never a pair.
     assert_eq!(after("-f"), Some("b"));

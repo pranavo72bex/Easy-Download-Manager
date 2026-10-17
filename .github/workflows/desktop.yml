@@ -17,8 +17,10 @@ on:
     paths: ['desktop/**', 'scripts/**', '.github/workflows/desktop.yml']
   workflow_dispatch:
 
+# Read-only by default: builds and tests run on pull requests too. Only the
+# release job, on a tag, writes (it drafts the release).
 permissions:
-  contents: write
+  contents: read
 
 # A newer push to a pull request cancels its older run; runs on main and on
 # tags always finish, so every state that lands is checked to the end.
@@ -333,6 +335,8 @@ jobs:
     needs: [bundle, installed, extension, arch]
     # Only a tag publishes; a manual run stops at the artefacts.
     if: startsWith(github.ref, 'refs/tags/desktop-v')
+    permissions:
+      contents: write
     runs-on: ubuntu-latest
     steps:
       - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
