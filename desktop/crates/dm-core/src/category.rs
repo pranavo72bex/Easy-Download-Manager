@@ -98,7 +98,6 @@ const BY_EXTENSION: &[(&str, Category)] = &[
     ("rpm", Category::Apps),
     ("appimage", Category::Apps),
     ("apk", Category::Apps),
-    ("bin", Category::Apps),
     ("run", Category::Apps),
     ("snap", Category::Apps),
     ("flatpak", Category::Apps),
@@ -139,6 +138,17 @@ pub fn classify(filename: &str, content_type: Option<&str>) -> Category {
 
     if let Some((_, category)) = BY_EXTENSION.iter().find(|(e, _)| *e == extension) {
         return *category;
+    }
+    // A `.bin` is as often firmware, a disc image or a model's weights as a
+    // program, and dm cannot tell which from the name: Other, the honest
+    // place, unless the name says it installs something (gap 168).
+    if extension == "bin" {
+        let lower = filename.to_ascii_lowercase();
+        return if ["setup", "install"].iter().any(|w| lower.contains(w)) {
+            Category::Apps
+        } else {
+            Category::Other
+        };
     }
 
     let mime = crate::probe::mime_essence(content_type);
@@ -314,6 +324,25 @@ impl Categories {
 
 #[cfg(test)]
 mod tests {
+    /// Gap 168: a `.bin` is not taken for a program by its extension.
+    #[test]
+    fn a_bin_file_is_other_unless_its_name_says_it_installs() {
+        use super::{classify, Category};
+        for name in ["firmware.bin", "bulk001.bin", "disc.BIN", "weights.bin"] {
+            assert_eq!(classify(name, None), Category::Other, "{name}");
+        }
+        // The server's type does not make one a program either.
+        assert_eq!(
+            classify("router.bin", Some("application/octet-stream")),
+            Category::Other
+        );
+        for name in ["jdk-setup-x64.bin", "Product-Installer.bin"] {
+            assert_eq!(classify(name, None), Category::Apps, "{name}");
+        }
+        assert_eq!(classify("tool.exe", None), Category::Apps);
+        assert_eq!(classify("tool.run", None), Category::Apps);
+    }
+
     #[test]
     fn a_folder_name_is_judged_as_it_is_used() {
         assert!(!super::one_folder(" .. "));

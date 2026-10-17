@@ -343,9 +343,15 @@ Evidence is `dm-desktop/tests/window.rs` unless it says otherwise.
 | Enter presses Download again in "Already in the list" | PASS | `enter_downloads_again_when_already_listed` (gap 154, 2026-10-18) |
 | A retry says its attempt while it waits | PASS | `a_retry_says_its_attempt`, `each_retry_is_told_with_its_number` (gap 155, 2026-10-18) |
 | An HLS address is suggested under the name it is saved as; a finished row's size is its file's | PASS | `a_stream_is_suggested_under_the_name_it_is_saved_as`, `a_finished_rows_size_is_its_files` (gap 156, 2026-10-18) |
-| Added for later reads Queued; Exit counts the running; counts take real plurals in every language | PASS | `statuses_and_counts_say_what_is_so`, `a_count_takes_the_form_its_language_gives_it` (gaps 157, 158, 2026-10-18) |
+| Added for later says it waits for Start queue; Exit counts the running; counts take real plurals in every language | PASS | `statuses_and_counts_say_what_is_so`, `a_count_takes_the_form_its_language_gives_it` (gaps 157, 158, 2026-10-18) |
 | A browser hand-off of a listed address says it was added again | PASS | `a_hand_off_of_a_listed_address_is_said_to_be_added_again` (gap 159, 2026-10-18) |
 | Add URL keeps its place when its warning appears; Download details shows the size | PASS | `dialogs_keep_their_place_and_show_the_size` (gap 160, 2026-10-18) |
+| Links in clipboard text, `.url`, `.webloc` and HTML keep their query strings and fragments | PASS | `every_address_survives_every_kind_of_text_it_arrives_in` (gap 162, 2026-10-18) |
+| Only Exit quits from the Exit question; finished meanwhile, it asks again; its buttons never move | PASS | `downloads_finishing_under_the_exit_question_never_quit_dm` (gaps 163, 164, 2026-10-18) |
+| Add numbered series speaks its errors in the language in force, after both ends are typed | PASS | `the_series_error_waits_for_both_ends_and_speaks_german` (gap 165, 2026-10-18) |
+| The progress window's pieces add up to Downloaded, each within its range | PASS | `pieces_add_up_to_downloaded_and_stay_in_their_ranges` (gap 166, 2026-10-18) |
+| A row added for later says it waits for Start queue, is counted, and shows its size and folder | PASS | `a_row_added_for_later_says_what_it_waits_for_with_its_size_and_folder` (gap 167, 2026-10-18) |
+| Shortcut keys in the language's names; `.bin` sorted as Other | PASS | `a_shortcut_names_its_keys_in_the_language_in_force`, `a_bin_file_is_other_unless_its_name_says_it_installs` (gap 168, 2026-10-18) |
 | The window comes back from the tray where it was | NOT VERIFIED | position kept on hide and sent on show (`main.rs`); not watched with a real window manager |
 
 ## N. Measured

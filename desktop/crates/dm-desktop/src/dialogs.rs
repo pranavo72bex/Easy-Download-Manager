@@ -7,7 +7,7 @@
 //! is pressed; none of them reaches the queue except through the backend.
 
 use crate::i18n::{t, tf};
-use std::collections::{BTreeMap, BTreeSet};
+use std::collections::{BTreeMap, BTreeSet, HashMap};
 use std::sync::{Arc, Mutex};
 
 use dm_core::{AddOptions, Category, Id, Schedule, State, MAIN_QUEUE};
@@ -832,12 +832,25 @@ fn primary_worded(ui: &mut egui::Ui, text: &str) -> egui::Response {
 /// A text field with a name a screen reader says.
 fn field(ui: &mut egui::Ui, label: &str, text: &mut String, width: f32) -> egui::Response {
     let name = ui.label(label);
-    ui.scope(|ui| {
-        selection_seen(ui);
-        ui.add(egui::TextEdit::singleline(text).desired_width(width))
-    })
-    .inner
-    .labelled_by(name.id)
+    // The look's focus frame, kept before the selection colours change:
+    // the field draws its focused frame in the selection's stroke, which
+    // `selection_seen` turns the colour of selected words — white on the
+    // dialog's white, so a field focused on open had no frame at all (gap
+    // 165). It is drawn again over the field in the look's own colour.
+    let ring = ui.visuals().selection.stroke;
+    let corner = ui.visuals().widgets.inactive.corner_radius;
+    let field = ui
+        .scope(|ui| {
+            selection_seen(ui);
+            ui.add(egui::TextEdit::singleline(text).desired_width(width))
+        })
+        .inner
+        .labelled_by(name.id);
+    if field.has_focus() {
+        ui.painter()
+            .rect_stroke(field.rect, corner, ring, egui::StrokeKind::Inside);
+    }
+    field
 }
 
 /// Selected text drawn in the list's selection colours, which read on a
@@ -856,6 +869,11 @@ fn selection_seen(ui: &mut egui::Ui) {
 /// middle, and the whole dialog jumped (gap 160). Two lines, which is what
 /// the dialogs' warnings take at their widths.
 fn warning_line(ui: &mut egui::Ui, says: &str) {
+    kept_line(ui, RichText::new(says).color(WARN));
+}
+
+/// [`warning_line`]'s room, holding any words.
+fn kept_line(ui: &mut egui::Ui, says: RichText) {
     let line = ui.text_style_height(&egui::TextStyle::Body);
     let room = line * 2.0 + ui.spacing().item_spacing.y;
     // As wide as what is above it: the room it could have would widen
@@ -863,8 +881,8 @@ fn warning_line(ui: &mut egui::Ui, says: &str) {
     let width = ui.min_rect().width().max(160.0);
     ui.allocate_ui(egui::vec2(width, room), |ui| {
         ui.set_min_size(egui::vec2(width, room));
-        if !says.is_empty() {
-            ui.add(egui::Label::new(RichText::new(says).color(WARN)).wrap());
+        if !says.text().is_empty() {
+            ui.add(egui::Label::new(says).wrap());
         }
     });
 }
@@ -1156,46 +1174,72 @@ fn confirm_exit(app: &mut DmApp, ctx: &egui::Context) {
     if !app.dialogs.confirm_exit {
         return;
     }
-    let running = app.downloading();
-    // Finished meanwhile: nothing is left to ask about.
-    if running == 0 {
-        app.dialogs.confirm_exit = false;
-        app.quit_asked = true;
-        return;
-    }
     let (mut exit, mut stay) = (false, false);
     // Running and waiting counted apart: a queued row is not running, and
     // counting it as one told of downloads that were not (gap 157).
     let (busy, waiting) = app.running_and_waiting();
+    let mut said = Vec::new();
+    // Finished meanwhile: the question changes, and dm still waits for the
+    // person's answer. It used to quit by itself in the first frame that
+    // counted nothing running, so a person reading the question, or
+    // reaching for "Keep downloading", saw dm vanish (gap 163). Only Exit
+    // quits.
+    let finished = busy + waiting == 0;
+    if finished {
+        said.push(t("Nothing is downloading any more. Exit dm?").to_string());
+    }
+    if busy > 0 {
+        said.push(crate::i18n::tn(
+            "{} download is still running.||{} downloads are still running.",
+            busy as u64,
+            &[&busy],
+        ));
+    }
+    if waiting > 0 && busy > 0 {
+        said.push(crate::i18n::tn(
+            "{} more is waiting to start.||{} more are waiting to start.",
+            waiting as u64,
+            &[&waiting],
+        ));
+    } else if waiting > 0 {
+        said.push(crate::i18n::tn(
+            "{} download is waiting to start.||{} downloads are waiting to start.",
+            waiting as u64,
+            &[&waiting],
+        ));
+    }
+    if !finished {
+        // As plural as the count it speaks of (gap 164).
+        said.push(crate::i18n::tn(
+            "Exiting stops it; it goes on from where it was the next time dm opens.||Exiting stops them; each goes on from where it was the next time dm opens.",
+            (busy + waiting) as u64,
+            &[],
+        ));
+    }
     window("Exit dm?").show(ctx, |ui| {
-        let mut said = Vec::new();
-        if busy > 0 {
-            said.push(crate::i18n::tn(
-                "{} download is still running.||{} downloads are still running.",
-                busy as u64,
-                &[&busy],
-            ));
-        }
-        if waiting > 0 && busy > 0 {
-            said.push(crate::i18n::tn(
-                "{} more is waiting to start.||{} more are waiting to start.",
-                waiting as u64,
-                &[&waiting],
-            ));
-        } else if waiting > 0 {
-            said.push(crate::i18n::tn(
-                "{} download is waiting to start.||{} downloads are waiting to start.",
-                waiting as u64,
-                &[&waiting],
-            ));
-        }
-        said.push(
-            t("Exiting stops them; each goes on from where it was the next time dm opens.").into(),
+        // One width and room for three lines whatever the words say: a
+        // download finishing while the question is open changes them, and
+        // a window that shrank around shorter words moved its buttons —
+        // Exit slid under a pointer on its way to "Keep downloading".
+        ui.set_width(EXIT_WIDTH);
+        let lines =
+            ui.text_style_height(&egui::TextStyle::Body) * 3.0 + ui.spacing().item_spacing.y * 2.0;
+        ui.allocate_ui_with_layout(
+            egui::vec2(EXIT_WIDTH, lines),
+            egui::Layout::top_down(egui::Align::Min),
+            |ui| {
+                ui.set_min_height(lines);
+                ui.add(egui::Label::new(said.join(" ")).wrap());
+            },
         );
-        ui.label(said.join(" "));
         ui.horizontal(|ui| {
             exit = primary(ui, "Exit").clicked();
-            stay = ui.button(t("Keep downloading")).clicked();
+            let keep = if finished {
+                t("Stay")
+            } else {
+                t("Keep downloading")
+            };
+            stay = ui.button(keep).clicked();
         });
     });
     if exit {
@@ -1205,6 +1249,9 @@ fn confirm_exit(app: &mut DmApp, ctx: &egui::Context) {
         app.dialogs.confirm_exit = false;
     }
 }
+
+/// The Exit question's width, held whatever its words say.
+const EXIT_WIDTH: f32 = 440.0;
 
 /// Asked after two handed-over downloads from one site were cancelled in a
 /// row: whether to leave that site's downloads to the browser from now on,
@@ -1618,16 +1665,22 @@ fn file_info(app: &mut DmApp, ctx: &egui::Context) {
                 if primary(ui, "Start now").clicked() || enter_free(ui) {
                     chosen = Some(false);
                 }
+                // Read as one phrase: "Add for later to Main queue ▾"; the
+                // queue's name used to sit between the button and an "into"
+                // after it (gap 168).
                 if ui.button(t("Add for later")).clicked() {
                     chosen = Some(true);
                 }
-                egui::ComboBox::from_label(t("into"))
+                let to = ui.label(t("to"));
+                egui::ComboBox::from_id_salt("details-queue")
                     .selected_text(crate::i18n::name(&d.queue))
                     .show_ui(ui, |ui| {
                         for q in &queues {
                             ui.selectable_value(&mut d.queue, q.clone(), crate::i18n::name(q));
                         }
-                    });
+                    })
+                    .response
+                    .labelled_by(to.id);
                 cancel = ui.button(t("Cancel")).clicked();
             });
         });
@@ -1668,7 +1721,16 @@ fn file_info(app: &mut DmApp, ctx: &egui::Context) {
         cookies: d.cookies.clone(),
     };
     let urls = d.urls.clone();
-    match app.add(&urls, with) {
+    // The size the dialog showed stays on the row until the row learns its
+    // own: a row added for later had none to show (gap 167).
+    let sizes: HashMap<String, u64> = urls
+        .first()
+        .zip(size)
+        .filter(|_| urls.len() == 1)
+        .map(|(url, size)| (url.clone(), size))
+        .into_iter()
+        .collect();
+    match app.add_sized(&urls, with, &sizes) {
         Ok(_) => {
             app.dialogs.file_info = None;
             // Start now while the schedule or the download limit holds
@@ -1702,6 +1764,11 @@ fn progress(app: &mut DmApp, ctx: &egui::Context) {
         // window too tall scrolls rather than running off the bottom.
         let screen = ctx.content_rect();
         let room = (screen.width() - 48.0).clamp(300.0, 560.0);
+        let mut below_menu = screen;
+        below_menu.min.y = app
+            .menu_bottom
+            .max(screen.top())
+            .min(screen.bottom() - 120.0);
         egui::Window::new(tf(
             "Download progress — {}",
             &[&crate::bidi::visual(&name_of(&row))],
@@ -1709,7 +1776,9 @@ fn progress(app: &mut DmApp, ctx: &egui::Context) {
         .id(egui::Id::unique(("progress", id)))
         .collapsible(false)
         .resizable(false)
-        .constrain(true)
+        // Below the menu bar, which it opened over and hid (gap 168).
+        .constrain_to(below_menu)
+        .default_pos(below_menu.left_top() + egui::vec2(24.0, 24.0))
         .default_width(room.min(460.0))
         .min_width(room.min(460.0))
         .max_width(room)
@@ -1802,8 +1871,20 @@ fn progress(app: &mut DmApp, ctx: &egui::Context) {
                             // work, and the rest is a count.
                             let span_of =
                                 |c: &dm_core::Connection| (c.end - c.start).saturating_add(1);
-                            let finished =
-                                connections.iter().filter(|c| c.done >= span_of(c)).count();
+                            // Each held to its range and adding up to the
+                            // Downloaded above (gap 166).
+                            let held = format::pieces_shown(
+                                &connections
+                                    .iter()
+                                    .map(|c| (span_of(c), c.done))
+                                    .collect::<Vec<_>>(),
+                                p.downloaded,
+                            );
+                            let finished = connections
+                                .iter()
+                                .zip(&held)
+                                .filter(|(c, &done)| done >= span_of(c))
+                                .count();
                             if !connections.is_empty() {
                                 ui.label(
                                     RichText::new(tf(
@@ -1817,16 +1898,16 @@ fn progress(app: &mut DmApp, ctx: &egui::Context) {
                             // their bars, the rest said to be waiting or
                             // done, so the list does not grow and shrink as
                             // connections start (gap 160).
-                            for (n, c) in connections.iter().enumerate() {
+                            for (n, (c, &done)) in connections.iter().zip(&held).enumerate() {
                                 let span = span_of(c);
                                 ui.horizontal(|ui| {
                                     ui.label(format!("{:>3}", n + 1));
-                                    if c.done >= span {
+                                    if done >= span {
                                         ui.label(
                                             RichText::new(tf("done, {}", &[&format::bytes(span)]))
                                                 .weak(),
                                         );
-                                    } else if c.done == 0 && row.state == State::Running {
+                                    } else if done == 0 && row.state == State::Running {
                                         ui.label(
                                             RichText::new(tf(
                                                 "waiting, {}",
@@ -1837,11 +1918,11 @@ fn progress(app: &mut DmApp, ctx: &egui::Context) {
                                     } else {
                                         bar(
                                             ui,
-                                            c.done as f32 / span.max(1) as f32,
+                                            done as f32 / span.max(1) as f32,
                                             260.0,
                                             &tf(
                                                 "{} of {}",
-                                                &[&format::bytes(c.done), &format::bytes(span)],
+                                                &[&format::bytes(done), &format::bytes(span)],
                                             ),
                                         );
                                     }
@@ -2232,17 +2313,27 @@ fn series(app: &mut DmApp, ctx: &egui::Context) {
                 ui.add(egui::DragValue::new(&mut d.width).range(0..=9))
                     .labelled_by(name.id);
             });
+            // One line, its room kept whether or not it says anything, so
+            // the dialog does not jump as it starts to; and nothing said
+            // about the range until both its ends are typed (gap 165).
+            let typed = !d.template.trim().is_empty()
+                && !d.from.trim().is_empty()
+                && !d.to.trim().is_empty();
+            let mut warn = d.says.clone();
+            let mut count = String::new();
             match dm_shell::lists::series(&d.template, &d.from, &d.to, d.width) {
                 Ok(urls) => {
-                    ui.label(tf("{} addresses, the first {}", &[&urls.len(), &urls[0]]));
+                    if let Some(first) = urls.first() {
+                        count = tf("{} addresses, the first {}", &[&urls.len(), first]);
+                    }
                 }
-                Err(e) if !d.template.is_empty() => {
-                    ui.colored_label(WARN, e);
-                }
+                Err(e) if typed && warn.is_empty() => warn = series_error(e).to_string(),
                 Err(_) => {}
             }
-            if !d.says.is_empty() {
-                ui.colored_label(WARN, &d.says);
+            if warn.is_empty() {
+                kept_line(ui, RichText::new(count));
+            } else {
+                warning_line(ui, &warn);
             }
             ui.horizontal(|ui| {
                 if primary(ui, "Start now").clicked() || enter || enter_free(ui) {
@@ -2283,7 +2374,18 @@ fn series(app: &mut DmApp, ctx: &egui::Context) {
                 Err(e) => d_says(&mut app.dialogs.series, e),
             }
         }
-        Err(e) => d.says = e,
+        Err(e) => d.says = series_error(e).to_string(),
+    }
+}
+
+/// Why a series cannot be made, in the language in force.
+fn series_error(e: dm_shell::lists::SeriesError) -> &'static str {
+    use dm_shell::lists::SeriesError;
+    match e {
+        SeriesError::Star => t("The address needs exactly one * to fill in."),
+        SeriesError::Backwards => t("The range runs backwards."),
+        SeriesError::TooMany => t("Ten thousand addresses is more than a batch."),
+        SeriesError::Ends => t("From and To must both be numbers, or both letters of one case."),
     }
 }
 
@@ -2458,6 +2560,13 @@ fn clip_links(app: &mut DmApp, ctx: &egui::Context) {
     window("Links on the clipboard")
         .open(&mut open)
         .show(ctx, |ui| {
+            // How many were found, and how many are ticked (gap 168).
+            let ticked = links.iter().filter(|l| l.1).count();
+            ui.label(crate::i18n::tn(
+                "Found {} link; {} ticked.||Found {} links; {} ticked.",
+                links.len() as u64,
+                &[&links.len(), &ticked],
+            ));
             pick_list(ui, links);
             ui.separator();
             ui.horizontal(|ui| {
@@ -2884,7 +2993,7 @@ fn limiter(app: &mut DmApp, ctx: &egui::Context) {
         // Download limits, for a link with a fair-use
         // allowance: downloads are held once it is used and go on after.
         ui.horizontal(|ui| {
-            let name = ui.label(t("Download no more than, MB (0 for no limit)"));
+            let name = ui.label(t("Download at most this many MB (0 for no limit)"));
             let mb_field = ui
                 .add(
                     egui::DragValue::new(mb)
@@ -2896,7 +3005,7 @@ fn limiter(app: &mut DmApp, ctx: &egui::Context) {
             apply |= entered(&mb_field);
         });
         ui.horizontal(|ui| {
-            let name = ui.label(t("every, hours"));
+            let name = ui.label(t("in each period of this many hours"));
             let hours_field = ui
                 .add(egui::DragValue::new(hours).range(1..=24 * 31))
                 .labelled_by(name.id);
