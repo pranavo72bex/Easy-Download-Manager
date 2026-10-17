@@ -20,7 +20,10 @@ fn main() {
         "scorecard" => write_scorecard(),
         "layers" => layers().map(|()| "the crates are layered as they should be".to_string()),
         "privacy" => privacy().map(|()| "nothing phones home".to_string()),
-        _ => Err("usage: cargo xtask <scorecard|layers|privacy>".to_string()),
+        "parity" => {
+            parity_evidence().map(|()| "every test docs/parity.md cites exists".to_string())
+        }
+        _ => Err("usage: cargo xtask <scorecard|layers|privacy|parity>".to_string()),
     };
     match result {
         Ok(said) => println!("{said}"),
@@ -432,9 +435,59 @@ fn walk(dir: &Path) -> Vec<PathBuf> {
     found
 }
 
+/// Every test a row of `docs/parity.md` names as its evidence still exists:
+/// a renamed test left rows citing nothing, and one that described the
+/// opposite of what dm now does. A name is a backticked word of 26 or more
+/// letters, digits and underscores, which is how the rows name tests.
+fn parity_evidence() -> Result<(), String> {
+    let parity = read(&root().join("docs/parity.md"))?;
+    let mut code = String::new();
+    for dir in ["desktop/crates", "browser/src", "browser/tests", "scripts"] {
+        for file in walk(&root().join(dir)) {
+            code.push_str(&std::fs::read_to_string(&file).unwrap_or_default());
+        }
+        // Scripts are Python and shell, which `walk` passes over.
+        if dir == "scripts" {
+            if let Ok(entries) = std::fs::read_dir(root().join(dir)) {
+                for entry in entries.flatten() {
+                    code.push_str(&std::fs::read_to_string(entry.path()).unwrap_or_default());
+                }
+            }
+        }
+    }
+    let missing: Vec<&str> = parity
+        .split('`')
+        .skip(1)
+        .step_by(2)
+        .filter(|name| {
+            name.len() >= 26
+                && name
+                    .chars()
+                    .all(|c| c.is_ascii_lowercase() || c.is_ascii_digit() || c == '_')
+        })
+        .filter(|name| {
+            !code.contains(&format!("fn {name}")) && !code.contains(&format!("def {name}"))
+        })
+        .collect();
+    if missing.is_empty() {
+        Ok(())
+    } else {
+        Err(format!(
+            "docs/parity.md cites tests that do not exist: {missing:?}"
+        ))
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn the_parity_rows_cite_tests_that_exist() {
+        if let Err(why) = parity_evidence() {
+            panic!("{why}");
+        }
+    }
 
     #[test]
     fn the_scorecard_is_up_to_date() {

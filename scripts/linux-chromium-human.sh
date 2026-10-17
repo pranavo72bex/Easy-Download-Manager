@@ -6,6 +6,7 @@
 #   sh scripts/linux-chromium-human.sh          # screenshots into ./human-shots
 #   DM_SHOTS=/some/folder sh scripts/linux-chromium-human.sh
 #   DM_DISTRO=fedora sh scripts/linux-chromium-human.sh   # or arch
+#   DM_DISTRO=edge sh scripts/linux-chromium-human.sh     # Microsoft Edge
 #
 # Runs scripts/chromium-human.py under Xvfb with a window manager (openbox),
 # xdotool and the accessibility bus: dm opened with its window, Chromium
@@ -24,12 +25,15 @@ cd "$(dirname "$0")/.."
 # DM_DISTRO runs the same check in Fedora 41's or Arch's own image with the
 # distribution's own Chromium, dm built here in Debian and copied in
 # (scripts/linux/human-distro.sh). Not Ubuntu: its Chromium is a snap, and
-# snapd does not run in a container.
+# snapd does not run in a container. DM_DISTRO=edge is Debian 12 with
+# Microsoft Edge from Microsoft's repository instead of Chromium, x86_64
+# only (under emulation on arm64), and runs chrome-check.py with Edge after
+# the real-input check (DM_EDGE_CHROME_CHECK=0 skips that).
 case "${DM_DISTRO:-debian}" in
   debian) ;;
-  fedora|arch) exec sh scripts/linux/human-distro.sh chromium "$DM_DISTRO" ;;
+  fedora|arch|edge) exec sh scripts/linux/human-distro.sh chromium "$DM_DISTRO" ;;
   ubuntu*) echo "Ubuntu's Chromium is a snap, which cannot run in a container: not checked there"; exit 2 ;;
-  *) echo "DM_DISTRO is debian, fedora or arch"; exit 2 ;;
+  *) echo "DM_DISTRO is debian, fedora, arch or edge"; exit 2 ;;
 esac
 [ -f dist/chrome/pkg/dm_catcher_bg.wasm ] || { echo "no dist/chrome — run: sh scripts/package.sh"; exit 1; }
 SHOTS="${DM_SHOTS:-$PWD/human-shots}"

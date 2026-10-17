@@ -407,8 +407,13 @@ class Server(socketserver.ThreadingMixIn, http.server.HTTPServer):
 # ------------------------------------------------------------- the check
 
 
+# Under emulation (Edge for x86_64 on an arm64 machine, human-distro.sh)
+# everything takes several times as long: DM_SLOW multiplies every wait.
+SLOW = float(os.environ.get("DM_SLOW") or 1)
+
+
 def wait_for(probe, seconds):
-    deadline = time.time() + seconds
+    deadline = time.time() + seconds * SLOW
     while time.time() < deadline:
         value = probe()
         if value:

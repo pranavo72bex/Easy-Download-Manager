@@ -37,6 +37,14 @@ EXT = ROOT / "dist" / "chrome"
 BINARY = pathlib.Path(os.environ.get("DM_BINARY", "/target/debug/dm-desktop"))
 CHROMIUM = os.environ.get("CHROMIUM", "/usr/bin/chromium")
 SHOTS = pathlib.Path(os.environ.get("DM_SHOTS") or tempfile.mkdtemp(prefix="dm-human-shots-"))
+# Microsoft Edge (DM_DISTRO=edge) is Chromium under another name: its
+# profile is ~/.config/microsoft-edge (where `dm-desktop --register` puts
+# Edge's host manifest), its windows' class is microsoft-edge, and it is
+# "Microsoft Edge" on the accessibility bus.
+EDGE = "microsoft-edge" in CHROMIUM
+NAME = "Edge" if EDGE else "Chromium"
+PROFILE_DIR = "microsoft-edge" if EDGE else "chromium"
+APP = "edge" if EDGE else "chromium"
 
 spec = importlib.util.spec_from_file_location("chrome_check", ROOT / "scripts" / "chrome-check.py")
 common = importlib.util.module_from_spec(spec)
@@ -210,7 +218,7 @@ print(json.dumps({"at": found[0] if found else None, "apps": apps, "seen": seen[
 
 def accessible(app, role, name, prefix=False, dump=False):
     out = x(sys.executable, "-c", WHERE, app, role, name, "1" if prefix else "0", "1" if dump else "0",
-            timeout=60).stdout.strip().splitlines()
+            timeout=60 * common.SLOW).stdout.strip().splitlines()
     try:
         return json.loads(out[-1]) if out else {}
     except ValueError:
@@ -260,7 +268,7 @@ def dm_window():
 def chromium_window():
     """The browser's window: the largest of Chromium's visible ones (its
     menus and bubbles are windows too)."""
-    found = [(geometry(w), w) for w in windows("--class", "chromium")]
+    found = [(geometry(w), w) for w in windows("--class", PROFILE_DIR)]
     found = [(g.get("WIDTH", 0) * g.get("HEIGHT", 0), w) for g, w in found]
     return max(found)[1] if found else None
 
@@ -422,7 +430,7 @@ def main():
     SHOTS.mkdir(parents=True, exist_ok=True)
     work = pathlib.Path(tempfile.mkdtemp(prefix="dm-human-"))
     home, dm_home = work / "home", work / "dm-home"
-    profile = home / ".config" / "chromium"
+    profile = home / ".config" / PROFILE_DIR
     dm_dl, browser_dl = work / "dm-downloads", work / "browser-downloads"
     for d in (profile / "Default", dm_home, dm_dl, browser_dl):
         d.mkdir(parents=True)
@@ -449,7 +457,7 @@ def main():
     print("dm, opened with its window, and registered with the browser")
     registered = subprocess.run([str(BINARY), "--register"], env=env, capture_output=True, text=True, timeout=30)
     manifest = profile / "NativeMessagingHosts" / "com.dm.engine.json"
-    check("`dm-desktop --register` writes Chromium's host manifest", manifest.exists(),
+    check(f"`dm-desktop --register` writes {NAME}'s host manifest", manifest.exists(),
           (registered.stdout + registered.stderr).strip()[:300])
     app = subprocess.Popen([str(BINARY), "--control", "0"], env=env, stdout=subprocess.DEVNULL,
                            stderr=open(work / "dm-stderr.txt", "wb"))
@@ -474,7 +482,7 @@ def main():
         base = common.devtools(profile)
         worker_t = wait_for(lambda: next((t for t in common.targets(base) if t["type"] == "service_worker"
                                           and t["url"].endswith("/background.js")), None), 30)
-        if not check("Chromium starts with the extension's worker running", worker_t):
+        if not check(f"{NAME} starts with the extension's worker running", worker_t):
             return
         worker = common.Target(worker_t["webSocketDebuggerUrl"])
         wait_for(lambda: worker.evaluate("typeof dmReady") == "object", 15)
@@ -516,10 +524,10 @@ def main():
         at = pointer_to(tab, rect_of("[id='menu.zip']"))
         if at:
             x("xdotool", "click", "3")
-        item = wait_for(lambda: where("chromium", "menu item", "Download link with dm"), 10)
+        item = wait_for(lambda: where(APP, "menu item", "Download link with dm"), 10)
         shoot("2-context-menu", tab)
         if not item:
-            seen = accessible("chromium", "menu item", "-", dump=True)
+            seen = accessible(APP, "menu item", "-", dump=True)
             print(f"        AT-SPI apps {seen.get('apps')}; menu items seen: "
                   f"{[s for s in seen.get('seen', []) if s.startswith('menu')][:30]}")
         check("2. the browser's context menu offers 'Download link with dm'", item)
@@ -637,12 +645,12 @@ def main():
         print("\n6. the toolbar popup: 'Catch downloads' switched off")
         front(chromium_window())
         x("xdotool", "key", "Escape")
-        button = click_control("chromium", "push button", "Extensions", seconds=10)
+        button = click_control(APP, "push button", "Extensions", seconds=10)
         if not button:
-            seen = accessible("chromium", "push button", "-", dump=True)
+            seen = accessible(APP, "push button", "-", dump=True)
             print(f"        AT-SPI apps {seen.get('apps')}; buttons seen: "
                   f"{[s for s in seen.get('seen', []) if 'button' in s][:40]}")
-        entry = button and wait_for(lambda: where("chromium", "*", "dm — Download Manager"), 10)
+        entry = button and wait_for(lambda: where(APP, "*", "dm — Download Manager"), 10)
         shoot("6-extensions-menu", tab)
         if entry:
             press(entry)

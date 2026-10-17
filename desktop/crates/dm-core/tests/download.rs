@@ -878,12 +878,23 @@ fn bytes_under_once(
             Ok(kind) if kind.is_dir() => total += bytes_under_once(&entry.path(), seen),
             _ => {
                 let Ok(meta) = entry.metadata() else { continue };
+                // What a file is on disk: its device and inode where the
+                // system says, its path elsewhere (a rename moves it, so a
+                // walk there can still count a moving file twice).
                 #[cfg(unix)]
-                {
+                let key = {
                     use std::os::unix::fs::MetadataExt;
-                    if !seen.insert((meta.dev(), meta.ino())) {
-                        continue;
-                    }
+                    (meta.dev(), meta.ino())
+                };
+                #[cfg(not(unix))]
+                let key = {
+                    use std::hash::{Hash, Hasher};
+                    let mut h = std::collections::hash_map::DefaultHasher::new();
+                    entry.path().hash(&mut h);
+                    (0, h.finish())
+                };
+                if !seen.insert(key) {
+                    continue;
                 }
                 total += meta.len();
             }

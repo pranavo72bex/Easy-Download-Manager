@@ -201,6 +201,18 @@ It appears in dm instead of in the browser, and downloads there.
 
 ## Uninstall
 
+First tell your browsers dm is going, and remove its login item (Start on
+login), so nothing is left pointing at a program that is not there. Quit dm,
+then run:
+
+- **Windows:** `"%LOCALAPPDATA%\dm\dm-desktop.exe" --unregister`
+- **Mac:** `/Applications/dm.app/Contents/MacOS/dm-desktop --unregister`
+- **Ubuntu / Debian (.deb):** `dm-desktop --unregister`
+- **Fedora / openSUSE / Arch:** `dm --unregister`
+- **AppImage:** `/path/to/dm.AppImage --unregister`
+
+It says each thing it removed. Then remove the app:
+
 - **Windows:** Settings → Apps → **dm** → Uninstall.
 - **Mac:** drag **dm** from Applications to the Bin.
 - **Ubuntu / Debian:** `sudo apt remove dm`.
@@ -208,6 +220,13 @@ It appears in dm instead of in the browser, and downloads there.
 - **Arch:** `sudo pacman -R dm`.
 - **AppImage:** delete the file.
 - **Extension:** remove it from your browser's extensions page.
+
+Your settings, the download list and its history stay in dm's own folder,
+in case you install it again. Delete that folder too if you want them gone:
+
+- **Windows:** `%LOCALAPPDATA%\dm-engine`
+- **Mac:** `~/Library/Application Support/dm-engine`
+- **Linux:** `~/.local/share/dm-engine`
 
 ## Use it responsibly
 

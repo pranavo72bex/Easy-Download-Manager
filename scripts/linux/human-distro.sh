@@ -3,7 +3,7 @@
 # linux-chromium-human.sh and linux-firefox-check.sh run when DM_DISTRO
 # names one.
 #
-#   sh scripts/linux/human-distro.sh chromium fedora|arch
+#   sh scripts/linux/human-distro.sh chromium fedora|arch|edge
 #   sh scripts/linux/human-distro.sh firefox ubuntu2204|fedora
 #
 # dm is built once, in the Debian image, into the dm-linux-target volume, as
@@ -27,12 +27,23 @@ esac
 [ -f scripts/linux/Dockerfile.human-$distro ] || { echo "no image for $distro (scripts/linux/Dockerfile.human-$distro)"; exit 2; }
 [ -f $dist/pkg/dm_catcher_bg.wasm ] || { echo "no $dist — run: sh scripts/package.sh"; exit 1; }
 SHOTS="${DM_SHOTS:-$PWD/human-shots/$browser-$distro}"
+# Microsoft Edge (distro "edge": Debian 12 with Edge from Microsoft's
+# repository) is published for x86_64 only, so dm is built for amd64 too,
+# in that platform's own image and volume (as DM_PLATFORM=linux/amd64 in
+# linux-check.sh), and everything runs under emulation on an arm64 machine.
+# Emulation is slow: DM_SLOW multiplies the checks' waits (chrome-check.py's
+# wait_for), 1 elsewhere.
+platform= suffix= slow="${DM_SLOW:-1}"
+if [ "$distro" = edge ]; then
+  platform=linux/amd64 suffix=-linux-amd64
+  case "$(uname -m)" in x86_64|amd64) ;; *) slow="${DM_SLOW:-4}" ;; esac
+fi
 stream() { { git ls-files -z --cached --others --exclude-standard; find $dist -type f -print0; } | tar --null -T - -cf -; }
 
 echo "== dm, built in the Debian image"
-docker build -q -t dm-linux-check scripts/linux >/dev/null
-stream | docker run --rm -i -v dm-linux-target:/target \
-  -v "$HOME/.cargo/registry":/usr/local/cargo/registry dm-linux-check sh -c '
+docker build -q ${platform:+--platform $platform} -t dm-linux-check$suffix scripts/linux >/dev/null
+stream | docker run --rm -i ${platform:+--platform $platform} -v dm-linux-target$suffix:/target \
+  -v "$HOME/.cargo/registry":/usr/local/cargo/registry dm-linux-check$suffix sh -c '
     set -e; mkdir -p /work && cd /work && tar -xf -
     cd desktop && cargo build -q -p dm-desktop'
 
@@ -41,16 +52,17 @@ base=
 # Arch's own images are x86_64; on arm64, Arch Linux ARM, as arch-check.sh.
 [ "$distro" = arch ] && [ "$(uname -m)" = arm64 -o "$(uname -m)" = aarch64 ] && base=menci/archlinuxarm:base-devel
 image="dm-human-$distro-$browser"
-docker build -q -t "$image" --build-arg BROWSER="$browser" ${base:+--build-arg BASE=$base} \
+docker build -q ${platform:+--platform $platform} -t "$image" --build-arg BROWSER="$browser" ${base:+--build-arg BASE=$base} \
   -f scripts/linux/Dockerfile.human-$distro scripts/linux >/dev/null
 volume="dm-human-shots-$browser-$distro"
 status=0
-stream | docker run --rm -i -e DM_LIVE_PAGE="${DM_LIVE_PAGE:-}" \
-  -v dm-linux-target:/target:ro -v "$volume":/shots \
+stream | docker run --rm -i ${platform:+--platform $platform} \
+  -e DM_LIVE_PAGE="${DM_LIVE_PAGE:-}" -e DM_SLOW="$slow" -e DM_EDGE_CHROME_CHECK="${DM_EDGE_CHROME_CHECK:-1}" \
+  -v dm-linux-target$suffix:/target:ro -v "$volume":/shots \
   $([ "$browser" = firefox ] && echo -v dm-firefox-cache:/root/.cache/dm-firefox) \
   "$image" sh -c "set -e; mkdir -p /work && cd /work && tar -xf - && sh scripts/linux/human-session.sh $browser" \
   || status=$?
 rm -rf "$SHOTS" && mkdir -p "$SHOTS"
-docker run --rm -v "$volume":/shots "$image" tar -C /shots -cf - . | tar -xf - -C "$SHOTS"
+docker run --rm ${platform:+--platform $platform} -v "$volume":/shots "$image" tar -C /shots -cf - . | tar -xf - -C "$SHOTS"
 echo "screenshots: $SHOTS"
 exit $status
