@@ -141,8 +141,8 @@ desktop/target/release/dm-desktop --register  # from a copy outside ~/Downloads 
 
 **Firefox** — `about:debugging#/runtime/this-firefox`, **Load Temporary
 Add-on** → `dist/firefox/manifest.json`. A temporary add-on is removed when
-Firefox closes; a permanent install needs the zip signed through
-addons.mozilla.org.
+Firefox closes. People install the released extension from
+[Firefox Add-ons](https://addons.mozilla.org/en-US/firefox/addon/dm-download-manager/).
 
 On macOS the client must not be registered from `~/Downloads`, `~/Desktop`
 or `~/Documents`: a browser is not allowed to run a program from those, and
