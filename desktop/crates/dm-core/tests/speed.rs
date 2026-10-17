@@ -285,3 +285,79 @@ async fn a_server_that_refuses_extra_connections_still_gets_the_file_whole() {
     );
     println!("8 connections against a 3-at-once server: finished whole; {refused} requests refused with 429");
 }
+
+/// Under a speed limit the shown speed is the limit, from the first second
+/// on (gap 112). A person watching a 500 KB/s ceiling saw about 1 MB/s for
+/// the first ten to twenty seconds of a start or a resume, and an ETA half
+/// what it was, while the file grew at 500 KB/s.
+#[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+async fn the_shown_speed_keeps_to_the_limit_from_the_first_second() {
+    const LIMIT: u64 = 500 * 1024;
+    const FILE: usize = 3 * 1024 * 1024;
+    let data: Arc<Vec<u8>> = Arc::new((0..FILE).map(|i| i as u8).collect());
+    let served = data.clone();
+    let app = axum::Router::new().route(
+        "/limited.bin",
+        get(move |headers: HeaderMap| {
+            let data = served.clone();
+            async move {
+                let (a, b) = headers
+                    .get("range")
+                    .and_then(|v| v.to_str().ok())
+                    .and_then(|v| v.strip_prefix("bytes="))
+                    .and_then(|v| v.split_once('-'))
+                    .map(|(a, b)| {
+                        let a: usize = a.parse().unwrap();
+                        (a, b.parse::<usize>().unwrap_or(FILE - 1).min(FILE - 1))
+                    })
+                    .unwrap_or((0, FILE - 1));
+                Response::builder()
+                    .status(206)
+                    .header("accept-ranges", "bytes")
+                    .header("content-length", b - a + 1)
+                    .header("content-range", format!("bytes {a}-{b}/{FILE}"))
+                    .body(Body::from(data[a..=b].to_vec()))
+                    .unwrap()
+            }
+        }),
+    );
+    let addr = serve(app).await;
+    let dir = tempdir();
+    let mut opts = options(dir.path());
+    opts.limiter = dm_core::Limiter::new(LIMIT);
+
+    let (tx, mut rx) = tokio::sync::mpsc::channel(1024);
+    let started = Instant::now();
+    let watching = tokio::spawn(async move {
+        let mut seen = Vec::new();
+        while let Some(update) = rx.recv().await {
+            if let dm_core::Update::Progress(p) = update {
+                seen.push((started.elapsed(), p.speed, p.downloaded));
+            }
+        }
+        seen
+    });
+    let url = format!("http://{addr}/limited.bin");
+    let done = dm_core::download_reporting(&client(), &url, &opts, Some(tx))
+        .await
+        .expect("the download failed");
+    assert_eq!(std::fs::read(&done.path).unwrap(), *data);
+    let seen = watching.await.unwrap();
+
+    let limit = LIMIT as f64;
+    let late: Vec<_> = seen
+        .iter()
+        // After the first second, and before the last sample, which
+        // reports however short a final interval was.
+        .filter(|(at, _, downloaded)| *at > Duration::from_secs(1) && *downloaded < FILE as u64)
+        .collect();
+    assert!(late.len() > 5, "too few samples: {seen:?}");
+    for (at, speed, _) in &late {
+        assert!(
+            (speed - limit).abs() <= limit * 0.1,
+            "at {at:?} the speed shown was {:.0} KB/s under a {} KB/s limit: {seen:?}",
+            speed / 1024.0,
+            LIMIT / 1024
+        );
+    }
+}

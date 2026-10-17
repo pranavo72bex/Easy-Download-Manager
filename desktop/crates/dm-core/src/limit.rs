@@ -28,6 +28,14 @@ use tokio::time::Instant;
 /// quarter of a second.
 const SLICE: Duration = Duration::from_millis(250);
 
+/// The most a counting `take` lets through at a time.
+///
+/// A connection reads whatever the socket holds, which on a fast link is a
+/// quarter of a megabyte at once. Counted whole as it arrived, eight
+/// connections each had a chunk counted before the ceiling had let any of
+/// it through, and the shown speed ran at twice the limit for seconds.
+const PIECE: u64 = 16 * 1024;
+
 /// A shared rate ceiling. Cheap to clone; every clone shares one budget.
 #[derive(Clone)]
 pub struct Limiter {
@@ -171,6 +179,30 @@ impl Limiter {
             if self.inner.lock().await.generation != generation {
                 return;
             }
+        }
+    }
+}
+
+impl Limiter {
+    /// Waits until `bytes` are within the ceiling, adding them to `counted`
+    /// a piece at a time as the ceiling lets each through.
+    ///
+    /// For a byte count that is shown as progress: the count then rises at
+    /// the rate the ceiling allows, which is the rate people are told, not
+    /// at the rate the socket happened to fill (gap 112). `through` says how
+    /// much of `bytes` was counted, for a caller whose wait was cut short by
+    /// a pause or a cancel and who must count the rest itself.
+    pub async fn take_counting(&self, bytes: u64, counted: &AtomicU64, through: &mut u64) {
+        if self.rate.load(Ordering::Acquire) == 0 {
+            counted.fetch_add(bytes, Ordering::Relaxed);
+            *through = bytes;
+            return;
+        }
+        while *through < bytes {
+            let piece = (bytes - *through).min(PIECE);
+            self.take(piece).await;
+            counted.fetch_add(piece, Ordering::Relaxed);
+            *through += piece;
         }
     }
 }

@@ -146,10 +146,14 @@ pub fn first_look(item: &DownloadItem, own_id: &str) -> Result<Catchable, &'stat
     {
         return Err("started by dm itself");
     }
-    match item.state.as_deref() {
-        Some("complete") => return Err("already finished, usually from the cache"),
-        Some("interrupted") => return Err("already stopped"),
-        _ => {}
+    // A finished one is still a candidate. Chromium completes a small file
+    // served fast, a PDF above all, before it can be held: three of four
+    // 300 KB PDFs from a local server were complete before or despite the
+    // pause, where a `.bin` of the same size waits for its danger check
+    // (gap 103). A cache hit looks no different. Handed over, dm fetches it
+    // again; the browser's copy is removed only once dm has taken it.
+    if item.state.as_deref() == Some("interrupted") {
+        return Err("already stopped");
     }
     // A private window's download stays private: handed over, it would sit
     // in the app's queue and history after the window had closed.
@@ -182,6 +186,37 @@ pub fn first_look(item: &DownloadItem, own_id: &str) -> Result<Catchable, &'stat
         size,
         store: Some(text(&item.cookie_store_id)).filter(|s| !s.is_empty()),
     })
+}
+
+/// Whether a download the browser would not hold can still be handed over,
+/// from the state the browser reports for it once the pause failed: one
+/// running or finished can; one stopped or gone has nothing to hand.
+pub fn unheld(state: Option<&str>) -> Result<(), &'static str> {
+    match state {
+        Some("in_progress") | Some("complete") => Ok(()),
+        Some(_) => Err("it stopped first"),
+        None => Err("it is gone from the browser's list"),
+    }
+}
+
+/// What becomes of the browser's copy once the app has taken a download,
+/// from the state the browser reports for it then.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum BrowserCopy {
+    /// Still running or held: cancelled, which removes its partial file.
+    Cancel,
+    /// Finished before it could be held, or despite the hold: the file is
+    /// whole in the browser's folder and is removed, or it would sit there
+    /// beside dm's.
+    Remove,
+}
+
+pub fn after_taken(state: Option<&str>) -> BrowserCopy {
+    if state == Some("complete") {
+        BrowserCopy::Remove
+    } else {
+        BrowserCopy::Cancel
+    }
 }
 
 /// What a context menu click or the toolbar button asks for.
@@ -1662,10 +1697,51 @@ mod tests {
         assert!(first_look(&theirs, OWN).is_ok());
     }
 
+    /// A PDF Chromium 155 (Debian) finished before the extension could hold
+    /// it, as `chrome-check.py` logged it: 300 KB served at full speed with
+    /// `Content-Disposition: attachment`. It used to be left with the
+    /// browser as "already finished, usually from the cache" (gap 103).
     #[test]
-    fn finished_private_and_non_web_downloads_stay_with_the_browser() {
+    fn a_pdf_chromium_finished_before_it_could_be_held_is_still_handed_over() {
+        let pdf = item(json!({
+            "id": 3, "url": "http://127.0.0.1:41857/files/small.pdf",
+            "finalUrl": "http://127.0.0.1:41857/files/small.pdf",
+            "referrer": "http://127.0.0.1:41857/page.html",
+            "filename": "/tmp/browser-downloads/small (1).pdf", "mime": "application/pdf",
+            "state": "complete", "bytesReceived": 300000, "totalBytes": 300000,
+            "fileSize": 300000, "danger": "safe", "exists": true, "paused": false,
+            "canResume": false, "incognito": false,
+        }));
+        let found = first_look(&pdf, OWN).unwrap();
+        assert_eq!(found.mime, "application/pdf");
+        assert_eq!(found.size, Some(300000));
+        assert!(
+            dm_protocol::CatchRules::default()
+                .takes(&found.candidate(), false)
+                .is_ok(),
+            "a PDF is a type caught by default"
+        );
+        // Its pause fails (or holds nothing); it was finished, so it goes,
+        // and once dm has it the browser's whole file is removed rather
+        // than cancelled, which would leave it.
+        assert_eq!(unheld(Some("complete")), Ok(()));
+        assert_eq!(after_taken(Some("complete")), BrowserCopy::Remove);
+        // One the person stopped, or erased, is not handed.
+        assert!(unheld(Some("interrupted")).is_err());
+        assert!(unheld(None).is_err());
+        // The usual case: held, then cancelled.
+        assert_eq!(unheld(Some("in_progress")), Ok(()));
+        assert_eq!(after_taken(Some("in_progress")), BrowserCopy::Cancel);
+        // Still never one dm restarted itself, finished or not.
+        let ours = item(json!({
+            "id": 1, "url": "https://e.com/f.pdf", "state": "complete", "byExtensionId": OWN,
+        }));
+        assert!(first_look(&ours, OWN).is_err());
+    }
+
+    #[test]
+    fn stopped_private_and_non_web_downloads_stay_with_the_browser() {
         for left in [
-            json!({ "id": 1, "url": "https://e.com/f.zip", "state": "complete" }),
             json!({ "id": 1, "url": "https://e.com/f.zip", "state": "interrupted" }),
             json!({ "id": 1, "url": "https://e.com/f.zip", "incognito": true }),
             json!({ "id": 1, "url": "blob:https://e.com/1234" }),

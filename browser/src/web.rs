@@ -645,8 +645,12 @@ pub async fn on_download_created(item: JsValue) {
     if !paused {
         paused = pause().await;
     }
-    if !paused && !still_running(found.id).await {
-        return log("debug", "left with the browser: it finished first");
+    // Not held: it may have finished already (a small file served fast, a
+    // PDF in Chromium above all); that still goes, by its address (gap 103).
+    if !paused {
+        if let Err(why) = decide::unheld(state_of(found.id).await.as_deref()) {
+            return log("debug", &format!("left with the browser: {why}"));
+        }
     }
 
     let start = Start {
@@ -667,10 +671,16 @@ pub async fn on_download_created(item: JsValue) {
     match hand(port, start).await {
         Ok(()) => {
             log("info", &format!("handed {} to the dm app", found.url));
-            if let Err(why) = call("downloads", "cancel", std::slice::from_ref(&id)).await {
+            // Held or not, it can have finished in the browser meanwhile:
+            // a pause does not stop what Chromium has already received.
+            let (verb, what) = match decide::after_taken(state_of(found.id).await.as_deref()) {
+                decide::BrowserCopy::Cancel => ("cancelled", "cancel"),
+                decide::BrowserCopy::Remove => ("removed", "removeFile"),
+            };
+            if let Err(why) = call("downloads", what, std::slice::from_ref(&id)).await {
                 log(
                     "warn",
-                    &format!("the browser's copy could not be cancelled: {why}"),
+                    &format!("the browser's copy could not be {verb}: {why}"),
                 );
             }
             let query = to_js(&serde_json::json!({ "id": found.id }));
@@ -691,12 +701,14 @@ pub async fn on_download_created(item: JsValue) {
     }
 }
 
-async fn still_running(id: i64) -> bool {
+/// The state the browser reports for a download now: `in_progress`,
+/// `interrupted` or `complete`; `None` once it is gone from the list.
+async fn state_of(id: i64) -> Option<String> {
     let query = to_js(&serde_json::json!({ "id": id }));
     let found = call("downloads", "search", &[query])
         .await
         .unwrap_or_default();
-    get(&found, "0.state").as_string().as_deref() == Some("in_progress")
+    get(&found, "0.state").as_string()
 }
 
 /// Lets the browser carry on with a download it was holding. Where it cannot
@@ -708,6 +720,13 @@ async fn give_back(id: &JsValue, url: &str) {
         .is_ok()
     {
         return;
+    }
+    // Finished while it was held (Chromium completes a fast PDF despite the
+    // pause): the browser has the file, and starting it again would make two.
+    if let Some(n) = id.as_f64() {
+        if state_of(n as i64).await.as_deref() == Some("complete") {
+            return;
+        }
     }
     RELEASED.with(|r| r.borrow_mut().remember(url, now()));
     let options = to_js(&serde_json::json!({ "url": url }));
