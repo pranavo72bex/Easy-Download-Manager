@@ -91,14 +91,15 @@ before a Web Store upload (the store assigns its own id, which is then
 registered with `dm-desktop --register <id>`). Chrome's needs uploading to the
 Web Store.
 
-Firefox installs only add-ons Mozilla has signed. A `v*` tag signs the
-Firefox build as an unlisted add-on and attaches the `.xpi` to that release,
-given the addons.mozilla.org API key as the secrets `AMO_JWT_ISSUER` and
-`AMO_JWT_SECRET` (Developer Hub › Manage API Keys). Mozilla accepts each
-version once, so a tag must carry a version not uploaded before: bump
-`extension/manifest.json`, `extension/manifest.firefox.json` and
-`browser/Cargo.toml` together (the release checks all three agree with the
-tag). Version 3.0.0 was submitted by hand, so the first tag is `v3.0.1`.
+Firefox installs only add-ons Mozilla has signed. A `v*` tag submits the
+Firefox build to AMO as a listed add-on and includes the source archive for
+review, given the AMO API key as the secrets `AMO_JWT_ISSUER` and
+`AMO_JWT_SECRET` (Developer Hub › Manage API Keys). The add-on must first
+exist as a listed submission in the Developer Hub. Mozilla accepts each
+version once, so bump `extension/manifest.json`,
+`extension/manifest.firefox.json` and `browser/Cargo.toml` together (the
+release checks all three agree with the tag). Version 3.0.0 was already
+submitted unlisted; the next version is 3.0.1.
 
 ## Verifying a release actually works
 

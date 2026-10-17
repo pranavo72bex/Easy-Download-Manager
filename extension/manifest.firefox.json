@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "dm — Download Manager",
-  "version": "3.0.0",
+  "version": "3.0.1",
   "description": "Catches downloads and offers \"Download video\" over players, handing them to the dm app, which does the downloading. With no app, the browser keeps them.",
   "permissions": [
     "downloads",

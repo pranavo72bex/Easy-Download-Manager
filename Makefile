@@ -114,12 +114,6 @@ doctor:
 	    printf '  %-8s $(BOLD)missing$(OFF) — the tray will not link without it\n' gtk3; \
 	    missing=1; \
 	  fi; \
-	  if pkg-config --exists ayatana-appindicator3-0.1 2>/dev/null || pkg-config --exists appindicator3-0.1 2>/dev/null; then \
-	    printf '  %-8s present\n' appindicator; \
-	  else \
-	    printf '  %-8s $(BOLD)missing$(OFF) — no tray icon without it: dm runs, but closing the window quits it\n' appindicator; \
-	    missing=1; \
-	  fi; \
 	fi; \
 	echo; \
 	echo "$(BOLD)what is installed$(OFF)"; \
@@ -142,8 +136,8 @@ doctor:
 	  echo; \
 	  echo "Install what is missing above, then run make install again."; \
 	  if [ "$(UNAME)" = "Linux" ]; then \
-	    echo "  Arch:   sudo pacman -S rustup gtk3 libayatana-appindicator xdotool"; \
-	    echo "  Debian: sudo apt install libgtk-3-dev libayatana-appindicator3-dev libxdo-dev"; \
+	    echo "  Arch:   sudo pacman -S rustup gtk3"; \
+	    echo "  Debian: sudo apt install libgtk-3-dev"; \
 	    echo "          and rustup from https://rustup.rs"; \
 	  else \
 	    echo "  rustup: https://rustup.rs"; \
