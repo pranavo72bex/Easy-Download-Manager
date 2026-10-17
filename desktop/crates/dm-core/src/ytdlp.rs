@@ -380,6 +380,11 @@ pub async fn download_ytdlp(
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())
         .kill_on_drop(true);
+    /* A process group of its own, so a pause reaches what yt-dlp started as
+     * well as yt-dlp: killed alone, the ffmpeg joining picture and sound
+     * ran on, writing into the parts a resume was about to use. */
+    #[cfg(unix)]
+    command.process_group(0);
 
     if let Some(ffmpeg) = &ffmpeg {
         command.arg("--ffmpeg-location").arg(ffmpeg);
@@ -451,6 +456,9 @@ pub async fn download_ytdlp(
     let mut child = command
         .spawn()
         .map_err(|e| Error::Internal(format!("yt-dlp would not start: {e}")))?;
+    // Declared after the child, so dropped before it: the group is ended
+    // while yt-dlp, its leader, is still there to name it.
+    let mut tree = Tree(child.id());
 
     // Drained on its own task, not left in the pipe. A long download that
     // logged more warnings than the pipe holds would otherwise block yt-dlp
@@ -472,6 +480,7 @@ pub async fn download_ytdlp(
         .ok_or_else(|| Error::Internal("yt-dlp started without its output".into()))?;
     let mut lines = BufReader::new(stdout).lines();
     let mut named = false;
+    let mut sum = Cumulative::default();
 
     loop {
         tokio::select! {
@@ -481,10 +490,12 @@ pub async fn download_ytdlp(
                 if let Some(rest) = line.strip_prefix(MARK) {
                     if let Some(tx) = &report {
                         if let Some(progress) = parse_progress(rest) {
-                            let _ = tx.send(Update::Progress(progress)).await;
+                            let _ = tx.send(Update::Progress(sum.add(progress))).await;
                         }
                     }
                 } else if let Some(dest) = line.strip_prefix("[download] Destination: ") {
+                    // Each stream of a pair announces itself here.
+                    sum.next_stream();
                     // An early name, before the merge settles the final one.
                     if !named {
                         if let Some(name) = Path::new(dest.trim()).file_name() {
@@ -507,6 +518,7 @@ pub async fn download_ytdlp(
             // --continue to resume from; a cancel throws that away.
             _ = tokio::time::sleep(std::time::Duration::from_millis(250)) => {
                 if let Err(stop) = options.control.check() {
+                    tree.end();
                     let _ = child.kill().await;
                     if matches!(stop, Error::Cancelled) {
                         let _ = tokio::fs::remove_dir_all(staging).await;
@@ -521,6 +533,8 @@ pub async fn download_ytdlp(
         .wait()
         .await
         .map_err(|e| Error::Internal(format!("yt-dlp did not finish: {e}")))?;
+    // Reaped: its number may now be another program's, never to be killed.
+    tree.0 = None;
 
     // Checked after draining stdout, so a pause noticed on the last line wins.
     options.control.check()?;
@@ -602,15 +616,89 @@ async fn place(produced: &Path, options: &Options) -> Result<Finished, Error> {
     })
 }
 
+/// yt-dlp and everything it started, ended together.
+///
+/// On unix yt-dlp leads a process group of its own and the group is killed;
+/// on Windows `taskkill /T` ends the tree under it. `None` once the run has
+/// been reaped, when the number may belong to someone else.
+struct Tree(Option<u32>);
+
+impl Tree {
+    fn end(&mut self) {
+        let Some(pid) = self.0.take() else {
+            return;
+        };
+        #[cfg(unix)]
+        let _ = std::process::Command::new("kill")
+            .args(["-KILL", "--", &format!("-{pid}")])
+            .stdin(Stdio::null())
+            .stdout(Stdio::null())
+            .stderr(Stdio::null())
+            .status();
+        #[cfg(windows)]
+        let _ = crate::no_window(&mut std::process::Command::new("taskkill"))
+            .args(["/T", "/F", "/PID", &pid.to_string()])
+            .stdin(Stdio::null())
+            .stdout(Stdio::null())
+            .stderr(Stdio::null())
+            .status();
+    }
+}
+
+impl Drop for Tree {
+    fn drop(&mut self) {
+        self.end();
+    }
+}
+
+/// Progress over every stream of a run, not each on its own.
+///
+/// Picture and sound are fetched one after the other, each counting from
+/// zero, so the bar ran to the end of the picture and fell back to nothing
+/// for the sound. Streams that have finished are carried in `before`.
+#[derive(Default)]
+struct Cumulative {
+    before: u64,
+    current: u64,
+}
+
+impl Cumulative {
+    /// A stream has started: whatever the last one reached is behind us.
+    fn next_stream(&mut self) {
+        self.before += self.current;
+        self.current = 0;
+    }
+
+    fn add(&mut self, progress: crate::Progress) -> crate::Progress {
+        // A count that falls is a new stream, announced or not.
+        if progress.downloaded < self.current {
+            self.next_stream();
+        }
+        self.current = progress.downloaded;
+        crate::Progress {
+            downloaded: self.before + progress.downloaded,
+            total: progress.total.map(|t| self.before + t),
+            ..progress
+        }
+    }
+}
+
 /// Reads one progress line, `<downloaded> <total> <estimate>`.
 ///
 /// yt-dlp writes `NA` where it does not know, and knows the total only for
 /// some formats — an estimate stands in until then, and neither is fatal.
+/// The estimate is a float (`1234.5`) more often than not, and read as one.
 fn parse_progress(rest: &str) -> Option<crate::Progress> {
+    let bytes = |s: &str| {
+        s.parse::<f64>()
+            .ok()
+            .filter(|n| n.is_finite() && *n >= 0.0)
+            .map(|n| n as u64)
+    };
     let mut fields = rest.split_whitespace();
-    let downloaded: u64 = fields.next()?.parse().ok()?;
-    let total = fields.next().and_then(|s| s.parse::<u64>().ok());
-    let estimate = fields.next().and_then(|s| s.parse::<u64>().ok());
+    let downloaded = fields.next().and_then(bytes)?;
+    let total = fields.next().and_then(bytes);
+    let estimate = fields.next().and_then(bytes);
 
     Some(crate::Progress {
         downloaded,
@@ -621,6 +709,10 @@ fn parse_progress(rest: &str) -> Option<crate::Progress> {
         eta: None,
     })
 }
+
+/// What a run ends with when yt-dlp has no extractor for the address: the
+/// one refusal after which the address may still be an ordinary file.
+pub const UNKNOWN_SITE: &str = "yt-dlp does not know this site";
 
 /// What a site's refusal means, in words a person can act on, when yt-dlp's
 /// error output shows one of the common ones. A live run against YouTube
@@ -654,7 +746,7 @@ pub fn refusal(stderr: &str) -> Option<String> {
         return Some("that video is not available any more".into());
     }
     if has("unsupported url") {
-        return Some("yt-dlp does not know this site".into());
+        return Some(UNKNOWN_SITE.into());
     }
     // A stream encrypted for the site's own player alone. Neither yt-dlp
     // nor dm takes protection off, and yt-dlp's advice to pick another
@@ -803,6 +895,32 @@ mod tests {
         let p = parse_progress("500 NA NA").unwrap();
         assert_eq!(p.downloaded, 500);
         assert_eq!(p.total, None);
+    }
+
+    #[test]
+    fn an_estimate_written_as_a_float_is_read() {
+        let p = parse_progress("500 NA 2048.75").unwrap();
+        assert_eq!(p.total, Some(2048));
+        let p = parse_progress("500.0 NA NA").unwrap();
+        assert_eq!(p.downloaded, 500);
+        assert!(parse_progress("NaN NA NA").is_none());
+        assert!(parse_progress("-1 NA NA").is_none());
+    }
+
+    #[test]
+    fn progress_over_picture_then_sound_never_goes_back() {
+        let mut sum = Cumulative::default();
+        let seen: Vec<u64> = ["1000 2000 NA", "2000 2000 NA", "0 500 NA", "500 500 NA"]
+            .iter()
+            .map(|l| sum.add(parse_progress(l).unwrap()).downloaded)
+            .collect();
+        assert_eq!(seen, [1000, 2000, 2000, 2500]);
+        // Announced by a Destination line, the second stream counts on too.
+        let mut sum = Cumulative::default();
+        sum.add(parse_progress("2000 2000 NA").unwrap());
+        sum.next_stream();
+        let p = sum.add(parse_progress("100 500 NA").unwrap());
+        assert_eq!((p.downloaded, p.total), (2100, Some(2500)));
     }
 
     #[test]

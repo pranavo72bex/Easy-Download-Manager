@@ -226,3 +226,34 @@ async fn a_torrent_behind_an_http_proxy_is_refused_rather_than_sent_around_it() 
     .expect_err("a torrent went out around the proxy");
     assert!(err.to_string().contains("SOCKS5"), "{err}");
 }
+
+/// A magnet whose metadata never comes — its only tracker is a closed port —
+/// still stops when paused. The add waits on peers with no end of its own,
+/// and awaited unraced it held the row until the process ended.
+#[tokio::test(flavor = "multi_thread")]
+async fn a_magnet_with_no_peers_stops_when_paused() {
+    let dir = tempdir();
+    let options = common::options(dir.path());
+    let control = options.control.clone();
+    let run = tokio::spawn(async move {
+        download_torrent(
+            &client(),
+            "magnet:?xt=urn:btih:0123456789abcdef0123456789abcdef01234567\
+             &tr=http://127.0.0.1:9/announce",
+            &options,
+            None,
+        )
+        .await
+    });
+    tokio::time::sleep(Duration::from_millis(1500)).await;
+    control.pause();
+    let ended = tokio::time::timeout(Duration::from_secs(5), run)
+        .await
+        .expect("the paused magnet was still running five seconds later")
+        .unwrap();
+    assert!(
+        matches!(ended, Err(dm_core::Error::Paused)),
+        "{:?}",
+        ended.err()
+    );
+}

@@ -256,6 +256,8 @@
  "Stop download": "Остановить загрузку",
  "Stop queue": "Остановить очередь",
  "Stopped": "Остановлено",
+ "Waiting": "Ожидает",
+ "Waiting for the schedule or the download limit; it starts by itself when allowed.": "Ожидает расписания или лимита загрузки; начнётся само, когда будет можно.",
  "Stopped {} download(s) in {}.": "Остановлено загрузок: {} в «{}».",
  "Sun": "Вс",
  "Take downloads of these types from the browser": "Перехватывать загрузки этих типов из браузера",

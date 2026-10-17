@@ -192,6 +192,9 @@ fn status_in(row: &Entry, words: fn(&'static str) -> &'static str) -> String {
             None => words("Starting…").into(),
         },
         State::Queued => words("Queued").into(),
+        // Held by the schedule or the download limit, not by a person: it
+        // goes on by itself, which "Stopped" would not say.
+        State::Paused if row.paused_by_schedule => words("Waiting").into(),
         State::Paused => words("Stopped").into(),
         State::Completed => words("Complete").into(),
         State::Failed(reason) => crate::i18n::fill(words("Error: {}"), &[reason]),
@@ -929,6 +932,11 @@ impl DmApp {
                     "finished" => Place::Finished,
                     other => {
                         if let Some(name) = other.strip_prefix("queue:") {
+                            // A place nothing is filed under showed an empty
+                            // list as if it were a queue.
+                            if !self.backend.queues().iter().any(|q| q == name) {
+                                return Err(format!("no queue is called {name}"));
+                            }
                             Place::Queue(name.to_string())
                         } else if let Some(name) = other.strip_prefix("custom:") {
                             if !self
@@ -999,6 +1007,10 @@ impl DmApp {
                         .collect(),
                     _ => return Err("give `urls`: a link or a list of links".into()),
                 };
+                // Nothing to add is a mistake in the asking, not success.
+                if urls.iter().all(|u| u.trim().is_empty()) {
+                    return Err("give `urls`: a link or a list of links; that list is empty".into());
+                }
                 let text = |key: &str| {
                     params
                         .get(key)
@@ -1285,6 +1297,15 @@ impl DmApp {
             Command::Quit => self.quit_asked = true,
 
             Command::DownloadNow => {
+                // A row the schedule or the download limit holds is not
+                // started by asking: said, rather than a click that does
+                // nothing.
+                if targets.iter().any(|r| r.paused_by_schedule) {
+                    self.said = crate::i18n::Said::new(
+                        "Waiting for the schedule or the download limit; it starts by itself when allowed.",
+                        &[],
+                    );
+                }
                 for row in &targets {
                     match row.state {
                         State::Paused => self.backend.resume(row.id),
@@ -1581,7 +1602,10 @@ impl DmApp {
             (0, Some(e)) => Err(e),
             (_, Some(e)) => {
                 // The rest went in; the ones that did not are said, not lost.
-                self.problem(format!("{failed} of the links were not added: {e}"));
+                self.problem(match failed {
+                    1 => format!("One of the links was not added: {e}"),
+                    n => format!("{n} of the links were not added: {e}"),
+                });
                 Ok(added)
             }
             _ => Ok(added),
@@ -2589,6 +2613,49 @@ fn save_png(image: &egui::ColorImage, path: &std::path::Path) -> Result<(), Stri
         .ok_or("the screenshot had no pixels")?
         .save(path)
         .map_err(|e| e.to_string())
+}
+
+#[cfg(test)]
+mod status_tests {
+    use super::*;
+
+    fn paused(by_schedule: bool) -> Entry {
+        Entry {
+            id: 1,
+            url: "https://e.com/f.bin".into(),
+            state: State::Paused,
+            progress: dm_core::Progress {
+                downloaded: 0,
+                total: None,
+                speed: 0.0,
+                eta: None,
+            },
+            filename: "f.bin".into(),
+            finished_at: None,
+            category: None,
+            checksum: None,
+            verified: false,
+            mirrors: 0,
+            path: String::new(),
+            referrer: String::new(),
+            paused_by_schedule: by_schedule,
+            description: String::new(),
+            queue: String::new(),
+            save_dir: None,
+            save_name: None,
+            validator: None,
+            quality: None,
+            parts_dir: String::new(),
+            cookies: String::new(),
+            replaces: None,
+        }
+    }
+
+    #[test]
+    fn a_row_held_by_the_schedule_or_the_limit_is_waiting_not_stopped() {
+        assert_eq!(status_in_english(&paused(true)), "Waiting");
+        assert_eq!(status_in_english(&paused(false)), "Stopped");
+    }
 }
 
 #[cfg(test)]

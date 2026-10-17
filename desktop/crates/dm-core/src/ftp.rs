@@ -208,6 +208,12 @@ impl Target {
                 "that FTP address is a folder, not a file".into(),
             ));
         }
+        /* Relative to the login directory, as RFC 1738 reads an FTP
+         * address: `ftp://host/pub/f` is `pub/f` from wherever the login
+         * lands, and the root is reached by `%2F` (`ftp://host/%2Fpub/f`).
+         * Sent whole with its leading slash, a file in a user's home folder
+         * was asked for at the root and was not there. */
+        let path = path.strip_prefix('/').unwrap_or(&path).to_string();
         // A line break in a path would be a second command to the server.
         let plain = |s: &str| !s.contains(['\r', '\n', '\0']);
         let user = match parsed.username() {
@@ -800,7 +806,9 @@ mod tests {
         assert_eq!(t.port, 2121);
         assert_eq!(t.user, "me");
         assert_eq!(t.password, "p@ss");
-        assert_eq!(t.path, "/pub/a file.iso");
+        assert_eq!(t.path, "pub/a file.iso", "relative to the login directory");
+        let rooted = Target::parse("ftp://e.com/%2Fetc/motd.txt").unwrap();
+        assert_eq!(rooted.path, "/etc/motd.txt", "the root, asked for by %2F");
         let anonymous = Target::parse("ftp://ftp.gnu.org/gnu/hello/hello-2.12.tar.gz").unwrap();
         assert_eq!((anonymous.user.as_str(), anonymous.port), ("anonymous", 21));
         assert!(Target::parse("ftp://ftp.gnu.org/gnu/").is_err(), "a folder");

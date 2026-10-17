@@ -256,6 +256,8 @@
  "Stop download": "İndirmeyi durdur",
  "Stop queue": "Kuyruğu durdur",
  "Stopped": "Durduruldu",
+ "Waiting": "Bekliyor",
+ "Waiting for the schedule or the download limit; it starts by itself when allowed.": "Zamanlamayı veya indirme sınırını bekliyor; izin verildiğinde kendiliğinden başlar.",
  "Stopped {} download(s) in {}.": "{1} içinde {0} indirme durduruldu.",
  "Sun": "Paz",
  "Take downloads of these types from the browser": "Bu türlerdeki indirmeleri tarayıcıdan al",

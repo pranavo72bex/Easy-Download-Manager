@@ -793,3 +793,54 @@ async fn a_stream_cut_by_byte_ranges_is_refused_without_yt_dlp_not_saved_wrong()
         .unwrap_or(0);
     assert_eq!(saved, 0, "something was saved");
 }
+
+/// A short link that redirects to the CDN's master playlist, whose chosen
+/// rendition redirects again to an edge. Relative entries belong to where
+/// each playlist was served, and joined against the asked address every
+/// rendition and segment was a 404.
+#[tokio::test]
+async fn relative_entries_are_joined_against_where_a_redirect_landed() {
+    use axum::response::Redirect;
+    use axum::routing::get;
+    let mpegurl = [("content-type", "application/vnd.apple.mpegurl")];
+    let app = axum::Router::new()
+        .route(
+            "/short/show.m3u8",
+            get(|| async { Redirect::temporary("/cdn/v/master.m3u8") }),
+        )
+        .route(
+            "/cdn/v/master.m3u8",
+            get(move || async move {
+                (
+                    mpegurl,
+                    "#EXTM3U\n#EXT-X-STREAM-INF:BANDWIDTH=1,RESOLUTION=10x10\nlow/index.m3u8\n",
+                )
+            }),
+        )
+        .route(
+            "/cdn/v/low/index.m3u8",
+            get(|| async { Redirect::temporary("/edge/x/index.m3u8") }),
+        )
+        .route(
+            "/edge/x/index.m3u8",
+            get(move || async move {
+                (
+                    mpegurl,
+                    "#EXTM3U\n#EXTINF:4,\nseg0.ts\n#EXTINF:4,\nseg1.ts\n#EXT-X-ENDLIST\n",
+                )
+            }),
+        )
+        .route("/edge/x/seg0.ts", get(|| async { segment(0) }))
+        .route("/edge/x/seg1.ts", get(|| async { segment(1) }));
+    let addr = common::serve(app).await;
+    let dir = tempdir();
+    let done = download::download(
+        &client(),
+        &format!("http://{addr}/short/show.m3u8"),
+        &options(dir.path(), dm_core::stream::Quality::Best),
+    )
+    .await
+    .unwrap();
+    let expected: Vec<u8> = (0..2).flat_map(segment).collect();
+    assert_eq!(std::fs::read(&done.path).unwrap(), expected);
+}

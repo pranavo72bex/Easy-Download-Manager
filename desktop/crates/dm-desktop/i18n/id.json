@@ -256,6 +256,8 @@
  "Stop download": "Hentikan unduhan",
  "Stop queue": "Hentikan antrean",
  "Stopped": "Dihentikan",
+ "Waiting": "Menunggu",
+ "Waiting for the schedule or the download limit; it starts by itself when allowed.": "Menunggu jadwal atau batas unduhan; akan mulai sendiri saat diizinkan.",
  "Stopped {} download(s) in {}.": "{} unduhan dihentikan di {}.",
  "Sun": "Min",
  "Take downloads of these types from the browser": "Ambil unduhan dengan jenis ini dari peramban",

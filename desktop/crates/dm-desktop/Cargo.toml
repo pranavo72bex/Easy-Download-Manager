@@ -25,7 +25,8 @@ eframe = { version = "0.36", default-features = false, features = ["default_font
 egui = "0.36"
 # The download list: a sortable, resizable table.
 egui_extras = "0.36"
-tokio = { version = "1", features = ["rt-multi-thread", "time", "sync"] }
+# `signal`: a logout or `kill` quits dm as Program › Exit does.
+tokio = { version = "1", features = ["rt-multi-thread", "time", "sync", "signal"] }
 serde_json = "1"
 url = "2"
 chrono = { version = "0.4", default-features = false, features = ["clock", "std"] }

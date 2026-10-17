@@ -32,8 +32,21 @@ use crate::{category, Error, Progress};
 /// would save the few kilobytes of metainfo rather than the gigabytes it
 /// describes, which is never what anyone means by downloading a torrent.
 pub fn is_torrent(url: &str) -> bool {
-    let url = url.trim();
-    url.starts_with("magnet:") || strip_query(url).ends_with(".torrent")
+    is_magnet(url) || ends_with_ignoring_case(strip_query(url.trim()), ".torrent")
+}
+
+/// Whether this is a magnet link. A scheme is case-insensitive, so
+/// `Magnet:` is one too, and would otherwise have been fetched over HTTP.
+fn is_magnet(url: &str) -> bool {
+    url.trim()
+        .get(..7)
+        .is_some_and(|scheme| scheme.eq_ignore_ascii_case("magnet:"))
+}
+
+fn ends_with_ignoring_case(s: &str, suffix: &str) -> bool {
+    s.len() >= suffix.len()
+        && s.get(s.len() - suffix.len()..)
+            .is_some_and(|end| end.eq_ignore_ascii_case(suffix))
 }
 
 fn strip_query(url: &str) -> &str {
@@ -109,8 +122,10 @@ pub async fn download_torrent(
     // session listening on a port for the life of the process.
     let _guard = CancelOnDrop(token.clone());
 
-    let add = if url.trim().starts_with("magnet:") {
-        AddTorrent::Url(url.trim().into())
+    let add = if is_magnet(url) {
+        // In the spelling librqbit looks for: it matches `magnet:` exactly.
+        let rest = url.trim().get(7..).unwrap_or_default();
+        AddTorrent::Url(format!("magnet:{rest}").into())
     } else {
         // Fetched with dm's client rather than librqbit's, so a .torrent
         // behind a proxy is reachable exactly as a file would be, and with
@@ -128,25 +143,37 @@ pub async fn download_torrent(
         AddTorrent::TorrentFileBytes(bytes.into())
     };
 
-    let handle = session
-        .add_torrent(
-            add,
-            Some(AddTorrentOptions {
-                // Resume from and seed the files already on disk: a paused
-                // torrent that could not overwrite its own parts would start
-                // from nothing every time it resumed.
-                overwrite: true,
-                ..Default::default()
-            }),
-        )
-        .await
-        .map_err(|e| Error::Internal(format!("the torrent could not be added: {e}")))?
+    /* Raced against the row's control: a magnet's metadata comes from its
+     * peers, and with no peer answering the add waits with no end. Awaited
+     * on its own, a pause or a cancel of such a magnet never took effect.
+     * Stopped here, the guard below cancels the token, which shuts the
+     * session and its half-made lookup down with it. */
+    let added = crate::download::or_stop(&options.control, async {
+        session
+            .add_torrent(
+                add,
+                Some(AddTorrentOptions {
+                    // Resume from and seed the files already on disk: a
+                    // paused torrent that could not overwrite its own parts
+                    // would start from nothing every time it resumed.
+                    overwrite: true,
+                    ..Default::default()
+                }),
+            )
+            .await
+            .map_err(|e| Error::Internal(format!("the torrent could not be added: {e}")))
+    })
+    .await?;
+    let handle = added
         .into_handle()
         .ok_or_else(|| Error::Internal("the torrent produced no handle".into()))?;
 
     let mut named = false;
     let mut last = Instant::now();
-    let mut last_done: u64 = 0;
+    /* From the first sample, not from zero: a resumed torrent's first report
+     * already counts the bytes on disk, and measured from zero they showed
+     * as a burst of speed nobody downloaded. */
+    let mut last_done: Option<u64> = None;
 
     loop {
         // A pause or cancel is honoured here, between samples, the same place
@@ -198,10 +225,9 @@ pub async fn download_torrent(
             // Measured rather than read off librqbit's own estimator, so the
             // number is in the same units and computed the same way as every
             // other row.
-            let speed = if dt > 0.0 {
-                (done.saturating_sub(last_done)) as f64 / dt
-            } else {
-                0.0
+            let speed = match last_done {
+                Some(before) if dt > 0.0 => done.saturating_sub(before) as f64 / dt,
+                _ => 0.0,
             };
             let eta = match total {
                 Some(total) if speed > 1.0 && total > done => {
@@ -218,7 +244,7 @@ pub async fn download_torrent(
                 }))
                 .await;
             last = now;
-            last_done = done;
+            last_done = Some(done);
         }
 
         if stats.finished {
@@ -355,6 +381,13 @@ fn swarm_proxy(proxy: Option<&str>) -> Result<Option<librqbit::ConnectionOptions
     let Some(proxy) = proxy else {
         return Ok(None);
     };
+    /* librqbit names SOCKS5 `socks5://` and refuses `socks5h://`, which is
+     * what dm's settings hand out so names resolve at the proxy. Peers are
+     * addresses already; only a tracker's name differs between the two. */
+    let proxy = match proxy.strip_prefix("socks5h://") {
+        Some(rest) => format!("socks5://{rest}"),
+        None => proxy.to_string(),
+    };
     if !proxy.starts_with("socks5://") {
         return Err(Error::Internal(
             "a torrent can only go through a SOCKS5 proxy; the configured proxy is not one, \
@@ -363,7 +396,7 @@ fn swarm_proxy(proxy: Option<&str>) -> Result<Option<librqbit::ConnectionOptions
         ));
     }
     Ok(Some(librqbit::ConnectionOptions {
-        proxy_url: Some(proxy.to_string()),
+        proxy_url: Some(proxy),
         ..Default::default()
     }))
 }
@@ -440,6 +473,9 @@ mod tests {
         // A query string is where a signed link keeps its token; the path is
         // still what says .torrent.
         assert!(is_torrent("https://example.com/get.torrent?token=abc"));
+        // A scheme and an extension in capitals are the same thing.
+        assert!(is_torrent("Magnet:?xt=urn:btih:0123456789abcdef"));
+        assert!(is_torrent("https://example.com/X.TORRENT"));
     }
 
     #[test]
@@ -449,6 +485,11 @@ mod tests {
             panic!("a SOCKS5 proxy was not handed to the swarm");
         };
         assert_eq!(socks.proxy_url.as_deref(), Some("socks5://h:1080"));
+        // What dm's settings hand out, in the spelling librqbit reads.
+        let Ok(Some(remote)) = swarm_proxy(Some("socks5h://h:1080")) else {
+            panic!("a SOCKS5 proxy that resolves names was not handed to the swarm");
+        };
+        assert_eq!(remote.proxy_url.as_deref(), Some("socks5://h:1080"));
         // An HTTP proxy cannot carry a peer connection, and going around it
         // is the one thing a configured proxy must never see.
         let Err(refused) = swarm_proxy(Some("http://h:8080")) else {

@@ -71,6 +71,9 @@ Rust compiled to WebAssembly. Test paths are under
 | File republished between runs (ETag/Last-Modified) | PASS | `integrity.rs` `a_file_republished_between_runs_is_not_spliced_into_the_old_parts` |
 | Connection setting changed before a resume | PASS | `a_changed_connection_setting_does_not_corrupt_a_resumed_download` |
 | Parts with no plan beside them | PASS | `parts_staged_under_no_known_plan_are_not_trusted` |
+| A power cut that lost more than the end checked at resume | PASS | `download.rs` `a_power_cut_that_lost_more_than_the_checked_end_is_repaired_whole` (256 KiB of zeros: byte-exact, not fetched from the start) |
+| Pause or cancel of a magnet whose metadata never comes | PASS | `torrent.rs` `a_magnet_with_no_peers_stops_when_paused` |
+| Pause of yt-dlp ends what it started (its ffmpeg) | PASS (unix) | `ytdlp_tree.rs` `a_pause_ends_what_yt_dlp_started_not_only_yt_dlp`; Windows uses `taskkill /T`, not run |
 
 ## D. Multiple connections
 
@@ -82,6 +85,7 @@ Rust compiled to WebAssembly. Test paths are under
 | One connection when ranges are not served | PASS | `a_server_without_ranges_still_produces_the_right_file` |
 | Small files not split | PASS | `MIN_SEGMENT`, `plan.rs` tests |
 | Mirrors (Metalink) each carry ranges | PASS | Metalink tests in `download.rs` and `metalink.rs` |
+| Metalink: the document's size is the reference, a stale mirror is dropped; a piece's hash is not the file's | PASS | `tests/metalink.rs`; `metalink.rs` `a_digest_of_one_piece_is_not_taken_for_the_whole_file` |
 | A site's own connection limit (Options › Network), by host or suffix, never above the setting | PASS | `limits.rs` `a_site_with_a_limit_of_its_own_is_fetched_on_that_many_connections` (a counting server sees at most the limit); `window.rs` `site_limits_attempts_and_the_timeout_are_set_in_options_and_reach_the_queue` |
 
 ## E. Retry
@@ -114,6 +118,10 @@ Rust compiled to WebAssembly. Test paths are under
 | The Main queue starts as dm opens, when asked to (Options › Downloads) | PASS | `dm-shell/tests/launch.rs` `the_main_queue_starts_at_launch_when_the_setting_says_so`: a row added for later is no longer waiting after `shell::start` |
 | A named queue runs fewer files at once than the whole (Options › Downloads); the rest of the room goes to other queues | PASS | `queue.rs` `a_queue_with_a_limit_of_its_own_runs_that_many_while_the_rest_of_the_room_goes_on`; `window.rs` `a_queues_own_file_limit_and_the_parts_folder_are_set_in_options` |
 | Recheck queue on its own timer (Options › Downloads), as well as when asked | PASS | `queue.rs` `the_recheck_queue_asks_again_on_its_own_timer_and_only_then`; `shell::watch_rules` drives it; `window.rs` `the_proxys_bypass_list_and_the_recheck_timer_are_set_in_options` |
+| Recheck compares the file, not the document: a Metalink row by the file's length (the document's or a mirror's), a yt-dlp or stream row not at all (not counted as checked); an `HTTP://` row is asked about too | PASS | `queue.rs` `a_recheck_of_a_metalink_asks_about_the_file_not_the_document`, `a_recheck_leaves_alone_a_row_made_from_a_web_page`, `a_recheck_asks_about_a_row_whose_scheme_is_written_in_capitals` |
+| Recheck keeps the old file until the new version is whole; a failed fetch says so and keeps it, Retry replaces it in place | PASS | `queue.rs` `a_recheck_that_cannot_fetch_the_new_version_keeps_the_old_file` |
+| Pause all and Stop queue while the schedule holds rows make them a person's pauses, not restarted when the window opens | PASS | `queue.rs` `pausing_everything_while_the_schedule_holds_it_is_not_undone_by_the_window_opening` |
+| A row deleted while running holds its slot until its run lets go | PASS | `queue.rs` `a_deleted_row_holds_its_slot_until_its_run_lets_go` (measured at the server) |
 | Priorities | N/A | dm orders work by queues and their order, not by priorities |
 
 ## G. Speed and progress
@@ -188,7 +196,7 @@ the host and the extension.
 
 | Behaviour | Status | Evidence |
 |---|---|---|
-| HTTP, HTTPS, SOCKS4 and SOCKS5 proxies with credentials, on every request of dm's own | PASS | `proxy.rs` tests; `app-check.py` (a dead proxy is not gone around) |
+| HTTP, HTTPS, SOCKS4 and SOCKS5 proxies with credentials, on every request of dm's own; SOCKS5 resolves names at the proxy | PASS | `proxy.rs` tests, including `a_socks5_proxy_carries_the_download_and_resolves_its_name` (a loopback SOCKS5 proxy sees only names); `app-check.py` (a dead proxy is not gone around) |
 | The computer's own proxy settings as a kind (environment variables; macOS network settings) | PASS | `tests/proxy.rs` `the_computers_proxy_settings_are_the_environments`; off or a proxy of dm's own ignores the environment (`builder_with`) |
 | A bypass list: those sites fetched directly, the rest through the proxy | PASS | `tests/proxy.rs` `a_site_on_the_bypass_list_is_fetched_directly_and_the_rest_through_the_proxy`; `proxy.rs` `the_bypass_list_covers_names_their_subdomains_addresses_and_everything`; the FTP client and the tools read the same list (`Options::proxy_for`) |
 | FTP through a SOCKS5, SOCKS4 or HTTP (CONNECT) proxy, control and data connections both | PASS | `tests/ftp.rs` `an_ftp_download_goes_through_a_socks5_proxy_and_not_around_it` (a loopback SOCKS5 proxy with a login sees every connection; a wrong proxy password is its refusal), `an_ftp_download_goes_through_an_http_proxy_by_connect`, `a_bypassed_site_is_fetched_directly_and_an_https_proxy_is_refused` |
@@ -203,6 +211,10 @@ the host and the extension.
 | Subtitles fetched and embedded by yt-dlp when asked (Options › Downloads), only where an ffmpeg can embed them | PASS | `dash.rs` `subtitles_are_fetched_and_embedded_only_where_an_ffmpeg_can_embed_them` (the stand-in records `--write-subs --sub-langs all --embed-subs`; nothing without ffmpeg or when off) |
 | Direct media files | PASS | ordinary downloads |
 | HLS, including AES-128 and resume | PASS | `hls.rs`; `app-check.py` |
+| HLS behind redirects: entries joined against where each playlist landed | PASS | `hls.rs` `relative_entries_are_joined_against_where_a_redirect_landed` |
+| Sound alone named for its segments (`.m4a`, `.ts`, `.aac`); a second initialisation segment refused | PASS | `stream.rs` `sound_alone_is_named_for_what_its_segments_are`, `a_second_initialisation_segment_is_refused_not_swapped_in` |
+| yt-dlp progress over picture then sound only goes forward | PASS | `ytdlp_tree.rs` `progress_across_picture_and_sound_only_goes_forward`; `ytdlp.rs` unit tests (float estimates) |
+| A link to a page named as a document (`notes.html`) is saved when yt-dlp is absent or does not know the site | PASS | `pages.rs` |
 | DASH | PASS | handed to yt-dlp; refused with the reason without it (`dash.rs`) |
 | Player pages | PASS | handed to the user's yt-dlp; `ytdlp.rs` against a loopback server |
 | DRM or site-specific extraction | N/A | not done, by design |
@@ -233,9 +245,9 @@ Evidence is `dm-desktop/tests/window.rs` unless it says otherwise.
 | Redownload, Move/Rename, move up/down, stop a queue | PASS | `dm-core/tests/rows.rs` |
 | Add numbered series (`*` with numbers or letters) | PASS | `a_batch_adds_every_address_the_star_makes`; `dm-shell` `lists` tests |
 | Add links from clipboard | PASS | `window.rs` `links_on_the_clipboard_are_picked_and_put_in_the_main_queue`: only the links are offered, and Add for later puts both in the main queue, paused |
-| Find files on a site: by file type, pages deep on the same site (at most 100 pages), paths kept or skipped by what they contain | PASS | `dm-shell/tests/crawl.rs` (depth, filters, the page limit, a file or a missing page as the start); `window.rs` `the_site_file_finder_finds_the_files_a_page_links_to`, `a_site_search_reads_pages_deep_and_a_saved_one_runs_on_its_own` |
+| Find files on a site: by file type, pages deep on the same site (at most 100 pages), paths kept or skipped by what they contain; the site is also where the start page redirected to | PASS | `dm-shell/tests/crawl.rs` (depth, filters, the page limit, a file or a missing page as the start, `a_start_page_that_sends_everyone_to_another_host_is_searched_there`); `window.rs` `the_site_file_finder_finds_the_files_a_page_links_to`, `a_site_search_reads_pages_deep_and_a_saved_one_runs_on_its_own` |
 | A site search saved under a name, run again by hand or every so many hours; what is new is added for later | PASS | `window.rs` `a_site_search_reads_pages_deep_and_a_saved_one_runs_on_its_own`: saved to run hourly it runs at once and adds three files for later; run again it says it found nothing new; deleted |
-| Export and Import as dm's `.dmlist` (JSON); a plain list of links imports too | PASS | `window.rs` (the export and import test); `dm-shell` `lists` tests |
+| Export and Import as dm's `.dmlist` (JSON), keeping each row's queue, note, chosen name and digest (older lists without them still read); a plain list of links imports too, without the punctuation around them | PASS | `window.rs` (the export and import test); `backend.rs` `an_exported_list_brings_back_queue_note_name_and_digest`; `dm-shell` `lists` tests (`a_link_in_prose_is_read_without_the_punctuation_around_it`, `a_list_written_before_rows_kept_more_than_an_address_still_reads`) |
 | Find / Find next | PASS | `find_next_selects_the_next_row_with_the_name` |
 | Options › Browser: which downloads the browser hands over | PASS | `the_file_types_the_browser_hands_over_are_set_in_options`; the extension reading them: `scripts/chrome-check.py` ("the app's settings decide") |
 | Options on OK, saved; a failure puts it back | PASS | `options_are_put_into_force_on_ok_and_written_down`, `an_option_that_cannot_be_applied_is_put_back_and_said` |
@@ -273,7 +285,14 @@ Evidence is `dm-desktop/tests/window.rs` unless it says otherwise.
 | A generated scorecard | PASS | [scorecard.md](scorecard.md), `cargo xtask scorecard`, held up to date by a test |
 | Headless, for a server or a script | PASS | `dm-desktop --headless --control 0`, driven in `app-check.py` |
 | A batch of up to 256 control requests | PASS | `a_batch_runs_its_steps_in_order` |
-| An MCP server for AI clients | PASS | `dm-desktop mcp`, driven in `the_mcp_bridge_gives_an_agent_dm_as_tools` and, as a real subprocess, in `app-check.py` |
+| An MCP server for AI clients | PASS | `dm-desktop mcp`, driven in `the_mcp_bridge_gives_an_agent_dm_as_tools` and, as a real subprocess, in `app-check.py`; a dm that restarts on another port is connected to again (`mcp.rs` `a_dm_that_restarts_is_connected_to_again`) |
+| The control port cannot be held without the token | PASS | `control.rs`: idle connections wait in their own list of 16, the oldest closed for a newcomer (`idle_connections_without_the_token_do_not_keep_the_owner_out`); 5 s to authenticate, however slowly sent (`a_connection_that_does_not_authenticate_in_time_is_closed`); a non-JSON first line ends it (`a_line_that_is_not_json_before_the_token_ends_the_connection`); a request pending as dm quits is told "dm is closing" (`a_request_waiting_as_dm_quits_is_told_dm_is_closing`) |
+| Control requests that ask for nothing are refused | PASS | `window.rs` `the_control_protocol_refuses_nothing_to_add_and_a_queue_that_is_not_there`: an empty `urls`, a `queue:` never made |
+| SIGTERM and SIGINT quit as Program › Exit does | PASS | `tests/quit.rs` spawns the real binary headless, signals it, and sees exit status 0 and `control.port` gone (both fail without the handler). Windows' console events are listened for, never run |
+| One dm at a time, told truly | PASS | `instance.rs`: a lock that cannot be opened is an error, not "running" (`a_lock_that_cannot_be_opened_is_an_error_not_a_running_dm`); a claim waits out the host's probe (`a_dm_starting_while_the_host_probes_waits_the_probe_out`). dm then exits saying why, on stderr and in a dialog; the host refuses the hand-off so the browser keeps it |
+| A browser launch told from a person's by its whole shape | PASS | `shell.rs` `a_link_or_a_name_never_makes_a_launch_the_browsers` |
+| Two hand-offs never share one inbox file | PASS | `host.rs` `two_hand_offs_never_share_one_file` |
+| A link with no site as typed, or a magnet with no torrent hash, refused at add | PASS | `shell.rs` `a_link_with_no_site_as_typed_is_refused_though_it_parses`, `a_magnet_without_a_torrent_hash_is_refused_at_add` |
 
 ## M. Platforms and packaging
 

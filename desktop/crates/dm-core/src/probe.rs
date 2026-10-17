@@ -118,7 +118,10 @@ pub async fn probe(
 
     let content_type = header(reqwest::header::CONTENT_TYPE);
     let filename = filename_for(
-        header(reqwest::header::CONTENT_DISPOSITION).as_deref(),
+        headers
+            .get(reqwest::header::CONTENT_DISPOSITION)
+            .map(|v| header_text(v.as_bytes()))
+            .as_deref(),
         &final_url,
         content_type.as_deref(),
     );
@@ -251,6 +254,17 @@ pub fn decode(input: &str) -> String {
 /// Below the 255-byte component limit, with room for ` (12)` and a
 /// `.part`-style suffix.
 const MAX_NAME_BYTES: usize = 240;
+
+/// A header's text when it is not plain ASCII. Servers send a name like
+/// `filename="résumé.pdf"` as raw UTF-8 more often than the standard's
+/// `filename*=`, and older ones as Latin-1; taking only ASCII threw the
+/// name away and saved the file under the address's last segment.
+fn header_text(bytes: &[u8]) -> String {
+    match std::str::from_utf8(bytes) {
+        Ok(text) => text.to_owned(),
+        Err(_) => bytes.iter().map(|&b| char::from(b)).collect(),
+    }
+}
 
 pub fn sanitize(name: &str) -> String {
     let last = name.rsplit(['/', '\\']).next().unwrap_or(name);
@@ -457,6 +471,20 @@ mod tests {
         let cut = sanitize(&long);
         assert!(cut.ends_with(".mkv"), "the extension was cut off: {cut}");
         assert_eq!(cut.chars().count(), 200);
+    }
+
+    #[test]
+    fn a_name_sent_as_raw_utf8_or_latin1_is_kept() {
+        let utf8 = header_text("attachment; filename=\"résumé.pdf\"".as_bytes());
+        assert_eq!(
+            filename_for(Some(&utf8), "https://e.com/utf8", None),
+            "résumé.pdf"
+        );
+        let latin1 = header_text(b"attachment; filename=\"r\xe9sum\xe9.pdf\"");
+        assert_eq!(
+            filename_for(Some(&latin1), "https://e.com/lat1", None),
+            "résumé.pdf"
+        );
     }
 
     #[test]

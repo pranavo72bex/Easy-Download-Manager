@@ -156,3 +156,37 @@ async fn a_start_address_that_is_a_file_or_missing_is_said() {
     .unwrap_err();
     assert!(missing.contains("404"), "{missing}");
 }
+
+#[tokio::test]
+async fn a_start_page_that_sends_everyone_to_another_host_is_searched_there() {
+    /* `example.com` that redirects to `www.example.com`: every link on the
+     * page is on the second host, and held to the first, nothing past the
+     * start page was read. Here `localhost` sends everyone to `127.0.0.1`. */
+    let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let port = listener.local_addr().unwrap().port();
+    let app = axum::Router::new()
+        .route(
+            "/",
+            get(move |headers: axum::http::HeaderMap| async move {
+                use axum::response::IntoResponse;
+                let host = headers.get("host").unwrap().to_str().unwrap();
+                if host.starts_with("localhost") {
+                    axum::response::Redirect::permanent(&format!("http://127.0.0.1:{port}/"))
+                        .into_response()
+                } else {
+                    Html(r#"<a href="sub/">sub</a> <a href="a.zip">a</a>"#).into_response()
+                }
+            }),
+        )
+        .route("/sub/", get(|| async { Html(r#"<a href="c.zip">c</a>"#) }));
+    tokio::spawn(async move { axum::serve(listener, app).await.unwrap() });
+
+    let found = crawl(
+        &dm_core::client(),
+        &zips(&format!("http://localhost:{port}"), 1),
+    )
+    .await
+    .unwrap();
+    assert_eq!(found.pages, 2, "the page past the start was not read");
+    assert_eq!(names(&found.files), ["a.zip", "c.zip"]);
+}

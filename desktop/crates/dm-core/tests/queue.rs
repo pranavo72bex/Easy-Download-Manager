@@ -2015,3 +2015,228 @@ async fn two_rechecks_at_once_do_not_both_fetch_again() {
     let changed = a.1.len() + b.1.len();
     assert_eq!(changed, 1, "both checks fetched it again: {a:?} {b:?}");
 }
+
+#[tokio::test]
+async fn pausing_everything_while_the_schedule_holds_it_is_not_undone_by_the_window_opening() {
+    /* The schedule had paused the row, so "Pause all" passed over it, and
+     * the row stayed the schedule's: the window opening started a download
+     * a person had just paused. The same through "Stop queue". */
+    for stop in ["pause all", "stop queue"] {
+        let (addr, _) = serve().await;
+        let dir = tempdir();
+        let q = queue(dir.path(), 2);
+        q.set_schedule(closed_now());
+        let id = q.add(&format!("http://{addr}/f.bin")).await.unwrap();
+        q.run().await;
+        assert!(q.get(id).await.unwrap().paused_by_schedule);
+
+        let taken = match stop {
+            "pause all" => q.pause_all().await,
+            _ => q.stop_queue("").await,
+        };
+        assert_eq!(taken, 1, "{stop} did not count the row it took over");
+        q.set_schedule(dm_core::Schedule::default());
+        q.run().await;
+
+        assert_eq!(
+            q.get(id).await.unwrap().state,
+            DownloadState::Paused,
+            "the window opening undid {stop}"
+        );
+    }
+}
+
+#[tokio::test]
+async fn a_deleted_row_holds_its_slot_until_its_run_lets_go() {
+    /* Deleting a running row dropped it and its task at once, so nothing
+     * counted the connection the task still held: with a limit of one, the
+     * next row started beside it. Measured at the server. */
+    let (addr, hits, open) = serve_stalled_counting().await;
+    let dir = tempdir();
+    let q = queue(dir.path(), 1);
+
+    let first = q.add(&format!("http://{addr}/a.bin")).await.unwrap();
+    let serving = {
+        let q = q.clone();
+        tokio::spawn(async move { q.run().await })
+    };
+    let asked = async {
+        while hits.load(Ordering::SeqCst) < 1 {
+            tokio::time::sleep(Duration::from_millis(20)).await;
+        }
+    };
+    tokio::time::timeout(Duration::from_secs(5), asked)
+        .await
+        .expect("the first range was never asked for");
+
+    q.remove(first).await;
+    let second = q.add(&format!("http://{addr}/b.bin")).await.unwrap();
+    let serving_again = {
+        let q = q.clone();
+        tokio::spawn(async move { q.run().await })
+    };
+    let started = async {
+        while hits.load(Ordering::SeqCst) < 2 {
+            tokio::time::sleep(Duration::from_millis(20)).await;
+        }
+    };
+    tokio::time::timeout(Duration::from_secs(5), started)
+        .await
+        .expect("the next download never started");
+    tokio::time::sleep(Duration::from_millis(200)).await;
+    assert_eq!(
+        open.most.load(Ordering::SeqCst),
+        1,
+        "the next download started while the deleted one still held the only slot"
+    );
+
+    q.cancel(second).await;
+    let _ = tokio::time::timeout(Duration::from_secs(5), serving).await;
+    let _ = tokio::time::timeout(Duration::from_secs(5), serving_again).await;
+}
+
+/// A file republished on demand that can also be made to vanish, its ETag
+/// naming its version.
+fn versioned(version: Arc<AtomicUsize>, gone: Arc<std::sync::atomic::AtomicBool>) -> axum::Router {
+    use axum::response::IntoResponse;
+    axum::Router::new().fallback(axum::routing::get(move || {
+        let v = version.load(Ordering::SeqCst);
+        let gone = gone.load(Ordering::SeqCst);
+        async move {
+            if gone {
+                return StatusCode::NOT_FOUND.into_response();
+            }
+            ([("etag", format!("\"v{v}\""))], format!("version {v}")).into_response()
+        }
+    }))
+}
+
+#[tokio::test]
+async fn a_recheck_that_cannot_fetch_the_new_version_keeps_the_old_file() {
+    /* The old copy was deleted as soon as a change was seen, before the new
+     * one was fetched; a server that then failed left neither. */
+    let version = Arc::new(AtomicUsize::new(1));
+    let gone = Arc::new(std::sync::atomic::AtomicBool::new(false));
+    let addr = common::serve(versioned(Arc::clone(&version), Arc::clone(&gone))).await;
+    let dir = tempdir();
+    let q = queue(dir.path(), 1);
+    let id = q.add(&format!("http://{addr}/doc.txt")).await.unwrap();
+    q.run().await;
+    let first = q.get(id).await.unwrap();
+    assert_eq!(first.state, DownloadState::Completed);
+    assert!(q.set_queue(id, dm_core::RECHECK_QUEUE).await);
+
+    version.store(2, Ordering::SeqCst);
+    assert_eq!(q.synchronize(dm_core::RECHECK_QUEUE).await, (1, vec![id]));
+    gone.store(true, Ordering::SeqCst);
+    q.run().await;
+
+    let row = q.get(id).await.unwrap();
+    let DownloadState::Failed(reason) = &row.state else {
+        panic!("the failed fetch was not said: {:?}", row.state);
+    };
+    assert!(reason.contains("old one is kept"), "{reason}");
+    assert_eq!(row.path, first.path, "the row lost the file it has");
+    assert_eq!(
+        std::fs::read_to_string(&first.path).unwrap(),
+        "version 1",
+        "the old file went before the new one had arrived"
+    );
+
+    // Back, and retried: the new version takes the old one's place.
+    gone.store(false, Ordering::SeqCst);
+    assert!(q.retry(id).await);
+    q.run().await;
+    let row = q.get(id).await.unwrap();
+    assert_eq!(row.state, DownloadState::Completed);
+    assert_eq!(row.path, first.path, "saved beside the old one");
+    assert_eq!(std::fs::read_to_string(&row.path).unwrap(), "version 2");
+    let saved = std::fs::read_dir(dir.path().join("out")).unwrap().count();
+    assert_eq!(saved, 1, "the old and new versions were both kept");
+}
+
+#[tokio::test]
+async fn a_recheck_asks_about_a_row_whose_scheme_is_written_in_capitals() {
+    let version = Arc::new(AtomicUsize::new(1));
+    let gone = Arc::new(std::sync::atomic::AtomicBool::new(false));
+    let addr = common::serve(versioned(Arc::clone(&version), gone)).await;
+    let dir = tempdir();
+    let q = queue(dir.path(), 1);
+    let id = q.add(&format!("HTTP://{addr}/doc.txt")).await.unwrap();
+    q.run().await;
+    assert_eq!(q.get(id).await.unwrap().state, DownloadState::Completed);
+    assert!(q.set_queue(id, dm_core::RECHECK_QUEUE).await);
+
+    version.store(2, Ordering::SeqCst);
+    assert_eq!(q.synchronize(dm_core::RECHECK_QUEUE).await, (1, vec![id]));
+}
+
+#[tokio::test]
+async fn a_recheck_of_a_metalink_asks_about_the_file_not_the_document() {
+    /* The row keeps a mirror's ETag and the file's length; the recheck
+     * compared them with the mirror list's own, which always differ, and
+     * fetched every Metalink again on every check. */
+    let body = pattern(4096);
+    let (addr, server) = serve_metalink(body.clone()).await;
+    *server.doc.lock().unwrap() = document(addr, &["one.bin"], None);
+    let dir = tempdir();
+    let q = queue(dir.path(), 1);
+    let id = q.add(&format!("http://{addr}/a.meta4")).await.unwrap();
+    q.run().await;
+    let first = q.get(id).await.unwrap();
+    assert_eq!(first.state, DownloadState::Completed);
+    assert!(q.set_queue(id, dm_core::RECHECK_QUEUE).await);
+    let fetched = server.hits.lock().unwrap().len();
+
+    assert_eq!(q.synchronize(dm_core::RECHECK_QUEUE).await, (1, vec![]));
+    assert_eq!(server.hits.lock().unwrap().len(), fetched);
+    assert_eq!(std::fs::read(&first.path).unwrap(), body);
+
+    // The document now names a different file: that is a change.
+    *server.doc.lock().unwrap() = document(addr, &["stale.bin"], None);
+    assert_eq!(q.synchronize(dm_core::RECHECK_QUEUE).await, (1, vec![id]));
+    q.run().await;
+    let row = q.get(id).await.unwrap();
+    assert_eq!(row.state, DownloadState::Completed);
+    assert_eq!(row.path, first.path);
+    assert_eq!(std::fs::read(&row.path).unwrap(), body[..body.len() / 2]);
+}
+
+#[tokio::test]
+async fn a_recheck_leaves_alone_a_row_made_from_a_web_page() {
+    /* A yt-dlp row's address is the page, whose length is never the
+     * video's and which has no ETag of the video's: compared, every such
+     * row was fetched again on every check. Nothing comparable: not
+     * checked, not fetched. Stood up from a saved queue, since making the
+     * row needs a yt-dlp. */
+    use axum::response::IntoResponse;
+    let app = axum::Router::new().fallback(axum::routing::get(|| async {
+        (
+            [("content-type", "text/html; charset=utf-8")],
+            "<html>a watch page</html>",
+        )
+            .into_response()
+    }));
+    let addr = common::serve(app).await;
+    let dir = tempdir();
+    let video = dir.path().join("clip.mp4");
+    std::fs::write(&video, vec![1u8; 5000]).unwrap();
+    let store = dir.path().join("queue.json");
+    let row = serde_json::json!([{
+        "id": 1,
+        "url": format!("http://{addr}/watch?v=x"),
+        "state": {"kind": "completed"},
+        "progress": {"downloaded": 5000, "total": 5000, "speed": 0.0, "eta": null},
+        "filename": "clip.mp4",
+        "path": video.display().to_string(),
+        "queue": dm_core::RECHECK_QUEUE,
+    }]);
+    std::fs::write(&store, row.to_string()).unwrap();
+    let q = queue(dir.path(), 1);
+    q.persist_to(store).await;
+    assert_eq!(q.list().await.len(), 1, "the saved row was not read");
+
+    assert_eq!(q.synchronize(dm_core::RECHECK_QUEUE).await, (0, vec![]));
+    assert_eq!(q.get(1).await.unwrap().state, DownloadState::Completed);
+    assert!(video.exists());
+}

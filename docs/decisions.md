@@ -3,6 +3,30 @@
 Decisions that shape dm and are not obvious from the code, newest first. Each says what was decided and why, so a later change
 can see what it is undoing.
 
+## 2026-10-17: A lock dm cannot read stops dm, and says so
+
+`instance.lock` that cannot be opened or locked (a directory in its place,
+a file system without locks) used to read as "another dm is running", and
+dm handed its links to nobody and exited without a word, every launch.
+Starting anyway without the lock was weighed and dropped: the next launch
+would start a second dm the same way, writing the same `queue.json`. So
+dm exits with the reason on stderr and in a dialog (none when headless),
+and the native host treats the lock as unreadable rather than as a running
+dm: it refuses the hand-off, and the browser keeps its download. A lock
+file left by dm run as another user is opened to read instead, which an
+advisory lock allows, so `sudo dm` once does not cause this. The host's
+probe still takes the lock for a moment; a dm starting then retries for
+half a second before believing another is running.
+
+## 2026-10-17: Waiting connections to the control port are evicted, not refused
+
+Connections that have not presented the token wait in their own list,
+apart from the 16 authenticated slots, and for at most 5 s. When the list
+is full the oldest is closed for the newcomer, so a program filling the
+port with idle connections cannot keep out the owner, whose connection
+authenticates in a round trip. A first line that is not a valid `auth`
+closes the connection.
+
 ## 2026-10-17: A handed-over sign-in belongs to one download and one server
 
 The first version kept handed-over cookies in a process-wide map by host,
@@ -328,6 +352,34 @@ queue and settings are synced before they replace the old copy, since an
 empty queue file forgets every download. The plan is not: it is rewritten
 at every split, a flush each time halved 8-connection speed, and a stale
 plan still covers every byte while an empty one only costs a refetch.
+
+## 2026-10-17: A recheck replaces a file only with a whole one
+
+A recheck that finds a file changed fetches the new version beside the
+old, which the row keeps pointing at (`replaces`), and moves it over the
+old one only once it is whole; a failure leaves the old file and says so.
+Deleting first, a server that failed halfway left nothing. What is compared
+is what the row was fetched from: a Metalink row by the file's length
+alone, since its ETag is one mirror's of many; a yt-dlp or stream row not
+at all, because its address is a page or a playlist and nothing it serves
+describes the file made from it.
+
+## 2026-10-17: SOCKS5 resolves names at the proxy; FTP paths are the login's
+
+A SOCKS5 proxy is handed out as `socks5h://`, to dm's client and to
+yt-dlp, so a name is resolved by the proxy: resolved locally, a name only
+the proxy's network knows cannot be reached, and every site is told to the
+local resolver. librqbit reads only `socks5://`, so the swarm is given that
+spelling; its peers are addresses already. An FTP address's path is relative
+to the login directory, as RFC 1738 has it, and `%2F` reaches the root.
+
+## 2026-10-17: A page named as a document is that document
+
+A link whose last segment names a document (`.html`, `.xml`, `.txt`, not a
+script's `.php` or `.aspx`) still goes to yt-dlp first, since some video
+sites end watch pages in `.html`; when yt-dlp is absent or says it does not
+know the site, the page itself is saved. A watch address with no extension
+is yt-dlp's or refused, as before.
 
 ## Tried and dropped
 

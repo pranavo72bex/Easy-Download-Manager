@@ -256,6 +256,8 @@
  "Stop download": "Download stoppen",
  "Stop queue": "Wachtrij stoppen",
  "Stopped": "Gestopt",
+ "Waiting": "Wacht",
+ "Waiting for the schedule or the download limit; it starts by itself when allowed.": "Wacht op het schema of de downloadlimiet; begint vanzelf zodra het mag.",
  "Stopped {} download(s) in {}.": "{} download(s) gestopt in {}.",
  "Sun": "Zo",
  "Take downloads of these types from the browser": "Neem downloads van deze typen over van de browser",

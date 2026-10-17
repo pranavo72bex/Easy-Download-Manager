@@ -2593,6 +2593,39 @@ fn the_mcp_bridge_gives_an_agent_dm_as_tools() {
     );
 }
 
+/// An empty list of links was answered "added 0" as a success, and any
+/// `queue:` name — one never made, or 100 KB of one — was taken as a place.
+#[test]
+fn the_control_protocol_refuses_nothing_to_add_and_a_queue_that_is_not_there() {
+    let world = world();
+    let mut harness = world.harness();
+    let app = harness.state_mut();
+    for empty in [
+        serde_json::json!({ "urls": [] }),
+        serde_json::json!({ "urls": [""] }),
+        serde_json::json!({ "urls": "" }),
+    ] {
+        assert!(
+            app.control_call("downloads.add", &empty).is_err(),
+            "{empty} was added"
+        );
+    }
+    for nowhere in [
+        "queue:nowhere".to_string(),
+        format!("queue:{}", "q".repeat(100_000)),
+    ] {
+        assert!(app
+            .control_call("ui.place", &serde_json::json!({ "place": nowhere }))
+            .is_err());
+    }
+    assert!(app
+        .control_call(
+            "ui.place",
+            &serde_json::json!({ "place": "queue:Main queue" })
+        )
+        .is_ok());
+}
+
 #[test]
 fn a_batch_runs_its_steps_in_order() {
     let world = world();

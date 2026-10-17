@@ -98,8 +98,11 @@ async fn session(stream: TcpStream, s: Server) {
             _ if !signed_in => "530 sign in first".to_string(),
             "TYPE" => "200 binary".into(),
             "SIZE" if s.quirks.bare => "502 no SIZE here".into(),
-            "SIZE" if arg == "/f.bin" => format!("213 {}", s.body.len()),
-            "SIZE" | "RETR" if arg != "/f.bin" => "550 No such file.".into(),
+            // The file is in the login directory, which is not the root: an
+            // address's path is relative to it (RFC 1738), and `/f.bin`, the
+            // root's, is another file this server has not got.
+            "SIZE" if arg == "f.bin" => format!("213 {}", s.body.len()),
+            "SIZE" | "RETR" if arg != "f.bin" => "550 No such file.".into(),
             "MDTM" => "213 20260101120000".into(),
             "REST" if s.quirks.bare => "502 no REST here".into(),
             "REST" => {

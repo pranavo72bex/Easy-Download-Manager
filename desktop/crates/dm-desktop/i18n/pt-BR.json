@@ -256,6 +256,8 @@
  "Stop download": "Parar download",
  "Stop queue": "Parar fila",
  "Stopped": "Parado",
+ "Waiting": "Aguardando",
+ "Waiting for the schedule or the download limit; it starts by itself when allowed.": "Aguardando o agendamento ou o limite de download; começa sozinho quando permitido.",
  "Stopped {} download(s) in {}.": "{} download(s) parado(s) em {}.",
  "Sun": "Dom",
  "Take downloads of these types from the browser": "Pegar do navegador os downloads destes tipos",

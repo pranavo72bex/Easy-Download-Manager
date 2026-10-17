@@ -103,10 +103,10 @@ pub enum Error {
     #[error("the server sent {got} bytes of a file it said was {expected}")]
     ShortFile { got: u64, expected: u64 },
 
-    /// With its causes: reqwest's own message is "error sending request",
-    /// and why — a refused connection, a proxy that is not there, a name
-    /// that does not resolve, a certificate — is underneath it.
-    #[error("network: {}", with_causes(.0))]
+    /// The common causes in plain words, with what the system said after
+    /// them; anything else with its causes, since reqwest's own message is
+    /// "error sending request" and why is underneath it.
+    #[error("{}", network(.0))]
     Network(#[from] reqwest::Error),
 
     /// A connection of dm's own (FTP's) dropped, timed out, or was told to
@@ -181,6 +181,46 @@ impl Error {
             body,
             retry_after,
         }
+    }
+}
+
+/// A network failure as a person reads it. "network: error sending request
+/// for url (…): client error (Connect): dns error: …" was what a mistyped
+/// address showed; the cause is said first now, plainly, and the system's
+/// own words for it after.
+fn network(error: &reqwest::Error) -> String {
+    let mut innermost = String::new();
+    let mut refused = false;
+    let mut cause: Option<&dyn std::error::Error> = Some(error);
+    while let Some(next) = cause {
+        if let Some(io) = next.downcast_ref::<std::io::Error>() {
+            refused |= io.kind() == std::io::ErrorKind::ConnectionRefused;
+        }
+        let text = next.to_string();
+        if !text.is_empty() {
+            innermost = text;
+        }
+        cause = next.source();
+    }
+    let all = with_causes(error).to_ascii_lowercase();
+    let plain = if all.contains("dns error")
+        || all.contains("failed to lookup address")
+        || all.contains("name or service not known")
+        || all.contains("nodename nor servname")
+        || all.contains("no such host")
+    {
+        "the server's name could not be found (check the address)"
+    } else if refused || all.contains("connection refused") {
+        "the server refused the connection"
+    } else if error.is_timeout() || all.contains("timed out") {
+        "the server did not answer in time"
+    } else {
+        return format!("network: {}", with_causes(error));
+    };
+    if innermost.is_empty() {
+        plain.to_string()
+    } else {
+        format!("{plain}: {innermost}")
     }
 }
 

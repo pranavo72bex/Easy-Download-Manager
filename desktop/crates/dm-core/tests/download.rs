@@ -356,6 +356,37 @@ async fn a_power_cut_that_lost_a_block_before_written_ones_is_repaired_not_resta
 }
 
 #[tokio::test]
+async fn a_power_cut_that_lost_more_than_the_checked_end_is_repaired_whole() {
+    /* The end of a part is fetched again and compared, 64 KiB of it. A power
+     * cut that lost a quarter of a megabyte left zeros before that window
+     * too, which were trusted: right length, wrong bytes, Completed. Where
+     * the window opens on zeros the part is cut back to where they begin. */
+    let body = bytes(8 * MB);
+    let (addr, _, asked) = spawn_watched(Mode::Honest, body.clone(), None).await;
+    let dir = tempdir();
+    let opts = options(dir.path());
+    let lost = 256 * 1024;
+    let mut half = body[..MB / 2].to_vec();
+    let at = half.len() - lost;
+    half[at..].fill(0);
+    let mut whole = body[MB..2 * MB].to_vec();
+    let at = whole.len() - lost;
+    whole[at..].fill(0);
+    staged(&opts, &body, &[(0, half), (1, whole)]);
+
+    let done = download(&client(), &format!("http://{addr}/f.bin"), &opts)
+        .await
+        .unwrap();
+
+    assert!(
+        std::fs::read(&done.path).unwrap() == body,
+        "zeros before the checked window were kept"
+    );
+    let from_start = asked.lock().unwrap().iter().any(|&(a, b)| a == 0 && b > a);
+    assert!(!from_start, "the lost bytes were fetched by starting over");
+}
+
+#[tokio::test]
 async fn a_part_that_agrees_with_the_server_is_kept() {
     let body = bytes(8 * MB);
     let (addr, _, asked) = spawn_watched(Mode::Honest, body.clone(), None).await;

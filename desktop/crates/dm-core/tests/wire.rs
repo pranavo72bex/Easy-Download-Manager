@@ -38,6 +38,7 @@ fn entry(state: State) -> Entry {
         quality: None,
         parts_dir: String::new(),
         cookies: String::new(),
+        replaces: None,
     }
 }
 
