@@ -58,6 +58,13 @@ impl State {
     pub fn settled(&self) -> bool {
         matches!(self, State::Completed | State::Failed(_) | State::Cancelled)
     }
+
+    /// Whether "Clear finished" takes this row. A failed row is not
+    /// finished: its staged parts are what Retry resumes from, so it stays,
+    /// parts and all, until a person removes it on purpose.
+    pub fn clearable(&self) -> bool {
+        matches!(self, State::Completed | State::Cancelled)
+    }
 }
 
 /// One row.
@@ -799,16 +806,19 @@ impl Queue {
         self.save().await;
     }
 
-    /// Forgets every row that has finished, one way or another.
+    /// Forgets every row that completed or was cancelled.
     ///
     /// The history is the queue: rows stay after they finish, which is what
     /// makes "where did that go" answerable. This is how it is emptied.
+    /// Failed rows are kept with their staged parts (`State::clearable`):
+    /// clearing them deleted what Retry would have resumed from, with no
+    /// question asked.
     pub async fn clear_finished(&self) -> usize {
         let removed: Vec<Id> = {
             let slots = self.inner.slots.lock().await;
             slots
                 .values()
-                .filter(|s| s.entry.state.settled())
+                .filter(|s| s.entry.state.clearable())
                 .map(|s| s.entry.id)
                 .collect()
         };

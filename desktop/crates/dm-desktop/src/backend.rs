@@ -46,6 +46,11 @@ pub trait Platform: Send + Sync {
     /// Asks for a file: one to read (`save` false) or a place to write one
     /// called `suggested`. `None` when the person cancels.
     fn choose_file(&self, save: bool, suggested: &str) -> Option<std::path::PathBuf>;
+    /// Asks for a folder, for a Browse… button beside a folder's field.
+    /// `None` when the person cancels, or where there is nothing to ask with.
+    fn choose_folder(&self) -> Option<std::path::PathBuf> {
+        None
+    }
 }
 
 /// The queue, the settings in force, and the problems no row can carry.

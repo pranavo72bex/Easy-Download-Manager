@@ -782,6 +782,41 @@ async fn clearing_the_history_keeps_what_has_not_finished() {
     );
 }
 
+#[tokio::test]
+async fn clearing_the_history_keeps_a_failed_row_and_its_parts() {
+    /* "Clear finished" took Failed rows too, and deleted their staged parts
+     * with no question: what Retry would have resumed from (gap 104). */
+    let (addr, _) = serve().await;
+    let dir = tempdir();
+    let q = queue(dir.path(), 1);
+
+    let done = q.add(&format!("http://{addr}/f.bin")).await.unwrap();
+    let failed = q.add(&format!("http://{addr}/missing.bin")).await.unwrap();
+    let cancelled = q.add(&format!("http://{addr}/never.bin")).await.unwrap();
+    q.cancel(cancelled).await;
+    q.run().await;
+    let row = q.get(failed).await.unwrap();
+    assert!(
+        matches!(row.state, DownloadState::Failed(_)),
+        "{:?}",
+        row.state
+    );
+    // Parts a failure part-way through leaves behind.
+    let parts = std::path::Path::new(&row.parts_dir);
+    std::fs::create_dir_all(parts).unwrap();
+    std::fs::write(parts.join("part-0000"), b"staged").unwrap();
+
+    assert_eq!(q.clear_finished().await, 2);
+    assert!(q.get(done).await.is_none(), "the completed row stayed");
+    assert!(q.get(cancelled).await.is_none(), "the cancelled row stayed");
+    assert!(q.get(failed).await.is_some(), "the failed row was cleared");
+    assert_eq!(
+        std::fs::read(parts.join("part-0000")).unwrap(),
+        b"staged",
+        "the failed row's staged parts were deleted"
+    );
+}
+
 /* ------------------------------------------------------------- schedule */
 
 fn closed_now() -> dm_core::Schedule {

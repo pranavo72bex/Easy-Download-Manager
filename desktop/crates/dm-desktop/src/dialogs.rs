@@ -272,6 +272,9 @@ pub struct OptionsDialog {
     pub bypass: String,
     /// The categories a person made, as typed: name, file types, sites.
     pub custom: Vec<[String; 3]>,
+    /// A row was just added to one of the tab's lists: its first field is
+    /// scrolled into view and takes the keyboard.
+    pub fresh: bool,
 }
 
 #[derive(Default)]
@@ -307,11 +310,32 @@ pub struct Dialogs {
     pub skip_offer: Option<String>,
     /// Windows asked for again while open, to be brought to the front.
     pub raise: Vec<egui::Id>,
+    /// Exit asked for while downloads run: asked whether to stop them.
+    pub confirm_exit: bool,
+    /// The dialog, by English title, whose first field takes the keyboard
+    /// when it is next drawn: a dialog opened to be typed in is typed in
+    /// at once, without a click first.
+    pub focus: Option<&'static str>,
 }
 
 impl Dialogs {
+    /// Gives the keyboard to `title`'s first field when it is next drawn.
+    pub fn focus_on(&mut self, title: &'static str) {
+        self.focus = Some(title);
+    }
+
+    /// Whether `title`'s first field is to take the keyboard now; once.
+    fn take_focus(&mut self, title: &'static str) -> bool {
+        if self.focus == Some(title) {
+            self.focus = None;
+            return true;
+        }
+        false
+    }
+
     /// Add URL, offering a link already on the clipboard.
     pub fn open_add_url(&mut self, clipboard: Option<String>) {
+        self.focus_on("Add URL");
         if self.keep("Add URL", self.add_url.is_some()) {
             return;
         }
@@ -405,6 +429,7 @@ impl Dialogs {
     }
 
     pub fn open_properties(&mut self, row: &dm_core::Entry) {
+        self.focus_on("File properties");
         if self.properties.contains_key(&row.id) {
             self.raise.push(egui::Id::unique(("properties", row.id)));
             return;
@@ -434,12 +459,14 @@ impl Dialogs {
     }
 
     pub fn open_series(&mut self) {
+        self.focus_on("Add numbered series");
         if !self.keep("Add numbered series", self.series.is_some()) {
             self.series = Some(Default::default());
         }
     }
 
     pub fn open_site_files(&mut self) {
+        self.focus_on("Files on a site");
         if !self.keep("Files on a site", self.site_files.is_some()) {
             self.site_files = Some(Default::default());
         }
@@ -490,6 +517,7 @@ impl Dialogs {
                 .iter()
                 .map(|c| [c.name.clone(), c.extensions.join(" "), c.sites.join(" ")])
                 .collect(),
+            fresh: false,
         });
     }
 
@@ -501,6 +529,7 @@ impl Dialogs {
                 open.push(name.to_string());
             }
         };
+        say(self.confirm_exit, "Exit dm?");
         say(self.confirm_remove.is_some(), "Delete unfinished downloads");
         say(self.duplicate.is_some(), "Already in the list");
         say(self.skip_offer.is_some(), "Leave this site to the browser?");
@@ -530,7 +559,8 @@ impl Dialogs {
     /// Options), then the large ones, then the windows per download. True
     /// if one closed.
     pub fn close_top(&mut self) -> bool {
-        if self.confirm_remove.take().is_some()
+        if std::mem::take(&mut self.confirm_exit)
+            || self.confirm_remove.take().is_some()
             || self.duplicate.take().is_some()
             || self.skip_offer.take().is_some()
         {
@@ -646,11 +676,50 @@ fn field(ui: &mut egui::Ui, label: &str, text: &mut String, width: f32) -> egui:
         .labelled_by(name.id)
 }
 
+/// Enter pressed in a field: the dialog's default button, as in any
+/// dialog. A one-line field lets the keyboard go on Enter.
+fn entered(field: &egui::Response) -> bool {
+    field.lost_focus() && field.ctx.input(|i| i.key_pressed(egui::Key::Enter))
+}
+
+/// Gives a field the keyboard when `now` says, and passes it on.
+fn focused(field: egui::Response, now: bool) -> egui::Response {
+    if now {
+        field.request_focus();
+    }
+    field
+}
+
+/// A folder's field: its name above, the path, and Browse… beside it.
+fn folder_field(
+    ui: &mut egui::Ui,
+    label: &str,
+    text: &mut String,
+    platform: &dyn crate::backend::Platform,
+) {
+    let name = ui.label(label);
+    ui.horizontal(|ui| {
+        ui.add(egui::TextEdit::singleline(text).desired_width(380.0))
+            .labelled_by(name.id);
+        browse(ui, platform, text);
+    });
+}
+
+/// A Browse… button beside a folder's field: the folder picked goes in it.
+fn browse(ui: &mut egui::Ui, platform: &dyn crate::backend::Platform, folder: &mut String) {
+    if ui.button(t("Browse…")).clicked() {
+        if let Some(picked) = platform.choose_folder() {
+            *folder = picked.display().to_string();
+        }
+    }
+}
+
 pub fn show(app: &mut DmApp, ctx: &egui::Context) {
     for id in std::mem::take(&mut app.dialogs.raise) {
         ctx.move_to_top(egui::LayerId::new(egui::Order::Middle, id));
     }
     countdown(app, ctx);
+    confirm_exit(app, ctx);
     links(app, ctx);
     confirm_remove(app, ctx);
     duplicate(app, ctx);
@@ -707,6 +776,38 @@ fn confirm_remove(app: &mut DmApp, ctx: &egui::Context) {
         app.remove_now(&ids);
     } else if no {
         app.dialogs.confirm_remove = None;
+    }
+}
+
+/// Asked when Exit is chosen while downloads run: quitting stops them, and
+/// they go on from where they were the next time dm opens.
+fn confirm_exit(app: &mut DmApp, ctx: &egui::Context) {
+    if !app.dialogs.confirm_exit {
+        return;
+    }
+    let running = app.downloading();
+    // Finished meanwhile: nothing is left to ask about.
+    if running == 0 {
+        app.dialogs.confirm_exit = false;
+        app.quit_asked = true;
+        return;
+    }
+    let (mut exit, mut stay) = (false, false);
+    window("Exit dm?").show(ctx, |ui| {
+        ui.label(tf(
+            "{} download(s) are still running. Exiting stops them; they go on from where they were the next time dm opens.",
+            &[&running],
+        ));
+        ui.horizontal(|ui| {
+            exit = primary(ui, "Exit").clicked();
+            stay = ui.button(t("Keep downloading")).clicked();
+        });
+    });
+    if exit {
+        app.dialogs.confirm_exit = false;
+        app.quit_asked = true;
+    } else if stay {
+        app.dialogs.confirm_exit = false;
     }
 }
 
@@ -792,31 +893,35 @@ fn duplicate(app: &mut DmApp, ctx: &egui::Context) {
 }
 
 fn add_url(app: &mut DmApp, ctx: &egui::Context) {
+    let focus = app.dialogs.take_focus("Add URL");
     let Some(d) = app.dialogs.add_url.as_mut() else {
         return;
     };
     let mut open = true;
     let (mut ok, mut cancel) = (false, false);
     window("Add URL").open(&mut open).show(ctx, |ui| {
-        field(ui, t("Address"), &mut d.address, 420.0);
+        let address = focused(field(ui, t("Address"), &mut d.address, 420.0), focus);
+        ok |= entered(&address);
         ui.checkbox(&mut d.authorize, t("Needs a sign-in"));
         ui.add_enabled_ui(d.authorize, |ui| {
             ui.horizontal(|ui| {
-                field(ui, t("Login"), &mut d.login, 140.0);
+                ok |= entered(&field(ui, t("Login"), &mut d.login, 140.0));
                 let name = ui.label(t("Password"));
-                ui.add(
-                    egui::TextEdit::singleline(&mut d.password)
-                        .password(true)
-                        .desired_width(140.0),
-                )
-                .labelled_by(name.id);
+                let password = ui
+                    .add(
+                        egui::TextEdit::singleline(&mut d.password)
+                            .password(true)
+                            .desired_width(140.0),
+                    )
+                    .labelled_by(name.id);
+                ok |= entered(&password);
             });
         });
         if !d.says.is_empty() {
             ui.colored_label(WARN, &d.says);
         }
         ui.horizontal(|ui| {
-            ok = primary(ui, "OK").clicked();
+            ok |= primary(ui, "OK").clicked();
             cancel = ui.button(t("Cancel")).clicked();
         });
     });
@@ -854,6 +959,14 @@ fn file_info(app: &mut DmApp, ctx: &egui::Context) {
     };
     let queues = app.backend.queues();
     let default_dir = app.applied.download_dir.display().to_string();
+    // The folder an empty field means: sorted into kinds' folders only
+    // where Options › Folders sorts them.
+    let default_dir = if app.applied.categorize {
+        tf("{} (sorted by kind)", &[&default_dir])
+    } else {
+        default_dir
+    };
+    let platform = std::sync::Arc::clone(&app.backend.platform);
     let mut open = true;
     let mut chosen: Option<bool> = None; // Some(later)
     let mut cancel = false;
@@ -869,26 +982,41 @@ fn file_info(app: &mut DmApp, ctx: &egui::Context) {
             .spacing([12.0, 8.0])
             .show(ui, |ui| {
                 let name = ui.label(t("Save to folder"));
-                ui.add(
-                    egui::TextEdit::singleline(&mut d.folder)
-                        .hint_text(format!("{default_dir} (sorted by kind)"))
-                        .desired_width(360.0),
-                )
-                .labelled_by(name.id);
+                ui.horizontal(|ui| {
+                    let folder = ui
+                        .add(
+                            egui::TextEdit::singleline(&mut d.folder)
+                                .hint_text(&default_dir)
+                                .desired_width(280.0),
+                        )
+                        .labelled_by(name.id);
+                    if entered(&folder) {
+                        chosen = Some(false);
+                    }
+                    browse(ui, &*platform, &mut d.folder);
+                });
                 ui.end_row();
                 if d.urls.len() == 1 {
                     let name = ui.label(t("Save as"));
-                    ui.add(
-                        egui::TextEdit::singleline(&mut d.name)
-                            .hint_text(format::provisional(&first))
-                            .desired_width(360.0),
-                    )
-                    .labelled_by(name.id);
+                    let save_as = ui
+                        .add(
+                            egui::TextEdit::singleline(&mut d.name)
+                                .hint_text(format::provisional(&first))
+                                .desired_width(360.0),
+                        )
+                        .labelled_by(name.id);
+                    if entered(&save_as) {
+                        chosen = Some(false);
+                    }
                     ui.end_row();
                 }
                 let name = ui.label(t("Note"));
-                ui.add(egui::TextEdit::singleline(&mut d.description).desired_width(360.0))
+                let note = ui
+                    .add(egui::TextEdit::singleline(&mut d.description).desired_width(360.0))
                     .labelled_by(name.id);
+                if entered(&note) {
+                    chosen = Some(false);
+                }
                 ui.end_row();
                 if let Some(label) = &d.label {
                     ui.label(t("Quality"));
@@ -1071,7 +1199,11 @@ fn progress(app: &mut DmApp, ctx: &egui::Context) {
                     if matches!(row.state, State::Running | State::Queued) {
                         pause = ui.button(t("Pause")).clicked();
                     }
-                    if matches!(row.state, State::Paused | State::Failed(_)) {
+                    // A failed download is tried again, and the button says so.
+                    if matches!(row.state, State::Failed(_)) {
+                        resume = ui.button(t("Retry")).clicked();
+                    }
+                    if row.state == State::Paused {
                         resume = ui.button(t("Resume")).clicked();
                     }
                     if !row.state.settled() {
@@ -1100,45 +1232,77 @@ fn progress(app: &mut DmApp, ctx: &egui::Context) {
     }
 }
 
+/// One "Download complete" window for everything that finished, each file
+/// with its own Open and Open folder: a window per file stacked them, five
+/// for a five-file series, and a click on one half-hidden behind another
+/// opened the wrong file.
 fn complete(app: &mut DmApp, ctx: &egui::Context) {
-    let ids: Vec<Id> = app.dialogs.complete.iter().copied().collect();
-    for id in ids {
-        let Some(row) = app.row(id).cloned() else {
-            app.dialogs.complete.remove(&id);
-            continue;
-        };
-        let mut close = false;
-        egui::Window::new(t("Download complete"))
-            .id(egui::Id::unique(("complete", id)))
-            .collapsible(false)
-            .resizable(false)
-            .show(ctx, |ui| {
-                ui.label(RichText::new(name_of(&row)).strong());
-                ui.label(format::bytes(
-                    row.progress.total.unwrap_or(row.progress.downloaded),
-                ));
-                ui.label(RichText::new(&row.path).small().weak());
-                ui.horizontal(|ui| {
-                    if ui.button(t("Open")).clicked() {
-                        if let Err(e) = app.backend.platform.open(&row.path) {
-                            app.said = e.into();
-                        }
-                        close = true;
-                    }
-                    if ui.button(t("Open folder")).clicked() {
-                        if let Err(e) = app.backend.platform.reveal(&row.path) {
-                            app.said = e.into();
-                        }
-                        close = true;
-                    }
-                    if ui.button(t("Close")).clicked() {
-                        close = true;
-                    }
-                });
-            });
-        if close {
-            app.dialogs.complete.remove(&id);
+    let rows: Vec<dm_core::Entry> = app
+        .dialogs
+        .complete
+        .iter()
+        .filter_map(|id| app.row(*id).cloned())
+        .collect();
+    app.dialogs
+        .complete
+        .retain(|id| rows.iter().any(|r| r.id == *id));
+    if rows.is_empty() {
+        return;
+    }
+    let mut done: Vec<Id> = Vec::new();
+    let mut close = false;
+    let mut shut = true;
+    window("Download complete").open(&mut shut).show(ctx, |ui| {
+        if rows.len() > 1 {
+            ui.label(tf("{} downloads finished.", &[&rows.len()]));
+            ui.separator();
         }
+        egui::ScrollArea::vertical()
+            .max_height(320.0)
+            .show(ui, |ui| {
+                for row in &rows {
+                    let name = name_of(row);
+                    ui.label(RichText::new(&name).strong());
+                    ui.label(format::bytes(
+                        row.progress.total.unwrap_or(row.progress.downloaded),
+                    ));
+                    ui.label(RichText::new(&row.path).small().weak());
+                    ui.horizontal(|ui| {
+                        // Named for its file where there are several, so a
+                        // screen reader says which Open this is.
+                        let named = |ui: &mut egui::Ui, word: &str, said: String| {
+                            let button = ui.button(word);
+                            if rows.len() > 1 {
+                                button.widget_info(|| {
+                                    egui::WidgetInfo::labeled(egui::Role::Button, true, &said)
+                                });
+                            }
+                            button.clicked()
+                        };
+                        if named(ui, t("Open"), tf("Open {}", &[&name])) {
+                            if let Err(e) = app.backend.platform.open(&row.path) {
+                                app.said = e.into();
+                            }
+                            done.push(row.id);
+                        }
+                        if named(ui, t("Open folder"), tf("Open the folder of {}", &[&name])) {
+                            if let Err(e) = app.backend.platform.reveal(&row.path) {
+                                app.said = e.into();
+                            }
+                            done.push(row.id);
+                        }
+                    });
+                    ui.add_space(6.0);
+                }
+            });
+        ui.separator();
+        close = ui.button(t("Close")).clicked();
+    });
+    if close || !shut {
+        app.dialogs.complete.clear();
+    }
+    for id in done {
+        app.dialogs.complete.remove(&id);
     }
 }
 
@@ -1150,9 +1314,13 @@ fn properties(app: &mut DmApp, ctx: &egui::Context) {
             continue;
         };
         let (mut ok, mut cancel, mut open_file) = (false, false, false);
+        let focus = app.dialogs.take_focus("File properties");
         let Some(d) = app.dialogs.properties.get_mut(&id) else {
             continue;
         };
+        // A server that wants a sign-in: the keyboard goes to Login.
+        let wants_login =
+            matches!(&row.state, State::Failed(why) if crate::app::needs_sign_in(why));
         // No wider than the window leaves room for, however long a name,
         // path or referrer: they wrap, rather than pushing the buttons off
         // the screen.
@@ -1170,7 +1338,13 @@ fn properties(app: &mut DmApp, ctx: &egui::Context) {
                 ui.set_max_width(room);
                 // The values' column: what is left beside the headings.
                 let value = (room - 130.0).max(160.0);
+                // Nothing to say is a plain dash: an empty wrapped label
+                // stood a whole line tall and left gaps down the dialog.
                 let said = |ui: &mut egui::Ui, text: &str| {
+                    if text.is_empty() {
+                        ui.label(RichText::new("—").weak());
+                        return;
+                    }
                     ui.scope(|ui| {
                         ui.set_max_width(value);
                         ui.add(egui::Label::new(text).wrap_mode(egui::TextWrapMode::Wrap));
@@ -1195,13 +1369,17 @@ fn properties(app: &mut DmApp, ctx: &egui::Context) {
                                 ui.label(status_of(&row));
                                 ui.end_row();
                                 ui.label(t("Size"));
-                                ui.label(row.progress.total.map(format::bytes).unwrap_or_default());
+                                said(
+                                    ui,
+                                    &row.progress.total.map(format::bytes).unwrap_or_default(),
+                                );
                                 ui.end_row();
                                 ui.label(t("Category"));
                                 // In the window's language, as the category tree
                                 // names it.
-                                ui.label(
-                                    row.category
+                                said(
+                                    ui,
+                                    &row.category
                                         .map(|c| {
                                             crate::i18n::name(&format::titled(&category_word(c)))
                                         })
@@ -1217,36 +1395,44 @@ fn properties(app: &mut DmApp, ctx: &egui::Context) {
                                 let name = ui.label(t("Address"));
                                 let editable =
                                     !matches!(row.state, State::Running | State::Completed);
-                                ui.add_enabled(
-                                    editable,
-                                    egui::TextEdit::singleline(&mut d.address)
-                                        .desired_width(value.min(360.0)),
-                                )
-                                .labelled_by(name.id);
+                                let address = ui
+                                    .add_enabled(
+                                        editable,
+                                        egui::TextEdit::singleline(&mut d.address)
+                                            .desired_width(value.min(360.0)),
+                                    )
+                                    .labelled_by(name.id);
+                                ok |= entered(&focused(address, focus && editable && !wants_login));
                                 ui.end_row();
                                 let name = ui.label(t("Login"));
-                                ui.add_enabled(
-                                    editable,
-                                    egui::TextEdit::singleline(&mut d.login)
-                                        .desired_width(value.min(200.0)),
-                                )
-                                .labelled_by(name.id);
+                                let login = ui
+                                    .add_enabled(
+                                        editable,
+                                        egui::TextEdit::singleline(&mut d.login)
+                                            .desired_width(value.min(200.0)),
+                                    )
+                                    .labelled_by(name.id);
+                                ok |= entered(&focused(login, focus && editable && wants_login));
                                 ui.end_row();
                                 let name = ui.label(t("Password"));
-                                ui.add_enabled(
-                                    editable,
-                                    egui::TextEdit::singleline(&mut d.password)
-                                        .password(true)
-                                        .desired_width(value.min(200.0)),
-                                )
-                                .labelled_by(name.id);
+                                let password = ui
+                                    .add_enabled(
+                                        editable,
+                                        egui::TextEdit::singleline(&mut d.password)
+                                            .password(true)
+                                            .desired_width(value.min(200.0)),
+                                    )
+                                    .labelled_by(name.id);
+                                ok |= entered(&password);
                                 ui.end_row();
                                 let name = ui.label(t("Note"));
-                                ui.add(
-                                    egui::TextEdit::singleline(&mut d.description)
-                                        .desired_width(value.min(360.0)),
-                                )
-                                .labelled_by(name.id);
+                                let note = ui
+                                    .add(
+                                        egui::TextEdit::singleline(&mut d.description)
+                                            .desired_width(value.min(360.0)),
+                                    )
+                                    .labelled_by(name.id);
+                                ok |= entered(&focused(note, focus && !editable));
                                 ui.end_row();
                             });
                     });
@@ -1259,7 +1445,7 @@ fn properties(app: &mut DmApp, ctx: &egui::Context) {
                     open_file = ui
                         .add_enabled(can_open, egui::Button::new(t("Open")))
                         .clicked();
-                    ok = primary(ui, "OK").clicked();
+                    ok |= primary(ui, "OK").clicked();
                     cancel = ui.button(t("Cancel")).clicked();
                 });
             });
@@ -1301,6 +1487,7 @@ fn properties(app: &mut DmApp, ctx: &egui::Context) {
 }
 
 fn series(app: &mut DmApp, ctx: &egui::Context) {
+    let focus = app.dialogs.take_focus("Add numbered series");
     let Some(d) = app.dialogs.series.as_mut() else {
         return;
     };
@@ -1310,10 +1497,13 @@ fn series(app: &mut DmApp, ctx: &egui::Context) {
         .open(&mut open)
         .show(ctx, |ui| {
             ui.label(t("An address with * where the number or letter goes:"));
-            field(ui, t("Address with *"), &mut d.template, 420.0);
+            let mut enter = entered(&focused(
+                field(ui, t("Address with *"), &mut d.template, 420.0),
+                focus,
+            ));
             ui.horizontal(|ui| {
-                field(ui, t("From"), &mut d.from, 60.0);
-                field(ui, t("To"), &mut d.to, 60.0);
+                enter |= entered(&field(ui, t("From"), &mut d.from, 60.0));
+                enter |= entered(&field(ui, t("To"), &mut d.to, 60.0));
                 let name = ui.label(t("Wildcard size"));
                 ui.add(egui::DragValue::new(&mut d.width).range(0..=9))
                     .labelled_by(name.id);
@@ -1331,7 +1521,7 @@ fn series(app: &mut DmApp, ctx: &egui::Context) {
                 ui.colored_label(WARN, &d.says);
             }
             ui.horizontal(|ui| {
-                if primary(ui, "Start now").clicked() {
+                if primary(ui, "Start now").clicked() || enter {
                     add = Some(false);
                 }
                 if ui.button(t("Add for later")).clicked() {
@@ -1400,76 +1590,92 @@ fn links(app: &mut DmApp, ctx: &egui::Context) {
         return;
     };
     let mut open = true;
-    let mut ok = false;
+    // Some(later): Start now, or Add for later.
+    let mut chosen: Option<bool> = None;
     let mut cancel = false;
-    window("Download all links")
-        .open(&mut open)
-        .show(ctx, |ui| {
-            ui.label(tf(
-                "{} links on {}",
-                &[&d.items.len(), &format::shown_url(&d.page)],
-            ));
-            ui.horizontal(|ui| {
-                ui.checkbox(&mut d.hide_html, t("Hide HTML files"));
-                if ui.button(t("Check all")).clicked() {
-                    d.items.iter_mut().for_each(|l| l.1 = true);
-                }
-                if ui.button(t("Uncheck all")).clicked() {
-                    d.items.iter_mut().for_each(|l| l.1 = false);
-                }
-            });
-            let found = dm_core::lock(&d.found).clone();
-            let hide = d.hide_html;
-            let html: Vec<bool> = d.items.iter().map(|(u, _)| d.is_html(u)).collect();
-            egui::ScrollArea::vertical()
-                .max_height(320.0)
-                .show(ui, |ui| {
-                    egui::Grid::new("links")
-                        .num_columns(3)
-                        .striped(true)
-                        .show(ui, |ui| {
-                            ui.strong("File name");
-                            ui.strong("Type");
-                            ui.strong("Size");
-                            ui.end_row();
-                            for ((url, on), is_html) in d.items.iter_mut().zip(html) {
-                                if hide && is_html {
-                                    continue;
-                                }
-                                let what = found.get(url.as_str());
-                                let name = what
-                                    .map(|f| f.name.clone())
-                                    .filter(|n| !n.is_empty())
-                                    .unwrap_or_else(|| format::provisional(url));
-                                // The name is the checkbox's, so a screen reader says it.
-                                ui.checkbox(on, &name).on_hover_text(format::shown_url(url));
-                                ui.label(
-                                    what.map(|f| format::titled(&f.kind))
-                                        .unwrap_or_else(|| "…".into()),
-                                );
-                                ui.label(
-                                    what.and_then(|f| f.size)
-                                        .map(format::bytes)
-                                        .unwrap_or_default(),
-                                );
-                                ui.end_row();
-                            }
-                        });
-                });
-            ui.separator();
-            ui.horizontal(|ui| {
-                ok = primary(ui, "OK").clicked();
-                cancel = ui.button(t("Cancel")).clicked();
-            });
+    // Titled for either list the browser hands over: a page's every link,
+    // or the links in what was selected on it.
+    window("Download links").open(&mut open).show(ctx, |ui| {
+        ui.label(tf(
+            "{} links on {}",
+            &[&d.items.len(), &format::shown_url(&d.page)],
+        ));
+        ui.horizontal(|ui| {
+            ui.checkbox(&mut d.hide_html, t("Hide HTML files"));
+            if ui.button(t("Check all")).clicked() {
+                d.items.iter_mut().for_each(|l| l.1 = true);
+            }
+            if ui.button(t("Uncheck all")).clicked() {
+                d.items.iter_mut().for_each(|l| l.1 = false);
+            }
         });
-    if ok {
+        let found = dm_core::lock(&d.found).clone();
+        let hide = d.hide_html;
+        let html: Vec<bool> = d.items.iter().map(|(u, _)| d.is_html(u)).collect();
+        egui::ScrollArea::vertical()
+            .max_height(320.0)
+            .show(ui, |ui| {
+                egui::Grid::new("links")
+                    .num_columns(3)
+                    .striped(true)
+                    .show(ui, |ui| {
+                        ui.strong(t("File name"));
+                        ui.strong(t("Type"));
+                        ui.strong(t("Size"));
+                        ui.end_row();
+                        for ((url, on), is_html) in d.items.iter_mut().zip(html) {
+                            if hide && is_html {
+                                continue;
+                            }
+                            let what = found.get(url.as_str());
+                            let name = what
+                                .map(|f| f.name.clone())
+                                .filter(|n| !n.is_empty())
+                                .unwrap_or_else(|| format::provisional(url));
+                            // The name is the checkbox's, so a screen reader says it.
+                            ui.checkbox(on, &name).on_hover_text(format::shown_url(url));
+                            ui.label(
+                                what.map(|f| format::titled(&f.kind))
+                                    .unwrap_or_else(|| "…".into()),
+                            );
+                            ui.label(
+                                what.and_then(|f| f.size)
+                                    .map(format::bytes)
+                                    .unwrap_or_default(),
+                            );
+                            ui.end_row();
+                        }
+                    });
+            });
+        ui.separator();
+        ui.horizontal(|ui| {
+            if primary(ui, "Start now").clicked() {
+                chosen = Some(false);
+            }
+            if ui.button(t("Add for later")).clicked() {
+                chosen = Some(true);
+            }
+            cancel = ui.button(t("Cancel")).clicked();
+        });
+    });
+    if let Some(later) = chosen {
         let chosen = d.chosen();
         let with = AddOptions {
-            later: true,
-            queue: MAIN_QUEUE.into(),
+            later,
+            queue: if later {
+                MAIN_QUEUE.into()
+            } else {
+                String::new()
+            },
             referrer: d.page.clone(),
             ..AddOptions::default()
         };
+        // The sizes the servers already told, kept on the rows until each
+        // learns its own.
+        let sizes: std::collections::HashMap<String, u64> = dm_core::lock(&d.found)
+            .iter()
+            .filter_map(|(url, found)| found.size.map(|size| (url.clone(), size)))
+            .collect();
         // The page's sign-in goes with the links on its own server, and with
         // no others.
         let (signed, plain): (Vec<String>, Vec<String>) = chosen.into_iter().partition(|link| {
@@ -1482,16 +1688,19 @@ fn links(app: &mut DmApp, ctx: &egui::Context) {
             ..with.clone()
         };
         app.dialogs.links = None;
-        // They go on the list and into the queue, to start with it.
-        let added = match (app.add(&signed, signed_with), app.add(&plain, with)) {
+        let added = match (
+            app.add_sized(&signed, signed_with, &sizes),
+            app.add_sized(&plain, with, &sizes),
+        ) {
             (Ok(a), Ok(b)) => Ok(a + b),
             (Err(e), _) | (_, Err(e)) => Err(e),
         };
         match added {
-            Ok(n) => {
+            Ok(n) if later => {
                 app.said =
                     crate::i18n::Said::naming("Added {} download(s) to {}.", &[&n, &MAIN_QUEUE])
             }
+            Ok(n) => app.said = crate::i18n::Said::new("Started {} download(s).", &[&n]),
             Err(e) => app.said = e.into(),
         }
         return;
@@ -1506,22 +1715,45 @@ fn clip_links(app: &mut DmApp, ctx: &egui::Context) {
         return;
     };
     let mut open = true;
-    let mut add = false;
+    // Some(later): Start now, or Add for later.
+    let mut add: Option<bool> = None;
+    let mut cancel = false;
     window("Links on the clipboard")
         .open(&mut open)
         .show(ctx, |ui| {
             pick_list(ui, links);
-            add = ui.button(t("Add for later")).clicked();
+            ui.separator();
+            ui.horizontal(|ui| {
+                if primary(ui, "Start now").clicked() {
+                    add = Some(false);
+                }
+                if ui.button(t("Add for later")).clicked() {
+                    add = Some(true);
+                }
+                cancel = ui.button(t("Cancel")).clicked();
+            });
         });
-    if add {
+    if cancel {
+        open = false;
+    }
+    if let Some(later) = add {
         let chosen: Vec<String> = links.iter().filter(|l| l.1).map(|l| l.0.clone()).collect();
         let with = AddOptions {
-            later: true,
-            queue: MAIN_QUEUE.into(),
+            later,
+            queue: if later {
+                MAIN_QUEUE.into()
+            } else {
+                String::new()
+            },
             ..AddOptions::default()
         };
-        if let Ok(n) = app.add(&chosen, with) {
-            app.said = crate::i18n::Said::naming("Added {} download(s) to {}.", &[&n, &MAIN_QUEUE]);
+        match app.add(&chosen, with) {
+            Ok(n) if later => {
+                app.said =
+                    crate::i18n::Said::naming("Added {} download(s) to {}.", &[&n, &MAIN_QUEUE])
+            }
+            Ok(n) => app.said = crate::i18n::Said::new("Started {} download(s).", &[&n]),
+            Err(e) => app.said = e.into(),
         }
         open = false;
     }
@@ -1533,6 +1765,7 @@ fn clip_links(app: &mut DmApp, ctx: &egui::Context) {
 fn site_files(app: &mut DmApp, ctx: &egui::Context) {
     // Built before the dialog is borrowed: the client reads the settings.
     let client = app.client();
+    let focus = app.dialogs.take_focus("Files on a site");
     let Some(d) = app.dialogs.site_files.as_mut() else {
         return;
     };
@@ -1544,7 +1777,10 @@ fn site_files(app: &mut DmApp, ctx: &egui::Context) {
     let mut delete_saved: Option<String> = None;
     let saved = app.applied.site_searches.clone();
     window("Files on a site").open(&mut open).show(ctx, |ui| {
-        field(ui, t("Start page"), &mut d.page, 420.0);
+        look |= entered(&focused(
+            field(ui, t("Start page"), &mut d.page, 420.0),
+            focus,
+        ));
         field(ui, t("File types"), &mut d.types, 420.0);
         ui.horizontal(|ui| {
             let name = ui.label(t("Pages deep (0 for the start page only)"));
@@ -1580,7 +1816,7 @@ fn site_files(app: &mut DmApp, ctx: &egui::Context) {
             }
         }
         ui.separator();
-        look = ui.button(t("Find files")).clicked();
+        look |= ui.button(t("Find files")).clicked();
         let mut state = dm_core::lock(&d.state);
         match &mut *state {
             Grab::Idle => {}
@@ -1676,6 +1912,7 @@ fn site_files(app: &mut DmApp, ctx: &egui::Context) {
 }
 
 fn update_link(app: &mut DmApp, ctx: &egui::Context) {
+    let focus = app.dialogs.take_focus("Update download link");
     let Some((id, address, says)) = app.dialogs.update_link.as_mut() else {
         return;
     };
@@ -1685,11 +1922,11 @@ fn update_link(app: &mut DmApp, ctx: &egui::Context) {
         .open(&mut open)
         .show(ctx, |ui| {
             ui.label(t("The download's link has expired? Paste a fresh one:"));
-            field(ui, t("New address"), address, 420.0);
+            ok = entered(&focused(field(ui, t("New address"), address, 420.0), focus));
             if !says.is_empty() {
                 ui.colored_label(WARN, says.as_str());
             }
-            ok = primary(ui, "OK").clicked();
+            ok |= primary(ui, "OK").clicked();
         });
     if ok {
         match app.backend.set_url(*id, address) {
@@ -1703,6 +1940,7 @@ fn update_link(app: &mut DmApp, ctx: &egui::Context) {
 }
 
 fn move_to_queue(app: &mut DmApp, ctx: &egui::Context) {
+    let focus = app.dialogs.take_focus("Move to queue");
     let Some((ids, queue)) = app.dialogs.move_to_queue.as_mut() else {
         return;
     };
@@ -1717,8 +1955,11 @@ fn move_to_queue(app: &mut DmApp, ctx: &egui::Context) {
             let shown = crate::i18n::name(q);
             ui.radio_value(queue, shown.clone(), shown);
         }
-        field(ui, t("Or a new queue"), queue, 240.0);
-        ok = primary(ui, "OK").clicked();
+        ok = entered(&focused(
+            field(ui, t("Or a new queue"), queue, 240.0),
+            focus,
+        ));
+        ok |= primary(ui, "OK").clicked();
     });
     if ok && !queue.trim().is_empty() {
         let named = crate::i18n::queue_named(queue);
@@ -1733,14 +1974,15 @@ fn move_to_queue(app: &mut DmApp, ctx: &egui::Context) {
 }
 
 fn rename(app: &mut DmApp, ctx: &egui::Context) {
+    let focus = app.dialogs.take_focus("Move/Rename");
     let Some((id, name)) = app.dialogs.rename.as_mut() else {
         return;
     };
     let mut open = true;
     let mut ok = false;
     window("Move/Rename").open(&mut open).show(ctx, |ui| {
-        field(ui, t("New name"), name, 320.0);
-        ok = primary(ui, "OK").clicked();
+        ok = entered(&focused(field(ui, t("New name"), name, 320.0), focus));
+        ok |= primary(ui, "OK").clicked();
     });
     if ok {
         match app.backend.rename(*id, name) {
@@ -1757,12 +1999,15 @@ fn find(app: &mut DmApp, ctx: &egui::Context) {
     if !app.dialogs.find_open {
         return;
     }
+    let focus = app.dialogs.take_focus("Find");
     let mut open = true;
     let mut next = false;
     window("Find").open(&mut open).show(ctx, |ui| {
-        let r = field(ui, t("Find what"), &mut app.dialogs.find_text, 260.0);
-        next = ui.button(t("Find next")).clicked()
-            || (r.lost_focus() && ui.input(|i| i.key_pressed(egui::Key::Enter)));
+        let r = focused(
+            field(ui, t("Find what"), &mut app.dialogs.find_text, 260.0),
+            focus,
+        );
+        next = ui.button(t("Find next")).clicked() || entered(&r);
     });
     if next {
         app.find_next();
@@ -1787,8 +2032,8 @@ fn scheduler(app: &mut DmApp, ctx: &egui::Context) {
         ui.checkbox(&mut schedule.enabled, t("Only download between set hours"));
         ui.add_enabled_ui(schedule.enabled, |ui| {
             ui.horizontal(|ui| {
-                field(ui, t("Start at"), &mut schedule.from, 60.0);
-                field(ui, t("Stop at"), &mut schedule.to, 60.0);
+                apply |= entered(&field(ui, t("Start at"), &mut schedule.from, 60.0));
+                apply |= entered(&field(ui, t("Stop at"), &mut schedule.to, 60.0));
             });
             ui.horizontal(|ui| {
                 for (day, word) in DAYS.iter().enumerate() {
@@ -1809,7 +2054,7 @@ fn scheduler(app: &mut DmApp, ctx: &egui::Context) {
         if !says.is_empty() {
             ui.colored_label(WARN, says.as_str());
         }
-        apply = ui.button(t("Apply")).clicked();
+        apply |= ui.button(t("Apply")).clicked();
     });
     if apply
         && schedule.enabled
@@ -1918,12 +2163,21 @@ fn options(app: &mut DmApp, ctx: &egui::Context) {
         return;
     }
     let queues = app.backend.queues();
+    let platform = std::sync::Arc::clone(&app.backend.platform);
+    // One size for every tab, so the dialog and its buttons stay where they
+    // are when another tab is picked; a tab longer than that scrolls.
+    // Sized from the first frame: a window that grew into its size over a
+    // few frames moved under the pointer, centred as it is.
+    let tall = (ctx.content_rect().height() - 60.0).clamp(360.0, 680.0);
     let Some(d) = app.dialogs.options.as_mut() else {
         return;
     };
     let mut open = true;
     let (mut ok, mut cancel) = (false, false);
-    window("Options").default_width(560.0).open(&mut open).show(ctx, |ui| {
+    window("Options")
+        .fixed_size(egui::vec2(660.0, tall - 60.0))
+        .open(&mut open)
+        .show(ctx, |ui| {
         ui.horizontal(|ui| {
             for (tab, label) in TABS {
                 if ui.selectable_label(d.tab == tab, t(label)).clicked() {
@@ -1932,7 +2186,22 @@ fn options(app: &mut DmApp, ctx: &egui::Context) {
             }
         });
         ui.separator();
+        // Room kept below for a warning and the buttons.
+        let body = (ui.available_height() - 80.0).max(120.0);
+        egui::ScrollArea::vertical()
+            .id_salt("options-tab")
+            .max_height(body)
+            .auto_shrink([false, false])
+            .show(ui, |ui| {
         let s = &mut d.draft;
+        let fresh = std::mem::take(&mut d.fresh);
+        // The newest row's first field, when one was just added.
+        let first = |field: egui::Response, last: bool| {
+            if fresh && last {
+                field.request_focus();
+                field.scroll_to_me(None);
+            }
+        };
         match d.tab {
             Tab::General => {
                 ui.horizontal(|ui| {
@@ -1979,29 +2248,36 @@ fn options(app: &mut DmApp, ctx: &egui::Context) {
             }
             Tab::SaveTo => {
                 let mut dir = s.download_dir.display().to_string();
-                if field(ui, t("Download folder"), &mut dir, 380.0).changed() {
+                let before = dir.clone();
+                folder_field(ui, t("Download folder"), &mut dir, &*platform);
+                if dir != before {
                     s.download_dir = dir.into();
                 }
-                field(ui, t("Folder for unfinished downloads (empty for dm's own)"), &mut s.parts_dir, 380.0);
+                folder_field(ui, t("Folder for unfinished downloads (empty for dm's own)"), &mut s.parts_dir, &*platform);
                 ui.label(RichText::new(t("A download already begun keeps the folder it began in.")).small().weak());
                 ui.checkbox(&mut s.categorize, t("Sort finished files into folders by kind"));
                 ui.add_enabled_ui(s.categorize, |ui| {
-                    egui::Grid::new("folders").num_columns(2).spacing([12.0, 6.0]).show(ui, |ui| {
+                    // Two kinds a row: seven rows pushed the categories
+                    // below out of sight.
+                    egui::Grid::new("folders").num_columns(4).spacing([12.0, 6.0]).show(ui, |ui| {
                         for (i, c) in Category::ALL.iter().enumerate() {
                             let name = ui.label(format::titled(&category_word(*c)));
                             if let Some(folder) = s.category_folders.get_mut(i) {
-                                ui.add(egui::TextEdit::singleline(folder).desired_width(220.0))
+                                ui.add(egui::TextEdit::singleline(folder).desired_width(180.0))
                                     .labelled_by(name.id);
                             }
-                            ui.end_row();
+                            if i % 2 == 1 {
+                                ui.end_row();
+                            }
                         }
                     });
                     ui.separator();
                     ui.label(t("Your categories, looked at first: a file of these types, from these sites (any when empty), goes in a folder of the category's name."));
                     let mut remove = None;
+                    let count = d.custom.len();
                     for (i, [name, types, sites]) in d.custom.iter_mut().enumerate() {
                         ui.horizontal(|ui| {
-                            field(ui, t("Category"), name, 110.0);
+                            first(field(ui, t("Category"), name, 110.0), i + 1 == count);
                             field(ui, t("Types"), types, 150.0);
                             field(ui, t("Sites"), sites, 150.0);
                             if ui.button(t("Delete category")).clicked() {
@@ -2014,6 +2290,7 @@ fn options(app: &mut DmApp, ctx: &egui::Context) {
                     }
                     if ui.button(t("Add a category")).clicked() {
                         d.custom.push(Default::default());
+                        d.fresh = true;
                     }
                 });
             }
@@ -2095,9 +2372,10 @@ fn options(app: &mut DmApp, ctx: &egui::Context) {
                 ui.add_space(8.0);
                 ui.label(t("Sites that take fewer connections at once than the setting:"));
                 let mut remove = None;
+                let count = s.host_limits.len();
                 for (i, limit) in s.host_limits.iter_mut().enumerate() {
                     ui.horizontal(|ui| {
-                        field(ui, t("Site"), &mut limit.host, 200.0);
+                        first(field(ui, t("Site"), &mut limit.host, 200.0), i + 1 == count);
                         let name = ui.label(t("Connections"));
                         ui.add(egui::DragValue::new(&mut limit.connections).range(1..=32)).labelled_by(name.id);
                         if ui.button(t("Delete site limit")).clicked() {
@@ -2110,6 +2388,7 @@ fn options(app: &mut DmApp, ctx: &egui::Context) {
                 }
                 if ui.button(t("Add a site limit")).clicked() {
                     s.host_limits.push(dm_core::HostLimit { host: String::new(), connections: 1 });
+                    d.fresh = true;
                 }
                 ui.add_space(8.0);
                 ui.label(t("For downloads that need you signed in: a cookies.txt exported from your browser."));
@@ -2162,9 +2441,10 @@ fn options(app: &mut DmApp, ctx: &egui::Context) {
                 ui.label(t("A user and password used for every download from a host."));
                 ui.label(RichText::new(t("Sent as a Basic login, or as a Digest where the server asks for one.")).small().weak());
                 let mut remove = None;
+                let count = s.site_logins.len();
                 for (i, login) in s.site_logins.iter_mut().enumerate() {
                     ui.horizontal(|ui| {
-                        field(ui, t("Host"), &mut login.host, 150.0);
+                        first(field(ui, t("Host"), &mut login.host, 150.0), i + 1 == count);
                         field(ui, t("User"), &mut login.username, 110.0);
                         let name = ui.label(t("Password"));
                         ui.add(egui::TextEdit::singleline(&mut login.password).password(true).desired_width(110.0)).labelled_by(name.id);
@@ -2178,10 +2458,12 @@ fn options(app: &mut DmApp, ctx: &egui::Context) {
                 }
                 if ui.button(t("Add a login")).clicked() {
                     s.site_logins.push(SiteLogin::default());
+                    d.fresh = true;
                 }
                 ui.label(RichText::new(t("Kept in dm's settings file on this computer, readable by your account.")).small().weak());
             }
         }
+            });
         if !d.says.is_empty() {
             ui.colored_label(WARN, &d.says);
         }

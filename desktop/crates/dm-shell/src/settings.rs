@@ -115,6 +115,12 @@ pub struct Settings {
     /// off, by their keys; empty is the default order, all shown.
     pub column_order: Vec<String>,
     pub columns_hidden: Vec<String>,
+    /// The column the list is sorted by, by its key, and which way; empty
+    /// for the order downloads were added in. Kept so the list is sorted
+    /// the same way at the next launch.
+    pub sort_column: String,
+    #[serde(default = "yes")]
+    pub sort_ascending: bool,
     /// Toolbar buttons taken off, by command id.
     pub toolbar_hidden: Vec<String>,
     /// Sign-ins: a user and password used for downloads from a
@@ -277,6 +283,8 @@ impl Default for Settings {
             toolbar_order: Vec::new(),
             column_order: Vec::new(),
             columns_hidden: Vec::new(),
+            sort_column: String::new(),
+            sort_ascending: true,
             toolbar_hidden: Vec::new(),
             site_logins: Vec::new(),
             catch: dm_protocol::CatchRules::default(),

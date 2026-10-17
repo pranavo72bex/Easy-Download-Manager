@@ -16,6 +16,8 @@ What it proves, against a local server and nothing else on the network:
   2. a download started by clicking a link on a page is caught, handed to a
      running dm over native messaging, fetched by dm (with the page as its
      referrer) into dm's folder, and removed from the browser's list
+     — and so is a PDF served fast, which Chromium finishes before it can
+     be held (its copy in the browser's folder is removed once dm has it)
   3. a download of a type the app's settings do not list stays in the browser
   4. the catch rules are the app's: a .zip, which dm catches by default, is
      left alone when the app's settings say only .bin
@@ -235,7 +237,8 @@ requests = []
 
 def body(name):
     seed = hashlib.sha256(name.encode()).digest()
-    return (seed * (SIZE // len(seed) + 1))[:SIZE]
+    size = 300_000 if name.startswith("small") else SIZE
+    return (seed * (size // len(seed) + 1))[:size]
 
 
 # Pages with players on them, for the floating panel. A transparent layer
@@ -341,7 +344,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
         if path == "/page.html":
             links = "".join(f'<p><a id="{n}" href="/files/{n}">{n}</a></p>' for n in
                             ("caught.bin", "notes.txt", "kept.zip", "private.bin", "absent.bin",
-                             "alt.bin", "off.bin", "forced.txt"))
+                             "alt.bin", "off.bin", "forced.txt", "small.pdf", "small.bin"))
             page = f"<!doctype html><title>dm check</title>{links}".encode()
             self.send_response(200)
             self.send_header("Content-Type", "text/html")
@@ -375,7 +378,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
             start = int(first or 0)
             end = min(int(last), end) if last else end
         self.send_response(206 if ranged else 200)
-        self.send_header("Content-Type", "application/octet-stream")
+        self.send_header("Content-Type", "application/pdf" if name.endswith(".pdf") else "application/octet-stream")
         self.send_header("Content-Disposition", f'attachment; filename="{name}"')
         self.send_header("Accept-Ranges", "bytes")
         self.send_header("Content-Length", str(end - start + 1))
@@ -384,7 +387,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
         self.end_headers()
         # The browser is served slowly, the way a large file arrives, so a
         # download is still running when the extension holds it; dm is not.
-        slow = not agent.startswith("dm/")
+        slow = not agent.startswith("dm/") and not name.startswith("small")
         try:
             for at in range(start, end + 1, 32 * 1024):
                 self.wfile.write(data[at:min(at + 32 * 1024, end + 1)])
@@ -811,7 +814,7 @@ def main():
     host.chmod(0o755)
     (engine_home / "settings.json").write_text(json.dumps({
         "download_dir": str(engine_dl), "categorize": False,
-        "catch": {"enabled": True, "extensions": ["bin"]},
+        "catch": {"enabled": True, "extensions": ["bin", "pdf"]},
         # The dialog the app opens for a panel video is the window test's to
         # drive; here the panel's videos go straight to the folder.
         "ask_panel_downloads": False,
@@ -942,6 +945,26 @@ def main():
               f"browser list {left}, browser folder {sorted(p.name for p in browser_dl.iterdir())}")
         check("the app answered", "present" in (worker.evaluate("dmReady.then(m => m.app_status())") or ""),
               worker.evaluate("dmReady.then(m => m.app_status())"))
+
+        # A PDF Chromium finishes before it can be held: served fast, it is
+        # complete by the time the extension asks (or completes despite the
+        # pause), where a .bin waits for its danger check. It goes to dm all
+        # the same, and the browser's whole copy is removed (gap 103).
+        # Clicked three times, since the race does not always go one way.
+        pdfs = lambda folder: sorted(p.name for p in folder.iterdir() if p.name.startswith("small") and p.name.endswith(".pdf"))
+        for _ in range(3):
+            before = len(pdfs(engine_dl))
+            click(base, origin, "small.pdf")
+            wait_for(lambda: len(pdfs(engine_dl)) > before, 30)
+        time.sleep(2)
+        in_dm = pdfs(engine_dl)
+        check("a PDF the browser finished before it could be held is fetched by dm, every time",
+              len(in_dm) == 3 and all((engine_dl / n).read_bytes() == body("small.pdf") for n in in_dm),
+              f"dm folder: {in_dm}")
+        left = worker.evaluate("chrome.downloads.search({}).then(l => l.filter(d => d.url.endsWith('small.pdf')).map(d => d.state))")
+        check("and the browser's finished copy is removed, file and list entry",
+              left == [] and pdfs(browser_dl) == [],
+              f"browser list {left}, browser folder {pdfs(browser_dl)}")
 
         # 3. Not a type the app catches.
         click(base, origin, "notes.txt")

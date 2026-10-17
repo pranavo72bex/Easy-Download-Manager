@@ -1618,22 +1618,34 @@ async fn attempt_segment(
         }
         file.write_all(&chunk).await?;
         written += chunk.len() as u64;
-        job.downloaded
-            .fetch_add(chunk.len() as u64, Ordering::Relaxed);
         if cut {
+            job.downloaded
+                .fetch_add(chunk.len() as u64, Ordering::Relaxed);
             // The rest belongs to the range split off; this one is whole.
             break;
         }
 
         /* Applied after the bytes have arrived, because there is nowhere
          * earlier to stand: the only lever on an HTTP body is how fast it is
-         * read, and a reader that pauses is a sender that stops. */
-        if let Err(stopped) = or_stop(&job.control, async {
-            job.limiter.take(chunk.len() as u64).await;
+         * read, and a reader that pauses is a sender that stops.
+         *
+         * Counted as the ceiling lets it through rather than as it arrived:
+         * counted on arrival, every connection's chunk was in the count a
+         * whole wait early, and the shown speed and ETA ran at twice the
+         * limit for the first seconds (gap 112). */
+        let mut through = 0;
+        let stopping = or_stop(&job.control, async {
+            job.limiter
+                .take_counting(chunk.len() as u64, &job.downloaded, &mut through)
+                .await;
             Ok(())
         })
-        .await
-        {
+        .await;
+        if let Err(stopped) = stopping {
+            // It is on disk: the count is a ledger of what is, and a retry
+            // of this range starts from the part's length.
+            job.downloaded
+                .fetch_add(chunk.len() as u64 - through, Ordering::Relaxed);
             file.flush().await?;
             if matches!(stopped, Error::Paused) {
                 job.segments.lock().await[index].done = written.min(span_now);

@@ -140,6 +140,10 @@ impl Platform for Desktop {
         shell::open_with(path, app)
     }
 
+    fn choose_folder(&self) -> Option<std::path::PathBuf> {
+        rfd::FileDialog::new().pick_folder()
+    }
+
     fn choose_file(&self, save: bool, suggested: &str) -> Option<std::path::PathBuf> {
         let dialog = rfd::FileDialog::new().add_filter("Download lists", &["dmlist", "txt"]);
         if save {
@@ -180,16 +184,35 @@ struct Window {
     show_asked: Arc<AtomicBool>,
     /// Kept alive for as long as the window: dropping the icon removes it.
     /// With its menu's items, relabelled when the language changes.
-    icon: Option<(tray_icon::TrayIcon, Vec<tray_icon::menu::MenuItem>)>,
+    icon: Option<TrayMade>,
     /// The language the tray's words are in.
     tray_language: String,
+    /// Where the window was when it went to the tray: it comes back there.
+    /// A window manager places a window shown again as it likes, which was
+    /// somewhere else each time.
+    hidden_at: Option<egui::Pos2>,
 }
 
 impl Window {
-    fn show(ctx: &egui::Context) {
+    fn show(&mut self, ctx: &egui::Context) {
+        let at = self.hidden_at.take();
+        if let Some(at) = at {
+            ctx.send_viewport_cmd(egui::ViewportCommand::OuterPosition(at));
+        }
         ctx.send_viewport_cmd(egui::ViewportCommand::Visible(true));
         ctx.send_viewport_cmd(egui::ViewportCommand::Minimized(false));
+        if let Some(at) = at {
+            ctx.send_viewport_cmd(egui::ViewportCommand::OuterPosition(at));
+        }
         ctx.send_viewport_cmd(egui::ViewportCommand::Focus);
+    }
+
+    /// Into the tray, remembering where it was.
+    fn hide(&mut self, ctx: &egui::Context) {
+        if let Some(rect) = ctx.input(|i| i.viewport().outer_rect) {
+            self.hidden_at = Some(rect.min);
+        }
+        ctx.send_viewport_cmd(egui::ViewportCommand::Visible(false));
     }
 }
 
@@ -199,14 +222,17 @@ impl eframe::App for Window {
     fn logic(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
         while let Ok(asked) = self.tray.try_recv() {
             match asked {
-                Tray::Show => Self::show(ctx),
+                Tray::Show => self.show(ctx),
+                // Asked first while downloads run, in the window.
                 Tray::Quit => {
-                    self.quitting = true;
-                    ctx.send_viewport_cmd(egui::ViewportCommand::Close);
+                    self.app.ask_quit();
+                    if self.app.dialogs.confirm_exit {
+                        self.show(ctx);
+                    }
                 }
                 Tray::Run(command, show) => {
                     if show {
-                        Self::show(ctx);
+                        self.show(ctx);
                     }
                     self.app.run(command);
                 }
@@ -218,7 +244,7 @@ impl eframe::App for Window {
             ctx.request_repaint();
         }
         if self.show_asked.swap(false, Ordering::Relaxed) {
-            Self::show(ctx);
+            self.show(ctx);
         }
         if let Some(until) = self.hidden_until {
             let now = std::time::Instant::now();
@@ -227,7 +253,7 @@ impl eframe::App for Window {
             } else {
                 self.hidden_until = None;
                 if !(self.has_tray && tray_host()) {
-                    Self::show(ctx);
+                    self.show(ctx);
                 }
             }
         }
@@ -241,17 +267,25 @@ impl eframe::App for Window {
             && tray_host()
         {
             ctx.send_viewport_cmd(egui::ViewportCommand::CancelClose);
-            ctx.send_viewport_cmd(egui::ViewportCommand::Visible(false));
+            self.hide(ctx);
         }
         self.app.logic(ctx);
         if self.app.applied.language != self.tray_language {
             self.tray_language = self.app.applied.language.clone();
-            if let Some((icon, items)) = &self.icon {
-                let words = tray_words();
-                for (item, word) in items.iter().zip(words) {
+            if let Some((icon, items, limiter)) = &self.icon {
+                let [show, limit, scheduler, quit, tooltip] = tray_words();
+                for (item, word) in items.iter().zip([show, scheduler, quit]) {
                     item.set_text(word);
                 }
-                let _ = icon.set_tooltip(Some(words[4]));
+                limiter.set_text(limit);
+                let _ = icon.set_tooltip(Some(tooltip));
+            }
+        }
+        // The tray's limiter item is ticked while a limit is in force.
+        if let Some((_, _, limiter)) = &self.icon {
+            let on = self.app.applied.speed_limit > 0;
+            if limiter.is_checked() != on {
+                limiter.set_checked(on);
             }
         }
         // Program › Exit, as the tray's Quit does; and a logout, `kill` or
@@ -325,10 +359,14 @@ fn tray_words() -> [&'static str; 5] {
 ///
 /// Optional: a desktop may not expose a StatusNotifier host. In that case dm
 /// says so in the window and closing it quits instead of hiding without a tray.
-type TrayMade = (tray_icon::TrayIcon, Vec<tray_icon::menu::MenuItem>);
+type TrayMade = (
+    tray_icon::TrayIcon,
+    Vec<tray_icon::menu::MenuItem>,
+    tray_icon::menu::CheckMenuItem,
+);
 
 fn tray(wake: egui::Context, send: mpsc::Sender<Tray>) -> Result<TrayMade, String> {
-    use tray_icon::menu::{Menu, MenuEvent, MenuItem};
+    use tray_icon::menu::{CheckMenuItem, Menu, MenuEvent, MenuItem};
     use tray_icon::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent};
 
     let image = image::load_from_memory(ICON)
@@ -341,15 +379,10 @@ fn tray(wake: egui::Context, send: mpsc::Sender<Tray>) -> Result<TrayMade, Strin
     use tray_icon::menu::PredefinedMenuItem;
     let [show, limiter, scheduler, quit, tooltip] = tray_words();
     let show = MenuItem::new(show, true, None);
-    let limiter = MenuItem::new(limiter, true, None);
+    let limiter = CheckMenuItem::new(limiter, true, false, None);
     let scheduler = MenuItem::new(scheduler, true, None);
     let quit = MenuItem::new(quit, true, None);
-    let items = vec![
-        show.clone(),
-        limiter.clone(),
-        scheduler.clone(),
-        quit.clone(),
-    ];
+    let items = vec![show.clone(), scheduler.clone(), quit.clone()];
     let menu = Menu::with_items(&[
         &show,
         &PredefinedMenuItem::separator(),
@@ -399,7 +432,7 @@ fn tray(wake: egui::Context, send: mpsc::Sender<Tray>) -> Result<TrayMade, Strin
         .with_menu(Box::new(menu))
         .with_menu_on_left_click(false)
         .build()
-        .map(|icon| (icon, items))
+        .map(|icon| (icon, items, limiter.clone()))
         .map_err(|e| e.to_string())
 }
 
@@ -1032,6 +1065,7 @@ fn main() {
                 show_asked,
                 icon,
                 tray_language: language,
+                hidden_at: None,
             }))
         }),
     );

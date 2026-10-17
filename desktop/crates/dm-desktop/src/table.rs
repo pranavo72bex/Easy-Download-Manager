@@ -18,6 +18,8 @@ pub fn show(app: &mut DmApp, ui: &mut egui::Ui) {
     // click for itself, so clicking a file's name selected nothing.
     ui.style_mut().interaction.selectable_labels = false;
     let rows = app.visible();
+    // Why a held row waits, said on hovering it.
+    let held = app.held_because();
     if rows.is_empty() {
         ui.add_space(40.0);
         ui.vertical_centered(|ui| {
@@ -95,7 +97,7 @@ pub fn show(app: &mut DmApp, ui: &mut egui::Ui) {
                         let entry = &rows[i];
                         row.set_selected(app.selected.contains(&entry.id));
                         for column in &columns {
-                            row.col(|ui| cell(ui, *column, entry));
+                            row.col(|ui| cell(ui, *column, entry, held.as_deref()));
                         }
                         let response = row.response();
                         drawn.push((entry.id, response.rect));
@@ -166,7 +168,7 @@ fn files_to_drag(app: &DmApp, rows: &[Entry], i: usize) -> Vec<std::path::PathBu
 fn width(column: Column) -> Width {
     match column {
         Column::Name => Width::initial(220.0).at_least(120.0).clip(true),
-        Column::Queue => Width::initial(24.0),
+        Column::Queue => Width::initial(110.0).clip(true),
         Column::Size => Width::initial(76.0),
         Column::Status => Width::initial(130.0).clip(true),
         Column::TimeLeft => Width::initial(88.0),
@@ -179,7 +181,7 @@ fn width(column: Column) -> Width {
 }
 
 /// One cell: what a column says about a download.
-fn cell(ui: &mut egui::Ui, column: Column, entry: &Entry) {
+fn cell(ui: &mut egui::Ui, column: Column, entry: &Entry, held: Option<&str>) {
     match column {
         Column::Name => {
             ui.horizontal(|ui| {
@@ -191,16 +193,17 @@ fn cell(ui: &mut egui::Ui, column: Column, entry: &Entry) {
                     .on_hover_text(format::shown_url(&entry.url));
             });
         }
+        // The queue's name, dm's own in the language in force.
         Column::Queue => {
             if !entry.queue.is_empty() {
-                ui.label(t("Queue"))
-                    .on_hover_text(crate::i18n::name(&entry.queue));
+                let name = crate::i18n::name(&entry.queue);
+                ui.label(&name).on_hover_text(name);
             }
         }
         Column::Size => {
             ui.label(size_of(entry));
         }
-        Column::Status => status_cell(ui, entry),
+        Column::Status => status_cell(ui, entry, held),
         Column::TimeLeft => {
             if entry.state == State::Running {
                 ui.label(entry.progress.eta.map(format::span).unwrap_or_default());
@@ -326,7 +329,12 @@ fn row_menu(app: &mut DmApp, ui: &mut egui::Ui) {
         menu_item(app, ui, command, command.title());
     }
     ui.separator();
-    menu_item(app, ui, Command::DownloadNow, Command::DownloadNow.title());
+    menu_item(
+        app,
+        ui,
+        Command::DownloadNow,
+        app.title_of(Command::DownloadNow),
+    );
     menu_item(app, ui, Command::StopDownload, t("Stop download"));
     menu_item(app, ui, Command::UpdateLink, t("Update download link"));
     menu_item(app, ui, Command::Remove, t("Remove"));
@@ -370,7 +378,7 @@ pub fn gone(entry: &Entry) -> bool {
     !entry.path.is_empty() && !std::path::Path::new(&entry.path).exists()
 }
 
-fn status_cell(ui: &mut egui::Ui, entry: &Entry) {
+fn status_cell(ui: &mut egui::Ui, entry: &Entry, held: Option<&str>) {
     let text = status_of(entry);
     match &entry.state {
         // The modern look: the percentage with a thin brand bar under it, as its
@@ -393,9 +401,17 @@ fn status_cell(ui: &mut egui::Ui, entry: &Entry) {
         State::Running => {
             ui.label(text);
         }
-        State::Failed(reason) => {
+        State::Failed(_) => {
+            // The whole reason on hover, with where to sign in when the
+            // server wants it.
             ui.colored_label(crate::theme::Tokens::get(ui.ctx()).error, t("Error"))
-                .on_hover_text(reason);
+                .on_hover_text(text);
+        }
+        State::Paused if entry.paused_by_schedule => {
+            let label = ui.label(text);
+            if let Some(why) = held {
+                label.on_hover_text(why);
+            }
         }
         // Kept as history, but the file was moved or deleted since: said,
         // rather than offered to Open as if it were there.

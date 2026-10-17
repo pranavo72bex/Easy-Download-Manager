@@ -546,10 +546,26 @@ fn linux_open(target: &Path) -> Result<(), String> {
     linux_open_in(target, None)
 }
 
+/// How long an opener is given to fail before it is taken to be opening.
+///
+/// `xdg-open` with nothing to hand the file to ("no method available")
+/// exits at once with 3 or 4; one that found a program has handed over or
+/// is running it within a few hundred milliseconds. Waited for in place,
+/// since the answer is the button's: only an opener still running after
+/// this holds the window this long.
+#[cfg(all(unix, not(target_os = "macos")))]
+const OPENER_VERDICT: std::time::Duration = std::time::Duration::from_millis(1500);
+
 /// The same, looking for the openers along `path` where one is given.
+///
+/// Each opener's exit is waited for (`OPENER_VERDICT`): `xdg-open` that
+/// starts and then fails was taken as success, and the file simply did not
+/// open. A failing opener passes to the next; when every one there failed,
+/// what each said is the error.
 #[cfg(all(unix, not(target_os = "macos")))]
 fn linux_open_in(target: &Path, path: Option<&std::ffi::OsStr>) -> Result<(), String> {
     let in_appimage = std::env::var_os("APPIMAGE").is_some();
+    let mut failures: Vec<String> = Vec::new();
     for opener in LINUX_OPENERS {
         let Some((program, args)) = opener.split_first() else {
             continue;
@@ -564,16 +580,109 @@ fn linux_open_in(target: &Path, path: Option<&std::ffi::OsStr>) -> Result<(), St
                 .env_remove("LD_LIBRARY_PATH")
                 .env_remove("LD_PRELOAD");
         }
-        match command.spawn() {
-            Ok(_) => return Ok(()),
+        // Its error goes to a file, not a pipe: an opener that runs the
+        // program in the foreground passes its stderr on, and a pipe whose
+        // reader has gone would kill that program at its first warning.
+        let said = OpenerSays::new();
+        command.stdin(std::process::Stdio::null());
+        if let Some(file) = said.as_ref().and_then(|s| s.stdio()) {
+            command.stderr(file);
+        }
+        let mut child = match command.spawn() {
+            Ok(child) => child,
             Err(e) if e.kind() == std::io::ErrorKind::NotFound => continue,
             Err(e) => return Err(e.to_string()),
+        };
+        let deadline = std::time::Instant::now() + OPENER_VERDICT;
+        let status = loop {
+            match child.try_wait() {
+                Ok(Some(status)) => break Some(status),
+                Ok(None) if std::time::Instant::now() < deadline => {
+                    std::thread::sleep(std::time::Duration::from_millis(20));
+                }
+                // Still running: it found something to open the file with.
+                // Reaped when it ends, so it leaves no zombie behind.
+                Ok(None) | Err(_) => {
+                    std::thread::spawn(move || child.wait());
+                    break None;
+                }
+            }
+        };
+        match status {
+            None => return Ok(()),
+            Some(status) if status.success() => return Ok(()),
+            Some(status) => {
+                let words = said.map(|s| s.read()).unwrap_or_default();
+                let name = opener.join(" ");
+                failures.push(if words.is_empty() {
+                    match status.code() {
+                        Some(code) => format!("{name} failed (exit {code})"),
+                        None => format!("{name} failed"),
+                    }
+                } else {
+                    format!("{name}: {words}")
+                });
+            }
         }
+    }
+    if !failures.is_empty() {
+        return Err(format!(
+            "this computer could not open {}: {}",
+            target.display(),
+            failures.join("; ")
+        ));
     }
     Err("nothing on this computer opens files: install xdg-utils \
          (`sudo apt install xdg-utils`, `sudo dnf install xdg-utils` or \
          `sudo pacman -S xdg-utils`)"
         .into())
+}
+
+/// A file an opener's stderr goes to, removed when read or dropped.
+#[cfg(all(unix, not(target_os = "macos")))]
+struct OpenerSays(PathBuf);
+
+#[cfg(all(unix, not(target_os = "macos")))]
+impl OpenerSays {
+    fn new() -> Option<Self> {
+        use std::sync::atomic::{AtomicU64, Ordering};
+        static NEXT: AtomicU64 = AtomicU64::new(0);
+        let name = format!(
+            "dm-opener-{}-{}.txt",
+            std::process::id(),
+            NEXT.fetch_add(1, Ordering::Relaxed)
+        );
+        let path = std::env::temp_dir().join(name);
+        std::fs::File::create(&path).ok()?;
+        Some(Self(path))
+    }
+
+    fn stdio(&self) -> Option<std::process::Stdio> {
+        std::fs::OpenOptions::new()
+            .append(true)
+            .open(&self.0)
+            .ok()
+            .map(std::process::Stdio::from)
+    }
+
+    /// Its last few lines, which is where an opener says why.
+    fn read(self) -> String {
+        let text = std::fs::read_to_string(&self.0).unwrap_or_default();
+        let lines: Vec<&str> = text
+            .lines()
+            .map(str::trim)
+            .filter(|l| !l.is_empty())
+            .collect();
+        let tail = lines.len().saturating_sub(3);
+        lines.get(tail..).unwrap_or_default().join(" ")
+    }
+}
+
+#[cfg(all(unix, not(target_os = "macos")))]
+impl Drop for OpenerSays {
+    fn drop(&mut self) {
+        let _ = std::fs::remove_file(&self.0);
+    }
 }
 
 /// Opens a finished file with whatever the system opens it with.
@@ -937,6 +1046,49 @@ mod tests {
         let empty = tempfile::tempdir().unwrap();
         let refused = linux_open_in(&file, Some(empty.path().as_os_str())).unwrap_err();
         assert!(refused.contains("xdg-utils"), "{refused}");
+    }
+
+    /// `xdg-open` that runs and fails ("no method available", exit 3) was
+    /// taken as opened (gap 106): the next opener is tried, and when it
+    /// fails too, what each said is the error.
+    #[cfg(all(unix, not(target_os = "macos")))]
+    #[test]
+    fn an_opener_that_runs_and_fails_passes_to_the_next_and_says_why() {
+        use std::os::unix::fs::PermissionsExt;
+        let script = |dir: &Path, name: &str, body: &str| {
+            let p = dir.join(name);
+            std::fs::write(&p, format!("#!/bin/sh\n{body}\n")).unwrap();
+            std::fs::set_permissions(&p, std::fs::Permissions::from_mode(0o755)).unwrap();
+        };
+        let bin = tempfile::tempdir().unwrap();
+        let file = bin.path().join("f.txt");
+        let said = bin.path().join("said");
+        script(
+            bin.path(),
+            "xdg-open",
+            "echo 'xdg-open: no method available for opening' >&2; exit 3",
+        );
+        script(
+            bin.path(),
+            "gio",
+            &format!("echo \"$@\" > '{}'", said.display()),
+        );
+        linux_open_in(&file, Some(bin.path().as_os_str())).unwrap();
+        let opened = std::fs::read_to_string(&said).expect("gio was never tried");
+        assert_eq!(opened.trim(), format!("open {}", file.display()));
+
+        // Every opener there fails: the error is theirs, not silence.
+        script(bin.path(), "gio", "echo 'gio: no handler' >&2; exit 2");
+        let refused = linux_open_in(&file, Some(bin.path().as_os_str())).unwrap_err();
+        assert!(refused.contains("no method available"), "{refused}");
+        assert!(refused.contains("gio: no handler"), "{refused}");
+
+        // An opener still running at the deadline is opening the file.
+        let slow = tempfile::tempdir().unwrap();
+        script(slow.path(), "xdg-open", "exec /bin/sleep 5");
+        let started = std::time::Instant::now();
+        linux_open_in(&file, Some(slow.path().as_os_str())).unwrap();
+        assert!(started.elapsed() < std::time::Duration::from_secs(3));
     }
 
     /* One binary is both the window and the host, and which one it is comes

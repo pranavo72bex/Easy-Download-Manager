@@ -9,7 +9,8 @@ registered with `dm-desktop --register`; Chromium is started with dist/chrome
 loaded unpacked into a profile of its own. Then, each an X11 event:
 
   1. a link to a .zip is clicked: dm fetches it byte-exact, the browser's
-     list stays empty, and dm's window shows the row Complete
+     list stays empty, and dm's window shows the row Complete; then a PDF
+     served at full speed, which Chromium finishes before it can be held
   2. another link is right-clicked and "Download link with dm" picked from
      the browser's own context menu: the same
   3. the pointer rests on a playing video until "Download video" shows over
@@ -81,7 +82,7 @@ def content(name):
     return common.body(name)
 
 
-LINKS = ("grab.zip", "menu.zip", "alt.zip", "slow.zip", "off.zip")
+LINKS = ("grab.zip", "report.pdf", "menu.zip", "alt.zip", "slow.zip", "off.zip")
 PAGE = ("<!doctype html><title>dm, by hand</title>"
         "<body style='font: 22px sans-serif; margin: 40px'><h1>Files</h1>"
         + "".join(f'<p><a id="{n}" href="/files/{n}">{n}</a></p>' for n in LINKS) + "</body>")
@@ -125,7 +126,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
         if name.endswith(".webm"):
             self.send_header("Content-Type", "video/webm")
         else:
-            self.send_header("Content-Type", "application/zip")
+            self.send_header("Content-Type", "application/pdf" if name.endswith(".pdf") else "application/zip")
             self.send_header("Content-Disposition", f'attachment; filename="{name}"')
         self.send_header("Accept-Ranges", "bytes")
         self.send_header("Content-Length", str(end - start + 1))
@@ -136,8 +137,10 @@ class Handler(http.server.BaseHTTPRequestHandler):
             return
         # slow.zip arrives slowly for everyone, dm too, so it is still
         # running when Stop is reached for; the rest only for the browser,
-        # as chrome-check serves them.
-        slow = name == "slow.zip" or not self.headers.get("User-Agent", "").startswith("dm/")
+        # as chrome-check serves them. report.pdf arrives at full speed, which
+        # Chromium finishes before the extension can hold it (gap 103).
+        slow = name == "slow.zip" or not (self.headers.get("User-Agent", "").startswith("dm/")
+                                          or name == "report.pdf")
         pause = 0.25 if name == "slow.zip" else 0.05
         try:
             for at in range(start, end + 1, 32 * 1024):
@@ -517,6 +520,21 @@ def main():
         row = wait_for(lambda: (dm_row("grab.zip") or {}).get("status") == "Complete" and dm_row("grab.zip"), 15)
         check("1. dm's window shows the row Complete", row, str(dm_row("grab.zip")))
         shoot("1-clicked-link", tab)
+
+        # 1b. A PDF served fast: Chromium has it whole before it can be held.
+        print("\n1b. a PDF clicked, served at full speed")
+        front(chromium_window())
+        at = pointer_to(tab, rect_of("[id='report.pdf']"))
+        if at:
+            x("xdotool", "click", "1")
+        landed = wait_for(lambda: whole(dm_dl, "report.pdf"), 60)
+        check("1b. the clicked PDF lands byte-exact in dm's folder", landed, str(sorted(p.name for p in dm_dl.iterdir())))
+        time.sleep(2)
+        left = browser_list("report.pdf")
+        check("1b. and the browser's copy, finished before it could be held, is removed",
+              left == [] and not (browser_dl / "report.pdf").exists(),
+              f"list {left}, folder {sorted(p.name for p in browser_dl.iterdir())}")
+        shoot("1b-clicked-pdf", tab)
 
         # 2. The context menu.
         print("\n2. a link right-clicked, 'Download link with dm' picked")

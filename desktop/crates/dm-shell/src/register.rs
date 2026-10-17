@@ -31,6 +31,56 @@ pub enum Family {
 pub struct Place {
     pub dir: PathBuf,
     pub family: Family,
+    /// What says the browser is installed though it has never been opened:
+    /// its programs on `PATH` (Linux), or its bundles in an Applications
+    /// folder (macOS).
+    pub programs: &'static [&'static str],
+}
+
+/// Where installed browsers' programs are looked for.
+///
+/// A browser installed but never opened has no profile folder, and was not
+/// registered: on a fresh desktop, in the order the README gives (install
+/// dm, open it, then open the browser and add the extension), the extension
+/// found no app until dm's next launch (gap 113).
+#[derive(Debug, Clone, Default)]
+pub struct Programs {
+    /// The directories of `PATH`, where Linux browsers put their programs.
+    pub path: Vec<PathBuf>,
+    /// The Applications folders, where macOS keeps app bundles.
+    pub applications: Vec<PathBuf>,
+}
+
+impl Programs {
+    /// This computer's: `PATH`, `/Applications` and `~/Applications`.
+    pub fn here(home: &Path) -> Self {
+        Programs {
+            path: std::env::var_os("PATH")
+                .map(|p| std::env::split_paths(&p).collect())
+                .unwrap_or_default(),
+            applications: vec![PathBuf::from("/Applications"), home.join("Applications")],
+        }
+    }
+
+    /// Whether any of `names` is installed: an app bundle on macOS, a file
+    /// on `PATH` elsewhere.
+    fn has(&self, names: &[&str]) -> bool {
+        let (dirs, bundle) = if cfg!(target_os = "macos") {
+            (&self.applications, true)
+        } else {
+            (&self.path, false)
+        };
+        names.iter().any(|name| {
+            dirs.iter().any(|dir| {
+                let found = dir.join(name);
+                if bundle {
+                    found.is_dir()
+                } else {
+                    found.is_file()
+                }
+            })
+        })
+    }
 }
 
 impl Place {
@@ -39,13 +89,15 @@ impl Place {
         self.dir.parent().unwrap_or(&self.dir)
     }
 
-    /// Whether the browser is installed. Firefox as a Snap (Ubuntu's own)
+    /// Whether the browser is installed: it has run (its folder is there)
+    /// or its program is in `programs`. Firefox as a Snap (Ubuntu's own)
     /// keeps its profile under ~/snap/firefox, so a fresh Ubuntu has no
     /// ~/.mozilla at all; its native messaging still reads the manifest
     /// from ~/.mozilla/native-messaging-hosts.
-    fn installed(&self) -> bool {
+    fn installed(&self, programs: &Programs) -> bool {
         let browser = self.browser();
         browser.is_dir()
+            || programs.has(self.programs)
             || (self.family == Family::Firefox
                 && browser.file_name() == Some(std::ffi::OsStr::new(".mozilla"))
                 && browser
@@ -62,25 +114,36 @@ impl Place {
 /// the home directory `home`. A manifest is written to each one whose
 /// browser is installed, because someone with Chrome and Brave means both.
 pub fn places(home: &Path) -> Vec<Place> {
-    let (chromium, firefox): (Vec<PathBuf>, Vec<PathBuf>) = if cfg!(target_os = "macos") {
+    type Found = Vec<(PathBuf, &'static [&'static str])>;
+    let (chromium, firefox): (Found, Found) = if cfg!(target_os = "macos") {
         let support = home.join("Library/Application Support");
         (
             [
-                "Google/Chrome",
-                "Google/Chrome Beta",
-                "Google/Chrome Dev",
-                "Google/Chrome Canary",
-                "Google/Chrome for Testing",
-                "Chromium",
-                "BraveSoftware/Brave-Browser",
-                "Microsoft Edge",
-                "Vivaldi",
-                "com.operasoftware.Opera",
+                ("Google/Chrome", &["Google Chrome.app"][..]),
+                ("Google/Chrome Beta", &["Google Chrome Beta.app"]),
+                ("Google/Chrome Dev", &["Google Chrome Dev.app"]),
+                ("Google/Chrome Canary", &["Google Chrome Canary.app"]),
+                (
+                    "Google/Chrome for Testing",
+                    &["Google Chrome for Testing.app"],
+                ),
+                ("Chromium", &["Chromium.app"]),
+                ("BraveSoftware/Brave-Browser", &["Brave Browser.app"]),
+                ("Microsoft Edge", &["Microsoft Edge.app"]),
+                ("Vivaldi", &["Vivaldi.app"]),
+                ("com.operasoftware.Opera", &["Opera.app"]),
             ]
             .iter()
-            .map(|b| support.join(b).join("NativeMessagingHosts"))
+            .map(|(b, programs)| (support.join(b).join("NativeMessagingHosts"), *programs))
             .collect(),
-            vec![support.join("Mozilla/NativeMessagingHosts")],
+            vec![(
+                support.join("Mozilla/NativeMessagingHosts"),
+                &[
+                    "Firefox.app",
+                    "Firefox Developer Edition.app",
+                    "Firefox Nightly.app",
+                ][..],
+            )],
         )
     } else if cfg!(target_os = "windows") {
         // Windows reads no manifest directories: see `WINDOWS_KEYS`.
@@ -89,31 +152,45 @@ pub fn places(home: &Path) -> Vec<Place> {
         let config = home.join(".config");
         (
             [
-                "google-chrome",
-                "google-chrome-beta",
-                "google-chrome-unstable",
-                "google-chrome-for-testing",
-                "chromium",
-                "BraveSoftware/Brave-Browser",
-                "microsoft-edge",
-                "vivaldi",
-                "opera",
+                (
+                    "google-chrome",
+                    &["google-chrome", "google-chrome-stable"][..],
+                ),
+                ("google-chrome-beta", &["google-chrome-beta"]),
+                ("google-chrome-unstable", &["google-chrome-unstable"]),
+                ("google-chrome-for-testing", &[]),
+                ("chromium", &["chromium", "chromium-browser"]),
+                (
+                    "BraveSoftware/Brave-Browser",
+                    &["brave-browser", "brave-browser-stable", "brave"],
+                ),
+                (
+                    "microsoft-edge",
+                    &["microsoft-edge", "microsoft-edge-stable"],
+                ),
+                ("vivaldi", &["vivaldi", "vivaldi-stable"]),
+                ("opera", &["opera"]),
             ]
             .iter()
-            .map(|b| config.join(b).join("NativeMessagingHosts"))
+            .map(|(b, programs)| (config.join(b).join("NativeMessagingHosts"), *programs))
             .collect(),
-            vec![home.join(".mozilla/native-messaging-hosts")],
+            vec![(
+                home.join(".mozilla/native-messaging-hosts"),
+                &["firefox", "firefox-esr"][..],
+            )],
         )
     };
     chromium
         .into_iter()
-        .map(|dir| Place {
+        .map(|(dir, programs)| Place {
             dir,
             family: Family::Chromium,
+            programs,
         })
-        .chain(firefox.into_iter().map(|dir| Place {
+        .chain(firefox.into_iter().map(|(dir, programs)| Place {
             dir,
             family: Family::Firefox,
+            programs,
         }))
         .collect()
 }
@@ -384,8 +461,15 @@ pub fn mounted_read_only(path: &Path) -> bool {
 }
 
 /// Writes a manifest for every installed browser, naming `exe` and the
-/// extensions `allowed`. Returns the files written.
-pub fn register(home: &Path, exe: &Path, allowed: &Allowed) -> Result<Vec<PathBuf>, String> {
+/// extensions `allowed`. Returns the files written. A browser counts as
+/// installed when it has run or its program is in `programs`; a folder is
+/// made for no other.
+pub fn register(
+    home: &Path,
+    exe: &Path,
+    allowed: &Allowed,
+    programs: &Programs,
+) -> Result<Vec<PathBuf>, String> {
     if cfg!(target_os = "windows") {
         return register_windows(&windows_data(home), exe, allowed, run_reg);
     }
@@ -418,7 +502,7 @@ pub fn register(home: &Path, exe: &Path, allowed: &Allowed) -> Result<Vec<PathBu
 
     let mut written = Vec::new();
     for place in places(home) {
-        if !place.installed() {
+        if !place.installed(programs) {
             continue; // that browser is not installed
         }
         let text = serde_json::to_string_pretty(&manifest(place.family, exe, allowed))
@@ -459,7 +543,11 @@ pub fn unregister(home: &Path) -> Vec<PathBuf> {
 /// which is harmless and keeps an old copy of the extension working until
 /// it is replaced. `None` when nothing needed doing, including when no
 /// browser is installed.
-pub fn ensure(home: &Path, exe: &Path) -> Result<Option<Vec<PathBuf>>, String> {
+pub fn ensure(
+    home: &Path,
+    exe: &Path,
+    programs: &Programs,
+) -> Result<Option<Vec<PathBuf>>, String> {
     let files: Vec<(PathBuf, Family)> = if cfg!(target_os = "windows") {
         let data = windows_data(home);
         [Family::Chromium, Family::Firefox]
@@ -469,7 +557,7 @@ pub fn ensure(home: &Path, exe: &Path) -> Result<Option<Vec<PathBuf>>, String> {
     } else {
         places(home)
             .into_iter()
-            .filter(|place| place.installed())
+            .filter(|place| place.installed(programs))
             .map(|place| (place.manifest(), place.family))
             .collect()
     };
@@ -527,7 +615,7 @@ pub fn ensure(home: &Path, exe: &Path) -> Result<Option<Vec<PathBuf>>, String> {
     // the registration of the ones it would.
     known.retain(|id| Allowed::with(std::slice::from_ref(id)).is_ok());
     let allowed = Allowed::with(&known)?;
-    register(home, exe, &allowed).map(Some)
+    register(home, exe, &allowed, programs).map(Some)
 }
 
 /// [`ensure`] for this user, for the copy of dm that is running — or, in an
@@ -548,7 +636,8 @@ pub fn ensure_this_copy() -> Result<Option<Vec<PathBuf>>, String> {
                 .into(),
         );
     }
-    ensure(&dirs::home_dir().unwrap_or_default(), &exe)
+    let home = dirs::home_dir().unwrap_or_default();
+    ensure(&home, &exe, &Programs::here(&home))
 }
 
 /// `--register [id…]` or `--unregister`, run and finished with an exit code;
@@ -587,7 +676,7 @@ pub fn from_args(args: &[String]) -> Option<i32> {
                     }
                 },
             };
-            match register(&home, &exe, &allowed) {
+            match register(&home, &exe, &allowed, &Programs::here(&home)) {
                 Ok(written) => {
                     for file in &written {
                         println!("registered {}", file.display());
@@ -619,6 +708,16 @@ pub fn from_args(args: &[String]) -> Option<i32> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /* Found by profile folder alone, as before: these tests run on
+     * computers with real browsers on PATH and in /Applications. */
+    fn register(home: &Path, exe: &Path, allowed: &Allowed) -> Result<Vec<PathBuf>, String> {
+        super::register(home, exe, allowed, &Programs::default())
+    }
+
+    fn ensure(home: &Path, exe: &Path) -> Result<Option<Vec<PathBuf>>, String> {
+        super::ensure(home, exe, &Programs::default())
+    }
 
     /// A home with Chrome and Firefox installed, and nothing else.
     fn home_with_browsers() -> tempfile::TempDir {
@@ -724,7 +823,7 @@ mod tests {
 
         for place in places(home.path()) {
             let file = place.manifest();
-            if !place.installed() {
+            if !place.installed(&Programs::default()) {
                 assert!(!file.exists(), "{} is not installed", place.dir.display());
                 continue;
             }
@@ -752,6 +851,57 @@ mod tests {
     }
 
     #[cfg(not(target_os = "windows"))]
+    /// A browser installed but never opened has no profile folder. It is
+    /// registered all the same, found by its program, and no folder is made
+    /// for a browser that is not there at all (gap 113).
+    #[test]
+    fn a_browser_installed_but_never_opened_is_registered_by_its_program() {
+        let home = tempfile::tempdir().unwrap();
+        let elsewhere = tempfile::tempdir().unwrap();
+        let exe = program(elsewhere.path());
+        // Chromium and Firefox installed: on PATH as Linux has them, and as
+        // bundles in Applications as macOS has them.
+        let bin = elsewhere.path().join("path");
+        let apps = elsewhere.path().join("Applications");
+        std::fs::create_dir_all(&bin).unwrap();
+        for name in ["chromium-browser", "firefox"] {
+            std::fs::write(bin.join(name), "").unwrap();
+        }
+        for name in ["Chromium.app", "Firefox.app"] {
+            std::fs::create_dir_all(apps.join(name)).unwrap();
+        }
+        // A folder named like a program is not one.
+        std::fs::create_dir_all(bin.join("google-chrome")).unwrap();
+        let programs = Programs {
+            path: vec![bin],
+            applications: vec![apps],
+        };
+
+        // Nothing has run, and nothing is found without looking for programs.
+        assert_eq!(ensure(home.path(), &exe).unwrap(), None);
+
+        let written = super::ensure(home.path(), &exe, &programs)
+            .unwrap()
+            .expect("an installed browser was not registered");
+        assert_eq!(written.len(), 2, "{written:?}");
+        let families: Vec<Family> = places(home.path())
+            .into_iter()
+            .filter(|p| written.contains(&p.manifest()))
+            .map(|p| p.family)
+            .collect();
+        assert_eq!(families, [Family::Chromium, Family::Firefox]);
+        for place in places(home.path()) {
+            if !written.contains(&place.manifest()) {
+                assert!(
+                    !place.browser().exists(),
+                    "{} was made for a browser that is not installed",
+                    place.browser().display()
+                );
+            }
+        }
+        assert_eq!(super::ensure(home.path(), &exe, &programs).unwrap(), None);
+    }
+
     #[test]
     fn with_no_browser_installed_nothing_is_written_and_that_is_said() {
         let home = tempfile::tempdir().unwrap();
@@ -874,7 +1024,7 @@ mod tests {
         assert_eq!(again.len(), written.len());
         let firefox = places(home.path())
             .into_iter()
-            .find(|p| p.family == Family::Firefox && p.installed())
+            .find(|p| p.family == Family::Firefox && p.installed(&Programs::default()))
             .unwrap()
             .manifest();
         let allowed = read(&firefox)["allowed_extensions"].clone();

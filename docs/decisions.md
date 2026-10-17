@@ -568,3 +568,79 @@ file on another disk claims its whole length until the download ends. The
 check and the claim happen under one lock, so two downloads starting
 together cannot both pass against the same space.
 
+
+## The shown byte count follows the speed limit (2026-10-17, gap 112)
+
+Under a limit, a chunk is counted as the limiter lets it through, 16 KiB
+at a time (`Limiter::take_counting`), not as it arrives. A connection
+reads what the socket holds, up to ~256 KiB at once, and eight connections
+counting on arrival put two megabytes in the count before the ceiling had
+passed any of it: the speed and ETA showed twice the limit for seconds.
+The count is still a ledger of what is on disk: a wait cut short by a
+pause or cancel counts the rest of its chunk. Smoothing the meter over a
+longer window was not chosen: it would hide the error, not remove it, and
+slow the number's response to a real change.
+
+## Linux openers are waited for (2026-10-17, gap 106)
+
+`xdg-open` exits 3 or 4 at once when it has nothing to hand a file to; a
+spawn that succeeded was taken as opened. Each opener is now waited for up
+to 1.5 s, in place, so `open_file` keeps its `Result`. A non-zero exit
+tries the next opener; one still running at the deadline is taken as
+opening the file and reaped on a thread. Its stderr goes to a temporary
+file rather than a pipe, so a program it runs in the foreground is not
+killed writing to a closed pipe.
+
+## A browser is registered when its program is installed (2026-10-17, gap 113)
+
+Besides a browser whose profile folder exists, `register` and `ensure`
+take one whose program is installed (Linux: on `PATH`; macOS: a bundle in
+`/Applications` or `~/Applications`) and make its `NativeMessagingHosts`
+folder. A browser with neither gets no folder. Windows writes every
+browser's key regardless, as before.
+
+## The toolbar keeps every name (2026-10-18, gap 115)
+
+The modern toolbar used to keep one row by dropping names from the right,
+leaving pictures to guess at a narrow window or in German. Now each button
+keeps its name: beside its picture where one row has room, under it in
+smaller type where it has not, and on a second row only when even that does
+not fit. The classic looks wrap the same way.
+
+## Progress windows for downloads the window did not start (2026-10-18, gap 109)
+
+A row first seen running or queued that the window did not add itself (a
+browser hand-off through the inbox, a second launch's link) opens its
+progress window when "Show a progress window" is on. Rows the window adds
+(Add URL, series, lists, imports) are marked as its own and follow the old
+rule: one window for a single Start now, none for a batch.
+
+## Exit asks; scripts do not (2026-10-18, gap 111)
+
+Exit, Cmd+Q and the tray's Quit ask while anything is Running or Queued;
+the downloads resume at the next launch either way. `program.exit` over the
+control protocol quits without asking, since nothing there can answer.
+
+## A download the browser has already finished is still caught (2026-10-18, gap 103)
+
+`first_look` used to leave a download whose state was `complete` with the
+browser ("already finished, usually from the cache"), and one that could
+not be paused and was no longer running ("it finished first"). Chromium
+finishes a small file served fast before the extension can hold it — a PDF
+almost always (it is not held for a danger check the way a `.bin` is), and
+a pause does not stop what it has already received — so those PDFs never
+reached dm. A cache hit and a fast fetch look the same from the extension,
+so the rule could not be kept for one and not the other, and it guarded
+nothing a person asked for: the catch rules said dm takes the type. Now a
+finished download is handed over by its address like any other, still
+`held` (protocol 2), so dm probes it, compares the type the browser got,
+and refuses what it cannot fetch itself (a one-time link, a POST result, a
+sign-in page). Only once dm has taken it is the browser's copy removed:
+`downloads.removeFile` for a finished one (cancelling it would leave the
+file), `cancel` for one still running, then `erase`. Refused, the finished
+copy stays, and `give_back` does not start it again. The size floor in the
+catch rules is the setting for leaving small files to the browser.
+Considered: leaving the browser's copy and handing over too (two copies of
+every fast PDF, which is what the hold-then-complete race already did);
+keeping the rule and lowering latency (the race is lost before
+`onCreated` runs).

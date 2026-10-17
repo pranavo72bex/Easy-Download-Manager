@@ -72,6 +72,9 @@ impl Platform for Fake {
     fn choose_app(&self) -> Option<std::path::PathBuf> {
         self.chosen.lock().unwrap().clone()
     }
+    fn choose_folder(&self) -> Option<std::path::PathBuf> {
+        self.chosen.lock().unwrap().clone()
+    }
     fn chime(&self) {
         self.opened.lock().unwrap().push("chime".into());
     }
@@ -155,6 +158,15 @@ fn world() -> World {
             .route(
                 "/deep.pdf",
                 axum::routing::get(|| async { Response::new(Body::from(payload())) }),
+            )
+            .route(
+                "/secret.zip",
+                axum::routing::get(|| async {
+                    Response::builder()
+                        .status(401)
+                        .body(Body::from("sign in first"))
+                        .unwrap()
+                }),
             )
             .route(
                 "/stalled.bin",
@@ -701,10 +713,10 @@ fn the_category_tree_has_right_click_menus() {
     assert_eq!(tab, Some(dm_desktop::dialogs::Tab::SaveTo));
 }
 
-#[test]
-fn a_pages_links_open_the_download_all_links_dialog() {
-    let world = world();
-    let mut harness = world.harness();
+/// A page's links, handed over by the browser (gap 105): "Start now"
+/// starts them, "Add for later" puts them in the Main queue, and the sizes
+/// the dialog showed stay on the rows until each learns its own.
+fn hand_links(harness: &mut Harness<'_, DmApp>, world: &World, links: Vec<String>) {
     harness
         .state()
         .backend()
@@ -714,20 +726,34 @@ fn a_pages_links_open_the_download_all_links_dialog() {
         .push_back(dm_shell::host::Request {
             url: world.url("page.html"),
             referrer: world.url("page.html"),
-            links: vec![
-                world.url("file.zip"),
-                world.url("other.pdf"),
-                world.url("next.html"),
-            ],
+            links,
             ask: true,
             ..Default::default()
         });
     harness.state_mut().take_handed();
     harness.run_steps(2);
-    assert!(harness.query_by_label("Download all links").is_some());
+    // Titled for a page's every link or a selection's alike.
+    assert!(harness.query_by_label("Download links").is_some());
+}
+
+#[test]
+fn a_pages_links_open_the_download_links_dialog() {
+    let world = world();
+    let mut harness = world.harness();
+    hand_links(
+        &mut harness,
+        &world,
+        vec![
+            world.url("file.zip"),
+            world.url("other.pdf"),
+            world.url("next.html"),
+        ],
+    );
     // Each link's server is asked for its kind and size.
     let deadline = Instant::now() + Duration::from_secs(10);
-    while harness.query_by_label("Archives").is_none() {
+    while harness.query_by_label("Archives").is_none()
+        || harness.query_all_by_label("256.0 KB").count() < 2
+    {
         assert!(Instant::now() < deadline, "the links were never checked");
         harness.run_steps(1);
         std::thread::sleep(Duration::from_millis(50));
@@ -735,18 +761,32 @@ fn a_pages_links_open_the_download_all_links_dialog() {
     // "Hide HTML files" is on by default: the page is not offered.
     assert!(harness.query_by_label("next.html").is_none());
     click(&mut harness, "other.pdf");
-    click(&mut harness, "OK");
+    click(&mut harness, "Add for later");
     harness.state_mut().refresh();
-    let rows = harness.state().rows();
+    let rows = harness.state().rows().to_vec();
     assert_eq!(rows.len(), 1, "{rows:?}");
     assert_eq!(rows[0].url, world.url("file.zip"));
     assert_eq!(rows[0].queue, dm_core::MAIN_QUEUE);
-    assert_eq!(
-        rows[0].state,
-        State::Paused,
-        "into the queue, to start with it"
-    );
+    assert_eq!(rows[0].state, State::Paused, "for later: not started");
     assert_eq!(rows[0].referrer, world.url("page.html"));
+    // The size the dialog showed is on the row, though nothing was fetched.
+    assert_eq!(rows[0].progress.total, None);
+    assert_eq!(
+        harness.state().visible()[0].progress.total,
+        Some(PAYLOAD as u64),
+        "the size the dialog showed was lost"
+    );
+    harness.run_steps(2);
+    assert!(harness.query_by_label("256.0 KB").is_some());
+
+    // OK's place is "Start now", and it starts them.
+    hand_links(&mut harness, &world, vec![world.url("other.pdf")]);
+    click(&mut harness, "Start now");
+    until(&mut harness, "the started link to finish", |app| {
+        app.rows()
+            .iter()
+            .any(|r| r.url.ends_with("/other.pdf") && r.state == State::Completed)
+    });
 }
 
 #[test]
@@ -848,7 +888,13 @@ fn download_later_waits_in_the_main_queue_until_start_queue() {
     assert_eq!(row.state, State::Paused);
     assert_eq!(row.queue, dm_core::MAIN_QUEUE);
 
-    harness.get_by_label_contains("Main queue").click();
+    // The Queue column names the row's queue (gap 115), as the tree does.
+    harness.run_steps(2);
+    assert!(
+        harness.query_by_label("Main queue").is_some(),
+        "the Queue column does not name the queue"
+    );
+    harness.get_by_label_contains("Main queue (").click();
     harness.run_steps(3);
     assert_eq!(
         harness.state().place,
@@ -1053,7 +1099,9 @@ fn properties_change_the_description_and_refresh_an_expired_address() {
     assert!(row.url.ends_with("/file.zip"), "{}", row.url);
     // Not yet named by a server, the row goes by its new address's name.
     select(&mut harness, "file.zip");
-    click(&mut harness, "Resume");
+    // A failed row is retried, and its button says so (gap 115).
+    assert!(harness.query_by_label("Resume").is_none());
+    click(&mut harness, "Retry");
     until(&mut harness, "the refreshed download to complete", |app| {
         app.rows().iter().all(|r| r.state == State::Completed)
     });
@@ -1962,7 +2010,7 @@ fn a_handed_over_videos_sign_in_survives_download_details() {
         });
     harness.state_mut().take_handed();
     harness.run_steps(2);
-    click(&mut harness, "OK");
+    click(&mut harness, "Add for later");
     harness.state_mut().refresh();
     let rows = harness.state().rows().to_vec();
     let of = |end: &str| {
@@ -2859,13 +2907,26 @@ fn press(h: &mut Harness<'_, DmApp>, path: &[&str]) {
         } else if i + 1 == path.len() {
             // A menu item with a key says it after its name, "Help F1"; a
             // key never starts lowercase, so "Find" is not "Find next".
-            h.query_all_by_label_contains(name).rfind(|n| {
-                let label = n.accesskit_node().label().unwrap_or_default();
-                label == *name
-                    || label
-                        .strip_prefix(&format!("{name} "))
-                        .is_some_and(|key| !key.starts_with(|c: char| c.is_lowercase()))
-            })
+            // A toolbar button of the same name (32 px tall or more) may
+            // lie under the open menu; the menu's item is the one meant.
+            let item = |n: &egui_kittest::Node<'_>| {
+                n.accesskit_node()
+                    .bounding_box()
+                    .is_some_and(|b| b.height() < 30.0)
+            };
+            let matching: Vec<_> = h
+                .query_all_by_label_contains(name)
+                .filter(|n| {
+                    let label = n.accesskit_node().label().unwrap_or_default();
+                    label == *name
+                        || label
+                            .strip_prefix(&format!("{name} "))
+                            .is_some_and(|key| !key.starts_with(|c: char| c.is_lowercase()))
+                })
+                .collect();
+            let menu = matching.iter().rposition(item);
+            menu.or(matching.len().checked_sub(1))
+                .and_then(|at| matching.into_iter().nth(at))
         } else {
             // A submenu's name may carry its arrow. Text on screen that
             // merely mentions the name ("Speed limiter on: 100 KB/s." in
@@ -3317,6 +3378,9 @@ fn every_menu_item_clicked_does_what_it_says() {
         "Program › Import added nothing"
     );
 
+    // With nothing downloading, Exit quits; with something, it asks.
+    h.state_mut().run(Command::StopAll);
+    h.state_mut().refresh();
     press(&mut h, &["Program", "Exit"]);
     assert!(h.state().quit_asked, "Program › Exit");
 }
@@ -3863,4 +3927,448 @@ fn options_holds_only_new_or_renamed_folders_to_every_computers_rules() {
         "a new bad name was taken"
     );
     harness.state_mut().dialogs.options = None;
+}
+
+/* ------------------------------------------- a human tester's session (6) */
+
+/// Gap 107: a dialog opened to be typed in takes the keyboard at once, and
+/// Enter presses its default button.
+#[test]
+fn a_dialog_is_typed_in_at_once_and_enter_presses_its_default_button() {
+    let world = world();
+    let mut harness = world.harness();
+    harness.key_press_modifiers(egui::Modifiers::COMMAND, egui::Key::N);
+    harness.run_steps(3);
+    assert!(harness.state().dialogs.add_url.is_some());
+    // No click in the field first.
+    harness.event(egui::Event::Text(world.url("file.zip")));
+    harness.run_steps(2);
+    harness.key_press(egui::Key::Enter);
+    harness.run_steps(3);
+    assert!(
+        harness.state().dialogs.add_url.is_none(),
+        "Enter did not press OK"
+    );
+    let urls = harness
+        .state()
+        .dialogs
+        .file_info
+        .as_ref()
+        .map(|d| d.urls.clone());
+    assert_eq!(urls, Some(vec![world.url("file.zip")]));
+    harness.state_mut().dialogs = Default::default();
+    harness.run_steps(2);
+
+    harness.key_press_modifiers(egui::Modifiers::COMMAND, egui::Key::F);
+    harness.run_steps(3);
+    harness.event(egui::Event::Text("file".into()));
+    harness.run_steps(2);
+    assert_eq!(harness.state().dialogs.find_text, "file", "Find's field");
+
+    harness.state_mut().dialogs = Default::default();
+    harness.state_mut().run(Command::AddSeries);
+    harness.run_steps(3);
+    harness.event(egui::Event::Text(world.url("img*.jpg")));
+    harness.run_steps(2);
+    assert_eq!(
+        harness
+            .state()
+            .dialogs
+            .series
+            .as_ref()
+            .map(|d| d.template.clone()),
+        Some(world.url("img*.jpg")),
+        "the series' address field"
+    );
+}
+
+/// Gap 108: a closed schedule is said in the status bar with when it
+/// opens, and a held row says why it waits.
+#[test]
+fn the_status_bar_says_the_schedule_holds_downloads_and_until_when() {
+    let _file = SETTINGS_FILE.lock().unwrap_or_else(|e| e.into_inner());
+    use chrono::Timelike;
+    let world = world();
+    let mut harness = world.harness();
+    let now = chrono::Local::now();
+    let from = format!("{:02}:{:02}", (now.hour() + 2) % 24, now.minute());
+    let to = format!("{:02}:{:02}", (now.hour() + 3) % 24, now.minute());
+    let mut wanted = harness.state().applied.clone();
+    wanted.schedule = dm_core::Schedule {
+        enabled: true,
+        from: from.clone(),
+        to,
+        days: Vec::new(),
+    };
+    harness.state_mut().apply_settings(wanted).unwrap();
+    add_url(&mut harness, &world.url("file.zip"), "Start now");
+    until(&mut harness, "the schedule to hold the row", |app| {
+        app.rows()
+            .iter()
+            .any(|r| r.state == State::Queued || r.paused_by_schedule)
+    });
+    harness.run_steps(2);
+    // "01:00", or "Sun 01:00" when that is tomorrow.
+    let said = harness
+        .query_by_label_contains("waiting for the schedule (opens at ")
+        .map(|n| {
+            let node = n.accesskit_node();
+            node.label()
+                .or(node.value())
+                .unwrap_or_default()
+                .to_string()
+        })
+        .expect("the status bar does not say the schedule holds downloads");
+    assert!(said.contains(&format!("{from})")), "{said}");
+    let why = harness.state().held_because().unwrap_or_default();
+    assert!(
+        why.contains("starts by itself at ") && why.contains(&from),
+        "{why}"
+    );
+    let mut off = harness.state().applied.clone();
+    off.schedule.enabled = false;
+    harness.state_mut().apply_settings(off).unwrap();
+}
+
+/// Gap 109: a download that starts without the window starting it — a
+/// browser's hand-off — opens its progress window too, when that is on.
+#[test]
+fn a_browsers_hand_off_opens_its_progress_window() {
+    let world = world();
+    let app = world.app_with(Settings {
+        download_dir: world.dir.path().join("out"),
+        connections: 1,
+        show_progress: true,
+        show_complete: false,
+        language: "en".into(),
+        ..Settings::default()
+    });
+    let mut harness = Harness::builder()
+        .with_size(egui::vec2(1100.0, 720.0))
+        .build_ui_state(|ui, app: &mut DmApp| app.ui(ui), app);
+    harness.run_steps(2);
+    // As the native host's hand-off lands: in the queue, not through the
+    // window's own Add.
+    let id = harness
+        .state()
+        .backend()
+        .add_with(&world.url("stalled.bin"), dm_core::AddOptions::default())
+        .unwrap();
+    until(&mut harness, "its progress window", |app| {
+        app.dialogs.progress.contains(&id)
+    });
+    // One added for later has not started, and opens nothing.
+    let later = harness
+        .state()
+        .backend()
+        .add_with(
+            &world.url("file.zip"),
+            dm_core::AddOptions {
+                later: true,
+                queue: dm_core::MAIN_QUEUE.into(),
+                ..Default::default()
+            },
+        )
+        .unwrap();
+    harness.state_mut().refresh();
+    harness.run_steps(2);
+    assert!(!harness.state().dialogs.progress.contains(&later));
+}
+
+/// Gap 110: several downloads finishing make one "Download complete" window
+/// listing each, with its own Open and Open folder.
+#[test]
+fn downloads_finishing_together_share_one_complete_window() {
+    let world = world();
+    let mut harness = world.harness();
+    harness.state_mut().applied.show_complete = true;
+    harness.run_steps(2);
+    let urls = [
+        world.url("file.zip"),
+        world.url("other.pdf"),
+        world.url("deep.pdf"),
+    ];
+    harness.state_mut().add(&urls, Default::default()).unwrap();
+    until(&mut harness, "all three to finish", |app| {
+        app.rows().len() == 3 && app.rows().iter().all(|r| r.state == State::Completed)
+    });
+    harness.run_steps(3);
+    assert_eq!(harness.query_all_by_label("Download complete").count(), 1);
+    assert!(harness.query_by_label("3 downloads finished.").is_some());
+    click(&mut harness, "Open other.pdf");
+    let other = row(&harness, "other.pdf");
+    assert_eq!(
+        *world.fake.opened.lock().unwrap(),
+        std::slice::from_ref(&other.path)
+    );
+    assert_eq!(harness.state().dialogs.complete.len(), 2, "the rest stay");
+    click(&mut harness, "Open the folder of deep.pdf");
+    assert!(world.fake.opened.lock().unwrap()[1].starts_with("reveal "));
+    click(&mut harness, "Close");
+    assert!(harness.query_by_label("Download complete").is_none());
+}
+
+/// Gap 111: Exit while downloading asks first; a script's exit does not.
+#[test]
+fn exit_while_downloading_asks_first() {
+    let world = world();
+    let mut harness = world.harness();
+    add_url(&mut harness, &world.url("stalled.bin"), "Start now");
+    until(&mut harness, "it to run", |app| app.downloading() > 0);
+    harness.state_mut().run(Command::Quit);
+    harness.run_steps(3);
+    assert!(!harness.state().quit_asked, "quit without asking");
+    assert!(harness.query_by_label("Exit dm?").is_some());
+    click(&mut harness, "Keep downloading");
+    assert!(!harness.state().quit_asked);
+    assert!(harness.query_by_label("Exit dm?").is_none());
+
+    harness.state_mut().run(Command::Quit);
+    harness.run_steps(3);
+    harness
+        .get_by_role_and_label(egui::accesskit::Role::Button, "Exit")
+        .click();
+    harness.run_steps(3);
+    assert!(harness.state().quit_asked, "Exit in the question");
+
+    harness.state_mut().quit_asked = false;
+    harness
+        .state_mut()
+        .control_call("command.run", &serde_json::json!({ "id": "program.exit" }))
+        .unwrap();
+    assert!(
+        harness.state().quit_asked,
+        "a script cannot answer a question"
+    );
+}
+
+/// Gap 114: the sort is remembered, a status line naming a row goes with
+/// it, and Options keeps its place whichever tab shows.
+#[test]
+fn the_sort_survives_a_restart_and_options_keeps_its_place() {
+    let _file = SETTINGS_FILE.lock().unwrap_or_else(|e| e.into_inner());
+    let world = world();
+    let mut harness = world.harness();
+    add_url(&mut harness, &world.url("file.zip"), "Add for later");
+    harness.run_steps(2);
+    click(&mut harness, "Size");
+    click(&mut harness, "Size");
+    let saved = harness.state().backend().settings();
+    assert_eq!(
+        (saved.sort_column.as_str(), saved.sort_ascending),
+        ("size", false)
+    );
+    let again = world.app_with(saved);
+    assert_eq!(again.sort, Some((Column::Size, false)), "not remembered");
+
+    // "Found file.zip." does not outlive file.zip.
+    harness.state_mut().dialogs.find_text = "file".into();
+    harness.state_mut().run(Command::FindNext);
+    assert!(harness.state().said.english().contains("file.zip"));
+    let id = harness.state().rows()[0].id;
+    harness.state_mut().remove_now(&[id]);
+    assert!(
+        harness.state().said.is_empty(),
+        "{:?}",
+        harness.state().said
+    );
+
+    click(&mut harness, "Options");
+    let ok = |h: &Harness<'_, DmApp>| {
+        h.get_by_role_and_label(egui::accesskit::Role::Button, "OK")
+            .accesskit_node()
+            .bounding_box()
+    };
+    let first = ok(&harness);
+    for tab in ["Folders", "Network", "Sign-ins", "Downloads", "General"] {
+        // The tab, not the menu of that name: Options is drawn after it.
+        harness.query_all_by_label(tab).last().unwrap().click();
+        harness.run_steps(3);
+        assert_eq!(ok(&harness), first, "Options moved on {tab}");
+    }
+    let mut wanted = harness.state().applied.clone();
+    wanted.sort_column = String::new();
+    harness.state_mut().apply_settings(wanted).unwrap();
+}
+
+/// Gap 115: a server that wants a sign-in says where to give one, and
+/// Properties opens on its Login.
+#[test]
+fn a_refused_sign_in_says_where_to_give_one() {
+    let world = world();
+    let mut harness = world.harness();
+    add_url(&mut harness, &world.url("secret.zip"), "Start now");
+    until(&mut harness, "the refusal", |app| {
+        app.rows()
+            .iter()
+            .any(|r| matches!(r.state, State::Failed(_)))
+    });
+    let failed = harness.state().rows()[0].clone();
+    let said = dm_desktop::app::status_of(&failed);
+    assert!(
+        said.contains("needs a sign-in: Properties › Login"),
+        "{said}"
+    );
+    select(&mut harness, "secret.zip");
+    // Retry, not Resume, on the toolbar, in the File menu and the row menu.
+    assert!(harness.query_by_label("Retry").is_some());
+    assert_eq!(harness.state().title_of(Command::DownloadNow), "Retry");
+    harness.state_mut().run(Command::Properties);
+    harness.run_steps(3);
+    harness.event(egui::Event::Text("user".into()));
+    harness.run_steps(2);
+    assert_eq!(
+        harness
+            .state()
+            .dialogs
+            .properties
+            .get(&failed.id)
+            .map(|d| d.login.clone()),
+        Some("user".into()),
+        "the keyboard is not in Login"
+    );
+}
+
+/// Gap 115: the speed limiter's menu item is ticked while a limit is on.
+#[test]
+fn the_speed_limiter_item_shows_whether_it_is_on() {
+    let _file = SETTINGS_FILE.lock().unwrap_or_else(|e| e.into_inner());
+    let world = world();
+    let mut h = world.harness();
+    let state = |h: &mut Harness<'_, DmApp>| {
+        h.run_steps(2);
+        h.query_all_by_label("Downloads").last().unwrap().click();
+        h.run_steps(3);
+        h.query_all_by_label_contains("Speed limiter")
+            .rfind(|n| n.accesskit_node().role() != egui::accesskit::Role::Label)
+            .unwrap()
+            .click();
+        h.run_steps(3);
+        let ticked = h
+            .get_by_label("Turn speed limiter on or off")
+            .accesskit_node()
+            .toggled();
+        h.key_press(egui::Key::Escape);
+        h.run_steps(2);
+        h.key_press(egui::Key::Escape);
+        h.run_steps(2);
+        ticked
+    };
+    assert_eq!(state(&mut h), Some(egui::accesskit::Toggled::False));
+    h.state_mut().run(Command::SpeedLimiterToggle);
+    assert_eq!(state(&mut h), Some(egui::accesskit::Toggled::True));
+    h.state_mut().run(Command::SpeedLimiterToggle);
+    assert_eq!(h.state().applied.speed_limit, 0);
+}
+
+/// Gap 115: links on the clipboard can be started at once, or not at all.
+#[test]
+fn links_on_the_clipboard_can_start_now_or_be_cancelled() {
+    let world = world();
+    let mut harness = world.harness();
+    *world.fake.clipboard.lock().unwrap() = Some(world.url("file.zip"));
+    harness.state_mut().run(Command::AddFromClipboard);
+    harness.run_steps(2);
+    click(&mut harness, "Cancel");
+    assert!(harness.state().dialogs.clip_links.is_none());
+    assert!(harness.state().rows().is_empty());
+    harness.state_mut().run(Command::AddFromClipboard);
+    harness.run_steps(2);
+    click(&mut harness, "Start now");
+    until(&mut harness, "it to finish", |app| {
+        app.rows().iter().any(|r| r.state == State::Completed)
+    });
+}
+
+/// Gap 115: a folder's field has a Browse… button, and what it picks is
+/// where the file goes.
+#[test]
+fn browse_picks_the_folder_a_download_goes_to() {
+    let world = world();
+    let mut harness = world.harness();
+    let picked = world.dir.path().join("picked");
+    std::fs::create_dir_all(&picked).unwrap();
+    *world.fake.chosen.lock().unwrap() = Some(picked.clone());
+    click(&mut harness, "Add URL");
+    type_into(&mut harness, "Address", &world.url("file.zip"));
+    click(&mut harness, "OK");
+    click(&mut harness, "Browse…");
+    let folder = harness
+        .state()
+        .dialogs
+        .file_info
+        .as_ref()
+        .map(|d| d.folder.clone());
+    assert_eq!(folder, Some(picked.display().to_string()));
+    click(&mut harness, "Start now");
+    until(&mut harness, "it to finish", |app| {
+        app.rows().iter().any(|r| r.state == State::Completed)
+    });
+    assert!(std::path::Path::new(&harness.state().rows()[0].path).starts_with(&picked));
+
+    click(&mut harness, "Options");
+    click(&mut harness, "Folders");
+    assert_eq!(harness.query_all_by_label("Browse…").count(), 2);
+}
+
+/// Gap 115: at the narrowest window and in German, every toolbar button
+/// still shows its name, rather than a picture to guess at.
+#[test]
+fn the_toolbar_keeps_its_names_narrow_and_in_german() {
+    let world = world();
+    let app = world.app_with(Settings {
+        download_dir: world.dir.path().join("out"),
+        show_progress: false,
+        show_complete: false,
+        language: "de".into(),
+        ..Settings::default()
+    });
+    let mut harness = Harness::builder()
+        .with_size(egui::vec2(720.0, 460.0))
+        .build_ui_state(|ui, app: &mut DmApp| app.ui(ui), app);
+    harness.run_steps(4);
+    for (_, _, label) in dm_desktop::app::toolbar_in(&[]) {
+        let name = dm_desktop::i18n::t(label);
+        let node = harness.get_by_role_and_label(egui::accesskit::Role::Button, name);
+        let bounds = node.accesskit_node().bounding_box().unwrap();
+        let shown = harness
+            .ctx
+            .fonts_mut(|f| {
+                f.layout_no_wrap(
+                    name.into(),
+                    egui::FontId::proportional(11.5),
+                    egui::Color32::WHITE,
+                )
+            })
+            .size()
+            .x;
+        assert!(
+            bounds.width() as f32 >= shown,
+            "{name}: {} wide, its name {shown}",
+            bounds.width()
+        );
+        assert!(bounds.x1 <= 720.0, "{name} is past the window's edge");
+    }
+    dm_desktop::i18n::set("en");
+}
+
+/// Gap 104, in the window: Clear finished takes completed and cancelled
+/// rows, so with only a failed row there is nothing for it to do.
+#[test]
+fn clear_finished_is_greyed_with_only_failed_rows() {
+    let world = world();
+    let mut h = world.harness();
+    add_url(&mut h, &world.url("gone.bin"), "Start now");
+    until(&mut h, "the missing file to fail", |app| {
+        app.rows()
+            .iter()
+            .any(|r| matches!(r.state, State::Failed(_)))
+    });
+    assert!(!h.state().enabled(Command::DeleteCompleted));
+    assert!(
+        greyed(&mut h, &["Downloads", "Clear all finished"]),
+        "Clear all finished is offered for a failed row"
+    );
+    h.state_mut().run(Command::DeleteCompleted);
+    assert_eq!(h.state().rows().len(), 1, "the failed row went");
 }

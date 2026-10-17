@@ -215,9 +215,22 @@ fn status_in(row: &Entry, words: fn(&'static str) -> &'static str) -> String {
             _ => words("Stopped").into(),
         },
         State::Completed => words("Complete").into(),
+        // A server that wants a sign-in says where to give one.
+        State::Failed(reason) if needs_sign_in(reason) => format!(
+            "{} — {}",
+            crate::i18n::fill(words("Error: {}"), &[reason]),
+            words("it needs a sign-in: Properties › Login")
+        ),
         State::Failed(reason) => crate::i18n::fill(words("Error: {}"), &[reason]),
         State::Cancelled => words("Cancelled").into(),
     }
+}
+
+/// Whether a failure is a server refusing without a sign-in (401, 403).
+pub fn needs_sign_in(reason: &str) -> bool {
+    [" 401 ", " 403 "]
+        .iter()
+        .any(|code| format!(" {reason} ").contains(code))
 }
 
 /// What the window offers to queue on its own: the first word of some text,
@@ -376,7 +389,21 @@ pub struct DmApp {
     pub headless: bool,
     /// Requests from the control protocol, when it is on.
     control: Option<std::sync::mpsc::Receiver<crate::control::Request>>,
+    /// Rows the window added itself (Add URL, a series, an import): they
+    /// open their progress window, if at all, as they are added. Any other
+    /// row that appears running — a browser's hand-off, a second launch's
+    /// link — opens one when it is first seen.
+    own: HashSet<Id>,
+    /// Sizes a dialog learned from the server before a row was added for
+    /// later, shown until the row learns its own.
+    pub sizes_told: HashMap<Id, u64>,
+    /// The status line's sentence and when it was said: an old one is not
+    /// left standing beside rows it no longer describes.
+    said_at: Option<(crate::i18n::Said, Instant)>,
 }
+
+/// How long the status line keeps its last sentence.
+const SAID_FOR: Duration = Duration::from_secs(30);
 
 impl DmApp {
     pub fn new(backend: Backend) -> Self {
@@ -434,7 +461,12 @@ impl DmApp {
             countdown: None,
             headless: false,
             control: None,
+            own: HashSet::new(),
+            sizes_told: HashMap::new(),
+            said_at: None,
         };
+        app.sort = Column::from_key(&app.applied.sort_column)
+            .map(|column| (column, app.applied.sort_ascending));
         app.set_clipboard_watch(app.applied.watch_clipboard);
         app.refresh();
         app
@@ -684,6 +716,28 @@ impl DmApp {
                 self.dialogs.complete.insert(id);
             }
         }
+        // A download that started without the window starting it — handed
+        // over by a browser, or by a second launch — opens its progress
+        // window as one started here does, where that is asked for. Not
+        // the rows there when the window opened, and not one added for
+        // later, which has not started.
+        if self.applied.show_progress && self.notify_ready && !self.headless {
+            for row in &self.rows {
+                if !self.last_state.contains_key(&row.id)
+                    && !self.own.contains(&row.id)
+                    && matches!(row.state, State::Running | State::Queued)
+                {
+                    self.dialogs.progress.insert(row.id);
+                }
+            }
+        }
+        self.own.retain(|id| ids.contains(id));
+        // A size told by a dialog stands only until the row has its own.
+        let rows = &self.rows;
+        self.sizes_told.retain(|id, _| {
+            rows.iter()
+                .any(|r| r.id == *id && r.progress.total.is_none() && r.progress.downloaded == 0)
+        });
         self.last_state = self.rows.iter().map(|r| (r.id, r.state.clone())).collect();
         // After the first pass every completion already on disk is seeded.
         self.notify_ready = true;
@@ -920,6 +974,12 @@ impl DmApp {
                 }
                 if !self.enabled(command) {
                     return Err(format!("{id} has nothing to act on"));
+                }
+                // A script cannot answer "Exit while downloading?": asked
+                // over this connection, dm quits.
+                if command == Command::Quit {
+                    self.quit_asked = true;
+                    return Ok(json!({ "ran": id, "said": self.said.english() }));
                 }
                 self.run(command);
                 Ok(json!({ "ran": id, "said": self.said.english() }))
@@ -1181,6 +1241,14 @@ impl DmApp {
             .filter(|r| self.shows(r))
             .cloned()
             .collect();
+        // What a dialog learned of a row's size, until the row knows it.
+        for row in &mut rows {
+            if row.progress.total.is_none() {
+                if let Some(size) = self.sizes_told.get(&row.id) {
+                    row.progress.total = Some(*size);
+                }
+            }
+        }
         if let Some((column, ascending)) = self.sort {
             rows.sort_by(|a, b| {
                 let order = compare(column, a, b);
@@ -1252,7 +1320,7 @@ impl DmApp {
                 .rows
                 .iter()
                 .any(|r| matches!(r.state, State::Running | State::Queued)),
-            Command::DeleteCompleted => self.rows.iter().any(|r| r.state.settled()),
+            Command::DeleteCompleted => self.rows.iter().any(|r| r.state.clearable()),
             Command::FindNext => !self.dialogs.find_text.is_empty(),
             _ => true,
         }
@@ -1281,7 +1349,17 @@ impl DmApp {
                 if let Some(path) = self.backend.platform.choose_file(false, "") {
                     match std::fs::read_to_string(&path) {
                         Ok(text) => {
+                            let before: HashSet<Id> =
+                                self.backend.list().iter().map(|r| r.id).collect();
                             let added = self.backend.import(&text);
+                            // A list is not a run of progress windows.
+                            self.own.extend(
+                                self.backend
+                                    .list()
+                                    .iter()
+                                    .map(|r| r.id)
+                                    .filter(|id| !before.contains(id)),
+                            );
                             self.said =
                                 crate::i18n::Said::new("Imported {} download(s).", &[&added]);
                         }
@@ -1306,7 +1384,7 @@ impl DmApp {
                 }
             }
             Command::SiteFiles => self.dialogs.open_site_files(),
-            Command::Quit => self.quit_asked = true,
+            Command::Quit => self.ask_quit(),
 
             Command::DownloadNow => {
                 // A row the schedule or the download limit holds is not
@@ -1351,9 +1429,11 @@ impl DmApp {
                 }
             }
             Command::UpdateLink => {
+                self.dialogs.focus_on("Update download link");
                 self.dialogs.update_link = Some((targets[0].id, String::new(), String::new()))
             }
             Command::MoveToQueue => {
+                self.dialogs.focus_on("Move to queue");
                 self.dialogs.move_to_queue = Some((
                     targets.iter().map(|r| r.id).collect(),
                     // As the dialog shows it; taken back to dm's own on OK.
@@ -1395,6 +1475,7 @@ impl DmApp {
                 }
             }
             Command::MoveRename => {
+                self.dialogs.focus_on("Move/Rename");
                 self.dialogs.rename = Some((targets[0].id, targets[0].filename.clone()))
             }
             Command::SelectAll => {
@@ -1409,10 +1490,15 @@ impl DmApp {
             }
             Command::DeleteCompleted => {
                 let n = self.backend.clear_finished();
-                self.said =
-                    crate::i18n::Said::new("Deleted {} finished download(s) from the list.", &[&n]);
+                self.said = crate::i18n::Said::new(
+                    "Deleted {} completed or cancelled download(s) from the list.",
+                    &[&n],
+                );
             }
-            Command::Find => self.dialogs.find_open = true,
+            Command::Find => {
+                self.dialogs.find_open = true;
+                self.dialogs.focus_on("Find");
+            }
             Command::FindNext => self.find_next(),
             Command::Scheduler => self.dialogs.open_scheduler(&self.applied),
             Command::StartQueue => {
@@ -1498,6 +1584,8 @@ impl DmApp {
     /// stay on disk.
     pub fn remove_now(&mut self, ids: &[Id]) {
         self.backend.remove_many(ids);
+        // What the status line said may have named one of them.
+        self.said = Default::default();
         for id in ids {
             self.dialogs.forget(*id);
         }
@@ -1557,12 +1645,74 @@ impl DmApp {
         }
     }
 
-    /// Sorts by a column; asked for again, the other way round.
+    /// Sorts by a column; asked for again, the other way round. Kept in
+    /// the settings, so the list is sorted the same way at the next launch.
     pub fn sort_by(&mut self, column: Column) {
         self.sort = match self.sort {
             Some((c, ascending)) if c == column => Some((c, !ascending)),
             _ => Some((column, true)),
         };
+        if let Some((column, ascending)) = self.sort {
+            let mut wanted = self.applied.clone();
+            wanted.sort_column = column.key().to_string();
+            wanted.sort_ascending = ascending;
+            if let Err(e) = self.apply_settings(wanted) {
+                self.said = e.into();
+            }
+        }
+    }
+
+    /// Program › Exit, Cmd+Q and the tray's Quit: asked first while
+    /// anything is downloading, since quitting stops it. A window with
+    /// nobody to ask (headless) quits.
+    pub fn ask_quit(&mut self) {
+        if self.headless || self.downloading() == 0 {
+            self.quit_asked = true;
+        } else {
+            self.dialogs.confirm_exit = true;
+        }
+    }
+
+    /// How many downloads are running or about to.
+    pub fn downloading(&self) -> usize {
+        self.rows
+            .iter()
+            .filter(|r| matches!(r.state, State::Running | State::Queued))
+            .count()
+    }
+
+    /// A command's name as its menu item and button show it now: Resume on
+    /// rows that failed is a retry, and says so.
+    pub fn title_of(&self, command: Command) -> &'static str {
+        if command == Command::DownloadNow && self.failed_only() {
+            return t("Retry");
+        }
+        command.title()
+    }
+
+    /// Whether every selected row failed, so Resume would retry each.
+    fn failed_only(&self) -> bool {
+        let targets = self.targets();
+        !targets.is_empty() && targets.iter().all(|r| matches!(r.state, State::Failed(_)))
+    }
+
+    /// Why held rows wait, and until when: the download limit's time left,
+    /// or when the schedule next opens. `None` when nothing holds them.
+    pub fn held_because(&self) -> Option<String> {
+        if let Some(wait) = self.backend.queue.allowance_spent() {
+            return Some(tf(
+                "Held by the download limit; it goes on by itself in {}.",
+                &[&format::span(wait)],
+            ));
+        }
+        let schedule = &self.applied.schedule;
+        if schedule.enabled && !schedule.open() {
+            return Some(match opens_next(schedule) {
+                Some(at) => tf("Held by the schedule; it starts by itself at {}.", &[&at]),
+                None => t("Held by the schedule.").to_string(),
+            });
+        }
+        None
     }
 
     /// Selects the next row after the selection whose name has the text.
@@ -1597,13 +1747,28 @@ impl DmApp {
 
     /// Adds downloads, as "Start now" and "Add for later" do.
     pub fn add(&mut self, urls: &[String], with: dm_core::AddOptions) -> Result<usize, String> {
+        self.add_sized(urls, with, &HashMap::new())
+    }
+
+    /// The same, with the sizes a dialog already learned for some of the
+    /// links, shown on their rows until each learns its own.
+    pub fn add_sized(
+        &mut self,
+        urls: &[String],
+        with: dm_core::AddOptions,
+        sizes: &HashMap<String, u64>,
+    ) -> Result<usize, String> {
         let mut added = 0;
         let mut last_error = None;
         let items = urls.iter().map(|u| (u.clone(), with.clone())).collect();
-        for outcome in self.backend.add_each(items) {
+        for (url, outcome) in urls.iter().zip(self.backend.add_each(items)) {
             match outcome {
                 Ok(id) => {
                     added += 1;
+                    self.own.insert(id);
+                    if let Some(size) = sizes.get(url) {
+                        self.sizes_told.insert(id, *size);
+                    }
                     if !with.later && self.applied.show_progress && urls.len() == 1 {
                         self.dialogs.progress.insert(id);
                     }
@@ -1770,7 +1935,7 @@ impl DmApp {
     /// A menu item for a command: its label, its key, and greyed out when
     /// it has nothing to act on.
     fn item(&mut self, ui: &mut egui::Ui, command: Command) {
-        let mut button = egui::Button::new(command.title());
+        let mut button = egui::Button::new(self.title_of(command));
         if let Some(shortcut) = command.shortcut() {
             button = button.shortcut_text(ui.ctx().format_shortcut(&shortcut));
         }
@@ -1851,7 +2016,16 @@ impl DmApp {
                     self.item(ui, c);
                 }
                 ui.menu_button(t("Speed limiter"), |ui| {
-                    self.item(ui, Command::SpeedLimiterToggle);
+                    // Ticked while a limit is in force: the item says
+                    // whether the limiter is on, not only that it toggles.
+                    let mut on = self.applied.speed_limit > 0;
+                    if ui
+                        .checkbox(&mut on, Command::SpeedLimiterToggle.title())
+                        .clicked()
+                    {
+                        self.queued.push(Command::SpeedLimiterToggle);
+                        ui.close();
+                    }
                     self.item(ui, Command::SpeedLimiterSettings);
                 });
                 ui.menu_button(t("When done"), |ui| {
@@ -1943,60 +2117,56 @@ impl DmApp {
                     .any(|h| h == command.id())
             })
             .collect();
-        // The modern toolbar stays one row: when the names do not fit, the
-        // secondary buttons show their pictures only (named on hover and to
-        // a screen reader); the primary keeps its name.
-        // As many keep their names as fit, from the left; the rest
-        // command bar gives way: the rest show their pictures only.
-        let t = crate::theme::Tokens::get(ui.ctx());
-        let spacing = ui.spacing().item_spacing.x;
-        let full: Vec<f32> = buttons
-            .iter()
-            .map(|(_, _, label)| {
-                let text = ui.painter().layout_no_wrap(
-                    crate::i18n::t(label).to_string(),
-                    egui::FontId::proportional(14.0),
-                    t.text,
-                );
-                12.0 + 20.0 + 8.0 + text.size().x + 12.0 + spacing
+        let failed_only = self.failed_only();
+        let buttons: Vec<(Command, Icon, &'static str)> = buttons
+            .into_iter()
+            .map(|(command, icon, label)| {
+                let label = if command == Command::DownloadNow && failed_only {
+                    "Retry"
+                } else {
+                    label
+                };
+                (command, icon, crate::i18n::t(label))
             })
             .collect();
-        let compact = 34.0 + spacing;
+        // Every button keeps its name. The modern toolbar puts each name
+        // beside its picture where one row has room for that, under it
+        // where it has not (a narrow window, or longer words, as German's),
+        // and goes on to a second row only where even that does not fit.
+        // Pictures alone, at those widths, left most of it to be guessed.
+        let t = crate::theme::Tokens::get(ui.ctx());
+        let spacing = ui.spacing().item_spacing.x;
         let room = ui.available_width();
-        let mut named = buttons.len();
-        if t.modern && chosen == ToolStyle::Both {
-            while named > 1 {
-                let used: f32 =
-                    full.iter().take(named).sum::<f32>() + compact * (buttons.len() - named) as f32;
-                if used <= room {
-                    break;
-                }
-                named -= 1;
-            }
-        }
-        ui.horizontal(|ui| {
-            for (n, (command, icon, label)) in buttons.into_iter().enumerate() {
+        let width = |stacked: bool| -> f32 {
+            buttons
+                .iter()
+                .map(|(_, _, label)| modern_width(ui, label, stacked) + spacing)
+                .sum()
+        };
+        let modern = t.modern && chosen == ToolStyle::Both;
+        let stacked = modern && width(false) > room;
+        // Wrapped where even that does not fit, or where the classic
+        // looks' fixed buttons do not.
+        let wrap = (stacked && width(true) > room) || !modern;
+        let mut draw = |ui: &mut egui::Ui| {
+            for (command, icon, name) in &buttons {
                 // The modern toolbar leads with one primary action.
-                let primary = command == Command::AddUrl;
-                let style = if n >= named && !primary {
-                    ToolStyle::Icons
+                let primary = *command == Command::AddUrl;
+                let response = if stacked {
+                    modern_tool(ui, *icon, name, self.enabled(*command), primary, &t, true)
                 } else {
-                    chosen
+                    tool(ui, *icon, name, self.enabled(*command), chosen, primary)
                 };
-                if tool(
-                    ui,
-                    icon,
-                    crate::i18n::t(label),
-                    self.enabled(command),
-                    style,
-                    primary,
-                )
-                .clicked()
-                {
-                    self.queued.push(command);
+                if response.on_hover_text(self.title_of(*command)).clicked() {
+                    self.queued.push(*command);
                 }
             }
-        });
+        };
+        if wrap {
+            ui.horizontal_wrapped(|ui| draw(ui));
+        } else {
+            ui.horizontal(|ui| draw(ui));
+        }
         ui.add_space(2.0);
     }
 
@@ -2164,10 +2334,11 @@ impl DmApp {
     }
 
     fn status_bar(&mut self, ui: &mut egui::Ui) {
-        let running: Vec<&Entry> = self
+        let running: Vec<Entry> = self
             .rows
             .iter()
             .filter(|r| r.state == State::Running)
+            .cloned()
             .collect();
         let rate: f64 = running.iter().map(|r| r.progress.speed).sum();
         ui.horizontal(|ui| {
@@ -2187,11 +2358,31 @@ impl DmApp {
                     "· download limit of {} MB reached, held for {}",
                     &[&self.applied.limit_mb, &format::span(wait)],
                 ));
+            } else if let Some(at) = self.schedule_holds() {
+                // Said while the schedule is what downloads wait for, so a
+                // queue that does nothing is not taken for a broken one.
+                ui.label(match at {
+                    Some(at) => tf("· waiting for the schedule (opens at {})", &[&at]),
+                    None => t("· waiting for the schedule").to_string(),
+                });
             }
             // The limiter's own sentence is not said again beside the
-            // standing "limited to" above.
-            if !self.said.is_empty() && !self.said.is_limiter() {
+            // standing "limited to" above. Nor is one left standing long
+            // after: it named rows that may be gone since.
+            if self
+                .said_at
+                .as_ref()
+                .is_none_or(|(said, _)| *said != self.said)
+            {
+                self.said_at = Some((self.said.clone(), Instant::now()));
+            }
+            let fresh = self
+                .said_at
+                .as_ref()
+                .is_some_and(|(_, at)| at.elapsed() < SAID_FOR);
+            if fresh && !self.said.is_empty() && !self.said.is_limiter() {
                 ui.label(format!("· {}", self.said.shown()));
+                ui.ctx().request_repaint_after(SAID_FOR);
             }
             // The folder in what room is left, cut short with an ellipsis
             // (its whole path on hover) rather than drawn over the words.
@@ -2203,6 +2394,19 @@ impl DmApp {
                 }
             });
         });
+    }
+
+    /// Whether the schedule is closed with downloads waiting on it, and when
+    /// it next opens.
+    pub fn schedule_holds(&self) -> Option<Option<String>> {
+        let schedule = &self.applied.schedule;
+        if !schedule.enabled || schedule.open() {
+            return None;
+        }
+        let waiting = self.rows.iter().any(|r| {
+            r.state == State::Queued || (r.state == State::Paused && r.paused_by_schedule)
+        });
+        waiting.then(|| opens_next(schedule))
     }
 
     fn problem_list(&mut self, ui: &mut egui::Ui) {
@@ -2319,8 +2523,30 @@ pub fn tree_menu(place: &Place) -> Vec<(&'static str, TreeAction)> {
     }
 }
 
+/// How wide a modern toolbar button is: its name beside its picture, or
+/// (`stacked`) under it in smaller type.
+fn modern_width(ui: &egui::Ui, label: &str, stacked: bool) -> f32 {
+    let size = if stacked { 11.5 } else { 14.0 };
+    let text = ui
+        .painter()
+        .layout_no_wrap(
+            label.to_string(),
+            egui::FontId::proportional(size),
+            egui::Color32::WHITE,
+        )
+        .size()
+        .x;
+    if stacked {
+        (text + 14.0).max(46.0)
+    } else {
+        12.0 + 20.0 + 8.0 + text + 12.0
+    }
+}
+
 /// A modern toolbar button: the picture beside its name, 32 px tall,
 /// subtle until hovered; the primary one is filled with the brand colour.
+/// `stacked`, the name goes under the picture, where a row is too narrow
+/// for them side by side.
 fn modern_tool(
     ui: &mut egui::Ui,
     icon: Icon,
@@ -2328,8 +2554,9 @@ fn modern_tool(
     enabled: bool,
     primary: bool,
     t: &crate::theme::Tokens,
+    stacked: bool,
 ) -> egui::Response {
-    let font = egui::FontId::proportional(14.0);
+    let font = egui::FontId::proportional(if stacked { 11.5 } else { 14.0 });
     let text_color = if !enabled {
         t.disabled
     } else if primary {
@@ -2340,7 +2567,11 @@ fn modern_tool(
     let galley = ui
         .painter()
         .layout_no_wrap(label.to_string(), font, text_color);
-    let size = egui::vec2(12.0 + 20.0 + 8.0 + galley.size().x + 12.0, 32.0);
+    let size = if stacked {
+        egui::vec2(modern_width(ui, label, true), 44.0)
+    } else {
+        egui::vec2(modern_width(ui, label, false), 32.0)
+    };
     let (rect, response) = ui.allocate_exact_size(
         size,
         if enabled {
@@ -2367,16 +2598,23 @@ fn modern_tool(
     } else {
         t.tool(icon, true)
     };
-    let icon_rect = egui::Rect::from_center_size(
-        egui::pos2(rect.left() + 12.0 + 10.0, rect.center().y),
-        egui::vec2(18.0, 18.0),
-    );
+    let (icon_at, text_at) = if stacked {
+        (
+            egui::pos2(rect.center().x, rect.top() + 14.0),
+            egui::pos2(
+                rect.center().x - galley.size().x / 2.0,
+                rect.bottom() - 6.0 - galley.size().y,
+            ),
+        )
+    } else {
+        (
+            egui::pos2(rect.left() + 12.0 + 10.0, rect.center().y),
+            egui::pos2(rect.left() + 40.0, rect.center().y - galley.size().y / 2.0),
+        )
+    };
+    let icon_rect = egui::Rect::from_center_size(icon_at, egui::vec2(18.0, 18.0));
     icons::paint(ui.painter(), icon_rect, icon, picture);
-    ui.painter().galley(
-        egui::pos2(rect.left() + 40.0, rect.center().y - galley.size().y / 2.0),
-        galley,
-        text_color,
-    );
+    ui.painter().galley(text_at, galley, text_color);
     response
 }
 
@@ -2526,7 +2764,7 @@ fn tool(
 ) -> egui::Response {
     let t = crate::theme::Tokens::get(ui.ctx());
     if t.modern && style == ToolStyle::Both {
-        return modern_tool(ui, icon, label, enabled, primary, &t);
+        return modern_tool(ui, icon, label, enabled, primary, &t, false);
     }
     let small = style == ToolStyle::Icons;
     let size = match style {
@@ -2583,7 +2821,7 @@ fn tool(
     };
     icons::paint(ui.painter(), icon_rect, icon, picture);
     if small {
-        return response.on_hover_text(label);
+        return response;
     }
     ui.painter().text(
         egui::pos2(rect.center().x, rect.bottom() - 10.0),
@@ -2593,6 +2831,37 @@ fn tool(
         color,
     );
     response
+}
+
+/// When a closed schedule next opens, as a person reads it: "01:00" later
+/// today, "Mon 01:00" on another day. `None` if it never does.
+pub fn opens_next(schedule: &dm_core::Schedule) -> Option<String> {
+    use chrono::{Datelike, Timelike};
+    let now = chrono::Local::now();
+    let today = now.weekday().num_days_from_sunday();
+    let minute = now.time().hour() * 60 + now.time().minute();
+    opens_after(schedule, today, minute).map(|(days, at)| {
+        let clock = format!("{:02}:{:02}", at / 60, at % 60);
+        if days == 0 {
+            clock
+        } else {
+            let day = crate::dialogs::DAYS
+                .get(((today + days) % 7) as usize)
+                .copied()
+                .unwrap_or_default();
+            format!("{} {clock}", t(day))
+        }
+    })
+}
+
+/// The first minute after `minute` of weekday `today` that the schedule is
+/// open: how many days on, and the minute of that day.
+pub fn opens_after(schedule: &dm_core::Schedule, today: u32, minute: u32) -> Option<(u32, u32)> {
+    (1..=8 * 1440).map(|step| minute + step).find_map(|at| {
+        let (days, at) = (at / 1440, at % 1440);
+        let weekday = ((today + days) % 7) as u8;
+        schedule.open_at(weekday, at).then_some((days, at))
+    })
 }
 
 /// How two rows compare under a column, for sorting.
@@ -2736,6 +3005,30 @@ mod status_tests {
             cookies: String::new(),
             replaces: None,
         }
+    }
+
+    #[test]
+    fn a_closed_schedule_says_when_it_next_opens() {
+        let schedule = dm_core::Schedule {
+            enabled: true,
+            from: "01:00".into(),
+            to: "07:00".into(),
+            days: vec![1],
+        };
+        // Monday 00:30: later today. Monday 08:00: next Monday.
+        assert_eq!(opens_after(&schedule, 1, 30), Some((0, 60)));
+        assert_eq!(opens_after(&schedule, 1, 480), Some((7, 60)));
+        let never = dm_core::Schedule {
+            days: vec![],
+            from: "bad".into(),
+            ..schedule
+        };
+        // A time that is not one is no schedule: open at once.
+        assert_eq!(opens_after(&never, 1, 480), Some((0, 481)));
+        assert!(needs_sign_in("the server answered 401 Unauthorized for x"));
+        assert!(!needs_sign_in(
+            "the server answered 404 Not Found for /4013"
+        ));
     }
 
     #[test]
