@@ -22,7 +22,11 @@ this computer. Nothing is sent anywhere else.
 
 **Links and media you right-click.** Their address goes to the app the same
 way, only when you ask. The toolbar popup's "Open dm" only brings the app's
-window up: it sends no address at all.
+window up: it sends no address at all. "Download all links" and "Download
+selected links" read the addresses of the page's links, only when you pick
+them; on a tab that was open before dm was installed, the extension first
+puts its small links reader into that page (the `scripting` permission),
+which reads link addresses and nothing else.
 
 **The media a page's player loads.** To offer a video on sites no page
 reader knows, the extension looks at the type and

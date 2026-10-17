@@ -362,5 +362,15 @@
  "{} download(s) are still running. Exiting stops them; they go on from where they were the next time dm opens.": "Wciąż trwa {} pobrań. Zakończenie je zatrzyma; przy następnym uruchomieniu dm wznowią się od miejsca, w którym były.",
  "{} downloads finished.": "Ukończono pobrania: {}.",
  "· waiting for the schedule": "· czeka na harmonogram",
- "· waiting for the schedule (opens at {})": "· czeka na harmonogram (otwiera o {})"
+ "· waiting for the schedule (opens at {})": "· czeka na harmonogram (otwiera o {})",
+ "Keep waiting": "Czekaj dalej",
+ "No folder chooser on this desktop; type the folder's path.": "Na tym pulpicie nie ma okna wyboru folderu; wpisz ścieżkę folderu.",
+ "Remove from the list": "Usuń z listy",
+ "Start it now anyway? Only what you picked starts; the rest keep waiting.": "Uruchomić teraz mimo to? Rusza tylko to, co wybrano; reszta dalej czeka.",
+ "Start outside the schedule?": "Uruchomić poza harmonogramem?",
+ "Take these downloads off the list? Their files stay where they are.": "Usunąć te pobierania z listy? Ich pliki zostaną tam, gdzie są.",
+ "Take this download off the list? Its file stays where it is.": "Usunąć to pobieranie z listy? Jego plik zostanie tam, gdzie jest.",
+ "Trying {} again with the sign-in.": "Ponowna próba {} z danymi logowania.",
+ "{} downloads wait for the schedule or the download limit.": "Pobierania ({}) czekają na harmonogram lub limit pobierania.",
+ "{} waits for the schedule or the download limit.": "{} czeka na harmonogram lub limit pobierania."
 }

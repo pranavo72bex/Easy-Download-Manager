@@ -51,6 +51,21 @@ pub trait Platform: Send + Sync {
     fn choose_folder(&self) -> Option<std::path::PathBuf> {
         None
     }
+    /// Whether this desktop has a folder chooser to ask with. Where it has
+    /// none, `choose_folder` answers `None` at once, as for a Cancel, and
+    /// Browse… says so instead of doing nothing.
+    fn can_choose_folder(&self) -> bool {
+        true
+    }
+}
+
+/// Whether the file chooser dm's dialogs use (the desktop portal's, else
+/// zenity's) is there: the portal answering, or zenity on `path` (a `PATH`
+/// value).
+pub fn chooser_here(portal: bool, path: Option<&std::ffi::OsStr>) -> bool {
+    portal
+        || path
+            .is_some_and(|path| std::env::split_paths(path).any(|dir| dir.join("zenity").is_file()))
 }
 
 /// The queue, the settings in force, and the problems no row can carry.
@@ -107,6 +122,17 @@ impl Backend {
             self.queue.resume(id).await;
             shell::wake(&self.queue);
         });
+    }
+
+    /// Starts one row now, outside the schedule and the download limit.
+    pub fn start_outside_schedule(&self, id: Id) -> bool {
+        self.block_on(async {
+            let started = self.queue.start_outside_schedule(id).await;
+            if started {
+                shell::wake(&self.queue);
+            }
+            started
+        })
     }
 
     pub fn retry(&self, id: Id) {
@@ -569,5 +595,21 @@ mod export_tests {
             super::without_login("magnet:?xt=urn:btih:abc"),
             "magnet:?xt=urn:btih:abc"
         );
+    }
+}
+
+#[cfg(test)]
+mod chooser_tests {
+    /// Gap 121: with no portal and no zenity there is no chooser, and
+    /// Browse… says so rather than doing nothing.
+    #[test]
+    fn a_chooser_is_the_portal_or_zenity_on_the_path() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = std::env::join_paths([dir.path()]).unwrap();
+        assert!(!super::chooser_here(false, Some(&path)));
+        assert!(!super::chooser_here(false, None));
+        assert!(super::chooser_here(true, None));
+        std::fs::write(dir.path().join("zenity"), "").unwrap();
+        assert!(super::chooser_here(false, Some(&path)));
     }
 }

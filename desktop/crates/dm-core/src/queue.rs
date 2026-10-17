@@ -192,6 +192,9 @@ struct Slot {
     /// on the same part files — and the first task's outcome, landing late,
     /// would overwrite the second's state.
     task: Option<tokio::task::JoinHandle<()>>,
+    /// Started by a person outside the schedule (`start_outside_schedule`):
+    /// the schedule and the download limit leave this run alone.
+    outside_schedule: bool,
 }
 
 impl Slot {
@@ -207,6 +210,7 @@ impl Slot {
         self.control.pause();
         self.entry.state = State::Paused;
         self.entry.paused_by_schedule = by_schedule;
+        self.outside_schedule = false;
     }
 }
 
@@ -222,6 +226,7 @@ impl Slot {
         self.entry.state = State::Queued;
         self.entry.finished_at = None;
         self.entry.paused_by_schedule = false;
+        self.outside_schedule = false;
     }
 }
 
@@ -456,6 +461,7 @@ impl Queue {
             },
             control: Control::new(),
             task: None,
+            outside_schedule: false,
         };
 
         self.inner.slots.lock().await.insert(id, slot);
@@ -570,6 +576,7 @@ impl Queue {
                     entry,
                     control: Control::new(),
                     task: None,
+                    outside_schedule: false,
                 },
             );
         }
@@ -888,6 +895,37 @@ impl Queue {
         slot.requeue();
         drop(slots);
         self.save().await;
+    }
+
+    /// Starts one row now, whatever the schedule or the download limit
+    /// says: a person asked for this one, and only this one. The schedule
+    /// leaves its run alone; a pause, or the row going back in line, ends
+    /// that. False for a row that is not waiting, failed or stopped, or
+    /// whose last run is still winding down.
+    pub async fn start_outside_schedule(&self, id: Id) -> bool {
+        let (url, control) = {
+            let mut slots = self.inner.slots.lock().await;
+            let Some(slot) = slots.get_mut(&id) else {
+                return false;
+            };
+            if !matches!(
+                slot.entry.state,
+                State::Paused | State::Queued | State::Failed(_)
+            ) || slot.still_stopping()
+            {
+                return false;
+            }
+            slot.requeue();
+            slot.entry.state = State::Running;
+            slot.outside_schedule = true;
+            (slot.entry.url.clone(), slot.control.clone())
+        };
+        let task = self.start(id, url, control);
+        if let Some(slot) = self.inner.slots.lock().await.get_mut(&id) {
+            slot.task = Some(task);
+        }
+        self.save().await;
+        true
     }
 
     /// Pauses everything unsettled, and says how many that was.
@@ -1209,7 +1247,10 @@ impl Queue {
                     .progress
                     .total
                     .is_some_and(|total| slot.entry.progress.downloaded >= total);
-                if matches!(slot.entry.state, State::Running | State::Queued) && !fetched {
+                if matches!(slot.entry.state, State::Running | State::Queued)
+                    && !fetched
+                    && !slot.outside_schedule
+                {
                     slot.hold(true);
                     held = true;
                 }

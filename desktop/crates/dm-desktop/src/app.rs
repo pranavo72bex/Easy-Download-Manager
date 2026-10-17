@@ -323,6 +323,15 @@ pub struct DmApp {
     /// The row a shift-click extends the selection from: the last one
     /// clicked without shift.
     pub anchor: Option<Id>,
+    /// The row the arrow keys move from: the last one moved to or clicked.
+    pub cursor: Option<Id>,
+    /// A row to bring into view on the next frame, as the keys moved to it.
+    pub scroll_to: Option<Id>,
+    /// Whether the keyboard, not the pointer, was used last: the focus is
+    /// shown then, with a ring.
+    pub keyboard: bool,
+    /// Where the focus ring was drawn last frame, if anywhere.
+    pub focus_ring: Option<egui::Rect>,
     pub sort: Option<(Column, bool)>,
     pub show_categories: bool,
     pub show_toolbar: bool,
@@ -417,6 +426,10 @@ impl DmApp {
             place: Place::All,
             selected: BTreeSet::new(),
             anchor: None,
+            cursor: None,
+            scroll_to: None,
+            keyboard: false,
+            focus_ring: None,
             sort: None,
             show_categories: true,
             show_toolbar: true,
@@ -1213,7 +1226,14 @@ impl DmApp {
             Place::All => true,
             Place::Kind(c) => row.category == Some(*c),
             Place::Custom(name) => self.custom_of(row).as_deref() == Some(name.as_str()),
-            Place::Unfinished => row.state != State::Completed,
+            // What is under way: running, waiting its turn, or held by the
+            // schedule or the download limit. Not a failed row or one a
+            // person stopped, which the status bar does not count as
+            // downloading either.
+            Place::Unfinished => {
+                matches!(row.state, State::Running | State::Queued)
+                    || (row.state == State::Paused && row.paused_by_schedule)
+            }
             Place::Finished => row.state == State::Completed,
             Place::Queue(name) => &row.queue == name,
         }
@@ -1387,14 +1407,23 @@ impl DmApp {
             Command::Quit => self.ask_quit(),
 
             Command::DownloadNow => {
-                // A row the schedule or the download limit holds is not
-                // started by asking: said, rather than a click that does
-                // nothing.
-                if targets.iter().any(|r| r.paused_by_schedule) {
-                    self.said = crate::i18n::Said::new(
-                        "Waiting for the schedule or the download limit; it starts by itself when allowed.",
-                        &[],
-                    );
+                // A row the schedule or the download limit holds is asked
+                // about: start it now, outside the schedule, or let it wait.
+                // With nobody to ask (headless), it is said instead.
+                let held: Vec<Id> = targets
+                    .iter()
+                    .filter(|r| r.state == State::Paused && r.paused_by_schedule)
+                    .map(|r| r.id)
+                    .collect();
+                if !held.is_empty() {
+                    if self.headless {
+                        self.said = crate::i18n::Said::new(
+                            "Waiting for the schedule or the download limit; it starts by itself when allowed.",
+                            &[],
+                        );
+                    } else {
+                        self.dialogs.confirm_outside = Some(held);
+                    }
                 }
                 for row in &targets {
                     match row.state {
@@ -1415,12 +1444,15 @@ impl DmApp {
                 }
             }
             Command::Remove => {
-                // An unfinished download is asked about first:
-                // its fetched bytes go with it.
-                if targets.iter().any(|r| r.state != State::Completed) {
-                    self.dialogs.confirm_remove = Some(targets.iter().map(|r| r.id).collect());
+                // Asked first, whichever way it was asked for: an
+                // unfinished download's fetched bytes go with it, and a
+                // finished one leaves the list.
+                // Headless, with nobody to ask, finished rows go as before.
+                let ids: Vec<Id> = targets.iter().map(|r| r.id).collect();
+                if self.headless && targets.iter().all(|r| r.state == State::Completed) {
+                    self.remove_now(&ids);
                 } else {
-                    self.remove_now(&targets.iter().map(|r| r.id).collect::<Vec<_>>());
+                    self.dialogs.confirm_remove = Some(ids);
                 }
             }
             Command::Redownload => {
@@ -1819,6 +1851,16 @@ impl DmApp {
             self.fonts_ready = ready;
         }
         self.logic(&ctx);
+        // A name in a script dm's own typeface lacks (Chinese, Korean,
+        // Arabic…) has the computer's font for it found, rather than
+        // drawn as blanks.
+        crate::theme::cover(
+            &ctx,
+            self.rows
+                .iter()
+                .flat_map(|r| [&r.filename, &r.path, &r.description])
+                .map(String::as_str),
+        );
         self.keys(&ctx);
         self.take_drops(&ctx);
 
@@ -1885,6 +1927,7 @@ impl DmApp {
             });
 
         crate::dialogs::show(self, &ctx);
+        self.focus_ring(&ctx);
 
         for command in std::mem::take(&mut self.queued) {
             self.run(command);
@@ -1918,6 +1961,91 @@ impl DmApp {
         }
         if !behind && ctx.input(|i| i.key_pressed(egui::Key::Enter)) && !self.selected.is_empty() {
             self.queued.push(Command::ShowProgress);
+        }
+        // Up, Down, Home and End move the selection; with Shift they extend
+        // it from where it was started. Not while a menu is open: its
+        // keys are its own.
+        if !behind && !self.popup_was_open {
+            let pressed = ctx.input(|i| {
+                [
+                    (egui::Key::ArrowUp, crate::table::Step::Up),
+                    (egui::Key::ArrowDown, crate::table::Step::Down),
+                    (egui::Key::Home, crate::table::Step::First),
+                    (egui::Key::End, crate::table::Step::Last),
+                ]
+                .into_iter()
+                .find(|(key, _)| i.key_pressed(*key))
+                .map(|(_, step)| (step, i.modifiers.shift))
+            });
+            if let Some((step, shift)) = pressed {
+                let ids: Vec<Id> = self.visible().iter().map(|r| r.id).collect();
+                let (selected, anchor, cursor) = crate::table::stepped(
+                    &ids,
+                    &self.selected,
+                    self.anchor,
+                    self.cursor,
+                    step,
+                    shift,
+                );
+                (self.selected, self.anchor, self.cursor) = (selected, anchor, cursor);
+                self.scroll_to = cursor;
+                // The list has the keys now: egui's own move of the focus
+                // to a control above or below is not wanted beside it.
+                ctx.memory_mut(|m| m.stop_text_input());
+            }
+        }
+    }
+
+    /// Whether the keyboard is in use, and a ring around what has its
+    /// focus — a control, or the list's row the keys are on — so it can be
+    /// seen where Tab and the arrows went. Not drawn after a click.
+    fn focus_ring(&mut self, ctx: &egui::Context) {
+        let (pointer, keys) = ctx.input(|i| {
+            let keys = i.events.iter().any(|e| {
+                matches!(
+                    e,
+                    egui::Event::Key {
+                        key: egui::Key::Tab
+                            | egui::Key::ArrowUp
+                            | egui::Key::ArrowDown
+                            | egui::Key::Home
+                            | egui::Key::End,
+                        pressed: true,
+                        ..
+                    }
+                )
+            });
+            (i.pointer.any_pressed(), keys)
+        });
+        if pointer {
+            self.keyboard = false;
+        } else if keys {
+            self.keyboard = true;
+        }
+        self.focus_ring = None;
+        if !self.keyboard {
+            return;
+        }
+        let t = crate::theme::Tokens::get(ctx);
+        let stroke = egui::Stroke::new(2.0, t.accent);
+        let focused = ctx
+            .memory(|m| m.focused())
+            .and_then(|id| ctx.read_response(id));
+        let (rect, layer) = match focused {
+            Some(r) => (r.interact_rect, r.layer_id),
+            None => match self.cursor.and_then(|id| self.row_rects.get(&id)) {
+                Some(rect) => (*rect, egui::LayerId::background()),
+                None => return,
+            },
+        };
+        if rect.is_positive() {
+            ctx.layer_painter(layer).rect_stroke(
+                rect.shrink(1.0),
+                egui::CornerRadius::same(t.radius),
+                stroke,
+                egui::StrokeKind::Inside,
+            );
+            self.focus_ring = Some(rect);
         }
     }
 
@@ -2380,8 +2508,25 @@ impl DmApp {
                 .said_at
                 .as_ref()
                 .is_some_and(|(_, at)| at.elapsed() < SAID_FOR);
-            if fresh && !self.said.is_empty() && !self.said.is_limiter() {
-                ui.label(format!("· {}", self.said.shown()));
+            // "Waiting for the schedule" only while something waits for it:
+            // left standing, it described a download running since.
+            let stale = self.said.is_schedule_wait()
+                && !self
+                    .rows
+                    .iter()
+                    .any(|r| r.state == State::Paused && r.paused_by_schedule);
+            if fresh && !stale && !self.said.is_empty() && !self.said.is_limiter() {
+                // Its first line, cut short to the room there is with the
+                // whole of it on hover: an opener's error output ran off the
+                // window's edge.
+                let whole = self.said.shown();
+                let short = whole.lines().next().unwrap_or_default().to_string();
+                let room = (ui.available_width() - 120.0).max(80.0);
+                ui.scope(|ui| {
+                    ui.set_max_width(room);
+                    ui.add(egui::Label::new(format!("· {short}")).truncate())
+                        .on_hover_text(whole);
+                });
                 ui.ctx().request_repaint_after(SAID_FOR);
             }
             // The folder in what room is left, cut short with an ellipsis

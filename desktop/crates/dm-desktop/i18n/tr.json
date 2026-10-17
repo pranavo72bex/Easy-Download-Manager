@@ -362,5 +362,15 @@
  "{} download(s) are still running. Exiting stops them; they go on from where they were the next time dm opens.": "{} indirme hâlâ sürüyor. Çıkmak onları durdurur; dm bir sonraki açılışta kaldıkları yerden devam eder.",
  "{} downloads finished.": "{} indirme tamamlandı.",
  "· waiting for the schedule": "· zamanlama bekleniyor",
- "· waiting for the schedule (opens at {})": "· zamanlama bekleniyor (açılış {})"
+ "· waiting for the schedule (opens at {})": "· zamanlama bekleniyor (açılış {})",
+ "Keep waiting": "Beklemeye devam et",
+ "No folder chooser on this desktop; type the folder's path.": "Bu masaüstünde klasör seçici yok; klasörün yolunu yazın.",
+ "Remove from the list": "Listeden kaldır",
+ "Start it now anyway? Only what you picked starts; the rest keep waiting.": "Yine de şimdi başlatılsın mı? Yalnızca seçtikleriniz başlar; geri kalanı beklemeye devam eder.",
+ "Start outside the schedule?": "Zamanlamanın dışında başlatılsın mı?",
+ "Take these downloads off the list? Their files stay where they are.": "Bu indirmeler listeden kaldırılsın mı? Dosyaları oldukları yerde kalır.",
+ "Take this download off the list? Its file stays where it is.": "Bu indirme listeden kaldırılsın mı? Dosyası olduğu yerde kalır.",
+ "Trying {} again with the sign-in.": "{} oturum bilgisiyle yeniden deneniyor.",
+ "{} downloads wait for the schedule or the download limit.": "{} indirme zamanlamayı veya indirme sınırını bekliyor.",
+ "{} waits for the schedule or the download limit.": "{} zamanlamayı veya indirme sınırını bekliyor."
 }

@@ -42,6 +42,8 @@ struct Fake {
     login: Mutex<Option<bool>>,
     opened: Mutex<Vec<String>>,
     chosen: Mutex<Option<std::path::PathBuf>>,
+    /// A desktop with no folder chooser to ask with.
+    no_chooser: Mutex<bool>,
 }
 
 impl Platform for Fake {
@@ -74,6 +76,9 @@ impl Platform for Fake {
     }
     fn choose_folder(&self) -> Option<std::path::PathBuf> {
         self.chosen.lock().unwrap().clone()
+    }
+    fn can_choose_folder(&self) -> bool {
+        !*self.no_chooser.lock().unwrap()
     }
     fn chime(&self) {
         self.opened.lock().unwrap().push("chime".into());
@@ -166,6 +171,21 @@ fn world() -> World {
                         .status(401)
                         .body(Body::from("sign in first"))
                         .unwrap()
+                }),
+            )
+            .route(
+                "/locked.zip",
+                axum::routing::get(|headers: axum::http::HeaderMap| async move {
+                    // Only with a sign-in, as a server behind a login is.
+                    if headers.contains_key("authorization") {
+                        Response::new(Body::from(payload()))
+                    } else {
+                        Response::builder()
+                            .status(401)
+                            .header("www-authenticate", "Basic realm=\"dm\"")
+                            .body(Body::from("sign in first"))
+                            .unwrap()
+                    }
                 }),
             )
             .route(
@@ -942,12 +962,19 @@ fn the_category_tree_filters_the_one_list() {
     let world = world();
     let mut harness = world.harness();
     add_url(&mut harness, &world.url("file.zip"), "Start now");
-    add_url(&mut harness, &world.url("stalled.bin"), "Add for later");
-    until(&mut harness, "one to finish", |app| {
+    add_url(&mut harness, &world.url("stalled.bin"), "Start now");
+    add_url(&mut harness, &world.url("secret.zip"), "Start now");
+    until(&mut harness, "one to finish and one to fail", |app| {
         app.rows().iter().any(|r| r.state == State::Completed)
+            && app
+                .rows()
+                .iter()
+                .any(|r| matches!(r.state, State::Failed(_)))
     });
     harness.run_steps(2);
 
+    // In progress is what is under way (gap 124): the stalled download,
+    // not the one that failed.
     harness.get_by_label_contains("Done (1)").click();
     harness.run_steps(3);
     assert!(harness.query_by_label("file.zip").is_some());
@@ -956,6 +983,7 @@ fn the_category_tree_filters_the_one_list() {
     harness.run_steps(3);
     assert!(harness.query_by_label("stalled.bin").is_some());
     assert!(harness.query_by_label("file.zip").is_none());
+    assert!(harness.query_by_label("secret.zip").is_none());
     harness.get_by_label_contains("Archives (1)").click();
     harness.run_steps(3);
     assert!(harness.query_by_label("file.zip").is_some());
@@ -3817,17 +3845,24 @@ fn f3_finds_the_next_one_while_find_is_open() {
     harness.key_press(egui::Key::F3);
     harness.run_steps(2);
     assert_eq!(picked(&harness), ["alpha.bin"], "F3 in the field");
-    // Enter finds too, and leaves the field: F3 still finds behind Find.
+    // Enter finds too, and the field keeps the keyboard (gap 120): the
+    // next Enter finds the next, and typing goes on into the field.
     harness.key_press(egui::Key::Enter);
     harness.run_steps(2);
     assert_eq!(picked(&harness), ["alphabet.bin"]);
     assert!(
-        !harness.ctx.egui_wants_keyboard_input(),
-        "the premise: the field let go"
+        harness.ctx.egui_wants_keyboard_input(),
+        "Find's field let go of the keyboard after Enter"
     );
+    harness.key_press(egui::Key::Enter);
+    harness.run_steps(2);
+    assert_eq!(picked(&harness), ["alpha.bin"], "a second Enter");
+    harness.event(egui::Event::Text("bet".into()));
+    harness.run_steps(2);
+    assert_eq!(harness.state().dialogs.find_text, "alphabet");
     harness.key_press(egui::Key::F3);
     harness.run_steps(2);
-    assert_eq!(picked(&harness), ["alpha.bin"], "F3 with Find open");
+    assert_eq!(picked(&harness), ["alphabet.bin"], "F3 with Find open");
     assert!(harness.state().dialogs.find_open);
     harness.key_press(egui::Key::Escape);
     harness.run_steps(2);
@@ -4371,4 +4406,384 @@ fn clear_finished_is_greyed_with_only_failed_rows() {
     );
     h.state_mut().run(Command::DeleteCompleted);
     assert_eq!(h.state().rows().len(), 1, "the failed row went");
+}
+
+/// The bounding box of the last node of that name, in window points.
+fn bounds(h: &Harness<'_, DmApp>, name: &str) -> egui::accesskit::Rect {
+    h.query_all_by_label(name)
+        .last()
+        .unwrap_or_else(|| panic!("{name:?} is not on screen"))
+        .accesskit_node()
+        .bounding_box()
+        .unwrap_or_else(|| panic!("{name:?} has no place on screen"))
+}
+
+/// Gap 117: the arrow keys, Home and End move the list's selection, Shift
+/// extends it, and the keyboard's place is ringed.
+#[test]
+fn the_arrow_keys_move_the_selection_and_the_focus_shows() {
+    let world = world();
+    let mut harness = world.harness();
+    for name in ["a.bin", "b.bin", "c.bin"] {
+        harness
+            .state()
+            .backend()
+            .add_with(
+                &world.url(name),
+                dm_core::AddOptions {
+                    later: true,
+                    ..Default::default()
+                },
+            )
+            .unwrap();
+    }
+    harness.state_mut().refresh();
+    harness.run_steps(2);
+    let picked = |h: &Harness<'_, DmApp>| {
+        h.state()
+            .targets()
+            .iter()
+            .map(dm_desktop::app::name_of)
+            .collect::<Vec<_>>()
+    };
+    harness.key_press(egui::Key::ArrowDown);
+    harness.run_steps(2);
+    assert_eq!(picked(&harness), ["a.bin"]);
+    assert!(
+        harness.state().focus_ring.is_some(),
+        "no ring where the keys are"
+    );
+    harness.key_press(egui::Key::ArrowDown);
+    harness.key_press_modifiers(egui::Modifiers::SHIFT, egui::Key::ArrowDown);
+    harness.run_steps(2);
+    assert_eq!(picked(&harness), ["b.bin", "c.bin"]);
+    harness.key_press(egui::Key::Home);
+    harness.run_steps(2);
+    assert_eq!(picked(&harness), ["a.bin"]);
+    harness.key_press(egui::Key::End);
+    harness.run_steps(2);
+    assert_eq!(picked(&harness), ["c.bin"]);
+    // A click puts the ring away; Tab brings it to the control focused.
+    click(&mut harness, "a.bin");
+    assert!(harness.state().focus_ring.is_none(), "a ring after a click");
+    harness.key_press(egui::Key::Tab);
+    harness.run_steps(2);
+    assert!(harness.state().focus_ring.is_some(), "no ring after Tab");
+}
+
+/// Gap 118: "Download complete" reaches every file (its list scrolls), cuts
+/// a long name so Close stays in view, sits in the corner rather than over
+/// the rows, and Escape closes all of it.
+#[test]
+fn the_complete_window_scrolls_cuts_long_names_and_closes_on_escape() {
+    let world = world();
+    let mut harness = world.harness();
+    harness.state_mut().applied.show_complete = true;
+    harness.run_steps(2);
+    let long = format!("{}.zip", "very-long-name-".repeat(20));
+    harness
+        .state_mut()
+        .add(
+            &[world.url("file.zip")],
+            dm_core::AddOptions {
+                save_name: Some(long.clone()),
+                ..Default::default()
+            },
+        )
+        .unwrap();
+    let urls: Vec<String> = (0..11).map(|_| world.url("file.zip")).collect();
+    harness.state_mut().add(&urls, Default::default()).unwrap();
+    until(&mut harness, "all twelve to finish", |app| {
+        app.rows().len() == 12 && app.rows().iter().all(|r| r.state == State::Completed)
+    });
+    harness.run_steps(4);
+    assert!(harness.query_by_label("12 downloads finished.").is_some());
+    let close = bounds(&harness, "Close");
+    assert!(close.x1 <= 1100.0, "Close is off the window: {close:?}");
+    // In the corner, out of the middle of the list.
+    assert!(close.x0 > 1100.0 / 2.0, "not in the corner: {close:?}");
+    let last = dm_desktop::app::name_of(harness.state().rows().last().unwrap());
+    let open_last = format!("Open the folder of {last}");
+    let before = bounds(&harness, &open_last);
+    assert!(
+        before.y0 > close.y0,
+        "the premise: the last file is below the fold"
+    );
+    // The wheel over the list scrolls it.
+    let list = bounds(&harness, "12 downloads finished.");
+    harness.hover_at(egui::pos2(list.x0 as f32 + 20.0, list.y1 as f32 + 60.0));
+    for _ in 0..20 {
+        harness.event(egui::Event::MouseWheel {
+            unit: egui::MouseWheelUnit::Point,
+            delta: egui::vec2(0.0, -200.0),
+            phase: egui::TouchPhase::Move,
+            source: egui::MouseWheelSource::Wheel,
+            modifiers: egui::Modifiers::NONE,
+        });
+        harness.run_steps(1);
+    }
+    harness.run_steps(4);
+    let after = bounds(&harness, &open_last);
+    assert!(
+        after.y1 < close.y0,
+        "the last file is not reachable: {after:?} under {close:?}"
+    );
+    harness.key_press(egui::Key::Escape);
+    harness.run_steps(2);
+    assert!(
+        harness.state().dialogs.complete.is_empty(),
+        "Escape closed one file of the window, not the window"
+    );
+}
+
+/// Gap 119: Tab goes round a dialog's own controls, never to the menu bar
+/// behind it, and Enter with none of them focused presses the default.
+#[test]
+fn tab_stays_in_the_dialog_and_enter_presses_its_default() {
+    let world = world();
+    let mut harness = world.harness();
+    harness
+        .state_mut()
+        .dialogs
+        .open_file_info(vec![world.url("file.zip")]);
+    harness.run_steps(3);
+    let dialog = harness
+        .query_by_label("Start now")
+        .expect("Download details is open");
+    let dialog = dialog.accesskit_node().bounding_box().unwrap();
+    let _ = dialog;
+    for _ in 0..12 {
+        harness.key_press(egui::Key::Tab);
+        harness.run_steps(1);
+        let focused = harness.ctx.memory(|m| m.focused());
+        let layer = focused.and_then(|id| harness.ctx.read_response(id).map(|r| r.layer_id));
+        if let Some(layer) = layer {
+            assert_eq!(
+                layer.order,
+                egui::Order::Middle,
+                "Tab left the dialog for {layer:?}"
+            );
+        }
+    }
+    assert!(!harness.ctx.any_popup_open(), "Tab opened a menu behind");
+    // Nothing focused: Enter is Start now.
+    harness.ctx.memory_mut(|m| m.stop_text_input());
+    harness.run_steps(2);
+    harness.key_press(egui::Key::Enter);
+    harness.run_steps(3);
+    assert!(
+        harness.state().dialogs.file_info.is_none(),
+        "Enter did not press Start now"
+    );
+    assert_eq!(harness.state().rows().len(), 1);
+}
+
+/// Gap 121: Browse… on a desktop with no folder chooser says so.
+#[test]
+fn browse_with_no_folder_chooser_says_to_type_the_path() {
+    let world = world();
+    let mut harness = world.harness();
+    *world.fake.no_chooser.lock().unwrap() = true;
+    harness
+        .state_mut()
+        .dialogs
+        .open_file_info(vec![world.url("file.zip")]);
+    harness.run_steps(3);
+    click(&mut harness, "Browse…");
+    assert!(harness
+        .query_by_label("No folder chooser on this desktop; type the folder's path.")
+        .is_some());
+}
+
+/// Gap 123: a long refusal wraps in the progress window, which stays on
+/// the screen; the status bar cuts a long sentence and keeps it on hover.
+#[test]
+fn long_status_text_wraps_and_stays_on_screen() {
+    let world = world();
+    let app = world.app_with(Settings {
+        download_dir: world.dir.path().join("out"),
+        connections: 1,
+        show_progress: true,
+        show_complete: false,
+        language: "en".into(),
+        ..Settings::default()
+    });
+    let mut harness = Harness::builder()
+        .with_size(egui::vec2(720.0, 600.0))
+        .build_ui_state(|ui, app: &mut DmApp| app.ui(ui), app);
+    let long = format!("{}secret.zip", "a-long-path/".repeat(12));
+    let url = world.url(&long);
+    add_url(&mut harness, &url, "Start now");
+    until(&mut harness, "the refusal", |app| {
+        app.rows()
+            .iter()
+            .any(|r| matches!(r.state, State::Failed(_)))
+    });
+    harness.run_steps(4);
+    let retry = bounds(&harness, "Retry");
+    assert!(retry.x1 <= 720.0 && retry.y1 <= 600.0, "{retry:?}");
+    for node in harness.query_all_by_label_contains("needs a sign-in") {
+        let b = node.accesskit_node().bounding_box().unwrap();
+        assert!(b.x1 <= 720.5, "the status ran off the window: {b:?}");
+    }
+    harness.state_mut().dialogs = Default::default();
+    harness.state_mut().said = format!(
+        "this computer could not open {}: xdg-open: {}\nmore",
+        "/x".repeat(30),
+        "lynx: not found ".repeat(10)
+    )
+    .into();
+    harness.run_steps(3);
+    for node in harness.query_all_by_label_contains("this computer could not open") {
+        let b = node.accesskit_node().bounding_box().unwrap();
+        assert!(b.x1 <= 720.5, "the status bar ran off the window: {b:?}");
+    }
+}
+
+/// Gap 126: Resume on a row the schedule holds offers to start it now,
+/// outside the schedule, and it then downloads while the schedule stays shut.
+#[test]
+fn resume_on_a_held_row_offers_to_start_it_outside_the_schedule() {
+    let _file = SETTINGS_FILE.lock().unwrap_or_else(|e| e.into_inner());
+    use chrono::Timelike;
+    let world = world();
+    let mut harness = world.harness();
+    let now = chrono::Local::now();
+    let mut wanted = harness.state().applied.clone();
+    wanted.schedule = dm_core::Schedule {
+        enabled: true,
+        from: format!("{:02}:{:02}", (now.hour() + 2) % 24, now.minute()),
+        to: format!("{:02}:{:02}", (now.hour() + 3) % 24, now.minute()),
+        days: Vec::new(),
+    };
+    harness.state_mut().apply_settings(wanted).unwrap();
+    add_url(&mut harness, &world.url("file.zip"), "Start now");
+    until(&mut harness, "the schedule to hold it", |app| {
+        app.rows().iter().any(|r| r.paused_by_schedule)
+    });
+    select(&mut harness, "file.zip");
+    harness.state_mut().run(Command::DownloadNow);
+    harness.run_steps(3);
+    assert!(
+        harness
+            .query_by_label("Start outside the schedule?")
+            .is_some(),
+        "Resume on a held row asked nothing"
+    );
+    click(&mut harness, "Start now");
+    until(&mut harness, "it to finish outside the schedule", |app| {
+        app.rows().iter().all(|r| r.state == State::Completed)
+    });
+    // Nothing is said about waiting once nothing waits (gap 129).
+    harness.state_mut().said = dm_desktop::i18n::Said::new(
+        "Waiting for the schedule or the download limit; it starts by itself when allowed.",
+        &[],
+    );
+    harness.run_steps(3);
+    assert!(
+        harness
+            .query_by_label_contains("Waiting for the schedule or the download limit")
+            .is_none(),
+        "a stale 'Waiting for the schedule' with nothing held"
+    );
+    let mut off = harness.state().applied.clone();
+    off.schedule.enabled = false;
+    harness.state_mut().apply_settings(off).unwrap();
+}
+
+/// Gap 127: a sign-in saved in Properties on a download refused for want
+/// of one tries it again, and it downloads.
+#[test]
+fn a_sign_in_saved_in_properties_retries_the_download() {
+    let world = world();
+    let mut harness = world.harness();
+    add_url(&mut harness, &world.url("locked.zip"), "Start now");
+    until(&mut harness, "the refusal", |app| {
+        app.rows()
+            .iter()
+            .any(|r| matches!(r.state, State::Failed(_)))
+    });
+    select(&mut harness, "locked.zip");
+    harness.state_mut().run(Command::Properties);
+    harness.run_steps(3);
+    // The keyboard is in Login already.
+    harness.event(egui::Event::Text("user".into()));
+    harness.run_steps(2);
+    let id = harness.state().rows()[0].id;
+    if let Some(d) = harness.state_mut().dialogs.properties.get_mut(&id) {
+        assert_eq!(d.login, "user", "the keyboard is not in Login");
+        d.password = "pass".into();
+    }
+    click(&mut harness, "OK");
+    until(&mut harness, "it to download with the sign-in", |app| {
+        app.rows().iter().all(|r| r.state == State::Completed)
+    });
+}
+
+/// Gap 128: the Delete key asks as the toolbar's Delete does, for a
+/// finished row too; the speed limiter's field has the keyboard and Enter
+/// applies it.
+#[test]
+fn the_delete_key_asks_and_the_limiter_takes_enter() {
+    let _file = SETTINGS_FILE.lock().unwrap_or_else(|e| e.into_inner());
+    let world = world();
+    let mut harness = world.harness();
+    add_url(&mut harness, &world.url("file.zip"), "Start now");
+    until(&mut harness, "it to finish", |app| {
+        app.rows().iter().any(|r| r.state == State::Completed)
+    });
+    select(&mut harness, "file.zip");
+    harness.key_press(egui::Key::Delete);
+    harness.run_steps(3);
+    assert_eq!(harness.state().rows().len(), 1, "Delete removed it at once");
+    assert!(harness.query_by_label("Remove from the list").is_some());
+    click(&mut harness, "Keep them");
+    click(&mut harness, "Delete");
+    assert!(
+        harness.state().dialogs.confirm_remove.is_some(),
+        "the toolbar's Delete asks the same"
+    );
+    click(&mut harness, "Yes, delete");
+    assert!(harness.state().rows().is_empty());
+
+    harness.state_mut().run(Command::SpeedLimiterSettings);
+    harness.run_steps(3);
+    assert!(
+        harness.ctx.egui_wants_keyboard_input(),
+        "the limit's field does not have the keyboard"
+    );
+    harness.key_press_modifiers(egui::Modifiers::COMMAND, egui::Key::A);
+    harness.event(egui::Event::Text("321".into()));
+    harness.run_steps(2);
+    harness.key_press(egui::Key::Enter);
+    harness.run_steps(3);
+    assert!(
+        harness.state().dialogs.limiter.is_none(),
+        "Enter did not apply"
+    );
+    assert_eq!(harness.state().applied.speed_limit, 321);
+    let mut off = harness.state().applied.clone();
+    off.speed_limit = 0;
+    harness.state_mut().apply_settings(off).unwrap();
+}
+
+/// Gap 125: Options › Folders gives each kind's folder field the room its
+/// name needs.
+#[test]
+fn the_kinds_folder_fields_fit_their_names() {
+    use egui::accesskit::Role;
+    let world = world();
+    let mut harness = world.harness();
+    let mut wanted = harness.state().applied.clone();
+    wanted.categorize = true;
+    harness.state_mut().applied = wanted.clone();
+    harness.state_mut().dialogs.open_options(&wanted);
+    harness.run_steps(2);
+    click(&mut harness, "Folders");
+    harness.run_steps(3);
+    for kind in ["Videos", "Documents", "Archives", "Other"] {
+        let field = harness.get_by_role_and_label(Role::TextInput, kind);
+        let b = field.accesskit_node().bounding_box().unwrap();
+        assert!(b.width() >= 120.0, "{kind}'s field is {} wide", b.width());
+    }
 }

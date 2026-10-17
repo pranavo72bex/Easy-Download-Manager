@@ -362,5 +362,15 @@
  "{} download(s) are still running. Exiting stops them; they go on from where they were the next time dm opens.": "{} unduhan masih berjalan. Keluar akan menghentikannya; unduhan berlanjut dari posisi terakhir saat dm dibuka lagi.",
  "{} downloads finished.": "{} unduhan selesai.",
  "· waiting for the schedule": "· menunggu jadwal",
- "· waiting for the schedule (opens at {})": "· menunggu jadwal (dibuka pukul {})"
+ "· waiting for the schedule (opens at {})": "· menunggu jadwal (dibuka pukul {})",
+ "Keep waiting": "Tetap menunggu",
+ "No folder chooser on this desktop; type the folder's path.": "Tidak ada pemilih folder di desktop ini; ketik jalur foldernya.",
+ "Remove from the list": "Hapus dari daftar",
+ "Start it now anyway? Only what you picked starts; the rest keep waiting.": "Tetap mulai sekarang? Hanya yang Anda pilih yang mulai; sisanya tetap menunggu.",
+ "Start outside the schedule?": "Mulai di luar jadwal?",
+ "Take these downloads off the list? Their files stay where they are.": "Hapus unduhan-unduhan ini dari daftar? Berkas-berkasnya tetap di tempatnya.",
+ "Take this download off the list? Its file stays where it is.": "Hapus unduhan ini dari daftar? Berkasnya tetap di tempatnya.",
+ "Trying {} again with the sign-in.": "Mencoba {} lagi dengan info masuk.",
+ "{} downloads wait for the schedule or the download limit.": "{} unduhan menunggu jadwal atau batas unduhan.",
+ "{} waits for the schedule or the download limit.": "{} menunggu jadwal atau batas unduhan."
 }

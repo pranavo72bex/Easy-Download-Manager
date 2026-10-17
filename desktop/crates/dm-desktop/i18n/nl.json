@@ -362,5 +362,15 @@
  "{} download(s) are still running. Exiting stops them; they go on from where they were the next time dm opens.": "{} download(s) lopen nog. Afsluiten stopt ze; de volgende keer dat dm opent gaan ze verder waar ze waren.",
  "{} downloads finished.": "{} downloads klaar.",
  "· waiting for the schedule": "· wacht op de planning",
- "· waiting for the schedule (opens at {})": "· wacht op de planning (opent om {})"
+ "· waiting for the schedule (opens at {})": "· wacht op de planning (opent om {})",
+ "Keep waiting": "Blijven wachten",
+ "No folder chooser on this desktop; type the folder's path.": "Geen mapkiezer op dit bureaublad; typ het pad van de map.",
+ "Remove from the list": "Uit de lijst halen",
+ "Start it now anyway? Only what you picked starts; the rest keep waiting.": "Toch nu starten? Alleen wat u koos start; de rest blijft wachten.",
+ "Start outside the schedule?": "Buiten het schema starten?",
+ "Take these downloads off the list? Their files stay where they are.": "Deze downloads uit de lijst halen? Hun bestanden blijven waar ze zijn.",
+ "Take this download off the list? Its file stays where it is.": "Deze download uit de lijst halen? Het bestand blijft waar het is.",
+ "Trying {} again with the sign-in.": "{} wordt opnieuw geprobeerd met de aanmelding.",
+ "{} downloads wait for the schedule or the download limit.": "{} downloads wachten op het schema of de downloadlimiet.",
+ "{} waits for the schedule or the download limit.": "{} wacht op het schema of de downloadlimiet."
 }
