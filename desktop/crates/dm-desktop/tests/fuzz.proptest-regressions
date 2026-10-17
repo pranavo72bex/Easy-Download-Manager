@@ -1,0 +1,9 @@
+# Seeds for failure cases proptest has generated in the past. It is
+# automatically read and these particular cases re-run before any
+# novel cases are generated.
+#
+# It is recommended to check this file in to source control so that
+# everyone who runs the test benefits from these saved cases.
+cc 78677cc3f90978c27e065a475141e80cd621d8a67fe50fe4722b382cd9a741e3 # shrinks to line = "{\"id\":60,\"method\":\"aij.tky...\",\"params\":{\u{b}ȺI\\&`}}"
+cc eb9862413b0628d8c15b024c95a86e9fc93b9b581b4e3c11baf6c895b88ac472 # shrinks to method = "commands.list", params = Array [Number(731051349365928006)]
+cc b5adde55835f55c82f13be39f690ed4ab009b4fbf6f0078d264468e7536e8cdf # shrinks to line = ""

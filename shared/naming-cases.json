@@ -1,0 +1,165 @@
+{
+  "why": [
+    "The extension and the desktop client both turn a URL and its response",
+    "headers into a filename, in different languages. They were doing it",
+    "differently: no Windows reserved names on the Rust side, truncation that",
+    "cut the extension off, and no MIME fallback. The same download saved",
+    "under two names depending on which half of the product took it.",
+    "",
+    "Both suites read this file. A rule added to one and not the other now",
+    "fails in the language that lacks it, rather than being noticed by",
+    "somebody whose file went missing.",
+    "",
+    "Since 2026-10-12 the extension names nothing — it hands downloads to the",
+    "app — so only the engine's Rust suite reads this; the cases stay.",
+    "",
+    "`disposition`, `url` and `contentType` are the inputs; `expect` is the",
+    "name the engine must produce."
+  ],
+  "cases": [
+    {
+      "name": "the last path segment when nothing else offers one",
+      "url": "https://e.com/a/b/report.pdf?x=1",
+      "expect": "report.pdf"
+    },
+    {
+      "name": "a disposition beats the URL",
+      "disposition": "attachment; filename=\"real name.zip\"",
+      "url": "https://e.com/x.bin",
+      "expect": "real name.zip"
+    },
+    {
+      "name": "the encoded form of a disposition wins over the plain one",
+      "disposition": "attachment; filename=\"plain.txt\"; filename*=UTF-8''caf%C3%A9.txt",
+      "url": "https://e.com/x",
+      "expect": "café.txt"
+    },
+    {
+      "name": "percent escapes in a path segment are part of the name",
+      "url": "https://e.com/my%20file%20(1).zip",
+      "expect": "my file (1).zip"
+    },
+    {
+      "name": "a name cannot become a path",
+      "disposition": "attachment; filename=\"../../etc/passwd\"",
+      "url": "https://e.com/y",
+      "expect": "passwd"
+    },
+    {
+      "name": "a Windows path in a disposition is reduced to its last part",
+      "disposition": "attachment; filename=\"C:\\\\Windows\\\\evil.exe\"",
+      "url": "https://e.com/y",
+      "expect": "evil.exe"
+    },
+    {
+      "name": "characters a filesystem will refuse are replaced",
+      "url": "https://e.com/a%3Ab%3Fc%2Ad.txt",
+      "expect": "a_b_c_d.txt"
+    },
+    {
+      "name": "a reserved Windows name is moved out of the way",
+      "disposition": "attachment; filename=\"con.txt\"",
+      "url": "https://e.com/y",
+      "expect": "_con.txt"
+    },
+    {
+      "name": "a reserved name is matched whatever its case",
+      "disposition": "attachment; filename=\"LPT1.log\"",
+      "url": "https://e.com/y",
+      "expect": "_LPT1.log"
+    },
+    {
+      "name": "a name that merely starts with a reserved word is left alone",
+      "disposition": "attachment; filename=\"console.log\"",
+      "url": "https://e.com/y",
+      "expect": "console.log"
+    },
+    {
+      "name": "trailing dots and spaces go, because Windows drops them anyway",
+      "disposition": "attachment; filename=\"report.pdf. . \"",
+      "url": "https://e.com/y",
+      "expect": "report.pdf"
+    },
+    {
+      "name": "a leading dot goes, so a download cannot arrive hidden",
+      "disposition": "attachment; filename=\".bashrc\"",
+      "url": "https://e.com/y",
+      "expect": "bashrc"
+    },
+    {
+      "name": "a MIME type supplies an extension when the URL names nothing",
+      "url": "https://e.com/",
+      "contentType": "application/pdf",
+      "expect": "download.pdf"
+    },
+    {
+      "name": "a bare host is not a filename",
+      "url": "https://e.com",
+      "expect": "download"
+    },
+    {
+      "name": "a host is never mistaken for a path segment",
+      "url": "https://files.example.com/",
+      "contentType": "application/zip",
+      "expect": "download.zip"
+    },
+    {
+      "name": "a trailing slash falls back to the segment before it",
+      "url": "https://e.com/files/",
+      "expect": "files"
+    },
+    {
+      "name": "a MIME type with parameters is still that MIME type",
+      "url": "https://e.com/",
+      "contentType": "video/mp4; codecs=\"avc1\"",
+      "expect": "download.mp4"
+    },
+    {
+      "name": "nothing to go on at all is still a saveable name",
+      "url": "https://e.com/",
+      "expect": "download"
+    },
+    {
+      "name": "a query string is not part of the name",
+      "url": "https://e.com/file.tar.gz?token=abc&x=1",
+      "expect": "file.tar.gz"
+    },
+    {
+      "name": "a fragment is not part of the name either",
+      "url": "https://e.com/file.iso#top",
+      "expect": "file.iso"
+    },
+    {
+      "name": "a long name is truncated but keeps the extension it needs",
+      "disposition": "attachment; filename=\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa.mkv\"",
+      "url": "https://e.com/y",
+      "expectEndsWith": ".mkv",
+      "expectLengthAtMost": 200
+    },
+    {
+      "name": "a reserved name is reserved before any of its extensions",
+      "disposition": "attachment; filename=\"CON.tar.gz\"",
+      "url": "https://e.com/y",
+      "expect": "_CON.tar.gz"
+    },
+    {
+      "name": "a long name is cut to fit in bytes, not only in characters",
+      "disposition": "attachment; filename*=UTF-8''%E4%B8%AD%E4%B8%AD%E4%B8%AD%E4%B8%AD%E4%B8%AD%E4%B8%AD%E4%B8%AD%E4%B8%AD%E4%B8%AD%E4%B8%AD%E4%B8%AD%E4%B8%AD%E4%B8%AD%E4%B8%AD%E4%B8%AD%E4%B8%AD%E4%B8%AD%E4%B8%AD%E4%B8%AD%E4%B8%AD%E4%B8%AD%E4%B8%AD%E4%B8%AD%E4%B8%AD%E4%B8%AD%E4%B8%AD%E4%B8%AD%E4%B8%AD%E4%B8%AD%E4%B8%AD%E4%B8%AD%E4%B8%AD%E4%B8%AD%E4%B8%AD%E4%B8%AD%E4%B8%AD%E4%B8%AD%E4%B8%AD%E4%B8%AD%E4%B8%AD%E4%B8%AD%E4%B8%AD%E4%B8%AD%E4%B8%AD%E4%B8%AD%E4%B8%AD%E4%B8%AD%E4%B8%AD%E4%B8%AD%E4%B8%AD%E4%B8%AD%E4%B8%AD%E4%B8%AD%E4%B8%AD%E4%B8%AD%E4%B8%AD%E4%B8%AD%E4%B8%AD%E4%B8%AD%E4%B8%AD%E4%B8%AD%E4%B8%AD%E4%B8%AD%E4%B8%AD%E4%B8%AD%E4%B8%AD%E4%B8%AD%E4%B8%AD%E4%B8%AD%E4%B8%AD%E4%B8%AD%E4%B8%AD%E4%B8%AD%E4%B8%AD%E4%B8%AD%E4%B8%AD%E4%B8%AD%E4%B8%AD%E4%B8%AD%E4%B8%AD%E4%B8%AD%E4%B8%AD%E4%B8%AD%E4%B8%AD%E4%B8%AD%E4%B8%AD%E4%B8%AD%E4%B8%AD%E4%B8%AD%E4%B8%AD%E4%B8%AD%E4%B8%AD%E4%B8%AD%E4%B8%AD%E4%B8%AD%E4%B8%AD%E4%B8%AD%E4%B8%AD%E4%B8%AD%E4%B8%AD%E4%B8%AD%E4%B8%AD%E4%B8%AD%E4%B8%AD%E4%B8%AD%E4%B8%AD%E4%B8%AD%E4%B8%AD%E4%B8%AD%E4%B8%AD%E4%B8%AD%E4%B8%AD%E4%B8%AD%E4%B8%AD%E4%B8%AD%E4%B8%AD%E4%B8%AD%E4%B8%AD%E4%B8%AD%E4%B8%AD%E4%B8%AD%E4%B8%AD%E4%B8%AD%E4%B8%AD%E4%B8%AD%E4%B8%AD%E4%B8%AD%E4%B8%AD%E4%B8%AD%E4%B8%AD%E4%B8%AD%E4%B8%AD%E4%B8%AD%E4%B8%AD%E4%B8%AD%E4%B8%AD%E4%B8%AD%E4%B8%AD%E4%B8%AD%E4%B8%AD%E4%B8%AD%E4%B8%AD%E4%B8%AD%E4%B8%AD%E4%B8%AD%E4%B8%AD%E4%B8%AD%E4%B8%AD%E4%B8%AD%E4%B8%AD%E4%B8%AD%E4%B8%AD%E4%B8%AD%E4%B8%AD%E4%B8%AD%E4%B8%AD%E4%B8%AD%E4%B8%AD%E4%B8%AD%E4%B8%AD%E4%B8%AD%E4%B8%AD%E4%B8%AD%E4%B8%AD%E4%B8%AD%E4%B8%AD%E4%B8%AD%E4%B8%AD%E4%B8%AD%E4%B8%AD%E4%B8%AD%E4%B8%AD%E4%B8%AD%E4%B8%AD%E4%B8%AD%E4%B8%AD%E4%B8%AD%E4%B8%AD%E4%B8%AD%E4%B8%AD%E4%B8%AD%E4%B8%AD%E4%B8%AD%E4%B8%AD%E4%B8%AD%E4%B8%AD%E4%B8%AD%E4%B8%AD%E4%B8%AD%E4%B8%AD%E4%B8%AD%E4%B8%AD%E4%B8%AD%E4%B8%AD%E4%B8%AD%E4%B8%AD%E4%B8%AD%E4%B8%AD%E4%B8%AD%E4%B8%AD%E4%B8%AD%E4%B8%AD%E4%B8%AD%E4%B8%AD%E4%B8%AD%E4%B8%AD%E4%B8%AD%E4%B8%AD%E4%B8%AD%E4%B8%AD%E4%B8%AD%E4%B8%AD%E4%B8%AD%E4%B8%AD%E4%B8%AD%E4%B8%AD%E4%B8%AD%E4%B8%AD%E4%B8%AD%E4%B8%AD%E4%B8%AD%E4%B8%AD%E4%B8%AD%E4%B8%AD%E4%B8%AD%E4%B8%AD%E4%B8%AD%E4%B8%AD%E4%B8%AD%E4%B8%AD%E4%B8%AD%E4%B8%AD%E4%B8%AD%E4%B8%AD%E4%B8%AD%E4%B8%AD%E4%B8%AD%E4%B8%AD%E4%B8%AD%E4%B8%AD%E4%B8%AD%E4%B8%AD%E4%B8%AD%E4%B8%AD%E4%B8%AD%E4%B8%AD%E4%B8%AD%E4%B8%AD%E4%B8%AD%E4%B8%AD%E4%B8%AD%E4%B8%AD%E4%B8%AD%E4%B8%AD%E4%B8%AD%E4%B8%AD%E4%B8%AD%E4%B8%AD%E4%B8%AD%E4%B8%AD%E4%B8%AD%E4%B8%AD%E4%B8%AD%E4%B8%AD%E4%B8%AD%E4%B8%AD%E4%B8%AD%E4%B8%AD%E4%B8%AD%E4%B8%AD%E4%B8%AD%E4%B8%AD%E4%B8%AD%E4%B8%AD%E4%B8%AD%E4%B8%AD%E4%B8%AD%E4%B8%AD%E4%B8%AD%E4%B8%AD%E4%B8%AD%E4%B8%AD%E4%B8%AD%E4%B8%AD%E4%B8%AD%E4%B8%AD%E4%B8%AD%E4%B8%AD%E4%B8%AD%E4%B8%AD%E4%B8%AD%E4%B8%AD%E4%B8%AD%E4%B8%AD%E4%B8%AD%E4%B8%AD%E4%B8%AD%E4%B8%AD%E4%B8%AD%E4%B8%AD.mkv",
+      "url": "https://e.com/y",
+      "expectEndsWith": ".mkv",
+      "expectBytesAtMost": 240
+    },
+    {
+      "name": "a dot taken off the front does not leave a space there",
+      "disposition": "attachment; filename=\". A.txt\"",
+      "url": "https://e.com/y",
+      "expect": "A.txt"
+    },
+    {
+      "name": "a name from the address with no extension takes its type's",
+      "url": "https://e.com/files/get?id=7",
+      "contentType": "application/pdf",
+      "expect": "get.pdf"
+    }
+  ]
+}

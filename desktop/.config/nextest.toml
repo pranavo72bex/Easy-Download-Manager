@@ -1,0 +1,9 @@
+# cargo nextest: each test in a process of its own, test binaries side by
+# side. The `ci` profile is what .github/workflows/desktop.yml runs.
+[profile.ci]
+# Every failure reported, not only the first: a run is minutes of compute.
+fail-fast = false
+# A test silent for 60 s is reported slow; at 5 minutes it is a hang, and
+# killed, rather than holding the runner until its job times out.
+slow-timeout = { period = "60s", terminate-after = 5 }
+failure-output = "immediate-final"

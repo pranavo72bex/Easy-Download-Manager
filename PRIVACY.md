@@ -1,0 +1,77 @@
+# What dm does with your data
+
+Short version: nothing leaves your machine. There is no account, no server of
+ours, and no analytics.
+
+## Looking for a new version
+
+Only if you turn it on (Options › General, off by default), dm looks for a
+newer version about once a week, as Help › Check for updates does when you
+click it: it fetches the release's `latest.json` from GitHub. That request
+carries nothing about you or your downloads; GitHub sees an address asking
+for a public file, as it does for any download.
+
+## What the extension handles
+
+**Downloads your browser starts.** When the browser begins a download, the
+extension looks at its address, the page it came from, its file name, type and
+size, to decide whether the dm app on this computer should take it. If it
+should, those — the address and the page — are passed to the app over the
+browser's native messaging channel, which only reaches a program registered on
+this computer. Nothing is sent anywhere else.
+
+**Links and media you right-click.** Their address goes to the app the same
+way, only when you ask. The toolbar popup's "Open dm" only brings the app's
+window up: it sends no address at all.
+
+**The media a page's player loads.** To offer a video on sites no page
+reader knows, the extension looks at the type and
+size of each response a page receives (the `webRequest` permission, read
+only, never changed). It keeps the address of audio, video and stream
+playlists, for that tab only, in the browser's session memory, and forgets
+them when the tab loads another page. Nothing is sent anywhere unless you
+pick one in the panel.
+
+**The video or audio you hover.** The extension puts a small
+"Download video" panel over players. To do that it runs a page script
+on every site, which is why the browser asks for access to all sites. The
+script looks only for video and audio elements under the pointer. It reads
+no text, forms or cookies and sends nothing until you click the panel. Then
+it sends the player's address and the page's address to the extension's
+background, which passes them to the app as above.
+
+**Nothing else.** The only thing the extension stores is the app's catch
+rules: the file types, size floor and skipped sites from dm's settings. They
+are kept in the browser's extension storage on this computer, so a download
+can be held at once rather than after the app has started. Whether the app
+is there is kept in memory for a minute and then forgotten.
+
+## What the app handles
+
+The app downloads what it is given, with the page as referrer, and keeps its
+queue and history on this computer. It does not have your browser's cookies;
+a download that needs a sign-in is left to the browser — unless you switch
+"Hand over this site's sign-in" on for that site in the extension's toolbar
+popup. The first time you do, the browser asks you for its cookies
+permission; from then on that site's cookies travel with its downloads to
+the app, are sent to that site's server only, and are kept with the row in
+its queue file (readable by your account alone) — so that Redownload and
+the Recheck queue can ask that server again — until you delete the download
+from dm's list. Switching it off stops that for new downloads.
+
+## What dm never does
+
+- Send your downloads, addresses, browsing or settings to anyone.
+- Include analytics, tracking, crash reporting or advertising.
+- Read the pages you visit.
+
+## Questions
+
+dm is open source; if this document and the code ever disagree, the code is
+the truth and the disagreement is a bug worth reporting.
+
+This is also checked, not only promised: `cargo xtask privacy` (in
+`desktop/`, and as a test in every build) fails if any crate that sends
+reports — analytics, crash reporting, telemetry — enters the build, or if
+shipped code names any address but the project's own GitHub release page.
+dm reaches that page only when you check for updates or open Help.

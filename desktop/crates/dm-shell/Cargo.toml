@@ -1,0 +1,27 @@
+[package]
+name = "dm-shell"
+version = "0.1.0"
+license = "MIT"
+edition = "2021"
+description = "What every dm window shares: the settings, the browser host, the one-instance lock, startup and the inbox"
+
+# No window toolkit here. The Tauri window and the egui one both sit on this,
+# so what a download manager does at startup, on a browser hand-off and on a
+# settings change is written once, whichever window is drawing it.
+[dependencies]
+dm-core = { path = "../dm-core" }
+dm-protocol = { path = "../dm-protocol" }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+tokio = { version = "1", features = ["rt-multi-thread", "fs", "time", "sync", "net"] }
+dirs = "5"
+url = "2"
+# Reading a crawled page no further than its cap.
+futures-util = "0.3"
+
+[dev-dependencies]
+proptest = "1"
+reqwest = { version = "0.12", default-features = false, features = ["json"] }
+tokio = { version = "1", features = ["full"] }
+tempfile = "3"
+axum = "0.7"

@@ -1,0 +1,1014 @@
+//! The browser side: extension APIs, native messaging, and the handlers the
+//! loader forwards events to.
+//!
+//! The extension APIs are reached by name through `js_sys::Reflect` rather
+//! than through generated bindings: they are not part of the web platform,
+//! so web-sys has none, and the handful used here do not justify a binding
+//! crate. `browser` is preferred where it exists (Firefox, promise-based);
+//! Chrome's `chrome` returns promises too under Manifest V3.
+
+use std::cell::RefCell;
+
+use dm_protocol::{CatchRules, Request, Start, NATIVE_HOST};
+use futures_channel::mpsc::{unbounded, UnboundedReceiver};
+use futures_util::future::{select, Either};
+use futures_util::StreamExt;
+use js_sys::{Array, Function, Promise, Reflect, JSON};
+use serde_json::Value;
+use wasm_bindgen::prelude::*;
+use wasm_bindgen::JsCast;
+use wasm_bindgen_futures::JsFuture;
+
+use crate::decide::{
+    self, absent_text, first_look, hand_id, App, DownloadItem, Known, MenuClick, Probe, Released,
+    Target,
+};
+
+thread_local! {
+    /// What is known of the app, and since when. Lost when the worker stops,
+    /// which costs one more handshake and nothing else.
+    static KNOWN: RefCell<Option<Known>> = const { RefCell::new(None) };
+    static RELEASED: RefCell<Released> = RefCell::new(Released::default());
+    /// Media each tab has loaded, for the panel's list.
+    static STREAMS: RefCell<decide::Streams> = RefCell::new(decide::Streams::default());
+}
+
+/* ------------------------------------------------------------- plumbing */
+
+fn ext() -> JsValue {
+    let global: JsValue = js_sys::global().into();
+    let browser = Reflect::get(&global, &"browser".into()).unwrap_or(JsValue::UNDEFINED);
+    if browser.is_object() {
+        browser
+    } else {
+        Reflect::get(&global, &"chrome".into()).unwrap_or(JsValue::UNDEFINED)
+    }
+}
+
+/// `a.b.c` of an object, or undefined anywhere along the way.
+/// One property of `from`, named whole. Storage keys have dots in them
+/// (`dm.catch`), which [`get`] would read as a path: the catch rules kept
+/// between the worker's naps were never read back that way.
+fn field(from: &JsValue, key: &str) -> JsValue {
+    if from.is_object() {
+        Reflect::get(from, &key.into()).unwrap_or(JsValue::UNDEFINED)
+    } else {
+        JsValue::UNDEFINED
+    }
+}
+
+fn get(from: &JsValue, path: &str) -> JsValue {
+    path.split('.').fold(from.clone(), |at, key| {
+        if at.is_object() || at.is_function() {
+            Reflect::get(&at, &key.into()).unwrap_or(JsValue::UNDEFINED)
+        } else {
+            JsValue::UNDEFINED
+        }
+    })
+}
+
+fn api(path: &str) -> JsValue {
+    get(&ext(), path)
+}
+
+fn say(error: &JsValue) -> String {
+    error
+        .as_string()
+        .or_else(|| get(error, "message").as_string())
+        .or_else(|| JSON::stringify(error).ok().and_then(|s| s.as_string()))
+        .unwrap_or_else(|| "an error with nothing to say".into())
+}
+
+fn call_on(target: &JsValue, method: &str, args: &[JsValue]) -> Result<JsValue, String> {
+    let function: Function = get(target, method)
+        .dyn_into()
+        .map_err(|_| format!("{method} is not available in this browser"))?;
+    let args: Array = args.iter().collect();
+    function.apply(target, &args).map_err(|e| say(&e))
+}
+
+/// Calls `namespace.method(...)` and waits for it if it returned a promise.
+async fn call(namespace: &str, method: &str, args: &[JsValue]) -> Result<JsValue, String> {
+    let returned = call_on(&api(namespace), method, args)?;
+    match returned.dyn_into::<Promise>() {
+        Ok(promise) => JsFuture::from(promise).await.map_err(|e| say(&e)),
+        Err(value) => Ok(value),
+    }
+}
+
+fn to_js(value: &Value) -> JsValue {
+    JSON::parse(&value.to_string()).unwrap_or(JsValue::UNDEFINED)
+}
+
+fn from_js(value: &JsValue) -> Value {
+    JSON::stringify(value)
+        .ok()
+        .and_then(|s| s.as_string())
+        .and_then(|s| serde_json::from_str(&s).ok())
+        .unwrap_or(Value::Null)
+}
+
+fn now() -> f64 {
+    js_sys::Date::now()
+}
+
+fn log(level: &str, message: &str) {
+    let console = get(&js_sys::global().into(), "console");
+    let _ = call_on(&console, level, &[format!("dm: {message}").into()]);
+}
+
+async fn sleep(ms: f64) {
+    let promise = Promise::new(&mut |resolve, _| {
+        let global: JsValue = js_sys::global().into();
+        let _ = call_on(&global, "setTimeout", &[resolve.into(), ms.into()]);
+    });
+    let _ = JsFuture::from(promise).await;
+}
+
+fn add_listener(event: &JsValue, listener: &JsValue) -> Result<(), String> {
+    call_on(event, "addListener", std::slice::from_ref(listener)).map(|_| ())
+}
+
+/* ----------------------------------------------------- native messaging */
+
+enum Heard {
+    Frame(Value),
+    Gone(String),
+}
+
+/// One connection to the host: a process the browser starts for it, and
+/// stops when it is dropped.
+struct Port {
+    port: JsValue,
+    heard: UnboundedReceiver<Heard>,
+    on_message: Closure<dyn FnMut(JsValue)>,
+    on_disconnect: Closure<dyn FnMut(JsValue)>,
+}
+
+impl Port {
+    fn open() -> Result<Port, String> {
+        let port = call_on(&api("runtime"), "connectNative", &[NATIVE_HOST.into()])?;
+        let (tell, heard) = unbounded();
+        let told = tell.clone();
+        let on_message = Closure::<dyn FnMut(JsValue)>::new(move |message: JsValue| {
+            let _ = tell.unbounded_send(Heard::Frame(from_js(&message)));
+        });
+        let on_disconnect = Closure::<dyn FnMut(JsValue)>::new(move |port: JsValue| {
+            // Firefox says why on the port; Chrome in lastError.
+            let why = get(&port, "error.message")
+                .as_string()
+                .or_else(|| api("runtime.lastError.message").as_string())
+                .unwrap_or_else(|| "the dm app closed the connection".into());
+            let _ = told.unbounded_send(Heard::Gone(why));
+        });
+        add_listener(&get(&port, "onMessage"), on_message.as_ref())?;
+        add_listener(&get(&port, "onDisconnect"), on_disconnect.as_ref())?;
+        Ok(Port {
+            port,
+            heard,
+            on_message,
+            on_disconnect,
+        })
+    }
+
+    fn send(&self, request: &Request) -> Result<(), String> {
+        call_on(&self.port, "postMessage", &[to_js(&request.to_frame())]).map(|_| ())
+    }
+
+    /// The next thing the host says, or why there will be nothing.
+    async fn next(&mut self, deadline: f64) -> Heard {
+        let left = deadline - now();
+        if left <= 0.0 {
+            return Heard::Gone("the dm app did not answer in time".into());
+        }
+        let heard = Box::pin(self.heard.next());
+        let timer = Box::pin(sleep(left));
+        match select(heard, timer).await {
+            Either::Left((Some(heard), _)) => heard,
+            Either::Left((None, _)) => Heard::Gone("the connection to dm was lost".into()),
+            Either::Right(_) => Heard::Gone("the dm app did not answer in time".into()),
+        }
+    }
+}
+
+impl Drop for Port {
+    fn drop(&mut self) {
+        // Listeners first, so nothing calls into closures about to be freed.
+        let _ = call_on(
+            &get(&self.port, "onMessage"),
+            "removeListener",
+            &[self.on_message.as_ref().clone()],
+        );
+        let _ = call_on(
+            &get(&self.port, "onDisconnect"),
+            "removeListener",
+            &[self.on_disconnect.as_ref().clone()],
+        );
+        let _ = call_on(&self.port, "disconnect", &[]);
+    }
+}
+
+/// Asks the host whether it is there and what it wants caught. The port is
+/// returned open when it answered, so a hand-off can follow on it rather
+/// than start the host a second time.
+async fn probe() -> (App, Option<Port>) {
+    let mut port = match Port::open() {
+        Ok(port) => port,
+        Err(why) => return (App::Absent { reason: why }, None),
+    };
+    if let Err(why) = port
+        .send(&Request::Hello)
+        .and_then(|()| port.send(&Request::Settings))
+    {
+        return (App::Absent { reason: why }, None);
+    }
+
+    let mut probe = Probe::default();
+    let mut deadline = now() + decide::HELLO_WITHIN_MS;
+    loop {
+        match port.next(deadline).await {
+            Heard::Frame(frame) => {
+                let had_hello = probe.has_hello();
+                probe.absorb(&frame);
+                if let Some(app) = probe.finished() {
+                    let open = matches!(app, App::Present { .. }).then_some(port);
+                    return (app, open);
+                }
+                if probe.has_hello() && !had_hello {
+                    deadline = deadline.min(now() + decide::SETTINGS_WITHIN_MS);
+                }
+            }
+            // Gone or silent: a hand-off that follows opens a port of its own.
+            Heard::Gone(why) => return (probe.give_up(&why), None),
+        }
+    }
+}
+
+/// What is known of the app, asked again when the answer has gone stale.
+async fn app() -> (App, Option<Port>) {
+    let at = now();
+    if let Some(known) = KNOWN.with(|k| k.borrow().clone()) {
+        if known.fresh(at) {
+            return (known.app, None);
+        }
+    }
+    let (app, port) = probe().await;
+    if let App::Absent { reason } = &app {
+        log("info", &format!("no app to hand downloads to: {reason}"));
+    }
+    if let App::Present { rules, .. } = &app {
+        remember_rules(rules).await;
+    }
+    KNOWN.with(|k| {
+        *k.borrow_mut() = Some(Known {
+            app: app.clone(),
+            at_ms: at,
+        })
+    });
+    (app, port)
+}
+
+/// Where the app's catch rules are kept between the worker's naps.
+const RULES_KEY: &str = "dm.catch";
+
+/// Keeps the app's catch rules where a worker woken by a download can read
+/// them at once. Asking the app means starting its host, which takes long
+/// enough for a small download to finish in the browser first.
+async fn remember_rules(rules: &CatchRules) {
+    let Ok(value) = serde_json::to_value(rules) else {
+        return;
+    };
+    let item = to_js(&serde_json::json!({ RULES_KEY: value }));
+    if let Err(why) = call("storage.local", "set", &[item]).await {
+        log("debug", &format!("the catch rules were not kept: {why}"));
+    }
+}
+
+/// The catch rules the app last sent, if any were kept.
+async fn remembered_rules() -> Option<CatchRules> {
+    let got = call("storage.local", "get", &[JsValue::from_str(RULES_KEY)])
+        .await
+        .ok()?;
+    serde_json::from_value(from_js(&field(&got, RULES_KEY))).ok()
+}
+
+/// Whether the toolbar popup's switch lets downloads be caught.
+async fn catching() -> bool {
+    let Ok(got) = call(
+        "storage.local",
+        "get",
+        &[JsValue::from_str(decide::CATCHING_KEY)],
+    )
+    .await
+    else {
+        return true;
+    };
+    field(&got, decide::CATCHING_KEY).as_bool() != Some(false)
+}
+
+/// Whether the toolbar popup has every download from `url`'s site taken,
+/// whatever the app's rules say about its type or size.
+async fn forced_for(url: &str) -> bool {
+    let Ok(got) = call(
+        "storage.local",
+        "get",
+        &[JsValue::from_str(decide::CATCH_ALL_KEY)],
+    )
+    .await
+    else {
+        return false;
+    };
+    let list: Vec<String> =
+        serde_json::from_value(from_js(&field(&got, decide::CATCH_ALL_KEY))).unwrap_or_default();
+    decide::forced(&list, url)
+}
+
+/// The browser's cookies for `url`, as the header it would send, where the
+/// toolbar popup has that switched on for the site and the browser granted
+/// the `cookies` permission; empty otherwise, and empty on any failure.
+async fn cookies_for(url: &str) -> String {
+    let Ok(got) = call(
+        "storage.local",
+        "get",
+        &[JsValue::from_str(decide::COOKIES_SITES_KEY)],
+    )
+    .await
+    else {
+        return String::new();
+    };
+    let sites: Vec<String> =
+        serde_json::from_value(from_js(&field(&got, decide::COOKIES_SITES_KEY)))
+            .unwrap_or_default();
+    if !decide::cookies_wanted(&sites, url) {
+        return String::new();
+    }
+    let wanted = to_js(&serde_json::json!({ "permissions": ["cookies"] }));
+    let granted = call("permissions", "contains", &[wanted])
+        .await
+        .ok()
+        .and_then(|v| v.as_bool())
+        .unwrap_or(false);
+    if !granted {
+        return String::new();
+    }
+    let query = to_js(&serde_json::json!({ "url": url }));
+    let Ok(listed) = call("cookies", "getAll", &[query]).await else {
+        return String::new();
+    };
+    let cookies: Vec<decide::BrowserCookie> =
+        serde_json::from_value(from_js(&listed)).unwrap_or_default();
+    decide::cookie_header(&cookies)
+}
+
+/// Where a tab's streams are kept between the worker's naps: the session's
+/// storage, which the browser clears when it closes.
+fn streams_key(tab: i64) -> String {
+    format!("dm.streams.{tab}")
+}
+
+/// A response the browser received, read for media a page's player loads,
+/// to find a stream on sites no page reader knows.
+#[wasm_bindgen]
+pub async fn on_response_started(details: JsValue) {
+    let seen: decide::Seen = match serde_json::from_value(from_js(&details)) {
+        Ok(seen) => seen,
+        Err(_) => return,
+    };
+    let tab = seen.tab_id;
+    if tab < 0 {
+        return;
+    }
+    let before = STREAMS.with(|s| s.borrow().raw(tab));
+    STREAMS.with(|s| s.borrow_mut().absorb(&seen));
+    let after = STREAMS.with(|s| s.borrow().raw(tab));
+    if after == before {
+        return;
+    }
+    let key = streams_key(tab);
+    let kept = if after.is_empty() {
+        call("storage.session", "remove", &[JsValue::from_str(&key)]).await
+    } else {
+        let item = to_js(&serde_json::json!({ key: after }));
+        call("storage.session", "set", &[item]).await
+    };
+    if let Err(why) = kept {
+        log("debug", &format!("a tab's streams were not kept: {why}"));
+    }
+}
+
+/// What a tab has loaded, from this worker or, after it stopped, from the
+/// session's storage.
+async fn streams_of(tab: i64) -> Vec<decide::Stream> {
+    if tab >= 0 && !STREAMS.with(|s| s.borrow().knows(tab)) {
+        let key = streams_key(tab);
+        if let Ok(got) = call("storage.session", "get", &[JsValue::from_str(&key)]).await {
+            if let Ok(kept) =
+                serde_json::from_value::<Vec<decide::Stream>>(from_js(&field(&got, &key)))
+            {
+                STREAMS.with(|s| s.borrow_mut().restore(tab, kept));
+            }
+        }
+    }
+    STREAMS.with(|s| s.borrow().of(tab))
+}
+
+/// Forgets what is known of the app, so the next download asks again.
+#[wasm_bindgen]
+pub fn forget_app() {
+    KNOWN.with(|k| *k.borrow_mut() = None);
+}
+
+/// What is known of the app, for a person or a harness looking at the worker.
+#[wasm_bindgen]
+pub fn app_status() -> String {
+    KNOWN.with(|k| match &*k.borrow() {
+        None => "not asked yet".into(),
+        Some(Known {
+            app: App::Absent { reason },
+            ..
+        }) => format!("absent: {reason}"),
+        Some(Known {
+            app: App::Present { hello, rules },
+            ..
+        }) => format!(
+            "present: dm {} (yt-dlp: {}), catching {}",
+            hello.engine_version,
+            hello.ytdlp.map_or("unknown".into(), |y| y.to_string()),
+            if rules.enabled {
+                format!("{} file types", rules.extensions.len())
+            } else {
+                "nothing".into()
+            }
+        ),
+    })
+}
+
+/// Hands one download to the app, and waits for it to say it has it.
+async fn hand(port: Option<Port>, start: Start) -> Result<(), String> {
+    let mut port = match port {
+        Some(port) => port,
+        None => Port::open()?,
+    };
+    let id = start.id.clone();
+    port.send(&Request::Start(start))?;
+    let deadline = now() + decide::TAKEN_WITHIN_MS;
+    let outcome = loop {
+        match port.next(deadline).await {
+            Heard::Frame(frame) => {
+                if let Some(outcome) = decide::taken(&frame, &id) {
+                    break outcome;
+                }
+            }
+            Heard::Gone(why) => break Err(why),
+        }
+    };
+    if outcome.is_err() {
+        // Whatever went wrong may be the app going away; ask again next time.
+        forget_app();
+    }
+    outcome
+}
+
+fn notify(title: &str, message: &str) {
+    log("info", &format!("{title}: {message}"));
+    let icon = call_on(&api("runtime"), "getURL", &["icons/icon128.png".into()])
+        .unwrap_or(JsValue::UNDEFINED);
+    let options = to_js(&serde_json::json!({
+        "type": "basic",
+        "title": title,
+        "message": message,
+    }));
+    let _ = Reflect::set(&options, &"iconUrl".into(), &icon);
+    wasm_bindgen_futures::spawn_local(async move {
+        if let Err(why) = call("notifications", "create", &[options]).await {
+            log("warn", &format!("could not show a notification: {why}"));
+        }
+    });
+}
+
+fn own_id() -> String {
+    api("runtime.id").as_string().unwrap_or_default()
+}
+
+fn is_firefox() -> bool {
+    call_on(&api("runtime"), "getURL", &["".into()])
+        .ok()
+        .and_then(|url| url.as_string())
+        .is_some_and(|url| url.starts_with("moz-extension:"))
+}
+
+/* -------------------------------------------------------------- handlers */
+
+#[wasm_bindgen(start)]
+pub fn started() {
+    std::panic::set_hook(Box::new(|panic| log("error", &panic.to_string())));
+}
+
+/// A download the browser has begun. Taken when the app wants it and takes
+/// it; otherwise left exactly as it was.
+#[wasm_bindgen]
+pub async fn on_download_created(item: JsValue) {
+    // The toolbar popup's switch: off, the browser keeps every download.
+    if !catching().await {
+        return log("debug", "left with the browser: catching is switched off");
+    }
+    let item: DownloadItem = serde_json::from_value(from_js(&item)).unwrap_or_default();
+    let found = match first_look(&item, &own_id()) {
+        Ok(found) => found,
+        Err(why) => return log("debug", &format!("left with the browser: {why}")),
+    };
+    let asked_for = item.url.clone().unwrap_or_default();
+    if RELEASED.with(|r| {
+        let mut released = r.borrow_mut();
+        released.take(&found.url, now()) || released.take(&asked_for, now())
+    }) {
+        return log(
+            "debug",
+            "left with the browser: given back to it a moment ago",
+        );
+    }
+
+    // Held while the app is asked, so the browser does not finish it in the
+    // meantime and leave the file in two places. When the rules the app last
+    // sent would catch it, it is held before the app is asked at all:
+    // starting the host takes long enough for a small download to finish.
+    let id = JsValue::from_f64(found.id as f64);
+    let pause = || async {
+        call("downloads", "pause", std::slice::from_ref(&id))
+            .await
+            .is_ok()
+    };
+    // With nothing remembered yet (before the app has ever answered), every
+    // candidate is held; one the app turns out not to want is given back.
+    // A site the popup takes everything from is held whatever the rules say.
+    let forced = forced_for(&found.url).await;
+    let early = forced
+        || remembered_rules()
+            .await
+            .is_none_or(|rules| rules.catches(&found.candidate()).is_ok());
+    let mut paused = early && pause().await;
+
+    let (app, port) = app().await;
+    let verdict = match &app {
+        App::Present { .. } if forced => Ok(()),
+        App::Present { rules, .. } => rules
+            .catches(&found.candidate())
+            .map_err(|left| left.reason().to_string()),
+        App::Absent { .. } => Err("no app to hand it to".to_string()),
+    };
+    if let Err(why) = verdict {
+        if paused {
+            give_back(&id, &found.url).await;
+        }
+        return log("debug", &format!("left with the browser: {why}"));
+    }
+
+    if !paused {
+        paused = pause().await;
+    }
+    if !paused && !still_running(found.id).await {
+        return log("debug", "left with the browser: it finished first");
+    }
+
+    let start = Start {
+        id: hand_id("b", found.id, now()),
+        url: found.url.clone(),
+        referrer: found.referrer.clone(),
+        // The browser holds it: dm checks it can fetch it before taking it.
+        caught: true,
+        // The site's sign-in, where the popup has that on for the site.
+        cookies: cookies_for(&found.url).await,
+        ..Start::default()
+    };
+    match hand(port, start).await {
+        Ok(()) => {
+            log("info", &format!("handed {} to the dm app", found.url));
+            if let Err(why) = call("downloads", "cancel", std::slice::from_ref(&id)).await {
+                log(
+                    "warn",
+                    &format!("the browser's copy could not be cancelled: {why}"),
+                );
+            }
+            let query = to_js(&serde_json::json!({ "id": found.id }));
+            let _ = call("downloads", "erase", &[query]).await;
+        }
+        Err(why) => {
+            log(
+                "warn",
+                &format!(
+                    "the dm app did not take {}, so the browser keeps it: {why}",
+                    found.url
+                ),
+            );
+            if paused {
+                give_back(&id, &found.url).await;
+            }
+        }
+    }
+}
+
+async fn still_running(id: i64) -> bool {
+    let query = to_js(&serde_json::json!({ "id": id }));
+    let found = call("downloads", "search", &[query])
+        .await
+        .unwrap_or_default();
+    get(&found, "0.state").as_string().as_deref() == Some("in_progress")
+}
+
+/// Lets the browser carry on with a download it was holding. Where it cannot
+/// be resumed — Firefox cannot resume what the server will not range — it is
+/// started again, marked so it is not caught a second time.
+async fn give_back(id: &JsValue, url: &str) {
+    if call("downloads", "resume", std::slice::from_ref(id))
+        .await
+        .is_ok()
+    {
+        return;
+    }
+    RELEASED.with(|r| r.borrow_mut().remember(url, now()));
+    let options = to_js(&serde_json::json!({ "url": url }));
+    if let Err(why) = call("downloads", "download", &[options]).await {
+        log(
+            "error",
+            &format!("{url} could not be given back to the browser: {why}"),
+        );
+        notify(
+            "A download could not be kept",
+            &format!("Neither dm nor the browser could carry on with {url}: {why}"),
+        );
+    }
+}
+
+/// A file the person asked dm for that dm could not take, downloaded by the
+/// browser instead: the
+/// person asked for the file, and gets it either way. A page (a player for
+/// yt-dlp) has nothing the browser could save, so its reason stands.
+async fn in_browser_instead(target: &Target, why: &str) -> Result<String, String> {
+    if target.page {
+        return Err(why.to_string());
+    }
+    RELEASED.with(|r| r.borrow_mut().remember(&target.url, now()));
+    let options = to_js(&serde_json::json!({ "url": target.url }));
+    match call("downloads", "download", &[options]).await {
+        Ok(_) => {
+            log(
+                "info",
+                &format!("{} left to the browser: {why}", target.url),
+            );
+            Ok(format!("the browser is downloading it (dm: {why})"))
+        }
+        Err(browser) => Err(format!(
+            "{why}; and the browser could not either: {browser}"
+        )),
+    }
+}
+
+/// Hands something a person asked for. `Ok` carries a word for whoever
+/// asked; `Err` why it could not be done.
+async fn hand_target(target: Target) -> Result<String, String> {
+    hand_chosen(target, None, None, false).await
+}
+
+/// Hands one download over, with the quality picked from the panel's list
+/// and, as for a video from the panel, asking the app to show
+/// "Download details" before it starts.
+async fn hand_chosen(
+    target: Target,
+    quality: Option<String>,
+    label: Option<String>,
+    ask: bool,
+) -> Result<String, String> {
+    let (app, port) = app().await;
+    let hello = match app {
+        App::Absent { reason } => {
+            let why = absent_text(&reason, &own_id(), is_firefox());
+            return in_browser_instead(&target, &why).await;
+        }
+        App::Present { hello, .. } => hello,
+    };
+    let cookies = cookies_for(&target.url).await;
+    let start = Start {
+        id: hand_id("m", 0, now()),
+        url: target.url.clone(),
+        referrer: target.referrer.clone(),
+        cookies,
+        // A file is checked before dm takes it, as a caught download is: a
+        // site that refuses dm (W3Schools did, with 403, on one network)
+        // would otherwise leave a failed row and nothing downloaded.
+        caught: !target.page,
+        quality,
+        label,
+        ask,
+    };
+    if let Err(why) = hand(port, start).await {
+        return in_browser_instead(&target, &why).await;
+    }
+    log("info", &format!("handed {} to the dm app", target.url));
+    if target.page && hello.ytdlp == Some(false) {
+        return Ok(decide::NO_YTDLP.to_string());
+    }
+    Ok(if ask {
+        "the dm app has it".into()
+    } else if target.page {
+        "the dm app is fetching it with yt-dlp".into()
+    } else {
+        "the dm app is downloading it".into()
+    })
+}
+
+/// The qualities a player page's video comes in, from the app's yt-dlp. A
+/// file is one quality, so it has no list.
+async fn formats_of(target: &Target) -> Result<Vec<dm_protocol::Choice>, String> {
+    if !target.page {
+        return Ok(Vec::new());
+    }
+    let (app, port) = app().await;
+    let hello = match app {
+        App::Absent { reason } => return Err(absent_text(&reason, &own_id(), is_firefox())),
+        App::Present { hello, .. } => hello,
+    };
+    if hello.ytdlp == Some(false) {
+        return Err(decide::NO_YTDLP.to_string());
+    }
+    let mut port = match port {
+        Some(port) => port,
+        None => Port::open()?,
+    };
+    port.send(&Request::Formats(dm_protocol::FormatsAsked {
+        url: target.url.clone(),
+        referrer: target.referrer.clone(),
+    }))?;
+    // yt-dlp reads a page in a few seconds; the app gives it thirty.
+    let deadline = now() + 40_000.0;
+    loop {
+        match port.next(deadline).await {
+            Heard::Frame(frame) => {
+                if let Ok(dm_protocol::Reply::Formats { choices, reason }) =
+                    dm_protocol::Reply::from_frame(&frame)
+                {
+                    return match reason {
+                        Some(why) if choices.is_empty() => Err(why),
+                        _ => Ok(choices),
+                    };
+                }
+            }
+            Heard::Gone(why) => return Err(why),
+        }
+    }
+}
+
+/// Hands something a person asked for, and says so when it cannot.
+async fn hand_asked(target: Target) {
+    match hand_target(target).await {
+        Ok(said) if said == decide::NO_YTDLP => notify("dm", &said),
+        Ok(_) => {}
+        Err(why) => notify("dm could not take that", &why),
+    }
+}
+
+/// A click on the floating panel the page script draws over a player.
+/// Answered, so the panel can say what happened; only this extension's own
+/// page script, in a tab, is listened to.
+#[wasm_bindgen]
+pub async fn on_page_message(message: JsValue, sender: JsValue) -> JsValue {
+    let answer = |ok: bool, said: &str| to_js(&serde_json::json!({ "ok": ok, "said": said }));
+    if get(&sender, "id").as_string().unwrap_or_default() != own_id() {
+        return answer(false, "that message did not come from dm");
+    }
+    // The toolbar popup: how the app is, and bringing it up.
+    match get(&message, "type").as_string().as_deref() {
+        Some(decide::STATUS_MESSAGE) => {
+            let (app, _) = app().await;
+            return to_js(&match app {
+                App::Present { hello, .. } => serde_json::json!({
+                    "ok": true,
+                    "version": hello.engine_version,
+                    "ytdlp": hello.ytdlp,
+                }),
+                App::Absent { reason } => serde_json::json!({
+                    "ok": false,
+                    "said": absent_text(&reason, &own_id(), is_firefox()),
+                }),
+            });
+        }
+        Some(decide::OPEN_MESSAGE) => {
+            return match show_app().await {
+                Ok(()) => answer(true, "dm is open"),
+                Err(why) => answer(false, &why),
+            };
+        }
+        _ => {}
+    }
+    let tab_url = get(&sender, "tab.url").as_string().unwrap_or_default();
+    let click: decide::PanelClick = serde_json::from_value(from_js(&message)).unwrap_or_default();
+    // Alt-click: the download about to start is the browser's.
+    if click.kind == decide::SKIP_MESSAGE {
+        return match decide::skip_url(&click) {
+            Ok(url) => {
+                RELEASED.with(|r| r.borrow_mut().remember(&url, now()));
+                answer(true, "the browser keeps it")
+            }
+            Err(why) => answer(false, &why),
+        };
+    }
+    let target = match decide::panel_target(&click, &tab_url) {
+        Ok(target) => target,
+        Err(why) => return answer(false, &why),
+    };
+    // What the video comes in, for the panel's list: the qualities the
+    // app's yt-dlp reads from the page, then the streams the page loaded.
+    // A site yt-dlp does not know still offers what its player fetched.
+    if click.kind == decide::FORMATS_MESSAGE {
+        let tab = get(&sender, "tab.id").as_f64().map_or(-1, |id| id as i64);
+        let streams = streams_of(tab).await;
+        let read = formats_of(&target).await;
+        let mut lines: Vec<serde_json::Value> = match &read {
+            Ok(choices) => choices
+                .iter()
+                .map(|c| {
+                    serde_json::json!({
+                        "quality": c.quality,
+                        "label": c.label,
+                        "line": decide::choice_line(&c.label, c.size),
+                    })
+                })
+                .collect(),
+            Err(_) => Vec::new(),
+        };
+        lines.extend(streams.iter().map(|s| {
+            serde_json::json!({
+                "url": s.url,
+                "label": s.label,
+                "line": decide::choice_line(&s.label, s.size),
+            })
+        }));
+        return match read {
+            Err(why) if lines.is_empty() => answer(false, &why),
+            _ => to_js(&serde_json::json!({ "ok": true, "choices": lines })),
+        };
+    }
+    // A click on the bar or on a line of its list: handed over to be asked
+    // about in the app, which opens "Download details".
+    match hand_chosen(target, click.quality, click.label, true).await {
+        Ok(said) => answer(true, &said),
+        Err(why) => answer(false, &why),
+    }
+}
+
+/// Asks the page (the frame that was right-clicked) for its links, all or
+/// the selected ones, and hands them to the app together, for its "Download
+/// all links" dialog. Returns how many.
+async fn page_links(
+    tab: &JsValue,
+    info: &JsValue,
+    selected: bool,
+    page: &str,
+) -> Result<usize, String> {
+    let tab_id = get(tab, "id");
+    if tab_id.as_f64().is_none() {
+        return Err("that is not a page dm can read links from".into());
+    }
+    let asked = to_js(&serde_json::json!({ "type": decide::LINKS_MESSAGE, "selected": selected }));
+    let frame =
+        to_js(&serde_json::json!({ "frameId": get(info, "frameId").as_f64().unwrap_or(0.0) }));
+    let answer = call("tabs", "sendMessage", &[tab_id, asked, frame])
+        .await
+        .map_err(|_| {
+            "this page has no links dm can read (reload it once dm is installed)".to_string()
+        })?;
+    let hrefs: Vec<String> =
+        serde_json::from_value(from_js(&get(&answer, "links"))).unwrap_or_default();
+    let urls = decide::links_from(&hrefs, page);
+    if urls.is_empty() {
+        return Err(if selected {
+            "the selection has no links".into()
+        } else {
+            "this page has no links".into()
+        });
+    }
+    let (app, port) = app().await;
+    if let App::Absent { reason } = app {
+        return Err(absent_text(&reason, &own_id(), is_firefox()));
+    }
+    let mut port = match port {
+        Some(port) => port,
+        None => Port::open()?,
+    };
+    let id = hand_id("l", 0, now());
+    let count = urls.len();
+    port.send(&Request::Batch(dm_protocol::Batch {
+        id: id.clone(),
+        page: page.to_string(),
+        urls,
+    }))?;
+    let deadline = now() + decide::TAKEN_WITHIN_MS;
+    loop {
+        match port.next(deadline).await {
+            Heard::Frame(frame) => {
+                if let Some(outcome) = decide::taken(&frame, &id) {
+                    return outcome.map(|()| count);
+                }
+            }
+            Heard::Gone(why) => return Err(why),
+        }
+    }
+}
+
+/// "Download … with dm" in a context menu.
+#[wasm_bindgen]
+pub async fn on_menu_clicked(info: JsValue, tab: JsValue) {
+    let click: MenuClick = serde_json::from_value(from_js(&info)).unwrap_or_default();
+    // "Download all links" and "Download selected links".
+    let item = click.menu_item_id.as_str().unwrap_or_default();
+    if item == decide::MENU_ALL_LINKS || item == decide::MENU_SELECTED_LINKS {
+        let page = get(&info, "frameUrl")
+            .as_string()
+            .or_else(|| get(&info, "pageUrl").as_string())
+            .unwrap_or_default();
+        match page_links(&tab, &info, item == decide::MENU_SELECTED_LINKS, &page).await {
+            Ok(n) => log("info", &format!("handed {n} links to the dm app")),
+            Err(why) => notify("dm could not take those links", &why),
+        }
+        return;
+    }
+    match decide::menu_target(&click) {
+        Ok(target) => hand_asked(target).await,
+        Err(why) => notify("dm cannot take that", &why),
+    }
+}
+
+/// The toolbar button: the page in the active tab.
+#[wasm_bindgen]
+pub async fn on_action_clicked(_tab: JsValue) {
+    // The toolbar button opens its popup (`popup.html`), so this fires only
+    // where a browser shows no popup. Then it brings dm's window up, as the
+    // popup's "Open dm" does; it downloads nothing.
+    if let Err(why) = show_app().await {
+        notify("dm could not be opened", &why);
+    }
+}
+
+/// Asks the app to show its window, starting it when it is not running.
+async fn show_app() -> Result<(), String> {
+    let (app, port) = app().await;
+    if let App::Absent { reason } = app {
+        return Err(absent_text(&reason, &own_id(), is_firefox()));
+    }
+    let mut port = match port {
+        Some(port) => port,
+        None => Port::open()?,
+    };
+    port.send(&Request::Show)?;
+    let deadline = now() + 15_000.0;
+    loop {
+        match port.next(deadline).await {
+            Heard::Frame(frame) => {
+                if let Ok(dm_protocol::Reply::Shown { reason }) =
+                    dm_protocol::Reply::from_frame(&frame)
+                {
+                    return reason.map_or(Ok(()), Err);
+                }
+            }
+            Heard::Gone(why) => return Err(why),
+        }
+    }
+}
+
+/// Context menus are made on install and on every browser start: Chrome keeps
+/// them, Firefox's event pages may not, and removing them first makes it safe
+/// either way.
+async fn make_menus() {
+    let _ = call("contextMenus", "removeAll", &[]).await;
+    for (id, title, contexts) in decide::MENUS {
+        let item = to_js(&serde_json::json!({ "id": id, "title": title, "contexts": contexts }));
+        // With a callback, so a refusal is read here rather than reported
+        // by the browser as an unchecked error.
+        let checked = Closure::once_into_js(move || {
+            if let Some(why) = api("runtime.lastError.message").as_string() {
+                log(
+                    "warn",
+                    &format!("the {id} menu item could not be made: {why}"),
+                );
+            }
+        });
+        if let Err(why) = call_on(&api("contextMenus"), "create", &[item, checked]) {
+            log(
+                "warn",
+                &format!("the {id} menu item could not be made: {why}"),
+            );
+        }
+    }
+}
+
+#[wasm_bindgen]
+pub async fn on_installed(_details: JsValue) {
+    make_menus().await;
+    // Asked now, so the catch rules are remembered before the first download.
+    app().await;
+}
+
+#[wasm_bindgen]
+pub async fn on_startup() {
+    make_menus().await;
+    app().await;
+}

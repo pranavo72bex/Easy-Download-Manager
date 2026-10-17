@@ -1,0 +1,40 @@
+name: Bug report
+description: dm did something wrong, or did not do what it should
+labels: [bug]
+body:
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened
+      description: What you did, what you expected, and what dm did instead.
+    validations:
+      required: true
+  - type: input
+    id: link
+    attributes:
+      label: The download link or page
+      description: If it is public. Leave out anything private, such as a link with a token in it.
+  - type: input
+    id: version
+    attributes:
+      label: dm version
+      description: From About.
+    validations:
+      required: true
+  - type: dropdown
+    id: os
+    attributes:
+      label: Operating system
+      options: [Windows, macOS, Linux]
+    validations:
+      required: true
+  - type: input
+    id: browser
+    attributes:
+      label: Browser and version
+      description: If the bug involves the browser extension.
+  - type: textarea
+    id: more
+    attributes:
+      label: Anything else
+      description: Screenshots, the message dm showed, steps to make it happen again.

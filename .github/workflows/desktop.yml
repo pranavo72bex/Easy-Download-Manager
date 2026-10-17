@@ -1,0 +1,395 @@
+name: Desktop
+
+# Packaging is the one thing that cannot be done from a development machine:
+# each platform's installer is built on that platform, then installed there
+# and run (scripts/smoke.py) before anything is released. The window is
+# drawn in Rust with egui and the Linux tray speaks D-Bus, so nothing links
+# GTK; what Linux needs at run time is what winit and glow open, which the
+# packages name.
+# No `paths` filter on the push trigger: a tag push evaluates paths against a
+# range that is often empty, so filtering here is how a release quietly fails
+# to build. The expensive jobs are gated below instead.
+on:
+  push:
+    branches: [main]
+    tags: ['desktop-v*']
+  pull_request:
+    paths: ['desktop/**', 'scripts/**', '.github/workflows/desktop.yml']
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+# A newer push to a pull request cancels its older run; runs on main and on
+# tags always finish, so every state that lands is checked to the end.
+concurrency:
+  group: desktop-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+defaults:
+  run:
+    working-directory: desktop
+
+env:
+  CARGO_TERM_COLOR: always
+  # File and line in a panic's backtrace, without the rest of the debug
+  # info: faster builds and links, a smaller cache.
+  CARGO_PROFILE_DEV_DEBUG: line-tables-only
+
+jobs:
+  test:
+    # Linux and Windows on every push. macOS is left to the developer's Mac
+    # (scripts/app-check.py) and to the release's own install-and-run check:
+    # in a private repository GitHub bills a macOS minute as ten.
+    name: Tests (${{ matrix.os }})
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: dtolnay/rust-toolchain@b725eda525362e7cf34af9a7243cac1e3f01a7ec # stable
+        with:
+          toolchain: stable
+          components: clippy, rustfmt
+
+      # Only main saves the cache; a pull request restores main's rather
+      # than writing a copy of its own that pushes main's out.
+      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2
+        with:
+          workspaces: desktop
+          save-if: ${{ github.ref == 'refs/heads/main' }}
+          cache-on-failure: true
+
+      # The cheap checks first: a formatting or lint failure is red in a
+      # few minutes rather than after the tests.
+      - name: Check formatting
+        if: runner.os == 'Linux'
+        run: cargo fmt --all -- --check
+
+      - name: Refuse warnings
+        run: cargo clippy --workspace --all-targets --locked -- -D warnings
+
+      - name: Dependency layering
+        run: cargo xtask layers
+
+      # nextest runs the test binaries side by side (cargo test runs them
+      # one after another) and fails a test that hangs; doctests, which it
+      # does not run, follow.
+      - uses: taiki-e/install-action@8cca0918f8471c33515202b73f56ab27f2bed283 # v2
+        with:
+          tool: cargo-nextest
+
+      # The stream tests put a real .ts stream into an MP4, and fail rather
+      # than skip in CI when there is no ffmpeg to do it with.
+      - name: Install ffmpeg
+        if: runner.os == 'Linux'
+        run: sudo apt-get update && sudo apt-get install -y --no-install-recommends ffmpeg
+
+      - name: Test the engine, the shell and the window
+        run: cargo nextest run --workspace --locked --profile ci
+
+      - name: Doctests
+        run: cargo test --doc --workspace --locked
+
+  packaging-lint:
+    # Seconds, no Rust build: the shell scripts, the workflows and the Linux
+    # desktop entry, which a release depends on and nothing else checks.
+    name: Packaging lint
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: .
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - name: Shell scripts
+        run: shellcheck -f gcc scripts/*.sh scripts/*/*.sh
+      - name: Workflows
+        run: |
+          bash <(curl -fsSL https://raw.githubusercontent.com/rhysd/actionlint/v1.7.7/scripts/download-actionlint.bash) 1.7.7
+          ./actionlint -color .github/workflows/*.yml
+      - name: Desktop entry
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends desktop-file-utils
+          desktop-file-validate desktop/packaging/dm.desktop
+
+  bundle:
+    name: ${{ matrix.name }}
+    needs: [test, packaging-lint]
+    # Every platform's installers are minutes of compute; an ordinary push
+    # wants to know the tests still pass, not to be handed an installer.
+    if: startsWith(github.ref, 'refs/tags/') || github.event_name == 'workflow_dispatch'
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: Linux x86_64 (deb, AppImage, rpm)
+            # Pinned deliberately: an AppImage built against a newer glibc
+            # will not start on an older distribution.
+            os: ubuntu-22.04
+            formats: deb,appimage
+            artifact: linux-x86_64
+          - name: Linux arm64 (deb, AppImage, rpm)
+            os: ubuntu-22.04-arm
+            formats: deb,appimage
+            artifact: linux-arm64
+          - name: Windows (NSIS installer)
+            os: windows-latest
+            formats: nsis
+            artifact: windows
+          - name: macOS (app, dmg)
+            os: macos-latest
+            formats: app,dmg
+            artifact: macos
+
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: dtolnay/rust-toolchain@b725eda525362e7cf34af9a7243cac1e3f01a7ec # stable
+        with:
+          toolchain: stable
+
+      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2
+        with:
+          workspaces: desktop
+          key: bundle-${{ matrix.artifact }}
+
+      - name: Linux packaging tools
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends patchelf file desktop-file-utils
+
+      - name: cargo-packager
+        run: cargo install cargo-packager --version 0.11.8 --locked
+
+      # CI is set on every runner, which is what tells the .dmg step to skip
+      # the Finder AppleScript a headless machine cannot run.
+      - name: Build the installers
+        working-directory: desktop/crates/dm-desktop
+        run: cargo packager --release --formats ${{ matrix.formats }}
+        env:
+          # Apple: a Developer ID certificate and an app-specific password.
+          # Absent, the macOS build is unsigned and Gatekeeper refuses it
+          # until someone right-clicks and chooses Open. The identity itself
+          # goes in Cargo.toml (packager.macos.signingIdentity).
+          APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
+          APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_PASSWORD: ${{ secrets.APPLE_PASSWORD }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+
+      # Fedora, openSUSE and their kin: the same binary, laid out as the
+      # Arch package is (desktop/packaging/nfpm.yaml).
+      - name: The rpm
+        if: runner.os == 'Linux'
+        working-directory: .
+        run: |
+          version=$(sed -n 's/^version = "\(.*\)"/\1/p' desktop/crates/dm-desktop/Cargo.toml | head -1)
+          sh scripts/linux/nfpm.sh desktop/target/release/dm-desktop "$version" desktop/target/release/bundle
+
+      - name: Keep the installers
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: dm-${{ matrix.artifact }}
+          path: |
+            desktop/target/release/bundle/*.deb
+            desktop/target/release/bundle/*.rpm
+            desktop/target/release/bundle/*.AppImage
+            desktop/target/release/bundle/*-setup.exe
+            desktop/target/release/bundle/*.dmg
+          if-no-files-found: error
+
+  installed:
+    # Each installer installed the way a person installs it, the installed dm
+    # run (scripts/smoke.py: native host, window, a download byte-exact) and
+    # removed again. A release is drafted only when every one passes.
+    name: Install and run (${{ matrix.artifact }})
+    needs: bundle
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { os: ubuntu-22.04, artifact: linux-x86_64 }
+          - { os: ubuntu-22.04-arm, artifact: linux-arm64 }
+          - { os: windows-latest, artifact: windows }
+          - { os: macos-latest, artifact: macos }
+    runs-on: ${{ matrix.os }}
+    defaults:
+      run:
+        working-directory: .
+        shell: bash
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        with:
+          name: dm-${{ matrix.artifact }}
+          path: installers
+
+      - name: Linux display
+        if: runner.os == 'Linux'
+        run: sudo apt-get update && sudo apt-get install -y --no-install-recommends xvfb
+
+      - name: The .deb, through apt
+        if: runner.os == 'Linux'
+        run: |
+          set -e
+          deb=$(find installers -name '*.deb' | head -1)
+          package=$(dpkg-deb -f "$deb" Package)
+          sudo apt-get install -y "./$deb"
+          binary=$(dpkg -L "$package" | grep '/bin/' | head -1)
+          xvfb-run -a -s '-screen 0 1280x800x24' python3 scripts/smoke.py "$binary"
+          sudo apt-get remove -y "$package"
+          test ! -e "$binary"
+
+      - name: The AppImage
+        if: runner.os == 'Linux'
+        env:
+          # A runner has no FUSE; the AppImage unpacks itself instead.
+          APPIMAGE_EXTRACT_AND_RUN: '1'
+        run: |
+          set -e
+          image=$(find installers -name '*.AppImage' | head -1)
+          chmod +x "$image"
+          xvfb-run -a -s '-screen 0 1280x800x24' python3 scripts/smoke.py "$image"
+
+      - name: The .rpm, through dnf on Fedora
+        if: runner.os == 'Linux'
+        run: |
+          docker run --rm -v "$PWD:/w" -w /w fedora:41 sh -c '
+            set -e
+            dnf install -y -q python3 xorg-x11-server-Xvfb installers/*.rpm >/dev/null
+            xvfb-run -a -s "-screen 0 1280x800x24" python3 scripts/smoke.py /usr/bin/dm
+            dnf remove -y -q dm >/dev/null
+            test ! -e /usr/bin/dm'
+
+      - name: The Windows installer, silently
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $setup = Get-ChildItem installers -Filter '*-setup.exe' | Select-Object -First 1
+          Start-Process $setup.FullName -ArgumentList '/S' -Wait
+          $exe = Get-ChildItem "$env:LOCALAPPDATA", "$env:ProgramFiles" -Recurse -Filter 'dm-desktop.exe' -ErrorAction SilentlyContinue | Select-Object -First 1
+          if (-not $exe) { throw 'the installer put no dm-desktop.exe anywhere' }
+          python scripts/smoke.py $exe.FullName
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          $uninstall = Get-ChildItem $exe.DirectoryName -Filter 'uninstall*.exe' | Select-Object -First 1
+          Start-Process $uninstall.FullName -ArgumentList '/S' -Wait
+          # The uninstaller hands itself to a copy and returns at once.
+          for ($i = 0; $i -lt 30 -and (Test-Path $exe.FullName); $i++) { Start-Sleep 1 }
+          if (Test-Path $exe.FullName) { throw 'uninstalling left dm-desktop.exe behind' }
+
+      - name: The macOS app, from the dmg
+        if: runner.os == 'macOS'
+        run: |
+          set -e
+          dmg=$(find installers -name '*.dmg' | head -1)
+          hdiutil attach -nobrowse -readonly -mountpoint "$RUNNER_TEMP/dm" "$dmg"
+          cp -R "$RUNNER_TEMP/dm/dm.app" "$RUNNER_TEMP/"
+          hdiutil detach "$RUNNER_TEMP/dm"
+          python3 scripts/smoke.py "$RUNNER_TEMP/dm.app/Contents/MacOS/dm-desktop"
+          rm -rf "$RUNNER_TEMP/dm.app"
+
+  extension:
+    name: The browser extension (zips)
+    # On the same page as the installers, so a person downloads both from
+    # one place: the app and the extension that hands it downloads.
+    if: startsWith(github.ref, 'refs/tags/desktop-v')
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: dtolnay/rust-toolchain@b725eda525362e7cf34af9a7243cac1e3f01a7ec # stable
+        with:
+          toolchain: stable
+          targets: wasm32-unknown-unknown
+      - name: Build the Chrome and Firefox zips
+        working-directory: .
+        run: sh scripts/package.sh
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: dm-extension
+          path: dist/*.zip
+          if-no-files-found: error
+
+  release:
+    name: Draft the release
+    # Every installer built, installed and run on its own system, and the
+    # Arch package built and installed: one failure and nothing is drafted.
+    needs: [bundle, installed, extension, arch]
+    # Only a tag publishes; a manual run stops at the artefacts.
+    if: startsWith(github.ref, 'refs/tags/desktop-v')
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        with:
+          path: installers
+          merge-multiple: true
+
+      # What a running dm reads to say a newer version is out, and where the
+      # installer for its machine is: dm downloads it as any other download
+      # when the person asks, and they open it. Nothing installs itself.
+      - name: The update manifest
+        working-directory: .
+        run: |
+          version="${GITHUB_REF_NAME#desktop-v}"
+          base="https://github.com/$GITHUB_REPOSITORY/releases/download/$GITHUB_REF_NAME"
+          installers=$(find installers -maxdepth 1 -type f -printf '%f\n' | sort \
+            | jq -R --arg base "$base" '"\($base)/\(.)"' | jq -s .)
+          jq -n --arg version "$version" --arg date "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
+            --arg notes "https://github.com/$GITHUB_REPOSITORY/releases/tag/$GITHUB_REF_NAME" \
+            --argjson installers "$installers" \
+            '{version: $version, pub_date: $date, notes: $notes, installers: $installers}' \
+            > installers/latest.json
+          cat installers/latest.json
+
+      - uses: softprops/action-gh-release@3bb12739c298aeb8a4eeaf626c5b8d85266b0e65 # v2
+        with:
+          draft: true
+          name: dm ${{ github.ref_name }}
+          files: installers/*
+
+  arch:
+    name: Arch package
+    needs: test
+    # Arch has no runner, so the package is built in Arch's own container,
+    # against Arch's own libraries.
+    runs-on: ubuntu-latest
+    container:
+      image: archlinux:base-devel
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+
+      # On every push, not only for a tag: the release PKGBUILD through
+      # makepkg from this checkout (build, its check(), package), installed
+      # with pacman, and the installed dm asked to answer a hand-off. The
+      # same script `scripts/arch-check.sh` runs locally.
+      - name: Build, check and install the Arch package from this checkout
+        working-directory: .
+        run: sh scripts/arch/inside.sh
+
+      # A tag also builds the package the way an AUR user would, from the
+      # tag's GitHub archive.
+      - name: Build the release package from the tag's archive
+        if: startsWith(github.ref, 'refs/tags/desktop-v')
+        working-directory: desktop/packaging
+        run: |
+          version="${GITHUB_REF_NAME#desktop-v}"
+          sed -i "s/^pkgver=.*/pkgver=$version/" PKGBUILD
+          chown -R builder:builder "$GITHUB_WORKSPACE"
+          su builder -c "makepkg --cleanbuild --nodeps --noconfirm"
+
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: dm-arch-package-from-checkout
+          path: /home/builder/pkg/*.pkg.tar.*
+          if-no-files-found: error
+
+      - name: Upload the Arch package
+        if: startsWith(github.ref, 'refs/tags/desktop-v')
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: dm-arch-package
+          path: desktop/packaging/*.pkg.tar.zst
+          if-no-files-found: error

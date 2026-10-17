@@ -1,0 +1,24 @@
+# Ubuntu 22.04, the system CI builds the release packages on, with what the
+# client needs to build and run: the same packages as the Debian image, and
+# Rust from rustup, since 22.04's own is too old.
+FROM ubuntu:22.04
+
+ENV DEBIAN_FRONTEND=noninteractive
+RUN apt-get update && apt-get install -y --no-install-recommends \
+      build-essential pkg-config curl file ca-certificates \
+      xvfb xauth x11-utils dbus procps python3 yt-dlp \
+      libxkbcommon-x11-0 libegl1 libgl1 libgl1-mesa-dri \
+      # What winit opens at run time, as the .deb declares: GTK brought
+      # these along until the tray moved to D-Bus.
+      libx11-6 libxcursor1 libx11-xcb1 libxi6 libxkbcommon0 \
+      libwayland-client0 libwayland-egl1 \
+    && rm -rf /var/lib/apt/lists/*
+
+ENV RUSTUP_HOME=/usr/local/rustup CARGO_HOME=/usr/local/cargo PATH=/usr/local/cargo/bin:$PATH
+RUN curl -sSf https://sh.rustup.rs | sh -s -- -y --profile minimal --no-modify-path
+
+ENV CARGO_TARGET_DIR=/target \
+    CARGO_PROFILE_DEV_DEBUG=0 \
+    CARGO_INCREMENTAL=0
+
+WORKDIR /work

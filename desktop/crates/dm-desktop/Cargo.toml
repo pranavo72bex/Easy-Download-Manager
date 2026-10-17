@@ -1,0 +1,119 @@
+[package]
+name = "dm-desktop"
+version = "0.1.0"
+license = "MIT"
+edition = "2021"
+description = "dm — a download manager, with a window drawn in Rust"
+
+# The window, in Rust: egui on winit,
+# no web view. Everything that is not the window is dm-shell's and dm-core's.
+# The binary keeps the name the installer, the browser's native host
+# manifest, the Makefile and the PKGBUILD already use.
+[[bin]]
+name = "dm-desktop"
+path = "src/main.rs"
+
+[lib]
+name = "dm_desktop"
+path = "src/lib.rs"
+
+[dependencies]
+dm-core = { path = "../dm-core" }
+dm-shell = { path = "../dm-shell" }
+eframe = { version = "0.36", default-features = false, features = ["default_fonts", "glow", "persistence", "wayland", "x11", "accesskit"] }
+egui = "0.36"
+# The download list: a sortable, resizable table.
+egui_extras = "0.36"
+tokio = { version = "1", features = ["rt-multi-thread", "time", "sync"] }
+serde_json = "1"
+url = "2"
+chrono = { version = "0.4", default-features = false, features = ["clock", "std"] }
+# What Tauri's plugins did, each from the crate they wrapped.
+tray-icon = { version = "0.26", default-features = false, features = ["ksni"] }
+auto-launch = "0.6"
+notify-rust = "4"
+arboard = "3"
+# The control protocol's token.
+getrandom = "0.3"
+# Import and Export's file choosers.
+rfd = "0.17"
+image = { version = "0.25", default-features = false, features = ["png"] }
+# The system's language, for the window's first one: from the OS itself,
+# since an app opened from the Dock or a login item has no LANG.
+sys-locale = "0.3"
+
+# Dragging a finished file out of the window, into Finder, Explorer, a mail
+# or a chat. It starts the drag from the window's native handle, which it
+# can do on macOS and Windows; on Linux it needs a GTK window, and dm's is
+# not one.
+[target.'cfg(any(target_os = "macos", target_os = "windows"))'.dependencies]
+drag = "2.1"
+
+# The Dock icon's click, which winit leaves to an application delegate.
+[target.'cfg(target_os = "macos")'.dependencies]
+objc2 = "0.6"
+objc2-app-kit = { version = "0.3", default-features = false, features = ["std", "NSApplication", "NSResponder"] }
+
+[target.'cfg(target_os = "linux")'.dependencies]
+zbus = { version = "5", default-features = false, features = ["blocking-api"] }
+
+[dev-dependencies]
+proptest = "1"
+dm-protocol = { path = "../dm-protocol" }
+# The window driven the way a person drives it, through its accessibility
+# tree, and rendered offscreen for a picture of what it draws.
+egui_kittest = { version = "0.36", features = ["wgpu", "snapshot"] }
+tempfile = "3"
+axum = "0.7"
+futures-util = "0.3"
+tokio = { version = "1", features = ["full"] }
+
+# The installers: `cargo packager --release` from this directory.
+# What `cargo tauri build` made, without Tauri: a .app and .dmg on macOS, a
+# .deb and an AppImage on Linux, an NSIS installer on Windows. The update
+# check reads the release's own latest.json, so nothing here signs one.
+[package.metadata.packager]
+productName = "dm"
+identifier = "com.dm.desktop"
+description = "Multi-connection downloads that resume"
+longDescription = "dm splits a file across several connections, resumes what was interrupted, and takes over the downloads you start in a browser."
+category = "Utility"
+beforePackagingCommand = "cargo build --release -p dm-desktop"
+outDir = "../../target/release/bundle"
+binaries = [{ path = "dm-desktop", main = true }]
+icons = [
+  "icons/32x32.png",
+  "icons/128x128.png",
+  "icons/128x128@2x.png",
+  "icons/icon.icns",
+  "icons/icon.ico",
+]
+
+[package.metadata.packager.macos]
+minimumSystemVersion = "11.0"
+# Ad-hoc: the whole bundle signed with no certificate ("-"). Unsigned as a
+# bundle (only the linker's signature on the binary), a downloaded dm.app
+# was "damaged and can't be opened" on Apple silicon, with only Move to Bin
+# on offer; signed ad hoc it gets the ordinary "cannot verify" prompt, which
+# System Settings › Privacy & Security lets a person open anyway. A real
+# Developer ID, when there is one, replaces "-" (docs/RELEASING.md).
+signingIdentity = "-"
+
+# What the binary loads at run time on Linux, none of it linked, so the
+# package must name it: the X11 libraries winit opens before any window
+# (X11, Xcursor, X11-xcb, Xi), its Wayland ones, xkbcommon, and GL. GTK
+# used to bring the X11 ones along; without it a system lacking them could
+# not open the window ("Failed to load one of xlib's shared libraries").
+[package.metadata.packager.deb]
+depends = [
+  "libx11-6",
+  "libxcursor1",
+  "libx11-xcb1",
+  "libxi6",
+  "libxkbcommon0",
+  "libxkbcommon-x11-0",
+  "libwayland-client0",
+  "libwayland-egl1",
+  "libegl1",
+  "libgl1",
+]

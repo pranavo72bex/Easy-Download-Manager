@@ -1,0 +1,1611 @@
+//! What the extension decides, with no browser in the way.
+//!
+//! Everything here is plain Rust: it compiles for the host and is tested
+//! there with `cargo test`. The browser side (`web.rs`) only reads events into
+//! these types, asks these functions, and does what they say.
+
+// Reads what the browser and the app send: every index is checked.
+#![cfg_attr(not(test), deny(clippy::indexing_slicing))]
+use dm_protocol::{Candidate, CatchRules, Hello, Reply, CHROME_EXTENSION_ID};
+use serde::Deserialize;
+use serde_json::Value;
+
+/// How long an app that answered is believed. Its settings may change, so
+/// not for ever; a minute keeps a burst of downloads from starting the host
+/// once each.
+pub const PRESENT_FOR_MS: f64 = 60_000.0;
+/// How long "no app" is believed. Short, so an app installed or registered
+/// since is found without restarting the browser.
+pub const ABSENT_FOR_MS: f64 = 10_000.0;
+/// How long the host has to answer the handshake. Not its reply time, which
+/// is milliseconds, but its start: the browser spawns it cold, and a freshly
+/// installed binary can be held by the system's first-run checks.
+pub const HELLO_WITHIN_MS: f64 = 10_000.0;
+/// How long a host that has said hello has to send its settings before an
+/// older host that does not know the question is assumed.
+pub const SETTINGS_WITHIN_MS: f64 = 3_000.0;
+/// How long the host has to take a download. It files it and, if the app is
+/// closed, starts it; both are quick, but a slow disk is not an error.
+pub const TAKEN_WITHIN_MS: f64 = 20_000.0;
+/// How long a URL given back to the browser is left alone if it comes round
+/// again, which it does when the extension has to restart it.
+pub const RELEASED_FOR_MS: f64 = 60_000.0;
+
+/// The context menu items: id, title, contexts.
+pub const MENUS: &[(&str, &str, &[&str])] = &[
+    (MENU_LINK, "Download link with dm", &["link"]),
+    (MENU_MEDIA, "Download media with dm", &["video", "audio"]),
+    // "Download all links" and "Download selected links".
+    (MENU_ALL_LINKS, "Download all links with dm", &["page"]),
+    (
+        MENU_SELECTED_LINKS,
+        "Download selected links with dm",
+        &["selection"],
+    ),
+];
+pub const MENU_LINK: &str = "dm-link";
+pub const MENU_MEDIA: &str = "dm-media";
+pub const MENU_ALL_LINKS: &str = "dm-all-links";
+pub const MENU_SELECTED_LINKS: &str = "dm-selected-links";
+
+/// What the background asks the page script for: the page's links, or only
+/// those in the selection.
+pub const LINKS_MESSAGE: &str = "dm.links";
+
+/// How many links one page hands over at most: a page of ten thousand is a
+/// listing nobody meant to download whole, and the dialog has to draw them.
+pub const MOST_LINKS: usize = 2000;
+
+/// The links worth listing from those a page holds: web addresses only,
+/// each once, without in-page jumps to the page itself, in page order.
+pub fn links_from(hrefs: &[String], page: &str) -> Vec<String> {
+    let here = page.split('#').next().unwrap_or(page);
+    let mut seen = std::collections::HashSet::new();
+    hrefs
+        .iter()
+        .map(|h| h.trim())
+        .filter(|h| h.starts_with("https://") || h.starts_with("http://"))
+        .map(|h| h.split('#').next().unwrap_or(h).to_string())
+        .filter(|h| h != here)
+        .filter(|h| seen.insert(h.clone()))
+        .take(MOST_LINKS)
+        .collect()
+}
+
+/// A browser's `DownloadItem`, as much of it as matters. Chrome and Firefox
+/// fill different fields, and Firefox sends `null` where Chrome sends `""`,
+/// so everything is optional.
+#[derive(Deserialize, Default, Debug, Clone)]
+#[serde(default, rename_all = "camelCase")]
+pub struct DownloadItem {
+    pub id: Option<f64>,
+    pub url: Option<String>,
+    /// Chrome only: where the redirects ended.
+    pub final_url: Option<String>,
+    pub referrer: Option<String>,
+    pub filename: Option<String>,
+    pub mime: Option<String>,
+    pub file_size: Option<f64>,
+    pub total_bytes: Option<f64>,
+    pub state: Option<String>,
+    /// Set when an extension started the download.
+    pub by_extension_id: Option<String>,
+    pub incognito: Option<bool>,
+}
+
+/// A browser download that could be handed over, if the app wants it.
+#[derive(Debug, Clone, PartialEq)]
+pub struct Catchable {
+    pub id: i64,
+    pub url: String,
+    pub referrer: String,
+    pub filename: String,
+    pub mime: String,
+    pub size: Option<u64>,
+}
+
+impl Catchable {
+    pub fn candidate(&self) -> Candidate<'_> {
+        Candidate {
+            url: &self.url,
+            filename: &self.filename,
+            mime: &self.mime,
+            size: self.size,
+        }
+    }
+}
+
+fn text(field: &Option<String>) -> String {
+    field.as_deref().unwrap_or("").trim().to_string()
+}
+
+fn is_web(url: &str) -> bool {
+    let lower = url.get(..8).unwrap_or(url).to_ascii_lowercase();
+    lower.starts_with("http://") || lower.starts_with("https://")
+}
+
+/// Whether a download is one the app could be asked about at all, before
+/// anyone asks it.
+pub fn first_look(item: &DownloadItem, own_id: &str) -> Result<Catchable, &'static str> {
+    // The one this extension started itself, giving a download back to the
+    // browser: catching it again would loop.
+    if item
+        .by_extension_id
+        .as_deref()
+        .is_some_and(|by| by == own_id)
+    {
+        return Err("started by dm itself");
+    }
+    match item.state.as_deref() {
+        Some("complete") => return Err("already finished, usually from the cache"),
+        Some("interrupted") => return Err("already stopped"),
+        _ => {}
+    }
+    // A private window's download stays private: handed over, it would sit
+    // in the app's queue and history after the window had closed.
+    if item.incognito == Some(true) {
+        return Err("from a private window");
+    }
+    let id = item.id.ok_or("the browser gave it no id")? as i64;
+    let url = match text(&item.final_url) {
+        found if !found.is_empty() => found,
+        _ => text(&item.url),
+    };
+    // blob:, data: and the like are bytes a page already holds; nothing
+    // outside the browser can fetch them.
+    if !is_web(&url) {
+        return Err("not an http(s) download");
+    }
+    let size = [item.file_size, item.total_bytes]
+        .into_iter()
+        .flatten()
+        .find(|n| *n > 0.0)
+        .map(|n| n as u64);
+    Ok(Catchable {
+        id,
+        url,
+        referrer: text(&item.referrer),
+        filename: text(&item.filename),
+        mime: text(&item.mime),
+        size,
+    })
+}
+
+/// What a context menu click or the toolbar button asks for.
+#[derive(Debug, Clone, PartialEq)]
+pub struct Target {
+    pub url: String,
+    pub referrer: String,
+    /// A page rather than a file: the app hands it to yt-dlp if it turns out
+    /// to be a player page.
+    pub page: bool,
+}
+
+/// A `contextMenus.OnClickData`.
+#[derive(Deserialize, Default, Debug, Clone)]
+#[serde(default, rename_all = "camelCase")]
+pub struct MenuClick {
+    pub menu_item_id: Value,
+    pub link_url: Option<String>,
+    pub src_url: Option<String>,
+    pub page_url: Option<String>,
+    pub frame_url: Option<String>,
+}
+
+/// What the app downloads when asked: web and FTP links, and magnets.
+fn handable(url: &str) -> bool {
+    is_web(url)
+        || url
+            .get(..7)
+            .is_some_and(|s| s.eq_ignore_ascii_case("magnet:"))
+        || url
+            .get(..6)
+            .is_some_and(|s| s.eq_ignore_ascii_case("ftp://"))
+}
+
+/// What a menu click hands over, or why nothing.
+pub fn menu_target(click: &MenuClick) -> Result<Target, String> {
+    let page = text(&click.page_url);
+    let frame = text(&click.frame_url);
+    let item = click.menu_item_id.as_str().unwrap_or("");
+    let target = match item {
+        MENU_LINK => Target {
+            url: text(&click.link_url),
+            referrer: page.clone(),
+            page: false,
+        },
+        MENU_MEDIA => {
+            let src = text(&click.src_url);
+            if handable(&src) {
+                Target {
+                    url: src,
+                    referrer: page.clone(),
+                    page: false,
+                }
+            } else {
+                // A `blob:` source is a Media Source player assembling the
+                // video from pieces; the file does not exist anywhere to be
+                // fetched. The page does, and the app's yt-dlp reads it.
+                Target {
+                    url: if frame.is_empty() {
+                        page.clone()
+                    } else {
+                        frame
+                    },
+                    referrer: String::new(),
+                    page: true,
+                }
+            }
+        }
+        other => return Err(format!("{other} is not one of dm's menu items")),
+    };
+    if handable(&target.url) {
+        Ok(target)
+    } else {
+        Err(unhandable(&target.url))
+    }
+}
+
+fn unhandable(url: &str) -> String {
+    let scheme = url.split(':').next().unwrap_or("");
+    if url.is_empty() {
+        "there is no address here for dm to take".into()
+    } else {
+        format!("dm takes http(s) and ftp links and magnets, and this is a {scheme}: address")
+    }
+}
+
+/// The name a hand-off is filed under. The host keeps only letters, digits,
+/// `-` and `_`, so that is all this uses.
+pub fn hand_id(prefix: &str, n: i64, now_ms: f64) -> String {
+    format!("{prefix}{n}-{}", now_ms.max(0.0) as u64)
+}
+
+/// The notification for "there is no app to hand this to", with the command
+/// that fixes it for this browser.
+pub fn absent_text(reason: &str, own_id: &str, firefox: bool) -> String {
+    let register = if firefox || own_id == CHROME_EXTENSION_ID || own_id.is_empty() {
+        "dm-desktop --register".to_string()
+    } else {
+        format!("dm-desktop --register {own_id}")
+    };
+    format!(
+        "dm did not answer ({reason}). Install the dm app, then let this browser reach it: \
+         {register}"
+    )
+}
+
+/// Said alongside a page sent to an app that has no yt-dlp.
+pub const NO_YTDLP: &str = "Sent to dm. If this is a video page rather than a file, dm needs \
+                            yt-dlp to fetch it, and it has none: install yt-dlp.";
+
+/// What the extension knows of the app.
+#[derive(Debug, Clone, PartialEq)]
+pub enum App {
+    Present { hello: Hello, rules: CatchRules },
+    Absent { reason: String },
+}
+
+/// An answer about the app, and when it was given.
+#[derive(Debug, Clone)]
+pub struct Known {
+    pub app: App,
+    pub at_ms: f64,
+}
+
+impl Known {
+    pub fn fresh(&self, now_ms: f64) -> bool {
+        let lasts = match self.app {
+            App::Present { .. } => PRESENT_FOR_MS,
+            App::Absent { .. } => ABSENT_FOR_MS,
+        };
+        // A clock that went backwards proves nothing either way.
+        now_ms >= self.at_ms && now_ms - self.at_ms < lasts
+    }
+}
+
+/// The handshake, as the host's answers arrive.
+#[derive(Debug, Default, Clone)]
+pub struct Probe {
+    hello: Option<Hello>,
+    rules: Option<CatchRules>,
+    refused: Option<String>,
+}
+
+impl Probe {
+    /// Takes one frame from the host.
+    pub fn absorb(&mut self, frame: &Value) {
+        match Reply::from_frame(frame) {
+            Ok(Reply::Hello(hello)) => self.hello = Some(hello),
+            Ok(Reply::Settings(settings)) => self.rules = Some(settings.rules),
+            Ok(_) => {}
+            // A host of another protocol version is not one to hand things
+            // to; one that sent something this side cannot read is ignored.
+            Err(dm_protocol::Unreadable::Version(v)) => {
+                self.refused = Some(format!(
+                    "the dm app speaks protocol version {}, and this extension {}",
+                    v.map_or("none".into(), |v| v.to_string()),
+                    dm_protocol::PROTOCOL_VERSION
+                ))
+            }
+            Err(_) => {}
+        }
+    }
+
+    pub fn has_hello(&self) -> bool {
+        self.hello.is_some()
+    }
+
+    /// The answer, once there is a whole one.
+    pub fn finished(&self) -> Option<App> {
+        if let Some(reason) = &self.refused {
+            return Some(App::Absent {
+                reason: reason.clone(),
+            });
+        }
+        match (&self.hello, &self.rules) {
+            (Some(hello), Some(rules)) => Some(App::Present {
+                hello: hello.clone(),
+                rules: rules.clone(),
+            }),
+            _ => None,
+        }
+    }
+
+    /// The answer when the host stopped talking: with a hello, an app too old
+    /// to know about settings, which gets the default rules; without one, no
+    /// app at all.
+    pub fn give_up(&self, why: &str) -> App {
+        if let Some(app) = self.finished() {
+            return app;
+        }
+        match &self.hello {
+            Some(hello) => App::Present {
+                hello: hello.clone(),
+                rules: CatchRules::default(),
+            },
+            None => App::Absent {
+                reason: why.to_string(),
+            },
+        }
+    }
+}
+
+/// Whether a frame answers the hand-off filed under `id`: `Some(Ok)` taken,
+/// `Some(Err)` refused with the app's reason, `None` not about it.
+pub fn taken(frame: &Value, id: &str) -> Option<Result<(), String>> {
+    match Reply::from_frame(frame).ok()? {
+        Reply::Started { id: said } if said == id => Some(Ok(())),
+        Reply::Failed { id: said, failure } if said == id => Some(Err(failure
+            .map(|f| f.message)
+            .filter(|m| !m.is_empty())
+            .unwrap_or_else(|| "dm would not take it".into()))),
+        _ => None,
+    }
+}
+
+/// URLs given back to the browser, so the download the extension restarts
+/// for them is not caught again.
+#[derive(Debug, Default)]
+pub struct Released {
+    urls: Vec<(String, f64)>,
+}
+
+impl Released {
+    pub fn remember(&mut self, url: &str, now_ms: f64) {
+        self.urls.retain(|(_, at)| now_ms - *at < RELEASED_FOR_MS);
+        self.urls.push((url.to_string(), now_ms));
+    }
+
+    /// Whether `url` was given back lately; forgotten once asked.
+    pub fn take(&mut self, url: &str, now_ms: f64) -> bool {
+        self.urls.retain(|(_, at)| now_ms - *at < RELEASED_FOR_MS);
+        match self.urls.iter().position(|(u, _)| u == url) {
+            Some(at) => {
+                self.urls.remove(at);
+                true
+            }
+            None => false,
+        }
+    }
+}
+
+/* --------------------------------------------------------- the on-page panel
+ *
+ * "Download video": a panel at the top right of a video or audio
+ * player, raised when the pointer is over it or it starts playing, that
+ * hands the media to the app. The page script draws it; what it offers, where
+ * it sits and what a click hands over are decided here.
+ */
+
+/// A video or audio element the page script found.
+#[derive(Deserialize, Default, Debug, Clone)]
+#[serde(default, rename_all = "camelCase")]
+pub struct Media {
+    /// `video` or `audio`.
+    pub tag: String,
+    /// `currentSrc`, falling back to `src`.
+    pub src: String,
+    pub width: f64,
+    pub height: f64,
+}
+
+/// What the panel offers for one element.
+#[derive(Debug, Clone, PartialEq)]
+pub struct Offer {
+    pub title: &'static str,
+    /// Where the file comes from, or how it is fetched: the bar's tooltip.
+    pub sub: String,
+    /// A player page rather than a file: its qualities are listed, so the
+    /// bar carries a ▾.
+    pub page: bool,
+}
+
+/// Below these a media element is decoration — an avatar, a spacer, a muted
+/// background loop — and a download button over it would be noise.
+pub const MIN_VIDEO: (f64, f64) = (200.0, 120.0);
+pub const MIN_AUDIO: (f64, f64) = (160.0, 24.0);
+
+/// Whether a media element gets the panel, and what it says.
+pub fn offer(media: &Media) -> Option<Offer> {
+    let (min_w, min_h, title) = match media.tag.to_ascii_lowercase().as_str() {
+        "video" => (MIN_VIDEO.0, MIN_VIDEO.1, "Download video"),
+        "audio" => (MIN_AUDIO.0, MIN_AUDIO.1, "Download this audio"),
+        _ => return None,
+    };
+    if !(media.width >= min_w && media.height >= min_h) {
+        return None;
+    }
+    let src = media.src.trim();
+    let sub = if handable(src) {
+        dm_protocol::host_of(src)
+    } else {
+        // A `blob:` or Media Source player: no file exists to fetch, so the
+        // page goes to the app, whose yt-dlp reads it.
+        "this page, through the dm app".to_string()
+    };
+    Some(Offer {
+        title,
+        sub,
+        page: !handable(src),
+    })
+}
+
+/// Where the panel goes: inside the element's top right corner, kept on
+/// screen. All in CSS pixels of the viewport.
+pub fn panel_at(
+    element: (f64, f64, f64, f64),
+    panel: (f64, f64),
+    viewport: (f64, f64),
+) -> (f64, f64) {
+    let (left, top, width, _height) = element;
+    let (panel_w, panel_h) = panel;
+    let (view_w, view_h) = viewport;
+    let margin = 8.0;
+    let x = (left + width - panel_w - margin)
+        .min(view_w - panel_w - margin)
+        .max(margin);
+    let y = (top + margin).min(view_h - panel_h - margin).max(margin);
+    // A NaN from a page's odd layout lands in the corner, not off screen.
+    (
+        if x.is_finite() { x } else { margin },
+        if y.is_finite() { y } else { margin },
+    )
+}
+
+/// What the page script sends when the panel is clicked.
+#[derive(Deserialize, Default, Debug, Clone)]
+#[serde(default, rename_all = "camelCase")]
+pub struct PanelClick {
+    #[serde(rename = "type")]
+    pub kind: String,
+    pub src: String,
+    /// The address of the frame the player is in.
+    pub frame: String,
+    /// The quality picked from the panel's list, and what the list said.
+    pub quality: Option<String>,
+    pub label: Option<String>,
+}
+
+/// The page script asking what qualities a player's video comes in.
+pub const FORMATS_MESSAGE: &str = "dm.formats";
+
+/// One line of the panel's list: the format and size.
+pub fn choice_line(label: &str, size: Option<u64>) -> String {
+    match size {
+        Some(bytes) => format!("{label} — {}", human_size(bytes)),
+        None => label.to_string(),
+    }
+}
+
+/// Bytes the way a download list says them.
+pub fn human_size(bytes: u64) -> String {
+    const UNITS: [&str; 4] = ["KB", "MB", "GB", "TB"];
+    if bytes < 1024 {
+        return format!("{bytes} B");
+    }
+    let mut value = bytes as f64 / 1024.0;
+    let mut unit = 0;
+    while value >= 1024.0 && unit + 1 < UNITS.len() {
+        value /= 1024.0;
+        unit += 1;
+    }
+    let unit = UNITS.get(unit).copied().unwrap_or("TB");
+    if value < 10.0 {
+        format!("{value:.1} {unit}")
+    } else {
+        format!("{value:.0} {unit}")
+    }
+}
+
+/// The message type a panel click is sent as.
+pub const PANEL_MESSAGE: &str = "dm.media";
+
+/// Alt-click: a link clicked with Alt held is left to the browser.
+/// The page script says so before the browser starts the download.
+pub const SKIP_MESSAGE: &str = "dm.skip";
+
+/// The address an Alt-click asks to leave with the browser, if it is one a
+/// download could come from.
+pub fn skip_url(click: &PanelClick) -> Result<String, String> {
+    if click.kind != SKIP_MESSAGE {
+        return Err("that is not an Alt-click".into());
+    }
+    let url = click.src.trim();
+    if url.starts_with("https://") || url.starts_with("http://") {
+        Ok(url.to_string())
+    } else {
+        Err("only a web address is a download to leave alone".into())
+    }
+}
+
+/// What a panel click hands over: the file, or the page for a player that
+/// has none. `tab_url` is the top page, as the browser says it.
+pub fn panel_target(click: &PanelClick, tab_url: &str) -> Result<Target, String> {
+    if click.kind != PANEL_MESSAGE && click.kind != FORMATS_MESSAGE {
+        return Err("that is not a message from dm's panel".into());
+    }
+    let menu = MenuClick {
+        menu_item_id: Value::String(MENU_MEDIA.to_string()),
+        src_url: Some(click.src.clone()),
+        page_url: Some(tab_url.to_string()),
+        frame_url: Some(click.frame.clone()).filter(|f| !f.is_empty() && f != tab_url),
+        ..MenuClick::default()
+    };
+    menu_target(&menu)
+}
+
+/* ---------------------------------------------------- the panel's sites */
+
+/// Whether downloads are caught at all, as the toolbar popup's switch sets
+/// it in the extension's local storage. Absent means on.
+pub const CATCHING_KEY: &str = "dm.catching";
+
+/// The toolbar popup asking how the app is, and asking it to show itself.
+pub const STATUS_MESSAGE: &str = "dm.status";
+pub const OPEN_MESSAGE: &str = "dm.open";
+
+/// Where the sites the panel is kept off are stored, in the extension's
+/// local storage: read by the page script, written by its × menu and the
+/// toolbar popup.
+pub const PANEL_OFF_KEY: &str = "dm.panel.off";
+
+/// The site a page is on, as a person names it: its host, without `www.`.
+pub fn site_of(url: &str) -> Option<String> {
+    let rest = url.split_once("://")?.1;
+    let host = rest.split(['/', '?', '#']).next()?;
+    let host = host.rsplit_once('@').map_or(host, |(_, h)| h);
+    let host = if host.starts_with('[') {
+        host
+    } else {
+        host.split(':').next().unwrap_or(host)
+    };
+    let host = host.trim_end_matches('.').to_ascii_lowercase();
+    let host = host.strip_prefix("www.").unwrap_or(&host).to_string();
+    (!host.is_empty()).then_some(host)
+}
+
+/// Whether the panel is kept off the page at `url`: its site is listed, or
+/// a site it is part of (`m.e.com` under `e.com`).
+pub fn panel_off(off: &[String], url: &str) -> bool {
+    site_listed(off, url)
+}
+
+/// Where the sites whose every download is taken are kept, from the toolbar
+/// popup: "Take every download from this site".
+pub const CATCH_ALL_KEY: &str = "dm.catch.all";
+
+/// Whether every download from the site at `url` is taken, whatever the
+/// app's catch rules say about its type or size: its site is listed, or a
+/// site it is part of. The app is still asked, and still refuses what only
+/// the browser can fetch.
+pub fn forced(all: &[String], url: &str) -> bool {
+    site_listed(all, url)
+}
+
+/// Where the sites whose sign-in (their cookies) goes to dm with a download
+/// are kept, from the toolbar popup: "Hand over this site's sign-in". The
+/// browser's `cookies` permission is asked for the first time one is
+/// switched on, and only then.
+pub const COOKIES_SITES_KEY: &str = "dm.cookies.sites";
+
+/// Whether the site at `url` is one whose cookies go with its downloads.
+pub fn cookies_wanted(sites: &[String], url: &str) -> bool {
+    site_listed(sites, url)
+}
+
+/// One cookie as the browser lists it.
+#[derive(Deserialize, Default, Debug, Clone, PartialEq)]
+#[serde(default)]
+pub struct BrowserCookie {
+    pub name: String,
+    pub value: String,
+}
+
+/// The `Cookie` header a browser would send from these, name=value pairs
+/// joined by "; ". Nothing with a line break can be a header.
+pub fn cookie_header(cookies: &[BrowserCookie]) -> String {
+    cookies
+        .iter()
+        .filter(|c| !c.name.is_empty())
+        .map(|c| format!("{}={}", c.name, c.value))
+        .map(|pair| pair.replace(['\r', '\n'], ""))
+        .collect::<Vec<_>>()
+        .join("; ")
+}
+
+/// Whether `url`'s site is in `list`, or is part of a site that is.
+pub fn site_listed(list: &[String], url: &str) -> bool {
+    let Some(site) = site_of(url) else {
+        return false;
+    };
+    list.iter().any(|listed| {
+        site == *listed
+            || site
+                .strip_suffix(listed.as_str())
+                .is_some_and(|before| before.ends_with('.'))
+    })
+}
+
+/// The list with `site` added (`off`) or taken out, sorted, once each.
+pub fn with_site(off: &[String], site: &str, keep_off: bool) -> Vec<String> {
+    let mut list: Vec<String> = off.iter().filter(|s| s.as_str() != site).cloned().collect();
+    if keep_off {
+        list.push(site.to_string());
+    }
+    list.sort();
+    list.dedup();
+    list.truncate(1000);
+    list
+}
+
+/* ------------------------------------------------------- streams seen */
+
+/// One header of a `webRequest` response.
+#[derive(Deserialize, Default, Debug, Clone)]
+#[serde(default)]
+pub struct Header {
+    pub name: String,
+    pub value: Option<String>,
+}
+
+/// A response the browser received, as `webRequest.onResponseStarted`
+/// reports it. Read for media, to find a player's stream on sites no page
+/// reader knows.
+#[derive(Deserialize, Default, Debug, Clone)]
+#[serde(default, rename_all = "camelCase")]
+pub struct Seen {
+    pub url: String,
+    pub tab_id: i64,
+    #[serde(rename = "type")]
+    pub kind: String,
+    pub status_code: u16,
+    pub response_headers: Vec<Header>,
+}
+
+/// What kind of media a stream is, which decides how the app fetches it.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, Deserialize)]
+pub enum StreamKind {
+    /// An HLS playlist: the app fetches its segments and joins them.
+    Hls,
+    /// A DASH manifest: the app hands it to yt-dlp, which joins picture and
+    /// sound.
+    Dash,
+    /// A whole audio or video file.
+    File,
+}
+
+/// Media a page loaded, offered in the panel beside what yt-dlp reads.
+#[derive(Debug, Clone, PartialEq, serde::Serialize, Deserialize)]
+pub struct Stream {
+    pub url: String,
+    pub kind: StreamKind,
+    pub size: Option<u64>,
+    pub label: String,
+}
+
+/// A whole file smaller than this is a thumbnail, a sound effect or an ad
+/// beacon, not something a person came to download.
+pub const STREAM_FLOOR: u64 = 1024 * 1024;
+
+/// The media in a response, if it is a stream or a whole media file worth
+/// offering. Pieces are not: an HLS or DASH segment, and a range of a
+/// longer file that does not start at its beginning (a player fetching a
+/// file in parts, as YouTube does), are parts of something else.
+pub fn stream_seen(seen: &Seen) -> Option<Stream> {
+    if seen.tab_id < 0 || !is_web(&seen.url) || !(200..300).contains(&seen.status_code) {
+        return None;
+    }
+    let header = |name: &str| {
+        seen.response_headers
+            .iter()
+            .find(|h| h.name.eq_ignore_ascii_case(name))
+            .and_then(|h| h.value.as_deref())
+            .map(str::trim)
+    };
+    let mime = header("content-type")
+        .and_then(|v| v.split(';').next())
+        .unwrap_or("")
+        .trim()
+        .to_ascii_lowercase();
+    let path = seen
+        .url
+        .split(['?', '#'])
+        .next()
+        .unwrap_or("")
+        .to_ascii_lowercase();
+    let name = path.rsplit('/').next().unwrap_or("").to_string();
+    let ext = name
+        .rsplit_once('.')
+        .map(|(_, e)| e.to_string())
+        .unwrap_or_default();
+
+    if mime.contains("mpegurl") || ext == "m3u8" {
+        return Some(Stream {
+            url: seen.url.clone(),
+            kind: StreamKind::Hls,
+            size: None,
+            label: "HLS stream".into(),
+        });
+    }
+    if mime.contains("dash+xml") || ext == "mpd" {
+        return Some(Stream {
+            url: seen.url.clone(),
+            kind: StreamKind::Dash,
+            size: None,
+            label: "DASH stream".into(),
+        });
+    }
+
+    let media = mime.starts_with("video/") || mime.starts_with("audio/");
+    let segment = matches!(ext.as_str(), "ts" | "m4s" | "m4f" | "cmfv" | "cmfa")
+        || mime == "video/mp2t"
+        || mime.contains("iso.segment")
+        // Players that ask for a file in pieces name the piece in the
+        // address; the piece is not the file.
+        || seen.url.contains("range=")
+        || seen.url.contains("&rn=");
+    if !media || segment {
+        return None;
+    }
+    // The whole length: a range answer says it after the slash, and is the
+    // file only if it starts at its first byte.
+    let size = match header("content-range") {
+        Some(range) => {
+            let (span, total) = range.trim_start_matches("bytes").trim().split_once('/')?;
+            if !span.trim().starts_with("0-") {
+                return None;
+            }
+            total.trim().parse::<u64>().ok()
+        }
+        None => header("content-length").and_then(|v| v.parse::<u64>().ok()),
+    };
+    if size.is_some_and(|bytes| bytes < STREAM_FLOOR) {
+        return None;
+    }
+    let format = if ext.is_empty() || ext.len() > 5 {
+        mime.split('/')
+            .nth(1)
+            .unwrap_or("media")
+            .to_ascii_uppercase()
+    } else {
+        ext.to_ascii_uppercase()
+    };
+    let kind = if mime.starts_with("audio/") {
+        "audio"
+    } else {
+        "video"
+    };
+    Some(Stream {
+        url: seen.url.clone(),
+        kind: StreamKind::File,
+        size,
+        label: format!("{format} {kind} file"),
+    })
+}
+
+/// The streams each tab has loaded, newest last, a few per tab.
+#[derive(Default, Debug)]
+pub struct Streams {
+    by_tab: std::collections::HashMap<i64, Vec<Stream>>,
+}
+
+/// How many streams a tab keeps: a page that loads more is cycling through
+/// renditions or adverts, and the first and latest few are what matter.
+pub const STREAMS_PER_TAB: usize = 8;
+
+impl Streams {
+    /// Takes in one response: a new page in a tab forgets the old page's
+    /// streams, and media is remembered once per address.
+    pub fn absorb(&mut self, seen: &Seen) {
+        if seen.kind == "main_frame" {
+            self.by_tab.remove(&seen.tab_id);
+            return;
+        }
+        let Some(stream) = stream_seen(seen) else {
+            return;
+        };
+        let list = self.by_tab.entry(seen.tab_id).or_default();
+        if list.iter().any(|known| known.url == stream.url) {
+            return;
+        }
+        list.push(stream);
+        if list.len() > STREAMS_PER_TAB {
+            // The first (a master playlist, usually) stays; the oldest of
+            // the rest goes.
+            list.remove(1);
+        }
+    }
+
+    pub fn forget(&mut self, tab: i64) {
+        self.by_tab.remove(&tab);
+    }
+
+    /// Whether this worker has heard anything of a tab since it started.
+    pub fn knows(&self, tab: i64) -> bool {
+        self.by_tab.contains_key(&tab)
+    }
+
+    /// A tab's streams as kept before the worker last stopped.
+    pub fn restore(&mut self, tab: i64, kept: Vec<Stream>) {
+        let mut kept = kept;
+        kept.truncate(STREAMS_PER_TAB);
+        self.by_tab.insert(tab, kept);
+    }
+
+    /// A tab's streams as remembered, newest last, for keeping.
+    pub fn raw(&self, tab: i64) -> Vec<Stream> {
+        self.by_tab.get(&tab).cloned().unwrap_or_default()
+    }
+
+    /// What a tab has loaded, for the panel's list: manifests first, which
+    /// are whole videos, then files, largest first. Two of a kind are told
+    /// apart by their file name.
+    pub fn of(&self, tab: i64) -> Vec<Stream> {
+        let mut list = self.by_tab.get(&tab).cloned().unwrap_or_default();
+        list.sort_by_key(|s| {
+            (
+                s.kind == StreamKind::File,
+                std::cmp::Reverse(s.size.unwrap_or(0)),
+            )
+        });
+        let labels: Vec<String> = list.iter().map(|s| s.label.clone()).collect();
+        for stream in &mut list {
+            if labels.iter().filter(|l| **l == stream.label).count() > 1 {
+                let name = stream
+                    .url
+                    .split(['?', '#'])
+                    .next()
+                    .unwrap_or("")
+                    .rsplit('/')
+                    .next()
+                    .unwrap_or("")
+                    .chars()
+                    .take(40)
+                    .collect::<String>();
+                if !name.is_empty() {
+                    stream.label = format!("{} · {name}", stream.label);
+                }
+            }
+        }
+        list
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use serde_json::json;
+
+    #[test]
+    fn an_ftp_link_is_handed_over_from_the_menu() {
+        assert!(handable("ftp://ftp.gnu.org/gnu/bash/bash-5.2.tar.gz"));
+        assert!(!handable("ftps://e.com/f") && !handable("file:///etc/passwd"));
+    }
+
+    #[test]
+    fn a_sites_cookies_go_with_its_downloads_only_where_switched_on() {
+        let sites = with_site(&[], "files.example", true);
+        assert!(cookies_wanted(&sites, "https://dl.files.example/a.zip"));
+        assert!(!cookies_wanted(&sites, "https://other.example/a.zip"));
+        assert!(!cookies_wanted(&[], "https://files.example/a.zip"));
+        let header = cookie_header(&[
+            BrowserCookie {
+                name: "session".into(),
+                value: "abc".into(),
+            },
+            BrowserCookie {
+                name: String::new(),
+                value: "dropped".into(),
+            },
+            BrowserCookie {
+                name: "theme".into(),
+                value: "dark\r\nX-Injected: 1".into(),
+            },
+        ]);
+        assert_eq!(header, "session=abc; theme=darkX-Injected: 1");
+        assert_eq!(cookie_header(&[]), "");
+    }
+
+    #[test]
+    fn a_site_whose_every_download_is_taken_covers_its_parts_and_nothing_else() {
+        let all = with_site(&[], "files.example", true);
+        assert!(forced(&all, "https://files.example/any.weird?x=1"));
+        assert!(forced(&all, "http://dl.files.example:8080/a"));
+        assert!(!forced(&all, "https://notfiles.example/a"));
+        assert!(!forced(&all, "https://example/a"));
+        assert!(!forced(&[], "https://files.example/a"));
+        // Taken off again.
+        assert!(!forced(
+            &with_site(&all, "files.example", false),
+            "https://files.example/a"
+        ));
+    }
+
+    #[test]
+    fn the_panel_is_kept_off_a_site_and_its_parts_and_let_back() {
+        assert_eq!(
+            site_of("https://www.Example.com:8443/watch?v=1").as_deref(),
+            Some("example.com")
+        );
+        assert_eq!(
+            site_of("http://user:pw@m.e.com/x").as_deref(),
+            Some("m.e.com")
+        );
+        assert_eq!(site_of("file:///tmp/a.html"), None);
+        let off = with_site(&[], "e.com", true);
+        assert!(panel_off(&off, "https://e.com/v"));
+        assert!(
+            panel_off(&off, "https://m.e.com/v"),
+            "a part of the site is the site"
+        );
+        assert!(
+            !panel_off(&off, "https://notme.com/v"),
+            "only the site itself"
+        );
+        assert!(!panel_off(&off, "https://e.com.evil.net/v"));
+        let back = with_site(&off, "e.com", false);
+        assert!(!panel_off(&back, "https://e.com/v"));
+        assert_eq!(
+            with_site(&with_site(&off, "e.com", true), "a.com", true),
+            vec!["a.com", "e.com"]
+        );
+    }
+
+    fn seen(url: &str, kind: &str, headers: &[(&str, &str)]) -> Seen {
+        Seen {
+            url: url.into(),
+            tab_id: 7,
+            kind: kind.into(),
+            status_code: 200,
+            response_headers: headers
+                .iter()
+                .map(|(n, v)| Header {
+                    name: (*n).into(),
+                    value: Some((*v).into()),
+                })
+                .collect(),
+        }
+    }
+
+    #[test]
+    fn a_pages_manifests_and_whole_media_files_are_streams() {
+        let hls = stream_seen(&seen(
+            "https://cdn.e.com/live/master.m3u8?token=1",
+            "xmlhttprequest",
+            &[("Content-Type", "application/vnd.apple.mpegurl")],
+        ))
+        .unwrap();
+        assert_eq!(
+            (hls.kind, hls.label.as_str()),
+            (StreamKind::Hls, "HLS stream")
+        );
+        // Named by its address alone, whatever the server calls it.
+        assert_eq!(
+            stream_seen(&seen(
+                "https://e.com/v/index.m3u8",
+                "other",
+                &[("Content-Type", "text/plain")]
+            ))
+            .map(|s| s.kind),
+            Some(StreamKind::Hls)
+        );
+        let dash = stream_seen(&seen(
+            "https://e.com/manifest",
+            "xmlhttprequest",
+            &[("content-type", "application/dash+xml")],
+        ))
+        .unwrap();
+        assert_eq!(dash.kind, StreamKind::Dash);
+
+        let file = stream_seen(&seen(
+            "https://e.com/media/talk.mp4",
+            "media",
+            &[
+                ("Content-Type", "video/mp4"),
+                ("Content-Range", "bytes 0-1048575/52428800"),
+            ],
+        ))
+        .unwrap();
+        assert_eq!(file.kind, StreamKind::File);
+        assert_eq!(file.size, Some(52_428_800));
+        assert_eq!(file.label, "MP4 video file");
+        let audio = stream_seen(&seen(
+            "https://e.com/ep1",
+            "media",
+            &[
+                ("Content-Type", "audio/mpeg"),
+                ("Content-Length", "9000000"),
+            ],
+        ))
+        .unwrap();
+        assert_eq!(audio.label, "MPEG audio file");
+    }
+
+    #[test]
+    fn pieces_of_something_else_are_not_streams() {
+        let none = |url: &str, headers: &[(&str, &str)]| {
+            stream_seen(&seen(url, "media", headers)).is_none()
+        };
+        // Segments of a stream.
+        assert!(none(
+            "https://e.com/seg-12.ts",
+            &[("Content-Type", "video/mp2t")]
+        ));
+        assert!(none(
+            "https://e.com/chunk-3.m4s",
+            &[("Content-Type", "video/mp4")]
+        ));
+        // A range further into a file, and a player's numbered pieces.
+        assert!(none(
+            "https://e.com/v.mp4",
+            &[
+                ("Content-Type", "video/mp4"),
+                ("Content-Range", "bytes 1048576-2097151/52428800")
+            ]
+        ));
+        assert!(none(
+            "https://rr1.googlevideo.com/videoplayback?itag=18&range=0-100000",
+            &[("Content-Type", "video/mp4")]
+        ));
+        // Too small to be what a person came for.
+        assert!(none(
+            "https://e.com/click.mp3",
+            &[("Content-Type", "audio/mpeg"), ("Content-Length", "20000")]
+        ));
+        // Not media, not a web address, not a success.
+        assert!(none(
+            "https://e.com/app.js",
+            &[("Content-Type", "text/javascript")]
+        ));
+        assert!(none(
+            "blob:https://e.com/1",
+            &[("Content-Type", "video/mp4")]
+        ));
+        let mut refused = seen(
+            "https://e.com/v.mp4",
+            "media",
+            &[("Content-Type", "video/mp4")],
+        );
+        refused.status_code = 403;
+        assert!(stream_seen(&refused).is_none());
+    }
+
+    #[test]
+    fn a_tab_keeps_its_streams_until_it_loads_another_page() {
+        let mut streams = Streams::default();
+        let manifest = seen("https://e.com/a/master.m3u8", "xmlhttprequest", &[]);
+        streams.absorb(&manifest);
+        streams.absorb(&manifest);
+        streams.absorb(&seen("https://e.com/b/other.m3u8", "xmlhttprequest", &[]));
+        streams.absorb(&seen(
+            "https://e.com/v.mp4",
+            "media",
+            &[("Content-Type", "video/mp4"), ("Content-Length", "9000000")],
+        ));
+        let listed = streams.of(7);
+        assert_eq!(listed.len(), 3, "the same address twice is one stream");
+        assert_eq!(
+            listed[0].label, "HLS stream · master.m3u8",
+            "two of a kind are told apart"
+        );
+        assert_eq!(listed[2].kind, StreamKind::File, "manifests first");
+        assert!(streams.of(8).is_empty(), "another tab's are its own");
+
+        streams.absorb(&seen("https://e.com/next", "main_frame", &[]));
+        assert!(streams.of(7).is_empty(), "a new page forgets the old one's");
+
+        for n in 0..20 {
+            streams.absorb(&seen(
+                &format!("https://e.com/{n}.m3u8"),
+                "xmlhttprequest",
+                &[],
+            ));
+        }
+        let kept = streams.of(7);
+        assert_eq!(kept.len(), STREAMS_PER_TAB);
+        assert!(
+            kept.iter().any(|s| s.url.ends_with("/0.m3u8")),
+            "the first is kept"
+        );
+        assert!(
+            kept.iter().any(|s| s.url.ends_with("/19.m3u8")),
+            "and the latest"
+        );
+    }
+
+    #[test]
+    fn the_panels_list_says_each_quality_and_its_size_as_a_download_list_does() {
+        assert_eq!(
+            choice_line("MP4 1280×720", Some(47_400_000)),
+            "MP4 1280×720 — 45 MB"
+        );
+        assert_eq!(
+            choice_line("M4A audio", Some(3_300_000)),
+            "M4A audio — 3.1 MB"
+        );
+        assert_eq!(choice_line("WEBM 3840×2160", None), "WEBM 3840×2160");
+        assert_eq!(human_size(900), "900 B");
+        assert_eq!(human_size(1536), "1.5 KB");
+        assert_eq!(human_size(5 * 1024 * 1024 * 1024), "5.0 GB");
+        let player = offer(&Media {
+            tag: "VIDEO".into(),
+            src: "blob:https://www.youtube.com/abc".into(),
+            width: 800.0,
+            height: 450.0,
+        })
+        .unwrap();
+        assert!(player.page, "a player page has qualities to list");
+        let file = offer(&Media {
+            tag: "VIDEO".into(),
+            src: "https://cdn.example/clip.mp4".into(),
+            width: 800.0,
+            height: 450.0,
+        })
+        .unwrap();
+        assert!(!file.page, "a file is one quality");
+    }
+
+    #[test]
+    fn a_pages_links_are_listed_once_each_and_only_the_web_ones() {
+        let page = "https://e.com/list.html";
+        let hrefs: Vec<String> = [
+            "https://e.com/a.zip",
+            "https://e.com/a.zip#mirror",
+            "mailto:me@e.com",
+            "javascript:void(0)",
+            "https://e.com/list.html#top",
+            "http://cdn.e.com/b.iso",
+            " https://e.com/c.pdf ",
+        ]
+        .iter()
+        .map(|s| s.to_string())
+        .collect();
+        assert_eq!(
+            links_from(&hrefs, page),
+            [
+                "https://e.com/a.zip",
+                "http://cdn.e.com/b.iso",
+                "https://e.com/c.pdf"
+            ]
+        );
+        let many: Vec<String> = (0..5000)
+            .map(|n| format!("https://e.com/{n}.bin"))
+            .collect();
+        assert_eq!(links_from(&many, page).len(), MOST_LINKS);
+        let ids: Vec<&str> = MENUS.iter().map(|(id, _, _)| *id).collect();
+        assert!(ids.contains(&MENU_ALL_LINKS) && ids.contains(&MENU_SELECTED_LINKS));
+    }
+
+    #[test]
+    fn an_alt_click_leaves_a_web_address_with_the_browser_and_nothing_else() {
+        let click = |kind: &str, src: &str| PanelClick {
+            kind: kind.into(),
+            src: src.into(),
+            ..PanelClick::default()
+        };
+        assert_eq!(
+            skip_url(&click(SKIP_MESSAGE, " https://e.com/f.zip ")),
+            Ok("https://e.com/f.zip".to_string())
+        );
+        assert!(skip_url(&click(SKIP_MESSAGE, "javascript:void(0)")).is_err());
+        assert!(skip_url(&click(PANEL_MESSAGE, "https://e.com/f.zip")).is_err());
+        let mut released = Released::default();
+        released.remember("https://e.com/f.zip", 0.0);
+        assert!(
+            released.take("https://e.com/f.zip", 10.0),
+            "let through once"
+        );
+        assert!(!released.take("https://e.com/f.zip", 20.0), "and only once");
+    }
+
+    const OWN: &str = "ownextensionid";
+
+    fn item(value: Value) -> DownloadItem {
+        serde_json::from_value(value).unwrap()
+    }
+
+    #[test]
+    fn a_chrome_download_item_is_read_as_chrome_sends_it() {
+        let found = first_look(
+            &item(json!({
+                "id": 7, "url": "https://e.com/get?id=1", "finalUrl": "https://cdn.e.com/f.zip",
+                "referrer": "https://e.com/page", "filename": "", "mime": "application/zip",
+                "fileSize": 2048, "totalBytes": 2048, "state": "in_progress", "incognito": false,
+                "danger": "safe", "exists": true,
+            })),
+            OWN,
+        )
+        .unwrap();
+        assert_eq!(found.id, 7);
+        assert_eq!(
+            found.url, "https://cdn.e.com/f.zip",
+            "where the redirects ended"
+        );
+        assert_eq!(found.referrer, "https://e.com/page");
+        assert_eq!(found.size, Some(2048));
+    }
+
+    #[test]
+    fn a_firefox_download_item_with_nulls_is_read_too() {
+        // Firefox has no finalUrl, sends null for an absent referrer, and -1
+        // for a size it does not know.
+        let found = first_look(
+            &item(json!({
+                "id": 3, "url": "https://e.com/f.iso", "referrer": null,
+                "filename": "/home/x/Downloads/f.iso", "mime": null,
+                "fileSize": -1, "totalBytes": -1, "state": "in_progress",
+            })),
+            OWN,
+        )
+        .unwrap();
+        assert_eq!(found.url, "https://e.com/f.iso");
+        assert_eq!(found.referrer, "");
+        assert_eq!(found.size, None);
+    }
+
+    #[test]
+    fn what_dm_restarted_itself_is_never_caught_again() {
+        let ours = item(json!({ "id": 1, "url": "https://e.com/f.zip", "byExtensionId": OWN }));
+        assert!(first_look(&ours, OWN).is_err());
+        let theirs = item(json!({ "id": 1, "url": "https://e.com/f.zip", "byExtensionId": "x" }));
+        assert!(first_look(&theirs, OWN).is_ok());
+    }
+
+    #[test]
+    fn finished_private_and_non_web_downloads_stay_with_the_browser() {
+        for left in [
+            json!({ "id": 1, "url": "https://e.com/f.zip", "state": "complete" }),
+            json!({ "id": 1, "url": "https://e.com/f.zip", "state": "interrupted" }),
+            json!({ "id": 1, "url": "https://e.com/f.zip", "incognito": true }),
+            json!({ "id": 1, "url": "blob:https://e.com/1234" }),
+            json!({ "id": 1, "url": "data:application/zip;base64,AAAA" }),
+            json!({ "id": 1, "url": "file:///etc/passwd" }),
+            json!({ "url": "https://e.com/f.zip" }),
+        ] {
+            assert!(first_look(&item(left.clone()), OWN).is_err(), "{left}");
+        }
+    }
+
+    #[test]
+    fn a_link_is_handed_with_the_page_it_was_on() {
+        let click = MenuClick {
+            menu_item_id: json!(MENU_LINK),
+            link_url: Some("https://e.com/f.zip".into()),
+            page_url: Some("https://e.com/list".into()),
+            ..Default::default()
+        };
+        assert_eq!(
+            menu_target(&click),
+            Ok(Target {
+                url: "https://e.com/f.zip".into(),
+                referrer: "https://e.com/list".into(),
+                page: false,
+            })
+        );
+    }
+
+    #[test]
+    fn a_magnet_link_is_handed_over_and_a_javascript_one_is_not() {
+        let mut click = MenuClick {
+            menu_item_id: json!(MENU_LINK),
+            link_url: Some("magnet:?xt=urn:btih:abc".into()),
+            ..Default::default()
+        };
+        assert!(menu_target(&click).is_ok());
+        click.link_url = Some("javascript:void(0)".into());
+        let refused = menu_target(&click).unwrap_err();
+        assert!(refused.contains("javascript:"), "{refused}");
+    }
+
+    #[test]
+    fn media_with_a_real_source_is_a_file_and_a_blob_source_is_its_page() {
+        let mut click = MenuClick {
+            menu_item_id: json!(MENU_MEDIA),
+            src_url: Some("https://cdn.e.com/clip.mp4".into()),
+            page_url: Some("https://e.com/watch?v=1".into()),
+            ..Default::default()
+        };
+        let file = menu_target(&click).unwrap();
+        assert_eq!(file.url, "https://cdn.e.com/clip.mp4");
+        assert!(!file.page);
+
+        click.src_url = Some("blob:https://e.com/5c1d".into());
+        let page = menu_target(&click).unwrap();
+        assert_eq!(page.url, "https://e.com/watch?v=1");
+        assert!(page.page, "a player page goes to the app's yt-dlp");
+
+        // In a frame, the frame is the player's page.
+        click.frame_url = Some("https://player.e.com/embed/1".into());
+        assert_eq!(
+            menu_target(&click).unwrap().url,
+            "https://player.e.com/embed/1"
+        );
+    }
+
+    #[test]
+    fn no_menu_item_hands_over_a_whole_page() {
+        // Links, media and selections, but no
+        // item that downloads whatever page is open.
+        assert!(MENUS.iter().all(|(id, _, _)| *id != "dm-page"));
+        assert!(MENUS
+            .iter()
+            .all(|(_, _, contexts)| !contexts.contains(&"page") || contexts.len() == 1));
+    }
+
+    #[test]
+    fn a_click_on_something_else_is_refused_with_its_name() {
+        let click = MenuClick {
+            menu_item_id: json!("someone-elses"),
+            ..Default::default()
+        };
+        assert!(menu_target(&click).unwrap_err().contains("someone-elses"));
+    }
+
+    #[test]
+    fn a_hand_off_is_filed_under_a_plain_name() {
+        let id = hand_id("b", 42, 1_700_000_000_123.0);
+        assert_eq!(id, "b42-1700000000123");
+        assert!(id.chars().all(|c| c.is_ascii_alphanumeric() || c == '-'));
+    }
+
+    #[test]
+    fn the_fix_named_is_the_one_for_this_browser() {
+        // The unpacked build's id is the one --register assumes; any other
+        // has to be named.
+        assert!(absent_text("x", CHROME_EXTENSION_ID, false).ends_with("dm-desktop --register"));
+        assert!(absent_text("x", "storeid", false).ends_with("dm-desktop --register storeid"));
+        assert!(absent_text("x", "dm@localhost", true).ends_with("dm-desktop --register"));
+        assert!(absent_text("not found", "a", false).contains("(not found)"));
+    }
+
+    #[test]
+    fn an_answer_about_the_app_lasts_as_long_as_it_should() {
+        let present = Known {
+            app: App::Present {
+                hello: Hello::default(),
+                rules: CatchRules::default(),
+            },
+            at_ms: 1000.0,
+        };
+        assert!(present.fresh(1000.0 + PRESENT_FOR_MS - 1.0));
+        assert!(!present.fresh(1000.0 + PRESENT_FOR_MS));
+        assert!(!present.fresh(999.0), "a clock that went backwards");
+
+        let absent = Known {
+            app: App::Absent { reason: "x".into() },
+            at_ms: 0.0,
+        };
+        assert!(absent.fresh(ABSENT_FOR_MS - 1.0));
+        assert!(
+            !absent.fresh(ABSENT_FOR_MS),
+            "an app installed since is found"
+        );
+    }
+
+    fn hello() -> Value {
+        json!({ "protocolVersion": 1, "type": "engine.hello", "engineVersion": "0.1.0", "ytdlp": true })
+    }
+
+    #[test]
+    fn a_handshake_is_whole_with_a_hello_and_the_rules() {
+        let mut probe = Probe::default();
+        probe.absorb(&hello());
+        assert!(probe.has_hello());
+        assert_eq!(probe.finished(), None, "still waiting for the rules");
+        probe.absorb(&json!({
+            "protocolVersion": 1, "type": "settings.get",
+            "catch": { "enabled": true, "extensions": ["bin"], "minSizeKb": 0, "skipHosts": [] },
+        }));
+        let Some(App::Present { hello, rules }) = probe.finished() else {
+            panic!("not present")
+        };
+        assert_eq!(hello.ytdlp, Some(true));
+        assert_eq!(rules.extensions, vec!["bin".to_string()]);
+    }
+
+    #[test]
+    fn a_host_too_old_to_send_rules_gets_the_defaults_and_no_host_is_absent() {
+        let mut probe = Probe::default();
+        probe.absorb(&hello());
+        assert_eq!(
+            probe.give_up("timed out"),
+            App::Present {
+                hello: Hello {
+                    engine_version: "0.1.0".into(),
+                    ytdlp: Some(true)
+                },
+                rules: CatchRules::default(),
+            }
+        );
+        assert_eq!(
+            Probe::default().give_up("Specified native messaging host not found."),
+            App::Absent {
+                reason: "Specified native messaging host not found.".into()
+            }
+        );
+    }
+
+    #[test]
+    fn a_host_of_another_protocol_is_treated_as_no_host() {
+        let mut probe = Probe::default();
+        probe.absorb(&json!({ "protocolVersion": 2, "type": "engine.hello" }));
+        let Some(App::Absent { reason }) = probe.finished() else {
+            panic!("a host of another version was used")
+        };
+        assert!(reason.contains("version 2"), "{reason}");
+    }
+
+    #[test]
+    fn only_the_answer_about_this_hand_off_counts() {
+        let started = json!({ "protocolVersion": 1, "type": "download.started", "id": "b1-2" });
+        assert_eq!(taken(&started, "b1-2"), Some(Ok(())));
+        assert_eq!(taken(&started, "b9-9"), None);
+        let failed = json!({
+            "protocolVersion": 1, "type": "download.failed", "id": "b1-2",
+            "failure": { "message": "dm could not take it: disk full" },
+        });
+        assert_eq!(
+            taken(&failed, "b1-2"),
+            Some(Err("dm could not take it: disk full".into()))
+        );
+        let bare = json!({ "protocolVersion": 1, "type": "download.failed", "id": "b1-2" });
+        assert!(matches!(taken(&bare, "b1-2"), Some(Err(m)) if !m.is_empty()));
+        assert_eq!(taken(&hello(), "b1-2"), None);
+    }
+
+    #[test]
+    fn a_url_given_back_is_let_through_once_and_not_for_ever() {
+        let mut released = Released::default();
+        released.remember("https://e.com/f.zip", 0.0);
+        assert!(released.take("https://e.com/f.zip", 10.0));
+        assert!(!released.take("https://e.com/f.zip", 20.0), "only once");
+
+        released.remember("https://e.com/g.zip", 0.0);
+        assert!(!released.take("https://e.com/g.zip", RELEASED_FOR_MS + 1.0));
+    }
+
+    #[test]
+    fn the_menus_cover_links_media_and_the_page() {
+        let contexts: Vec<&str> = MENUS
+            .iter()
+            .flat_map(|(_, _, c)| c.iter().copied())
+            .collect();
+        for needed in ["link", "video", "audio", "page"] {
+            assert!(contexts.contains(&needed), "{needed}");
+        }
+    }
+
+    #[test]
+    fn the_panel_is_for_real_players_only() {
+        let video = |w: f64, h: f64, src: &str| Media {
+            tag: "VIDEO".into(),
+            src: src.into(),
+            width: w,
+            height: h,
+        };
+        assert_eq!(
+            offer(&video(640.0, 360.0, "https://cdn.e.com/v/clip.mp4")),
+            Some(Offer {
+                title: "Download video",
+                sub: "cdn.e.com".into(),
+                page: false,
+            })
+        );
+        assert!(
+            offer(&video(120.0, 90.0, "https://e.com/a.mp4")).is_none(),
+            "an avatar got a panel"
+        );
+        assert!(offer(&video(f64::NAN, 400.0, "https://e.com/a.mp4")).is_none());
+        let player = offer(&video(800.0, 450.0, "blob:https://www.e.com/1f0a")).unwrap();
+        assert!(player.sub.contains("through the dm app"));
+        let audio = Media {
+            tag: "audio".into(),
+            src: "https://e.com/song.mp3".into(),
+            width: 300.0,
+            height: 40.0,
+        };
+        assert_eq!(offer(&audio).map(|o| o.title), Some("Download this audio"));
+        assert!(offer(&Media {
+            tag: "img".into(),
+            ..audio
+        })
+        .is_none());
+    }
+
+    #[test]
+    fn the_panel_sits_in_the_players_corner_and_stays_on_screen() {
+        // Inside the top right of a player in the middle of the page.
+        assert_eq!(
+            panel_at((100.0, 50.0, 640.0, 360.0), (220.0, 44.0), (1200.0, 800.0)),
+            (512.0, 58.0)
+        );
+        // A player wider than the window: kept inside the window.
+        let (x, _) = panel_at((0.0, 0.0, 3000.0, 400.0), (220.0, 44.0), (1200.0, 800.0));
+        assert_eq!(x, 1200.0 - 220.0 - 8.0);
+        // A player scrolled above the top: the panel stays visible.
+        let (_, y) = panel_at((0.0, -300.0, 640.0, 360.0), (220.0, 44.0), (1200.0, 800.0));
+        assert_eq!(y, 8.0);
+        assert_eq!(
+            panel_at((f64::NAN, 0.0, 10.0, 10.0), (1.0, 1.0), (10.0, 10.0)).0,
+            8.0
+        );
+    }
+
+    #[test]
+    fn a_panel_click_hands_the_file_or_the_page() {
+        let click = |src: &str, frame: &str| PanelClick {
+            kind: PANEL_MESSAGE.into(),
+            src: src.into(),
+            frame: frame.into(),
+            ..PanelClick::default()
+        };
+        let page = "https://www.e.com/watch?v=1";
+        let file = panel_target(&click("https://cdn.e.com/clip.mp4", page), page).unwrap();
+        assert_eq!(
+            (file.url.as_str(), file.referrer.as_str(), file.page),
+            ("https://cdn.e.com/clip.mp4", page, false)
+        );
+        let player = panel_target(&click("blob:https://www.e.com/x", page), page).unwrap();
+        assert_eq!((player.url.as_str(), player.page), (page, true));
+        // An embedded player hands its own frame's page, which is the one
+        // that knows the video.
+        let embedded = panel_target(
+            &click(
+                "blob:https://player.v.com/x",
+                "https://player.v.com/embed/9",
+            ),
+            page,
+        )
+        .unwrap();
+        assert_eq!(embedded.url, "https://player.v.com/embed/9");
+        assert!(panel_target(
+            &PanelClick {
+                kind: "other".into(),
+                ..click("https://e.com/a.mp4", "")
+            },
+            page
+        )
+        .is_err());
+    }
+}

@@ -1,0 +1,11 @@
+[Desktop Entry]
+Type=Application
+Name=dm
+GenericName=Download Manager
+Comment=Download files over many connections, with resume and a queue
+Exec=dm %u
+Icon=dm
+Terminal=false
+Categories=Network;FileTransfer;
+Keywords=download;manager;http;resume;
+StartupWMClass=dm

@@ -1,0 +1,94 @@
+name: Release
+
+# Tag a commit to publish the extension:  git tag v2.0.0 && git push --tags
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version to build (without the leading v)'
+        required: true
+        default: '0.0.0-test'
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    name: Build and publish the extension
+    runs-on: ubuntu-latest
+    # The addons.mozilla.org API key (Developer Hub › Manage API Keys). With
+    # it, the Firefox build is signed for self-distribution; without it the
+    # release still goes out, with the unsigned zip only.
+    env:
+      AMO_JWT_ISSUER: ${{ secrets.AMO_JWT_ISSUER }}
+      AMO_JWT_SECRET: ${{ secrets.AMO_JWT_SECRET }}
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+
+      - uses: dtolnay/rust-toolchain@b725eda525362e7cf34af9a7243cac1e3f01a7ec # stable
+        with:
+          toolchain: stable
+          targets: wasm32-unknown-unknown
+
+      # A release that ships a broken build helps nobody, so the same suite
+      # that guards a pull request guards a tag.
+      - name: Tests
+        working-directory: browser
+        run: cargo test
+
+      # The version in the manifest is what browsers show and what the store
+      # orders uploads by; a tag that disagrees with it would publish a build
+      # named something other than the tag it came from.
+      - name: Check the tag matches the manifest
+        if: startsWith(github.ref, 'refs/tags/v')
+        run: |
+          set -e
+          tag="${GITHUB_REF_NAME#v}"
+          manifest=$(python3 -c "import json; print(json.load(open('extension/manifest.json'))['version'])")
+          if [ "$tag" != "$manifest" ]; then
+            echo "tag v$tag does not match manifest version $manifest"
+            exit 1
+          fi
+          echo "v$tag matches the manifest"
+
+      - name: Build both store zips
+        run: sh scripts/package.sh
+
+      # Unlisted: Mozilla signs it but does not list it in its store, so it is
+      # handed out here and installs permanently from the .xpi. The WebAssembly
+      # is compiled, so the source it came from goes up beside it for review.
+      - name: Sign the Firefox build with Mozilla
+        if: env.AMO_JWT_ISSUER != '' && startsWith(github.ref, 'refs/tags/v')
+        run: |
+          set -e
+          git archive --format=zip -o dist/source.zip HEAD
+          npx --yes web-ext@8.3.0 sign --channel=unlisted \
+            --source-dir dist/firefox --artifacts-dir dist/signed \
+            --upload-source-code dist/source.zip \
+            --api-key "$AMO_JWT_ISSUER" --api-secret "$AMO_JWT_SECRET"
+          rm dist/source.zip
+          ls dist/signed
+
+      - name: Publish
+        uses: softprops/action-gh-release@3bb12739c298aeb8a4eeaf626c5b8d85266b0e65 # v2
+        with:
+          files: |
+            dist/*.zip
+            dist/signed/*.xpi
+          generate_release_notes: true
+          # The desktop updater reads `releases/latest/download/latest.json`,
+          # and an extension release marked latest would answer that with
+          # nothing. Only desktop releases are ever "latest".
+          make_latest: false
+          body: |
+            Install the extension from the zip for your browser.
+
+            **Chrome, Edge, Brave, Vivaldi, Opera** — unpack it, open
+            `chrome://extensions`, turn on Developer mode, and use
+            *Load unpacked*.
+
+            **Firefox** — open the `.xpi` with Firefox and choose *Add*. It
+            is signed by Mozilla and stays installed. (If a release has no
+            `.xpi`, `about:debugging` loads the zip for the session only.)
