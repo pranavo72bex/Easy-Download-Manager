@@ -58,7 +58,7 @@ pub use torrent::is_torrent;
 /// said, because "it failed" sends people looking in the wrong place.
 #[derive(Debug, thiserror::Error)]
 pub enum Error {
-    #[error("the server answered {status} for {url}{}", if .body.is_empty() { String::new() } else { format!(" — {body}") })]
+    #[error("the server answered {} for {url}{}", status_line(*.status), if .body.is_empty() { String::new() } else { format!(" — {body}") })]
     Refused {
         status: u16,
         url: String,
@@ -187,11 +187,14 @@ impl Error {
         .await;
         drop(res);
         head.truncate(MOST);
-        let body = readable(
-            &String::from_utf8_lossy(&head)
-                .chars()
-                .take(16_000)
-                .collect::<String>(),
+        let body = worth_saying(
+            &readable(
+                &String::from_utf8_lossy(&head)
+                    .chars()
+                    .take(16_000)
+                    .collect::<String>(),
+            ),
+            status,
         );
         Error::Refused {
             status,
@@ -199,6 +202,68 @@ impl Error {
             body,
             retry_after,
         }
+    }
+}
+
+/// A status as a person reads it: "404 Not Found", not "404".
+fn status_line(status: u16) -> String {
+    match reqwest::StatusCode::from_u16(status)
+        .ok()
+        .and_then(|s| s.canonical_reason())
+    {
+        Some(reason) => format!("{status} {reason}"),
+        None => status.to_string(),
+    }
+}
+
+/// What a refusal's body adds to its status, or nothing when it adds
+/// nothing. Most error pages only restate the status in the server's
+/// boilerplate: Python's "Error response Error code: 404 Message: File not
+/// found. Error code explanation: …", nginx's "404 Not Found nginx/1.24",
+/// Go's "404 page not found". A failed row read like a stack of them; it
+/// now says "the server answered 404 Not Found", and keeps a body that
+/// says something of its own ("Too many requests, please contact …").
+fn worth_saying(body: &str, status: u16) -> String {
+    // Python's http.server: boilerplate around a message, which is its own
+    // ("Token expired") or a restatement ("File not found"). Only the
+    // message is judged, and said (gap 81).
+    let body = match body.strip_prefix("Error response Error code:") {
+        Some(rest) => {
+            let message = rest.split_once("Message:").map_or("", |(_, m)| m);
+            let message = message
+                .split_once("Error code explanation:")
+                .map_or(message, |(m, _)| m);
+            message.trim().trim_end_matches('.').trim()
+        }
+        None => body,
+    };
+    let lower = body.to_ascii_lowercase();
+    let reason = reqwest::StatusCode::from_u16(status)
+        .ok()
+        .and_then(|s| s.canonical_reason())
+        .unwrap_or_default()
+        .to_ascii_lowercase();
+    let code = status.to_string();
+    let rest = lower.replace(&reason, " ").replace(&code, " ");
+    const FILLER: [&str; 9] = [
+        "error", "page", "response", "http", "status", "code", "the", "message", "file",
+    ];
+    // What is left once the status and its filler are gone; a server's
+    // signature ("nginx/1.24.0") is not a reason either.
+    let said = rest
+        .split(|c: char| !c.is_alphanumeric() && c != '/' && c != '.')
+        .map(|word| word.trim_matches('.'))
+        .filter(|word| !FILLER.contains(word))
+        .filter(|word| {
+            !word
+                .split_once('/')
+                .is_some_and(|(_, version)| version.starts_with(|c: char| c.is_ascii_digit()))
+        })
+        .any(|word| word.chars().any(char::is_alphanumeric));
+    if said {
+        body.to_string()
+    } else {
+        String::new()
     }
 }
 
@@ -609,6 +674,44 @@ mod tests {
         let long = "word ".repeat(100);
         let cut = readable(&long);
         assert!(cut.ends_with('…') && cut.chars().count() <= 201, "{cut}");
+    }
+
+    /// Gap 69: a failed row carried the server's error page —
+    /// "Error response Error code: 404 Message: File not found. …" — where
+    /// "404 Not Found" says it all. A body with a sentence of its own stays.
+    #[test]
+    fn an_error_page_that_only_restates_the_status_is_not_repeated() {
+        let python = "<!DOCTYPE HTML><html lang=\"en\"><head><meta charset=\"utf-8\">\
+            <title>Error response</title></head><body><h1>Error response</h1>\
+            <p>Error code: 404</p><p>Message: File not found.</p>\
+            <p>Error code explanation: 404 - Nothing matches the given URI.</p></body></html>";
+        assert_eq!(super::worth_saying(&readable(python), 404), "");
+        // Gap 81: a message of its own in the same page is kept.
+        let own = python
+            .replace("404", "401")
+            .replace("File not found", "Token expired");
+        assert_eq!(super::worth_saying(&readable(&own), 401), "Token expired");
+        let nginx = "<html><head><title>404 Not Found</title></head><body>\
+            <center><h1>404 Not Found</h1></center><hr><center>nginx/1.24.0</center></body></html>";
+        assert_eq!(super::worth_saying(&readable(nginx), 404), "");
+        assert_eq!(super::worth_saying("404 page not found\n", 404), "");
+        assert_eq!(super::worth_saying("Forbidden", 403), "");
+        assert_eq!(
+            super::worth_saying("rate limited, try later", 429),
+            "rate limited, try later"
+        );
+        let wikimedia = "Error Too many requests. Please contact noc@wikimedia.org";
+        assert_eq!(super::worth_saying(wikimedia, 429), wikimedia);
+        let refused = super::Error::Refused {
+            status: 404,
+            url: "http://e.com/a".into(),
+            body: String::new(),
+            retry_after: None,
+        };
+        assert_eq!(
+            refused.to_string(),
+            "the server answered 404 Not Found for http://e.com/a"
+        );
     }
 
     #[test]

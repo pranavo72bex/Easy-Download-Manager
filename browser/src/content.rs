@@ -21,7 +21,7 @@ use wasm_bindgen::prelude::*;
 use wasm_bindgen::JsCast;
 use wasm_bindgen_futures::JsFuture;
 use web_sys::{
-    Document, Element, Event, HtmlElement, HtmlMediaElement, MouseEvent, ShadowRoot,
+    Document, Element, Event, HtmlElement, HtmlMediaElement, KeyboardEvent, MouseEvent, ShadowRoot,
     ShadowRootInit, ShadowRootMode, Window,
 };
 
@@ -35,49 +35,7 @@ const PLAY_SHOWS_MS: i32 = 3500;
 /// How often the pointer is hit-tested, at most.
 const SCAN_EVERY_MS: f64 = 90.0;
 
-const STYLE: &str = r#"
-:host { all: initial; }
-* { box-sizing: border-box; margin: 0; font-family: system-ui, -apple-system, Roboto, sans-serif; }
-.panel { width: 240px; color: #f2f3f5; }
-.wrap {
-  display: flex; align-items: stretch; height: 30px; border-radius: 6px; overflow: hidden;
-  background: rgba(28, 30, 35, .94); color: #f2f3f5; user-select: none;
-  border: 1px solid rgba(255,255,255,.18); box-shadow: 0 4px 16px rgba(0,0,0,.45);
-  font-size: 12.5px; line-height: 1;
-}
-.wrap.done { border-color: #35c07d; }
-.wrap.dead { border-color: #f0616d; }
-button { font: inherit; color: inherit; background: none; border: 0; padding: 0; cursor: pointer; }
-.go { flex: 1; min-width: 0; display: flex; align-items: center; gap: 7px; padding: 0 8px; text-align: left; }
-.go:hover, .go:focus-visible { background: rgba(255,255,255,.09); outline: none; }
-.mark { width: 18px; height: 18px; flex: none; border-radius: 50%; background: #f08a24; color: #fff;
-  display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 12px; }
-.wrap.done .mark { background: #35c07d; }
-.wrap.dead .mark { background: #f0616d; }
-.title { flex: 1; min-width: 0; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.caret { flex: none; font-size: 10px; color: #c4c8d0; }
-.help, .close { width: 24px; flex: none; color: #9aa1ad; font-size: 13px; border-left: 1px solid rgba(255,255,255,.1); }
-.help:hover, .close:hover { background: rgba(255,255,255,.1); color: #fff; }
-.list { margin-top: 3px; border-radius: 6px; overflow: hidden; background: rgba(28, 30, 35, .97);
-  border: 1px solid rgba(255,255,255,.18); box-shadow: 0 6px 20px rgba(0,0,0,.5); max-height: 260px; overflow-y: auto; }
-.item { display: block; width: 100%; padding: 8px 10px; text-align: left; font-size: 12.5px; white-space: nowrap; color: #f2f3f5;
-  overflow: hidden; text-overflow: ellipsis; border-top: 1px solid rgba(255,255,255,.06); }
-.item:first-child { border-top: 0; }
-.item:hover, .item:focus-visible { background: #f08a24; color: #fff; outline: none; }
-.sub { margin-top: 3px; padding: 6px 9px; border-radius: 6px; background: rgba(28, 30, 35, .94);
-  color: #c4c8d0; font-size: 11.5px; line-height: 1.35; }
-[hidden] { display: none !important; }
-"#;
-
-const BODY: &str = r#"<div class="panel">
-<div class="wrap">
-<button class="go" aria-label="Download video"><span class="mark">&#8595;</span><span class="title"></span><span class="caret" hidden>&#9662;</span></button>
-<button class="help" aria-label="What is this" title="What is this">?</button>
-<button class="close" aria-label="Hide" title="Hide">&#215;</button>
-</div>
-<div class="list" role="menu" hidden></div>
-<div class="sub" hidden></div>
-</div>"#;
+use crate::panel::{self, Act, Focus, Key, BODY, STYLE};
 
 /// The panel's size as `panel_at` places it: the bar alone.
 const PANEL_SIZE: (f64, f64) = (240.0, 30.0);
@@ -93,8 +51,18 @@ struct Panel {
     caret: Element,
     list: Element,
     sub: Element,
+    /// Says each result to a screen reader.
+    live: Element,
+    root: ShadowRoot,
     /// The player it is shown for.
     current: Option<Element>,
+    /// The page's element that had the focus when the panel was raised for
+    /// it (the `<video>` or its player), where Tab and Escape go back to.
+    player_focus: Option<Element>,
+    /// The keyboard's focus is in the panel, or on its player: it does not
+    /// hide then. A pointer's click focuses a button too, and that must not
+    /// keep the panel up once the pointer has gone.
+    focused: bool,
     /// The pointer is over the panel itself.
     hovered: bool,
     /// The pointer is on the player itself: the panel stays,
@@ -284,6 +252,8 @@ fn build(document: &Document) -> Option<Panel> {
         ("background", "none"),
         ("transform", "none"),
         ("pointer-events", "auto"),
+        // A right-to-left page does not mirror it.
+        ("direction", "ltr"),
     ] {
         let _ = style.set_property_with_priority(name, value, "important");
     }
@@ -297,6 +267,8 @@ fn build(document: &Document) -> Option<Panel> {
     let caret = root.query_selector(".caret").ok()??;
     let list = root.query_selector(".list").ok()??;
     let sub = root.query_selector(".sub").ok()??;
+    let live = root.query_selector(".live").ok()??;
+    let body = root.query_selector(".panel").ok()??;
     let help = root.query_selector(".help").ok()??;
     let close = root.query_selector(".close").ok()??;
     let parent: Element = document
@@ -312,6 +284,17 @@ fn build(document: &Document) -> Option<Panel> {
         with_panel(|p| p.hovered = false);
         hide_soon(HIDE_AFTER_MS);
     });
+    // The keyboard's focus in the panel keeps it up; leaving it lets it go.
+    listen(&host, "focusin", |_| {
+        with_panel(|p| {
+            p.focused = p.root.active_element().is_some_and(|e| by_keyboard(&e));
+        });
+    });
+    listen(&host, "focusout", |_| {
+        with_panel(|p| p.focused = false);
+        hide_soon(HIDE_AFTER_MS);
+    });
+    listen(&body, "keydown", on_key);
     // A button: Enter and Space click it already.
     listen(&go, "click", |event| {
         event.prevent_default();
@@ -342,7 +325,11 @@ fn build(document: &Document) -> Option<Panel> {
         caret,
         list,
         sub,
+        live,
+        root,
         current: None,
+        player_focus: None,
+        focused: false,
         hovered: false,
         on_player: false,
         settled: false,
@@ -401,8 +388,11 @@ fn as_drawn() -> bool {
 /// The panel's largest size, with its quality list open.
 const MAX_DRAWN: (f64, f64) = (480.0, 640.0);
 
+/// The panel, if built. `None` too when it is already in use further up
+/// the stack: moving the focus fires focus events at once, and their
+/// listeners come back here.
 fn with_panel<T>(f: impl FnOnce(&mut Panel) -> T) -> Option<T> {
-    PANEL.with(|cell| cell.borrow_mut().as_mut().map(f))
+    PANEL.with(|cell| cell.try_borrow_mut().ok()?.as_mut().map(f))
 }
 
 /// What the page says about a media element.
@@ -437,6 +427,14 @@ fn show(element: &Element) -> bool {
     let Some(window) = window() else {
         return false;
     };
+    if !seen(&window, element) {
+        return false;
+    }
+    // In fullscreen only the fullscreen element is drawn: the panel goes
+    // inside it, or is not shown when that is the bare `<video>`.
+    if !attach() {
+        return false;
+    }
     let view = (
         window
             .inner_width()
@@ -462,6 +460,13 @@ fn show(element: &Element) -> bool {
             p.settled = false;
             p.wrap.set_class_name("wrap");
             p.title.set_text_content(Some(offer.title));
+            if offer.page {
+                let _ = p.go.set_attribute("aria-haspopup", "menu");
+                let _ = p.go.set_attribute("aria-expanded", "false");
+            } else {
+                let _ = p.go.remove_attribute("aria-haspopup");
+                let _ = p.go.remove_attribute("aria-expanded");
+            }
             // Where it comes from, on hover; the bar says nothing more.
             let _ = p.go.set_attribute("title", &offer.sub);
             if offer.page {
@@ -491,6 +496,7 @@ fn hide() {
         p.current = None;
         p.hovered = false;
         p.on_player = false;
+        p.focused = false;
         close_list(p);
     });
 }
@@ -503,8 +509,9 @@ fn hide_soon(ms: i32) {
     };
     set_timeout(
         move || {
-            let stale = with_panel(|p| p.generation != generation || p.hovered || p.on_player)
-                .unwrap_or(true);
+            let stale =
+                with_panel(|p| p.generation != generation || p.hovered || p.on_player || p.focused)
+                    .unwrap_or(true);
             if !stale {
                 hide();
             }
@@ -637,105 +644,6 @@ fn on_move(_: Event) {
     }
 }
 
-/// Answers the background's `dm.links`: the address of every link on the
-/// page, or of each one the selection touches. Nothing else is read.
-fn on_message(message: JsValue, _sender: JsValue, reply: JsValue) -> JsValue {
-    let kind = Reflect::get(&message, &"type".into())
-        .ok()
-        .and_then(|v| v.as_string())
-        .unwrap_or_default();
-    if kind != decide::LINKS_MESSAGE {
-        return JsValue::FALSE;
-    }
-    let selected = Reflect::get(&message, &"selected".into())
-        .ok()
-        .and_then(|v| v.as_bool())
-        .unwrap_or(false);
-    let links = Array::new();
-    if let (Some(document), Some(window)) = (document(), window()) {
-        let selection = if selected {
-            window.get_selection().ok().flatten()
-        } else {
-            None
-        };
-        let selection_text: String = selection
-            .as_ref()
-            .and_then(|s| s.to_string().as_string())
-            .unwrap_or_default();
-        if let Ok(all) = document.query_selector_all("a[href]") {
-            for i in 0..all.length() {
-                let Some(node) = all.item(i) else {
-                    continue;
-                };
-                if selected {
-                    // Inside the selection, or partly inside with its words
-                    // in the selected text: a link that only touches the
-                    // selection's edge was not selected.
-                    let Some(selection) = selection.as_ref() else {
-                        continue;
-                    };
-                    let whole = selection
-                        .contains_node_with_allow_partial_containment(&node, false)
-                        .unwrap_or(false);
-                    let words = node.text_content().unwrap_or_default();
-                    let partly = !words.trim().is_empty()
-                        && selection
-                            .contains_node_with_allow_partial_containment(&node, true)
-                            .unwrap_or(false)
-                        && selection_text.contains(words.trim());
-                    if !(whole || partly) {
-                        continue;
-                    }
-                }
-                if let Some(href) = Reflect::get(&node, &"href".into())
-                    .ok()
-                    .and_then(|v| v.as_string())
-                {
-                    links.push(&href.into());
-                }
-            }
-        }
-    }
-    let answer = js_sys::Object::new();
-    let _ = Reflect::set(&answer, &"links".into(), &links);
-    if let Ok(reply) = reply.dyn_into::<Function>() {
-        let _ = reply.call1(&JsValue::NULL, &answer);
-    }
-    JsValue::FALSE
-}
-
-/// Alt-click: a link clicked with Alt held is the browser's to
-/// download, and the background is told before the download starts.
-fn on_click(event: Event) {
-    // Not held to `isTrusted`, unlike the panel: all a made-up Alt+click
-    // can do is leave a download with the browser, as it would be with no dm.
-    let Some(mouse) = event.dyn_ref::<MouseEvent>() else {
-        return;
-    };
-    if !mouse.alt_key() {
-        return;
-    }
-    let link = event
-        .target()
-        .and_then(|t| t.dyn_into::<Element>().ok())
-        .and_then(|e| e.closest("a[href]").ok().flatten());
-    let Some(link) = link else {
-        return;
-    };
-    // The property, not the attribute: resolved against the page.
-    let href = Reflect::get(&link, &"href".into())
-        .ok()
-        .and_then(|v| v.as_string())
-        .unwrap_or_default();
-    let message = js_sys::Object::new();
-    let _ = Reflect::set(&message, &"type".into(), &decide::SKIP_MESSAGE.into());
-    let _ = Reflect::set(&message, &"src".into(), &href.into());
-    let _ = Reflect::set(&message, &"frame".into(), &JsValue::from_str(""));
-    wasm_bindgen_futures::spawn_local(async move {
-        let _ = send(message.into()).await;
-    });
-}
-
 /// The line under the bar: what happened, or what ? says. Empty hides it.
 fn say(p: &Panel, text: &str) {
     p.sub.set_text_content(Some(text));
@@ -743,7 +651,27 @@ fn say(p: &Panel, text: &str) {
         let _ = p.sub.set_attribute("hidden", "");
     } else {
         let _ = p.sub.remove_attribute("hidden");
+        announce(p);
     }
+}
+
+/// What the panel now says, read out by a screen reader: the bar's words
+/// and the line under it.
+fn announce(p: &Panel) {
+    let title = p.title.text_content().unwrap_or_default();
+    let sub = p.sub.text_content().unwrap_or_default();
+    let said = if sub.is_empty() {
+        title
+    } else {
+        format!("{title}. {sub}")
+    };
+    p.live.set_text_content(Some(&said));
+}
+
+/// A result on the bar: its words, said aloud.
+fn set_title(p: &Panel, text: &str) {
+    p.title.set_text_content(Some(text));
+    announce(p);
 }
 
 /// The × menu: hide the panel for this player, or never show it on this site.
@@ -752,7 +680,7 @@ fn close_menu() {
         return;
     };
     let site = decide::site_of(&top_page()).unwrap_or_else(|| "this site".into());
-    with_panel(|p| {
+    let first = with_panel(|p| {
         p.settled = true;
         close_list(p);
         say(p, "");
@@ -783,13 +711,413 @@ fn close_menu() {
             });
             let _ = p.list.append_child(&item);
         }
-        let _ = p.list.remove_attribute("hidden");
-    });
+        open_list(p)
+    })
+    .flatten();
+    focus(first);
 }
 
 fn close_list(p: &Panel) {
     p.list.set_inner_html("");
     let _ = p.list.set_attribute("hidden", "");
+    if p.go.has_attribute("aria-expanded") {
+        let _ = p.go.set_attribute("aria-expanded", "false");
+    }
+}
+
+/// Opens the list just filled. Returns its first line to put the focus on
+/// when the focus was in the panel (a person at the keyboard); the caller
+/// focuses it once it has let go of the panel.
+fn open_list(p: &Panel) -> Option<HtmlElement> {
+    let _ = p.list.remove_attribute("hidden");
+    if p.go.has_attribute("aria-expanded") {
+        let _ = p.go.set_attribute("aria-expanded", "true");
+    }
+    p.root.active_element()?;
+    focus_target(p, Focus::Item(0))
+}
+
+fn focus(element: Option<HtmlElement>) {
+    if let Some(element) = element {
+        let _ = element.focus();
+    }
+}
+
+fn items(p: &Panel) -> Vec<HtmlElement> {
+    let Ok(found) = p.list.query_selector_all(".item") else {
+        return Vec::new();
+    };
+    (0..found.length())
+        .filter_map(|i| found.item(i))
+        .filter_map(|n| n.dyn_into::<HtmlElement>().ok())
+        .collect()
+}
+
+fn focus_target(p: &Panel, at: Focus) -> Option<HtmlElement> {
+    match at {
+        Focus::Go => p.go.clone().dyn_into().ok(),
+        Focus::Help => p
+            .root
+            .query_selector(".help")
+            .ok()
+            .flatten()
+            .and_then(|e| e.dyn_into().ok()),
+        Focus::Close => p
+            .root
+            .query_selector(".close")
+            .ok()
+            .flatten()
+            .and_then(|e| e.dyn_into().ok()),
+        Focus::Item(i) => items(p).into_iter().nth(i),
+    }
+}
+
+/// Where the focus is in the panel, if it is.
+fn focus_in(p: &Panel) -> Option<Focus> {
+    let active = p.root.active_element()?;
+    if active == p.go {
+        return Some(Focus::Go);
+    }
+    let class = active.class_name();
+    if class == "help" {
+        return Some(Focus::Help);
+    }
+    if class == "close" {
+        return Some(Focus::Close);
+    }
+    let at = items(p)
+        .iter()
+        .position(|i| JsValue::from(i.clone()) == JsValue::from(active.clone()))?;
+    Some(Focus::Item(at))
+}
+
+/// The player the panel is up for, to put the focus back on.
+fn player_target(p: &Panel) -> Option<HtmlElement> {
+    p.player_focus
+        .clone()
+        .or_else(|| p.current.clone())
+        .and_then(|e| e.dyn_into::<HtmlElement>().ok())
+}
+
+/// A key in the panel: Escape backs out, the arrows walk the list, and Tab
+/// moves on through the page as though the panel sat after its player.
+/// Enter and Space are the buttons' own.
+fn on_key(event: Event) {
+    let Some(key) = event.dyn_ref::<KeyboardEvent>() else {
+        return;
+    };
+    let key = Key::of(&key.key(), key.shift_key());
+    let decided = with_panel(|p| {
+        let at = focus_in(p)?;
+        let lines = if p.list.has_attribute("hidden") {
+            0
+        } else {
+            items(p).len()
+        };
+        let act = panel::act(key, at, lines);
+        let to = match act {
+            Act::Focus(to) => focus_target(p, to),
+            Act::CloseList => {
+                close_list(p);
+                focus_target(p, Focus::Go)
+            }
+            _ => None,
+        };
+        Some((act, to, player_target(p)))
+    })
+    .flatten();
+    let Some((act, to, player)) = decided else {
+        return;
+    };
+    // The focus is moved here, with the panel let go of.
+    match act {
+        Act::Nothing => return,
+        Act::Focus(_) | Act::CloseList => focus(to),
+        Act::ToPlayer { .. } => focus(player),
+        // Back on the player first (which would raise the panel), then gone.
+        Act::Hide => {
+            focus(player);
+            hide();
+        }
+    }
+    // Tab off the last button is let go on, from the player.
+    if act != (Act::ToPlayer { stop: false }) {
+        event.prevent_default();
+        event.stop_propagation();
+    }
+}
+
+/// Whether a player is what a person sees there: not transparent or
+/// hidden, and the thing at its middle is the player, its own overlay, or
+/// a page layer it lies under that lets the pointer through.
+fn seen(window: &Window, element: &Element) -> bool {
+    // Its own and its ancestors' opacity and visibility, where the browser
+    // can say (Chrome 121, Firefox 122).
+    if let Ok(check) =
+        Reflect::get(element, &"checkVisibility".into()).and_then(|f| f.dyn_into::<Function>())
+    {
+        let options = js_sys::Object::new();
+        let _ = Reflect::set(&options, &"opacityProperty".into(), &JsValue::TRUE);
+        let _ = Reflect::set(&options, &"visibilityProperty".into(), &JsValue::TRUE);
+        if check
+            .call1(element, &options)
+            .ok()
+            .and_then(|v| v.as_bool())
+            == Some(false)
+        {
+            return false;
+        }
+    }
+    if let Ok(Some(style)) = window.get_computed_style(element) {
+        let value = |name: &str| style.get_property_value(name).unwrap_or_default();
+        if !panel::looks_visible(&value("opacity"), &value("visibility")) {
+            return false;
+        }
+    }
+    let view = (
+        window
+            .inner_width()
+            .ok()
+            .and_then(|v| v.as_f64())
+            .unwrap_or(0.0),
+        window
+            .inner_height()
+            .ok()
+            .and_then(|v| v.as_f64())
+            .unwrap_or(0.0),
+    );
+    let rect = element.get_bounding_client_rect();
+    let Some((x, y)) =
+        panel::centre_seen((rect.left(), rect.top(), rect.width(), rect.height()), view)
+    else {
+        // Off screen: nothing to hit-test, and nothing to hide it either.
+        return true;
+    };
+    // What is on top there, followed down through open shadow roots: a
+    // component's control layer (a gesture layer over `<mux-video>`) can
+    // sit in a tree outside the one the `<video>` is in.
+    let Some(top) = document().and_then(|d| deepest_at(&d.into(), x, y)) else {
+        return true;
+    };
+    if &top == element || within(&top, element) {
+        return true;
+    }
+    // dm's own panel (its list can reach the middle of a small player).
+    let host = with_panel(|p| p.host.clone());
+    if host.is_some_and(|h| within(&h, &top)) {
+        return true;
+    }
+    // The player's own layers: inside the few elements around the video
+    // that make up a player (not the page itself), and about the player's
+    // size — a dialog over the whole page is not one of them. The player's
+    // box, not the video's: a vertical clip is letterboxed in a wide one.
+    let around: Vec<Element> = std::iter::successors(composed_parent(element), composed_parent)
+        .take(4)
+        .take_while(|e| {
+            let tag = e.tag_name().to_ascii_lowercase();
+            tag != "body" && tag != "html"
+        })
+        .collect();
+    let positioned = around.iter().find(|e| {
+        window
+            .get_computed_style(e)
+            .ok()
+            .flatten()
+            .and_then(|st| st.get_property_value("position").ok())
+            .is_some_and(|p| p.trim() != "static")
+    });
+    let area = |e: &Element| {
+        let r = e.get_bounding_client_rect();
+        r.width() * r.height()
+    };
+    if !panel::layer_fits(
+        rect.width() * rect.height(),
+        positioned.map(area),
+        area(&top),
+    ) {
+        return false;
+    }
+    around.iter().any(|player| within(player, &top))
+}
+
+/// The element through the shadow root holding it, or its parent.
+fn composed_parent(element: &Element) -> Option<Element> {
+    if let Some(parent) = element.parent_element() {
+        return Some(parent);
+    }
+    let root: JsValue = element.get_root_node().into();
+    Reflect::get(&root, &"host".into())
+        .ok()
+        .and_then(|h| h.dyn_into::<Element>().ok())
+}
+
+/// Whether `inner` is `outer` or inside it, shadow roots crossed.
+fn within(outer: &Element, inner: &Element) -> bool {
+    panel::composed_within(inner.clone(), outer, composed_parent, 64)
+}
+
+/// The element at a point, followed into each open shadow root on top.
+fn deepest_at(root: &JsValue, x: f64, y: f64) -> Option<Element> {
+    let hit = |root: &JsValue| {
+        Reflect::get(root, &"elementFromPoint".into())
+            .ok()
+            .and_then(|f| f.dyn_into::<Function>().ok())
+            .and_then(|f| {
+                f.call2(root, &JsValue::from_f64(x), &JsValue::from_f64(y))
+                    .ok()
+            })
+            .and_then(|t| t.dyn_into::<Element>().ok())
+    };
+    let mut top = hit(root)?;
+    for _ in 0..8 {
+        let Some(inner) = shadow_of(&top) else {
+            break;
+        };
+        match hit(&inner) {
+            Some(deeper) if deeper != top => top = deeper,
+            _ => break,
+        }
+    }
+    Some(top)
+}
+
+/// Puts the panel where it can be seen: inside the fullscreen element when
+/// there is one (only it is drawn then), else in the page's body. `false`
+/// when the fullscreen element is a media element itself, which draws
+/// nothing of the page's over it.
+fn attach() -> bool {
+    let Some(document) = document() else {
+        return false;
+    };
+    let mut full = Reflect::get(&document, &"fullscreenElement".into())
+        .ok()
+        .and_then(|f| f.dyn_into::<Element>().ok());
+    // The document names a shadow host; the element in fullscreen may be
+    // inside its shadow root.
+    for _ in 0..8 {
+        let inner = full
+            .as_ref()
+            .and_then(shadow_of)
+            .and_then(|r| Reflect::get(&r, &"fullscreenElement".into()).ok())
+            .and_then(|f| f.dyn_into::<Element>().ok());
+        match inner {
+            Some(inner) if Some(&inner) != full.as_ref() => full = Some(inner),
+            _ => break,
+        }
+    }
+    if full.as_ref().is_some_and(is_media) {
+        return false;
+    }
+    // A light-DOM child of a shadow host is drawn only through a slot: in
+    // the host's open shadow root it is drawn whatever the slots. A closed
+    // one cannot be reached, and there is no panel rather than one unseen.
+    let parent: Option<web_sys::Node> = match &full {
+        Some(full) => match shadow_of(full) {
+            Some(root) => root.dyn_into().ok(),
+            None if full.tag_name().contains('-') => return false,
+            None => Some(full.clone().into()),
+        },
+        None => document
+            .body()
+            .map(Into::into)
+            .or_else(|| document.document_element().map(Into::into)),
+    };
+    let Some(parent) = parent else {
+        return false;
+    };
+    with_panel(|p| {
+        if p.host.parent_node().as_ref() != Some(&parent) {
+            let _ = parent.append_child(&p.host);
+        }
+    });
+    true
+}
+
+/// Fullscreen came or went: the panel moves with it, and is shown again
+/// over its player if it was up.
+fn on_fullscreen(_: Event) {
+    let current = with_panel(|p| p.current.clone()).flatten();
+    match current {
+        Some(element) => {
+            if show(&element) {
+                hide_soon(PLAY_SHOWS_MS);
+            } else {
+                hide();
+                attach();
+            }
+        }
+        None => {
+            attach();
+        }
+    }
+}
+
+/// The focus on a player (its `<video>`, or a player element holding one)
+/// raises the panel for it, as the pointer does, and keeps it up.
+fn on_focus(event: Event) {
+    let Some(target) = event.target().and_then(|t| t.dyn_into::<Element>().ok()) else {
+        return;
+    };
+    if with_panel(|p| JsValue::from(p.host.clone()) == JsValue::from(target.clone())) == Some(true)
+    {
+        return;
+    }
+    let media = if is_media(&target) {
+        Some(target.clone())
+    } else {
+        target.query_selector("video, audio").ok().flatten()
+    };
+    let Some(media) = media else {
+        return;
+    };
+    // A click on a player focuses it too; the pointer raises the panel then.
+    if !by_keyboard(&target) {
+        return;
+    }
+    if show(&media) {
+        with_panel(|p| {
+            p.player_focus = Some(target);
+            p.focused = true;
+        });
+    }
+}
+
+/// Whether an element's focus came from the keyboard (`:focus-visible`).
+fn by_keyboard(element: &Element) -> bool {
+    element.matches(":focus-visible").unwrap_or(false)
+}
+
+fn on_blur(event: Event) {
+    let Some(target) = event.target().and_then(|t| t.dyn_into::<Element>().ok()) else {
+        return;
+    };
+    let ours = with_panel(|p| p.player_focus.as_ref() == Some(&target)).unwrap_or(false);
+    if ours {
+        with_panel(|p| p.focused = false);
+        hide_soon(HIDE_AFTER_MS);
+    }
+}
+
+/// Tab on a player whose panel is up goes into the panel first.
+fn on_page_key(event: Event) {
+    let Some(key) = event.dyn_ref::<KeyboardEvent>() else {
+        return;
+    };
+    if Key::of(&key.key(), key.shift_key()) != Key::Tab {
+        return;
+    }
+    let Some(target) = event.target().and_then(|t| t.dyn_into::<Element>().ok()) else {
+        return;
+    };
+    let into = with_panel(|p| {
+        let up = p.current.is_some() && p.player_focus.as_ref() == Some(&target);
+        up.then(|| focus_target(p, Focus::Go)).flatten()
+    })
+    .flatten();
+    if into.is_some() {
+        event.prevent_default();
+        focus(into);
+    }
 }
 
 /// The player's media and the frame it is in, for a message to the
@@ -842,8 +1170,7 @@ fn clicked() {
     }
     with_panel(|p| {
         p.settled = true;
-        p.title
-            .set_text_content(Some("Reading the video's qualities…"));
+        set_title(p, "Reading the video's qualities…");
         close_list(p);
         say(p, "");
     });
@@ -883,8 +1210,8 @@ fn list(src: &str, frame: &str, choices: &Array) {
     let Some(document) = document() else {
         return;
     };
-    with_panel(|p| {
-        p.title.set_text_content(Some("Download video"));
+    let first = with_panel(|p| {
+        set_title(p, "Download video");
         close_list(p);
         for choice in choices.iter() {
             let Ok(item) = document.create_element("button") else {
@@ -901,8 +1228,10 @@ fn list(src: &str, frame: &str, choices: &Array) {
             });
             let _ = p.list.append_child(&item);
         }
-        let _ = p.list.remove_attribute("hidden");
-    });
+        open_list(p)
+    })
+    .flatten();
+    focus(first);
 }
 
 /// One line of the list, handed over: a quality of the page the app's
@@ -921,7 +1250,7 @@ fn failed(said: &str) {
     with_panel(|p| {
         p.settled = true;
         p.wrap.set_class_name("wrap dead");
-        p.title.set_text_content(Some("dm could not take it"));
+        set_title(p, "dm could not take it");
         say(p, said);
     });
     hide_soon(6000);
@@ -940,7 +1269,7 @@ fn hand(src: &str, frame: &str, quality: Option<String>, label: Option<String>) 
     with_panel(|p| {
         p.settled = true;
         close_list(p);
-        p.title.set_text_content(Some("Sending to dm…"));
+        set_title(p, "Sending to dm…");
     });
     wasm_bindgen_futures::spawn_local(async move {
         let answer = send(message.into()).await;
@@ -971,7 +1300,7 @@ fn hand(src: &str, frame: &str, quality: Option<String>, label: Option<String>) 
         };
         with_panel(|p| {
             p.wrap.set_class_name("wrap done");
-            p.title.set_text_content(Some(title));
+            set_title(p, title);
             say(p, &said);
         });
         hide_soon(2500);
@@ -1033,27 +1362,23 @@ pub fn content_start(ext: JsValue) {
     changed.forget();
 
     listen(&document, "mousemove", on_pointer);
-    // "Download all links" and "Download selected links": the
-    // background asks this page for them.
-    let asked = Closure::<dyn Fn(JsValue, JsValue, JsValue) -> JsValue>::new(on_message);
-    let on_message = Reflect::get(&self::ext(), &"runtime".into())
-        .and_then(|runtime| Reflect::get(&runtime, &"onMessage".into()))
-        .and_then(|event| Reflect::get(&event, &"addListener".into()).map(|add| (event, add)));
-    if let Ok((event, add)) = on_message {
-        if let Ok(add) = add.dyn_into::<Function>() {
-            let _ = add.call1(&event, asked.as_ref());
-        }
-    }
-    asked.forget();
-    // Capturing, so a page that stops the click on its way up cannot hide
-    // the Alt from dm.
-    let alt = Closure::<dyn Fn(Event)>::new(on_click);
+    // Alt-click and "Download all/selected links" are answered by
+    // `extension/content.js` itself, before this loads: a page that forbids
+    // WebAssembly still has them.
+    // The keyboard's way in: the focus on a player raises its panel, and
+    // Tab from it goes into the panel.
+    listen(&document, "focusin", on_focus);
+    listen(&document, "focusout", on_blur);
+    let tab = Closure::<dyn Fn(Event)>::new(on_page_key);
     let _ = document.add_event_listener_with_callback_and_bool(
-        "click",
-        alt.as_ref().unchecked_ref(),
+        "keydown",
+        tab.as_ref().unchecked_ref(),
         true,
     );
-    alt.forget();
+    tab.forget();
+    // Fullscreen: only the fullscreen element is drawn, so the panel goes
+    // inside it, and back to the body after.
+    listen(&document, "fullscreenchange", on_fullscreen);
     // Capturing, because `play` does not bubble.
     let play = Closure::<dyn Fn(Event)>::new(on_play);
     let _ = document.add_event_listener_with_callback_and_bool(

@@ -564,6 +564,7 @@ pub async fn download_ftp(
         let (path, bytes, category) =
             crate::download::finish(&name, None, &[part], options).await?;
         return Ok(Finished {
+            left_behind: None,
             path,
             bytes,
             connections: 1,
@@ -665,6 +666,7 @@ pub async fn download_ftp(
     let parts: Vec<PathBuf> = ranges.iter().map(|(_, part)| part.clone()).collect();
     let (path, bytes, category) = crate::download::finish(&name, None, &parts, options).await?;
     Ok(Finished {
+        left_behind: None,
         path,
         bytes,
         connections: workers,

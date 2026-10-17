@@ -39,9 +39,10 @@ extension that hands it the browser's downloads.
   compiled to WebAssembly. It catches downloads and hands them to the app,
   and downloads nothing itself: with no app the browser keeps them.
   `extension/` holds what the browser loads around it: two manifests, the
-  icons, and `background.js`, a 20-line loader (the only hand-written
-  JavaScript, because a Manifest V3 background must register its listeners
-  before any WebAssembly can load). `scripts/package.sh` builds it into
+  icons, `background.js`, a 20-line loader (a Manifest V3 background must
+  register its listeners before any WebAssembly can load), and
+  `content.js`, which loads the page script and itself answers Alt-click
+  and "Download all links", so a page that forbids WebAssembly keeps them. `scripts/package.sh` builds it into
   `extension/pkg`, `dist/chrome` and `dist/firefox`.
 - `shared/naming-cases.json` holds the filename cases the engine is held to.
 

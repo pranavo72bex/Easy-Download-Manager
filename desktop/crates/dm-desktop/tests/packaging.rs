@@ -58,3 +58,20 @@ fn the_binary_is_named_what_the_installer_looks_for() {
     let makefile = include_str!("../../../../Makefile");
     assert!(makefile.contains("target/release/dm-desktop"));
 }
+
+/// Open and Open folder go through xdg-open on Linux, which comes with
+/// xdg-utils: every Linux package has to bring it, or a minimal desktop
+/// installs dm and cannot open what it downloaded.
+#[test]
+fn every_linux_package_requires_what_opens_files() {
+    for (package, text) in [
+        (".deb", include_str!("../Cargo.toml")),
+        (".rpm", include_str!("../../../packaging/nfpm.yaml")),
+        ("Arch", include_str!("../../../packaging/PKGBUILD")),
+    ] {
+        assert!(
+            text.contains("xdg-utils"),
+            "the {package} does not require xdg-utils"
+        );
+    }
+}

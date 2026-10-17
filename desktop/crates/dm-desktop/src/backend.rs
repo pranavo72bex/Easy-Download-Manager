@@ -120,6 +120,11 @@ impl Backend {
         self.block_on(self.queue.remove(id));
     }
 
+    /// Several rows taken out with one save of the queue (gap 58).
+    pub fn remove_many(&self, ids: &[Id]) {
+        self.block_on(self.queue.remove_many(ids));
+    }
+
     /// One command for the lot, not one per row: pausing forty downloads by
     /// asking forty times rewrites the queue file forty times.
     pub fn pause_all(&self) -> usize {

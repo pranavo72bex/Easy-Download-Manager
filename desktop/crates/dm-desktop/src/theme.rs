@@ -375,6 +375,9 @@ pub fn apply(ctx: &Context, theme: Theme) {
             ),
         ]
         .into();
+        // From egui's own each time: Light's roomier spacing stayed when a
+        // running dm went to Classic, which only leaves it alone.
+        style.spacing = egui::style::Spacing::default();
         if t.modern {
             style.spacing.button_padding = egui::vec2(12.0, 5.0);
             style.spacing.item_spacing = egui::vec2(8.0, 6.0);
@@ -430,5 +433,19 @@ mod tests {
         apply(&ctx, Theme::Light);
         assert_eq!(Tokens::get(&ctx), Theme::Light.tokens());
         assert!(!ctx.global_style().visuals.dark_mode);
+    }
+
+    #[test]
+    fn going_from_a_modern_look_to_classic_leaves_none_of_its_spacing() {
+        let ctx = Context::default();
+        apply(&ctx, Theme::Light);
+        assert_eq!(ctx.global_style().spacing.interact_size.y, 28.0);
+        apply(&ctx, Theme::Classic);
+        let fresh = egui::style::Spacing::default();
+        let now = ctx.global_style().spacing.clone();
+        assert_eq!(now.button_padding, fresh.button_padding);
+        assert_eq!(now.item_spacing, fresh.item_spacing);
+        assert_eq!(now.interact_size, fresh.interact_size);
+        assert_eq!(now.window_margin, fresh.window_margin);
     }
 }

@@ -7,10 +7,14 @@
 use std::process::{Command, Stdio};
 use std::time::{Duration, Instant};
 
-fn until(what: &str, within: Duration, mut done: impl FnMut() -> bool) {
+fn until(what: &str, within: Duration, said: &std::path::Path, mut done: impl FnMut() -> bool) {
     let end = Instant::now() + within;
     while !done() {
-        assert!(Instant::now() < end, "{what} did not happen");
+        assert!(
+            Instant::now() < end,
+            "{what} did not happen; dm said:\n{}",
+            std::fs::read_to_string(said).unwrap_or_default()
+        );
         std::thread::sleep(Duration::from_millis(50));
     }
 }
@@ -30,13 +34,22 @@ fn quits_cleanly_on(signal: &str) {
         .env("HOME", home.path())
         .stdin(Stdio::null())
         .stdout(Stdio::null())
-        .stderr(Stdio::null())
+        // Kept, so a failure here says what dm said (it failed once under
+        // load and the reason was lost).
+        .stderr(std::fs::File::create(home.path().join("stderr")).unwrap())
         .spawn()
         .unwrap();
+    let said = home.path().join("stderr");
     let port = dm_home.join("control.port");
-    until("dm writing control.port", Duration::from_secs(30), || {
-        std::fs::read_to_string(&port).is_ok_and(|p| !p.trim().is_empty())
-    });
+    // Generous: macOS checks a freshly built program on its first launch,
+    // which took seconds under load, and a minute's wait costs nothing
+    // when dm is quick.
+    until(
+        "dm writing control.port",
+        Duration::from_secs(90),
+        &said,
+        || std::fs::read_to_string(&port).is_ok_and(|p| !p.trim().is_empty()),
+    );
 
     let sent = Command::new("kill")
         .args([signal, &dm.id().to_string()])
@@ -44,14 +57,15 @@ fn quits_cleanly_on(signal: &str) {
         .unwrap();
     assert!(sent.success());
     let mut ended = None;
-    until("dm ending", Duration::from_secs(30), || {
+    until("dm ending", Duration::from_secs(30), &said, || {
         ended = dm.try_wait().unwrap();
         ended.is_some()
     });
     let ended = ended.unwrap();
     assert!(
         ended.success(),
-        "{signal}: cut off rather than closed: {ended:?}"
+        "{signal}: cut off rather than closed: {ended:?}; dm said:\n{}",
+        std::fs::read_to_string(&said).unwrap_or_default()
     );
     assert!(!port.exists(), "{signal}: control.port was left behind");
 }

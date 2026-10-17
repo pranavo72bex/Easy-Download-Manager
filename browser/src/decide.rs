@@ -91,6 +91,8 @@ pub struct DownloadItem {
     /// Set when an extension started the download.
     pub by_extension_id: Option<String>,
     pub incognito: Option<bool>,
+    /// Firefox: the container (cookie store) the download was made in.
+    pub cookie_store_id: Option<String>,
 }
 
 /// A browser download that could be handed over, if the app wants it.
@@ -105,6 +107,9 @@ pub struct Catchable {
     pub filename: String,
     pub mime: String,
     pub size: Option<u64>,
+    /// The cookie store the download was made in (Firefox's containers),
+    /// whose cookies are its sign-in; `None` is the browser's default.
+    pub store: Option<String>,
 }
 
 impl Catchable {
@@ -175,6 +180,7 @@ pub fn first_look(item: &DownloadItem, own_id: &str) -> Result<Catchable, &'stat
         filename: text(&item.filename),
         mime: text(&item.mime),
         size,
+        store: Some(text(&item.cookie_store_id)).filter(|s| !s.is_empty()),
     })
 }
 
@@ -284,9 +290,69 @@ pub fn hand_id(prefix: &str, n: i64, now_ms: f64) -> String {
     format!("{prefix}{n}-{}", now_ms.max(0.0) as u64)
 }
 
+/// How a reason for "no app" starts when there is an app, of a protocol
+/// version this extension cannot talk to: its fix is updating one side,
+/// not installing or registering anything.
+pub const MISMATCH: &str = "protocol mismatch: ";
+
+/// What to say of a host whose frames carry protocol version `theirs`,
+/// naming the side to update.
+pub fn mismatch(theirs: Option<u64>) -> String {
+    let ours = dm_protocol::PROTOCOL_VERSION;
+    let said = match theirs {
+        Some(v) if v > ours => format!(
+            "The dm app is newer than this extension (protocol {v}, the extension {ours}): \
+             update the dm extension in this browser"
+        ),
+        Some(v) => format!(
+            "The dm app is too old for this extension (protocol {v}, the extension \
+             {ours}): update the dm app"
+        ),
+        None => "The dm app is too old for this extension (it says no protocol \
+                 version): update the dm app"
+            .to_string(),
+    };
+    format!("{MISMATCH}{said}")
+}
+
+/// Why a download the browser holds is not handed to an app that answered:
+/// one older than [`dm_protocol::JUDGES_PAGES_SINCE`] ignores what the
+/// browser said the download was, takes a sign-in page for the file, and
+/// the browser's copy is erased. The menus and the panel still hand it
+/// what a person asks for, which the browser has not started.
+pub const OLD_APP: &str = "This dm app is too old to take downloads the browser started: \
+                           update the dm app. Until then the browser keeps them.";
+
+/// Whether a download the browser holds may be handed to this app.
+pub fn takes_caught(hello: &Hello) -> Result<(), &'static str> {
+    if hello.judges_pages() {
+        Ok(())
+    } else {
+        Err(OLD_APP)
+    }
+}
+
+/// The toolbar popup's status line for an app that answered, and whether it
+/// is a warning.
+pub fn status_line(hello: &Hello) -> (String, bool) {
+    let mut line = format!("Connected to dm {}", hello.engine_version);
+    if !hello.judges_pages() {
+        line.push_str(" · update the dm app: until then the browser keeps its downloads");
+        return (line, true);
+    }
+    if hello.ytdlp == Some(false) {
+        line.push_str(" · install yt-dlp for video sites");
+    }
+    (line, false)
+}
+
 /// The notification for "there is no app to hand this to", with the command
-/// that fixes it for this browser.
+/// that fixes it for this browser — or, for an app of a protocol version
+/// this extension cannot talk to, which side to update.
 pub fn absent_text(reason: &str, own_id: &str, firefox: bool) -> String {
+    if let Some(said) = reason.strip_prefix(MISMATCH) {
+        return said.to_string();
+    }
     let register = if firefox || own_id == CHROME_EXTENSION_ID || own_id.is_empty() {
         "dm-desktop --register".to_string()
     } else {
@@ -344,13 +410,7 @@ impl Probe {
             Ok(_) => {}
             // A host of another protocol version is not one to hand things
             // to; one that sent something this side cannot read is ignored.
-            Err(dm_protocol::Unreadable::Version(v)) => {
-                self.refused = Some(format!(
-                    "the dm app speaks protocol version {}, and this extension {}",
-                    v.map_or("none".into(), |v| v.to_string()),
-                    dm_protocol::PROTOCOL_VERSION
-                ))
-            }
+            Err(dm_protocol::Unreadable::Version(v)) => self.refused = Some(mismatch(v)),
             Err(_) => {}
         }
     }
@@ -668,6 +728,19 @@ pub fn cookies_wanted(sites: &[String], url: &str) -> bool {
     site_listed(sites, url)
 }
 
+/// What `cookies.getAll` is asked for a download's sign-in: its address and,
+/// where the browser named one, the cookie store it was made in. Firefox
+/// keeps each container's cookies in a store of its own, and without the
+/// store it answers with the default container's, which are another
+/// identity's sign-in. Chrome names none outside a private window, from
+/// which nothing is taken.
+pub fn cookie_query(url: &str, store: Option<&str>) -> Value {
+    match store.map(str::trim).filter(|s| !s.is_empty()) {
+        Some(store) => serde_json::json!({ "url": url, "storeId": store }),
+        None => serde_json::json!({ "url": url }),
+    }
+}
+
 /// One cookie as the browser lists it.
 #[derive(Deserialize, Default, Debug, Clone, PartialEq)]
 #[serde(default)]
@@ -701,9 +774,48 @@ pub fn site_listed(list: &[String], url: &str) -> bool {
     })
 }
 
+/// The entries of `list` that cover `site`: the site itself, and each site
+/// it is part of (`youtube.com` for `music.youtube.com`). A switch reads as
+/// on when any of them is listed, so turning it off has to take out all of
+/// them, not only the site's own.
+pub fn covering(list: &[String], site: &str) -> Vec<String> {
+    list.iter()
+        .filter(|listed| {
+            site == listed.as_str()
+                || site
+                    .strip_suffix(listed.as_str())
+                    .is_some_and(|before| before.ends_with('.'))
+        })
+        .cloned()
+        .collect()
+}
+
+/// What a popup switch says when turning it off for `site` also turned it
+/// off for a wider site it was set for, or `None` when only `site`'s own
+/// entry went.
+pub fn wider_note(list: &[String], site: &str) -> Option<String> {
+    let wider: Vec<String> = covering(list, site)
+        .into_iter()
+        .filter(|s| s != site)
+        .collect();
+    (!wider.is_empty()).then(|| {
+        format!(
+            "That was set for all of {}, so it is changed there too",
+            wider.join(" and ")
+        )
+    })
+}
+
 /// The list with `site` added (`off`) or taken out, sorted, once each.
+/// Taking it out takes out every entry that covers it (see [`covering`]),
+/// so the switch that read as on reads as off afterwards.
 pub fn with_site(off: &[String], site: &str, keep_off: bool) -> Vec<String> {
-    let mut list: Vec<String> = off.iter().filter(|s| s.as_str() != site).cloned().collect();
+    let wider = covering(off, site);
+    let mut list: Vec<String> = off
+        .iter()
+        .filter(|s| s.as_str() != site && (keep_off || !wider.contains(s)))
+        .cloned()
+        .collect();
     if keep_off {
         list.push(site.to_string());
     }
@@ -858,6 +970,84 @@ pub fn stream_seen(seen: &Seen) -> Option<Stream> {
     })
 }
 
+/// Whether a response is a new page in its tab, whose streams start afresh:
+/// a top-level document. A download opened in the tab (`main_frame` too,
+/// but a file and not a page) leaves the page, and its streams, in place.
+pub fn new_page(seen: &Seen) -> bool {
+    if seen.kind != "main_frame" || seen.tab_id < 0 {
+        return false;
+    }
+    let header = |name: &str| {
+        seen.response_headers
+            .iter()
+            .find(|h| h.name.eq_ignore_ascii_case(name))
+            .and_then(|h| h.value.as_deref())
+            .map(|v| v.trim().to_ascii_lowercase())
+            .unwrap_or_default()
+    };
+    if header("content-disposition").starts_with("attachment") {
+        return false;
+    }
+    let mime = header("content-type");
+    let essence = mime.split(';').next().unwrap_or("").trim();
+    essence.is_empty() || essence.contains("html") || essence.contains("xml")
+}
+
+/// What a response means for the copy of a tab's streams kept in the
+/// session's storage, which outlives the worker that heard them.
+#[derive(Debug, Clone, PartialEq)]
+pub enum Keep {
+    /// A new page: the old page's copy is removed, whatever this worker
+    /// remembers — a worker woken by the navigation remembers nothing, and
+    /// the copy would otherwise be offered on the new page.
+    Forget,
+    /// A stream this tab has not been heard to load: the kept copy is read
+    /// into memory before it is added, and the merge written back.
+    Add,
+    /// Nothing to keep.
+    Nothing,
+}
+
+/// What to do with a response, for the kept copy.
+pub fn keep(seen: &Seen) -> Keep {
+    if new_page(seen) {
+        Keep::Forget
+    } else if stream_seen(seen).is_some() {
+        Keep::Add
+    } else {
+        Keep::Nothing
+    }
+}
+
+/// Which page each tab is on, counted, so a stream heard on one page whose
+/// storage read is still in flight when the tab navigates is dropped rather
+/// than written back over the new page's empty list. Responses are handled
+/// concurrently: an `Add` awaits the kept copy, and a `Forget` for the next
+/// page can run in that wait.
+#[derive(Debug, Default)]
+pub struct Pages {
+    by_tab: std::collections::HashMap<i64, u64>,
+}
+
+impl Pages {
+    /// The page a tab is on now.
+    pub fn now(&self, tab: i64) -> u64 {
+        self.by_tab.get(&tab).copied().unwrap_or(0)
+    }
+
+    /// A new page, or the tab closed: whatever was begun on the old one is
+    /// stale from here.
+    pub fn next(&mut self, tab: i64) {
+        let n = self.now(tab).wrapping_add(1);
+        self.by_tab.insert(tab, n);
+    }
+
+    /// Whether work begun on page `then` of a tab is still for its page.
+    pub fn still(&self, tab: i64, then: u64) -> bool {
+        self.now(tab) == then
+    }
+}
+
 /// The streams each tab has loaded, newest last, a few per tab.
 #[derive(Default, Debug)]
 pub struct Streams {
@@ -872,7 +1062,7 @@ impl Streams {
     /// Takes in one response: a new page in a tab forgets the old page's
     /// streams, and media is remembered once per address.
     pub fn absorb(&mut self, seen: &Seen) {
-        if seen.kind == "main_frame" {
+        if new_page(seen) {
             self.by_tab.remove(&seen.tab_id);
             return;
         }
@@ -900,11 +1090,26 @@ impl Streams {
         self.by_tab.contains_key(&tab)
     }
 
-    /// A tab's streams as kept before the worker last stopped.
+    /// A tab's streams as kept before the worker last stopped, merged with
+    /// what this worker has heard of the tab since: the kept ones first (a
+    /// master playlist among them), then the new, each address once, as
+    /// many as a tab keeps. Merging rather than replacing means a worker
+    /// woken mid-page, which first hears only a variant playlist, neither
+    /// loses the master to it nor has it lost again when the two are read
+    /// in the other order.
     pub fn restore(&mut self, tab: i64, kept: Vec<Stream>) {
-        let mut kept = kept;
-        kept.truncate(STREAMS_PER_TAB);
-        self.by_tab.insert(tab, kept);
+        let heard = self.by_tab.remove(&tab).unwrap_or_default();
+        let mut list: Vec<Stream> = Vec::new();
+        for stream in kept.into_iter().chain(heard) {
+            if list.iter().any(|known| known.url == stream.url) {
+                continue;
+            }
+            list.push(stream);
+            if list.len() > STREAMS_PER_TAB {
+                list.remove(1);
+            }
+        }
+        self.by_tab.insert(tab, list);
     }
 
     /// A tab's streams as remembered, newest last, for keeping.
@@ -952,6 +1157,19 @@ mod tests {
     use serde_json::json;
 
     #[test]
+    fn the_plain_page_script_answers_by_the_names_the_background_uses() {
+        // Alt-click and the page's links are plain JavaScript, so a page
+        // that forbids WebAssembly keeps them; the names must still agree.
+        let script = include_str!("../../extension/content.js");
+        assert!(script.contains(&format!("'{SKIP_MESSAGE}'")));
+        assert!(script.contains(&format!("'{LINKS_MESSAGE}'")));
+        // Registered before the WebAssembly is imported, not after.
+        let import = script.find("import(").unwrap();
+        assert!(script.find("addEventListener('click'").unwrap() < import);
+        assert!(script.find("onMessage.addListener").unwrap() < import);
+    }
+
+    #[test]
     fn an_ftp_link_is_handed_over_from_the_menu() {
         assert!(handable("ftp://ftp.gnu.org/gnu/bash/bash-5.2.tar.gz"));
         assert!(!handable("ftps://e.com/f") && !handable("file:///etc/passwd"));
@@ -979,6 +1197,61 @@ mod tests {
         ]);
         assert_eq!(header, "session=abc; theme=darkX-Injected: 1");
         assert_eq!(cookie_header(&[]), "");
+    }
+
+    #[test]
+    fn a_switch_turned_off_on_part_of_a_listed_site_is_off_afterwards() {
+        // "Never on youtube.com" from the panel, then the popup on
+        // music.youtube.com: the panel switch reads off; turned on, the
+        // entry that kept it off goes, and it is said.
+        let off = with_site(&[], "youtube.com", true);
+        assert!(panel_off(&off, "https://music.youtube.com/watch"));
+        let note = wider_note(&off, "music.youtube.com");
+        let back = with_site(&off, "music.youtube.com", false);
+        assert!(!panel_off(&back, "https://music.youtube.com/watch"));
+        assert!(note.is_some_and(|n| n.contains("youtube.com")));
+        // The same for the other two switches, whose lists read "on".
+        let all = with_site(&["other.org".into()], "e.com", true);
+        let all = with_site(&all, "dl.e.com", true);
+        assert!(forced(&all, "https://a.dl.e.com/f"));
+        let left = with_site(&all, "a.dl.e.com", false);
+        assert!(!forced(&left, "https://a.dl.e.com/f"));
+        assert_eq!(left, vec!["other.org"], "only what covered it went");
+        let sites = with_site(&[], "e.com", true);
+        assert!(!cookies_wanted(
+            &with_site(&sites, "m.e.com", false),
+            "https://m.e.com/f"
+        ));
+        // Its own entry alone is not news, and a site beside it is kept.
+        assert_eq!(wider_note(&with_site(&[], "e.com", true), "e.com"), None);
+        assert_eq!(
+            covering(&["notme.com".into()], "me.com"),
+            Vec::<String>::new()
+        );
+    }
+
+    #[test]
+    fn a_containers_download_is_asked_its_own_containers_cookies() {
+        let item: DownloadItem = serde_json::from_value(json!({
+            "id": 4, "url": "https://e.com/f.zip", "state": "in_progress",
+            "cookieStoreId": "firefox-container-2",
+        }))
+        .unwrap();
+        let found = first_look(&item, "x").unwrap();
+        assert_eq!(found.store.as_deref(), Some("firefox-container-2"));
+        assert_eq!(
+            cookie_query(&found.url, found.store.as_deref()),
+            json!({ "url": "https://e.com/f.zip", "storeId": "firefox-container-2" })
+        );
+        // Chrome says none: the default store, not a store named "".
+        assert_eq!(
+            cookie_query("https://e.com/f", Some("")),
+            json!({ "url": "https://e.com/f" })
+        );
+        assert_eq!(
+            cookie_query("https://e.com/f", None),
+            json!({ "url": "https://e.com/f" })
+        );
     }
 
     #[test]
@@ -1186,6 +1459,69 @@ mod tests {
             kept.iter().any(|s| s.url.ends_with("/19.m3u8")),
             "and the latest"
         );
+    }
+
+    #[test]
+    fn a_new_page_forgets_the_kept_copy_and_a_woken_worker_merges_rather_than_overwrites() {
+        // The worker slept; the tab navigated. Its memory is empty, but the
+        // kept copy must go, or the next page offers the old one's video.
+        let page = seen(
+            "https://other.example/",
+            "main_frame",
+            &[("Content-Type", "text/html; charset=utf-8")],
+        );
+        assert_eq!(keep(&page), Keep::Forget);
+        // A download opened in the tab is not a new page.
+        let file = seen(
+            "https://e.com/f.zip",
+            "main_frame",
+            &[("Content-Type", "application/zip")],
+        );
+        assert_eq!(keep(&file), Keep::Nothing);
+        let attached = seen(
+            "https://e.com/report",
+            "main_frame",
+            &[
+                ("Content-Type", "text/html"),
+                ("Content-Disposition", "attachment; filename=r.html"),
+            ],
+        );
+        assert_eq!(keep(&attached), Keep::Nothing);
+        let variant = seen("https://e.com/v/720.m3u8", "xmlhttprequest", &[]);
+        assert_eq!(keep(&variant), Keep::Add);
+        assert_eq!(
+            keep(&seen("https://e.com/x.js", "xmlhttprequest", &[])),
+            Keep::Nothing
+        );
+
+        // Woken mid-page: the master was kept before the worker slept, and
+        // the first thing this worker hears is a variant.
+        let master =
+            stream_seen(&seen("https://e.com/master.m3u8", "xmlhttprequest", &[])).unwrap();
+        let mut streams = Streams::default();
+        streams.absorb(&variant);
+        streams.restore(7, vec![master.clone()]);
+        let raw = streams.raw(7);
+        assert_eq!(raw.len(), 2, "{raw:?}");
+        assert_eq!(raw[0], master, "the master is kept, and first");
+        // Read twice (two responses racing the storage read): still once each.
+        streams.restore(7, vec![master.clone()]);
+        assert_eq!(streams.raw(7).len(), 2);
+    }
+
+    #[test]
+    fn a_stream_whose_read_outlives_its_page_is_dropped() {
+        let mut pages = Pages::default();
+        // An Add begins on the old page and awaits the kept copy...
+        let then = pages.now(7);
+        // ...while the new page's Forget runs.
+        pages.next(7);
+        assert!(
+            !pages.still(7, then),
+            "the old page's Add must not write back"
+        );
+        assert!(pages.still(7, pages.now(7)));
+        assert!(pages.still(8, 0), "another tab is untouched");
     }
 
     #[test]
@@ -1489,7 +1825,8 @@ mod tests {
             App::Present {
                 hello: Hello {
                     engine_version: "0.1.0".into(),
-                    ytdlp: Some(true)
+                    ytdlp: Some(true),
+                    protocol: None,
                 },
                 rules: CatchRules::default(),
             }
@@ -1503,13 +1840,55 @@ mod tests {
     }
 
     #[test]
-    fn a_host_of_another_protocol_is_treated_as_no_host() {
+    fn a_host_of_another_protocol_is_treated_as_no_host_and_names_the_side_to_update() {
         let mut probe = Probe::default();
-        probe.absorb(&json!({ "protocolVersion": 2, "type": "engine.hello" }));
+        probe.absorb(&json!({ "protocolVersion": 3, "type": "engine.hello" }));
         let Some(App::Absent { reason }) = probe.finished() else {
             panic!("a host of another version was used")
         };
-        assert!(reason.contains("version 2"), "{reason}");
+        let said = absent_text(&reason, CHROME_EXTENSION_ID, false);
+        assert!(said.contains("update the dm extension"), "{said}");
+        assert!(
+            !said.contains("--register") && !said.contains("Install"),
+            "{said}"
+        );
+
+        let mut probe = Probe::default();
+        probe.absorb(&json!({ "protocolVersion": 0, "type": "engine.hello" }));
+        let Some(App::Absent { reason }) = probe.finished() else {
+            panic!("a host of another version was used")
+        };
+        let said = absent_text(&reason, CHROME_EXTENSION_ID, false);
+        assert!(said.contains("update the dm app"), "{said}");
+        assert!(!said.contains("--register"), "{said}");
+        // No host at all is still told how to install one.
+        assert!(absent_text("not found", CHROME_EXTENSION_ID, false).contains("--register"));
+    }
+
+    #[test]
+    fn a_download_the_browser_holds_goes_only_to_an_app_that_judges_pages() {
+        // An app of protocol 1 says nothing of its protocol in its hello.
+        let mut probe = Probe::default();
+        probe.absorb(&hello());
+        let Some(App::Present { hello: old, .. }) = Some(probe.give_up("no rules")) else {
+            unreachable!()
+        };
+        assert_eq!(takes_caught(&old), Err(OLD_APP));
+        assert!(OLD_APP.contains("update the dm app"));
+        let (line, bad) = status_line(&old);
+        assert!(bad && line.contains("update the dm app"), "{line}");
+
+        let mut probe = Probe::default();
+        probe.absorb(&json!({
+            "protocolVersion": 1, "type": "engine.hello", "engineVersion": "3.0.1",
+            "ytdlp": false, "protocol": 2,
+        }));
+        let App::Present { hello: new, .. } = probe.give_up("no rules") else {
+            panic!("not present")
+        };
+        assert_eq!(takes_caught(&new), Ok(()));
+        let (line, bad) = status_line(&new);
+        assert!(!bad && line.contains("install yt-dlp"), "{line}");
     }
 
     #[test]

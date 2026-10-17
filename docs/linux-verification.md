@@ -13,7 +13,7 @@ The Linux desktop client successfully downloaded a live YouTube video through yt
 
 ### 1. Live YouTube floating panel did not appear
 
-**Severity:** User-visible extension integration issue; open.
+**Severity:** User-visible extension integration issue. **Resolved:** the later live run below passed on YouTube (35/35), and the panel is driven with real input on Debian, Fedora and Arch Chromium (`scripts/linux-chromium-human.sh`).
 
 **Reproduction:** Ran the live YouTube check in Chromium with the Linux yt-dlp executable on `PATH` and a temporary in-memory guard waiting for the local test fixture DOM. The extension loaded, its local fixture suite passed, and the live YouTube page and player loaded. The simulated pointer hover did not show the panel: `YouTube: hovering the playing player shows 'Download this video'` failed with `{}`. The panel click, quality list, and panel handoff therefore were not reached on that live YouTube run.
 
@@ -21,7 +21,7 @@ In the same run, the extension toolbar button handed the YouTube page to dm and 
 
 ### 2. Chromium integration test has a fixture-load race
 
-**Severity:** Test-harness issue; open, not a product failure.
+**Severity:** Test-harness issue, not a product failure. **Resolved:** `chrome-check.py`'s `loaded()` now waits for the page's own address and the link itself before clicking.
 
 The unmodified `scripts/chrome-check.py` failed twice at `click(..., "kept.zip")` with `TypeError: Cannot read properties of null (reading 'click')`. Its click helper checks `document.readyState`, which can already be `complete` for the initial blank page before `/page.html` has populated the expected link. At that point the extension/client caught-download path had already passed, including a byte-exact file in dm's temporary folder.
 
@@ -29,7 +29,7 @@ With an in-memory-only wait for the expected link element, the entire Chromium i
 
 ### 3. Optional Linux tray library missing in this environment
 
-**Severity:** Environment/runtime warning; user impact not established.
+**Severity:** Environment/runtime warning. **Resolved:** dm's tray now speaks StatusNotifierItem over D-Bus itself (see the tray follow-up below) and needs no AppIndicator library.
 
 `scripts/app-check.py` passed its client handoff, downloads, HLS, yt-dlp, speed limit, schedule, proxy, control protocol and MCP checks. During its launches, stderr repeatedly reported a panic in the tray thread because neither `libayatana-appindicator3` nor `libappindicator3` was installed. The tests continued and passed, but this environment did not verify tray availability or tray interaction. This should not be confused with a failed download.
 

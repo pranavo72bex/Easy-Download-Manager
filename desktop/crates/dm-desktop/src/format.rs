@@ -3,6 +3,8 @@
 
 use std::time::Duration;
 
+use crate::i18n::{t, tf};
+
 /// A byte count in the unit a person reads it in.
 pub fn bytes(n: u64) -> String {
     const K: f64 = 1024.0;
@@ -13,8 +15,10 @@ pub fn bytes(n: u64) -> String {
         format!("{:.1} KB", f / K)
     } else if f < K * K * K {
         format!("{:.1} MB", f / (K * K))
-    } else {
+    } else if f < K * K * K * K {
         format!("{:.2} GB", f / (K * K * K))
+    } else {
+        format!("{:.2} TB", f / (K * K * K * K))
     }
 }
 
@@ -25,20 +29,28 @@ pub fn rate(per_second: f64) -> String {
 
 /// Time remaining; nothing at all when there is nothing honest to say.
 pub fn clock(eta: Option<Duration>) -> String {
-    let Some(eta) = eta else {
-        return String::new();
-    };
-    let s = eta.as_secs();
-    if s == 0 {
-        return String::new();
+    match eta.map(span) {
+        Some(left) if !left.is_empty() => tf("{} left", &[&left]),
+        _ => String::new(),
     }
-    let (h, m) = (s / 3600, (s % 3600) / 60);
-    if h > 0 {
-        format!("{h}h {m}m left")
+}
+
+/// A length of time in its two largest units, in the language in force:
+/// "2d 3h", "5h 2m", "3m 4s", "42s"; nothing for none. Over a day it is
+/// said in days — "1494h 36m" was read by nobody.
+pub fn span(time: Duration) -> String {
+    let s = time.as_secs();
+    let (d, h, m) = (s / 86_400, (s % 86_400) / 3600, (s % 3600) / 60);
+    if s == 0 {
+        String::new()
+    } else if d > 0 {
+        tf("{}d {}h", &[&d, &h])
+    } else if h > 0 {
+        tf("{}h {}m", &[&h, &m])
     } else if m > 0 {
-        format!("{m}m {}s left", s % 60)
+        tf("{}m {}s", &[&m, &(s % 60)])
     } else {
-        format!("{s}s left")
+        tf("{}s", &[&s])
     }
 }
 
@@ -103,19 +115,76 @@ fn percent_decode(text: &str) -> String {
         .unwrap_or_else(|| text.to_string())
 }
 
-/// When a finished row finished: the time today, the date otherwise.
+/// The months as a date in the list says them, in English; each goes
+/// through the catalogs.
+pub const MONTHS: [&str; 12] = [
+    "Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec",
+];
+
+/// When a finished row finished: the time today, the day and month this
+/// year, and the year too before that — "3 Mar" of two years ago read as
+/// this spring.
 pub fn when(seconds: Option<u64>) -> String {
-    use chrono::{Local, TimeZone};
+    use chrono::{Datelike, Local, TimeZone};
     let Some(seconds) = seconds else {
         return String::new();
     };
     let Some(at) = Local.timestamp_opt(seconds as i64, 0).single() else {
         return String::new();
     };
-    if at.date_naive() == Local::now().date_naive() {
-        at.format("%H:%M").to_string()
+    let today = Local::now().date_naive();
+    if at.date_naive() == today {
+        return at.format("%H:%M").to_string();
+    }
+    let month = MONTHS
+        .get(at.month0() as usize)
+        .copied()
+        .map(t)
+        .unwrap_or_default();
+    // The day and the month in the order, and with the marks, a language
+    // writes them: "5. März" in German.
+    if at.year() == today.year() {
+        tf("{} {}", &[&at.day(), &month])
     } else {
-        at.format("%-d %b").to_string()
+        tf("{} {} {}", &[&at.day(), &month, &at.year()])
+    }
+}
+
+/// Names in the order a person expects: case aside, and the numbers in
+/// them by value, so "part 2" comes before "part 10".
+pub fn natural(a: &str, b: &str) -> std::cmp::Ordering {
+    use std::cmp::Ordering;
+    let (mut x, mut y) = (a.chars().peekable(), b.chars().peekable());
+    loop {
+        match (x.peek().copied(), y.peek().copied()) {
+            (None, None) => return a.cmp(b),
+            (None, Some(_)) => return Ordering::Less,
+            (Some(_), None) => return Ordering::Greater,
+            (Some(c), Some(d)) if c.is_ascii_digit() && d.is_ascii_digit() => {
+                let take = |it: &mut std::iter::Peekable<std::str::Chars<'_>>| {
+                    let mut digits = String::new();
+                    while let Some(c) = it.peek().copied().filter(char::is_ascii_digit) {
+                        digits.push(c);
+                        it.next();
+                    }
+                    digits
+                };
+                let (p, q) = (take(&mut x), take(&mut y));
+                let (p, q) = (p.trim_start_matches('0'), q.trim_start_matches('0'));
+                let order = p.len().cmp(&q.len()).then_with(|| p.cmp(q));
+                if order != Ordering::Equal {
+                    return order;
+                }
+            }
+            (Some(c), Some(d)) => {
+                let order = c.to_lowercase().cmp(d.to_lowercase());
+                if order != Ordering::Equal {
+                    return order;
+                }
+                x.next();
+                y.next();
+            }
+        }
     }
 }
 
@@ -138,6 +207,8 @@ mod tests {
         assert_eq!(bytes(1536), "1.5 KB");
         assert_eq!(bytes(5 * 1024 * 1024), "5.0 MB");
         assert_eq!(bytes(3 * 1024 * 1024 * 1024), "3.00 GB");
+        assert_eq!(bytes(1023 * 1024 * 1024 * 1024), "1023.00 GB");
+        assert_eq!(bytes(3 * 1024 * 1024 * 1024 * 1024), "3.00 TB");
         assert_eq!(rate(2048.0), "2.0 KB/s");
     }
 
@@ -148,6 +219,45 @@ mod tests {
         assert_eq!(clock(Some(Duration::from_secs(42))), "42s left");
         assert_eq!(clock(Some(Duration::from_secs(125))), "2m 5s left");
         assert_eq!(clock(Some(Duration::from_secs(7260))), "2h 1m left");
+        // Over a day, in days: not "1494h 36m left".
+        let long = Duration::from_secs(1494 * 3600 + 36 * 60);
+        assert_eq!(clock(Some(long)), "62d 6h left");
+        assert_eq!(span(Duration::from_secs(7380)), "2h 3m", "no \"left\"");
+    }
+
+    #[test]
+    fn time_left_is_said_in_the_language_in_force() {
+        crate::i18n::set("de");
+        let said = clock(Some(Duration::from_secs(90_000)));
+        crate::i18n::set("en");
+        assert_eq!(said, "noch 1 T. 1 h");
+    }
+
+    #[test]
+    fn a_date_of_another_year_says_the_year_and_the_month_is_translated() {
+        use chrono::{Datelike, Local, TimeZone};
+        let year = Local::now().year();
+        let then = Local.with_ymd_and_hms(year - 2, 3, 5, 12, 0, 0).unwrap();
+        assert_eq!(
+            when(Some(then.timestamp() as u64)),
+            format!("5 Mar {}", year - 2)
+        );
+        crate::i18n::set("fr");
+        let said = when(Some(then.timestamp() as u64));
+        crate::i18n::set("en");
+        assert_eq!(said, format!("5 mars {}", year - 2));
+    }
+
+    #[test]
+    fn names_sort_with_their_numbers_by_value() {
+        use std::cmp::Ordering::*;
+        assert_eq!(natural("part 2.zip", "part 10.zip"), Less);
+        assert_eq!(natural("Part 10", "part 9"), Greater);
+        assert_eq!(natural("a", "B"), Less);
+        assert_ne!(natural("file007", "file7"), Equal, "a total order");
+        let mut names = vec!["x10", "x2", "X1", "x02b"];
+        names.sort_by(|a, b| natural(a, b));
+        assert_eq!(names, ["X1", "x2", "x02b", "x10"]);
     }
 
     #[test]

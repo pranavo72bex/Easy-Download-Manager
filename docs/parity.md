@@ -57,6 +57,12 @@ Rust compiled to WebAssembly. Test paths are under
 | A 206 for another range than asked is refused | PASS | [zoo](zoo.md) `ranges-other-range` — it was written at the asked offset until the zoo found it |
 | A 206 with the right label and bytes from elsewhere is refused | PASS | [zoo](zoo.md) `ranges-lying-body`: each range after the first fetches one byte of overlap with the one before, compared at assembly |
 | Thirty-one server behaviours from the wild, held to a floor that only rises | PASS | [docs/zoo.md](zoo.md); curl fetches the same addresses and agrees on every file |
+| A file larger than the free space is refused before it is fetched, saying how much it needs and how much is free | PASS | `errors.rs` `a_file_larger_than_the_disk_is_refused_before_it_is_fetched` (gap 60) |
+| A refusal names its status ("404 Not Found") and drops an error page that only restates it | PASS | `lib.rs` `an_error_page_that_only_restates_the_status_is_not_repeated` (gap 69) |
+| Removing a selection writes the queue once | PASS | `rows.rs` `removing_many_rows_writes_the_queue_once` (gap 58) |
+| A last-run time in the future (recheck, saved search, download allowance) is stale, not waited out | PASS | `queue.rs` `a_recheck_time_in_the_future_is_stale_not_waited_out`, `lists.rs`, `quota.rs` (gap 59) |
+| A torrent moved across disks is whole or absent; its progress never goes back | PASS | `torrent.rs` `a_move_across_disks_is_whole_or_absent_and_a_leftover_is_only_noted`, `reported_progress_never_goes_back` (gaps 61, 71) |
+| A case-only rename is done in place | PASS | `rows.rs` `a_rename_that_changes_only_the_case_is_done_in_place` (gap 62) |
 | Cancel stops traffic and leaves nothing | PASS | `a_cancelled_download_leaves_nothing_saved`; queue cancel tests |
 
 ## C. Pause, resume, ranges
@@ -167,6 +173,10 @@ the host and the extension.
 | Request ids cannot escape the inbox | PASS | `a_browser_does_not_get_to_choose_where_a_request_is_written` |
 | Stdout carries frames only | PASS | no print macros in the host; the app it starts has stdout to null; `app-check.py` |
 | One vocabulary for both sides | PASS | `dm-protocol` tests: wire names, versions, an older extension's extra keys |
+| An extension and an app of different versions: a download the browser holds goes only to an app that judges what it is served; an older app still gets menu and panel requests, and the popup and a notification say "update the dm app"; a protocol outside both sides' range names the side to update | PASS | protocol 2; a frame carries the oldest version that reads it (`dm-protocol` `a_caught_download_goes_out_at_the_version_that_judges_pages`, `an_app_that_does_not_say_its_protocol_does_not_judge_pages`; `host.rs` `a_hello_says_what_this_app_is`, `a_caught_hand_off_at_the_new_version_is_answered_at_the_old`; `decide.rs` `a_download_the_browser_holds_goes_only_to_an_app_that_judges_pages`, `a_host_of_another_protocol_is_treated_as_no_host_and_names_the_side_to_update`). An actual older app in a browser not driven |
+| A Firefox container's download or link carries that container's sign-in, not the default one's | PASS | `cookieStoreId` passed as `storeId` (`decide.rs` `a_containers_download_is_asked_its_own_containers_cookies`). Not driven with a real container |
+| A per-site popup switch turned off on part of a listed site (music.youtube.com under youtube.com) is off afterwards, and says the wider site changed too; the sign-in switch reads on only while the cookies permission is granted, and its site is stored before the permission is asked | PASS | `decide.rs` `a_switch_turned_off_on_part_of_a_listed_site_is_off_afterwards`; popup wiring not driven in a browser |
+| A new page in a tab, or a closed tab, forgets the streams kept for it in session storage; a worker woken mid-page merges rather than overwrites | PASS | `decide.rs` `a_new_page_forgets_the_kept_copy_and_a_woken_worker_merges_rather_than_overwrites` |
 | Catch rules are the app's (`settings.get`) | PASS | `host.rs` `the_extension_is_sent_the_catch_rules_in_the_apps_settings`; `chrome-check.py`: a .zip left in the browser when the app's settings list only .bin |
 | A clicked download caught, handed over with its referrer, erased from the browser | PASS | `chrome-check.py` (Chrome for Testing 155, macOS arm64): file byte-exact in dm's folder, dm's requests carry the page as `Referer`, the browser's list and folder empty |
 | Host absent: the browser keeps the download | PASS | `chrome-check.py`: manifest removed, the download finishes in the browser |
@@ -257,7 +267,11 @@ Evidence is `dm-desktop/tests/window.rs` unless it says otherwise.
 | Find / Find next | PASS | `find_next_selects_the_next_row_with_the_name` |
 | Options › Browser: which downloads the browser hands over | PASS | `the_file_types_the_browser_hands_over_are_set_in_options`; the extension reading them: `scripts/chrome-check.py` ("the app's settings decide") |
 | Options on OK, saved; a failure puts it back | PASS | `options_are_put_into_force_on_ok_and_written_down`, `an_option_that_cannot_be_applied_is_put_back_and_said` |
-| Speed limiter on/off remembers its value | PASS | `the_speed_limiter_turns_off_and_back_on_to_its_last_value` |
+| Speed limiter on/off remembers its value, across a restart too (`last_speed_limit` in the settings) | PASS | `the_speed_limiter_turns_off_and_back_on_to_its_last_value`, `the_speed_limit_last_turned_off_comes_back_after_a_restart` |
+| Each key runs its own command (⌘⇧N the numbered series, not Add URL); Remove is ⌘⌫ or ⌫ on macOS, Delete elsewhere | PASS | `commands.rs` `each_key_runs_its_own_command_and_no_other`, `a_mac_removes_with_backspace_and_others_with_delete`; `window.rs` `command_shift_n_opens_the_numbered_series_not_add_url` |
+| The list's keys (Delete, Enter, ⌘A…) do not act behind a dialog; a dialog asked for again keeps what was typed | PASS | `the_lists_keys_do_not_reach_it_from_behind_a_dialog`, `a_dialog_asked_for_while_open_keeps_what_was_typed_in_it` |
+| Every column reachable at the default size (the list scrolls sideways); the status bar's folder never covers its words | PASS | `every_column_is_reached_at_the_default_window_size`, `the_status_bars_folder_never_covers_what_it_says` (960 px) |
+| Columns sort by what they show; names in natural order | PASS | `app.rs` `columns_sort_by_what_they_show`; `format.rs` `names_sort_with_their_numbers_by_value` |
 | Sign-ins / Needs a sign-in reach the server | PASS | `dm-core` `a_login_in_the_address_is_sent_as_basic_auth` (reqwest dropped the login after the probe until fixed); `dm-shell` `a_site_login_goes_on_the_hosts_it_names_and_no_others`; the password is never shown (`format` test) |
 | A server that wants a Digest sign-in (MD5, SHA-256, `-sess`, `qop=auth`, a nonce that expires) | PASS | `tests/auth.rs`: the file downloads with one challenge and every range signed in from the start; SHA-256 and a stale nonce; a wrong password refused with the 401 and not retried; Negotiate and NTLM said rather than tried; Basic unchanged |
 | An address already in the list is asked about: download again, show the row, or leave it | PASS | `an_address_already_in_the_list_is_asked_about_before_it_is_added_again` |

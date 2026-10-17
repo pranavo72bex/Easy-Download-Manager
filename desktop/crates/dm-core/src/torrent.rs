@@ -220,8 +220,13 @@ pub async fn download_torrent(
         if let Some(tx) = &report {
             let now = Instant::now();
             let dt = (now - last).as_secs_f64();
-            let done = stats.progress_bytes;
             let total = (stats.total_bytes > 0).then_some(stats.total_bytes);
+            /* Never less than already reported (gap 71). librqbit's count
+             * drops when a piece fails its hash and is fetched again, and
+             * while it checks what is on disk; a row whose bar went back
+             * read as a download losing data. The high-water mark, held to
+             * the total, catches up once the piece arrives again. */
+            let done = high_water(last_done, stats.progress_bytes, total);
             // Measured rather than read off librqbit's own estimator, so the
             // number is in the same units and computed the same way as every
             // other row.
@@ -285,9 +290,10 @@ pub async fn download_torrent(
         .map_err(|e| Error::Internal(format!("the finished torrent could not be released: {e}")))?;
     drop(session);
 
-    let (path, category, verified) = place(&staged, &name, options).await?;
+    let (path, category, verified, left_behind) = place(&staged, &name, options).await?;
 
     Ok(Finished {
+        left_behind,
         path,
         bytes,
         // A torrent has no fixed connection count; it is however many peers
@@ -298,6 +304,14 @@ pub async fn download_torrent(
         verified,
         mirrors: 0,
     })
+}
+
+/// What a torrent reports as downloaded: librqbit's count, held to the
+/// total and never below what was reported before.
+fn high_water(before: Option<u64>, progress: u64, total: Option<u64>) -> u64 {
+    progress
+        .min(total.unwrap_or(u64::MAX))
+        .max(before.unwrap_or(0))
 }
 
 /// Moves what a torrent produced into the download folder.
@@ -312,7 +326,7 @@ async fn place(
     staged: &Path,
     name: &str,
     options: &Options,
-) -> Result<(PathBuf, category::Category, bool), Error> {
+) -> Result<(PathBuf, category::Category, bool, Option<String>), Error> {
     if staged.is_file() {
         // Under the file's own name, not the torrent's: the two differ when
         // a torrent of one file is named for its release.
@@ -322,7 +336,7 @@ async fn place(
             .unwrap_or_else(|| name.to_string());
         let (path, _, category) =
             crate::download::finish(&file_name, None, &[staged.to_path_buf()], options).await?;
-        return Ok((path, category, options.checksum.is_some()));
+        return Ok((path, category, options.checksum.is_some(), None));
     }
     if options.checksum.is_some() {
         return Err(Error::Internal(
@@ -335,12 +349,14 @@ async fn place(
         .map_err(Error::Disk)?;
     let folder = folder_name(name);
     let dest = crate::download::claim_dir(&options.dest_dir, &folder).await?;
-    if let Err(e) = move_tree(staged, &dest).await {
-        // Only the empty folder this claimed; never anything with files in.
-        let _ = tokio::fs::remove_dir(&dest).await;
-        return Err(e);
+    match move_tree(staged, &dest).await {
+        Ok(left_behind) => Ok((dest, category::classify(&folder, None), false, left_behind)),
+        Err(e) => {
+            // Only the empty folder this claimed; never anything with files in.
+            let _ = tokio::fs::remove_dir(&dest).await;
+            Err(e)
+        }
     }
-    Ok((dest, category::classify(&folder, None), false))
 }
 
 /// The folder a torrent of several files lands in, from the name the
@@ -357,19 +373,55 @@ fn folder_name(name: &str) -> String {
 }
 
 /// Moves a directory: a rename where the two are on one filesystem, a copy
-/// and a removal where they are not.
-async fn move_tree(from: &Path, to: &Path) -> Result<(), Error> {
+/// and a removal where they are not. What it says, when it says anything,
+/// is a copy left behind that could not be removed: the files are in place,
+/// so that is a problem to note, not a failed download.
+async fn move_tree(from: &Path, to: &Path) -> Result<Option<String>, Error> {
     if tokio::fs::rename(from, to).await.is_ok() {
-        return Ok(());
+        return Ok(None);
     }
     let (from, to) = (from.to_path_buf(), to.to_path_buf());
-    tokio::task::spawn_blocking(move || -> std::io::Result<()> {
-        copy_tree(&from, &to)?;
-        std::fs::remove_dir_all(&from)
-    })
-    .await
-    .map_err(|e| Error::Internal(e.to_string()))?
-    .map_err(Error::Disk)
+    tokio::task::spawn_blocking(move || copy_across(&from, &to))
+        .await
+        .map_err(|e| Error::Internal(e.to_string()))?
+        .map_err(Error::Disk)
+}
+
+/// A move between disks (gap 61). Copied straight into `to`, a copy that
+/// failed midway left half a tree in the download folder looking finished;
+/// and a copy that succeeded but whose source could not be removed failed
+/// the row beside a whole copy, so Retry fetched it again as "name (1)".
+/// The copy goes to a hidden name beside `to` and is renamed into place
+/// only when whole; it is removed if it fails.
+fn copy_across(from: &Path, to: &Path) -> std::io::Result<Option<String>> {
+    let parent = to.parent().unwrap_or(Path::new("."));
+    let name = to
+        .file_name()
+        .map(|n| n.to_string_lossy().into_owned())
+        .unwrap_or_default();
+    let staging = parent.join(format!(".{name}.dm-moving"));
+    // One left by a move that was interrupted is no use to anyone.
+    let _ = std::fs::remove_dir_all(&staging);
+    if let Err(e) = copy_tree(from, &staging) {
+        let _ = std::fs::remove_dir_all(&staging);
+        return Err(e);
+    }
+    // Onto the empty folder claimed for it: Unix replaces an empty folder,
+    // Windows does not, so that goes first there.
+    if std::fs::rename(&staging, to).is_err() {
+        let _ = std::fs::remove_dir(to);
+        if let Err(e) = std::fs::rename(&staging, to) {
+            let _ = std::fs::remove_dir_all(&staging);
+            return Err(e);
+        }
+    }
+    Ok(std::fs::remove_dir_all(from).err().map(|e| {
+        format!(
+            "{} is complete, but the copy it was moved from could not be removed from {}: {e}",
+            to.display(),
+            from.display()
+        )
+    }))
 }
 
 fn copy_tree(from: &Path, to: &Path) -> std::io::Result<()> {
@@ -478,6 +530,76 @@ impl Drop for CancelOnDrop {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// Gap 61: a move across disks copied straight into the download
+    /// folder, so a copy that failed midway left half a tree there looking
+    /// finished; and one whose source could not be removed failed the row
+    /// beside a whole copy.
+    /// Gap 71: librqbit's count dropped (a piece failing its hash, a
+    /// check of the files) and the row's progress went back.
+    #[test]
+    fn reported_progress_never_goes_back() {
+        let mut said = None;
+        let mut seen = Vec::new();
+        for progress in [0, 400, 900, 512, 700, 1200, 1100, 2048, 4096] {
+            let done = high_water(said, progress, Some(2048));
+            seen.push(done);
+            said = Some(done);
+        }
+        assert_eq!(seen, [0, 400, 900, 900, 900, 1200, 1200, 2048, 2048]);
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn a_move_across_disks_is_whole_or_absent_and_a_leftover_is_only_noted() {
+        use std::os::unix::fs::PermissionsExt;
+        let tmp = tempfile::tempdir().unwrap();
+        let holder = tmp.path().join("parts");
+        let from = holder.join("Show");
+        std::fs::create_dir_all(from.join("a/b")).unwrap();
+        std::fs::write(from.join("one.bin"), b"one").unwrap();
+        std::fs::write(from.join("a/b/two.bin"), b"two").unwrap();
+        let unreadable = from.join("a/b/locked.bin");
+        std::fs::write(&unreadable, b"x").unwrap();
+        std::fs::set_permissions(&unreadable, std::fs::Permissions::from_mode(0o000)).unwrap();
+        let downloads = tmp.path().join("downloads");
+        let to = downloads.join("Show");
+        std::fs::create_dir_all(&to).unwrap();
+
+        assert!(
+            copy_across(&from, &to).is_err(),
+            "an unreadable file copied"
+        );
+        let listed = |dir: &Path| -> Vec<String> {
+            let mut names: Vec<String> = std::fs::read_dir(dir)
+                .unwrap()
+                .map(|e| e.unwrap().file_name().to_string_lossy().into_owned())
+                .collect();
+            names.sort();
+            names
+        };
+        assert_eq!(listed(&downloads), ["Show"], "a staging copy was left");
+        assert!(listed(&to).is_empty(), "half a tree in the download folder");
+
+        std::fs::remove_file(&unreadable).unwrap();
+        // The source's folder cannot be changed: its removal will fail.
+        std::fs::set_permissions(&holder, std::fs::Permissions::from_mode(0o555)).unwrap();
+        let moved = copy_across(&from, &to);
+        std::fs::set_permissions(&holder, std::fs::Permissions::from_mode(0o755)).unwrap();
+        let note = moved.expect("a whole copy is not a failure");
+        assert!(note.is_some_and(|n| n.contains("could not be removed")));
+        assert_eq!(std::fs::read(to.join("a/b/two.bin")).unwrap(), b"two");
+        assert_eq!(listed(&downloads), ["Show"]);
+
+        // And the ordinary case: moved, nothing left behind. (The failed
+        // removal above emptied the source but could not remove it.)
+        std::fs::write(from.join("one.bin"), b"one").unwrap();
+        let again = downloads.join("Again");
+        std::fs::create_dir_all(&again).unwrap();
+        assert_eq!(copy_across(&from, &again).unwrap(), None);
+        assert!(!from.exists());
+        assert_eq!(std::fs::read(again.join("one.bin")).unwrap(), b"one");
+    }
 
     #[test]
     fn magnets_and_torrent_files_are_for_the_torrent_engine() {

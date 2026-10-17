@@ -388,6 +388,9 @@ pub fn answer(
         Ok(Asked::Hello) => Reply::Hello(Hello {
             engine_version: env!("CARGO_PKG_VERSION").into(),
             ytdlp: Some(dm_core::ytdlp::available()),
+            // The extension hands a download the browser holds only to an
+            // app that says it judges what it is served.
+            protocol: Some(dm_protocol::PROTOCOL_VERSION),
         }),
 
         // Which downloads to catch: the app's choice, read on every ask so a
@@ -477,6 +480,7 @@ pub fn answer(
             cookies,
             mime,
             deadline,
+            ..
         })) => {
             let url = url.trim().to_string();
             if url.is_empty() {
@@ -1067,6 +1071,26 @@ mod tests {
         };
         assert_eq!(hello.engine_version, env!("CARGO_PKG_VERSION"));
         assert!(hello.ytdlp.is_some(), "the extension is told either way");
+        // Said, so the extension hands this app the downloads the browser
+        // holds: it judges a sign-in page served in the file's place.
+        assert!(hello.judges_pages());
+        assert_eq!(hello.protocol, Some(dm_protocol::PROTOCOL_VERSION));
+    }
+
+    #[test]
+    fn a_caught_hand_off_at_the_new_version_is_answered_at_the_old() {
+        // The extension sends a caught download at version 2; the answer
+        // goes back at 1, which an older extension also reads.
+        let dir = tempfile::tempdir().unwrap();
+        let frame = caught("b9-1", "https://e.com/f.zip", "application/zip", None);
+        assert_eq!(frame["protocolVersion"], 2);
+        // A file a person asked for, checked but not held by the browser,
+        // goes at 1, which an app of version 1 also answers.
+        assert_eq!(start("m9-1", "https://e.com/f.zip")["protocolVersion"], 1);
+        let mut world = pretend("application/zip", 0, 0);
+        let reply = answer(dir.path(), &frame, &mut world).unwrap();
+        assert_eq!(reply["protocolVersion"], 1);
+        assert_eq!(reply["type"], "download.started");
     }
 
     #[test]
@@ -1232,6 +1256,7 @@ mod tests {
             url: url.into(),
             referrer: "https://e.com/page".into(),
             caught: true,
+            held: true,
             mime: mime.into(),
             deadline,
             ..Start::default()
@@ -1403,7 +1428,8 @@ mod tests {
         let dir = tempfile::tempdir().unwrap();
         for frame in [
             serde_json::json!({ "protocolVersion": 1, "type": "download.pause", "id": "a" }),
-            serde_json::json!({ "protocolVersion": 2, "type": "engine.hello" }),
+            serde_json::json!({ "protocolVersion": 3, "type": "engine.hello" }),
+            serde_json::json!({ "protocolVersion": 0, "type": "engine.hello" }),
             serde_json::Value::Null,
         ] {
             assert_eq!(ask(dir.path(), frame, true, Ok(())).0, None);

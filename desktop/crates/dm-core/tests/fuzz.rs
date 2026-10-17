@@ -30,6 +30,9 @@ fn texty() -> impl Strategy<Value = String> {
                 Just("\\".to_string()),
                 Just(";".to_string()),
                 Just("CON".to_string()),
+                Just("COM\u{b9}".to_string()),
+                Just("CONOUT$".to_string()),
+                Just(" ".to_string()),
                 Just(".".to_string()),
                 Just("\u{0}".to_string()),
                 Just("é".to_string()),
@@ -115,6 +118,18 @@ proptest! {
         prop_assert!(!once.contains('/') && !once.contains('\\'));
         prop_assert!(once.len() <= 240);
         // Cleaning a clean name changes nothing.
+        prop_assert_eq!(probe::sanitize(&once), once.clone());
+    }
+
+    /// Gap 63: a long name cut to length could end on a space or a dot,
+    /// which Windows drops and a second clean trimmed: not settled.
+    #[test]
+    fn a_long_name_cut_to_length_settles(
+        name in "[a-z\u{4e2d}]{100,230}[ .\u{3000}]{0,6}[a-z .]{0,40}(\\.[a-z]{1,30})?",
+    ) {
+        let once = probe::sanitize(&name);
+        prop_assert!(once.len() <= 240);
+        prop_assert!(!once.ends_with([' ', '.']), "{once:?}");
         prop_assert_eq!(probe::sanitize(&once), once.clone());
     }
 

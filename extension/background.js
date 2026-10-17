@@ -18,6 +18,8 @@ ext.contextMenus.onClicked.addListener(forward('on_menu_clicked'));
 ext.action.onClicked.addListener(forward('on_action_clicked'));
 ext.runtime.onInstalled.addListener(forward('on_installed'));
 ext.runtime.onStartup.addListener(forward('on_startup'));
+// A closed tab's streams are forgotten, in memory and in session storage.
+ext.tabs.onRemoved.addListener(forward('on_tab_removed'));
 // Media a page's player loads, for the panel's list (read, never changed).
 ext.webRequest.onResponseStarted.addListener(
   forward('on_response_started'),

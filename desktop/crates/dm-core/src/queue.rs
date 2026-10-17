@@ -6,7 +6,7 @@
 //! is shared and the seeks are not; holding most of them back is what makes
 //! the first ones arrive.
 
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::path::PathBuf;
 use std::sync::atomic::{AtomicBool, AtomicU64, AtomicUsize, Ordering};
 use std::sync::Arc;
@@ -274,6 +274,9 @@ struct Inner {
     /// against the limit as a paused row's run does. Dropped with the row,
     /// they let a limit of one run two.
     leaving: std::sync::Mutex<Vec<(String, tokio::task::JoinHandle<()>)>>,
+    /// How many times the queue file has been written, for a test to hold
+    /// a batch to one save.
+    saves: AtomicU64,
 }
 
 /// A queue of downloads.
@@ -325,6 +328,7 @@ impl Queue {
                 quota_saved: std::sync::Mutex::new(None),
                 recheck: std::sync::Mutex::new((None, now_millis())),
                 client: Mutex::new(client),
+                saves: AtomicU64::new(0),
             }),
         }
     }
@@ -584,6 +588,7 @@ impl Queue {
             return;
         };
         let _saving = self.inner.saving.lock().await;
+        self.inner.saves.fetch_add(1, Ordering::Relaxed);
         let entries = self.list().await;
 
         let write = || -> std::io::Result<()> {
@@ -985,26 +990,47 @@ impl Queue {
     /// Not `cancel` and then forget: that discarded the parts and wrote the
     /// queue twice, once for a Cancelled state nobody would ever see.
     pub async fn remove(&self, id: Id) {
-        let taken = self.take_slot(&mut *self.inner.slots.lock().await, id);
-        let Some(slot) = taken else {
+        self.remove_many(&[id]).await;
+    }
+
+    /// Forgets several downloads with one save of the queue. Removing a
+    /// selection one `remove` at a time wrote the whole queue file once per
+    /// row: 10,000 rows of a 6.5 MB file at 32 ms a save held the window
+    /// for minutes.
+    pub async fn remove_many(&self, ids: &[Id]) {
+        let mut taken = Vec::new();
+        {
+            let mut slots = self.inner.slots.lock().await;
+            for &id in ids {
+                if let Some(slot) = self.take_slot(&mut slots, id) {
+                    taken.push((id, slot));
+                }
+            }
+        }
+        if taken.is_empty() {
             return;
-        };
-        self.inner.order.lock().await.retain(|x| *x != id);
+        }
+        let gone: HashSet<Id> = taken.iter().map(|(id, _)| *id).collect();
+        self.inner.order.lock().await.retain(|x| !gone.contains(x));
         // The folder the row recorded, read from the row just taken: looked
         // up afresh it is no longer there, and the setting's folder is not
         // where a row begun before a change staged its parts.
-        let parts = if slot.entry.parts_dir.is_empty() {
-            self.inner
-                .options
-                .lock()
-                .await
-                .parts_dir
-                .join(id.to_string())
-        } else {
-            PathBuf::from(&slot.entry.parts_dir)
-        };
-        self.discard_parts_at(&parts).await;
+        let default_parts = self.inner.options.lock().await.parts_dir.clone();
+        for (id, slot) in taken {
+            let parts = if slot.entry.parts_dir.is_empty() {
+                default_parts.join(id.to_string())
+            } else {
+                PathBuf::from(&slot.entry.parts_dir)
+            };
+            self.discard_parts_at(&parts).await;
+        }
         self.save().await;
+    }
+
+    /// How many times the queue file has been written since this queue was
+    /// made: what a test holds a batch operation to.
+    pub fn saves_written(&self) -> u64 {
+        self.inner.saves.load(Ordering::Relaxed)
     }
 
     /// Whether anything is still running or waiting to.
@@ -1402,6 +1428,13 @@ impl Queue {
                 }
                 (outcome, _) => outcome,
             };
+            if let Ok(crate::download::Finished {
+                left_behind: Some(note),
+                ..
+            }) = &outcome
+            {
+                queue.note(note.clone());
+            }
             // Finished, its parts are spent: the folder they were staged in
             // goes too, when nothing else is left in it.
             if outcome.is_ok() {
@@ -1472,6 +1505,9 @@ async fn rename_free(from: &std::path::Path, name: &str) -> std::io::Result<Path
     {
         return Ok(from.to_path_buf());
     }
+    if let Some(to) = rename_case_only(from, dir, &name).await? {
+        return Ok(to);
+    }
     // Claimed by creating it, so nothing else can take the name between
     // the choice and the move; the move then replaces that empty claim.
     let to = crate::download::claim_path(dir, &name)
@@ -1482,6 +1518,49 @@ async fn rename_free(from: &std::path::Path, name: &str) -> std::io::Result<Path
         return Err(e);
     }
     Ok(to)
+}
+
+/// A rename that changes only the case of a name ("Report.pdf" to
+/// "report.pdf"), done in place. On a case-insensitive disk (macOS's and
+/// Windows' by default) the new name is "taken" by the file itself, so the
+/// free-name rule gave "report (1).pdf". `None` when this is not such a
+/// rename, or the disk holds the new name as another file.
+async fn rename_case_only(
+    from: &std::path::Path,
+    dir: &std::path::Path,
+    name: &str,
+) -> std::io::Result<Option<PathBuf>> {
+    let Some(old) = from.file_name().map(|f| f.to_string_lossy().into_owned()) else {
+        return Ok(None);
+    };
+    if old.to_lowercase() != name.to_lowercase() {
+        return Ok(None);
+    }
+    let to = dir.join(name);
+    if tokio::fs::symlink_metadata(&to).await.is_err() {
+        // Nothing answers to the new name: an ordinary rename will do.
+        return Ok(None);
+    }
+    // Something answers to it. If no entry is spelt that way, it is this
+    // file found by a case-insensitive disk; otherwise it is another file.
+    let mut entries = tokio::fs::read_dir(dir).await?;
+    while let Some(entry) = entries.next_entry().await? {
+        if entry.file_name().to_string_lossy() == name {
+            return Ok(None);
+        }
+    }
+    // Through a name of its own: a disk that ignores case may also ignore
+    // a rename to what it takes for the same name.
+    let nanos = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map_or(0, |d| d.subsec_nanos());
+    let between = dir.join(format!(".dm-rename-{}-{nanos}", std::process::id()));
+    tokio::fs::rename(from, &between).await?;
+    if let Err(e) = tokio::fs::rename(&between, &to).await {
+        let _ = tokio::fs::rename(&between, from).await;
+        return Err(e);
+    }
+    Ok(Some(to))
 }
 
 /* --------------------------------------------------------------------- row verbs
@@ -1825,14 +1904,22 @@ impl Queue {
     /// it found; `None` when there is no timer or it is not yet time.
     pub async fn recheck_if_due(&self) -> Option<(usize, Vec<Id>)> {
         let now = now_millis();
-        {
+        let due = {
             let mut recheck = crate::lock(&self.inner.recheck);
             let every = recheck.0?;
-            if u128::from(now.saturating_sub(recheck.1)) < every.as_millis() {
+            if recheck.1 > now {
+                // A last run later than now is a clock that was once set
+                // ahead. Waited out, it held the recheck until that date;
+                // it is stale, and the count starts again from now.
+                recheck.1 = now;
+                false
+            } else if u128::from(now - recheck.1) < every.as_millis() {
                 return None;
+            } else {
+                recheck.1 = now;
+                true
             }
-            recheck.1 = now;
-        }
+        };
         if let Some(at) = self.recheck_file().await {
             if let Err(e) = tokio::fs::write(&at, now.to_string()).await {
                 self.note(format!(
@@ -1840,6 +1927,9 @@ impl Queue {
                     at.display()
                 ));
             }
+        }
+        if !due {
+            return None;
         }
         Some(self.synchronize(RECHECK_QUEUE).await)
     }

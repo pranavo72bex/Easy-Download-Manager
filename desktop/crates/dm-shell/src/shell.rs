@@ -517,12 +517,63 @@ pub fn reveal_in_folder(path: &str) -> Result<(), String> {
     };
     // No portable "select the file", so the containing folder is opened.
     #[cfg(all(unix, not(target_os = "macos")))]
-    let mut command = {
-        let mut c = std::process::Command::new("xdg-open");
-        c.arg(p.parent().unwrap_or(p));
-        c
-    };
+    return linux_open(p.parent().unwrap_or(p));
+    #[cfg(not(all(unix, not(target_os = "macos"))))]
     command.spawn().map(|_| ()).map_err(|e| e.to_string())
+}
+
+/// The programs a Linux desktop opens things with, in the order tried:
+/// the freedesktop one, then GNOME's, KDE's and Xfce's own, which a
+/// minimal install can have without `xdg-utils`.
+#[cfg(all(unix, not(target_os = "macos")))]
+const LINUX_OPENERS: [&[&str]; 5] = [
+    &["xdg-open"],
+    &["gio", "open"],
+    &["kde-open"],
+    &["kde-open5"],
+    &["exo-open"],
+];
+
+/// Opens a file or folder on Linux with the first opener that is there.
+///
+/// `xdg-open` comes with `xdg-utils`, which the packages now require, but
+/// a desktop that lacks it (a minimal install, a container) still has its
+/// own. Started from an AppImage, the AppImage's private library path is
+/// not passed on: an opener loading its libraries from there fails in ways
+/// nobody would trace to dm.
+#[cfg(all(unix, not(target_os = "macos")))]
+fn linux_open(target: &Path) -> Result<(), String> {
+    linux_open_in(target, None)
+}
+
+/// The same, looking for the openers along `path` where one is given.
+#[cfg(all(unix, not(target_os = "macos")))]
+fn linux_open_in(target: &Path, path: Option<&std::ffi::OsStr>) -> Result<(), String> {
+    let in_appimage = std::env::var_os("APPIMAGE").is_some();
+    for opener in LINUX_OPENERS {
+        let Some((program, args)) = opener.split_first() else {
+            continue;
+        };
+        let mut command = std::process::Command::new(program);
+        command.args(args.iter()).arg(target);
+        if let Some(path) = path {
+            command.env("PATH", path);
+        }
+        if in_appimage {
+            command
+                .env_remove("LD_LIBRARY_PATH")
+                .env_remove("LD_PRELOAD");
+        }
+        match command.spawn() {
+            Ok(_) => return Ok(()),
+            Err(e) if e.kind() == std::io::ErrorKind::NotFound => continue,
+            Err(e) => return Err(e.to_string()),
+        }
+    }
+    Err("nothing on this computer opens files: install xdg-utils \
+         (`sudo apt install xdg-utils`, `sudo dnf install xdg-utils` or \
+         `sudo pacman -S xdg-utils`)"
+        .into())
 }
 
 /// Opens a finished file with whatever the system opens it with.
@@ -548,9 +599,10 @@ pub fn open_file(path: &str) -> Result<(), String> {
         command.raw_arg(format!("\"{path}\""));
     }
     #[cfg(all(unix, not(target_os = "macos")))]
-    let mut command = std::process::Command::new("xdg-open");
-    #[cfg(not(target_os = "windows"))]
+    return linux_open(p);
+    #[cfg(target_os = "macos")]
     command.arg(p);
+    #[cfg(not(all(unix, not(target_os = "macos"))))]
     command.spawn().map(|_| ()).map_err(|e| e.to_string())
 }
 
@@ -855,6 +907,37 @@ mod tests {
     }
 
     use super::*;
+
+    /// No `xdg-utils`, as on a minimal desktop: GNOME's `gio` opens it.
+    #[cfg(all(unix, not(target_os = "macos")))]
+    #[test]
+    fn a_desktop_without_xdg_open_opens_with_its_own_opener() {
+        use std::os::unix::fs::PermissionsExt;
+        let bin = tempfile::tempdir().unwrap();
+        let said = bin.path().join("said");
+        let gio = bin.path().join("gio");
+        std::fs::write(
+            &gio,
+            format!("#!/bin/sh\necho \"$@\" > '{}'\n", said.display()),
+        )
+        .unwrap();
+        std::fs::set_permissions(&gio, std::fs::Permissions::from_mode(0o755)).unwrap();
+        let file = bin.path().join("f.txt");
+        linux_open_in(&file, Some(bin.path().as_os_str())).unwrap();
+        for _ in 0..100 {
+            if said.exists() {
+                break;
+            }
+            std::thread::sleep(std::time::Duration::from_millis(20));
+        }
+        let said = std::fs::read_to_string(&said).unwrap();
+        assert_eq!(said.trim(), format!("open {}", file.display()));
+
+        // With no opener at all, the fix is named.
+        let empty = tempfile::tempdir().unwrap();
+        let refused = linux_open_in(&file, Some(empty.path().as_os_str())).unwrap_err();
+        assert!(refused.contains("xdg-utils"), "{refused}");
+    }
 
     /* One binary is both the window and the host, and which one it is comes
      * down to reading the arguments a browser passes. Firefox passes the

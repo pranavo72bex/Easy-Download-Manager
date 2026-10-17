@@ -11,7 +11,11 @@
 //! - **Hand over this site's sign-in**: the browser's cookies for this site
 //!   go to dm with its downloads, so a file behind a sign-in is taken and
 //!   not left. Asks the browser for the `cookies` permission the first time
-//!   it is switched on, for that is when it is first needed.
+//!   it is switched on, for that is when it is first needed, and reads on
+//!   only while the browser still grants it.
+//!
+//! A switch turned off on part of a listed site turns it off for the listed
+//! site too, and says so.
 //! - **Open dm**: the app's window to the front, or the app started.
 //!
 //! The page is `extension/popup.html`; this wires it. What a site is, and
@@ -100,6 +104,199 @@ fn on_change(element: &Element, handler: impl Fn() + 'static) {
     closure.forget();
 }
 
+/// `ext.<path>.<method>(args…)`, started now and not awaited: for what must
+/// happen inside a person's gesture (Firefox refuses `permissions.request`
+/// from anywhere else) or before the popup can close.
+fn start(ext: &JsValue, path: &str, method: &str, args: &[JsValue]) -> Option<Promise> {
+    let mut target = ext.clone();
+    for part in path.split('.') {
+        target = Reflect::get(&target, &part.into()).ok()?;
+    }
+    let function: Function = Reflect::get(&target, &method.into())
+        .ok()?
+        .dyn_into()
+        .ok()?;
+    let list: Array = args.iter().cloned().collect();
+    function.apply(&target, &list).ok()?.dyn_into().ok()
+}
+
+fn as_array(list: &[String]) -> JsValue {
+    let array: Array = list.iter().map(|s| JsValue::from_str(s)).collect();
+    array.into()
+}
+
+fn item(key: &str, value: &JsValue) -> JsValue {
+    let item = Object::new();
+    let _ = Reflect::set(&item, &key.into(), value);
+    item.into()
+}
+
+/// The `{ permissions: ["cookies"] }` the cookies permission is asked by.
+fn cookies_permission() -> JsValue {
+    let wanted = Object::new();
+    let names: Array = [JsValue::from_str("cookies")].into_iter().collect();
+    let _ = Reflect::set(&wanted, &"permissions".into(), &names);
+    wanted.into()
+}
+
+/// The address of the tab in front.
+async fn active_url(ext: &JsValue) -> String {
+    let query = Object::new();
+    let _ = Reflect::set(&query, &"active".into(), &JsValue::TRUE);
+    let _ = Reflect::set(&query, &"currentWindow".into(), &JsValue::TRUE);
+    call(ext, "tabs", "query", &[query.into()])
+        .await
+        .and_then(|tabs| tabs.dyn_into::<Array>().ok())
+        .map(|tabs| text(&tabs.get(0), "url"))
+        .unwrap_or_default()
+}
+
+/// One of the three per-site switches.
+struct SiteSwitch {
+    input: &'static str,
+    row: &'static str,
+    label: &'static str,
+    /// The storage key of its list of sites.
+    key: &'static str,
+    /// Whether a listed site reads as on (the panel's list is of sites it
+    /// is kept off).
+    listed_is_on: bool,
+    /// The label, given the site.
+    says: fn(&str) -> String,
+    /// The label on a page that is not a site.
+    none: &'static str,
+}
+
+/// Draws a per-site switch for the tab in front and wires it. Turned off
+/// on part of a listed site (music.youtube.com under youtube.com), it takes
+/// out the entry that had it on, and says so: taking out only the exact
+/// site left the switch on.
+async fn site_switch(ext: JsValue, switch: SiteSwitch) {
+    let (Some(input), Some(row), Some(label)) =
+        (input(switch.input), by_id(switch.row), by_id(switch.label))
+    else {
+        return;
+    };
+    let url = active_url(&ext).await;
+    let Some(site) = decide::site_of(&url).filter(|_| url.starts_with("http")) else {
+        input.set_disabled(true);
+        input.set_checked(false);
+        row.set_class_name("row off");
+        label.set_text_content(Some(switch.none));
+        return;
+    };
+    label.set_text_content(Some(&(switch.says)(&site)));
+    let listed = sites(&stored(&ext, switch.key).await);
+    input.set_checked(decide::site_listed(&listed, &url) == switch.listed_is_on);
+    let box_ = input.clone();
+    on_change(&input, move || {
+        let (ext, on, site) = (ext.clone(), box_.checked(), site.clone());
+        let (key, listed_is_on) = (switch.key, switch.listed_is_on);
+        wasm_bindgen_futures::spawn_local(async move {
+            let listed = sites(&stored(&ext, key).await);
+            let add = on == listed_is_on;
+            let note = if add {
+                None
+            } else {
+                decide::wider_note(&listed, &site)
+            };
+            let list = decide::with_site(&listed, &site, add);
+            store(&ext, key, as_array(&list)).await;
+            if let Some(note) = note {
+                say(&note, false);
+            }
+        });
+    });
+}
+
+/// The sign-in switch: on only where the site is listed and the browser
+/// still grants the cookies permission, which a person can take back in
+/// the browser's settings. Switched on, the site is stored before the
+/// permission is asked — Firefox closes the popup for the prompt, and
+/// whatever was to happen after it never does — and taken out again if the
+/// permission is refused.
+async fn cookies_switch(ext: JsValue) {
+    let (Some(input), Some(row), Some(label)) = (
+        input("cookies"),
+        by_id("cookies-row"),
+        by_id("cookies-label"),
+    ) else {
+        return;
+    };
+    let url = active_url(&ext).await;
+    let Some(site) = decide::site_of(&url).filter(|_| url.starts_with("http")) else {
+        input.set_disabled(true);
+        input.set_checked(false);
+        row.set_class_name("row off");
+        label.set_text_content(Some("No sign-in to hand over from this page"));
+        return;
+    };
+    label.set_text_content(Some(&format!(
+        "Hand over {site}'s sign-in with its downloads"
+    )));
+    let listed = sites(&stored(&ext, decide::COOKIES_SITES_KEY).await);
+    let granted = call(&ext, "permissions", "contains", &[cookies_permission()])
+        .await
+        .and_then(|v| v.as_bool())
+        .unwrap_or(false);
+    input.set_checked(granted && decide::cookies_wanted(&listed, &url));
+    // Kept here, so a switch-on can store the site without waiting.
+    let known = std::rc::Rc::new(std::cell::RefCell::new(listed));
+    let box_ = input.clone();
+    on_change(&input, move || {
+        let on = box_.checked();
+        let before = known.borrow().clone();
+        let note = if on {
+            None
+        } else {
+            decide::wider_note(&before, &site)
+        };
+        let after = decide::with_site(&before, &site, on);
+        *known.borrow_mut() = after.clone();
+        // Both started inside the gesture, the site first.
+        let stored = start(
+            &ext,
+            "storage.local",
+            "set",
+            &[item(decide::COOKIES_SITES_KEY, &as_array(&after))],
+        );
+        let asked = if on {
+            start(&ext, "permissions", "request", &[cookies_permission()])
+        } else {
+            None
+        };
+        let (ext, box_, known) = (ext.clone(), box_.clone(), known.clone());
+        wasm_bindgen_futures::spawn_local(async move {
+            if let Some(stored) = stored {
+                let _ = JsFuture::from(stored).await;
+            }
+            if let Some(note) = note {
+                say(&note, false);
+            }
+            if !on {
+                return;
+            }
+            let granted = match asked {
+                Some(asked) => JsFuture::from(asked)
+                    .await
+                    .ok()
+                    .and_then(|v| v.as_bool())
+                    .unwrap_or(false),
+                None => false,
+            };
+            if !granted {
+                *known.borrow_mut() = before.clone();
+                store(&ext, decide::COOKIES_SITES_KEY, as_array(&before)).await;
+                box_.set_checked(false);
+                say(
+                    "Without the cookies permission, sign-ins stay with the browser",
+                    true,
+                );
+            }
+        });
+    });
+}
+
 /// Wires the popup, once its WebAssembly has loaded.
 #[wasm_bindgen]
 pub fn popup_start(ext: JsValue) {
@@ -112,18 +309,11 @@ pub fn popup_start(ext: JsValue) {
             .and_then(|v| v.as_bool())
             .unwrap_or(false);
         if ok {
-            let ytdlp = Reflect::get(&reply, &"ytdlp".into())
+            let bad = Reflect::get(&reply, &"bad".into())
                 .ok()
-                .and_then(|v| v.as_bool());
-            let extra = if ytdlp == Some(false) {
-                " · install yt-dlp for video sites"
-            } else {
-                ""
-            };
-            say(
-                &format!("Connected to dm {}{extra}", text(&reply, "version")),
-                false,
-            );
+                .and_then(|v| v.as_bool())
+                .unwrap_or(false);
+            say(&text(&reply, "line"), bad);
         } else {
             let said = text(&reply, "said");
             say(
@@ -152,151 +342,38 @@ pub fn popup_start(ext: JsValue) {
         });
     }
 
-    // The panel on this site: the tab in front, by the same rule the page
-    // script keeps it off by.
-    let ext_tab = ext.clone();
-    wasm_bindgen_futures::spawn_local(async move {
-        let (Some(panel), Some(row), Some(label)) =
-            (input("panel"), by_id("panel-row"), by_id("panel-label"))
-        else {
-            return;
-        };
-        let query = Object::new();
-        let _ = Reflect::set(&query, &"active".into(), &JsValue::TRUE);
-        let _ = Reflect::set(&query, &"currentWindow".into(), &JsValue::TRUE);
-        let url = call(&ext_tab, "tabs", "query", &[query.into()])
-            .await
-            .and_then(|tabs| tabs.dyn_into::<Array>().ok())
-            .map(|tabs| text(&tabs.get(0), "url"))
-            .unwrap_or_default();
-        let Some(site) = decide::site_of(&url).filter(|_| url.starts_with("http")) else {
-            panel.set_disabled(true);
-            panel.set_checked(false);
-            row.set_class_name("row off");
-            label.set_text_content(Some("No video panel on this page"));
-            return;
-        };
-        label.set_text_content(Some(&format!("Show “Download video” on {site}")));
-        let off = sites(&stored(&ext_tab, decide::PANEL_OFF_KEY).await);
-        panel.set_checked(!decide::panel_off(&off, &url));
-        let (ext, box_) = (ext_tab.clone(), panel.clone());
-        on_change(&panel, move || {
-            let (ext, show, site) = (ext.clone(), box_.checked(), site.clone());
-            wasm_bindgen_futures::spawn_local(async move {
-                let off = sites(&stored(&ext, decide::PANEL_OFF_KEY).await);
-                let list: Array = decide::with_site(&off, &site, !show)
-                    .iter()
-                    .map(|s| JsValue::from_str(s))
-                    .collect();
-                store(&ext, decide::PANEL_OFF_KEY, list.into()).await;
-            });
-        });
-    });
+    // The panel on this site, by the same rule the page script keeps it
+    // off by.
+    wasm_bindgen_futures::spawn_local(site_switch(
+        ext.clone(),
+        SiteSwitch {
+            input: "panel",
+            row: "panel-row",
+            label: "panel-label",
+            key: decide::PANEL_OFF_KEY,
+            listed_is_on: false,
+            says: |site| format!("Show “Download video” on {site}"),
+            none: "No video panel on this page",
+        },
+    ));
 
     // Every download from this site, whatever its type: the worker reads
     // the same list before it asks the app's rules.
-    let ext_all = ext.clone();
-    wasm_bindgen_futures::spawn_local(async move {
-        let (Some(all), Some(row), Some(label)) = (
-            input("catchall"),
-            by_id("catchall-row"),
-            by_id("catchall-label"),
-        ) else {
-            return;
-        };
-        let query = Object::new();
-        let _ = Reflect::set(&query, &"active".into(), &JsValue::TRUE);
-        let _ = Reflect::set(&query, &"currentWindow".into(), &JsValue::TRUE);
-        let url = call(&ext_all, "tabs", "query", &[query.into()])
-            .await
-            .and_then(|tabs| tabs.dyn_into::<Array>().ok())
-            .map(|tabs| text(&tabs.get(0), "url"))
-            .unwrap_or_default();
-        let Some(site) = decide::site_of(&url).filter(|_| url.starts_with("http")) else {
-            all.set_disabled(true);
-            all.set_checked(false);
-            row.set_class_name("row off");
-            label.set_text_content(Some("No downloads to take from this page"));
-            return;
-        };
-        label.set_text_content(Some(&format!("Take every download from {site}")));
-        let listed = sites(&stored(&ext_all, decide::CATCH_ALL_KEY).await);
-        all.set_checked(decide::forced(&listed, &url));
-        let (ext, box_) = (ext_all.clone(), all.clone());
-        on_change(&all, move || {
-            let (ext, on, site) = (ext.clone(), box_.checked(), site.clone());
-            wasm_bindgen_futures::spawn_local(async move {
-                let listed = sites(&stored(&ext, decide::CATCH_ALL_KEY).await);
-                let list: Array = decide::with_site(&listed, &site, on)
-                    .iter()
-                    .map(|s| JsValue::from_str(s))
-                    .collect();
-                store(&ext, decide::CATCH_ALL_KEY, list.into()).await;
-            });
-        });
-    });
+    wasm_bindgen_futures::spawn_local(site_switch(
+        ext.clone(),
+        SiteSwitch {
+            input: "catchall",
+            row: "catchall-row",
+            label: "catchall-label",
+            key: decide::CATCH_ALL_KEY,
+            listed_is_on: true,
+            says: |site| format!("Take every download from {site}"),
+            none: "No downloads to take from this page",
+        },
+    ));
 
-    // This site's sign-in with its downloads: the cookies permission is
-    // asked for on the switch, which is a person's gesture, and only then.
-    let ext_cookies = ext.clone();
-    wasm_bindgen_futures::spawn_local(async move {
-        let (Some(switch), Some(row), Some(label)) = (
-            input("cookies"),
-            by_id("cookies-row"),
-            by_id("cookies-label"),
-        ) else {
-            return;
-        };
-        let query = Object::new();
-        let _ = Reflect::set(&query, &"active".into(), &JsValue::TRUE);
-        let _ = Reflect::set(&query, &"currentWindow".into(), &JsValue::TRUE);
-        let url = call(&ext_cookies, "tabs", "query", &[query.into()])
-            .await
-            .and_then(|tabs| tabs.dyn_into::<Array>().ok())
-            .map(|tabs| text(&tabs.get(0), "url"))
-            .unwrap_or_default();
-        let Some(site) = decide::site_of(&url).filter(|_| url.starts_with("http")) else {
-            switch.set_disabled(true);
-            switch.set_checked(false);
-            row.set_class_name("row off");
-            label.set_text_content(Some("No sign-in to hand over from this page"));
-            return;
-        };
-        label.set_text_content(Some(&format!(
-            "Hand over {site}'s sign-in with its downloads"
-        )));
-        let listed = sites(&stored(&ext_cookies, decide::COOKIES_SITES_KEY).await);
-        switch.set_checked(decide::cookies_wanted(&listed, &url));
-        let (ext, box_) = (ext_cookies.clone(), switch.clone());
-        on_change(&switch, move || {
-            let (ext, on, site, box_) = (ext.clone(), box_.checked(), site.clone(), box_.clone());
-            wasm_bindgen_futures::spawn_local(async move {
-                if on {
-                    let wanted = Object::new();
-                    let names: Array = [JsValue::from_str("cookies")].into_iter().collect();
-                    let _ = Reflect::set(&wanted, &"permissions".into(), &names);
-                    let granted = call(&ext, "permissions", "request", &[wanted.into()])
-                        .await
-                        .and_then(|v| v.as_bool())
-                        .unwrap_or(false);
-                    if !granted {
-                        box_.set_checked(false);
-                        say(
-                            "Without the cookies permission, sign-ins stay with the browser",
-                            true,
-                        );
-                        return;
-                    }
-                }
-                let listed = sites(&stored(&ext, decide::COOKIES_SITES_KEY).await);
-                let list: Array = decide::with_site(&listed, &site, on)
-                    .iter()
-                    .map(|s| JsValue::from_str(s))
-                    .collect();
-                store(&ext, decide::COOKIES_SITES_KEY, list.into()).await;
-            });
-        });
-    });
+    // This site's sign-in with its downloads.
+    wasm_bindgen_futures::spawn_local(cookies_switch(ext.clone()));
 
     // Open dm: its window to the front, then the popup gets out of the way.
     if let Some(open) = by_id("open") {

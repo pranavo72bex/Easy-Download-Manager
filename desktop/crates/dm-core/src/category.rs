@@ -191,15 +191,47 @@ impl Custom {
     }
 }
 
-/// A folder name that stays one folder under the download folder. Names come
-/// from a hand-editable settings file, and one with a separator in it would
-/// put files somewhere else entirely. Public so Options can refuse such a
-/// name as it is typed, rather than accept it and have it sort nothing.
+/// A folder name that stays one folder under the download folder, and that
+/// this computer can make. Names come from a hand-editable settings file,
+/// and one with a separator in it would put files somewhere else entirely.
+/// This decides whether a saved name is loaded and used; a name being made
+/// or renamed in Options is held to [`portable_folder`] as well.
 pub fn one_folder(name: &str) -> bool {
     // Judged as it will be used, trimmed: " .. " passed as a name and was
     // joined as "..", the folder above the download folder.
     let name = name.trim();
-    !name.is_empty() && !name.contains(['/', '\\']) && name != ".." && name != "."
+    let here = !name.is_empty() && !name.contains(['/', '\\']) && name != ".." && name != ".";
+    // On Windows a name Windows cannot make could never have worked.
+    if cfg!(windows) {
+        here && portable_folder(name).is_ok()
+    } else {
+        here
+    }
+}
+
+/// Whether a folder name can be made on every computer dm runs on, and if
+/// not, why. For a name being made or renamed: settings travel, and "Docs:
+/// work" or "CON" accepted on a Mac failed every download into it on
+/// Windows, after the whole file had arrived (gap 64). A name already saved
+/// that works here is kept ([`one_folder`]); this is not applied to it.
+pub fn portable_folder(name: &str) -> Result<(), &'static str> {
+    let name = name.trim();
+    if name.is_empty() {
+        return Err("it is empty");
+    }
+    if name.contains(['/', '\\']) || name == ".." || name == "." {
+        return Err("it is not one folder");
+    }
+    if name.contains(|c: char| "<>:\"|?*".contains(c) || c.is_control()) {
+        return Err("it holds a character Windows cannot use in a name: < > : \" | ? *");
+    }
+    if name.ends_with('.') {
+        return Err("Windows cannot make a name ending in a dot");
+    }
+    if crate::probe::reserved_on_windows(name) {
+        return Err("Windows keeps that name for a device");
+    }
+    Ok(())
 }
 
 /// The host of a download's address, lowercased; empty when it has none.
@@ -274,7 +306,7 @@ impl Categories {
             // A folder name is a single component. Anything with a separator
             // in it would put files outside the download folder entirely,
             // and this string comes from a hand-editable settings file.
-            Some(name) if one_folder(&name) => root.join(name),
+            Some(name) if one_folder(&name) => root.join(name.trim()),
             _ => root.to_path_buf(),
         }
     }
@@ -287,6 +319,40 @@ mod tests {
         assert!(!super::one_folder(" .. "));
         assert!(!super::one_folder(" . "));
         assert!(super::one_folder(" Books "));
+    }
+
+    /// Gap 64: a new name Windows cannot make is refused on every system.
+    #[test]
+    fn a_folder_name_windows_cannot_make_is_refused_everywhere() {
+        for bad in [
+            "Docs: work",
+            "CON",
+            "nul.txt",
+            "COM1",
+            "a?",
+            "x*y",
+            "<a>",
+            "pipe|",
+            "q\"",
+            "end.",
+            "tab\there",
+        ] {
+            assert!(super::portable_folder(bad).is_err(), "{bad:?} was taken");
+            // Gap 77: a saved name that works here is still used here.
+            assert_eq!(super::one_folder(bad), !cfg!(windows), "{bad:?} here");
+        }
+        assert!(super::portable_folder("Console games").is_ok());
+        assert!(super::one_folder("Console games"));
+        assert!(super::portable_folder(" .. ").is_err());
+        let mut categories = super::Categories {
+            enabled: true,
+            ..super::Categories::default()
+        };
+        categories.folders[0] = " Films ".into();
+        assert_eq!(
+            categories.destination(std::path::Path::new("/d"), super::Category::ALL[0]),
+            std::path::Path::new("/d/Films")
+        );
     }
 
     use super::*;

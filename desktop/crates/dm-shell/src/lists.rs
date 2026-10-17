@@ -267,6 +267,27 @@ impl Default for Search {
     }
 }
 
+/// The longest a saved search waits between runs on its own: a month, as
+/// the dialog offers. A settings file can say anything, and an unbounded
+/// `every_hours` times 3600 overflowed.
+pub const MOST_HOURS: u64 = 24 * 31;
+
+impl Search {
+    /// Whether a saved search is due to run on its own at `now` (seconds
+    /// since 1970). Its interval is clamped to [`MOST_HOURS`]; a last run
+    /// later than now is a clock that was once wrong, and is stale rather
+    /// than a reason to wait until that date comes round.
+    pub fn due(&self, now: u64) -> bool {
+        if self.every_hours == 0 {
+            return false;
+        }
+        if self.last_run > now {
+            return true;
+        }
+        now - self.last_run >= self.every_hours.min(MOST_HOURS) * 3600
+    }
+}
+
 /// The file types a search starts with.
 pub const DEFAULT_TYPES: &str = "zip rar 7z exe msi dmg iso mp4 mkv mp3 pdf jpg png";
 
@@ -431,6 +452,33 @@ pub async fn crawl(client: &dm_core::reqwest::Client, search: &Search) -> Result
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// Gaps 59 and 70: a last run in the future (a clock once set ahead)
+    /// held the search until that date; an interval read from a hand-edited
+    /// file overflowed when turned into seconds.
+    #[test]
+    fn a_saved_search_is_not_held_by_a_future_clock_or_a_huge_interval() {
+        let now = 1_800_000_000;
+        let every_day = Search {
+            every_hours: 24,
+            last_run: now - 3600,
+            ..Search::default()
+        };
+        assert!(!every_day.due(now), "ran an hour ago");
+        assert!(every_day.due(now + 23 * 3600), "a day since");
+        let from_the_future = Search {
+            last_run: now + 40 * 365 * 24 * 3600,
+            ..every_day.clone()
+        };
+        assert!(from_the_future.due(now), "a future last run is stale");
+        let huge = Search {
+            every_hours: u64::MAX,
+            last_run: now - MOST_HOURS * 3600,
+            ..Search::default()
+        };
+        assert!(huge.due(now), "clamped to a month, not overflowed");
+        assert!(!Search::default().due(now), "by hand only");
+    }
 
     #[test]
     fn a_batch_fills_the_star_with_numbers_or_letters() {
