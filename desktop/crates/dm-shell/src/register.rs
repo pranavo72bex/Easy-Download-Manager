@@ -327,11 +327,29 @@ pub fn manifest(family: Family, exe: &Path, allowed: &Allowed) -> serde_json::Va
 /// waits on a prompt nobody sees, and the extension reports that dm did not
 /// answer. Found by the Chrome hand-off check, with this repository under
 /// ~/Downloads.
+///
+/// Also a copy macOS runs from somewhere that is gone by the next launch:
+/// see [`transient_on`].
 pub fn protected(exe: &Path, home: &Path, macos: bool) -> bool {
     macos
-        && ["Downloads", "Desktop", "Documents"]
+        && (["Downloads", "Desktop", "Documents"]
             .iter()
             .any(|folder| exe.starts_with(home.join(folder)))
+            || transient_on(exe, true))
+}
+
+/// Whether macOS is running `exe` from a place that will not be there next
+/// time: a mounted disk image (`/Volumes`), or AppTranslocation — the
+/// randomised read-only copy macOS runs a quarantined app from when it was
+/// opened where it was downloaded rather than moved to Applications. A
+/// browser manifest or login item naming either starts nothing later.
+pub fn transient_on(exe: &Path, macos: bool) -> bool {
+    macos && (exe.starts_with("/Volumes") || exe.to_string_lossy().contains("/AppTranslocation/"))
+}
+
+/// [`transient_on`] for the system this runs on.
+pub fn transient(exe: &Path) -> bool {
+    transient_on(exe, cfg!(target_os = "macos"))
 }
 
 /// Writes a manifest for every installed browser, naming `exe` and the
@@ -348,6 +366,14 @@ pub fn register(home: &Path, exe: &Path, allowed: &Allowed) -> Result<Vec<PathBu
     }
     // Before anything is written: a manifest pointing at a binary the browser
     // may not run is the failure this exists to prevent.
+    if transient(exe) {
+        return Err(format!(
+            "{}\nis a copy macOS runs from a disk image or a temporary place, gone by the next \
+             launch. Drag dm to Applications and open it from there, so your browser can hand \
+             it downloads.",
+            exe.display()
+        ));
+    }
     if protected(exe, home, cfg!(target_os = "macos")) {
         return Err(format!(
             "{}\nis inside a folder macOS protects, and a browser will not be allowed to run it. \
@@ -393,22 +419,26 @@ pub fn unregister(home: &Path) -> Vec<PathBuf> {
 /// it, so an installed app works with the extension without a terminal.
 ///
 /// Run each time the installed app opens. A browser whose manifest already
-/// names `exe` is left alone; one that names another copy (the app moved,
-/// or an older install) or none is written, keeping any extension ids
-/// already allowed there. `None` when nothing needed doing, including when
-/// no browser is installed.
+/// names `exe` and allows this version's extension is left alone; one that
+/// names another copy (the app moved, or an older install), none, or does
+/// not allow this version's extension id (an upgrade across an id change:
+/// 0.1.0's Firefox id was `dm@pranavo72bex.github.io`) is written, keeping
+/// any extension ids already allowed there — the retired one included,
+/// which is harmless and keeps an old copy of the extension working until
+/// it is replaced. `None` when nothing needed doing, including when no
+/// browser is installed.
 pub fn ensure(home: &Path, exe: &Path) -> Result<Option<Vec<PathBuf>>, String> {
-    let files: Vec<PathBuf> = if cfg!(target_os = "windows") {
+    let files: Vec<(PathBuf, Family)> = if cfg!(target_os = "windows") {
         let data = windows_data(home);
         [Family::Chromium, Family::Firefox]
             .into_iter()
-            .map(|family| windows_manifest(&data, family))
+            .map(|family| (windows_manifest(&data, family), family))
             .collect()
     } else {
         places(home)
             .into_iter()
             .filter(|place| place.installed())
-            .map(|place| place.manifest())
+            .map(|place| (place.manifest(), place.family))
             .collect()
     };
     if files.is_empty() {
@@ -416,7 +446,7 @@ pub fn ensure(home: &Path, exe: &Path) -> Result<Option<Vec<PathBuf>>, String> {
     }
     let mut stale = false;
     let mut known = Vec::new();
-    for file in &files {
+    for (file, family) in &files {
         let manifest = std::fs::read_to_string(file)
             .ok()
             .and_then(|text| serde_json::from_str::<serde_json::Value>(&text).ok());
@@ -425,6 +455,20 @@ pub fn ensure(home: &Path, exe: &Path) -> Result<Option<Vec<PathBuf>>, String> {
             continue;
         };
         if manifest.get("path").and_then(|p| p.as_str()) != exe.to_str() {
+            stale = true;
+        }
+        let (key, current) = match family {
+            Family::Chromium => (
+                "allowed_origins",
+                format!("chrome-extension://{CHROME_EXTENSION_ID}/"),
+            ),
+            Family::Firefox => ("allowed_extensions", FIREFOX_EXTENSION_ID.to_string()),
+        };
+        let allows_current = manifest
+            .get(key)
+            .and_then(|v| v.as_array())
+            .is_some_and(|ids| ids.iter().any(|id| id.as_str() == Some(&current)));
+        if !allows_current {
             stale = true;
         }
         for key in ["allowed_origins", "allowed_extensions"] {
@@ -465,10 +509,10 @@ pub fn ensure_this_copy() -> Result<Option<Vec<PathBuf>>, String> {
             .map(dm_core::plain_path)
             .map_err(|e| format!("could not tell where this program is: {e}"))?,
     };
-    if cfg!(target_os = "macos") && exe.starts_with("/Volumes") {
+    if transient(&exe) {
         return Err(
-            "dm is running from its disk image. Drag dm to Applications and open it \
-                    from there, so your browser can hand it downloads"
+            "dm is running from its disk image or a temporary copy macOS made of it. Drag dm \
+             to Applications and open it from there, so your browser can hand it downloads"
                 .into(),
         );
     }
@@ -740,6 +784,63 @@ mod tests {
         ] {
             assert!(!protected(Path::new(fine), home, true), "{fine}");
         }
+    }
+
+    /// Gap 85: a quarantined dm.app opened where it was downloaded runs from
+    /// a randomised AppTranslocation copy that is gone by the next launch.
+    #[test]
+    fn a_translocated_or_mounted_copy_is_refused_on_macos_only() {
+        let home = Path::new("/Users/someone");
+        for refused in [
+            "/private/var/folders/xy/abc/T/AppTranslocation/1F2E-3D4C/d/dm.app/Contents/MacOS/dm-desktop",
+            "/Volumes/dm/dm.app/Contents/MacOS/dm-desktop",
+        ] {
+            assert!(transient_on(Path::new(refused), true), "{refused}");
+            assert!(protected(Path::new(refused), home, true), "{refused}");
+            assert!(!transient_on(Path::new(refused), false), "{refused}");
+        }
+        assert!(!transient_on(
+            Path::new("/Applications/dm.app/Contents/MacOS/dm-desktop"),
+            true
+        ));
+    }
+
+    /// Gap 84: 0.1.0 allowed Firefox's old id. Upgraded in place, the path
+    /// was right, so nothing was rewritten and the extension from Firefox
+    /// Add-ons, under its new id, was refused.
+    #[cfg(not(target_os = "windows"))]
+    #[test]
+    fn a_manifest_allowing_only_the_old_firefox_id_is_rewritten() {
+        let home = home_with_browsers();
+        let elsewhere = tempfile::tempdir().unwrap();
+        let exe = program(elsewhere.path());
+        let old = "dm@pranavo72bex.github.io";
+        let written = register(
+            home.path(),
+            &exe,
+            &Allowed {
+                chromium: vec![CHROME_EXTENSION_ID.into()],
+                firefox: vec![old.into()],
+            },
+        )
+        .unwrap();
+
+        let again = ensure(home.path(), &exe)
+            .unwrap()
+            .expect("a manifest without the current Firefox id was left as it was");
+        assert_eq!(again.len(), written.len());
+        let firefox = places(home.path())
+            .into_iter()
+            .find(|p| p.family == Family::Firefox && p.installed())
+            .unwrap()
+            .manifest();
+        let allowed = read(&firefox)["allowed_extensions"].clone();
+        assert_eq!(
+            allowed,
+            serde_json::json!([FIREFOX_EXTENSION_ID, old]),
+            "the current id added, the old one kept"
+        );
+        assert_eq!(ensure(home.path(), &exe).unwrap(), None);
     }
 
     #[cfg(target_os = "macos")]

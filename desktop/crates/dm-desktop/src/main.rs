@@ -22,27 +22,40 @@ const ICON: &[u8] = include_bytes!("../icons/128x128.png");
 struct Desktop;
 
 impl Platform for Desktop {
-    /// Only when the setting and the system disagree. Registering writes the
-    /// path of the running binary, so doing it on every launch would point
-    /// the login item at whatever ran last — a debug build, the app on a
-    /// mounted disk image. Not being able to read the state is fatal only for
-    /// registering: a login item that cannot be read must still be one a
-    /// person can get rid of.
+    /// Only when the setting and the system disagree — or when the login
+    /// item starts another copy of dm (the app moved, or was reinstalled
+    /// elsewhere) and this one may claim it (`autostart::may_claim`: a
+    /// release build, not a test's dm). Registering writes the path of the
+    /// running binary, so doing it on every launch would point the login
+    /// item at whatever ran last — a debug build, the app on a mounted disk
+    /// image or in macOS's AppTranslocation, both of which are gone by the
+    /// next login and so are refused. Not being able to read the state is
+    /// fatal only for registering: a login item that cannot be read must
+    /// still be one a person can get rid of.
     fn set_login_item(&self, wanted: bool) -> Result<(), String> {
         // Linux's entry is dm's own: see `autostart`.
         if cfg!(target_os = "linux") {
             return dm_desktop::autostart::set(wanted);
         }
         let exe = std::env::current_exe().map_err(|e| e.to_string())?;
-        let launcher = auto_launch::AutoLaunchBuilder::new()
-            .set_app_name("dm")
-            .set_app_path(&exe.to_string_lossy())
-            // The login item launches into the tray, not onto the desktop.
-            .set_args(&["--hidden"])
-            .build()
-            .map_err(|e| e.to_string())?;
+        if wanted && dm_shell::register::transient(&exe) {
+            return Err(format!(
+                "{} is a copy macOS runs from a disk image or a temporary place, gone by the \
+                 next login. Move dm to Applications and open it from there",
+                exe.display()
+            ));
+        }
+        let launcher = login_launcher(&exe)?;
         match launcher.is_enabled() {
-            Ok(now) if now == wanted => return Ok(()),
+            Ok(now) if now == wanted => {
+                if !wanted
+                    || !dm_desktop::autostart::may_claim()
+                    || login_item_starts(&exe) != Some(false)
+                {
+                    return Ok(());
+                }
+                // Enabled for another copy: written again for this one.
+            }
             Ok(_) => {}
             Err(e) if wanted => return Err(e.to_string()),
             Err(_) => {}
@@ -631,6 +644,76 @@ fn window_icon() -> Option<egui::IconData> {
     })
 }
 
+/// The login item for `exe`, launched into the tray.
+fn login_launcher(exe: &std::path::Path) -> Result<auto_launch::AutoLaunch, String> {
+    auto_launch::AutoLaunchBuilder::new()
+        .set_app_name("dm")
+        .set_app_path(&exe.to_string_lossy())
+        // The login item launches into the tray, not onto the desktop.
+        .set_args(&["--hidden"])
+        .build()
+        .map_err(|e| e.to_string())
+}
+
+/// Whether the login item `auto-launch` wrote starts `exe`: on macOS its
+/// launch agent's plist, on Windows the Run key's value. `None` when it
+/// cannot be read, which is not taken as a reason to rewrite it.
+fn login_item_starts(exe: &std::path::Path) -> Option<bool> {
+    if cfg!(target_os = "macos") {
+        let plist = std::path::PathBuf::from(std::env::var_os("HOME")?)
+            .join("Library/LaunchAgents/dm.plist");
+        let text = std::fs::read_to_string(plist).ok()?;
+        return Some(dm_desktop::autostart::plist_starts(&text, exe));
+    }
+    if cfg!(target_os = "windows") {
+        let out = dm_core::no_window(&mut std::process::Command::new("reg"))
+            .args([
+                "query",
+                r"HKCU\Software\Microsoft\Windows\CurrentVersion\Run",
+                "/v",
+                "dm",
+            ])
+            .output()
+            .ok()?;
+        if !out.status.success() {
+            return None;
+        }
+        let text = String::from_utf8_lossy(&out.stdout);
+        return Some(dm_desktop::autostart::run_key_starts(&text, exe));
+    }
+    None
+}
+
+/// `--unregister`'s other half: dm's login item, removed, and what it was
+/// said. The browsers' manifests are `register::from_args`'s.
+fn remove_login_item() {
+    let removed = if cfg!(target_os = "linux") {
+        dm_desktop::autostart::entry_path().map(|path| {
+            dm_desktop::autostart::set_at(&path, false, std::path::Path::new(""), true)
+                .map(|gone| gone.then(|| path.display().to_string()))
+        })
+    } else {
+        std::env::current_exe().ok().map(|exe| {
+            let launcher = login_launcher(&exe)?;
+            if !launcher.is_enabled().unwrap_or(true) {
+                return Ok(None);
+            }
+            launcher.disable().map_err(|e| e.to_string())?;
+            Ok(Some(if cfg!(target_os = "macos") {
+                "the login item (~/Library/LaunchAgents/dm.plist)".to_string()
+            } else {
+                r"the login item (HKCU\Software\Microsoft\Windows\CurrentVersion\Run\dm)"
+                    .to_string()
+            }))
+        })
+    };
+    match removed {
+        Some(Ok(Some(what))) => println!("removed {what}"),
+        Some(Ok(None)) | None => println!("dm had no login item"),
+        Some(Err(why)) => eprintln!("dm: the login item could not be removed: {why}"),
+    }
+}
+
 fn main() {
     let args = shell::args();
 
@@ -649,6 +732,9 @@ fn main() {
 
     // `--register [id…]` / `--unregister`: the browsers' host manifests,
     // written or removed, and nothing else. No window, no lock.
+    if args.first().map(String::as_str) == Some("--unregister") {
+        remove_login_item();
+    }
     if let Some(code) = dm_shell::register::from_args(&args) {
         std::process::exit(code);
     }

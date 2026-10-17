@@ -6,6 +6,9 @@
 //! Windows, which pointed the entry at the running binary unquoted: an
 //! AppImage runs from a mount that is gone by the next login, and a path
 //! with a space in it was two words.
+//!
+//! Also the helpers `main` uses to tell whether the other systems' login
+//! items (written by `auto-launch`) still start this program.
 
 use std::path::{Path, PathBuf};
 
@@ -91,25 +94,71 @@ fn exec_arg(arg: &str) -> String {
 /// replaced.
 const MARK: &str = "Comment=Download manager, waiting in the tray\n";
 
-/// Writes or removes the entry, as `wanted` says. One of this module's own
-/// is left as it is, so a launch of another copy of dm (a debug build) does
-/// not retarget it without the setting being changed.
+/// Writes or removes the entry, as `wanted` says. See [`set_at`].
 pub fn set(wanted: bool) -> Result<(), String> {
     let path = entry_path().ok_or("no home directory to put a login entry in")?;
+    let program = if wanted {
+        program().map_err(|e| e.to_string())?
+    } else {
+        PathBuf::new()
+    };
+    set_at(&path, wanted, &program, may_claim()).map(|_| ())
+}
+
+/// Whether this copy of dm may point the login item at itself when one
+/// already names another copy: an installed, release dm — not a development
+/// build or a test's dm (`DM_HOME`), which must not take the login item from
+/// the installed one. The rule `register::ensure_this_copy` follows for the
+/// browsers' manifests.
+pub fn may_claim() -> bool {
+    !cfg!(debug_assertions) && std::env::var_os("DM_HOME").is_none()
+}
+
+/// Writes or removes the entry at `path`. Returns whether anything changed.
+///
+/// One of this module's own that starts `program` is left as it is. One
+/// that starts another program — the AppImage moved, or dm was reinstalled
+/// elsewhere — is rewritten when `claim` says this copy may take it (see
+/// [`may_claim`]), and kept otherwise, so a debug build's launch does not
+/// retarget it. One without the mark came from an older dm and is replaced
+/// whatever `claim` says.
+pub fn set_at(path: &Path, wanted: bool, program: &Path, claim: bool) -> Result<bool, String> {
     if !wanted {
-        return match std::fs::remove_file(&path) {
-            Err(e) if e.kind() != std::io::ErrorKind::NotFound => Err(e.to_string()),
-            _ => Ok(()),
+        return match std::fs::remove_file(path) {
+            Ok(()) => Ok(true),
+            Err(e) if e.kind() == std::io::ErrorKind::NotFound => Ok(false),
+            Err(e) => Err(format!("{}: {e}", path.display())),
         };
     }
-    if std::fs::read_to_string(&path).is_ok_and(|text| text.contains(MARK)) {
-        return Ok(());
+    let text = entry(program);
+    match std::fs::read_to_string(path) {
+        Ok(now) if now == text => return Ok(false),
+        Ok(now) if now.contains(MARK) && !claim => return Ok(false),
+        _ => {}
     }
-    let text = entry(&program().map_err(|e| e.to_string())?);
     if let Some(dir) = path.parent() {
         std::fs::create_dir_all(dir).map_err(|e| e.to_string())?;
     }
-    dm_core::write_atomic(&path, text.as_bytes()).map_err(|e| e.to_string())
+    dm_core::write_atomic(path, text.as_bytes())
+        .map(|()| true)
+        .map_err(|e| e.to_string())
+}
+
+/// Whether a macOS launch agent's plist starts `program` — the path is one
+/// `<string>` of its `ProgramArguments`, whole, so a copy whose path merely
+/// contains this one's is not taken for it.
+pub fn plist_starts(plist: &str, program: &Path) -> bool {
+    plist.contains(&format!("<string>{}</string>", program.to_string_lossy()))
+}
+
+/// Whether `reg query`'s output for Windows' Run key shows dm's value
+/// starting `program`: the value is `<path> --hidden`, unquoted.
+pub fn run_key_starts(query: &str, program: &Path) -> bool {
+    let wanted = format!("{} --hidden", program.to_string_lossy());
+    query.lines().any(|line| {
+        line.split_once("REG_SZ")
+            .is_some_and(|(_, value)| value.trim().eq_ignore_ascii_case(&wanted))
+    })
 }
 
 #[cfg(test)]
@@ -133,6 +182,60 @@ mod tests {
         assert_eq!(exec_arg("/opt/$x/dm"), "\"/opt/\\\\$x/dm\"");
         assert_eq!(exec_arg("/opt/100%/dm"), "/opt/100%%/dm");
         assert_eq!(exec_arg("/opt/a\"b"), "\"/opt/a\\\\\"b\"");
+    }
+
+    #[test]
+    fn an_entry_for_another_program_is_rewritten_when_this_copy_may_claim_it() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("autostart").join("dm.desktop");
+        let old = Path::new("/home/a/Old Place/dm.AppImage");
+        let new = Path::new("/home/a/Apps/dm.AppImage");
+        assert!(set_at(&path, true, old, true).unwrap());
+        assert!(
+            !set_at(&path, true, old, true).unwrap(),
+            "rewritten for nothing"
+        );
+
+        // A development build leaves the installed copy's entry alone.
+        assert!(!set_at(&path, true, new, false).unwrap());
+        assert_eq!(std::fs::read_to_string(&path).unwrap(), entry(old));
+
+        // The installed copy, moved, takes it back.
+        assert!(set_at(&path, true, new, true).unwrap());
+        assert_eq!(std::fs::read_to_string(&path).unwrap(), entry(new));
+
+        // An older dm's entry, without the mark, is replaced either way.
+        std::fs::write(&path, "[Desktop Entry]\nExec=/tmp/.mount_x/dm\n").unwrap();
+        assert!(set_at(&path, true, new, false).unwrap());
+        assert_eq!(std::fs::read_to_string(&path).unwrap(), entry(new));
+
+        assert!(set_at(&path, false, Path::new(""), true).unwrap());
+        assert!(!path.exists());
+        assert!(!set_at(&path, false, Path::new(""), true).unwrap());
+    }
+
+    #[test]
+    fn the_other_systems_login_items_are_read_for_the_program_they_start() {
+        let plist = "<array><string>/Applications/dm.app/Contents/MacOS/dm-desktop</string>\
+                     <string>--hidden</string></array>";
+        assert!(plist_starts(
+            plist,
+            Path::new("/Applications/dm.app/Contents/MacOS/dm-desktop")
+        ));
+        assert!(!plist_starts(
+            plist,
+            Path::new("/Users/a/Applications/dm.app/Contents/MacOS/dm-desktop")
+        ));
+        assert!(!plist_starts(plist, Path::new("/Applications/dm.app")));
+
+        let query =
+            "\r\nHKEY_CURRENT_USER\\Software\\Microsoft\\Windows\\CurrentVersion\\Run\r\n    \
+                     dm    REG_SZ    C:\\Program Files\\dm\\dm-desktop.exe --hidden\r\n";
+        assert!(run_key_starts(
+            query,
+            Path::new(r"C:\Program Files\dm\dm-desktop.exe")
+        ));
+        assert!(!run_key_starts(query, Path::new(r"D:\dm\dm-desktop.exe")));
     }
 
     #[test]

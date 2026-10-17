@@ -523,3 +523,27 @@ characters, no trailing dot, no device name) and is applied only to a name
 being made or renamed. Holding saved names to it dropped "Live: 2024" made
 on a Mac at the next launch, and the next save deleted it with its types
 and sites.
+
+## When done: what counts as done (2026-10-17, gap 83)
+
+"When done" fires when nothing is left that dm will finish by itself. That
+means nothing Running or Queued and nothing the schedule or download limit
+holds, since those start again when the window reopens. Something must also
+have finished or failed since the queue last ran dry. A row a person stopped
+is theirs: it is left alone, not waited for, so it does not keep the action
+from firing once the rest has finished. A Stop all that finished nothing is
+not done, and the choice stays armed for the next stretch. Failed rows are
+settled, because nothing retries them without a person and their parts stay
+for Retry.
+
+## Login item and host manifests follow the installed copy (2026-10-17, gaps 84-85)
+
+On launch an installed release dm (no `DM_HOME`) takes both the host
+manifests and the login item when they name another copy or do not allow
+this version's extension ids. A development build fixes only a missing one.
+The ids already allowed are kept, including Firefox's retired
+`dm@pranavo72bex.github.io`: that is harmless, and it keeps an old copy of
+the extension working until it is replaced. A copy macOS runs from
+`/Volumes` or AppTranslocation is never registered, because it is gone by
+the next launch.
+

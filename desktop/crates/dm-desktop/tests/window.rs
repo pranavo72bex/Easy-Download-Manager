@@ -484,6 +484,85 @@ fn when_the_queue_runs_dry_dm_chimes_and_counts_down_to_what_was_chosen() {
     until(&mut harness, "dm to quit", |app| app.quit_asked);
 }
 
+/// Gap 83: "When done" waited for nothing Running or Queued, so a queue a
+/// person stopped, or one the schedule had put down at the window's close,
+/// counted as done — dm quit (or the computer slept) with the download half
+/// fetched and nothing to resume it.
+#[test]
+fn when_done_does_not_fire_on_a_stopped_or_schedule_held_queue() {
+    use chrono::Datelike;
+    use dm_desktop::power::WhenDone;
+    let world = world();
+    let mut harness = world.harness();
+
+    // Stop all: nothing finished, so nothing is done; the choice stays.
+    harness.state_mut().run(Command::WhenDoneQuit);
+    add_url(&mut harness, &world.url("stalled.bin"), "Start now");
+    until(&mut harness, "the download to start", |app| {
+        app.rows().iter().any(|r| r.state == State::Running)
+    });
+    harness.state_mut().run(Command::StopAll);
+    until(&mut harness, "the download to be stopped", |app| {
+        app.rows().iter().all(|r| r.state == State::Paused)
+    });
+    for _ in 0..10 {
+        harness.state_mut().refresh();
+        harness.step();
+    }
+    assert!(
+        !harness.state().quit_asked,
+        "quit on a queue a person stopped"
+    );
+    assert_eq!(harness.state().when_done, WhenDone::Quit);
+
+    // Something else finishes; the stopped row is left alone, not waited for.
+    add_url(&mut harness, &world.url("file.zip"), "Start now");
+    until(&mut harness, "dm to quit", |app| app.quit_asked);
+    harness.state_mut().quit_asked = false;
+
+    // The schedule's window closes on a running download: it is held, not
+    // done, and dm stays to resume it when the window reopens.
+    harness.state_mut().run(Command::WhenDoneSleep);
+    let stalled = harness.state().rows()[0].id;
+    harness.state().backend().resume(stalled);
+    // Another finishes meanwhile, so "something finished" holds as well.
+    add_url(&mut harness, &world.url("file.zip"), "Start now");
+    until(&mut harness, "one to finish and one to run", |app| {
+        app.row(stalled).is_some_and(|r| r.state == State::Running)
+            && app
+                .rows()
+                .iter()
+                .filter(|r| r.state == State::Completed)
+                .count()
+                == 2
+    });
+    let tomorrow = (chrono::Local::now().weekday().num_days_from_sunday() as u8 + 1) % 7;
+    harness
+        .state()
+        .backend()
+        .queue
+        .set_schedule(dm_core::Schedule {
+            enabled: true,
+            from: "00:00".into(),
+            to: "23:59".into(),
+            days: vec![tomorrow],
+        });
+    until(&mut harness, "the schedule to hold the download", |app| {
+        app.row(stalled)
+            .is_some_and(|r| r.state == State::Paused && r.paused_by_schedule)
+    });
+    for _ in 0..10 {
+        harness.state_mut().refresh();
+        harness.step();
+    }
+    assert!(!harness.state().quit_asked);
+    assert!(
+        harness.state().countdown.is_none(),
+        "counted down to sleep with a download the schedule holds"
+    );
+    assert_eq!(harness.state().when_done, WhenDone::Sleep);
+}
+
 #[test]
 fn a_finished_file_deleted_since_says_so_and_is_not_offered_to_open() {
     let world = world();

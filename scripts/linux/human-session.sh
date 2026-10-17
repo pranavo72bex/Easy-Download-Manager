@@ -10,7 +10,8 @@ cp /target/debug/dm-desktop /opt/dm/dm-desktop
 export DM_BINARY=/opt/dm/dm-desktop DM_SHOTS=/shots
 # The distribution's own Chromium is not always at /usr/bin/chromium
 # (Fedora's is chromium-browser).
-for c in /usr/bin/chromium /usr/bin/chromium-browser; do [ -x "$c" ] && export CHROMIUM="$c" && break; done
+# Edge's image (DM_DISTRO=edge) has Microsoft Edge and no Chromium.
+for c in /usr/bin/chromium /usr/bin/chromium-browser /usr/bin/microsoft-edge; do [ -x "$c" ] && export CHROMIUM="$c" && break; done
 # What each check was written against: Chromium's screen is wider, for dm's
 # window beside the browser's.
 case "$browser" in
@@ -27,7 +28,22 @@ openbox --config-file /tmp/openbox-rc.xml >/dev/null 2>&1 &
 # --exit-with-session, as the Debian runs use: where dbus is built without
 # X11 (Arch), that ends the bus when stdin closes, which here is at once.
 if [ "$browser" = chromium ]; then
-  exec dbus-run-session -- python3 scripts/chromium-human.py
+  case "$CHROMIUM" in
+    *microsoft-edge*) ;;
+    *) exec dbus-run-session -- python3 scripts/chromium-human.py ;;
+  esac
+  # Edge: the real-input check, then chrome-check.py with CHROME_PATH
+  # naming Edge (DM_EDGE_CHROME_CHECK=0 skips the second), on the same
+  # display. Both are run; either failing fails the whole.
+  status=0
+  dbus-run-session -- python3 scripts/chromium-human.py || status=$?
+  if [ "${DM_EDGE_CHROME_CHECK:-1}" != 0 ]; then
+    echo; echo "== chrome-check.py, CHROME_PATH=$CHROMIUM"
+    CHROME_PATH="$CHROMIUM" dbus-run-session -- python3 scripts/chrome-check.py \
+      > /shots/chrome-check.txt 2>&1 || status=$?
+    cat /shots/chrome-check.txt
+  fi
+  exit $status
 fi
 # firefox-check.py takes no screenshots of its own: the screen, every few
 # seconds while it runs.

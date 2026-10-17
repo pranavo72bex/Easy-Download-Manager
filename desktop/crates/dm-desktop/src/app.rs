@@ -370,6 +370,8 @@ pub struct DmApp {
     cancelled_hand_offs: std::collections::HashMap<String, u32>,
     /// Something was downloading since the queue last ran dry.
     busy_seen: bool,
+    /// A row finished or failed since the queue last ran dry.
+    settled_seen: bool,
     /// A sleep or shut down waiting out its countdown.
     pub countdown: Option<(crate::power::WhenDone, Instant)>,
     /// Running without a window (`--headless`).
@@ -431,6 +433,7 @@ impl DmApp {
             rechecked: Arc::default(),
             cancelled_hand_offs: std::collections::HashMap::new(),
             busy_seen: false,
+            settled_seen: false,
             countdown: None,
             headless: false,
             control: None,
@@ -693,16 +696,43 @@ impl DmApp {
     /// "When done": once everything that was downloading has settled,
     /// quit, or start the countdown to sleep or shut down. Once only: the
     /// choice goes back to doing nothing.
+    ///
+    /// Settled means nothing is left that dm will finish by itself: nothing
+    /// Running or Queued, and nothing the schedule or the download limit is
+    /// holding (Paused with `paused_by_schedule`) — those start again when
+    /// the window reopens or the allowance rolls over, so quitting or
+    /// sleeping under them leaves a download half done that nothing resumes.
+    ///
+    /// A row a person stopped is theirs: it is left alone, not waited for,
+    /// and does not keep the choice from firing once the rest has finished.
+    /// A Failed row is settled too — nothing retries it without a person,
+    /// and its parts stay for Retry whatever the computer does next. But a
+    /// stretch that ended with nothing finished or failed (a person pressed
+    /// Stop all) is not "done": the choice stays armed for the next one.
     fn when_queue_dry(&mut self) {
-        let busy = self
-            .rows
-            .iter()
-            .any(|r| matches!(r.state, State::Running | State::Queued));
+        let settled = self.rows.iter().any(|r| {
+            matches!(r.state, State::Completed | State::Failed(_))
+                && self
+                    .last_state
+                    .get(&r.id)
+                    .is_some_and(|was| *was != r.state)
+        });
+        if settled {
+            self.settled_seen = true;
+        }
+        let busy = self.rows.iter().any(|r| match r.state {
+            State::Running | State::Queued => true,
+            State::Paused => r.paused_by_schedule,
+            _ => false,
+        });
         if busy {
             self.busy_seen = true;
             return;
         }
         if !std::mem::take(&mut self.busy_seen) {
+            return;
+        }
+        if !std::mem::take(&mut self.settled_seen) {
             return;
         }
         use crate::power::WhenDone;

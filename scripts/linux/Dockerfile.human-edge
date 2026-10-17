@@ -1,0 +1,30 @@
+# Microsoft Edge on Debian 12, for the Chromium checks run with Edge
+# (DM_DISTRO=edge in linux-chromium-human.sh). Edge for Linux is published
+# only for x86_64, so this image is amd64 (human-distro.sh builds and runs it
+# with --platform linux/amd64, under emulation on an arm64 machine). Edge
+# comes from Microsoft's own apt repository, signed with Microsoft's key, as
+# Microsoft tells a Debian user to add it. dm is built in the Debian image
+# (amd64) and copied in. Plus what Dockerfile.human-fedora installs: dm's
+# libraries, Mesa for GL under Xvfb, and the test's X server, window
+# manager, xdotool, the accessibility bus and ffmpeg for screenshots; and
+# yt-dlp, which chrome-check.py's stand-in hands everything but its own two
+# pages to.
+FROM debian:12
+ARG BROWSER=chromium
+ENV DEBIAN_FRONTEND=noninteractive
+RUN set -e; \
+    [ "$BROWSER" = chromium ] || { echo "Edge is checked with the Chromium checks only"; exit 1; }; \
+    apt-get update; \
+    apt-get install -y --no-install-recommends curl ca-certificates gnupg; \
+    curl -fsSL https://packages.microsoft.com/keys/microsoft.asc \
+      | gpg --dearmor -o /usr/share/keyrings/microsoft-edge.gpg; \
+    echo "deb [arch=amd64 signed-by=/usr/share/keyrings/microsoft-edge.gpg] https://packages.microsoft.com/repos/edge stable main" \
+      > /etc/apt/sources.list.d/microsoft-edge.list; \
+    apt-get update; \
+    apt-get install -y --no-install-recommends microsoft-edge-stable \
+      xvfb xauth openbox xdotool dbus dbus-x11 python3 procps \
+      at-spi2-core python3-pyatspi libglib2.0-bin ffmpeg yt-dlp fonts-dejavu-core \
+      libxkbcommon-x11-0 libegl1 libgl1 libgl1-mesa-dri \
+      libx11-6 libxcursor1 libx11-xcb1 libxi6 libxkbcommon0 libwayland-client0 libwayland-egl1; \
+    rm -rf /var/lib/apt/lists/*
+WORKDIR /work
