@@ -34,7 +34,7 @@ computer, and the extension for your browser:
 | Your browser | Download this file |
 |---|---|
 | Chrome, Edge, Brave, Vivaldi or Opera | `dm-chrome-….zip` |
-| Firefox | `dm-firefox-….xpi`, from the newest release whose name starts with **v3** (the extension's own release) |
+| Firefox | Nothing to download: it installs from [Firefox Add-ons](https://addons.mozilla.org/en-US/firefox/addon/dm-download-manager/) |
 
 Not built yet: Macs with an Intel chip.
 
@@ -126,12 +126,12 @@ close its window, so your browser always has it to hand downloads to.
 
 ### Firefox
 
-The Firefox extension is signed by Mozilla, so it installs like any other
-and stays installed.
+dm is on Firefox Add-ons, Mozilla's own store.
 
-1. Drag `dm-firefox-….xpi` onto a Firefox window (or open `about:addons`,
-   click the gear icon and choose **Install Add-on From File…**).
-2. Click **Add**.
+1. Open **[dm — Download Manager on Firefox Add-ons](https://addons.mozilla.org/en-US/firefox/addon/dm-download-manager/)** in Firefox.
+2. Click **Add to Firefox**, then **Add**.
+3. If Firefox asks, allow it to run in private windows only if you want it
+   to; dm leaves private-window downloads with the browser either way.
 
 On Ubuntu, where Firefox comes as a Snap, open dm once *before* adding the
 extension, so that it can tell Firefox where it is.
