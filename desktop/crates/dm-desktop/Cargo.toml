@@ -68,7 +68,7 @@ dm-protocol = { path = "../dm-protocol" }
 # tree, and rendered offscreen for a picture of what it draws.
 egui_kittest = { version = "0.37", features = ["wgpu", "snapshot"] }
 tempfile = "3"
-axum = "0.7"
+axum = "0.8"
 futures-util = "0.3"
 tokio = { version = "1", features = ["full"] }
 
