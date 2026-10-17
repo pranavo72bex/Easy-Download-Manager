@@ -191,3 +191,90 @@ fn control_port() -> u16 {
         dm_desktop::control::listen(0, "a".repeat(64), to_window, || {}).unwrap()
     })
 }
+
+/// A real address's shape: a scheme, a host (a name, IPv4 or a bracketed
+/// IPv6), a port, a percent-encoded path, a query string and a fragment.
+fn any_address() -> impl Strategy<Value = String> {
+    let host = prop_oneof![
+        "[a-z][a-z0-9-]{0,10}(\\.[a-z]{2,6}){1,2}",
+        "(25[0-5]|1[0-9]{2}|[1-9]?[0-9])(\\.(25[0-5]|1[0-9]{2}|[1-9]?[0-9])){3}",
+        Just("[::1]".to_string()),
+        Just("[2001:db8::8a2e:370:7334]".to_string()),
+        "\\[fe80::[0-9a-f]{1,4}\\]",
+    ];
+    let piece = "([A-Za-z0-9._~!$+,;:@-]|%[0-9A-F]{2}){1,10}";
+    (
+        prop_oneof![Just("http"), Just("https"), Just("ftp"), Just("HTTPS")],
+        host,
+        prop::option::of(1u16..),
+        prop::collection::vec(piece, 0..4),
+        prop::option::of(prop::collection::vec(
+            (piece, prop::option::of(piece)),
+            1..4,
+        )),
+        prop::option::of("[A-Za-z0-9/?=&%._-]{0,12}"),
+    )
+        .prop_map(|(scheme, host, port, path, query, fragment)| {
+            let mut url = format!("{scheme}://{host}");
+            if let Some(port) = port {
+                url.push_str(&format!(":{port}"));
+            }
+            for p in &path {
+                url.push('/');
+                url.push_str(p);
+            }
+            if let Some(query) = query {
+                url.push('?');
+                let pairs: Vec<String> = query
+                    .into_iter()
+                    .map(|(k, v)| match v {
+                        Some(v) => format!("{k}={v}"),
+                        None => k,
+                    })
+                    .collect();
+                url.push_str(&pairs.join("&"));
+            }
+            if let Some(fragment) = fragment {
+                url.push('#');
+                url.push_str(&fragment);
+            }
+            url
+        })
+        // `&amp;` in an address is read as the page's escaped `&`.
+        .prop_filter("no literal &amp;", |url| !url.contains("&amp;"))
+}
+
+proptest! {
+    #![proptest_config(ProptestConfig::with_cases(
+        std::env::var("PROPTEST_CASES").ok().and_then(|c| c.parse().ok()).unwrap_or(256)
+    ))]
+
+    /// Gap 162: an address comes out of plain text, a `.url` file, a
+    /// `.webloc` plist and a page's `<a href>` exactly as it went in —
+    /// its query string, `=` and `&` and all.
+    #[test]
+    fn every_address_survives_every_kind_of_text_it_arrives_in(
+        url in any_address(),
+        other in any_address(),
+    ) {
+        use dm_desktop::app::links_in;
+        let escaped = url.replace('&', "&amp;");
+        let plain = format!("see {url}\nand {other} too");
+        let shortcut = format!("[InternetShortcut]\r\nURL={url}\r\nIconIndex=0\r\n");
+        let webloc = format!(
+            "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<plist version=\"1.0\">\n<dict>\n\
+             \t<key>URL</key>\n\t<string>{escaped}</string>\n</dict>\n</plist>\n"
+        );
+        let html = format!("<p><a href=\"{escaped}\">x</a> <a href='{other}'>y</a></p>");
+        let bare = format!("<img src={url}>");
+        let mut both = vec![url.clone()];
+        if other != url {
+            both.push(other.clone());
+        }
+        prop_assert_eq!(links_in(&plain), both.clone());
+        prop_assert_eq!(links_in(&shortcut), vec![url.clone()]);
+        prop_assert_eq!(links_in(&webloc), vec![url.clone()]);
+        prop_assert_eq!(links_in(&html), both);
+        prop_assert_eq!(links_in(&bare), vec![url.clone()]);
+    }
+}

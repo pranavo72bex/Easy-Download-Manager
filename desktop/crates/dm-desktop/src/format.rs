@@ -269,22 +269,188 @@ pub fn reason(raw: &str) -> Option<&'static str> {
 /// "," rather than "Period" and "Comma", which no keyboard prints and no
 /// translation turns into anything (gap 158).
 pub fn shortcut(ctx: &egui::Context, shortcut: &egui::KeyboardShortcut) -> String {
-    let said = ctx.format_shortcut(shortcut);
     let key = shortcut.logical_key;
-    // The arrows' symbols are not in every font; their names are words.
-    let arrow = matches!(
-        key,
-        egui::Key::ArrowUp | egui::Key::ArrowDown | egui::Key::ArrowLeft | egui::Key::ArrowRight
-    );
-    match said.strip_suffix(key.name()) {
-        Some(modifiers) if !arrow => format!("{modifiers}{}", key.symbol_or_name()),
-        _ => said,
+    let modifiers = ctx.format_modifiers(shortcut.modifiers);
+    // A Mac's symbols are every language's; the names are words, and a
+    // German keyboard says Strg, Umschalt and Entf (gap 168).
+    let symbols = !modifiers.is_ascii();
+    let mut said = if symbols {
+        modifiers
+    } else {
+        let names = egui::ModifierNames {
+            alt: key_word(t("key:Alt")),
+            ctrl: key_word(t("key:Ctrl")),
+            shift: key_word(t("key:Shift")),
+            mac_cmd: key_word(t("key:Cmd")),
+            mac_alt: key_word(t("key:Option")),
+            ..egui::ModifierNames::NAMES
+        };
+        let mut said = names.format(&shortcut.modifiers, ctx.os().is_mac());
+        if !said.is_empty() {
+            said.push('+');
+        }
+        said
+    };
+    said.push_str(&key_name(key));
+    said
+}
+
+/// A key's name on its keycap, in the language in force: the named keys a
+/// shortcut uses; any other by its symbol (".", ",") or its letter. The
+/// arrows by name, their symbols not being in every font.
+pub fn key_name(key: egui::Key) -> String {
+    use egui::Key;
+    let named = match key {
+        Key::Delete => t("key:Delete"),
+        Key::Backspace => t("key:Backspace"),
+        Key::Enter => t("key:Enter"),
+        Key::Escape => t("key:Esc"),
+        Key::Tab => t("key:Tab"),
+        Key::Space => t("key:Space"),
+        Key::Insert => t("key:Insert"),
+        Key::Home => t("key:Home"),
+        Key::End => t("key:End"),
+        Key::PageUp => t("key:Page Up"),
+        Key::PageDown => t("key:Page Down"),
+        Key::ArrowUp => t("key:Up"),
+        Key::ArrowDown => t("key:Down"),
+        Key::ArrowLeft => t("key:Left"),
+        Key::ArrowRight => t("key:Right"),
+        _ => return key.symbol_or_name().to_string(),
+    };
+    key_word(named).to_string()
+}
+
+/// A key's word without the `key:` its catalog entry is told apart by:
+/// "Delete" the key is "Entf" in German, "Delete" the command "Löschen".
+fn key_word(word: &str) -> &str {
+    word.strip_prefix("key:").unwrap_or(word)
+}
+
+/// What each piece of a download is shown holding: its part's length on
+/// disk, held to its range, and evened out so the pieces add up to
+/// `downloaded`, the count the window shows above them (gap 166).
+///
+/// The two part company under a speed limit: a chunk is written as it
+/// arrives and counted as the limit lets it through, so the parts on disk
+/// ran seconds ahead of "Downloaded" and the pieces summed to more than it.
+/// What the pieces hold beyond the count is taken from those under way, in
+/// proportion to what each holds; a count ahead of the parts (read a moment
+/// apart) is given to those under way, up to each one's range.
+pub fn pieces_shown(pieces: &[(u64, u64)], downloaded: u64) -> Vec<u64> {
+    let mut shown: Vec<u64> = pieces.iter().map(|&(span, done)| done.min(span)).collect();
+    let whole: u64 = pieces
+        .iter()
+        .map(|&(span, _)| span)
+        .fold(0, u64::saturating_add);
+    let target = downloaded.min(whole);
+    let sum: u64 = shown.iter().fold(0, |a, &b| a.saturating_add(b));
+    let under_way = |shown: &[u64], i: usize| {
+        pieces
+            .get(i)
+            .zip(shown.get(i))
+            .is_some_and(|(&(span, _), &s)| s < span)
+    };
+    if sum > target {
+        let mut excess = sum - target;
+        // In proportion among the pieces under way, then whatever is left
+        // from the last pieces back.
+        let busy: Vec<usize> = (0..shown.len()).filter(|&i| under_way(&shown, i)).collect();
+        let held: u64 = busy.iter().filter_map(|&i| shown.get(i)).sum();
+        if held > 0 {
+            let total = excess;
+            for &i in &busy {
+                if let Some(s) = shown.get_mut(i) {
+                    let cut = ((u128::from(total) * u128::from(*s)) / u128::from(held)) as u64;
+                    let cut = cut.min(*s).min(excess);
+                    *s -= cut;
+                    excess -= cut;
+                }
+            }
+        }
+        let order: Vec<usize> = busy
+            .iter()
+            .rev()
+            .copied()
+            .chain((0..shown.len()).rev())
+            .collect();
+        for i in order {
+            if excess == 0 {
+                break;
+            }
+            if let Some(s) = shown.get_mut(i) {
+                let cut = excess.min(*s);
+                *s -= cut;
+                excess -= cut;
+            }
+        }
+    } else if sum < target {
+        let mut short = target - sum;
+        for (i, &(span, _)) in pieces.iter().enumerate() {
+            if short == 0 {
+                break;
+            }
+            if let Some(s) = shown.get_mut(i) {
+                if *s > 0 && *s < span {
+                    let add = short.min(span - *s);
+                    *s += add;
+                    short -= add;
+                }
+            }
+        }
+        for (i, &(span, _)) in pieces.iter().enumerate() {
+            if short == 0 {
+                break;
+            }
+            if let Some(s) = shown.get_mut(i) {
+                let add = short.min(span - *s);
+                *s += add;
+                short -= add;
+            }
+        }
     }
+    shown
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// Gap 166: no piece holds more than its range, and they add up to
+    /// what "Downloaded" says, whichever of the two ran ahead.
+    #[test]
+    fn pieces_add_up_to_downloaded_and_stay_in_their_ranges() {
+        // As round 11 saw: one 1.4 MB piece holding 1.3 MB on disk while
+        // 864 KB had been counted through the limit.
+        assert_eq!(pieces_shown(&[(1_400_000, 1_300_000)], 864_000), [864_000]);
+        // Eight pieces each 2.2 MB on disk, 14.7 MB counted.
+        let eight = [(7_200_000, 2_200_000); 8];
+        let shown = pieces_shown(&eight, 14_700_000);
+        assert_eq!(shown.iter().sum::<u64>(), 14_700_000);
+        assert!(
+            shown.iter().all(|&s| s <= 2_200_000 && s > 1_700_000),
+            "{shown:?}"
+        );
+        // A finished piece stays finished while there are others to take from.
+        assert_eq!(pieces_shown(&[(100, 100), (100, 60)], 150), [100, 50]);
+        // The count ahead of the parts goes to the one under way.
+        assert_eq!(
+            pieces_shown(&[(100, 100), (100, 40), (100, 0)], 160),
+            [100, 60, 0]
+        );
+        // Never more than the ranges hold.
+        assert_eq!(pieces_shown(&[(100, 500), (50, 0)], 10_000), [100, 50]);
+        for downloaded in [0, 1, 99, 120, 199, 250, 300, 1000] {
+            let pieces = [(100, 100), (100, 77), (100, 3), (100, 0)];
+            let shown = pieces_shown(&pieces, downloaded);
+            assert_eq!(
+                shown.iter().sum::<u64>(),
+                downloaded.min(400),
+                "{downloaded}"
+            );
+            assert!(shown.iter().zip(&pieces).all(|(s, (span, _))| s <= span));
+        }
+    }
 
     /// Gap 158: a key with a symbol is shown by it.
     #[test]
@@ -300,6 +466,24 @@ mod tests {
         assert!(shortcut(&ctx, &ctrl(egui::Key::R)).ends_with('R'));
         let plain = egui::KeyboardShortcut::new(egui::Modifiers::NONE, egui::Key::Delete);
         assert_eq!(shortcut(&ctx, &plain), "Delete");
+        assert_eq!(key_name(egui::Key::ArrowUp), "Up");
+    }
+
+    /// Gap 168: a German menu says Strg, Umschalt and Entf.
+    #[test]
+    fn a_shortcut_names_its_keys_in_the_language_in_force() {
+        let ctx = egui::Context::default();
+        ctx.set_os(egui::os::OperatingSystem::Nix);
+        let both = egui::KeyboardShortcut::new(
+            egui::Modifiers::COMMAND | egui::Modifiers::SHIFT,
+            egui::Key::N,
+        );
+        let delete = egui::KeyboardShortcut::new(egui::Modifiers::NONE, egui::Key::Delete);
+        assert_eq!(shortcut(&ctx, &both), "Ctrl+Shift+N");
+        crate::i18n::set("de");
+        let german = (shortcut(&ctx, &both), shortcut(&ctx, &delete));
+        crate::i18n::set("en");
+        assert_eq!(german, ("Strg+Umschalt+N".to_string(), "Entf".to_string()));
     }
 
     /// Gap 153: the network library's words for a cut connection are said

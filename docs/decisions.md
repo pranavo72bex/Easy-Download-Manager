@@ -825,3 +825,29 @@ follows the table's offset, and a drag or a wheel on it is handed to the
 table on the next frame. The sideways offset egui keeps across launches is
 reset to the left edge on the first frame.
 
+## Only Exit quits (2026-10-18, gap 163)
+
+The Exit question used to close dm by itself once nothing was running,
+reasoning that there was nothing left to ask about. A person reading the
+question, or reaching for "Keep downloading", saw dm vanish. dm now quits
+only on the person's Exit (or a script's or a signal's explicit quit):
+when everything finishes under the question, it changes to "Nothing is
+downloading any more. Exit dm?" with Exit and Stay. The question keeps one
+width and the room of three lines, because a dialog anchored by its middle
+that shrinks moves its buttons, and Exit had slid under the pointer.
+
+## A `.bin` is Other (2026-10-18, gap 168)
+
+`.bin` was sorted under Apps. It is as often firmware, a disc image, a
+model's weights or a raw dump as a program, and the extension cannot say
+which; the server's type (`application/octet-stream`) cannot either. Other
+is the honest place. A name with "setup" or "install" in it says it is an
+installer, and goes to Apps. The browser's catch list still catches `.bin`.
+
+## Key names are catalog words with a `key:` prefix (2026-10-18, gap 168)
+
+German keyboards say Strg, Umschalt and Entf. The shortcut text is built by
+dm rather than egui on every system without the Mac's symbols, from
+catalog keys such as `key:Delete`: the prefix keeps "Delete" the key
+("Entf") apart from "Delete" the command ("Löschen"), and is taken off
+where no catalog has the word (English).

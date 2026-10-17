@@ -1277,6 +1277,44 @@ fn a_batch_adds_every_address_the_star_makes() {
     assert!(urls[0].ends_with("/part1.bin") && urls[11].ends_with("/part12.bin"));
 }
 
+/// Gap 165: the series' error is in the language in force, says nothing
+/// until From and To are typed, and keeps its room so the buttons stay put.
+#[test]
+fn the_series_error_waits_for_both_ends_and_speaks_german() {
+    use dm_desktop::i18n::t;
+    let world = world();
+    let app = world.app_with(Settings {
+        download_dir: world.dir.path().join("out"),
+        show_progress: false,
+        show_complete: false,
+        language: "de".into(),
+        ..Settings::default()
+    });
+    let mut harness = Harness::builder()
+        .with_size(egui::vec2(1000.0, 700.0))
+        .build_ui_state(|ui, app: &mut DmApp| app.ui(ui), app);
+    harness.run_steps(2);
+    harness.state_mut().run(Command::AddSeries);
+    harness.run_steps(2);
+    let start = |h: &Harness<'_, DmApp>| {
+        h.get_by_role_and_label(egui::accesskit::Role::Button, t("Start now"))
+            .rect()
+    };
+    let before = start(&harness);
+    type_into(&mut harness, t("Address with *"), &world.url("part.bin"));
+    let star = t("The address needs exactly one * to fill in.");
+    assert_ne!(star, "The address needs exactly one * to fill in.");
+    assert!(
+        harness.query_by_label(star).is_none(),
+        "said before From/To"
+    );
+    type_into(&mut harness, t("From"), "5");
+    assert!(harness.query_by_label(star).is_none(), "said before To");
+    type_into(&mut harness, t("To"), "1");
+    assert!(harness.query_by_label(star).is_some(), "not said in German");
+    assert_eq!(start(&harness), before, "the dialog jumped");
+}
+
 #[test]
 fn the_site_file_finder_finds_the_files_a_page_links_to() {
     let world = world();
@@ -2304,9 +2342,11 @@ fn the_download_limit_is_set_in_the_speed_limiter_and_reaches_the_queue() {
     harness.state_mut().run(Command::SpeedLimiterSettings);
     harness.run_steps(3);
     assert!(harness
-        .query_by_label("Download no more than, MB (0 for no limit)")
+        .query_by_label("Download at most this many MB (0 for no limit)")
         .is_some());
-    assert!(harness.query_by_label("every, hours").is_some());
+    assert!(harness
+        .query_by_label("in each period of this many hours")
+        .is_some());
     if let Some(limiter) = harness.state_mut().dialogs.limiter.as_mut() {
         limiter.2 = 500;
         limiter.3 = 4;
@@ -4217,6 +4257,70 @@ fn exit_while_downloading_asks_first() {
     );
 }
 
+/// Gap 163: downloads finishing while the Exit question is open never quit
+/// dm by themselves; the question changes and waits for the person, its
+/// buttons stay where they were, and once "Keep downloading" is clicked
+/// nothing that finishes afterwards quits either.
+#[test]
+fn downloads_finishing_under_the_exit_question_never_quit_dm() {
+    let world = world();
+    let mut harness = world.harness();
+    for name in ["stalled.bin?one", "stalled.bin?two"] {
+        harness
+            .state()
+            .backend()
+            .add_with(&world.url(name), Default::default())
+            .unwrap();
+    }
+    until(&mut harness, "both to run", |app| app.downloading() == 2);
+    harness.state_mut().run(Command::Quit);
+    harness.run_steps(3);
+    let at = |h: &Harness<'_, DmApp>| {
+        h.get_by_role_and_label(egui::accesskit::Role::Button, "Exit")
+            .rect()
+    };
+    let before = at(&harness);
+    assert!(harness.query_by_label_contains("2 downloads").is_some());
+
+    // One finishes: fewer words, and Exit has not moved.
+    let first = harness.state().rows()[0].id;
+    harness.state().backend().pause(first);
+    until(&mut harness, "one to stop", |app| app.downloading() == 1);
+    harness.run_steps(3);
+    assert!(harness
+        .query_by_label_contains("Exiting stops it; it goes on")
+        .is_some());
+    assert_eq!(at(&harness), before, "Exit moved under the pointer");
+
+    // The rest finish: the question changes and waits, frame after frame.
+    harness.state().backend().pause_all();
+    until(&mut harness, "all to stop", |app| app.downloading() == 0);
+    harness.run_steps(10);
+    assert!(!harness.state().quit_asked, "quit by itself");
+    assert!(harness
+        .query_by_label("Nothing is downloading any more. Exit dm?")
+        .is_some());
+    assert_eq!(at(&harness), before, "Exit moved under the pointer");
+    click(&mut harness, "Stay");
+    harness.run_steps(5);
+    assert!(!harness.state().quit_asked, "Stay quit");
+    assert!(harness.query_by_label("Exit dm?").is_none());
+
+    // Keep downloading, then everything finishes: still running.
+    harness.state().backend().resume_all();
+    until(&mut harness, "both to run again", |app| {
+        app.downloading() == 2
+    });
+    harness.state_mut().run(Command::Quit);
+    harness.run_steps(3);
+    click(&mut harness, "Keep downloading");
+    harness.state().backend().pause_all();
+    until(&mut harness, "all to stop", |app| app.downloading() == 0);
+    harness.run_steps(10);
+    assert!(!harness.state().quit_asked, "quit after Keep downloading");
+    assert!(harness.query_by_label("Exit dm?").is_none());
+}
+
 /// Gap 114: the sort is remembered, a status line naming a row goes with
 /// it, and Options keeps its place whichever tab shows.
 #[test]
@@ -5724,7 +5828,7 @@ fn statuses_and_counts_say_what_is_so() {
     let mut harness = world.harness();
     add_url(&mut harness, &world.url("file.zip"), "Add for later");
     let row = harness.state().rows()[0].clone();
-    assert_eq!(dm_desktop::app::status_of(&row), "Queued");
+    assert_eq!(dm_desktop::app::status_of(&row), "Waiting for Start queue");
     harness
         .state()
         .backend()
@@ -5799,6 +5903,37 @@ fn dialogs_keep_their_place_and_show_the_size() {
         harness.run_steps(2);
         std::thread::sleep(Duration::from_millis(25));
     }
+}
+
+/// Gap 167: a row added for later says it waits for Start queue, is counted
+/// in the status bar, and keeps the size and folder Download details knew.
+#[test]
+fn a_row_added_for_later_says_what_it_waits_for_with_its_size_and_folder() {
+    let world = world();
+    let mut harness = world.harness();
+    harness
+        .state_mut()
+        .dialogs
+        .open_file_info(vec![world.url("file.zip")]);
+    let deadline = Instant::now() + Duration::from_secs(10);
+    while harness.query_by_label("256.0 KB").is_none() {
+        assert!(Instant::now() < deadline, "no size in Download details");
+        harness.run_steps(2);
+        std::thread::sleep(Duration::from_millis(25));
+    }
+    click(&mut harness, "Add for later");
+    harness.state_mut().refresh();
+    harness.run_steps(3);
+    let row = harness.state().visible()[0].clone();
+    assert_eq!(row.state, State::Paused);
+    assert_eq!(dm_desktop::app::status_of(&row), "Waiting for Start queue");
+    assert_eq!(dm_desktop::table::shown_size(&row), Some(PAYLOAD as u64));
+    let out = harness.state().applied.download_dir.display().to_string();
+    assert_eq!(dm_desktop::app::folder_of(&row), out);
+    assert!(harness.query_by_label("Waiting for Start queue").is_some());
+    assert!(harness
+        .query_by_label("· 1 waiting for Start queue")
+        .is_some());
 }
 
 /// Gap 156: a finished row's size is its file's on disk, as a stream's

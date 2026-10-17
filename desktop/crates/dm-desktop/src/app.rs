@@ -194,6 +194,14 @@ pub fn failure_as_said(row: &Entry) -> Option<&str> {
 
 /// Whether a row was added for later and waits for its queue: stopped,
 /// in a queue, nothing fetched and not held by the schedule.
+/// A running row that has every byte of a file of known length: it is
+/// joining its parts, not fetching.
+pub fn fetched_all(row: &Entry) -> bool {
+    row.progress
+        .total
+        .is_some_and(|total| total > 0 && row.progress.downloaded >= total)
+}
+
 fn waits_for_its_queue(row: &Entry) -> bool {
     row.state == State::Paused
         && !row.paused_by_schedule
@@ -252,8 +260,9 @@ fn status_in(row: &Entry, words: fn(&'static str) -> &'static str) -> String {
         // Held by the schedule or the download limit, not by a person: it
         // goes on by itself, which "Stopped" would not say.
         State::Paused if row.paused_by_schedule => words("Waiting").into(),
-        // Added for later: it is in line for its queue, not stopped.
-        State::Paused if waits_for_its_queue(row) => words("Queued").into(),
+        // Added for later: it waits for its queue to be started, and does
+        // not start by itself, which "Queued" did not say (gap 167).
+        State::Paused if waits_for_its_queue(row) => words("Waiting for Start queue").into(),
         // How far it got, so a stopped row is not mistaken for one that
         // never started.
         State::Paused => match row.progress.fraction() {
@@ -328,14 +337,34 @@ pub fn two_addresses(text: &str) -> bool {
 
 /// Links inside some text: a dropped `.webloc` or `.url` file, a list, the
 /// clipboard.
+///
+/// Words are split on white space, quotes and angle brackets only — never
+/// on `=`, which every query string holds: splitting there queued
+/// `download.php?id=5` as `download.php?id` (gap 162). A `URL=` (a `.url`
+/// file's line), `href=` or `src=` (a page's attribute, unquoted) in front
+/// of an address is taken off whole, and `&amp;` — how a page or a
+/// `.webloc` plist writes `&` — is read as `&`.
 pub fn links_in(text: &str) -> Vec<String> {
-    let mut found = Vec::new();
-    for word in text.split(|c: char| c.is_whitespace() || "<>\"'=".contains(c)) {
-        if looks_downloadable(word).is_some() && !found.iter().any(|f| f == word) {
-            found.push(word.to_string());
+    let mut found: Vec<String> = Vec::new();
+    for word in text.split(|c: char| c.is_whitespace() || "<>\"'".contains(c)) {
+        let word = strip_attribute(word).replace("&amp;", "&");
+        if looks_downloadable(&word).is_some() && !found.contains(&word) {
+            found.push(word);
         }
     }
     found
+}
+
+/// `word` without a leading `URL=`, `href=` or `src=`, in any case.
+fn strip_attribute(word: &str) -> &str {
+    for prefix in ["url=", "href=", "src="] {
+        if let (Some(head), Some(rest)) = (word.get(..prefix.len()), word.get(prefix.len()..)) {
+            if head.eq_ignore_ascii_case(prefix) {
+                return rest;
+            }
+        }
+    }
+    word
 }
 
 /// How much of a dropped file is looked at for links.
@@ -511,6 +540,9 @@ pub struct DmApp {
     /// Sizes a dialog learned from the server before a row was added for
     /// later, shown until the row learns its own.
     pub sizes_told: HashMap<Id, u64>,
+    /// Where the menu bar ends, last frame: windows per download open
+    /// below it, never over it (gap 168).
+    pub menu_bottom: f32,
     /// Each finished file's size on disk, by the path it was read at: a
     /// stream put into an MP4 is not the size of the joined stream the
     /// engine counted (gap 156). Read once a path.
@@ -592,6 +624,7 @@ impl DmApp {
             last_added: Vec::new(),
             said_about: None,
             sizes_told: HashMap::new(),
+            menu_bottom: 0.0,
             saved: HashMap::new(),
             said_at: None,
         };
@@ -1442,11 +1475,18 @@ impl DmApp {
             .cloned()
             .collect();
         // What a dialog learned of a row's size, until the row knows it.
+        let mut categories = self.applied.categories();
         for row in &mut rows {
             if row.progress.total.is_none() {
                 if let Some(size) = self.sizes_told.get(&row.id) {
                     row.progress.total = Some(*size);
                 }
+            }
+            // The folder it will go to, as Download details said, until it
+            // is saved somewhere: the Folder column stood empty for every
+            // row added for later (gap 167).
+            if row.path.is_empty() && row.save_dir.is_none() && !row.state.settled() {
+                row.save_dir = Some(self.planned_folder(row, &mut categories));
             }
         }
         if let Some((column, ascending)) = self.sort {
@@ -1931,6 +1971,28 @@ impl DmApp {
         }
     }
 
+    /// Where a row not yet saved will be: the download folder, or the
+    /// kind's folder under it where Options › Folders sorts by kind — as
+    /// the queue places it, from the name it has so far.
+    pub fn planned_folder(&self, row: &Entry, categories: &mut dm_core::Categories) -> String {
+        if !categories.enabled {
+            return self.applied.download_dir.display().to_string();
+        }
+        let name = if row.filename.is_empty() {
+            format::provisional(&row.url)
+        } else {
+            row.filename.clone()
+        };
+        categories.site = dm_core::category::host_of(&row.url);
+        let kind = row
+            .category
+            .unwrap_or_else(|| dm_core::category::classify(&name, None));
+        categories
+            .place(&self.applied.download_dir, kind, &name)
+            .display()
+            .to_string()
+    }
+
     /// Program › Exit, Cmd+Q and the tray's Quit: asked first while
     /// anything is downloading, since quitting stops it. A window with
     /// nobody to ask (headless) quits.
@@ -2143,10 +2205,11 @@ impl DmApp {
                 .fill(fill)
                 .inner_margin(egui::Margin::symmetric(x, y))
         };
-        egui::Panel::top("menu")
+        let menu = egui::Panel::top("menu")
             .show_separator_line(lines)
             .frame(flat(t.frame, 6, 2))
             .show(ui, |ui| self.menu_bar(ui));
+        self.menu_bottom = menu.response.rect.bottom();
         if self.show_toolbar {
             egui::Panel::top("toolbar")
                 .show_separator_line(lines)
@@ -2781,23 +2844,48 @@ impl DmApp {
     }
 
     fn status_bar(&mut self, ui: &mut egui::Ui) {
-        let running: Vec<Entry> = self
+        // A row with every byte is only putting its file together: said
+        // to be finishing, not counted as downloading at 0 B/s (gap 168).
+        let (finishing, running): (Vec<&Entry>, Vec<&Entry>) = self
             .rows
             .iter()
             .filter(|r| r.state == State::Running)
-            .cloned()
-            .collect();
+            .partition(|r| fetched_all(r));
         let rate: f64 = running.iter().map(|r| r.progress.speed).sum();
+        let (finishing, running) = (finishing.len(), running.len());
+        let later = self.rows.iter().filter(|r| waits_for_its_queue(r)).count();
         ui.horizontal(|ui| {
-            ui.label(if running.is_empty() {
+            ui.label(if running == 0 && finishing == 0 {
                 t("Nothing downloading").to_string()
+            } else if running == 0 {
+                crate::i18n::tn(
+                    "{} finishing||{} finishing",
+                    finishing as u64,
+                    &[&finishing],
+                )
             } else {
                 crate::i18n::tn(
                     "{} downloading at {}||{} downloading at {}",
-                    running.len() as u64,
-                    &[&running.len(), &format::rate(rate)],
+                    running as u64,
+                    &[&running, &format::rate(rate)],
                 )
             });
+            if running > 0 && finishing > 0 {
+                ui.label(crate::i18n::tn(
+                    "· {} finishing||· {} finishing",
+                    finishing as u64,
+                    &[&finishing],
+                ));
+            }
+            // Rows added for later are counted, and said to wait for Start
+            // queue, so a list of them is not taken for a stuck one (gap 167).
+            if later > 0 {
+                ui.label(crate::i18n::tn(
+                    "· {} waiting for Start queue||· {} waiting for Start queue",
+                    later as u64,
+                    &[&later],
+                ));
+            }
             if self.applied.speed_limit > 0 {
                 ui.label(tf("· limited to {} KB/s", &[&self.applied.speed_limit]));
             }
@@ -3252,15 +3340,23 @@ impl ToolStyle {
 fn ticked_item(ui: &mut egui::Ui, title: &str, on: bool) -> egui::Response {
     let item = ui.add(egui::Button::new(title).right_text("    "));
     item.widget_info(|| egui::WidgetInfo::selected(egui::Role::CheckBox, true, on, title));
+    let r = item.rect;
+    let at = egui::pos2(r.right() - 12.0, r.center().y);
+    let colour = ui.style().interact(&item).fg_stroke.color;
+    // A box whether on or off, so the item reads as one that is ticked or
+    // not, rather than a tick that is there or is not (gap 168).
+    ui.painter().rect_stroke(
+        egui::Rect::from_center_size(at, egui::vec2(12.0, 12.0)),
+        2.0,
+        egui::Stroke::new(1.0, colour.gamma_multiply(0.6)),
+        egui::StrokeKind::Inside,
+    );
     if on {
-        let r = item.rect;
-        let at = egui::pos2(r.right() - 12.0, r.center().y);
-        let colour = ui.style().interact(&item).fg_stroke.color;
         ui.painter().line(
             vec![
-                at + egui::vec2(-5.0, 0.0),
-                at + egui::vec2(-1.5, 3.5),
-                at + egui::vec2(5.0, -4.0),
+                at + egui::vec2(-3.5, 0.0),
+                at + egui::vec2(-1.0, 2.5),
+                at + egui::vec2(3.5, -3.0),
             ],
             egui::Stroke::new(1.6, colour),
         );

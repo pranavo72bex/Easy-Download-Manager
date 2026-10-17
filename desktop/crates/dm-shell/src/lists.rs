@@ -6,25 +6,62 @@
 // Reads outside input: an index out of range here is a crash a server or
 // a file could cause, so every access is checked.
 #![cfg_attr(not(test), deny(clippy::indexing_slicing))]
+/// Why a numbered series cannot be made: a kind, so the window can say
+/// it in the language in force (gap 165). `Display` is the English.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum SeriesError {
+    /// The address has no `*`, or more than one.
+    Star,
+    /// From is after To.
+    Backwards,
+    /// Ten thousand addresses or more.
+    TooMany,
+    /// From and To are not both numbers, or both letters of one case.
+    Ends,
+}
+
+impl SeriesError {
+    /// The English sentence, which is also the key it is translated by.
+    pub fn english(self) -> &'static str {
+        match self {
+            SeriesError::Star => "The address needs exactly one * to fill in.",
+            SeriesError::Backwards => "The range runs backwards.",
+            SeriesError::TooMany => "Ten thousand addresses is more than a batch.",
+            SeriesError::Ends => "From and To must both be numbers, or both letters of one case.",
+        }
+    }
+}
+
+impl std::fmt::Display for SeriesError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(self.english())
+    }
+}
+
 /// "Add numbered series": one address with a `*` standing for a number
 /// or a letter, filled in from `from` to `to`.
 ///
 /// Numbers can be padded to `width` digits (`file*.jpg`, 1 to 12, width 2 →
 /// `file01.jpg` … `file12.jpg`); letters run `a` to `z` or `A` to `Z`.
-pub fn series(template: &str, from: &str, to: &str, width: usize) -> Result<Vec<String>, String> {
+pub fn series(
+    template: &str,
+    from: &str,
+    to: &str,
+    width: usize,
+) -> Result<Vec<String>, SeriesError> {
     let template = template.trim();
     if template.matches('*').count() != 1 {
-        return Err("the address needs exactly one * to fill in".into());
+        return Err(SeriesError::Star);
     }
     let fill = |part: String| template.replacen('*', &part, 1);
     let (from, to) = (from.trim(), to.trim());
 
     if let (Ok(a), Ok(b)) = (from.parse::<u64>(), to.parse::<u64>()) {
         if a > b {
-            return Err("the range runs backwards".into());
+            return Err(SeriesError::Backwards);
         }
         if b - a >= 10_000 {
-            return Err("ten thousand addresses is more than a batch".into());
+            return Err(SeriesError::TooMany);
         }
         return Ok((a..=b).map(|n| fill(format!("{n:0width$}"))).collect());
     }
@@ -40,7 +77,7 @@ pub fn series(template: &str, from: &str, to: &str, width: usize) -> Result<Vec<
         (Some(a), Some(b)) if a.is_ascii_lowercase() == b.is_ascii_lowercase() && a <= b => {
             Ok((a..=b).map(|c| fill(c.to_string())).collect())
         }
-        _ => Err("from and to must both be numbers, or both letters of one case".into()),
+        _ => Err(SeriesError::Ends),
     }
 }
 
@@ -499,11 +536,12 @@ mod tests {
                 "https://e.com/part-c.zip"
             ]
         );
-        assert!(series("https://e.com/no-star", "1", "2", 0).is_err());
-        assert!(series("https://e.com/*/*", "1", "2", 0).is_err());
-        assert!(series("https://e.com/*", "5", "1", 0).is_err());
-        assert!(series("https://e.com/*", "a", "Z", 0).is_err());
-        assert!(series("https://e.com/*", "0", "99999", 0).is_err());
+        use SeriesError::*;
+        assert_eq!(series("https://e.com/no-star", "1", "2", 0), Err(Star));
+        assert_eq!(series("https://e.com/*/*", "1", "2", 0), Err(Star));
+        assert_eq!(series("https://e.com/*", "5", "1", 0), Err(Backwards));
+        assert_eq!(series("https://e.com/*", "a", "Z", 0), Err(Ends));
+        assert_eq!(series("https://e.com/*", "0", "99999", 0), Err(TooMany));
     }
 
     #[test]
