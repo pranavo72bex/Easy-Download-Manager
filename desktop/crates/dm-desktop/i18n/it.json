@@ -372,5 +372,6 @@
  "Take this download off the list? Its file stays where it is.": "Togliere questo download dall'elenco? Il suo file resta dov'è.",
  "Trying {} again with the sign-in.": "Nuovo tentativo di {} con l'accesso.",
  "{} downloads wait for the schedule or the download limit.": "{} download attendono la pianificazione o il limite di download.",
- "{} waits for the schedule or the download limit.": "{} attende la pianificazione o il limite di download."
+ "{} waits for the schedule or the download limit.": "{} attende la pianificazione o il limite di download.",
+ "Not yet known (the server refused the request)": "Non ancora noto (il server ha rifiutato la richiesta)"
 }

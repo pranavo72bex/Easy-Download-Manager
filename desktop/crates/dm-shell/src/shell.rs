@@ -182,6 +182,23 @@ pub fn hand_to_running(home: &Path, orders: &Orders) {
     let _ = std::fs::write(host::inbox(home).join("show"), b"");
 }
 
+/// A launch that finds dm already running: registers this copy with any
+/// browser installed since — before handing off, since the hand-off ends
+/// this launch, and a person following "open dm once" after installing a
+/// browser while dm ran got a dm that never told it (gap 131) — then gives
+/// the orders to the running dm. `register` is
+/// [`crate::register::ensure_if_claimed`] outside tests. Returns what the
+/// registration could not do, for this launch to say.
+pub fn hand_off(
+    home: &Path,
+    orders: &Orders,
+    register: impl FnOnce() -> Result<Option<Vec<std::path::PathBuf>>, String>,
+) -> Option<String> {
+    let failed = register().err();
+    hand_to_running(home, orders);
+    failed
+}
+
 /// The queue the saved settings describe, with what the last run left in it
 /// read back, and anything worth saying about how that went.
 ///
@@ -899,6 +916,23 @@ pub fn run_after(command: &str, file: &Path) -> Result<(), String> {
 
 #[cfg(test)]
 mod tests {
+
+    #[test]
+    fn a_launch_that_hands_off_registers_first_and_still_hands_off_when_that_fails() {
+        let home = tempfile::tempdir().unwrap();
+        let show = crate::host::inbox(home.path()).join("show");
+        let mut ran = false;
+        let failed = super::hand_off(home.path(), &super::Orders::default(), || {
+            ran = true;
+            assert!(!show.exists(), "handed off before registering");
+            Ok(None)
+        });
+        assert!(ran && failed.is_none() && show.exists());
+        std::fs::remove_file(&show).unwrap();
+        let failed = super::hand_off(home.path(), &super::Orders::default(), || Err("no".into()));
+        assert_eq!(failed.as_deref(), Some("no"));
+        assert!(show.exists(), "a failed registration stopped the hand-off");
+    }
 
     #[test]
     fn a_relative_save_folder_is_the_callers_and_never_kept_relative() {

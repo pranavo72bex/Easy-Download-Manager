@@ -159,7 +159,7 @@ why. Install to `/Applications` (or `make install`) and register that copy.
 | **Right-click a video or audio** | *Download media with dm*. A player that streams from a `blob:` address has no file to fetch; its page is handed over instead, and dm resolves it with yt-dlp. |
 | **Right-click a page** | *Download all links with dm*: the page's links, in dm's list to pick from. |
 | **The toolbar button** | A popup: whether the dm app answers, a switch for catching downloads, a switch for the "Download video" panel on this site, and **Open dm**. It downloads nothing. |
-| **No app** | A caught download stays with the browser as if dm were not there. The menus and the button say, in a notification, that dm did not answer and how to register it. |
+| **No app** | A caught download stays with the browser as if dm were not there. The menus and the button say, in a notification, that dm isn't connected to this browser yet and to open dm (again, if it is open), with `--register` for advanced users; the popup says the same and hides Open dm. |
 | **A link only the browser can fetch** | dm asks the server once before it takes a download from the browser. A file behind a sign-in (whose cookies stay in the browser) is refused by dm and the browser finishes it. |
 | **Private windows** | Their downloads are left alone, so nothing from them lands in dm's queue or history. |
 

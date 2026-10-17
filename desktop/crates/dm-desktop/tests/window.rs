@@ -189,6 +189,19 @@ fn world() -> World {
                 }),
             )
             .route(
+                "/named",
+                axum::routing::get(|| async {
+                    // Named by its server, not by its address (gap 138).
+                    Response::builder()
+                        .header(
+                            "content-disposition",
+                            "attachment; filename=\"report-2026.pdf\"",
+                        )
+                        .body(Body::from(payload()))
+                        .unwrap()
+                }),
+            )
+            .route(
                 "/stalled.bin",
                 axum::routing::get(|| async {
                     let never = futures_util::stream::pending::<Result<Vec<u8>, std::io::Error>>();
@@ -882,7 +895,19 @@ fn the_file_info_dialog_puts_the_file_where_and_as_what_it_says() {
     click(&mut harness, "OK");
     let folder = world.dir.path().join("picked");
     type_into(&mut harness, "Save to folder", &folder.to_string_lossy());
-    type_into(&mut harness, "Save as", "renamed.zip");
+    // Save as holds the server's name once it answers: replaced, as a
+    // person replaces it, by selecting it all first.
+    until(&mut harness, "the server's name in Save as", |app| {
+        app.dialogs
+            .file_info
+            .as_ref()
+            .is_some_and(|d| d.name == "file.zip")
+    });
+    harness.get_by_label("Save as").click();
+    harness.run_steps(2);
+    harness.key_press_modifiers(egui::Modifiers::COMMAND, egui::Key::A);
+    harness.event(egui::Event::Text("renamed.zip".into()));
+    harness.run_steps(2);
     type_role(&mut harness, "Note", "the one from the page");
     click(&mut harness, "Start now");
     until(&mut harness, "the download to complete", |app| {
@@ -4715,8 +4740,17 @@ fn a_sign_in_saved_in_properties_retries_the_download() {
         d.password = "pass".into();
     }
     click(&mut harness, "OK");
+    assert!(harness
+        .state()
+        .said
+        .english()
+        .contains("again with the sign-in"));
     until(&mut harness, "it to download with the sign-in", |app| {
         app.rows().iter().all(|r| r.state == State::Completed)
+    });
+    // Gap 140: "Trying … again" goes once it has been tried.
+    until(&mut harness, "the sentence to go", |app| {
+        !app.said.english().contains("again with the sign-in")
     });
 }
 
@@ -4786,4 +4820,381 @@ fn the_kinds_folder_fields_fit_their_names() {
         let b = field.accesskit_node().bounding_box().unwrap();
         assert!(b.width() >= 120.0, "{kind}'s field is {} wide", b.width());
     }
+}
+
+/* ------------------------------------------- the eighth hands-on round */
+
+/// Every piece of text the last frame painted.
+fn painted_text(harness: &Harness<'_, DmApp>) -> Vec<String> {
+    fn walk(shape: &egui::Shape, out: &mut Vec<String>) {
+        match shape {
+            egui::Shape::Text(text) => out.push(text.galley.text().to_string()),
+            egui::Shape::Vec(shapes) => shapes.iter().for_each(|s| walk(s, out)),
+            _ => {}
+        }
+    }
+    let mut out = Vec::new();
+    for clipped in &harness.output().shapes {
+        walk(&clipped.shape, &mut out);
+    }
+    out
+}
+
+/// Adds a row shown by that name (its address's last part), for later,
+/// without fetching anything.
+fn add_named(harness: &mut Harness<'_, DmApp>, world: &World, name: &str) {
+    let url = url::Url::parse(&world.url("x"))
+        .unwrap()
+        .join(name)
+        .unwrap();
+    harness
+        .state_mut()
+        .add(
+            &[url.to_string()],
+            dm_core::AddOptions {
+                later: true,
+                queue: dm_core::MAIN_QUEUE.into(),
+                ..Default::default()
+            },
+        )
+        .unwrap();
+}
+
+/// Gap 130: an Arabic name is drawn with its words in reading order, and a
+/// screen reader is still given it as stored.
+#[test]
+fn an_arabic_name_is_drawn_in_reading_order() {
+    let world = world();
+    let mut harness = world.harness();
+    // Drawn as a box on the one frame before the computer's font for it is
+    // read, or on a computer with none: the order is what is checked here.
+    harness
+        .ctx
+        .set_missing_glyph_policy(egui::epaint::text::MissingGlyphPolicy::Tofu);
+    add_named(&mut harness, &world, "ملف عربي.zip");
+    harness.run_steps(4);
+    let drawn = painted_text(&harness);
+    assert!(
+        drawn.iter().any(|t| t == "عربي ملف.zip"),
+        "not drawn in reading order: {drawn:?}"
+    );
+    assert!(
+        !drawn.iter().any(|t| t == "ملف عربي.zip"),
+        "drawn in stored order"
+    );
+    assert!(harness.query_by_label("ملف عربي.zip").is_some());
+}
+
+/// Gap 133: Download details forgets an earlier opening's warning, and a
+/// warning wraps inside a 720 px window rather than pushing Start now off it.
+#[test]
+fn download_details_starts_afresh_and_its_warning_wraps() {
+    let world = world();
+    let app = world.app();
+    let mut harness = Harness::builder()
+        .with_size(egui::vec2(720.0, 600.0))
+        .build_ui_state(|ui, app: &mut DmApp| app.ui(ui), app);
+    *world.fake.no_chooser.lock().unwrap() = true;
+    let warning = "No folder chooser on this desktop; type the folder's path.";
+    harness
+        .state_mut()
+        .dialogs
+        .open_file_info(vec![world.url("file.zip")]);
+    harness.run_steps(3);
+    click(&mut harness, "Browse…");
+    harness.run_steps(2);
+    assert!(harness.query_by_label(warning).is_some());
+    let start = harness.get_by_label("Start now");
+    let b = start.accesskit_node().bounding_box().unwrap();
+    assert!(
+        b.x1 <= 720.0 && b.x0 >= 0.0,
+        "Start now is off the window: {b:?}"
+    );
+    click(&mut harness, "Cancel");
+    harness
+        .state_mut()
+        .dialogs
+        .open_file_info(vec![world.url("file.zip")]);
+    harness.run_steps(3);
+    assert!(
+        harness.query_by_label(warning).is_none(),
+        "the last opening's warning stayed"
+    );
+}
+
+/// Gap 134: a right click moves the keyboard's place to the row clicked.
+#[test]
+fn a_right_click_moves_the_keyboards_place() {
+    let world = world();
+    let mut harness = world.harness();
+    for name in ["one.zip", "two.zip", "three.zip"] {
+        add_named(&mut harness, &world, name);
+    }
+    harness.run_steps(3);
+    harness.key_press(egui::Key::Home);
+    harness.run_steps(2);
+    let first = harness.state().cursor;
+    harness.get_by_label("three.zip").click_secondary();
+    harness.run_steps(2);
+    let three = harness
+        .state()
+        .rows()
+        .iter()
+        .find(|r| dm_desktop::app::name_of(r) == "three.zip")
+        .map(|r| r.id);
+    assert_ne!(first, three);
+    assert_eq!(harness.state().cursor, three, "the cursor stayed behind");
+    assert_eq!(
+        harness.state().anchor,
+        three,
+        "Shift would extend from elsewhere"
+    );
+}
+
+/// Gap 135: Enter presses Start now in "Links on the clipboard" and in
+/// "Download links".
+#[test]
+fn enter_starts_the_links_dialogs() {
+    let world = world();
+    let mut harness = world.harness();
+    harness.state_mut().dialogs.clip_links = Some(vec![(world.url("file.zip"), true)]);
+    harness.run_steps(3);
+    harness.key_press(egui::Key::Enter);
+    harness.run_steps(3);
+    assert!(
+        harness.state().dialogs.clip_links.is_none(),
+        "Enter did nothing"
+    );
+    assert_eq!(harness.state().rows().len(), 1);
+    harness.state_mut().dialogs.links = Some(dm_desktop::dialogs::LinksImport {
+        page: world.url("page.html"),
+        sign_in: None,
+        cookies: String::new(),
+        items: vec![(world.url("other.pdf"), true)],
+        hide_html: true,
+        found: Default::default(),
+    });
+    harness.run_steps(3);
+    harness.key_press(egui::Key::Enter);
+    harness.run_steps(3);
+    assert!(harness.state().dialogs.links.is_none(), "Enter did nothing");
+    assert_eq!(harness.state().rows().len(), 2);
+}
+
+/// Gap 136: Find never covers the row it found.
+#[test]
+fn find_stays_clear_of_the_row_it_found() {
+    let world = world();
+    let mut harness = world.harness();
+    for n in 1..=25 {
+        add_named(&mut harness, &world, &format!("a{n:02}.zip"));
+    }
+    harness.run_steps(3);
+    harness.state_mut().run(Command::Find);
+    harness.run_steps(3);
+    for wanted in ["a07", "a05", "a09", "a20"] {
+        harness.state_mut().dialogs.find_text = wanted.into();
+        harness.state_mut().find_next();
+        harness.run_steps(6);
+        let id = harness.state().cursor.expect("found");
+        let row = *harness.state().row_rects.get(&id).expect("drawn");
+        let find = harness
+            .ctx
+            .memory(|m| m.area_rect(egui::Id::unique(("dm-dialog", "Find"))))
+            .expect("Find is open");
+        assert!(
+            !find.intersects(row),
+            "Find {find:?} covers {wanted} at {row:?}"
+        );
+    }
+}
+
+/// Gap 138: Save as takes the name the server gives, and leaves one a
+/// person typed alone.
+#[test]
+fn save_as_takes_the_servers_name() {
+    let world = world();
+    let mut harness = world.harness();
+    harness
+        .state_mut()
+        .dialogs
+        .open_file_info(vec![world.url("named")]);
+    until(&mut harness, "the server's name", |app| {
+        app.dialogs
+            .file_info
+            .as_ref()
+            .is_some_and(|d| d.name == "report-2026.pdf")
+    });
+    // Laid out once it is open, before it is clicked.
+    harness.run_steps(3);
+    click(&mut harness, "Start now");
+    until(&mut harness, "it to finish", |app| {
+        app.rows().iter().any(|r| r.state == State::Completed)
+    });
+    assert!(harness.state().rows()[0].path.ends_with("report-2026.pdf"));
+
+    harness
+        .state_mut()
+        .dialogs
+        .open_file_info(vec![world.url("named")]);
+    harness.run_steps(1);
+    if let Some(d) = harness.state_mut().dialogs.file_info.as_mut() {
+        d.name = String::new();
+        d.name_typed = true;
+    }
+    let deadline = Instant::now() + Duration::from_millis(600);
+    while Instant::now() < deadline {
+        harness.step();
+        std::thread::sleep(Duration::from_millis(20));
+    }
+    assert_eq!(
+        harness
+            .state()
+            .dialogs
+            .file_info
+            .as_ref()
+            .map(|d| d.name.as_str()),
+        Some(""),
+        "what a person typed was replaced"
+    );
+}
+
+/// Gap 139: Start now in Download details while the schedule is shut asks
+/// whether to start it outside the schedule, as Resume does.
+#[test]
+fn start_now_under_a_shut_schedule_offers_to_start_outside_it() {
+    let _file = SETTINGS_FILE.lock().unwrap_or_else(|e| e.into_inner());
+    use chrono::Timelike;
+    let world = world();
+    let mut harness = world.harness();
+    let now = chrono::Local::now();
+    let mut wanted = harness.state().applied.clone();
+    wanted.schedule = dm_core::Schedule {
+        enabled: true,
+        from: format!("{:02}:{:02}", (now.hour() + 2) % 24, now.minute()),
+        to: format!("{:02}:{:02}", (now.hour() + 3) % 24, now.minute()),
+        days: Vec::new(),
+    };
+    harness.state_mut().apply_settings(wanted).unwrap();
+    add_url(&mut harness, &world.url("file.zip"), "Start now");
+    assert!(
+        harness
+            .query_by_label("Start outside the schedule?")
+            .is_some(),
+        "Start now asked nothing under a shut schedule"
+    );
+    click(&mut harness, "Start now");
+    until(&mut harness, "it to finish outside the schedule", |app| {
+        app.rows().iter().all(|r| r.state == State::Completed)
+    });
+    let mut off = harness.state().applied.clone();
+    off.schedule.enabled = false;
+    harness.state_mut().apply_settings(off).unwrap();
+}
+
+/// Gap 140: the limiter's field takes what is typed in place of what it
+/// held; the toolbar's buttons stay put when Resume becomes Retry; the
+/// progress window keeps its place and its percentage in view, and says
+/// what a refusal leaves unknown; the empty list's words are under the
+/// headings.
+#[test]
+fn the_small_things_of_round_eight() {
+    let _file = SETTINGS_FILE.lock().unwrap_or_else(|e| e.into_inner());
+    let world = world();
+    // Under the headings, with nothing in the list.
+    {
+        let mut harness = world.harness();
+        harness.run_steps(3);
+        let heading = harness
+            .get_by_label("Name")
+            .accesskit_node()
+            .bounding_box()
+            .unwrap();
+        let words = harness
+            .get_by_label("Nothing queued")
+            .accesskit_node()
+            .bounding_box()
+            .unwrap();
+        assert!(
+            words.y0 > heading.y1,
+            "the empty list's words are above its headings"
+        );
+    }
+
+    // The limiter: 500 typed over 64 is 500, not 64500.
+    let mut harness = world.harness();
+    let mut wanted = harness.state().applied.clone();
+    wanted.speed_limit = 64;
+    harness.state_mut().apply_settings(wanted).unwrap();
+    harness.state_mut().run(Command::SpeedLimiterSettings);
+    harness.run_steps(4);
+    harness.event(egui::Event::Text("500".into()));
+    harness.run_steps(2);
+    harness.key_press(egui::Key::Enter);
+    harness.run_steps(3);
+    assert_eq!(harness.state().applied.speed_limit, 500);
+    let mut off = harness.state().applied.clone();
+    off.speed_limit = 0;
+    harness.state_mut().apply_settings(off).unwrap();
+
+    // The toolbar: one finished row, one refused.
+    let mut wanted = harness.state().applied.clone();
+    wanted.show_progress = true;
+    harness.state_mut().apply_settings(wanted).unwrap();
+    add_url(&mut harness, &world.url("secret.zip"), "Start now");
+    let progress = |h: &Harness<'_, DmApp>| {
+        let id = h.state().rows()[0].id;
+        h.ctx
+            .memory(|m| m.area_rect(egui::Id::unique(("progress", id))))
+    };
+    harness.run_steps(3);
+    let before = progress(&harness).expect("the progress window is open");
+    until(&mut harness, "the refusal", |app| {
+        app.rows()
+            .iter()
+            .any(|r| matches!(r.state, State::Failed(_)))
+    });
+    harness.run_steps(4);
+    let after = progress(&harness).expect("the progress window is open");
+    assert!(
+        (after.min - before.min).length() < 1.0,
+        "the progress window moved from {before:?} to {after:?}"
+    );
+    assert!(harness
+        .query_by_label("Not yet known (the server refused the request)")
+        .is_some());
+    let percent = harness
+        .get_by_label("0%")
+        .accesskit_node()
+        .bounding_box()
+        .unwrap();
+    assert!(
+        (percent.x1 as f32) <= after.max.x - 8.0,
+        "the percentage is cut off at {percent:?} in {after:?}"
+    );
+    let id = harness.state().rows()[0].id;
+    harness.state_mut().dialogs.progress.remove(&id);
+    let mut quiet = harness.state().applied.clone();
+    quiet.show_progress = false;
+    harness.state_mut().apply_settings(quiet).unwrap();
+    add_url(&mut harness, &world.url("file.zip"), "Start now");
+    until(&mut harness, "it to finish", |app| {
+        app.rows().iter().any(|r| r.state == State::Completed)
+    });
+    let delete_at = |h: &Harness<'_, DmApp>| {
+        h.get_by_label("Delete")
+            .accesskit_node()
+            .bounding_box()
+            .unwrap()
+            .x0
+    };
+    select(&mut harness, "file.zip");
+    harness.run_steps(2);
+    assert!(harness.query_by_label("Resume").is_some());
+    let resume = delete_at(&harness);
+    select(&mut harness, "secret.zip");
+    harness.run_steps(2);
+    assert!(harness.query_by_label("Retry").is_some());
+    let retry = delete_at(&harness);
+    assert_eq!(resume, retry, "Delete moved when Resume became Retry");
 }

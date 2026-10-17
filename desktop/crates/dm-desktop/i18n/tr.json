@@ -372,5 +372,6 @@
  "Take this download off the list? Its file stays where it is.": "Bu indirme listeden kaldırılsın mı? Dosyası olduğu yerde kalır.",
  "Trying {} again with the sign-in.": "{} oturum bilgisiyle yeniden deneniyor.",
  "{} downloads wait for the schedule or the download limit.": "{} indirme zamanlamayı veya indirme sınırını bekliyor.",
- "{} waits for the schedule or the download limit.": "{} zamanlamayı veya indirme sınırını bekliyor."
+ "{} waits for the schedule or the download limit.": "{} zamanlamayı veya indirme sınırını bekliyor.",
+ "Not yet known (the server refused the request)": "Henüz bilinmiyor (sunucu isteği reddetti)"
 }

@@ -224,6 +224,9 @@ pub fn after_taken(state: Option<&str>) -> BrowserCopy {
 /// little to spare. Past it the browser carries on whatever happens.
 pub const DETERMINE_WITHIN_MS: f64 =
     HELLO_WITHIN_MS + SETTINGS_WITHIN_MS + TAKEN_WITHIN_MS + 5_000.0;
+// Held for longer than the app is given to answer and to take it, or the
+// browser would ask where to save a download dm was about to take.
+const _: () = assert!(DETERMINE_WITHIN_MS > HELLO_WITHIN_MS + TAKEN_WITHIN_MS);
 
 /// Downloads whose file name Chrome is waiting on (gap 122). Chrome picks a
 /// download's name, and asks where to save it when it must (a name too long
@@ -476,10 +479,38 @@ pub fn status_line(hello: &Hello) -> (String, bool) {
     (line, false)
 }
 
+/// Whether the browser found no dm it may start: no host manifest, or one
+/// that does not admit this extension. Either is fixed by dm itself, which
+/// registers with every browser installed when it is opened — opened again
+/// too, while it runs (gap 131). The extension cannot tell from here
+/// whether dm is running: with no host there is nothing to ask.
+pub fn not_connected(reason: &str) -> bool {
+    let reason = reason.to_ascii_lowercase();
+    [
+        // Chrome
+        "host not found",
+        "is forbidden",
+        // Firefox
+        "no such native application",
+        "does not have permission to use native application",
+    ]
+    .iter()
+    .any(|said| reason.contains(said))
+}
+
 /// The notification for "there is no app to hand this to", with the command
 /// that fixes it for this browser — or, for an app of a protocol version
 /// this extension cannot talk to, which side to update.
 pub fn absent_text(reason: &str, own_id: &str, firefox: bool) -> String {
+    absent_said(reason, own_id, firefox, "try again")
+}
+
+/// [`absent_text`] for the toolbar popup, which is read again by opening it.
+pub fn absent_popup_text(reason: &str, own_id: &str, firefox: bool) -> String {
+    absent_said(reason, own_id, firefox, "reopen this popup")
+}
+
+fn absent_said(reason: &str, own_id: &str, firefox: bool, then: &str) -> String {
     if let Some(said) = reason.strip_prefix(MISMATCH) {
         return said.to_string();
     }
@@ -488,10 +519,17 @@ pub fn absent_text(reason: &str, own_id: &str, firefox: bool) -> String {
     } else {
         format!("dm-desktop --register {own_id}")
     };
-    format!(
-        "dm did not answer ({reason}). Install the dm app, then let this browser reach it: \
-         {register}"
-    )
+    if not_connected(reason) {
+        format!(
+            "dm isn't connected to this browser yet. Open dm once (if it's already open, \
+             open it again) so it can connect, then {then}. Advanced: {register}"
+        )
+    } else {
+        format!(
+            "dm did not answer ({reason}). Open dm (if it's already open, open it again), \
+             then {then}. If it still does not answer: {register}"
+        )
+    }
 }
 
 /// Said alongside a page sent to an app that has no yt-dlp.
@@ -1325,7 +1363,6 @@ mod tests {
             holds.decide(id);
         }
         assert!(holds.decided.len() <= DECIDED_KEPT);
-        assert!(DETERMINE_WITHIN_MS > HELLO_WITHIN_MS + TAKEN_WITHIN_MS);
     }
 
     #[test]
@@ -1989,7 +2026,55 @@ mod tests {
         assert!(absent_text("x", CHROME_EXTENSION_ID, false).ends_with("dm-desktop --register"));
         assert!(absent_text("x", "storeid", false).ends_with("dm-desktop --register storeid"));
         assert!(absent_text("x", "dm@localhost", true).ends_with("dm-desktop --register"));
-        assert!(absent_text("not found", "a", false).contains("(not found)"));
+        assert!(absent_text("timed out", "a", false).contains("(timed out)"));
+    }
+
+    /// Gap 131: with no host the extension cannot know whether dm runs, so
+    /// it says what works either way — open dm, again if it is open — and
+    /// no longer says to install an app the person has.
+    #[test]
+    fn no_host_says_open_dm_and_not_install_it() {
+        for (reason, firefox) in [
+            ("Specified native messaging host not found.", false),
+            (
+                "Access to the specified native messaging host is forbidden.",
+                false,
+            ),
+            ("No such native application com.dm.host", true),
+            (
+                "This extension does not have permission to use native application com.dm.host",
+                true,
+            ),
+        ] {
+            assert!(not_connected(reason), "{reason}");
+            let popup = absent_popup_text(reason, CHROME_EXTENSION_ID, firefox);
+            assert!(
+                popup.starts_with("dm isn't connected to this browser yet."),
+                "{popup}"
+            );
+            assert!(
+                popup.contains("if it's already open, open it again"),
+                "{popup}"
+            );
+            assert!(popup.contains("then reopen this popup."), "{popup}");
+            assert!(
+                popup.ends_with("Advanced: dm-desktop --register"),
+                "{popup}"
+            );
+            assert!(!popup.contains("Install"), "{popup}");
+            let notice = absent_text(reason, CHROME_EXTENSION_ID, firefox);
+            assert!(notice.contains("then try again."), "{notice}");
+        }
+        // A host that is there and did not answer is not "not connected":
+        // Open dm can still start it.
+        for reason in [
+            "the dm app did not answer in time",
+            "Native host has exited.",
+        ] {
+            assert!(!not_connected(reason), "{reason}");
+            let said = absent_popup_text(reason, CHROME_EXTENSION_ID, false);
+            assert!(said.starts_with("dm did not answer ("), "{said}");
+        }
     }
 
     #[test]

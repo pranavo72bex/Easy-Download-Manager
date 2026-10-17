@@ -372,5 +372,6 @@
  "Take this download off the list? Its file stays where it is.": "Deze download uit de lijst halen? Het bestand blijft waar het is.",
  "Trying {} again with the sign-in.": "{} wordt opnieuw geprobeerd met de aanmelding.",
  "{} downloads wait for the schedule or the download limit.": "{} downloads wachten op het schema of de downloadlimiet.",
- "{} waits for the schedule or the download limit.": "{} wacht op het schema of de downloadlimiet."
+ "{} waits for the schedule or the download limit.": "{} wacht op het schema of de downloadlimiet.",
+ "Not yet known (the server refused the request)": "Nog niet bekend (de server weigerde het verzoek)"
 }

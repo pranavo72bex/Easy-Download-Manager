@@ -27,6 +27,8 @@ Chosen in Options › General › Look; saved as `theme` in the settings.
 | `text` / `text2` / `weak` | `#242424` / `#424242` / `#616161` | `#ffffff` / `#d6d6d6` / `#adadad` |
 | `selection` / `hover` / `pressed` | `#ebebeb` / `#f5f5f5` / `#e0e0e0` | `#383838` / `#3d3d3d` / `#2e2e2e` |
 | `brand` / `brand_hover` / `accent` | `#0f6cbd` / `#115ea3` / `#0f6cbd` | `#115ea3` / `#0f6cbd` / `#479ef5` |
+| `row_selected` / `row_selected_text` | `#0f6cbd` / `#ffffff` | `#1c76d0` / `#ffffff` |
+| `focus_inner` (the focus ring's inner line, inside the `accent` one) | `#ffffff` | `#ffffff` |
 | `radius` / `card_radius` | 4 / 8 px | 4 / 8 px |
 
 Type: Selawik (SIL OFL 1.1, `crates/dm-desktop/fonts/LICENSE-Selawik.txt`):
@@ -38,6 +40,14 @@ smaller one under menus.
 - **Layout:** surfaces meet without lines; the list sits on a rounded card;
   the command bar keeps as many names as fit and shows the rest as pictures;
   a dialog's main action is the filled accent button.
+- **Contrast is tested, not eyeballed** (`theme.rs`): a selected row
+  stands out from the list at 3:1 or more and its words on it at 4.5:1
+  (Classic's row is `#0072d0`); the focus ring is two lines, the accent one
+  for the list and the frame and a white one inside it for whatever is
+  itself in the accent colour (a primary button, a selected row).
+- **Right-to-left names** (Arabic, Hebrew) are put into reading order
+  before egui draws them (`bidi.rs`), which lays out a line in stored
+  order; a screen reader is given the name as stored.
 - **Colours come from tokens.** Read them with `Tokens::get(ctx)`; never
   hard-code a colour in a widget.
 - **Window grammar:** menu bar (Program, File, Downloads, View, Help), then a

@@ -24,6 +24,7 @@
   button { width: 100%; padding: 7px 12px; border: 0; border-radius: 4px; background: var(--brand);
            color: var(--on-brand); font: inherit; font-weight: 600; cursor: pointer; }
   button:hover { background: var(--brand-hover); }
+  [hidden] { display: none !important; }
 </style>
 </head>
 <body>
@@ -33,7 +34,7 @@
 <label class="row" id="panel-row"><input type="checkbox" id="panel" checked><span id="panel-label">Show “Download video” on this site</span></label>
 <label class="row" id="catchall-row"><input type="checkbox" id="catchall"><span id="catchall-label">Take every download from this site</span></label>
 <label class="row" id="cookies-row"><input type="checkbox" id="cookies"><span id="cookies-label">Hand over this site's sign-in with its downloads</span></label>
-<div class="actions"><button id="open" type="button">Open dm</button></div>
+<div class="actions" id="open-actions"><button id="open" type="button">Open dm</button></div>
 <script type="module" src="popup.js"></script>
 </body>
 </html>

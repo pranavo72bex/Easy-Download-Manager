@@ -203,6 +203,17 @@ struct Window {
     /// A window manager places a window shown again as it likes, which was
     /// somewhere else each time.
     hidden_at: Option<egui::Pos2>,
+    /// The last registration failure said in the window, so opening dm
+    /// again does not say it again.
+    browsers_said: Option<String>,
+}
+
+/// The window's words for a registration that failed.
+fn registration_failed(why: &str) -> String {
+    format!(
+        "your browsers could not be told where dm is: {why}. Until they are, the extension \
+         leaves downloads in the browser."
+    )
 }
 
 impl Window {
@@ -255,7 +266,16 @@ impl eframe::App for Window {
             ctx.send_viewport_cmd(egui::ViewportCommand::Visible(false));
             ctx.request_repaint();
         }
+        // Asked to show itself — dm opened again, or its Dock icon
+        // clicked: a browser installed since dm started is registered now,
+        // so "open dm once" works while dm runs (gap 131).
         if self.show_asked.swap(false, Ordering::Relaxed) {
+            if let Some(why) = dm_shell::register::worth_saying(
+                &mut self.browsers_said,
+                dm_shell::register::ensure_if_claimed(),
+            ) {
+                self.app.backend.note(registration_failed(&why));
+            }
             self.show(ctx);
         }
         if let Some(until) = self.hidden_until {
@@ -875,8 +895,18 @@ fn main() {
     let headless = args.iter().any(|a| a == "--headless");
     let _running = match instance::claim(&settings::home()) {
         Ok(Some(lock)) => lock,
+        // Registered first: this launch ends at the hand-off, and a browser
+        // installed while dm ran was never told where dm is (gap 131). The
+        // running dm, asked to show itself, checks again and says what
+        // fails in its window.
         Ok(None) => {
-            shell::hand_to_running(&settings::home(), &handed);
+            if let Some(why) = shell::hand_off(
+                &settings::home(),
+                &handed,
+                dm_shell::register::ensure_if_claimed,
+            ) {
+                eprintln!("dm: your browsers could not be told where dm is: {why}");
+            }
             return;
         }
         // Not taken for a running dm, which it used to be: dm exited without
@@ -1067,13 +1097,12 @@ fn main() {
             // extension works without a terminal. Not a development build
             // or a test's dm (DM_HOME), which must not take the browsers'
             // registration from the installed one.
-            if !cfg!(debug_assertions) && std::env::var_os("DM_HOME").is_none() {
-                if let Err(why) = dm_shell::register::ensure_this_copy() {
-                    backend.note(format!(
-                        "your browsers could not be told where dm is: {why}. Until they are, \
-                         the extension leaves downloads in the browser."
-                    ));
-                }
+            let mut browsers_said = None;
+            if let Some(why) = dm_shell::register::worth_saying(
+                &mut browsers_said,
+                dm_shell::register::ensure_if_claimed(),
+            ) {
+                backend.note(registration_failed(&why));
             }
             let has_tray = built.is_ok();
             let icon = built.ok().flatten();
@@ -1093,6 +1122,7 @@ fn main() {
                 icon,
                 tray_language: language,
                 hidden_at: None,
+                browsers_said,
             }))
         }),
     );

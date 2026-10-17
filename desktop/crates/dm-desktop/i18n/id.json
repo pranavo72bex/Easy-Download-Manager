@@ -372,5 +372,6 @@
  "Take this download off the list? Its file stays where it is.": "Hapus unduhan ini dari daftar? Berkasnya tetap di tempatnya.",
  "Trying {} again with the sign-in.": "Mencoba {} lagi dengan info masuk.",
  "{} downloads wait for the schedule or the download limit.": "{} unduhan menunggu jadwal atau batas unduhan.",
- "{} waits for the schedule or the download limit.": "{} menunggu jadwal atau batas unduhan."
+ "{} waits for the schedule or the download limit.": "{} menunggu jadwal atau batas unduhan.",
+ "Not yet known (the server refused the request)": "Belum diketahui (server menolak permintaan)"
 }
