@@ -650,7 +650,10 @@ def main():
         check("5. the finished row from step 1, clicked, is selected",
               (dm_row("grab.zip") or {}).get("id") in picked, str(picked))
         click_control("dm-desktop", "push button", "Delete")
-        confirm = wait_for(lambda: where("dm-desktop", "push button", "Yes, delete"), 3)
+        # A finished row is taken off the list ("Take it off"); one still to
+        # finish has its parts deleted too ("Yes, delete"). Either asks.
+        confirm = wait_for(lambda: where("dm-desktop", "push button", "Take it off")
+                           or where("dm-desktop", "push button", "Yes, delete"), 5)
         if confirm:
             press(confirm)
         gone = wait_for(lambda: dm_row("grab.zip") is None, 10)
