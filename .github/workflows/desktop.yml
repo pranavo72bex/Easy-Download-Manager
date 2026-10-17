@@ -206,7 +206,7 @@ jobs:
           ls
 
       - name: Keep the installers
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: dm-${{ matrix.artifact }}
           path: |
@@ -322,7 +322,7 @@ jobs:
       - name: Build the Chrome and Firefox zips
         working-directory: .
         run: sh scripts/package.sh
-      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: dm-extension
           path: dist/*.zip
@@ -397,7 +397,7 @@ jobs:
           chown -R builder:builder "$GITHUB_WORKSPACE"
           su builder -c "makepkg --cleanbuild --nodeps --noconfirm"
 
-      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: dm-arch-package-from-checkout
           path: /home/builder/pkg/*.pkg.tar.*
@@ -405,7 +405,7 @@ jobs:
 
       - name: Upload the Arch package
         if: startsWith(github.ref, 'refs/tags/desktop-v')
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: dm-arch-package
           path: desktop/packaging/*.pkg.tar.zst
