@@ -503,5 +503,6 @@
  "Cut": "Kes",
  "Copy": "Kopyala",
  "Paste": "Yapıştır",
- "{} web page hidden||{} web pages hidden": "{} web sayfası gizlendi"
+ "{} web page hidden||{} web pages hidden": "{} web sayfası gizlendi",
+ "The video's own title": "Videonun kendi başlığı"
 }

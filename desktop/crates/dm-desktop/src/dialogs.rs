@@ -2045,10 +2045,17 @@ fn file_info(app: &mut DmApp, ctx: &egui::Context) {
                         let save_as = ui
                             .add(
                                 egui::TextEdit::singleline(&mut d.name)
-                                    .hint_text(
+                                    .hint_text(if d.quality.is_some() {
+                                        // A video picked from a player page is
+                                        // named from its title: the page's own
+                                        // name ("player2.html") was shown, and
+                                        // the file came as something else (UI
+                                        // round 8).
+                                        t("The video's own title").to_string()
+                                    } else {
                                         stream_name(&first, None, remux)
-                                            .unwrap_or_else(|| format::provisional(&first)),
-                                    )
+                                            .unwrap_or_else(|| format::provisional(&first))
+                                    })
                                     .desired_width(360.0),
                             )
                             .labelled_by(name.id);
@@ -2239,7 +2246,10 @@ fn progress(app: &mut DmApp, ctx: &egui::Context) {
             // One height whatever it holds: grown and shrunk as
             // connections came and went, the window jumped about
             // the screen, kept on it by being moved (gap 140).
-            let tall = (screen.height() - 170.0).clamp(120.0, 400.0);
+            // As tall as a tall window allows, so sixteen connections are
+            // seen without scrolling in one (UI round 8: held at 400 points
+            // in a 900-point window).
+            let tall = (screen.height() - 170.0).clamp(120.0, (screen.height() * 0.7).max(400.0));
             egui::ScrollArea::vertical()
                 .auto_shrink([false, false])
                 .max_height(tall)

@@ -3460,7 +3460,7 @@ impl DmApp {
                 // window's edge.
                 let whole = self.said.shown();
                 let short = whole.lines().next().unwrap_or_default().to_string();
-                let room = (ui.available_width() - 120.0).max(80.0);
+                let room = (ui.available_width() - 8.0).max(80.0);
                 ui.scope(|ui| {
                     ui.set_max_width(room);
                     let drawn = ui.add(
@@ -3484,7 +3484,9 @@ impl DmApp {
             // The folder in what room is left, cut short with an ellipsis
             // (its whole path on hover) rather than drawn over the words.
             ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                if ui.available_width() > 40.0 {
+                // Not while a sentence is said, whose end it cut off in the
+                // smallest window (UI round 8).
+                if ui.available_width() > 40.0 && !showing {
                     let folder = self.applied.download_dir.display().to_string();
                     let drawn = ui.add(
                         egui::Label::new(

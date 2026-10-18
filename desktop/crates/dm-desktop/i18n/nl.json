@@ -503,5 +503,6 @@
  "Cut": "Knippen",
  "Copy": "Kopiëren",
  "Paste": "Plakken",
- "{} web page hidden||{} web pages hidden": "{} webpagina verborgen||{} webpagina's verborgen"
+ "{} web page hidden||{} web pages hidden": "{} webpagina verborgen||{} webpagina's verborgen",
+ "The video's own title": "De titel van de video"
 }

@@ -503,5 +503,6 @@
  "Cut": "Cortar",
  "Copy": "Copiar",
  "Paste": "Pegar",
- "{} web page hidden||{} web pages hidden": "{} página web oculta||{} páginas web ocultas"
+ "{} web page hidden||{} web pages hidden": "{} página web oculta||{} páginas web ocultas",
+ "The video's own title": "El título del propio vídeo"
 }
