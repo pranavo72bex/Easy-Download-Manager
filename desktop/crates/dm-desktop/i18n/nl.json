@@ -42,7 +42,6 @@
  "Category": "Categorie",
  "Check all": "Alles aanvinken",
  "Check for updates": "Controleren op updates",
- "Checked {} finished file(s) with their servers; {} had changed and are being downloaded again.": "{} voltooide bestanden bij hun servers gecontroleerd; {} waren veranderd en worden opnieuw gedownload.",
  "Checking…": "Controleren…",
  "Choose…": "Kiezen…",
  "Classic": "Klassiek",
@@ -306,7 +305,6 @@
  "put the computer to sleep": "de computer in slaapstand zetten",
  "quit": "afsluiten",
  "shut the computer down": "de computer uitschakelen",
- "{} addresses, the first {}": "{} adressen, de eerste {}",
  "{} could not be read: {}": "{} kon niet worden gelezen: {}",
  "{} could not be written: {}": "{} kon niet worden geschreven: {}",
  "{} downloading at {}||{} downloading at {}": "{} download bezig met {}||{} downloads bezig met {}",
@@ -386,7 +384,6 @@
  "That is two addresses run together. Add one at a time, or several with Program › Add links from clipboard.": "Dat zijn twee adressen aan elkaar. Voeg ze een voor een toe, of meerdere via Programma › Links van het klembord toevoegen.",
  "The saved proxy could not be used ({}), so it is turned off and downloads go out directly. Fix it under Options › Proxy and tick it again.": "De opgeslagen proxy kon niet worden gebruikt ({}), dus hij staat uit en downloads gaan direct naar buiten. Herstel hem onder Opties › Proxy en vink hem weer aan.",
  "Type the file's full path, such as {}.": "Typ het volledige pad van het bestand, zoals {}.",
- "{} of the {} addresses in this list are already in dm's list.": "{} van de {} adressen in deze lijst staan al in de lijst van dm.",
  "Import a list": "Een lijst importeren",
  "Export the list": "De lijst exporteren",
  "{} download is still running.||{} downloads are still running.": "{} download is nog bezig.||{} downloads zijn nog bezig.",
@@ -418,7 +415,6 @@
  "The range runs backwards.": "Het bereik loopt achteruit.",
  "Waiting for Start queue": "Wacht op ‘Wachtrij starten’",
  "in each period of this many hours": "per periode van zoveel uur",
- "to": "in",
  "{} finishing||{} finishing": "{} wordt afgerond||{} worden afgerond",
  "· {} finishing||· {} finishing": "· {} wordt afgerond||· {} worden afgerond",
  "· {} waiting for Start queue||· {} waiting for Start queue": "· {} wacht op ‘Wachtrij starten’||· {} wachten op ‘Wachtrij starten’",
@@ -441,5 +437,9 @@
  "key:Shift": "Shift",
  "key:Space": "Spatie",
  "key:Tab": "Tab",
- "key:Up": "Omhoog"
+ "key:Up": "Omhoog",
+ "Checked {} finished file with its server. Changed since, and downloaded again: {}.||Checked {} finished files with their servers. Changed since, and downloaded again: {}.": "{} voltooid bestand bij zijn server gecontroleerd. Sindsdien veranderd en opnieuw gedownload: {}.||{} voltooide bestanden bij hun servers gecontroleerd. Sindsdien veranderd en opnieuw gedownload: {}.",
+ "{} address: {}||{} addresses, the first {}": "{} adres: {}||{} adressen, de eerste {}",
+ "{} of the {} addresses in this list is already in dm's list.||{} of the {} addresses in this list are already in dm's list.": "{} van de {} adressen in deze lijst staat al in de lijst van dm.||{} van de {} adressen in deze lijst staan al in de lijst van dm.",
+ "queue:to": "in"
 }

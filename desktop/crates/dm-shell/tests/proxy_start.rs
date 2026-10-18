@@ -37,4 +37,11 @@ async fn a_saved_proxy_with_no_host_is_turned_off_and_said_at_launch() {
             .proxy,
         None
     );
+    // And on disk, where the browser's native host reads it: it found the
+    // proxy still on and refused every hand-off while the app went direct.
+    let (on_disk, _) = Settings::load();
+    assert!(
+        !on_disk.proxy.enabled,
+        "the host still reads the broken proxy as on"
+    );
 }

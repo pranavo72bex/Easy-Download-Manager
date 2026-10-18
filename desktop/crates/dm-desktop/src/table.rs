@@ -18,6 +18,7 @@ pub fn show(app: &mut DmApp, ui: &mut egui::Ui) {
     // click for itself, so clicking a file's name selected nothing.
     ui.style_mut().interaction.selectable_labels = false;
     let rows = app.visible();
+    let mut categories = app.applied.categories();
     // Why a held row waits, said on hovering it.
     let held = app.held_because();
     if rows.is_empty() {
@@ -158,8 +159,23 @@ pub fn show(app: &mut DmApp, ui: &mut egui::Ui) {
                         let entry = &rows[i];
                         let selected = app.selected.contains(&entry.id);
                         row.set_selected(selected);
+                        // Worked out for the rows drawn only, not the whole
+                        // list every time a command asks what it acts on.
+                        let planned = columns
+                            .contains(&Column::Folder)
+                            .then(|| app.planned_folder(entry, &mut categories))
+                            .flatten();
                         for column in &columns {
-                            row.col(|ui| cell(ui, *column, entry, held.as_deref(), selected));
+                            row.col(|ui| {
+                                cell(
+                                    ui,
+                                    *column,
+                                    entry,
+                                    held.as_deref(),
+                                    selected,
+                                    planned.as_deref(),
+                                )
+                            });
                         }
                         let response = row.response();
                         drawn.push((entry.id, response.rect));
@@ -319,7 +335,14 @@ fn width(column: Column, queue_empty: bool) -> Width {
 }
 
 /// One cell: what a column says about a download.
-fn cell(ui: &mut egui::Ui, column: Column, entry: &Entry, held: Option<&str>, selected: bool) {
+fn cell(
+    ui: &mut egui::Ui,
+    column: Column,
+    entry: &Entry,
+    held: Option<&str>,
+    selected: bool,
+    planned: Option<&str>,
+) {
     match column {
         Column::Name => {
             ui.horizontal(|ui| {
@@ -368,7 +391,10 @@ fn cell(ui: &mut egui::Ui, column: Column, entry: &Entry, held: Option<&str>, se
             }
         }
         Column::Folder => {
-            let folder = crate::app::folder_of(entry);
+            let mut folder = crate::app::folder_of(entry);
+            if folder.is_empty() {
+                folder = planned.unwrap_or_default().to_string();
+            }
             if !folder.is_empty() {
                 let drawn = ui.label(&*crate::bidi::visual(&folder));
                 crate::bidi::said_as(&drawn, &folder);

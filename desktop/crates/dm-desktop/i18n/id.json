@@ -42,7 +42,6 @@
  "Category": "Kategori",
  "Check all": "Centang semua",
  "Check for updates": "Periksa pembaruan",
- "Checked {} finished file(s) with their servers; {} had changed and are being downloaded again.": "{} berkas selesai diperiksa dengan servernya; {} berubah dan sedang diunduh ulang.",
  "Checking…": "Memeriksa…",
  "Choose…": "Pilih…",
  "Classic": "Klasik",
@@ -306,7 +305,6 @@
  "put the computer to sleep": "menidurkan komputer",
  "quit": "keluar",
  "shut the computer down": "mematikan komputer",
- "{} addresses, the first {}": "{} alamat, yang pertama {}",
  "{} could not be read: {}": "{} tidak dapat dibaca: {}",
  "{} could not be written: {}": "{} tidak dapat ditulis: {}",
  "{} downloading at {}||{} downloading at {}": "{} unduhan berjalan, {}",
@@ -386,7 +384,6 @@
  "That is two addresses run together. Add one at a time, or several with Program › Add links from clipboard.": "Itu dua alamat yang menyatu. Tambahkan satu per satu, atau beberapa sekaligus dengan Program › Tambah tautan dari papan klip.",
  "The saved proxy could not be used ({}), so it is turned off and downloads go out directly. Fix it under Options › Proxy and tick it again.": "Proksi yang tersimpan tidak bisa dipakai ({}), jadi dimatikan dan unduhan keluar langsung. Perbaiki di Opsi › Proksi lalu centang lagi.",
  "Type the file's full path, such as {}.": "Ketik jalur lengkap berkas, seperti {}.",
- "{} of the {} addresses in this list are already in dm's list.": "{} dari {} alamat di daftar ini sudah ada di daftar dm.",
  "Import a list": "Impor daftar",
  "Export the list": "Ekspor daftar",
  "{} download is still running.||{} downloads are still running.": "{} unduhan masih berjalan.",
@@ -418,7 +415,6 @@
  "The range runs backwards.": "Rentangnya terbalik.",
  "Waiting for Start queue": "Menunggu \"Mulai antrean\"",
  "in each period of this many hours": "dalam setiap periode sekian jam",
- "to": "ke",
  "{} finishing||{} finishing": "{} sedang diselesaikan",
  "· {} finishing||· {} finishing": "· {} sedang diselesaikan",
  "· {} waiting for Start queue||· {} waiting for Start queue": "· {} menunggu \"Mulai antrean\"",
@@ -441,5 +437,9 @@
  "key:Shift": "Shift",
  "key:Space": "Spasi",
  "key:Tab": "Tab",
- "key:Up": "Atas"
+ "key:Up": "Atas",
+ "Checked {} finished file with its server. Changed since, and downloaded again: {}.||Checked {} finished files with their servers. Changed since, and downloaded again: {}.": "{} berkas selesai diperiksa dengan servernya. Berubah dan diunduh ulang: {}.",
+ "{} address: {}||{} addresses, the first {}": "{} alamat, yang pertama {}",
+ "{} of the {} addresses in this list is already in dm's list.||{} of the {} addresses in this list are already in dm's list.": "{} dari {} alamat di daftar ini sudah ada di daftar dm.",
+ "queue:to": "ke"
 }

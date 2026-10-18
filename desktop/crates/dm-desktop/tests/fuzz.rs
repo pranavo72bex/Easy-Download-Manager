@@ -276,5 +276,16 @@ proptest! {
         prop_assert_eq!(links_in(&webloc), vec![url.clone()]);
         prop_assert_eq!(links_in(&html), both);
         prop_assert_eq!(links_in(&bare), vec![url.clone()]);
+        // Behind any other key, a refresh's `0;url=`, a forum's `[url=…]`
+        // and a note's `(…)`: found, and only the address.
+        for wrapped in [
+            format!("BASEURL={url}"),
+            format!("<div data-src={url}>"),
+            format!("<meta http-equiv=refresh content=\"0;url={escaped}\">"),
+            format!("[url={url}]x[/url]"),
+            format!("see the file ({url}) here"),
+        ] {
+            prop_assert_eq!(links_in(&wrapped), vec![url.clone()], "{}", wrapped);
+        }
     }
 }

@@ -131,33 +131,47 @@ const BY_EXTENSION: &[(&str, Category)] = &[
 /// URL with no extension at all, and putting all of it in `Other` defeats
 /// the feature for exactly the downloads people most want sorted.
 pub fn classify(filename: &str, content_type: Option<&str>) -> Category {
-    let extension = filename
-        .rsplit_once('.')
-        .map(|(_, e)| e.to_ascii_lowercase())
-        .unwrap_or_default();
-
-    if let Some((_, category)) = BY_EXTENSION.iter().find(|(e, _)| *e == extension) {
-        return *category;
+    if let Some(category) = by_name(filename) {
+        return category;
+    }
+    let mime = crate::probe::mime_essence(content_type);
+    match mime.split('/').next().unwrap_or("") {
+        "video" => return Category::Videos,
+        "audio" => return Category::Audio,
+        "image" => return Category::Pictures,
+        _ => {}
     }
     // A `.bin` is as often firmware, a disc image or a model's weights as a
     // program, and dm cannot tell which from the name: Other, the honest
-    // place, unless the name says it installs something (gap 168).
-    if extension == "bin" {
-        let lower = filename.to_ascii_lowercase();
-        return if ["setup", "install"].iter().any(|w| lower.contains(w)) {
-            Category::Apps
-        } else {
-            Category::Other
-        };
+    // place, unless the server typed it or the name says it installs
+    // something (gap 168). `uninstall` and `reinstall` do not say so.
+    if extension_of(filename) == "bin"
+        && filename
+            .split(|c: char| !c.is_ascii_alphanumeric())
+            .map(str::to_ascii_lowercase)
+            .any(|w| w.starts_with("setup") || w.starts_with("install"))
+    {
+        return Category::Apps;
     }
+    Category::Other
+}
 
-    let mime = crate::probe::mime_essence(content_type);
-    match mime.split('/').next().unwrap_or("") {
-        "video" => Category::Videos,
-        "audio" => Category::Audio,
-        "image" => Category::Pictures,
-        _ => Category::Other,
-    }
+/// The kind a file's name alone decides: an extension dm knows. A name
+/// that does not say — none, `.php`, `.bin` — is placed by what the server
+/// says of it.
+pub fn by_name(filename: &str) -> Option<Category> {
+    let extension = extension_of(filename);
+    BY_EXTENSION
+        .iter()
+        .find(|(e, _)| *e == extension)
+        .map(|(_, category)| *category)
+}
+
+fn extension_of(filename: &str) -> String {
+    filename
+        .rsplit_once('.')
+        .map(|(_, e)| e.to_ascii_lowercase())
+        .unwrap_or_default()
 }
 
 /// A category a person made: a name, which is also its
@@ -336,9 +350,16 @@ mod tests {
             classify("router.bin", Some("application/octet-stream")),
             Category::Other
         );
-        for name in ["jdk-setup-x64.bin", "Product-Installer.bin"] {
+        for name in ["jdk-setup-x64.bin", "Product-Installer.bin", "Setup64.bin"] {
             assert_eq!(classify(name, None), Category::Apps, "{name}");
         }
+        // Words that only contain "install" are not an installer.
+        for name in ["uninstall-firmware.bin", "reinstall_image.bin"] {
+            assert_eq!(classify(name, None), Category::Other, "{name}");
+        }
+        // A type the server names still places it.
+        assert_eq!(classify("stream.bin", Some("video/mp2t")), Category::Videos);
+        assert_eq!(classify("song.bin", Some("audio/mpeg")), Category::Audio);
         assert_eq!(classify("tool.exe", None), Category::Apps);
         assert_eq!(classify("tool.run", None), Category::Apps);
     }

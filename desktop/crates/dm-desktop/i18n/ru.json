@@ -42,7 +42,6 @@
  "Category": "Категория",
  "Check all": "Отметить все",
  "Check for updates": "Проверить обновления",
- "Checked {} finished file(s) with their servers; {} had changed and are being downloaded again.": "Проверено готовых файлов: {}; изменилось и загружается заново: {}.",
  "Checking…": "Проверка…",
  "Choose…": "Выбрать…",
  "Classic": "Классический",
@@ -306,7 +305,6 @@
  "put the computer to sleep": "перевести компьютер в сон",
  "quit": "завершит работу",
  "shut the computer down": "выключить компьютер",
- "{} addresses, the first {}": "Адресов: {}, первый — {}",
  "{} could not be read: {}": "Не удалось прочитать {}: {}",
  "{} could not be written: {}": "Не удалось записать {}: {}",
  "{} downloading at {}||{} downloading at {}": "{} загрузка, скорость {}||{} загрузки, скорость {}||{} загрузок, скорость {}",
@@ -386,7 +384,6 @@
  "That is two addresses run together. Add one at a time, or several with Program › Add links from clipboard.": "Это два адреса, слитые вместе. Добавляйте по одному или несколько через Программа › Добавить ссылки из буфера обмена.",
  "The saved proxy could not be used ({}), so it is turned off and downloads go out directly. Fix it under Options › Proxy and tick it again.": "Сохранённый прокси использовать не удалось ({}), поэтому он выключен, и загрузки идут напрямую. Исправьте его в Параметры › Прокси и снова включите.",
  "Type the file's full path, such as {}.": "Введите полный путь к файлу, например {}.",
- "{} of the {} addresses in this list are already in dm's list.": "{} из {} адресов этого списка уже есть в списке dm.",
  "Import a list": "Импортировать список",
  "Export the list": "Экспортировать список",
  "{} download is still running.||{} downloads are still running.": "{} загрузка ещё идёт.||{} загрузки ещё идут.||{} загрузок ещё идут.",
@@ -418,7 +415,6 @@
  "The range runs backwards.": "Диапазон идёт в обратную сторону.",
  "Waiting for Start queue": "Ждёт «Запустить очередь»",
  "in each period of this many hours": "за каждый период из стольких часов",
- "to": "в",
  "{} finishing||{} finishing": "{} завершается||{} завершаются||{} завершаются",
  "· {} finishing||· {} finishing": "· {} завершается||· {} завершаются||· {} завершаются",
  "· {} waiting for Start queue||· {} waiting for Start queue": "· {} ждёт «Запустить очередь»||· {} ждут «Запустить очередь»||· {} ждут «Запустить очередь»",
@@ -441,5 +437,9 @@
  "key:Shift": "Shift",
  "key:Space": "Пробел",
  "key:Tab": "Tab",
- "key:Up": "Вверх"
+ "key:Up": "Вверх",
+ "Checked {} finished file with its server. Changed since, and downloaded again: {}.||Checked {} finished files with their servers. Changed since, and downloaded again: {}.": "Проверен {} готовый файл. Изменились и загружаются заново: {}.||Проверено {} готовых файла. Изменились и загружаются заново: {}.||Проверено {} готовых файлов. Изменились и загружаются заново: {}.",
+ "{} address: {}||{} addresses, the first {}": "{} адрес: {}||{} адреса, первый — {}||{} адресов, первый — {}",
+ "{} of the {} addresses in this list is already in dm's list.||{} of the {} addresses in this list are already in dm's list.": "{} из {} адресов этого списка уже есть в списке dm.||{} из {} адресов этого списка уже есть в списке dm.||{} из {} адресов этого списка уже есть в списке dm.",
+ "queue:to": "в"
 }

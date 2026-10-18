@@ -42,7 +42,6 @@
  "Category": "Categoría",
  "Check all": "Marcar todo",
  "Check for updates": "Buscar actualizaciones",
- "Checked {} finished file(s) with their servers; {} had changed and are being downloaded again.": "Se comprobaron {} archivo(s) terminado(s) con sus servidores; {} habían cambiado y se están descargando de nuevo.",
  "Checking…": "Comprobando…",
  "Choose…": "Elegir…",
  "Classic": "Clásico",
@@ -306,7 +305,6 @@
  "put the computer to sleep": "suspender el equipo",
  "quit": "salir",
  "shut the computer down": "apagar el equipo",
- "{} addresses, the first {}": "{} direcciones, la primera {}",
  "{} could not be read: {}": "No se pudo leer {}: {}",
  "{} could not be written: {}": "No se pudo escribir {}: {}",
  "{} downloading at {}||{} downloading at {}": "{} descarga a {}||{} descargas a {}",
@@ -386,7 +384,6 @@
  "That is two addresses run together. Add one at a time, or several with Program › Add links from clipboard.": "Son dos direcciones juntas. Añádalas de una en una, o varias con Programa › Añadir enlaces del portapapeles.",
  "The saved proxy could not be used ({}), so it is turned off and downloads go out directly. Fix it under Options › Proxy and tick it again.": "No se pudo usar el proxy guardado ({}), así que se ha desactivado y las descargas salen directamente. Corríjalo en Opciones › Proxy y vuelva a marcarlo.",
  "Type the file's full path, such as {}.": "Escriba la ruta completa del archivo, como {}.",
- "{} of the {} addresses in this list are already in dm's list.": "{} de las {} direcciones de esta lista ya están en la lista de dm.",
  "Import a list": "Importar una lista",
  "Export the list": "Exportar la lista",
  "{} download is still running.||{} downloads are still running.": "{} descarga sigue en curso.||{} descargas siguen en curso.",
@@ -418,7 +415,6 @@
  "The range runs backwards.": "El intervalo va hacia atrás.",
  "Waiting for Start queue": "Esperando a «Iniciar cola»",
  "in each period of this many hours": "en cada periodo de estas horas",
- "to": "en",
  "{} finishing||{} finishing": "{} terminando||{} terminando",
  "· {} finishing||· {} finishing": "· {} terminando||· {} terminando",
  "· {} waiting for Start queue||· {} waiting for Start queue": "· {} esperando a «Iniciar cola»||· {} esperando a «Iniciar cola»",
@@ -441,5 +437,9 @@
  "key:Shift": "Mayús",
  "key:Space": "Espacio",
  "key:Tab": "Tab",
- "key:Up": "Arriba"
+ "key:Up": "Arriba",
+ "Checked {} finished file with its server. Changed since, and downloaded again: {}.||Checked {} finished files with their servers. Changed since, and downloaded again: {}.": "Se comprobó {} archivo terminado con su servidor. Cambiados desde entonces y descargándose de nuevo: {}.||Se comprobaron {} archivos terminados con sus servidores. Cambiados desde entonces y descargándose de nuevo: {}.",
+ "{} address: {}||{} addresses, the first {}": "{} dirección: {}||{} direcciones, la primera {}",
+ "{} of the {} addresses in this list is already in dm's list.||{} of the {} addresses in this list are already in dm's list.": "{} de las {} direcciones de esta lista ya está en la lista de dm.||{} de las {} direcciones de esta lista ya están en la lista de dm.",
+ "queue:to": "en"
 }

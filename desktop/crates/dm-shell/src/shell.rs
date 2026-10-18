@@ -227,6 +227,13 @@ pub async fn start(orders: &Orders) -> Started {
                  go out directly. Fix it under Options › Proxy and tick it again."
             ));
             saved.proxy.enabled = false;
+            // Saved turned off, as the notice says: the browser's native
+            // host reads the settings file, and still finding the proxy on
+            // there it left every caught download with the browser while
+            // the app went direct.
+            if let Err(e) = saved.save() {
+                notices.push(format!("the proxy could not be saved as turned off: {e}"));
+            }
             dm_core::client()
         }
     };

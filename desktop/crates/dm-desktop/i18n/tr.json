@@ -42,7 +42,6 @@
  "Category": "Kategori",
  "Check all": "Tümünü işaretle",
  "Check for updates": "Güncellemeleri denetle",
- "Checked {} finished file(s) with their servers; {} had changed and are being downloaded again.": "{} biten dosya sunucularıyla denetlendi; {} tanesi değişmiş ve yeniden indiriliyor.",
  "Checking…": "Denetleniyor…",
  "Choose…": "Seç…",
  "Classic": "Klasik",
@@ -306,7 +305,6 @@
  "put the computer to sleep": "bilgisayarı uyku moduna alacak",
  "quit": "kapanacak",
  "shut the computer down": "bilgisayarı kapatacak",
- "{} addresses, the first {}": "{} adres, ilki {}",
  "{} could not be read: {}": "{} okunamadı: {}",
  "{} could not be written: {}": "{} yazılamadı: {}",
  "{} downloading at {}||{} downloading at {}": "{} indirme sürüyor, {}",
@@ -386,7 +384,6 @@
  "That is two addresses run together. Add one at a time, or several with Program › Add links from clipboard.": "Bunlar birbirine yapışmış iki adres. Tek tek ekleyin ya da birkaçını Program › Panodaki bağlantıları ekle ile ekleyin.",
  "The saved proxy could not be used ({}), so it is turned off and downloads go out directly. Fix it under Options › Proxy and tick it again.": "Kaydedilen vekil sunucu kullanılamadı ({}); bu yüzden kapatıldı ve indirmeler doğrudan çıkıyor. Seçenekler › Vekil sunucu altında düzeltip yeniden işaretleyin.",
  "Type the file's full path, such as {}.": "Dosyanın tam yolunu yazın, örneğin {}.",
- "{} of the {} addresses in this list are already in dm's list.": "Bu listedeki adreslerin {} tanesi ({} adresten) zaten dm'in listesinde.",
  "Import a list": "Liste içe aktar",
  "Export the list": "Listeyi dışa aktar",
  "{} download is still running.||{} downloads are still running.": "{} indirme hâlâ sürüyor.",
@@ -418,7 +415,6 @@
  "The range runs backwards.": "Aralık geriye doğru gidiyor.",
  "Waiting for Start queue": "\"Kuyruğu başlat\" bekleniyor",
  "in each period of this many hours": "her bu kadar saatlik dönemde",
- "to": "kuyruk:",
  "{} finishing||{} finishing": "{} tamamlanıyor",
  "· {} finishing||· {} finishing": "· {} tamamlanıyor",
  "· {} waiting for Start queue||· {} waiting for Start queue": "· {} \"Kuyruğu başlat\" bekliyor",
@@ -441,5 +437,9 @@
  "key:Shift": "Shift",
  "key:Space": "Boşluk",
  "key:Tab": "Tab",
- "key:Up": "Yukarı"
+ "key:Up": "Yukarı",
+ "Checked {} finished file with its server. Changed since, and downloaded again: {}.||Checked {} finished files with their servers. Changed since, and downloaded again: {}.": "{} biten dosya sunucusuyla denetlendi. O zamandan beri değişip yeniden indirilen: {}.",
+ "{} address: {}||{} addresses, the first {}": "{} adres, ilki {}",
+ "{} of the {} addresses in this list is already in dm's list.||{} of the {} addresses in this list are already in dm's list.": "Bu listedeki adreslerin {} tanesi ({} adresten) zaten dm'in listesinde.",
+ "queue:to": "kuyruk:"
 }

@@ -1216,16 +1216,18 @@ fn confirm_exit(app: &mut DmApp, ctx: &egui::Context) {
             &[],
         ));
     }
+    // Narrower on a screen that has not the room, as the other dialogs.
+    let width = EXIT_WIDTH.min(ctx.content_rect().width() - 48.0).max(220.0);
     window("Exit dm?").show(ctx, |ui| {
         // One width and room for three lines whatever the words say: a
         // download finishing while the question is open changes them, and
         // a window that shrank around shorter words moved its buttons —
         // Exit slid under a pointer on its way to "Keep downloading".
-        ui.set_width(EXIT_WIDTH);
+        ui.set_width(width);
         let lines =
             ui.text_style_height(&egui::TextStyle::Body) * 3.0 + ui.spacing().item_spacing.y * 2.0;
         ui.allocate_ui_with_layout(
-            egui::vec2(EXIT_WIDTH, lines),
+            egui::vec2(width, lines),
             egui::Layout::top_down(egui::Align::Min),
             |ui| {
                 ui.set_min_height(lines);
@@ -1250,7 +1252,8 @@ fn confirm_exit(app: &mut DmApp, ctx: &egui::Context) {
     }
 }
 
-/// The Exit question's width, held whatever its words say.
+/// The Exit question's width, held whatever its words say, where the
+/// screen has room for it.
 const EXIT_WIDTH: f32 = 440.0;
 
 /// Asked after two handed-over downloads from one site were cancelled in a
@@ -1305,8 +1308,9 @@ fn import_ask(app: &mut DmApp, ctx: &egui::Context) {
     let (already, total) = (ask.already, ask.total);
     let (mut skip, mut again, mut cancel) = (false, false, false);
     window("Some are already in the list").show(ctx, |ui| {
-        ui.label(tf(
-            "{} of the {} addresses in this list are already in dm's list.",
+        ui.label(crate::i18n::tn(
+            "{} of the {} addresses in this list is already in dm's list.||{} of the {} addresses in this list are already in dm's list.",
+            already as u64,
             &[&already, &total],
         ));
         ui.horizontal(|ui| {
@@ -1671,7 +1675,9 @@ fn file_info(app: &mut DmApp, ctx: &egui::Context) {
                 if ui.button(t("Add for later")).clicked() {
                     chosen = Some(true);
                 }
-                let to = ui.label(t("to"));
+                // "to" by itself is many words in other languages: the key
+                // says which one.
+                let to = ui.label(t("queue:to").trim_start_matches("queue:"));
                 egui::ComboBox::from_id_salt("details-queue")
                     .selected_text(crate::i18n::name(&d.queue))
                     .show_ui(ui, |ui| {
@@ -1749,8 +1755,9 @@ fn file_info(app: &mut DmApp, ctx: &egui::Context) {
 }
 
 fn progress(app: &mut DmApp, ctx: &egui::Context) {
-    let ids: Vec<Id> = app.dialogs.progress.iter().copied().collect();
-    for id in ids {
+    let mut ids: Vec<Id> = app.dialogs.progress.iter().copied().collect();
+    ids.sort_unstable();
+    for (nth, id) in ids.into_iter().enumerate() {
         let Some(row) = app.row(id).cloned() else {
             app.dialogs.progress.remove(&id);
             continue;
@@ -1778,7 +1785,9 @@ fn progress(app: &mut DmApp, ctx: &egui::Context) {
         .resizable(false)
         // Below the menu bar, which it opened over and hid (gap 168).
         .constrain_to(below_menu)
-        .default_pos(below_menu.left_top() + egui::vec2(24.0, 24.0))
+        // Each a step down and across from the one before, as windows
+        // cascade: three started together opened exactly over each other.
+        .default_pos(below_menu.left_top() + egui::Vec2::splat(24.0 + 28.0 * (nth % 8) as f32))
         .default_width(room.min(460.0))
         .min_width(room.min(460.0))
         .max_width(room)
@@ -2298,6 +2307,7 @@ fn series(app: &mut DmApp, ctx: &egui::Context) {
     };
     let mut open = true;
     let mut add: Option<bool> = None;
+    let before = (d.template.clone(), d.from.clone(), d.to.clone(), d.width);
     window("Add numbered series")
         .open(&mut open)
         .show(ctx, |ui| {
@@ -2319,12 +2329,23 @@ fn series(app: &mut DmApp, ctx: &egui::Context) {
             let typed = !d.template.trim().is_empty()
                 && !d.from.trim().is_empty()
                 && !d.to.trim().is_empty();
+            // What a press of Start said stands only until the address or
+            // the range is changed: kept, it hid the count and the live
+            // error of what was typed since.
+            if (&d.template, &d.from, &d.to, d.width) != (&before.0, &before.1, &before.2, before.3)
+            {
+                d.says.clear();
+            }
             let mut warn = d.says.clone();
             let mut count = String::new();
             match dm_shell::lists::series(&d.template, &d.from, &d.to, d.width) {
                 Ok(urls) => {
                     if let Some(first) = urls.first() {
-                        count = tf("{} addresses, the first {}", &[&urls.len(), first]);
+                        count = crate::i18n::tn(
+                            "{} address: {}||{} addresses, the first {}",
+                            urls.len() as u64,
+                            &[&urls.len(), first],
+                        );
                     }
                 }
                 Err(e) if typed && warn.is_empty() => warn = series_error(e).to_string(),
