@@ -678,6 +678,23 @@ def human_session(home, env, app):
         files.server.shutdown()
 
 
+def panel():
+    """A panel's tray part starting: the StatusNotifierWatcher and a host
+    registered with it (scripts/linux/tray_host.py), as a panel brings both
+    up together. Returns both, to be ended together."""
+    watcher = subprocess.Popen(["status-notifier-watcher"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    time.sleep(0.5)
+    host = subprocess.Popen([sys.executable, str(pathlib.Path(__file__).with_name("tray_host.py"))],
+                            stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    return [watcher, host]
+
+
+def end_panel(parts):
+    for part in parts:
+        part.terminate()
+        part.wait(10)
+
+
 def tray_host_timing(env):
     """A tray host that is not there, or comes after dm: at login dm can
     start before the panel, and GNOME without its extension has none."""
@@ -685,6 +702,7 @@ def tray_host_timing(env):
     # Anchored: the shell that started the watcher has its name in its own
     # command line, and ending that ends the session.
     x("pkill", "-f", "^status-notifier-watcher")
+    x("pkill", "-f", "tray_host.py")
     wait_for(lambda: not x("pgrep", "-f", "^status-notifier-watcher").stdout.strip(), 10)
 
     app = subprocess.Popen([str(BINARY)], env=env, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
@@ -696,29 +714,27 @@ def tray_host_timing(env):
     app = subprocess.Popen([str(BINARY)], env=env, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
     wait_for(dm_windows, 30)
     time.sleep(2)
-    watcher = subprocess.Popen(["status-notifier-watcher"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    watcher = panel()
     check("a tray host that comes later gets dm's item", wait_for(tray_icon, 20), "nothing registered")
     x("wmctrl", "-i", "-c", dm_windows()[0])
     check("and closing then hides it into that tray",
           wait_for(lambda: not dm_windows(), 10) and app.poll() is None)
     # The panel restarts (waybar is often reloaded): its new watcher can
     # drop the registration that arrives as it starts.
-    watcher.terminate()
-    watcher.wait(10)
-    watcher = subprocess.Popen(["status-notifier-watcher"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    end_panel(watcher)
+    watcher = panel()
     check("a tray host that restarts gets dm's item back", wait_for(tray_icon, 20), "nothing registered")
     tray_menu(QUIT)
     wait_for(lambda: app.poll() is not None, 15)
 
-    watcher.terminate()
-    watcher.wait(10)
+    end_panel(watcher)
     hidden = subprocess.Popen([str(BINARY), "--hidden"], env=env, stdout=subprocess.DEVNULL,
                               stderr=subprocess.DEVNULL)
     time.sleep(3)
     check("a login launch with no tray host waits hidden at first", not dm_windows())
     check("then opens its window rather than run unseen", wait_for(dm_windows, 20))
     # Left running with a host again, for whatever runs next.
-    subprocess.Popen(["status-notifier-watcher"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    panel()
     return hidden
 
 
