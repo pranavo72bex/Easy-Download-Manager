@@ -441,5 +441,7 @@
  "Checked {} finished file with its server. Changed since, and downloaded again: {}.||Checked {} finished files with their servers. Changed since, and downloaded again: {}.": "{} berkas selesai diperiksa dengan servernya. Berubah dan diunduh ulang: {}.",
  "{} address: {}||{} addresses, the first {}": "{} alamat, yang pertama {}",
  "{} of the {} addresses in this list is already in dm's list.||{} of the {} addresses in this list are already in dm's list.": "{} dari {} alamat di daftar ini sudah ada di daftar dm.",
- "queue:to": "ke"
+ "queue:to": "ke",
+ "No file chooser on this desktop to pick an application with; Open uses the file's usual one.": "Tidak ada pemilih berkas di desktop ini untuk memilih aplikasi; Buka memakai aplikasi biasa untuk berkas itu.",
+ "{} is taken in that folder, so it is called {}.": "{} sudah ada di folder itu, jadi namanya {}."
 }

@@ -42,7 +42,9 @@ pub async fn probe(
         let mut request = client
             .get(url)
             .header(reqwest::header::RANGE, "bytes=0-0")
-            .header(reqwest::header::USER_AGENT, agent);
+            .header(reqwest::header::USER_AGENT, agent)
+            // The length of the file itself, as the download will ask for it.
+            .header(reqwest::header::ACCEPT_ENCODING, crate::download::IDENTITY);
         if let Some(cookies) = crate::cookies::header_with(sign_in, url) {
             request = request.header(reqwest::header::COOKIE, cookies);
         }

@@ -899,6 +899,18 @@ fn open_with_asks_for_an_application_and_opens_the_file_with_it() {
         *world.fake.opened.lock().unwrap(),
         [format!("{} with {}", row.path, app.display())]
     );
+
+    // With no chooser to pick with, it says so rather than doing nothing.
+    *world.fake.no_chooser.lock().unwrap() = true;
+    harness.state_mut().run(Command::OpenWith);
+    harness.run_steps(2);
+    assert!(harness
+        .state()
+        .said
+        .english()
+        .starts_with("No file chooser on this desktop to pick an application"));
+    assert_eq!(world.fake.opened.lock().unwrap().len(), 1);
+    *world.fake.no_chooser.lock().unwrap() = false;
 }
 
 #[test]
@@ -964,6 +976,42 @@ fn download_later_waits_in_the_main_queue_until_start_queue() {
     until(&mut harness, "the queue's download to complete", |app| {
         app.rows().iter().all(|r| r.state == State::Completed)
     });
+}
+
+/// Move/Rename: a name taken in that folder is said, with the name given
+/// instead; Cancel closes it untouched.
+#[test]
+fn renaming_onto_a_taken_name_says_what_it_is_called() {
+    let world = world();
+    let mut harness = world.harness();
+    add_url(&mut harness, &world.url("file.zip"), "Start now");
+    add_url(&mut harness, &world.url("other.pdf"), "Start now");
+    until(&mut harness, "both to complete", |app| {
+        app.rows().len() == 2 && app.rows().iter().all(|r| r.state == State::Completed)
+    });
+    let pdf = harness
+        .state()
+        .rows()
+        .iter()
+        .find(|r| r.filename == "other.pdf")
+        .unwrap()
+        .id;
+    harness.state_mut().dialogs.rename = Some((pdf, "other.pdf".into()));
+    harness.run_steps(2);
+    click(&mut harness, "Cancel");
+    assert!(
+        harness.state().dialogs.rename.is_none(),
+        "Cancel did not close it"
+    );
+    harness.state_mut().dialogs.rename = Some((pdf, "file.zip".into()));
+    harness.run_steps(2);
+    click(&mut harness, "OK");
+    let given = harness.state().row(pdf).unwrap().filename.clone();
+    assert_ne!(given, "file.zip", "the other file's name was taken over");
+    assert_eq!(
+        harness.state().said.english(),
+        format!("file.zip is taken in that folder, so it is called {given}.")
+    );
 }
 
 #[test]

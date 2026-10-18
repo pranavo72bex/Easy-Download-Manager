@@ -441,5 +441,7 @@
  "Checked {} finished file with its server. Changed since, and downloaded again: {}.||Checked {} finished files with their servers. Changed since, and downloaded again: {}.": "{} voltooid bestand bij zijn server gecontroleerd. Sindsdien veranderd en opnieuw gedownload: {}.||{} voltooide bestanden bij hun servers gecontroleerd. Sindsdien veranderd en opnieuw gedownload: {}.",
  "{} address: {}||{} addresses, the first {}": "{} adres: {}||{} adressen, de eerste {}",
  "{} of the {} addresses in this list is already in dm's list.||{} of the {} addresses in this list are already in dm's list.": "{} van de {} adressen in deze lijst staat al in de lijst van dm.||{} van de {} adressen in deze lijst staan al in de lijst van dm.",
- "queue:to": "in"
+ "queue:to": "in",
+ "No file chooser on this desktop to pick an application with; Open uses the file's usual one.": "Geen bestandskiezer op dit bureaublad om een programma te kiezen; Openen gebruikt het gebruikelijke programma van het bestand.",
+ "{} is taken in that folder, so it is called {}.": "{} bestaat al in die map, dus het heet {}."
 }

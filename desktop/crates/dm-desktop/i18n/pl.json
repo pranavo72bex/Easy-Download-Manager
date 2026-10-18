@@ -441,5 +441,7 @@
  "Checked {} finished file with its server. Changed since, and downloaded again: {}.||Checked {} finished files with their servers. Changed since, and downloaded again: {}.": "Sprawdzono {} ukończony plik na jego serwerze. Zmienione i pobierane ponownie: {}.||Sprawdzono {} ukończone pliki na ich serwerach. Zmienione i pobierane ponownie: {}.||Sprawdzono {} ukończonych plików na ich serwerach. Zmienione i pobierane ponownie: {}.",
  "{} address: {}||{} addresses, the first {}": "{} adres: {}||{} adresy, pierwszy {}||{} adresów, pierwszy {}",
  "{} of the {} addresses in this list is already in dm's list.||{} of the {} addresses in this list are already in dm's list.": "{} z {} adresów na tej liście jest już na liście dm.||{} z {} adresów na tej liście są już na liście dm.||{} z {} adresów na tej liście jest już na liście dm.",
- "queue:to": "do"
+ "queue:to": "do",
+ "No file chooser on this desktop to pick an application with; Open uses the file's usual one.": "Na tym pulpicie nie ma okna wyboru plików, by wybrać program; Otwórz używa zwykłego programu dla pliku.",
+ "{} is taken in that folder, so it is called {}.": "Nazwa {} jest zajęta w tym folderze, więc plik nazywa się {}."
 }

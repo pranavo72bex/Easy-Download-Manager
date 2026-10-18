@@ -38,12 +38,53 @@ pub fn entry(program: &Path) -> String {
          Name=dm\n\
          {MARK}\
          Exec={} --hidden\n\
-         Icon=dm\n\
+         Icon={}\n\
          Terminal=false\n\
          StartupNotify=false\n\
          X-GNOME-Autostart-enabled=true\n",
-        exec_arg(&program.to_string_lossy())
+        exec_arg(&program.to_string_lossy()),
+        icon_in(&data_dirs())
     )
+}
+
+/// The name dm's icon is installed under: `dm` by the .rpm and Arch
+/// packages, `dm-desktop` (the binary's name) by the .deb. The entry named
+/// `dm` on every system, and a startup-applications list showed the .deb's
+/// without an icon (round 12). `dm` where neither is found (an AppImage).
+pub fn icon_in(data_dirs: &[PathBuf]) -> &'static str {
+    let has = |name: &str| {
+        data_dirs.iter().any(|dir| {
+            let themed = dir.join("icons").join("hicolor");
+            std::fs::read_dir(&themed).is_ok_and(|sizes| {
+                sizes.flatten().any(|size| {
+                    size.path()
+                        .join("apps")
+                        .join(format!("{name}.png"))
+                        .is_file()
+                })
+            }) || dir.join("pixmaps").join(format!("{name}.png")).is_file()
+        })
+    };
+    if !has("dm") && has("dm-desktop") {
+        "dm-desktop"
+    } else {
+        "dm"
+    }
+}
+
+/// Where icons are looked for, as the XDG base-directory spec says.
+fn data_dirs() -> Vec<PathBuf> {
+    let mut dirs: Vec<PathBuf> = std::env::var_os("XDG_DATA_HOME")
+        .filter(|v| !v.is_empty())
+        .map(PathBuf::from)
+        .or_else(|| std::env::var_os("HOME").map(|h| PathBuf::from(h).join(".local/share")))
+        .into_iter()
+        .collect();
+    let system = std::env::var_os("XDG_DATA_DIRS")
+        .filter(|v| !v.is_empty())
+        .unwrap_or_else(|| "/usr/local/share:/usr/share".into());
+    dirs.extend(std::env::split_paths(&system));
+    dirs
 }
 
 /// One argument as the desktop-entry spec has an `Exec` line read it:
@@ -421,6 +462,23 @@ pub mod registry {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// The entry names the icon as the package installed it.
+    #[test]
+    fn the_entry_names_the_icon_the_package_installed() {
+        let deb = tempfile::tempdir().unwrap();
+        let apps = deb.path().join("icons/hicolor/128x128/apps");
+        std::fs::create_dir_all(&apps).unwrap();
+        std::fs::write(apps.join("dm-desktop.png"), b"png").unwrap();
+        assert_eq!(icon_in(&[deb.path().to_path_buf()]), "dm-desktop");
+        let rpm = tempfile::tempdir().unwrap();
+        let apps = rpm.path().join("icons/hicolor/512x512/apps");
+        std::fs::create_dir_all(&apps).unwrap();
+        std::fs::write(apps.join("dm.png"), b"png").unwrap();
+        assert_eq!(icon_in(&[rpm.path().to_path_buf()]), "dm");
+        assert_eq!(icon_in(&[deb.path().into(), rpm.path().into()]), "dm");
+        assert_eq!(icon_in(&[]), "dm");
+    }
 
     #[test]
     fn a_plain_path_is_written_as_it_is() {

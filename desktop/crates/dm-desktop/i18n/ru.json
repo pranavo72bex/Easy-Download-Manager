@@ -441,5 +441,7 @@
  "Checked {} finished file with its server. Changed since, and downloaded again: {}.||Checked {} finished files with their servers. Changed since, and downloaded again: {}.": "Проверен {} готовый файл. Изменились и загружаются заново: {}.||Проверено {} готовых файла. Изменились и загружаются заново: {}.||Проверено {} готовых файлов. Изменились и загружаются заново: {}.",
  "{} address: {}||{} addresses, the first {}": "{} адрес: {}||{} адреса, первый — {}||{} адресов, первый — {}",
  "{} of the {} addresses in this list is already in dm's list.||{} of the {} addresses in this list are already in dm's list.": "{} из {} адресов этого списка уже есть в списке dm.||{} из {} адресов этого списка уже есть в списке dm.||{} из {} адресов этого списка уже есть в списке dm.",
- "queue:to": "в"
+ "queue:to": "в",
+ "No file chooser on this desktop to pick an application with; Open uses the file's usual one.": "На этом рабочем столе нет окна выбора файлов, чтобы выбрать программу; «Открыть» использует обычную для этого файла.",
+ "{} is taken in that folder, so it is called {}.": "Имя {} в этой папке занято, поэтому файл называется {}."
 }

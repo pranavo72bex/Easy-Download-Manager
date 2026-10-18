@@ -441,5 +441,7 @@
  "Checked {} finished file with its server. Changed since, and downloaded again: {}.||Checked {} finished files with their servers. Changed since, and downloaded again: {}.": "{} fichier terminé vérifié auprès de son serveur. Changés depuis et retéléchargés : {}.||{} fichiers terminés vérifiés auprès de leurs serveurs. Changés depuis et retéléchargés : {}.",
  "{} address: {}||{} addresses, the first {}": "{} adresse : {}||{} adresses, la première {}",
  "{} of the {} addresses in this list is already in dm's list.||{} of the {} addresses in this list are already in dm's list.": "{} des {} adresses de cette liste est déjà dans la liste de dm.||{} des {} adresses de cette liste sont déjà dans la liste de dm.",
- "queue:to": "dans"
+ "queue:to": "dans",
+ "No file chooser on this desktop to pick an application with; Open uses the file's usual one.": "Aucun sélecteur de fichiers sur ce bureau pour choisir une application ; Ouvrir utilise celle habituelle du fichier.",
+ "{} is taken in that folder, so it is called {}.": "{} existe déjà dans ce dossier, il s'appelle donc {}."
 }
