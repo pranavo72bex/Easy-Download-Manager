@@ -1578,7 +1578,7 @@ dependencies = [
 
 [[package]]
 name = "dm-core"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "aes",
  "axum 0.7.9",
@@ -1613,7 +1613,7 @@ dependencies = [
 
 [[package]]
 name = "dm-desktop"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "arboard",
  "auto-launch",
@@ -1649,7 +1649,7 @@ dependencies = [
 
 [[package]]
 name = "dm-protocol"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "proptest",
  "serde",
@@ -1659,7 +1659,7 @@ dependencies = [
 
 [[package]]
 name = "dm-shell"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "axum 0.7.9",
  "dirs 5.0.1",
@@ -8279,7 +8279,7 @@ checksum = "e450f9b2ed1dff33c94c12589a87338689467b9c4f5d8a5710bd09a847d2c8a7"
 
 [[package]]
 name = "xtask"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "toml 0.8.2",
 ]

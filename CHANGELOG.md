@@ -3,6 +3,28 @@
 What changed in each release, newest first. The app (`desktop-v*` tags) and
 the browser extension (`v*` tags) are versioned separately.
 
+## App 0.2.0
+
+Nine rounds of hands-on testing, each fixed (docs/gaps.md, gaps 169–243).
+
+- Fits at large text: every dialog stays inside the window at 150%, 200%
+  and 300% text, scrolling where it must; Options never draws over itself.
+- Reads well: sizes, speeds and times in tabular digits; Inter for every
+  script it covers, bold titles in Cyrillic and Greek; status sentences
+  whole, read out to a screen reader, and translated in all ten languages.
+- Keyboard: F10 and the arrow keys walk the menus, Shift+F10 opens a row's
+  menu, a visible focus ring round every control; Cut, Copy and Paste on a
+  right-click in any field.
+- The list: drag a row to reorder its queue, columns that follow the window
+  until you size them, a third heading click back to queue order, a
+  re-added file shown under the name it will get.
+- Downloads: the wait between retries can be set; a retrying download can
+  be given a new address; sites whose links work only once are taken
+  without a check that would spend them; a video asked for is never saved
+  as its page's HTML; the progress window shows each connection's share.
+- Linux packages suggest a font for Chinese, Japanese and Korean names, and
+  a Firefox unpacked into /opt is registered.
+
 ## App 0.1.0 and extension 3.0.0 — first public release
 
 ### The app
