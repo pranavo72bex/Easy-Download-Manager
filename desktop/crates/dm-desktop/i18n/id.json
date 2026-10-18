@@ -494,5 +494,6 @@
  "Cancel download": "Batalkan unduhan",
  "Yes, cancel": "Ya, batalkan",
  "Sites such as example.com or *.example.com, separated by spaces; each covers its subdomains.": "Situs seperti example.com atau *.example.com, dipisahkan spasi; masing-masing mencakup subdomainnya.",
- "Type or paste the address of what to download.": "Ketik atau tempel alamat yang ingin diunduh."
+ "Type or paste the address of what to download.": "Ketik atau tempel alamat yang ingin diunduh.",
+ "Seconds between attempts (0 lets dm choose)": "Detik antar percobaan (0 biar dm yang memilih)"
 }

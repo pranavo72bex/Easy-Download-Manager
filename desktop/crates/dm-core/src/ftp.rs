@@ -543,7 +543,7 @@ pub async fn download_ftp(
         connections: options.connections_for(url),
         ..options.clone()
     };
-    let described = retry::run_up_to(&options.control, options.attempts, || {
+    let described = retry::run_up_to(&options.control, options.tries(), || {
         or_stop(&options.control, describe(&target))
     })
     .await?;
@@ -634,7 +634,7 @@ pub async fn download_ftp(
                         0
                     }
                 };
-                retry::run_making_progress(&options.control, options.attempts, on_disk, || {
+                retry::run_making_progress(&options.control, options.tries(), on_disk, || {
                     fetch_range(&target, segment, part, resumable, &options, &downloaded)
                 })
                 .await?;

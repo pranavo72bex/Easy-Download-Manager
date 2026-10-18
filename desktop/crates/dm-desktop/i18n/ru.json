@@ -494,5 +494,6 @@
  "Cancel download": "Отменить загрузку",
  "Yes, cancel": "Да, отменить",
  "Sites such as example.com or *.example.com, separated by spaces; each covers its subdomains.": "Сайты вида example.com или *.example.com через пробел; каждый включает свои поддомены.",
- "Type or paste the address of what to download.": "Введите или вставьте адрес того, что нужно загрузить."
+ "Type or paste the address of what to download.": "Введите или вставьте адрес того, что нужно загрузить.",
+ "Seconds between attempts (0 lets dm choose)": "Секунд между попытками (0 — на выбор dm)"
 }

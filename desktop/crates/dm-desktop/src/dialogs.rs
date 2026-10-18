@@ -3909,6 +3909,10 @@ fn options(app: &mut DmApp, ctx: &egui::Context) {
                     ui.add(number_box(&mut s.attempts).range(0..=100)).labelled_by(name.id);
                 });
                 ui.horizontal(|ui| {
+                    let name = ui.label(t("Seconds between attempts (0 lets dm choose)"));
+                    ui.add(number_box(&mut s.retry_wait).range(0..=3600)).labelled_by(name.id);
+                });
+                ui.horizontal(|ui| {
                     let name = ui.label(t("Give up on a connection that sends nothing for, seconds"));
                     ui.add(number_box(&mut s.read_timeout).range(5..=600)).labelled_by(name.id);
                 });

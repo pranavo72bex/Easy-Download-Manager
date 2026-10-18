@@ -172,6 +172,7 @@ fn options(dir: &Path) -> Options {
         room: Default::default(),
         remux: false,
         server_dates: false,
+        retry_wait: 0,
         sign_in: None,
         system_proxy: false,
     }

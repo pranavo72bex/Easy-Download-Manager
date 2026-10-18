@@ -494,5 +494,6 @@
  "Cancel download": "Cancelar descarga",
  "Yes, cancel": "Sí, cancelar",
  "Sites such as example.com or *.example.com, separated by spaces; each covers its subdomains.": "Sitios como example.com o *.example.com, separados por espacios; cada uno incluye sus subdominios.",
- "Type or paste the address of what to download.": "Escriba o pegue la dirección de lo que quiere descargar."
+ "Type or paste the address of what to download.": "Escriba o pegue la dirección de lo que quiere descargar.",
+ "Seconds between attempts (0 lets dm choose)": "Segundos entre intentos (0 deja elegir a dm)"
 }

@@ -97,6 +97,8 @@ pub struct Options {
     /// Give a finished file the date the server says it last changed
     /// (`Last-Modified`) rather than when it was fetched.
     pub server_dates: bool,
+    /// Seconds between attempts after a failure; 0 for dm's own pace.
+    pub retry_wait: u64,
 }
 
 /// Fewer connections for one site: its host, or a suffix of it
@@ -108,6 +110,14 @@ pub struct HostLimit {
 }
 
 impl Options {
+    /// The attempts and the wait between them, as the retry loops take them.
+    pub fn tries(&self) -> retry::Tries {
+        retry::Tries {
+            attempts: self.attempts,
+            wait: (self.retry_wait > 0).then(|| std::time::Duration::from_secs(self.retry_wait)),
+        }
+    }
+
     /// The proxy a download of `url` goes through, for the tools and the
     /// FTP client: `proxy`, unless the site is on the bypass list.
     pub fn proxy_for(&self, url: &str) -> Option<&str> {
@@ -220,7 +230,7 @@ struct Job {
     /// The page a download came from, sent as `Referer` on every request.
     referrer: Option<String>,
     /// How many times a range is tried; see `Options::attempts`.
-    tries: u32,
+    tries: retry::Tries,
     /// The site's sign-in, sent with each range to its server.
     sign_in: Option<crate::cookies::SignIn>,
     /// Where a retry is said, if anyone is listening.
@@ -374,7 +384,7 @@ async fn fetch_reporting(
             let _ = tx.try_send(Update::Retrying { attempt, of });
         }
     };
-    let mut info = retry::run_up_to_telling(&options.control, options.attempts, retrying, || {
+    let mut info = retry::run_up_to_telling(&options.control, options.tries(), retrying, || {
         or_stop(
             &options.control,
             probe(
@@ -526,7 +536,7 @@ async fn fetch_reporting(
         downloaded: Arc::new(AtomicU64::new(0)),
         control: options.control.clone(),
         referrer: options.referrer.clone(),
-        tries: options.attempts,
+        tries: options.tries(),
         sign_in: options.sign_in.clone(),
         report: report.clone(),
     });
@@ -767,7 +777,7 @@ pub(crate) async fn fetch_capped(
     most: usize,
     options: &Options,
 ) -> Result<Fetched, Error> {
-    let res = retry::run_up_to(&options.control, options.attempts, || async {
+    let res = retry::run_up_to(&options.control, options.tries(), || async {
         or_stop(
             &options.control,
             crate::auth::send(
@@ -2270,7 +2280,7 @@ async fn fetch_segments(
         options.control.check()?;
 
         let staging = done.with_extension("partial");
-        let fetched = retry::run_up_to(&options.control, options.attempts, || {
+        let fetched = retry::run_up_to(&options.control, options.tries(), || {
             fetch_segment_body(client, &part.url, options)
         })
         .await?;
@@ -2988,6 +2998,7 @@ mod tests {
             room: Default::default(),
             remux: false,
             server_dates: false,
+            retry_wait: 0,
             sign_in: None,
             system_proxy: false,
         }

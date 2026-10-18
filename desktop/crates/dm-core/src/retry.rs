@@ -94,7 +94,7 @@ where
 /// five such drops used to fail a large file part-way.
 pub async fn run_making_progress<F, Fut, T>(
     control: &Control,
-    attempts: u32,
+    attempts: impl Into<Tries>,
     progress: impl Fn() -> u64,
     op: F,
 ) -> Result<T, Error>
@@ -111,7 +111,7 @@ where
 /// it is retrying rather than drop back and climb without a word.
 pub async fn run_making_progress_telling<F, Fut, T>(
     control: &Control,
-    attempts: u32,
+    tries: impl Into<Tries>,
     progress: impl Fn() -> u64,
     retrying: impl Fn(u32, u32),
     mut op: F,
@@ -120,6 +120,10 @@ where
     F: FnMut() -> Fut,
     Fut: Future<Output = Result<T, Error>>,
 {
+    let Tries {
+        attempts,
+        wait: every,
+    } = tries.into();
     let limit = if attempts == 0 { u32::MAX } else { attempts };
     let mut attempt: u32 = 0;
     loop {
@@ -136,7 +140,7 @@ where
                     return Err(error);
                 }
                 retrying(attempt.saturating_add(1), attempts);
-                wait(control, backoff(attempt, error.retry_after())).await?;
+                wait(control, pause(attempt, error.retry_after(), every)).await?;
             }
         }
     }
@@ -147,7 +151,11 @@ where
 /// more than five, and one who asked for "keep trying" (zero) wants no
 /// end but a pause or a cancel. The backoff stops growing at eight
 /// seconds, so an endless retry asks about seven times a minute.
-pub async fn run_up_to<F, Fut, T>(control: &Control, attempts: u32, op: F) -> Result<T, Error>
+pub async fn run_up_to<F, Fut, T>(
+    control: &Control,
+    attempts: impl Into<Tries>,
+    op: F,
+) -> Result<T, Error>
 where
     F: FnMut() -> Fut,
     Fut: Future<Output = Result<T, Error>>,
@@ -159,7 +167,7 @@ where
 /// one, as [`run_making_progress_telling`] tells it.
 pub async fn run_up_to_telling<F, Fut, T>(
     control: &Control,
-    attempts: u32,
+    tries: impl Into<Tries>,
     retrying: impl Fn(u32, u32),
     mut op: F,
 ) -> Result<T, Error>
@@ -167,6 +175,10 @@ where
     F: FnMut() -> Fut,
     Fut: Future<Output = Result<T, Error>>,
 {
+    let Tries {
+        attempts,
+        wait: every,
+    } = tries.into();
     let limit = if attempts == 0 { u32::MAX } else { attempts };
     let mut attempt: u32 = 0;
     loop {
@@ -179,9 +191,35 @@ where
                     return Err(error);
                 }
                 retrying(attempt.saturating_add(1), attempts);
-                wait(control, backoff(attempt, error.retry_after())).await?;
+                wait(control, pause(attempt, error.retry_after(), every)).await?;
             }
         }
+    }
+}
+
+/// How many attempts, and how long between them: `None` for dm's own
+/// pace (`backoff`), or a person's fixed wait from Options › Network.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub struct Tries {
+    pub attempts: u32,
+    pub wait: Option<Duration>,
+}
+
+impl From<u32> for Tries {
+    fn from(attempts: u32) -> Self {
+        Tries {
+            attempts,
+            wait: None,
+        }
+    }
+}
+
+/// The wait before attempt `attempt`: what the server asked for (within
+/// reason), else the person's fixed wait, else dm's own backoff.
+fn pause(attempt: u32, retry_after: Option<Duration>, every: Option<Duration>) -> Duration {
+    match (retry_after, every) {
+        (None, Some(every)) => every,
+        _ => backoff(attempt, retry_after),
     }
 }
 
@@ -265,6 +303,19 @@ mod tests {
             got: 1,
             expected: 2
         }));
+    }
+
+    #[test]
+    fn a_fixed_wait_is_kept_unless_the_server_asked_for_one() {
+        let every = Some(Duration::from_secs(20));
+        assert_eq!(pause(1, None, every), Duration::from_secs(20));
+        assert_eq!(pause(9, None, every), Duration::from_secs(20));
+        assert_eq!(
+            pause(1, Some(Duration::from_secs(5)), every),
+            Duration::from_secs(5),
+            "the server's Retry-After"
+        );
+        assert_eq!(pause(3, None, None), backoff(3, None));
     }
 
     #[test]

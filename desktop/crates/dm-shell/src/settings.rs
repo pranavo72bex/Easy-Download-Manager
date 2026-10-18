@@ -116,6 +116,9 @@ pub struct Settings {
     /// A finished file takes the date its server says it last changed,
     /// rather than when it was fetched. Off by default.
     pub server_dates: bool,
+    /// Seconds to wait between attempts after a failure; 0 lets dm choose
+    /// (quick at first, then half a minute apart).
+    pub retry_wait: u64,
     /// The toolbar styles: "both" (icons and text), "icons" (small, icons
     /// only) or "text" (text only). Anything else is "both".
     pub toolbar_style: String,
@@ -335,6 +338,7 @@ impl Default for Settings {
             theme: "system".into(),
             double_click: "properties".into(),
             server_dates: false,
+            retry_wait: 0,
             toolbar_style: "both".into(),
             toolbar_order: Vec::new(),
             column_order: Vec::new(),
@@ -359,6 +363,7 @@ impl Settings {
         self.concurrency = self.concurrency.clamp(CONCURRENCY.0, CONCURRENCY.1);
         self.speed_limit = self.speed_limit.clamp(SPEED_LIMIT_KB.0, SPEED_LIMIT_KB.1);
         self.recent_urls.truncate(RECENT_URLS);
+        self.retry_wait = self.retry_wait.min(3600);
         if !["properties", "open", "folder"].contains(&self.double_click.as_str()) {
             self.double_click = "properties".into();
         }
@@ -515,6 +520,7 @@ impl Settings {
             room: Default::default(),
             remux: self.remux_ts,
             server_dates: self.server_dates,
+            retry_wait: self.retry_wait,
             sign_in: None,
             system_proxy: self.proxy.enabled && self.proxy.kind == dm_core::proxy::Kind::System,
             proxy_bypass: if self.proxy.enabled {

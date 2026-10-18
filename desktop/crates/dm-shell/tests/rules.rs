@@ -37,6 +37,7 @@ async fn a_held_download_goes_on_when_the_limit_lets_it() {
             room: Default::default(),
             remux: false,
             server_dates: false,
+            retry_wait: 0,
             sign_in: None,
             system_proxy: false,
         },
