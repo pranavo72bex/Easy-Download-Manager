@@ -482,5 +482,10 @@
  "The two keys are the same; holding it leaves the download with the browser.": "De twee toetsen zijn gelijk; ingedrukt houden laat de download bij de browser.",
  "Delete an unfinished download": "Een onvoltooide download verwijderen",
  "Take this download off the list and delete its file from the disk?": "Deze download uit de lijst halen en het bestand van de schijf verwijderen?",
- "Take these downloads off the list and delete their files from the disk?": "Deze downloads uit de lijst halen en hun bestanden van de schijf verwijderen?"
+ "Take these downloads off the list and delete their files from the disk?": "Deze downloads uit de lijst halen en hun bestanden van de schijf verwijderen?",
+ "Starting and updating": "Starten en bijwerken",
+ "Windows and sounds": "Vensters en geluiden",
+ "Adding and keeping files": "Bestanden toevoegen en bewaren",
+ "The list": "De lijst",
+ "Settings file": "Instellingenbestand"
 }

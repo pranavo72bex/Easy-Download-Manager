@@ -482,5 +482,10 @@
  "The two keys are the same; holding it leaves the download with the browser.": "Beide Tasten sind gleich; sie zu halten lässt den Download beim Browser.",
  "Delete an unfinished download": "Einen unfertigen Download löschen",
  "Take this download off the list and delete its file from the disk?": "Diesen Download aus der Liste nehmen und seine Datei von der Festplatte löschen?",
- "Take these downloads off the list and delete their files from the disk?": "Diese Downloads aus der Liste nehmen und ihre Dateien von der Festplatte löschen?"
+ "Take these downloads off the list and delete their files from the disk?": "Diese Downloads aus der Liste nehmen und ihre Dateien von der Festplatte löschen?",
+ "Starting and updating": "Start und Aktualisierung",
+ "Windows and sounds": "Fenster und Töne",
+ "Adding and keeping files": "Dateien hinzufügen und ablegen",
+ "The list": "Die Liste",
+ "Settings file": "Einstellungsdatei"
 }

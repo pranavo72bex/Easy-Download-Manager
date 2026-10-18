@@ -482,5 +482,10 @@
  "The two keys are the same; holding it leaves the download with the browser.": "İki tuş aynı; basılı tutmak indirmeyi tarayıcıda bırakır.",
  "Delete an unfinished download": "Bitmemiş bir indirmeyi sil",
  "Take this download off the list and delete its file from the disk?": "Bu indirme listeden kaldırılıp dosyası diskten silinsin mi?",
- "Take these downloads off the list and delete their files from the disk?": "Bu indirmeler listeden kaldırılıp dosyaları diskten silinsin mi?"
+ "Take these downloads off the list and delete their files from the disk?": "Bu indirmeler listeden kaldırılıp dosyaları diskten silinsin mi?",
+ "Starting and updating": "Başlatma ve güncelleme",
+ "Windows and sounds": "Pencereler ve sesler",
+ "Adding and keeping files": "Dosya ekleme ve saklama",
+ "The list": "Liste",
+ "Settings file": "Ayar dosyası"
 }

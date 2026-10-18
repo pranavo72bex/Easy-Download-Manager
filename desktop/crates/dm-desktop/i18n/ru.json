@@ -482,5 +482,10 @@
  "The two keys are the same; holding it leaves the download with the browser.": "Обе клавиши одинаковы; при её удержании загрузка остаётся браузеру.",
  "Delete an unfinished download": "Удалить незавершённую загрузку",
  "Take this download off the list and delete its file from the disk?": "Убрать эту загрузку из списка и удалить её файл с диска?",
- "Take these downloads off the list and delete their files from the disk?": "Убрать эти загрузки из списка и удалить их файлы с диска?"
+ "Take these downloads off the list and delete their files from the disk?": "Убрать эти загрузки из списка и удалить их файлы с диска?",
+ "Starting and updating": "Запуск и обновления",
+ "Windows and sounds": "Окна и звуки",
+ "Adding and keeping files": "Добавление и хранение файлов",
+ "The list": "Список",
+ "Settings file": "Файл настроек"
 }

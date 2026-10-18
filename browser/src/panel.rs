@@ -11,37 +11,49 @@
 /// A message with no break in it (a long address) wraps anywhere rather
 /// than running out of the bar.
 pub const STYLE: &str = r#"
-:host { all: initial; direction: ltr; unicode-bidi: isolate; }
-* { box-sizing: border-box; margin: 0; font-family: system-ui, -apple-system, Roboto, sans-serif; }
-.panel { width: 240px; color: #f2f3f5; direction: ltr; }
-.wrap {
-  display: flex; align-items: stretch; height: 30px; border-radius: 6px; overflow: hidden;
-  background: rgba(28, 30, 35, .94); color: #f2f3f5; user-select: none;
-  border: 1px solid rgba(255,255,255,.18); box-shadow: 0 4px 16px rgba(0,0,0,.45);
-  font-size: 12.5px; line-height: 1;
+:host { all: initial; direction: ltr; unicode-bidi: isolate;
+  /* The app's own colours, radius and type, dark over a player by default
+     and light where the browser is: the panel had an orange of its own. */
+  --surface: rgba(31, 31, 31, .95); --surface-solid: rgba(31, 31, 31, .98);
+  --text: #ffffff; --text2: #d6d6d6; --weak: #adadad; --line: rgba(255,255,255,.18);
+  --hover: rgba(255,255,255,.10); --accent: #479ef5; --on-accent: #0a0a0a;
+  --success: #54b054; --error: #ee7b85; --radius: 4px; }
+@media (prefers-color-scheme: light) {
+  :host { --surface: rgba(255, 255, 255, .96); --surface-solid: rgba(255, 255, 255, .99);
+    --text: #242424; --text2: #424242; --weak: #616161; --line: rgba(0,0,0,.18);
+    --hover: rgba(0,0,0,.06); --accent: #0f6cbd; --on-accent: #ffffff;
+    --success: #0e700e; --error: #c50f1f; }
 }
-.wrap.done { border-color: #35c07d; }
-.wrap.dead { border-color: #f0616d; }
+* { box-sizing: border-box; margin: 0; font-family: system-ui, -apple-system, Roboto, sans-serif; }
+.panel { width: 240px; color: var(--text); direction: ltr; }
+.wrap {
+  display: flex; align-items: stretch; height: 32px; border-radius: var(--radius); overflow: hidden;
+  background: var(--surface); color: var(--text); user-select: none;
+  border: 1px solid var(--line); box-shadow: 0 4px 16px rgba(0,0,0,.35);
+  font-size: 13px; line-height: 1;
+}
+.wrap.done { border-color: var(--success); }
+.wrap.dead { border-color: var(--error); }
 button { font: inherit; color: inherit; background: none; border: 0; padding: 0; cursor: pointer; }
-button:focus-visible { outline: 2px solid #f08a24; outline-offset: -2px; }
-.go { flex: 1; min-width: 0; display: flex; align-items: center; gap: 7px; padding: 0 8px; text-align: left; }
-.go:hover, .go:focus-visible { background: rgba(255,255,255,.09); }
-.mark { width: 18px; height: 18px; flex: none; border-radius: 50%; background: #f08a24; color: #fff;
+button:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+.go { flex: 1; min-width: 0; display: flex; align-items: center; gap: 8px; padding: 0 8px; text-align: left; }
+.go:hover, .go:focus-visible { background: var(--hover); }
+.mark { width: 20px; height: 20px; flex: none; border-radius: 50%; background: var(--accent); color: var(--on-accent);
   display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 12px; }
-.wrap.done .mark { background: #35c07d; }
-.wrap.dead .mark { background: #f0616d; }
+.wrap.done .mark { background: var(--success); }
+.wrap.dead .mark { background: var(--error); }
 .title { flex: 1; min-width: 0; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.caret { flex: none; font-size: 10px; color: #c4c8d0; }
-.help, .close { width: 24px; flex: none; color: #9aa1ad; font-size: 13px; border-left: 1px solid rgba(255,255,255,.1); }
-.help:hover, .close:hover, .help:focus-visible, .close:focus-visible { background: rgba(255,255,255,.1); color: #fff; }
-.list { margin-top: 3px; border-radius: 6px; overflow: hidden; background: rgba(28, 30, 35, .97);
-  border: 1px solid rgba(255,255,255,.18); box-shadow: 0 6px 20px rgba(0,0,0,.5); max-height: 260px; overflow-y: auto; }
-.item { display: block; width: 100%; padding: 8px 10px; text-align: left; font-size: 12.5px; white-space: nowrap; color: #f2f3f5;
-  overflow: hidden; text-overflow: ellipsis; border-top: 1px solid rgba(255,255,255,.06); }
+.caret { flex: none; font-size: 12px; color: var(--text2); }
+.help, .close { width: 28px; flex: none; color: var(--weak); font-size: 13px; border-left: 1px solid var(--line); }
+.help:hover, .close:hover, .help:focus-visible, .close:focus-visible { background: var(--hover); color: var(--text); }
+.list { margin-top: 4px; border-radius: var(--radius); overflow: hidden; background: var(--surface-solid);
+  border: 1px solid var(--line); box-shadow: 0 8px 20px rgba(0,0,0,.4); max-height: 260px; overflow-y: auto; }
+.item { display: block; width: 100%; padding: 8px 12px; text-align: left; font-size: 13px; white-space: nowrap; color: var(--text);
+  overflow: hidden; text-overflow: ellipsis; border-top: 1px solid var(--line); }
 .item:first-child { border-top: 0; }
-.item:hover, .item:focus-visible { background: #f08a24; color: #fff; outline: none; }
-.sub { margin-top: 3px; padding: 6px 9px; border-radius: 6px; background: rgba(28, 30, 35, .94);
-  color: #c4c8d0; font-size: 11.5px; line-height: 1.35; max-width: 100%; max-height: 160px; overflow-y: auto;
+.item:hover, .item:focus-visible { background: var(--accent); color: var(--on-accent); outline: none; }
+.sub { margin-top: 4px; padding: 8px 8px; border-radius: var(--radius); background: var(--surface);
+  color: var(--text2); font-size: 12px; line-height: 1.4; max-width: 100%; max-height: 160px; overflow-y: auto;
   white-space: normal; overflow-wrap: anywhere; word-break: break-word; }
 .live { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0);
   clip-path: inset(50%); white-space: nowrap; }
@@ -204,6 +216,29 @@ pub fn composed_within<N: PartialEq>(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn the_panel_wears_the_apps_colours_and_type_in_either_theme() {
+        // Colours only from the variables the app's tokens set, in a dark
+        // and a light variant; no text under 12 px; one radius.
+        for line in STYLE.lines() {
+            if let Some(at) = line.find("font-size:") {
+                let size: f32 = line[at + 10..]
+                    .trim()
+                    .trim_end_matches(|c: char| !c.is_ascii_digit())
+                    .split("px")
+                    .next()
+                    .unwrap_or("0")
+                    .trim()
+                    .parse()
+                    .unwrap_or(0.0);
+                assert!(size >= 12.0, "{line}");
+            }
+        }
+        assert!(STYLE.contains("@media (prefers-color-scheme: light)"));
+        assert!(!STYLE.contains("#f08a24"), "the panel's own orange is back");
+        assert!(!STYLE.contains("border-radius: 6px"));
+    }
 
     #[test]
     fn the_panel_is_drawn_left_to_right_and_long_messages_wrap() {

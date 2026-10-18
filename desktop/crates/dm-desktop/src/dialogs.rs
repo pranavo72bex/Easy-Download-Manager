@@ -873,6 +873,14 @@ fn bar(ui: &mut egui::Ui, fraction: f32, width: f32, words: &str) {
 
 /// A dialog's main action: the primary button, filled with the brand
 /// colour (the classic look draws it like any other).
+/// A heading over a group of settings: a little room above, in the
+/// heading's weight, on the 4-point grid.
+fn section(ui: &mut egui::Ui, words: &str) {
+    ui.add_space(12.0);
+    ui.label(RichText::new(words).strong());
+    ui.add_space(4.0);
+}
+
 pub(crate) fn primary(ui: &mut egui::Ui, text: &'static str) -> egui::Response {
     // The button's words in the language in force.
     primary_worded(ui, crate::i18n::t(text))
@@ -3430,15 +3438,21 @@ fn options(app: &mut DmApp, ctx: &egui::Context) {
                             }
                         });
                 });
+                // In groups under headings: one list of a dozen boxes was
+                // hard to find a setting in (a design review).
+                section(ui, t("Starting and updating"));
                 ui.checkbox(&mut s.start_on_login, t("Start dm when you log in, so a browser hand-off always has an app to land in"));
                 ui.checkbox(&mut s.check_updates, t("Look for a new version about once a week (asks GitHub; nothing about you is sent)"));
-                ui.checkbox(&mut s.watch_clipboard, t("Watch the clipboard for links and offer to download them"));
+                section(ui, t("Windows and sounds"));
                 ui.checkbox(&mut s.show_progress, t("Show a progress window when a download starts"));
                 ui.checkbox(&mut s.show_complete, t("Show a window when a download finishes"));
                 ui.checkbox(&mut s.sound_on_complete, t("Play a sound when a download finishes"));
                 ui.checkbox(&mut s.sound_on_failure, t("Play a sound when a download fails"));
+                section(ui, t("Adding and keeping files"));
+                ui.checkbox(&mut s.watch_clipboard, t("Watch the clipboard for links and offer to download them"));
                 ui.checkbox(&mut s.ask_panel_downloads, t("Ask where to save a video from the browser's panel"));
                 ui.checkbox(&mut s.server_dates, t("Give a finished file the date its server says it last changed"));
+                section(ui, t("The list"));
                 ui.horizontal(|ui| {
                     ui.label(t("Double-clicking a download"));
                     for (word, name) in [
@@ -3457,7 +3471,7 @@ fn options(app: &mut DmApp, ctx: &egui::Context) {
                 });
                 // Settings to carry to another computer, never with a
                 // password; read back in, they wait here for OK.
-                ui.add_space(8.0);
+                section(ui, t("Settings file"));
                 ui.horizontal(|ui| {
                     if ui.button(t("Save settings to a file…")).clicked() {
                         d.says = if !platform.can_choose_file() {
