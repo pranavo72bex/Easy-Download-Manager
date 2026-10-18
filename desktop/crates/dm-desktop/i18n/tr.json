@@ -479,5 +479,8 @@
  "none": "yok",
  "Hold while clicking to leave it with the browser": "Tıklarken basılı tut: indirme tarayıcıda kalır",
  "Hold while clicking to send it to dm whatever its type or size": "Tıklarken basılı tut: türü ya da boyutu ne olursa olsun dm'e gönderilir",
- "The two keys are the same; holding it leaves the download with the browser.": "İki tuş aynı; basılı tutmak indirmeyi tarayıcıda bırakır."
+ "The two keys are the same; holding it leaves the download with the browser.": "İki tuş aynı; basılı tutmak indirmeyi tarayıcıda bırakır.",
+ "Delete an unfinished download": "Bitmemiş bir indirmeyi sil",
+ "Take this download off the list and delete its file from the disk?": "Bu indirme listeden kaldırılıp dosyası diskten silinsin mi?",
+ "Take these downloads off the list and delete their files from the disk?": "Bu indirmeler listeden kaldırılıp dosyaları diskten silinsin mi?"
 }

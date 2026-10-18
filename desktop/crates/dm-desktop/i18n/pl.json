@@ -479,5 +479,8 @@
  "none": "brak",
  "Hold while clicking to leave it with the browser": "Przytrzymaj przy kliknięciu, by zostawić je przeglądarce",
  "Hold while clicking to send it to dm whatever its type or size": "Przytrzymaj przy kliknięciu, by wysłać je do dm bez względu na typ i rozmiar",
- "The two keys are the same; holding it leaves the download with the browser.": "Oba klawisze są takie same; przytrzymanie zostawia pobieranie przeglądarce."
+ "The two keys are the same; holding it leaves the download with the browser.": "Oba klawisze są takie same; przytrzymanie zostawia pobieranie przeglądarce.",
+ "Delete an unfinished download": "Usuń nieukończone pobieranie",
+ "Take this download off the list and delete its file from the disk?": "Usunąć to pobieranie z listy i skasować jego plik z dysku?",
+ "Take these downloads off the list and delete their files from the disk?": "Usunąć te pobierania z listy i skasować ich pliki z dysku?"
 }

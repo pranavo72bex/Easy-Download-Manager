@@ -1135,7 +1135,9 @@ fn confirm_remove(app: &mut DmApp, ctx: &egui::Context) {
         .map(|r| r.path.clone())
         .collect();
     let (mut yes, mut no) = (false, false);
-    let title = if unfinished {
+    let title = if unfinished && ids.len() == 1 {
+        t("Delete an unfinished download")
+    } else if unfinished {
         t("Delete unfinished downloads")
     } else {
         t("Remove from the list")
@@ -1162,6 +1164,15 @@ fn confirm_remove(app: &mut DmApp, ctx: &egui::Context) {
                 (true, _) => t(
                     "Some of these are not finished. Deleting them throws away what has been fetched.",
                 ),
+                // What the box below says happens to the files, said here
+                // too: the sentence promised the file stayed while the box
+                // was deleting it (round 16).
+                (false, 1) if app.dialogs.remove_files => {
+                    t("Take this download off the list and delete its file from the disk?")
+                }
+                (false, _) if app.dialogs.remove_files => {
+                    t("Take these downloads off the list and delete their files from the disk?")
+                }
                 (false, 1) => t("Take this download off the list? Its file stays where it is."),
                 (false, _) => {
                     t("Take these downloads off the list? Their files stay where they are.")
@@ -1369,13 +1380,18 @@ fn confirm_exit(app: &mut DmApp, ctx: &egui::Context) {
             },
         );
         ui.horizontal(|ui| {
-            exit = primary(ui, "Exit").clicked();
-            let keep = if finished {
-                t("Stay")
+            // With downloads running, the highlighted answer is the one that
+            // loses nothing, as Remove's is; Exit only by its own click
+            // (gap 163). With nothing running, Exit is what was asked for.
+            // Each button keeps its place whatever the question says (gap
+            // 163); only which one is highlighted changes.
+            if finished {
+                exit = primary(ui, "Exit").clicked();
+                stay = ui.button(t("Stay")).clicked();
             } else {
-                t("Keep downloading")
-            };
-            stay = ui.button(keep).clicked();
+                exit = ui.button(t("Exit")).clicked();
+                stay = primary_worded(ui, t("Keep downloading")).clicked();
+            }
         });
     });
     if exit {
@@ -2209,6 +2225,9 @@ fn complete(app: &mut DmApp, ctx: &egui::Context) {
         .max_width(width)
         .min_height(160.0)
         .default_height(360.0_f32.min(screen.height() - 120.0))
+        // Never most of the window: at 150% text it filled it and ran off
+        // its bottom (round 16); the list inside scrolls instead.
+        .max_height((screen.height() * 0.6).max(160.0))
         .open(&mut shut)
         .show(ctx, |ui| {
             if rows.len() > 1 {

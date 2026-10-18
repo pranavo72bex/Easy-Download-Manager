@@ -1,6 +1,6 @@
 {
- "\"{}\" cannot be a category: its name is also its folder, and that is not a folder name every computer can use (no / \\ : * ? \" < > |, no name like CON, nothing ending in a dot or space)": "„{}“ kann keine Kategorie sein: Ihr Name ist auch ihr Ordner, und das ist kein Ordnername, den jeder Computer verwenden kann (kein / \\ : * ? \" < > |, kein Name wie CON, nichts, das auf Punkt oder Leerzeichen endet)",
- "\"{}\" to \"{}\": times are HH:MM in 24 hours, such as 01:00 or 23:30.": "„{}“ bis „{}“: Zeiten werden als HH:MM im 24-Stunden-Format angegeben, etwa 01:00 oder 23:30.",
+ "\"{}\" cannot be a category: its name is also its folder, and that is not a folder name every computer can use (no / \\ : * ? \" < > |, no name like CON, nothing ending in a dot or space)": "»{}« kann keine Kategorie sein: Ihr Name ist auch ihr Ordner, und das ist kein Ordnername, den jeder Computer verwenden kann (kein / \\ : * ? \" < > |, kein Name wie CON, nichts, das auf Punkt oder Leerzeichen endet)",
+ "\"{}\" to \"{}\": times are HH:MM in 24 hours, such as 01:00 or 23:30.": "»{}« bis »{}«: Zeiten werden als HH:MM im 24-Stunden-Format angegeben, etwa 01:00 oder 23:30.",
  "A download already begun keeps the folder it began in.": "Ein schon begonnener Download behält den Ordner, in dem er begann.",
  "A free download manager, written in Rust.": "Ein kostenloser Download-Manager, geschrieben in Rust.",
  "A saved search needs a name.": "Eine gespeicherte Suche braucht einen Namen.",
@@ -158,7 +158,7 @@
  "Nothing downloading": "Nichts wird heruntergeladen",
  "Nothing fetched yet.": "Noch nichts geladen.",
  "Nothing here": "Hier ist nichts",
- "Nothing is called “{}”.": "Nichts heißt „{}“.",
+ "Nothing is called “{}”.": "Nichts heißt »{}«.",
  "Nothing queued": "Nichts in der Warteschlange",
  "Now": "Jetzt",
  "OK": "OK",
@@ -413,11 +413,11 @@
  "Ten thousand addresses is more than a batch.": "Zehntausend Adressen sind zu viele auf einmal.",
  "The address needs exactly one * to fill in.": "Die Adresse braucht genau ein *, das ausgefüllt wird.",
  "The range runs backwards.": "Der Bereich läuft rückwärts.",
- "Waiting for Start queue": "Wartet auf „Warteschlange starten“",
+ "Waiting for Start queue": "Wartet auf »Warteschlange starten«",
  "in each period of this many hours": "innerhalb von so vielen Stunden",
  "{} finishing||{} finishing": "{} wird abgeschlossen||{} werden abgeschlossen",
  "· {} finishing||· {} finishing": "· {} wird abgeschlossen||· {} werden abgeschlossen",
- "· {} waiting for Start queue||· {} waiting for Start queue": "· {} wartet auf „Warteschlange starten“||· {} warten auf „Warteschlange starten“",
+ "· {} waiting for Start queue||· {} waiting for Start queue": "· {} wartet auf »Warteschlange starten«||· {} warten auf »Warteschlange starten«",
  "key:Alt": "Alt",
  "key:Backspace": "Rücktaste",
  "key:Cmd": "Cmd",
@@ -479,5 +479,8 @@
  "none": "keine",
  "Hold while clicking to leave it with the browser": "Beim Klicken halten, um den Download dem Browser zu lassen",
  "Hold while clicking to send it to dm whatever its type or size": "Beim Klicken halten, um ihn unabhängig von Typ und Größe an dm zu geben",
- "The two keys are the same; holding it leaves the download with the browser.": "Beide Tasten sind gleich; sie zu halten lässt den Download beim Browser."
+ "The two keys are the same; holding it leaves the download with the browser.": "Beide Tasten sind gleich; sie zu halten lässt den Download beim Browser.",
+ "Delete an unfinished download": "Einen unfertigen Download löschen",
+ "Take this download off the list and delete its file from the disk?": "Diesen Download aus der Liste nehmen und seine Datei von der Festplatte löschen?",
+ "Take these downloads off the list and delete their files from the disk?": "Diese Downloads aus der Liste nehmen und ihre Dateien von der Festplatte löschen?"
 }

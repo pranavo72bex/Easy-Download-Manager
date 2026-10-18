@@ -1202,7 +1202,7 @@ fn the_toolbar_acts_on_the_selected_row() {
     // Unfinished, so Delete asks first.
     click(&mut harness, "Delete");
     assert!(harness
-        .query_by_label("Delete unfinished downloads")
+        .query_by_label("Delete an unfinished download")
         .is_some());
     click(&mut harness, "Keep it");
     assert_eq!(harness.state().rows().len(), 1, "Keep deleted it");

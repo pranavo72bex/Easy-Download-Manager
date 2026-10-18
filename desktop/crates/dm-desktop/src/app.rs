@@ -208,7 +208,7 @@ pub fn fetched_all(row: &Entry) -> bool {
 
 /// Whether a row was added for later and waits for its queue: stopped,
 /// in a queue, nothing fetched and not held by the schedule.
-fn waits_for_its_queue(row: &Entry) -> bool {
+pub fn waits_for_its_queue(row: &Entry) -> bool {
     row.state == State::Paused
         && !row.paused_by_schedule
         && !row.queue.is_empty()
@@ -2155,7 +2155,12 @@ impl DmApp {
         row: &Entry,
         categories: &mut dm_core::Categories,
     ) -> Option<String> {
-        if !row.path.is_empty() || row.save_dir.is_some() || row.state.settled() {
+        // Not for one finished or cancelled; a failed one still goes there
+        // once retried, and lost its Folder (round 16).
+        if !row.path.is_empty()
+            || row.save_dir.is_some()
+            || matches!(row.state, State::Completed | State::Cancelled)
+        {
             return None;
         }
         if !categories.enabled {
@@ -2412,7 +2417,11 @@ impl DmApp {
         if !self.problems.is_empty() {
             egui::Panel::bottom("problems").show(ui, |ui| self.problem_list(ui));
         }
-        if self.show_categories {
+        // The rail gives way where the list would have too little room
+        // left: at 200% text in the usual window it left two columns
+        // (round 16). View › Categories still turns it off and on.
+        let room = ui.available_width();
+        if self.show_categories && room >= 640.0 {
             egui::Panel::left("categories")
                 .resizable(true)
                 .show_separator_line(lines)
@@ -2635,6 +2644,13 @@ impl DmApp {
     }
 
     fn menu_bar(&mut self, ui: &mut egui::Ui) {
+        // Greyed while a question waits, as the list and toolbar take no
+        // clicks then: it opened bright over the dimmed window (round 16).
+        let asking = self.dialogs.asking();
+        ui.add_enabled_ui(!asking, |ui| self.menu_bar_items(ui));
+    }
+
+    fn menu_bar_items(&mut self, ui: &mut egui::Ui) {
         egui::MenuBar::new().ui(ui, |ui| {
             ui.menu_button(t("Program"), |ui| {
                 for c in [
@@ -3068,6 +3084,9 @@ impl DmApp {
         let (finishing, running) = (finishing.len(), running.len());
         let later = self.rows.iter().filter(|r| waits_for_its_queue(r)).count();
         ui.horizontal(|ui| {
+            // Each "· …" part starts with its own space: the usual gap as
+            // well read as two spaces before the dot (round 16).
+            ui.spacing_mut().item_spacing.x = 4.0;
             ui.label(if running == 0 && finishing == 0 {
                 t("Nothing downloading").to_string()
             } else if running == 0 {
@@ -3349,7 +3368,7 @@ fn modern_tool(
     t: &crate::theme::Tokens,
     stacked: bool,
 ) -> egui::Response {
-    let font = egui::FontId::proportional(if stacked { 11.5 } else { 14.0 });
+    let font = egui::FontId::proportional(if stacked { 12.0 } else { 14.0 });
     let text_color = if !enabled {
         t.disabled
     } else if primary {

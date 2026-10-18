@@ -479,5 +479,8 @@
  "none": "nenhuma",
  "Hold while clicking to leave it with the browser": "Segurar ao clicar para deixá-lo com o navegador",
  "Hold while clicking to send it to dm whatever its type or size": "Segurar ao clicar para enviá-lo ao dm, seja qual for o tipo ou tamanho",
- "The two keys are the same; holding it leaves the download with the browser.": "As duas teclas são iguais; segurá-la deixa o download com o navegador."
+ "The two keys are the same; holding it leaves the download with the browser.": "As duas teclas são iguais; segurá-la deixa o download com o navegador.",
+ "Delete an unfinished download": "Excluir um download não concluído",
+ "Take this download off the list and delete its file from the disk?": "Tirar este download da lista e excluir o arquivo do disco?",
+ "Take these downloads off the list and delete their files from the disk?": "Tirar estes downloads da lista e excluir os arquivos do disco?"
 }

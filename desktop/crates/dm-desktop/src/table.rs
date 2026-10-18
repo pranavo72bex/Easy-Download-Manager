@@ -122,9 +122,10 @@ pub fn show(app: &mut DmApp, ui: &mut egui::Ui) {
         sideways.show(ui, |ui| {
             let mut table = TableBuilder::new(ui)
                 .scroll_bar_visibility(egui::scroll_area::ScrollBarVisibility::AlwaysHidden)
-                // Kept apart by how much room the name was given, so a
-                // narrower window starts from widths that fit it.
-                .id_salt(("list", (name_width / 25.0) as i32, queue_empty))
+                // One memory of the widths, whatever the window's width or
+                // whether a row has a queue: one per case lost a width a
+                // person dragged as soon as either changed (round 16).
+                .id_salt("list")
                 .striped(striped)
                 .resizable(true)
                 // Dragged as well as clicked: a finished file is dragged out of the
@@ -337,7 +338,7 @@ fn initial(column: Column, queue_empty: bool) -> f32 {
         Column::Queue if queue_empty => 60.0,
         Column::Queue => 140.0,
         Column::Size => 76.0,
-        Column::Status => 186.0,
+        Column::Status => 168.0,
         Column::TimeLeft => 88.0,
         Column::Rate => 92.0,
         Column::LastTry => 100.0,
@@ -351,7 +352,7 @@ fn width(column: Column, queue_empty: bool) -> Width {
         Column::Name => Width::initial(220.0).at_least(120.0).clip(true),
         Column::Queue => Width::initial(initial(Column::Queue, queue_empty)).clip(true),
         Column::Size => Width::initial(76.0),
-        Column::Status => Width::initial(186.0).clip(true),
+        Column::Status => Width::initial(168.0).clip(true),
         Column::TimeLeft => Width::initial(88.0),
         Column::Rate => Width::initial(92.0),
         Column::LastTry => Width::initial(100.0),
@@ -670,7 +671,11 @@ fn glyph_of(entry: &Entry) -> Glyph {
         State::Failed(_) => Glyph::Failed,
         State::Completed => Glyph::Done,
         State::Queued => Glyph::Waiting,
-        State::Paused if entry.paused_by_schedule => Glyph::Waiting,
+        // Waiting for the schedule, or added for later and waiting for its
+        // queue: a clock, not the pause of one a person stopped (round 16).
+        State::Paused if entry.paused_by_schedule || crate::app::waits_for_its_queue(entry) => {
+            Glyph::Waiting
+        }
         _ => Glyph::Paused,
     }
 }
