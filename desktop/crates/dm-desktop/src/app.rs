@@ -219,6 +219,11 @@ pub fn waits_for_its_queue(row: &Entry) -> bool {
 /// click.
 const HANDED_TWICE_WITHIN: std::time::Duration = std::time::Duration::from_secs(5);
 
+/// A fraction as a whole percent, rounded down.
+pub fn whole_percent(fraction: f64) -> u32 {
+    (fraction * 100.0).clamp(0.0, 100.0).floor() as u32
+}
+
 /// The folder a row's file is in, once finished, or the one it was asked
 /// to go to; empty where that is the download folder's own choice.
 pub fn folder_of(row: &Entry) -> String {
@@ -250,7 +255,9 @@ fn status_in(row: &Entry, words: fn(&'static str) -> &'static str) -> String {
             None => String::new(),
         },
         State::Running => match row.progress.fraction() {
-            Some(f) => format!("{:.2}%", f * 100.0),
+            // Whole percents everywhere, rounded down so 99.9 is not 100:
+            // the list said 28.88% beside a bar saying 28% (UI round 1).
+            Some(f) => format!("{}%", whole_percent(f)),
             // A length the server did not say: what has arrived, and how
             // fast, rather than "Starting…" for the whole run.
             None if row.progress.downloaded > 0 => {
@@ -276,7 +283,7 @@ fn status_in(row: &Entry, words: fn(&'static str) -> &'static str) -> String {
         // How far it got, so a stopped row is not mistaken for one that
         // never started.
         State::Paused => match row.progress.fraction() {
-            Some(f) if f > 0.0 => format!("{} · {:.0}%", words("Stopped"), f * 100.0),
+            Some(f) if f > 0.0 => format!("{} · {}%", words("Stopped"), whole_percent(f)),
             _ => words("Stopped").into(),
         },
         State::Completed => words("Complete").into(),
@@ -2910,7 +2917,21 @@ impl DmApp {
                 } else {
                     tool(ui, *icon, (name, widest), enabled, chosen, primary)
                 };
-                if response.on_hover_text(self.title_of(*command)).clicked() {
+                // What the button does in full, with its key: only where that
+                // says more than the button's own word (UI round 1: every
+                // tooltip repeated its label).
+                let title = self.title_of(*command);
+                let key = command
+                    .shortcut()
+                    .map(|k| format!(" ({})", format::shortcut(ui.ctx(), &k)))
+                    .unwrap_or_default();
+                let said = format!("{title}{key}");
+                let response = if said != *name || chosen == ToolStyle::Icons {
+                    response.on_hover_text(said)
+                } else {
+                    response
+                };
+                if response.clicked() {
                     self.queued.push(*command);
                 }
             }

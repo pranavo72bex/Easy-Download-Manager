@@ -467,7 +467,16 @@ fn heading(app: &mut DmApp, ui: &mut egui::Ui, column: Column) {
     } else {
         text.strong()
     };
-    let response = ui.add(egui::Button::new(text).frame(false));
+    // Over the right edge where the numbers under it are (UI round 1).
+    let numbers = matches!(column, Column::Size | Column::TimeLeft | Column::Rate);
+    let response = if numbers {
+        ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+            ui.add(egui::Button::new(text).frame(false))
+        })
+        .inner
+    } else {
+        ui.add(egui::Button::new(text).frame(false))
+    };
     response.widget_info(|| egui::WidgetInfo::labeled(egui::Role::Button, true, column.title()));
     if response.clicked() {
         app.sort_by(column);

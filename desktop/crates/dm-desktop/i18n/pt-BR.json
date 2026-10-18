@@ -487,5 +487,6 @@
  "Remove them": "Remover",
  "Read by the browser extension the next time it talks to dm: a download it catches, or its right-click menu. The right-click menu and the toolbar button hand anything over regardless.": "Lido pela extensão do navegador na próxima vez que ela falar com o dm: um download que ela captura ou o menu de contexto. O menu de contexto e o botão da barra entregam tudo de qualquer forma.",
  "Drop a .url or .webloc file, or a text file of links, here. A link dragged straight from a browser cannot be dropped yet: use Add URL or the browser's right-click menu.": "Solte aqui um arquivo .url ou .webloc, ou um arquivo de texto com links. Um link arrastado direto do navegador ainda não pode ser solto: use Adicionar URL ou o menu de contexto do navegador.",
- "None": "Nenhuma"
+ "None": "Nenhuma",
+ "unit:.": ","
 }

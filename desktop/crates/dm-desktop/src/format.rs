@@ -10,19 +10,31 @@ pub fn bytes(n: u64) -> String {
     const K: f64 = 1024.0;
     let f = n as f64;
     // The units in the language in force: Russian's КБ and МБ, French's
-    // Ko and Mo; the status bar said КБ/с beside a list saying KB/s.
+    // Ko and Mo; the status bar said КБ/с beside a list saying KB/s. And
+    // its decimal mark: "3,8 MB" in German and Russian, where "3.8" read
+    // as a thousands mark (round 17).
+    let mark = unit(crate::i18n::t("unit:."));
+    let number = |value: f64, places: usize| format!("{value:.places$}").replace('.', mark);
     if n < 1024 {
         format!("{n} {}", unit(crate::i18n::t("unit:B")))
     } else if f < K * K {
-        format!("{:.1} {}", f / K, unit(crate::i18n::t("unit:KB")))
+        format!("{} {}", number(f / K, 1), unit(crate::i18n::t("unit:KB")))
     } else if f < K * K * K {
-        format!("{:.1} {}", f / (K * K), unit(crate::i18n::t("unit:MB")))
+        format!(
+            "{} {}",
+            number(f / (K * K), 1),
+            unit(crate::i18n::t("unit:MB"))
+        )
     } else if f < K * K * K * K {
-        format!("{:.2} {}", f / (K * K * K), unit(crate::i18n::t("unit:GB")))
+        format!(
+            "{} {}",
+            number(f / (K * K * K), 2),
+            unit(crate::i18n::t("unit:GB"))
+        )
     } else {
         format!(
-            "{:.2} {}",
-            f / (K * K * K * K),
+            "{} {}",
+            number(f / (K * K * K * K), 2),
             unit(crate::i18n::t("unit:TB"))
         )
     }

@@ -925,6 +925,16 @@ mod tests {
     fn a_file_called_like_a_built_in_name_is_shown_as_it_is() {
         let said = Said::new("Found {}.", &[&"Videos"]);
         in_language("de", || assert_eq!(said.shown(), "Gefunden: Videos."));
+        // Sizes take the language's decimal mark and units.
+        in_language("de", || {
+            assert_eq!(crate::format::bytes(3_984_588), "3,8 MB")
+        });
+        in_language("ru", || {
+            assert_eq!(crate::format::bytes(3_984_588), "3,8 МБ")
+        });
+        in_language("en", || {
+            assert_eq!(crate::format::bytes(3_984_588), "3.8 MB")
+        });
     }
 
     #[test]

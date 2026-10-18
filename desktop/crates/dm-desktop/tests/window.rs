@@ -1122,14 +1122,19 @@ fn a_column_is_widened_by_dragging_its_edge() {
     let mut harness = world.harness();
     add_url(&mut harness, &world.url("file.zip"), "Add for later");
     harness.run_steps(3);
-    let size_at =
-        |h: &Harness<'_, DmApp>| h.get_by_role_and_label(Role::Button, "Size").rect().left();
+    // Status's heading starts where its column does (the headings of
+    // numbers sit at their columns' right): dragging the edge just left of
+    // it widens Size and moves Status along.
+    let size_at = |h: &Harness<'_, DmApp>| {
+        h.get_by_role_and_label(Role::Button, "Status")
+            .rect()
+            .left()
+    };
     let before = size_at(&harness);
-    // The edge between Status's left neighbour and Size: just left of Size.
     let edge = egui::pos2(
         before - 5.0,
         harness
-            .get_by_role_and_label(Role::Button, "Size")
+            .get_by_role_and_label(Role::Button, "Status")
             .rect()
             .center()
             .y,
@@ -2534,8 +2539,8 @@ fn the_pointer_is_the_same_kind_over_the_same_kind_of_thing() {
     );
     let row = harness.get_by_label("file.zip").rect().center();
     assert_eq!(over(&mut harness, row), CursorIcon::Default, "a row");
-    let size = harness.get_by_role_and_label(Role::Button, "Size").rect();
-    let edge = egui::pos2(size.left() - 5.0, size.center().y);
+    let status = harness.get_by_role_and_label(Role::Button, "Status").rect();
+    let edge = egui::pos2(status.left() - 5.0, status.center().y);
     assert_eq!(
         over(&mut harness, edge),
         CursorIcon::ResizeColumn,

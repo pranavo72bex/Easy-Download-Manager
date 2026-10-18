@@ -2148,7 +2148,11 @@ fn progress(app: &mut DmApp, ctx: &egui::Context) {
                             ui.label(t("Downloaded"));
                             ui.label(match p.fraction() {
                                 Some(f) => {
-                                    format!("{} ({:.2}%)", format::bytes(p.downloaded), f * 100.0)
+                                    format!(
+                                        "{} ({}%)",
+                                        format::bytes(p.downloaded),
+                                        crate::app::whole_percent(f)
+                                    )
                                 }
                                 None => format::bytes(p.downloaded),
                             });
@@ -2188,7 +2192,12 @@ fn progress(app: &mut DmApp, ctx: &egui::Context) {
                             ui.end_row();
                         });
                     let fraction = p.fraction().unwrap_or(0.0) as f32;
-                    bar(ui, fraction, 420.0, &format!("{:.0}%", fraction * 100.0));
+                    bar(
+                        ui,
+                        fraction,
+                        420.0,
+                        &format!("{}%", crate::app::whole_percent(fraction as f64)),
+                    );
                     egui::CollapsingHeader::new(t("Connections"))
                         .default_open(true)
                         .id_salt(("connections", id))
