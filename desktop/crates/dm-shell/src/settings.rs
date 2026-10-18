@@ -249,7 +249,8 @@ impl Settings {
 
     /// Settings read from such a file, in place of these: the passwords
     /// this computer already has for the same site and name, and for the
-    /// same proxy user, are kept, as is its history.
+    /// same proxy user, are kept, as are its history and the command it
+    /// runs after a download, which a file never sets.
     pub fn imported(&self, text: &str) -> Result<Settings, String> {
         let mut read: Settings = serde_json::from_str(text)
             .map_err(|e| format!("that is not a dm settings file ({e})"))?;
@@ -266,6 +267,10 @@ impl Settings {
             read.proxy.password = self.proxy.password.clone();
         }
         read.recent_urls = self.recent_urls.clone();
+        // Never a program to run from someone else's file: the command run
+        // after every download stays this computer's own, so a settings file
+        // passed around cannot make dm start something.
+        read.on_complete = self.on_complete.clone();
         Ok(read.clamped())
     }
 }
@@ -1313,31 +1318,36 @@ mod tests {
     /// and the one they arrive on keeps its own.
     #[test]
     fn exported_settings_carry_no_password_and_imported_ones_keep_this_computers() {
+        let kept = crate::test_secrets::secret("password");
+        let proxy_kept = crate::test_secrets::secret("proxy");
         let mut here = Settings {
             site_logins: vec![SiteLogin {
                 host: "example.com".into(),
                 username: "me".into(),
-                password: "kept".into(),
+                password: kept.clone(),
             }],
             recent_urls: vec!["https://e.com/a.zip".into()],
             connections: 5,
             ..Settings::default()
         };
         here.proxy.username = "proxyuser".into();
-        here.proxy.password = "proxykept".into();
+        here.proxy.password = proxy_kept.clone();
+        here.on_complete = "their-program --flag".into();
         let file = here.exported();
-        assert!(!file.contains("kept"), "a password left in the file");
+        assert!(!file.contains(&kept), "a password left in the file");
         assert!(!file.contains("e.com/a.zip"), "history left in the file");
         let mut elsewhere = Settings {
             site_logins: here.site_logins.clone(),
             ..Settings::default()
         };
         elsewhere.proxy.username = "proxyuser".into();
-        elsewhere.proxy.password = "proxykept".into();
+        elsewhere.proxy.password = proxy_kept.clone();
         let read = elsewhere.imported(&file).unwrap();
         assert_eq!(read.connections, 5);
-        assert_eq!(read.site_logins[0].password, "kept");
-        assert_eq!(read.proxy.password, "proxykept");
+        assert_eq!(read.site_logins[0].password, kept);
+        assert_eq!(read.proxy.password, proxy_kept);
+        // A command to run is never taken from a file.
+        assert_eq!(read.on_complete, elsewhere.on_complete);
         assert!(elsewhere.imported("not settings").is_err());
     }
 

@@ -249,22 +249,21 @@ mod tests {
 
     #[test]
     fn a_tool_gets_the_credentials_inline_and_encoded() {
+        // With `:`, `/` and `@` in it, each of which would end the login.
+        let password = format!("{}/w", crate::test_secrets::marked("password"));
+        let encoded = crate::test_secrets::escaped(&password).replace('/', "%2F");
         let proxy = Proxy {
             enabled: true,
             kind: Kind::Socks5,
             host: "h".into(),
             port: 1080,
             username: "me@work".into(),
-            password: "p:ss/w@rd".into(),
+            password: password.clone(),
             bypass: Vec::new(),
         };
         assert_eq!(
             proxy.url_for_tools().as_deref(),
-            Some(concat!(
-                "socks5h://me%40work:",
-                "p%3Ass%2Fw%40rd",
-                "@h:1080"
-            ))
+            Some(format!("socks5h://me%40work:{encoded}@h:1080").as_str())
         );
         // Without a user there is nothing to add, and no stray `:@`.
         let plain = Proxy {

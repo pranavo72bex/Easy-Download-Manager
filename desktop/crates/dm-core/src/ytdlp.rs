@@ -328,7 +328,8 @@ pub async fn list_choices(
     if let Some(cookies) = crate::cookies::file() {
         command.arg("--cookies").arg(cookies);
     }
-    command.arg(url);
+    // After `--`: whatever the address, yt-dlp never reads it as an option.
+    command.arg("--").arg(url);
     let run = command.output();
     let output = tokio::time::timeout(std::time::Duration::from_secs(30), run)
         .await
@@ -477,7 +478,8 @@ pub async fn download_ytdlp(
         command.arg("--limit-rate").arg(rate.to_string());
     }
 
-    command.arg(url);
+    // After `--`: whatever the address, yt-dlp never reads it as an option.
+    command.arg("--").arg(url);
 
     let mut child = command
         .spawn()
