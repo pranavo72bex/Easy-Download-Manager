@@ -2224,6 +2224,42 @@ impl DmApp {
         )
     }
 
+    /// The name a row's file will have: for one not yet placed, with the
+    /// ` (1)` it will get where its folder already has that name — a file
+    /// added again said `big.bin` until it finished as `big (1).bin` (gap
+    /// 47). The folder is asked at most every two seconds per row.
+    pub fn name_it_will_get(&self, row: &Entry, categories: &mut dm_core::Categories) -> String {
+        let name = name_of(row);
+        if !row.path.is_empty() || matches!(row.state, State::Completed | State::Cancelled) {
+            return name;
+        }
+        let folder = row
+            .save_dir
+            .clone()
+            .filter(|d| !d.trim().is_empty())
+            .or_else(|| self.planned_folder(row, categories))
+            .unwrap_or_else(|| self.applied.download_dir.display().to_string());
+        let key = (row.id, std::path::Path::new(&folder).join(&name));
+        thread_local! {
+            static FREE: std::cell::RefCell<HashMap<(Id, std::path::PathBuf), (Instant, String)>> =
+                std::cell::RefCell::new(HashMap::new());
+        }
+        FREE.with(|free| {
+            let mut free = free.borrow_mut();
+            if let Some((at, said)) = free.get(&key) {
+                if at.elapsed() < Duration::from_secs(2) {
+                    return said.clone();
+                }
+            }
+            if free.len() > 2000 {
+                free.clear();
+            }
+            let said = dm_core::download::free_name(std::path::Path::new(&folder), &name);
+            free.insert(key, (Instant::now(), said.clone()));
+            said
+        })
+    }
+
     /// Program › Exit, Cmd+Q and the tray's Quit: asked first while
     /// anything is downloading, since quitting stops it. A window with
     /// nobody to ask (headless) quits.

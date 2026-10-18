@@ -9,7 +9,7 @@ use dm_core::{Entry, Id, State};
 use egui::RichText;
 use egui_extras::{Column as Width, TableBuilder};
 
-use crate::app::{name_of, status_of, Column, DmApp};
+use crate::app::{status_of, Column, DmApp};
 use crate::commands::Command;
 use crate::format;
 
@@ -178,6 +178,7 @@ pub fn show(app: &mut DmApp, ui: &mut egui::Ui) {
                             .contains(&Column::Folder)
                             .then(|| app.planned_folder(entry, &mut categories))
                             .flatten();
+                        let name = app.name_it_will_get(entry, &mut categories);
                         for column in &columns {
                             row.col(|ui| {
                                 cell(
@@ -187,6 +188,7 @@ pub fn show(app: &mut DmApp, ui: &mut egui::Ui) {
                                     held.as_deref(),
                                     selected,
                                     planned.as_deref(),
+                                    &name,
                                 )
                             });
                         }
@@ -380,6 +382,7 @@ fn cell(
     held: Option<&str>,
     selected: bool,
     planned: Option<&str>,
+    name: &str,
 ) {
     match column {
         Column::Name => {
@@ -389,9 +392,8 @@ fn cell(
                     ui.allocate_exact_size(egui::vec2(14.0, 16.0), egui::Sense::hover());
                 crate::icons::file(ui.painter(), rect, entry.category);
                 // Drawn in reading order where it is Arabic or Hebrew.
-                let name = name_of(entry);
-                let drawn = ui.label(&*crate::bidi::visual(&name));
-                crate::bidi::said_as(&drawn, &name);
+                let drawn = ui.label(&*crate::bidi::visual(name));
+                crate::bidi::said_as(&drawn, name);
                 drawn.on_hover_text(format::shown_url(&entry.url));
             });
         }

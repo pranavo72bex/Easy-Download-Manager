@@ -6809,3 +6809,35 @@ fn a_rows_progress_bar_says_how_far_it_has_come() {
         .expect("the row has no progress bar a screen reader finds");
     assert_eq!(bar.accesskit_node().numeric_value(), Some(0.0));
 }
+
+/// Gap 47: a file added again, while its first copy is in the folder, is
+/// listed under the name it will be placed under, not the one it will not.
+#[test]
+fn a_file_added_again_is_listed_under_the_name_it_will_get() {
+    let world = world();
+    let mut harness = world.harness();
+    add_url(&mut harness, &world.url("file.zip"), "Start now");
+    until(&mut harness, "the first copy to finish", |app| {
+        app.rows().iter().any(|r| r.state == State::Completed)
+    });
+    add_url(&mut harness, &world.url("file.zip"), "Add for later");
+    harness.run_steps(3);
+    assert!(
+        harness.query_by_label("file (1).zip").is_some(),
+        "the second copy is not listed as file (1).zip"
+    );
+    // And it is placed there once fetched.
+    click(&mut harness, "Start queue");
+    until(&mut harness, "the second copy to finish", |app| {
+        app.rows()
+            .iter()
+            .filter(|r| r.state == State::Completed)
+            .count()
+            == 2
+    });
+    assert!(harness
+        .state()
+        .rows()
+        .iter()
+        .any(|r| r.path.ends_with("file (1).zip")));
+}

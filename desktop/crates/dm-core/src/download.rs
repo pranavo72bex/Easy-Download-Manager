@@ -2867,6 +2867,16 @@ fn candidates<'a>(dir: &'a Path, name: &'a str) -> impl Iterator<Item = PathBuf>
         .chain((1..10_000).map(move |n| dir.join(format!("{stem} ({n}){ext}"))))
 }
 
+/// The name a file called `name` would be saved under in `dir` as things
+/// stand: `name` if nothing has it, else the first `name (n)` free. A
+/// guess for showing — [`claim_path`] decides when the file is placed.
+pub fn free_name(dir: &Path, name: &str) -> String {
+    candidates(dir, name)
+        .find(|path| std::fs::symlink_metadata(path).is_err())
+        .and_then(|path| path.file_name().map(|n| n.to_string_lossy().into_owned()))
+        .unwrap_or_else(|| name.to_string())
+}
+
 fn all_taken(dir: &Path, name: &str) -> Error {
     Error::Internal(format!(
         "ten thousand files named {name} already in {}; nothing will be overwritten",
@@ -2963,6 +2973,20 @@ mod tests {
             );
         }
         assert_eq!(std::fs::read_dir(dir.path()).unwrap().count(), 16);
+    }
+
+    /// The name shown for a file still downloading is the one it will be
+    /// placed under (gap 47: `big.bin` until it finished as `big (1).bin`).
+    #[tokio::test]
+    async fn the_free_name_is_the_one_a_claim_takes() {
+        let dir = tempfile::tempdir().unwrap();
+        assert_eq!(free_name(dir.path(), "big.bin"), "big.bin");
+        std::fs::write(dir.path().join("big.bin"), b"old").unwrap();
+        assert_eq!(free_name(dir.path(), "big.bin"), "big (1).bin");
+        let claimed = claim_path(dir.path(), "big.bin").await.unwrap();
+        assert_eq!(claimed, dir.path().join("big (1).bin"));
+        assert_eq!(free_name(dir.path(), "big.bin"), "big (2).bin");
+        assert_eq!(free_name(dir.path(), "README"), "README");
     }
 
     #[tokio::test]
