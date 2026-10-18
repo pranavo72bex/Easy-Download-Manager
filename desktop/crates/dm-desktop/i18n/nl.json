@@ -247,7 +247,6 @@
  "Stop download": "Download stoppen",
  "Stop queue": "Wachtrij stoppen",
  "Stopped": "Gestopt",
- "Waiting": "Wacht",
  "Waiting for the schedule or the download limit; it starts by itself when allowed.": "Wacht op het schema of de downloadlimiet; begint vanzelf zodra het mag.",
  "Stopped {} download in {}.||Stopped {} downloads in {}.": "{} download gestopt in {}.||{} downloads gestopt in {}.",
  "Sun": "Zo",
@@ -504,5 +503,7 @@
  "Copy": "Kopiëren",
  "Paste": "Plakken",
  "{} web page hidden||{} web pages hidden": "{} webpagina verborgen||{} webpagina's verborgen",
- "The video's own title": "De titel van de video"
+ "The video's own title": "De titel van de video",
+ "Waiting for the download limit": "Wacht op de downloadlimiet",
+ "Waiting for the schedule": "Wacht op het schema"
 }

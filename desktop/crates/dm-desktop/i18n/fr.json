@@ -247,7 +247,6 @@
  "Stop download": "Arrêter le téléchargement",
  "Stop queue": "Arrêter la file",
  "Stopped": "Arrêté",
- "Waiting": "En attente",
  "Waiting for the schedule or the download limit; it starts by itself when allowed.": "En attente du planning ou de la limite de téléchargement ; démarre d'elle-même dès que c'est permis.",
  "Stopped {} download in {}.||Stopped {} downloads in {}.": "{} téléchargement arrêté dans {}.||{} téléchargements arrêtés dans {}.",
  "Sun": "Dim",
@@ -504,5 +503,7 @@
  "Copy": "Copier",
  "Paste": "Coller",
  "{} web page hidden||{} web pages hidden": "{} page web masquée||{} pages web masquées",
- "The video's own title": "Le titre de la vidéo"
+ "The video's own title": "Le titre de la vidéo",
+ "Waiting for the download limit": "En attente de la limite de téléchargement",
+ "Waiting for the schedule": "En attente du planning"
 }

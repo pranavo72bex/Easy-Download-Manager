@@ -247,7 +247,6 @@
  "Stop download": "Download stoppen",
  "Stop queue": "Warteschlange stoppen",
  "Stopped": "Gestoppt",
- "Waiting": "Wartet",
  "Waiting for the schedule or the download limit; it starts by itself when allowed.": "Wartet auf den Zeitplan oder das Download-Limit; startet von selbst, sobald es erlaubt ist.",
  "Stopped {} download in {}.||Stopped {} downloads in {}.": "{} Download in {} gestoppt.||{} Downloads in {} gestoppt.",
  "Sun": "So",
@@ -504,5 +503,7 @@
  "Copy": "Kopieren",
  "Paste": "Einfügen",
  "{} web page hidden||{} web pages hidden": "{} Webseite ausgeblendet||{} Webseiten ausgeblendet",
- "The video's own title": "Der eigene Titel des Videos"
+ "The video's own title": "Der eigene Titel des Videos",
+ "Waiting for the download limit": "Wartet auf das Download-Limit",
+ "Waiting for the schedule": "Wartet auf den Zeitplan"
 }

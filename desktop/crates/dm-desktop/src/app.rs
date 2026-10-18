@@ -202,6 +202,17 @@ pub fn set_retrying(now: HashMap<Id, (u32, u32)>) {
     RETRYING.with(|r| *r.borrow_mut() = now);
 }
 
+thread_local! {
+    /// Whether the download limit, not the schedule, is what holds rows
+    /// that wait by themselves, as the last refresh found it.
+    static LIMIT_HOLDS: std::cell::Cell<bool> = const { std::cell::Cell::new(false) };
+}
+
+/// What holds waiting rows now, for the statuses drawn next.
+pub fn set_limit_holds(now: bool) {
+    LIMIT_HOLDS.with(|l| l.set(now));
+}
+
 pub(crate) fn retrying(id: Id) -> Option<(u32, u32)> {
     RETRYING.with(|r| r.borrow().get(&id).copied())
 }
@@ -293,7 +304,14 @@ fn status_in(row: &Entry, words: fn(&'static str) -> &'static str) -> String {
         State::Queued => words("Queued").into(),
         // Held by the schedule or the download limit, not by a person: it
         // goes on by itself, which "Stopped" would not say.
-        State::Paused if row.paused_by_schedule => words("Waiting").into(),
+        // Saying what for: "Waiting" alone read as stuck (UI round 8).
+        State::Paused if row.paused_by_schedule => {
+            if LIMIT_HOLDS.with(std::cell::Cell::get) {
+                words("Waiting for the download limit").into()
+            } else {
+                words("Waiting for the schedule").into()
+            }
+        }
         // Added for later: it waits for its queue to be started, and does
         // not start by itself, which "Queued" did not say (gap 167).
         State::Paused if waits_for_its_queue(row) => words("Waiting for Start queue").into(),
@@ -997,6 +1015,7 @@ impl DmApp {
     pub fn refresh(&mut self) {
         self.rows = self.backend.list();
         set_retrying(self.backend.retrying());
+        set_limit_holds(self.backend.queue.allowance_spent().is_some());
         self.saved_sizes();
         self.refreshed = Some(Instant::now());
         let ids: HashSet<Id> = self.rows.iter().map(|r| r.id).collect();
@@ -4248,7 +4267,15 @@ mod status_tests {
 
     #[test]
     fn a_row_held_by_the_schedule_or_the_limit_is_waiting_not_stopped() {
-        assert_eq!(status_in_english(&paused(true)), "Waiting");
+        // Saying what it waits for (UI round 8).
+        set_limit_holds(false);
+        assert_eq!(status_in_english(&paused(true)), "Waiting for the schedule");
+        set_limit_holds(true);
+        assert_eq!(
+            status_in_english(&paused(true)),
+            "Waiting for the download limit"
+        );
+        set_limit_holds(false);
         assert_eq!(status_in_english(&paused(false)), "Stopped");
         let mut part_way = paused(false);
         part_way.progress.downloaded = 45;

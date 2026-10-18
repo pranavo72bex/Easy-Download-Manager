@@ -247,7 +247,6 @@
  "Stop download": "Hentikan unduhan",
  "Stop queue": "Hentikan antrean",
  "Stopped": "Dihentikan",
- "Waiting": "Menunggu",
  "Waiting for the schedule or the download limit; it starts by itself when allowed.": "Menunggu jadwal atau batas unduhan; akan mulai sendiri saat diizinkan.",
  "Stopped {} download in {}.||Stopped {} downloads in {}.": "{} unduhan dihentikan di {}.",
  "Sun": "Min",
@@ -504,5 +503,7 @@
  "Copy": "Salin",
  "Paste": "Tempel",
  "{} web page hidden||{} web pages hidden": "{} halaman web disembunyikan",
- "The video's own title": "Judul video itu sendiri"
+ "The video's own title": "Judul video itu sendiri",
+ "Waiting for the download limit": "Menunggu batas unduhan",
+ "Waiting for the schedule": "Menunggu jadwal"
 }

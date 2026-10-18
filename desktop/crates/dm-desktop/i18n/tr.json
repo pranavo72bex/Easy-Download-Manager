@@ -247,7 +247,6 @@
  "Stop download": "İndirmeyi durdur",
  "Stop queue": "Kuyruğu durdur",
  "Stopped": "Durduruldu",
- "Waiting": "Bekliyor",
  "Waiting for the schedule or the download limit; it starts by itself when allowed.": "Zamanlamayı veya indirme sınırını bekliyor; izin verildiğinde kendiliğinden başlar.",
  "Stopped {} download in {}.||Stopped {} downloads in {}.": "{1} içinde {0} indirme durduruldu.",
  "Sun": "Paz",
@@ -504,5 +503,7 @@
  "Copy": "Kopyala",
  "Paste": "Yapıştır",
  "{} web page hidden||{} web pages hidden": "{} web sayfası gizlendi",
- "The video's own title": "Videonun kendi başlığı"
+ "The video's own title": "Videonun kendi başlığı",
+ "Waiting for the download limit": "İndirme sınırını bekliyor",
+ "Waiting for the schedule": "Zamanlamayı bekliyor"
 }

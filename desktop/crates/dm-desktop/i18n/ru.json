@@ -247,7 +247,6 @@
  "Stop download": "Остановить загрузку",
  "Stop queue": "Остановить очередь",
  "Stopped": "Остановлено",
- "Waiting": "Ожидает",
  "Waiting for the schedule or the download limit; it starts by itself when allowed.": "Ожидает расписания или лимита загрузки; начнётся само, когда будет можно.",
  "Stopped {} download in {}.||Stopped {} downloads in {}.": "Остановлена {} загрузка в «{}».||Остановлено {} загрузки в «{}».||Остановлено {} загрузок в «{}».",
  "Sun": "Вс",
@@ -504,5 +503,7 @@
  "Copy": "Копировать",
  "Paste": "Вставить",
  "{} web page hidden||{} web pages hidden": "{} веб-страница скрыта||{} веб-страницы скрыты||{} веб-страниц скрыто",
- "The video's own title": "Название самого видео"
+ "The video's own title": "Название самого видео",
+ "Waiting for the download limit": "Ждёт лимита загрузки",
+ "Waiting for the schedule": "Ждёт расписания"
 }

@@ -896,3 +896,14 @@ and reusing the check's connection for the download would mean the host
 fetching files. So the person lists those sites in Options › Browser, and a
 hand-off from one is taken without the question, knowing a sign-in-only link
 from it then fails in dm instead of finishing in the browser.
+
+## Only questions dim the window (2026-10-18)
+
+Remove, Exit, Cancel this download and the other questions dim the window
+behind them and take every click until answered: an answer meant for one
+must not land on something else. Dialogs that set things (Options,
+Scheduler, Speed limiter, Properties) do not: the list stays readable
+beside them, and nothing is lost by clicking past one. A tester asked for
+the Scheduler and Speed limiter to dim like the questions (UI round 8);
+they are settings, so they stay as Options is.
+

@@ -247,7 +247,6 @@
  "Stop download": "Zatrzymaj pobieranie",
  "Stop queue": "Zatrzymaj kolejkę",
  "Stopped": "Zatrzymano",
- "Waiting": "Czeka",
  "Waiting for the schedule or the download limit; it starts by itself when allowed.": "Czeka na harmonogram lub limit pobierania; ruszy samo, gdy będzie to dozwolone.",
  "Stopped {} download in {}.||Stopped {} downloads in {}.": "Zatrzymano {} pobieranie w {}.||Zatrzymano {} pobierania w {}.||Zatrzymano {} pobrań w {}.",
  "Sun": "Nd",
@@ -504,5 +503,7 @@
  "Copy": "Kopiuj",
  "Paste": "Wklej",
  "{} web page hidden||{} web pages hidden": "{} strona internetowa ukryta||{} strony internetowe ukryte||{} stron internetowych ukrytych",
- "The video's own title": "Tytuł samego filmu"
+ "The video's own title": "Tytuł samego filmu",
+ "Waiting for the download limit": "Czeka na limit pobierania",
+ "Waiting for the schedule": "Czeka na harmonogram"
 }
