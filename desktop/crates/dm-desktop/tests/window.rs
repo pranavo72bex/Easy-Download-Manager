@@ -6898,3 +6898,60 @@ fn the_lists_sideways_bar_is_dragged() {
         "dragging along the list's foot did not move the columns (Name stayed at {before})"
     );
 }
+
+/// Gap 50: a row waiting in the queue is dragged to another place in it,
+/// as Move up and Move down move it a place at a time.
+#[test]
+fn a_row_is_dragged_to_another_place_in_the_queue() {
+    let world = world();
+    let mut harness = world.harness();
+    for file in ["file.zip", "other.pdf", "x.bin"] {
+        add_url(&mut harness, &world.url(file), "Add for later");
+    }
+    harness.run_steps(3);
+    let order = |h: &Harness<'_, DmApp>| -> Vec<String> {
+        h.state()
+            .rows
+            .iter()
+            .map(dm_desktop::app::name_of)
+            .collect()
+    };
+    assert_eq!(order(&harness), ["file.zip", "other.pdf", "x.bin"]);
+    let rect = |h: &Harness<'_, DmApp>, name: &str| h.get_by_label(name).rect();
+    let from = rect(&harness, "x.bin").center();
+    let onto = rect(&harness, "file.zip").center();
+    harness
+        .input_mut()
+        .events
+        .push(egui::Event::PointerMoved(from));
+    harness.step();
+    harness.input_mut().events.push(egui::Event::PointerButton {
+        pos: from,
+        button: egui::PointerButton::Primary,
+        pressed: true,
+        modifiers: Default::default(),
+    });
+    harness.step();
+    for step in 1..=10 {
+        let at = from + (onto - from) * (step as f32 / 10.0);
+        harness
+            .input_mut()
+            .events
+            .push(egui::Event::PointerMoved(at));
+        harness.step();
+    }
+    assert_eq!(
+        harness.state().reordering.map(|_| ()),
+        Some(()),
+        "the drag did not take the row"
+    );
+    harness.input_mut().events.push(egui::Event::PointerButton {
+        pos: onto,
+        button: egui::PointerButton::Primary,
+        pressed: false,
+        modifiers: Default::default(),
+    });
+    harness.run_steps(3);
+    assert_eq!(order(&harness), ["x.bin", "file.zip", "other.pdf"]);
+    assert!(harness.state().reordering.is_none());
+}

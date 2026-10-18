@@ -273,8 +273,16 @@ pub fn show(app: &mut DmApp, ui: &mut egui::Ui) {
     app.row_rects.clear();
     app.row_rects.extend(drawn);
     if let Some(i) = dragged {
-        app.drag_out = files_to_drag(app, &rows, i);
+        let files = files_to_drag(app, &rows, i);
+        // A row with no file to carry is dragged to another place in the
+        // queue instead, where the list is in the queue's order: sorted by
+        // a column, a place in it means nothing (gap 50).
+        if files.is_empty() && app.sort.is_none() {
+            app.reordering = rows.get(i).map(|r| r.id);
+        }
+        app.drag_out = files;
     }
+    reorder(app, ui, list_clip);
     if let Some(id) = menu.and_then(|i| rows.get(i)).map(|r| r.id) {
         // A right click on a row outside the selection acts on that row.
         if !app.selected.contains(&id) {
@@ -306,6 +314,52 @@ pub fn show(app: &mut DmApp, ui: &mut egui::Ui) {
 /// What a drag starting on row `i` carries: the selection's finished files
 /// when the row is in it, else that row's alone — each one still where dm
 /// put it. Nothing for a download that has not finished.
+/// A row dragged up or down the list: a line where it will go while the
+/// button is held, and moved there in the queue's order when let go.
+fn reorder(app: &mut DmApp, ui: &egui::Ui, clip: Option<egui::Rect>) {
+    let Some(moving) = app.reordering else {
+        return;
+    };
+    let (at, down) = ui.input(|i| (i.pointer.interact_pos(), i.pointer.primary_down()));
+    let place = |id: &Id| app.rows.iter().position(|r| r.id == *id);
+    let over = at.and_then(|at| {
+        app.row_rects
+            .iter()
+            .find(|(_, rect)| rect.y_range().contains(at.y))
+            .map(|(id, rect)| (*id, *rect))
+    });
+    let target = over.filter(|(id, _)| *id != moving);
+    if down {
+        ui.ctx().set_cursor_icon(egui::CursorIcon::Grabbing);
+        if let (Some((id, rect)), Some(from)) = (target, place(&moving)) {
+            // Below the row when moving down, above it when moving up:
+            // where the row will be once let go.
+            let y = if place(&id).is_some_and(|to| to > from) {
+                rect.bottom()
+            } else {
+                rect.top()
+            };
+            let tokens = crate::theme::Tokens::get(ui.ctx());
+            let painter = ui
+                .ctx()
+                .layer_painter(egui::LayerId::new(
+                    egui::Order::Foreground,
+                    egui::Id::unique("dm-reorder"),
+                ))
+                .with_clip_rect(clip.unwrap_or(rect));
+            painter.hline(rect.x_range(), y, egui::Stroke::new(2.0, tokens.progress()));
+        }
+        return;
+    }
+    app.reordering = None;
+    if let (Some((id, _)), Some(from)) = (target, place(&moving)) {
+        if let Some(to) = place(&id) {
+            app.backend.shift(moving, to as isize - from as isize);
+            app.refresh();
+        }
+    }
+}
+
 fn files_to_drag(app: &DmApp, rows: &[Entry], i: usize) -> Vec<std::path::PathBuf> {
     let Some(start) = rows.get(i) else {
         return Vec::new();

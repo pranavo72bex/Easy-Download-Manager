@@ -582,6 +582,8 @@ pub struct DmApp {
     /// Finished files a drag out of the list has asked to carry, for the
     /// window to hand to the system's drag: only it has the native handle.
     pub drag_out: Vec<std::path::PathBuf>,
+    /// A row being dragged to another place in the queue's order.
+    pub reordering: Option<Id>,
     /// Where each row was drawn last frame, in window points, so the control
     /// protocol can tell a test where to point.
     pub row_rects: HashMap<Id, egui::Rect>,
@@ -715,6 +717,7 @@ impl DmApp {
             column_order: Column::ordered(&settings.column_order),
             queued: Vec::new(),
             drag_out: Vec::new(),
+            reordering: None,
             row_rects: HashMap::new(),
             list_clip: None,
             list_bar: None,
