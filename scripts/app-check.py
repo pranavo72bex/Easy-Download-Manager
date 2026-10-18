@@ -237,7 +237,9 @@ def main():
     home = pathlib.Path(tempfile.mkdtemp(prefix="dm-home-"))
     downloads = home / "Downloads"
     env = {**os.environ, "DM_HOME": str(home)}
-    settings = {"download_dir": str(downloads), "categorize": True, "connections": 4}
+    # Three attempts, not the ten a person gets: a check that a failure is a
+    # failure would otherwise wait out minutes of half-minute retries.
+    settings = {"download_dir": str(downloads), "categorize": True, "connections": 4, "attempts": 3}
     (home / "settings.json").write_text(json.dumps(settings))
     # The PATH a Dock or login launch has: no Homebrew, no ~/.local/bin. The
     # tools dm runs are found by their usual homes, or they are not found.

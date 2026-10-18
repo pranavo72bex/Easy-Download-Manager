@@ -774,6 +774,9 @@ def main():
     (home / "settings.json").write_text(json.dumps({
         "download_dir": str(home / "downloads"), "speed_limit": 0, "watch_clipboard": True,
         "show_progress": False, "show_complete": False,
+        # Three attempts, not a person's ten: the failing download's scene
+        # would otherwise sit through minutes of half-minute retries.
+        "attempts": 3,
     }))
     env = dict(os.environ, DM_HOME=str(home))
     screen_reader_on()
