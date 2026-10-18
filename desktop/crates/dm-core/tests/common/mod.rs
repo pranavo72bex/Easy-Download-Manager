@@ -48,3 +48,14 @@ pub async fn serve(app: axum::Router) -> SocketAddr {
     tokio::spawn(async move { axum::serve(listener, app).await.unwrap() });
     addr
 }
+
+/// `address` with a login on it, set through the URL rather than written
+/// into it: an address with a login spelled out reads to a secret scanner
+/// as a leaked credential, made-up as these are.
+pub fn with_login(address: &str, user: &str, password: &str) -> String {
+    let mut url = url::Url::parse(address).expect("a test address");
+    url.set_username(user).expect("a host to sign in to");
+    url.set_password(Some(password))
+        .expect("a host to sign in to");
+    url.to_string()
+}

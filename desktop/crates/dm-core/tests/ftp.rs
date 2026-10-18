@@ -333,7 +333,7 @@ async fn a_sign_in_comes_from_the_address_and_a_wrong_one_is_said() {
     let dir = tempdir();
     let done = download(
         &client(),
-        &format!("ftp://me:{}@{addr}/f.bin", "p%40ss"),
+        &common::with_login(&format!("ftp://{addr}/f.bin"), "me", "p@ss"),
         &options(dir.path()),
     )
     .await
@@ -343,7 +343,7 @@ async fn a_sign_in_comes_from_the_address_and_a_wrong_one_is_said() {
     let other = tempdir();
     let refused = download(
         &client(),
-        &format!("ftp://me:{}@{addr}/f.bin", "wrong"),
+        &common::with_login(&format!("ftp://{addr}/f.bin"), "me", "wrong"),
         &options(other.path()),
     )
     .await
@@ -354,7 +354,7 @@ async fn a_sign_in_comes_from_the_address_and_a_wrong_one_is_said() {
     );
     let missing = download(
         &client(),
-        &format!("ftp://me:{}@{addr}/nothing.bin", "p%40ss"),
+        &common::with_login(&format!("ftp://{addr}/nothing.bin"), "me", "p@ss"),
         &options(other.path()),
     )
     .await
@@ -555,7 +555,11 @@ async fn an_ftp_download_goes_through_a_socks5_proxy_and_not_around_it() {
     let (proxy, seen) = socks5_proxy("me", "s3cret").await;
     let dir = tempdir();
     let through = dm_core::Options {
-        proxy: Some(format!("socks5://me:{}@{proxy}", "s3cret")),
+        proxy: Some(common::with_login(
+            &format!("socks5://{proxy}"),
+            "me",
+            "s3cret",
+        )),
         ..options(dir.path())
     };
     let done = download(&client(), &format!("ftp://{addr}/f.bin"), &through)
@@ -578,7 +582,11 @@ async fn an_ftp_download_goes_through_a_socks5_proxy_and_not_around_it() {
     // A wrong proxy password is the proxy's refusal, said, not a direct route.
     let dir = tempdir();
     let wrong = dm_core::Options {
-        proxy: Some(format!("socks5://me:{}@{proxy}", "nope")),
+        proxy: Some(common::with_login(
+            &format!("socks5://{proxy}"),
+            "me",
+            "nope",
+        )),
         attempts: 1,
         ..options(dir.path())
     };

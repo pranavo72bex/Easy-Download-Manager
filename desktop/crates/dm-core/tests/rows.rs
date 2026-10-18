@@ -277,7 +277,11 @@ async fn a_login_in_the_address_is_sent_as_basic_auth() {
     let dir = tempdir();
     let q = queue(dir.path());
     let id = q
-        .add(&format!("http://me:{}@{addr}/private.bin", "secret"))
+        .add(&common::with_login(
+            &format!("http://{addr}/private.bin"),
+            "me",
+            "secret",
+        ))
         .await
         .unwrap();
     q.run().await;

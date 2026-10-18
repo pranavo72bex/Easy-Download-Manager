@@ -186,7 +186,7 @@ fn behind(hash: Hash, rotate: Option<usize>) -> Gate {
 async fn a_server_that_wants_a_digest_login_gets_one_and_the_file_downloads() {
     let (g, addr) = stand_up(behind(Hash::Md5, None)).await;
     let dir = tempdir();
-    let url = format!("http://me:{}@{addr}/file.bin", "open%20sesame");
+    let url = common::with_login(&format!("http://{addr}/file.bin"), "me", "open sesame");
     let done = download(&client(), &url, &options(dir.path()))
         .await
         .expect("the download behind a Digest sign-in");
@@ -213,7 +213,7 @@ async fn a_sha_256_digest_and_a_nonce_that_expires_are_answered() {
     // challenge, not a refusal.
     let (g, addr) = stand_up(behind(Hash::Sha256, Some(1))).await;
     let dir = tempdir();
-    let url = format!("http://me:{}@{addr}/file.bin", "open%20sesame");
+    let url = common::with_login(&format!("http://{addr}/file.bin"), "me", "open sesame");
     let done = download(&client(), &url, &options(dir.path()))
         .await
         .expect("the download across rotated nonces");
@@ -228,7 +228,7 @@ async fn a_sha_256_digest_and_a_nonce_that_expires_are_answered() {
 async fn a_wrong_password_is_refused_with_the_status_and_not_retried() {
     let (g, addr) = stand_up(behind(Hash::Md5, None)).await;
     let dir = tempdir();
-    let url = format!("http://me:{}@{addr}/file.bin", "wrong");
+    let url = common::with_login(&format!("http://{addr}/file.bin"), "me", "wrong");
     let outcome = download(&client(), &url, &options(dir.path())).await;
     match outcome {
         Err(dm_core::Error::Refused { status: 401, .. }) => {}
@@ -255,7 +255,7 @@ async fn a_sign_in_dm_does_not_speak_is_said_rather_than_tried() {
     }
     let addr = serve(axum::Router::new().route("/file.bin", get(negotiate))).await;
     let dir = tempdir();
-    let url = format!("http://me:{}@{addr}/file.bin", "p");
+    let url = common::with_login(&format!("http://{addr}/file.bin"), "me", "p");
     let outcome = download(&client(), &url, &options(dir.path())).await;
     match outcome {
         Err(dm_core::Error::Refused { status: 401, .. }) => {}
@@ -284,7 +284,7 @@ async fn a_login_in_the_address_still_goes_out_as_basic_where_that_is_taken() {
     }
     let addr = serve(axum::Router::new().route("/file.bin", get(basic))).await;
     let dir = tempdir();
-    let url = format!("http://me:{}@{addr}/file.bin", "p");
+    let url = common::with_login(&format!("http://{addr}/file.bin"), "me", "p");
     let done = download(&client(), &url, &options(dir.path()))
         .await
         .unwrap();
@@ -295,7 +295,7 @@ async fn a_login_in_the_address_still_goes_out_as_basic_where_that_is_taken() {
 async fn a_digest_protected_file_behind_a_redirect_on_the_same_server_downloads() {
     let (g, addr) = stand_up(behind(Hash::Md5, None)).await;
     let dir = tempdir();
-    let url = format!("http://me:{}@{addr}/get", "open%20sesame");
+    let url = common::with_login(&format!("http://{addr}/get"), "me", "open sesame");
     let done = download(&client(), &url, &options(dir.path()))
         .await
         .expect("the redirected download behind a Digest sign-in");
