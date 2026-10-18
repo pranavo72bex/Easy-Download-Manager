@@ -373,7 +373,10 @@ fn drag_out(frame: &eframe::Frame, files: Vec<std::path::PathBuf>) -> Result<(),
 /// window is not one; said rather than silently doing nothing.
 #[cfg(not(any(target_os = "macos", target_os = "windows")))]
 fn drag_out(_frame: &eframe::Frame, _files: Vec<std::path::PathBuf>) -> Result<(), String> {
-    Err("Dragging files out of dm is not available on Linux yet: right-click › Open folder".into())
+    Err(dm_desktop::i18n::t(
+        "Dragging files out of dm is not available on Linux yet: right-click › Open folder",
+    )
+    .into())
 }
 
 /// What a dragged file looks like under the pointer: dm's icon, small.

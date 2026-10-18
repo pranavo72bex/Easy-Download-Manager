@@ -331,6 +331,8 @@ pub struct OptionsDialog {
     /// A row was just added to one of the tab's lists: its first field is
     /// scrolled into view and takes the keyboard.
     pub fresh: bool,
+    /// Just opened: the tab in force is brought into the strip's view.
+    pub fresh_tab: bool,
 }
 
 /// A list to import, some of whose addresses are already rows.
@@ -715,6 +717,7 @@ impl Dialogs {
                 .map(|c| [c.name.clone(), c.extensions.join(" "), c.sites.join(" ")])
                 .collect(),
             fresh: false,
+            fresh_tab: true,
         });
     }
 
@@ -2489,35 +2492,77 @@ fn complete(app: &mut DmApp, ctx: &egui::Context) {
             }
             // Every file reachable: the list scrolls in what height the window
             // has, its buttons below it always in view.
-            let below = ui.spacing().interact_size.y + 24.0;
+            // As tall as the window may be, less its words and buttons: from
+            // what was left of a window growing into its size, thirteen
+            // files showed one at a time (UI round 6).
+            let list = (screen.height() * 0.6 - 140.0).max(80.0);
             egui::ScrollArea::vertical()
                 .id_salt("complete-list")
                 .auto_shrink([false, true])
-                .max_height((ui.available_height() - below).max(80.0))
+                .max_height(list)
+                .min_scrolled_height(list)
                 .show(ui, |ui| {
+                    // Several in two lines each, the name with its size and
+                    // the buttons with the folder: in four, thirteen files
+                    // showed under three at a time (UI round 6).
+                    let several = rows.len() > 1;
                     for row in &rows {
                         let name = name_of(row);
+                        let size = crate::table::digits(
+                            ui,
+                            format::bytes(row.progress.total.unwrap_or(row.progress.downloaded)),
+                        );
+                        let folder = |ui: &mut egui::Ui| {
+                            let drawn = ui.add(
+                                egui::Label::new(
+                                    RichText::new(&*crate::bidi::visual(&row.path))
+                                        .small()
+                                        .weak(),
+                                )
+                                .truncate(),
+                            );
+                            crate::bidi::said_as(&drawn, &row.path);
+                            drawn.on_hover_text(&row.path);
+                        };
                         // A long name is cut short, all of it on hover, so the
                         // buttons stay on screen.
-                        let drawn = ui.add(
-                            egui::Label::new(RichText::new(&*crate::bidi::visual(&name)).strong())
-                                .truncate(),
-                        );
-                        crate::bidi::said_as(&drawn, &name);
-                        drawn.on_hover_text(&name);
-                        ui.label(format::bytes(
-                            row.progress.total.unwrap_or(row.progress.downloaded),
-                        ));
-                        let drawn = ui.add(
-                            egui::Label::new(
-                                RichText::new(&*crate::bidi::visual(&row.path))
-                                    .small()
-                                    .weak(),
-                            )
-                            .truncate(),
-                        );
-                        crate::bidi::said_as(&drawn, &row.path);
-                        drawn.on_hover_text(&row.path);
+                        ui.horizontal(|ui| {
+                            if several {
+                                ui.with_layout(
+                                    egui::Layout::right_to_left(egui::Align::Center),
+                                    |ui| {
+                                        ui.label(size.clone().weak());
+                                        ui.with_layout(
+                                            egui::Layout::left_to_right(egui::Align::Center),
+                                            |ui| {
+                                                let drawn = ui.add(
+                                                    egui::Label::new(
+                                                        RichText::new(&*crate::bidi::visual(&name))
+                                                            .strong(),
+                                                    )
+                                                    .truncate(),
+                                                );
+                                                crate::bidi::said_as(&drawn, &name);
+                                                drawn.on_hover_text(&name);
+                                            },
+                                        );
+                                    },
+                                );
+                            } else {
+                                let drawn = ui.add(
+                                    egui::Label::new(
+                                        RichText::new(&*crate::bidi::visual(&name)).strong(),
+                                    )
+                                    .truncate(),
+                                );
+                                crate::bidi::said_as(&drawn, &name);
+                                drawn.on_hover_text(&name);
+                            }
+                        });
+                        if !several {
+                            ui.label(size);
+                            folder(ui);
+                        }
                         ui.horizontal(|ui| {
                             // Named for its file where there are several, so a
                             // screen reader says which Open this is.
@@ -2541,6 +2586,9 @@ fn complete(app: &mut DmApp, ctx: &egui::Context) {
                                     app.said = e.into();
                                 }
                                 done.push(row.id);
+                            }
+                            if several {
+                                folder(ui);
                             }
                         });
                         ui.add_space(6.0);
@@ -3705,7 +3753,8 @@ fn options(app: &mut DmApp, ctx: &egui::Context) {
     // OK sat below the bottom edge (UI round 4).
     // Below the menu bar, as every dialog keeps (UI round 5).
     let menu_bottom = app.menu_bottom.max(0.0);
-    let tall = (ctx.content_rect().height() - menu_bottom - 16.0).clamp(240.0, 680.0);
+    let room_below = ctx.content_rect().height() - menu_bottom - 16.0;
+    let tall = room_below.clamp(240.0, 680.0);
     let Some(d) = app.dialogs.options.as_mut() else {
         return;
     };
@@ -3714,56 +3763,8 @@ fn options(app: &mut DmApp, ctx: &egui::Context) {
     // No wider than the window: at 200% text in a 960-point window the
     // tabs, the title and OK were off its edges (UI round 3).
     let wide = (ctx.content_rect().width() - 32.0).clamp(320.0, 660.0);
-    window(ctx, "Options")
-        // Its body scrolls itself, between the tabs and the buttons.
-        .vscroll(false)
-        .fixed_size(egui::vec2(wide, tall - 60.0))
-        .open(&mut open)
-        .show(ctx, |ui| {
-        // The tabs scroll sideways where they do not all fit.
-        egui::ScrollArea::horizontal()
-            .id_salt("options-tabs")
-            .show(ui, |ui| {
-                ui.horizontal(|ui| {
-                    for (tab, label) in TABS {
-                        if ui.selectable_label(d.tab == tab, t(label)).clicked() {
-                            d.tab = tab;
-                        }
-                    }
-                });
-            });
-        ui.separator();
-        // The buttons first, from the window's foot up, with a warning
-        // over them only when there is one; the tab's body takes exactly
-        // the room left. A fixed 80 kept for them left two settings showing
-        // at 720×460 (UI round 4); a guess left a band under the body, and
-        // a measured one lagged a frame behind a warning (UI round 5).
-        let top = ui.cursor().top();
-        ui.with_layout(egui::Layout::bottom_up(egui::Align::Min), |ui| {
-        ui.horizontal_wrapped(|ui| {
-            ok = primary(ui, "OK").clicked() || enter_free(ui);
-            cancel = ui.button(t("Cancel")).clicked();
-        });
-        ui.separator();
-        if !d.says.is_empty() {
-            ui.add(egui::Label::new(RichText::new(&d.says).color(warn(ui))).wrap());
-        }
-        // What is left between the tabs and the buttons, however little: a
-        // floor drew the body over the buttons at 200% text (UI round 5).
-        let body = (ui.cursor().bottom() - ui.spacing().item_spacing.y - top).max(24.0);
-        ui.with_layout(egui::Layout::top_down(egui::Align::Min), |ui| {
-        // A bar that is always drawn where a tab is longer than the room,
-        // rather than one that shows only under the pointer: at 960 px
-        // General's last line was cut off with no sign of more (gap 148).
-        ui.spacing_mut().scroll = crate::theme::steady_scroll();
-        egui::ScrollArea::vertical()
-            // Each tab its own place: one shared position opened Browser
-            // or Downloads part-way down (UI round 2).
-            .id_salt(("options-tab", d.tab))
-            .max_height(body)
-            .min_scrolled_height(body)
-            .auto_shrink([false, false])
-            .show(ui, |ui| {
+    // The settings of the tab picked, drawn in whichever layout fits.
+    let settings = |ui: &mut egui::Ui, d: &mut OptionsDialog| {
         let s = &mut d.draft;
         let fresh = std::mem::take(&mut d.fresh);
         // The newest row's first field, when one was just added.
@@ -3797,14 +3798,35 @@ fn options(app: &mut DmApp, ctx: &egui::Context) {
                 ui.checkbox(&mut s.start_on_login, t("Start dm when you log in, so a browser hand-off always has an app to land in"));
                 ui.checkbox(&mut s.check_updates, t("Look for a new version about once a week (asks GitHub; nothing about you is sent)"));
                 section(ui, t("Windows and sounds"));
-                ui.checkbox(&mut s.show_progress, t("Show a progress window when a download starts"));
-                ui.checkbox(&mut s.show_complete, t("Show a window when a download finishes"));
-                ui.checkbox(&mut s.sound_on_complete, t("Play a sound when a download finishes"));
-                ui.checkbox(&mut s.sound_on_failure, t("Play a sound when a download fails"));
+                ui.checkbox(
+                    &mut s.show_progress,
+                    t("Show a progress window when a download starts"),
+                );
+                ui.checkbox(
+                    &mut s.show_complete,
+                    t("Show a window when a download finishes"),
+                );
+                ui.checkbox(
+                    &mut s.sound_on_complete,
+                    t("Play a sound when a download finishes"),
+                );
+                ui.checkbox(
+                    &mut s.sound_on_failure,
+                    t("Play a sound when a download fails"),
+                );
                 section(ui, t("Adding and keeping files"));
-                ui.checkbox(&mut s.watch_clipboard, t("Watch the clipboard for links and offer to download them"));
-                ui.checkbox(&mut s.ask_panel_downloads, t("Ask where to save a video from the browser's panel"));
-                ui.checkbox(&mut s.server_dates, t("Give a finished file the date its server says it last changed"));
+                ui.checkbox(
+                    &mut s.watch_clipboard,
+                    t("Watch the clipboard for links and offer to download them"),
+                );
+                ui.checkbox(
+                    &mut s.ask_panel_downloads,
+                    t("Ask where to save a video from the browser's panel"),
+                );
+                ui.checkbox(
+                    &mut s.server_dates,
+                    t("Give a finished file the date its server says it last changed"),
+                );
                 section(ui, t("The list"));
                 ui.horizontal_wrapped(|ui| {
                     ui.label(t("Double-clicking a download"));
@@ -3838,7 +3860,9 @@ fn options(app: &mut DmApp, ctx: &egui::Context) {
                         };
                         d.says = if let Some(path) = path {
                             match std::fs::write(&path, s.exported()) {
-                                Ok(()) => tf("Saved to {}, without any password.", &[&path.display()]),
+                                Ok(()) => {
+                                    tf("Saved to {}, without any password.", &[&path.display()])
+                                }
                                 Err(e) => tf("{} could not be written: {}", &[&path.display(), &e]),
                             }
                         } else {
@@ -3868,7 +3892,10 @@ fn options(app: &mut DmApp, ctx: &egui::Context) {
             }
             Tab::FileTypes => {
                 let c = &mut s.catch;
-                ui.checkbox(&mut c.enabled, t("Take downloads of these types from the browser"));
+                ui.checkbox(
+                    &mut c.enabled,
+                    t("Take downloads of these types from the browser"),
+                );
                 ui.add_enabled_ui(c.enabled, |ui| {
                     let name = ui.label(t("File types"));
                     ui.add(egui::TextEdit::multiline(&mut d.types).desired_rows(3).desired_width(ui.available_width().min(480.0)))
@@ -3882,7 +3909,11 @@ fn options(app: &mut DmApp, ctx: &egui::Context) {
                     ui.label(RichText::new(t("Sites such as example.com or *.example.com, separated by spaces; each covers its subdomains.")).small().weak());
                 });
                 // The keys a click on a link can be held with.
-                let keys = [("alt", t("Alt")), ("shift", t("key:Shift")), ("ctrl", t("Ctrl or Cmd"))];
+                let keys = [
+                    ("alt", t("Alt")),
+                    ("shift", t("key:Shift")),
+                    ("ctrl", t("Ctrl or Cmd")),
+                ];
                 let word = |key: &str| {
                     keys.iter()
                         .find(|(k, _)| *k == key)
@@ -3902,7 +3933,9 @@ fn options(app: &mut DmApp, ctx: &egui::Context) {
                         .labelled_by(name.id);
                 });
                 ui.horizontal_wrapped(|ui| {
-                    let name = ui.label(t("Hold while clicking to send it to dm whatever its type or size"));
+                    let name = ui.label(t(
+                        "Hold while clicking to send it to dm whatever its type or size",
+                    ));
                     egui::ComboBox::from_id_salt("take-key")
                         .selected_text(word(&c.take_key))
                         .show_ui(ui, |ui| {
@@ -3926,9 +3959,21 @@ fn options(app: &mut DmApp, ctx: &egui::Context) {
                 if dir != before {
                     s.download_dir = dir.into();
                 }
-                folder_field(ui, t("Folder for unfinished downloads (empty for dm's own)"), &mut s.parts_dir, &*platform);
-                ui.label(RichText::new(t("A download already begun keeps the folder it began in.")).small().weak());
-                ui.checkbox(&mut s.categorize, t("Sort finished files into folders by kind"));
+                folder_field(
+                    ui,
+                    t("Folder for unfinished downloads (empty for dm's own)"),
+                    &mut s.parts_dir,
+                    &*platform,
+                );
+                ui.label(
+                    RichText::new(t("A download already begun keeps the folder it began in."))
+                        .small()
+                        .weak(),
+                );
+                ui.checkbox(
+                    &mut s.categorize,
+                    t("Sort finished files into folders by kind"),
+                );
                 ui.add_enabled_ui(s.categorize, |ui| {
                     // Two kinds a row: seven rows pushed the categories
                     // below out of sight. One where two do not fit: at 200%
@@ -3984,28 +4029,54 @@ fn options(app: &mut DmApp, ctx: &egui::Context) {
                 });
             }
             Tab::Downloads => {
-                egui::Grid::new("downloads").num_columns(2).spacing([12.0, 8.0]).show(ui, |ui| {
-                    let name = ui.label(t("Connections per file"));
-                    ui.add(number_box(&mut s.connections).range(1..=32)).labelled_by(name.id);
-                    ui.end_row();
-                    let name = ui.label(t("Files at once"));
-                    ui.add(number_box(&mut s.concurrency).range(1..=10)).labelled_by(name.id);
-                    ui.end_row();
-                    let choices = QUALITIES;
-                    let current = choices.iter().find(|(v, _)| *v == s.stream_quality).map(|(_, l)| *l).unwrap_or("Best available");
-                    ui.label(t("Video quality"));
-                    egui::ComboBox::from_id_salt("quality").selected_text(t(current)).show_ui(ui, |ui| {
-                        for (value, label) in choices {
-                            ui.selectable_value(&mut s.stream_quality, value.to_string(), t(label));
-                        }
+                egui::Grid::new("downloads")
+                    .num_columns(2)
+                    .spacing([12.0, 8.0])
+                    .show(ui, |ui| {
+                        let name = ui.label(t("Connections per file"));
+                        ui.add(number_box(&mut s.connections).range(1..=32))
+                            .labelled_by(name.id);
+                        ui.end_row();
+                        let name = ui.label(t("Files at once"));
+                        ui.add(number_box(&mut s.concurrency).range(1..=10))
+                            .labelled_by(name.id);
+                        ui.end_row();
+                        let choices = QUALITIES;
+                        let current = choices
+                            .iter()
+                            .find(|(v, _)| *v == s.stream_quality)
+                            .map(|(_, l)| *l)
+                            .unwrap_or("Best available");
+                        ui.label(t("Video quality"));
+                        egui::ComboBox::from_id_salt("quality")
+                            .selected_text(t(current))
+                            .show_ui(ui, |ui| {
+                                for (value, label) in choices {
+                                    ui.selectable_value(
+                                        &mut s.stream_quality,
+                                        value.to_string(),
+                                        t(label),
+                                    );
+                                }
+                            });
+                        ui.end_row();
                     });
-                    ui.end_row();
-                });
-                ui.checkbox(&mut s.start_queue_on_launch, t("Start the Main queue when dm opens"));
-                ui.checkbox(&mut s.subtitles, t("Embed subtitles in videos from player pages (needs ffmpeg)"));
-                ui.checkbox(&mut s.remux_ts, t("Save streams that arrive as .ts as MP4 (needs ffmpeg)"));
+                ui.checkbox(
+                    &mut s.start_queue_on_launch,
+                    t("Start the Main queue when dm opens"),
+                );
+                ui.checkbox(
+                    &mut s.subtitles,
+                    t("Embed subtitles in videos from player pages (needs ffmpeg)"),
+                );
+                ui.checkbox(
+                    &mut s.remux_ts,
+                    t("Save streams that arrive as .ts as MP4 (needs ffmpeg)"),
+                );
                 ui.add_space(4.0);
-                ui.label(t("Queues that run fewer files at once than the number above:"));
+                ui.label(t(
+                    "Queues that run fewer files at once than the number above:",
+                ));
                 let mut remove = None;
                 for (i, limit) in s.queue_limits.iter_mut().enumerate() {
                     ui.horizontal_wrapped(|ui| {
@@ -4028,7 +4099,8 @@ fn options(app: &mut DmApp, ctx: &egui::Context) {
                             .response
                             .labelled_by(name.id);
                         let name = ui.label(t("Files at once"));
-                        ui.add(number_box(&mut limit.files).range(1..=10)).labelled_by(name.id);
+                        ui.add(number_box(&mut limit.files).range(1..=10))
+                            .labelled_by(name.id);
                         if ui.button(t("Delete queue limit")).clicked() {
                             remove = Some(i);
                         }
@@ -4038,7 +4110,10 @@ fn options(app: &mut DmApp, ctx: &egui::Context) {
                     s.queue_limits.remove(i);
                 }
                 if ui.button(t("Add a queue limit")).clicked() {
-                    s.queue_limits.push(dm_shell::settings::QueueLimit { queue: dm_core::MAIN_QUEUE.into(), files: 1 });
+                    s.queue_limits.push(dm_shell::settings::QueueLimit {
+                        queue: dm_core::MAIN_QUEUE.into(),
+                        files: 1,
+                    });
                 }
                 ui.horizontal_wrapped(|ui| {
                     let name = ui.label(t("Ask the Recheck queue's servers for changes every, hours (0 only when asked)"));
@@ -4051,29 +4126,37 @@ fn options(app: &mut DmApp, ctx: &egui::Context) {
             Tab::Connection => {
                 ui.horizontal_wrapped(|ui| {
                     let name = ui.label(t("Speed limit, KB/s (0 for none)"));
-                    ui.add(number_box(&mut s.speed_limit).range(0..=1024 * 1024)).labelled_by(name.id);
+                    ui.add(number_box(&mut s.speed_limit).range(0..=1024 * 1024))
+                        .labelled_by(name.id);
                 });
                 ui.horizontal_wrapped(|ui| {
                     let name = ui.label(t("Attempts per connection (0 to keep trying)"));
-                    ui.add(number_box(&mut s.attempts).range(0..=100)).labelled_by(name.id);
+                    ui.add(number_box(&mut s.attempts).range(0..=100))
+                        .labelled_by(name.id);
                 });
                 ui.horizontal_wrapped(|ui| {
                     let name = ui.label(t("Seconds between attempts (0 lets dm choose)"));
-                    ui.add(number_box(&mut s.retry_wait).range(0..=3600)).labelled_by(name.id);
+                    ui.add(number_box(&mut s.retry_wait).range(0..=3600))
+                        .labelled_by(name.id);
                 });
                 ui.horizontal_wrapped(|ui| {
-                    let name = ui.label(t("Give up on a connection that sends nothing for, seconds"));
-                    ui.add(number_box(&mut s.read_timeout).range(5..=600)).labelled_by(name.id);
+                    let name =
+                        ui.label(t("Give up on a connection that sends nothing for, seconds"));
+                    ui.add(number_box(&mut s.read_timeout).range(5..=600))
+                        .labelled_by(name.id);
                 });
                 ui.add_space(8.0);
-                ui.label(t("Sites that take fewer connections at once than the setting:"));
+                ui.label(t(
+                    "Sites that take fewer connections at once than the setting:",
+                ));
                 let mut remove = None;
                 let count = s.host_limits.len();
                 for (i, limit) in s.host_limits.iter_mut().enumerate() {
                     ui.horizontal_wrapped(|ui| {
                         first(field(ui, t("Site"), &mut limit.host, 200.0), i + 1 == count);
                         let name = ui.label(t("Connections"));
-                        ui.add(number_box(&mut limit.connections).range(1..=32)).labelled_by(name.id);
+                        ui.add(number_box(&mut limit.connections).range(1..=32))
+                            .labelled_by(name.id);
                         if ui.button(t("Delete site limit")).clicked() {
                             remove = Some(i);
                         }
@@ -4083,7 +4166,10 @@ fn options(app: &mut DmApp, ctx: &egui::Context) {
                     s.host_limits.remove(i);
                 }
                 if ui.button(t("Add a site limit")).clicked() {
-                    s.host_limits.push(dm_core::HostLimit { host: String::new(), connections: 1 });
+                    s.host_limits.push(dm_core::HostLimit {
+                        host: String::new(),
+                        connections: 1,
+                    });
                     d.fresh = true;
                 }
                 ui.add_space(8.0);
@@ -4139,8 +4225,16 @@ fn options(app: &mut DmApp, ctx: &egui::Context) {
                 });
             }
             Tab::SiteLogins => {
-                ui.label(t("A user and password used for every download from a host."));
-                ui.label(RichText::new(t("Sent as a Basic login, or as a Digest where the server asks for one.")).small().weak());
+                ui.label(t(
+                    "A user and password used for every download from a host.",
+                ));
+                ui.label(
+                    RichText::new(t(
+                        "Sent as a Basic login, or as a Digest where the server asks for one.",
+                    ))
+                    .small()
+                    .weak(),
+                );
                 let mut remove = None;
                 let count = s.site_logins.len();
                 for (i, login) in s.site_logins.iter_mut().enumerate() {
@@ -4148,7 +4242,12 @@ fn options(app: &mut DmApp, ctx: &egui::Context) {
                         first(field(ui, t("Host"), &mut login.host, 150.0), i + 1 == count);
                         field(ui, t("User"), &mut login.username, 110.0);
                         let name = ui.label(t("Password"));
-                        ui.add(egui::TextEdit::singleline(&mut login.password).password(true).desired_width(ui.available_width().min(110.0))).labelled_by(name.id);
+                        ui.add(
+                            egui::TextEdit::singleline(&mut login.password)
+                                .password(true)
+                                .desired_width(ui.available_width().min(110.0)),
+                        )
+                        .labelled_by(name.id);
                         if ui.button(t("Delete")).clicked() {
                             remove = Some(i);
                         }
@@ -4161,11 +4260,100 @@ fn options(app: &mut DmApp, ctx: &egui::Context) {
                     s.site_logins.push(SiteLogin::default());
                     d.fresh = true;
                 }
-                ui.label(RichText::new(t("Kept in dm's settings file on this computer, readable by your account.")).small().weak());
+                ui.label(
+                    RichText::new(t(
+                        "Kept in dm's settings file on this computer, readable by your account.",
+                    ))
+                    .small()
+                    .weak(),
+                );
             }
         }
+    };
+    // Too short for the tabs, a few rows of settings and the buttons (200%
+    // text in a 460-point window, 300% in 800): the dialog scrolls as one
+    // page, its buttons at the end, rather than drawing them over the
+    // settings (UI round 6).
+    let short = room_below < 270.0;
+    let mut frame = window(ctx, "Options").open(&mut open);
+    frame = if short {
+        frame
+            .vscroll(true)
+            .min_width(wide)
+            .max_width(wide)
+            .max_height((room_below - 56.0).max(120.0))
+    } else {
+        // Its body scrolls itself, between the tabs and the buttons.
+        frame
+            .vscroll(false)
+            .fixed_size(egui::vec2(wide, tall - 60.0))
+    };
+    frame.show(ctx, |ui| {
+        // The tabs scroll sideways where they do not all fit.
+        egui::ScrollArea::horizontal()
+            .id_salt("options-tabs")
+            .show(ui, |ui| {
+                ui.horizontal(|ui| {
+                    for (tab, label) in TABS {
+                        let picked = ui.selectable_label(d.tab == tab, t(label));
+                        if picked.clicked() {
+                            d.tab = tab;
+                        }
+                        // The tab in force in sight as the dialog opens: the
+                        // strip kept the place it was scrolled to, General
+                        // out of view (UI round 6).
+                        if d.tab == tab && d.fresh_tab {
+                            picked.scroll_to_me(None);
+                        }
+                    }
+                });
             });
-        });
+        d.fresh_tab = false;
+        ui.separator();
+        if short {
+            settings(ui, d);
+            ui.separator();
+            if !d.says.is_empty() {
+                ui.add(egui::Label::new(RichText::new(&d.says).color(warn(ui))).wrap());
+            }
+            ui.horizontal_wrapped(|ui| {
+                ok = primary(ui, "OK").clicked() || enter_free(ui);
+                cancel = ui.button(t("Cancel")).clicked();
+            });
+            return;
+        }
+        // The buttons first, from the window's foot up, with a warning
+        // over them only when there is one; the tab's body takes exactly
+        // the room left. A fixed 80 kept for them left two settings showing
+        // at 720×460 (UI round 4); a guess left a band under the body, and
+        // a measured one lagged a frame behind a warning (UI round 5).
+        let top = ui.cursor().top();
+        ui.with_layout(egui::Layout::bottom_up(egui::Align::Min), |ui| {
+            ui.horizontal_wrapped(|ui| {
+                ok = primary(ui, "OK").clicked() || enter_free(ui);
+                cancel = ui.button(t("Cancel")).clicked();
+            });
+            ui.separator();
+            if !d.says.is_empty() {
+                ui.add(egui::Label::new(RichText::new(&d.says).color(warn(ui))).wrap());
+            }
+            // What is left between the tabs and the buttons.
+            let body = (ui.cursor().bottom() - ui.spacing().item_spacing.y - top).max(24.0);
+            ui.with_layout(egui::Layout::top_down(egui::Align::Min), |ui| {
+                // A bar that is always drawn where a tab is longer than the
+                // room, rather than one that shows only under the pointer:
+                // at 960 px General's last line was cut off with no sign of
+                // more (gap 148).
+                ui.spacing_mut().scroll = crate::theme::steady_scroll();
+                egui::ScrollArea::vertical()
+                    // Each tab its own place: one shared position opened
+                    // Browser or Downloads part-way down (UI round 2).
+                    .id_salt(("options-tab", d.tab))
+                    .max_height(body)
+                    .min_scrolled_height(body)
+                    .auto_shrink([false, false])
+                    .show(ui, |ui| settings(ui, d));
+            });
         });
     });
     if cancel || !open {

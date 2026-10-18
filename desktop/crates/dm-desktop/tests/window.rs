@@ -1293,9 +1293,12 @@ fn the_category_tree_filters_the_one_list() {
     assert!(harness.query_by_label("stalled.bin").is_some());
     assert!(harness.query_by_label("file.zip").is_none());
     assert!(harness.query_by_label("secret.zip").is_none());
-    harness.get_by_label_contains("Archives (1)").click();
+    // Both archives, the failed one too, known by its name though the
+    // server never said what it was (UI round 6).
+    harness.get_by_label_contains("Archives (2)").click();
     harness.run_steps(3);
     assert!(harness.query_by_label("file.zip").is_some());
+    assert!(harness.query_by_label("secret.zip").is_some());
 }
 
 #[test]
@@ -2647,7 +2650,27 @@ fn options_fits_the_window_at_large_text() {
         harness.state_mut().run(Command::Options);
         harness.run_steps(6);
         let points = size / zoom;
-        for name in ["OK", "General"] {
+        for name in ["General", "OK"] {
+            if name == "OK" {
+                // In a window too short for the buttons beside the settings
+                // the dialog scrolls as one page (UI round 6): its end is
+                // brought into view as a person would, with the wheel.
+                let general = harness
+                    .get_by_role_and_label(Role::Button, "General")
+                    .rect();
+                harness.hover_at(general.center() + egui::vec2(0.0, 40.0));
+                for _ in 0..10 {
+                    harness.event(egui::Event::MouseWheel {
+                        unit: egui::MouseWheelUnit::Point,
+                        delta: egui::vec2(0.0, -200.0),
+                        phase: egui::TouchPhase::Move,
+                        source: egui::MouseWheelSource::Wheel,
+                        modifiers: egui::Modifiers::NONE,
+                    });
+                    harness.run_steps(1);
+                }
+                harness.run_steps(3);
+            }
             let at = harness
                 .query_all_by_label(name)
                 .find(|n| {
@@ -5166,6 +5189,12 @@ fn the_sort_survives_a_restart_and_options_keeps_its_place() {
     );
     let again = world.app_with(saved);
     assert_eq!(again.sort, Some((Column::Size, false)), "not remembered");
+    // A third click puts the list back in the queue's order (UI round 6).
+    click(&mut harness, "Size");
+    assert_eq!(harness.state().sort, None);
+    assert_eq!(harness.state().backend().settings().sort_column, "");
+    click(&mut harness, "Size");
+    click(&mut harness, "Size");
 
     // "Found file.zip." does not outlive file.zip.
     harness.state_mut().dialogs.find_text = "file".into();
@@ -5502,6 +5531,16 @@ fn the_complete_window_scrolls_cuts_long_names_and_closes_on_escape() {
     });
     harness.run_steps(4);
     assert!(harness.query_by_label("12 downloads finished.").is_some());
+    // Several at a time, not one (UI round 6).
+    let seen = harness
+        .query_all_by_label_contains("Open the folder of")
+        .filter(|n| {
+            n.accesskit_node()
+                .bounding_box()
+                .is_some_and(|b| b.y1 <= 720.0)
+        })
+        .count();
+    assert!(seen >= 4, "only {seen} of twelve finished files in view");
     let close = bounds(&harness, "Close");
     assert!(close.x1 <= 1100.0, "Close is off the window: {close:?}");
     // In the corner, out of the middle of the list.
@@ -7012,6 +7051,10 @@ fn every_options_tab_stays_put_inside_the_window_at_large_text() {
     for (zoom, size) in [
         (2.0, egui::vec2(960.0, 660.0)),
         (1.5, egui::vec2(720.0, 460.0)),
+        // Shorter still (UI round 6: OK and Cancel lay over the settings).
+        (2.0, egui::vec2(720.0, 560.0)),
+        (2.0, egui::vec2(720.0, 460.0)),
+        (3.0, egui::vec2(1280.0, 800.0)),
     ] {
         let world = world();
         let mut harness = Harness::builder()
@@ -7022,9 +7065,11 @@ fn every_options_tab_stays_put_inside_the_window_at_large_text() {
         harness.state_mut().run(Command::Options);
         harness.run_steps(6);
         let points = size / zoom;
+        // Where the buttons are in view: in a window too short for them
+        // beside the settings, they come at the end of a page that scrolls.
         let ok_at = |h: &Harness<'_, DmApp>| {
-            h.get_by_role_and_label(egui::accesskit::Role::Button, "OK")
-                .rect()
+            h.query_by_role_and_label(egui::accesskit::Role::Button, "OK")
+                .map(|n| n.rect())
         };
         let first = ok_at(&harness);
         for (tab, label) in TABS {
@@ -7040,10 +7085,16 @@ fn every_options_tab_stays_put_inside_the_window_at_large_text() {
             }
             harness.run_steps(6);
             let ok = ok_at(&harness);
-            assert!(
-                (ok.center() - first.center()).length() < 1.0,
-                "{zoom}x {size:?}: OK moved from {first:?} to {ok:?} on {label}"
-            );
+            // Put, where the window has room for the buttons beside the
+            // settings (the first two sizes); in a shorter one the page
+            // scrolls and its end is where each tab's settings end.
+            let roomy = size.y >= 660.0 && zoom <= 2.0;
+            if let (Some(ok), Some(first), true) = (ok, first, roomy) {
+                assert!(
+                    (ok.center() - first.center()).length() < 1.0,
+                    "{zoom}x {size:?}: OK moved from {first:?} to {ok:?} on {label}"
+                );
+            }
             // Options' own: a node with the dialog among its ancestors.
             let in_options = |n: &egui_kittest::kittest::AccessKitNode<'_>| {
                 let mut up = n.parent();
@@ -7073,6 +7124,19 @@ fn every_options_tab_stays_put_inside_the_window_at_large_text() {
                 );
             }
             assert!(seen > 5, "{label}: Options' own controls were not found");
+            // The first setting above the buttons, not under them (UI round
+            // 6: OK and Cancel were drawn over the Language row).
+            if let (Some(ok), dm_desktop::dialogs::Tab::General) = (ok, tab) {
+                let language = harness
+                    .query_all_by_label("Language")
+                    .map(|n| n.rect())
+                    .next_back()
+                    .expect("General's Language");
+                assert!(
+                    language.bottom() <= ok.top(),
+                    "{zoom}x {size:?}: OK at {ok:?} lies over Language at {language:?}"
+                );
+            }
         }
     }
 }
@@ -7158,4 +7222,41 @@ fn every_dialog_keeps_its_title_and_buttons_on_screen_at_large_text() {
             );
         }
     }
+}
+
+/// UI round 6: rows added for later are counted under their kind by their
+/// names, before the server has said what they are: a hundred queued
+/// videos showed one under Videos.
+#[test]
+fn queued_rows_are_sorted_into_their_kind_by_name() {
+    let world = world();
+    let mut harness = world.harness();
+    for name in ["clip.mp4", "song.mp3", "notes.txt"] {
+        harness
+            .state()
+            .backend()
+            .add_with(
+                &world.url(name),
+                dm_core::AddOptions {
+                    later: true,
+                    queue: dm_core::MAIN_QUEUE.into(),
+                    ..Default::default()
+                },
+            )
+            .unwrap();
+    }
+    harness.state_mut().refresh();
+    harness.run_steps(2);
+    assert!(
+        harness.state().rows().iter().all(|r| r.category.is_none()),
+        "the premise"
+    );
+    harness.state_mut().place = dm_desktop::app::Place::Kind(dm_core::Category::Videos);
+    let shown: Vec<String> = harness
+        .state()
+        .visible()
+        .iter()
+        .map(dm_desktop::app::name_of)
+        .collect();
+    assert_eq!(shown, ["clip.mp4"]);
 }

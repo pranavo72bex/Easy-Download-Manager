@@ -167,6 +167,14 @@ pub fn name_of(row: &Entry) -> String {
     }
 }
 
+/// A row's kind: what dm learned from the server, or before that what its
+/// name says. Queued rows had none, so Videos listed one of a hundred
+/// queued videos and their icons were blank (UI round 6).
+pub fn kind_of(row: &Entry) -> Option<Category> {
+    row.category
+        .or_else(|| dm_core::category::by_name(&name_of(row)))
+}
+
 /// What the Status column says.
 /// A site search's name and what it found, or why it could not.
 type SearchResult = (String, Result<dm_shell::lists::Crawled, String>);
@@ -1616,7 +1624,7 @@ impl DmApp {
     fn within(&self, place: &Place, row: &Entry) -> bool {
         match place {
             Place::All => true,
-            Place::Kind(c) => row.category == Some(*c),
+            Place::Kind(c) => kind_of(row) == Some(*c),
             Place::Custom(name) => self.custom_of(row).as_deref() == Some(name.as_str()),
             // What is under way: running, waiting its turn, or held by the
             // schedule or the download limit. Not a failed row or one a
@@ -1763,7 +1771,8 @@ impl DmApp {
                 let text = self.backend.platform.clipboard().unwrap_or_default();
                 let found = links_in(&text);
                 if found.is_empty() {
-                    self.said = "There are no links on the clipboard.".into();
+                    // In the language in force (UI round 6: English always).
+                    self.said = crate::i18n::Said::new("There are no links on the clipboard.", &[]);
                 } else {
                     // One already in the list is offered unticked, and said
                     // so: it was fetched again as `e (1).zip` (round 14).
@@ -2166,20 +2175,28 @@ impl DmApp {
         }
     }
 
-    /// Sorts by a column; asked for again, the other way round. Kept in
-    /// the settings, so the list is sorted the same way at the next launch.
+    /// Sorts by a column; asked for again, the other way round; a third
+    /// time, back in the queue's order. Kept in the settings, so the list
+    /// is sorted the same way at the next launch.
     pub fn sort_by(&mut self, column: Column) {
+        // Up, down, then the queue's own order again: a list once sorted
+        // could not go back to it, where rows are dragged into another
+        // order (UI round 6).
         self.sort = match self.sort {
-            Some((c, ascending)) if c == column => Some((c, !ascending)),
+            Some((c, true)) if c == column => Some((c, false)),
+            Some((c, false)) if c == column => None,
             _ => Some((column, true)),
         };
-        if let Some((column, ascending)) = self.sort {
-            let mut wanted = self.applied.clone();
-            wanted.sort_column = column.key().to_string();
-            wanted.sort_ascending = ascending;
-            if let Err(e) = self.apply_settings(wanted) {
-                self.said = e.into();
+        let mut wanted = self.applied.clone();
+        match self.sort {
+            Some((column, ascending)) => {
+                wanted.sort_column = column.key().to_string();
+                wanted.sort_ascending = ascending;
             }
+            None => wanted.sort_column = String::new(),
+        }
+        if let Err(e) = self.apply_settings(wanted) {
+            self.said = e.into();
         }
     }
 
@@ -2212,7 +2229,7 @@ impl DmApp {
             row.filename.clone()
         };
         categories.site = dm_core::category::host_of(&row.url);
-        let kind = match row.category.or_else(|| dm_core::category::by_name(&name)) {
+        let kind = match kind_of(row).or_else(|| dm_core::category::by_name(&name)) {
             Some(kind) => kind,
             None if categories.custom_for(&name, &categories.site).is_some() => {
                 dm_core::Category::Other

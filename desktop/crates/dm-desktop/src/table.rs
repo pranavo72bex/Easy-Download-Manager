@@ -284,6 +284,12 @@ pub fn show(app: &mut DmApp, ui: &mut egui::Ui) {
         // a column, a place in it means nothing (gap 50).
         if files.is_empty() && app.sort.is_none() {
             app.reordering = rows.get(i).map(|r| r.id);
+        } else if files.is_empty() {
+            // Said, rather than the drag doing nothing (UI round 6).
+            app.said = crate::i18n::Said::new(
+                "The list is sorted by a column: click its heading until the arrow goes, then drag to reorder.",
+                &[],
+            );
         }
         app.drag_out = files;
     }
@@ -449,7 +455,7 @@ fn cell(
                 // The file type's picture goes before each name.
                 let (rect, _) =
                     ui.allocate_exact_size(egui::vec2(14.0, 16.0), egui::Sense::hover());
-                crate::icons::file(ui.painter(), rect, entry.category);
+                crate::icons::file(ui.painter(), rect, crate::app::kind_of(entry));
                 // Drawn in reading order where it is Arabic or Hebrew.
                 let drawn = ui.label(&*crate::bidi::visual(name));
                 crate::bidi::said_as(&drawn, name);

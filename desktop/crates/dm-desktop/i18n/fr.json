@@ -494,5 +494,8 @@
  "Type or paste the address of what to download.": "Tapez ou collez l'adresse de ce qu'il faut télécharger.",
  "Seconds between attempts (0 lets dm choose)": "Secondes entre les tentatives (0 laisse dm choisir)",
  "Read by the browser extension the next time it talks to dm: a download it catches, or its right-click menu. The right-click menu hands anything over regardless.": "Lu par l'extension du navigateur la prochaine fois qu'elle parle à dm : un téléchargement qu'elle intercepte, ou son menu contextuel. Le menu contextuel transmet tout de toute façon.",
- "Progress": "Progression"
+ "Progress": "Progression",
+ "There are no links on the clipboard.": "Le presse-papiers ne contient aucun lien.",
+ "Dragging files out of dm is not available on Linux yet: right-click › Open folder": "Glisser des fichiers hors de dm n'est pas encore possible sous Linux : clic droit › Ouvrir le dossier",
+ "The list is sorted by a column: click its heading until the arrow goes, then drag to reorder.": "La liste est triée selon une colonne : cliquez sur son en-tête jusqu'à ce que la flèche disparaisse, puis faites glisser pour réordonner."
 }
