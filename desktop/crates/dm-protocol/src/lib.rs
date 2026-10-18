@@ -685,6 +685,10 @@ pub fn extension_for_mime(mime: &str) -> Option<&'static str> {
 }
 
 #[cfg(test)]
+#[path = "../../../test-support/secrets.rs"]
+mod test_secrets;
+
+#[cfg(test)]
 mod tests {
     use super::*;
     use serde_json::json;
@@ -993,10 +997,14 @@ mod tests {
             skip_hosts: vec!["Example.com".into(), "*.cdn.net".into()],
             ..Default::default()
         };
+        let signed_in = format!(
+            "https://user:{}@EXAMPLE.com:8443/f.zip",
+            test_secrets::secret("password")
+        );
         for left in [
             "https://example.com/f.zip",
             "https://dl.example.com/f.zip",
-            concat!("https://user:", "pw", "@EXAMPLE.com:8443/f.zip"),
+            signed_in.as_str(),
             "https://a.cdn.net/f.zip",
         ] {
             assert_eq!(rules.catches(&file(left)), Err(Left::SkippedHost), "{left}");

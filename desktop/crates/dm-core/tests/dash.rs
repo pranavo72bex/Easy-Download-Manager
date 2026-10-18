@@ -148,12 +148,13 @@ async fn with_ytdlp_a_dash_manifest_is_handed_over_with_the_proxy_and_the_page()
     std::env::set_var("DM_FAKE_RECORD", &record);
     std::env::remove_var("DM_FAKE_FAIL");
 
+    let proxy_password = common::secrets::secret("proxy");
     let url = serve_manifest().await;
     let finished = download(
         &client(),
         &url,
         &Options {
-            proxy: Some(concat!("socks5://me:", "secret", "@127.0.0.1:1080").into()),
+            proxy: Some(format!("socks5://me:{proxy_password}@127.0.0.1:1080")),
             referrer: Some("https://page.example/watch".into()),
             ..options(dir.path())
         },
@@ -178,13 +179,13 @@ async fn with_ytdlp_a_dash_manifest_is_handed_over_with_the_proxy_and_the_page()
     /* The proxy, with its password, in a file of the run's own rather
      * than on the command line, where any local user's `ps` reads it. */
     assert!(
-        !argv.iter().any(|a| a.contains("secret")),
+        !argv.iter().any(|a| a.contains(&proxy_password)),
         "the proxy's password was on yt-dlp's command line: {argv:?}"
     );
     let config = std::fs::read_to_string(record.with_extension("config")).unwrap_or_default();
     assert_eq!(
         config.trim(),
-        concat!("--proxy 'socks5://me:", "secret", "@127.0.0.1:1080'")
+        format!("--proxy 'socks5://me:{proxy_password}@127.0.0.1:1080'")
     );
     assert!(
         !Path::new(after("--config-locations").unwrap()).exists(),

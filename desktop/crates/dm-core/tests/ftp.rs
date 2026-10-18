@@ -325,15 +325,17 @@ async fn a_server_without_size_or_rest_is_fetched_whole() {
 #[tokio::test]
 async fn a_sign_in_comes_from_the_address_and_a_wrong_one_is_said() {
     let data = body(200_000);
+    // Leaked to 'static for the server's quirks, once in this test binary.
+    let password: &'static str = Box::leak(common::secrets::marked("password").into_boxed_str());
     let quirks = Quirks {
-        login: Some(("me", "p@ss")),
+        login: Some(("me", password)),
         ..Quirks::default()
     };
     let (addr, _) = serve(data.clone(), quirks).await;
     let dir = tempdir();
     let done = download(
         &client(),
-        &common::with_login(&format!("ftp://{addr}/f.bin"), "me", "p@ss"),
+        &common::with_login(&format!("ftp://{addr}/f.bin"), "me", password),
         &options(dir.path()),
     )
     .await
@@ -354,7 +356,7 @@ async fn a_sign_in_comes_from_the_address_and_a_wrong_one_is_said() {
     );
     let missing = download(
         &client(),
-        &common::with_login(&format!("ftp://{addr}/nothing.bin"), "me", "p@ss"),
+        &common::with_login(&format!("ftp://{addr}/nothing.bin"), "me", password),
         &options(other.path()),
     )
     .await
@@ -552,13 +554,14 @@ async fn connect_proxy() -> (String, Seen) {
 async fn an_ftp_download_goes_through_a_socks5_proxy_and_not_around_it() {
     let data = body(3 * 1024 * 1024);
     let (addr, _server) = serve(data.clone(), Quirks::default()).await;
-    let (proxy, seen) = socks5_proxy("me", "s3cret").await;
+    let proxy_password: &'static str = Box::leak(common::secrets::secret("proxy").into_boxed_str());
+    let (proxy, seen) = socks5_proxy("me", proxy_password).await;
     let dir = tempdir();
     let through = dm_core::Options {
         proxy: Some(common::with_login(
             &format!("socks5://{proxy}"),
             "me",
-            "s3cret",
+            proxy_password,
         )),
         ..options(dir.path())
     };

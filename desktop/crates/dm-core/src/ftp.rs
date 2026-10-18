@@ -826,16 +826,16 @@ mod tests {
 
     #[test]
     fn an_ftp_address_is_read_into_its_parts() {
-        let t = Target::parse(concat!(
-            "ftp://me:",
-            "p%40ss",
-            "@ftp.example.com:2121/pub/a%20file.iso"
+        let password = crate::test_secrets::marked("password");
+        let t = Target::parse(&format!(
+            "ftp://me:{}@ftp.example.com:2121/pub/a%20file.iso",
+            crate::test_secrets::escaped(&password)
         ))
         .unwrap();
         assert_eq!(t.host, "ftp.example.com");
         assert_eq!(t.port, 2121);
         assert_eq!(t.user, "me");
-        assert_eq!(t.password, "p@ss");
+        assert_eq!(t.password, password);
         assert_eq!(t.path, "pub/a file.iso", "relative to the login directory");
         let rooted = Target::parse("ftp://e.com/%2Fetc/motd.txt").unwrap();
         assert_eq!(rooted.path, "/etc/motd.txt", "the root, asked for by %2F");

@@ -295,14 +295,14 @@ mod tests {
 
     #[test]
     fn a_password_with_punctuation_in_it_does_not_change_the_host() {
-        /* Credentials in the URL are how "p@ss:word" becomes a request to a
+        /* Credentials in the URL are how a password with `@` and `:` becomes a request to a
          * host called `word`. They go through reqwest's setter instead. */
         let proxy = Proxy {
             enabled: true,
             host: "proxy.internal".into(),
             port: 3128,
             username: "user".into(),
-            password: "p@ss:word".into(),
+            password: crate::test_secrets::marked("password"),
             ..Default::default()
         };
         assert_eq!(proxy.url().as_deref(), Some("http://proxy.internal:3128"));

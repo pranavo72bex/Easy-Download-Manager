@@ -989,11 +989,14 @@ mod tests {
     #[test]
     fn a_link_with_no_site_as_typed_is_refused_though_it_parses() {
         // The parser reads `http:///x` as a site called `x`.
+        let password = crate::test_secrets::secret("password");
+        let no_site = format!("http://user:{password}@/x");
+        let signed_in = format!("http://user:{password}@e.com/x");
         for typed in [
             "http:///x",
             "https:///files/a.zip",
             "ftp:///pub/a",
-            concat!("http://user:", "pw", "@/x"),
+            no_site.as_str(),
             "http://:8080/x",
             "http://?q",
         ] {
@@ -1001,7 +1004,7 @@ mod tests {
             assert!(why.contains("names no site"), "{typed}: {why:?}");
         }
         for fine in [
-            concat!("http://user:", "pw", "@e.com/x"),
+            signed_in.as_str(),
             "HTTP://E.COM/A",
             "http://127.0.0.1:9/a",
             "http://[::1]:9/a",

@@ -29,6 +29,10 @@ pub mod quota;
 pub mod retry;
 pub mod schedule;
 pub mod stream;
+/// The tests' logins and secrets, never written in the code.
+#[cfg(test)]
+#[path = "../../../test-support/secrets.rs"]
+pub(crate) mod test_secrets;
 pub mod torrent;
 pub mod ytdlp;
 

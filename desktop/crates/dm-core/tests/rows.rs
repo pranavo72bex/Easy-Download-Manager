@@ -261,7 +261,7 @@ async fn a_login_in_the_address_is_sent_as_basic_auth() {
      * engine really sends them — on the probe and on every range. */
     async fn guarded(headers: axum::http::HeaderMap) -> Response {
         let ok = headers.get("authorization").and_then(|v| v.to_str().ok())
-            == Some(basic_header("me", "secret").as_str());
+            == Some(basic_header("me", &common::secrets::secret("password")).as_str());
         if !ok {
             return Response::builder()
                 .status(401)
@@ -280,7 +280,7 @@ async fn a_login_in_the_address_is_sent_as_basic_auth() {
         .add(&common::with_login(
             &format!("http://{addr}/private.bin"),
             "me",
-            "secret",
+            &common::secrets::secret("password"),
         ))
         .await
         .unwrap();

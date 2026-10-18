@@ -6,6 +6,9 @@
 
 #![allow(dead_code)] // each test binary uses a different part of this
 
+#[path = "../../../../test-support/secrets.rs"]
+pub mod secrets;
+
 use std::net::SocketAddr;
 use std::path::Path;
 

@@ -5,3 +5,8 @@ __pycache__/
 .DS_Store
 .claude/
 human-shots/
+
+# Local test logins and secrets (desktop/test-support/secrets.rs); never pushed.
+.env
+.env.*
+!.env.example

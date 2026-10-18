@@ -1336,6 +1336,10 @@ impl Streams {
 }
 
 #[cfg(test)]
+#[path = "../../desktop/test-support/secrets.rs"]
+mod test_secrets;
+
+#[cfg(test)]
 mod tests {
     use super::*;
     use serde_json::json;
@@ -1516,7 +1520,7 @@ mod tests {
             Some("example.com")
         );
         assert_eq!(
-            site_of(concat!("http://user:", "pw", "@m.e.com/x")).as_deref(),
+            site_of(&format!("http://user:{}@m.e.com/x", super::test_secrets::secret("password"))).as_deref(),
             Some("m.e.com")
         );
         assert_eq!(site_of("file:///tmp/a.html"), None);

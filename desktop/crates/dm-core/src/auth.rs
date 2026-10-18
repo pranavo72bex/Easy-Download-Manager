@@ -490,9 +490,11 @@ mod tests {
 
     #[test]
     fn a_login_is_read_out_of_the_address_decoded() {
+        use crate::test_secrets::{escaped, marked};
+        let password = marked("password");
         assert_eq!(
-            login_in(concat!("https://me:", "p%40ss", "@h/f")),
-            Some(("me".into(), "p@ss".into()))
+            login_in(&format!("https://me:{}@h/f", escaped(&password))),
+            Some(("me".into(), password.clone()))
         );
         assert_eq!(login_in("https://h/f"), None);
         assert_eq!(login_in("not a url"), None);

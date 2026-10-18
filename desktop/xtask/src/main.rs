@@ -597,6 +597,10 @@ fn parity_evidence() -> Result<(), String> {
 }
 
 #[cfg(test)]
+#[path = "../../test-support/secrets.rs"]
+mod test_secrets;
+
+#[cfg(test)]
 mod tests {
     use super::*;
 
@@ -643,11 +647,11 @@ mod tests {
 
     #[test]
     fn a_written_out_credential_would_be_caught() {
-        let login = ["https://me:", "hunter2", "@e.com/f"].concat();
+        let login = ["https://me:", &test_secrets::secret("password"), "@e.com/f"].concat();
         assert_eq!(secrets_in(&login), [(1, "a login written into an address")]);
         let placeholder = ["format!(\"http://me:", "{}", "@{addr}/f\")"].concat();
         assert!(secrets_in(&placeholder).is_empty());
-        let header = ["Authorization: Basic ", "bWU6c2VjcmV0"].concat();
+        let header = ["Authorization: Basic ", &test_secrets::secret("token")].concat();
         assert_eq!(secrets_in(&header), [(1, "a Basic authorization token")]);
         assert!(secrets_in("Basic realm=\"x\"; Basic authentication").is_empty());
         let key = ["-----BEGIN ", "PRIVATE KEY-----"].concat();

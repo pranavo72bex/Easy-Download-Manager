@@ -38,6 +38,17 @@ cd .. && sh scripts/package.sh     # builds dist/chrome and dist/firefox
 `docs/how-it-works.md` explains how the app and the extension fit together
 and how to load the extension unpacked.
 
+### Logins and secrets in tests
+
+No password, token or cookie is written in the code, not even a made-up
+one for a test. A test asks `desktop/test-support/secrets.rs` for one by
+name; it is `DM_TEST_<NAME>` from the environment or from a `.env` file at
+the repository's root, and otherwise made up for that run. `.env` is in
+`.gitignore`; `.env.example` lists the names. `cargo xtask secrets`, run by
+CI and by `scripts/pre-commit`, fails on a login, token or key written into
+a tracked file. Release signing reads its secrets from the repository's
+Actions secrets only (docs/RELEASING.md).
+
 ## What a pull request needs
 
 - **Tests.** A behaviour change comes with a test that fails without it.

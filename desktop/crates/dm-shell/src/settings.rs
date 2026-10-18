@@ -968,27 +968,27 @@ mod tests {
 
     #[test]
     fn a_site_login_goes_on_the_hosts_it_names_and_no_others() {
+        use crate::test_secrets::{escaped, marked, secret};
+        let password = marked("password");
         let settings = Settings {
             site_logins: vec![SiteLogin {
                 host: "example.com".into(),
                 username: "me".into(),
-                password: "p@ss".into(),
+                password: password.clone(),
             }],
             ..Settings::default()
         };
         assert_eq!(
             settings.with_login("https://dl.example.com/f.zip"),
-            concat!("https://me:", "p%40ss", "@dl.example.com/f.zip")
+            format!("https://me:{}@dl.example.com/f.zip", escaped(&password))
         );
         assert_eq!(
             settings.with_login("https://notexample.com/f.zip"),
             "https://notexample.com/f.zip"
         );
         // An address with its own login keeps it.
-        assert_eq!(
-            settings.with_login(concat!("https://you:", "x", "@example.com/f")),
-            concat!("https://you:", "x", "@example.com/f")
-        );
+        let theirs = format!("https://you:{}@example.com/f", secret("other"));
+        assert_eq!(settings.with_login(&theirs), theirs);
         assert_eq!(settings.with_login("magnet:?xt=1"), "magnet:?xt=1");
     }
 

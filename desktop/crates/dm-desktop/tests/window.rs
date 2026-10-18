@@ -374,6 +374,9 @@ fn select(harness: &mut Harness<'_, DmApp>, name: &str) {
     );
 }
 
+#[path = "../../../test-support/secrets.rs"]
+mod test_secrets;
+
 #[test]
 fn a_finished_file_dragged_out_of_the_list_is_handed_to_the_systems_drag() {
     let world = world();
@@ -1324,6 +1327,7 @@ fn delete_waits_for_a_download_to_stop() {
 
 #[test]
 fn properties_keep_the_login_out_of_the_address_box() {
+    let password = test_secrets::secret("password");
     let world = world();
     let mut harness = world.harness();
     harness
@@ -1332,7 +1336,7 @@ fn properties_keep_the_login_out_of_the_address_box() {
         .add_with(
             &world
                 .url("private.bin")
-                .replace("http://", concat!("http://me:", "secret", "@")),
+                .replace("http://", &format!("http://me:{password}@")),
             dm_core::AddOptions {
                 later: true,
                 ..Default::default()
@@ -1349,7 +1353,7 @@ fn properties_keep_the_login_out_of_the_address_box() {
         .value()
         .unwrap_or_default();
     assert!(
-        !address.contains("secret"),
+        !address.contains(&password),
         "the password is in the address box: {address}"
     );
     assert_eq!(
@@ -2875,6 +2879,7 @@ fn a_queues_own_file_limit_and_the_parts_folder_are_set_in_options() {
 
 #[test]
 fn a_rows_handed_over_sign_in_is_never_read_back_out() {
+    let session = test_secrets::secret("session");
     let world = world();
     let mut harness = world.harness();
     harness
@@ -2884,7 +2889,7 @@ fn a_rows_handed_over_sign_in_is_never_read_back_out() {
             &world.url("file.zip"),
             dm_core::AddOptions {
                 later: true,
-                cookies: "session=SECRET123".into(),
+                cookies: format!("session={session}"),
                 ..Default::default()
             },
         )
@@ -2897,13 +2902,13 @@ fn a_rows_handed_over_sign_in_is_never_read_back_out() {
         .control_call("queue.list", &serde_json::json!({}))
         .unwrap();
     let text = listed.to_string();
-    assert!(!text.contains("SECRET123"), "{text}");
+    assert!(!text.contains(&session), "{text}");
     assert_eq!(listed[0]["signed_in"], true, "{text}");
     let seen = harness
         .state_mut()
         .control_call("ui.inspect", &serde_json::json!({}))
         .unwrap();
-    assert!(!seen.to_string().contains("SECRET123"));
+    assert!(!seen.to_string().contains(&session));
 }
 
 #[test]
