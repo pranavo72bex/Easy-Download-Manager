@@ -166,7 +166,8 @@ pub fn show(app: &mut DmApp, ui: &mut egui::Ui) {
                 .body(|mut body| {
                     // What of the list can be seen: the focus ring is kept
                     // inside it, and Page Up and Down move by it (gaps 147, 148).
-                    list_clip = Some(body.ui_mut().clip_rect());
+                    let seen = body.ui_mut().clip_rect();
+                    list_clip = Some(seen);
                     body.rows(row_height, rows.len(), |mut row| {
                         let i = row.index();
                         let entry = &rows[i];
@@ -222,6 +223,10 @@ pub fn show(app: &mut DmApp, ui: &mut egui::Ui) {
                             && std::mem::take(&mut app.row_menu_by_key);
                         egui::Popup::menu(&response)
                             .id(response.id.with("key-menu"))
+                            // Under the part of the row that can be seen:
+                            // under the whole row, which runs past the
+                            // window, it opened over the places (UI round 5).
+                            .anchor(egui::PopupAnchor::ParentRect(response.rect.intersect(seen)))
                             .open_memory(by_key.then_some(egui::SetOpenCommand::Bool(true)))
                             .show(|ui| row_menu(app, ui));
                     });
@@ -553,6 +558,9 @@ fn heading(app: &mut DmApp, ui: &mut egui::Ui, column: Column) {
     let numbers = matches!(column, Column::Size | Column::TimeLeft | Column::Rate);
     let response = if numbers {
         ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+            // Clear of the next column's heading, which it ran into (UI
+            // round 5); the numbers under it keep the same gap.
+            ui.add_space(NUMBER_GAP);
             ui.add(egui::Button::new(text).frame(false))
         })
         .inner
@@ -745,8 +753,12 @@ pub fn digits(ui: &egui::Ui, text: impl Into<String>) -> egui::RichText {
     egui::RichText::new(text).family(crate::theme::numbers(ui.ctx()))
 }
 
+/// The room kept right of a number and its heading, before the next column.
+const NUMBER_GAP: f32 = 6.0;
+
 fn right(ui: &mut egui::Ui, add: impl FnOnce(&mut egui::Ui) -> egui::Response) {
     ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+        ui.add_space(NUMBER_GAP);
         add(ui);
     });
 }

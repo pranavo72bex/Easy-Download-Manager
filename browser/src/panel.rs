@@ -66,7 +66,7 @@ button:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
 pub const BODY: &str = r#"<div class="panel" role="group" aria-label="dm">
 <div class="wrap">
 <button class="go" type="button"><span class="mark" aria-hidden="true">&#8595;</span><span class="title"></span><span class="caret" aria-hidden="true" hidden>&#9662;</span></button>
-<button class="help" type="button" aria-label="What is this" title="What is this">?</button>
+<button class="help" type="button" aria-label="What is this?" title="What is this?">?</button>
 <button class="close" type="button" aria-label="Hide" aria-haspopup="menu" title="Hide">&#215;</button>
 </div>
 <div class="list" role="menu" hidden></div>

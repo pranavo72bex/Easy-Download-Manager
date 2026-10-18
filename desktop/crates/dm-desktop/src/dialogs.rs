@@ -385,6 +385,9 @@ pub struct Dialogs {
     pub confirm_remove: Option<Vec<Id>>,
     /// The Remove question's "Also delete the file": off each time it asks.
     pub remove_files: bool,
+    /// The Remove question's title as last drawn, in English, for the
+    /// control protocol: it depends on what is being removed.
+    pub remove_title: &'static str,
     /// Rows the schedule or the download limit holds that a person asked to
     /// start: asked whether to start them now, outside the schedule.
     pub confirm_outside: Option<Vec<Id>>,
@@ -724,7 +727,13 @@ impl Dialogs {
             }
         };
         say(self.confirm_exit, "Exit dm?");
-        say(self.confirm_remove.is_some(), "Delete unfinished downloads");
+        // By the title it shows (UI round 5: an old name whatever it said).
+        let removing = if self.remove_title.is_empty() {
+            "Remove from the list"
+        } else {
+            self.remove_title
+        };
+        say(self.confirm_remove.is_some(), removing);
         say(
             self.confirm_outside.is_some(),
             "Start outside the schedule?",
@@ -1223,12 +1232,18 @@ fn confirm_remove(app: &mut DmApp, ctx: &egui::Context) {
         .map(|r| r.path.clone())
         .collect();
     let (mut yes, mut no) = (false, false);
-    let title = if unfinished && ids.len() == 1 {
-        t("Remove an unfinished download")
+    let english = if unfinished && ids.len() == 1 {
+        "Remove an unfinished download"
     } else if unfinished {
-        t("Remove unfinished downloads")
+        "Remove unfinished downloads"
     } else {
-        t("Remove from the list")
+        "Remove from the list"
+    };
+    app.dialogs.remove_title = english;
+    let title = match english {
+        "Remove an unfinished download" => t("Remove an unfinished download"),
+        "Remove unfinished downloads" => t("Remove unfinished downloads"),
+        _ => t("Remove from the list"),
     };
     egui::Window::new(title)
         .id(window_id("Delete unfinished downloads"))

@@ -16,28 +16,36 @@ pub fn bytes(n: u64) -> String {
     let mark = unit(crate::i18n::t("unit:."));
     let number = |value: f64, places: usize| format!("{value:.places$}").replace('.', mark);
     if n < 1024 {
-        format!("{n} {}", unit(crate::i18n::t("unit:B")))
-    } else if f < K * K {
-        format!("{} {}", number(f / K, 1), unit(crate::i18n::t("unit:KB")))
-    } else if f < K * K * K {
-        format!(
-            "{} {}",
-            number(f / (K * K), 1),
-            unit(crate::i18n::t("unit:MB"))
-        )
-    } else if f < K * K * K * K {
-        format!(
-            "{} {}",
-            number(f / (K * K * K), 2),
-            unit(crate::i18n::t("unit:GB"))
-        )
-    } else {
-        format!(
-            "{} {}",
-            number(f / (K * K * K * K), 2),
-            unit(crate::i18n::t("unit:TB"))
-        )
+        return format!("{n} {}", unit(crate::i18n::t("unit:B")));
     }
+    // Each unit with its places; the unit chosen once the number is
+    // rounded, so a size just under 1 MB reads "1.0 MB", not "1024.0 KB"
+    // (UI round 5).
+    let units = [
+        ("unit:KB", 1),
+        ("unit:MB", 1),
+        ("unit:GB", 2),
+        ("unit:TB", 2),
+    ];
+    let mut value = f / K;
+    let mut at = 0;
+    while at + 1 < units.len() {
+        let places = units[at].1;
+        let scale = 10f64.powi(places as i32);
+        if (value * scale).round() / scale < K {
+            break;
+        }
+        value /= K;
+        at += 1;
+    }
+    let (word, places) = units[at];
+    let word = match word {
+        "unit:KB" => crate::i18n::t("unit:KB"),
+        "unit:MB" => crate::i18n::t("unit:MB"),
+        "unit:GB" => crate::i18n::t("unit:GB"),
+        _ => crate::i18n::t("unit:TB"),
+    };
+    format!("{} {}", number(value, places), unit(word))
 }
 
 /// A unit's word: its translation, or the key without its `unit:`.
@@ -565,6 +573,11 @@ mod tests {
     fn sizes_read_the_way_the_web_window_read_them() {
         assert_eq!(bytes(512), "512 B");
         assert_eq!(bytes(1536), "1.5 KB");
+        // Rounded up to the next unit, not "1024.0 KB" (UI round 5).
+        assert_eq!(bytes(1024 * 1024 - 1), "1.0 MB");
+        assert_eq!(bytes(1024 * 1024 - 60), "1023.9 KB");
+        assert_eq!(bytes(1023 * 1024), "1023.0 KB");
+        assert_eq!(bytes(1024 * 1024 * 1024 - 1), "1.00 GB");
         assert_eq!(bytes(5 * 1024 * 1024), "5.0 MB");
         assert_eq!(bytes(3 * 1024 * 1024 * 1024), "3.00 GB");
         assert_eq!(bytes(1023 * 1024 * 1024 * 1024), "1023.00 GB");

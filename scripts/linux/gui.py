@@ -275,7 +275,7 @@ def tray_icon():
 
 
 # dm's tray menu, by label, as a panel shows it.
-SHOW, SPEED_LIMITER, SCHEDULER, QUIT = "Show dm", "Speed limiter on/off", "Scheduler…", "Exit dm"
+SHOW, SPEED_LIMITER, SCHEDULER, QUIT = "Show dm", "Speed limiter", "Scheduler…", "Exit dm"
 
 
 def tray_menu(pick):

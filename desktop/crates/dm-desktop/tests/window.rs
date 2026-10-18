@@ -1253,6 +1253,12 @@ fn the_toolbar_acts_on_the_selected_row() {
     assert!(harness
         .query_by_label("Remove an unfinished download")
         .is_some());
+    // And the control protocol names it by the title it shows (UI round 5).
+    assert!(harness
+        .state()
+        .dialogs
+        .open_names()
+        .contains(&"Remove an unfinished download".to_string()));
     click(&mut harness, "Keep it");
     assert_eq!(harness.state().rows().len(), 1, "Keep deleted it");
     click(&mut harness, "Remove");
@@ -2683,15 +2689,41 @@ fn menus_open_from_the_keyboard() {
             .is_some(),
         "F10 opened no menu"
     );
+    // Right goes on to the next menu, Left back, round the bar.
+    harness.key_press(egui::Key::ArrowRight);
+    harness.run_steps(4);
+    assert!(
+        harness.query_by_label_contains("Move to queue").is_some(),
+        "Right did not open File"
+    );
+    assert!(harness
+        .query_by_label_contains("Add numbered series")
+        .is_none());
+    harness.key_press(egui::Key::ArrowLeft);
+    harness.run_steps(4);
+    harness.key_press(egui::Key::ArrowLeft);
+    harness.run_steps(4);
+    assert!(
+        harness
+            .query_by_label_contains("Check for updates")
+            .is_some(),
+        "Left from the first did not reach Help"
+    );
     harness.key_press(egui::Key::Escape);
     harness.run_steps(3);
     select(&mut harness, "file.zip");
     harness.run_steps(2);
     harness.key_press_modifiers(egui::Modifiers::SHIFT, egui::Key::F10);
     harness.run_steps(4);
+    let props = harness
+        .query_by_label_contains("Properties")
+        .expect("Shift+F10 opened no row menu")
+        .rect();
+    // Under the row, not over the places beside the list (UI round 5).
+    let row = harness.get_by_label("file.zip").rect();
     assert!(
-        harness.query_by_label_contains("Properties").is_some(),
-        "Shift+F10 opened no row menu"
+        props.left() >= row.left() - 30.0 && props.top() >= row.top(),
+        "the menu at {props:?} is not under the row at {row:?}"
     );
 }
 

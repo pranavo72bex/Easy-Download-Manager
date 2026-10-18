@@ -395,7 +395,7 @@ fn tray_words() -> [&'static str; 5] {
     use dm_desktop::i18n::t;
     [
         t("Show dm"),
-        t("Speed limiter on/off"),
+        t("Speed limiter"),
         t("Scheduler…"),
         t("Exit dm"),
         t("dm — downloads keep running here"),

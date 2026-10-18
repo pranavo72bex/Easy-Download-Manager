@@ -665,8 +665,8 @@ pub struct DmApp {
     pub sizes_told: HashMap<Id, u64>,
     /// F10 was pressed: the first menu opens on the next drawing of the bar.
     pub open_menu_by_key: bool,
-    /// The Program menu's popup, as last drawn.
-    program_menu: Option<egui::Id>,
+    /// The menu bar's menus, by the ids their popups had last frame.
+    menus: Vec<egui::Id>,
     /// Shift+F10 or the Menu key was pressed: the row with the keyboard's
     /// place opens its menu as it is drawn.
     pub row_menu_by_key: bool,
@@ -762,7 +762,7 @@ impl DmApp {
             recent_hands: Vec::new(),
             min_size_zoom: None,
             open_menu_by_key: false,
-            program_menu: None,
+            menus: Vec::new(),
             row_menu_by_key: false,
             menu_bottom: 0.0,
             saved: HashMap::new(),
@@ -2760,8 +2760,30 @@ impl DmApp {
         // draws, by the id it had last frame: egui closes a popup opened
         // after its frame's drawing.
         if std::mem::take(&mut self.open_menu_by_key) {
-            if let Some(id) = self.program_menu {
-                egui::Popup::open_id(ui.ctx(), id);
+            if let Some(id) = self.menus.first() {
+                egui::Popup::open_id(ui.ctx(), *id);
+            }
+        }
+        // Left and Right go from one open menu to the next, round the bar,
+        // as on any desktop (UI round 5: only Up and Down walked a menu).
+        let ctx = ui.ctx().clone();
+        if let Some(at) = self
+            .menus
+            .iter()
+            .position(|id| egui::Popup::is_id_open(&ctx, *id))
+        {
+            let step = ctx.input_mut(|i| {
+                if i.consume_key(egui::Modifiers::NONE, egui::Key::ArrowRight) {
+                    Some(1)
+                } else if i.consume_key(egui::Modifiers::NONE, egui::Key::ArrowLeft) {
+                    Some(self.menus.len() - 1)
+                } else {
+                    None
+                }
+            });
+            if let Some(step) = step {
+                let next = self.menus[(at + step) % self.menus.len()];
+                egui::Popup::open_id(&ctx, next);
             }
         }
         egui::MenuBar::new().ui(ui, |ui| {
@@ -2781,8 +2803,7 @@ impl DmApp {
                 ui.separator();
                 self.item(ui, Command::Quit);
             });
-            self.program_menu = Some(egui::Popup::default_response_id(&program.response));
-            ui.menu_button(t("File"), |ui| {
+            let file = ui.menu_button(t("File"), |ui| {
                 for c in [
                     Command::DownloadNow,
                     Command::StopDownload,
@@ -2819,7 +2840,7 @@ impl DmApp {
                     self.item(ui, c);
                 }
             });
-            ui.menu_button(t("Downloads"), |ui| {
+            let downloads = ui.menu_button(t("Downloads"), |ui| {
                 for c in [
                     Command::ResumeAll,
                     Command::StopAll,
@@ -2877,7 +2898,7 @@ impl DmApp {
                 ui.separator();
                 self.item(ui, Command::Options);
             });
-            ui.menu_button(t("View"), |ui| {
+            let view = ui.menu_button(t("View"), |ui| {
                 // Menu items with their tick at the right, so their words
                 // start where the items under them do (gap 148).
                 if ticked_item(ui, t("Categories"), self.show_categories).clicked() {
@@ -2934,11 +2955,15 @@ impl DmApp {
                     }
                 });
             });
-            ui.menu_button(t("Help"), |ui| {
+            let help = ui.menu_button(t("Help"), |ui| {
                 self.item(ui, Command::Help);
                 self.item(ui, Command::CheckForUpdates);
                 self.item(ui, Command::About);
             });
+            self.menus = [program, file, downloads, view, help]
+                .iter()
+                .map(|menu| egui::Popup::default_response_id(&menu.response))
+                .collect();
         });
     }
 
