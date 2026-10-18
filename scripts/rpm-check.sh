@@ -31,16 +31,22 @@ for distro in ${DM_RPM_DISTROS:-fedora:41 opensuse/leap:15.6}; do
   echo "== $distro: install, smoke, remove"
   case $distro in
     fedora*) first=true
-             install="dnf install -y -q python3 xorg-x11-server-Xvfb /target/rpm/*.rpm"; remove="dnf remove -y -q dm" ;;
+             # Without the weak dependencies (the CJK fonts dm recommends,
+             # a hundred megabytes and more): that they are named is checked
+             # below, and the disk here is tight.
+             install="dnf install -y -q --setopt=install_weak_deps=False python3 xorg-x11-server-Xvfb /target/rpm/*.rpm"; remove="dnf remove -y -q dm" ;;
     # Leap's image has no tar, which the source arrives through.
     opensuse*) first="zypper -q --non-interactive install -y tar"
-               install="zypper -q --non-interactive install -y --allow-unsigned-rpm python3 xvfb-run /target/rpm/*.rpm"
+               install="zypper -q --non-interactive install -y --no-recommends --allow-unsigned-rpm python3 xvfb-run /target/rpm/*.rpm"
                remove="zypper -q --non-interactive remove -y dm" ;;
   esac
   stream | docker run --rm -i -v dm-linux-target:/target "$distro" sh -c "
     set -e; $first >/dev/null; mkdir -p /work && cd /work && tar -xf -
     $install >/dev/null
     rpm -q dm
+    # A font for names in Chinese, Japanese and Korean, recommended rather
+    # than required (gap 45).
+    if rpm -q --recommends dm | grep -q cjk; then echo 'ok    recommends a CJK font'; else echo 'FAIL  recommends no CJK font'; exit 1; fi
     # 24-bit: openSUSE's xvfb-run defaults to an 8-bit screen, which has no
     # GL config a window can use.
     xvfb-run -a -s '-screen 0 1280x800x24' python3 scripts/smoke.py /usr/bin/dm

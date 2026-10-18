@@ -198,6 +198,10 @@ It appears in dm instead of in the browser, and downloads there.
   `xattr -dr com.apple.quarantine /Applications/dm.app`, then open dm again.
 - **The AppImage does not start (Ubuntu 22.04 or newer).** Run
   `sudo apt install libfuse2`.
+- **File names in Chinese, Japanese or Korean show as blanks (Linux).**
+  dm draws them with a font your computer has, and this one has none for
+  them. On Ubuntu or Debian run `sudo apt install fonts-noto-cjk`; the
+  Fedora, openSUSE and Arch packages suggest one when dm is installed.
 - **No tray icon on Linux.** dm's icon shows in any panel that shows
   "StatusNotifier" icons: KDE, Ubuntu's GNOME, Cinnamon, Xfce, LXQt, and
   waybar on niri, Sway or Hyprland. On other GNOME (Fedora, Debian) turn on

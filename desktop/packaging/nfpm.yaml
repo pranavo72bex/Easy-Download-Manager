@@ -37,6 +37,14 @@ depends:
   # Open and Open folder go through xdg-open.
   - xdg-utils
 
+# A font for names in Chinese, Japanese and Korean, which neither Inter nor
+# egui's fonts have: dm takes the computer's own (gap 116), and a system
+# with none showed such names blank (gap 45). Recommended, as it is large;
+# Fedora's name, then openSUSE's.
+recommends:
+  - google-noto-sans-cjk-fonts
+  - noto-sans-cjk-fonts
+
 contents:
   - src: desktop/target/release/dm-desktop
     dst: /usr/bin/dm
