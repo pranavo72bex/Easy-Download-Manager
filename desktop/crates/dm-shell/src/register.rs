@@ -49,6 +49,10 @@ pub struct Programs {
     pub path: Vec<PathBuf>,
     /// The Applications folders, where macOS keeps app bundles.
     pub applications: Vec<PathBuf>,
+    /// Where a browser unpacked from an archive lives on Linux, in a folder
+    /// of its own named after it (`/opt/firefox/firefox`): one never run
+    /// and not on `PATH` was not registered (gap 46).
+    pub unpacked: Vec<PathBuf>,
 }
 
 impl Programs {
@@ -59,6 +63,13 @@ impl Programs {
                 .map(|p| std::env::split_paths(&p).collect())
                 .unwrap_or_default(),
             applications: vec![PathBuf::from("/Applications"), home.join("Applications")],
+            unpacked: vec![
+                PathBuf::from("/opt"),
+                PathBuf::from("/usr/local"),
+                home.to_path_buf(),
+                home.join(".local/share"),
+                home.join("Applications"),
+            ],
         }
     }
 
@@ -70,7 +81,7 @@ impl Programs {
         } else {
             (&self.path, false)
         };
-        names.iter().any(|name| {
+        let on_path = names.iter().any(|name| {
             dirs.iter().any(|dir| {
                 let found = dir.join(name);
                 if bundle {
@@ -78,6 +89,23 @@ impl Programs {
                 } else {
                     found.is_file()
                 }
+            })
+        });
+        on_path || (!bundle && self.unpacked_has(names))
+    }
+
+    /// Whether a folder in `unpacked` named after one of `names`
+    /// (`firefox`, `firefox-esr`, `firefox-128.0`) holds that program.
+    fn unpacked_has(&self, names: &[&str]) -> bool {
+        self.unpacked.iter().any(|root| {
+            let Ok(entries) = std::fs::read_dir(root) else {
+                return false;
+            };
+            entries.flatten().any(|entry| {
+                let folder = entry.file_name().to_string_lossy().to_lowercase();
+                names
+                    .iter()
+                    .any(|name| folder.starts_with(name) && entry.path().join(name).is_file())
             })
         })
     }
@@ -902,6 +930,31 @@ mod tests {
         );
     }
 
+    /// Gap 46: a Firefox unpacked from its archive into /opt, never run and
+    /// not on `PATH`, is registered.
+    #[cfg(target_os = "linux")]
+    #[test]
+    fn firefox_unpacked_into_opt_is_registered() {
+        let home = tempfile::tempdir().unwrap();
+        let opt = tempfile::tempdir().unwrap();
+        let firefox = opt.path().join("firefox-128.0");
+        std::fs::create_dir_all(&firefox).unwrap();
+        std::fs::write(firefox.join("firefox"), b"").unwrap();
+        let programs = Programs {
+            unpacked: vec![opt.path().to_path_buf()],
+            ..Programs::default()
+        };
+        let mozilla = places(home.path())
+            .into_iter()
+            .find(|p| p.family == Family::Firefox)
+            .unwrap();
+        assert!(mozilla.installed(&programs));
+        // A folder of that name without the program is not Firefox.
+        std::fs::remove_file(firefox.join("firefox")).unwrap();
+        assert!(!mozilla.installed(&programs));
+        assert!(!mozilla.installed(&Programs::default()));
+    }
+
     #[test]
     fn with_no_browser_installed_there_is_nothing_to_do() {
         let home = tempfile::tempdir().unwrap();
@@ -977,6 +1030,7 @@ mod tests {
         let programs = Programs {
             path: vec![bin],
             applications: vec![apps],
+            unpacked: Vec::new(),
         };
 
         // Nothing has run, and nothing is found without looking for programs.
