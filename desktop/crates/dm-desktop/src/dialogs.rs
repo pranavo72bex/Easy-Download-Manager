@@ -830,13 +830,27 @@ impl Dialogs {
 /// A dialog, titled in the language in force but known by its English
 /// title: its place and size survive a change of language, and two titles
 /// that translate alike stay two windows.
-fn window(title: &'static str) -> egui::Window<'static> {
+fn window(ctx: &egui::Context, title: &'static str) -> egui::Window<'static> {
+    let room = ctx.content_rect();
+    let tall = (room.height() - 64.0).max(160.0);
+    let cramped = ctx
+        .memory(|m| m.area_rect(window_id(title)))
+        .is_some_and(|was| was.height() >= tall);
     egui::Window::new(t(title))
         .id(window_id(title))
         .collapsible(false)
         .resizable(false)
-        // Wide enough for its title in the 18 px heading.
-        .min_width(440.0)
+        // Wide enough for its title in the 18 px heading, but never wider
+        // than the window: at 150% text in the smallest window 440 points
+        // ran off both sides (UI round 5).
+        .min_width(440.0_f32.min(room.width() - 32.0).max(200.0))
+        // And never taller: a dialog longer than the room scrolls, rather
+        // than losing its title and buttons off the top and bottom (Files
+        // on a site at 150% in the smallest window, UI round 5). Only one
+        // that was that tall on the frame before: a scrolled body sizes
+        // itself otherwise, and every other dialog keeps its own size.
+        .max_height(tall)
+        .vscroll(cramped)
         .anchor(egui::Align2::CENTER_CENTER, [0.0, 0.0])
 }
 
@@ -960,6 +974,9 @@ fn field(ui: &mut egui::Ui, label: &str, text: &mut String, width: f32) -> egui:
     let field = ui
         .scope(|ui| {
             selection_seen(ui);
+            // No wider than the room there is: at 200% text a fixed width
+            // pushed Options off the window (UI round 5).
+            let width = width.min(ui.available_width()).max(40.0);
             ui.add(egui::TextEdit::singleline(text).desired_width(width))
         })
         .inner
@@ -1059,7 +1076,9 @@ fn folder_field(
 ) {
     let name = ui.label(label);
     ui.horizontal(|ui| {
-        ui.add(egui::TextEdit::singleline(text).desired_width(380.0))
+        // Browse keeps its room beside it, however narrow the dialog.
+        let wide = (ui.available_width() - 120.0).clamp(120.0, 380.0);
+        ui.add(egui::TextEdit::singleline(text).desired_width(wide))
             .labelled_by(name.id);
         browse(ui, platform, text);
     });
@@ -1351,7 +1370,7 @@ fn confirm_cancel(app: &mut DmApp, ctx: &egui::Context) {
         return;
     };
     let (mut cancel, mut keep) = (false, false);
-    window("Cancel this download?").show(ctx, |ui| {
+    window(ctx, "Cancel this download?").show(ctx, |ui| {
         ui.strong(&*crate::bidi::visual(&name));
         if fetched {
             ui.label(t("Cancelling it throws away what has been fetched."));
@@ -1386,7 +1405,7 @@ fn confirm_outside(app: &mut DmApp, ctx: &egui::Context) {
         .map(name_of)
         .collect();
     let why = app.held_because().unwrap_or_default();
-    window("Start outside the schedule?").show(ctx, |ui| {
+    window(ctx, "Start outside the schedule?").show(ctx, |ui| {
         ui.label(if names.len() == 1 {
             tf(
                 "{} waits for the schedule or the download limit.",
@@ -1472,7 +1491,7 @@ fn confirm_exit(app: &mut DmApp, ctx: &egui::Context) {
     }
     // Narrower on a screen that has not the room, as the other dialogs.
     let width = EXIT_WIDTH.min(ctx.content_rect().width() - 48.0).max(220.0);
-    window("Exit dm?").show(ctx, |ui| {
+    window(ctx, "Exit dm?").show(ctx, |ui| {
         // One width and room for three lines whatever the words say: a
         // download finishing while the question is open changes them, and
         // a window that shrank around shorter words moved its buttons —
@@ -1523,7 +1542,7 @@ fn skip_offer(app: &mut DmApp, ctx: &egui::Context) {
         return;
     };
     let (mut leave, mut keep) = (false, false);
-    window("Leave this site to the browser?").show(ctx, |ui| {
+    window(ctx, "Leave this site to the browser?").show(ctx, |ui| {
         ui.label(tf(
             "You cancelled two downloads handed over from {}. Leave its downloads to the browser from now on?",
             &[&site],
@@ -1566,7 +1585,7 @@ fn import_ask(app: &mut DmApp, ctx: &egui::Context) {
     };
     let (already, total) = (ask.already, ask.total);
     let (mut skip, mut again, mut cancel) = (false, false, false);
-    window("Some are already in the list").show(ctx, |ui| {
+    window(ctx, "Some are already in the list").show(ctx, |ui| {
         ui.label(crate::i18n::tn(
             "{} of the {} addresses in this list is already in dm's list.||{} of the {} addresses in this list are already in dm's list.",
             already as u64,
@@ -1597,9 +1616,9 @@ fn list_file(app: &mut DmApp, ctx: &egui::Context) {
     let mut open = true;
     let (mut ok, mut cancel) = (false, false);
     let dialog = if d.save {
-        window("Export the list")
+        window(ctx, "Export the list")
     } else {
-        window("Import a list")
+        window(ctx, "Import a list")
     };
     dialog.open(&mut open).show(ctx, |ui| {
         ui.label(t("No file chooser on this desktop; type the file's path."));
@@ -1665,7 +1684,7 @@ fn duplicate(app: &mut DmApp, ctx: &egui::Context) {
     };
     let status = app.row(id).map(crate::app::status_of).unwrap_or_default();
     let (mut again, mut show, mut cancel) = (false, false, false);
-    window("Already in the list").show(ctx, |ui| {
+    window(ctx, "Already in the list").show(ctx, |ui| {
         ui.label(RichText::new(format::shown_url(&address)).weak());
         ui.label(tf("This address is already in the list ({}).", &[&status]));
         ui.horizontal(|ui| {
@@ -1698,7 +1717,7 @@ fn add_url(app: &mut DmApp, ctx: &egui::Context) {
     };
     let mut open = true;
     let (mut ok, mut cancel, mut forget) = (false, false, false);
-    window("Add URL").open(&mut open).show(ctx, |ui| {
+    window(ctx, "Add URL").open(&mut open).show(ctx, |ui| {
         // As wide as the window allows: at 200% text a fixed 420 ran the
         // dialog past the window's edge (UI round 1).
         let wide = (ctx.content_rect().width() - 160.0).clamp(200.0, 420.0);
@@ -1914,7 +1933,7 @@ fn file_info(app: &mut DmApp, ctx: &egui::Context) {
     // No wider than the window: a warning in it wraps rather than pushing
     // Start now off the edge (gap 133).
     let room = (ctx.content_rect().width() - 32.0).clamp(360.0, 600.0);
-    window("Download details")
+    window(ctx, "Download details")
         .max_width(room)
         .open(&mut open)
         .show(ctx, |ui| {
@@ -2707,7 +2726,7 @@ fn series(app: &mut DmApp, ctx: &egui::Context) {
     let mut add: Option<bool> = None;
     let before = (d.template.clone(), d.from.clone(), d.to.clone(), d.width);
     let mut cancel = false;
-    window("Add numbered series")
+    window(ctx, "Add numbered series")
         .open(&mut open)
         .show(ctx, |ui| {
             ui.label(t("An address with * where the number or letter goes:"));
@@ -2867,94 +2886,97 @@ fn links(app: &mut DmApp, ctx: &egui::Context) {
     let mut cancel = false;
     // Titled for either list the browser hands over: a page's every link,
     // or the links in what was selected on it.
-    window("Download links").open(&mut open).show(ctx, |ui| {
-        ui.label(tf(
-            "{} links on {}",
-            &[&d.items.len(), &format::shown_url(&d.page)],
-        ));
-        ui.horizontal(|ui| {
-            ui.checkbox(&mut d.hide_html, t("Hide HTML files"));
-            if ui.button(t("Check all")).clicked() {
-                d.items.iter_mut().for_each(|l| l.1 = true);
-            }
-            if ui.button(t("Uncheck all")).clicked() {
-                d.items.iter_mut().for_each(|l| l.1 = false);
-            }
-        });
-        let found = dm_core::lock(&d.found).clone();
-        for (url, on) in d.items.iter_mut() {
-            if found.get(url.as_str()).is_some_and(|f| f.failed.is_some())
-                && d.refused.insert(url.clone())
-            {
-                *on = false;
-            }
-        }
-        let hide = d.hide_html;
-        let html: Vec<bool> = d.items.iter().map(|(u, _)| d.is_html(u)).collect();
-        egui::ScrollArea::vertical()
-            .max_height(320.0)
-            .show(ui, |ui| {
-                egui::Grid::new("links")
-                    .num_columns(3)
-                    .striped(true)
-                    .show(ui, |ui| {
-                        ui.strong(t("File name"));
-                        ui.strong(t("Type"));
-                        ui.strong(t("Size"));
-                        ui.end_row();
-                        for ((url, on), is_html) in d.items.iter_mut().zip(html) {
-                            if hide && is_html {
-                                continue;
-                            }
-                            let what = found.get(url.as_str());
-                            let name = what
-                                .map(|f| f.name.clone())
-                                .filter(|n| !n.is_empty())
-                                .unwrap_or_else(|| format::provisional(url));
-                            let name = if d.listed.contains(&bare(url)) {
-                                tf("{} (already in the list)", &[&name])
-                            } else {
-                                name
-                            };
-                            // The name is the checkbox's, so a screen reader says it.
-                            ui.checkbox(on, &name).on_hover_text(format::shown_url(url));
-                            match what {
-                                Some(Found {
-                                    failed: Some(why), ..
-                                }) => {
-                                    let plain = format::reason(why).map(t).unwrap_or(why.as_str());
-                                    ui.colored_label(warn(ui), t("Error"))
-                                        .on_hover_text(format::titled(plain));
-                                }
-                                // The kind as the tree names it, in the
-                                // language in force.
-                                Some(f) => {
-                                    ui.label(crate::i18n::name(&format::titled(&f.kind)));
-                                }
-                                None => {
-                                    ui.label("…");
-                                }
-                            }
-                            let size = what
-                                .and_then(|f| f.size)
-                                .map(format::bytes)
-                                .unwrap_or_default();
-                            ui.label(crate::table::digits(ui, size));
-                            ui.end_row();
-                        }
-                    });
+    window(ctx, "Download links")
+        .open(&mut open)
+        .show(ctx, |ui| {
+            ui.label(tf(
+                "{} links on {}",
+                &[&d.items.len(), &format::shown_url(&d.page)],
+            ));
+            ui.horizontal(|ui| {
+                ui.checkbox(&mut d.hide_html, t("Hide HTML files"));
+                if ui.button(t("Check all")).clicked() {
+                    d.items.iter_mut().for_each(|l| l.1 = true);
+                }
+                if ui.button(t("Uncheck all")).clicked() {
+                    d.items.iter_mut().for_each(|l| l.1 = false);
+                }
             });
-        ui.separator();
-        ui.horizontal(|ui| {
-            if primary(ui, "Start now").clicked() || enter_free(ui) {
-                chosen = Some(false);
+            let found = dm_core::lock(&d.found).clone();
+            for (url, on) in d.items.iter_mut() {
+                if found.get(url.as_str()).is_some_and(|f| f.failed.is_some())
+                    && d.refused.insert(url.clone())
+                {
+                    *on = false;
+                }
             }
-            if ui.button(t("Add for later")).clicked() {
-                chosen = Some(true);
-            }
-            cancel = ui.button(t("Cancel")).clicked();
+            let hide = d.hide_html;
+            let html: Vec<bool> = d.items.iter().map(|(u, _)| d.is_html(u)).collect();
+            egui::ScrollArea::vertical()
+                .max_height(320.0)
+                .show(ui, |ui| {
+                    egui::Grid::new("links")
+                        .num_columns(3)
+                        .striped(true)
+                        .show(ui, |ui| {
+                            ui.strong(t("File name"));
+                            ui.strong(t("Type"));
+                            ui.strong(t("Size"));
+                            ui.end_row();
+                            for ((url, on), is_html) in d.items.iter_mut().zip(html) {
+                                if hide && is_html {
+                                    continue;
+                                }
+                                let what = found.get(url.as_str());
+                                let name = what
+                                    .map(|f| f.name.clone())
+                                    .filter(|n| !n.is_empty())
+                                    .unwrap_or_else(|| format::provisional(url));
+                                let name = if d.listed.contains(&bare(url)) {
+                                    tf("{} (already in the list)", &[&name])
+                                } else {
+                                    name
+                                };
+                                // The name is the checkbox's, so a screen reader says it.
+                                ui.checkbox(on, &name).on_hover_text(format::shown_url(url));
+                                match what {
+                                    Some(Found {
+                                        failed: Some(why), ..
+                                    }) => {
+                                        let plain =
+                                            format::reason(why).map(t).unwrap_or(why.as_str());
+                                        ui.colored_label(warn(ui), t("Error"))
+                                            .on_hover_text(format::titled(plain));
+                                    }
+                                    // The kind as the tree names it, in the
+                                    // language in force.
+                                    Some(f) => {
+                                        ui.label(crate::i18n::name(&format::titled(&f.kind)));
+                                    }
+                                    None => {
+                                        ui.label("…");
+                                    }
+                                }
+                                let size = what
+                                    .and_then(|f| f.size)
+                                    .map(format::bytes)
+                                    .unwrap_or_default();
+                                ui.label(crate::table::digits(ui, size));
+                                ui.end_row();
+                            }
+                        });
+                });
+            ui.separator();
+            ui.horizontal(|ui| {
+                if primary(ui, "Start now").clicked() || enter_free(ui) {
+                    chosen = Some(false);
+                }
+                if ui.button(t("Add for later")).clicked() {
+                    chosen = Some(true);
+                }
+                cancel = ui.button(t("Cancel")).clicked();
+            });
         });
-    });
     if let Some(later) = chosen {
         let chosen = d.chosen();
         let with = AddOptions {
@@ -3025,7 +3047,7 @@ fn clip_links(app: &mut DmApp, ctx: &egui::Context) {
     // Some(later): Start now, or Add for later.
     let mut add: Option<bool> = None;
     let mut cancel = false;
-    window("Links on the clipboard")
+    window(ctx, "Links on the clipboard")
         .open(&mut open)
         .show(ctx, |ui| {
             // How many were found, and how many are ticked (gap 168).
@@ -3100,69 +3122,71 @@ fn site_files(app: &mut DmApp, ctx: &egui::Context) {
     let mut run_saved: Option<dm_shell::lists::Search> = None;
     let mut delete_saved: Option<String> = None;
     let saved = app.applied.site_searches.clone();
-    window("Files on a site").open(&mut open).show(ctx, |ui| {
-        look |= entered(&focused(
-            field(ui, t("Start page"), &mut d.page, 420.0),
-            focus,
-        ));
-        field(ui, t("File types"), &mut d.types, 420.0);
-        ui.horizontal(|ui| {
-            let name = ui.label(t("Pages deep (0 for the start page only)"));
-            ui.add(number_box(&mut d.depth).range(0..=dm_shell::lists::MAX_DEPTH))
-                .labelled_by(name.id);
-        });
-        field(ui, t("Only paths containing"), &mut d.include, 420.0);
-        field(ui, t("Skip paths containing"), &mut d.exclude, 420.0);
-        // Saving and the saved list come before the results, which can
-        // run long enough to push anything below them off the screen.
-        // Wrapped: in the smallest window its Save search ran off the edge.
-        ui.horizontal_wrapped(|ui| {
-            field(ui, t("Save this search as"), &mut d.name, 160.0);
-            let name = ui.label(t("Run every, hours (0 only by hand)"));
-            ui.add(number_box(&mut d.every_hours).range(0..=24 * 31))
-                .labelled_by(name.id);
-            save = ui.button(t("Save search")).clicked();
-        });
-        if !d.says.is_empty() {
-            ui.colored_label(warn(ui), &d.says);
-        }
-        if !saved.is_empty() {
-            ui.label(t("Saved searches"));
-            for search in &saved {
-                ui.horizontal(|ui| {
-                    ui.label(format!("{} — {}", search.name, search.page));
-                    if ui.button(t("Run")).clicked() {
-                        run_saved = Some(search.clone());
-                    }
-                    if ui.button(t("Delete search")).clicked() {
-                        delete_saved = Some(search.name.clone());
-                    }
-                });
+    window(ctx, "Files on a site")
+        .open(&mut open)
+        .show(ctx, |ui| {
+            look |= entered(&focused(
+                field(ui, t("Start page"), &mut d.page, 420.0),
+                focus,
+            ));
+            field(ui, t("File types"), &mut d.types, 420.0);
+            ui.horizontal(|ui| {
+                let name = ui.label(t("Pages deep (0 for the start page only)"));
+                ui.add(number_box(&mut d.depth).range(0..=dm_shell::lists::MAX_DEPTH))
+                    .labelled_by(name.id);
+            });
+            field(ui, t("Only paths containing"), &mut d.include, 420.0);
+            field(ui, t("Skip paths containing"), &mut d.exclude, 420.0);
+            // Saving and the saved list come before the results, which can
+            // run long enough to push anything below them off the screen.
+            // Wrapped: in the smallest window its Save search ran off the edge.
+            ui.horizontal_wrapped(|ui| {
+                field(ui, t("Save this search as"), &mut d.name, 160.0);
+                let name = ui.label(t("Run every, hours (0 only by hand)"));
+                ui.add(number_box(&mut d.every_hours).range(0..=24 * 31))
+                    .labelled_by(name.id);
+                save = ui.button(t("Save search")).clicked();
+            });
+            if !d.says.is_empty() {
+                ui.colored_label(warn(ui), &d.says);
             }
-        }
-        ui.separator();
-        look |= ui.button(t("Find files")).clicked() || enter_free(ui);
-        let mut state = dm_core::lock(&d.state);
-        match &mut *state {
-            Grab::Idle => {}
-            Grab::Looking => {
-                ui.label(t("Reading the page…"));
-            }
-            Grab::Failed(e) => {
-                ui.colored_label(warn(ui), e.as_str());
-            }
-            Grab::Found(links, _) if links.is_empty() => {
-                ui.label(t("No files of those types are linked from that page."));
-            }
-            Grab::Found(links, pages) => {
-                ui.label(tf("{} files found on {} pages", &[&links.len(), pages]));
-                pick_list(ui, links, &listed);
-                if ui.button(t("Add for later")).clicked() {
-                    add = Some(links.iter().filter(|l| l.1).map(|l| l.0.clone()).collect());
+            if !saved.is_empty() {
+                ui.label(t("Saved searches"));
+                for search in &saved {
+                    ui.horizontal(|ui| {
+                        ui.label(format!("{} — {}", search.name, search.page));
+                        if ui.button(t("Run")).clicked() {
+                            run_saved = Some(search.clone());
+                        }
+                        if ui.button(t("Delete search")).clicked() {
+                            delete_saved = Some(search.name.clone());
+                        }
+                    });
                 }
             }
-        }
-    });
+            ui.separator();
+            look |= ui.button(t("Find files")).clicked() || enter_free(ui);
+            let mut state = dm_core::lock(&d.state);
+            match &mut *state {
+                Grab::Idle => {}
+                Grab::Looking => {
+                    ui.label(t("Reading the page…"));
+                }
+                Grab::Failed(e) => {
+                    ui.colored_label(warn(ui), e.as_str());
+                }
+                Grab::Found(links, _) if links.is_empty() => {
+                    ui.label(t("No files of those types are linked from that page."));
+                }
+                Grab::Found(links, pages) => {
+                    ui.label(tf("{} files found on {} pages", &[&links.len(), pages]));
+                    pick_list(ui, links, &listed);
+                    if ui.button(t("Add for later")).clicked() {
+                        add = Some(links.iter().filter(|l| l.1).map(|l| l.0.clone()).collect());
+                    }
+                }
+            }
+        });
     if look {
         let search = d.search();
         let state = Arc::clone(&d.state);
@@ -3248,7 +3272,7 @@ fn update_link(app: &mut DmApp, ctx: &egui::Context) {
     let mut open = true;
     let mut ok = false;
     let mut cancel = false;
-    window("Update download link")
+    window(ctx, "Update download link")
         .open(&mut open)
         .show(ctx, |ui| {
             ui.label(t("The download's link has expired? Paste a fresh one:"));
@@ -3288,20 +3312,22 @@ fn move_to_queue(app: &mut DmApp, ctx: &egui::Context) {
     // The queue is held as shown, so the field reads in the language in
     // force, and taken back to dm's own name on OK: typing "Principal" in
     // Spanish is the Main queue, not a new one beside it.
-    window("Move to queue").open(&mut open).show(ctx, |ui| {
-        for q in &known {
-            let shown = crate::i18n::name(q);
-            ui.radio_value(queue, shown.clone(), shown);
-        }
-        ok = entered(&focused(
-            field(ui, t("Or a new queue"), queue, 240.0),
-            focus,
-        ));
-        ui.horizontal(|ui| {
-            ok |= primary(ui, "OK").clicked() || enter_free(ui);
-            cancel = ui.button(t("Cancel")).clicked();
+    window(ctx, "Move to queue")
+        .open(&mut open)
+        .show(ctx, |ui| {
+            for q in &known {
+                let shown = crate::i18n::name(q);
+                ui.radio_value(queue, shown.clone(), shown);
+            }
+            ok = entered(&focused(
+                field(ui, t("Or a new queue"), queue, 240.0),
+                focus,
+            ));
+            ui.horizontal(|ui| {
+                ok |= primary(ui, "OK").clicked() || enter_free(ui);
+                cancel = ui.button(t("Cancel")).clicked();
+            });
         });
-    });
     open &= !cancel;
     if ok && open && !queue.trim().is_empty() {
         let named = crate::i18n::queue_named(queue);
@@ -3324,7 +3350,7 @@ fn rename(app: &mut DmApp, ctx: &egui::Context) {
     let mut open = true;
     let mut ok = false;
     let mut cancel = false;
-    window("Move/Rename").open(&mut open).show(ctx, |ui| {
+    window(ctx, "Move/Rename").open(&mut open).show(ctx, |ui| {
         // A new name for one; for several, only where they go.
         if d.ids.len() == 1 {
             ok = entered(&focused(
@@ -3417,7 +3443,7 @@ fn find(app: &mut DmApp, ctx: &egui::Context) {
         .memory(|m| m.area_rect(window_id("Find")))
         .map(|r| r.size())
         .unwrap_or(egui::vec2(440.0, 170.0));
-    let mut place = window("Find");
+    let mut place = window(ctx, "Find");
     if let Some(row) = found {
         let middle = egui::Rect::from_center_size(screen.center(), size);
         if middle.expand(4.0).intersects(row) {
@@ -3459,7 +3485,7 @@ fn scheduler(app: &mut DmApp, ctx: &egui::Context) {
     let mut open = true;
     let mut apply = false;
     let mut cancel = false;
-    window("Scheduler").open(&mut open).show(ctx, |ui| {
+    window(ctx, "Scheduler").open(&mut open).show(ctx, |ui| {
         ui.label(tf(
             "When {} and every other download may run.",
             &[&crate::i18n::name(MAIN_QUEUE)],
@@ -3530,46 +3556,48 @@ fn limiter(app: &mut DmApp, ctx: &egui::Context) {
     let mut open = true;
     let mut apply = false;
     let mut cancel = false;
-    window("Speed limiter").open(&mut open).show(ctx, |ui| {
-        ui.horizontal(|ui| {
-            let name = ui.label(t("Maximum, KB/s across every download (0 for none)"));
-            // The limit takes the keyboard as the dialog opens, and Enter
-            // in it applies, as in any other dialog's field.
-            let field = focused(
-                ui.add(number_box(limit).range(0..=1024 * 1024))
-                    .labelled_by(name.id),
-                focus,
-            );
-            select_on_focus(ui, &field, &limit.to_string());
-            apply |= entered(&field);
+    window(ctx, "Speed limiter")
+        .open(&mut open)
+        .show(ctx, |ui| {
+            ui.horizontal(|ui| {
+                let name = ui.label(t("Maximum, KB/s across every download (0 for none)"));
+                // The limit takes the keyboard as the dialog opens, and Enter
+                // in it applies, as in any other dialog's field.
+                let field = focused(
+                    ui.add(number_box(limit).range(0..=1024 * 1024))
+                        .labelled_by(name.id),
+                    focus,
+                );
+                select_on_focus(ui, &field, &limit.to_string());
+                apply |= entered(&field);
+            });
+            ui.add_space(8.0);
+            // Download limits, for a link with a fair-use
+            // allowance: downloads are held once it is used and go on after.
+            ui.horizontal(|ui| {
+                let name = ui.label(t("Download at most this many MB (0 for no limit)"));
+                let mb_field = ui
+                    .add(number_box(mb).range(0..=1024 * 1024 * 1024))
+                    .labelled_by(name.id);
+                select_on_focus(ui, &mb_field, &mb.to_string());
+                apply |= entered(&mb_field);
+            });
+            ui.horizontal(|ui| {
+                let name = ui.label(t("in each period of this many hours"));
+                let hours_field = ui
+                    .add(number_box(hours).range(1..=24 * 31))
+                    .labelled_by(name.id);
+                select_on_focus(ui, &hours_field, &hours.to_string());
+                apply |= entered(&hours_field);
+            });
+            if !says.is_empty() {
+                ui.colored_label(warn(ui), says.as_str());
+            }
+            ui.horizontal(|ui| {
+                apply |= primary(ui, "Apply").clicked() || enter_free(ui);
+                cancel = ui.button(t("Cancel")).clicked();
+            });
         });
-        ui.add_space(8.0);
-        // Download limits, for a link with a fair-use
-        // allowance: downloads are held once it is used and go on after.
-        ui.horizontal(|ui| {
-            let name = ui.label(t("Download at most this many MB (0 for no limit)"));
-            let mb_field = ui
-                .add(number_box(mb).range(0..=1024 * 1024 * 1024))
-                .labelled_by(name.id);
-            select_on_focus(ui, &mb_field, &mb.to_string());
-            apply |= entered(&mb_field);
-        });
-        ui.horizontal(|ui| {
-            let name = ui.label(t("in each period of this many hours"));
-            let hours_field = ui
-                .add(number_box(hours).range(1..=24 * 31))
-                .labelled_by(name.id);
-            select_on_focus(ui, &hours_field, &hours.to_string());
-            apply |= entered(&hours_field);
-        });
-        if !says.is_empty() {
-            ui.colored_label(warn(ui), says.as_str());
-        }
-        ui.horizontal(|ui| {
-            apply |= primary(ui, "Apply").clicked() || enter_free(ui);
-            cancel = ui.button(t("Cancel")).clicked();
-        });
-    });
     open &= !cancel;
     if apply && open {
         let mut wanted = app.applied.clone();
@@ -3633,7 +3661,9 @@ fn options(app: &mut DmApp, ctx: &egui::Context) {
     // No wider than the window: at 200% text in a 960-point window the
     // tabs, the title and OK were off its edges (UI round 3).
     let wide = (ctx.content_rect().width() - 32.0).clamp(320.0, 660.0);
-    window("Options")
+    window(ctx, "Options")
+        // Its body scrolls itself, between the tabs and the buttons.
+        .vscroll(false)
         .fixed_size(egui::vec2(wide, tall - 60.0))
         .open(&mut open)
         .show(ctx, |ui| {
@@ -3650,10 +3680,25 @@ fn options(app: &mut DmApp, ctx: &egui::Context) {
                 });
             });
         ui.separator();
-        // Room kept below for the buttons, and for a warning only when there
-        // is one: a fixed 80 left two settings showing at 720×460 (UI round 4).
-        let below = 44.0 + if d.says.is_empty() { 0.0 } else { 32.0 };
-        let body = (ui.available_height() - below).max(120.0);
+        // The buttons first, from the window's foot up, with a warning
+        // over them only when there is one; the tab's body takes exactly
+        // the room left. A fixed 80 kept for them left two settings showing
+        // at 720×460 (UI round 4); a guess left a band under the body, and
+        // a measured one lagged a frame behind a warning (UI round 5).
+        let top = ui.cursor().top();
+        ui.with_layout(egui::Layout::bottom_up(egui::Align::Min), |ui| {
+        ui.horizontal_wrapped(|ui| {
+            ok = primary(ui, "OK").clicked() || enter_free(ui);
+            cancel = ui.button(t("Cancel")).clicked();
+        });
+        ui.separator();
+        if !d.says.is_empty() {
+            ui.add(egui::Label::new(RichText::new(&d.says).color(warn(ui))).wrap());
+        }
+        // What is left between the tabs and the buttons, however little: a
+        // floor drew the body over the buttons at 200% text (UI round 5).
+        let body = (ui.cursor().bottom() - ui.spacing().item_spacing.y - top).max(24.0);
+        ui.with_layout(egui::Layout::top_down(egui::Align::Min), |ui| {
         // A bar that is always drawn where a tab is longer than the room,
         // rather than one that shows only under the pointer: at 960 px
         // General's last line was cut off with no sign of more (gap 148).
@@ -3663,6 +3708,7 @@ fn options(app: &mut DmApp, ctx: &egui::Context) {
             // or Downloads part-way down (UI round 2).
             .id_salt(("options-tab", d.tab))
             .max_height(body)
+            .min_scrolled_height(body)
             .auto_shrink([false, false])
             .show(ui, |ui| {
         let s = &mut d.draft;
@@ -3676,7 +3722,7 @@ fn options(app: &mut DmApp, ctx: &egui::Context) {
         };
         match d.tab {
             Tab::General => {
-                ui.horizontal(|ui| {
+                ui.horizontal_wrapped(|ui| {
                     let now = crate::i18n::chosen(&s.language);
                     // Named by its label, so a screen reader says what it is.
                     egui::ComboBox::from_label(t("Language"))
@@ -3721,7 +3767,7 @@ fn options(app: &mut DmApp, ctx: &egui::Context) {
                 // Settings to carry to another computer, never with a
                 // password; read back in, they wait here for OK.
                 section(ui, t("Settings file"));
-                ui.horizontal(|ui| {
+                ui.horizontal_wrapped(|ui| {
                     // Without a file chooser, the download folder's
                     // dm-settings.json, said where: the words asked for a
                     // path with nowhere to type one (round 17).
@@ -3767,10 +3813,10 @@ fn options(app: &mut DmApp, ctx: &egui::Context) {
                 ui.checkbox(&mut c.enabled, t("Take downloads of these types from the browser"));
                 ui.add_enabled_ui(c.enabled, |ui| {
                     let name = ui.label(t("File types"));
-                    ui.add(egui::TextEdit::multiline(&mut d.types).desired_rows(3).desired_width(480.0))
+                    ui.add(egui::TextEdit::multiline(&mut d.types).desired_rows(3).desired_width(ui.available_width().min(480.0)))
                         .labelled_by(name.id);
                     ui.label(RichText::new(t("Without dots, separated by spaces. Empty takes every type.")).small().weak());
-                    ui.horizontal(|ui| {
+                    ui.horizontal_wrapped(|ui| {
                         let name = ui.label(t("Leave files smaller than, KB (0 for none)"));
                         ui.add(number_box(&mut c.min_size_kb).range(0..=1024 * 1024)).labelled_by(name.id);
                     });
@@ -3785,7 +3831,7 @@ fn options(app: &mut DmApp, ctx: &egui::Context) {
                         .map(|(_, w)| w.trim_start_matches("key:").to_string())
                         .unwrap_or_else(|| t("None").to_string())
                 };
-                ui.horizontal(|ui| {
+                ui.horizontal_wrapped(|ui| {
                     let name = ui.label(t("Hold while clicking to leave it with the browser"));
                     egui::ComboBox::from_id_salt("keep-key")
                         .selected_text(word(&c.keep_key))
@@ -3797,7 +3843,7 @@ fn options(app: &mut DmApp, ctx: &egui::Context) {
                         .response
                         .labelled_by(name.id);
                 });
-                ui.horizontal(|ui| {
+                ui.horizontal_wrapped(|ui| {
                     let name = ui.label(t("Hold while clicking to send it to dm whatever its type or size"));
                     egui::ComboBox::from_id_salt("take-key")
                         .selected_text(word(&c.take_key))
@@ -3827,8 +3873,10 @@ fn options(app: &mut DmApp, ctx: &egui::Context) {
                 ui.checkbox(&mut s.categorize, t("Sort finished files into folders by kind"));
                 ui.add_enabled_ui(s.categorize, |ui| {
                     // Two kinds a row: seven rows pushed the categories
-                    // below out of sight.
-                    egui::Grid::new("folders").num_columns(4).spacing([12.0, 6.0]).show(ui, |ui| {
+                    // below out of sight. One where two do not fit: at 200%
+                    // text they pushed Options off the window (UI round 5).
+                    let per_row = if ui.available_width() >= 600.0 { 2 } else { 1 };
+                    egui::Grid::new("folders").num_columns(2 * per_row).spacing([12.0, 6.0]).show(ui, |ui| {
                         for (i, c) in Category::ALL.iter().enumerate() {
                             let name = ui.label(format::titled(&category_word(*c)));
                             if let Some(folder) = s.category_folders.get_mut(i) {
@@ -3849,7 +3897,7 @@ fn options(app: &mut DmApp, ctx: &egui::Context) {
                                 ui.add_sized(size, egui::TextEdit::singleline(folder))
                                     .labelled_by(name.id);
                             }
-                            if i % 2 == 1 {
+                            if i % per_row == per_row - 1 {
                                 ui.end_row();
                             }
                         }
@@ -3859,7 +3907,7 @@ fn options(app: &mut DmApp, ctx: &egui::Context) {
                     let mut remove = None;
                     let count = d.custom.len();
                     for (i, [name, types, sites]) in d.custom.iter_mut().enumerate() {
-                        ui.horizontal(|ui| {
+                        ui.horizontal_wrapped(|ui| {
                             first(field(ui, t("Category"), name, 110.0), i + 1 == count);
                             field(ui, t("Types"), types, 150.0);
                             field(ui, t("Sites"), sites, 150.0);
@@ -3902,7 +3950,7 @@ fn options(app: &mut DmApp, ctx: &egui::Context) {
                 ui.label(t("Queues that run fewer files at once than the number above:"));
                 let mut remove = None;
                 for (i, limit) in s.queue_limits.iter_mut().enumerate() {
-                    ui.horizontal(|ui| {
+                    ui.horizontal_wrapped(|ui| {
                         // Chosen from the queues there are, shown in the
                         // language in force and kept by dm's own name: a
                         // typed name had to be the English one to match.
@@ -3931,7 +3979,7 @@ fn options(app: &mut DmApp, ctx: &egui::Context) {
                 if ui.button(t("Add a queue limit")).clicked() {
                     s.queue_limits.push(dm_shell::settings::QueueLimit { queue: dm_core::MAIN_QUEUE.into(), files: 1 });
                 }
-                ui.horizontal(|ui| {
+                ui.horizontal_wrapped(|ui| {
                     let name = ui.label(t("Ask the Recheck queue's servers for changes every, hours (0 only when asked)"));
                     ui.add(number_box(&mut s.recheck_hours).range(0..=24 * 31)).labelled_by(name.id);
                 });
@@ -3940,19 +3988,19 @@ fn options(app: &mut DmApp, ctx: &egui::Context) {
                 field(ui, t("Command"), &mut s.on_complete, 320.0);
             }
             Tab::Connection => {
-                ui.horizontal(|ui| {
+                ui.horizontal_wrapped(|ui| {
                     let name = ui.label(t("Speed limit, KB/s (0 for none)"));
                     ui.add(number_box(&mut s.speed_limit).range(0..=1024 * 1024)).labelled_by(name.id);
                 });
-                ui.horizontal(|ui| {
+                ui.horizontal_wrapped(|ui| {
                     let name = ui.label(t("Attempts per connection (0 to keep trying)"));
                     ui.add(number_box(&mut s.attempts).range(0..=100)).labelled_by(name.id);
                 });
-                ui.horizontal(|ui| {
+                ui.horizontal_wrapped(|ui| {
                     let name = ui.label(t("Seconds between attempts (0 lets dm choose)"));
                     ui.add(number_box(&mut s.retry_wait).range(0..=3600)).labelled_by(name.id);
                 });
-                ui.horizontal(|ui| {
+                ui.horizontal_wrapped(|ui| {
                     let name = ui.label(t("Give up on a connection that sends nothing for, seconds"));
                     ui.add(number_box(&mut s.read_timeout).range(5..=600)).labelled_by(name.id);
                 });
@@ -3961,7 +4009,7 @@ fn options(app: &mut DmApp, ctx: &egui::Context) {
                 let mut remove = None;
                 let count = s.host_limits.len();
                 for (i, limit) in s.host_limits.iter_mut().enumerate() {
-                    ui.horizontal(|ui| {
+                    ui.horizontal_wrapped(|ui| {
                         first(field(ui, t("Site"), &mut limit.host, 200.0), i + 1 == count);
                         let name = ui.label(t("Connections"));
                         ui.add(number_box(&mut limit.connections).range(1..=32)).labelled_by(name.id);
@@ -3979,7 +4027,7 @@ fn options(app: &mut DmApp, ctx: &egui::Context) {
                 }
                 ui.add_space(8.0);
                 ui.label(t("For downloads that need you signed in: a cookies.txt exported from your browser."));
-                ui.horizontal(|ui| {
+                ui.horizontal_wrapped(|ui| {
                     field(ui, t("Cookies file"), &mut s.cookies_file, 260.0);
                     if ui.button(t("Choose…")).clicked() {
                         if let Some(file) = rfd::FileDialog::new()
@@ -4012,13 +4060,13 @@ fn options(app: &mut DmApp, ctx: &egui::Context) {
                         });
                     ui.add_enabled_ui(p.kind != Kind::System, |ui| {
                         field(ui, t("Host"), &mut p.host, 260.0);
-                        ui.horizontal(|ui| {
+                        ui.horizontal_wrapped(|ui| {
                             let name = ui.label(t("Port"));
                             ui.add(number_box(&mut p.port).range(1..=65535)).labelled_by(name.id);
                         });
                         field(ui, t("Username, if it needs one"), &mut p.username, 200.0);
                         let name = ui.label(t("Password"));
-                        ui.add(egui::TextEdit::singleline(&mut p.password).password(true).desired_width(200.0)).labelled_by(name.id);
+                        ui.add(egui::TextEdit::singleline(&mut p.password).password(true).desired_width(ui.available_width().min(200.0))).labelled_by(name.id);
                         field(ui, t("Not for these sites (fetched directly)"), &mut d.bypass, 260.0);
                     });
                     ui.label(RichText::new(t("Every download of dm's own, yt-dlp and a torrent's SOCKS5 connections go through it; FTP through SOCKS or HTTP CONNECT.")).small().weak());
@@ -4030,11 +4078,11 @@ fn options(app: &mut DmApp, ctx: &egui::Context) {
                 let mut remove = None;
                 let count = s.site_logins.len();
                 for (i, login) in s.site_logins.iter_mut().enumerate() {
-                    ui.horizontal(|ui| {
+                    ui.horizontal_wrapped(|ui| {
                         first(field(ui, t("Host"), &mut login.host, 150.0), i + 1 == count);
                         field(ui, t("User"), &mut login.username, 110.0);
                         let name = ui.label(t("Password"));
-                        ui.add(egui::TextEdit::singleline(&mut login.password).password(true).desired_width(110.0)).labelled_by(name.id);
+                        ui.add(egui::TextEdit::singleline(&mut login.password).password(true).desired_width(ui.available_width().min(110.0))).labelled_by(name.id);
                         if ui.button(t("Delete")).clicked() {
                             remove = Some(i);
                         }
@@ -4051,11 +4099,7 @@ fn options(app: &mut DmApp, ctx: &egui::Context) {
             }
         }
             });
-        warning_line(ui, &d.says);
-        ui.separator();
-        ui.horizontal(|ui| {
-            ok = primary(ui, "OK").clicked() || enter_free(ui);
-            cancel = ui.button(t("Cancel")).clicked();
+        });
         });
     });
     if cancel || !open {
@@ -4173,7 +4217,7 @@ fn countdown(app: &mut DmApp, ctx: &egui::Context) {
         .as_secs();
     let mut cancel = false;
     let mut now = false;
-    window("Downloads are done").show(ctx, |ui| {
+    window(ctx, "Downloads are done").show(ctx, |ui| {
         ui.label(tf("dm will {} in {} seconds.", &[&t(action.verb()), &left]));
         ui.horizontal(|ui| {
             now = ui.button(t("Now")).clicked();
@@ -4194,7 +4238,7 @@ fn about(app: &mut DmApp, ctx: &egui::Context) {
         return;
     }
     let mut open = true;
-    window("About dm").open(&mut open).show(ctx, |ui| {
+    window(ctx, "About dm").open(&mut open).show(ctx, |ui| {
         ui.heading("dm");
         ui.label(tf("Version {}", &[&env!("CARGO_PKG_VERSION")]));
         ui.label(t("A free download manager, written in Rust."));

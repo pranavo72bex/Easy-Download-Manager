@@ -22,7 +22,7 @@ fn wanted() -> BTreeSet<String> {
             "t(",
             "tf(",
             "words(",
-            "window(",
+            "window(ctx,",
             "Said::new(",
             "Said::naming(",
             "primary(ui,",

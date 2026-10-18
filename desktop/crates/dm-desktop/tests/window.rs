@@ -6955,3 +6955,148 @@ fn a_row_is_dragged_to_another_place_in_the_queue() {
     assert_eq!(order(&harness), ["x.bin", "file.zip", "other.pdf"]);
     assert!(harness.state().reordering.is_none());
 }
+
+/// UI round 5: at 200% text every tab of Options stays inside the window
+/// and the dialog does not move from one tab to the next; Browser's long
+/// rows pushed it off the window's left edge, OK past the right.
+#[test]
+fn every_options_tab_stays_put_inside_the_window_at_large_text() {
+    use dm_desktop::dialogs::TABS;
+    use egui_kittest::kittest::By;
+    for (zoom, size) in [
+        (2.0, egui::vec2(960.0, 660.0)),
+        (1.5, egui::vec2(720.0, 460.0)),
+    ] {
+        let world = world();
+        let mut harness = Harness::builder()
+            .with_size(size)
+            .build_ui_state(|ui, app: &mut DmApp| app.ui(ui), world.app());
+        harness.ctx.set_zoom_factor(zoom);
+        harness.run_steps(3);
+        harness.state_mut().run(Command::Options);
+        harness.run_steps(6);
+        let points = size / zoom;
+        let ok_at = |h: &Harness<'_, DmApp>| {
+            h.get_by_role_and_label(egui::accesskit::Role::Button, "OK")
+                .rect()
+        };
+        let first = ok_at(&harness);
+        for (tab, label) in TABS {
+            if let Some(d) = harness.state_mut().dialogs.options.as_mut() {
+                d.tab = tab;
+                // A row in each list, so the widest rows are there.
+                d.draft.queue_limits.push(Default::default());
+                d.draft.host_limits.push(dm_core::HostLimit {
+                    host: String::new(),
+                    connections: 1,
+                });
+                d.draft.site_logins.push(Default::default());
+            }
+            harness.run_steps(6);
+            let ok = ok_at(&harness);
+            assert!(
+                (ok.center() - first.center()).length() < 1.0,
+                "{zoom}x {size:?}: OK moved from {first:?} to {ok:?} on {label}"
+            );
+            // Options' own: a node with the dialog among its ancestors.
+            let in_options = |n: &egui_kittest::kittest::AccessKitNode<'_>| {
+                let mut up = n.parent();
+                while let Some(p) = up {
+                    if p.label().as_deref() == Some("Options") {
+                        // The tabs scroll sideways by design.
+                        let tab = TABS.iter().any(|(_, l)| n.label().as_deref() == Some(*l));
+                        // A field's text runs on inside it, clipped there.
+                        let inside_a_field = n.role() == egui::accesskit::Role::TextRun;
+                        return n.bounding_box().is_some() && !tab && !inside_a_field;
+                    }
+                    up = p.parent();
+                }
+                false
+            };
+            let mut seen = 0;
+            for node in harness.query_all(By::new().predicate(in_options)) {
+                seen += 1;
+                let at = node.rect();
+                // Cut by a scroll area is fine; drawn past the window is not.
+                assert!(
+                    at.left() >= -0.5 && at.right() <= points.x + 0.5,
+                    "{zoom}x {size:?}: on {label}, {:?} {:?} (in {:?}) at {at:?} runs past the window",
+                    node.accesskit_node().role(),
+                    node.accesskit_node().label(),
+                    node.accesskit_node().parent().map(|p| (p.role(), p.label()))
+                );
+            }
+            assert!(seen > 5, "{label}: Options' own controls were not found");
+        }
+    }
+}
+
+/// UI round 5: at 150% and 200% text in the smallest window, a dialog
+/// keeps its title on screen and scrolls what does not fit; Files on a
+/// site ran off the top and bottom, and every dialog was at least 440
+/// points wide.
+#[test]
+fn every_dialog_keeps_its_title_and_buttons_on_screen_at_large_text() {
+    use egui::accesskit::Role;
+    for (zoom, size) in [
+        (1.5, egui::vec2(720.0, 460.0)),
+        (2.0, egui::vec2(960.0, 660.0)),
+    ] {
+        for (command, title, button) in [
+            (Command::SiteFiles, "Files on a site", "Find files"),
+            (Command::AddUrl, "Add URL", "OK"),
+            (Command::AddSeries, "Add numbered series", "Cancel"),
+            (Command::Scheduler, "Scheduler", "Cancel"),
+            (Command::SpeedLimiterSettings, "Speed limiter", "Cancel"),
+            (Command::About, "About dm", "Check for updates"),
+        ] {
+            let world = world();
+            let mut harness = Harness::builder()
+                .with_size(size)
+                .build_ui_state(|ui, app: &mut DmApp| app.ui(ui), world.app());
+            harness.ctx.set_zoom_factor(zoom);
+            harness.run_steps(3);
+            harness.state_mut().run(command);
+            harness.run_steps(8);
+            let points = size / zoom;
+            let inside = |at: egui::Rect| {
+                at.left() >= -0.5
+                    && at.right() <= points.x + 0.5
+                    && at.top() >= -0.5
+                    && at.bottom() <= points.y + 0.5
+            };
+            let heading = harness
+                .query_all_by_label(title)
+                .map(|n| n.rect())
+                .find(|at| at.height() > 0.0)
+                .unwrap_or_else(|| panic!("{zoom}x: {title} did not open"));
+            assert!(
+                inside(heading),
+                "{zoom}x {size:?}: {title}'s title at {heading:?}"
+            );
+            // Its buttons on screen, or brought there by scrolling its body
+            // with the wheel; never past the window's edge out of reach.
+            harness.hover_at(heading.center() + egui::vec2(0.0, 60.0));
+            for _ in 0..10 {
+                harness.event(egui::Event::MouseWheel {
+                    unit: egui::MouseWheelUnit::Point,
+                    delta: egui::vec2(0.0, -200.0),
+                    phase: egui::TouchPhase::Move,
+                    source: egui::MouseWheelSource::Wheel,
+                    modifiers: egui::Modifiers::NONE,
+                });
+                harness.run_steps(1);
+            }
+            harness.run_steps(4);
+            let pressed: Vec<egui::Rect> = harness
+                .query_all_by_role_and_label(Role::Button, button)
+                .map(|n| n.rect())
+                .collect();
+            assert!(!pressed.is_empty(), "{zoom}x: {title} has no {button}");
+            assert!(
+                pressed.iter().any(|at| inside(*at)),
+                "{zoom}x {size:?}: {title}'s {button} cannot be brought onto the window"
+            );
+        }
+    }
+}

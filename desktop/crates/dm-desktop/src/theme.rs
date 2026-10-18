@@ -688,10 +688,6 @@ pub fn apply(ctx: &Context, theme: Theme) {
         // a folder's path and a field's name showed the text cursor and
         // could be dragged over (UI round 1). Fields keep theirs.
         style.interaction.selectable_labels = false;
-        // Every scroll area's bar seen without the pointer, with its own
-        // room: Properties at 200% and the progress window at the smallest
-        // size cut their last fields off with no sign of more (UI round 4).
-        style.spacing.scroll = steady_scroll();
         // Type sizes: body 14, caption 12, and 18 for titles.
         style.text_styles = [
             (
@@ -713,6 +709,12 @@ pub fn apply(ctx: &Context, theme: Theme) {
         // From egui's own each time: Light's roomier spacing stayed when a
         // running dm went to Classic, which only leaves it alone.
         style.spacing = egui::style::Spacing::default();
+        // Every scroll area's bar seen without the pointer, with its own
+        // room: Properties at 200% and the progress window at the smallest
+        // size cut their last fields off with no sign of more (UI round 4).
+        // Set after the line above, which put egui's own back over it
+        // (UI round 5).
+        style.spacing.scroll = steady_scroll();
         if t.modern {
             style.spacing.button_padding = egui::vec2(12.0, 5.0);
             style.spacing.item_spacing = egui::vec2(8.0, 6.0);
@@ -880,6 +882,22 @@ mod tests {
         assert_eq!(now.item_spacing, fresh.item_spacing);
         assert_eq!(now.interact_size, fresh.interact_size);
         assert_eq!(now.window_margin, fresh.window_margin);
+        // Every look keeps dm's scroll bars, which egui's own spacing does
+        // not have (UI round 5: they were set, then reset).
+        for theme in [Theme::Light, Theme::Dark, Theme::Classic] {
+            apply(&ctx, theme);
+            let scroll = ctx.global_style().spacing.scroll;
+            assert_eq!(
+                scroll.floating_allocated_width,
+                steady_scroll().floating_allocated_width,
+                "{theme:?}"
+            );
+            assert_eq!(
+                scroll.dormant_handle_opacity,
+                steady_scroll().dormant_handle_opacity,
+                "{theme:?}"
+            );
+        }
     }
 
     /// Gap 48: sizes, speeds and times are drawn with digits of one width,
