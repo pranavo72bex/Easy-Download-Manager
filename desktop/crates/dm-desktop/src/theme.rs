@@ -53,8 +53,10 @@ impl Theme {
                 text2: hex(0x424242),
                 weak: hex(0x616161),
                 disabled: hex(0x8f8f8f),
-                selection: hex(0xebebeb),
-                selection_edge: hex(0xd1d1d1),
+                // Darker than hover, so the place hovered is not taken for
+                // the one chosen (UI round 2).
+                selection: hex(0xcfcfcf),
+                selection_edge: hex(0xb0b0b0),
                 selection_text: hex(0x242424),
                 row_selected: hex(0x0f6cbd),
                 row_selected_text: Color32::WHITE,
@@ -881,9 +883,12 @@ mod tests {
 pub fn steady_scroll() -> egui::style::ScrollStyle {
     egui::style::ScrollStyle {
         foreground_color: true,
-        dormant_background_opacity: 0.15,
-        dormant_handle_opacity: 0.45,
-        active_handle_opacity: 0.6,
+        // In the words' colour, but lighter: at 45% it read as a solid
+        // black or white bar (UI round 2); a quarter is a grey that still
+        // shows in every look, darker under the pointer.
+        dormant_background_opacity: 0.08,
+        dormant_handle_opacity: 0.25,
+        active_handle_opacity: 0.45,
         ..egui::style::ScrollStyle::solid()
     }
 }

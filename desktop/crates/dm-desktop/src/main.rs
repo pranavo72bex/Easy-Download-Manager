@@ -473,9 +473,12 @@ fn tray(wake: egui::Context, send: mpsc::Sender<Tray>) -> Result<TrayMade, Strin
         }
     }));
 
-    TrayIconBuilder::new()
-        .with_icon(icon)
-        .with_tooltip(tooltip)
+    let builder = TrayIconBuilder::new().with_icon(icon).with_tooltip(tooltip);
+    // A name for panels that list items by it (its D-Bus title was empty,
+    // UI round 2); on a Mac a title is text beside the icon, so not there.
+    #[cfg(target_os = "linux")]
+    let builder = builder.with_title("dm");
+    builder
         .with_menu(Box::new(menu))
         .with_menu_on_left_click(false)
         .build()

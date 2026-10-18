@@ -274,7 +274,7 @@ impl SiteFiles {
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum Tab {
     General,
     FileTypes,
@@ -388,6 +388,10 @@ pub struct Dialogs {
     /// Rows the schedule or the download limit holds that a person asked to
     /// start: asked whether to start them now, outside the schedule.
     pub confirm_outside: Option<Vec<Id>>,
+    /// The progress window's Cancel download, asked first: it threw away
+    /// what was fetched without a word, where every other Cancel closes a
+    /// dialog (UI round 2).
+    pub confirm_cancel: Option<Id>,
     /// An address typed in that is already a row: the address and the row.
     pub duplicate: Option<(String, Id)>,
     /// A list being imported that holds addresses already in the list:
@@ -605,6 +609,7 @@ impl Dialogs {
         self.confirm_exit
             || self.confirm_remove.is_some()
             || self.confirm_outside.is_some()
+            || self.confirm_cancel.is_some()
             || self.duplicate.is_some()
             || self.import_ask.is_some()
             || self.skip_offer.is_some()
@@ -629,6 +634,7 @@ impl Dialogs {
                 self.confirm_outside.is_some(),
                 "Start outside the schedule?",
             ),
+            (self.confirm_cancel.is_some(), "Cancel this download?"),
             (self.duplicate.is_some(), "Already in the list"),
             (self.import_ask.is_some(), "Some are already in the list"),
             (
@@ -723,6 +729,7 @@ impl Dialogs {
             self.confirm_outside.is_some(),
             "Start outside the schedule?",
         );
+        say(self.confirm_cancel.is_some(), "Cancel this download?");
         say(self.duplicate.is_some(), "Already in the list");
         say(self.import_ask.is_some(), "Some are already in the list");
         say(
@@ -763,6 +770,7 @@ impl Dialogs {
         if std::mem::take(&mut self.confirm_exit)
             || self.confirm_remove.take().is_some()
             || self.confirm_outside.take().is_some()
+            || self.confirm_cancel.take().is_some()
             || self.duplicate.take().is_some()
             || self.import_ask.take().is_some()
             || self.skip_offer.take().is_some()
@@ -1130,6 +1138,7 @@ pub fn show(app: &mut DmApp, ctx: &egui::Context) {
     links(app, ctx);
     confirm_remove(app, ctx);
     confirm_outside(app, ctx);
+    confirm_cancel(app, ctx);
     duplicate(app, ctx);
     import_ask(app, ctx);
     list_file(app, ctx);
@@ -1326,6 +1335,36 @@ fn confirm_remove(app: &mut DmApp, ctx: &egui::Context) {
 /// Asked when Resume is pressed on a download the schedule or the
 /// download limit holds: start it now anyway, for this one only, or let it
 /// wait.
+/// Asked before the progress window's Cancel download throws away what
+/// was fetched. Enter keeps the download.
+fn confirm_cancel(app: &mut DmApp, ctx: &egui::Context) {
+    let Some(id) = app.dialogs.confirm_cancel else {
+        return;
+    };
+    let Some(name) = app.row(id).map(name_of) else {
+        app.dialogs.confirm_cancel = None;
+        return;
+    };
+    let (mut cancel, mut keep) = (false, false);
+    window("Cancel this download?").show(ctx, |ui| {
+        ui.strong(&*crate::bidi::visual(&name));
+        ui.label(t("Cancelling it throws away what has been fetched."));
+        ui.horizontal(|ui| {
+            cancel = ui.button(t("Yes, cancel")).clicked();
+            keep = primary_worded(ui, t("Keep downloading")).clicked() || enter_free(ui);
+        });
+    });
+    if cancel {
+        app.dialogs.confirm_cancel = None;
+        app.backend.cancel(id);
+        app.dialogs.progress.remove(&id);
+        app.dialogs.progress_closed.insert(id);
+        app.refresh();
+    } else if keep {
+        app.dialogs.confirm_cancel = None;
+    }
+}
+
 fn confirm_outside(app: &mut DmApp, ctx: &egui::Context) {
     let Some(ids) = app.dialogs.confirm_outside.clone() else {
         return;
@@ -1663,9 +1702,11 @@ fn add_url(app: &mut DmApp, ctx: &egui::Context) {
         if !recent.is_empty() {
             ui.horizontal(|ui| {
                 let label = ui.label(t("Recent"));
+                // As wide as the address beside it allows: a fixed 320 with
+                // Clear history beside it ran past a narrow window.
                 egui::ComboBox::from_id_salt("add-url-recent")
                     .selected_text("")
-                    .width(320.0)
+                    .width((wide - 160.0).max(120.0))
                     .show_ui(ui, |ui| {
                         for url in &recent {
                             if ui.selectable_label(false, format::shown_url(url)).clicked() {
@@ -1715,7 +1756,12 @@ fn add_url(app: &mut DmApp, ctx: &egui::Context) {
     }
     let mut address = d.address.trim().to_string();
     if crate::app::looks_downloadable(&address).is_none() {
-        d.says = t("That is not a link dm can download.").into();
+        // Nothing typed is asked for, not called a bad link.
+        d.says = if address.is_empty() {
+            t("Type or paste the address of what to download.").into()
+        } else {
+            t("That is not a link dm can download.").into()
+        };
         // The address keeps the keyboard, to be put right: after the
         // warning, typing went nowhere (round 13).
         app.dialogs.focus_on("Add URL");
@@ -2283,7 +2329,7 @@ fn progress(app: &mut DmApp, ctx: &egui::Context) {
                     resume = ui.button(t("Resume")).clicked();
                 }
                 if !row.state.settled() {
-                    cancel = ui.button(t("Cancel")).clicked();
+                    cancel = ui.button(t("Cancel download")).clicked();
                 }
             });
         });
@@ -2302,9 +2348,9 @@ fn progress(app: &mut DmApp, ctx: &egui::Context) {
             }
         }
         if cancel {
-            app.backend.cancel(id);
+            app.dialogs.confirm_cancel = Some(id);
         }
-        if !open || cancel {
+        if !open {
             app.dialogs.progress.remove(&id);
             app.dialogs.progress_closed.insert(id);
         }
@@ -3573,7 +3619,9 @@ fn options(app: &mut DmApp, ctx: &egui::Context) {
         // General's last line was cut off with no sign of more (gap 148).
         ui.spacing_mut().scroll = crate::theme::steady_scroll();
         egui::ScrollArea::vertical()
-            .id_salt("options-tab")
+            // Each tab its own place: one shared position opened Browser
+            // or Downloads part-way down (UI round 2).
+            .id_salt(("options-tab", d.tab))
             .max_height(body)
             .auto_shrink([false, false])
             .show(ui, |ui| {
@@ -3687,6 +3735,7 @@ fn options(app: &mut DmApp, ctx: &egui::Context) {
                         ui.add(number_box(&mut c.min_size_kb).range(0..=1024 * 1024)).labelled_by(name.id);
                     });
                     field(ui, t("Never take downloads from these sites"), &mut d.skip, 480.0);
+                    ui.label(RichText::new(t("Sites such as example.com or *.example.com, separated by spaces; each covers its subdomains.")).small().weak());
                 });
                 // The keys a click on a link can be held with.
                 let keys = [("alt", t("Alt")), ("shift", t("key:Shift")), ("ctrl", t("Ctrl or Cmd"))];

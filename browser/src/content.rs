@@ -41,7 +41,7 @@ use crate::panel::{self, Act, Focus, Key, BODY, STYLE};
 const PANEL_SIZE: (f64, f64) = (240.0, 30.0);
 
 /// What ? says.
-const HELP: &str = "dm downloads this video with the dm app, where you choose its name and folder. Alt-click a link to keep a download in the browser.";
+const HELP: &str = "dm downloads this video with the dm app, where you choose its name and folder. A link clicked with the keep key held (Alt unless changed in dm's Options) stays in the browser.";
 
 struct Panel {
     host: HtmlElement,

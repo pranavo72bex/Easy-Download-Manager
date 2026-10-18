@@ -2554,6 +2554,43 @@ fn the_pointer_is_the_same_kind_over_the_same_kind_of_thing() {
     assert_eq!(over(&mut harness, check), CursorIcon::Default, "a checkbox");
 }
 
+/// The progress window's Cancel download asks first; Keep downloading
+/// (and Enter) leaves it running.
+#[test]
+fn cancel_download_in_the_progress_window_asks_first() {
+    let world = world();
+    let mut harness = world.harness();
+    harness
+        .state()
+        .backend()
+        .add(&world.url("stalled.bin"))
+        .unwrap();
+    until(&mut harness, "it to run", |app| {
+        app.rows().iter().any(|r| r.state == State::Running)
+    });
+    let id = harness.state().rows()[0].id;
+    harness.state_mut().dialogs.progress.insert(id);
+    harness.run_steps(3);
+    click(&mut harness, "Cancel download");
+    assert!(
+        harness.query_by_label("Cancel this download?").is_some(),
+        "nothing asked"
+    );
+    harness.key_press(egui::Key::Enter);
+    harness.run_steps(3);
+    harness.state_mut().refresh();
+    assert_ne!(
+        harness.state().rows()[0].state,
+        State::Cancelled,
+        "Enter cancelled it"
+    );
+    click(&mut harness, "Cancel download");
+    click(&mut harness, "Yes, cancel");
+    until(&mut harness, "it to be cancelled", |app| {
+        app.rows()[0].state == State::Cancelled
+    });
+}
+
 #[test]
 fn two_cancelled_hand_offs_from_a_site_offer_to_leave_it_to_the_browser() {
     let _file = SETTINGS_FILE.lock().unwrap_or_else(|e| e.into_inner());

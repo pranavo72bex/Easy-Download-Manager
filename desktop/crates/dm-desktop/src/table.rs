@@ -443,9 +443,22 @@ fn header_only(app: &mut DmApp, ui: &mut egui::Ui) {
         .id_salt("headings-sideways")
         .show(ui, |ui| {
             ui.horizontal(|ui| {
+                // Each heading in its column's own width, as over a list
+                // with rows: laid end to end, a number heading's right
+                // alignment took all the room left and the rest vanished
+                // (UI round 2).
+                let tall = ui.spacing().interact_size.y;
                 for column in app.column_order.clone() {
                     if !app.hidden_columns.contains(&column) {
-                        heading(app, ui, column);
+                        let wide = initial(column, true);
+                        ui.allocate_ui_with_layout(
+                            egui::vec2(wide, tall),
+                            egui::Layout::left_to_right(egui::Align::Center),
+                            |ui| {
+                                ui.set_min_width(wide);
+                                heading(app, ui, column);
+                            },
+                        );
                     }
                 }
             });

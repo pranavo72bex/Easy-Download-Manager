@@ -488,5 +488,11 @@
  "Read by the browser extension the next time it talks to dm: a download it catches, or its right-click menu. The right-click menu and the toolbar button hand anything over regardless.": "La extensión del navegador lo lee la próxima vez que habla con dm: una descarga que captura o su menú contextual. El menú contextual y el botón de la barra lo entregan todo igualmente.",
  "Drop a .url or .webloc file, or a text file of links, here. A link dragged straight from a browser cannot be dropped yet: use Add URL or the browser's right-click menu.": "Suelte aquí un archivo .url o .webloc, o un archivo de texto con enlaces. Un enlace arrastrado directamente desde el navegador aún no se puede soltar: use Añadir URL o el menú contextual del navegador.",
  "None": "Ninguna",
- "unit:.": ","
+ "unit:.": ",",
+ "Cancel this download?": "¿Cancelar esta descarga?",
+ "Cancelling it throws away what has been fetched.": "Cancelarla descarta lo ya descargado.",
+ "Cancel download": "Cancelar descarga",
+ "Yes, cancel": "Sí, cancelar",
+ "Sites such as example.com or *.example.com, separated by spaces; each covers its subdomains.": "Sitios como example.com o *.example.com, separados por espacios; cada uno incluye sus subdominios.",
+ "Type or paste the address of what to download.": "Escriba o pegue la dirección de lo que quiere descargar."
 }
