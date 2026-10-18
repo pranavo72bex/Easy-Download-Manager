@@ -323,7 +323,9 @@ def row_point(name):
     if not row or not row.get("rect") or not window:
         return None
     g, r = geometry(window), row["rect"]
-    return [g["X"] + int((r[0] + r[2]) / 2), g["Y"] + int((r[1] + r[3]) / 2)]
+    # On its name, where a person clicks: the row's middle is off the window
+    # when the columns run past it.
+    return [g["X"] + int(r[0] + min(80, (r[2] - r[0]) / 2)), g["Y"] + int((r[1] + r[3]) / 2)]
 
 
 # ------------------------------------------------------------ the page

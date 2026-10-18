@@ -205,7 +205,10 @@ def row_point(match):
             continue
         if match in (r.get("name"), r.get("url")) or tail and (r.get("name") == tail or tail in (r.get("url") or "")):
             a = r["rect"]
-            return (geo["X"] + int((a[0] + a[2]) / 2), geo["Y"] + int((a[1] + a[3]) / 2))
+            # On its name, near the row's left end, where a person clicks: the
+            # row's middle is off the window when the columns run past it.
+            x_at = a[0] + min(80, (a[2] - a[0]) / 2)
+            return (geo["X"] + int(x_at), geo["Y"] + int((a[1] + a[3]) / 2))
     return None
 
 
