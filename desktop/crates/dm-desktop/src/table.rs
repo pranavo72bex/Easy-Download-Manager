@@ -365,7 +365,8 @@ fn reorder(app: &mut DmApp, ui: &egui::Ui, clip: Option<egui::Rect>) {
                     egui::Id::unique("dm-reorder"),
                 ))
                 .with_clip_rect(clip.unwrap_or(rect));
-            painter.hline(rect.x_range(), y, egui::Stroke::new(2.0, tokens.progress()));
+            // Thick enough to be seen as the place it goes (UI round 6).
+            painter.hline(rect.x_range(), y, egui::Stroke::new(3.0, tokens.progress()));
         }
         return;
     }
@@ -419,10 +420,13 @@ pub fn name_width(columns: &[Column], room: f32, queue_empty: bool) -> f32 {
 fn initial(column: Column, queue_empty: bool) -> f32 {
     match column {
         Column::Name => 220.0,
-        Column::Queue if queue_empty => 60.0,
+        // Room for "Main queue": the width it starts with is the width it
+        // keeps when rows get a queue, and 60 read "Main q…" (UI round 6).
+        Column::Queue if queue_empty => 96.0,
         Column::Queue => 140.0,
         Column::Size => 76.0,
-        Column::Status => 168.0,
+        // "Waiting for Start queue" whole, with its shape (UI round 6).
+        Column::Status => 196.0,
         Column::TimeLeft => 88.0,
         Column::Rate => 92.0,
         Column::LastTry => 100.0,
@@ -436,7 +440,7 @@ fn width(column: Column, queue_empty: bool) -> Width {
         Column::Name => Width::initial(220.0).at_least(120.0).clip(true),
         Column::Queue => Width::initial(initial(Column::Queue, queue_empty)).clip(true),
         Column::Size => Width::initial(76.0),
-        Column::Status => Width::initial(168.0).clip(true),
+        Column::Status => Width::initial(initial(Column::Status, queue_empty)).clip(true),
         Column::TimeLeft => Width::initial(88.0),
         Column::Rate => Width::initial(92.0),
         Column::LastTry => Width::initial(100.0),
