@@ -886,6 +886,31 @@ fn bar(ui: &mut egui::Ui, fraction: f32, width: f32, words: &str) {
 
 /// A dialog's main action: the primary button, filled with the brand
 /// colour (the classic look draws it like any other).
+/// A number typed into a box, as a desktop's number fields are: not
+/// changed by dragging across it, with the text cursor over it. The drag
+/// to change, and the resize arrow that announced it, surprised people
+/// (UI round 1).
+pub(crate) struct NumberBox<'a>(egui::DragValue<'a>);
+
+pub(crate) fn number_box<Num: egui::emath::Numeric>(value: &mut Num) -> NumberBox<'_> {
+    NumberBox(egui::DragValue::new(value).speed(0.0))
+}
+
+impl NumberBox<'_> {
+    pub(crate) fn range<Num: egui::emath::Numeric>(
+        self,
+        range: std::ops::RangeInclusive<Num>,
+    ) -> Self {
+        NumberBox(self.0.range(range))
+    }
+}
+
+impl egui::Widget for NumberBox<'_> {
+    fn ui(self, ui: &mut egui::Ui) -> egui::Response {
+        ui.add(self.0).on_hover_cursor(egui::CursorIcon::Text)
+    }
+}
+
 /// A heading over a group of settings: a little room above, in the
 /// heading's weight, on the 4-point grid.
 fn section(ui: &mut egui::Ui, words: &str) {
@@ -1169,9 +1194,9 @@ fn confirm_remove(app: &mut DmApp, ctx: &egui::Context) {
         .collect();
     let (mut yes, mut no) = (false, false);
     let title = if unfinished && ids.len() == 1 {
-        t("Delete an unfinished download")
+        t("Remove an unfinished download")
     } else if unfinished {
-        t("Delete unfinished downloads")
+        t("Remove unfinished downloads")
     } else {
         t("Remove from the list")
     };
@@ -1192,10 +1217,10 @@ fn confirm_remove(app: &mut DmApp, ctx: &egui::Context) {
                     t("These downloads have not fetched anything yet. Delete them from the list?")
                 }
                 (true, 1) => t(
-                    "This download is not finished. Deleting it throws away what has been fetched.",
+                    "This download is not finished. Removing it throws away what has been fetched.",
                 ),
                 (true, _) => t(
-                    "Some of these are not finished. Deleting them throws away what has been fetched.",
+                    "Some of these are not finished. Removing them throws away what has been fetched.",
                 ),
                 // What the box below says happens to the files, said here
                 // too: the sentence promised the file stayed while the box
@@ -1220,10 +1245,10 @@ fn confirm_remove(app: &mut DmApp, ctx: &egui::Context) {
             // The buttons say what the sentence asked, in its number, and
             // Enter is the one that loses nothing (gap 149).
             let (go, keep) = match (unfinished, ids.len()) {
-                (true, 1) => (t("Yes, delete"), t("Keep it")),
-                (true, _) => (t("Yes, delete"), t("Keep them")),
-                (false, 1) => (t("Take it off"), t("Keep it")),
-                (false, _) => (t("Take them off"), t("Keep them")),
+                (true, 1) => (t("Yes, remove"), t("Keep it")),
+                (true, _) => (t("Yes, remove"), t("Keep them")),
+                (false, 1) => (t("Remove it"), t("Keep it")),
+                (false, _) => (t("Remove them"), t("Keep them")),
             };
             // A finished file can go with its row, if asked for; never by
             // default, and never by Enter (round 15's audit).
@@ -2230,7 +2255,7 @@ fn progress(app: &mut DmApp, ctx: &egui::Context) {
             // The buttons below what scrolls, always in view.
             ui.horizontal(|ui| {
                 if matches!(row.state, State::Running | State::Queued) {
-                    pause = ui.button(t("Pause")).clicked();
+                    pause = ui.button(t("Stop download")).clicked();
                 }
                 // A failed download is tried again, and the button says so.
                 if matches!(row.state, State::Failed(_)) {
@@ -2613,7 +2638,7 @@ fn series(app: &mut DmApp, ctx: &egui::Context) {
                 enter |= entered(&field(ui, t("From"), &mut d.from, 60.0));
                 enter |= entered(&field(ui, t("To"), &mut d.to, 60.0));
                 let name = ui.label(t("Wildcard size"));
-                ui.add(egui::DragValue::new(&mut d.width).range(0..=9))
+                ui.add(number_box(&mut d.width).range(0..=9))
                     .labelled_by(name.id);
             });
             // One line, its room kept whether or not it says anything, so
@@ -3002,7 +3027,7 @@ fn site_files(app: &mut DmApp, ctx: &egui::Context) {
         field(ui, t("File types"), &mut d.types, 420.0);
         ui.horizontal(|ui| {
             let name = ui.label(t("Pages deep (0 for the start page only)"));
-            ui.add(egui::DragValue::new(&mut d.depth).range(0..=dm_shell::lists::MAX_DEPTH))
+            ui.add(number_box(&mut d.depth).range(0..=dm_shell::lists::MAX_DEPTH))
                 .labelled_by(name.id);
         });
         field(ui, t("Only paths containing"), &mut d.include, 420.0);
@@ -3012,7 +3037,7 @@ fn site_files(app: &mut DmApp, ctx: &egui::Context) {
         ui.horizontal(|ui| {
             field(ui, t("Save this search as"), &mut d.name, 160.0);
             let name = ui.label(t("Run every, hours (0 only by hand)"));
-            ui.add(egui::DragValue::new(&mut d.every_hours).range(0..=24 * 31))
+            ui.add(number_box(&mut d.every_hours).range(0..=24 * 31))
                 .labelled_by(name.id);
             save = ui.button(t("Save search")).clicked();
         });
@@ -3416,7 +3441,7 @@ fn limiter(app: &mut DmApp, ctx: &egui::Context) {
             // The limit takes the keyboard as the dialog opens, and Enter
             // in it applies, as in any other dialog's field.
             let field = focused(
-                ui.add(egui::DragValue::new(limit).range(0..=1024 * 1024).speed(16))
+                ui.add(number_box(limit).range(0..=1024 * 1024))
                     .labelled_by(name.id),
                 focus,
             );
@@ -3429,11 +3454,7 @@ fn limiter(app: &mut DmApp, ctx: &egui::Context) {
         ui.horizontal(|ui| {
             let name = ui.label(t("Download at most this many MB (0 for no limit)"));
             let mb_field = ui
-                .add(
-                    egui::DragValue::new(mb)
-                        .range(0..=1024 * 1024 * 1024)
-                        .speed(16),
-                )
+                .add(number_box(mb).range(0..=1024 * 1024 * 1024))
                 .labelled_by(name.id);
             select_on_focus(ui, &mb_field, &mb.to_string());
             apply |= entered(&mb_field);
@@ -3441,7 +3462,7 @@ fn limiter(app: &mut DmApp, ctx: &egui::Context) {
         ui.horizontal(|ui| {
             let name = ui.label(t("in each period of this many hours"));
             let hours_field = ui
-                .add(egui::DragValue::new(hours).range(1..=24 * 31))
+                .add(number_box(hours).range(1..=24 * 31))
                 .labelled_by(name.id);
             select_on_focus(ui, &hours_field, &hours.to_string());
             apply |= entered(&hours_field);
@@ -3630,7 +3651,7 @@ fn options(app: &mut DmApp, ctx: &egui::Context) {
                     ui.label(RichText::new(t("Without dots, separated by spaces. Empty takes every type.")).small().weak());
                     ui.horizontal(|ui| {
                         let name = ui.label(t("Leave files smaller than, KB (0 for none)"));
-                        ui.add(egui::DragValue::new(&mut c.min_size_kb).range(0..=1024 * 1024)).labelled_by(name.id);
+                        ui.add(number_box(&mut c.min_size_kb).range(0..=1024 * 1024)).labelled_by(name.id);
                     });
                     field(ui, t("Never take downloads from these sites"), &mut d.skip, 480.0);
                 });
@@ -3737,10 +3758,10 @@ fn options(app: &mut DmApp, ctx: &egui::Context) {
             Tab::Downloads => {
                 egui::Grid::new("downloads").num_columns(2).spacing([12.0, 8.0]).show(ui, |ui| {
                     let name = ui.label(t("Connections per file"));
-                    ui.add(egui::DragValue::new(&mut s.connections).range(1..=32)).labelled_by(name.id);
+                    ui.add(number_box(&mut s.connections).range(1..=32)).labelled_by(name.id);
                     ui.end_row();
                     let name = ui.label(t("Files at once"));
-                    ui.add(egui::DragValue::new(&mut s.concurrency).range(1..=10)).labelled_by(name.id);
+                    ui.add(number_box(&mut s.concurrency).range(1..=10)).labelled_by(name.id);
                     ui.end_row();
                     let choices = QUALITIES;
                     let current = choices.iter().find(|(v, _)| *v == s.stream_quality).map(|(_, l)| *l).unwrap_or("Best available");
@@ -3776,7 +3797,7 @@ fn options(app: &mut DmApp, ctx: &egui::Context) {
                                 }
                             });
                         let name = ui.label(t("Files at once"));
-                        ui.add(egui::DragValue::new(&mut limit.files).range(1..=10)).labelled_by(name.id);
+                        ui.add(number_box(&mut limit.files).range(1..=10)).labelled_by(name.id);
                         if ui.button(t("Delete queue limit")).clicked() {
                             remove = Some(i);
                         }
@@ -3790,7 +3811,7 @@ fn options(app: &mut DmApp, ctx: &egui::Context) {
                 }
                 ui.horizontal(|ui| {
                     let name = ui.label(t("Ask the Recheck queue's servers for changes every, hours (0 only when asked)"));
-                    ui.add(egui::DragValue::new(&mut s.recheck_hours).range(0..=24 * 31)).labelled_by(name.id);
+                    ui.add(number_box(&mut s.recheck_hours).range(0..=24 * 31)).labelled_by(name.id);
                 });
                 ui.add_space(8.0);
                 ui.label(t("When a download finishes, run (a virus checker, a script); the file's path is added at the end:"));
@@ -3799,15 +3820,15 @@ fn options(app: &mut DmApp, ctx: &egui::Context) {
             Tab::Connection => {
                 ui.horizontal(|ui| {
                     let name = ui.label(t("Speed limit, KB/s (0 for none)"));
-                    ui.add(egui::DragValue::new(&mut s.speed_limit).range(0..=1024 * 1024).speed(16)).labelled_by(name.id);
+                    ui.add(number_box(&mut s.speed_limit).range(0..=1024 * 1024)).labelled_by(name.id);
                 });
                 ui.horizontal(|ui| {
                     let name = ui.label(t("Attempts per connection (0 to keep trying)"));
-                    ui.add(egui::DragValue::new(&mut s.attempts).range(0..=100)).labelled_by(name.id);
+                    ui.add(number_box(&mut s.attempts).range(0..=100)).labelled_by(name.id);
                 });
                 ui.horizontal(|ui| {
                     let name = ui.label(t("Give up on a connection that sends nothing for, seconds"));
-                    ui.add(egui::DragValue::new(&mut s.read_timeout).range(5..=600)).labelled_by(name.id);
+                    ui.add(number_box(&mut s.read_timeout).range(5..=600)).labelled_by(name.id);
                 });
                 ui.add_space(8.0);
                 ui.label(t("Sites that take fewer connections at once than the setting:"));
@@ -3817,7 +3838,7 @@ fn options(app: &mut DmApp, ctx: &egui::Context) {
                     ui.horizontal(|ui| {
                         first(field(ui, t("Site"), &mut limit.host, 200.0), i + 1 == count);
                         let name = ui.label(t("Connections"));
-                        ui.add(egui::DragValue::new(&mut limit.connections).range(1..=32)).labelled_by(name.id);
+                        ui.add(number_box(&mut limit.connections).range(1..=32)).labelled_by(name.id);
                         if ui.button(t("Delete site limit")).clicked() {
                             remove = Some(i);
                         }
@@ -3867,7 +3888,7 @@ fn options(app: &mut DmApp, ctx: &egui::Context) {
                         field(ui, t("Host"), &mut p.host, 260.0);
                         ui.horizontal(|ui| {
                             let name = ui.label(t("Port"));
-                            ui.add(egui::DragValue::new(&mut p.port).range(1..=65535)).labelled_by(name.id);
+                            ui.add(number_box(&mut p.port).range(1..=65535)).labelled_by(name.id);
                         });
                         field(ui, t("Username, if it needs one"), &mut p.username, 200.0);
                         let name = ui.label(t("Password"));

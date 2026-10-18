@@ -213,7 +213,7 @@ impl Command {
             Command::SelectAll => "Select all",
             Command::ResumeAll => "Resume all",
             Command::StopAll => "Stop all",
-            Command::DeleteCompleted => "Clear all finished",
+            Command::DeleteCompleted => "Clear finished",
             Command::Find => "Find",
             Command::FindNext => "Find next",
             Command::Scheduler => "Scheduler",

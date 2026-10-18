@@ -391,7 +391,7 @@ fn tray_words() -> [&'static str; 5] {
         t("Show dm"),
         t("Speed limiter on/off"),
         t("Scheduler…"),
-        t("Quit dm"),
+        t("Exit dm"),
         t("dm — downloads keep running here"),
     ]
 }

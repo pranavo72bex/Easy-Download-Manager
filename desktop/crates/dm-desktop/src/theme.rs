@@ -4,8 +4,8 @@
 //! The default look is dm's modern one, light or dark as the computer is
 //! set: neutral backgrounds, foregrounds and strokes, a blue brand colour,
 //! 4 px control and 8 px card radii, and soft shadows. Its typeface is
-//! Selawik, embedded under its open licence (SIL OFL 1.1,
-//! `fonts/LICENSE-Selawik.txt`). A classic look stays as a choice in
+//! Inter, embedded under its open licence (SIL OFL 1.1,
+//! `fonts/LICENSE-Inter.txt`). A classic look stays as a choice in
 //! Options. `docs/ui-design.md` lists the tokens.
 
 use egui::epaint::Shadow;
@@ -59,8 +59,10 @@ impl Theme {
                 row_selected: hex(0x0f6cbd),
                 row_selected_text: Color32::WHITE,
                 focus_inner: Color32::WHITE,
-                hover: hex(0xf5f5f5),
-                pressed: hex(0xe0e0e0),
+                // Darker than the frame and the pane it lies on: the same
+                // grey as the frame showed no hover at all (UI round 1).
+                hover: hex(0xdcdcdc),
+                pressed: hex(0xcccccc),
                 accent: hex(0x0f6cbd),
                 brand: hex(0x0f6cbd),
                 brand_hover: hex(0x115ea3),
@@ -95,7 +97,7 @@ impl Theme {
                 row_selected_text: Color32::WHITE,
                 focus_inner: Color32::WHITE,
                 hover: hex(0x3d3d3d),
-                pressed: hex(0x2e2e2e),
+                pressed: hex(0x505050),
                 accent: hex(0x479ef5),
                 brand: hex(0x115ea3),
                 brand_hover: hex(0x0f6cbd),
@@ -129,8 +131,8 @@ impl Theme {
                 row_selected: hex(0x0072d0),
                 row_selected_text: Color32::WHITE,
                 focus_inner: Color32::WHITE,
-                hover: hex(0xe5f3ff),
-                pressed: hex(0xcce8ff),
+                hover: hex(0xd9ebf9),
+                pressed: hex(0xb8dcf8),
                 accent: hex(0x0078d7),
                 brand: hex(0x0078d7),
                 brand_hover: hex(0x005a9e),
@@ -275,7 +277,7 @@ pub fn bold(ctx: &Context) -> FontFamily {
     }
 }
 
-/// Whether Selawik's semibold is in force: set on an earlier frame, which
+/// Whether Inter's semibold is in force: set on an earlier frame, which
 /// is when egui starts using fonts given to `set_fonts`. Kept as a frame
 /// number rather than asked of egui, which panics if asked before its
 /// first frame.
@@ -284,7 +286,7 @@ pub fn fonts_ready(ctx: &Context) -> bool {
         .is_some_and(|set| ctx.cumulative_pass_nr() > set)
 }
 
-/// Embeds Selawik once, an openly licensed typeface (SIL OFL).
+/// Embeds Inter once, an openly licensed typeface (SIL OFL).
 fn fonts(ctx: &Context) {
     let id = egui::Id::unique("dm-fonts-pass");
     if ctx.data(|d| d.get_temp::<u64>(id)).is_some() {
@@ -295,21 +297,21 @@ fn fonts(ctx: &Context) {
     ctx.data_mut(|d| d.insert_temp(id, pass));
 }
 
-/// dm's fonts: Selawik first, egui's own after it, and the computer's
+/// dm's fonts: Inter first, egui's own after it, and the computer's
 /// fonts for `scripts` last of all, so each only draws what the others
 /// cannot.
 fn definitions(scripts: &[Script]) -> egui::FontDefinitions {
     let mut fonts = egui::FontDefinitions::default();
     fonts.font_data.insert(
-        "selawik".into(),
-        egui::FontData::from_static(include_bytes!("../fonts/Selawik-Regular.ttf")).into(),
+        "inter".into(),
+        egui::FontData::from_static(include_bytes!("../fonts/Inter-Regular.ttf")).into(),
     );
     fonts.font_data.insert(
-        "selawik-semibold".into(),
-        egui::FontData::from_static(include_bytes!("../fonts/Selawik-Semibold.ttf")).into(),
+        "inter-semibold".into(),
+        egui::FontData::from_static(include_bytes!("../fonts/Inter-SemiBold.ttf")).into(),
     );
     if let Some(family) = fonts.families.get_mut(&FontFamily::Proportional) {
-        family.insert(0, "selawik".into());
+        family.insert(0, "inter".into());
         // Last: the sort arrows (↑ ↓) are in none of the others, and were
         // drawn as a missing-glyph box until egui 0.37 made that visible.
         family.push("Hack".into());
@@ -326,7 +328,7 @@ fn definitions(scripts: &[Script]) -> egui::FontDefinitions {
             }
         }
     }
-    let mut semibold = vec!["selawik-semibold".to_string()];
+    let mut semibold = vec!["inter-semibold".to_string()];
     semibold.extend(
         fonts
             .families
@@ -340,7 +342,7 @@ fn definitions(scripts: &[Script]) -> egui::FontDefinitions {
 
 /* ------------------------------------------- the computer's own fonts */
 
-/// Writing systems Selawik and egui's fonts have no letters for, which a
+/// Writing systems Inter and egui's fonts have no letters for, which a
 /// file name can still be in. Each is drawn with a font the computer
 /// already has, read the first time a name needs it: nothing is bundled,
 /// and a computer without one draws what it can, as before.
@@ -648,6 +650,10 @@ pub fn apply(ctx: &Context, theme: Theme) {
     ctx.set_visuals_of(which, v);
     let heading = bold(ctx);
     ctx.style_mut_of(which, |style| {
+        // Labels are words to read, not text to select: the status bar,
+        // a folder's path and a field's name showed the text cursor and
+        // could be dragged over (UI round 1). Fields keep theirs.
+        style.interaction.selectable_labels = false;
         // Type sizes: body 14, caption 12, and 18 for titles.
         style.text_styles = [
             (
@@ -754,6 +760,36 @@ mod tests {
         assert!((contrast(Color32::BLACK, Color32::WHITE) - 21.0).abs() < 0.01);
     }
 
+    /// Hovering and pressing show on every surface a control sits on, in
+    /// every look: the light look's hover was the frame's own grey.
+    #[test]
+    fn hover_and_press_can_be_seen_on_every_surface() {
+        for theme in [Theme::Light, Theme::Dark, Theme::Classic] {
+            let t = theme.tokens();
+            // Told apart by lightness, or (the classic look's blue tint)
+            // by hue.
+            let apart = |a: Color32, b: Color32| {
+                let hue = (a.r() as i32 - b.r() as i32).abs()
+                    + (a.g() as i32 - b.g() as i32).abs()
+                    + (a.b() as i32 - b.b() as i32).abs();
+                contrast(a, b) >= 1.2 || hue >= 30
+            };
+            for surface in [t.frame, t.pane, t.list] {
+                for (what, fill) in [("hover", t.hover), ("pressed", t.pressed)] {
+                    assert!(
+                        apart(fill, surface),
+                        "{theme:?}: {what} on {surface:?} {:.2}",
+                        contrast(fill, surface)
+                    );
+                }
+            }
+            assert!(
+                apart(t.hover, t.pressed),
+                "{theme:?}: hover and pressed alike"
+            );
+        }
+    }
+
     /// Words and the edges of controls can be read in every look: status
     /// colours at 4.5:1 on the list, a control's outline and the progress
     /// bar at 3:1, and disabled words still visible (a design review found
@@ -832,7 +868,7 @@ mod tests {
         frame(&ctx, &|_| {});
         assert!(ctx.fonts_mut(|f| f.has_glyphs(&font, "名前ファイル")));
         assert!(ctx.fonts_mut(|f| f.has_glyphs(&FontId::monospace(14.0), "名前")));
-        // Latin is still Selawik's, not the fallback's.
+        // Latin is still Inter's, not the fallback's.
         assert!(ctx.fonts_mut(|f| f.has_glyphs(&font, "report")));
     }
 }

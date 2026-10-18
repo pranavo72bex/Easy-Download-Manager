@@ -343,7 +343,7 @@ project's address, which Wikimedia requires.
 
 dm's window draws every colour from `theme.rs` tokens. The default look is
 Light or Dark as the operating system is set; Classic stays as a choice.
-Selawik (OFL) is embedded as the window's typeface. Fonts given to egui take
+An openly licensed typeface is embedded (Inter since 2026-10-18; see below). Fonts given to egui take
 effect a frame later, and egui panics on a family it has not loaded, so
 semibold is used only from that frame on.
 
@@ -688,7 +688,7 @@ command).
 
 ## Non-Latin names use the computer's fonts, read on demand (2026-10-18, gap 116)
 
-Selawik and egui's fonts have no Chinese, Japanese, Korean, Arabic, Hebrew,
+Inter and egui's fonts have no Chinese, Japanese, Korean, Arabic, Hebrew,
 Thai or Devanagari. Bundling Noto CJK would add tens of megabytes to a
 7.9 MB installer, so the computer's own font for the script is read the
 first time a row's name, path or note needs it (fontconfig's answer on
@@ -862,3 +862,13 @@ checkboxes, menus and rows with the arrow beside buttons with the hand —
 the inconsistency a person notices. `the_pointer_is_the_same_kind_over_the_same_kind_of_thing`
 holds it. Addresses are drawn in the window's one font, not a second
 monospace one.
+
+## Inter is the window's typeface (2026-10-18)
+
+It replaces the earlier embedded face, which had no Cyrillic or Greek: a
+Russian window drew those letters in egui's fallback, a second face with no
+semibold, so headings lost their weight and one label could mix two faces.
+Inter (SIL OFL 1.1, `fonts/LICENSE-Inter.txt`) covers Latin, Cyrillic and
+Greek in regular and semibold, and is an independent design rather than a
+stand-in for any vendor's system font. Scripts it lacks still fall back to
+the computer's own fonts.

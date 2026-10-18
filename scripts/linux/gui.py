@@ -275,7 +275,7 @@ def tray_icon():
 
 
 # dm's tray menu, by label, as a panel shows it.
-SHOW, SPEED_LIMITER, SCHEDULER, QUIT = "Show dm", "Speed limiter on/off", "Scheduler…", "Quit dm"
+SHOW, SPEED_LIMITER, SCHEDULER, QUIT = "Show dm", "Speed limiter on/off", "Scheduler…", "Exit dm"
 
 
 def tray_menu(pick):
@@ -571,19 +571,19 @@ def human_session(home, env, app):
         # A running download cannot be deleted until it is stopped: Delete,
         # clicked on it, does nothing (dm keeps an active download safe).
         click_row(slow, seconds=5)
-        click("push button", "Delete")
+        click("push button", "Remove")
         time.sleep(1)
         check("Delete on a running download is refused until it is stopped",
-              not where("push button", "Yes, delete") and row_of(home, slow) is not None)
+              not where("push button", "Yes, remove") and row_of(home, slow) is not None)
         # Stop it, then Delete asks and removes it with its parts.
         parts = home / "parts"
         check("Stop, clicked, stops it", click("push button", "Stop")
               and wait_for(lambda: state_of(home, slow) == "paused", 15), str(state_of(home, slow)))
         click_row(slow, seconds=5)
         check("Delete on the stopped download asks first",
-              click("push button", "Delete") and wait_for(lambda: where("push button", "Yes, delete"), 5))
+              click("push button", "Remove") and wait_for(lambda: where("push button", "Yes, remove"), 5))
         check("Yes, delete removes the row and its parts",
-              click("push button", "Yes, delete") and wait_for(lambda: row_of(home, slow) is None, 10)
+              click("push button", "Yes, remove") and wait_for(lambda: row_of(home, slow) is None, 10)
               and not (parts.exists() and any(p.name.startswith("part-") for p in parts.rglob("*") if p.is_file())))
 
         print("\nthe Downloads menu, and the speed limiter")

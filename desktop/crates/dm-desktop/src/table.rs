@@ -757,7 +757,14 @@ fn status_cell(ui: &mut egui::Ui, entry: &Entry, held: Option<&str>, selected: b
     ui.horizontal(|ui| {
         ui.spacing_mut().item_spacing.x = 6.0;
         draw_glyph(ui, glyph, on_row(glyph_colour));
-        ui.vertical(|ui| {
+        // Words alone sit on the row's line, as the name and size do; only
+        // with a bar under them do they stack (they sat 5 px high).
+        let layout = if bar {
+            egui::Layout::top_down(egui::Align::Min)
+        } else {
+            egui::Layout::left_to_right(egui::Align::Center)
+        };
+        ui.with_layout(layout, |ui| {
             if bar {
                 ui.add_space(4.0);
             }

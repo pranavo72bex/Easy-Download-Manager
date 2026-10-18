@@ -746,10 +746,15 @@ fn the_category_tree_has_right_click_menus() {
         harness.state().said.english()
     );
 
-    // Done: Clear all finished.
+    // Done: Clear finished, from the menu (the toolbar has one too).
     harness.get_by_label_contains("Done (").click_secondary();
     harness.run_steps(2);
-    click(&mut harness, "Clear all finished");
+    harness
+        .query_all_by_label("Clear finished")
+        .last()
+        .expect("the menu's Clear finished")
+        .click();
+    harness.run_steps(3);
     harness.state_mut().refresh();
     assert!(harness.state().rows().is_empty());
 
@@ -1208,14 +1213,14 @@ fn the_toolbar_acts_on_the_selected_row() {
     click(&mut harness, "Stop all");
     assert_eq!(harness.state().rows()[0].state, State::Paused);
     // Unfinished, so Delete asks first.
-    click(&mut harness, "Delete");
+    click(&mut harness, "Remove");
     assert!(harness
-        .query_by_label("Delete an unfinished download")
+        .query_by_label("Remove an unfinished download")
         .is_some());
     click(&mut harness, "Keep it");
     assert_eq!(harness.state().rows().len(), 1, "Keep deleted it");
-    click(&mut harness, "Delete");
-    click(&mut harness, "Yes, delete");
+    click(&mut harness, "Remove");
+    click(&mut harness, "Yes, remove");
     assert!(harness.state().rows().is_empty());
 }
 
@@ -2302,7 +2307,7 @@ fn remove_deletes_the_file_too_only_when_asked() {
     select(&mut harness, "file.zip");
     harness.state_mut().run(Command::Remove);
     harness.run_steps(3);
-    click(&mut harness, "Take it off");
+    click(&mut harness, "Remove it");
     harness.state_mut().refresh();
     assert!(
         std::path::Path::new(&zip).is_file(),
@@ -3141,7 +3146,7 @@ fn a_progress_window_shows_each_connection() {
         .query_by_label_contains("No — a stop starts it again")
         .is_some());
     assert!(harness.query_by_label("Connections").is_some());
-    click(&mut harness, "Pause");
+    click(&mut harness, "Stop download");
     assert_eq!(harness.state().rows()[0].state, State::Paused);
 }
 
@@ -4078,7 +4083,7 @@ fn every_menu_item_clicked_does_what_it_says() {
         std::path::Path::new(&done.path).exists(),
         "the first copy is kept"
     );
-    press(&mut h, &["Downloads", "Clear all finished"]);
+    press(&mut h, &["Downloads", "Clear finished"]);
     assert!(
         h.state().rows().iter().all(|r| r.state != State::Completed),
         "Downloads › Clear all finished"
@@ -4101,7 +4106,7 @@ fn every_menu_item_clicked_does_what_it_says() {
         h.state().dialogs.confirm_remove.is_some(),
         "File › Remove asks first"
     );
-    click(&mut h, "Yes, delete");
+    click(&mut h, "Yes, remove");
     until(&mut h, "the row to go", |app| {
         app.rows().iter().all(|r| r.filename != "stalled.bin")
     });
@@ -4195,13 +4200,13 @@ fn every_toolbar_button_clicked_does_what_it_says() {
     tool(&mut h, "Clear finished");
     assert!(!is_there(&h, "file.zip"), "Clear finished");
     select(&mut h, "stalled.bin");
-    tool(&mut h, "Delete");
+    tool(&mut h, "Remove");
     assert!(
         h.state().dialogs.confirm_remove.is_some(),
         "Delete asks first for an unfinished one"
     );
-    click(&mut h, "Yes, delete");
-    until(&mut h, "Delete", |app| {
+    click(&mut h, "Yes, remove");
+    until(&mut h, "Remove", |app| {
         app.rows().iter().all(|r| r.filename != "stalled.bin")
     });
 }
@@ -4299,7 +4304,7 @@ fn every_row_menu_item_clicked_does_what_it_says() {
         Some(vec![stalled.id]),
         "Remove asks first"
     );
-    click(&mut h, "Yes, delete");
+    click(&mut h, "Yes, remove");
     until(&mut h, "Remove", |app| {
         app.rows().iter().all(|r| r.id != stalled.id)
     });
@@ -5194,7 +5199,7 @@ fn clear_finished_is_greyed_with_only_failed_rows() {
     });
     assert!(!h.state().enabled(Command::DeleteCompleted));
     assert!(
-        greyed(&mut h, &["Downloads", "Clear all finished"]),
+        greyed(&mut h, &["Downloads", "Clear finished"]),
         "Clear all finished is offered for a failed row"
     );
     h.state_mut().run(Command::DeleteCompleted);
@@ -5553,12 +5558,12 @@ fn the_delete_key_asks_and_the_limiter_takes_enter() {
     assert_eq!(harness.state().rows().len(), 1, "Delete removed it at once");
     assert!(harness.query_by_label("Remove from the list").is_some());
     click(&mut harness, "Keep it");
-    click(&mut harness, "Delete");
+    click(&mut harness, "Remove");
     assert!(
         harness.state().dialogs.confirm_remove.is_some(),
         "the toolbar's Delete asks the same"
     );
-    click(&mut harness, "Take it off");
+    click(&mut harness, "Remove it");
     assert!(harness.state().rows().is_empty());
 
     harness.state_mut().run(Command::SpeedLimiterSettings);
@@ -5965,7 +5970,7 @@ fn the_small_things_of_round_eight() {
         app.rows().iter().any(|r| r.state == State::Completed)
     });
     let delete_at = |h: &Harness<'_, DmApp>| {
-        h.get_by_label("Delete")
+        h.get_by_label("Remove")
             .accesskit_node()
             .bounding_box()
             .unwrap()
@@ -6265,7 +6270,7 @@ fn remove_says_one_thing_enter_keeps_and_the_next_row_is_selected() {
 
     harness.key_press(egui::Key::Delete);
     harness.run_steps(3);
-    click(&mut harness, "Yes, delete");
+    click(&mut harness, "Yes, remove");
     harness.state_mut().refresh();
     assert_eq!(harness.state().rows().len(), 2);
     assert_eq!(

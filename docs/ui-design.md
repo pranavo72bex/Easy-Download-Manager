@@ -31,7 +31,7 @@ Chosen in Options › General › Look; saved as `theme` in the settings.
 | `focus_inner` (the focus ring's inner line, inside the `accent` one) | `#ffffff` | `#ffffff` |
 | `radius` / `card_radius` | 4 / 8 px | 4 / 8 px |
 
-Type: Selawik (SIL OFL 1.1, `crates/dm-desktop/fonts/LICENSE-Selawik.txt`):
+Type: Inter (SIL OFL 1.1, `crates/dm-desktop/fonts/LICENSE-Inter.txt`), which covers Latin, Cyrillic and Greek in regular and semibold:
 body 14, caption 12, titles 18 semibold. A soft shadow under dialogs, a
 smaller one under menus.
 

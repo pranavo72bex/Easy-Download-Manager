@@ -2383,7 +2383,7 @@ impl DmApp {
             .unwrap_or(false);
         let theme = crate::theme::Theme::resolve(&self.applied.theme, system_dark);
         // Applied again once the embedded fonts are in force (a frame after
-        // they are set), so headings take Selawik's semibold.
+        // they are set), so headings take Inter's semibold.
         let ready = crate::theme::fonts_ready(&ctx);
         self.dark = theme.tokens().dark;
         if self.theme_in_force != Some(theme) || ready != self.fonts_ready {
@@ -3337,10 +3337,7 @@ pub fn tree_menu(place: &Place) -> Vec<(&'static str, TreeAction)> {
             ("Resume all", TreeAction::Run(Command::ResumeAll)),
             ("Stop all", TreeAction::Run(Command::StopAll)),
         ],
-        Place::Finished => vec![(
-            "Clear all finished",
-            TreeAction::Run(Command::DeleteCompleted),
-        )],
+        Place::Finished => vec![("Clear finished", TreeAction::Run(Command::DeleteCompleted))],
         Place::Queue(_) => vec![
             ("Start queue", TreeAction::Run(Command::StartQueue)),
             ("Stop queue", TreeAction::Run(Command::StopQueue)),
@@ -3519,7 +3516,7 @@ const TOOLBAR: [(Command, Icon, &str); 11] = [
     (Command::DownloadNow, Icon::Resume, "Resume"),
     (Command::StopDownload, Icon::Stop, "Stop"),
     (Command::StopAll, Icon::StopAll, "Stop all"),
-    (Command::Remove, Icon::Delete, "Delete"),
+    (Command::Remove, Icon::Delete, "Remove"),
     (
         Command::DeleteCompleted,
         Icon::DeleteCompleted,
