@@ -503,9 +503,18 @@ pub fn answer(
                     &id,
                     "dm downloads http(s) and ftp links, magnets and .torrent files only",
                 )
-            } else if let Some(why) =
-                checked(world, caught, &url, &referrer, &cookies, &mime, deadline)
-            {
+            } else if let Some(why) = checked(
+                world,
+                // Not asked about first where the person said the site's
+                // links work once (Options › Browser): the asking spent the
+                // link before dm's own download could use it (gap 49).
+                caught && !saved(home).catch.works_once(&url, &referrer),
+                &url,
+                &referrer,
+                &cookies,
+                &mime,
+                deadline,
+            ) {
                 // Before anything is filed: the browser fetches this with its
                 // cookies and its session, and dm has neither. A link only
                 // the signed-in browser can fetch is refused here, while the
@@ -1248,6 +1257,46 @@ mod tests {
             "asked once, the way the queue will ask, referrer and all"
         );
         assert!(!inbox(dir.path()).join("p.json").exists(), "nothing filed");
+    }
+
+    /// Gap 49: a site the person said gives links that work once is not
+    /// asked about before dm takes its download; another site still is.
+    #[test]
+    fn a_link_from_a_site_whose_links_work_once_is_taken_unasked() {
+        let dir = tempfile::tempdir().unwrap();
+        let mut settings = crate::Settings::default();
+        settings.catch.once_hosts = vec!["files.e.com".into()];
+        std::fs::write(
+            dir.path().join("settings.json"),
+            serde_json::to_string(&settings).unwrap(),
+        )
+        .unwrap();
+        let mut world = pretend("application/zip", 0, 0);
+        world.refuses = Some("server returned 410 Gone");
+        let reply = answer(
+            dir.path(),
+            &start("p", "https://files.e.com/once.zip"),
+            &mut world,
+        )
+        .map(|r| Reply::from_frame(&r).unwrap());
+        assert!(
+            world.asked.is_empty(),
+            "the server was asked: {:?}",
+            world.asked
+        );
+        assert!(
+            !matches!(reply, Some(Reply::Failed { .. })),
+            "refused: {reply:?}"
+        );
+        assert!(inbox(dir.path()).join("p.json").exists(), "not filed");
+        // Another site is still asked first.
+        let mut world = pretend("application/zip", 0, 0);
+        answer(
+            dir.path(),
+            &start("q", "https://other.org/f.zip"),
+            &mut world,
+        );
+        assert_eq!(world.asked.len(), 1);
     }
 
     fn pretend(serves: &'static str, clock: u64, probe_takes_ms: u64) -> Pretend {

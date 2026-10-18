@@ -324,6 +324,8 @@ pub struct OptionsDialog {
     /// read into the draft on OK.
     pub types: String,
     pub skip: String,
+    /// Sites whose links work once, as typed.
+    pub once: String,
     /// The proxy's bypass list, as typed.
     pub bypass: String,
     /// The categories a person made, as typed: name, file types, sites.
@@ -710,6 +712,7 @@ impl Dialogs {
             says: String::new(),
             types: settings.catch.extensions.join(" "),
             skip: settings.catch.skip_hosts.join(" "),
+            once: settings.catch.once_hosts.join(" "),
             bypass: settings.proxy.bypass.join(" "),
             custom: settings
                 .custom_categories
@@ -3907,6 +3910,10 @@ fn options(app: &mut DmApp, ctx: &egui::Context) {
                     });
                     field(ui, t("Never take downloads from these sites"), &mut d.skip, 480.0);
                     ui.label(RichText::new(t("Sites such as example.com or *.example.com, separated by spaces; each covers its subdomains.")).small().weak());
+                    // A link that works once was spent by dm asking about
+                    // it before taking it (gap 49).
+                    field(ui, t("Sites whose links work only once"), &mut d.once, 480.0);
+                    ui.label(RichText::new(t("dm takes their downloads without first asking the server whether it can fetch them, which would use the link up. A link that needs the browser's sign-in then fails in dm rather than finishing in the browser.")).small().weak());
                 });
                 // The keys a click on a link can be held with.
                 let keys = [
@@ -4370,6 +4377,7 @@ fn options(app: &mut DmApp, ctx: &egui::Context) {
         let mut wanted = d.draft.clone();
         wanted.catch.extensions = words(&d.types);
         wanted.catch.skip_hosts = words(&d.skip);
+        wanted.catch.once_hosts = words(&d.once);
         wanted.proxy.bypass = words(&d.bypass);
         wanted.custom_categories = d
             .custom

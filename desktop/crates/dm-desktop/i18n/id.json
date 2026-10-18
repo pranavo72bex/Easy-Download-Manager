@@ -497,5 +497,7 @@
  "Progress": "Kemajuan",
  "There are no links on the clipboard.": "Tidak ada tautan di papan klip.",
  "Dragging files out of dm is not available on Linux yet: right-click › Open folder": "Menyeret berkas keluar dari dm belum tersedia di Linux: klik kanan › Buka folder",
- "The list is sorted by a column: click its heading until the arrow goes, then drag to reorder.": "Daftar diurutkan menurut kolom: klik judulnya sampai panahnya hilang, lalu seret untuk mengubah urutan."
+ "The list is sorted by a column: click its heading until the arrow goes, then drag to reorder.": "Daftar diurutkan menurut kolom: klik judulnya sampai panahnya hilang, lalu seret untuk mengubah urutan.",
+ "Sites whose links work only once": "Situs yang tautannya hanya berlaku sekali",
+ "dm takes their downloads without first asking the server whether it can fetch them, which would use the link up. A link that needs the browser's sign-in then fails in dm rather than finishing in the browser.": "dm mengambil unduhan dari situs ini tanpa lebih dulu menanyai server apakah bisa mengambilnya, karena itu akan menghabiskan tautannya. Tautan yang memerlukan login peramban akan gagal di dm alih-alih selesai di peramban."
 }

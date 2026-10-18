@@ -497,5 +497,7 @@
  "Progress": "İlerleme",
  "There are no links on the clipboard.": "Panoda bağlantı yok.",
  "Dragging files out of dm is not available on Linux yet: right-click › Open folder": "Dosyaları dm'den sürükleyip çıkarmak Linux'ta henüz mümkün değil: sağ tık › Klasörü aç",
- "The list is sorted by a column: click its heading until the arrow goes, then drag to reorder.": "Liste bir sütuna göre sıralı: ok kaybolana kadar başlığına tıklayın, sonra sırayı değiştirmek için sürükleyin."
+ "The list is sorted by a column: click its heading until the arrow goes, then drag to reorder.": "Liste bir sütuna göre sıralı: ok kaybolana kadar başlığına tıklayın, sonra sırayı değiştirmek için sürükleyin.",
+ "Sites whose links work only once": "Bağlantıları yalnızca bir kez çalışan siteler",
+ "dm takes their downloads without first asking the server whether it can fetch them, which would use the link up. A link that needs the browser's sign-in then fails in dm rather than finishing in the browser.": "dm, bağlantıyı tüketeceği için önce sunucuya indirip indiremeyeceğini sormadan bu sitelerin indirmelerini alır. Tarayıcının oturumunu gerektiren bir bağlantı o zaman tarayıcıda bitmek yerine dm'de başarısız olur."
 }

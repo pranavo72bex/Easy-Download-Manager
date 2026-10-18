@@ -497,5 +497,7 @@
  "Progress": "Voortgang",
  "There are no links on the clipboard.": "Er staan geen links op het klembord.",
  "Dragging files out of dm is not available on Linux yet: right-click › Open folder": "Bestanden uit dm slepen kan op Linux nog niet: rechtsklik › Map openen",
- "The list is sorted by a column: click its heading until the arrow goes, then drag to reorder.": "De lijst is op een kolom gesorteerd: klik op de kop tot de pijl verdwijnt en sleep dan om de volgorde te wijzigen."
+ "The list is sorted by a column: click its heading until the arrow goes, then drag to reorder.": "De lijst is op een kolom gesorteerd: klik op de kop tot de pijl verdwijnt en sleep dan om de volgorde te wijzigen.",
+ "Sites whose links work only once": "Sites waarvan links maar één keer werken",
+ "dm takes their downloads without first asking the server whether it can fetch them, which would use the link up. A link that needs the browser's sign-in then fails in dm rather than finishing in the browser.": "dm neemt hun downloads over zonder eerst de server te vragen of het ze kan ophalen, wat de link zou opmaken. Een link die de aanmelding van de browser nodig heeft, mislukt dan in dm in plaats van in de browser af te ronden."
 }

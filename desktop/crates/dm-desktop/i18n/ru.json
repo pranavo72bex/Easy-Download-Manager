@@ -497,5 +497,7 @@
  "Progress": "Прогресс",
  "There are no links on the clipboard.": "В буфере обмена нет ссылок.",
  "Dragging files out of dm is not available on Linux yet: right-click › Open folder": "Перетаскивать файлы из dm в Linux пока нельзя: правый щелчок › Открыть папку",
- "The list is sorted by a column: click its heading until the arrow goes, then drag to reorder.": "Список отсортирован по столбцу: щёлкайте по его заголовку, пока не исчезнет стрелка, затем перетаскивайте, чтобы изменить порядок."
+ "The list is sorted by a column: click its heading until the arrow goes, then drag to reorder.": "Список отсортирован по столбцу: щёлкайте по его заголовку, пока не исчезнет стрелка, затем перетаскивайте, чтобы изменить порядок.",
+ "Sites whose links work only once": "Сайты, ссылки которых работают один раз",
+ "dm takes their downloads without first asking the server whether it can fetch them, which would use the link up. A link that needs the browser's sign-in then fails in dm rather than finishing in the browser.": "dm забирает их загрузки, не спрашивая сначала сервер, может ли он их получить: это израсходовало бы ссылку. Ссылка, которой нужен вход в браузере, тогда завершится ошибкой в dm, а не скачается в браузере."
 }

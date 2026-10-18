@@ -2026,10 +2026,17 @@ fn the_file_types_the_browser_hands_over_are_set_in_options() {
         "Never take downloads from these sites",
         "intranet.example",
     );
+    // Gap 49: sites whose links work once.
+    type_into(
+        &mut harness,
+        "Sites whose links work only once",
+        "*.once.example",
+    );
     click(&mut harness, "OK");
     let catch = harness.state().backend().settings().catch;
     assert_eq!(catch.extensions, ["zip", "iso", "mkv"]);
     assert_eq!(catch.skip_hosts, ["intranet.example"]);
+    assert_eq!(catch.once_hosts, ["*.once.example"]);
     // What the extension is sent is what was typed.
     let rules = dm_protocol::CatchRules { ..catch };
     assert!(rules.enabled);

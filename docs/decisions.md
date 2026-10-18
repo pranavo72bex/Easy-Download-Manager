@@ -885,3 +885,14 @@ Inter reserves no name). It leads the `numbers` family, Inter behind it for
 letters and units, used for the list's Size, Time left and Speed, the
 status words and the progress window's figures. Making every digit
 tabular was not chosen: in names and sentences tabular "1" reads gappy.
+
+## Links that work once are named by the person, not guessed (2026-10-18)
+
+The native host asks a caught download's server once before taking it, so a
+link only the signed-in browser can fetch stays with the browser. For a site
+whose links work a single time, that question spends the link. Detecting
+such links from their address (tokens, signatures) guesses wrong both ways,
+and reusing the check's connection for the download would mean the host
+fetching files. So the person lists those sites in Options › Browser, and a
+hand-off from one is taken without the question, knowing a sign-in-only link
+from it then fails in dm instead of finishing in the browser.

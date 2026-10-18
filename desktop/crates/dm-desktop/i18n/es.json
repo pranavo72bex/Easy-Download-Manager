@@ -497,5 +497,7 @@
  "Progress": "Progreso",
  "There are no links on the clipboard.": "No hay enlaces en el portapapeles.",
  "Dragging files out of dm is not available on Linux yet: right-click › Open folder": "Arrastrar archivos fuera de dm aún no es posible en Linux: clic derecho › Abrir carpeta",
- "The list is sorted by a column: click its heading until the arrow goes, then drag to reorder.": "La lista está ordenada por una columna: haga clic en su encabezado hasta que desaparezca la flecha y luego arrastre para reordenar."
+ "The list is sorted by a column: click its heading until the arrow goes, then drag to reorder.": "La lista está ordenada por una columna: haga clic en su encabezado hasta que desaparezca la flecha y luego arrastre para reordenar.",
+ "Sites whose links work only once": "Sitios cuyos enlaces solo funcionan una vez",
+ "dm takes their downloads without first asking the server whether it can fetch them, which would use the link up. A link that needs the browser's sign-in then fails in dm rather than finishing in the browser.": "dm toma sus descargas sin preguntar antes al servidor si puede obtenerlas, lo que gastaría el enlace. Un enlace que necesite la sesión del navegador fallará entonces en dm en vez de terminar en el navegador."
 }

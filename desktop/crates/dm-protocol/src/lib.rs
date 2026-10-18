@@ -457,6 +457,31 @@ pub struct CatchRules {
     /// skip still hold. Empty for none.
     #[serde(alias = "take_key")]
     pub take_key: String,
+    /// Hosts whose links work once: handed to dm without dm asking the
+    /// server first, which spent such a link before dm's own download could
+    /// use it (gap 49). Each covers its subdomains.
+    #[serde(alias = "once_hosts")]
+    pub once_hosts: Vec<String>,
+}
+
+/// Whether any of `urls` is served from a host on `list`, each entry
+/// covering its subdomains, with or without a leading `*.`.
+fn listed(list: &[String], urls: &[&str]) -> bool {
+    let hosts: Vec<String> = urls
+        .iter()
+        .map(|url| host_of(url))
+        .filter(|host| !host.is_empty())
+        .collect();
+    list.iter().any(|entry| {
+        let entry = entry.trim().trim_start_matches("*.").to_ascii_lowercase();
+        !entry.is_empty()
+            && hosts.iter().any(|host| {
+                *host == entry
+                    || host
+                        .strip_suffix(entry.as_str())
+                        .is_some_and(|rest| rest.ends_with('.'))
+            })
+    })
 }
 
 /// The keys a click can be held with, as the rules name them.
@@ -471,6 +496,7 @@ impl Default for CatchRules {
             skip_hosts: Vec::new(),
             keep_key: "alt".into(),
             take_key: "shift".into(),
+            once_hosts: Vec::new(),
         }
     }
 }
@@ -514,6 +540,12 @@ impl Left {
 }
 
 impl CatchRules {
+    /// Whether a link from `url`, met on `referrer`, is one of a site whose
+    /// links work once, so dm takes it without asking the server first.
+    pub fn works_once(&self, url: &str, referrer: &str) -> bool {
+        listed(&self.once_hosts, &[url, referrer])
+    }
+
     /// Whether the app wants this download.
     pub fn catches(&self, download: &Candidate<'_>) -> Result<(), Left> {
         self.takes(download, false)
@@ -530,21 +562,10 @@ impl CatchRules {
 
         // Where it is served from, where it was asked for, and the page it
         // came from: any of them on the list leaves it with the browser.
-        let hosts: Vec<String> = [download.url, download.asked_url, download.referrer]
-            .iter()
-            .map(|url| host_of(url))
-            .filter(|host| !host.is_empty())
-            .collect();
-        let skipped = self.skip_hosts.iter().any(|skip| {
-            let skip = skip.trim().trim_start_matches("*.").to_ascii_lowercase();
-            !skip.is_empty()
-                && hosts.iter().any(|host| {
-                    *host == skip
-                        || host
-                            .strip_suffix(skip.as_str())
-                            .is_some_and(|rest| rest.ends_with('.'))
-                })
-        });
+        let skipped = listed(
+            &self.skip_hosts,
+            &[download.url, download.asked_url, download.referrer],
+        );
         if skipped {
             return Err(Left::SkippedHost);
         }
@@ -848,6 +869,7 @@ mod tests {
                 skip_hosts: vec!["e.com".into()],
                 keep_key: "ctrl".into(),
                 take_key: String::new(),
+                once_hosts: Vec::new(),
             },
         });
         let frame = reply.to_frame();
@@ -947,6 +969,22 @@ mod tests {
             ..Default::default()
         };
         assert_eq!(rules.catches(&file("https://e.com/f.zip")), Err(Left::Off));
+    }
+
+    #[test]
+    fn a_site_whose_links_work_once_is_known_by_its_host_or_the_page() {
+        let rules = CatchRules {
+            once_hosts: vec!["*.files.example".into(), "Once.example".into()],
+            ..CatchRules::default()
+        };
+        assert!(rules.works_once("https://dl.files.example/a.zip", ""));
+        assert!(rules.works_once("https://cdn.other/a.zip", "https://once.example/page"));
+        assert!(!rules.works_once("https://notfiles.example/a.zip", ""));
+        assert!(!CatchRules::default().works_once("https://once.example/a", ""));
+        // An older settings file without the list still reads.
+        let old: CatchRules =
+            serde_json::from_value(serde_json::json!({ "enabled": true })).unwrap();
+        assert!(old.once_hosts.is_empty());
     }
 
     #[test]

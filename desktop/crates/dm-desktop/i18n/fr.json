@@ -497,5 +497,7 @@
  "Progress": "Progression",
  "There are no links on the clipboard.": "Le presse-papiers ne contient aucun lien.",
  "Dragging files out of dm is not available on Linux yet: right-click › Open folder": "Glisser des fichiers hors de dm n'est pas encore possible sous Linux : clic droit › Ouvrir le dossier",
- "The list is sorted by a column: click its heading until the arrow goes, then drag to reorder.": "La liste est triée selon une colonne : cliquez sur son en-tête jusqu'à ce que la flèche disparaisse, puis faites glisser pour réordonner."
+ "The list is sorted by a column: click its heading until the arrow goes, then drag to reorder.": "La liste est triée selon une colonne : cliquez sur son en-tête jusqu'à ce que la flèche disparaisse, puis faites glisser pour réordonner.",
+ "Sites whose links work only once": "Sites dont les liens ne fonctionnent qu'une fois",
+ "dm takes their downloads without first asking the server whether it can fetch them, which would use the link up. A link that needs the browser's sign-in then fails in dm rather than finishing in the browser.": "dm prend leurs téléchargements sans demander d'abord au serveur s'il peut les récupérer, ce qui userait le lien. Un lien qui demande la connexion du navigateur échoue alors dans dm au lieu de se terminer dans le navigateur."
 }
