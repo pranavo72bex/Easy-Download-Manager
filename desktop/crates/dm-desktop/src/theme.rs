@@ -911,6 +911,30 @@ mod tests {
         );
     }
 
+    /// Gap 47: a Russian dialog's title is bold like an English one; the
+    /// earlier face had no Cyrillic, so its titles fell back to a regular one.
+    #[test]
+    fn titles_in_cyrillic_and_greek_are_bold() {
+        let ctx = Context::default();
+        let frame = |ctx: &Context, run: &dyn Fn(&Context)| {
+            let mut out = ctx.run_ui(Default::default(), |ui| run(ui.ctx()));
+            out.textures_delta.clear();
+        };
+        frame(&ctx, &|ctx| apply(ctx, Theme::Light));
+        frame(&ctx, &|_| {});
+        let width = |family: FontFamily, text: &str| {
+            text.chars()
+                .map(|c| ctx.fonts_mut(|f| f.glyph_width(&FontId::new(18.0, family.clone()), c)))
+                .sum::<f32>()
+        };
+        for title in ["Download", "Загрузка", "Λήψη"] {
+            assert!(
+                width(bold(&ctx), title) > width(FontFamily::Proportional, title),
+                "{title} is not drawn bolder in the bold family"
+            );
+        }
+    }
+
     /// Gap 116: a name in Chinese and Japanese is drawn with the computer's
     /// own font, read once a name needs it; before, its letters were blanks.
     #[test]

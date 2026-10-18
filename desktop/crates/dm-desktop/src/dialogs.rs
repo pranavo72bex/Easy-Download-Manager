@@ -2935,11 +2935,11 @@ fn links(app: &mut DmApp, ctx: &egui::Context) {
                                     ui.label("…");
                                 }
                             }
-                            ui.label(
-                                what.and_then(|f| f.size)
-                                    .map(format::bytes)
-                                    .unwrap_or_default(),
-                            );
+                            let size = what
+                                .and_then(|f| f.size)
+                                .map(format::bytes)
+                                .unwrap_or_default();
+                            ui.label(crate::table::digits(ui, size));
                             ui.end_row();
                         }
                     });

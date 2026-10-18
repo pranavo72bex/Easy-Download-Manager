@@ -6841,3 +6841,60 @@ fn a_file_added_again_is_listed_under_the_name_it_will_get() {
         .iter()
         .any(|r| r.path.ends_with("file (1).zip")));
 }
+
+/// Gap 47: the list's sideways scroll bar is dragged like any other; its
+/// thumb did nothing (Shift and the wheel worked).
+#[test]
+fn the_lists_sideways_bar_is_dragged() {
+    use egui::accesskit::Role;
+    let world = world();
+    let mut harness = Harness::builder()
+        .with_size(egui::vec2(760.0, 560.0))
+        .build_ui_state(|ui, app: &mut DmApp| app.ui(ui), world.app());
+    add_url(&mut harness, &world.url("file.zip"), "Add for later");
+    harness.run_steps(3);
+    let name_at =
+        |h: &Harness<'_, DmApp>| h.get_by_role_and_label(Role::Button, "Name").rect().left();
+    let before = name_at(&harness);
+    // The bar runs along the list's foot, a little over the status bar.
+    let foot = harness
+        .get_by_label_contains("waiting for Start queue")
+        .rect()
+        .top();
+    let mut grabbed = None;
+    for up in (4..40).step_by(3).map(|u| u as f32) {
+        let at = egui::pos2(300.0, foot - up);
+        let events = [
+            egui::Event::PointerMoved(at),
+            egui::Event::PointerButton {
+                pos: at,
+                button: egui::PointerButton::Primary,
+                pressed: true,
+                modifiers: Default::default(),
+            },
+        ];
+        harness.input_mut().events.extend(events);
+        harness.step();
+        for step in 1..=8 {
+            harness.input_mut().events.push(egui::Event::PointerMoved(
+                at + egui::vec2(25.0 * step as f32, 0.0),
+            ));
+            harness.step();
+        }
+        harness.input_mut().events.push(egui::Event::PointerButton {
+            pos: at + egui::vec2(200.0, 0.0),
+            button: egui::PointerButton::Primary,
+            pressed: false,
+            modifiers: Default::default(),
+        });
+        harness.run_steps(3);
+        if name_at(&harness) < before - 20.0 {
+            grabbed = Some(up);
+            break;
+        }
+    }
+    assert!(
+        grabbed.is_some(),
+        "dragging along the list's foot did not move the columns (Name stayed at {before})"
+    );
+}
