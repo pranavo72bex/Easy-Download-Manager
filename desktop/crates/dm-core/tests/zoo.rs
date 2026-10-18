@@ -116,6 +116,12 @@ fn cases() -> Vec<Case> {
             expect: Expect::Bytes(small.clone()),
         },
         Case {
+            name: "gzip-ranged",
+            what: "ranges over the gzip length where gzip is accepted, as GitHub's raw files",
+            path: "/gzip-ranged/README",
+            expect: Expect::Bytes(large.clone()),
+        },
+        Case {
             name: "disposition-quoted",
             what: "filename=\"…\" with a space",
             path: "/disposition-quoted/get",
@@ -374,6 +380,26 @@ async fn handler(State(s): State<Server>, uri: Uri, headers: HeaderMap) -> Respo
                 .header("content-length", gz.len())
                 .body(Body::from(gz))
                 .unwrap()
+        }
+        // Compressed when compression is accepted, and ranged over the
+        // compressed bytes: a client that asks for gzip and decodes it gets
+        // each range longer than it asked for.
+        "gzip-ranged" => {
+            let accepts_gzip = headers
+                .get("accept-encoding")
+                .and_then(|v| v.to_str().ok())
+                .is_some_and(|v| v.contains("gzip"));
+            if !accepts_gzip {
+                return ranged(&large, &headers, "\"g1\"");
+            }
+            use std::io::Write;
+            let mut e = flate2::write::GzEncoder::new(Vec::new(), flate2::Compression::default());
+            e.write_all(&large).unwrap();
+            let gz = e.finish().unwrap();
+            let mut res = ranged(&gz, &headers, "\"g1-gzip\"");
+            res.headers_mut()
+                .insert("content-encoding", "gzip".parse().unwrap());
+            res
         }
         "disposition-quoted" => with_header(
             small,

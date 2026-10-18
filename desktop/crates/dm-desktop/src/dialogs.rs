@@ -2860,13 +2860,33 @@ fn rename(app: &mut DmApp, ctx: &egui::Context) {
     };
     let mut open = true;
     let mut ok = false;
+    let mut cancel = false;
     window("Move/Rename").open(&mut open).show(ctx, |ui| {
         ok = entered(&focused(field(ui, t("New name"), name, 320.0), focus));
-        ok |= primary(ui, "OK").clicked() || enter_free(ui);
+        ui.horizontal(|ui| {
+            ok |= primary(ui, "OK").clicked() || enter_free(ui);
+            cancel = ui.button(t("Cancel")).clicked();
+        });
     });
+    open &= !cancel;
     if ok {
-        match app.backend.rename(*id, name) {
-            Ok(()) => open = false,
+        let (id, asked) = (*id, name.trim().to_string());
+        match app.backend.rename(id, &asked) {
+            Ok(()) => {
+                open = false;
+                app.refresh();
+                // A name already taken in that folder is given a number,
+                // as a download's is; said, rather than a different name
+                // appearing without a word (round 12).
+                if let Some(given) = app.row(id).map(|r| r.filename.clone()) {
+                    if given != asked {
+                        app.said = crate::i18n::Said::new(
+                            "{} is taken in that folder, so it is called {}.",
+                            &[&asked, &given],
+                        );
+                    }
+                }
+            }
             Err(e) => app.said = e.into(),
         }
     }

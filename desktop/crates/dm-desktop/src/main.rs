@@ -203,6 +203,9 @@ struct Window {
     /// A window manager places a window shown again as it likes, which was
     /// somewhere else each time.
     hidden_at: Option<egui::Pos2>,
+    /// Whether it was maximized then: shown again it came back at its
+    /// restored size in a corner (round 12).
+    hidden_maximized: bool,
     /// The last registration failure said in the window, so opening dm
     /// again does not say it again.
     browsers_said: Option<String>,
@@ -218,12 +221,17 @@ fn registration_failed(why: &str) -> String {
 
 impl Window {
     fn show(&mut self, ctx: &egui::Context) {
-        let at = self.hidden_at.take();
+        let maximized = std::mem::take(&mut self.hidden_maximized);
+        // A maximized window has no place of its own to go back to.
+        let at = self.hidden_at.take().filter(|_| !maximized);
         if let Some(at) = at {
             ctx.send_viewport_cmd(egui::ViewportCommand::OuterPosition(at));
         }
         ctx.send_viewport_cmd(egui::ViewportCommand::Visible(true));
         ctx.send_viewport_cmd(egui::ViewportCommand::Minimized(false));
+        if maximized {
+            ctx.send_viewport_cmd(egui::ViewportCommand::Maximized(true));
+        }
         if let Some(at) = at {
             ctx.send_viewport_cmd(egui::ViewportCommand::OuterPosition(at));
         }
@@ -235,6 +243,7 @@ impl Window {
         if let Some(rect) = ctx.input(|i| i.viewport().outer_rect) {
             self.hidden_at = Some(rect.min);
         }
+        self.hidden_maximized = ctx.input(|i| i.viewport().maximized.unwrap_or(false));
         ctx.send_viewport_cmd(egui::ViewportCommand::Visible(false));
     }
 }
@@ -1122,6 +1131,7 @@ fn main() {
                 icon,
                 tray_language: language,
                 hidden_at: None,
+                hidden_maximized: false,
                 browsers_said,
             }))
         }),

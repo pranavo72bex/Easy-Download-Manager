@@ -698,6 +698,14 @@ fn looks_like_html(head: &[u8]) -> bool {
     .any(|tag| text.starts_with(tag))
 }
 
+/// The file as the server keeps it, never a compressed form of it. A
+/// server that compresses text ranges over the compressed bytes (GitHub's
+/// raw files, apple.com), so a client that asked for gzip and unpacked it
+/// got each range longer than it asked for, and every such file failed as
+/// a server that does not serve ranges honestly. Also what a download is:
+/// the bytes of the file, which a probe's length and a digest are of.
+pub(crate) const IDENTITY: &str = "identity";
+
 pub(crate) fn get(
     client: &reqwest::Client,
     url: &str,
@@ -706,7 +714,8 @@ pub(crate) fn get(
 ) -> reqwest::RequestBuilder {
     let mut request = client
         .get(url)
-        .header(reqwest::header::USER_AGENT, crate::agent_for(url));
+        .header(reqwest::header::USER_AGENT, crate::agent_for(url))
+        .header(reqwest::header::ACCEPT_ENCODING, IDENTITY);
     if let Some(cookies) = crate::cookies::header_with(sign_in, url) {
         request = request.header(reqwest::header::COOKIE, cookies);
     }

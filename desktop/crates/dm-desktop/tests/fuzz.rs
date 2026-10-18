@@ -276,6 +276,17 @@ proptest! {
         prop_assert_eq!(links_in(&webloc), vec![url.clone()]);
         prop_assert_eq!(links_in(&html), both);
         prop_assert_eq!(links_in(&bare), vec![url.clone()]);
+        // As files: a .webloc with the DOCTYPE macOS writes, and a .url
+        // with an icon's address, give the link alone.
+        use dm_desktop::app::links_in_file;
+        let real_webloc = webloc.replace(
+            "<plist",
+            "<!DOCTYPE plist PUBLIC \"-//Apple//DTD PLIST 1.0//EN\" \"http://www.apple.com/DTDs/PropertyList-1.0.dtd\">\n<plist",
+        );
+        prop_assert_eq!(links_in_file(Some("webloc"), &real_webloc), vec![url.clone()]);
+        let iconed = format!("[InternetShortcut]\r\nIconFile=https://e.com/favicon.ico\r\nURL={url}\r\n");
+        prop_assert_eq!(links_in_file(Some("url"), &iconed), vec![url.clone()]);
+        prop_assert_eq!(links_in_file(Some("txt"), &plain), links_in(&plain));
         // Behind any other key, a refresh's `0;url=`, a forum's `[url=…]`
         // and a note's `(…)`: found, and only the address.
         for wrapped in [

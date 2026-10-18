@@ -441,5 +441,7 @@
  "Checked {} finished file with its server. Changed since, and downloaded again: {}.||Checked {} finished files with their servers. Changed since, and downloaded again: {}.": "{} biten dosya sunucusuyla denetlendi. O zamandan beri değişip yeniden indirilen: {}.",
  "{} address: {}||{} addresses, the first {}": "{} adres, ilki {}",
  "{} of the {} addresses in this list is already in dm's list.||{} of the {} addresses in this list are already in dm's list.": "Bu listedeki adreslerin {} tanesi ({} adresten) zaten dm'in listesinde.",
- "queue:to": "kuyruk:"
+ "queue:to": "kuyruk:",
+ "No file chooser on this desktop to pick an application with; Open uses the file's usual one.": "Bu masaüstünde uygulama seçmek için dosya seçici yok; Aç, dosyanın her zamanki uygulamasını kullanır.",
+ "{} is taken in that folder, so it is called {}.": "{} o klasörde zaten var, bu yüzden adı {}."
 }

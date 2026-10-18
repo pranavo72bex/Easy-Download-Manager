@@ -441,5 +441,7 @@
  "Checked {} finished file with its server. Changed since, and downloaded again: {}.||Checked {} finished files with their servers. Changed since, and downloaded again: {}.": "{} fertige Datei mit ihrem Server abgeglichen. Seitdem geändert und erneut geladen: {}.||{} fertige Dateien mit ihren Servern abgeglichen. Seitdem geändert und erneut geladen: {}.",
  "{} address: {}||{} addresses, the first {}": "{} Adresse: {}||{} Adressen, die erste {}",
  "{} of the {} addresses in this list is already in dm's list.||{} of the {} addresses in this list are already in dm's list.": "{} der {} Adressen in dieser Liste ist schon in der Liste von dm.||{} der {} Adressen in dieser Liste sind schon in der Liste von dm.",
- "queue:to": "in"
+ "queue:to": "in",
+ "No file chooser on this desktop to pick an application with; Open uses the file's usual one.": "Auf diesem Desktop gibt es keine Dateiauswahl, um ein Programm zu wählen; Öffnen nimmt das übliche Programm der Datei.",
+ "{} is taken in that folder, so it is called {}.": "{} ist in diesem Ordner schon vergeben, daher heißt die Datei {}."
 }

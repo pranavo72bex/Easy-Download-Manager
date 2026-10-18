@@ -429,7 +429,10 @@ pub fn dropped_links(file: &dyn egui::DroppedFile) -> Vec<String> {
     let kind = path
         .extension()
         .map(|e| e.to_string_lossy().to_ascii_lowercase());
-    if kind.is_some_and(|kind| !DROP_KINDS.contains(&kind.as_str())) {
+    if kind
+        .as_deref()
+        .is_some_and(|kind| !DROP_KINDS.contains(&kind))
+    {
         return Vec::new();
     }
     let mut head = Vec::new();
@@ -440,11 +443,50 @@ pub fn dropped_links(file: &dyn egui::DroppedFile) -> Vec<String> {
         head = file.bytes().unwrap_or_default();
         head.truncate(DROP_LOOK as usize);
     }
+    // A binary plist (a .webloc as some Macs write it) keeps its strings
+    // as plain bytes between others.
+    if head.starts_with(b"bplist00") {
+        let text: String = String::from_utf8_lossy(&head)
+            .chars()
+            .map(|c| if c.is_ascii_graphic() { c } else { ' ' })
+            .collect();
+        return links_in(&text);
+    }
     // A file with no extension is read only if it looks like text.
     if head.contains(&0) {
         return Vec::new();
     }
-    links_in(&String::from_utf8_lossy(&head))
+    links_in_file(kind.as_deref(), &String::from_utf8_lossy(&head))
+}
+
+/// The links a file of this kind is for. A `.webloc` is the one address
+/// under its `URL` key, not the address of the plist format its first lines
+/// name (Apple's DTD was queued beside the link); a `.url` is its `URL=`
+/// line, not its icon's address. Anything else is read for every link.
+pub fn links_in_file(kind: Option<&str>, text: &str) -> Vec<String> {
+    let lower = text.to_ascii_lowercase();
+    if kind == Some("webloc") || lower.contains("<plist") {
+        let value = lower.find("<key>url</key>").and_then(|key| {
+            let rest = &text[key..];
+            let open = rest.find("<string>")? + "<string>".len();
+            let close = rest[open..].find("</string>")?;
+            Some(&rest[open..open + close])
+        });
+        if let Some(value) = value {
+            return links_in(value);
+        }
+    }
+    if kind == Some("url") || lower.contains("[internetshortcut]") {
+        let line = text.lines().find(|l| {
+            l.trim_start()
+                .get(..4)
+                .is_some_and(|k| k.eq_ignore_ascii_case("url="))
+        });
+        if let Some(line) = line {
+            return links_in(line);
+        }
+    }
+    links_in(text)
 }
 
 /// What a drop with no link in it is answered with, and what the empty list
@@ -1733,7 +1775,14 @@ impl DmApp {
                 }
             }
             Command::OpenWith => {
-                if let Some(app) = self.backend.platform.choose_app() {
+                // Nothing to pick an application with: said, rather than a
+                // menu item that did nothing.
+                if !self.backend.platform.can_choose_file() {
+                    self.said = crate::i18n::Said::new(
+                        "No file chooser on this desktop to pick an application with; Open uses the file's usual one.",
+                        &[],
+                    );
+                } else if let Some(app) = self.backend.platform.choose_app() {
                     if let Err(e) = self.backend.platform.open_with(&targets[0].path, &app) {
                         self.said = e.into();
                     }

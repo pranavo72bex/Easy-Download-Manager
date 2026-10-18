@@ -32,6 +32,8 @@ CASES = [
     ("GNU FTP (anonymous, 10 MB in REST ranges)", "ftp://ftp.gnu.org/gnu/bash/bash-5.2.tar.gz", "file", "same-as-curl"),
     ("OVH speed file (ranges, 8 connections)", "https://proof.ovh.net/files/10Mb.dat", "file", "same-as-curl"),
     ("W3Schools sample video (small MP4)", "https://www.w3schools.com/html/mov_bbb.mp4", "file", "same-as-curl"),
+    ("GitHub raw text (compresses, ranges over gzip)", "https://raw.githubusercontent.com/torvalds/linux/master/README", "file", "same-as-curl"),
+    ("Apple DTD (compressed text, no ranges)", "https://www.apple.com/DTDs/PropertyList-1.0.dtd", "file", "same-as-curl"),
     ("Wikimedia Commons image", "https://upload.wikimedia.org/wikipedia/commons/3/3f/Fronalpstock_big.jpg", "file", "image"),
     ("HLS stream (Mux test stream)", "https://test-streams.mux.dev/x36xhzz/x36xhzz.m3u8", "file", "video"),
     ("BitTorrent (.torrent, Sintel)", "https://webtorrent.io/torrents/sintel.torrent", "file", "video"),
