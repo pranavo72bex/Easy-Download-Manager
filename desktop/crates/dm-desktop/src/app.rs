@@ -1446,26 +1446,39 @@ impl DmApp {
                 };
                 Ok(json!({ "place": place }))
             }
-            "ui.inspect" => Ok(json!({
-                "place": format!("{:?}", self.place),
-                "selected": self.selected,
-                "sort": self.sort.map(|(c, up)| json!({ "column": c.english(), "ascending": up })),
-                "categories": self.show_categories,
-                "toolbar": self.show_toolbar,
-                "dark": self.dark,
-                "said": self.said.english(),
-                "problems": self.problems,
-                "dialogs": self.dialogs.open_names(),
-                "rows": self.visible().iter().map(|r| json!({
-                    "id": r.id,
-                    "name": name_of(r),
-                    "status": status_in_english(r),
-                    "queue": r.queue,
-                    "description": r.description,
-                    "url": format::shown_url(&r.url),
-                    "rect": self.row_rects.get(&r.id).map(|b| json!([b.min.x, b.min.y, b.max.x, b.max.y])),
-                })).collect::<Vec<_>>(),
-            })),
+            "ui.inspect" => {
+                // Each row under the name the window shows it by, the one it
+                // will be saved as (UI round 6: the control protocol said
+                // the name a second copy would not get).
+                let mut categories = self.applied.categories();
+                let rows: Vec<_> = self
+                    .visible()
+                    .iter()
+                    .map(|r| {
+                        json!({
+                            "id": r.id,
+                            "name": self.name_it_will_get(r, &mut categories),
+                            "status": status_in_english(r),
+                            "queue": r.queue,
+                            "description": r.description,
+                            "url": format::shown_url(&r.url),
+                            "rect": self.row_rects.get(&r.id).map(|b| json!([b.min.x, b.min.y, b.max.x, b.max.y])),
+                        })
+                    })
+                    .collect();
+                Ok(json!({
+                    "place": format!("{:?}", self.place),
+                    "selected": self.selected,
+                    "sort": self.sort.map(|(c, up)| json!({ "column": c.english(), "ascending": up })),
+                    "categories": self.show_categories,
+                    "toolbar": self.show_toolbar,
+                    "dark": self.dark,
+                    "said": self.said.english(),
+                    "problems": self.problems,
+                    "dialogs": self.dialogs.open_names(),
+                    "rows": rows,
+                }))
+            }
             "queue.list" => Ok(json!(self
                 .rows
                 .iter()
@@ -1701,8 +1714,16 @@ impl DmApp {
     /* --------------------------------------------------------- commands */
 
     pub fn enabled(&self, command: Command) -> bool {
-        let targets = self.targets();
-        let any = |f: fn(&Entry) -> bool| targets.iter().any(f);
+        // The selected rows as they stand, neither copied nor sorted: asked
+        // for every button and menu item each frame, `targets` copied and
+        // sorted the whole list each time, which a thousand rows made slow
+        // (UI round 6). Order does not matter to whether a command applies.
+        let targets: Vec<&Entry> = self
+            .rows
+            .iter()
+            .filter(|r| self.selected.contains(&r.id) && self.shows(r))
+            .collect();
+        let any = |f: fn(&Entry) -> bool| targets.iter().any(|r| f(r));
         match command {
             Command::DownloadNow => any(|r| matches!(r.state, State::Paused | State::Failed(_))),
             Command::StopDownload => any(|r| matches!(r.state, State::Running | State::Queued)),
@@ -1733,7 +1754,7 @@ impl DmApp {
                 targets.len() == 1
                     && targets[0].state == State::Completed
                     && !targets[0].path.is_empty()
-                    && !crate::table::gone(&targets[0])
+                    && !crate::table::gone(targets[0])
             }
             // One to move and rename, or several to move together.
             Command::MoveRename => {
@@ -2708,14 +2729,15 @@ impl DmApp {
         let focused = ctx
             .memory(|m| m.focused())
             .and_then(|id| ctx.read_response(id));
-        let (rect, layer) = match focused {
-            Some(r) => (r.interact_rect, r.layer_id),
+        let (rect, layer, row) = match focused {
+            Some(r) => (r.interact_rect, r.layer_id, false),
             // Kept inside the list's frame: a row is as wide as every
             // column, and its ring ran past the frame's edge (gap 148).
             None => match self.cursor.and_then(|id| self.row_rects.get(&id)) {
                 Some(rect) => (
                     self.list_clip.map_or(*rect, |clip| rect.intersect(clip)),
                     egui::LayerId::background(),
+                    true,
                 ),
                 None => return,
             },
@@ -2726,13 +2748,17 @@ impl DmApp {
             // selected row: those are filled with the accent colour itself.
             let painter = ctx.layer_painter(layer);
             let radius = egui::CornerRadius::same(t.radius);
-            painter.rect_stroke(rect.shrink(1.0), radius, stroke, egui::StrokeKind::Inside);
-            painter.rect_stroke(
-                rect.shrink(3.0),
-                radius,
-                egui::Stroke::new(1.5, t.focus_inner),
-                egui::StrokeKind::Inside,
-            );
+            let inner = egui::Stroke::new(1.5, t.focus_inner);
+            if row {
+                // A row's inside its frame, where the list ends.
+                painter.rect_stroke(rect.shrink(1.0), radius, stroke, egui::StrokeKind::Inside);
+                painter.rect_stroke(rect.shrink(3.0), radius, inner, egui::StrokeKind::Inside);
+            } else {
+                // Round a control, not over it: inside, it crossed a
+                // checkbox's box and its last letter (UI round 6).
+                painter.rect_stroke(rect, radius, inner, egui::StrokeKind::Outside);
+                painter.rect_stroke(rect.expand(1.5), radius, stroke, egui::StrokeKind::Outside);
+            }
             self.focus_ring = Some(rect);
         }
     }

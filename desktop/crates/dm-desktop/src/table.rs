@@ -120,12 +120,19 @@ pub fn show(app: &mut DmApp, ui: &mut egui::Ui) {
     }
     ui.scope_builder(egui::UiBuilder::new().max_rect(list_rect), |ui| {
         sideways.show(ui, |ui| {
+            let body_room =
+                (list_rect.height() - 22.0 - bar_room - 2.0 * ui.spacing().item_spacing.y)
+                    .max(row_height);
             let mut table = TableBuilder::new(ui)
                 .scroll_bar_visibility(egui::scroll_area::ScrollBarVisibility::AlwaysHidden)
                 // One memory of the widths, whatever the window's width or
                 // whether a row has a queue: one per case lost a width a
                 // person dragged as soon as either changed (round 16).
                 .id_salt("list")
+                // Clear of the sideways bar along the list's foot: the last
+                // row seen, its bar and the focus ring lay under it (UI
+                // round 6).
+                .max_scroll_height(body_room)
                 .striped(striped)
                 .resizable(true)
                 // Dragged as well as clicked: a finished file is dragged out of the

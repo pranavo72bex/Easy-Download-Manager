@@ -6911,6 +6911,18 @@ fn a_file_added_again_is_listed_under_the_name_it_will_get() {
         harness.query_by_label("file (1).zip").is_some(),
         "the second copy is not listed as file (1).zip"
     );
+    // And the control protocol says so too (UI round 6).
+    let seen = harness
+        .state_mut()
+        .control_call("ui.inspect", &serde_json::json!({}))
+        .unwrap();
+    let names: Vec<&str> = seen["rows"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .filter_map(|r| r["name"].as_str())
+        .collect();
+    assert!(names.contains(&"file (1).zip"), "{names:?}");
     // And it is placed there once fetched.
     click(&mut harness, "Start queue");
     until(&mut harness, "the second copy to finish", |app| {
