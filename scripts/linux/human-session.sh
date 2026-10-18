@@ -49,6 +49,6 @@ fi
 # seconds while it runs.
 ( n=0; while sleep 6; do n=$((n + 1))
     ffmpeg -loglevel quiet -y -f x11grab -video_size $size -i $DISPLAY -frames:v 1 \
-      /shots/$(printf %03d $n)-screen.png || true
+      "/shots/$(printf %03d "$n")-screen.png" || true
   done ) &
 DM_REAL_INPUT=1 dbus-run-session -- python3 scripts/firefox-check.py native

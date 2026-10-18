@@ -12,4 +12,11 @@ ignore = [
     # compiled for any target dm ships; they are in Cargo.lock, not in dm.
     "RUSTSEC-2024-0429",
     "RUSTSEC-2024-0370",
+    # zbus_names, zvariant and zvariant_derive "unmaintained": not a fault in
+    # them, but merged into zbus 6. dm reaches them through zbus 5, which
+    # eframe's screen-reader support (accesskit_unix), the Linux tray and the
+    # notifications are all built on; the line goes when they move to zbus 6.
+    "RUSTSEC-2026-0370",
+    "RUSTSEC-2026-0371",
+    "RUSTSEC-2026-0372",
 ]

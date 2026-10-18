@@ -24,7 +24,7 @@ case "$browser" in
   firefox) dist=dist/firefox ;;
   *) echo "usage: $0 chromium|firefox <distro>"; exit 2 ;;
 esac
-[ -f scripts/linux/Dockerfile.human-$distro ] || { echo "no image for $distro (scripts/linux/Dockerfile.human-$distro)"; exit 2; }
+[ -f "scripts/linux/Dockerfile.human-$distro" ] || { echo "no image for $distro (scripts/linux/Dockerfile.human-$distro)"; exit 2; }
 [ -f $dist/pkg/dm_catcher_bg.wasm ] || { echo "no $dist — run: sh scripts/package.sh"; exit 1; }
 SHOTS="${DM_SHOTS:-$PWD/human-shots/$browser-$distro}"
 # Microsoft Edge (distro "edge": Debian 12 with Edge from Microsoft's
@@ -38,7 +38,7 @@ SHOTS="${DM_SHOTS:-$PWD/human-shots/$browser-$distro}"
 # and QEMU itself then fails an assertion (rcu_read_unlock) — the checks
 # stop at "never opened its DevTools port". Same-version Chromium survives
 # that QEMU.
-platform= suffix= slow="${DM_SLOW:-1}"
+platform='' suffix='' slow="${DM_SLOW:-1}"
 if [ "$distro" = edge ]; then
   platform=linux/amd64 suffix=-linux-amd64
   case "$(uname -m)" in x86_64|amd64) ;; *) slow="${DM_SLOW:-4}" ;; esac
@@ -55,12 +55,14 @@ stream | docker run --rm -i ${platform:+--platform $platform} -v dm-linux-target
 echo "== $browser on $distro"
 base=
 # Arch's own images are x86_64; on arm64, Arch Linux ARM, as arch-check.sh.
-[ "$distro" = arch ] && [ "$(uname -m)" = arm64 -o "$(uname -m)" = aarch64 ] && base=menci/archlinuxarm:base-devel
+[ "$distro" = arch ] && { [ "$(uname -m)" = arm64 ] || [ "$(uname -m)" = aarch64 ]; } && base=menci/archlinuxarm:base-devel
 image="dm-human-$distro-$browser"
 docker build -q ${platform:+--platform $platform} -t "$image" --build-arg BROWSER="$browser" ${base:+--build-arg BASE=$base} \
-  -f scripts/linux/Dockerfile.human-$distro scripts/linux >/dev/null
+  -f "scripts/linux/Dockerfile.human-$distro" scripts/linux >/dev/null
 volume="dm-human-shots-$browser-$distro"
 status=0
+# The cache option and its value are two words, split on purpose.
+# shellcheck disable=SC2046
 stream | docker run --rm -i ${platform:+--platform $platform} \
   -e DM_LIVE_PAGE="${DM_LIVE_PAGE:-}" -e DM_SLOW="$slow" -e DM_EDGE_CHROME_CHECK="${DM_EDGE_CHROME_CHECK:-1}" \
   -v dm-linux-target$suffix:/target:ro -v "$volume":/shots \
