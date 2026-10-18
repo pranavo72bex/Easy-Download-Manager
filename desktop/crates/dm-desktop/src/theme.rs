@@ -48,11 +48,11 @@ impl Theme {
                 list: hex(0xffffff),
                 header: hex(0xffffff),
                 border: hex(0xe0e0e0),
-                stroke: hex(0xd1d1d1),
+                stroke: hex(0x8a8a8a),
                 text: hex(0x242424),
                 text2: hex(0x424242),
                 weak: hex(0x616161),
-                disabled: hex(0xbdbdbd),
+                disabled: hex(0x8f8f8f),
                 selection: hex(0xebebeb),
                 selection_edge: hex(0xd1d1d1),
                 selection_text: hex(0x242424),
@@ -83,11 +83,11 @@ impl Theme {
                 list: hex(0x292929),
                 header: hex(0x292929),
                 border: hex(0x3d3d3d),
-                stroke: hex(0x666666),
+                stroke: hex(0x808080),
                 text: Color32::WHITE,
                 text2: hex(0xd6d6d6),
                 weak: hex(0xadadad),
-                disabled: hex(0x5c5c5c),
+                disabled: hex(0x8a8a8a),
                 selection: hex(0x383838),
                 selection_edge: hex(0x525252),
                 selection_text: Color32::WHITE,
@@ -101,7 +101,7 @@ impl Theme {
                 brand_hover: hex(0x0f6cbd),
                 brand_soft: hex(0x082338),
                 on_brand: Color32::WHITE,
-                error: hex(0xdc626d),
+                error: hex(0xee7b85),
                 success: hex(0x54b054),
                 warn: hex(0xfaa06b),
                 folder: hex(0xadadad),
@@ -118,11 +118,11 @@ impl Theme {
                 list: Color32::WHITE,
                 header: hex(0xf7f7f7),
                 border: hex(0xd4d4d4),
-                stroke: hex(0xd4d4d4),
+                stroke: hex(0x8a8a8a),
                 text: hex(0x1a1a1a),
                 text2: hex(0x1a1a1a),
                 weak: hex(0x6d6d6d),
-                disabled: hex(0xb4b4b4),
+                disabled: hex(0x8f8f8f),
                 selection: hex(0xcce8ff),
                 selection_edge: hex(0x99d1ff),
                 selection_text: hex(0x1a1a1a),
@@ -138,12 +138,24 @@ impl Theme {
                 on_brand: Color32::WHITE,
                 error: hex(0xc42b1c),
                 success: hex(0x107c10),
-                warn: hex(0xb25e09),
+                warn: hex(0x9c5006),
                 folder: hex(0xf2c24b),
                 coloured_tools: true,
                 radius: 2,
                 card_radius: 4,
             },
+        }
+    }
+}
+
+impl Tokens {
+    /// The progress bar's fill: the brand's blue, or the lighter accent on
+    /// a dark list, where the brand's reads at 2.2:1.
+    pub fn progress(&self) -> Color32 {
+        if self.dark {
+            self.accent
+        } else {
+            self.brand
         }
     }
 }
@@ -740,6 +752,31 @@ mod tests {
             }
         }
         assert!((contrast(Color32::BLACK, Color32::WHITE) - 21.0).abs() < 0.01);
+    }
+
+    /// Words and the edges of controls can be read in every look: status
+    /// colours at 4.5:1 on the list, a control's outline and the progress
+    /// bar at 3:1, and disabled words still visible (a design review found
+    /// outlines at 1.5:1 and the dark error colour at 4.2:1).
+    #[test]
+    fn status_words_outlines_and_progress_can_be_read_in_every_look() {
+        for theme in [Theme::Light, Theme::Dark, Theme::Classic] {
+            let t = theme.tokens();
+            for (what, colour, floor) in [
+                ("error", t.error, 4.5),
+                ("warning", t.warn, 4.5),
+                ("success", t.success, 4.5),
+                ("weak words", t.weak, 4.5),
+                ("an outline", t.stroke, 3.0),
+                ("the progress bar", t.progress(), 3.0),
+                ("disabled words", t.disabled, 2.5),
+            ] {
+                for surface in [t.list, t.pane] {
+                    let got = contrast(colour, surface);
+                    assert!(got >= floor, "{theme:?}: {what} {got:.2} < {floor}");
+                }
+            }
+        }
     }
 
     #[test]

@@ -45,6 +45,12 @@ pub fn show(app: &mut DmApp, ui: &mut egui::Ui) {
                 .weak(),
             );
             if app.rows.is_empty() {
+                // The next step as a button, not only words.
+                ui.add_space(8.0);
+                if crate::dialogs::primary(ui, "Add a download").clicked() {
+                    app.queued.push(Command::AddUrl);
+                }
+                ui.add_space(8.0);
                 ui.label(RichText::new(t(crate::app::DROP_HINT)).small().weak());
             }
         });
@@ -331,7 +337,7 @@ fn initial(column: Column, queue_empty: bool) -> f32 {
         Column::Queue if queue_empty => 60.0,
         Column::Queue => 140.0,
         Column::Size => 76.0,
-        Column::Status => 170.0,
+        Column::Status => 186.0,
         Column::TimeLeft => 88.0,
         Column::Rate => 92.0,
         Column::LastTry => 100.0,
@@ -345,7 +351,7 @@ fn width(column: Column, queue_empty: bool) -> Width {
         Column::Name => Width::initial(220.0).at_least(120.0).clip(true),
         Column::Queue => Width::initial(initial(Column::Queue, queue_empty)).clip(true),
         Column::Size => Width::initial(76.0),
-        Column::Status => Width::initial(170.0).clip(true),
+        Column::Status => Width::initial(186.0).clip(true),
         Column::TimeLeft => Width::initial(88.0),
         Column::Rate => Width::initial(92.0),
         Column::LastTry => Width::initial(100.0),
@@ -385,18 +391,22 @@ fn cell(
                 ui.label(&name).on_hover_text(name);
             }
         }
+        // Numbers against the column's right edge, so their digits line up
+        // down the list (a design review: they were ragged on the left).
         Column::Size => {
-            ui.label(size_of(entry));
+            right(ui, |ui| ui.label(size_of(entry)));
         }
         Column::Status => status_cell(ui, entry, held, selected),
         Column::TimeLeft => {
             if entry.state == State::Running {
-                ui.label(entry.progress.eta.map(format::span).unwrap_or_default());
+                right(ui, |ui| {
+                    ui.label(entry.progress.eta.map(format::span).unwrap_or_default())
+                });
             }
         }
         Column::Rate => {
             if entry.state == State::Running && entry.progress.speed > 1.0 {
-                ui.label(format::rate(entry.progress.speed));
+                right(ui, |ui| ui.label(format::rate(entry.progress.speed)));
             }
         }
         Column::LastTry => {
@@ -636,6 +646,75 @@ pub fn gone(entry: &Entry) -> bool {
     !entry.path.is_empty() && !std::path::Path::new(&entry.path).exists()
 }
 
+/// Lays `add` out against the cell's right edge.
+fn right(ui: &mut egui::Ui, add: impl FnOnce(&mut egui::Ui) -> egui::Response) {
+    ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+        add(ui);
+    });
+}
+
+/// The shape before a row's status, so its state is told by a shape as
+/// well as by words and colour: a design review found the words alone.
+#[derive(Clone, Copy, PartialEq, Debug)]
+enum Glyph {
+    Running,
+    Paused,
+    Waiting,
+    Done,
+    Failed,
+}
+
+fn glyph_of(entry: &Entry) -> Glyph {
+    match &entry.state {
+        State::Running => Glyph::Running,
+        State::Failed(_) => Glyph::Failed,
+        State::Completed => Glyph::Done,
+        State::Queued => Glyph::Waiting,
+        State::Paused if entry.paused_by_schedule => Glyph::Waiting,
+        _ => Glyph::Paused,
+    }
+}
+
+/// Draws `glyph` in a 12-point square, in one colour.
+fn draw_glyph(ui: &mut egui::Ui, glyph: Glyph, colour: egui::Color32) {
+    let (rect, _) = ui.allocate_exact_size(egui::vec2(12.0, 12.0), egui::Sense::hover());
+    let p = ui.painter();
+    let c = rect.center();
+    let line = egui::Stroke::new(1.5, colour);
+    match glyph {
+        Glyph::Running => {
+            p.add(egui::Shape::convex_polygon(
+                vec![
+                    c + egui::vec2(-3.0, -4.5),
+                    c + egui::vec2(4.5, 0.0),
+                    c + egui::vec2(-3.0, 4.5),
+                ],
+                egui::Color32::TRANSPARENT,
+                line,
+            ));
+        }
+        Glyph::Paused => {
+            for dx in [-2.0, 2.0] {
+                p.line_segment([c + egui::vec2(dx, -4.0), c + egui::vec2(dx, 4.0)], line);
+            }
+        }
+        Glyph::Waiting => {
+            p.circle_stroke(c, 5.0, line);
+            p.line_segment([c, c + egui::vec2(0.0, -3.0)], line);
+            p.line_segment([c, c + egui::vec2(2.5, 0.0)], line);
+        }
+        Glyph::Done => {
+            p.line_segment([c + egui::vec2(-4.5, 0.0), c + egui::vec2(-1.5, 3.5)], line);
+            p.line_segment([c + egui::vec2(-1.5, 3.5), c + egui::vec2(4.5, -3.5)], line);
+        }
+        Glyph::Failed => {
+            p.circle_stroke(c, 5.0, line);
+            p.line_segment([c + egui::vec2(-2.0, -2.0), c + egui::vec2(2.0, 2.0)], line);
+            p.line_segment([c + egui::vec2(2.0, -2.0), c + egui::vec2(-2.0, 2.0)], line);
+        }
+    }
+}
+
 fn status_cell(ui: &mut egui::Ui, entry: &Entry, held: Option<&str>, selected: bool) {
     let text = status_of(entry);
     let tokens = crate::theme::Tokens::get(ui.ctx());
@@ -648,56 +727,76 @@ fn status_cell(ui: &mut egui::Ui, entry: &Entry, held: Option<&str>, selected: b
             colour
         }
     };
-    match &entry.state {
-        // The modern look: the percentage with a thin brand bar under it, as its
-        // ProgressBar draws; the classic look writes the percentage alone.
-        State::Running if crate::theme::Tokens::get(ui.ctx()).modern => {
-            let t = crate::theme::Tokens::get(ui.ctx());
-            let fraction = entry.progress.fraction().unwrap_or(0.0) as f32;
-            ui.vertical(|ui| {
+    let glyph = glyph_of(entry);
+    let glyph_colour = match glyph {
+        Glyph::Running => tokens.progress(),
+        Glyph::Done => tokens.success,
+        Glyph::Failed => tokens.error,
+        Glyph::Paused | Glyph::Waiting => tokens.weak,
+    };
+    // The bar under the words in the modern look: while running, and kept
+    // where it stopped for a paused or failed row (it vanished), dimmed or
+    // in the error colour. Not for a row that has fetched nothing.
+    let fraction = entry.progress.fraction().unwrap_or(0.0) as f32;
+    let bar = tokens.modern
+        && match &entry.state {
+            State::Running => true,
+            State::Paused | State::Failed(_) => fraction > 0.0,
+            _ => false,
+        };
+    let bar_colour = match glyph {
+        Glyph::Failed => tokens.error,
+        Glyph::Paused | Glyph::Waiting => tokens.weak,
+        _ => tokens.progress(),
+    };
+    ui.horizontal(|ui| {
+        ui.spacing_mut().item_spacing.x = 6.0;
+        draw_glyph(ui, glyph, on_row(glyph_colour));
+        ui.vertical(|ui| {
+            if bar {
                 ui.add_space(4.0);
-                ui.label(egui::RichText::new(text).size(13.0));
+            }
+            match &entry.state {
+                State::Failed(_) => {
+                    // The whole reason on hover, with where to sign in when
+                    // the server wants it: in plain words, and below them
+                    // what the engine said.
+                    let hover = match crate::app::failure_as_said(entry) {
+                        Some(raw) => format!("{text}\n\n{raw}"),
+                        None => text,
+                    };
+                    ui.colored_label(on_row(tokens.error), t("Error"))
+                        .on_hover_text(hover);
+                }
+                State::Paused if entry.paused_by_schedule => {
+                    let label = ui.label(text);
+                    if let Some(why) = held {
+                        label.on_hover_text(why);
+                    }
+                }
+                // Kept as history, but the file was moved or deleted since:
+                // said, rather than offered to Open as if it were there.
+                State::Completed if gone(entry) => {
+                    let words = egui::RichText::new(t("File missing"));
+                    let words = if selected { words } else { words.weak() };
+                    ui.label(words)
+                        .on_hover_text(format!("{} is no longer there", entry.path));
+                }
+                _ => {
+                    ui.label(text);
+                }
+            }
+            if bar {
                 let width = ui.available_width().max(60.0);
                 let (track, _) =
                     ui.allocate_exact_size(egui::vec2(width, 3.0), egui::Sense::hover());
-                ui.painter().rect_filled(track, 1.5, t.border);
+                ui.painter().rect_filled(track, 1.5, tokens.border);
                 let mut done = track;
                 done.set_width(track.width() * fraction.clamp(0.0, 1.0));
-                ui.painter().rect_filled(done, 1.5, on_row(t.brand));
-            });
-        }
-        State::Running => {
-            ui.label(text);
-        }
-        State::Failed(_) => {
-            // The whole reason on hover, with where to sign in when the
-            // server wants it.
-            // In plain words, and below them what the engine said.
-            let hover = match crate::app::failure_as_said(entry) {
-                Some(raw) => format!("{text}\n\n{raw}"),
-                None => text,
-            };
-            ui.colored_label(on_row(tokens.error), t("Error"))
-                .on_hover_text(hover);
-        }
-        State::Paused if entry.paused_by_schedule => {
-            let label = ui.label(text);
-            if let Some(why) = held {
-                label.on_hover_text(why);
+                ui.painter().rect_filled(done, 1.5, on_row(bar_colour));
             }
-        }
-        // Kept as history, but the file was moved or deleted since: said,
-        // rather than offered to Open as if it were there.
-        State::Completed if gone(entry) => {
-            let words = egui::RichText::new(t("File missing"));
-            let words = if selected { words } else { words.weak() };
-            ui.label(words)
-                .on_hover_text(format!("{} is no longer there", entry.path));
-        }
-        _ => {
-            ui.label(text);
-        }
-    }
+        });
+    });
 }
 
 #[cfg(test)]
@@ -709,16 +808,17 @@ mod tests {
     fn the_name_gives_way_first_in_a_narrow_window() {
         let columns = Column::ALL.to_vec();
         assert_eq!(name_width(&columns, 1200.0, false), 220.0);
-        let narrow = name_width(&columns, 480.0, false);
+        let narrow = name_width(&columns, 600.0, false);
         assert!((120.0..220.0).contains(&narrow), "{narrow}");
         // What it gave is what Queue, Size and Status need beside it.
-        assert!(
-            narrow + 110.0 + 76.0 + 130.0 + 3.0 * 8.0 <= 480.0,
-            "{narrow}"
-        );
+        let beside: f32 = [Column::Queue, Column::Size, Column::Status]
+            .iter()
+            .map(|c| initial(*c, false) + 8.0)
+            .sum();
+        assert!(narrow + beside <= 600.0, "{narrow} + {beside}");
         assert_eq!(name_width(&columns, 200.0, false), 120.0, "never under 120");
         // Gap 140: an empty Queue column gives its room to the name.
-        let room = 720.0 - 240.0;
+        let room = 600.0;
         assert!(name_width(&columns, room, true) > name_width(&columns, room, false));
         assert!(name_width(&columns, room, true) >= initial(Column::Queue, true));
     }

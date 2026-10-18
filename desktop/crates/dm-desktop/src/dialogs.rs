@@ -18,7 +18,11 @@ use egui::{Color32, RichText};
 use crate::app::{category_word, name_of, status_of, DmApp};
 use crate::format;
 
-const WARN: Color32 = Color32::from_rgb(0xd9, 0x7a, 0x2b);
+/// The warning colour of the look in force: a fixed orange read at
+/// 2.9:1 on the light list.
+fn warn(ui: &egui::Ui) -> Color32 {
+    crate::theme::Tokens::get(ui.ctx()).warn
+}
 
 #[derive(Default)]
 pub struct AddUrl {
@@ -869,7 +873,7 @@ fn bar(ui: &mut egui::Ui, fraction: f32, width: f32, words: &str) {
 
 /// A dialog's main action: the primary button, filled with the brand
 /// colour (the classic look draws it like any other).
-fn primary(ui: &mut egui::Ui, text: &'static str) -> egui::Response {
+pub(crate) fn primary(ui: &mut egui::Ui, text: &'static str) -> egui::Response {
     // The button's words in the language in force.
     primary_worded(ui, crate::i18n::t(text))
 }
@@ -927,7 +931,7 @@ fn selection_seen(ui: &mut egui::Ui) {
 /// middle, and the whole dialog jumped (gap 160). Two lines, which is what
 /// the dialogs' warnings take at their widths.
 fn warning_line(ui: &mut egui::Ui, says: &str) {
-    kept_line(ui, RichText::new(says).color(WARN));
+    kept_line(ui, RichText::new(says).color(warn(ui)));
 }
 
 /// [`warning_line`]'s room, holding any words.
@@ -1021,7 +1025,7 @@ fn browse(ui: &mut egui::Ui, platform: &dyn crate::backend::Platform, folder: &m
     }
     if ui.data(|d| d.get_temp::<bool>(missing)).unwrap_or(false) {
         ui.colored_label(
-            WARN,
+            warn(ui),
             t("No folder chooser on this desktop; type the folder's path."),
         );
     }
@@ -1047,6 +1051,17 @@ fn browse_button(
 }
 
 pub fn show(app: &mut DmApp, ctx: &egui::Context) {
+    // A question waiting for its answer dims the window behind it, so it
+    // reads as the one thing to deal with (a design review: nothing set it
+    // apart, and the list behind looked as usable as ever).
+    if app.dialogs.asking() {
+        let dark = crate::theme::Tokens::get(ctx).dark;
+        ctx.layer_painter(egui::LayerId::background()).rect_filled(
+            ctx.content_rect(),
+            0.0,
+            egui::Color32::from_black_alpha(if dark { 110 } else { 70 }),
+        );
+    }
     for id in std::mem::take(&mut app.dialogs.raise) {
         ctx.move_to_top(egui::LayerId::new(egui::Order::Middle, id));
     }
@@ -1466,7 +1481,7 @@ fn list_file(app: &mut DmApp, ctx: &egui::Context) {
         let path = focused(field(ui, t("File's path"), &mut d.path, 420.0), focus);
         ok |= entered(&path);
         if !d.says.is_empty() {
-            ui.colored_label(WARN, &d.says);
+            ui.colored_label(warn(ui), &d.says);
         }
         ui.horizontal(|ui| {
             ok |= primary(ui, "OK").clicked() || enter_free(ui);
@@ -1823,13 +1838,13 @@ fn file_info(app: &mut DmApp, ctx: &egui::Context) {
                         RichText::new(t(
                             "No folder chooser on this desktop; type the folder's path.",
                         ))
-                        .color(WARN),
+                        .color(warn(ui)),
                     )
                     .wrap(),
                 );
             }
             if !d.says.is_empty() {
-                ui.add(egui::Label::new(RichText::new(&d.says).color(WARN)).wrap());
+                ui.add(egui::Label::new(RichText::new(&d.says).color(warn(ui))).wrap());
             }
             ui.separator();
             ui.horizontal(|ui| {
@@ -2416,7 +2431,7 @@ fn properties(app: &mut DmApp, ctx: &egui::Context) {
                             });
                     });
                 if !d.says.is_empty() {
-                    ui.colored_label(WARN, &d.says);
+                    ui.colored_label(warn(ui), &d.says);
                 }
                 ui.horizontal(|ui| {
                     // Properties runs a finished file from here.
@@ -2701,7 +2716,7 @@ fn links(app: &mut DmApp, ctx: &egui::Context) {
                                     failed: Some(why), ..
                                 }) => {
                                     let plain = format::reason(why).map(t).unwrap_or(why.as_str());
-                                    ui.colored_label(WARN, t("Error"))
+                                    ui.colored_label(warn(ui), t("Error"))
                                         .on_hover_text(format::titled(plain));
                                 }
                                 // The kind as the tree names it, in the
@@ -2901,7 +2916,7 @@ fn site_files(app: &mut DmApp, ctx: &egui::Context) {
             save = ui.button(t("Save search")).clicked();
         });
         if !d.says.is_empty() {
-            ui.colored_label(WARN, &d.says);
+            ui.colored_label(warn(ui), &d.says);
         }
         if !saved.is_empty() {
             ui.label(t("Saved searches"));
@@ -2926,7 +2941,7 @@ fn site_files(app: &mut DmApp, ctx: &egui::Context) {
                 ui.label(t("Reading the page…"));
             }
             Grab::Failed(e) => {
-                ui.colored_label(WARN, e.as_str());
+                ui.colored_label(warn(ui), e.as_str());
             }
             Grab::Found(links, _) if links.is_empty() => {
                 ui.label(t("No files of those types are linked from that page."));
@@ -3030,7 +3045,7 @@ fn update_link(app: &mut DmApp, ctx: &egui::Context) {
             ui.label(t("The download's link has expired? Paste a fresh one:"));
             ok = entered(&focused(field(ui, t("New address"), address, 420.0), focus));
             if !says.is_empty() {
-                ui.colored_label(WARN, says.as_str());
+                ui.colored_label(warn(ui), says.as_str());
             }
             ok |= primary(ui, "OK").clicked() || enter_free(ui);
         });
@@ -3206,10 +3221,10 @@ fn scheduler(app: &mut DmApp, ctx: &egui::Context) {
             ui.label(RichText::new(t("HH:MM, local time; no days ticked means every day. A window ending before it starts runs overnight.")).small().weak());
         });
         if !says.is_empty() {
-            ui.colored_label(WARN, says.as_str());
+            ui.colored_label(warn(ui), says.as_str());
         }
         ui.horizontal(|ui| {
-            apply |= ui.button(t("Apply")).clicked() || enter_free(ui);
+            apply |= primary(ui, "Apply").clicked() || enter_free(ui);
             cancel = ui.button(t("Cancel")).clicked();
         });
     });
@@ -3286,10 +3301,10 @@ fn limiter(app: &mut DmApp, ctx: &egui::Context) {
             apply |= entered(&hours_field);
         });
         if !says.is_empty() {
-            ui.colored_label(WARN, says.as_str());
+            ui.colored_label(warn(ui), says.as_str());
         }
         ui.horizontal(|ui| {
-            apply |= ui.button(t("Apply")).clicked() || enter_free(ui);
+            apply |= primary(ui, "Apply").clicked() || enter_free(ui);
             cancel = ui.button(t("Cancel")).clicked();
         });
     });

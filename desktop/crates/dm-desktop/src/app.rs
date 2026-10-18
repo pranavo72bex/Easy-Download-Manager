@@ -13,7 +13,7 @@ use std::time::{Duration, Instant};
 
 use dm_core::{Category, Entry, Id, State, MAIN_QUEUE};
 use dm_shell::Settings;
-use egui::{Color32, RichText};
+use egui::RichText;
 
 use crate::backend::Backend;
 use crate::commands::Command;
@@ -1003,13 +1003,20 @@ impl DmApp {
         // the rows there when the window opened, and not one added for
         // later, which has not started.
         if self.applied.show_progress && self.notify_ready && !self.headless {
-            for row in &self.rows {
-                if !self.last_state.contains_key(&row.id)
-                    && !self.own.contains(&row.id)
-                    && matches!(row.state, State::Running | State::Queued)
-                {
-                    self.dialogs.progress.insert(row.id);
-                }
+            let started: Vec<Id> = self
+                .rows
+                .iter()
+                .filter(|row| {
+                    !self.last_state.contains_key(&row.id)
+                        && !self.own.contains(&row.id)
+                        && matches!(row.state, State::Running | State::Queued)
+                })
+                .map(|row| row.id)
+                .collect();
+            // One window for one download: a batch arriving at once opened a
+            // stack of them over the list (a design review counted ten).
+            if let [only] = started.as_slice() {
+                self.dialogs.progress.insert(*only);
             }
         }
         // A browser's hand-off of an address already listed: added by the
@@ -3181,7 +3188,7 @@ impl DmApp {
         let mut dismissed = None;
         for (i, problem) in self.problems.iter().enumerate() {
             ui.horizontal_wrapped(|ui| {
-                ui.colored_label(Color32::from_rgb(0xd9, 0x7a, 0x2b), problem);
+                ui.colored_label(crate::theme::Tokens::get(ui.ctx()).warn, problem);
                 if ui.button(t("Dismiss")).clicked() {
                     dismissed = Some(i);
                 }
@@ -3661,7 +3668,8 @@ fn tool(
         egui::pos2(rect.center().x, rect.bottom() - 10.0),
         egui::Align2::CENTER_CENTER,
         label,
-        egui::FontId::proportional(11.0),
+        // Nothing under 12 points, the smallest step of the type ramp.
+        egui::FontId::proportional(12.0),
         color,
     );
     response
