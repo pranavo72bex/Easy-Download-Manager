@@ -2491,6 +2491,9 @@ impl DmApp {
             .frame(flat(t.frame, 6, 2))
             .show(ui, |ui| self.menu_bar(ui));
         self.menu_bottom = menu.response.rect.bottom();
+        // For the dialogs, which keep below it.
+        ui.ctx()
+            .data_mut(|d| d.insert_temp(crate::dialogs::menu_bottom_id(), self.menu_bottom));
         if self.show_toolbar {
             egui::Panel::top("toolbar")
                 .show_separator_line(lines)
@@ -3028,7 +3031,10 @@ impl DmApp {
         // names on hover: wrapped to three rows at 150% text in a small
         // window, the toolbar left one row of the list (UI round 3).
         let icons_only = stacked && width(true) > room;
-        let wrap = !modern;
+        // And icons alone go on to a second row where even they do not fit:
+        // at 200% text in the smallest window they ran past the right edge
+        // (UI round 5).
+        let wrap = !modern || icons_only;
         let mut draw = |ui: &mut egui::Ui| {
             for (command, icon, name, widest) in &buttons {
                 // The modern toolbar leads with one primary action.

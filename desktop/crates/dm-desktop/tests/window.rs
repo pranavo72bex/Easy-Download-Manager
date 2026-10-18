@@ -5316,7 +5316,9 @@ fn browse_picks_the_folder_a_download_goes_to() {
 fn the_toolbar_keeps_its_names_narrow_and_in_german() {
     // And in the classic look, whose buttons were a fixed 72 points and
     // ran German's names into each other when the toolbar wrapped (gap 145).
-    for look in ["light", "classic"] {
+    // And at 200% text, where even its icons alone ran past the right
+    // edge (UI round 5): they go on to a second row.
+    for (look, zoom) in [("light", 1.0), ("classic", 1.0), ("light", 2.0)] {
         let world = world();
         let app = world.app_with(Settings {
             download_dir: world.dir.path().join("out"),
@@ -5329,6 +5331,7 @@ fn the_toolbar_keeps_its_names_narrow_and_in_german() {
         let mut harness = Harness::builder()
             .with_size(egui::vec2(720.0, 460.0))
             .build_ui_state(|ui, app: &mut DmApp| app.ui(ui), app);
+        harness.ctx.set_zoom_factor(zoom);
         harness.run_steps(4);
         let mut seen: Vec<(String, egui::accesskit::Rect)> = Vec::new();
         for (_, _, label) in dm_desktop::app::toolbar_in(&[]) {
@@ -5355,7 +5358,11 @@ fn the_toolbar_keeps_its_names_narrow_and_in_german() {
                     bounds.width()
                 );
             }
-            assert!(bounds.x1 <= 720.0, "{name} is past the window's edge");
+            assert!(
+                // In the window's pixels, whatever the text size.
+                bounds.x1 <= 720.0,
+                "{look} {zoom}x: {name} is past the window's edge"
+            );
             for (other, at) in &seen {
                 let meet = bounds.x0 < at.x1 - 0.5
                     && at.x0 < bounds.x1 - 0.5
@@ -7081,6 +7088,7 @@ fn every_dialog_keeps_its_title_and_buttons_on_screen_at_large_text() {
             (Command::Scheduler, "Scheduler", "Cancel"),
             (Command::SpeedLimiterSettings, "Speed limiter", "Cancel"),
             (Command::About, "About dm", "Check for updates"),
+            (Command::Options, "Options", "OK"),
         ] {
             let world = world();
             let mut harness = Harness::builder()
@@ -7097,14 +7105,26 @@ fn every_dialog_keeps_its_title_and_buttons_on_screen_at_large_text() {
                     && at.top() >= -0.5
                     && at.bottom() <= points.y + 0.5
             };
+            // The dialog's own title, drawn after a toolbar button or
+            // menu item of the same name.
             let heading = harness
                 .query_all_by_label(title)
                 .map(|n| n.rect())
-                .find(|at| at.height() > 0.0)
+                .rfind(|at| at.height() > 0.0)
                 .unwrap_or_else(|| panic!("{zoom}x: {title} did not open"));
             assert!(
                 inside(heading),
                 "{zoom}x {size:?}: {title}'s title at {heading:?}"
+            );
+            // Below the menu bar, which dialogs opened over (UI round 5).
+            let bar = harness
+                .query_all_by_label("Program")
+                .map(|n| n.rect())
+                .find(|at| at.top() < 40.0)
+                .expect("the menu bar");
+            assert!(
+                heading.top() >= bar.bottom(),
+                "{zoom}x {size:?}: {title} at {heading:?} is over the menu bar at {bar:?}"
             );
             // Its buttons on screen, or brought there by scrolling its body
             // with the wheel; never past the window's edge out of reach.

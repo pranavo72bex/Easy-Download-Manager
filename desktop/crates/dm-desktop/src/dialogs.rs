@@ -839,12 +839,24 @@ impl Dialogs {
 /// A dialog, titled in the language in force but known by its English
 /// title: its place and size survive a change of language, and two titles
 /// that translate alike stay two windows.
+/// Where the window keeps the menu bar's foot, for the dialogs.
+pub fn menu_bottom_id() -> egui::Id {
+    egui::Id::unique("dm-menu-bottom")
+}
+
 fn window(ctx: &egui::Context, title: &'static str) -> egui::Window<'static> {
-    let room = ctx.content_rect();
-    let tall = (room.height() - 64.0).max(160.0);
+    // Below the menu bar: Options and Properties opened over it, while the
+    // per-download windows kept clear of it (UI round 5).
+    let mut room = ctx.content_rect();
+    if let Some(bottom) = ctx.data(|d| d.get_temp::<f32>(menu_bottom_id())) {
+        room.min.y = room.min.y.max(bottom).min(room.max.y - 160.0);
+    }
+    let tall = (room.height() - 56.0).max(160.0);
     let cramped = ctx
         .memory(|m| m.area_rect(window_id(title)))
-        .is_some_and(|was| was.height() >= tall);
+        // With some slack: a scrolled dialog stands about as tall as it may,
+        // and one that flipped between scrolling and not lost its place.
+        .is_some_and(|was| was.height() >= tall - 8.0);
     egui::Window::new(t(title))
         .id(window_id(title))
         .collapsible(false)
@@ -860,6 +872,7 @@ fn window(ctx: &egui::Context, title: &'static str) -> egui::Window<'static> {
         // itself otherwise, and every other dialog keeps its own size.
         .max_height(tall)
         .vscroll(cramped)
+        .constrain_to(room)
         .anchor(egui::Align2::CENTER_CENTER, [0.0, 0.0])
 }
 
@@ -2553,7 +2566,12 @@ fn properties(app: &mut DmApp, ctx: &egui::Context) {
             .resizable(false)
             .open(&mut shut)
             .max_width(room)
-            .constrain(true)
+            // Below the menu bar, as the progress window keeps (UI round 5).
+            .constrain_to({
+                let mut below = ctx.content_rect();
+                below.min.y = app.menu_bottom.max(below.top()).min(below.bottom() - 120.0);
+                below
+            })
             .show(ctx, |ui| {
                 ui.set_max_width(room);
                 // The values' column: what is left beside the headings.
@@ -3667,7 +3685,9 @@ fn options(app: &mut DmApp, ctx: &egui::Context) {
     // few frames moved under the pointer, centred as it is.
     // No taller than the window either: at 150% in the smallest window its
     // OK sat below the bottom edge (UI round 4).
-    let tall = (ctx.content_rect().height() - 24.0).clamp(240.0, 680.0);
+    // Below the menu bar, as every dialog keeps (UI round 5).
+    let menu_bottom = app.menu_bottom.max(0.0);
+    let tall = (ctx.content_rect().height() - menu_bottom - 16.0).clamp(240.0, 680.0);
     let Some(d) = app.dialogs.options.as_mut() else {
         return;
     };
