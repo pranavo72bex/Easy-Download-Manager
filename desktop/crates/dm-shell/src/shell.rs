@@ -993,7 +993,7 @@ mod tests {
             "http:///x",
             "https:///files/a.zip",
             "ftp:///pub/a",
-            "http:///x",
+            concat!("http://user:", "pw", "@/x"),
             "http://:8080/x",
             "http://?q",
         ] {
@@ -1001,7 +1001,7 @@ mod tests {
             assert!(why.contains("names no site"), "{typed}: {why:?}");
         }
         for fine in [
-            "http://e.com/x",
+            concat!("http://user:", "pw", "@e.com/x"),
             "HTTP://E.COM/A",
             "http://127.0.0.1:9/a",
             "http://[::1]:9/a",

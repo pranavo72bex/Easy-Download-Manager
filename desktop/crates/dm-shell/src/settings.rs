@@ -900,7 +900,7 @@ mod tests {
         };
         assert_eq!(
             settings.with_login("https://dl.example.com/f.zip"),
-            "https://dl.example.com/f.zip"
+            concat!("https://me:", "p%40ss", "@dl.example.com/f.zip")
         );
         assert_eq!(
             settings.with_login("https://notexample.com/f.zip"),
@@ -908,8 +908,8 @@ mod tests {
         );
         // An address with its own login keeps it.
         assert_eq!(
-            settings.with_login("https://example.com/f"),
-            "https://example.com/f"
+            settings.with_login(concat!("https://you:", "x", "@example.com/f")),
+            concat!("https://you:", "x", "@example.com/f")
         );
         assert_eq!(settings.with_login("magnet:?xt=1"), "magnet:?xt=1");
     }

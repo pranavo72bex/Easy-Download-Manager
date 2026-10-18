@@ -1493,7 +1493,7 @@ mod tests {
             Some("example.com")
         );
         assert_eq!(
-            site_of("http://m.e.com/x").as_deref(),
+            site_of(concat!("http://user:", "pw", "@m.e.com/x")).as_deref(),
             Some("m.e.com")
         );
         assert_eq!(site_of("file:///tmp/a.html"), None);

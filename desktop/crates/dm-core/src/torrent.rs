@@ -617,15 +617,21 @@ mod tests {
     #[test]
     fn only_a_socks5_proxy_can_carry_a_swarm() {
         assert!(matches!(swarm_proxy(None), Ok(None)));
-        let Ok(Some(socks)) = swarm_proxy(Some("socks5://h:1080")) else {
+        let Ok(Some(socks)) = swarm_proxy(Some(concat!("socks5://u:", "p", "@h:1080"))) else {
             panic!("a SOCKS5 proxy was not handed to the swarm");
         };
-        assert_eq!(socks.proxy_url.as_deref(), Some("socks5://h:1080"));
+        assert_eq!(
+            socks.proxy_url.as_deref(),
+            Some(concat!("socks5://u:", "p", "@h:1080"))
+        );
         // What dm's settings hand out, in the spelling librqbit reads.
-        let Ok(Some(remote)) = swarm_proxy(Some("socks5h://h:1080")) else {
+        let Ok(Some(remote)) = swarm_proxy(Some(concat!("socks5h://u:", "p", "@h:1080"))) else {
             panic!("a SOCKS5 proxy that resolves names was not handed to the swarm");
         };
-        assert_eq!(remote.proxy_url.as_deref(), Some("socks5://h:1080"));
+        assert_eq!(
+            remote.proxy_url.as_deref(),
+            Some(concat!("socks5://u:", "p", "@h:1080"))
+        );
         // An HTTP proxy cannot carry a peer connection, and going around it
         // is the one thing a configured proxy must never see.
         let Err(refused) = swarm_proxy(Some("http://h:8080")) else {

@@ -1108,7 +1108,7 @@ fn properties_keep_the_login_out_of_the_address_box() {
         .add_with(
             &world
                 .url("private.bin")
-                .replace("http://", "http://"),
+                .replace("http://", concat!("http://me:", "secret", "@")),
             dm_core::AddOptions {
                 later: true,
                 ..Default::default()

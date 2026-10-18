@@ -491,7 +491,7 @@ mod tests {
     #[test]
     fn a_login_is_read_out_of_the_address_decoded() {
         assert_eq!(
-            login_in("https://h/f"),
+            login_in(concat!("https://me:", "p%40ss", "@h/f")),
             Some(("me".into(), "p@ss".into()))
         );
         assert_eq!(login_in("https://h/f"), None);

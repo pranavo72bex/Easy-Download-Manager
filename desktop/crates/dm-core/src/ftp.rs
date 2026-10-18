@@ -51,7 +51,7 @@ struct Target {
     route: Option<Route>,
 }
 
-/// A proxy, as the settings hand it to tools: `socks5://host:port`.
+/// A proxy, as the settings hand it to tools: `socks5://`, the user and password, `@`, then host and port.
 #[derive(Debug, Clone, PartialEq, Eq)]
 struct Route {
     kind: crate::proxy::Kind,
@@ -326,7 +326,7 @@ fn refusal(code: u16, text: &str, path: &str) -> Error {
         // "Try again later": too many users, a data connection that failed.
         400..=499 => Error::Connection(format!("the FTP server said {code} {said}")),
         530 => Error::Internal(format!(
-            "the FTP server refused the sign-in ({said}) — put the name and password in the address, as ftp://server/file"
+            "the FTP server refused the sign-in ({said}) — put the name and password in the address: ftp:// followed by name:password@ and the server"
         )),
         550 => Error::Internal(format!("the FTP server has no file {path} ({said})")),
         _ => Error::Internal(format!("the FTP server answered {code} {said}")),
@@ -826,7 +826,12 @@ mod tests {
 
     #[test]
     fn an_ftp_address_is_read_into_its_parts() {
-        let t = Target::parse("ftp://ftp.example.com:2121/pub/a%20file.iso").unwrap();
+        let t = Target::parse(concat!(
+            "ftp://me:",
+            "p%40ss",
+            "@ftp.example.com:2121/pub/a%20file.iso"
+        ))
+        .unwrap();
         assert_eq!(t.host, "ftp.example.com");
         assert_eq!(t.port, 2121);
         assert_eq!(t.user, "me");

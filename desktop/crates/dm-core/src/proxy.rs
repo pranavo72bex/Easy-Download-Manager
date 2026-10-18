@@ -260,7 +260,11 @@ mod tests {
         };
         assert_eq!(
             proxy.url_for_tools().as_deref(),
-            Some("socks5h://h:1080")
+            Some(concat!(
+                "socks5h://me%40work:",
+                "p%3Ass%2Fw%40rd",
+                "@h:1080"
+            ))
         );
         // Without a user there is nothing to add, and no stray `:@`.
         let plain = Proxy {

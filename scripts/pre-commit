@@ -1,0 +1,9 @@
+#!/bin/sh
+# Refuses a commit that writes a credential into a tracked file: a login in
+# an address, a Basic token, a private key, an access token. Installed with
+#   ln -sf ../../scripts/pre-commit .git/hooks/pre-commit
+# The same check runs in `cargo test --workspace` (xtask), so CI holds it too.
+# It reads the files as staged would leave them only approximately (the
+# working tree): stage what you mean to commit.
+cd "$(git rev-parse --show-toplevel)/desktop" || exit 1
+PATH="$HOME/.cargo/bin:$PATH" CARGO_INCREMENTAL=0 cargo xtask secrets

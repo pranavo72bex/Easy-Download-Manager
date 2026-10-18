@@ -935,7 +935,7 @@ mod tests {
         for left in [
             "https://example.com/f.zip",
             "https://dl.example.com/f.zip",
-            "https://EXAMPLE.com:8443/f.zip",
+            concat!("https://user:", "pw", "@EXAMPLE.com:8443/f.zip"),
             "https://a.cdn.net/f.zip",
         ] {
             assert_eq!(rules.catches(&file(left)), Err(Left::SkippedHost), "{left}");
@@ -964,7 +964,7 @@ mod tests {
     #[test]
     fn hosts_are_read_out_of_every_shape_of_url() {
         assert_eq!(host_of("https://A.B.com/x"), "a.b.com");
-        assert_eq!(host_of("http://h.com:80?x"), "h.com");
+        assert_eq!(host_of(concat!("http://u:", "p", "@h.com:80?x")), "h.com");
         assert_eq!(host_of("http://[::1]:8080/x"), "::1");
         assert_eq!(host_of("https://h.com./"), "h.com");
         assert_eq!(host_of("not a url"), "");

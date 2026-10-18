@@ -23,7 +23,8 @@ fn main() {
         "parity" => {
             parity_evidence().map(|()| "every test docs/parity.md cites exists".to_string())
         }
-        _ => Err("usage: cargo xtask <scorecard|layers|privacy|parity>".to_string()),
+        "secrets" => secrets().map(|()| "no credential is written into a tracked file".to_string()),
+        _ => Err("usage: cargo xtask <scorecard|layers|privacy|parity|secrets>".to_string()),
     };
     match result {
         Ok(said) => println!("{said}"),
@@ -392,6 +393,123 @@ fn privacy() -> Result<(), String> {
     }
 }
 
+/// Every tracked file is free of anything a secret scanner takes for a
+/// leaked credential: a login written into an address, a Basic header's
+/// token, a private key, a cloud or GitHub token. dm's tests use made-up
+/// logins, and one written out whole raised a "Basic Auth String" incident
+/// on the published repository; they are now put together where they are
+/// used, and this keeps it so.
+fn secrets() -> Result<(), String> {
+    let root = root();
+    let listed = std::process::Command::new("git")
+        .args(["ls-files", "-z"])
+        .current_dir(&root)
+        .output()
+        .map_err(|e| format!("git ls-files: {e}"))?;
+    let mut wrong = Vec::new();
+    for name in listed.stdout.split(|b| *b == 0).filter(|n| !n.is_empty()) {
+        let name = String::from_utf8_lossy(name);
+        if name.ends_with(".lock") {
+            continue;
+        }
+        let Ok(text) = std::fs::read_to_string(root.join(&*name)) else {
+            continue;
+        };
+        for (line, found) in secrets_in(&text) {
+            wrong.push(format!("{name}:{line}: {found}"));
+        }
+    }
+    if wrong.is_empty() {
+        Ok(())
+    } else {
+        Err(format!(
+            "credentials written out (build them where they are used instead):\n{}",
+            wrong.join("\n")
+        ))
+    }
+}
+
+/// What in `text` reads as a credential, by line number.
+fn secrets_in(text: &str) -> Vec<(usize, &'static str)> {
+    // Spelled in pieces, so this file is not itself a finding.
+    let key_header = format!("{} PRIVATE {}", "BEGIN", "KEY-----");
+    let rsa_header = format!("{} RSA PRIVATE {}", "BEGIN", "KEY-----");
+    let mut found = Vec::new();
+    for (n, line) in text.lines().enumerate() {
+        let n = n + 1;
+        if login_in_address(line) {
+            found.push((n, "a login written into an address"));
+        }
+        if basic_token(line) {
+            found.push((n, "a Basic authorization token"));
+        }
+        if line.contains(&key_header) || line.contains(&rsa_header) {
+            found.push((n, "a private key"));
+        }
+        if token_after(line, "AKIA", 16, |c| {
+            c.is_ascii_uppercase() || c.is_ascii_digit()
+        }) || ["ghp_", "gho_", "ghu_", "ghs_", "ghr_"]
+            .iter()
+            .any(|p| token_after(line, p, 36, |c| c.is_ascii_alphanumeric()))
+        {
+            found.push((n, "an access token"));
+        }
+    }
+    found
+}
+
+/// A scheme, `://`, a user, a colon, a password written out (not a `{…}`
+/// placeholder filled in at run time) and `@`.
+fn login_in_address(line: &str) -> bool {
+    let user_char = |c: char| c.is_ascii_alphanumeric() || "%._-".contains(c);
+    line.match_indices("://").any(|(at, _)| {
+        let scheme = line[..at]
+            .chars()
+            .rev()
+            .take_while(char::is_ascii_alphabetic)
+            .count();
+        if scheme < 2 {
+            return false;
+        }
+        let rest = &line[at + 3..];
+        let user = rest.chars().take_while(|c| user_char(*c)).count();
+        let Some(after_user) = rest.get(user..).filter(|_| user > 0) else {
+            return false;
+        };
+        let Some(after_colon) = after_user.strip_prefix(':') else {
+            return false;
+        };
+        let password: String = after_colon
+            .chars()
+            .take_while(|c| !"@/ \"'`{\\".contains(*c))
+            .collect();
+        !password.is_empty() && after_colon[password.len()..].starts_with('@')
+    })
+}
+
+/// `Basic ` and a base64 token: eight or more of its characters, holding a
+/// digit or padding — which "Basic realm" and words in a sentence do not.
+fn basic_token(line: &str) -> bool {
+    line.match_indices("Basic ").any(|(at, word)| {
+        let token: String = line[at + word.len()..]
+            .chars()
+            .take_while(|c| c.is_ascii_alphanumeric() || "+/=".contains(*c))
+            .collect();
+        token.len() >= 8 && token.chars().any(|c| c.is_ascii_digit() || c == '=')
+    })
+}
+
+/// `prefix` followed by at least `len` characters that `ok` accepts.
+fn token_after(line: &str, prefix: &str, len: usize, ok: impl Fn(char) -> bool) -> bool {
+    line.match_indices(prefix).any(|(at, _)| {
+        line[at + prefix.len()..]
+            .chars()
+            .take_while(|c| ok(*c))
+            .count()
+            >= len
+    })
+}
+
 /// Hosts named in `https://…` or `http://…` string literals.
 fn hosts_in(text: &str) -> Vec<String> {
     let mut found = Vec::new();
@@ -514,6 +632,29 @@ mod tests {
         if let Err(why) = privacy() {
             panic!("{why}");
         }
+    }
+
+    #[test]
+    fn no_credential_is_written_into_a_tracked_file() {
+        if let Err(why) = secrets() {
+            panic!("{why}");
+        }
+    }
+
+    #[test]
+    fn a_written_out_credential_would_be_caught() {
+        let login = ["https://me:", "hunter2", "@e.com/f"].concat();
+        assert_eq!(secrets_in(&login), [(1, "a login written into an address")]);
+        let placeholder = ["format!(\"http://me:", "{}", "@{addr}/f\")"].concat();
+        assert!(secrets_in(&placeholder).is_empty());
+        let header = ["Authorization: Basic ", "bWU6c2VjcmV0"].concat();
+        assert_eq!(secrets_in(&header), [(1, "a Basic authorization token")]);
+        assert!(secrets_in("Basic realm=\"x\"; Basic authentication").is_empty());
+        let key = ["-----BEGIN ", "PRIVATE KEY-----"].concat();
+        assert_eq!(secrets_in(&key), [(1, "a private key")]);
+        let token = ["ghp_", &"a".repeat(36)].concat();
+        assert_eq!(secrets_in(&token), [(1, "an access token")]);
+        assert!(secrets_in("see http://[::1]:9/a and ftp://ftp.e.com/x").is_empty());
     }
 
     #[test]

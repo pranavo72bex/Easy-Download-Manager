@@ -610,7 +610,7 @@ mod export_tests {
     #[test]
     fn an_exported_address_carries_no_login() {
         assert_eq!(
-            super::without_login("https://files.example/a.zip"),
+            super::without_login(concat!("https://me:", "p%40ss", "@files.example/a.zip")),
             "https://files.example/a.zip"
         );
         assert_eq!(

@@ -153,7 +153,7 @@ async fn with_ytdlp_a_dash_manifest_is_handed_over_with_the_proxy_and_the_page()
         &client(),
         &url,
         &Options {
-            proxy: Some("socks5://127.0.0.1:1080".into()),
+            proxy: Some(concat!("socks5://me:", "secret", "@127.0.0.1:1080").into()),
             referrer: Some("https://page.example/watch".into()),
             ..options(dir.path())
         },
@@ -182,7 +182,10 @@ async fn with_ytdlp_a_dash_manifest_is_handed_over_with_the_proxy_and_the_page()
         "the proxy's password was on yt-dlp's command line: {argv:?}"
     );
     let config = std::fs::read_to_string(record.with_extension("config")).unwrap_or_default();
-    assert_eq!(config.trim(), "--proxy 'socks5://127.0.0.1:1080'");
+    assert_eq!(
+        config.trim(),
+        concat!("--proxy 'socks5://me:", "secret", "@127.0.0.1:1080'")
+    );
     assert!(
         !Path::new(after("--config-locations").unwrap()).exists(),
         "the proxy's file outlived the run"

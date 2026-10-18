@@ -599,14 +599,14 @@ mod tests {
 
     #[test]
     fn a_password_in_an_address_is_never_shown() {
-        let shown = shown_url("https://e.com/f.zip");
+        let shown = shown_url(concat!("https://me:", "secret", "@e.com/f.zip"));
         assert!(!shown.contains("secret"), "{shown}");
         assert!(shown.contains("me:"));
         // Dots a person can read, not their percent-encoding (gap 146).
-        assert_eq!(shown, "https://e.com/f.zip");
+        assert_eq!(shown, concat!("https://me:", "•••", "@e.com/f.zip"));
         assert_eq!(
-            shown_url("https://e.com/f.zip"),
-            "https://e.com/f.zip"
+            shown_url(concat!("https://a%40b:", "p%3Aw", "@e.com/f.zip")),
+            concat!("https://a%40b:", "•••", "@e.com/f.zip")
         );
         assert_eq!(shown_url("https://e.com/f.zip"), "https://e.com/f.zip");
     }
