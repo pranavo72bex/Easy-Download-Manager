@@ -43,6 +43,11 @@ pub struct Settings {
     #[serde(default)]
     pub last_speed_limit: u64,
 
+    /// Addresses typed into Add URL, newest first, without any login in
+    /// them, for picking again; cleared from the dialog.
+    #[serde(default)]
+    pub recent_urls: Vec<String>,
+
     /// The download limit: no more than this many megabytes
     /// every `limit_hours` hours. Zero is none.
     pub limit_mb: u64,
@@ -105,6 +110,9 @@ pub struct Settings {
     /// The window's look: "system" (the modern look, light or dark as the computer
     /// is), "light", "dark", or "classic" (a classic Windows look).
     pub theme: String,
+    /// What a double-click on a row does: "properties", "open" (a finished
+    /// file; Properties for one not finished) or "folder" (its folder).
+    pub double_click: String,
     /// The toolbar styles: "both" (icons and text), "icons" (small, icons
     /// only) or "text" (text only). Anything else is "both".
     pub toolbar_style: String,
@@ -199,6 +207,9 @@ pub struct QueueLimit {
 
 /// Ten: the last five half a minute apart, so a download rides out a
 /// couple of minutes without a network (`retry::backoff`).
+/// How many addresses Add URL remembers.
+pub const RECENT_URLS: usize = 20;
+
 fn default_attempts() -> u32 {
     10
 }
@@ -263,6 +274,7 @@ impl Default for Settings {
                 .join("dm"),
             speed_limit: 0,
             last_speed_limit: 0,
+            recent_urls: Vec::new(),
             limit_mb: 0,
             limit_hours: 1,
             categorize: false,
@@ -281,6 +293,7 @@ impl Default for Settings {
             sound_on_complete: false,
             ask_panel_downloads: true,
             theme: "system".into(),
+            double_click: "properties".into(),
             toolbar_style: "both".into(),
             toolbar_order: Vec::new(),
             column_order: Vec::new(),
@@ -304,6 +317,10 @@ impl Settings {
         self.connections = self.connections.clamp(CONNECTIONS.0, CONNECTIONS.1);
         self.concurrency = self.concurrency.clamp(CONCURRENCY.0, CONCURRENCY.1);
         self.speed_limit = self.speed_limit.clamp(SPEED_LIMIT_KB.0, SPEED_LIMIT_KB.1);
+        self.recent_urls.truncate(RECENT_URLS);
+        if !["properties", "open", "folder"].contains(&self.double_click.as_str()) {
+            self.double_click = "properties".into();
+        }
         self.last_speed_limit = self
             .last_speed_limit
             .clamp(SPEED_LIMIT_KB.0, SPEED_LIMIT_KB.1);

@@ -452,5 +452,19 @@
  "unit:KB": "Ko",
  "unit:MB": "Mo",
  "unit:GB": "Go",
- "unit:TB": "To"
+ "unit:TB": "To",
+ "Also delete the file from the disk": "Supprimer aussi le fichier du disque",
+ "Also delete their files from the disk": "Supprimer aussi leurs fichiers du disque",
+ "Could not delete {}": "Suppression impossible : {}",
+ "Recent": "Récentes",
+ "Clear history": "Effacer l'historique",
+ "Text size": "Taille du texte",
+ "Larger": "Plus grand",
+ "Smaller": "Plus petit",
+ "Normal size": "Taille normale",
+ "{}%": "{} %",
+ "Double-clicking a download": "Double-clic sur un téléchargement",
+ "shows its properties": "affiche ses propriétés",
+ "opens the file": "ouvre le fichier",
+ "opens its folder": "ouvre son dossier"
 }

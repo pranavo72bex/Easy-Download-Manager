@@ -270,9 +270,17 @@ pub fn show(app: &mut DmApp, ui: &mut egui::Ui) {
         app.selected = BTreeSet::from([id]);
         app.cursor = Some(id);
         app.anchor = Some(id);
-        // A double-click on a file name opens its Properties, for any
-        // download; a finished one is opened from there.
-        app.queued.push(Command::Properties);
+        // What Options › General says a double-click does: Properties by
+        // default, for any download; Open or its folder for a finished
+        // one, Properties still for one that is not.
+        let finished = rows
+            .iter()
+            .any(|r| r.id == id && r.state == State::Completed);
+        app.queued.push(match app.applied.double_click.as_str() {
+            "open" if finished => Command::OpenFile,
+            "folder" if finished => Command::OpenFolder,
+            _ => Command::Properties,
+        });
     }
 }
 

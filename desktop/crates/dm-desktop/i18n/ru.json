@@ -452,5 +452,19 @@
  "unit:KB": "КБ",
  "unit:MB": "МБ",
  "unit:GB": "ГБ",
- "unit:TB": "ТБ"
+ "unit:TB": "ТБ",
+ "Also delete the file from the disk": "Удалить и файл с диска",
+ "Also delete their files from the disk": "Удалить и их файлы с диска",
+ "Could not delete {}": "Не удалось удалить: {}",
+ "Recent": "Недавние",
+ "Clear history": "Очистить историю",
+ "Text size": "Размер текста",
+ "Larger": "Крупнее",
+ "Smaller": "Мельче",
+ "Normal size": "Обычный размер",
+ "{}%": "{} %",
+ "Double-clicking a download": "Двойной щелчок по загрузке",
+ "shows its properties": "показывает свойства",
+ "opens the file": "открывает файл",
+ "opens its folder": "открывает папку"
 }

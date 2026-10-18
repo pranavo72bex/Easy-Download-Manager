@@ -452,5 +452,19 @@
  "unit:KB": "KB",
  "unit:MB": "MB",
  "unit:GB": "GB",
- "unit:TB": "TB"
+ "unit:TB": "TB",
+ "Also delete the file from the disk": "Het bestand ook van de schijf verwijderen",
+ "Also delete their files from the disk": "De bestanden ook van de schijf verwijderen",
+ "Could not delete {}": "Kon niet verwijderen: {}",
+ "Recent": "Recent",
+ "Clear history": "Geschiedenis wissen",
+ "Text size": "Tekstgrootte",
+ "Larger": "Groter",
+ "Smaller": "Kleiner",
+ "Normal size": "Normale grootte",
+ "{}%": "{}%",
+ "Double-clicking a download": "Dubbelklikken op een download",
+ "shows its properties": "toont de eigenschappen",
+ "opens the file": "opent het bestand",
+ "opens its folder": "opent de map"
 }

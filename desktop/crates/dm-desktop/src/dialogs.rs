@@ -366,6 +366,8 @@ pub struct Dialogs {
     pub check_update: bool,
     /// Rows Delete was pressed on that are not finished: asked about first.
     pub confirm_remove: Option<Vec<Id>>,
+    /// The Remove question's "Also delete the file": off each time it asks.
+    pub remove_files: bool,
     /// Rows the schedule or the download limit holds that a person asked to
     /// start: asked whether to start them now, outside the schedule.
     pub confirm_outside: Option<Vec<Id>>,
@@ -1110,6 +1112,13 @@ fn confirm_remove(app: &mut DmApp, ctx: &egui::Context) {
         .iter()
         .filter_map(|id| app.row(*id))
         .any(|r| r.state != State::Completed && r.progress.downloaded > 0);
+    // The finished files still on disk that could go with their rows.
+    let files: Vec<String> = ids
+        .iter()
+        .filter_map(|id| app.row(*id))
+        .filter(|r| r.state == State::Completed && std::path::Path::new(&r.path).is_file())
+        .map(|r| r.path.clone())
+        .collect();
     let (mut yes, mut no) = (false, false);
     let title = if unfinished {
         t("Delete unfinished downloads")
@@ -1157,6 +1166,26 @@ fn confirm_remove(app: &mut DmApp, ctx: &egui::Context) {
                 (false, 1) => (t("Take it off"), t("Keep it")),
                 (false, _) => (t("Take them off"), t("Keep them")),
             };
+            // A finished file can go with its row, if asked for; never by
+            // default, and never by Enter (round 15's audit).
+            let files = files.len();
+            let go = if files > 0 {
+                ui.checkbox(
+                    &mut app.dialogs.remove_files,
+                    if files == 1 {
+                        t("Also delete the file from the disk")
+                    } else {
+                        t("Also delete their files from the disk")
+                    },
+                );
+                if app.dialogs.remove_files {
+                    t("Yes, delete")
+                } else {
+                    go
+                }
+            } else {
+                go
+            };
             ui.horizontal(|ui| {
                 yes = ui.button(go).clicked();
                 no = primary_worded(ui, keep).clicked() || enter_free(ui);
@@ -1164,6 +1193,20 @@ fn confirm_remove(app: &mut DmApp, ctx: &egui::Context) {
         });
     if yes {
         app.dialogs.confirm_remove = None;
+        let delete = std::mem::take(&mut app.dialogs.remove_files);
+        if delete {
+            let failed: Vec<String> = files
+                .iter()
+                .filter_map(|path| {
+                    std::fs::remove_file(path)
+                        .err()
+                        .map(|e| format!("{path}: {e}"))
+                })
+                .collect();
+            if !failed.is_empty() {
+                app.said = crate::i18n::Said::new("Could not delete {}", &[&failed.join("; ")]);
+            }
+        }
         // The selection goes to the row after those removed, or the one
         // before where they were the last: it was lost, and the keys had
         // nowhere to go on from.
@@ -1190,6 +1233,7 @@ fn confirm_remove(app: &mut DmApp, ctx: &egui::Context) {
         }
     } else if no {
         app.dialogs.confirm_remove = None;
+        app.dialogs.remove_files = false;
     }
 }
 
@@ -1508,17 +1552,38 @@ fn duplicate(app: &mut DmApp, ctx: &egui::Context) {
 
 fn add_url(app: &mut DmApp, ctx: &egui::Context) {
     let focus = app.dialogs.take_focus("Add URL");
+    let recent = app.applied.recent_urls.clone();
     let Some(d) = app.dialogs.add_url.as_mut() else {
         return;
     };
     let mut open = true;
-    let (mut ok, mut cancel) = (false, false);
+    let (mut ok, mut cancel, mut forget) = (false, false, false);
     window("Add URL").open(&mut open).show(ctx, |ui| {
         let address = focused(field(ui, t("Address"), &mut d.address, 420.0), focus);
         // The link it was opened with is selected, so a link pasted or
         // typed replaces it rather than joining it (gap 142).
         select_on_focus(ui, &address, &d.address);
         ok |= entered(&address);
+        // Addresses added here before, to pick again, and a way to forget
+        // them.
+        if !recent.is_empty() {
+            ui.horizontal(|ui| {
+                let label = ui.label(t("Recent"));
+                egui::ComboBox::from_id_salt("add-url-recent")
+                    .selected_text("")
+                    .width(320.0)
+                    .show_ui(ui, |ui| {
+                        for url in &recent {
+                            if ui.selectable_label(false, format::shown_url(url)).clicked() {
+                                d.address = url.clone();
+                            }
+                        }
+                    })
+                    .response
+                    .labelled_by(label.id);
+                forget = ui.button(t("Clear history")).clicked();
+            });
+        }
         ui.checkbox(&mut d.authorize, t("Needs a sign-in"));
         ui.add_enabled_ui(d.authorize, |ui| {
             ui.horizontal(|ui| {
@@ -1540,6 +1605,13 @@ fn add_url(app: &mut DmApp, ctx: &egui::Context) {
             cancel = ui.button(t("Cancel")).clicked();
         });
     });
+    if forget {
+        match app.backend.remember_urls(Vec::new()) {
+            Ok(now) => app.applied.recent_urls = now.recent_urls,
+            Err(e) => app.said = e.into(),
+        }
+        return;
+    }
     if cancel || !open {
         app.dialogs.add_url = None;
         return;
@@ -1570,6 +1642,17 @@ fn add_url(app: &mut DmApp, ctx: &egui::Context) {
         }
     }
     app.dialogs.add_url = None;
+    // Remembered for Add URL's list, without any login.
+    let remembered = bare(&address);
+    if app.applied.recent_urls.first() != Some(&remembered) {
+        let mut recent = app.applied.recent_urls.clone();
+        recent.retain(|u| *u != remembered);
+        recent.insert(0, remembered);
+        match app.backend.remember_urls(recent) {
+            Ok(now) => app.applied.recent_urls = now.recent_urls,
+            Err(e) => app.said = e.into(),
+        }
+    }
     // Already a row: asked, rather than a second row nobody meant.
     if let Some(id) = already_listed(app, &address) {
         app.dialogs.duplicate = Some((address, id));
@@ -3321,6 +3404,16 @@ fn options(app: &mut DmApp, ctx: &egui::Context) {
                 ui.checkbox(&mut s.sound_on_complete, t("Play a sound when a download finishes"));
                 ui.checkbox(&mut s.sound_on_failure, t("Play a sound when a download fails"));
                 ui.checkbox(&mut s.ask_panel_downloads, t("Ask where to save a video from the browser's panel"));
+                ui.horizontal(|ui| {
+                    ui.label(t("Double-clicking a download"));
+                    for (word, name) in [
+                        ("properties", t("shows its properties")),
+                        ("open", t("opens the file")),
+                        ("folder", t("opens its folder")),
+                    ] {
+                        ui.radio_value(&mut s.double_click, word.to_string(), name);
+                    }
+                });
                 ui.horizontal(|ui| {
                     ui.label(t("Look"));
                     for (word, name) in THEMES {

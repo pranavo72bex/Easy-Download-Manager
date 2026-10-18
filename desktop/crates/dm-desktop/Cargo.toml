@@ -29,7 +29,7 @@ egui = { version = "0.37", features = ["monochrome_emoji_fonts"] }
 # text layout does not do (src/bidi.rs).
 unicode-bidi = "0.3"
 # The download list: a sortable, resizable table.
-egui_extras = "0.37"
+egui_extras = { version = "0.37", features = ["serde"] }
 # `signal`: a logout or `kill` quits dm as Program › Exit does.
 tokio = { version = "1", features = ["rt-multi-thread", "time", "sync", "signal"] }
 serde_json = "1"

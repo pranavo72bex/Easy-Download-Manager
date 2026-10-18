@@ -452,5 +452,19 @@
  "unit:KB": "KB",
  "unit:MB": "MB",
  "unit:GB": "GB",
- "unit:TB": "TB"
+ "unit:TB": "TB",
+ "Also delete the file from the disk": "Dosyayı diskten de sil",
+ "Also delete their files from the disk": "Dosyalarını diskten de sil",
+ "Could not delete {}": "Silinemedi: {}",
+ "Recent": "Son kullanılanlar",
+ "Clear history": "Geçmişi temizle",
+ "Text size": "Metin boyutu",
+ "Larger": "Daha büyük",
+ "Smaller": "Daha küçük",
+ "Normal size": "Normal boyut",
+ "{}%": "{}%",
+ "Double-clicking a download": "Bir indirmeye çift tıklama",
+ "shows its properties": "özelliklerini gösterir",
+ "opens the file": "dosyayı açar",
+ "opens its folder": "klasörünü açar"
 }

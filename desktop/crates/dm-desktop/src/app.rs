@@ -2755,6 +2755,22 @@ impl DmApp {
                 // name stays, since a row without one is no row.
                 ui.menu_button(t("Columns"), |ui| self.columns_menu(ui));
                 ui.menu_button(t("Customize toolbar"), |ui| self.toolbar_menu(ui));
+                // View › Text size: the window's zoom, kept across launches,
+                // which the keyboard's Ctrl (Cmd) with + and − also changes.
+                ui.menu_button(t("Text size"), |ui| {
+                    let ctx = ui.ctx().clone();
+                    let zoom = ctx.zoom_factor();
+                    ui.label(RichText::new(tf("{}%", &[&((zoom * 100.0).round() as u32)])).weak());
+                    if ui.button(t("Larger")).clicked() {
+                        ctx.set_zoom_factor((zoom + 0.1).min(3.0));
+                    }
+                    if ui.button(t("Smaller")).clicked() {
+                        ctx.set_zoom_factor((zoom - 0.1).max(0.5));
+                    }
+                    if ui.button(t("Normal size")).clicked() {
+                        ctx.set_zoom_factor(1.0);
+                    }
+                });
                 // View › Language.
                 ui.menu_button(t("Language"), |ui| {
                     let now = crate::i18n::chosen(&self.applied.language);

@@ -247,6 +247,20 @@ impl Backend {
         Ok(settings)
     }
 
+    /// Add URL's remembered addresses, kept and saved alone: nothing else
+    /// changes, so nothing is applied to the queue — a full apply on every
+    /// address added rebuilt its client and its cookies each time.
+    pub fn remember_urls(&self, recent: Vec<String>) -> Result<Settings, String> {
+        let mut settings = dm_core::lock(&self.settings).clone();
+        settings.recent_urls = recent;
+        let settings = settings.clamped();
+        settings
+            .save()
+            .map_err(|e| format!("settings could not be saved: {e}"))?;
+        *dm_core::lock(&self.settings) = settings.clone();
+        Ok(settings)
+    }
+
     /// What went wrong that no row can carry, each handed over once.
     pub fn problems(&self) -> Vec<String> {
         let mut all = std::mem::take(&mut *dm_core::lock(&self.notices));

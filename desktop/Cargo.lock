@@ -1871,6 +1871,7 @@ dependencies = [
  "log",
  "mime_guess2",
  "profiling",
+ "serde",
 ]
 
 [[package]]
@@ -1946,6 +1947,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "d4532960034c15ba2f55e9eee631040ecc473c32e6c4b200828c759840f13a06"
 dependencies = [
  "enum-map-derive",
+ "serde",
 ]
 
 [[package]]

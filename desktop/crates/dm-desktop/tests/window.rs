@@ -871,7 +871,26 @@ fn a_double_click_opens_properties_and_open_runs_a_finished_file() {
         .get_by_role_and_label(egui::accesskit::Role::Button, "Open")
         .click();
     harness.run_steps(2);
+    assert_eq!(
+        *world.fake.opened.lock().unwrap(),
+        std::slice::from_ref(&row.path)
+    );
+
+    // Options › General's "opens the file": the double-click opens a
+    // finished one straight away; one not finished still shows Properties.
+    harness.state_mut().dialogs.properties.clear();
+    world.fake.opened.lock().unwrap().clear();
+    harness.state_mut().applied.double_click = "open".into();
+    double_click(&mut harness, "file.zip");
+    harness.run_steps(3);
     assert_eq!(*world.fake.opened.lock().unwrap(), [row.path]);
+    assert!(
+        harness.state().dialogs.properties.is_empty(),
+        "Properties opened instead"
+    );
+    double_click(&mut harness, "stalled.bin");
+    harness.run_steps(3);
+    assert!(harness.query_by_label("File properties").is_some());
 }
 
 #[test]
@@ -2246,6 +2265,84 @@ fn the_list_behind_the_remove_question_takes_no_clicks() {
         chosen,
         "a row was selected under the question"
     );
+}
+
+/// Remove can take a finished file off the disk with its row, when asked;
+/// left alone, the file stays.
+#[test]
+fn remove_deletes_the_file_too_only_when_asked() {
+    let world = world();
+    let mut harness = world.harness();
+    add_url(&mut harness, &world.url("file.zip"), "Start now");
+    add_url(&mut harness, &world.url("other.pdf"), "Start now");
+    until(&mut harness, "both to complete", |app| {
+        app.rows().len() == 2 && app.rows().iter().all(|r| r.state == State::Completed)
+    });
+    let path_of = |h: &Harness<'_, DmApp>, name: &str| {
+        h.state()
+            .rows()
+            .iter()
+            .find(|r| r.filename == name)
+            .unwrap()
+            .path
+            .clone()
+    };
+    let (zip, pdf) = (
+        path_of(&harness, "file.zip"),
+        path_of(&harness, "other.pdf"),
+    );
+    select(&mut harness, "file.zip");
+    harness.state_mut().run(Command::Remove);
+    harness.run_steps(3);
+    click(&mut harness, "Take it off");
+    harness.state_mut().refresh();
+    assert!(
+        std::path::Path::new(&zip).is_file(),
+        "the file went without being asked"
+    );
+    select(&mut harness, "other.pdf");
+    harness.state_mut().run(Command::Remove);
+    harness.run_steps(3);
+    click(&mut harness, "Also delete the file from the disk");
+    click(&mut harness, "Yes, delete");
+    harness.state_mut().refresh();
+    assert!(!std::path::Path::new(&pdf).exists(), "the file stayed");
+    assert!(harness.state().rows().is_empty());
+}
+
+/// Add URL remembers the addresses added through it, never with a login,
+/// offers them again, and forgets them on Clear history.
+#[test]
+fn add_url_remembers_addresses_without_their_login_and_clears_them() {
+    let _file = SETTINGS_FILE.lock().unwrap_or_else(|e| e.into_inner());
+    let world = world();
+    let mut harness = world.harness();
+    click(&mut harness, "Add URL");
+    type_into(&mut harness, "Address", &world.url("file.zip"));
+    click(&mut harness, "Needs a sign-in");
+    type_into(&mut harness, "Login", "me");
+    click(&mut harness, "OK");
+    assert_eq!(harness.state().applied.recent_urls, [world.url("file.zip")]);
+    harness.state_mut().dialogs.file_info = None;
+    harness.run_steps(2);
+    click(&mut harness, "Add URL");
+    assert!(harness.query_by_label("Recent").is_some());
+    click(&mut harness, "Clear history");
+    assert!(harness.state().applied.recent_urls.is_empty());
+}
+
+/// View › Text size makes everything larger, smaller, or normal again.
+#[test]
+fn view_text_size_zooms_the_window() {
+    let world = world();
+    let mut harness = world.harness();
+    press(&mut harness, &["View", "Text size", "Larger"]);
+    harness.run_steps(3);
+    let zoom = harness.ctx.zoom_factor();
+    assert!((zoom - 1.1).abs() < 0.01, "{zoom}");
+    press(&mut harness, &["View", "Text size", "Normal size"]);
+    harness.run_steps(3);
+    assert!((harness.ctx.zoom_factor() - 1.0).abs() < 0.01);
 }
 
 #[test]

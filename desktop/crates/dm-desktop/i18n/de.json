@@ -452,5 +452,19 @@
  "unit:KB": "KB",
  "unit:MB": "MB",
  "unit:GB": "GB",
- "unit:TB": "TB"
+ "unit:TB": "TB",
+ "Also delete the file from the disk": "Die Datei auch von der Festplatte löschen",
+ "Also delete their files from the disk": "Die Dateien auch von der Festplatte löschen",
+ "Could not delete {}": "Konnte nicht gelöscht werden: {}",
+ "Recent": "Zuletzt",
+ "Clear history": "Verlauf löschen",
+ "Text size": "Textgröße",
+ "Larger": "Größer",
+ "Smaller": "Kleiner",
+ "Normal size": "Normale Größe",
+ "{}%": "{} %",
+ "Double-clicking a download": "Doppelklick auf einen Download",
+ "shows its properties": "zeigt die Eigenschaften",
+ "opens the file": "öffnet die Datei",
+ "opens its folder": "öffnet den Ordner"
 }

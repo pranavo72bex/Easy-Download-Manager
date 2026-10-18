@@ -452,5 +452,19 @@
  "unit:KB": "KB",
  "unit:MB": "MB",
  "unit:GB": "GB",
- "unit:TB": "TB"
+ "unit:TB": "TB",
+ "Also delete the file from the disk": "Hapus juga berkas dari disk",
+ "Also delete their files from the disk": "Hapus juga berkasnya dari disk",
+ "Could not delete {}": "Tidak bisa dihapus: {}",
+ "Recent": "Terbaru",
+ "Clear history": "Hapus riwayat",
+ "Text size": "Ukuran teks",
+ "Larger": "Lebih besar",
+ "Smaller": "Lebih kecil",
+ "Normal size": "Ukuran normal",
+ "{}%": "{}%",
+ "Double-clicking a download": "Klik dua kali pada unduhan",
+ "shows its properties": "menampilkan propertinya",
+ "opens the file": "membuka berkas",
+ "opens its folder": "membuka foldernya"
 }
