@@ -1,7 +1,8 @@
 // The page script. Two small things are plain JavaScript, registered before
 // anything loads, because they must work on a page whose security policy
-// forbids WebAssembly: Alt-click (a link clicked with Alt held is left to
-// the browser) and the page's links for "Download all/selected links".
+// forbids WebAssembly: a click with a key held (Alt leaves a download with
+// the browser, Shift hands it to dm, as the app's rules name them) and the
+// page's links for "Download all/selected links".
 // The "Download video" panel is written in Rust (browser/src/content.rs),
 // compiled to WebAssembly; a content script cannot be a module, so this
 // loads it. Message names are those in browser/src/decide.rs.
@@ -16,17 +17,38 @@
     try { return Boolean(ext.runtime?.id); } catch { return false; }
   };
 
-  // Alt-click: the background is told before the download starts.
+  // A click with a key held: the app's rules (Options › Browser) name the
+  // key that leaves a download with the browser (Alt unless changed) and
+  // the one that hands it to dm whatever its type or size (Shift unless
+  // changed). The background is told before the download starts.
   // Capturing, so a page that stops the click on its way up cannot hide the
-  // Alt. Not held to isTrusted: all a made-up Alt+click can do is leave a
-  // download with the browser, as it would be with no dm.
+  // key. The take key is held to isTrusted, since it hands something over;
+  // a made-up keep click can only leave a download with the browser.
+  const keys = { keep: 'alt', take: 'shift' };
+  const held = (event, key) => (key === 'alt' && event.altKey)
+    || (key === 'shift' && event.shiftKey)
+    || (key === 'ctrl' && (event.ctrlKey || event.metaKey));
+  const readKeys = (rules) => {
+    if (!rules || typeof rules !== 'object') return;
+    if (typeof rules.keepKey === 'string') keys.keep = rules.keepKey;
+    if (typeof rules.takeKey === 'string') keys.take = rules.takeKey;
+  };
+  try {
+    ext.storage.local.get('dm.catch').then((got) => readKeys(got?.['dm.catch'])).catch(() => {});
+    ext.storage.onChanged.addListener((changes) => readKeys(changes?.['dm.catch']?.newValue));
+  } catch {
+    // No storage here; the keys stay as they ship.
+  }
   document.addEventListener('click', (event) => {
-    if (!event.altKey || !(event.target instanceof Element)) return;
+    if (!(event.target instanceof Element)) return;
+    const keep = held(event, keys.keep);
+    const take = !keep && keys.take !== '' && event.isTrusted && held(event, keys.take);
+    if (!keep && !take) return;
     const link = event.target.closest('a[href]');
     if (!link) return;
     // The property, not the attribute: resolved against the page.
     try {
-      ext.runtime.sendMessage({ type: 'dm.skip', src: String(link.href), frame: '' })
+      ext.runtime.sendMessage({ type: keep ? 'dm.skip' : 'dm.take', src: String(link.href), frame: '' })
         .catch(() => {});
     } catch {
       // The extension was updated or removed under this page.

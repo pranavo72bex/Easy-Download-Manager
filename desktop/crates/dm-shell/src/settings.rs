@@ -362,6 +362,16 @@ impl Settings {
         if !["properties", "open", "folder"].contains(&self.double_click.as_str()) {
             self.double_click = "properties".into();
         }
+        // The click keys are one of those the extension knows, or (to take)
+        // none; anything else is what they ship as.
+        if !dm_protocol::CLICK_KEYS.contains(&self.catch.keep_key.as_str()) {
+            self.catch.keep_key = "alt".into();
+        }
+        if !self.catch.take_key.is_empty()
+            && !dm_protocol::CLICK_KEYS.contains(&self.catch.take_key.as_str())
+        {
+            self.catch.take_key = "shift".into();
+        }
         self.last_speed_limit = self
             .last_speed_limit
             .clamp(SPEED_LIMIT_KB.0, SPEED_LIMIT_KB.1);
@@ -1263,6 +1273,33 @@ mod tests {
         assert_eq!(at("  "), "");
         let absolute = std::env::temp_dir().join("dm-parts").display().to_string();
         assert_eq!(at(&absolute), absolute);
+    }
+
+    /// The click keys are ones the extension knows: anything else in a
+    /// hand-edited file is what they ship as, and "none" stays none.
+    #[test]
+    fn the_click_keys_are_ones_the_extension_knows() {
+        let mut catch = dm_protocol::CatchRules {
+            keep_key: "hyper".into(),
+            take_key: "f13".into(),
+            ..Default::default()
+        };
+        let odd = Settings {
+            catch: catch.clone(),
+            ..Settings::default()
+        }
+        .clamped();
+        assert_eq!(
+            (odd.catch.keep_key.as_str(), odd.catch.take_key.as_str()),
+            ("alt", "shift")
+        );
+        catch.keep_key = "alt".into();
+        catch.take_key = String::new();
+        let none = Settings {
+            catch,
+            ..Settings::default()
+        };
+        assert_eq!(none.clamped().catch.take_key, "");
     }
 
     /// Settings carried to another computer leave every password behind,

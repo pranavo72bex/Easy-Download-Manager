@@ -473,5 +473,11 @@
  "Save settings to a file…": "Salvar as configurações em um arquivo…",
  "Load settings from a file…": "Carregar as configurações de um arquivo…",
  "Saved to {}, without any password.": "Salvo em {}, sem nenhuma senha.",
- "Loaded. Look them over, then OK to use them.": "Carregadas. Revise-as e clique em OK para usá-las."
+ "Loaded. Look them over, then OK to use them.": "Carregadas. Revise-as e clique em OK para usá-las.",
+ "Alt": "Alt",
+ "Ctrl or Cmd": "Ctrl ou Cmd",
+ "none": "nenhuma",
+ "Hold while clicking to leave it with the browser": "Segurar ao clicar para deixá-lo com o navegador",
+ "Hold while clicking to send it to dm whatever its type or size": "Segurar ao clicar para enviá-lo ao dm, seja qual for o tipo ou tamanho",
+ "The two keys are the same; holding it leaves the download with the browser.": "As duas teclas são iguais; segurá-la deixa o download com o navegador."
 }

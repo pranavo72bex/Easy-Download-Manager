@@ -473,5 +473,11 @@
  "Save settings to a file…": "Simpan pengaturan ke berkas…",
  "Load settings from a file…": "Muat pengaturan dari berkas…",
  "Saved to {}, without any password.": "Disimpan ke {}, tanpa kata sandi.",
- "Loaded. Look them over, then OK to use them.": "Dimuat. Periksa dulu, lalu OK untuk memakainya."
+ "Loaded. Look them over, then OK to use them.": "Dimuat. Periksa dulu, lalu OK untuk memakainya.",
+ "Alt": "Alt",
+ "Ctrl or Cmd": "Ctrl atau Cmd",
+ "none": "tidak ada",
+ "Hold while clicking to leave it with the browser": "Tahan saat mengklik agar tetap di peramban",
+ "Hold while clicking to send it to dm whatever its type or size": "Tahan saat mengklik untuk mengirim ke dm apa pun jenis atau ukurannya",
+ "The two keys are the same; holding it leaves the download with the browser.": "Kedua tombol sama; menahannya membiarkan unduhan di peramban."
 }

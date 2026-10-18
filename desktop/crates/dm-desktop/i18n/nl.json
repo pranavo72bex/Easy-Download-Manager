@@ -473,5 +473,11 @@
  "Save settings to a file…": "Instellingen in een bestand opslaan…",
  "Load settings from a file…": "Instellingen uit een bestand laden…",
  "Saved to {}, without any password.": "Opgeslagen in {}, zonder wachtwoorden.",
- "Loaded. Look them over, then OK to use them.": "Geladen. Bekijk ze en klik op OK om ze te gebruiken."
+ "Loaded. Look them over, then OK to use them.": "Geladen. Bekijk ze en klik op OK om ze te gebruiken.",
+ "Alt": "Alt",
+ "Ctrl or Cmd": "Ctrl of Cmd",
+ "none": "geen",
+ "Hold while clicking to leave it with the browser": "Ingedrukt houden bij klikken om hem aan de browser te laten",
+ "Hold while clicking to send it to dm whatever its type or size": "Ingedrukt houden bij klikken om hem naar dm te sturen, welk type of welke grootte ook",
+ "The two keys are the same; holding it leaves the download with the browser.": "De twee toetsen zijn gelijk; ingedrukt houden laat de download bij de browser."
 }

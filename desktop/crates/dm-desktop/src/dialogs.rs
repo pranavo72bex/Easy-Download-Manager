@@ -3482,6 +3482,42 @@ fn options(app: &mut DmApp, ctx: &egui::Context) {
                     });
                     field(ui, t("Never take downloads from these sites"), &mut d.skip, 480.0);
                 });
+                // The keys a click on a link can be held with.
+                let keys = [("alt", t("Alt")), ("shift", t("key:Shift")), ("ctrl", t("Ctrl or Cmd"))];
+                let word = |key: &str| {
+                    keys.iter()
+                        .find(|(k, _)| *k == key)
+                        .map(|(_, w)| w.trim_start_matches("key:").to_string())
+                        .unwrap_or_else(|| t("none").to_string())
+                };
+                ui.horizontal(|ui| {
+                    let name = ui.label(t("Hold while clicking to leave it with the browser"));
+                    egui::ComboBox::from_id_salt("keep-key")
+                        .selected_text(word(&c.keep_key))
+                        .show_ui(ui, |ui| {
+                            for (key, _) in &keys {
+                                ui.selectable_value(&mut c.keep_key, key.to_string(), word(key));
+                            }
+                        })
+                        .response
+                        .labelled_by(name.id);
+                });
+                ui.horizontal(|ui| {
+                    let name = ui.label(t("Hold while clicking to send it to dm whatever its type or size"));
+                    egui::ComboBox::from_id_salt("take-key")
+                        .selected_text(word(&c.take_key))
+                        .show_ui(ui, |ui| {
+                            ui.selectable_value(&mut c.take_key, String::new(), word(""));
+                            for (key, _) in &keys {
+                                ui.selectable_value(&mut c.take_key, key.to_string(), word(key));
+                            }
+                        })
+                        .response
+                        .labelled_by(name.id);
+                });
+                if !c.take_key.is_empty() && c.take_key == c.keep_key {
+                    ui.colored_label(warn(ui), t("The two keys are the same; holding it leaves the download with the browser."));
+                }
                 ui.label(RichText::new(t("Read by the browser extension when it starts and every few minutes. The right-click menu and the toolbar button hand anything over regardless.")).small().weak());
             }
             Tab::SaveTo => {

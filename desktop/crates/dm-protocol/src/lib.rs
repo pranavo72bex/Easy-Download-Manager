@@ -448,7 +448,19 @@ pub struct CatchRules {
     /// Hosts whose downloads stay with the browser, each with its subdomains.
     #[serde(alias = "skip_hosts")]
     pub skip_hosts: Vec<String>,
+    /// The key that, held while a link is clicked, leaves its download with
+    /// the browser: "alt", "shift" or "ctrl" (Cmd on a Mac too).
+    #[serde(alias = "keep_key")]
+    pub keep_key: String,
+    /// The key that, held while a link is clicked, hands its download to dm
+    /// whatever the types and size floor say; the switch and the sites to
+    /// skip still hold. Empty for none.
+    #[serde(alias = "take_key")]
+    pub take_key: String,
 }
+
+/// The keys a click can be held with, as the rules name them.
+pub const CLICK_KEYS: [&str; 3] = ["alt", "shift", "ctrl"];
 
 impl Default for CatchRules {
     fn default() -> Self {
@@ -457,6 +469,8 @@ impl Default for CatchRules {
             extensions: DEFAULT_EXTENSIONS.iter().map(|s| s.to_string()).collect(),
             min_size_kb: 0,
             skip_hosts: Vec::new(),
+            keep_key: "alt".into(),
+            take_key: "shift".into(),
         }
     }
 }
@@ -832,10 +846,14 @@ mod tests {
                 extensions: vec!["zip".into()],
                 min_size_kb: 5,
                 skip_hosts: vec!["e.com".into()],
+                keep_key: "ctrl".into(),
+                take_key: String::new(),
             },
         });
         let frame = reply.to_frame();
         assert_eq!(frame["catch"]["minSizeKb"], 5);
+        assert_eq!(frame["catch"]["keepKey"], "ctrl");
+        assert_eq!(frame["catch"]["takeKey"], "");
         assert_eq!(frame["catch"]["skipHosts"][0], "e.com");
         assert_eq!(Reply::from_frame(&frame), Ok(reply));
 

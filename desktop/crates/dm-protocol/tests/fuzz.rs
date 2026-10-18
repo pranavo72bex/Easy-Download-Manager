@@ -16,7 +16,7 @@ proptest! {
         skip in prop::collection::vec(any::<String>(), 0..4),
         enabled in any::<bool>(),
     ) {
-        let rules = CatchRules { enabled, extensions, min_size_kb: min, skip_hosts: skip };
+        let rules = CatchRules { enabled, extensions, min_size_kb: min, skip_hosts: skip, ..CatchRules::default() };
         let candidate = Candidate { url: &url, asked_url: &filename, referrer: &mime, filename: &filename, mime: &mime, size };
         let _ = rules.takes(&candidate, enabled);
         let _ = rules.catches(&candidate);

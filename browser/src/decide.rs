@@ -796,13 +796,29 @@ pub const PANEL_MESSAGE: &str = "dm.media";
 /// The page script says so before the browser starts the download.
 pub const SKIP_MESSAGE: &str = "dm.skip";
 
+/// A click with the rules' take key held: its download goes to the app
+/// whatever the types and size floor say.
+pub const TAKE_MESSAGE: &str = "dm.take";
+
+/// The address a click with the take key held asks the app to take.
+pub fn take_url(click: &PanelClick) -> Result<String, String> {
+    if click.kind != TAKE_MESSAGE {
+        return Err("that is not a click to hand over".into());
+    }
+    web_address(&click.src)
+}
+
 /// The address an Alt-click asks to leave with the browser, if it is one a
 /// download could come from.
 pub fn skip_url(click: &PanelClick) -> Result<String, String> {
     if click.kind != SKIP_MESSAGE {
         return Err("that is not an Alt-click".into());
     }
-    let url = click.src.trim();
+    web_address(&click.src)
+}
+
+fn web_address(src: &str) -> Result<String, String> {
+    let url = src.trim();
     if url.starts_with("https://") || url.starts_with("http://") {
         Ok(url.to_string())
     } else {
@@ -1330,7 +1346,14 @@ mod tests {
         // that forbids WebAssembly keeps them; the names must still agree.
         let script = include_str!("../../extension/content.js");
         assert!(script.contains(&format!("'{SKIP_MESSAGE}'")));
+        assert!(script.contains(&format!("'{TAKE_MESSAGE}'")));
         assert!(script.contains(&format!("'{LINKS_MESSAGE}'")));
+        // The keys are read from the rules as the protocol names them.
+        let rules = serde_json::to_value(dm_protocol::CatchRules::default()).unwrap();
+        for field in ["keepKey", "takeKey"] {
+            assert!(rules.get(field).is_some(), "{field}");
+            assert!(script.contains(&format!("rules.{field}")), "{field}");
+        }
         // Registered before the WebAssembly is imported, not after.
         let import = script.find("import(").unwrap();
         assert!(script.find("addEventListener('click'").unwrap() < import);
@@ -1816,6 +1839,12 @@ mod tests {
             Ok("https://e.com/f.zip".to_string())
         );
         assert!(skip_url(&click(SKIP_MESSAGE, "javascript:void(0)")).is_err());
+        assert_eq!(
+            take_url(&click(TAKE_MESSAGE, "https://e.com/f.zip")).as_deref(),
+            Ok("https://e.com/f.zip")
+        );
+        assert!(take_url(&click(SKIP_MESSAGE, "https://e.com/f.zip")).is_err());
+        assert!(take_url(&click(TAKE_MESSAGE, "file:///etc/passwd")).is_err());
         assert!(skip_url(&click(PANEL_MESSAGE, "https://e.com/f.zip")).is_err());
         let mut released = Released::default();
         released.remember("https://e.com/f.zip", 0.0);

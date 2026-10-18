@@ -473,5 +473,11 @@
  "Save settings to a file…": "Сохранить настройки в файл…",
  "Load settings from a file…": "Загрузить настройки из файла…",
  "Saved to {}, without any password.": "Сохранено в {}, без паролей.",
- "Loaded. Look them over, then OK to use them.": "Загружено. Проверьте их и нажмите ОК, чтобы применить."
+ "Loaded. Look them over, then OK to use them.": "Загружено. Проверьте их и нажмите ОК, чтобы применить.",
+ "Alt": "Alt",
+ "Ctrl or Cmd": "Ctrl или Cmd",
+ "none": "нет",
+ "Hold while clicking to leave it with the browser": "Удерживать при щелчке, чтобы оставить загрузку браузеру",
+ "Hold while clicking to send it to dm whatever its type or size": "Удерживать при щелчке, чтобы отдать загрузку dm независимо от типа и размера",
+ "The two keys are the same; holding it leaves the download with the browser.": "Обе клавиши одинаковы; при её удержании загрузка остаётся браузеру."
 }

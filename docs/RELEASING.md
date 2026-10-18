@@ -102,7 +102,9 @@ release checks all three agree with the tag). 3.0.0 went to the deleted
 unlisted add-on and 3.0.1 to the listed one; 3.0.2 adds the `scripting`
 permission (to read links on a tab open before the extension was); 3.0.3
 sends a site's sign-in with "Download all/selected links" where the popup
-hands it over (no new permission).
+hands it over (no new permission); 3.0.4 reads the click keys from the
+app's rules: Alt leaves a download with the browser and Shift hands it to
+dm whatever its type or size, each changeable in Options › Browser.
 
 ## Verifying a release actually works
 

@@ -29,6 +29,9 @@ thread_local! {
     /// which costs one more handshake and nothing else.
     static KNOWN: RefCell<Option<Known>> = const { RefCell::new(None) };
     static RELEASED: RefCell<Released> = RefCell::new(Released::default());
+    /// Links clicked with the take key held: their downloads go to the app
+    /// whatever its types and size floor say.
+    static TAKEN: RefCell<Released> = RefCell::new(Released::default());
     /// Media each tab has loaded, for the panel's list.
     static STREAMS: RefCell<decide::Streams> = RefCell::new(decide::Streams::default());
     /// Which page each tab is on, so an `Add` that outlives its page is dropped.
@@ -620,7 +623,11 @@ pub async fn on_download_created(item: JsValue) {
     // candidate is held; one the app turns out not to want is given back.
     // A site the popup takes everything from is held whatever the rules say
     // about type and size; the app's own switch and skip list still hold.
-    let forced = forced_for(&found).await;
+    let clicked = TAKEN.with(|t| {
+        let mut taken = t.borrow_mut();
+        taken.take(&found.url, now()) || taken.take(&asked_for, now())
+    });
+    let forced = clicked || forced_for(&found).await;
     let early = remembered_rules()
         .await
         .is_none_or(|rules| rules.takes(&found.candidate(), forced).is_ok());
@@ -984,6 +991,17 @@ pub async fn on_page_message(message: JsValue, sender: JsValue) -> JsValue {
     let tab_url = get(&sender, "tab.url").as_string().unwrap_or_default();
     let private = get(&sender, "tab.incognito").as_bool() == Some(true);
     let click: decide::PanelClick = serde_json::from_value(from_js(&message)).unwrap_or_default();
+    // A click with the take key held: the download about to start is the
+    // app's, whatever the types and size floor say.
+    if click.kind == decide::TAKE_MESSAGE {
+        return match decide::take_url(&click) {
+            Ok(url) => {
+                TAKEN.with(|t| t.borrow_mut().remember(&url, now()));
+                answer(true, "the app takes it")
+            }
+            Err(why) => answer(false, &why),
+        };
+    }
     // Alt-click: the download about to start is the browser's.
     if click.kind == decide::SKIP_MESSAGE {
         return match decide::skip_url(&click) {
