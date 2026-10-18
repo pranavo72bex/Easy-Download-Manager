@@ -2471,6 +2471,35 @@ fn move_rename_moves_several_finished_files_together() {
     }
 }
 
+/// A dialog opened from the keyboard gives the keyboard back to what
+/// opened it when it closes.
+#[test]
+fn closing_a_dialog_gives_the_keyboard_back_to_its_opener() {
+    use egui::accesskit::Role;
+    let world = world();
+    let mut harness = world.harness();
+    harness
+        .get_by_role_and_label(Role::Button, "Add URL")
+        .focus();
+    harness.run_steps(2);
+    harness.key_press(egui::Key::Space);
+    harness.run_steps(3);
+    assert!(
+        harness.state().dialogs.add_url.is_some(),
+        "Space did not open Add URL"
+    );
+    harness.key_press(egui::Key::Escape);
+    harness.run_steps(4);
+    assert!(harness.state().dialogs.add_url.is_none());
+    assert!(
+        harness
+            .get_by_role_and_label(Role::Button, "Add URL")
+            .accesskit_node()
+            .is_focused(),
+        "the keyboard was not given back to Add URL"
+    );
+}
+
 #[test]
 fn two_cancelled_hand_offs_from_a_site_offer_to_leave_it_to_the_browser() {
     let _file = SETTINGS_FILE.lock().unwrap_or_else(|e| e.into_inner());

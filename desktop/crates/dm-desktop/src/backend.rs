@@ -261,7 +261,9 @@ impl Backend {
             .map_err(|e| format!("settings could not be saved: {e}"))?;
         let mut settings = dm_core::lock(&self.settings);
         settings.recent_urls = recent;
-        settings.recent_urls.truncate(dm_shell::settings::RECENT_URLS);
+        settings
+            .recent_urls
+            .truncate(dm_shell::settings::RECENT_URLS);
         Ok(settings.clone())
     }
 

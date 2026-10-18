@@ -41,8 +41,10 @@ pub fn paint(painter: &Painter, rect: Rect, icon: Icon, color: Color32) {
                 at(0.6 * scale, 0.0),
                 at(-0.45 * scale, 0.6 * scale),
             ],
-            color,
-            Stroke::NONE,
+            // An outline, as every other action's icon is (a design
+            // review found play and stop filled beside outlines).
+            Color32::TRANSPARENT,
+            stroke,
         ))
     };
     match icon {
@@ -54,19 +56,11 @@ pub fn paint(painter: &Painter, rect: Rect, icon: Icon, color: Color32) {
             triangle(1.0);
         }
         Icon::Stop => {
-            painter.rect_filled(
-                Rect::from_center_size(c, vec2(s * 0.6, s * 0.6)),
-                1.0,
-                color,
-            );
+            square(0.6, 0.0, 0.0);
         }
         Icon::StopAll => {
             square(0.55, -0.2, -0.2);
-            painter.rect_filled(
-                Rect::from_center_size(at(0.2, 0.2), vec2(s * 0.55, s * 0.55)),
-                1.0,
-                color,
-            );
+            square(0.55, 0.2, 0.2);
         }
         Icon::Delete => {
             line((-0.6, -0.6), (0.6, 0.6));
@@ -97,11 +91,7 @@ pub fn paint(painter: &Painter, rect: Rect, icon: Icon, color: Color32) {
         }
         Icon::StopQueue => {
             painter.circle_stroke(c, s * 0.45, stroke);
-            painter.rect_filled(
-                Rect::from_center_size(c, vec2(s * 0.34, s * 0.34)),
-                1.0,
-                color,
-            );
+            square(0.34, 0.0, 0.0);
         }
         Icon::SiteFiles => {
             painter.circle_stroke(c, s * 0.42, stroke);

@@ -368,6 +368,10 @@ pub struct Dialogs {
     pub update_link: Option<(Id, String, String)>,
     pub move_to_queue: Option<(Vec<Id>, String)>,
     pub rename: Option<MoveRename>,
+    /// Whether a dialog was in front last frame, and what had the keyboard
+    /// before it opened.
+    pub was_open: bool,
+    pub focus_before: Option<egui::Id>,
     pub find_open: bool,
     pub find_text: String,
     pub scheduler: Option<(Schedule, String)>,
@@ -1068,6 +1072,18 @@ fn browse_button(
 }
 
 pub fn show(app: &mut DmApp, ctx: &egui::Context) {
+    // The keyboard goes back to what opened a dialog once it closes: it
+    // was left nowhere, and the next Tab started from the window's top (a
+    // design review). Only where the keyboard had a place to begin with.
+    let open = app.dialogs.in_front();
+    if open && !app.dialogs.was_open {
+        app.dialogs.focus_before = ctx.memory(|m| m.focused());
+    } else if !open && app.dialogs.was_open {
+        if let Some(id) = app.dialogs.focus_before.take() {
+            ctx.memory_mut(|m| m.request_focus(id));
+        }
+    }
+    app.dialogs.was_open = open;
     // A question waiting for its answer dims the window behind it, so it
     // reads as the one thing to deal with (a design review: nothing set it
     // apart, and the list behind looked as usable as ever).
