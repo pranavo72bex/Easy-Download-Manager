@@ -212,6 +212,16 @@ pub fn show(app: &mut DmApp, ui: &mut egui::Ui) {
                             dragged = Some(i);
                         }
                         response.context_menu(|ui| row_menu(app, ui));
+                        // Shift+F10 or the Menu key: the same menu for the
+                        // row with the keyboard's place, under the row (a
+                        // right-click's menu opens at the pointer, which a
+                        // key does not have).
+                        let by_key = app.cursor == Some(entry.id)
+                            && std::mem::take(&mut app.row_menu_by_key);
+                        egui::Popup::menu(&response)
+                            .id(response.id.with("key-menu"))
+                            .open_memory(by_key.then_some(egui::SetOpenCommand::Bool(true)))
+                            .show(|ui| row_menu(app, ui));
                     });
                 });
             body_out = Some((

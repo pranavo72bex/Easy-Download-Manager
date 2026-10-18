@@ -661,6 +661,13 @@ pub struct DmApp {
     /// Sizes a dialog learned from the server before a row was added for
     /// later, shown until the row learns its own.
     pub sizes_told: HashMap<Id, u64>,
+    /// F10 was pressed: the first menu opens on the next drawing of the bar.
+    pub open_menu_by_key: bool,
+    /// The Program menu's popup, as last drawn.
+    program_menu: Option<egui::Id>,
+    /// Shift+F10 or the Menu key was pressed: the row with the keyboard's
+    /// place opens its menu as it is drawn.
+    pub row_menu_by_key: bool,
     /// The text size the smallest window was last set for.
     min_size_zoom: Option<f32>,
     /// Addresses the browser handed over in the last few seconds.
@@ -751,6 +758,9 @@ impl DmApp {
             sizes_told: HashMap::new(),
             recent_hands: Vec::new(),
             min_size_zoom: None,
+            open_menu_by_key: false,
+            program_menu: None,
+            row_menu_by_key: false,
             menu_bottom: 0.0,
             saved: HashMap::new(),
             said_at: None,
@@ -2524,6 +2534,23 @@ impl DmApp {
         }
         // A focused button takes Enter for itself.
         let focused = ctx.egui_wants_keyboard_input();
+        // F10: the menu bar; Shift+F10 or the Menu key: the row menu of the
+        // row with the keyboard's place, as a right-click opens it.
+        // Shift+F10 first: egui matches a key given no Shift with Shift held
+        // too, so plain F10 took it for itself.
+        let row_menu = ctx.input_mut(|i| {
+            i.consume_key(egui::Modifiers::SHIFT, egui::Key::F10)
+                || i.consume_key(egui::Modifiers::NONE, egui::Key::Menu)
+        });
+        let f10 = ctx.input_mut(|i| i.consume_key(egui::Modifiers::NONE, egui::Key::F10));
+        if f10 && !self.dialogs.asking() {
+            self.open_menu_by_key = true;
+            ctx.request_repaint();
+        }
+        if row_menu && !self.dialogs.in_front() && self.cursor.is_some() {
+            self.row_menu_by_key = true;
+            ctx.request_repaint();
+        }
         // A dialog in front has the keys: Delete or Enter pressed in Options
         // must not remove or open the downloads selected behind it. The
         // windows each download opens on its own are not in front of the list
@@ -2689,8 +2716,17 @@ impl DmApp {
     }
 
     fn menu_bar_items(&mut self, ui: &mut egui::Ui) {
+        // F10 opens the first menu, as on any desktop: the menus could be
+        // reached only by Tabbing to them (UI round 4). Opened before the bar
+        // draws, by the id it had last frame: egui closes a popup opened
+        // after its frame's drawing.
+        if std::mem::take(&mut self.open_menu_by_key) {
+            if let Some(id) = self.program_menu {
+                egui::Popup::open_id(ui.ctx(), id);
+            }
+        }
         egui::MenuBar::new().ui(ui, |ui| {
-            ui.menu_button(t("Program"), |ui| {
+            let program = ui.menu_button(t("Program"), |ui| {
                 for c in [
                     Command::AddUrl,
                     Command::AddSeries,
@@ -2706,6 +2742,7 @@ impl DmApp {
                 ui.separator();
                 self.item(ui, Command::Quit);
             });
+            self.program_menu = Some(egui::Popup::default_response_id(&program.response));
             ui.menu_button(t("File"), |ui| {
                 for c in [
                     Command::DownloadNow,

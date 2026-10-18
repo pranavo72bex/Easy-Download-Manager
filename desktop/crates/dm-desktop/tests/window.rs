@@ -2632,6 +2632,38 @@ fn options_fits_the_window_at_large_text() {
     }
 }
 
+/// F10 opens the menu bar's first menu, and Shift+F10 the menu of the row
+/// with the keyboard's place, as on any desktop.
+#[test]
+fn menus_open_from_the_keyboard() {
+    let world = world();
+    let mut harness = world.harness();
+    add_url(&mut harness, &world.url("file.zip"), "Add for later");
+    harness.run_steps(3);
+    // Menu items carry their keys after their names.
+    assert!(harness
+        .query_by_label_contains("Add numbered series")
+        .is_none());
+    harness.key_press(egui::Key::F10);
+    harness.run_steps(4);
+    assert!(
+        harness
+            .query_by_label_contains("Add numbered series")
+            .is_some(),
+        "F10 opened no menu"
+    );
+    harness.key_press(egui::Key::Escape);
+    harness.run_steps(3);
+    select(&mut harness, "file.zip");
+    harness.run_steps(2);
+    harness.key_press_modifiers(egui::Modifiers::SHIFT, egui::Key::F10);
+    harness.run_steps(4);
+    assert!(
+        harness.query_by_label_contains("Properties").is_some(),
+        "Shift+F10 opened no row menu"
+    );
+}
+
 #[test]
 fn two_cancelled_hand_offs_from_a_site_offer_to_leave_it_to_the_browser() {
     let _file = SETTINGS_FILE.lock().unwrap_or_else(|e| e.into_inner());
