@@ -3031,7 +3031,7 @@ fn the_scheduler_refuses_a_time_that_is_not_one_and_says_why() {
         schedule.to = "1am".into();
     }
     harness.run_steps(2);
-    click(&mut harness, "Apply");
+    click(&mut harness, "OK");
     assert!(
         harness.state().dialogs.scheduler.is_some(),
         "closed as if taken"
@@ -3048,7 +3048,7 @@ fn the_scheduler_refuses_a_time_that_is_not_one_and_says_why() {
         schedule.days.clear();
     }
     harness.run_steps(2);
-    click(&mut harness, "Apply");
+    click(&mut harness, "OK");
     let held = harness.state().backend().settings().schedule;
     assert!(held.enabled && held.days.is_empty());
     assert!(held.open_at(0, 2 * 60) && held.open_at(3, 2 * 60));
@@ -3171,7 +3171,7 @@ fn the_download_limit_is_set_in_the_speed_limiter_and_reaches_the_queue() {
         limiter.2 = 500;
         limiter.3 = 4;
     }
-    harness.get_by_label("Apply").click();
+    harness.get_by_label("OK").click();
     harness.run_steps(3);
     let settings = harness.state().backend().settings();
     assert_eq!((settings.limit_mb, settings.limit_hours), (500, 4));
@@ -3188,7 +3188,7 @@ fn the_download_limit_is_set_in_the_speed_limiter_and_reaches_the_queue() {
         limiter.2 = 0;
     }
     harness.run_steps(3);
-    harness.get_by_label("Apply").click();
+    harness.get_by_label("OK").click();
     harness.run_steps(3);
     assert_eq!(harness.state().backend().settings().limit_mb, 0);
 }
@@ -5034,7 +5034,14 @@ fn downloads_finishing_together_share_one_complete_window() {
     let other = row(&harness, "other.pdf");
     assert_eq!(
         *world.fake.opened.lock().unwrap(),
-        std::slice::from_ref(&other.path)
+        std::slice::from_ref(&other.path),
+        "rows: {:?}",
+        harness
+            .state()
+            .rows()
+            .iter()
+            .map(|r| (r.url.clone(), r.path.clone()))
+            .collect::<Vec<_>>()
     );
     assert_eq!(harness.state().dialogs.complete.len(), 2, "the rest stay");
     click(&mut harness, "Open the folder of deep.pdf");

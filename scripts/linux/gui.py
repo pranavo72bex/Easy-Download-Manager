@@ -601,7 +601,7 @@ def human_session(home, env, app):
               click("*", "Speed limiter settings", contains=True) and click_field("Maximum, KB/s across every download (0 for none)"))
         type_text("256")
         key("Return")
-        click("push button", "Apply")
+        click("push button", "OK")
         check("a limit typed and applied is written down",
               wait_for(lambda: settings_of(home).get("speed_limit") == 256, 10), str(settings_of(home).get("speed_limit")))
         key("Escape")

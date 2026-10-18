@@ -884,6 +884,13 @@ fn window_id(title: &'static str) -> egui::Id {
 /// A progress bar: a thin track with the brand fill and its words
 /// beside it; the classic look keeps egui's own bar.
 fn bar(ui: &mut egui::Ui, fraction: f32, width: f32, words: &str) {
+    bar_beside(ui, fraction, width, words, words);
+}
+
+/// [`bar`], with room kept for `widest` beside it rather than its own
+/// words: bars in a column, each with words of its own, are then one
+/// length (UI round 5: "1.7 MB" and "1023.9 KB" gave two).
+fn bar_beside(ui: &mut egui::Ui, fraction: f32, width: f32, words: &str, widest: &str) {
     let t = crate::theme::Tokens::get(ui.ctx());
     let fraction = fraction.clamp(0.0, 1.0);
     // At most `width`, and short enough that its words fit beside it
@@ -891,7 +898,7 @@ fn bar(ui: &mut egui::Ui, fraction: f32, width: f32, words: &str) {
     let words_width = ui
         .painter()
         .layout_no_wrap(
-            words.to_string(),
+            widest.to_string(),
             egui::TextStyle::Small.resolve(ui.style()),
             Color32::WHITE,
         )
@@ -2345,6 +2352,16 @@ fn progress(app: &mut DmApp, ctx: &egui::Context) {
                             // their bars, the rest said to be waiting or
                             // done, so the list does not grow and shrink as
                             // connections start (gap 160).
+                            // The longest words any piece's bar could have,
+                            // so every bar is one length.
+                            let widest = connections
+                                .iter()
+                                .map(|c| {
+                                    let most = format::bytes(span_of(c));
+                                    tf("{} of {}", &[&most, &most])
+                                })
+                                .max_by_key(|w| w.chars().count())
+                                .unwrap_or_default();
                             for (n, (c, &done)) in connections.iter().zip(&held).enumerate() {
                                 let span = span_of(c);
                                 ui.horizontal(|ui| {
@@ -2363,7 +2380,7 @@ fn progress(app: &mut DmApp, ctx: &egui::Context) {
                                             .weak(),
                                         );
                                     } else {
-                                        bar(
+                                        bar_beside(
                                             ui,
                                             done as f32 / span.max(1) as f32,
                                             260.0,
@@ -2371,6 +2388,7 @@ fn progress(app: &mut DmApp, ctx: &egui::Context) {
                                                 "{} of {}",
                                                 &[&format::bytes(done), &format::bytes(span)],
                                             ),
+                                            &widest,
                                         );
                                     }
                                 });
@@ -3549,7 +3567,7 @@ fn scheduler(app: &mut DmApp, ctx: &egui::Context) {
             ui.colored_label(warn(ui), says.as_str());
         }
         ui.horizontal(|ui| {
-            apply |= primary(ui, "Apply").clicked() || enter_free(ui);
+            apply |= primary(ui, "OK").clicked() || enter_free(ui);
             cancel = ui.button(t("Cancel")).clicked();
         });
     });
@@ -3627,7 +3645,7 @@ fn limiter(app: &mut DmApp, ctx: &egui::Context) {
                 ui.colored_label(warn(ui), says.as_str());
             }
             ui.horizontal(|ui| {
-                apply |= primary(ui, "Apply").clicked() || enter_free(ui);
+                apply |= primary(ui, "OK").clicked() || enter_free(ui);
                 cancel = ui.button(t("Cancel")).clicked();
             });
         });

@@ -606,7 +606,7 @@ mod tests {
     #[test]
     fn english_reads_as_written_and_needs_no_catalog() {
         in_language("en", || {
-            assert_eq!(t("Apply"), "Apply");
+            assert_eq!(t("Cancel"), "Cancel");
             assert_eq!(t(""), "");
         });
     }
@@ -614,7 +614,7 @@ mod tests {
     #[test]
     fn a_language_reads_its_catalog() {
         in_language("de", || {
-            assert_eq!(t("Apply"), "Übernehmen");
+            assert_eq!(t("Cancel"), "Abbrechen");
             assert_eq!(t("Name"), "Name");
             assert_eq!(t("Speed"), "Geschwindigkeit");
         });
@@ -624,7 +624,7 @@ mod tests {
     #[test]
     fn an_unknown_language_is_english() {
         for code in ["xx", "", "DE", "de-DE", "en-US"] {
-            in_language(code, || assert_eq!(t("Apply"), "Apply", "{code:?}"));
+            in_language(code, || assert_eq!(t("Cancel"), "Cancel", "{code:?}"));
         }
     }
 
@@ -638,9 +638,9 @@ mod tests {
     #[test]
     fn the_language_is_this_threads_alone() {
         set("de");
-        let elsewhere = std::thread::spawn(|| t("Apply")).join().unwrap();
-        assert_eq!(elsewhere, "Apply", "another thread is still in English");
-        assert_eq!(t("Apply"), "Übernehmen");
+        let elsewhere = std::thread::spawn(|| t("Cancel")).join().unwrap();
+        assert_eq!(elsewhere, "Cancel", "another thread is still in English");
+        assert_eq!(t("Cancel"), "Abbrechen");
         set("en");
     }
 
@@ -653,7 +653,7 @@ mod tests {
             assert!(take_missing().is_empty(), "recorded without being asked");
 
             record_missing();
-            let _ = t("Apply");
+            let _ = t("Cancel");
             let _ = t("Missing one");
             let _ = t("Missing one");
             let _ = t("Missing two");
