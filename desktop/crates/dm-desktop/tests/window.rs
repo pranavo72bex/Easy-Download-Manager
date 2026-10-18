@@ -1131,6 +1131,36 @@ fn a_column_is_widened_by_dragging_its_edge() {
     assert!(after > before + 40.0, "Size moved from {before} to {after}");
 }
 
+/// Add links from clipboard offers an address already in the list
+/// unticked and says so (round 14).
+#[test]
+fn a_clipboard_link_already_listed_is_offered_unticked() {
+    let world = world();
+    let mut harness = world.harness();
+    add_url(&mut harness, &world.url("file.zip"), "Add for later");
+    harness.state_mut().refresh();
+    *world.fake.clipboard.lock().unwrap() = Some(format!(
+        "{} {}",
+        world.url("file.zip"),
+        world.url("other.pdf")
+    ));
+    harness.state_mut().run(Command::AddFromClipboard);
+    harness.run_steps(3);
+    let ticks: Vec<bool> = harness
+        .state()
+        .dialogs
+        .clip_links
+        .as_ref()
+        .unwrap()
+        .iter()
+        .map(|l| l.1)
+        .collect();
+    assert_eq!(ticks, [false, true]);
+    assert!(harness
+        .query_by_label_contains("(already in the list)")
+        .is_some());
+}
+
 #[test]
 fn the_toolbar_acts_on_the_selected_row() {
     let world = world();
@@ -4874,6 +4904,14 @@ fn the_arrow_keys_move_the_selection_and_the_focus_shows() {
     harness.key_press(egui::Key::Tab);
     harness.run_steps(2);
     assert!(harness.state().focus_ring.is_some(), "no ring after Tab");
+    // With the keyboard's focus on a control, not a text field, the list's
+    // keys still work: Delete asks about the selected row (round 14).
+    harness.key_press(egui::Key::Delete);
+    harness.run_steps(2);
+    assert!(
+        harness.state().dialogs.confirm_remove.is_some(),
+        "Delete did nothing while a control had the focus"
+    );
 }
 
 /// Gap 118: "Download complete" reaches every file (its list scrolls), cuts

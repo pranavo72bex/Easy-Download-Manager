@@ -447,5 +447,10 @@
  "{} (already in the list)": "{} (już na liście)",
  "No release of dm has been published yet, so there is nothing to update to (this is {}).": "Nie opublikowano jeszcze żadnej wersji dm, więc nie ma do czego aktualizować (to jest {}).",
  "This download has not fetched anything yet. Delete it from the list?": "To pobieranie jeszcze nic nie pobrało. Usunąć je z listy?",
- "These downloads have not fetched anything yet. Delete them from the list?": "Te pobierania jeszcze nic nie pobrały. Usunąć je z listy?"
+ "These downloads have not fetched anything yet. Delete them from the list?": "Te pobierania jeszcze nic nie pobrały. Usunąć je z listy?",
+ "unit:B": "B",
+ "unit:KB": "KB",
+ "unit:MB": "MB",
+ "unit:GB": "GB",
+ "unit:TB": "TB"
 }

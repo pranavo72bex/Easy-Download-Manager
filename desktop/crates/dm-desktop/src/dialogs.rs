@@ -86,12 +86,14 @@ pub fn stream_name(url: &str, content_type: Option<&str>, remux: bool) -> Option
 }
 
 /// What dm learned of one link by asking its server.
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Default)]
 pub struct Found {
     pub name: String,
     pub kind: String,
     pub size: Option<u64>,
     pub html: bool,
+    /// Why the server could not be asked about it.
+    pub failed: Option<String>,
 }
 
 /// The import dialog for a page's links: each checked or not, with its
@@ -468,7 +470,22 @@ impl Dialogs {
                     ),
                 )
                 .await;
-                if let Ok(Ok(probe)) = asked {
+                let failed = match &asked {
+                    Ok(Err(e)) => Some(e.to_string()),
+                    Err(_) => Some("the server did not answer in time".to_string()),
+                    Ok(Ok(_)) => None,
+                };
+                // Said, rather than "…" for ever as though still asking
+                // (round 14).
+                if let Some(why) = failed {
+                    dm_core::lock(&found).insert(
+                        url,
+                        Found {
+                            failed: Some(why),
+                            ..Found::default()
+                        },
+                    );
+                } else if let Ok(Ok(probe)) = asked {
                     let kind =
                         dm_core::category::classify(&probe.filename, probe.content_type.as_deref());
                     dm_core::lock(&found).insert(
@@ -478,6 +495,7 @@ impl Dialogs {
                             kind: crate::app::category_word(kind),
                             size: probe.size,
                             html: dm_core::ytdlp::is_page(probe.content_type.as_deref()),
+                            failed: None,
                         },
                     );
                 }
@@ -554,6 +572,19 @@ impl Dialogs {
     /// Whether a dialog is in front of the list, which then keeps its
     /// keys from the list. The windows a download opens on its own (its
     /// progress, its completion) are not counted.
+    /// Whether a question waits for its answer: Remove, Exit, Start
+    /// outside the schedule, already listed, leave a site to the browser.
+    /// Nothing else opens over one, or it is lost behind the new window
+    /// and answered later by an Enter meant for something else (round 14).
+    pub fn asking(&self) -> bool {
+        self.confirm_exit
+            || self.confirm_remove.is_some()
+            || self.confirm_outside.is_some()
+            || self.duplicate.is_some()
+            || self.import_ask.is_some()
+            || self.skip_offer.is_some()
+    }
+
     pub fn in_front(&self) -> bool {
         self.open_names()
             .iter()
@@ -1879,8 +1910,10 @@ fn progress(app: &mut DmApp, ctx: &egui::Context) {
                             // Only while it runs: a stopped download has
                             // no time left to tell (gap 157).
                             ui.label(t("Time left"));
+                            // The span alone: under "Time left" it read
+                            // "Time left: 9s left" (round 14).
                             ui.label(if row.state == State::Running {
-                                format::clock(p.eta)
+                                p.eta.map(format::span).unwrap_or_default()
                             } else {
                                 String::new()
                             });
@@ -2457,7 +2490,21 @@ fn d_says(series: &mut Option<Series>, e: String) {
 }
 
 /// A list of links to tick before adding: the clipboard's, or a site's.
-fn pick_list(ui: &mut egui::Ui, links: &mut [(String, bool)]) {
+/// The addresses already in dm's list, bare (without a login), for a pick
+/// list to offer unticked and say so.
+pub(crate) fn listed_addresses(app: &DmApp) -> std::collections::HashSet<String> {
+    app.rows()
+        .iter()
+        .filter(|r| r.state != State::Cancelled)
+        .map(|r| bare(&r.url))
+        .collect()
+}
+
+fn pick_list(
+    ui: &mut egui::Ui,
+    links: &mut [(String, bool)],
+    listed: &std::collections::HashSet<String>,
+) {
     ui.horizontal(|ui| {
         if ui.button(t("Check all")).clicked() {
             links.iter_mut().for_each(|l| l.1 = true);
@@ -2470,7 +2517,12 @@ fn pick_list(ui: &mut egui::Ui, links: &mut [(String, bool)]) {
         .max_height(260.0)
         .show(ui, |ui| {
             for (link, on) in links.iter_mut() {
-                ui.checkbox(on, format::shown_url(link));
+                let shown = format::shown_url(link);
+                if listed.contains(&bare(link)) {
+                    ui.checkbox(on, tf("{} (already in the list)", &[&shown]));
+                } else {
+                    ui.checkbox(on, shown);
+                }
             }
         });
 }
@@ -2530,10 +2582,23 @@ fn links(app: &mut DmApp, ctx: &egui::Context) {
                             };
                             // The name is the checkbox's, so a screen reader says it.
                             ui.checkbox(on, &name).on_hover_text(format::shown_url(url));
-                            ui.label(
-                                what.map(|f| format::titled(&f.kind))
-                                    .unwrap_or_else(|| "…".into()),
-                            );
+                            match what {
+                                Some(Found {
+                                    failed: Some(why), ..
+                                }) => {
+                                    let plain = format::reason(why).map(t).unwrap_or(why.as_str());
+                                    ui.colored_label(WARN, t("Error"))
+                                        .on_hover_text(format::titled(plain));
+                                }
+                                // The kind as the tree names it, in the
+                                // language in force.
+                                Some(f) => {
+                                    ui.label(crate::i18n::name(&format::titled(&f.kind)));
+                                }
+                                None => {
+                                    ui.label("…");
+                                }
+                            }
                             ui.label(
                                 what.and_then(|f| f.size)
                                     .map(format::bytes)
@@ -2616,6 +2681,7 @@ fn links(app: &mut DmApp, ctx: &egui::Context) {
 }
 
 fn clip_links(app: &mut DmApp, ctx: &egui::Context) {
+    let listed = listed_addresses(app);
     let Some(links) = app.dialogs.clip_links.as_mut() else {
         return;
     };
@@ -2633,7 +2699,7 @@ fn clip_links(app: &mut DmApp, ctx: &egui::Context) {
                 links.len() as u64,
                 &[&links.len(), &ticked],
             ));
-            pick_list(ui, links);
+            pick_list(ui, links, &listed);
             ui.separator();
             ui.horizontal(|ui| {
                 if primary(ui, "Start now").clicked() || enter_free(ui) {
@@ -2686,6 +2752,7 @@ fn clip_links(app: &mut DmApp, ctx: &egui::Context) {
 fn site_files(app: &mut DmApp, ctx: &egui::Context) {
     // Built before the dialog is borrowed: the client reads the settings.
     let client = app.client();
+    let listed = listed_addresses(app);
     let focus = app.dialogs.take_focus("Files on a site");
     let Some(d) = app.dialogs.site_files.as_mut() else {
         return;
@@ -2752,7 +2819,7 @@ fn site_files(app: &mut DmApp, ctx: &egui::Context) {
             }
             Grab::Found(links, pages) => {
                 ui.label(tf("{} files found on {} pages", &[&links.len(), pages]));
-                pick_list(ui, links);
+                pick_list(ui, links, &listed);
                 if ui.button(t("Add for later")).clicked() {
                     add = Some(links.iter().filter(|l| l.1).map(|l| l.0.clone()).collect());
                 }
@@ -3067,6 +3134,7 @@ fn limiter(app: &mut DmApp, ctx: &egui::Context) {
     };
     let mut open = true;
     let mut apply = false;
+    let mut cancel = false;
     window("Speed limiter").open(&mut open).show(ctx, |ui| {
         ui.horizontal(|ui| {
             let name = ui.label(t("Maximum, KB/s across every download (0 for none)"));
@@ -3106,9 +3174,13 @@ fn limiter(app: &mut DmApp, ctx: &egui::Context) {
         if !says.is_empty() {
             ui.colored_label(WARN, says.as_str());
         }
-        apply |= ui.button(t("Apply")).clicked() || enter_free(ui);
+        ui.horizontal(|ui| {
+            apply |= ui.button(t("Apply")).clicked() || enter_free(ui);
+            cancel = ui.button(t("Cancel")).clicked();
+        });
     });
-    if apply {
+    open &= !cancel;
+    if apply && open {
         let mut wanted = app.applied.clone();
         wanted.speed_limit = *limit;
         wanted.limit_mb = *mb;

@@ -447,5 +447,10 @@
  "{} (already in the list)": "{} (staat al in de lijst)",
  "No release of dm has been published yet, so there is nothing to update to (this is {}).": "Er is nog geen versie van dm uitgebracht, dus er is niets om naar bij te werken (dit is {}).",
  "This download has not fetched anything yet. Delete it from the list?": "Deze download heeft nog niets opgehaald. Uit de lijst verwijderen?",
- "These downloads have not fetched anything yet. Delete them from the list?": "Deze downloads hebben nog niets opgehaald. Uit de lijst verwijderen?"
+ "These downloads have not fetched anything yet. Delete them from the list?": "Deze downloads hebben nog niets opgehaald. Uit de lijst verwijderen?",
+ "unit:B": "B",
+ "unit:KB": "KB",
+ "unit:MB": "MB",
+ "unit:GB": "GB",
+ "unit:TB": "TB"
 }

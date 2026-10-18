@@ -447,5 +447,10 @@
  "{} (already in the list)": "{} (уже в списке)",
  "No release of dm has been published yet, so there is nothing to update to (this is {}).": "Ни одной версии dm ещё не опубликовано, обновляться не на что (это {}).",
  "This download has not fetched anything yet. Delete it from the list?": "Эта загрузка ещё ничего не получила. Удалить её из списка?",
- "These downloads have not fetched anything yet. Delete them from the list?": "Эти загрузки ещё ничего не получили. Удалить их из списка?"
+ "These downloads have not fetched anything yet. Delete them from the list?": "Эти загрузки ещё ничего не получили. Удалить их из списка?",
+ "unit:B": "Б",
+ "unit:KB": "КБ",
+ "unit:MB": "МБ",
+ "unit:GB": "ГБ",
+ "unit:TB": "ТБ"
 }

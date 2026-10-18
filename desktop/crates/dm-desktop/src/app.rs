@@ -1671,6 +1671,10 @@ impl DmApp {
         if !self.enabled(command) {
             return;
         }
+        // A question first: only Exit, which asks one of its own, gets past.
+        if self.dialogs.asking() && command != Command::Quit {
+            return;
+        }
         let targets = self.targets();
         match command {
             Command::AddUrl => self.dialogs.open_add_url(self.backend.platform.clipboard()),
@@ -1681,7 +1685,18 @@ impl DmApp {
                 if found.is_empty() {
                     self.said = "There are no links on the clipboard.".into();
                 } else {
-                    self.dialogs.clip_links = Some(found.into_iter().map(|l| (l, true)).collect());
+                    // One already in the list is offered unticked, and said
+                    // so: it was fetched again as `e (1).zip` (round 14).
+                    let listed = crate::dialogs::listed_addresses(self);
+                    self.dialogs.clip_links = Some(
+                        found
+                            .into_iter()
+                            .map(|l| {
+                                let new = !listed.contains(&crate::dialogs::bare(&l));
+                                (l, new)
+                            })
+                            .collect(),
+                    );
                 }
             }
             Command::Import => {
@@ -2403,10 +2418,14 @@ impl DmApp {
             }
         }
         // Not while typing: Delete in a text field must delete a letter, not
-        // a download.
-        if ctx.egui_wants_keyboard_input() {
+        // a download. Only a text field: a row or a button with the
+        // keyboard's focus counted as typing, and Delete did nothing for a
+        // person using the keyboard alone (round 14).
+        if ctx.text_edit_focused() {
             return;
         }
+        // A focused button takes Enter for itself.
+        let focused = ctx.egui_wants_keyboard_input();
         // A dialog in front has the keys: Delete or Enter pressed in Options
         // must not remove or open the downloads selected behind it. The
         // windows each download opens on its own are not in front of the list
@@ -2419,7 +2438,11 @@ impl DmApp {
                 self.queued.push(command);
             }
         }
-        if !behind && ctx.input(|i| i.key_pressed(egui::Key::Enter)) && !self.selected.is_empty() {
+        if !behind
+            && !focused
+            && ctx.input(|i| i.key_pressed(egui::Key::Enter))
+            && !self.selected.is_empty()
+        {
             self.queued.push(Command::ShowProgress);
         }
         // Up, Down, Home and End move the selection; with Shift they extend

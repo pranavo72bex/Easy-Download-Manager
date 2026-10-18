@@ -350,7 +350,10 @@ class SlowFiles:
                     for at in range(start, end + 1, 64 * 1024):
                         self.wfile.write(body[at:min(at + 64 * 1024, end + 1)])
                         if body is server.body:
-                            time.sleep(0.064)
+                            # "slow" ones a quarter as fast: the Stop and
+                            # Delete scene takes longer than 48 MiB at the
+                            # usual rate, and found it already finished.
+                            time.sleep(0.256 if "slow" in self.path else 0.064)
                 except OSError:
                     pass
 

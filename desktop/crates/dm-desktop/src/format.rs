@@ -9,17 +9,28 @@ use crate::i18n::{t, tf};
 pub fn bytes(n: u64) -> String {
     const K: f64 = 1024.0;
     let f = n as f64;
+    // The units in the language in force: Russian's КБ and МБ, French's
+    // Ko and Mo; the status bar said КБ/с beside a list saying KB/s.
     if n < 1024 {
-        format!("{n} B")
+        format!("{n} {}", unit(crate::i18n::t("unit:B")))
     } else if f < K * K {
-        format!("{:.1} KB", f / K)
+        format!("{:.1} {}", f / K, unit(crate::i18n::t("unit:KB")))
     } else if f < K * K * K {
-        format!("{:.1} MB", f / (K * K))
+        format!("{:.1} {}", f / (K * K), unit(crate::i18n::t("unit:MB")))
     } else if f < K * K * K * K {
-        format!("{:.2} GB", f / (K * K * K))
+        format!("{:.2} {}", f / (K * K * K), unit(crate::i18n::t("unit:GB")))
     } else {
-        format!("{:.2} TB", f / (K * K * K * K))
+        format!(
+            "{:.2} {}",
+            f / (K * K * K * K),
+            unit(crate::i18n::t("unit:TB"))
+        )
     }
+}
+
+/// A unit's word: its translation, or the key without its `unit:`.
+fn unit(word: &'static str) -> &'static str {
+    word.strip_prefix("unit:").unwrap_or(word)
 }
 
 /// A rate, from the engine's bytes a second.

@@ -447,5 +447,10 @@
  "{} (already in the list)": "{} (sudah ada di daftar)",
  "No release of dm has been published yet, so there is nothing to update to (this is {}).": "Belum ada rilis dm yang diterbitkan, jadi tidak ada yang bisa diperbarui (ini {}).",
  "This download has not fetched anything yet. Delete it from the list?": "Unduhan ini belum mengambil apa pun. Hapus dari daftar?",
- "These downloads have not fetched anything yet. Delete them from the list?": "Unduhan ini belum mengambil apa pun. Hapus dari daftar?"
+ "These downloads have not fetched anything yet. Delete them from the list?": "Unduhan ini belum mengambil apa pun. Hapus dari daftar?",
+ "unit:B": "B",
+ "unit:KB": "KB",
+ "unit:MB": "MB",
+ "unit:GB": "GB",
+ "unit:TB": "TB"
 }

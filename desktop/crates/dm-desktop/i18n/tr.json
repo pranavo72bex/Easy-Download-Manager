@@ -447,5 +447,10 @@
  "{} (already in the list)": "{} (zaten listede)",
  "No release of dm has been published yet, so there is nothing to update to (this is {}).": "Henüz yayımlanmış bir dm sürümü yok, bu yüzden güncellenecek bir şey yok (bu {}).",
  "This download has not fetched anything yet. Delete it from the list?": "Bu indirme henüz hiçbir şey almadı. Listeden silinsin mi?",
- "These downloads have not fetched anything yet. Delete them from the list?": "Bu indirmeler henüz hiçbir şey almadı. Listeden silinsinler mi?"
+ "These downloads have not fetched anything yet. Delete them from the list?": "Bu indirmeler henüz hiçbir şey almadı. Listeden silinsinler mi?",
+ "unit:B": "B",
+ "unit:KB": "KB",
+ "unit:MB": "MB",
+ "unit:GB": "GB",
+ "unit:TB": "TB"
 }
