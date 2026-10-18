@@ -192,8 +192,6 @@ pub fn failure_as_said(row: &Entry) -> Option<&str> {
     }
 }
 
-/// Whether a row was added for later and waits for its queue: stopped,
-/// in a queue, nothing fetched and not held by the schedule.
 /// A running row that has every byte of a file of known length: it is
 /// joining its parts, not fetching.
 pub fn fetched_all(row: &Entry) -> bool {
@@ -202,6 +200,8 @@ pub fn fetched_all(row: &Entry) -> bool {
         .is_some_and(|total| total > 0 && row.progress.downloaded >= total)
 }
 
+/// Whether a row was added for later and waits for its queue: stopped,
+/// in a queue, nothing fetched and not held by the schedule.
 fn waits_for_its_queue(row: &Entry) -> bool {
     row.state == State::Paused
         && !row.paused_by_schedule
@@ -340,14 +340,15 @@ pub fn two_addresses(text: &str) -> bool {
 ///
 /// Words are split on white space, quotes and angle brackets only — never
 /// on `=`, which every query string holds: splitting there queued
-/// `download.php?id=5` as `download.php?id` (gap 162). A `URL=` (a `.url`
-/// file's line), `href=` or `src=` (a page's attribute, unquoted) in front
-/// of an address is taken off whole, and `&amp;` — how a page or a
-/// `.webloc` plist writes `&` — is read as `&`.
+/// `download.php?id=5` as `download.php?id` (gap 162). A word that is not
+/// an address itself is looked into for one that starts after `=`, `;`,
+/// `(` or `[`: a `.url` file's `URL=` or `BASEURL=`, a page's unquoted
+/// `href=` or `data-src=`, a refresh's `0;url=`, a forum's `[url=…]`. And
+/// `&amp;` — how a page or a `.webloc` plist writes `&` — is read as `&`.
 pub fn links_in(text: &str) -> Vec<String> {
     let mut found: Vec<String> = Vec::new();
     for word in text.split(|c: char| c.is_whitespace() || "<>\"'".contains(c)) {
-        let word = strip_attribute(word).replace("&amp;", "&");
+        let word = address_in(word).replace("&amp;", "&");
         if looks_downloadable(&word).is_some() && !found.contains(&word) {
             found.push(word);
         }
@@ -355,16 +356,52 @@ pub fn links_in(text: &str) -> Vec<String> {
     found
 }
 
-/// `word` without a leading `URL=`, `href=` or `src=`, in any case.
-fn strip_attribute(word: &str) -> &str {
-    for prefix in ["url=", "href=", "src="] {
-        if let (Some(head), Some(rest)) = (word.get(..prefix.len()), word.get(prefix.len()..)) {
-            if head.eq_ignore_ascii_case(prefix) {
-                return rest;
+/// The address in `word`: all of it where it starts with one, else from
+/// the first scheme after `=`, `;`, `(` or `[` — up to the `]` or `)`
+/// that closes that bracket. The word itself where there is none.
+fn address_in(word: &str) -> &str {
+    if looks_downloadable(word).is_some() {
+        return word;
+    }
+    let lower = word.to_ascii_lowercase();
+    let schemes = ["http://", "https://", "ftp://", "magnet:?"];
+    let start = word.char_indices().find_map(|(at, c)| {
+        let next = at + c.len_utf8();
+        ("=;([".contains(c)
+            && lower
+                .get(next..)
+                .is_some_and(|rest| schemes.iter().any(|s| rest.starts_with(s))))
+        .then_some((next, c))
+    });
+    let Some((at, opener)) = start else {
+        return word;
+    };
+    let address = &word[at..];
+    let closer = match opener {
+        '(' => Some(')'),
+        '[' => Some(']'),
+        // `[url=…]`: the bracket opened before the `=`.
+        _ if word[..at].contains('[') => Some(']'),
+        _ => None,
+    };
+    let Some(close) = closer else {
+        return address;
+    };
+    // Up to the bracket that closes the one before the address; brackets
+    // opened inside it (an IPv6 host's) are its own.
+    let open = if close == ')' { '(' } else { '[' };
+    let mut depth = 0usize;
+    for (at, c) in address.char_indices() {
+        if c == open {
+            depth += 1;
+        } else if c == close {
+            if depth == 0 {
+                return &address[..at];
             }
+            depth -= 1;
         }
     }
-    word
+    address
 }
 
 /// How much of a dropped file is looked at for links.
@@ -1071,8 +1108,9 @@ impl DmApp {
         self.take_handed();
         self.countdown_tick();
         if let Some((checked, changed)) = dm_core::lock(&self.rechecked).take() {
-            self.said = crate::i18n::Said::new(
-                "Checked {} finished file(s) with their servers; {} had changed and are being downloaded again.",
+            self.said = crate::i18n::Said::counting(
+                "Checked {} finished file with its server. Changed since, and downloaded again: {}.||Checked {} finished files with their servers. Changed since, and downloaded again: {}.",
+                checked as u64,
                 &[&checked, &changed],
             );
         }
@@ -1475,18 +1513,11 @@ impl DmApp {
             .cloned()
             .collect();
         // What a dialog learned of a row's size, until the row knows it.
-        let mut categories = self.applied.categories();
         for row in &mut rows {
             if row.progress.total.is_none() {
                 if let Some(size) = self.sizes_told.get(&row.id) {
                     row.progress.total = Some(*size);
                 }
-            }
-            // The folder it will go to, as Download details said, until it
-            // is saved somewhere: the Folder column stood empty for every
-            // row added for later (gap 167).
-            if row.path.is_empty() && row.save_dir.is_none() && !row.state.settled() {
-                row.save_dir = Some(self.planned_folder(row, &mut categories));
             }
         }
         if let Some((column, ascending)) = self.sort {
@@ -1825,8 +1856,6 @@ impl DmApp {
         self.refresh();
     }
 
-    /// Takes rows out of the list, with their staged parts; finished files
-    /// stay on disk.
     /// Imports the list in the file at `path`. Addresses already in the
     /// list are asked about first, as Add URL asks (gap 143).
     pub fn import_from(&mut self, path: &std::path::Path) {
@@ -1891,6 +1920,8 @@ impl DmApp {
         };
     }
 
+    /// Takes rows out of the list, with their staged parts; finished files
+    /// stay on disk.
     pub fn remove_now(&mut self, ids: &[Id]) {
         self.backend.remove_many(ids);
         // What the status line said may have named one of them.
@@ -1971,12 +2002,23 @@ impl DmApp {
         }
     }
 
-    /// Where a row not yet saved will be: the download folder, or the
-    /// kind's folder under it where Options › Folders sorts by kind — as
-    /// the queue places it, from the name it has so far.
-    pub fn planned_folder(&self, row: &Entry, categories: &mut dm_core::Categories) -> String {
+    /// Where a row not saved anywhere yet will go, for the Folder column
+    /// to show until it is: the download folder, or the kind's folder under
+    /// it where Options › Folders sorts by kind — as the queue places it.
+    /// Nothing where that waits on the server: a name that does not say its
+    /// kind (`download.php`, `.bin`) is placed by the type the server gives
+    /// (gap 167). Only shown, never written into the row: what a command
+    /// reads of a row is what the person chose.
+    pub fn planned_folder(
+        &self,
+        row: &Entry,
+        categories: &mut dm_core::Categories,
+    ) -> Option<String> {
+        if !row.path.is_empty() || row.save_dir.is_some() || row.state.settled() {
+            return None;
+        }
         if !categories.enabled {
-            return self.applied.download_dir.display().to_string();
+            return Some(self.applied.download_dir.display().to_string());
         }
         let name = if row.filename.is_empty() {
             format::provisional(&row.url)
@@ -1984,13 +2026,19 @@ impl DmApp {
             row.filename.clone()
         };
         categories.site = dm_core::category::host_of(&row.url);
-        let kind = row
-            .category
-            .unwrap_or_else(|| dm_core::category::classify(&name, None));
-        categories
-            .place(&self.applied.download_dir, kind, &name)
-            .display()
-            .to_string()
+        let kind = match row.category.or_else(|| dm_core::category::by_name(&name)) {
+            Some(kind) => kind,
+            None if categories.custom_for(&name, &categories.site).is_some() => {
+                dm_core::Category::Other
+            }
+            None => return None,
+        };
+        Some(
+            categories
+                .place(&self.applied.download_dir, kind, &name)
+                .display()
+                .to_string(),
+        )
     }
 
     /// Program › Exit, Cmd+Q and the tray's Quit: asked first while
@@ -3332,8 +3380,6 @@ impl ToolStyle {
     }
 }
 
-/// One toolbar button. Small ones show only the icon, text-only ones only
-/// the name; the name stays for a screen reader either way.
 /// A menu item that is on or off: a plain item, its words where the other
 /// items' start, with a tick drawn at its right while it is on. As a
 /// checkbox its words started further in than the items around it.
@@ -3364,6 +3410,8 @@ fn ticked_item(ui: &mut egui::Ui, title: &str, on: bool) -> egui::Response {
     item
 }
 
+/// One toolbar button. Small ones show only the icon, text-only ones only
+/// the name; the name stays for a screen reader either way.
 fn tool(
     ui: &mut egui::Ui,
     icon: Icon,

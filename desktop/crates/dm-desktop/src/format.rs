@@ -256,8 +256,19 @@ pub const REASONS: [(&[&str], &str); 9] = [
 
 /// A failure's plain reason, in English, if it is one dm knows; see
 /// `REASONS`.
+///
+/// Only the words of dm and of its network library decide, never an
+/// address or path quoted in them or what a server sent back after its
+/// status: a 404 for `birth-certificate.pdf` was shown as a certificate
+/// that could not be checked, and a body saying "timed out" as a timeout.
 pub fn reason(raw: &str) -> Option<&'static str> {
-    let lower = raw.to_lowercase();
+    let said = raw.split(" — ").next().unwrap_or(raw);
+    let lower = said
+        .split_whitespace()
+        .filter(|word| !word.contains('/') && !word.contains('\\'))
+        .collect::<Vec<_>>()
+        .join(" ")
+        .to_lowercase();
     REASONS
         .iter()
         .find(|(signs, _)| signs.iter().any(|sign| lower.contains(sign)))
@@ -508,6 +519,23 @@ mod tests {
             Some("the disk is full")
         );
         assert_eq!(reason("a sentence of the engine's own"), None);
+        // What the address or the server's page says is not the reason.
+        assert_eq!(
+            reason("the server answered 404 Not Found for https://e.com/birth-certificate.pdf"),
+            Some("the server has no file at this address (404)")
+        );
+        assert_eq!(
+            reason("the server answered 502 Bad Gateway for https://e.com/a — upstream timed out"),
+            None
+        );
+        assert_eq!(
+            reason("could not write C:\\Users\\me\\no space left\\a.zip"),
+            None
+        );
+        assert_eq!(
+            reason("error sending request for url (https://e.com/a): invalid peer certificate: UnknownIssuer"),
+            Some("the server's security certificate could not be checked")
+        );
     }
 
     #[test]

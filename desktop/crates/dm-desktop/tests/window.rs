@@ -1315,6 +1315,88 @@ fn the_series_error_waits_for_both_ends_and_speaks_german() {
     assert_eq!(start(&harness), before, "the dialog jumped");
 }
 
+/// What a press of Start said goes once the range is changed: it stood
+/// over the count of what was typed since.
+#[test]
+fn the_series_error_from_start_goes_when_the_range_is_fixed() {
+    let world = world();
+    let mut harness = world.harness();
+    harness.state_mut().run(Command::AddSeries);
+    harness.run_steps(2);
+    type_into(&mut harness, "Address with *", &world.url("part*.bin"));
+    type_into(&mut harness, "From", "5");
+    type_into(&mut harness, "To", "1");
+    click(&mut harness, "Start now");
+    let said = harness
+        .state()
+        .dialogs
+        .series
+        .as_ref()
+        .unwrap()
+        .says
+        .clone();
+    assert!(!said.is_empty(), "Start said nothing of a backwards range");
+    type_into(&mut harness, "To", "9");
+    assert!(
+        harness.query_by_label(&said).is_none(),
+        "the old error still stands"
+    );
+    assert!(harness.query_by_label_contains("15 addresses").is_some());
+    assert!(harness.state().rows().is_empty());
+}
+
+/// Gap 167, kept to the column: a row added for later shows the folder it
+/// will go to, without that guess written into the row a command reads; and
+/// a name that does not say its kind shows none, the server deciding.
+#[test]
+fn a_row_added_for_later_shows_its_folder_without_owning_it() {
+    let world = world();
+    let app = world.app_with(Settings {
+        download_dir: world.dir.path().join("out"),
+        categorize: true,
+        show_progress: false,
+        show_complete: false,
+        ..Settings::default()
+    });
+    let mut harness = Harness::builder()
+        .with_size(egui::vec2(1400.0, 700.0))
+        .build_ui_state(|ui, app: &mut DmApp| app.ui(ui), app);
+    harness.run_steps(2);
+    let later = dm_core::AddOptions {
+        later: true,
+        queue: dm_core::MAIN_QUEUE.into(),
+        ..Default::default()
+    };
+    harness
+        .state_mut()
+        .add(
+            &[world.url("file.zip"), world.url("download.php?id=5")],
+            later,
+        )
+        .unwrap();
+    harness.state_mut().refresh();
+    harness.run_steps(3);
+    let app = harness.state();
+    let mut categories = app.applied.categories();
+    let rows = app.visible();
+    let zip = rows.iter().find(|r| r.url.ends_with("file.zip")).unwrap();
+    let php = rows
+        .iter()
+        .find(|r| r.url.contains("download.php"))
+        .unwrap();
+    assert_eq!(
+        zip.save_dir, None,
+        "the planned folder was written into the row"
+    );
+    let planned = app.planned_folder(zip, &mut categories).unwrap();
+    assert!(planned.ends_with("Archives"), "{planned}");
+    assert_eq!(app.planned_folder(php, &mut categories), None);
+    assert!(
+        harness.query_all_by_label(&planned).next().is_some(),
+        "the Folder column does not show {planned}"
+    );
+}
+
 #[test]
 fn the_site_file_finder_finds_the_files_a_page_links_to() {
     let world = world();
@@ -5929,7 +6011,15 @@ fn a_row_added_for_later_says_what_it_waits_for_with_its_size_and_folder() {
     assert_eq!(dm_desktop::app::status_of(&row), "Waiting for Start queue");
     assert_eq!(dm_desktop::table::shown_size(&row), Some(PAYLOAD as u64));
     let out = harness.state().applied.download_dir.display().to_string();
-    assert_eq!(dm_desktop::app::folder_of(&row), out);
+    let mut categories = harness.state().applied.categories();
+    assert_eq!(
+        harness.state().planned_folder(&row, &mut categories),
+        Some(out.clone())
+    );
+    assert!(
+        harness.query_all_by_label(&out).next().is_some(),
+        "no folder shown"
+    );
     assert!(harness.query_by_label("Waiting for Start queue").is_some());
     assert!(harness
         .query_by_label("· 1 waiting for Start queue")

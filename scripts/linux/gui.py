@@ -545,8 +545,9 @@ def human_session(home, env, app):
         check("a server answering 500 fails the row, with a reason", failed and bool(reason), f"{state_of(home, broken)}: {reason}")
         files.broken = False
         click_row(broken, seconds=5)
-        check("Resume on the failed row retries, and it completes",
-              click("push button", "Resume") and finished(home, broken, 60), str(state_of(home, broken)))
+        # A failed row's Resume says Retry, as a person reads it.
+        check("Retry on the failed row retries, and it completes",
+              click("push button", "Retry") and finished(home, broken, 60), str(state_of(home, broken)))
 
         print("\nright-click Properties, then stop and delete with its question")
         slow = files.url("slow-delete.bin")
@@ -833,6 +834,11 @@ def main():
         settings = lambda: json.loads((home / "settings.json").read_text())
         limited = wait_for(lambda: settings().get("speed_limit", 0) > 0, 10)
         check("the tray menu's Speed limiter turns the limiter on", limited, str(settings().get("speed_limit")))
+        # And off again: left on, it held every later download of the run
+        # to the limit and the completion scene timed out.
+        tray_menu(SPEED_LIMITER)
+        check("and again turns it off",
+              wait_for(lambda: settings().get("speed_limit", 0) == 0, 10), str(settings().get("speed_limit")))
 
         # A real drag and drop: a file of links dragged from a GTK window.
         links = home / "links.txt"
