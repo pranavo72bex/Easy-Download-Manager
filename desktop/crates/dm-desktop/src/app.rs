@@ -3072,7 +3072,7 @@ impl DmApp {
         };
         ui.horizontal(|ui| {
             ui.label(t("Link on your clipboard:"));
-            ui.label(RichText::new(format::shown_url(&url)).monospace());
+            ui.label(RichText::new(format::shown_url(&url)).weak());
             if ui.button(t("Download")).clicked() {
                 self.clipboard.dismissed.insert(url.clone());
                 self.clipboard.offered = None;

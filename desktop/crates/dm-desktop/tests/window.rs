@@ -2500,6 +2500,48 @@ fn closing_a_dialog_gives_the_keyboard_back_to_its_opener() {
     );
 }
 
+/// The pointer says the same thing everywhere, as a desktop app's does: the
+/// arrow over buttons, checkboxes, menus and rows; the text cursor over a
+/// field; the resize arrows over a column's edge.
+#[test]
+fn the_pointer_is_the_same_kind_over_the_same_kind_of_thing() {
+    use egui::accesskit::Role;
+    use egui::CursorIcon;
+    let world = world();
+    let mut harness = world.harness();
+    add_url(&mut harness, &world.url("file.zip"), "Add for later");
+    harness.run_steps(3);
+    let mut over = |harness: &mut Harness<'_, DmApp>, at: egui::Pos2| {
+        harness.hover_at(at);
+        harness.run_steps(2);
+        harness.output().platform_output.cursor_icon
+    };
+    let button = harness
+        .get_by_role_and_label(Role::Button, "Add URL")
+        .rect()
+        .center();
+    assert_eq!(
+        over(&mut harness, button),
+        CursorIcon::Default,
+        "a toolbar button"
+    );
+    let row = harness.get_by_label("file.zip").rect().center();
+    assert_eq!(over(&mut harness, row), CursorIcon::Default, "a row");
+    let size = harness.get_by_role_and_label(Role::Button, "Size").rect();
+    let edge = egui::pos2(size.left() - 5.0, size.center().y);
+    assert_eq!(
+        over(&mut harness, edge),
+        CursorIcon::ResizeColumn,
+        "a column's edge"
+    );
+    harness.state_mut().run(Command::AddUrl);
+    harness.run_steps(3);
+    let field = harness.get_by_label("Address").rect().center();
+    assert_eq!(over(&mut harness, field), CursorIcon::Text, "a text field");
+    let check = harness.get_by_label("Needs a sign-in").rect().center();
+    assert_eq!(over(&mut harness, check), CursorIcon::Default, "a checkbox");
+}
+
 #[test]
 fn two_cancelled_hand_offs_from_a_site_offer_to_leave_it_to_the_browser() {
     let _file = SETTINGS_FILE.lock().unwrap_or_else(|e| e.into_inner());

@@ -851,3 +851,14 @@ dm rather than egui on every system without the Mac's symbols, from
 catalog keys such as `key:Delete`: the prefix keeps "Delete" the key
 ("Entf") apart from "Delete" the command ("Löschen"), and is taken off
 where no catalog has the word (English).
+
+## The pointer over controls is the desktop's, not a web page's (2026-10-18)
+
+The arrow over buttons, checkboxes, menu items, the toolbar and rows; the
+text cursor over a field; resize arrows over a column's edge and the rail's
+splitter. A hand over every clickable thing is a web page's convention, and
+egui can only give it to plain buttons, so turning it on would have left
+checkboxes, menus and rows with the arrow beside buttons with the hand —
+the inconsistency a person notices. `the_pointer_is_the_same_kind_over_the_same_kind_of_thing`
+holds it. Addresses are drawn in the window's one font, not a second
+monospace one.

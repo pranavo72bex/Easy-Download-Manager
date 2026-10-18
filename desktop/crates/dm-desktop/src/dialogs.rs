@@ -1590,7 +1590,7 @@ fn duplicate(app: &mut DmApp, ctx: &egui::Context) {
     let status = app.row(id).map(crate::app::status_of).unwrap_or_default();
     let (mut again, mut show, mut cancel) = (false, false, false);
     window("Already in the list").show(ctx, |ui| {
-        ui.label(RichText::new(format::shown_url(&address)).monospace());
+        ui.label(RichText::new(format::shown_url(&address)).weak());
         ui.label(tf("This address is already in the list ({}).", &[&status]));
         ui.horizontal(|ui| {
             // Enter presses it, as in every other dialog (gap 154).
@@ -1829,7 +1829,7 @@ fn file_info(app: &mut DmApp, ctx: &egui::Context) {
         .open(&mut open)
         .show(ctx, |ui| {
             let first = d.urls.first().cloned().unwrap_or_default();
-            ui.label(RichText::new(format::shown_url(&first)).monospace());
+            ui.label(RichText::new(format::shown_url(&first)).weak());
             if d.urls.len() > 1 {
                 ui.label(tf("and {} more", &[&(d.urls.len() - 1)]));
             }
