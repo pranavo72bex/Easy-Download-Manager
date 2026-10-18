@@ -5152,6 +5152,13 @@ fn downloads_finishing_under_the_exit_question_never_quit_dm() {
             .rect()
     };
     let before = at(&harness);
+    // Given the frames to say it on a busy machine.
+    for _ in 0..50 {
+        if harness.query_by_label_contains("2 downloads").is_some() {
+            break;
+        }
+        harness.step();
+    }
     assert!(harness.query_by_label_contains("2 downloads").is_some());
 
     // One finishes: fewer words, and Exit has not moved.

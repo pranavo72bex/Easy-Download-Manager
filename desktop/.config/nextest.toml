@@ -7,3 +7,7 @@ fail-fast = false
 # killed, rather than holding the runner until its job times out.
 slow-timeout = { period = "60s", terminate-after = 5 }
 failure-output = "immediate-final"
+# A test that fails and then passes is reported as flaky, not hidden: the
+# window tests that wait on real downloads met a shared two-core runner's
+# timing now and then (docs/gaps.md, gap 51), never alone.
+retries = 2
