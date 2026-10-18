@@ -38,6 +38,7 @@ git ls-files -z --cached --others --exclude-standard \
         if [ -z "$DM_ORCA" ]; then
           dbus-launch --exit-with-session sh -c "
             status-notifier-watcher >/dev/null 2>&1 &
+            python3 scripts/linux/tray_host.py >/dev/null 2>&1 &
             sleep 1
             python3 scripts/linux/gui.py"
         else
@@ -46,6 +47,7 @@ git ls-files -z --cached --others --exclude-standard \
           dbus-launch --exit-with-session sh -c "
             python3 -c \"import sys; sys.argv=[0]; exec(open(\x27scripts/linux/gui.py\x27).read().replace(\x27\\nmain()\\n\x27, \x27\\n\x27)); screen_reader_on()\"
             status-notifier-watcher >/dev/null 2>&1 &
+            python3 scripts/linux/tray_host.py >/dev/null 2>&1 &
             orca --replace --debug-file=/tmp/orca.debug >/dev/null 2>&1 &
             sleep 5
             DM_ORCA_LOG=/tmp/orca.debug python3 scripts/linux/gui.py"
