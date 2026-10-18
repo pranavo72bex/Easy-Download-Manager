@@ -485,7 +485,6 @@
  "Yes, remove": "Tak, usuń",
  "Remove it": "Usuń",
  "Remove them": "Usuń",
- "Read by the browser extension the next time it talks to dm: a download it catches, or its right-click menu. The right-click menu and the toolbar button hand anything over regardless.": "Rozszerzenie przeglądarki odczyta to przy następnym kontakcie z dm: przy przechwyconym pobieraniu lub z menu kontekstowego. Menu kontekstowe i przycisk paska i tak przekazują wszystko.",
  "Drop a .url or .webloc file, or a text file of links, here. A link dragged straight from a browser cannot be dropped yet: use Add URL or the browser's right-click menu.": "Upuść tutaj plik .url lub .webloc albo plik tekstowy z linkami. Linku przeciągniętego wprost z przeglądarki nie da się jeszcze upuścić: użyj Dodaj URL lub menu kontekstowego przeglądarki.",
  "None": "Brak",
  "unit:.": ",",
@@ -495,5 +494,6 @@
  "Yes, cancel": "Tak, anuluj",
  "Sites such as example.com or *.example.com, separated by spaces; each covers its subdomains.": "Witryny takie jak example.com lub *.example.com, oddzielone spacjami; każda obejmuje swoje subdomeny.",
  "Type or paste the address of what to download.": "Wpisz lub wklej adres tego, co chcesz pobrać.",
- "Seconds between attempts (0 lets dm choose)": "Sekundy między próbami (0 — wybór dm)"
+ "Seconds between attempts (0 lets dm choose)": "Sekundy między próbami (0 — wybór dm)",
+ "Read by the browser extension the next time it talks to dm: a download it catches, or its right-click menu. The right-click menu hands anything over regardless.": "Rozszerzenie przeglądarki odczyta to przy następnym kontakcie z dm: przy przechwyconym pobieraniu lub z menu kontekstowego. Menu kontekstowe i tak przekazuje wszystko."
 }

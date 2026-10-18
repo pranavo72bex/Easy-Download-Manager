@@ -92,7 +92,9 @@ impl Theme {
                 text2: hex(0xd6d6d6),
                 weak: hex(0xadadad),
                 disabled: hex(0x8a8a8a),
-                selection: hex(0x383838),
+                // Lighter than hover in the dark, as darker in the light:
+                // a hovered place read as the chosen one (UI round 3).
+                selection: hex(0x575757),
                 selection_edge: hex(0x525252),
                 selection_text: Color32::WHITE,
                 row_selected: hex(0x1c76d0),
@@ -127,7 +129,7 @@ impl Theme {
                 text2: hex(0x1a1a1a),
                 weak: hex(0x6d6d6d),
                 disabled: hex(0x8f8f8f),
-                selection: hex(0xcce8ff),
+                selection: hex(0xa9d1f5),
                 selection_edge: hex(0x99d1ff),
                 selection_text: hex(0x1a1a1a),
                 row_selected: hex(0x0072d0),
@@ -789,6 +791,10 @@ mod tests {
                 apart(t.hover, t.pressed),
                 "{theme:?}: hover and pressed alike"
             );
+            assert!(
+                apart(t.hover, t.selection),
+                "{theme:?}: hovered taken for selected"
+            );
         }
     }
 
@@ -881,15 +887,23 @@ mod tests {
 /// clear, so a list or a tab with more below gave no sign of it (gaps 147,
 /// 148).
 pub fn steady_scroll() -> egui::style::ScrollStyle {
+    let solid = egui::style::ScrollStyle::solid();
     egui::style::ScrollStyle {
+        // Floating, so the opacities below take effect (egui draws a solid
+        // bar at full strength, which read as a black or white slab, UI
+        // round 3) — but with its own room set aside, so it never lies
+        // over the last row or column.
+        floating: true,
+        floating_width: solid.bar_width,
+        floating_allocated_width: solid.bar_width,
         foreground_color: true,
-        // In the words' colour, but lighter: at 45% it read as a solid
-        // black or white bar (UI round 2); a quarter is a grey that still
-        // shows in every look, darker under the pointer.
         dormant_background_opacity: 0.08,
-        dormant_handle_opacity: 0.25,
-        active_handle_opacity: 0.45,
-        ..egui::style::ScrollStyle::solid()
+        dormant_handle_opacity: 0.3,
+        active_background_opacity: 0.15,
+        active_handle_opacity: 0.5,
+        interact_background_opacity: 0.2,
+        interact_handle_opacity: 0.7,
+        ..solid
     }
 }
 
@@ -898,7 +912,11 @@ mod scroll_tests {
     #[test]
     fn scroll_bars_are_seen_without_the_pointer_and_take_their_own_room() {
         let style = super::steady_scroll();
-        assert!(!style.floating, "a bar over the last row hides it");
+        assert!(
+            !style.floating || style.floating_allocated_width >= style.bar_width,
+            "a bar over the last row hides it"
+        );
+        assert!(style.dormant_handle_opacity < 0.5, "a solid slab");
         assert!(style.dormant_handle_opacity > 0.0, "seen only on hover");
         assert!(
             style.foreground_color,

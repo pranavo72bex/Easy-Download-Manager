@@ -1076,7 +1076,7 @@ fn main() {
         .with_title("dm")
         .with_app_id("dm")
         .with_inner_size([960.0, 660.0])
-        .with_min_inner_size([720.0, 460.0])
+        .with_min_inner_size([dm_desktop::app::MIN_WINDOW.0, dm_desktop::app::MIN_WINDOW.1])
         // The login item's launch opens nothing; it waits in the tray.
         .with_visible(!hidden);
     if let Some(icon) = window_icon() {

@@ -24,6 +24,9 @@ use crate::update::Update;
 
 /// How often the list is read back from the queue while the window shows.
 const REFRESH: Duration = Duration::from_millis(250);
+/// The smallest the window may be, on screen at 100% text.
+pub const MIN_WINDOW: (f32, f32) = (720.0, 460.0);
+
 /// How often it is read back while nothing downloads.
 const IDLE_REFRESH: Duration = Duration::from_secs(1);
 /// How often the clipboard is looked at, when watching it is on.
@@ -658,6 +661,8 @@ pub struct DmApp {
     /// Sizes a dialog learned from the server before a row was added for
     /// later, shown until the row learns its own.
     pub sizes_told: HashMap<Id, u64>,
+    /// The text size the smallest window was last set for.
+    min_size_zoom: Option<f32>,
     /// Addresses the browser handed over in the last few seconds.
     recent_hands: Vec<(String, Instant)>,
     /// Where the menu bar ends, last frame: windows per download open
@@ -745,6 +750,7 @@ impl DmApp {
             said_about: None,
             sizes_told: HashMap::new(),
             recent_hands: Vec::new(),
+            min_size_zoom: None,
             menu_bottom: 0.0,
             saved: HashMap::new(),
             said_at: None,
@@ -2377,6 +2383,17 @@ impl DmApp {
     /// The window, drawn once.
     pub fn ui(&mut self, ui: &mut egui::Ui) {
         let ctx = ui.ctx().clone();
+        // The smallest window is the same on screen at any text size: given
+        // in points, it grew with the zoom, and at 200% a relaunched window
+        // opened past the bottom of the screen and could not be made
+        // smaller (UI round 3).
+        let zoom = ctx.zoom_factor();
+        if self.min_size_zoom != Some(zoom) {
+            self.min_size_zoom = Some(zoom);
+            ctx.send_viewport_cmd(egui::ViewportCommand::MinInnerSize(
+                egui::vec2(MIN_WINDOW.0, MIN_WINDOW.1) / zoom.max(0.5),
+            ));
+        }
         if self.searches_running > 0 {
             ctx.request_repaint_after(Duration::from_millis(300));
         }
@@ -2906,13 +2923,26 @@ impl DmApp {
         let stacked = modern && width(false) > room;
         // Wrapped where even that does not fit, or where the classic
         // looks' fixed buttons do not.
-        let wrap = (stacked && width(true) > room) || !modern;
+        // Where even stacked words do not fit on one row, icons alone, their
+        // names on hover: wrapped to three rows at 150% text in a small
+        // window, the toolbar left one row of the list (UI round 3).
+        let icons_only = stacked && width(true) > room;
+        let wrap = !modern;
         let mut draw = |ui: &mut egui::Ui| {
             for (command, icon, name, widest) in &buttons {
                 // The modern toolbar leads with one primary action.
                 let primary = *command == Command::AddUrl;
                 let enabled = self.enabled(*command);
-                let response = if stacked {
+                let response = if icons_only {
+                    tool(
+                        ui,
+                        *icon,
+                        (name, widest),
+                        enabled,
+                        ToolStyle::Icons,
+                        primary,
+                    )
+                } else if stacked {
                     modern_tool(ui, *icon, (name, widest), enabled, primary, &t, true)
                 } else {
                     tool(ui, *icon, (name, widest), enabled, chosen, primary)
@@ -2926,7 +2956,7 @@ impl DmApp {
                     .map(|k| format!(" ({})", format::shortcut(ui.ctx(), &k)))
                     .unwrap_or_default();
                 let said = format!("{title}{key}");
-                let response = if said != *name || chosen == ToolStyle::Icons {
+                let response = if said != *name || chosen == ToolStyle::Icons || icons_only {
                     response.on_hover_text(said)
                 } else {
                     response

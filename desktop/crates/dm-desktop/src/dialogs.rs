@@ -1332,16 +1332,20 @@ fn confirm_remove(app: &mut DmApp, ctx: &egui::Context) {
     }
 }
 
-/// Asked when Resume is pressed on a download the schedule or the
-/// download limit holds: start it now anyway, for this one only, or let it
-/// wait.
 /// Asked before the progress window's Cancel download throws away what
 /// was fetched. Enter keeps the download.
 fn confirm_cancel(app: &mut DmApp, ctx: &egui::Context) {
     let Some(id) = app.dialogs.confirm_cancel else {
         return;
     };
-    let Some(name) = app.row(id).map(name_of) else {
+    // Gone, or finished (or stopped) while it was asked: nothing to cancel,
+    // and the question about a finished file stood beside Download
+    // complete (UI round 3).
+    let Some(name) = app
+        .row(id)
+        .filter(|r| matches!(r.state, State::Running | State::Queued | State::Paused))
+        .map(name_of)
+    else {
         app.dialogs.confirm_cancel = None;
         return;
     };
@@ -1365,6 +1369,9 @@ fn confirm_cancel(app: &mut DmApp, ctx: &egui::Context) {
     }
 }
 
+/// Asked when Resume is pressed on a download the schedule or the
+/// download limit holds: start it now anyway, for this one only, or let it
+/// wait.
 fn confirm_outside(app: &mut DmApp, ctx: &egui::Context) {
     let Some(ids) = app.dialogs.confirm_outside.clone() else {
         return;
@@ -3600,17 +3607,26 @@ fn options(app: &mut DmApp, ctx: &egui::Context) {
     };
     let mut open = true;
     let (mut ok, mut cancel) = (false, false);
+    // No wider than the window: at 200% text in a 960-point window the
+    // tabs, the title and OK were off its edges (UI round 3).
+    let wide = (ctx.content_rect().width() - 32.0).clamp(320.0, 660.0);
     window("Options")
-        .fixed_size(egui::vec2(660.0, tall - 60.0))
+        .min_width(wide)
+        .fixed_size(egui::vec2(wide, tall - 60.0))
         .open(&mut open)
         .show(ctx, |ui| {
-        ui.horizontal(|ui| {
-            for (tab, label) in TABS {
-                if ui.selectable_label(d.tab == tab, t(label)).clicked() {
-                    d.tab = tab;
-                }
-            }
-        });
+        // The tabs scroll sideways where they do not all fit.
+        egui::ScrollArea::horizontal()
+            .id_salt("options-tabs")
+            .show(ui, |ui| {
+                ui.horizontal(|ui| {
+                    for (tab, label) in TABS {
+                        if ui.selectable_label(d.tab == tab, t(label)).clicked() {
+                            d.tab = tab;
+                        }
+                    }
+                });
+            });
         ui.separator();
         // Room kept below for a warning and the buttons.
         let body = (ui.available_height() - 80.0).max(120.0);
@@ -3773,7 +3789,7 @@ fn options(app: &mut DmApp, ctx: &egui::Context) {
                 if !c.take_key.is_empty() && c.take_key == c.keep_key {
                     ui.colored_label(warn(ui), t("The two keys are the same; holding it leaves the download with the browser."));
                 }
-                ui.label(RichText::new(t("Read by the browser extension the next time it talks to dm: a download it catches, or its right-click menu. The right-click menu and the toolbar button hand anything over regardless.")).small().weak());
+                ui.label(RichText::new(t("Read by the browser extension the next time it talks to dm: a download it catches, or its right-click menu. The right-click menu hands anything over regardless.")).small().weak());
             }
             Tab::SaveTo => {
                 let mut dir = s.download_dir.display().to_string();

@@ -5210,11 +5210,15 @@ fn the_toolbar_keeps_its_names_narrow_and_in_german() {
                 })
                 .size()
                 .x;
-            assert!(
-                bounds.width() as f32 >= shown,
-                "{name}: {} wide, its name {shown}",
-                bounds.width()
-            );
+            // Where names are drawn, each fits its button: the modern look
+            // shows icons alone when its names would not fit on one row.
+            if look == "classic" {
+                assert!(
+                    bounds.width() as f32 >= shown,
+                    "{name}: {} wide, its name {shown}",
+                    bounds.width()
+                );
+            }
             assert!(bounds.x1 <= 720.0, "{name} is past the window's edge");
             for (other, at) in &seen {
                 let meet = bounds.x0 < at.x1 - 0.5

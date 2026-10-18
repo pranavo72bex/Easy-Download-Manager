@@ -685,6 +685,7 @@ enum Glyph {
     Waiting,
     Done,
     Failed,
+    Cancelled,
 }
 
 fn glyph_of(entry: &Entry) -> Glyph {
@@ -692,6 +693,7 @@ fn glyph_of(entry: &Entry) -> Glyph {
         State::Running => Glyph::Running,
         State::Failed(_) => Glyph::Failed,
         State::Completed => Glyph::Done,
+        State::Cancelled => Glyph::Cancelled,
         State::Queued => Glyph::Waiting,
         // Waiting for the schedule, or added for later and waiting for its
         // queue: a clock, not the pause of one a person stopped (round 16).
@@ -739,6 +741,12 @@ fn draw_glyph(ui: &mut egui::Ui, glyph: Glyph, colour: egui::Color32) {
             p.line_segment([c + egui::vec2(-2.0, -2.0), c + egui::vec2(2.0, 2.0)], line);
             p.line_segment([c + egui::vec2(2.0, -2.0), c + egui::vec2(-2.0, 2.0)], line);
         }
+        // A circle struck through: stopped for good, not paused (it drew
+        // the pause shape, UI round 3).
+        Glyph::Cancelled => {
+            p.circle_stroke(c, 5.0, line);
+            p.line_segment([c + egui::vec2(-3.5, 3.5), c + egui::vec2(3.5, -3.5)], line);
+        }
     }
 }
 
@@ -759,7 +767,7 @@ fn status_cell(ui: &mut egui::Ui, entry: &Entry, held: Option<&str>, selected: b
         Glyph::Running => tokens.progress(),
         Glyph::Done => tokens.success,
         Glyph::Failed => tokens.error,
-        Glyph::Paused | Glyph::Waiting => tokens.weak,
+        Glyph::Paused | Glyph::Waiting | Glyph::Cancelled => tokens.weak,
     };
     // The bar under the words in the modern look: while running, and kept
     // where it stopped for a paused or failed row (it vanished), dimmed or
@@ -773,7 +781,7 @@ fn status_cell(ui: &mut egui::Ui, entry: &Entry, held: Option<&str>, selected: b
         };
     let bar_colour = match glyph {
         Glyph::Failed => tokens.error,
-        Glyph::Paused | Glyph::Waiting => tokens.weak,
+        Glyph::Paused | Glyph::Waiting | Glyph::Cancelled => tokens.weak,
         _ => tokens.progress(),
     };
     ui.horizontal(|ui| {
