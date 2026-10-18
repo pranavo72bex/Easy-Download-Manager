@@ -705,6 +705,8 @@ pub struct DmApp {
     field_menu: Option<(egui::Id, egui::Pos2)>,
     /// What that menu chose, given to the field on the next frame.
     field_edits: Vec<egui::Event>,
+    /// The focused field's selection before a right-click moved its caret.
+    field_selection: Option<(egui::Id, egui::text::CCursorRange)>,
     /// The menu bar's menus, by the ids their popups had last frame.
     menus: Vec<egui::Id>,
     /// Shift+F10 or the Menu key was pressed: the row with the keyboard's
@@ -727,7 +729,8 @@ pub struct DmApp {
 }
 
 /// How long the status line keeps its last sentence.
-const SAID_FOR: Duration = Duration::from_secs(30);
+// Long enough to read; not standing over what was done since (UI round 9).
+const SAID_FOR: Duration = Duration::from_secs(12);
 
 impl DmApp {
     pub fn new(backend: Backend) -> Self {
@@ -805,6 +808,7 @@ impl DmApp {
             menus: Vec::new(),
             field_menu: None,
             field_edits: Vec::new(),
+            field_selection: None,
             row_menu_by_key: false,
             menu_bottom: 0.0,
             saved: HashMap::new(),
@@ -2022,11 +2026,16 @@ impl DmApp {
             Command::StartQueue => {
                 let queue = self.current_queue();
                 let n = self.backend.start_queue(&queue);
-                self.said = crate::i18n::Said::counting_naming(
-                    "Started {} download in {}.||Started {} downloads in {}.",
-                    n as u64,
-                    &[&n, &queue],
-                );
+                // "Started 0 downloads" said nothing useful (UI round 9).
+                self.said = if n == 0 {
+                    crate::i18n::Said::naming("Nothing in {} was waiting to start.", &[&queue])
+                } else {
+                    crate::i18n::Said::counting_naming(
+                        "Started {} download in {}.||Started {} downloads in {}.",
+                        n as u64,
+                        &[&n, &queue],
+                    )
+                };
                 // Asked in the background: a server at a time, each up to
                 // its timeouts, which held the window for minutes when it
                 // was done here. The counts are said when it is done.
@@ -2509,6 +2518,13 @@ impl DmApp {
         let ctx = ui.ctx().clone();
         // What a text field's menu chose on the frame before, given to the
         // field as the keys would give it.
+        // Escape closes a field's menu first, not the dialog under it,
+        // which took the key and left the menu standing (UI round 9).
+        if self.field_menu.is_some()
+            && ctx.input_mut(|i| i.consume_key(egui::Modifiers::NONE, egui::Key::Escape))
+        {
+            self.field_menu = None;
+        }
         if !self.field_edits.is_empty() {
             let edits = std::mem::take(&mut self.field_edits);
             ctx.input_mut(|i| i.events.extend(edits));
@@ -2810,18 +2826,30 @@ impl DmApp {
     /// Cut, Copy and Paste on a right-click in a text field, as in any
     /// program: the keys worked, the menu was not there (UI round 8).
     fn field_menu(&mut self, ctx: &egui::Context) {
-        let (clicked, at, escape) = ctx.input(|i| {
+        let (clicked, right_down, at) = ctx.input(|i| {
             (
                 i.pointer.secondary_clicked(),
+                i.pointer.secondary_down() || i.pointer.secondary_pressed(),
                 i.pointer.interact_pos(),
-                i.key_pressed(egui::Key::Escape),
             )
         });
+        let focused = ctx
+            .memory(|m| m.focused())
+            .filter(|_| ctx.egui_wants_keyboard_input());
+        // The field's selection, kept from before the right-click: the
+        // press puts the caret where it lands, and Cut and Copy then had
+        // nothing to act on (UI round 9).
+        if !right_down && !clicked && self.field_menu.is_none() {
+            self.field_selection = focused.and_then(|id| {
+                egui::text_edit::TextEditState::load(ctx, id)
+                    .and_then(|state| state.cursor.char_range())
+                    .filter(|range| !range.is_empty())
+                    .map(|range| (id, range))
+            });
+        }
         if clicked {
             // The field the right-click put the caret in.
-            let field = ctx
-                .memory(|m| m.focused())
-                .filter(|_| ctx.egui_wants_keyboard_input())
+            let field = focused
                 .and_then(|id| ctx.read_response(id).map(|r| (id, r.rect)))
                 .filter(|(_, rect)| at.is_some_and(|at| rect.contains(at)));
             self.field_menu = field.zip(at).map(|((id, _), at)| (id, at));
@@ -2830,17 +2858,32 @@ impl DmApp {
         let Some((id, at)) = self.field_menu else {
             return;
         };
+        // Gone with its dialog, it does not stay over the list (UI round 9).
+        if ctx.read_response(id).is_none() {
+            self.field_menu = None;
+            return;
+        }
+        let selected = self
+            .field_selection
+            .filter(|(field, _)| *field == id)
+            .map(|(_, range)| range);
         let mut chosen: Option<u8> = None;
         let shown = egui::Area::new(egui::Id::unique("dm-field-menu"))
             .order(egui::Order::Foreground)
             .fixed_pos(at)
             .show(ctx, |ui| {
                 egui::Frame::menu(ui.style()).show(ui, |ui| {
-                    for (n, word) in [t("Cut"), t("Copy"), t("Paste")].into_iter().enumerate() {
-                        if ui.button(word).clicked() {
-                            chosen = Some(n as u8);
+                    // Items of one width and no frame, as in every menu.
+                    ui.set_min_width(140.0);
+                    ui.with_layout(egui::Layout::top_down_justified(egui::Align::Min), |ui| {
+                        for (n, word) in [t("Cut"), t("Copy"), t("Paste")].into_iter().enumerate() {
+                            let enabled = n == 2 || selected.is_some();
+                            let item = egui::Button::new(word).frame(false);
+                            if ui.add_enabled(enabled, item).clicked() {
+                                chosen = Some(n as u8);
+                            }
                         }
-                    }
+                    });
                 })
             });
         // The clipboard read only for a paste.
@@ -2851,10 +2894,17 @@ impl DmApp {
         });
         let away = ctx.input(|i| i.pointer.any_pressed()) && !at_inside(ctx, shown.response.rect);
         if let Some(edit) = chosen {
+            // The selection put back, for Cut and Copy to act on.
+            if let (Some(range), Some(mut state)) =
+                (selected, egui::text_edit::TextEditState::load(ctx, id))
+            {
+                state.cursor.set_char_range(Some(range));
+                state.store(ctx, id);
+            }
             self.field_edits.push(edit);
             ctx.memory_mut(|m| m.request_focus(id));
             self.field_menu = None;
-        } else if escape || away {
+        } else if away {
             self.field_menu = None;
         }
     }

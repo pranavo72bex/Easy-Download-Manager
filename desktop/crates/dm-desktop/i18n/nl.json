@@ -147,7 +147,6 @@
  "Never take downloads from these sites": "Neem nooit downloads van deze sites over",
  "New address": "Nieuw adres",
  "New name": "Nieuwe naam",
- "No downloads in this category.": "Geen downloads in deze categorie.",
  "No files of those types are linked from that page.": "Die pagina linkt niet naar bestanden van die typen.",
  "Not checked yet.": "Nog niet gecontroleerd.",
  "Not for these sites (fetched directly)": "Niet voor deze sites (rechtstreeks opgehaald)",
@@ -505,5 +504,10 @@
  "{} web page hidden||{} web pages hidden": "{} webpagina verborgen||{} webpagina's verborgen",
  "The video's own title": "De titel van de video",
  "Waiting for the download limit": "Wacht op de downloadlimiet",
- "Waiting for the schedule": "Wacht op het schema"
+ "Waiting for the schedule": "Wacht op het schema",
+ "Take this download off the list?": "Deze download uit de lijst halen?",
+ "Take these downloads off the list?": "Deze downloads uit de lijst halen?",
+ "Width of the {} column": "Breedte van de kolom {}",
+ "Nothing in {} was waiting to start.": "Niets in {} wachtte om te starten.",
+ "Nothing here yet.": "Hier staat nog niets."
 }

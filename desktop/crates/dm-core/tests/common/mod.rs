@@ -22,6 +22,7 @@ pub fn options(dir: &Path) -> Options {
         categories: Categories::default(),
         checksum: None,
         quality: dm_core::stream::Quality::Best,
+        media: false,
         referrer: None,
         proxy: None,
         container: None,

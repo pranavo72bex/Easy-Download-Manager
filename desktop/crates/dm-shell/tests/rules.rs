@@ -27,6 +27,7 @@ async fn a_held_download_goes_on_when_the_limit_lets_it() {
             categories: Categories::default(),
             checksum: None,
             quality: dm_core::stream::Quality::Best,
+            media: false,
             referrer: None,
             proxy: None,
             container: None,

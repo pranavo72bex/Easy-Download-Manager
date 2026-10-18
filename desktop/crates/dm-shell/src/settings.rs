@@ -510,6 +510,7 @@ impl Settings {
             // row when it starts one.
             checksum: None,
             quality: self.quality(),
+            media: false,
             referrer: None,
             // For the tools dm runs; the client has its own copy.
             proxy: self.proxy.url_for_tools(),

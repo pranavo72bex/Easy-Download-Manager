@@ -4267,7 +4267,8 @@ fn every_menu_item_clicked_does_what_it_says() {
     h.state_mut().place = dm_desktop::app::Place::Queue(dm_core::MAIN_QUEUE.into());
     press(&mut h, &["Downloads", "Start queue"]);
     assert!(
-        h.state().said.english().starts_with("Started"),
+        h.state().said.english().starts_with("Started")
+            || h.state().said.english().starts_with("Nothing in"),
         "Start queue: {:?}",
         h.state().said
     );
@@ -4404,7 +4405,8 @@ fn every_toolbar_button_clicked_does_what_it_says() {
     h.state_mut().place = dm_desktop::app::Place::Queue(dm_core::MAIN_QUEUE.into());
     tool(&mut h, "Start queue");
     assert!(
-        h.state().said.english().starts_with("Started"),
+        h.state().said.english().starts_with("Started")
+            || h.state().said.english().starts_with("Nothing in"),
         "Start queue"
     );
     tool(&mut h, "Stop queue");
@@ -6203,15 +6205,8 @@ fn the_small_things_of_round_eight() {
     assert!(harness
         .query_by_label("Not yet known (the server refused the request)")
         .is_some());
-    let percent = harness
-        .get_by_label("0%")
-        .accesskit_node()
-        .bounding_box()
-        .unwrap();
-    assert!(
-        (percent.x1 as f32) <= after.max.x - 8.0,
-        "the percentage is cut off at {percent:?} in {after:?}"
-    );
+    // The bar no longer says the percentage beside itself (UI round 9:
+    // Status above says it); no words of its own to be cut off.
     let id = harness.state().rows()[0].id;
     harness.state_mut().dialogs.progress.remove(&id);
     let mut quiet = harness.state().applied.clone();
@@ -7428,4 +7423,51 @@ fn a_text_field_has_cut_copy_and_paste_on_a_right_click() {
         .map(|d| d.address.clone());
     assert_eq!(typed.as_deref(), Some(link.as_str()));
     assert!(harness.query_by_label("Cut").is_none(), "the menu stayed");
+
+    // Cut acts on what was selected before the right-click moved the
+    // caret (UI round 9: Cut and Copy did nothing).
+    harness.key_press_modifiers(egui::Modifiers::COMMAND, egui::Key::A);
+    harness.run_steps(2);
+    for pressed in [true, false] {
+        harness.event(egui::Event::PointerButton {
+            pos: field.center(),
+            button: egui::PointerButton::Secondary,
+            pressed,
+            modifiers: Default::default(),
+        });
+        harness.step();
+    }
+    harness.run_steps(2);
+    click(&mut harness, "Cut");
+    harness.run_steps(3);
+    let left = harness
+        .state()
+        .dialogs
+        .add_url
+        .as_ref()
+        .map(|d| d.address.clone());
+    assert_eq!(left.as_deref(), Some(""), "Cut left the text");
+
+    // Escape closes the menu, and leaves the dialog open.
+    for pressed in [true, false] {
+        harness.event(egui::Event::PointerButton {
+            pos: field.center(),
+            button: egui::PointerButton::Secondary,
+            pressed,
+            modifiers: Default::default(),
+        });
+        harness.step();
+    }
+    harness.run_steps(2);
+    assert!(harness.query_by_label("Paste").is_some());
+    harness.key_press(egui::Key::Escape);
+    harness.run_steps(3);
+    assert!(
+        harness.query_by_label("Paste").is_none(),
+        "Escape left the menu"
+    );
+    assert!(
+        harness.state().dialogs.add_url.is_some(),
+        "Escape closed the dialog too"
+    );
 }

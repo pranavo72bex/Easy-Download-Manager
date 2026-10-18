@@ -147,7 +147,6 @@
  "Never take downloads from these sites": "Никогда не перехватывать загрузки с этих сайтов",
  "New address": "Новый адрес",
  "New name": "Новое имя",
- "No downloads in this category.": "В этой категории нет загрузок.",
  "No files of those types are linked from that page.": "На этой странице нет ссылок на файлы этих типов.",
  "Not checked yet.": "Ещё не проверялось.",
  "Not for these sites (fetched directly)": "Не для этих сайтов (загружаются напрямую)",
@@ -505,5 +504,10 @@
  "{} web page hidden||{} web pages hidden": "{} веб-страница скрыта||{} веб-страницы скрыты||{} веб-страниц скрыто",
  "The video's own title": "Название самого видео",
  "Waiting for the download limit": "Ждёт лимита загрузки",
- "Waiting for the schedule": "Ждёт расписания"
+ "Waiting for the schedule": "Ждёт расписания",
+ "Take this download off the list?": "Убрать эту загрузку из списка?",
+ "Take these downloads off the list?": "Убрать эти загрузки из списка?",
+ "Width of the {} column": "Ширина столбца «{}»",
+ "Nothing in {} was waiting to start.": "В «{}» нечего было запускать.",
+ "Nothing here yet.": "Здесь пока ничего нет."
 }

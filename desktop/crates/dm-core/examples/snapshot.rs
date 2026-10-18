@@ -46,6 +46,7 @@ async fn main() {
             },
             checksum: None,
             quality: Quality::default(),
+            media: false,
             referrer: None,
             proxy: None,
             container: None,

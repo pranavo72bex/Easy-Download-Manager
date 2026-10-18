@@ -1306,6 +1306,10 @@ fn confirm_remove(app: &mut DmApp, ctx: &egui::Context) {
                 (false, _) if app.dialogs.remove_files => {
                     t("Take these downloads off the list and delete their files from the disk?")
                 }
+                // No file on the disk (cancelled, or since deleted): none to
+                // stay anywhere (UI round 9).
+                (false, 1) if files.is_empty() => t("Take this download off the list?"),
+                (false, _) if files.is_empty() => t("Take these downloads off the list?"),
                 (false, 1) => t("Take this download off the list? Its file stays where it is."),
                 (false, _) => {
                     t("Take these downloads off the list? Their files stay where they are.")
@@ -2322,12 +2326,9 @@ fn progress(app: &mut DmApp, ctx: &egui::Context) {
                             ui.end_row();
                         });
                     let fraction = p.fraction().unwrap_or(0.0) as f32;
-                    bar(
-                        ui,
-                        fraction,
-                        420.0,
-                        &format!("{}%", crate::app::whole_percent(fraction as f64)),
-                    );
+                    // No words of its own: Status above says the percentage
+                    // (UI round 9: it was said twice).
+                    bar(ui, fraction, 420.0, "");
                     egui::CollapsingHeader::new(t("Connections"))
                         .default_open(true)
                         .id_salt(("connections", id))

@@ -147,7 +147,6 @@
  "Never take downloads from these sites": "Non prendere mai i download da questi siti",
  "New address": "Nuovo indirizzo",
  "New name": "Nuovo nome",
- "No downloads in this category.": "Nessun download in questa categoria.",
  "No files of those types are linked from that page.": "Nessun file di quei tipi è collegato da quella pagina.",
  "Not checked yet.": "Non ancora controllato.",
  "Not for these sites (fetched directly)": "Non per questi siti (scaricati direttamente)",
@@ -505,5 +504,10 @@
  "{} web page hidden||{} web pages hidden": "{} pagina web nascosta||{} pagine web nascoste",
  "The video's own title": "Il titolo del video",
  "Waiting for the download limit": "In attesa del limite di download",
- "Waiting for the schedule": "In attesa della pianificazione"
+ "Waiting for the schedule": "In attesa della pianificazione",
+ "Take this download off the list?": "Togliere questo download dall'elenco?",
+ "Take these downloads off the list?": "Togliere questi download dall'elenco?",
+ "Width of the {} column": "Larghezza della colonna {}",
+ "Nothing in {} was waiting to start.": "Niente in {} era in attesa di partire.",
+ "Nothing here yet.": "Ancora niente qui."
 }

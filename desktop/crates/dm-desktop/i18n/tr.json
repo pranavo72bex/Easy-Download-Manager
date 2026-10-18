@@ -147,7 +147,6 @@
  "Never take downloads from these sites": "Bu sitelerden indirmeleri asla alma",
  "New address": "Yeni adres",
  "New name": "Yeni ad",
- "No downloads in this category.": "Bu kategoride indirme yok.",
  "No files of those types are linked from that page.": "O sayfada bu türlerde dosyaya bağlantı yok.",
  "Not checked yet.": "Henüz denetlenmedi.",
  "Not for these sites (fetched directly)": "Bu siteler için değil (doğrudan indirilir)",
@@ -505,5 +504,10 @@
  "{} web page hidden||{} web pages hidden": "{} web sayfası gizlendi",
  "The video's own title": "Videonun kendi başlığı",
  "Waiting for the download limit": "İndirme sınırını bekliyor",
- "Waiting for the schedule": "Zamanlamayı bekliyor"
+ "Waiting for the schedule": "Zamanlamayı bekliyor",
+ "Take this download off the list?": "Bu indirme listeden kaldırılsın mı?",
+ "Take these downloads off the list?": "Bu indirmeler listeden kaldırılsın mı?",
+ "Width of the {} column": "{} sütununun genişliği",
+ "Nothing in {} was waiting to start.": "{} içinde başlamayı bekleyen bir şey yoktu.",
+ "Nothing here yet.": "Burada henüz bir şey yok."
 }

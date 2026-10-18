@@ -147,7 +147,6 @@
  "Never take downloads from these sites": "Jangan pernah mengambil unduhan dari situs ini",
  "New address": "Alamat baru",
  "New name": "Nama baru",
- "No downloads in this category.": "Tidak ada unduhan di kategori ini.",
  "No files of those types are linked from that page.": "Halaman itu tidak menautkan berkas dengan jenis tersebut.",
  "Not checked yet.": "Belum diperiksa.",
  "Not for these sites (fetched directly)": "Tidak untuk situs ini (diambil langsung)",
@@ -505,5 +504,10 @@
  "{} web page hidden||{} web pages hidden": "{} halaman web disembunyikan",
  "The video's own title": "Judul video itu sendiri",
  "Waiting for the download limit": "Menunggu batas unduhan",
- "Waiting for the schedule": "Menunggu jadwal"
+ "Waiting for the schedule": "Menunggu jadwal",
+ "Take this download off the list?": "Hapus unduhan ini dari daftar?",
+ "Take these downloads off the list?": "Hapus unduhan-unduhan ini dari daftar?",
+ "Width of the {} column": "Lebar kolom {}",
+ "Nothing in {} was waiting to start.": "Tidak ada di {} yang menunggu dimulai.",
+ "Nothing here yet.": "Belum ada apa pun di sini."
 }

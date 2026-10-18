@@ -40,7 +40,9 @@ pub fn show(app: &mut DmApp, ui: &mut egui::Ui) {
                 RichText::new(if app.rows.is_empty() {
                     t("Add URL, paste a link, or send one from your browser.")
                 } else {
-                    t("No downloads in this category.")
+                    // Done and In progress are places, not categories
+                    // (UI round 9).
+                    t("Nothing here yet.")
                 })
                 .weak(),
             );
@@ -256,6 +258,15 @@ pub fn show(app: &mut DmApp, ui: &mut egui::Ui) {
                             .show(|ui| row_menu(app, ui));
                     });
                 });
+            // Each column's edge named for a screen reader, which found nine
+            // handles with no name (UI round 9).
+            for (i, column) in columns.iter().enumerate() {
+                let said = crate::i18n::tf("Width of the {} column", &[&column.title()]);
+                ui.ctx()
+                    .accesskit_node_builder(state_id.with("resize_column").with(i), |node| {
+                        node.set_label(said);
+                    });
+            }
             // A column's edge dragged: the person's widths from now on.
             let dragged_now = (0..columns.len()).any(|i| {
                 ui.ctx()
@@ -831,6 +842,8 @@ fn glyph_of(entry: &Entry) -> Glyph {
     match &entry.state {
         State::Running => Glyph::Running,
         State::Failed(_) => Glyph::Failed,
+        // A tick beside "File missing" said all was well (UI round 9).
+        State::Completed if gone(entry) => Glyph::Cancelled,
         State::Completed => Glyph::Done,
         State::Cancelled => Glyph::Cancelled,
         State::Queued => Glyph::Waiting,

@@ -55,6 +55,11 @@ pub struct Options {
     pub checksum: Option<Checksum>,
     /// Which rendition to take from an adaptive stream.
     pub quality: Quality,
+    /// Media was asked for (a player's video, from the browser's panel or
+    /// media menu): a page yt-dlp cannot read fails, rather than being
+    /// fetched as the document its address ends like (UI round 9: a
+    /// `player.html` was saved as its HTML and called complete).
+    pub media: bool,
     /// The page a download came from, sent as `Referer`. Set for a download a
     /// browser handed over, where the file is served only to a request that
     /// names its page; `None` for one typed in, which needs no such thing.
@@ -457,7 +462,10 @@ async fn fetch_reporting(
         let document = names_a_document(url);
         if crate::ytdlp::available() {
             match crate::ytdlp::download_ytdlp(url, options, report.clone()).await {
-                Err(e) if document && !matches!(e, Error::Paused | Error::Cancelled) => {}
+                Err(e)
+                    if document
+                        && !options.media
+                        && !matches!(e, Error::Paused | Error::Cancelled) => {}
                 outcome => return outcome,
             }
         } else if !document {
@@ -3012,6 +3020,7 @@ mod tests {
             categories: Categories::default(),
             checksum: None,
             quality: Quality::Best,
+            media: false,
             referrer: None,
             proxy: None,
             container: None,

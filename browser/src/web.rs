@@ -877,7 +877,10 @@ async fn hand_chosen(
         // site that refuses dm (W3Schools did, with 403, on one network)
         // would otherwise leave a failed row and nothing downloaded.
         caught: !target.page,
-        quality,
+        // A page is handed over for its media, picked or not: with a
+        // quality the app never saves the page itself in the video's place
+        // when yt-dlp cannot read it (UI round 9).
+        quality: quality.or_else(|| target.page.then(|| "best".to_string())),
         label,
         ask,
         ..Start::default()

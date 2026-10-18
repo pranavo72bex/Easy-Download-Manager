@@ -83,6 +83,21 @@ async fn a_page_named_as_a_document_is_saved_when_yt_dlp_does_not_know_the_site(
     .unwrap();
     assert_eq!(std::fs::read(&done.path).unwrap(), PAGE.as_bytes());
 
+    // Asked for as media (the browser's panel or media menu), the page is
+    // not saved as its HTML in place of the video (UI round 9).
+    let media = dm_core::Options {
+        media: true,
+        ..options(&dir.path().join("media"))
+    };
+    let err = dm_core::download(
+        &dm_core::client(),
+        &format!("http://{addr}/docs/notes.html"),
+        &media,
+    )
+    .await
+    .unwrap_err();
+    assert!(err.to_string().contains("does not know"), "{err}");
+
     // A watch page yt-dlp does not know is still its refusal to report.
     let err = dm_core::download(
         &dm_core::client(),

@@ -1353,6 +1353,9 @@ impl Queue {
                     if let Some(quality) = &slot.entry.quality {
                         options.quality = crate::stream::Quality::named(quality);
                         options.container = crate::stream::Quality::container_of(quality);
+                        // Media was asked for, from the panel or the media
+                        // menu: never the page's own HTML instead.
+                        options.media = true;
                     }
                     // A folder a person chose is where it goes, unsorted:
                     // they picked the place, not a category.
