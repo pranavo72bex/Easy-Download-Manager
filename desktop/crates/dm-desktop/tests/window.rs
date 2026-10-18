@@ -1044,6 +1044,16 @@ fn renaming_onto_a_taken_name_says_what_it_is_called() {
         harness.state().said.english(),
         format!("file.zip is taken in that folder, so it is called {given}.")
     );
+    // And a screen reader reads it out as it appears (gap 48).
+    harness.run_steps(2);
+    let said = harness
+        .query_by_label_contains("is taken in that folder")
+        .expect("the sentence is not in the status bar");
+    assert_eq!(
+        said.accesskit_node().live(),
+        egui::accesskit::Live::Polite,
+        "the status bar's sentence is not a live region"
+    );
 }
 
 /// "Download all links" offers a link already in the list unticked, and
@@ -1166,6 +1176,27 @@ fn a_column_is_widened_by_dragging_its_edge() {
     harness.run_steps(3);
     let after = size_at(&harness);
     assert!(after > before + 40.0, "Size moved from {before} to {after}");
+
+    // And kept at the next launch: the window's memory, written out and
+    // read back as eframe does, gives a new window the same widths (gap 47:
+    // they were back to their first ones).
+    let saved = harness
+        .ctx
+        .memory(ron::to_string)
+        .expect("the window's memory is written out");
+    drop(harness);
+    // A new window over the same list, its row listed again.
+    let mut again = world.harness();
+    again.ctx.memory_mut(|m| {
+        *m = ron::from_str(&saved).expect("and read back");
+    });
+    add_url(&mut again, &world.url("file.zip"), "Add for later");
+    again.run_steps(3);
+    let relaunched = size_at(&again);
+    assert!(
+        (relaunched - after).abs() < 1.0,
+        "Size was {after} wide when left, {relaunched} at the next launch"
+    );
 }
 
 /// Add links from clipboard offers an address already in the list
@@ -6759,4 +6790,22 @@ fn a_finished_rows_size_is_its_files() {
     harness.state_mut().saved.clear();
     harness.state_mut().refresh();
     assert_eq!(harness.state().rows()[0].progress.total, Some(1000));
+}
+
+/// Gap 48: the bar under a running download's status is read by a screen
+/// reader as its progress, with its value; it was paint alone.
+#[test]
+fn a_rows_progress_bar_says_how_far_it_has_come() {
+    let world = world();
+    let mut harness = world.harness();
+    add_url(&mut harness, &world.url("stalled.bin"), "Start now");
+    until(&mut harness, "the download to run", |app| {
+        app.rows().iter().any(|r| r.state == State::Running)
+    });
+    harness.run_steps(3);
+    let bar = harness
+        .query_all_by_role(egui::accesskit::Role::ProgressIndicator)
+        .find(|n| n.accesskit_node().label().as_deref() == Some("Progress"))
+        .expect("the row has no progress bar a screen reader finds");
+    assert_eq!(bar.accesskit_node().numeric_value(), Some(0.0));
 }

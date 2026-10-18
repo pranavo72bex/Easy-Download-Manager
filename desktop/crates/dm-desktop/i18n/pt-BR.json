@@ -495,5 +495,6 @@
  "Sites such as example.com or *.example.com, separated by spaces; each covers its subdomains.": "Sites como example.com ou *.example.com, separados por espaços; cada um cobre seus subdomínios.",
  "Type or paste the address of what to download.": "Digite ou cole o endereço do que baixar.",
  "Seconds between attempts (0 lets dm choose)": "Segundos entre tentativas (0 deixa o dm escolher)",
- "Read by the browser extension the next time it talks to dm: a download it catches, or its right-click menu. The right-click menu hands anything over regardless.": "Lido pela extensão do navegador na próxima vez que ela falar com o dm: um download que ela captura ou o menu de contexto. O menu de contexto entrega tudo de qualquer forma."
+ "Read by the browser extension the next time it talks to dm: a download it catches, or its right-click menu. The right-click menu hands anything over regardless.": "Lido pela extensão do navegador na próxima vez que ela falar com o dm: um download que ela captura ou o menu de contexto. O menu de contexto entrega tudo de qualquer forma.",
+ "Progress": "Progresso"
 }

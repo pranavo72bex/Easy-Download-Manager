@@ -270,6 +270,23 @@ pub fn semibold() -> FontFamily {
     FontFamily::Name("semibold".into())
 }
 
+/// Digits of one width, for the list's sizes, speeds and times, so a
+/// column of them lines up and a changing speed does not jitter (gap 48).
+/// Letters and units fall through to Inter.
+pub fn numbers_family() -> FontFamily {
+    FontFamily::Name("numbers".into())
+}
+
+/// The numbers family where it is loaded yet, else the regular face, for
+/// the reason [`bold`] gives.
+pub fn numbers(ctx: &Context) -> FontFamily {
+    if fonts_ready(ctx) {
+        numbers_family()
+    } else {
+        FontFamily::Proportional
+    }
+}
+
 /// Semibold where it is loaded yet, else the regular face. Fonts set on one
 /// frame take effect on the next, and egui panics on a family it has not
 /// got, which is what dm did on its first frame.
@@ -341,6 +358,19 @@ fn definitions(scripts: &[Script]) -> egui::FontDefinitions {
             .unwrap_or_default(),
     );
     fonts.families.insert(semibold_family(), semibold);
+    fonts.font_data.insert(
+        "inter-digits".into(),
+        egui::FontData::from_static(include_bytes!("../fonts/Inter-TabularDigits.ttf")).into(),
+    );
+    let mut numbers = vec!["inter-digits".to_string()];
+    numbers.extend(
+        fonts
+            .families
+            .get(&FontFamily::Proportional)
+            .cloned()
+            .unwrap_or_default(),
+    );
+    fonts.families.insert(numbers_family(), numbers);
     fonts
 }
 
@@ -850,6 +880,35 @@ mod tests {
         assert_eq!(now.item_spacing, fresh.item_spacing);
         assert_eq!(now.interact_size, fresh.interact_size);
         assert_eq!(now.window_margin, fresh.window_margin);
+    }
+
+    /// Gap 48: sizes, speeds and times are drawn with digits of one width,
+    /// so they line up down a column; the text around them is still Inter's.
+    #[test]
+    fn numbers_are_drawn_with_digits_of_one_width() {
+        let ctx = Context::default();
+        let frame = |ctx: &Context, run: &dyn Fn(&Context)| {
+            let mut out = ctx.run_ui(Default::default(), |ui| run(ui.ctx()));
+            out.textures_delta.clear();
+        };
+        frame(&ctx, &|ctx| apply(ctx, Theme::Light));
+        frame(&ctx, &|_| {});
+        assert_eq!(numbers(&ctx), numbers_family());
+        let width = |family: FontFamily, c: char| {
+            ctx.fonts_mut(|f| f.glyph_width(&FontId::new(14.0, family.clone()), c))
+        };
+        let ones = width(numbers_family(), '1');
+        for c in "023456789".chars() {
+            assert_eq!(width(numbers_family(), c), ones, "{c} is not as wide as 1");
+        }
+        // Inter's own digits are proportional, which is why this is needed.
+        assert!(width(FontFamily::Proportional, '1') < width(FontFamily::Proportional, '8'));
+        // Letters and units are not lost: they come from Inter, behind it.
+        assert!(ctx.fonts_mut(|f| f.has_glyphs(&FontId::new(14.0, numbers_family()), "MB/s ГБ")));
+        assert_eq!(
+            width(numbers_family(), 'M'),
+            width(FontFamily::Proportional, 'M')
+        );
     }
 
     /// Gap 116: a name in Chinese and Japanese is drawn with the computer's

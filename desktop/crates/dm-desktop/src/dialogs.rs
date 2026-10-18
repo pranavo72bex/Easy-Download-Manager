@@ -2202,7 +2202,8 @@ fn progress(app: &mut DmApp, ctx: &egui::Context) {
                             );
                             ui.end_row();
                             ui.label(t("Downloaded"));
-                            ui.label(match p.fraction() {
+                            // Digits of one width: these change every second.
+                            let fetched = match p.fraction() {
                                 Some(f) => {
                                     format!(
                                         "{} ({}%)",
@@ -2211,25 +2212,28 @@ fn progress(app: &mut DmApp, ctx: &egui::Context) {
                                     )
                                 }
                                 None => format::bytes(p.downloaded),
-                            });
+                            };
+                            ui.label(crate::table::digits(ui, fetched));
                             ui.end_row();
                             ui.label(t("Speed"));
-                            ui.label(if row.state == State::Running {
+                            let rate = if row.state == State::Running {
                                 format::rate(p.speed)
                             } else {
                                 String::new()
-                            });
+                            };
+                            ui.label(crate::table::digits(ui, rate));
                             ui.end_row();
                             // Only while it runs: a stopped download has
                             // no time left to tell (gap 157).
                             ui.label(t("Time left"));
                             // The span alone: under "Time left" it read
                             // "Time left: 9s left" (round 14).
-                            ui.label(if row.state == State::Running {
+                            let left = if row.state == State::Running {
                                 p.eta.map(format::span).unwrap_or_default()
                             } else {
                                 String::new()
-                            });
+                            };
+                            ui.label(crate::table::digits(ui, left));
                             ui.end_row();
                             ui.label(t("Can resume"));
                             // What the server said when the download was planned, not

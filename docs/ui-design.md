@@ -32,7 +32,8 @@ Chosen in Options › General › Look; saved as `theme` in the settings.
 | `radius` / `card_radius` | 4 / 8 px | 4 / 8 px |
 
 Type: Inter (SIL OFL 1.1, `crates/dm-desktop/fonts/LICENSE-Inter.txt`), which covers Latin, Cyrillic and Greek in regular and semibold:
-body 14, caption 12, titles 18 semibold. A soft shadow under dialogs, a
+body 14, caption 12, titles 18 semibold; sizes, speeds and times in Inter's
+tabular figures, so they line up down a column. A soft shadow under dialogs, a
 smaller one under menus.
 
 ## Rules

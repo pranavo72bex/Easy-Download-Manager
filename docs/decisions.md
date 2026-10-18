@@ -872,3 +872,16 @@ Inter (SIL OFL 1.1, `fonts/LICENSE-Inter.txt`) covers Latin, Cyrillic and
 Greek in regular and semibold, and is an independent design rather than a
 stand-in for any vendor's system font. Scripts it lacks still fall back to
 the computer's own fonts.
+
+## Numbers are drawn with tabular digits (2026-10-18)
+
+Inter's digits are proportional, so a column of sizes was ragged and a
+speed jittered as it changed. Inter has tabular figures, but behind its
+`tnum` feature, and egui applies no optional font features. So
+`scripts/tabular-digits.py` (fonttools) makes those figures the drawn
+digits in a copy cut down to digits and the punctuation numbers use,
+named "Inter Tabular Digits" (9.5 KB; the OFL allows modified versions and
+Inter reserves no name). It leads the `numbers` family, Inter behind it for
+letters and units, used for the list's Size, Time left and Speed, the
+status words and the progress window's figures. Making every digit
+tabular was not chosen: in names and sentences tabular "1" reads gappy.

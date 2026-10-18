@@ -3270,6 +3270,12 @@ impl DmApp {
                         egui::Label::new(format!("· {}", crate::bidi::visual(&short))).truncate(),
                     );
                     crate::bidi::said_as(&drawn, &format!("· {short}"));
+                    // Read out when it changes, without moving the screen
+                    // reader's place: what dm says here was seen only
+                    // (gap 48).
+                    ui.ctx().accesskit_node_builder(drawn.id, |node| {
+                        node.set_live(egui::accesskit::Live::Polite);
+                    });
                     drawn.on_hover_text(whole);
                 });
                 ui.ctx().request_repaint_after(SAID_FOR);

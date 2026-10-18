@@ -495,5 +495,6 @@
  "Sites such as example.com or *.example.com, separated by spaces; each covers its subdomains.": "Sites zoals example.com of *.example.com, gescheiden door spaties; elk omvat zijn subdomeinen.",
  "Type or paste the address of what to download.": "Typ of plak het adres van wat u wilt downloaden.",
  "Seconds between attempts (0 lets dm choose)": "Seconden tussen pogingen (0 laat dm kiezen)",
- "Read by the browser extension the next time it talks to dm: a download it catches, or its right-click menu. The right-click menu hands anything over regardless.": "Gelezen door de browserextensie zodra die weer met dm praat: een download die ze onderschept, of haar rechtsklikmenu. Het rechtsklikmenu geeft alles hoe dan ook door."
+ "Read by the browser extension the next time it talks to dm: a download it catches, or its right-click menu. The right-click menu hands anything over regardless.": "Gelezen door de browserextensie zodra die weer met dm praat: een download die ze onderschept, of haar rechtsklikmenu. Het rechtsklikmenu geeft alles hoe dan ook door.",
+ "Progress": "Voortgang"
 }

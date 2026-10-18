@@ -405,19 +405,22 @@ fn cell(
         // Numbers against the column's right edge, so their digits line up
         // down the list (a design review: they were ragged on the left).
         Column::Size => {
-            right(ui, |ui| ui.label(size_of(entry)));
+            right(ui, |ui| ui.label(digits(ui, size_of(entry))));
         }
         Column::Status => status_cell(ui, entry, held, selected),
         Column::TimeLeft => {
             if entry.state == State::Running {
                 right(ui, |ui| {
-                    ui.label(entry.progress.eta.map(format::span).unwrap_or_default())
+                    let left = entry.progress.eta.map(format::span).unwrap_or_default();
+                    ui.label(digits(ui, left))
                 });
             }
         }
         Column::Rate => {
             if entry.state == State::Running && entry.progress.speed > 1.0 {
-                right(ui, |ui| ui.label(format::rate(entry.progress.speed)));
+                right(ui, |ui| {
+                    ui.label(digits(ui, format::rate(entry.progress.speed)))
+                });
             }
         }
         Column::LastTry => {
@@ -680,6 +683,12 @@ pub fn gone(entry: &Entry) -> bool {
 }
 
 /// Lays `add` out against the cell's right edge.
+/// Text with digits of one width, so numbers line up down a column and
+/// do not jitter as they change (gap 48).
+pub fn digits(ui: &egui::Ui, text: impl Into<String>) -> egui::RichText {
+    egui::RichText::new(text).family(crate::theme::numbers(ui.ctx()))
+}
+
 fn right(ui: &mut egui::Ui, add: impl FnOnce(&mut egui::Ui) -> egui::Response) {
     ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
         add(ui);
@@ -837,13 +846,25 @@ fn status_cell(ui: &mut egui::Ui, entry: &Entry, held: Option<&str>, selected: b
                 // Cut with "…" where the column is narrow, the whole on hover:
                 // clipped, "Waiting for Sta" ended mid-word (UI round 1).
                 _ => {
-                    ui.add(egui::Label::new(text).truncate());
+                    ui.add(egui::Label::new(digits(ui, text)).truncate());
                 }
             }
             if bar {
                 let width = ui.available_width().max(60.0);
-                let (track, _) =
+                let (track, response) =
                     ui.allocate_exact_size(egui::vec2(width, 3.0), egui::Sense::hover());
+                // A bar a screen reader reads too, with how far it has come
+                // (it was paint alone, gap 48); the row around it names the
+                // file.
+                response.widget_info(|| {
+                    let mut info = egui::WidgetInfo::labeled(
+                        egui::accesskit::Role::ProgressIndicator,
+                        true,
+                        t("Progress"),
+                    );
+                    info.value = Some((f64::from(fraction.clamp(0.0, 1.0)) * 100.0).floor());
+                    info
+                });
                 ui.painter().rect_filled(track, 1.5, tokens.border);
                 let mut done = track;
                 done.set_width(track.width() * fraction.clamp(0.0, 1.0));
