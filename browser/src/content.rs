@@ -1170,7 +1170,9 @@ fn clicked() {
     }
     with_panel(|p| {
         p.settled = true;
-        set_title(p, "Reading the video's qualities…");
+        // Short enough for the bar's title, which cut the longer one to
+        // "Reading the vi…" (UI round 7).
+        set_title(p, "Reading qualities…");
         close_list(p);
         say(p, "");
     });

@@ -123,6 +123,21 @@ pub fn show(app: &mut DmApp, ui: &mut egui::Ui) {
             let body_room =
                 (list_rect.height() - 22.0 - bar_room - 2.0 * ui.spacing().item_spacing.y)
                     .max(row_height);
+            // The widths follow the window until the person drags one: then
+            // theirs are kept. Kept from the first draw whatever happened to
+            // the window after, a list opened narrow and widened left the
+            // name 120 points beside a band of nothing, and one shrunk cut
+            // Status to "Co…" (UI round 7).
+            let state_id = ui.scope_id().with(egui::IdSalt::new("list"));
+            let dragged_id = egui::Id::unique("dm-columns-dragged");
+            let width_id = egui::Id::unique("dm-list-width");
+            let dragged_before = ui
+                .data_mut(|d| d.get_persisted::<bool>(dragged_id))
+                .unwrap_or(false);
+            let width_before = ui.data(|d| d.get_temp::<f32>(width_id));
+            ui.data_mut(|d| d.insert_temp(width_id, list_rect.width()));
+            let refit =
+                !dragged_before && width_before.is_none_or(|w| (w - list_rect.width()).abs() > 0.5);
             let mut table = TableBuilder::new(ui)
                 .scroll_bar_visibility(egui::scroll_area::ScrollBarVisibility::AlwaysHidden)
                 // One memory of the widths, whatever the window's width or
@@ -163,6 +178,9 @@ pub fn show(app: &mut DmApp, ui: &mut egui::Ui) {
             }
             if let Some(y) = moved {
                 table = table.vertical_scroll_offset(y);
+            }
+            if refit {
+                table.reset();
             }
             let out = table
                 .header(22.0, |mut header| {
@@ -238,6 +256,15 @@ pub fn show(app: &mut DmApp, ui: &mut egui::Ui) {
                             .show(|ui| row_menu(app, ui));
                     });
                 });
+            // A column's edge dragged: the person's widths from now on.
+            let dragged_now = (0..columns.len()).any(|i| {
+                ui.ctx()
+                    .read_response(state_id.with("resize_column").with(i))
+                    .is_some_and(|r| r.dragged())
+            });
+            if dragged_now && !dragged_before {
+                ui.data_mut(|d| d.insert_persisted(dragged_id, true));
+            }
             body_out = Some((
                 out.state.clamped_offset().y,
                 out.content_size.y,
@@ -339,6 +366,11 @@ fn reorder(app: &mut DmApp, ui: &egui::Ui, clip: Option<egui::Rect>) {
         return;
     };
     let (at, down) = ui.input(|i| (i.pointer.interact_pos(), i.pointer.primary_down()));
+    // Escape lets go without moving it, as with any drag (UI round 7).
+    if ui.input_mut(|i| i.consume_key(egui::Modifiers::NONE, egui::Key::Escape)) {
+        app.reordering = None;
+        return;
+    }
     let place = |id: &Id| app.rows.iter().position(|r| r.id == *id);
     let over = at.and_then(|at| {
         app.row_rects
@@ -532,6 +564,9 @@ fn header_only(app: &mut DmApp, ui: &mut egui::Ui) {
     ui.add_space(10.0);
     egui::ScrollArea::horizontal()
         .id_salt("headings-sideways")
+        // With no rows, a bar right under the headings looked like a
+        // stray line (UI round 7); there is nothing to scroll to.
+        .scroll_bar_visibility(egui::scroll_area::ScrollBarVisibility::AlwaysHidden)
         .show(ui, |ui| {
             ui.horizontal(|ui| {
                 // Each heading in its column's own width, as over a list

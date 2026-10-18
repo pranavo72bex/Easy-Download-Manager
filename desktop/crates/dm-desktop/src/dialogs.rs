@@ -745,6 +745,8 @@ impl Dialogs {
             "Start outside the schedule?",
         );
         say(self.confirm_cancel.is_some(), "Cancel this download?");
+        // Every dialog by its title (UI round 7: this one was never named).
+        say(self.links.is_some(), "Download links");
         say(self.duplicate.is_some(), "Already in the list");
         say(self.import_ask.is_some(), "Some are already in the list");
         say(
@@ -1341,9 +1343,11 @@ fn confirm_remove(app: &mut DmApp, ctx: &egui::Context) {
             } else {
                 go
             };
+            // The default first, on the left, as every dialog has it (UI
+            // round 7: here alone it was on the right).
             ui.horizontal(|ui| {
-                yes = ui.button(go).clicked();
                 no = primary_worded(ui, keep).clicked() || enter_free(ui);
+                yes = ui.button(go).clicked();
             });
         });
     if yes {
@@ -1416,9 +1420,10 @@ fn confirm_cancel(app: &mut DmApp, ctx: &egui::Context) {
         if fetched {
             ui.label(t("Cancelling it throws away what has been fetched."));
         }
+        // The default first, as in every dialog (UI round 7).
         ui.horizontal(|ui| {
-            cancel = ui.button(t("Yes, cancel")).clicked();
             keep = primary_worded(ui, t("Keep downloading")).clicked() || enter_free(ui);
+            cancel = ui.button(t("Yes, cancel")).clicked();
         });
     });
     if cancel {
@@ -4309,8 +4314,11 @@ fn options(app: &mut DmApp, ctx: &egui::Context) {
                         // The tab in force in sight as the dialog opens: the
                         // strip kept the place it was scrolled to, General
                         // out of view (UI round 6).
+                        // To the top: in a short window the dialog itself
+                        // scrolls, and reopened where it was left, its tabs
+                        // out of view (UI round 7).
                         if d.tab == tab && d.fresh_tab {
-                            picked.scroll_to_me(None);
+                            picked.scroll_to_me(Some(egui::Align::TOP));
                         }
                     }
                 });

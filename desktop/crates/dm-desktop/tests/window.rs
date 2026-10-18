@@ -7287,3 +7287,29 @@ fn queued_rows_are_sorted_into_their_kind_by_name() {
         .collect();
     assert_eq!(shown, ["clip.mp4"]);
 }
+
+/// UI round 7: the columns follow the window's width until one is dragged.
+/// Kept from the first draw, a list opened narrow and widened left the
+/// name at 120 points beside empty room.
+#[test]
+fn the_columns_follow_the_window_until_one_is_dragged() {
+    use egui::accesskit::Role;
+    let world = world();
+    let mut harness = Harness::builder()
+        .with_size(egui::vec2(720.0, 460.0))
+        .build_ui_state(|ui, app: &mut DmApp| app.ui(ui), world.app());
+    add_url(&mut harness, &world.url("file.zip"), "Add for later");
+    harness.run_steps(3);
+    let name_width = |h: &Harness<'_, DmApp>| {
+        h.get_by_role_and_label(Role::Button, "Queue").rect().left()
+            - h.get_by_role_and_label(Role::Button, "Name").rect().left()
+    };
+    let narrow = name_width(&harness);
+    harness.set_size(egui::vec2(1600.0, 800.0));
+    harness.run_steps(4);
+    let wide = name_width(&harness);
+    assert!(
+        wide > narrow + 40.0,
+        "the name stayed {narrow} wide, now {wide}"
+    );
+}

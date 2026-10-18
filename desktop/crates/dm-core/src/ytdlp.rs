@@ -245,7 +245,11 @@ pub fn choices(described: &str) -> Vec<Choice> {
         let Some(height) = f.get("height").and_then(|v| v.as_u64()).map(|h| h as u32) else {
             continue;
         };
-        if height == 0 || !has(f, "vcodec") {
+        // A picture where it has a height, unless yt-dlp says it has none:
+        // an HLS master's renditions list no codecs, and come as
+        // `vcodec: null`, which left a stream with no list (UI round 7).
+        let no_picture = f.get("vcodec").and_then(|v| v.as_str()) == Some("none");
+        if height == 0 || no_picture {
             continue;
         }
         let width = f.get("width").and_then(|v| v.as_u64()).unwrap_or(0);
@@ -887,6 +891,20 @@ mod tests {
 
     /// Gap 98: the tree's killer is waited for, but never for ever.
     #[cfg(unix)]
+    /// UI round 7: a stream whose renditions name no codecs, as yt-dlp
+    /// reads an HLS master playlist without CODECS, still lists its heights.
+    #[test]
+    fn renditions_without_codecs_are_listed_by_height() {
+        let described = serde_json::json!({ "formats": [
+            { "format_id": "hls-360", "ext": "mp4", "height": 360, "width": 640, "vcodec": null, "acodec": null },
+            { "format_id": "hls-720", "ext": "mp4", "height": 720, "width": 1280 },
+            { "format_id": "a", "ext": "m4a", "vcodec": "none", "acodec": "mp4a.40.2" },
+        ]})
+        .to_string();
+        let heights: Vec<String> = choices(&described).into_iter().map(|c| c.quality).collect();
+        assert_eq!(heights, ["720/mp4", "360/mp4", "audio/m4a"]);
+    }
+
     #[test]
     fn the_trees_killer_is_waited_for_but_not_for_ever() {
         use std::time::{Duration, Instant};

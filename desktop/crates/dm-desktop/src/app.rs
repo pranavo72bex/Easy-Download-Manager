@@ -3298,6 +3298,28 @@ impl DmApp {
         let rate: f64 = running.iter().map(|r| r.progress.speed).sum();
         let (finishing, running) = (finishing.len(), running.len());
         let later = self.rows.iter().filter(|r| waits_for_its_queue(r)).count();
+        // The limiter's own sentence is not said again beside the
+        // standing "limited to" above. Nor is one left standing long
+        // after: it named rows that may be gone since.
+        if self
+            .said_at
+            .as_ref()
+            .is_none_or(|(said, _)| *said != self.said)
+        {
+            self.said_at = Some((self.said.clone(), Instant::now()));
+        }
+        let fresh = self
+            .said_at
+            .as_ref()
+            .is_some_and(|(_, at)| at.elapsed() < SAID_FOR);
+        // "Waiting for the schedule" only while something waits for it:
+        // left standing, it described a download running since.
+        let stale = self.said.is_schedule_wait()
+            && !self
+                .rows
+                .iter()
+                .any(|r| r.state == State::Paused && r.paused_by_schedule);
+        let showing = fresh && !stale && !self.said.is_empty() && !self.said.is_limiter();
         ui.horizontal(|ui| {
             // Each "· …" part starts with its own space: the usual gap as
             // well read as two spaces before the dot (round 16).
@@ -3317,7 +3339,9 @@ impl DmApp {
                     &[&running, &format::rate(rate)],
                 )
             });
-            if running > 0 && finishing > 0 {
+            // A sentence being said takes the room of the counts below,
+            // whose words cut off its end, which says what to do (UI round 7).
+            if running > 0 && finishing > 0 && !showing {
                 ui.label(crate::i18n::tn(
                     "· {} finishing||· {} finishing",
                     finishing as u64,
@@ -3326,7 +3350,7 @@ impl DmApp {
             }
             // Rows added for later are counted, and said to wait for Start
             // queue, so a list of them is not taken for a stuck one (gap 167).
-            if later > 0 {
+            if later > 0 && !showing {
                 ui.label(crate::i18n::tn(
                     "· {} waiting for Start queue||· {} waiting for Start queue",
                     later as u64,
@@ -3349,28 +3373,7 @@ impl DmApp {
                     None => t("· waiting for the schedule").to_string(),
                 });
             }
-            // The limiter's own sentence is not said again beside the
-            // standing "limited to" above. Nor is one left standing long
-            // after: it named rows that may be gone since.
-            if self
-                .said_at
-                .as_ref()
-                .is_none_or(|(said, _)| *said != self.said)
-            {
-                self.said_at = Some((self.said.clone(), Instant::now()));
-            }
-            let fresh = self
-                .said_at
-                .as_ref()
-                .is_some_and(|(_, at)| at.elapsed() < SAID_FOR);
-            // "Waiting for the schedule" only while something waits for it:
-            // left standing, it described a download running since.
-            let stale = self.said.is_schedule_wait()
-                && !self
-                    .rows
-                    .iter()
-                    .any(|r| r.state == State::Paused && r.paused_by_schedule);
-            if fresh && !stale && !self.said.is_empty() && !self.said.is_limiter() {
+            if showing {
                 // Its first line, cut short to the room there is with the
                 // whole of it on hover: an opener's error output ran off the
                 // window's edge.
@@ -3380,7 +3383,11 @@ impl DmApp {
                 ui.scope(|ui| {
                     ui.set_max_width(room);
                     let drawn = ui.add(
-                        egui::Label::new(format!("· {}", crate::bidi::visual(&short))).truncate(),
+                        egui::Label::new(format!("· {}", crate::bidi::visual(&short)))
+                            .truncate()
+                            // The whole is on hover below; egui's own cut-off
+                            // tooltip made two (UI round 7).
+                            .show_tooltip_when_elided(false),
                     );
                     crate::bidi::said_as(&drawn, &format!("· {short}"));
                     // Read out when it changes, without moving the screen
@@ -3864,11 +3871,18 @@ fn tool(
     } else {
         &ui.style().visuals.widgets.noninteractive
     };
-    if response.hovered() && enabled {
+    // The one primary action keeps its fill when the names give way to
+    // icons alone, as at 200% or in Russian (UI round 7: it lost it).
+    let filled = primary && t.modern && enabled;
+    if filled {
+        ui.painter().rect_filled(rect, f32::from(t.radius), t.brand);
+    } else if response.hovered() && enabled {
         ui.painter()
             .rect_filled(rect, 4.0, ui.style().visuals.widgets.hovered.weak_bg_fill);
     }
-    let color = if enabled {
+    let color = if filled {
+        t.on_brand
+    } else if enabled {
         visuals.fg_stroke.color
     } else {
         ui.style().visuals.weak_text_color()
