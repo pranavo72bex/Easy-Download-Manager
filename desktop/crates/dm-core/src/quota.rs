@@ -110,11 +110,18 @@ impl Meter {
             None => (None, first.parse::<u64>().ok()),
         };
         if let Some(used) = used {
-            self.used = used;
             // Checked: a corrupt huge number past what the platform's
             // clock holds panicked on adding (Windows' range is narrower).
             self.began =
                 began.and_then(|ms| SystemTime::UNIX_EPOCH.checked_add(Duration::from_millis(ms)));
+            // A start no clock here can hold is corrupt, and so is the count
+            // kept with it: dropped, as one begun in the future is. Windows'
+            // narrower clock kept the count and held downloads (CI, 0.2.0).
+            self.used = if began.is_some() && self.began.is_none() {
+                0
+            } else {
+                used
+            };
         }
     }
 }
@@ -190,7 +197,6 @@ mod tests {
         let mut corrupt = Meter::default();
         corrupt.set(allowance);
         corrupt.restore(&format!("{} 5000", u64::MAX));
-        assert_eq!(corrupt.used(), 5000);
         let _ = corrupt.spent(now);
         corrupt.add(1, now);
         assert_eq!(corrupt.spent(now), None, "a fresh period, not spent");

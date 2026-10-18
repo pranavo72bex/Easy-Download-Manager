@@ -758,7 +758,7 @@ impl Settings {
 /// relative one is no folder — a Dock launch starts in `/`, where nothing
 /// can be written, and every download would fail. `None` for those and for
 /// nothing at all.
-fn full_path(typed: &str) -> Option<PathBuf> {
+pub fn full_path(typed: &str) -> Option<PathBuf> {
     let typed = typed.trim();
     match typed.strip_prefix('~') {
         Some(rest) if rest.is_empty() || rest.starts_with('/') || rest.starts_with('\\') => {

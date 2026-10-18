@@ -1692,12 +1692,9 @@ fn list_file(app: &mut DmApp, ctx: &egui::Context) {
         return;
     }
     let typed = d.path.trim();
-    let path = match typed.strip_prefix("~/") {
-        Some(rest) => std::env::var_os("HOME")
-            .map(|home| std::path::PathBuf::from(home).join(rest))
-            .unwrap_or_else(|| typed.into()),
-        None => std::path::PathBuf::from(typed),
-    };
+    // The home folder as the settings find it, on Windows too, which has
+    // no HOME (CI, 0.2.0).
+    let path = dm_shell::settings::full_path(typed).unwrap_or_else(|| typed.into());
     if typed.is_empty() || !path.is_absolute() {
         d.says = tf(
             "Type the file's full path, such as {}.",

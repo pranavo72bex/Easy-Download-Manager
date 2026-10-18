@@ -1520,7 +1520,11 @@ mod tests {
             Some("example.com")
         );
         assert_eq!(
-            site_of(&format!("http://user:{}@m.e.com/x", super::test_secrets::secret("password"))).as_deref(),
+            site_of(&format!(
+                "http://user:{}@m.e.com/x",
+                super::test_secrets::secret("password")
+            ))
+            .as_deref(),
             Some("m.e.com")
         );
         assert_eq!(site_of("file:///tmp/a.html"), None);

@@ -1058,6 +1058,10 @@ mod tests {
         assert_eq!(super::ensure(home.path(), &exe, &programs).unwrap(), None);
     }
 
+    /// Not on Windows, whose keys are written for every browser it knows
+    /// whether or not it is there (`WINDOWS_KEYS`): a key costs nothing and
+    /// a browser installed later finds it.
+    #[cfg(not(windows))]
     #[test]
     fn with_no_browser_installed_nothing_is_written_and_that_is_said() {
         let home = tempfile::tempdir().unwrap();

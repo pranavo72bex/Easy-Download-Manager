@@ -1222,9 +1222,12 @@ mod tests {
 
     #[test]
     fn options_apply_to_the_link_after_them() {
+        // A folder that is whole on this system: on Windows "/tmp/in" is
+        // taken as on the current drive, "D:/tmp/in" (CI, 0.2.0).
+        let folder = std::env::temp_dir().join("in").display().to_string();
         let got = orders(&argv(&[
             "--save-to",
-            "/tmp/in",
+            folder.as_str(),
             "--name",
             "b.zip",
             "--later",
@@ -1236,7 +1239,7 @@ mod tests {
         assert_eq!(got.downloads.len(), 2);
         let first = &got.downloads[0];
         assert_eq!(first.url, "https://e.com/a.zip");
-        assert_eq!(first.save_dir.as_deref(), Some("/tmp/in"));
+        assert_eq!(first.save_dir.as_deref(), Some(folder.as_str()));
         assert_eq!(first.save_name.as_deref(), Some("b.zip"));
         assert!(first.later);
         let second = &got.downloads[1];
