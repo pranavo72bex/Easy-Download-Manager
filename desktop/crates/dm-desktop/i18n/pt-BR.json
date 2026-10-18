@@ -183,7 +183,6 @@
  "Queued": "Na fila",
  "Queues": "Filas",
  "Queues that run fewer files at once than the number above:": "Filas que executam menos arquivos ao mesmo tempo do que o número acima:",
- "Read by the browser extension when it starts and every few minutes. The right-click menu and the toolbar button hand anything over regardless.": "A extensão do navegador lê isto ao iniciar e a cada poucos minutos. O menu de contexto e o botão da barra enviam qualquer coisa mesmo assim.",
  "Reading the page…": "Lendo a página…",
  "Recheck queue": "Fila de verificação",
  "Redownload": "Baixar de novo",
@@ -368,7 +367,6 @@
  "Add them again": "Adicionar de novo",
  "File's path": "Caminho do arquivo",
  "Keep it": "Mantê-lo",
- "Links can't be dropped here yet; use Add URL, or the browser's right-click menu. A .url or .webloc file, or a text file of links, can be dropped.": "Ainda não é possível soltar links aqui; use Adicionar URL ou o menu de contexto do navegador. Um arquivo .url ou .webloc, ou um arquivo de texto com links, pode ser solto.",
  "No file chooser on this desktop; type the file's path.": "Não há seletor de arquivos nesta área de trabalho; digite o caminho do arquivo.",
  "Skip them": "Ignorá-los",
  "Some are already in the list": "Alguns já estão na lista",
@@ -468,7 +466,6 @@
  "Loaded. Look them over, then OK to use them.": "Carregadas. Revise-as e clique em OK para usá-las.",
  "Alt": "Alt",
  "Ctrl or Cmd": "Ctrl ou Cmd",
- "none": "nenhuma",
  "Hold while clicking to leave it with the browser": "Segurar ao clicar para deixá-lo com o navegador",
  "Hold while clicking to send it to dm whatever its type or size": "Segurar ao clicar para enviá-lo ao dm, seja qual for o tipo ou tamanho",
  "The two keys are the same; holding it leaves the download with the browser.": "As duas teclas são iguais; segurá-la deixa o download com o navegador.",
@@ -487,5 +484,8 @@
  "Some of these are not finished. Removing them throws away what has been fetched.": "Alguns não terminaram. Removê-los descarta o que já foi baixado.",
  "Yes, remove": "Sim, remover",
  "Remove it": "Remover",
- "Remove them": "Remover"
+ "Remove them": "Remover",
+ "Read by the browser extension the next time it talks to dm: a download it catches, or its right-click menu. The right-click menu and the toolbar button hand anything over regardless.": "Lido pela extensão do navegador na próxima vez que ela falar com o dm: um download que ela captura ou o menu de contexto. O menu de contexto e o botão da barra entregam tudo de qualquer forma.",
+ "Drop a .url or .webloc file, or a text file of links, here. A link dragged straight from a browser cannot be dropped yet: use Add URL or the browser's right-click menu.": "Solte aqui um arquivo .url ou .webloc, ou um arquivo de texto com links. Um link arrastado direto do navegador ainda não pode ser solto: use Adicionar URL ou o menu de contexto do navegador.",
+ "None": "Nenhuma"
 }

@@ -993,11 +993,26 @@ pub async fn on_page_message(message: JsValue, sender: JsValue) -> JsValue {
     let click: decide::PanelClick = serde_json::from_value(from_js(&message)).unwrap_or_default();
     // A click with the take key held: the download about to start is the
     // app's, whatever the types and size floor say.
+    // Handed over as "Download link with dm" is: a link that is not itself
+    // a download (Shift opened it in a new window, round 17) reaches the
+    // app all the same. The page script kept the browser from acting on it.
     if click.kind == decide::TAKE_MESSAGE {
         return match decide::take_url(&click) {
             Ok(url) => {
                 TAKEN.with(|t| t.borrow_mut().remember(&url, now()));
-                answer(true, "the app takes it")
+                let menu = decide::MenuClick {
+                    menu_item_id: serde_json::Value::String(decide::MENU_LINK.to_string()),
+                    link_url: Some(url),
+                    page_url: Some(tab_url.clone()),
+                    ..decide::MenuClick::default()
+                };
+                match decide::menu_target(&menu, private) {
+                    Ok(target) => {
+                        hand_asked(target, tab_store(&sender, "tab")).await;
+                        answer(true, "the app takes it")
+                    }
+                    Err(why) => answer(false, &why),
+                }
             }
             Err(why) => answer(false, &why),
         };
@@ -1007,6 +1022,15 @@ pub async fn on_page_message(message: JsValue, sender: JsValue) -> JsValue {
         return match decide::skip_url(&click) {
             Ok(url) => {
                 RELEASED.with(|r| r.borrow_mut().remember(&url, now()));
+                // Firefox does not download on Alt-click as Chromium does;
+                // asked to, it downloads it itself, and dm leaves it be
+                // (it did nothing at all, round 17).
+                if is_firefox() {
+                    let wanted = to_js(&serde_json::json!({ "url": url }));
+                    if let Err(why) = call("downloads", "download", &[wanted]).await {
+                        return answer(false, &why);
+                    }
+                }
                 answer(true, "the browser keeps it")
             }
             Err(why) => answer(false, &why),

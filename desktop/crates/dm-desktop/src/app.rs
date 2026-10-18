@@ -525,7 +525,7 @@ pub fn links_in_file(kind: Option<&str>, text: &str) -> Vec<String> {
 /// says: a link dragged from a browser is not handed to dm by the window
 /// system, only files are.
 pub const DROP_HINT: &str =
-    "Links can't be dropped here yet; use Add URL, or the browser's right-click menu. A .url or .webloc file, or a text file of links, can be dropped.";
+    "Drop a .url or .webloc file, or a text file of links, here. A link dragged straight from a browser cannot be dropped yet: use Add URL or the browser's right-click menu.";
 
 /// The clipboard watcher's memory: offered once, never again once dismissed,
 /// and nothing offered for what was copied before it was turned on.

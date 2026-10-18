@@ -183,7 +183,6 @@
  "Queued": "Dalam antrean",
  "Queues": "Antrean",
  "Queues that run fewer files at once than the number above:": "Antrean yang menjalankan lebih sedikit berkas sekaligus daripada angka di atas:",
- "Read by the browser extension when it starts and every few minutes. The right-click menu and the toolbar button hand anything over regardless.": "Dibaca oleh ekstensi peramban saat dimulai dan setiap beberapa menit. Menu klik kanan dan tombol bilah alat tetap menyerahkan apa saja.",
  "Reading the page…": "Membaca halaman…",
  "Recheck queue": "Antrean pemeriksaan ulang",
  "Redownload": "Unduh ulang",
@@ -368,7 +367,6 @@
  "Add them again": "Tambahkan lagi",
  "File's path": "Jalur berkas",
  "Keep it": "Simpan",
- "Links can't be dropped here yet; use Add URL, or the browser's right-click menu. A .url or .webloc file, or a text file of links, can be dropped.": "Tautan belum bisa dijatuhkan di sini; gunakan Tambah URL, atau menu klik kanan peramban. Berkas .url atau .webloc, atau berkas teks berisi tautan, bisa dijatuhkan.",
  "No file chooser on this desktop; type the file's path.": "Tidak ada pemilih berkas di desktop ini; ketik jalur berkasnya.",
  "Skip them": "Lewati",
  "Some are already in the list": "Beberapa sudah ada di daftar",
@@ -468,7 +466,6 @@
  "Loaded. Look them over, then OK to use them.": "Dimuat. Periksa dulu, lalu OK untuk memakainya.",
  "Alt": "Alt",
  "Ctrl or Cmd": "Ctrl atau Cmd",
- "none": "tidak ada",
  "Hold while clicking to leave it with the browser": "Tahan saat mengklik agar tetap di peramban",
  "Hold while clicking to send it to dm whatever its type or size": "Tahan saat mengklik untuk mengirim ke dm apa pun jenis atau ukurannya",
  "The two keys are the same; holding it leaves the download with the browser.": "Kedua tombol sama; menahannya membiarkan unduhan di peramban.",
@@ -487,5 +484,8 @@
  "Some of these are not finished. Removing them throws away what has been fetched.": "Sebagian belum selesai. Menghapusnya membuang yang sudah diambil.",
  "Yes, remove": "Ya, hapus",
  "Remove it": "Hapus",
- "Remove them": "Hapus"
+ "Remove them": "Hapus",
+ "Read by the browser extension the next time it talks to dm: a download it catches, or its right-click menu. The right-click menu and the toolbar button hand anything over regardless.": "Dibaca ekstensi peramban saat berikutnya ia berbicara dengan dm: unduhan yang ditangkap, atau menu klik kanannya. Menu klik kanan dan tombol bilah alat tetap menyerahkan apa pun.",
+ "Drop a .url or .webloc file, or a text file of links, here. A link dragged straight from a browser cannot be dropped yet: use Add URL or the browser's right-click menu.": "Letakkan berkas .url atau .webloc, atau berkas teks berisi tautan, di sini. Tautan yang diseret langsung dari peramban belum bisa dilepas di sini: pakai Tambah URL atau menu klik kanan peramban.",
+ "None": "Tidak ada"
 }

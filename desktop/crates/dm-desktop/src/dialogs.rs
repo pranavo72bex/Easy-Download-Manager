@@ -915,7 +915,9 @@ impl egui::Widget for NumberBox<'_> {
 /// heading's weight, on the 4-point grid.
 fn section(ui: &mut egui::Ui, words: &str) {
     ui.add_space(12.0);
-    ui.label(RichText::new(words).strong());
+    // The semibold face, as the window's headings are: strong() only
+    // changed the colour, and the groups read as more options (round 17).
+    ui.label(RichText::new(words).family(crate::theme::bold(ui.ctx())));
     ui.add_space(4.0);
 }
 
@@ -1648,7 +1650,10 @@ fn add_url(app: &mut DmApp, ctx: &egui::Context) {
     let mut open = true;
     let (mut ok, mut cancel, mut forget) = (false, false, false);
     window("Add URL").open(&mut open).show(ctx, |ui| {
-        let address = focused(field(ui, t("Address"), &mut d.address, 420.0), focus);
+        // As wide as the window allows: at 200% text a fixed 420 ran the
+        // dialog past the window's edge (UI round 1).
+        let wide = (ctx.content_rect().width() - 160.0).clamp(200.0, 420.0);
+        let address = focused(field(ui, t("Address"), &mut d.address, wide), focus);
         // The link it was opened with is selected, so a link pasted or
         // typed replaces it rather than joining it (gap 142).
         select_on_focus(ui, &address, &d.address);
@@ -1759,7 +1764,11 @@ fn file_info(app: &mut DmApp, ctx: &egui::Context) {
     // Each kind's folder, and each category a person made, to pick from:
     // a file can go to another kind's folder without typing its path.
     let places: Vec<(String, String)> = {
-        let categories = app.applied.categories();
+        // Each kind's own folder, whether or not finished files are sorted
+        // into them: picked here, it is asked for (with sorting off every
+        // kind named the download folder itself, round 17).
+        let mut categories = app.applied.categories();
+        categories.enabled = true;
         let root = &app.applied.download_dir;
         let mut places: Vec<(String, String)> = dm_core::Category::ALL
             .iter()
@@ -2301,12 +2310,15 @@ fn progress(app: &mut DmApp, ctx: &egui::Context) {
 /// for a five-file series, and a click on one half-hidden behind another
 /// opened the wrong file.
 fn complete(app: &mut DmApp, ctx: &egui::Context) {
-    let rows: Vec<dm_core::Entry> = app
+    let mut rows: Vec<dm_core::Entry> = app
         .dialogs
         .complete
         .iter()
         .filter_map(|id| app.row(*id).cloned())
         .collect();
+    // The newest first, where the eye lands: the file just finished sat
+    // below the fold, under the older ones (round 17).
+    rows.sort_by_key(|r| std::cmp::Reverse(r.finished_at));
     app.dialogs
         .complete
         .retain(|id| rows.iter().any(|r| r.id == *id));
@@ -3613,10 +3625,17 @@ fn options(app: &mut DmApp, ctx: &egui::Context) {
                 // password; read back in, they wait here for OK.
                 section(ui, t("Settings file"));
                 ui.horizontal(|ui| {
+                    // Without a file chooser, the download folder's
+                    // dm-settings.json, said where: the words asked for a
+                    // path with nowhere to type one (round 17).
+                    let fallback = s.download_dir.join("dm-settings.json");
                     if ui.button(t("Save settings to a file…")).clicked() {
-                        d.says = if !platform.can_choose_file() {
-                            t("No file chooser on this desktop; type the file's path.").into()
-                        } else if let Some(path) = platform.choose_file(true, "dm-settings.json") {
+                        let path = if platform.can_choose_file() {
+                            platform.choose_file(true, "dm-settings.json")
+                        } else {
+                            Some(fallback.clone())
+                        };
+                        d.says = if let Some(path) = path {
                             match std::fs::write(&path, s.exported()) {
                                 Ok(()) => tf("Saved to {}, without any password.", &[&path.display()]),
                                 Err(e) => tf("{} could not be written: {}", &[&path.display(), &e]),
@@ -3626,7 +3645,12 @@ fn options(app: &mut DmApp, ctx: &egui::Context) {
                         };
                     }
                     if ui.button(t("Load settings from a file…")).clicked() {
-                        if let Some(path) = platform.choose_file(false, "") {
+                        let path = if platform.can_choose_file() {
+                            platform.choose_file(false, "dm-settings.json")
+                        } else {
+                            Some(fallback.clone())
+                        };
+                        if let Some(path) = path {
                             d.says = match std::fs::read_to_string(&path)
                                 .map_err(|e| e.to_string())
                                 .and_then(|text| s.imported(&text))
@@ -3661,7 +3685,7 @@ fn options(app: &mut DmApp, ctx: &egui::Context) {
                     keys.iter()
                         .find(|(k, _)| *k == key)
                         .map(|(_, w)| w.trim_start_matches("key:").to_string())
-                        .unwrap_or_else(|| t("none").to_string())
+                        .unwrap_or_else(|| t("None").to_string())
                 };
                 ui.horizontal(|ui| {
                     let name = ui.label(t("Hold while clicking to leave it with the browser"));
@@ -3691,7 +3715,7 @@ fn options(app: &mut DmApp, ctx: &egui::Context) {
                 if !c.take_key.is_empty() && c.take_key == c.keep_key {
                     ui.colored_label(warn(ui), t("The two keys are the same; holding it leaves the download with the browser."));
                 }
-                ui.label(RichText::new(t("Read by the browser extension when it starts and every few minutes. The right-click menu and the toolbar button hand anything over regardless.")).small().weak());
+                ui.label(RichText::new(t("Read by the browser extension the next time it talks to dm: a download it catches, or its right-click menu. The right-click menu and the toolbar button hand anything over regardless.")).small().weak());
             }
             Tab::SaveTo => {
                 let mut dir = s.download_dir.display().to_string();

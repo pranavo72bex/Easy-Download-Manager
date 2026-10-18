@@ -157,7 +157,13 @@ impl Platform for Desktop {
     }
 
     fn choose_file(&self, save: bool, suggested: &str) -> Option<std::path::PathBuf> {
-        let dialog = rfd::FileDialog::new().add_filter("Download lists", &["dmlist", "txt"]);
+        // What is asked for decides the filter: a settings file is JSON,
+        // and was hidden behind the download lists' filter (round 17).
+        let dialog = if suggested.ends_with(".json") {
+            rfd::FileDialog::new().add_filter("dm settings", &["json"])
+        } else {
+            rfd::FileDialog::new().add_filter("Download lists", &["dmlist", "txt"])
+        };
         if save {
             dialog.set_file_name(suggested).save_file()
         } else {
@@ -627,7 +633,13 @@ mod sni {
                 }
             }
         }
-        Some(all)
+        // Listed is not shown: a watcher with no panel drawing its items
+        // left a hidden window nothing could bring back (UI round 1). A
+        // watcher that will not say is believed.
+        let host = watcher
+            .get_property::<bool>("IsStatusNotifierHostRegistered")
+            .unwrap_or(true);
+        Some(all && host)
     }
 }
 

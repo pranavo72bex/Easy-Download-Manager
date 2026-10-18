@@ -39,13 +39,21 @@
   } catch {
     // No storage here; the keys stay as they ship.
   }
+  // A private window's clicks are its own: dm takes nothing from one.
+  const privateTab = (() => {
+    try { return ext.extension?.inIncognitoContext === true; } catch { return false; }
+  })();
   document.addEventListener('click', (event) => {
     if (!(event.target instanceof Element)) return;
     const keep = held(event, keys.keep);
-    const take = !keep && keys.take !== '' && event.isTrusted && held(event, keys.take);
+    const take = !keep && !privateTab && keys.take !== '' && event.isTrusted && held(event, keys.take);
     if (!keep && !take) return;
     const link = event.target.closest('a[href]');
     if (!link) return;
+    // The take key hands the link to dm as its right-click menu does, so
+    // the browser does nothing with it: a link that is not a download was
+    // opened in a new window instead.
+    if (take) event.preventDefault();
     // The property, not the attribute: resolved against the page.
     try {
       ext.runtime.sendMessage({ type: keep ? 'dm.skip' : 'dm.take', src: String(link.href), frame: '' })

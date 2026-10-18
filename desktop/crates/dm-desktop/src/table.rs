@@ -794,8 +794,10 @@ fn status_cell(ui: &mut egui::Ui, entry: &Entry, held: Option<&str>, selected: b
                     ui.label(words)
                         .on_hover_text(format!("{} is no longer there", entry.path));
                 }
+                // Cut with "…" where the column is narrow, the whole on hover:
+                // clipped, "Waiting for Sta" ended mid-word (UI round 1).
                 _ => {
-                    ui.label(text);
+                    ui.add(egui::Label::new(text).truncate());
                 }
             }
             if bar {

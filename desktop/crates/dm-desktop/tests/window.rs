@@ -2407,9 +2407,11 @@ fn settings_are_saved_to_a_file_without_passwords_and_loaded_back() {
 #[test]
 fn download_details_category_picks_the_folder() {
     let world = world();
+    // With sorting into kind folders off, as it is unless turned on: the
+    // pick is still that kind's folder.
     let app = world.app_with(Settings {
         download_dir: world.dir.path().join("out"),
-        categorize: true,
+        categorize: false,
         show_progress: false,
         show_complete: false,
         ..Settings::default()
@@ -2516,7 +2518,7 @@ fn the_pointer_is_the_same_kind_over_the_same_kind_of_thing() {
     let mut harness = world.harness();
     add_url(&mut harness, &world.url("file.zip"), "Add for later");
     harness.run_steps(3);
-    let mut over = |harness: &mut Harness<'_, DmApp>, at: egui::Pos2| {
+    let over = |harness: &mut Harness<'_, DmApp>, at: egui::Pos2| {
         harness.hover_at(at);
         harness.run_steps(2);
         harness.output().platform_output.cursor_icon
@@ -6287,7 +6289,7 @@ fn a_drop_with_no_link_says_how_to_add_one() {
     let world = world();
     let mut harness = world.harness();
     assert!(harness
-        .query_by_label_contains("Links can't be dropped here yet")
+        .query_by_label_contains("A link dragged straight from a browser cannot be dropped yet")
         .is_some());
     let file = world.dir.path().join("picture.png");
     std::fs::write(&file, [0u8, 1, 2, 3]).unwrap();
@@ -6309,7 +6311,9 @@ fn a_drop_with_no_link_says_how_to_add_one() {
     assert!(harness.state().rows().is_empty());
     assert!(
         harness
-            .query_all_by_label_contains("Links can't be dropped here yet")
+            .query_all_by_label_contains(
+                "A link dragged straight from a browser cannot be dropped yet"
+            )
             .count()
             >= 2,
         "the drop was ignored without a word"
