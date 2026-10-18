@@ -108,6 +108,9 @@ pub struct LinksImport {
     /// Those already in dm's list (bare addresses): offered unticked and
     /// said so, rather than fetched again as `name (1).zip` without a word.
     pub listed: std::collections::HashSet<String>,
+    /// Links unticked when their server refused them, once, so a person
+    /// can tick one again (round 15: they were added and failed).
+    pub refused: std::collections::HashSet<String>,
     pub hide_html: bool,
     pub found: std::sync::Arc<std::sync::Mutex<std::collections::HashMap<String, Found>>>,
 }
@@ -340,6 +343,8 @@ pub struct Dialogs {
     pub add_url: Option<AddUrl>,
     pub file_info: Option<FileInfo>,
     pub progress: BTreeSet<Id>,
+    /// Progress windows a person closed: Resume does not open them again.
+    pub progress_closed: BTreeSet<Id>,
     pub complete: BTreeSet<Id>,
     pub properties: BTreeMap<Id, Properties>,
     pub series: Option<Series>,
@@ -520,6 +525,7 @@ impl Dialogs {
                 })
                 .collect(),
             listed,
+            refused: Default::default(),
             hide_html: true,
             found,
         });
@@ -778,6 +784,7 @@ impl Dialogs {
         }
         if let Some(id) = self.progress.iter().last().copied() {
             self.progress.remove(&id);
+            self.progress_closed.insert(id);
             return true;
         }
         false
@@ -786,6 +793,7 @@ impl Dialogs {
     /// Closes everything about a row that is gone.
     pub fn forget(&mut self, id: Id) {
         self.progress.remove(&id);
+        self.progress_closed.remove(&id);
         self.complete.remove(&id);
         self.properties.remove(&id);
     }
@@ -1135,6 +1143,12 @@ fn confirm_remove(app: &mut DmApp, ctx: &egui::Context) {
                     t("Take these downloads off the list? Their files stay where they are.")
                 }
             });
+            // Which one, by name: "this download" was all it said.
+            if let [only] = ids.as_slice() {
+                if let Some(row) = app.row(*only) {
+                    ui.strong(&*crate::bidi::visual(&name_of(row)));
+                }
+            }
             // The buttons say what the sentence asked, in its number, and
             // Enter is the one that loses nothing (gap 149).
             let (go, keep) = match (unfinished, ids.len()) {
@@ -1472,8 +1486,11 @@ fn duplicate(app: &mut DmApp, ctx: &egui::Context) {
         ui.label(tf("This address is already in the list ({}).", &[&status]));
         ui.horizontal(|ui| {
             // Enter presses it, as in every other dialog (gap 154).
-            again = primary(ui, "Download again").clicked() || enter_free(ui);
-            show = ui.button(t("Show it")).clicked();
+            // Enter shows the row, which changes nothing: an Enter pressed
+            // for Download details, a moment before this asked, fetched the
+            // file a second time (round 15).
+            show = primary(ui, "Show it").clicked() || enter_free(ui);
+            again = ui.button(t("Download again")).clicked();
             cancel = ui.button(t("Cancel")).clicked();
         });
     });
@@ -1803,9 +1820,15 @@ fn file_info(app: &mut DmApp, ctx: &egui::Context) {
         .map(|(url, size)| (url.clone(), size))
         .into_iter()
         .collect();
+    let handed = d.handed;
     match app.add_sized(&urls, with, &sizes) {
         Ok(_) => {
             app.dialogs.file_info = None;
+            if handed {
+                for url in &urls {
+                    app.taken_from_browser(url);
+                }
+            }
             // Start now while the schedule or the download limit holds
             // downloads: asked, as Resume asks, whether to start it outside
             // the schedule; it only waited, without a word (gap 139).
@@ -2044,6 +2067,7 @@ fn progress(app: &mut DmApp, ctx: &egui::Context) {
         }
         if !open || cancel {
             app.dialogs.progress.remove(&id);
+            app.dialogs.progress_closed.insert(id);
         }
         if pause || resume || cancel {
             app.refresh();
@@ -2553,6 +2577,13 @@ fn links(app: &mut DmApp, ctx: &egui::Context) {
             }
         });
         let found = dm_core::lock(&d.found).clone();
+        for (url, on) in d.items.iter_mut() {
+            if found.get(url.as_str()).is_some_and(|f| f.failed.is_some())
+                && d.refused.insert(url.clone())
+            {
+                *on = false;
+            }
+        }
         let hide = d.hide_html;
         let html: Vec<bool> = d.items.iter().map(|(u, _)| d.is_html(u)).collect();
         egui::ScrollArea::vertical()

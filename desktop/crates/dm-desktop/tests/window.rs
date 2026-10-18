@@ -2197,6 +2197,57 @@ fn escape_closes_the_menu_or_the_dialog_in_front_and_nothing_behind_it() {
     assert!(harness.state().dialogs.file_info.is_none());
 }
 
+/// A double-click on a link in the browser hands it over twice in a moment:
+/// one row, not `name (1)` and `name (2)` (round 15).
+#[test]
+fn the_same_address_handed_twice_at_once_is_taken_once() {
+    let world = world();
+    let mut harness = world.harness();
+    harness.state_mut().applied.ask_panel_downloads = false;
+    for _ in 0..2 {
+        harness
+            .state()
+            .backend()
+            .handed
+            .lock()
+            .unwrap()
+            .push_back(dm_shell::host::Request {
+                url: world.url("file.zip"),
+                ..Default::default()
+            });
+        harness.state_mut().take_handed();
+    }
+    harness.state_mut().refresh();
+    assert_eq!(harness.state().rows().len(), 1);
+}
+
+/// Under the Remove question the list takes no clicks: a row selected
+/// there was not the one removed (round 15). The question names its row.
+#[test]
+fn the_list_behind_the_remove_question_takes_no_clicks() {
+    let world = world();
+    let mut harness = world.harness();
+    add_url(&mut harness, &world.url("file.zip"), "Add for later");
+    add_url(&mut harness, &world.url("other.pdf"), "Add for later");
+    harness.state_mut().refresh();
+    select(&mut harness, "file.zip");
+    let chosen = harness.state().selected.clone();
+    harness.state_mut().run(Command::Remove);
+    harness.run_steps(3);
+    assert!(harness.state().dialogs.confirm_remove.is_some());
+    assert!(
+        harness.query_all_by_label("file.zip").count() >= 2,
+        "the question names no row"
+    );
+    harness.get_by_label("other.pdf").click();
+    harness.run_steps(3);
+    assert_eq!(
+        harness.state().selected,
+        chosen,
+        "a row was selected under the question"
+    );
+}
+
 #[test]
 fn two_cancelled_hand_offs_from_a_site_offer_to_leave_it_to_the_browser() {
     let _file = SETTINGS_FILE.lock().unwrap_or_else(|e| e.into_inner());
@@ -2393,6 +2444,19 @@ fn a_handed_over_videos_sign_in_survives_download_details() {
         });
     harness.state_mut().take_handed();
     harness.run_steps(2);
+    // The made-up server cannot be asked, so its link is unticked: ticked
+    // again, as a person would who wants it anyway.
+    until(
+        &mut harness,
+        "the made-up server's link to be refused",
+        |app| {
+            app.dialogs
+                .links
+                .as_ref()
+                .is_some_and(|d| d.refused.iter().any(|u| u.ends_with("/x.zip")))
+        },
+    );
+    click(&mut harness, "Check all");
     click(&mut harness, "Add for later");
     harness.state_mut().refresh();
     let rows = harness.state().rows().to_vec();
@@ -5104,6 +5168,11 @@ fn resume_on_a_held_row_offers_to_start_it_outside_the_schedule() {
     until(&mut harness, "the schedule to hold it", |app| {
         app.rows().iter().any(|r| r.paused_by_schedule)
     });
+    // Start now under a shut schedule asks at once; kept waiting here, to be
+    // asked again by Resume.
+    if harness.query_by_label("Keep waiting").is_some() {
+        click(&mut harness, "Keep waiting");
+    }
     select(&mut harness, "file.zip");
     harness.state_mut().run(Command::DownloadNow);
     harness.run_steps(3);
@@ -5390,6 +5459,7 @@ fn enter_starts_the_links_dialogs() {
         cookies: String::new(),
         items: vec![(world.url("other.pdf"), true)],
         listed: Default::default(),
+        refused: Default::default(),
         hide_html: true,
         found: Default::default(),
     });
@@ -6103,9 +6173,11 @@ fn a_retry_says_its_attempt() {
     });
 }
 
-/// Gap 154: Enter presses Download again in "Already in the list".
+/// Gap 154, then round 15: Enter answers "Already in the list", with the
+/// answer that changes nothing — Show it — since an Enter meant for the
+/// dialog before it fetched the file again.
 #[test]
-fn enter_downloads_again_when_already_listed() {
+fn enter_shows_the_row_when_already_listed() {
     let world = world();
     let mut harness = world.harness();
     let url = world.url("file.zip");
@@ -6117,7 +6189,9 @@ fn enter_downloads_again_when_already_listed() {
     harness.key_press(egui::Key::Enter);
     harness.run_steps(3);
     assert!(harness.query_by_label("Already in the list").is_none());
-    assert!(harness.query_by_label("Download details").is_some());
+    assert!(harness.query_by_label("Download details").is_none());
+    assert_eq!(harness.state().rows().len(), 1);
+    assert_eq!(harness.state().selected.len(), 1, "the row is not shown");
 }
 
 /// Gap 157: a row added for later is queued, not stopped; Exit counts the

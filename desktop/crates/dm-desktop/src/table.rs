@@ -18,6 +18,7 @@ pub fn show(app: &mut DmApp, ui: &mut egui::Ui) {
     // click for itself, so clicking a file's name selected nothing.
     ui.style_mut().interaction.selectable_labels = false;
     let rows = app.visible();
+    let asking = app.dialogs.asking();
     let mut categories = app.applied.categories();
     // Why a held row waits, said on hovering it.
     let held = app.held_because();
@@ -184,6 +185,13 @@ pub fn show(app: &mut DmApp, ui: &mut egui::Ui) {
                         }
                         let response = row.response();
                         drawn.push((entry.id, response.rect));
+                        // While a question waits, the list behind it takes
+                        // no clicks: a row selected or opened under the
+                        // Remove question was not the one it removed
+                        // (round 15).
+                        if asking {
+                            return;
+                        }
                         if response.clicked() {
                             clicked = Some((i, response.ctx.input(|input| input.modifiers)));
                         }

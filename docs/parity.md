@@ -340,7 +340,7 @@ Evidence is `dm-desktop/tests/window.rs` unless it says otherwise.
 | A drop with no link in it, and the empty list, say how to add a link | PASS | `a_drop_with_no_link_says_how_to_add_one` (gap 150, 2026-10-18). A link dragged from a browser is not received at all: winit delivers files only |
 | The list's up-and-down bar stays at its visible right edge when columns overflow, and drags the list | PASS | `the_lists_bar_stays_in_view_when_the_columns_run_past_it` (gap 152, 2026-10-18) |
 | A failed row says why in plain words, the engine's own on hover | PASS | `a_cut_connection_is_said_plainly`, `common_failures_have_plain_reasons` (gap 153, 2026-10-18) |
-| Enter presses Download again in "Already in the list" | PASS | `enter_downloads_again_when_already_listed` (gap 154, 2026-10-18) |
+| Enter answers "Already in the list" with Show it, which changes nothing | PASS | `enter_shows_the_row_when_already_listed` (gap 154, 2026-10-18) |
 | A retry says its attempt while it waits | PASS | `a_retry_says_its_attempt`, `each_retry_is_told_with_its_number` (gap 155, 2026-10-18) |
 | An HLS address is suggested under the name it is saved as; a finished row's size is its file's | PASS | `a_stream_is_suggested_under_the_name_it_is_saved_as`, `a_finished_rows_size_is_its_files` (gap 156, 2026-10-18) |
 | Added for later says it waits for Start queue; Exit counts the running; counts take real plurals in every language | PASS | `statuses_and_counts_say_what_is_so`, `a_count_takes_the_form_its_language_gives_it` (gaps 157, 158, 2026-10-18) |

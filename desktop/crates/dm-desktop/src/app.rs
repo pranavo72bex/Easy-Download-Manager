@@ -24,6 +24,8 @@ use crate::update::Update;
 
 /// How often the list is read back from the queue while the window shows.
 const REFRESH: Duration = Duration::from_millis(250);
+/// How often it is read back while nothing downloads.
+const IDLE_REFRESH: Duration = Duration::from_secs(1);
 /// How often the clipboard is looked at, when watching it is on.
 const CLIPBOARD: Duration = Duration::from_secs(1);
 
@@ -212,6 +214,10 @@ fn waits_for_its_queue(row: &Entry) -> bool {
         && !row.queue.is_empty()
         && row.progress.downloaded == 0
 }
+
+/// How soon the same address handed over again is taken for the same
+/// click.
+const HANDED_TWICE_WITHIN: std::time::Duration = std::time::Duration::from_secs(5);
 
 /// The folder a row's file is in, once finished, or the one it was asked
 /// to go to; empty where that is the download folder's own choice.
@@ -645,6 +651,8 @@ pub struct DmApp {
     /// Sizes a dialog learned from the server before a row was added for
     /// later, shown until the row learns its own.
     pub sizes_told: HashMap<Id, u64>,
+    /// Addresses the browser handed over in the last few seconds.
+    recent_hands: Vec<(String, Instant)>,
     /// Where the menu bar ends, last frame: windows per download open
     /// below it, never over it (gap 168).
     pub menu_bottom: f32,
@@ -729,6 +737,7 @@ impl DmApp {
             last_added: Vec::new(),
             said_about: None,
             sizes_told: HashMap::new(),
+            recent_hands: Vec::new(),
             menu_bottom: 0.0,
             saved: HashMap::new(),
             said_at: None,
@@ -1116,6 +1125,12 @@ impl DmApp {
         let Some(request) = dm_core::lock(&self.backend.handed).pop_front() else {
             return;
         };
+        // The same address handed over again within a few seconds is one
+        // click, not two: a double-click on a link in the browser saved
+        // `setup (1).deb` and `setup (2).deb` (round 15).
+        if request.links.is_empty() && self.just_taken(&request.url) {
+            return;
+        }
         // A page's links: the "Download all links" dialog, or straight
         // into the main queue with nobody to ask.
         if !request.links.is_empty() {
@@ -1136,15 +1151,31 @@ impl DmApp {
             return;
         }
         if !ask {
-            if let Err(e) = self
+            match self
                 .backend
                 .add_with(&request.url, dm_shell::shell::add_options(&request))
             {
-                self.said = e.into();
+                Ok(_) => self.taken_from_browser(&request.url),
+                Err(e) => self.said = e.into(),
             }
         } else {
             self.dialogs.open_handed(request);
         }
+    }
+
+    /// A download the browser handed over was added: one handed over again
+    /// in the next few seconds is the same click.
+    pub fn taken_from_browser(&mut self, url: &str) {
+        self.recent_hands.push((url.to_string(), Instant::now()));
+    }
+
+    /// Whether `url` was taken from the browser a moment ago. One handed
+    /// over and cancelled is not remembered: clicked again, it is meant.
+    fn just_taken(&mut self, url: &str) -> bool {
+        let now = Instant::now();
+        self.recent_hands
+            .retain(|(_, at)| now.duration_since(*at) < HANDED_TWICE_WITHIN);
+        self.recent_hands.iter().any(|(taken, _)| taken == url)
     }
 
     /// Runs a countdown's action once its time is up.
@@ -1195,7 +1226,16 @@ impl DmApp {
         }
         self.answer_control(ctx);
         self.weekly_update(ctx);
-        ctx.request_repaint_after(REFRESH);
+        // Four times a second only while something moves: idle, in the
+        // tray with four finished rows, dm drew itself four times a second
+        // and spent a third of a core doing it (round 15). A hand-off, a
+        // control request and a tray click wake it at once regardless.
+        let moving = self.countdown.is_some()
+            || self
+                .rows
+                .iter()
+                .any(|r| matches!(r.state, State::Running | State::Queued));
+        ctx.request_repaint_after(if moving { REFRESH } else { IDLE_REFRESH });
     }
 
     /// The weekly update check: about once a week, where turned on,
@@ -1754,7 +1794,11 @@ impl DmApp {
                         State::Failed(_) => self.backend.retry(row.id),
                         _ => {}
                     }
-                    if self.applied.show_progress {
+                    // Not one its person closed: fifteen Resumes opened it
+                    // fifteen times over the list (round 15). Show progress
+                    // still opens it.
+                    if self.applied.show_progress && !self.dialogs.progress_closed.contains(&row.id)
+                    {
                         self.dialogs.progress.insert(row.id);
                     }
                 }

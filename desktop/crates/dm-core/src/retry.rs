@@ -56,8 +56,12 @@ pub fn backoff(attempt: u32, retry_after: Option<Duration>) -> Duration {
         return asked.min(Duration::from_secs(60));
     }
 
-    let base = Duration::from_millis(500 * 2u64.saturating_pow(attempt).min(16));
-    let capped = base.min(Duration::from_secs(8));
+    let base = Duration::from_millis(500 * 2u64.saturating_pow(attempt).min(64));
+    // Quick at first, for a dropped connection; then half a minute apart,
+    // so the attempts a person allows outlast a router restarting or Wi-Fi
+    // coming back: five quick ones were spent in twenty seconds and the
+    // download failed for good (round 15).
+    let capped = base.min(Duration::from_secs(if attempt < 5 { 8 } else { 30 }));
 
     // Deterministic jitter from the attempt number: no RNG dependency, and
     // enough spread to break the lockstep.
@@ -268,7 +272,14 @@ mod tests {
         let first = backoff(0, None);
         let later = backoff(3, None);
         assert!(later > first, "backoff should grow");
-        assert!(backoff(20, None) <= Duration::from_secs(9), "and then stop");
+        // Ten attempts outlast a couple of minutes without a network.
+        let waited: Duration = (1..10).map(|a| backoff(a, None)).sum();
+        assert!(waited >= Duration::from_secs(120), "{waited:?}");
+        assert!(backoff(4, None) <= Duration::from_secs(9), "quick at first");
+        assert!(
+            backoff(20, None) <= Duration::from_secs(31),
+            "and then stop"
+        );
     }
 
     #[test]

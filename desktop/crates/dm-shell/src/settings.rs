@@ -197,8 +197,10 @@ pub struct QueueLimit {
     pub files: usize,
 }
 
+/// Ten: the last five half a minute apart, so a download rides out a
+/// couple of minutes without a network (`retry::backoff`).
 fn default_attempts() -> u32 {
-    5
+    10
 }
 
 fn default_read_timeout() -> u64 {
@@ -1243,8 +1245,8 @@ mod tests {
             0
         );
         let d = Settings::default();
-        assert_eq!((d.attempts, d.read_timeout), (5, 30));
-        assert_eq!(d.options(PathBuf::new(), Limiter::unlimited()).attempts, 5);
+        assert_eq!((d.attempts, d.read_timeout), (10, 30));
+        assert_eq!(d.options(PathBuf::new(), Limiter::unlimited()).attempts, 10);
     }
 
     #[test]
