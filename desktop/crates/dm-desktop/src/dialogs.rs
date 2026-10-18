@@ -3777,14 +3777,19 @@ fn options(app: &mut DmApp, ctx: &egui::Context) {
             Tab::General => {
                 ui.horizontal_wrapped(|ui| {
                     let now = crate::i18n::chosen(&s.language);
-                    // Named by its label, so a screen reader says what it is.
-                    egui::ComboBox::from_label(t("Language"))
+                    // Named by its label, so a screen reader says what it is;
+                    // the name before the choice, as every number and choice
+                    // in Options has it (UI round 5: some had it after).
+                    let name = ui.label(t("Language"));
+                    egui::ComboBox::from_id_salt("language")
                         .selected_text(crate::i18n::name_of(now))
                         .show_ui(ui, |ui| {
                             if let Some(code) = crate::i18n::pick(ui, now) {
                                 s.language = code.to_string();
                             }
-                        });
+                        })
+                        .response
+                        .labelled_by(name.id);
                 });
                 // In groups under headings: one list of a dozen boxes was
                 // hard to find a setting in (a design review).
@@ -4007,7 +4012,8 @@ fn options(app: &mut DmApp, ctx: &egui::Context) {
                         // Chosen from the queues there are, shown in the
                         // language in force and kept by dm's own name: a
                         // typed name had to be the English one to match.
-                        egui::ComboBox::new(("queue limit", i), t("Queue"))
+                        let name = ui.label(t("Queue"));
+                        egui::ComboBox::from_id_salt(("queue limit", i))
                             .selected_text(crate::i18n::name(&limit.queue))
                             .show_ui(ui, |ui| {
                                 let mut offered = queues.clone();
@@ -4018,7 +4024,9 @@ fn options(app: &mut DmApp, ctx: &egui::Context) {
                                     let shown = crate::i18n::name(&q);
                                     ui.selectable_value(&mut limit.queue, q, shown);
                                 }
-                            });
+                            })
+                            .response
+                            .labelled_by(name.id);
                         let name = ui.label(t("Files at once"));
                         ui.add(number_box(&mut limit.files).range(1..=10)).labelled_by(name.id);
                         if ui.button(t("Delete queue limit")).clicked() {
@@ -4104,13 +4112,18 @@ fn options(app: &mut DmApp, ctx: &egui::Context) {
                         Kind::System => t("The computer's proxy settings").to_string(),
                         other => format!("{other:?}").to_uppercase(),
                     };
-                    egui::ComboBox::from_label(t("Proxy type"))
-                        .selected_text(kind_name(p.kind))
-                        .show_ui(ui, |ui| {
-                            for kind in [Kind::System, Kind::Http, Kind::Https, Kind::Socks4, Kind::Socks5] {
-                                ui.selectable_value(&mut p.kind, kind, kind_name(kind));
-                            }
-                        });
+                    ui.horizontal_wrapped(|ui| {
+                        let name = ui.label(t("Proxy type"));
+                        egui::ComboBox::from_id_salt("proxy-kind")
+                            .selected_text(kind_name(p.kind))
+                            .show_ui(ui, |ui| {
+                                for kind in [Kind::System, Kind::Http, Kind::Https, Kind::Socks4, Kind::Socks5] {
+                                    ui.selectable_value(&mut p.kind, kind, kind_name(kind));
+                                }
+                            })
+                            .response
+                            .labelled_by(name.id);
+                    });
                     ui.add_enabled_ui(p.kind != Kind::System, |ui| {
                         field(ui, t("Host"), &mut p.host, 260.0);
                         ui.horizontal_wrapped(|ui| {
