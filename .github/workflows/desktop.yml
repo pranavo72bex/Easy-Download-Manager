@@ -171,17 +171,27 @@ jobs:
       # the Finder AppleScript a headless machine cannot run.
       - name: Build the installers
         working-directory: desktop/crates/dm-desktop
-        run: cargo packager --release --formats ${{ matrix.formats }}
+        # Apple: a Developer ID certificate and an app-specific password, from
+        # the repository's Actions secrets. Absent, the macOS build is
+        # unsigned and Gatekeeper refuses it until someone right-clicks and
+        # chooses Open. Handed on only when set: an unset secret arrives as an
+        # empty value, which cargo-packager took for a certificate to import,
+        # and the build failed. The identity goes in Cargo.toml
+        # (packager.macos.signingIdentity).
+        shell: bash
+        run: |
+          for name in APPLE_CERTIFICATE APPLE_CERTIFICATE_PASSWORD APPLE_ID APPLE_PASSWORD APPLE_TEAM_ID; do
+            value_name="SECRET_$name"
+            if [ -n "${!value_name}" ]; then export "$name=${!value_name}"; fi
+            unset "$value_name"
+          done
+          cargo packager --release --formats ${{ matrix.formats }}
         env:
-          # Apple: a Developer ID certificate and an app-specific password.
-          # Absent, the macOS build is unsigned and Gatekeeper refuses it
-          # until someone right-clicks and chooses Open. The identity itself
-          # goes in Cargo.toml (packager.macos.signingIdentity).
-          APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
-          APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
-          APPLE_ID: ${{ secrets.APPLE_ID }}
-          APPLE_PASSWORD: ${{ secrets.APPLE_PASSWORD }}
-          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          SECRET_APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
+          SECRET_APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
+          SECRET_APPLE_ID: ${{ secrets.APPLE_ID }}
+          SECRET_APPLE_PASSWORD: ${{ secrets.APPLE_PASSWORD }}
+          SECRET_APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
 
       # Fedora, openSUSE and their kin: the same binary, laid out as the
       # Arch package is (desktop/packaging/nfpm.yaml).
