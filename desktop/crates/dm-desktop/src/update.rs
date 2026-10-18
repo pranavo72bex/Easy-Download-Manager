@@ -14,6 +14,21 @@ use crate::i18n::{t, tf};
 /// Where dm's documentation is: the project's README.
 pub const HELP: &str = "https://github.com/pranavo72bex/Easy-Download-Manager#readme";
 
+/// Where a release's notes may be: its page on the project's releases.
+pub const NOTES: &str = "https://github.com/pranavo72bex/Easy-Download-Manager/releases/tag/";
+
+/// The newest release's notes, from the last check, where it named a page
+/// under `NOTES`: what About's "What's new" opens.
+pub static LATEST_NOTES: Mutex<Option<String>> = Mutex::new(None);
+
+/// A release's notes page from its `latest.json`, only one of the
+/// project's own: a manifest naming anywhere else is not followed.
+pub fn notes_in(manifest: &str) -> Option<String> {
+    let value: serde_json::Value = serde_json::from_str(manifest).ok()?;
+    let notes = value.get("notes")?.as_str()?;
+    (notes.starts_with(NOTES) && !notes.contains(['"', ' ', '\n'])).then(|| notes.to_owned())
+}
+
 /// Where every installer dm offers must come from.
 pub const RELEASES: &str =
     "https://github.com/pranavo72bex/Easy-Download-Manager/releases/download/";
@@ -152,6 +167,7 @@ pub fn check(
             }
             let text = res.text().await.map_err(|e| e.to_string())?;
             let published = version_in(&text).ok_or("the release names no version")?;
+            *dm_core::lock(&LATEST_NOTES) = notes_in(&text);
             Ok(if newer(&published, env!("CARGO_PKG_VERSION")) {
                 let installer = installer_in(
                     &text,
@@ -173,6 +189,16 @@ pub fn check(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn a_releases_notes_are_followed_only_to_the_projects_own_page() {
+        let page = format!("{NOTES}desktop-v0.2.0");
+        let manifest = |notes: &str| format!("{{\"version\":\"0.2.0\",\"notes\":\"{notes}\"}}");
+        assert_eq!(notes_in(&manifest(&page)), Some(page));
+        assert_eq!(notes_in(&manifest("https://elsewhere.example/notes")), None);
+        assert_eq!(notes_in("{\"version\":\"0.2.0\"}"), None);
+        assert_eq!(notes_in("not json"), None);
+    }
 
     #[test]
     fn the_weekly_check_is_due_after_a_week_and_not_before() {

@@ -171,6 +171,7 @@ fn options(dir: &Path) -> Options {
         subtitles: false,
         room: Default::default(),
         remux: false,
+        server_dates: false,
         sign_in: None,
         system_proxy: false,
     }

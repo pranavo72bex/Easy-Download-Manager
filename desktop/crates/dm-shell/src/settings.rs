@@ -113,6 +113,9 @@ pub struct Settings {
     /// What a double-click on a row does: "properties", "open" (a finished
     /// file; Properties for one not finished) or "folder" (its folder).
     pub double_click: String,
+    /// A finished file takes the date its server says it last changed,
+    /// rather than when it was fetched. Off by default.
+    pub server_dates: bool,
     /// The toolbar styles: "both" (icons and text), "icons" (small, icons
     /// only) or "text" (text only). Anything else is "both".
     pub toolbar_style: String,
@@ -227,6 +230,43 @@ fn yes() -> bool {
     true
 }
 
+impl Settings {
+    /// The settings as a file to carry to another computer: every choice,
+    /// but no password — Sign-ins keep their sites and names, the proxy its
+    /// address and user — and none of this computer's own history.
+    pub fn exported(&self) -> String {
+        let mut out = self.clone();
+        for login in &mut out.site_logins {
+            login.password.clear();
+        }
+        out.proxy.password.clear();
+        out.recent_urls.clear();
+        serde_json::to_string_pretty(&out).unwrap_or_default()
+    }
+
+    /// Settings read from such a file, in place of these: the passwords
+    /// this computer already has for the same site and name, and for the
+    /// same proxy user, are kept, as is its history.
+    pub fn imported(&self, text: &str) -> Result<Settings, String> {
+        let mut read: Settings = serde_json::from_str(text)
+            .map_err(|e| format!("that is not a dm settings file ({e})"))?;
+        for login in &mut read.site_logins {
+            if let Some(known) = self
+                .site_logins
+                .iter()
+                .find(|k| k.host == login.host && k.username == login.username)
+            {
+                login.password = known.password.clone();
+            }
+        }
+        if read.proxy.username == self.proxy.username {
+            read.proxy.password = self.proxy.password.clone();
+        }
+        read.recent_urls = self.recent_urls.clone();
+        Ok(read.clamped())
+    }
+}
+
 /// One entry in Options › Sign-ins.
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(default)]
@@ -294,6 +334,7 @@ impl Default for Settings {
             ask_panel_downloads: true,
             theme: "system".into(),
             double_click: "properties".into(),
+            server_dates: false,
             toolbar_style: "both".into(),
             toolbar_order: Vec::new(),
             column_order: Vec::new(),
@@ -463,6 +504,7 @@ impl Settings {
             subtitles: self.subtitles,
             room: Default::default(),
             remux: self.remux_ts,
+            server_dates: self.server_dates,
             sign_in: None,
             system_proxy: self.proxy.enabled && self.proxy.kind == dm_core::proxy::Kind::System,
             proxy_bypass: if self.proxy.enabled {
@@ -1221,6 +1263,38 @@ mod tests {
         assert_eq!(at("  "), "");
         let absolute = std::env::temp_dir().join("dm-parts").display().to_string();
         assert_eq!(at(&absolute), absolute);
+    }
+
+    /// Settings carried to another computer leave every password behind,
+    /// and the one they arrive on keeps its own.
+    #[test]
+    fn exported_settings_carry_no_password_and_imported_ones_keep_this_computers() {
+        let mut here = Settings {
+            site_logins: vec![SiteLogin {
+                host: "example.com".into(),
+                username: "me".into(),
+                password: "kept".into(),
+            }],
+            recent_urls: vec!["https://e.com/a.zip".into()],
+            connections: 5,
+            ..Settings::default()
+        };
+        here.proxy.username = "proxyuser".into();
+        here.proxy.password = "proxykept".into();
+        let file = here.exported();
+        assert!(!file.contains("kept"), "a password left in the file");
+        assert!(!file.contains("e.com/a.zip"), "history left in the file");
+        let mut elsewhere = Settings {
+            site_logins: here.site_logins.clone(),
+            ..Settings::default()
+        };
+        elsewhere.proxy.username = "proxyuser".into();
+        elsewhere.proxy.password = "proxykept".into();
+        let read = elsewhere.imported(&file).unwrap();
+        assert_eq!(read.connections, 5);
+        assert_eq!(read.site_logins[0].password, "kept");
+        assert_eq!(read.proxy.password, "proxykept");
+        assert!(elsewhere.imported("not settings").is_err());
     }
 
     #[test]

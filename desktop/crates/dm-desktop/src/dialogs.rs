@@ -3419,6 +3419,7 @@ fn options(app: &mut DmApp, ctx: &egui::Context) {
                 ui.checkbox(&mut s.sound_on_complete, t("Play a sound when a download finishes"));
                 ui.checkbox(&mut s.sound_on_failure, t("Play a sound when a download fails"));
                 ui.checkbox(&mut s.ask_panel_downloads, t("Ask where to save a video from the browser's panel"));
+                ui.checkbox(&mut s.server_dates, t("Give a finished file the date its server says it last changed"));
                 ui.horizontal(|ui| {
                     ui.label(t("Double-clicking a download"));
                     for (word, name) in [
@@ -3433,6 +3434,37 @@ fn options(app: &mut DmApp, ctx: &egui::Context) {
                     ui.label(t("Look"));
                     for (word, name) in THEMES {
                         ui.radio_value(&mut s.theme, word.to_string(), t(name));
+                    }
+                });
+                // Settings to carry to another computer, never with a
+                // password; read back in, they wait here for OK.
+                ui.add_space(8.0);
+                ui.horizontal(|ui| {
+                    if ui.button(t("Save settings to a file…")).clicked() {
+                        d.says = if !platform.can_choose_file() {
+                            t("No file chooser on this desktop; type the file's path.").into()
+                        } else if let Some(path) = platform.choose_file(true, "dm-settings.json") {
+                            match std::fs::write(&path, s.exported()) {
+                                Ok(()) => tf("Saved to {}, without any password.", &[&path.display()]),
+                                Err(e) => tf("{} could not be written: {}", &[&path.display(), &e]),
+                            }
+                        } else {
+                            String::new()
+                        };
+                    }
+                    if ui.button(t("Load settings from a file…")).clicked() {
+                        if let Some(path) = platform.choose_file(false, "") {
+                            d.says = match std::fs::read_to_string(&path)
+                                .map_err(|e| e.to_string())
+                                .and_then(|text| s.imported(&text))
+                            {
+                                Ok(read) => {
+                                    *s = read;
+                                    t("Loaded. Look them over, then OK to use them.").into()
+                                }
+                                Err(e) => tf("{} could not be read: {}", &[&path.display(), &e]),
+                            };
+                        }
                     }
                 });
             }
@@ -3845,6 +3877,16 @@ fn about(app: &mut DmApp, ctx: &egui::Context) {
         }
         let state = dm_core::lock(&app.update).clone();
         ui.label(RichText::new(state.shown()).weak());
+        // What changed in it, on the release's own page.
+        if matches!(state, crate::update::Update::Newer(..)) {
+            if let Some(notes) = dm_core::lock(&crate::update::LATEST_NOTES).clone() {
+                if ui.button(t("What's new")).clicked() {
+                    if let Err(e) = app.backend.platform.open(&notes) {
+                        app.said = e.into();
+                    }
+                }
+            }
+        }
         if let crate::update::Update::Newer(_, Some(installer)) = state {
             if ui.button(t("Download the update")).clicked() {
                 app.said = match app.backend.add(&installer) {

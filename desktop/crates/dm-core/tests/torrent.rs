@@ -179,6 +179,7 @@ async fn a_torrent_is_fetched_from_a_real_swarm() {
         subtitles: false,
         room: Default::default(),
         remux: false,
+        server_dates: false,
         sign_in: None,
         system_proxy: false,
     };

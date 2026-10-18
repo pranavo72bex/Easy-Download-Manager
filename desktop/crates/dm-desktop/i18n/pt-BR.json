@@ -467,5 +467,11 @@
  "shows its properties": "mostra as propriedades",
  "opens the file": "abre o arquivo",
  "opens its folder": "abre a pasta",
- "Add a download": "Adicionar um download"
+ "Add a download": "Adicionar um download",
+ "Give a finished file the date its server says it last changed": "Dar a um arquivo concluído a data em que o servidor diz que ele mudou pela última vez",
+ "What's new": "Novidades",
+ "Save settings to a file…": "Salvar as configurações em um arquivo…",
+ "Load settings from a file…": "Carregar as configurações de um arquivo…",
+ "Saved to {}, without any password.": "Salvo em {}, sem nenhuma senha.",
+ "Loaded. Look them over, then OK to use them.": "Carregadas. Revise-as e clique em OK para usá-las."
 }

@@ -2345,6 +2345,50 @@ fn view_text_size_zooms_the_window() {
     assert!((harness.ctx.zoom_factor() - 1.0).abs() < 0.01);
 }
 
+/// Options › General saves the settings to a file without any password,
+/// and loads them back into the dialog, to be used on OK.
+#[test]
+fn settings_are_saved_to_a_file_without_passwords_and_loaded_back() {
+    let world = world();
+    let mut harness = world.harness();
+    harness.state_mut().run(Command::Options);
+    harness.run_steps(3);
+    if let Some(d) = harness.state_mut().dialogs.options.as_mut() {
+        d.draft.connections = 5;
+        d.draft.proxy.username = "someone".into();
+        d.draft.proxy.password = "not-in-the-file".into();
+    }
+    let file = world.dir.path().join("dm-settings.json");
+    *world.fake.chosen.lock().unwrap() = Some(file.clone());
+
+    // By the keyboard, as a person reaches a button below the fold: the
+    // focus brings it into view, and Space presses it.
+    let press_by_keyboard = |harness: &mut Harness<'_, DmApp>, name: &str| {
+        harness.get_by_label(name).focus();
+        harness.run_steps(3);
+        harness.key_press(egui::Key::Space);
+        harness.run_steps(3);
+    };
+    press_by_keyboard(&mut harness, "Save settings to a file…");
+    let text = std::fs::read_to_string(&file).unwrap();
+    assert!(text.contains("\"connections\": 5"), "{text}");
+    assert!(
+        !text.contains("not-in-the-file"),
+        "a password went into the file"
+    );
+    if let Some(d) = harness.state_mut().dialogs.options.as_mut() {
+        d.draft.connections = 2;
+    }
+    press_by_keyboard(&mut harness, "Load settings from a file…");
+    let d = harness.state().dialogs.options.as_ref().unwrap();
+    assert_eq!(d.draft.connections, 5);
+    assert_eq!(
+        d.draft.proxy.password, "not-in-the-file",
+        "this computer's password was lost"
+    );
+    *world.fake.chosen.lock().unwrap() = None;
+}
+
 #[test]
 fn two_cancelled_hand_offs_from_a_site_offer_to_leave_it_to_the_browser() {
     let _file = SETTINGS_FILE.lock().unwrap_or_else(|e| e.into_inner());

@@ -467,5 +467,11 @@
  "shows its properties": "özelliklerini gösterir",
  "opens the file": "dosyayı açar",
  "opens its folder": "klasörünü açar",
- "Add a download": "İndirme ekle"
+ "Add a download": "İndirme ekle",
+ "Give a finished file the date its server says it last changed": "Biten dosyaya, sunucusunun söylediği son değişiklik tarihini ver",
+ "What's new": "Yenilikler",
+ "Save settings to a file…": "Ayarları bir dosyaya kaydet…",
+ "Load settings from a file…": "Ayarları bir dosyadan yükle…",
+ "Saved to {}, without any password.": "{} konumuna parolasız kaydedildi.",
+ "Loaded. Look them over, then OK to use them.": "Yüklendi. Gözden geçirip kullanmak için Tamam'a basın."
 }

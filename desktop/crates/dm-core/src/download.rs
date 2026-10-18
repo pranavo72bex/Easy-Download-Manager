@@ -94,6 +94,9 @@ pub struct Options {
     /// losslessly, where an ffmpeg is there to do it. Players open an MP4;
     /// few open a `.ts`.
     pub remux: bool,
+    /// Give a finished file the date the server says it last changed
+    /// (`Last-Modified`) rather than when it was fetched.
+    pub server_dates: bool,
 }
 
 /// Fewer connections for one site: its host, or a suffix of it
@@ -590,6 +593,18 @@ async fn fetch_reporting(
     };
     // copy reports what it moved, so the finished size needs no extra stat.
     let (path, bytes, category) = assemble(&job, &info, options).await?;
+    // The server's date on the file, where asked: a file a person sorts by
+    // date then sorts by when it was made, not when it was fetched.
+    if options.server_dates {
+        if let Some(when) = info.modified.as_deref().and_then(http_date) {
+            // A file system that keeps no such date leaves the download's
+            // own, which is no reason to fail a whole file.
+            let _ = std::fs::File::options()
+                .write(true)
+                .open(&path)
+                .and_then(|file| file.set_modified(when));
+        }
+    }
 
     Ok(Finished {
         left_behind: None,
@@ -600,6 +615,14 @@ async fn fetch_reporting(
         verified,
         mirrors: job.sources.len(),
     })
+}
+
+/// An HTTP date (`Sun, 06 Nov 1994 08:49:37 GMT`) as a time a file can
+/// carry. `None` for anything else.
+pub(crate) fn http_date(text: &str) -> Option<std::time::SystemTime> {
+    let when = chrono::DateTime::parse_from_rfc2822(text.trim()).ok()?;
+    let seconds = u64::try_from(when.timestamp()).ok()?;
+    Some(std::time::UNIX_EPOCH + std::time::Duration::from_secs(seconds))
 }
 
 /// A playlist is text and small; anything claiming otherwise is not one.
@@ -2964,6 +2987,7 @@ mod tests {
             subtitles: false,
             room: Default::default(),
             remux: false,
+            server_dates: false,
             sign_in: None,
             system_proxy: false,
         }

@@ -467,5 +467,11 @@
  "shows its properties": "menampilkan propertinya",
  "opens the file": "membuka berkas",
  "opens its folder": "membuka foldernya",
- "Add a download": "Tambah unduhan"
+ "Add a download": "Tambah unduhan",
+ "Give a finished file the date its server says it last changed": "Beri berkas yang selesai tanggal terakhir diubah menurut servernya",
+ "What's new": "Yang baru",
+ "Save settings to a file…": "Simpan pengaturan ke berkas…",
+ "Load settings from a file…": "Muat pengaturan dari berkas…",
+ "Saved to {}, without any password.": "Disimpan ke {}, tanpa kata sandi.",
+ "Loaded. Look them over, then OK to use them.": "Dimuat. Periksa dulu, lalu OK untuk memakainya."
 }

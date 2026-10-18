@@ -467,5 +467,11 @@
  "shows its properties": "показывает свойства",
  "opens the file": "открывает файл",
  "opens its folder": "открывает папку",
- "Add a download": "Добавить загрузку"
+ "Add a download": "Добавить загрузку",
+ "Give a finished file the date its server says it last changed": "Ставить готовому файлу дату последнего изменения, которую сообщает сервер",
+ "What's new": "Что нового",
+ "Save settings to a file…": "Сохранить настройки в файл…",
+ "Load settings from a file…": "Загрузить настройки из файла…",
+ "Saved to {}, without any password.": "Сохранено в {}, без паролей.",
+ "Loaded. Look them over, then OK to use them.": "Загружено. Проверьте их и нажмите ОК, чтобы применить."
 }

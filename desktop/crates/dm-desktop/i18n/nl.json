@@ -467,5 +467,11 @@
  "shows its properties": "toont de eigenschappen",
  "opens the file": "opent het bestand",
  "opens its folder": "opent de map",
- "Add a download": "Download toevoegen"
+ "Add a download": "Download toevoegen",
+ "Give a finished file the date its server says it last changed": "Een voltooid bestand de datum geven waarop de server zegt dat het laatst is gewijzigd",
+ "What's new": "Wat is er nieuw",
+ "Save settings to a file…": "Instellingen in een bestand opslaan…",
+ "Load settings from a file…": "Instellingen uit een bestand laden…",
+ "Saved to {}, without any password.": "Opgeslagen in {}, zonder wachtwoorden.",
+ "Loaded. Look them over, then OK to use them.": "Geladen. Bekijk ze en klik op OK om ze te gebruiken."
 }

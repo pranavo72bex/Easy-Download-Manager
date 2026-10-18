@@ -24,6 +24,9 @@ pub struct Probe {
     /// What the server called it. Only used to sort a file whose name says
     /// nothing — plenty of media arrives from a URL with no extension.
     pub content_type: Option<String>,
+    /// When the server says the file last changed (`Last-Modified`), for a
+    /// finished file to carry that date where asked.
+    pub modified: Option<String>,
 }
 
 /// Learns a URL's length, name and whether it can be resumed.
@@ -119,6 +122,7 @@ pub async fn probe(
         header(reqwest::header::ETAG).or_else(|| header(reqwest::header::LAST_MODIFIED));
 
     let content_type = header(reqwest::header::CONTENT_TYPE);
+    let modified = header(reqwest::header::LAST_MODIFIED);
     let filename = filename_for(
         headers
             .get(reqwest::header::CONTENT_DISPOSITION)
@@ -129,6 +133,7 @@ pub async fn probe(
     );
 
     Ok(Probe {
+        modified,
         size,
         resumable,
         filename,
