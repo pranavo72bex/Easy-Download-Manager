@@ -42,7 +42,7 @@ button:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
   display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 12px; }
 .wrap.done .mark { background: var(--success); }
 .wrap.dead .mark { background: var(--error); }
-.title { flex: 1; min-width: 0; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.title { flex: 1; min-width: 9.5em; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .caret { flex: none; font-size: 12px; color: var(--text2); }
 .help, .close { width: 28px; flex: none; color: var(--weak); font-size: 13px; border-left: 1px solid var(--line); }
 .help:hover, .close:hover, .help:focus-visible, .close:focus-visible { background: var(--hover); color: var(--text); }

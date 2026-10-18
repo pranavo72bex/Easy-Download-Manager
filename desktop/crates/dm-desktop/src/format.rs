@@ -380,6 +380,16 @@ fn key_word(word: &str) -> &str {
 /// proportion to what each holds; a count ahead of the parts (read a moment
 /// apart) is given to those under way, up to each one's range.
 pub fn pieces_shown(pieces: &[(u64, u64)], downloaded: u64) -> Vec<u64> {
+    let open: Vec<bool> = pieces.iter().map(|&(_, done)| done > 0).collect();
+    pieces_shown_open(pieces, &open, downloaded)
+}
+
+/// [`pieces_shown`], knowing which pieces are under way (`open`): a count
+/// ahead of the parts on disk is shared among those evenly, as their
+/// connections fetch side by side. Given to the first piece in order, the
+/// first connection showed "1.5 MB of 3.0 MB" while the other fifteen,
+/// fetching too, said "waiting" (UI round 8).
+pub fn pieces_shown_open(pieces: &[(u64, u64)], open: &[bool], downloaded: u64) -> Vec<u64> {
     let mut shown: Vec<u64> = pieces.iter().map(|&(span, done)| done.min(span)).collect();
     let whole: u64 = pieces
         .iter()
@@ -428,6 +438,31 @@ pub fn pieces_shown(pieces: &[(u64, u64)], downloaded: u64) -> Vec<u64> {
         }
     } else if sum < target {
         let mut short = target - sum;
+        // Evenly among the pieces under way, a share at a time, each up to
+        // its range.
+        loop {
+            let room: Vec<usize> = (0..shown.len())
+                .filter(|&i| {
+                    open.get(i).copied().unwrap_or(false)
+                        && pieces
+                            .get(i)
+                            .zip(shown.get(i))
+                            .is_some_and(|(&(span, _), &s)| s < span)
+                })
+                .collect();
+            if short == 0 || room.is_empty() {
+                break;
+            }
+            let share = (short / room.len() as u64).max(1);
+            for i in room {
+                let (Some(&(span, _)), Some(s)) = (pieces.get(i), shown.get_mut(i)) else {
+                    continue;
+                };
+                let add = share.min(span - *s).min(short);
+                *s += add;
+                short -= add;
+            }
+        }
         for (i, &(span, _)) in pieces.iter().enumerate() {
             if short == 0 {
                 break;
@@ -492,6 +527,23 @@ mod tests {
             );
             assert!(shown.iter().zip(&pieces).all(|(s, (span, _))| s <= span));
         }
+    }
+
+    /// UI round 8: what is counted ahead of the parts goes evenly to the
+    /// pieces under way, not all to the first.
+    #[test]
+    fn a_count_ahead_of_the_parts_is_shared_by_the_pieces_under_way() {
+        let pieces = [(1000, 0); 4];
+        let shown = pieces_shown_open(&pieces, &[true, true, true, false], 600);
+        assert_eq!(shown, [200, 200, 200, 0]);
+        // Each up to its range, the rest to the others.
+        let shown = pieces_shown_open(&[(100, 0), (1000, 0)], &[true, true], 600);
+        assert_eq!(shown, [100, 500]);
+        // None under way: in order, as before.
+        assert_eq!(
+            pieces_shown_open(&[(100, 0), (100, 0)], &[false, false], 150),
+            [100, 50]
+        );
     }
 
     /// Gap 158: a key with a symbol is shown by it.

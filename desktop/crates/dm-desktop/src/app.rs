@@ -175,6 +175,12 @@ pub fn kind_of(row: &Entry) -> Option<Category> {
         .or_else(|| dm_core::category::by_name(&name_of(row)))
 }
 
+/// Whether the pointer is in `rect`.
+fn at_inside(ctx: &egui::Context, rect: egui::Rect) -> bool {
+    ctx.input(|i| i.pointer.interact_pos())
+        .is_some_and(|at| rect.contains(at))
+}
+
 /// What the Status column says.
 /// A site search's name and what it found, or why it could not.
 type SearchResult = (String, Result<dm_shell::lists::Crawled, String>);
@@ -196,7 +202,7 @@ pub fn set_retrying(now: HashMap<Id, (u32, u32)>) {
     RETRYING.with(|r| *r.borrow_mut() = now);
 }
 
-fn retrying(id: Id) -> Option<(u32, u32)> {
+pub(crate) fn retrying(id: Id) -> Option<(u32, u32)> {
     RETRYING.with(|r| r.borrow().get(&id).copied())
 }
 
@@ -297,6 +303,10 @@ fn status_in(row: &Entry, words: fn(&'static str) -> &'static str) -> String {
             Some(f) if f > 0.0 => format!("{} · {}%", words("Stopped"), whole_percent(f)),
             _ => words("Stopped").into(),
         },
+        // Its file moved or deleted since: said so in Properties and to the
+        // control protocol too, as the list says it (UI round 8: Properties
+        // said "Complete").
+        State::Completed if crate::table::gone(row) => words("File missing").into(),
         State::Completed => words("Complete").into(),
         // A server that wants a sign-in says where to give one.
         State::Failed(reason) if needs_sign_in(reason) => format!(
@@ -673,6 +683,10 @@ pub struct DmApp {
     pub sizes_told: HashMap<Id, u64>,
     /// F10 was pressed: the first menu opens on the next drawing of the bar.
     pub open_menu_by_key: bool,
+    /// A text field's right-click menu: the field and where it opened.
+    field_menu: Option<(egui::Id, egui::Pos2)>,
+    /// What that menu chose, given to the field on the next frame.
+    field_edits: Vec<egui::Event>,
     /// The menu bar's menus, by the ids their popups had last frame.
     menus: Vec<egui::Id>,
     /// Shift+F10 or the Menu key was pressed: the row with the keyboard's
@@ -771,6 +785,8 @@ impl DmApp {
             min_size_zoom: None,
             open_menu_by_key: false,
             menus: Vec::new(),
+            field_menu: None,
+            field_edits: Vec::new(),
             row_menu_by_key: false,
             menu_bottom: 0.0,
             saved: HashMap::new(),
@@ -1739,7 +1755,9 @@ impl DmApp {
             Command::MoveToQueue | Command::Properties => !targets.is_empty(),
             Command::Redownload => !targets.is_empty(),
             Command::UpdateLink => {
-                targets.len() == 1 && !matches!(targets[0].state, State::Running | State::Completed)
+                targets.len() == 1
+                    && (!matches!(targets[0].state, State::Running | State::Completed)
+                        || retrying(targets[0].id).is_some())
             }
             Command::RemoveFromQueue => any(|r| !r.queue.is_empty()),
             Command::MoveUp | Command::MoveDown => targets.len() == 1,
@@ -2470,6 +2488,12 @@ impl DmApp {
     /// The window, drawn once.
     pub fn ui(&mut self, ui: &mut egui::Ui) {
         let ctx = ui.ctx().clone();
+        // What a text field's menu chose on the frame before, given to the
+        // field as the keys would give it.
+        if !self.field_edits.is_empty() {
+            let edits = std::mem::take(&mut self.field_edits);
+            ctx.input_mut(|i| i.events.extend(edits));
+        }
         // The smallest window is the same on screen at any text size: given
         // in points, it grew with the zoom, and at 200% a relaunched window
         // opened past the bottom of the screen and could not be made
@@ -2591,6 +2615,7 @@ impl DmApp {
 
         crate::dialogs::show(self, &ctx);
         self.focus_ring(&ctx);
+        self.field_menu(&ctx);
 
         for command in std::mem::take(&mut self.queued) {
             self.run(command);
@@ -2760,6 +2785,58 @@ impl DmApp {
                 painter.rect_stroke(rect.expand(1.5), radius, stroke, egui::StrokeKind::Outside);
             }
             self.focus_ring = Some(rect);
+        }
+    }
+
+    /// Cut, Copy and Paste on a right-click in a text field, as in any
+    /// program: the keys worked, the menu was not there (UI round 8).
+    fn field_menu(&mut self, ctx: &egui::Context) {
+        let (clicked, at, escape) = ctx.input(|i| {
+            (
+                i.pointer.secondary_clicked(),
+                i.pointer.interact_pos(),
+                i.key_pressed(egui::Key::Escape),
+            )
+        });
+        if clicked {
+            // The field the right-click put the caret in.
+            let field = ctx
+                .memory(|m| m.focused())
+                .filter(|_| ctx.egui_wants_keyboard_input())
+                .and_then(|id| ctx.read_response(id).map(|r| (id, r.rect)))
+                .filter(|(_, rect)| at.is_some_and(|at| rect.contains(at)));
+            self.field_menu = field.zip(at).map(|((id, _), at)| (id, at));
+            return;
+        }
+        let Some((id, at)) = self.field_menu else {
+            return;
+        };
+        let mut chosen: Option<u8> = None;
+        let shown = egui::Area::new(egui::Id::unique("dm-field-menu"))
+            .order(egui::Order::Foreground)
+            .fixed_pos(at)
+            .show(ctx, |ui| {
+                egui::Frame::menu(ui.style()).show(ui, |ui| {
+                    for (n, word) in [t("Cut"), t("Copy"), t("Paste")].into_iter().enumerate() {
+                        if ui.button(word).clicked() {
+                            chosen = Some(n as u8);
+                        }
+                    }
+                })
+            });
+        // The clipboard read only for a paste.
+        let chosen = chosen.map(|n| match n {
+            0 => egui::Event::Cut,
+            1 => egui::Event::Copy,
+            _ => egui::Event::Paste(self.backend.platform.clipboard().unwrap_or_default()),
+        });
+        let away = ctx.input(|i| i.pointer.any_pressed()) && !at_inside(ctx, shown.response.rect);
+        if let Some(edit) = chosen {
+            self.field_edits.push(edit);
+            ctx.memory_mut(|m| m.request_focus(id));
+            self.field_menu = None;
+        } else if escape || away {
+            self.field_menu = None;
         }
     }
 
@@ -3078,6 +3155,7 @@ impl DmApp {
         // at 200% text in the smallest window they ran past the right edge
         // (UI round 5).
         let wrap = !modern || icons_only;
+        let in_front = self.dialogs.in_front();
         let mut draw = |ui: &mut egui::Ui| {
             for (command, icon, name, widest) in &buttons {
                 // The modern toolbar leads with one primary action.
@@ -3106,11 +3184,14 @@ impl DmApp {
                     .map(|k| format!(" ({})", format::shortcut(ui.ctx(), &k)))
                     .unwrap_or_default();
                 let said = format!("{title}{key}");
-                let response = if said != *name || chosen == ToolStyle::Icons || icons_only {
-                    response.on_hover_text(said)
-                } else {
-                    response
-                };
+                // None while a dialog is in front: one drawn over its title
+                // read as part of it (UI round 8).
+                let response =
+                    if (said != *name || chosen == ToolStyle::Icons || icons_only) && !in_front {
+                        response.on_hover_text(said)
+                    } else {
+                        response
+                    };
                 if response.clicked() {
                     self.queued.push(*command);
                 }

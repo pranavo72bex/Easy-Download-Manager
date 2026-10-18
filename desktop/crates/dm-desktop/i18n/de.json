@@ -499,5 +499,9 @@
  "Dragging files out of dm is not available on Linux yet: right-click › Open folder": "Dateien aus dm herausziehen geht unter Linux noch nicht: Rechtsklick › Ordner öffnen",
  "The list is sorted by a column: click its heading until the arrow goes, then drag to reorder.": "Die Liste ist nach einer Spalte sortiert: Klicken Sie auf deren Überschrift, bis der Pfeil verschwindet, und ziehen Sie dann zum Umordnen.",
  "Sites whose links work only once": "Websites, deren Links nur einmal funktionieren",
- "dm takes their downloads without first asking the server whether it can fetch them, which would use the link up. A link that needs the browser's sign-in then fails in dm rather than finishing in the browser.": "dm übernimmt deren Downloads, ohne zuerst beim Server nachzufragen, ob es sie laden kann – das würde den Link verbrauchen. Ein Link, der die Anmeldung des Browsers braucht, schlägt dann in dm fehl, statt im Browser fertig zu werden."
+ "dm takes their downloads without first asking the server whether it can fetch them, which would use the link up. A link that needs the browser's sign-in then fails in dm rather than finishing in the browser.": "dm übernimmt deren Downloads, ohne zuerst beim Server nachzufragen, ob es sie laden kann – das würde den Link verbrauchen. Ein Link, der die Anmeldung des Browsers braucht, schlägt dann in dm fehl, statt im Browser fertig zu werden.",
+ "Cut": "Ausschneiden",
+ "Copy": "Kopieren",
+ "Paste": "Einfügen",
+ "{} web page hidden||{} web pages hidden": "{} Webseite ausgeblendet||{} Webseiten ausgeblendet"
 }

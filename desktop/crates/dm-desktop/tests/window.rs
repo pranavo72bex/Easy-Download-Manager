@@ -6724,6 +6724,18 @@ fn a_retry_says_its_attempt() {
             .first()
             .is_some_and(|r| dm_desktop::app::status_of(r).starts_with("Retrying (attempt 2 of 5)"))
     });
+    // A new address is taken while it retries, and finishes it (UI round 8:
+    // the field was greyed as for a running download).
+    let id = harness.state().rows()[0].id;
+    harness.state_mut().selected = [id].into();
+    assert!(harness.state().enabled(Command::UpdateLink));
+    let good = world.url("file.zip");
+    harness.state().backend().set_url(id, &good).unwrap();
+    until(&mut harness, "the new address to finish it", |app| {
+        app.rows()
+            .first()
+            .is_some_and(|r| r.state == State::Completed && r.url == good)
+    });
 }
 
 /// Gap 154, then round 15: Enter answers "Already in the list", with the
@@ -7312,4 +7324,108 @@ fn the_columns_follow_the_window_until_one_is_dragged() {
         wide > narrow + 40.0,
         "the name stayed {narrow} wide, now {wide}"
     );
+}
+
+/// UI round 8: Options opens at its top however far down it was left,
+/// in a window with room for its buttons and in one where it scrolls as a
+/// page.
+#[test]
+fn options_opens_at_its_top_wherever_it_was_left() {
+    use egui::accesskit::Role;
+    for (zoom, size) in [
+        (1.0, egui::vec2(800.0, 480.0)),
+        (2.0, egui::vec2(720.0, 460.0)),
+    ] {
+        let world = world();
+        let mut harness = Harness::builder()
+            .with_size(size)
+            .build_ui_state(|ui, app: &mut DmApp| app.ui(ui), world.app());
+        harness.ctx.set_zoom_factor(zoom);
+        harness.run_steps(3);
+        harness.state_mut().run(Command::Options);
+        harness.run_steps(6);
+        let general = harness
+            .get_by_role_and_label(Role::Button, "General")
+            .rect();
+        // Over what scrolls: the settings below the tabs where they scroll
+        // on their own, the tabs themselves where the page scrolls.
+        harness.hover_at(if zoom > 1.0 {
+            general.center() + egui::vec2(0.0, 12.0)
+        } else {
+            egui::pos2(general.center().x, general.bottom() + 60.0)
+        });
+        for _ in 0..15 {
+            harness.event(egui::Event::MouseWheel {
+                unit: egui::MouseWheelUnit::Point,
+                delta: egui::vec2(0.0, -300.0),
+                phase: egui::TouchPhase::Move,
+                source: egui::MouseWheelSource::Wheel,
+                modifiers: egui::Modifiers::NONE,
+            });
+            harness.run_steps(1);
+        }
+        harness.run_steps(3);
+        // Below the dialog's title bar, where its scrolled part is seen.
+        let language_seen = |h: &Harness<'_, DmApp>| {
+            let dialog = h.get_by_role_and_label(Role::Window, "Options").rect();
+            // The first thing the page holds: Language where there is room
+            // for a row of settings, the tabs where there is not.
+            h.query_all_by_label(if zoom > 1.0 { "General" } else { "Language" })
+                .map(|n| n.rect())
+                .any(|at| at.top() >= dialog.top() + 40.0 && at.bottom() <= size.y / zoom)
+        };
+        assert!(
+            !language_seen(&harness),
+            "{zoom}x: the premise, scrolled past Language"
+        );
+        harness.state_mut().dialogs.options = None;
+        harness.run_steps(2);
+        harness.state_mut().run(Command::Options);
+        harness.run_steps(6);
+        assert!(
+            language_seen(&harness),
+            "{zoom}x {size:?}: reopened scrolled"
+        );
+    }
+}
+
+/// UI round 8: a right-click in a text field offers Cut, Copy and Paste,
+/// and Paste puts the clipboard in the field.
+#[test]
+fn a_text_field_has_cut_copy_and_paste_on_a_right_click() {
+    use egui::accesskit::Role;
+    let world = world();
+    let mut harness = world.harness();
+    click(&mut harness, "Add URL");
+    let link = world.url("file.zip");
+    *world.fake.clipboard.lock().unwrap() = Some(link.clone());
+    let field = harness
+        .get_by_role_and_label(Role::TextInput, "Address")
+        .rect();
+    harness.hover_at(field.center());
+    for pressed in [true, false] {
+        harness.event(egui::Event::PointerButton {
+            pos: field.center(),
+            button: egui::PointerButton::Secondary,
+            pressed,
+            modifiers: Default::default(),
+        });
+        harness.step();
+    }
+    harness.run_steps(2);
+    assert!(
+        harness.query_by_label("Cut").is_some(),
+        "no menu on a right-click"
+    );
+    assert!(harness.query_by_label("Copy").is_some());
+    click(&mut harness, "Paste");
+    harness.run_steps(3);
+    let typed = harness
+        .state()
+        .dialogs
+        .add_url
+        .as_ref()
+        .map(|d| d.address.clone());
+    assert_eq!(typed.as_deref(), Some(link.as_str()));
+    assert!(harness.query_by_label("Cut").is_none(), "the menu stayed");
 }

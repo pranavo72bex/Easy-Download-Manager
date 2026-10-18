@@ -161,6 +161,9 @@ pub struct Connection {
     pub start: u64,
     pub end: u64,
     pub done: u64,
+    /// Its part file is there: the server has answered for this range, so
+    /// it is under way though its first bytes may still be in a buffer.
+    pub started: bool,
 }
 
 /// What a row is added with, beyond its address: what the "Download details"
@@ -2138,14 +2141,14 @@ impl Queue {
                 .iter()
                 .enumerate()
                 .map(|(i, &(start, end))| {
-                    let on_disk = std::fs::metadata(parts.join(format!("part-{i:04}")))
-                        .map(|m| m.len())
-                        .unwrap_or(0);
+                    let part = std::fs::metadata(parts.join(format!("part-{i:04}"))).ok();
+                    let on_disk = part.as_ref().map_or(0, |m| m.len());
                     let span = (end - start).saturating_add(1);
                     Connection {
                         start,
                         end,
                         done: on_disk.min(span),
+                        started: part.is_some(),
                     }
                 })
                 .collect()

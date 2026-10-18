@@ -333,8 +333,9 @@ pub struct OptionsDialog {
     /// A row was just added to one of the tab's lists: its first field is
     /// scrolled into view and takes the keyboard.
     pub fresh: bool,
-    /// Just opened: the tab in force is brought into the strip's view.
-    pub fresh_tab: bool,
+    /// Frames left in which the dialog is brought to its top, as it opens:
+    /// one was not enough, being egui's discarded sizing pass (UI round 8).
+    pub fresh_tab: u8,
 }
 
 /// A list to import, some of whose addresses are already rows.
@@ -720,7 +721,7 @@ impl Dialogs {
                 .map(|c| [c.name.clone(), c.extensions.join(" "), c.sites.join(" ")])
                 .collect(),
             fresh: false,
-            fresh_tab: true,
+            fresh_tab: 3,
         });
     }
 
@@ -1241,17 +1242,18 @@ fn confirm_remove(app: &mut DmApp, ctx: &egui::Context) {
     let Some(ids) = app.dialogs.confirm_remove.clone() else {
         return;
     };
+    // A cancelled row has nothing left to lose: its parts went with the
+    // cancel (UI round 8: it was warned about as unfinished).
     let unfinished = ids
         .iter()
         .filter_map(|id| app.row(*id))
-        .any(|r| r.state != State::Completed);
+        .any(|r| !matches!(r.state, State::Completed | State::Cancelled));
     // Whether there is anything to throw away: a row added for later and
     // never started has fetched nothing, which the warning said it would
     // lose (round 13).
-    let fetched = ids
-        .iter()
-        .filter_map(|id| app.row(*id))
-        .any(|r| r.state != State::Completed && r.progress.downloaded > 0);
+    let fetched = ids.iter().filter_map(|id| app.row(*id)).any(|r| {
+        !matches!(r.state, State::Completed | State::Cancelled) && r.progress.downloaded > 0
+    });
     // The finished files still on disk that could go with their rows.
     let files: Vec<String> = ids
         .iter()
@@ -2268,16 +2270,9 @@ fn progress(app: &mut DmApp, ctx: &egui::Context) {
                             ui.end_row();
                             ui.label(t("Downloaded"));
                             // Digits of one width: these change every second.
-                            let fetched = match p.fraction() {
-                                Some(f) => {
-                                    format!(
-                                        "{} ({}%)",
-                                        format::bytes(p.downloaded),
-                                        crate::app::whole_percent(f)
-                                    )
-                                }
-                                None => format::bytes(p.downloaded),
-                            };
+                            // The percentage is Status's, above: said
+                            // twice it read as two numbers (UI round 8).
+                            let fetched = format::bytes(p.downloaded);
                             ui.label(crate::table::digits(ui, fetched));
                             ui.end_row();
                             ui.label(t("Speed"));
@@ -2338,11 +2333,12 @@ fn progress(app: &mut DmApp, ctx: &egui::Context) {
                                 |c: &dm_core::Connection| (c.end - c.start).saturating_add(1);
                             // Each held to its range and adding up to the
                             // Downloaded above (gap 166).
-                            let held = format::pieces_shown(
+                            let held = format::pieces_shown_open(
                                 &connections
                                     .iter()
                                     .map(|c| (span_of(c), c.done))
                                     .collect::<Vec<_>>(),
+                                &connections.iter().map(|c| c.started).collect::<Vec<_>>(),
                                 p.downloaded,
                             );
                             let finished = connections
@@ -2376,13 +2372,19 @@ fn progress(app: &mut DmApp, ctx: &egui::Context) {
                             for (n, (c, &done)) in connections.iter().zip(&held).enumerate() {
                                 let span = span_of(c);
                                 ui.horizontal(|ui| {
-                                    ui.label(format!("{:>3}", n + 1));
+                                    // Digits of one width, so the bars start
+                                    // in one line (UI round 8: 1's was 2 px
+                                    // left of the others).
+                                    ui.label(crate::table::digits(ui, format!("{:>3}", n + 1)));
                                     if done >= span {
                                         ui.label(
                                             RichText::new(tf("done, {}", &[&format::bytes(span)]))
                                                 .weak(),
                                         );
-                                    } else if done == 0 && row.state == State::Running {
+                                    // Waiting only where no request for it is
+                                    // open yet (UI round 8).
+                                    } else if done == 0 && !c.started && row.state == State::Running
+                                    {
                                         ui.label(
                                             RichText::new(tf(
                                                 "waiting, {}",
@@ -2720,8 +2722,12 @@ fn properties(app: &mut DmApp, ctx: &egui::Context) {
                                 said(ui, &row.referrer);
                                 ui.end_row();
                                 let name = ui.label(t("Address"));
+                                // Also while it waits to try again: a wrong
+                                // address is what it most needs then (UI
+                                // round 8).
                                 let editable =
-                                    !matches!(row.state, State::Running | State::Completed);
+                                    !matches!(row.state, State::Running | State::Completed)
+                                        || crate::app::retrying(row.id).is_some();
                                 let address = ui
                                     .add_enabled(
                                         editable,
@@ -2996,10 +3002,27 @@ fn links(app: &mut DmApp, ctx: &egui::Context) {
     window(ctx, "Download links")
         .open(&mut open)
         .show(ctx, |ui| {
+            // The links listed, and the pages left out of the list said
+            // so: "4 links" over three lines read as one lost (UI round 8).
+            let hidden = if d.hide_html {
+                d.items.iter().filter(|(u, _)| d.is_html(u)).count()
+            } else {
+                0
+            };
             ui.label(tf(
                 "{} links on {}",
-                &[&d.items.len(), &format::shown_url(&d.page)],
+                &[&(d.items.len() - hidden), &format::shown_url(&d.page)],
             ));
+            if hidden > 0 {
+                ui.label(
+                    RichText::new(crate::i18n::tn(
+                        "{} web page hidden||{} web pages hidden",
+                        hidden as u64,
+                        &[&hidden],
+                    ))
+                    .weak(),
+                );
+            }
             ui.horizontal(|ui| {
                 ui.checkbox(&mut d.hide_html, t("Hide HTML files"));
                 if ui.button(t("Check all")).clicked() {
@@ -4301,6 +4324,12 @@ fn options(app: &mut DmApp, ctx: &egui::Context) {
             .fixed_size(egui::vec2(wide, tall - 60.0))
     };
     frame.show(ctx, |ui| {
+        // At its top as it opens, in a window where the whole dialog
+        // scrolls: asked of the tab, the request went to the tabs' own
+        // sideways strip and the page stayed where it was left (UI round 8).
+        if d.fresh_tab > 0 {
+            ui.scroll_to_cursor(Some(egui::Align::TOP));
+        }
         // The tabs scroll sideways where they do not all fit.
         egui::ScrollArea::horizontal()
             .id_salt("options-tabs")
@@ -4317,13 +4346,14 @@ fn options(app: &mut DmApp, ctx: &egui::Context) {
                         // To the top: in a short window the dialog itself
                         // scrolls, and reopened where it was left, its tabs
                         // out of view (UI round 7).
-                        if d.tab == tab && d.fresh_tab {
+                        if d.tab == tab && d.fresh_tab > 0 {
                             picked.scroll_to_me(Some(egui::Align::TOP));
                         }
                     }
                 });
             });
-        d.fresh_tab = false;
+        let fresh = d.fresh_tab > 0;
+        d.fresh_tab = d.fresh_tab.saturating_sub(1);
         ui.separator();
         if short {
             settings(ui, d);
@@ -4360,14 +4390,18 @@ fn options(app: &mut DmApp, ctx: &egui::Context) {
                 // at 960 px General's last line was cut off with no sign of
                 // more (gap 148).
                 ui.spacing_mut().scroll = crate::theme::steady_scroll();
-                egui::ScrollArea::vertical()
+                let mut area = egui::ScrollArea::vertical()
                     // Each tab its own place: one shared position opened
                     // Browser or Downloads part-way down (UI round 2).
                     .id_salt(("options-tab", d.tab))
                     .max_height(body)
                     .min_scrolled_height(body)
-                    .auto_shrink([false, false])
-                    .show(ui, |ui| settings(ui, d));
+                    .auto_shrink([false, false]);
+                // At its top as the dialog opens, wherever it was left.
+                if fresh {
+                    area = area.vertical_scroll_offset(0.0);
+                }
+                area.show(ui, |ui| settings(ui, d));
             });
         });
     });

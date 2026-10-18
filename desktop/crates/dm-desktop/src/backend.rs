@@ -350,7 +350,31 @@ impl Backend {
 
     pub fn set_url(&self, id: Id, url: &str) -> Result<(), String> {
         let url = self.settings().with_login(url.trim());
-        if self.block_on(self.queue.set_url(id, &url)) {
+        if !dm_core::queue::accepted(&url) {
+            return Err("it must be a link dm can download".into());
+        }
+        // A download retrying between attempts is the one most likely to
+        // need a new address (UI round 8): stopped, given it, and started
+        // again, rather than refused as running.
+        let was_running = self
+            .block_on(self.queue.get(id))
+            .is_some_and(|row| row.state == dm_core::State::Running);
+        if was_running {
+            self.pause(id);
+            let deadline = std::time::Instant::now() + std::time::Duration::from_secs(5);
+            while std::time::Instant::now() < deadline
+                && self
+                    .block_on(self.queue.get(id))
+                    .is_some_and(|row| row.state == dm_core::State::Running)
+            {
+                std::thread::sleep(std::time::Duration::from_millis(25));
+            }
+        }
+        let changed = self.block_on(self.queue.set_url(id, &url));
+        if was_running {
+            self.resume(id);
+        }
+        if changed {
             Ok(())
         } else {
             Err(
