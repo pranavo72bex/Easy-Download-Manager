@@ -658,6 +658,10 @@ pub fn apply(ctx: &Context, theme: Theme) {
         // a folder's path and a field's name showed the text cursor and
         // could be dragged over (UI round 1). Fields keep theirs.
         style.interaction.selectable_labels = false;
+        // Every scroll area's bar seen without the pointer, with its own
+        // room: Properties at 200% and the progress window at the smallest
+        // size cut their last fields off with no sign of more (UI round 4).
+        style.spacing.scroll = steady_scroll();
         // Type sizes: body 14, caption 12, and 18 for titles.
         style.text_styles = [
             (

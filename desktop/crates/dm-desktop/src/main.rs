@@ -473,7 +473,12 @@ fn tray(wake: egui::Context, send: mpsc::Sender<Tray>) -> Result<TrayMade, Strin
         }
     }));
 
-    let builder = TrayIconBuilder::new().with_icon(icon).with_tooltip(tooltip);
+    // One id across launches: panels remember an item's place, and whether
+    // it is hidden, by it, and it was the process's number (UI round 4).
+    let builder = TrayIconBuilder::new()
+        .with_id("dm")
+        .with_icon(icon)
+        .with_tooltip(tooltip);
     // A name for panels that list items by it (its D-Bus title was empty,
     // UI round 2); on a Mac a title is text beside the icon, so not there.
     #[cfg(target_os = "linux")]
@@ -1076,7 +1081,14 @@ fn main() {
         .with_title("dm")
         .with_app_id("dm")
         .with_inner_size([960.0, 660.0])
-        .with_min_inner_size([dm_desktop::app::MIN_WINDOW.0, dm_desktop::app::MIN_WINDOW.1])
+        // Half the smallest at first: eframe applies this before the saved
+        // text size, so at 200% the full one forced a 1440×920 window over
+        // the size it was left at (UI round 4). The window sets the real
+        // one, divided by the text size, on its first frame.
+        .with_min_inner_size([
+            dm_desktop::app::MIN_WINDOW.0 / 2.0,
+            dm_desktop::app::MIN_WINDOW.1 / 2.0,
+        ])
         // The login item's launch opens nothing; it waits in the tray.
         .with_visible(!hidden);
     if let Some(icon) = window_icon() {

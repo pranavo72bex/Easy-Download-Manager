@@ -1341,6 +1341,7 @@ fn confirm_cancel(app: &mut DmApp, ctx: &egui::Context) {
     // Gone, or finished (or stopped) while it was asked: nothing to cancel,
     // and the question about a finished file stood beside Download
     // complete (UI round 3).
+    let fetched = app.row(id).is_some_and(|r| r.progress.downloaded > 0);
     let Some(name) = app
         .row(id)
         .filter(|r| matches!(r.state, State::Running | State::Queued | State::Paused))
@@ -1352,7 +1353,9 @@ fn confirm_cancel(app: &mut DmApp, ctx: &egui::Context) {
     let (mut cancel, mut keep) = (false, false);
     window("Cancel this download?").show(ctx, |ui| {
         ui.strong(&*crate::bidi::visual(&name));
-        ui.label(t("Cancelling it throws away what has been fetched."));
+        if fetched {
+            ui.label(t("Cancelling it throws away what has been fetched."));
+        }
         ui.horizontal(|ui| {
             cancel = ui.button(t("Yes, cancel")).clicked();
             keep = primary_worded(ui, t("Keep downloading")).clicked() || enter_free(ui);
@@ -3108,7 +3111,8 @@ fn site_files(app: &mut DmApp, ctx: &egui::Context) {
         field(ui, t("Skip paths containing"), &mut d.exclude, 420.0);
         // Saving and the saved list come before the results, which can
         // run long enough to push anything below them off the screen.
-        ui.horizontal(|ui| {
+        // Wrapped: in the smallest window its Save search ran off the edge.
+        ui.horizontal_wrapped(|ui| {
             field(ui, t("Save this search as"), &mut d.name, 160.0);
             let name = ui.label(t("Run every, hours (0 only by hand)"));
             ui.add(number_box(&mut d.every_hours).range(0..=24 * 31))
@@ -3239,6 +3243,7 @@ fn update_link(app: &mut DmApp, ctx: &egui::Context) {
     };
     let mut open = true;
     let mut ok = false;
+    let mut cancel = false;
     window("Update download link")
         .open(&mut open)
         .show(ctx, |ui| {
@@ -3247,9 +3252,16 @@ fn update_link(app: &mut DmApp, ctx: &egui::Context) {
             if !says.is_empty() {
                 ui.colored_label(warn(ui), says.as_str());
             }
-            ok |= primary(ui, "OK").clicked() || enter_free(ui);
+            // Cancel beside OK, as every dialog has (UI round 4).
+            ui.horizontal(|ui| {
+                ok |= primary(ui, "OK").clicked() || enter_free(ui);
+                if ui.button(t("Cancel")).clicked() {
+                    cancel = true;
+                }
+            });
         });
-    if ok {
+    open &= !cancel;
+    if ok && open {
         match app.backend.set_url(*id, address) {
             Ok(()) => open = false,
             Err(e) => *says = e,
@@ -3267,6 +3279,7 @@ fn move_to_queue(app: &mut DmApp, ctx: &egui::Context) {
     };
     let mut open = true;
     let mut ok = false;
+    let mut cancel = false;
     let known = app.backend.queues();
     // The queue is held as shown, so the field reads in the language in
     // force, and taken back to dm's own name on OK: typing "Principal" in
@@ -3280,9 +3293,13 @@ fn move_to_queue(app: &mut DmApp, ctx: &egui::Context) {
             field(ui, t("Or a new queue"), queue, 240.0),
             focus,
         ));
-        ok |= primary(ui, "OK").clicked() || enter_free(ui);
+        ui.horizontal(|ui| {
+            ok |= primary(ui, "OK").clicked() || enter_free(ui);
+            cancel = ui.button(t("Cancel")).clicked();
+        });
     });
-    if ok && !queue.trim().is_empty() {
+    open &= !cancel;
+    if ok && open && !queue.trim().is_empty() {
         let named = crate::i18n::queue_named(queue);
         for id in ids.iter() {
             app.backend.set_queue(*id, &named);
@@ -3601,7 +3618,9 @@ fn options(app: &mut DmApp, ctx: &egui::Context) {
     // are when another tab is picked; a tab longer than that scrolls.
     // Sized from the first frame: a window that grew into its size over a
     // few frames moved under the pointer, centred as it is.
-    let tall = (ctx.content_rect().height() - 60.0).clamp(360.0, 680.0);
+    // No taller than the window either: at 150% in the smallest window its
+    // OK sat below the bottom edge (UI round 4).
+    let tall = (ctx.content_rect().height() - 24.0).clamp(240.0, 680.0);
     let Some(d) = app.dialogs.options.as_mut() else {
         return;
     };
@@ -3611,7 +3630,6 @@ fn options(app: &mut DmApp, ctx: &egui::Context) {
     // tabs, the title and OK were off its edges (UI round 3).
     let wide = (ctx.content_rect().width() - 32.0).clamp(320.0, 660.0);
     window("Options")
-        .min_width(wide)
         .fixed_size(egui::vec2(wide, tall - 60.0))
         .open(&mut open)
         .show(ctx, |ui| {
@@ -3628,8 +3646,10 @@ fn options(app: &mut DmApp, ctx: &egui::Context) {
                 });
             });
         ui.separator();
-        // Room kept below for a warning and the buttons.
-        let body = (ui.available_height() - 80.0).max(120.0);
+        // Room kept below for the buttons, and for a warning only when there
+        // is one: a fixed 80 left two settings showing at 720×460 (UI round 4).
+        let below = 44.0 + if d.says.is_empty() { 0.0 } else { 32.0 };
+        let body = (ui.available_height() - below).max(120.0);
         // A bar that is always drawn where a tab is longer than the room,
         // rather than one that shows only under the pointer: at 960 px
         // General's last line was cut off with no sign of more (gap 148).
@@ -3678,7 +3698,7 @@ fn options(app: &mut DmApp, ctx: &egui::Context) {
                 ui.checkbox(&mut s.ask_panel_downloads, t("Ask where to save a video from the browser's panel"));
                 ui.checkbox(&mut s.server_dates, t("Give a finished file the date its server says it last changed"));
                 section(ui, t("The list"));
-                ui.horizontal(|ui| {
+                ui.horizontal_wrapped(|ui| {
                     ui.label(t("Double-clicking a download"));
                     for (word, name) in [
                         ("properties", t("shows its properties")),
@@ -3688,7 +3708,7 @@ fn options(app: &mut DmApp, ctx: &egui::Context) {
                         ui.radio_value(&mut s.double_click, word.to_string(), name);
                     }
                 });
-                ui.horizontal(|ui| {
+                ui.horizontal_wrapped(|ui| {
                     ui.label(t("Look"));
                     for (word, name) in THEMES {
                         ui.radio_value(&mut s.theme, word.to_string(), t(name));

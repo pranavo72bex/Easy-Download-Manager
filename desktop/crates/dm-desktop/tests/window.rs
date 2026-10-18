@@ -2591,6 +2591,47 @@ fn cancel_download_in_the_progress_window_asks_first() {
     });
 }
 
+/// Options stays inside the window at large text sizes: at 200% in a
+/// 960×660 window, and at 150% in the smallest, its tabs and OK were off
+/// the window's left edge (UI rounds 3 and 4).
+#[test]
+fn options_fits_the_window_at_large_text() {
+    use egui::accesskit::Role;
+    for (zoom, size) in [
+        (2.0, egui::vec2(960.0, 660.0)),
+        (1.5, egui::vec2(720.0, 460.0)),
+    ] {
+        let world = world();
+        let mut harness = Harness::builder()
+            .with_size(size)
+            .build_ui_state(|ui, app: &mut DmApp| app.ui(ui), world.app());
+        harness.ctx.set_zoom_factor(zoom);
+        harness.run_steps(3);
+        harness.state_mut().run(Command::Options);
+        harness.run_steps(6);
+        let points = size / zoom;
+        for name in ["OK", "General"] {
+            let at = harness
+                .query_all_by_label(name)
+                .find(|n| {
+                    matches!(
+                        n.accesskit_node().role(),
+                        Role::Button | Role::Tab | Role::Label | Role::ListBoxOption
+                    )
+                })
+                .unwrap_or_else(|| harness.get_by_label(name))
+                .rect();
+            assert!(
+                at.left() >= 0.0
+                    && at.right() <= points.x
+                    && at.top() >= 0.0
+                    && at.bottom() <= points.y,
+                "{zoom}x {size:?}: {name} at {at:?} is outside the window"
+            );
+        }
+    }
+}
+
 #[test]
 fn two_cancelled_hand_offs_from_a_site_offer_to_leave_it_to_the_browser() {
     let _file = SETTINGS_FILE.lock().unwrap_or_else(|e| e.into_inner());
