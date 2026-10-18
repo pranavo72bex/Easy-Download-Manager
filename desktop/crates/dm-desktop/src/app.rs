@@ -151,10 +151,14 @@ pub fn category_word(c: Category) -> String {
 /// The name a row is shown by: the file's, or a guess at it until the
 /// server says.
 pub fn name_of(row: &Entry) -> String {
-    if row.filename.is_empty() {
-        format::provisional(&row.url)
-    } else {
-        row.filename.clone()
+    if !row.filename.is_empty() {
+        return row.filename.clone();
+    }
+    // The name chosen in Download details, until the file is saved under
+    // it: a row added for later showed its address's name (round 13).
+    match row.save_name.as_deref().map(str::trim) {
+        Some(chosen) if !chosen.is_empty() => chosen.to_string(),
+        _ => format::provisional(&row.url),
     }
 }
 
@@ -348,12 +352,34 @@ pub fn two_addresses(text: &str) -> bool {
 pub fn links_in(text: &str) -> Vec<String> {
     let mut found: Vec<String> = Vec::new();
     for word in text.split(|c: char| c.is_whitespace() || "<>\"'".contains(c)) {
-        let word = address_in(word).replace("&amp;", "&");
+        let word = sentence_trimmed(&address_in(word).replace("&amp;", "&")).to_string();
         if looks_downloadable(&word).is_some() && !found.contains(&word) {
             found.push(word);
         }
     }
     found
+}
+
+/// An address without the sentence around it: a full stop, comma or
+/// other mark after it, and a `)` or `]` that closes a bracket opened
+/// before it. "Get http://h/e.zip." fetched `e.zip.` (round 13). A
+/// bracket the address opened itself — an IPv6 host's — stays.
+fn sentence_trimmed(address: &str) -> &str {
+    let mut address = address;
+    loop {
+        let before = address.len();
+        address = address.trim_end_matches(['.', ',', ';', ':', '!', '?']);
+        for (open, close) in [('(', ')'), ('[', ']')] {
+            if address.ends_with(close)
+                && address.matches(open).count() < address.matches(close).count()
+            {
+                address = &address[..address.len() - 1];
+            }
+        }
+        if address.len() == before {
+            return address;
+        }
+    }
 }
 
 /// The address in `word`: all of it where it starts with one, else from

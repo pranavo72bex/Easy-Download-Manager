@@ -443,5 +443,9 @@
  "{} of the {} addresses in this list is already in dm's list.||{} of the {} addresses in this list are already in dm's list.": "{} van de {} adressen in deze lijst staat al in de lijst van dm.||{} van de {} adressen in deze lijst staan al in de lijst van dm.",
  "queue:to": "in",
  "No file chooser on this desktop to pick an application with; Open uses the file's usual one.": "Geen bestandskiezer op dit bureaublad om een programma te kiezen; Openen gebruikt het gebruikelijke programma van het bestand.",
- "{} is taken in that folder, so it is called {}.": "{} bestaat al in die map, dus het heet {}."
+ "{} is taken in that folder, so it is called {}.": "{} bestaat al in die map, dus het heet {}.",
+ "{} (already in the list)": "{} (staat al in de lijst)",
+ "No release of dm has been published yet, so there is nothing to update to (this is {}).": "Er is nog geen versie van dm uitgebracht, dus er is niets om naar bij te werken (dit is {}).",
+ "This download has not fetched anything yet. Delete it from the list?": "Deze download heeft nog niets opgehaald. Uit de lijst verwijderen?",
+ "These downloads have not fetched anything yet. Delete them from the list?": "Deze downloads hebben nog niets opgehaald. Uit de lijst verwijderen?"
 }

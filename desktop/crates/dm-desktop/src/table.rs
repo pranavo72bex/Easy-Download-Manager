@@ -125,8 +125,13 @@ pub fn show(app: &mut DmApp, ui: &mut egui::Ui) {
                 .sense(egui::Sense::click_and_drag())
                 .cell_layout(egui::Layout::left_to_right(egui::Align::Center));
             for (n, column) in columns.iter().enumerate() {
+                // The last takes what is left, but never less than its own
+                // width: Folder was left 80 px and read "/home/p/d…" in a
+                // maximized window (round 13); the list scrolls sideways.
                 table = table.column(if n + 1 == columns.len() {
-                    Width::remainder().at_least(80.0).clip(true)
+                    Width::remainder()
+                        .at_least(initial(*column, queue_empty))
+                        .clip(true)
                 } else if *column == Column::Name {
                     Width::initial(name_width).at_least(120.0).clip(true)
                 } else {
@@ -308,7 +313,7 @@ fn initial(column: Column, queue_empty: bool) -> f32 {
     match column {
         Column::Name => 220.0,
         Column::Queue if queue_empty => 60.0,
-        Column::Queue => 110.0,
+        Column::Queue => 140.0,
         Column::Size => 76.0,
         Column::Status => 170.0,
         Column::TimeLeft => 88.0,
@@ -396,9 +401,10 @@ fn cell(
                 folder = planned.unwrap_or_default().to_string();
             }
             if !folder.is_empty() {
+                // A cell cut short shows its whole text on hover by itself;
+                // a tooltip of our own drew the path twice (round 13).
                 let drawn = ui.label(&*crate::bidi::visual(&folder));
                 crate::bidi::said_as(&drawn, &folder);
-                drawn.on_hover_text(&folder);
             }
         }
     }

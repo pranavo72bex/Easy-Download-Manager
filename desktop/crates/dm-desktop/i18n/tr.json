@@ -443,5 +443,9 @@
  "{} of the {} addresses in this list is already in dm's list.||{} of the {} addresses in this list are already in dm's list.": "Bu listedeki adreslerin {} tanesi ({} adresten) zaten dm'in listesinde.",
  "queue:to": "kuyruk:",
  "No file chooser on this desktop to pick an application with; Open uses the file's usual one.": "Bu masaüstünde uygulama seçmek için dosya seçici yok; Aç, dosyanın her zamanki uygulamasını kullanır.",
- "{} is taken in that folder, so it is called {}.": "{} o klasörde zaten var, bu yüzden adı {}."
+ "{} is taken in that folder, so it is called {}.": "{} o klasörde zaten var, bu yüzden adı {}.",
+ "{} (already in the list)": "{} (zaten listede)",
+ "No release of dm has been published yet, so there is nothing to update to (this is {}).": "Henüz yayımlanmış bir dm sürümü yok, bu yüzden güncellenecek bir şey yok (bu {}).",
+ "This download has not fetched anything yet. Delete it from the list?": "Bu indirme henüz hiçbir şey almadı. Listeden silinsin mi?",
+ "These downloads have not fetched anything yet. Delete them from the list?": "Bu indirmeler henüz hiçbir şey almadı. Listeden silinsinler mi?"
 }

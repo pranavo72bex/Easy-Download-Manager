@@ -1113,10 +1113,15 @@ async fn page_links(
     };
     let id = hand_id("l", 0, now());
     let count = urls.len();
+    // The site's sign-in where the popup hands it over, as for one link:
+    // "Download selected links" fetched a signed-in file without it and got
+    // a 403 (round 13).
+    let cookies = cookies_for(page, tab_store(tab, "").as_deref()).await;
     port.send(&Request::Batch(dm_protocol::Batch {
         id: id.clone(),
         page: page.to_string(),
         urls,
+        cookies,
     }))?;
     let deadline = now() + decide::TAKEN_WITHIN_MS;
     loop {

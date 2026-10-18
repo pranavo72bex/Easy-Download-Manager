@@ -443,5 +443,9 @@
  "{} of the {} addresses in this list is already in dm's list.||{} of the {} addresses in this list are already in dm's list.": "{} из {} адресов этого списка уже есть в списке dm.||{} из {} адресов этого списка уже есть в списке dm.||{} из {} адресов этого списка уже есть в списке dm.",
  "queue:to": "в",
  "No file chooser on this desktop to pick an application with; Open uses the file's usual one.": "На этом рабочем столе нет окна выбора файлов, чтобы выбрать программу; «Открыть» использует обычную для этого файла.",
- "{} is taken in that folder, so it is called {}.": "Имя {} в этой папке занято, поэтому файл называется {}."
+ "{} is taken in that folder, so it is called {}.": "Имя {} в этой папке занято, поэтому файл называется {}.",
+ "{} (already in the list)": "{} (уже в списке)",
+ "No release of dm has been published yet, so there is nothing to update to (this is {}).": "Ни одной версии dm ещё не опубликовано, обновляться не на что (это {}).",
+ "This download has not fetched anything yet. Delete it from the list?": "Эта загрузка ещё ничего не получила. Удалить её из списка?",
+ "These downloads have not fetched anything yet. Delete them from the list?": "Эти загрузки ещё ничего не получили. Удалить их из списка?"
 }

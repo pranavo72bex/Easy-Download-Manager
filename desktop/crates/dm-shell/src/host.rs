@@ -403,7 +403,12 @@ pub fn answer(
             rules: catch_rules(home),
         }),
 
-        Ok(Asked::Batch(Batch { id, page, urls })) => {
+        Ok(Asked::Batch(Batch {
+            id,
+            page,
+            urls,
+            cookies,
+        })) => {
             let links: Vec<String> = urls
                 .into_iter()
                 .map(|u| u.trim().to_string())
@@ -421,6 +426,8 @@ pub fn answer(
                         referrer: page,
                         ask: true,
                         links,
+                        // Scoped to the page's site by the dialog's sign-in.
+                        cookies,
                         ..Request::default()
                     },
                 );
@@ -887,6 +894,7 @@ mod tests {
                 "mailto:a@e.com".into(),
                 "https://e.com/b.iso".into(),
             ],
+            cookies: "sid=1".into(),
         })
         .to_frame();
         let (reply, _) = ask(dir.path(), frame, true, Ok(()));
@@ -903,11 +911,14 @@ mod tests {
         assert_eq!(filed.links, ["https://e.com/a.zip", "https://e.com/b.iso"]);
         assert_eq!(filed.referrer, "https://e.com/list.html");
         assert!(filed.ask);
+        // The site's sign-in goes with them, for the dialog to scope.
+        assert_eq!(filed.cookies, "sid=1");
 
         let none = Asked::Batch(Batch {
             id: "links-2".into(),
             page: "https://e.com/".into(),
             urls: vec!["mailto:a@e.com".into()],
+            ..Batch::default()
         })
         .to_frame();
         let (reply, _) = ask(dir.path(), none, true, Ok(()));

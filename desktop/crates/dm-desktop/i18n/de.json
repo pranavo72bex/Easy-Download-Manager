@@ -443,5 +443,9 @@
  "{} of the {} addresses in this list is already in dm's list.||{} of the {} addresses in this list are already in dm's list.": "{} der {} Adressen in dieser Liste ist schon in der Liste von dm.||{} der {} Adressen in dieser Liste sind schon in der Liste von dm.",
  "queue:to": "in",
  "No file chooser on this desktop to pick an application with; Open uses the file's usual one.": "Auf diesem Desktop gibt es keine Dateiauswahl, um ein Programm zu wählen; Öffnen nimmt das übliche Programm der Datei.",
- "{} is taken in that folder, so it is called {}.": "{} ist in diesem Ordner schon vergeben, daher heißt die Datei {}."
+ "{} is taken in that folder, so it is called {}.": "{} ist in diesem Ordner schon vergeben, daher heißt die Datei {}.",
+ "{} (already in the list)": "{} (schon in der Liste)",
+ "No release of dm has been published yet, so there is nothing to update to (this is {}).": "Es wurde noch keine Version von dm veröffentlicht, daher gibt es nichts zu aktualisieren (dies ist {}).",
+ "This download has not fetched anything yet. Delete it from the list?": "Dieser Download hat noch nichts geladen. Aus der Liste löschen?",
+ "These downloads have not fetched anything yet. Delete them from the list?": "Diese Downloads haben noch nichts geladen. Aus der Liste löschen?"
 }

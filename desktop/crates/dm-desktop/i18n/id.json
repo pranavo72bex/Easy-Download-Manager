@@ -443,5 +443,9 @@
  "{} of the {} addresses in this list is already in dm's list.||{} of the {} addresses in this list are already in dm's list.": "{} dari {} alamat di daftar ini sudah ada di daftar dm.",
  "queue:to": "ke",
  "No file chooser on this desktop to pick an application with; Open uses the file's usual one.": "Tidak ada pemilih berkas di desktop ini untuk memilih aplikasi; Buka memakai aplikasi biasa untuk berkas itu.",
- "{} is taken in that folder, so it is called {}.": "{} sudah ada di folder itu, jadi namanya {}."
+ "{} is taken in that folder, so it is called {}.": "{} sudah ada di folder itu, jadi namanya {}.",
+ "{} (already in the list)": "{} (sudah ada di daftar)",
+ "No release of dm has been published yet, so there is nothing to update to (this is {}).": "Belum ada rilis dm yang diterbitkan, jadi tidak ada yang bisa diperbarui (ini {}).",
+ "This download has not fetched anything yet. Delete it from the list?": "Unduhan ini belum mengambil apa pun. Hapus dari daftar?",
+ "These downloads have not fetched anything yet. Delete them from the list?": "Unduhan ini belum mengambil apa pun. Hapus dari daftar?"
 }

@@ -103,6 +103,9 @@ pub struct LinksImport {
     pub sign_in: Option<dm_core::cookies::SignIn>,
     pub cookies: String,
     pub items: Vec<(String, bool)>,
+    /// Those already in dm's list (bare addresses): offered unticked and
+    /// said so, rather than fetched again as `name (1).zip` without a word.
+    pub listed: std::collections::HashSet<String>,
     pub hide_html: bool,
     pub found: std::sync::Arc<std::sync::Mutex<std::collections::HashMap<String, Found>>>,
 }
@@ -480,11 +483,25 @@ impl Dialogs {
                 }
             });
         }
+        let listed: std::collections::HashSet<String> = backend
+            .list()
+            .iter()
+            .filter(|r| r.state != State::Cancelled)
+            .map(|r| bare(&r.url))
+            .collect();
         self.links = Some(LinksImport {
             page: request.referrer,
             sign_in,
             cookies: request.cookies,
-            items: request.links.into_iter().map(|u| (u, true)).collect(),
+            items: request
+                .links
+                .into_iter()
+                .map(|u| {
+                    let new = !listed.contains(&bare(&u));
+                    (u, new)
+                })
+                .collect(),
+            listed,
             hide_html: true,
             found,
         });
@@ -1047,6 +1064,13 @@ fn confirm_remove(app: &mut DmApp, ctx: &egui::Context) {
         .iter()
         .filter_map(|id| app.row(*id))
         .any(|r| r.state != State::Completed);
+    // Whether there is anything to throw away: a row added for later and
+    // never started has fetched nothing, which the warning said it would
+    // lose (round 13).
+    let fetched = ids
+        .iter()
+        .filter_map(|id| app.row(*id))
+        .any(|r| r.state != State::Completed && r.progress.downloaded > 0);
     let (mut yes, mut no) = (false, false);
     let title = if unfinished {
         t("Delete unfinished downloads")
@@ -1063,6 +1087,12 @@ fn confirm_remove(app: &mut DmApp, ctx: &egui::Context) {
             // Whole sentences, one for each number, since languages do not
             // build them from the same pieces.
             ui.label(match (unfinished, ids.len()) {
+                (true, 1) if !fetched => {
+                    t("This download has not fetched anything yet. Delete it from the list?")
+                }
+                (true, _) if !fetched => {
+                    t("These downloads have not fetched anything yet. Delete them from the list?")
+                }
                 (true, 1) => t(
                     "This download is not finished. Deleting it throws away what has been fetched.",
                 ),
@@ -1472,10 +1502,16 @@ fn add_url(app: &mut DmApp, ctx: &egui::Context) {
     let mut address = d.address.trim().to_string();
     if crate::app::looks_downloadable(&address).is_none() {
         d.says = t("That is not a link dm can download.").into();
+        // The address keeps the keyboard, to be put right: after the
+        // warning, typing went nowhere (round 13).
+        app.dialogs.focus_on("Add URL");
         return;
     }
     if crate::app::two_addresses(&address) {
         d.says = t("That is two addresses run together. Add one at a time, or several with Program › Add links from clipboard.").into();
+        // The address keeps the keyboard, to be put right: after the
+        // warning, typing went nowhere (round 13).
+        app.dialogs.focus_on("Add URL");
         return;
     }
     if d.authorize && !d.login.is_empty() {
@@ -2308,6 +2344,7 @@ fn series(app: &mut DmApp, ctx: &egui::Context) {
     let mut open = true;
     let mut add: Option<bool> = None;
     let before = (d.template.clone(), d.from.clone(), d.to.clone(), d.width);
+    let mut cancel = false;
     window("Add numbered series")
         .open(&mut open)
         .show(ctx, |ui| {
@@ -2363,9 +2400,12 @@ fn series(app: &mut DmApp, ctx: &egui::Context) {
                 if ui.button(t("Add for later")).clicked() {
                     add = Some(true);
                 }
+                if ui.button(t("Cancel")).clicked() {
+                    cancel = true;
+                }
             });
         });
-    if !open {
+    if !open || cancel {
         app.dialogs.series = None;
         return;
     }
@@ -2483,6 +2523,11 @@ fn links(app: &mut DmApp, ctx: &egui::Context) {
                                 .map(|f| f.name.clone())
                                 .filter(|n| !n.is_empty())
                                 .unwrap_or_else(|| format::provisional(url));
+                            let name = if d.listed.contains(&bare(url)) {
+                                tf("{} (already in the list)", &[&name])
+                            } else {
+                                name
+                            };
                             // The name is the checkbox's, so a screen reader says it.
                             ui.checkbox(on, &name).on_hover_text(format::shown_url(url));
                             ui.label(
@@ -2951,6 +2996,7 @@ fn scheduler(app: &mut DmApp, ctx: &egui::Context) {
     };
     let mut open = true;
     let mut apply = false;
+    let mut cancel = false;
     window("Scheduler").open(&mut open).show(ctx, |ui| {
         ui.label(tf(
             "When {} and every other download may run.",
@@ -2981,8 +3027,12 @@ fn scheduler(app: &mut DmApp, ctx: &egui::Context) {
         if !says.is_empty() {
             ui.colored_label(WARN, says.as_str());
         }
-        apply |= ui.button(t("Apply")).clicked() || enter_free(ui);
+        ui.horizontal(|ui| {
+            apply |= ui.button(t("Apply")).clicked() || enter_free(ui);
+            cancel = ui.button(t("Cancel")).clicked();
+        });
     });
+    open &= !cancel;
     if apply
         && schedule.enabled
         && !(dm_core::schedule::is_time(&schedule.from) && dm_core::schedule::is_time(&schedule.to))

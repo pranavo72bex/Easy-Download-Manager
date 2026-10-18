@@ -238,6 +238,12 @@ fn any_address() -> impl Strategy<Value = String> {
                 url.push('#');
                 url.push_str(&fragment);
             }
+            // A mark that ends a sentence is taken for the sentence's, as
+            // every reader of links in text takes it: an address meant to
+            // end in one is not one this generates.
+            if url.ends_with(['.', ',', ';', ':', '!', '?']) {
+                url.push('x');
+            }
             url
         })
         // `&amp;` in an address is read as the page's escaped `&`.
@@ -295,6 +301,7 @@ proptest! {
             format!("<meta http-equiv=refresh content=\"0;url={escaped}\">"),
             format!("[url={url}]x[/url]"),
             format!("see the file ({url}) here"),
+            format!("Get {url}. Or that one, {url}, or {url}! (see {url})"),
         ] {
             prop_assert_eq!(links_in(&wrapped), vec![url.clone()], "{}", wrapped);
         }

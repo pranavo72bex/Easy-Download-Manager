@@ -443,5 +443,9 @@
  "{} of the {} addresses in this list is already in dm's list.||{} of the {} addresses in this list are already in dm's list.": "{} z {} adresów na tej liście jest już na liście dm.||{} z {} adresów na tej liście są już na liście dm.||{} z {} adresów na tej liście jest już na liście dm.",
  "queue:to": "do",
  "No file chooser on this desktop to pick an application with; Open uses the file's usual one.": "Na tym pulpicie nie ma okna wyboru plików, by wybrać program; Otwórz używa zwykłego programu dla pliku.",
- "{} is taken in that folder, so it is called {}.": "Nazwa {} jest zajęta w tym folderze, więc plik nazywa się {}."
+ "{} is taken in that folder, so it is called {}.": "Nazwa {} jest zajęta w tym folderze, więc plik nazywa się {}.",
+ "{} (already in the list)": "{} (już na liście)",
+ "No release of dm has been published yet, so there is nothing to update to (this is {}).": "Nie opublikowano jeszcze żadnej wersji dm, więc nie ma do czego aktualizować (to jest {}).",
+ "This download has not fetched anything yet. Delete it from the list?": "To pobieranie jeszcze nic nie pobrało. Usunąć je z listy?",
+ "These downloads have not fetched anything yet. Delete them from the list?": "Te pobierania jeszcze nic nie pobrały. Usunąć je z listy?"
 }

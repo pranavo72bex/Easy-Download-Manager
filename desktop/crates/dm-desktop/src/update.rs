@@ -29,6 +29,9 @@ pub enum Update {
     /// A later version, and the installer for this machine when the
     /// release lists one.
     Newer(String, Option<String>),
+    /// The update server answered that it has no release at all: nothing
+    /// to update to, which is not a failure to reach it (round 13).
+    NoRelease,
     Failed(String),
 }
 
@@ -47,6 +50,10 @@ impl Update {
             Update::Newer(v, None) => tf(
                 "dm {} is out (this is {}). It is on the project's releases page.",
                 &[v, &running],
+            ),
+            Update::NoRelease => tf(
+                "No release of dm has been published yet, so there is nothing to update to (this is {}).",
+                &[&running],
             ),
             Update::Failed(why) => tf("Could not reach the update server: {}", &[why]),
         }
@@ -137,6 +144,9 @@ pub fn check(
                 .send()
                 .await
                 .map_err(|e| e.to_string())?;
+            if res.status() == dm_core::reqwest::StatusCode::NOT_FOUND {
+                return Ok(Update::NoRelease);
+            }
             if !res.status().is_success() {
                 return Err(format!("the server answered {}", res.status()));
             }

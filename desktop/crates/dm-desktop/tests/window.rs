@@ -1014,6 +1014,123 @@ fn renaming_onto_a_taken_name_says_what_it_is_called() {
     );
 }
 
+/// "Download all links" offers a link already in the list unticked, and
+/// says so: it was fetched again as `name (1).zip` without a word (round 13).
+#[test]
+fn a_pages_link_already_listed_is_offered_unticked_and_said() {
+    let world = world();
+    let mut harness = world.harness();
+    add_url(&mut harness, &world.url("file.zip"), "Add for later");
+    harness.state_mut().refresh();
+    let request = dm_shell::host::Request {
+        url: world.url("page.html"),
+        referrer: world.url("page.html"),
+        links: vec![world.url("file.zip"), world.url("other.pdf")],
+        ask: true,
+        ..Default::default()
+    };
+    let app = harness.state_mut();
+    let backend = app.backend.clone();
+    app.dialogs.open_links(request, &backend);
+    harness.run_steps(3);
+    let ticks: Vec<bool> = harness
+        .state()
+        .dialogs
+        .links
+        .as_ref()
+        .unwrap()
+        .items
+        .iter()
+        .map(|i| i.1)
+        .collect();
+    assert_eq!(ticks, [false, true]);
+    assert!(harness
+        .query_by_label_contains("(already in the list)")
+        .is_some());
+}
+
+/// A row not saved yet shows the name chosen for it, not its address's.
+#[test]
+fn a_row_shows_the_name_chosen_for_it_before_it_is_saved() {
+    let world = world();
+    let mut harness = world.harness();
+    let later = |name: Option<&str>| dm_core::AddOptions {
+        later: true,
+        queue: dm_core::MAIN_QUEUE.into(),
+        save_name: name.map(Into::into),
+        ..Default::default()
+    };
+    harness
+        .state_mut()
+        .add(&[world.url("download.php?id=5")], later(Some("mine.zip")))
+        .unwrap();
+    harness
+        .state_mut()
+        .add(&[world.url("other.php?id=6")], later(None))
+        .unwrap();
+    harness.state_mut().refresh();
+    harness.run_steps(3);
+    let names: Vec<String> = harness
+        .state()
+        .rows()
+        .iter()
+        .map(dm_desktop::app::name_of)
+        .collect();
+    assert!(names.contains(&"mine.zip".to_string()), "{names:?}");
+    assert!(names.contains(&"other.php".to_string()), "{names:?}");
+    assert!(harness.query_by_label("mine.zip").is_some());
+}
+
+/// A column is widened by dragging its heading's right edge, as in any
+/// list: in the window it did nothing (round 13).
+#[test]
+fn a_column_is_widened_by_dragging_its_edge() {
+    use egui::accesskit::Role;
+    let world = world();
+    let mut harness = world.harness();
+    add_url(&mut harness, &world.url("file.zip"), "Add for later");
+    harness.run_steps(3);
+    let size_at =
+        |h: &Harness<'_, DmApp>| h.get_by_role_and_label(Role::Button, "Size").rect().left();
+    let before = size_at(&harness);
+    // The edge between Status's left neighbour and Size: just left of Size.
+    let edge = egui::pos2(
+        before - 5.0,
+        harness
+            .get_by_role_and_label(Role::Button, "Size")
+            .rect()
+            .center()
+            .y,
+    );
+    harness
+        .input_mut()
+        .events
+        .push(egui::Event::PointerMoved(edge));
+    harness.step();
+    harness.input_mut().events.push(egui::Event::PointerButton {
+        pos: edge,
+        button: egui::PointerButton::Primary,
+        pressed: true,
+        modifiers: Default::default(),
+    });
+    harness.step();
+    for step in 1..=8 {
+        harness.input_mut().events.push(egui::Event::PointerMoved(
+            edge + egui::vec2(10.0 * step as f32, 0.0),
+        ));
+        harness.step();
+    }
+    harness.input_mut().events.push(egui::Event::PointerButton {
+        pos: edge + egui::vec2(80.0, 0.0),
+        button: egui::PointerButton::Primary,
+        pressed: false,
+        modifiers: Default::default(),
+    });
+    harness.run_steps(3);
+    let after = size_at(&harness);
+    assert!(after > before + 40.0, "Size moved from {before} to {after}");
+}
+
 #[test]
 fn the_toolbar_acts_on_the_selected_row() {
     let world = world();
@@ -5234,6 +5351,7 @@ fn enter_starts_the_links_dialogs() {
         sign_in: None,
         cookies: String::new(),
         items: vec![(world.url("other.pdf"), true)],
+        listed: Default::default(),
         hide_html: true,
         found: Default::default(),
     });
@@ -5569,6 +5687,20 @@ fn add_url_selects_its_link_and_refuses_two_run_together() {
         .is_some());
     assert!(harness.query_by_label("Download details").is_none());
     assert!(harness.state().rows().is_empty());
+    // The address keeps the keyboard: what is typed next replaces it.
+    harness.run_steps(3);
+    harness.event(egui::Event::Text(second.clone()));
+    harness.run_steps(2);
+    assert_eq!(
+        harness
+            .state()
+            .dialogs
+            .add_url
+            .as_ref()
+            .map(|d| d.address.clone()),
+        Some(second),
+        "typing after the warning went nowhere"
+    );
 }
 
 /// Gap 143: Import asks, once, about addresses already in the list: Skip

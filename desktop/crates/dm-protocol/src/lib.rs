@@ -120,6 +120,11 @@ pub struct Batch {
     /// The page they are on, sent as Referer.
     pub page: String,
     pub urls: Vec<String>,
+    /// The page's site's cookies, where the toolbar popup hands over its
+    /// sign-in: they go with its links on that site only, as with a single
+    /// download. Empty from an extension that sends none.
+    #[serde(default, skip_serializing_if = "String::is_empty")]
+    pub cookies: String,
 }
 
 /// A page to list the qualities of.
