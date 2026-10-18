@@ -487,5 +487,7 @@
  "Windows and sounds": "Pencereler ve sesler",
  "Adding and keeping files": "Dosya ekleme ve saklama",
  "The list": "Liste",
- "Settings file": "Ayar dosyası"
+ "Settings file": "Ayar dosyası",
+ "As its type says": "Türüne göre",
+ "Moves {} finished file.||Moves {} finished files.": "{} biten dosyayı taşır."
 }

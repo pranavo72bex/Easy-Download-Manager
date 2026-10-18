@@ -251,14 +251,18 @@ impl Backend {
     /// changes, so nothing is applied to the queue — a full apply on every
     /// address added rebuilt its client and its cookies each time.
     pub fn remember_urls(&self, recent: Vec<String>) -> Result<Settings, String> {
-        let mut settings = dm_core::lock(&self.settings).clone();
-        settings.recent_urls = recent;
-        let settings = settings.clamped();
-        settings
+        // Only this field changes on disk: the file is read, the list put
+        // in, and written back, so nothing else saved there is overwritten.
+        let (mut on_disk, _) = Settings::load();
+        on_disk.recent_urls = recent.clone();
+        on_disk
+            .clamped()
             .save()
             .map_err(|e| format!("settings could not be saved: {e}"))?;
-        *dm_core::lock(&self.settings) = settings.clone();
-        Ok(settings)
+        let mut settings = dm_core::lock(&self.settings);
+        settings.recent_urls = recent;
+        settings.recent_urls.truncate(dm_shell::settings::RECENT_URLS);
+        Ok(settings.clone())
     }
 
     /// What went wrong that no row can carry, each handed over once.
@@ -383,6 +387,11 @@ impl Backend {
 
     pub fn rename(&self, id: Id, name: &str) -> Result<(), String> {
         self.block_on(self.queue.rename(id, name))
+    }
+
+    /// Moves a finished file into `dir`; see `Queue::move_to`.
+    pub fn move_to(&self, id: Id, dir: &std::path::Path) -> Result<std::path::PathBuf, String> {
+        self.block_on(self.queue.move_to(id, dir))
     }
 
     pub fn connections(&self, id: Id) -> Vec<Connection> {

@@ -487,5 +487,7 @@
  "Windows and sounds": "Okna i dźwięki",
  "Adding and keeping files": "Dodawanie i przechowywanie plików",
  "The list": "Lista",
- "Settings file": "Plik ustawień"
+ "Settings file": "Plik ustawień",
+ "As its type says": "Według typu",
+ "Moves {} finished file.||Moves {} finished files.": "Przenosi {} ukończony plik.||Przenosi {} ukończone pliki.||Przenosi {} ukończonych plików."
 }

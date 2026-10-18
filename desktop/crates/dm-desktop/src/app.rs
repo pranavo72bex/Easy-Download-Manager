@@ -1695,11 +1695,18 @@ impl DmApp {
                     && targets[0].state == State::Completed
                     && !targets[0].path.is_empty()
             }
-            Command::OpenFile | Command::OpenWith | Command::MoveRename => {
+            Command::OpenFile | Command::OpenWith => {
                 targets.len() == 1
                     && targets[0].state == State::Completed
                     && !targets[0].path.is_empty()
                     && !crate::table::gone(&targets[0])
+            }
+            // One to move and rename, or several to move together.
+            Command::MoveRename => {
+                !targets.is_empty()
+                    && targets.iter().all(|r| {
+                        r.state == State::Completed && !r.path.is_empty() && !crate::table::gone(r)
+                    })
             }
             Command::ResumeAll => self.rows.iter().any(|r| r.state == State::Paused),
             Command::StopAll => self
@@ -1887,7 +1894,14 @@ impl DmApp {
             }
             Command::MoveRename => {
                 self.dialogs.focus_on("Move/Rename");
-                self.dialogs.rename = Some((targets[0].id, targets[0].filename.clone()))
+                self.dialogs.rename = Some(crate::dialogs::MoveRename {
+                    ids: targets.iter().map(|r| r.id).collect(),
+                    name: targets[0].filename.clone(),
+                    folder: std::path::Path::new(&targets[0].path)
+                        .parent()
+                        .map(|p| p.display().to_string())
+                        .unwrap_or_default(),
+                })
             }
             Command::SelectAll => {
                 self.selected = self.visible().iter().map(|r| r.id).collect();

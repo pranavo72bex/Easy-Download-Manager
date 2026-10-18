@@ -487,5 +487,7 @@
  "Windows and sounds": "Ventanas y sonidos",
  "Adding and keeping files": "Añadir y guardar archivos",
  "The list": "La lista",
- "Settings file": "Archivo de configuración"
+ "Settings file": "Archivo de configuración",
+ "As its type says": "Según su tipo",
+ "Moves {} finished file.||Moves {} finished files.": "Mueve {} archivo terminado.||Mueve {} archivos terminados."
 }

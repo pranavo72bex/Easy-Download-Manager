@@ -487,5 +487,7 @@
  "Windows and sounds": "Окна и звуки",
  "Adding and keeping files": "Добавление и хранение файлов",
  "The list": "Список",
- "Settings file": "Файл настроек"
+ "Settings file": "Файл настроек",
+ "As its type says": "По типу файла",
+ "Moves {} finished file.||Moves {} finished files.": "Перемещает {} готовый файл.||Перемещает {} готовых файла.||Перемещает {} готовых файлов."
 }

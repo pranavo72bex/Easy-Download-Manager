@@ -487,5 +487,7 @@
  "Windows and sounds": "Vensters en geluiden",
  "Adding and keeping files": "Bestanden toevoegen en bewaren",
  "The list": "De lijst",
- "Settings file": "Instellingenbestand"
+ "Settings file": "Instellingenbestand",
+ "As its type says": "Volgens het type",
+ "Moves {} finished file.||Moves {} finished files.": "Verplaatst {} voltooid bestand.||Verplaatst {} voltooide bestanden."
 }

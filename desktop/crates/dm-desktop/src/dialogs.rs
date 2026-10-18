@@ -24,6 +24,15 @@ fn warn(ui: &egui::Ui) -> Color32 {
     crate::theme::Tokens::get(ui.ctx()).warn
 }
 
+/// Move/Rename: the finished downloads it moves, the new name where it is
+/// one, and the folder they go to.
+#[derive(Debug, Clone, Default)]
+pub struct MoveRename {
+    pub ids: Vec<Id>,
+    pub name: String,
+    pub folder: String,
+}
+
 #[derive(Default)]
 pub struct AddUrl {
     pub address: String,
@@ -358,7 +367,7 @@ pub struct Dialogs {
     pub site_files: Option<SiteFiles>,
     pub update_link: Option<(Id, String, String)>,
     pub move_to_queue: Option<(Vec<Id>, String)>,
-    pub rename: Option<(Id, String)>,
+    pub rename: Option<MoveRename>,
     pub find_open: bool,
     pub find_text: String,
     pub scheduler: Option<(Schedule, String)>,
@@ -1706,6 +1715,27 @@ fn file_info(app: &mut DmApp, ctx: &egui::Context) {
     };
     let queues = app.backend.queues();
     let default_dir = app.applied.download_dir.display().to_string();
+    // Each kind's folder, and each category a person made, to pick from:
+    // a file can go to another kind's folder without typing its path.
+    let places: Vec<(String, String)> = {
+        let categories = app.applied.categories();
+        let root = &app.applied.download_dir;
+        let mut places: Vec<(String, String)> = dm_core::Category::ALL
+            .iter()
+            .map(|kind| {
+                let word = format::titled(&category_word(*kind));
+                (
+                    crate::i18n::name(&word),
+                    categories.destination(root, *kind).display().to_string(),
+                )
+            })
+            .collect();
+        places.extend(app.applied.custom_categories.iter().map(|custom| {
+            let name = custom.name.trim().to_string();
+            (name.clone(), root.join(&name).display().to_string())
+        }));
+        places
+    };
     // The folder an empty field means: sorted into kinds' folders only
     // where Options › Folders sorts them.
     let default_dir = if app.applied.categorize {
@@ -1792,6 +1822,34 @@ fn file_info(app: &mut DmApp, ctx: &egui::Context) {
                 .num_columns(2)
                 .spacing([12.0, 8.0])
                 .show(ui, |ui| {
+                    let name = ui.label(t("Category"));
+                    egui::ComboBox::from_id_salt("details-category")
+                        .selected_text(
+                            places
+                                .iter()
+                                .find(|(_, path)| *path == d.folder.trim())
+                                .map(|(name, _)| name.clone())
+                                .unwrap_or_else(|| t("As its type says").to_string()),
+                        )
+                        .show_ui(ui, |ui| {
+                            if ui
+                                .selectable_label(d.folder.trim().is_empty(), t("As its type says"))
+                                .clicked()
+                            {
+                                d.folder.clear();
+                            }
+                            for (label, path) in &places {
+                                if ui
+                                    .selectable_label(d.folder.trim() == path, label)
+                                    .clicked()
+                                {
+                                    d.folder = path.clone();
+                                }
+                            }
+                        })
+                        .response
+                        .labelled_by(name.id);
+                    ui.end_row();
                     let name = ui.label(t("Save to folder"));
                     ui.horizontal(|ui| {
                         let folder = ui
@@ -3123,14 +3181,35 @@ fn move_to_queue(app: &mut DmApp, ctx: &egui::Context) {
 
 fn rename(app: &mut DmApp, ctx: &egui::Context) {
     let focus = app.dialogs.take_focus("Move/Rename");
-    let Some((id, name)) = app.dialogs.rename.as_mut() else {
+    let platform = std::sync::Arc::clone(&app.backend.platform);
+    let Some(d) = app.dialogs.rename.as_mut() else {
         return;
     };
     let mut open = true;
     let mut ok = false;
     let mut cancel = false;
     window("Move/Rename").open(&mut open).show(ctx, |ui| {
-        ok = entered(&focused(field(ui, t("New name"), name, 320.0), focus));
+        // A new name for one; for several, only where they go.
+        if d.ids.len() == 1 {
+            ok = entered(&focused(
+                field(ui, t("New name"), &mut d.name, 320.0),
+                focus,
+            ));
+        } else {
+            ui.label(crate::i18n::tn(
+                "Moves {} finished file.||Moves {} finished files.",
+                d.ids.len() as u64,
+                &[&d.ids.len()],
+            ));
+        }
+        let name = ui.label(t("Folder"));
+        ui.horizontal(|ui| {
+            let folder = ui
+                .add(egui::TextEdit::singleline(&mut d.folder).desired_width(280.0))
+                .labelled_by(name.id);
+            ok |= entered(&folder);
+            browse_button(ui, &*platform, &mut d.folder);
+        });
         ui.horizontal(|ui| {
             ok |= primary(ui, "OK").clicked() || enter_free(ui);
             cancel = ui.button(t("Cancel")).clicked();
@@ -3138,25 +3217,49 @@ fn rename(app: &mut DmApp, ctx: &egui::Context) {
     });
     open &= !cancel;
     if ok {
-        let (id, asked) = (*id, name.trim().to_string());
-        match app.backend.rename(id, &asked) {
-            Ok(()) => {
-                open = false;
-                app.refresh();
-                // A name already taken in that folder is given a number,
-                // as a download's is; said, rather than a different name
-                // appearing without a word (round 12).
-                if let Some(given) = app.row(id).map(|r| r.filename.clone()) {
-                    if given != asked {
-                        app.said = crate::i18n::Said::new(
-                            "{} is taken in that folder, so it is called {}.",
-                            &[&asked, &given],
-                        );
-                    }
+        let d = d.clone();
+        let folder = std::path::PathBuf::from(d.folder.trim());
+        let mut said: Option<crate::i18n::Said> = None;
+        for id in &d.ids {
+            let Some(row) = app.row(*id).cloned() else {
+                continue;
+            };
+            // Moved first where the folder changed, then renamed in it.
+            let here = std::path::Path::new(&row.path)
+                .parent()
+                .map(|p| p.to_path_buf());
+            if !d.folder.trim().is_empty() && here.as_deref() != Some(folder.as_path()) {
+                if let Err(e) = app.backend.move_to(*id, &folder) {
+                    said = Some(e.into());
+                    continue;
                 }
             }
-            Err(e) => app.said = e.into(),
+            if d.ids.len() == 1 {
+                let asked = d.name.trim().to_string();
+                match app.backend.rename(*id, &asked) {
+                    Ok(()) => {
+                        app.refresh();
+                        // A name already taken in that folder is given a
+                        // number, as a download's is; said, rather than a
+                        // different name appearing without a word (round 12).
+                        if let Some(given) = app.row(*id).map(|r| r.filename.clone()) {
+                            if given != asked {
+                                said = Some(crate::i18n::Said::new(
+                                    "{} is taken in that folder, so it is called {}.",
+                                    &[&asked, &given],
+                                ));
+                            }
+                        }
+                    }
+                    Err(e) => said = Some(e.into()),
+                }
+            }
         }
+        app.refresh();
+        if let Some(said) = said {
+            app.said = said;
+        }
+        open = false;
     }
     if !open {
         app.dialogs.rename = None;

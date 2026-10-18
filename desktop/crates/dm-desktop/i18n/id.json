@@ -487,5 +487,7 @@
  "Windows and sounds": "Jendela dan suara",
  "Adding and keeping files": "Menambah dan menyimpan berkas",
  "The list": "Daftar",
- "Settings file": "Berkas pengaturan"
+ "Settings file": "Berkas pengaturan",
+ "As its type says": "Menurut jenisnya",
+ "Moves {} finished file.||Moves {} finished files.": "Memindahkan {} berkas yang selesai."
 }

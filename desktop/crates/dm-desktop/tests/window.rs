@@ -1015,14 +1015,22 @@ fn renaming_onto_a_taken_name_says_what_it_is_called() {
         .find(|r| r.filename == "other.pdf")
         .unwrap()
         .id;
-    harness.state_mut().dialogs.rename = Some((pdf, "other.pdf".into()));
+    harness.state_mut().dialogs.rename = Some(dm_desktop::dialogs::MoveRename {
+        ids: vec![pdf],
+        name: "other.pdf".into(),
+        folder: String::new(),
+    });
     harness.run_steps(2);
     click(&mut harness, "Cancel");
     assert!(
         harness.state().dialogs.rename.is_none(),
         "Cancel did not close it"
     );
-    harness.state_mut().dialogs.rename = Some((pdf, "file.zip".into()));
+    harness.state_mut().dialogs.rename = Some(dm_desktop::dialogs::MoveRename {
+        ids: vec![pdf],
+        name: "file.zip".into(),
+        folder: String::new(),
+    });
     harness.run_steps(2);
     click(&mut harness, "OK");
     let given = harness.state().row(pdf).unwrap().filename.clone();
@@ -2387,6 +2395,80 @@ fn settings_are_saved_to_a_file_without_passwords_and_loaded_back() {
         "this computer's password was lost"
     );
     *world.fake.chosen.lock().unwrap() = None;
+}
+
+/// Download details' Category sends a file to the folder of the kind
+/// picked, here a .zip to Documents rather than Archives.
+#[test]
+fn download_details_category_picks_the_folder() {
+    let world = world();
+    let app = world.app_with(Settings {
+        download_dir: world.dir.path().join("out"),
+        categorize: true,
+        show_progress: false,
+        show_complete: false,
+        ..Settings::default()
+    });
+    let mut harness = Harness::builder()
+        .with_size(egui::vec2(1100.0, 760.0))
+        .build_ui_state(|ui, app: &mut DmApp| app.ui(ui), app);
+    harness.run_steps(2);
+    harness
+        .state_mut()
+        .dialogs
+        .open_file_info(vec![world.url("file.zip")]);
+    harness.run_steps(4);
+    click(&mut harness, "Category");
+    harness.get_by_label("Documents").click();
+    harness.run_steps(3);
+    let folder = harness
+        .state()
+        .dialogs
+        .file_info
+        .as_ref()
+        .unwrap()
+        .folder
+        .clone();
+    assert!(folder.ends_with("Documents"), "{folder}");
+    click(&mut harness, "Start now");
+    until(&mut harness, "it to complete", |app| {
+        app.rows().iter().any(|r| r.state == State::Completed)
+    });
+    let path = harness.state().rows()[0].path.clone();
+    assert!(
+        std::path::Path::new(&path)
+            .parent()
+            .unwrap()
+            .ends_with("Documents"),
+        "{path}"
+    );
+}
+
+/// Move/Rename moves several finished files to another folder at once,
+/// and their rows follow them.
+#[test]
+fn move_rename_moves_several_finished_files_together() {
+    let world = world();
+    let mut harness = world.harness();
+    add_url(&mut harness, &world.url("file.zip"), "Start now");
+    add_url(&mut harness, &world.url("other.pdf"), "Start now");
+    until(&mut harness, "both to complete", |app| {
+        app.rows().len() == 2 && app.rows().iter().all(|r| r.state == State::Completed)
+    });
+    harness.state_mut().run(Command::SelectAll);
+    harness.state_mut().run(Command::MoveRename);
+    harness.run_steps(3);
+    assert!(harness.query_by_label("Moves 2 finished files.").is_some());
+    let to = world.dir.path().join("moved");
+    harness.state_mut().dialogs.rename.as_mut().unwrap().folder = to.display().to_string();
+    harness.run_steps(2);
+    click(&mut harness, "OK");
+    harness.state_mut().refresh();
+    for row in harness.state().rows() {
+        let path = std::path::Path::new(&row.path);
+        assert_eq!(path.parent(), Some(to.as_path()), "{}", row.path);
+        assert!(path.is_file(), "{} is not there", row.path);
+    }
 }
 
 #[test]

@@ -2081,6 +2081,51 @@ impl Queue {
         Ok(())
     }
 
+    /// Moves a finished download's file into `dir`, under the same name or
+    /// a numbered one where that is taken, across disks too, and keeps the
+    /// row's path to where it now is.
+    pub async fn move_to(&self, id: Id, dir: &std::path::Path) -> Result<PathBuf, String> {
+        let from = match self.get(id).await {
+            Some(entry) if entry.state == State::Completed && !entry.path.is_empty() => {
+                PathBuf::from(entry.path)
+            }
+            Some(_) => return Err("only a finished download can be moved".into()),
+            None => return Err("there is no such download".into()),
+        };
+        if from.parent() == Some(dir) {
+            return Ok(from);
+        }
+        tokio::fs::create_dir_all(dir)
+            .await
+            .map_err(|e| format!("{} could not be made: {e}", dir.display()))?;
+        let name = from
+            .file_name()
+            .map(|n| n.to_string_lossy().into_owned())
+            .unwrap_or_default();
+        // Claimed first, as a rename claims its name, then moved over.
+        let to = crate::download::claim_path(dir, &name)
+            .await
+            .map_err(|e| e.to_string())?;
+        if tokio::fs::rename(&from, &to).await.is_err() {
+            // Another disk: copied, then the original removed once whole.
+            if let Err(e) = tokio::fs::copy(&from, &to).await {
+                let _ = tokio::fs::remove_file(&to).await;
+                return Err(format!("{} could not be moved: {e}", from.display()));
+            }
+            let _ = tokio::fs::remove_file(&from).await;
+        }
+        self.edit(id, |slot| {
+            slot.entry.filename = to
+                .file_name()
+                .map(|n| n.to_string_lossy().into_owned())
+                .unwrap_or_default();
+            slot.entry.path = to.to_string_lossy().into_owned();
+            true
+        })
+        .await;
+        Ok(to)
+    }
+
     /// How each connection of a download is getting on, from the plan and
     /// the part files on disk. Empty for one with nothing staged.
     pub async fn connections(&self, id: Id) -> Vec<Connection> {
