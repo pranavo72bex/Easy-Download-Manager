@@ -353,7 +353,10 @@ class SlowFiles:
                             # "slow" ones a quarter as fast: the Stop and
                             # Delete scene takes longer than 48 MiB at the
                             # usual rate, and found it already finished.
-                            time.sleep(0.256 if "slow" in self.path else 0.064)
+                            # Half the old pace for every large file: Stop
+                            # and the progress window's scenes now and then
+                            # found theirs already finished.
+                            time.sleep(0.256 if "slow" in self.path else 0.128)
                 except OSError:
                     pass
 
