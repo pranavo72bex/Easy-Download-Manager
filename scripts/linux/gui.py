@@ -705,7 +705,9 @@ def tray_host_timing(env):
     # Anchored: the shell that started the watcher has its name in its own
     # command line, and ending that ends the session.
     x("pkill", "-f", "^status-notifier-watcher")
-    x("pkill", "-f", "tray_host.py")
+    # Anchored at a python as the watcher is: the session's shell has the
+    # host's name in its own command line too, and ending it ends the run.
+    x("pkill", "-f", "^[^ ]*python3?[^ ]* [^ ]*tray_host\\.py")
     wait_for(lambda: not x("pgrep", "-f", "^status-notifier-watcher").stdout.strip(), 10)
 
     app = subprocess.Popen([str(BINARY)], env=env, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
