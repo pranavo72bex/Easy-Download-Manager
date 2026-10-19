@@ -130,3 +130,14 @@ On an Apple Silicon machine the Arch container runs under emulation, and
 pacman's download sandbox uses seccomp filters emulation cannot honour — hence
 `--security-opt seccomp=unconfined` and `DisableSandbox`. Neither is needed on
 the CI runner, which is native amd64.
+
+### While the listed add-on is in review
+
+Mozilla's listed review can take days. Meanwhile, **Actions › Firefox, signed
+for self-distribution › Run workflow** (`.github/workflows/firefox-signed.yml`)
+signs the Firefox build as unlisted — automatic, about two minutes — and
+attaches `dm-firefox-<version>.xpi` to the release named. It installs and stays
+installed in ordinary Firefox (the README's Firefox step). Each version signs
+once, listed or not: bump both manifests and `browser/Cargo.toml` first.
+3.0.5 was signed this way on 2026-10-19 and attached to `desktop-v0.2.0`.
+
