@@ -238,6 +238,7 @@
  "Start queue": "Avvia coda",
  "Start the Main queue when dm opens": "Avvia la coda principale all'apertura di dm",
  "Started {} download in {}.||Started {} downloads in {}.": "Avviato {} download in {}.||Avviati {} download in {}.",
+ "{} is waiting for the schedule; it starts by itself when the schedule opens.": "{} attende la pianificazione; parte da sola quando si apre.",
  "Starting…": "Avvio…",
  "Status": "Stato",
  "Stop": "Ferma",

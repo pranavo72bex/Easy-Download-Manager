@@ -105,7 +105,7 @@ and is not carried over.
       the app offer to leave that site to the browser. In Firefox the menu is used for
       real: `scripts/linux-firefox-check.sh` right-clicks a link with X11
       input and picks "Download link with dm" with real keys, and dm fetches
-      it (2026-10-13). Chrome's menu is not yet clicked for real. `dm-desktop --register` replaces
+      it (2026-10-13). Chrome's menu was clicked for real in UI round 10 (2026-10-19). `dm-desktop --register` replaces
       `engine/install.mjs` and refuses a binary macOS keeps from browsers
 - [x] Handle authentication/cookies — Basic from the address or Options ›
       Sign-ins, and Digest where the server asks for it (`auth.rs`,

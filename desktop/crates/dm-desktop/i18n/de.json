@@ -238,6 +238,7 @@
  "Start queue": "Warteschlange starten",
  "Start the Main queue when dm opens": "Die Hauptwarteschlange starten, wenn dm öffnet",
  "Started {} download in {}.||Started {} downloads in {}.": "{} Download in {} gestartet.||{} Downloads in {} gestartet.",
+ "{} is waiting for the schedule; it starts by itself when the schedule opens.": "{} wartet auf den Zeitplan; startet von selbst, sobald er beginnt.",
  "Starting…": "Wird gestartet…",
  "Status": "Status",
  "Stop": "Stopp",

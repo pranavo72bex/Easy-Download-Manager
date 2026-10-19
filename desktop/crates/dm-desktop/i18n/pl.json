@@ -238,6 +238,7 @@
  "Start queue": "Uruchom kolejkę",
  "Start the Main queue when dm opens": "Uruchamiaj kolejkę główną przy otwarciu dm",
  "Started {} download in {}.||Started {} downloads in {}.": "Uruchomiono {} pobieranie w {}.||Uruchomiono {} pobierania w {}.||Uruchomiono {} pobrań w {}.",
+ "{} is waiting for the schedule; it starts by itself when the schedule opens.": "{} czeka na harmonogram; ruszy sam, gdy harmonogram się otworzy.",
  "Starting…": "Uruchamianie…",
  "Status": "Stan",
  "Stop": "Zatrzymaj",

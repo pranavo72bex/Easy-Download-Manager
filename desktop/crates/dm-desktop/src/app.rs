@@ -671,6 +671,8 @@ pub struct DmApp {
     searches_checked: Option<Instant>,
     /// What a recheck running in the background found, when it is done.
     pub rechecked: Arc<std::sync::Mutex<Option<(usize, usize)>>>,
+    /// Why the system could not open a file or folder, said when it is known.
+    opener_said: Arc<std::sync::Mutex<Option<String>>>,
     /// Whether a menu, combo box or right-click menu was open at the end
     /// of the last frame: an Escape this frame was theirs, not a dialog's.
     pub popup_was_open: bool,
@@ -719,6 +721,9 @@ pub struct DmApp {
     /// Where the menu bar ends, last frame: windows per download open
     /// below it, never over it (gap 168).
     pub menu_bottom: f32,
+    /// Where the toolbar ends (the menu bar's bottom with no toolbar):
+    /// windows a download opens on its own start below it, not over Add URL.
+    pub bars_bottom: f32,
     /// Each finished file's size on disk, by the path it was read at: a
     /// stream put into an MP4 is not the size of the joined stream the
     /// engine counted (gap 156). Read once a path.
@@ -793,6 +798,7 @@ impl DmApp {
             searches_checked: None,
             popup_was_open: false,
             rechecked: Arc::default(),
+            opener_said: Arc::default(),
             cancelled_hand_offs: std::collections::HashMap::new(),
             dry: DryWatch::default(),
             countdown: None,
@@ -811,6 +817,7 @@ impl DmApp {
             field_selection: None,
             row_menu_by_key: false,
             menu_bottom: 0.0,
+            bars_bottom: 0.0,
             saved: HashMap::new(),
             said_at: None,
         };
@@ -1286,6 +1293,9 @@ impl DmApp {
         }
         self.take_handed();
         self.countdown_tick();
+        if let Some(why) = dm_core::lock(&self.opener_said).take() {
+            self.said = why.into();
+        }
         if let Some((checked, changed)) = dm_core::lock(&self.rechecked).take() {
             self.said = crate::i18n::Said::counting(
                 "Checked {} finished file with its server. Changed since, and downloaded again: {}.||Checked {} finished files with their servers. Changed since, and downloaded again: {}.",
@@ -1966,9 +1976,7 @@ impl DmApp {
                 }
             }
             Command::OpenFile => {
-                if let Err(e) = self.backend.platform.open(&targets[0].path) {
-                    self.said = e.into();
-                }
+                self.open_file(&targets[0].path);
             }
             Command::OpenWith => {
                 // Nothing to pick an application with: said, rather than a
@@ -1985,9 +1993,7 @@ impl DmApp {
                 }
             }
             Command::OpenFolder => {
-                if let Err(e) = self.backend.platform.reveal(&targets[0].path) {
-                    self.said = e.into();
-                }
+                self.reveal_file(&targets[0].path);
             }
             Command::MoveRename => {
                 self.dialogs.focus_on("Move/Rename");
@@ -2029,6 +2035,13 @@ impl DmApp {
                 // "Started 0 downloads" said nothing useful (UI round 9).
                 self.said = if n == 0 {
                     crate::i18n::Said::naming("Nothing in {} was waiting to start.", &[&queue])
+                } else if self.applied.schedule.enabled && !self.applied.schedule.open() {
+                    // "Started" while the schedule held them, which nothing
+                    // was (UI round 10).
+                    crate::i18n::Said::naming(
+                        "{} is waiting for the schedule; it starts by itself when the schedule opens.",
+                        &[&queue],
+                    )
                 } else {
                     crate::i18n::Said::counting_naming(
                         "Started {} download in {}.||Started {} downloads in {}.",
@@ -2591,11 +2604,13 @@ impl DmApp {
         // For the dialogs, which keep below it.
         ui.ctx()
             .data_mut(|d| d.insert_temp(crate::dialogs::menu_bottom_id(), self.menu_bottom));
+        self.bars_bottom = self.menu_bottom;
         if self.show_toolbar {
-            egui::Panel::top("toolbar")
+            let bar = egui::Panel::top("toolbar")
                 .show_separator_line(lines)
                 .frame(flat(t.frame, 8, if t.modern { 4 } else { 0 }))
                 .show(ui, |ui| self.toolbar(ui));
+            self.bars_bottom = bar.response.rect.bottom();
         }
         egui::Panel::bottom("status")
             .show_separator_line(lines)
@@ -2942,8 +2957,13 @@ impl DmApp {
     fn menu_bar(&mut self, ui: &mut egui::Ui) {
         // Greyed while a question waits, as the list and toolbar take no
         // clicks then: it opened bright over the dimmed window (round 16).
-        let asking = self.dialogs.asking();
-        ui.add_enabled_ui(!asking, |ui| self.menu_bar_items(ui));
+        // And while any dialog keeps the clicks: behind Options its menus
+        // opened and their items did nothing (UI round 10).
+        let behind = self.dialogs.asking() || self.dialogs.modal();
+        if behind {
+            self.open_menu_by_key = false;
+        }
+        ui.add_enabled_ui(!behind, |ui| self.menu_bar_items(ui));
     }
 
     fn menu_bar_items(&mut self, ui: &mut egui::Ui) {
@@ -3410,9 +3430,7 @@ impl DmApp {
                     Place::Custom(name) => root.join(name),
                     _ => root,
                 };
-                if let Err(e) = self.backend.platform.open(&dir.to_string_lossy()) {
-                    self.said = e.into();
-                }
+                self.open_file(&dir.to_string_lossy());
             }
         }
     }
@@ -3568,6 +3586,20 @@ impl DmApp {
                 }
             });
         });
+    }
+
+    /// Opens `path` with the system's opener, off the window's thread.
+    pub fn open_file(&self, path: &str) {
+        let said = Arc::clone(&self.opener_said);
+        let report: crate::power::Report = Box::new(move |why| *dm_core::lock(&said) = Some(why));
+        self.backend.platform.open_later(path, report);
+    }
+
+    /// Shows `path` in the file manager, off the window's thread.
+    pub fn reveal_file(&self, path: &str) {
+        let said = Arc::clone(&self.opener_said);
+        let report: crate::power::Report = Box::new(move |why| *dm_core::lock(&said) = Some(why));
+        self.backend.platform.reveal_later(path, report);
     }
 
     /// Whether the schedule is closed with downloads waiting on it, and when

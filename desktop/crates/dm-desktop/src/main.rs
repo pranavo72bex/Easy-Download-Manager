@@ -109,6 +109,24 @@ impl Platform for Desktop {
         shell::open_file(path)
     }
 
+    fn open_later(&self, path: &str, report: dm_desktop::power::Report) {
+        let path = path.to_string();
+        std::thread::spawn(move || {
+            if let Err(e) = shell::open_file(&path) {
+                report(e);
+            }
+        });
+    }
+
+    fn reveal_later(&self, path: &str, report: dm_desktop::power::Report) {
+        let path = path.to_string();
+        std::thread::spawn(move || {
+            if let Err(e) = shell::reveal_in_folder(&path) {
+                report(e);
+            }
+        });
+    }
+
     fn chime(&self) {
         dm_desktop::power::chime();
     }

@@ -24,6 +24,20 @@ pub trait Platform: Send + Sync {
     fn reveal(&self, path: &str) -> Result<(), String>;
     /// Opens a finished file with whatever the system opens it with.
     fn open(&self, path: &str) -> Result<(), String>;
+    /// [`Platform::open`] without waiting on it: an opener's verdict takes
+    /// up to a second and a half on Linux, and the window froze for it (UI
+    /// round 10). A failure goes to `report`.
+    fn open_later(&self, path: &str, report: crate::power::Report) {
+        if let Err(e) = self.open(path) {
+            report(e);
+        }
+    }
+    /// [`Platform::reveal`] without waiting on it, as [`Platform::open_later`].
+    fn reveal_later(&self, path: &str, report: crate::power::Report) {
+        if let Err(e) = self.reveal(path) {
+            report(e);
+        }
+    }
     /// Plays the system's short sound for a finished download.
     fn chime(&self);
     /// Plays the system's short sound for a failed download. The finish's

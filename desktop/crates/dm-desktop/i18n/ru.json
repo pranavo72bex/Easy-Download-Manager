@@ -238,6 +238,7 @@
  "Start queue": "Запустить очередь",
  "Start the Main queue when dm opens": "Запускать основную очередь при открытии dm",
  "Started {} download in {}.||Started {} downloads in {}.": "Запущена {} загрузка в «{}».||Запущено {} загрузки в «{}».||Запущено {} загрузок в «{}».",
+ "{} is waiting for the schedule; it starts by itself when the schedule opens.": "«{}» ждёт расписания; начнётся само, когда оно откроется.",
  "Starting…": "Запуск…",
  "Status": "Состояние",
  "Stop": "Стоп",

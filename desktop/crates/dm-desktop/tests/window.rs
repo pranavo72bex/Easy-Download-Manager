@@ -2221,17 +2221,12 @@ fn escape_closes_the_menu_or_the_dialog_in_front_and_nothing_behind_it() {
     let mut harness = world.harness();
     click(&mut harness, "Options");
 
-    // A menu over the dialog: Escape closes the menu and the dialog stays.
+    // The menu bar takes no clicks behind it (UI round 10: its menus
+    // opened and their items did nothing).
     harness.get_by_label("View").click();
     harness.run_steps(3);
-    assert!(harness.ctx.any_popup_open(), "the menu did not open");
-    harness.key_press(egui::Key::Escape);
-    harness.run_steps(3);
-    assert!(!harness.ctx.any_popup_open());
-    assert!(
-        harness.state().dialogs.options.is_some(),
-        "the Escape that closed the menu closed Options too"
-    );
+    assert!(!harness.ctx.any_popup_open(), "a menu opened behind Options");
+    assert!(harness.state().dialogs.options.is_some());
 
     // A combo box dropped down in the dialog, the same.
     click(&mut harness, "Proxy");
@@ -7489,4 +7484,51 @@ fn a_text_field_has_cut_copy_and_paste_on_a_right_click() {
         harness.state().dialogs.add_url.is_some(),
         "Escape closed the dialog too"
     );
+}
+
+/// UI round 10: a progress window opens below the toolbar, not over Add
+/// URL; and Download complete waits while the Exit question is asked,
+/// rather than opening over it with Open folder under the pointer.
+#[test]
+fn windows_a_download_opens_keep_clear_of_the_toolbar_and_questions() {
+    let world = world();
+    let mut harness = world.harness();
+    harness
+        .state()
+        .backend()
+        .add(&world.url("stalled.bin"))
+        .unwrap();
+    until(&mut harness, "it to run", |app| {
+        app.rows().iter().any(|r| r.state == State::Running)
+    });
+    let id = harness.state().rows()[0].id;
+    harness.state_mut().dialogs.progress.insert(id);
+    harness.run_steps(3);
+    let add = harness.get_by_label("Add URL").rect();
+    let window = harness
+        .get_by_label("Download progress — stalled.bin")
+        .rect();
+    assert!(
+        window.top() > add.bottom(),
+        "{window:?} over Add URL at {add:?}"
+    );
+
+    harness.state_mut().dialogs.progress.clear();
+    harness.state_mut().applied.show_complete = true;
+    harness.state_mut().dialogs.confirm_exit = true;
+    harness
+        .state_mut()
+        .add(&[world.url("file.zip")], Default::default())
+        .unwrap();
+    until(&mut harness, "it to finish", |app| {
+        app.rows().iter().any(|r| r.state == State::Completed)
+    });
+    harness.run_steps(3);
+    assert!(
+        harness.query_by_label("Download complete").is_none(),
+        "opened over the Exit question"
+    );
+    harness.state_mut().dialogs.confirm_exit = false;
+    harness.run_steps(3);
+    assert!(harness.query_by_label("Download complete").is_some());
 }

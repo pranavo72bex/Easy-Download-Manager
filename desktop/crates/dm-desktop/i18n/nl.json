@@ -238,6 +238,7 @@
  "Start queue": "Wachtrij starten",
  "Start the Main queue when dm opens": "De hoofdwachtrij starten als dm opent",
  "Started {} download in {}.||Started {} downloads in {}.": "{} download gestart in {}.||{} downloads gestart in {}.",
+ "{} is waiting for the schedule; it starts by itself when the schedule opens.": "{} wacht op de planning; start vanzelf zodra die opent.",
  "Starting…": "Starten…",
  "Status": "Status",
  "Stop": "Stoppen",

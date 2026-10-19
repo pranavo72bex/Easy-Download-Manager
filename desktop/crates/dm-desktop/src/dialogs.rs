@@ -634,6 +634,11 @@ impl Dialogs {
     /// bar or the list behind, which take no clicks while one is open.
     /// Find is left out: it finds rows in the list, which stays usable
     /// beside it.
+    /// Whether a dialog that keeps the clicks to itself is open.
+    pub fn modal(&self) -> bool {
+        !self.modal_layers().is_empty()
+    }
+
     fn modal_layers(&self) -> Vec<egui::LayerId> {
         let mut ids: Vec<egui::Id> = [
             (self.confirm_exit, "Exit dm?"),
@@ -2238,7 +2243,16 @@ fn progress(app: &mut DmApp, ctx: &egui::Context) {
         .constrain_to(below_menu)
         // Each a step down and across from the one before, as windows
         // cascade: three started together opened exactly over each other.
-        .default_pos(below_menu.left_top() + egui::Vec2::splat(24.0 + 28.0 * (nth % 8) as f32))
+        // Below the toolbar too: over it, the window covered Add URL and
+        // took the click meant for it (UI round 10).
+        .default_pos(
+            egui::pos2(
+                below_menu.left(),
+                app.bars_bottom
+                    .max(below_menu.top())
+                    .min(below_menu.bottom() - 120.0),
+            ) + egui::Vec2::splat(24.0 + 28.0 * (nth % 8) as f32),
+        )
         .default_width(room.min(460.0))
         .min_width(room.min(460.0))
         .max_width(room)
@@ -2480,6 +2494,12 @@ fn complete(app: &mut DmApp, ctx: &egui::Context) {
     if rows.is_empty() {
         return;
     }
+    // Not over a question waiting for its answer: it opened over Exit, its
+    // Open folder under the pointer, and took the click (UI round 10). The
+    // files wait in the list and the window opens once it is answered.
+    if app.dialogs.asking() {
+        return;
+    }
     let mut done: Vec<Id> = Vec::new();
     let mut close = false;
     let mut shut = true;
@@ -2594,15 +2614,11 @@ fn complete(app: &mut DmApp, ctx: &egui::Context) {
                                 button.clicked()
                             };
                             if named(ui, t("Open"), tf("Open {}", &[&name])) {
-                                if let Err(e) = app.backend.platform.open(&row.path) {
-                                    app.said = e.into();
-                                }
+                                app.open_file(&row.path);
                                 done.push(row.id);
                             }
                             if named(ui, t("Open folder"), tf("Open the folder of {}", &[&name])) {
-                                if let Err(e) = app.backend.platform.reveal(&row.path) {
-                                    app.said = e.into();
-                                }
+                                app.reveal_file(&row.path);
                                 done.push(row.id);
                             }
                             if several {

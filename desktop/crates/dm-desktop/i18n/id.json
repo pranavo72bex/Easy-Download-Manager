@@ -238,6 +238,7 @@
  "Start queue": "Mulai antrean",
  "Start the Main queue when dm opens": "Mulai antrean utama saat dm dibuka",
  "Started {} download in {}.||Started {} downloads in {}.": "{} unduhan dimulai di {}.",
+ "{} is waiting for the schedule; it starts by itself when the schedule opens.": "{} menunggu jadwal; mulai sendiri saat jadwal dibuka.",
  "Starting…": "Memulai…",
  "Status": "Status",
  "Stop": "Hentikan",

@@ -238,6 +238,7 @@
  "Start queue": "Iniciar fila",
  "Start the Main queue when dm opens": "Iniciar a fila principal quando o dm abrir",
  "Started {} download in {}.||Started {} downloads in {}.": "{} download iniciado em {}.||{} downloads iniciados em {}.",
+ "{} is waiting for the schedule; it starts by itself when the schedule opens.": "{} aguarda o agendamento; começa sozinho quando ele abrir.",
  "Starting…": "Iniciando…",
  "Status": "Status",
  "Stop": "Parar",

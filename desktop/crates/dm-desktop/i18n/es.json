@@ -238,6 +238,7 @@
  "Start queue": "Iniciar cola",
  "Start the Main queue when dm opens": "Iniciar la cola principal al abrir dm",
  "Started {} download in {}.||Started {} downloads in {}.": "Se inició {} descarga en {}.||Se iniciaron {} descargas en {}.",
+ "{} is waiting for the schedule; it starts by itself when the schedule opens.": "{} espera al programador; empieza solo cuando se abra.",
  "Starting…": "Empezando…",
  "Status": "Estado",
  "Stop": "Detener",
