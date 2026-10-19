@@ -304,7 +304,7 @@
  "{} downloading at {}||{} downloading at {}": "{} unduhan berjalan, {}",
  "{} files found on {} pages": "{} berkas ditemukan di {} halaman",
  "{} links on {}": "{} tautan di {}",
- "{} of {} pieces done": "{} dari {} bagian selesai",
+ "{} of {} piece done||{} of {} pieces done": "{} dari {} bagian selesai",
  "· download limit of {} MB reached, held for {}": "· batas {} MB tercapai, ditahan {}",
  "· limited to {} KB/s": "· dibatasi {} KB/s",
  "Jan": "Jan",

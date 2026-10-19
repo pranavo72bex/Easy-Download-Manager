@@ -304,7 +304,7 @@
  "{} downloading at {}||{} downloading at {}": "{} download a {}||{} download a {}",
  "{} files found on {} pages": "{} file trovati in {} pagine",
  "{} links on {}": "{} link su {}",
- "{} of {} pieces done": "{} di {} parti completate",
+ "{} of {} piece done||{} of {} pieces done": "{} di {} parte completata||{} di {} parti completate",
  "· download limit of {} MB reached, held for {}": "· limite di download di {} MB raggiunto, in attesa per {}",
  "· limited to {} KB/s": "· limitato a {} KB/s",
  "Jan": "gen",

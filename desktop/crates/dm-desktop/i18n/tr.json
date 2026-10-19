@@ -304,7 +304,7 @@
  "{} downloading at {}||{} downloading at {}": "{} indirme sürüyor, {}",
  "{} files found on {} pages": "{} sayfada {} dosya bulundu",
  "{} links on {}": "{1} üzerinde {0} bağlantı",
- "{} of {} pieces done": "{} / {} parça bitti",
+ "{} of {} piece done||{} of {} pieces done": "{} / {} parça bitti",
  "· download limit of {} MB reached, held for {}": "· {} MB sınırına ulaşıldı, bekleme {}",
  "· limited to {} KB/s": "· {} KB/sn ile sınırlı",
  "Jan": "Oca",

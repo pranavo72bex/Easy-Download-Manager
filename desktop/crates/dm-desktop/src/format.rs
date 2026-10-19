@@ -285,6 +285,20 @@ pub const REASONS: [(&[&str], &str); 9] = [
     ),
 ];
 
+/// A `file://` address for an absolute path, every byte but the
+/// unreserved ones and `/` escaped, as a file manager reads it back.
+pub fn file_uri(path: &str) -> String {
+    let mut uri = String::from("file://");
+    for byte in path.bytes() {
+        if byte.is_ascii_alphanumeric() || b"/-._~".contains(&byte) {
+            uri.push(byte as char);
+        } else {
+            uri.push_str(&format!("%{byte:02X}"));
+        }
+    }
+    uri
+}
+
 /// A failure's plain reason, in English, if it is one dm knows; see
 /// `REASONS`.
 ///
@@ -491,6 +505,14 @@ pub fn pieces_shown_open(pieces: &[(u64, u64)], open: &[bool], downloaded: u64) 
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn a_file_uri_escapes_what_an_address_cannot_hold() {
+        assert_eq!(
+            super::file_uri("/home/a b/50%#ü.zip"),
+            "file:///home/a%20b/50%25%23%C3%BC.zip"
+        );
+    }
+
     use super::*;
 
     /// Gap 166: no piece holds more than its range, and they add up to

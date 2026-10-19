@@ -924,7 +924,7 @@ fn bar_beside(ui: &mut egui::Ui, fraction: f32, width: f32, words: &str, widest:
     let room = ui.available_width()
         - words_width
         - ui.spacing().item_spacing.x
-        - ui.spacing().scroll.bar_width
+        - ui.spacing().scroll.allocated_width()
         - 8.0;
     let width = width.min(room).max(60.0);
     if !t.modern {
@@ -2288,9 +2288,13 @@ fn progress(app: &mut DmApp, ctx: &egui::Context) {
             .menu_bottom
             .max(screen.top())
             .min(screen.bottom() - 120.0);
+        // The name it will get, as the list says it: two catches of one
+        // link were both "big.zip" until they had begun (UI round 10).
+        let mut categories = app.applied.categories();
+        let named = app.name_it_will_get(&row, &mut categories);
         egui::Window::new(tf(
             "Download progress — {}",
-            &[&crate::bidi::visual(&name_of(&row))],
+            &[&crate::bidi::visual(&named)],
         ))
         .id(egui::Id::unique(("progress", id)))
         .collapsible(false)
@@ -2426,8 +2430,9 @@ fn progress(app: &mut DmApp, ctx: &egui::Context) {
                                 .count();
                             if !connections.is_empty() {
                                 ui.label(
-                                    RichText::new(tf(
-                                        "{} of {} pieces done",
+                                    RichText::new(crate::i18n::tn(
+                                        "{} of {} piece done||{} of {} pieces done",
+                                        connections.len() as u64,
                                         &[&finished, &connections.len()],
                                     ))
                                     .weak(),

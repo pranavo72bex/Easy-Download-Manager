@@ -304,7 +304,7 @@
  "{} downloading at {}||{} downloading at {}": "{} pobieranie, {}||{} pobierania, {}||{} pobierań, {}",
  "{} files found on {} pages": "Znaleziono {} plików na {} stronach",
  "{} links on {}": "{} linków na {}",
- "{} of {} pieces done": "{} z {} części gotowe",
+ "{} of {} piece done||{} of {} pieces done": "Gotowe części: {} z {}||Gotowe części: {} z {}||Gotowe części: {} z {}",
  "· download limit of {} MB reached, held for {}": "· osiągnięto limit pobierania {} MB, wstrzymane na {}",
  "· limited to {} KB/s": "· ograniczone do {} KB/s",
  "Jan": "sty",

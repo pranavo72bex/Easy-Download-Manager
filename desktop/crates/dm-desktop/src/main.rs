@@ -121,6 +121,13 @@ impl Platform for Desktop {
     fn reveal_later(&self, path: &str, report: dm_desktop::power::Report) {
         let path = path.to_string();
         std::thread::spawn(move || {
+            // The file manager's own "show this file", selected in its
+            // folder, where one answers on the session bus; otherwise the
+            // folder alone (UI round 10).
+            #[cfg(target_os = "linux")]
+            if std::path::Path::new(&path).exists() && show_item(&path) {
+                return;
+            }
             if let Err(e) = shell::reveal_in_folder(&path) {
                 report(e);
             }
@@ -551,6 +558,41 @@ fn tray_host() -> bool {
     {
         true
     }
+}
+
+/// Shows `path` selected in its folder through the freedesktop file
+/// manager interface, which the usual file managers answer (and are
+/// started for). False where none is there to ask.
+#[cfg(target_os = "linux")]
+fn show_item(path: &str) -> bool {
+    const NAME: &str = "org.freedesktop.FileManager1";
+    let Ok(connection) = zbus::blocking::Connection::session() else {
+        return false;
+    };
+    let there = zbus::blocking::fdo::DBusProxy::new(&connection).is_ok_and(|bus| {
+        let Ok(name) = zbus::names::BusName::try_from(NAME) else {
+            return false;
+        };
+        bus.name_has_owner(name).unwrap_or(false)
+            || bus
+                .list_activatable_names()
+                .is_ok_and(|names| names.iter().any(|n| n.as_str() == NAME))
+    });
+    if !there {
+        return false;
+    }
+    let proxy = zbus::blocking::proxy::Builder::<zbus::blocking::Proxy>::new(&connection)
+        .destination(NAME)
+        .and_then(|b| b.path("/org/freedesktop/FileManager1"))
+        .and_then(|b| b.interface(NAME))
+        .map(|b| b.cache_properties(zbus::proxy::CacheProperties::No))
+        .and_then(|b| b.build());
+    let Ok(proxy) = proxy else {
+        return false;
+    };
+    proxy
+        .call::<_, _, ()>("ShowItems", &(vec![dm_desktop::format::file_uri(path)], ""))
+        .is_ok()
 }
 
 /// Whether the desktop portal offers its file chooser on the session bus.
