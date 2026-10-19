@@ -237,6 +237,8 @@
  "Start queue": "Kuyruğu başlat",
  "Start the Main queue when dm opens": "dm açıldığında ana kuyruğu başlat",
  "Started {} download in {}.||Started {} downloads in {}.": "{1} içinde {0} indirme başlatıldı.",
+ "{} so far": "şu ana kadar {}",
+ "Joining parts…": "Parçalar birleştiriliyor…",
  "The finished one's file stays where it is.": "Bitenin dosyası yerinde kalır.",
  "The finished one's file is deleted from the disk too.": "Bitenin dosyası da diskten silinir.",
  "Turn on sorting to set the kinds' folders and your own categories.": "Türlerin klasörlerini ve kendi kategorilerinizi ayarlamak için sıralamayı açın.",

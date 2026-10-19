@@ -293,6 +293,10 @@ fn status_in(row: &Entry, words: fn(&'static str) -> &'static str) -> String {
             {
                 format!("{}% · {}", whole_percent(f), words("waiting for peers"))
             }
+            // Every byte in, its parts being put together: said, not "100%"
+            // for as long as that takes, tens of seconds for a large file
+            // on a slow disk (speed check, 2026-10-19).
+            Some(_) if fetched_all(row) => words("Joining parts…").into(),
             // Whole percents everywhere, rounded down so 99.9 is not 100:
             // the list said 28.88% beside a bar saying 28% (UI round 1).
             Some(f) => format!("{}%", whole_percent(f)),
@@ -4777,6 +4781,12 @@ mod status_tests {
         assert_eq!(status_in_english(&magnet), "10% · waiting for peers");
         magnet.progress.speed = 5000.0;
         assert_eq!(status_in_english(&magnet), "10%");
+        // Every byte in, its parts being joined: said so, not "100%".
+        let mut joining = paused(false);
+        joining.state = State::Running;
+        joining.progress.total = Some(100);
+        joining.progress.downloaded = 100;
+        assert_eq!(status_in_english(&joining), "Joining parts…");
     }
 
     #[test]

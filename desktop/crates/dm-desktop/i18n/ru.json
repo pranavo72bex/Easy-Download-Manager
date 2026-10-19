@@ -237,6 +237,8 @@
  "Start queue": "Запустить очередь",
  "Start the Main queue when dm opens": "Запускать основную очередь при открытии dm",
  "Started {} download in {}.||Started {} downloads in {}.": "Запущена {} загрузка в «{}».||Запущено {} загрузки в «{}».||Запущено {} загрузок в «{}».",
+ "{} so far": "пока {}",
+ "Joining parts…": "Сборка частей…",
  "The finished one's file stays where it is.": "Файл завершённой останется на месте.",
  "The finished one's file is deleted from the disk too.": "Файл завершённой тоже будет удалён с диска.",
  "Turn on sorting to set the kinds' folders and your own categories.": "Включите сортировку, чтобы задать папки по видам и свои категории.",

@@ -237,6 +237,8 @@
  "Start queue": "Wachtrij starten",
  "Start the Main queue when dm opens": "De hoofdwachtrij starten als dm opent",
  "Started {} download in {}.||Started {} downloads in {}.": "{} download gestart in {}.||{} downloads gestart in {}.",
+ "{} so far": "{} tot nu toe",
+ "Joining parts…": "Delen samenvoegen…",
  "The finished one's file stays where it is.": "Het bestand van de voltooide blijft waar het is.",
  "The finished one's file is deleted from the disk too.": "Het bestand van de voltooide wordt ook van de schijf verwijderd.",
  "Turn on sorting to set the kinds' folders and your own categories.": "Zet sorteren aan om de mappen per soort en uw eigen categorieën in te stellen.",

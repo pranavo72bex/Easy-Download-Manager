@@ -237,6 +237,8 @@
  "Start queue": "Warteschlange starten",
  "Start the Main queue when dm opens": "Die Hauptwarteschlange starten, wenn dm öffnet",
  "Started {} download in {}.||Started {} downloads in {}.": "{} Download in {} gestartet.||{} Downloads in {} gestartet.",
+ "{} so far": "{} bisher",
+ "Joining parts…": "Teile werden zusammengefügt…",
  "The finished one's file stays where it is.": "Die Datei des fertigen bleibt, wo sie ist.",
  "The finished one's file is deleted from the disk too.": "Die Datei des fertigen wird ebenfalls von der Festplatte gelöscht.",
  "Turn on sorting to set the kinds' folders and your own categories.": "Sortieren einschalten, um die Ordner der Arten und eigene Kategorien festzulegen.",

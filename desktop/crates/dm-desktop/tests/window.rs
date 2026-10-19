@@ -21,6 +21,34 @@ use egui_kittest::Harness;
 /// test reading back what it wrote must not read what another wrote.
 static SETTINGS_FILE: Mutex<()> = Mutex::new(());
 
+thread_local! {
+    /// Whether this test's thread holds [`SETTINGS_FILE`].
+    static HOLDS_SETTINGS: std::cell::Cell<bool> = const { std::cell::Cell::new(false) };
+}
+
+/// [`SETTINGS_FILE`], held until dropped, and known to be held on this
+/// thread, so a helper that writes the file too can take it only when the
+/// test has not: Add URL saves its recent addresses there, and a test
+/// reading the file back read another's (gap 51).
+struct SettingsFile(Option<std::sync::MutexGuard<'static, ()>>);
+
+impl Drop for SettingsFile {
+    fn drop(&mut self) {
+        if self.0.take().is_some() {
+            HOLDS_SETTINGS.with(|h| h.set(false));
+        }
+    }
+}
+
+fn settings_file() -> SettingsFile {
+    if HOLDS_SETTINGS.with(std::cell::Cell::get) {
+        return SettingsFile(None);
+    }
+    let guard = SETTINGS_FILE.lock().unwrap_or_else(|e| e.into_inner());
+    HOLDS_SETTINGS.with(|h| h.set(true));
+    SettingsFile(Some(guard))
+}
+
 /// Every test's settings file and queue live here, never in the real home.
 fn home() -> &'static std::path::Path {
     static HOME: OnceLock<tempfile::TempDir> = OnceLock::new();
@@ -349,6 +377,8 @@ fn type_role(harness: &mut Harness<'_, DmApp>, name: &str, text: &str) {
 
 /// Add URL, the address, OK, then the File Info dialog's button.
 fn add_url(harness: &mut Harness<'_, DmApp>, url: &str, button: &str) {
+    // Add URL writes the settings file (its recent addresses).
+    let _file = settings_file();
     click(harness, "Add URL");
     type_into(harness, "Address", url);
     click(harness, "OK");
@@ -1528,7 +1558,7 @@ fn properties_change_the_description_and_refresh_an_expired_address() {
 #[test]
 fn a_column_turned_off_is_gone_and_comes_back() {
     // Turning one off is saved in the settings file other tests read.
-    let _file = SETTINGS_FILE.lock().unwrap_or_else(|e| e.into_inner());
+    let _file = settings_file();
     let world = world();
     let mut harness = world.harness();
     harness
@@ -1786,7 +1816,7 @@ fn the_site_file_finder_finds_the_files_a_page_links_to() {
 
 #[test]
 fn a_site_search_reads_pages_deep_and_a_saved_one_runs_on_its_own() {
-    let _file = SETTINGS_FILE.lock().unwrap_or_else(|e| e.into_inner());
+    let _file = settings_file();
     let world = world();
     let mut harness = world.harness();
     click(&mut harness, "Site files");
@@ -1956,7 +1986,7 @@ fn find_next_selects_the_next_row_with_the_name() {
 
 #[test]
 fn options_are_put_into_force_on_ok_and_written_down() {
-    let _file = SETTINGS_FILE.lock().unwrap_or_else(|e| e.into_inner());
+    let _file = settings_file();
     let world = world();
     let mut harness = world.harness();
     click(&mut harness, "Options");
@@ -1971,7 +2001,7 @@ fn options_are_put_into_force_on_ok_and_written_down() {
 
 #[test]
 fn a_category_made_in_options_takes_its_files_into_its_own_folder() {
-    let _file = SETTINGS_FILE.lock().unwrap_or_else(|e| e.into_inner());
+    let _file = settings_file();
     let world = world();
     let mut harness = world.harness();
     click(&mut harness, "Options");
@@ -2021,7 +2051,7 @@ fn a_category_made_in_options_takes_its_files_into_its_own_folder() {
 #[test]
 fn the_toolbar_is_customized_from_the_view_menu_and_remembered() {
     use egui::accesskit::Role;
-    let _file = SETTINGS_FILE.lock().unwrap_or_else(|e| e.into_inner());
+    let _file = settings_file();
     let world = world();
     let mut harness = world.harness();
     let site_files_buttons = |h: &Harness<'_, DmApp>| {
@@ -2089,7 +2119,7 @@ fn the_toolbar_is_customized_from_the_view_menu_and_remembered() {
 
 #[test]
 fn the_file_types_the_browser_hands_over_are_set_in_options() {
-    let _file = SETTINGS_FILE.lock().unwrap_or_else(|e| e.into_inner());
+    let _file = settings_file();
     let world = world();
     let mut harness = world.harness();
     click(&mut harness, "Options");
@@ -2130,7 +2160,7 @@ fn the_file_types_the_browser_hands_over_are_set_in_options() {
 
 #[test]
 fn site_limits_attempts_and_the_timeout_are_set_in_options_and_reach_the_queue() {
-    let _file = SETTINGS_FILE.lock().unwrap_or_else(|e| e.into_inner());
+    let _file = settings_file();
     let world = world();
     let mut harness = world.harness();
     click(&mut harness, "Options");
@@ -2187,7 +2217,7 @@ fn site_limits_attempts_and_the_timeout_are_set_in_options_and_reach_the_queue()
 
 #[test]
 fn the_proxys_bypass_list_and_the_recheck_timer_are_set_in_options() {
-    let _file = SETTINGS_FILE.lock().unwrap_or_else(|e| e.into_inner());
+    let _file = settings_file();
     let world = world();
     let mut harness = world.harness();
     click(&mut harness, "Options");
@@ -2261,7 +2291,7 @@ fn an_address_already_in_the_list_is_asked_about_before_it_is_added_again() {
 
 #[test]
 fn a_failed_download_plays_the_failure_sound_when_asked() {
-    let _file = SETTINGS_FILE.lock().unwrap_or_else(|e| e.into_inner());
+    let _file = settings_file();
     let world = world();
     let mut harness = world.harness();
     let mut wanted = harness.state().backend().settings();
@@ -2463,7 +2493,7 @@ fn remove_deletes_the_file_too_only_when_asked() {
 /// offers them again, and forgets them on Clear history.
 #[test]
 fn add_url_remembers_addresses_without_their_login_and_clears_them() {
-    let _file = SETTINGS_FILE.lock().unwrap_or_else(|e| e.into_inner());
+    let _file = settings_file();
     let world = world();
     let mut harness = world.harness();
     click(&mut harness, "Add URL");
@@ -2843,7 +2873,7 @@ fn menus_open_from_the_keyboard() {
 
 #[test]
 fn two_cancelled_hand_offs_from_a_site_offer_to_leave_it_to_the_browser() {
-    let _file = SETTINGS_FILE.lock().unwrap_or_else(|e| e.into_inner());
+    let _file = settings_file();
     let world = world();
     let mut harness = world.harness();
     let hand = |harness: &mut Harness<'_, DmApp>, name: &str| {
@@ -2909,7 +2939,7 @@ fn two_cancelled_hand_offs_from_a_site_offer_to_leave_it_to_the_browser() {
 
 #[test]
 fn a_queues_own_file_limit_and_the_parts_folder_are_set_in_options() {
-    let _file = SETTINGS_FILE.lock().unwrap_or_else(|e| e.into_inner());
+    let _file = settings_file();
     let world = world();
     let mut harness = world.harness();
     click(&mut harness, "Options");
@@ -3073,7 +3103,7 @@ fn an_option_that_cannot_be_applied_is_said_and_what_was_typed_is_kept() {
      * threw away every edit in the dialog to say what was wrong with one.
      * The edits stay, with the reason, and OK again once the cause is gone
      * puts them in force. */
-    let _file = SETTINGS_FILE.lock().unwrap_or_else(|e| e.into_inner());
+    let _file = settings_file();
     let world = world();
     *world.fake.login_fails.lock().unwrap() = true;
     let mut harness = world.harness();
@@ -3135,7 +3165,7 @@ fn a_sleep_the_system_refuses_is_said_in_the_problems() {
 
 #[test]
 fn the_scheduler_refuses_a_time_that_is_not_one_and_says_why() {
-    let _file = SETTINGS_FILE.lock().unwrap_or_else(|e| e.into_inner());
+    let _file = settings_file();
     let world = world();
     let mut harness = world.harness();
     harness.state_mut().run(Command::Scheduler);
@@ -3182,7 +3212,7 @@ fn the_scheduler_refuses_a_time_that_is_not_one_and_says_why() {
 
 #[test]
 fn a_bad_category_options_opened_with_does_not_fail_an_unrelated_ok() {
-    let _file = SETTINGS_FILE.lock().unwrap_or_else(|e| e.into_inner());
+    let _file = settings_file();
     let world = world();
     let mut harness = world.harness();
     click(&mut harness, "Options");
@@ -3216,7 +3246,7 @@ fn a_bad_category_options_opened_with_does_not_fail_an_unrelated_ok() {
 
 #[test]
 fn options_refuses_a_category_that_is_not_one_folder_and_a_relative_download_folder() {
-    let _file = SETTINGS_FILE.lock().unwrap_or_else(|e| e.into_inner());
+    let _file = settings_file();
     let world = world();
     let mut harness = world.harness();
     let before = harness.state().backend().settings();
@@ -3266,7 +3296,7 @@ fn options_refuses_a_category_that_is_not_one_folder_and_a_relative_download_fol
 
 #[test]
 fn the_speed_limiter_turns_off_and_back_on_to_its_last_value() {
-    let _file = SETTINGS_FILE.lock().unwrap_or_else(|e| e.into_inner());
+    let _file = settings_file();
     let world = world();
     let mut harness = world.harness();
     harness.state_mut().run(Command::SpeedLimiterToggle);
@@ -3279,7 +3309,7 @@ fn the_speed_limiter_turns_off_and_back_on_to_its_last_value() {
 
 #[test]
 fn the_download_limit_is_set_in_the_speed_limiter_and_reaches_the_queue() {
-    let _file = SETTINGS_FILE.lock().unwrap_or_else(|e| e.into_inner());
+    let _file = settings_file();
     let world = world();
     let mut harness = world.harness();
     harness.state_mut().run(Command::SpeedLimiterSettings);
@@ -3318,7 +3348,7 @@ fn the_download_limit_is_set_in_the_speed_limiter_and_reaches_the_queue() {
 
 #[test]
 fn the_weekly_update_check_asks_nothing_when_off_or_not_yet_due() {
-    let _file = SETTINGS_FILE.lock().unwrap_or_else(|e| e.into_inner());
+    let _file = settings_file();
     let world = world();
     let mut harness = world.harness();
     harness.run_steps(3);
@@ -3347,7 +3377,7 @@ fn the_weekly_update_check_asks_nothing_when_off_or_not_yet_due() {
 
 #[test]
 fn view_language_puts_the_window_in_another_language_and_back() {
-    let _file = SETTINGS_FILE.lock().unwrap_or_else(|e| e.into_inner());
+    let _file = settings_file();
     let world = world();
     let mut harness = world.harness();
     harness.run_steps(2);
@@ -3394,7 +3424,7 @@ fn view_language_puts_the_window_in_another_language_and_back() {
 
 #[test]
 fn the_clipboard_watcher_offers_only_new_links_and_only_when_on() {
-    let _file = SETTINGS_FILE.lock().unwrap_or_else(|e| e.into_inner());
+    let _file = settings_file();
     let world = world();
     *world.fake.clipboard.lock().unwrap() = Some(world.url("old.iso"));
     let mut harness = world.harness();
@@ -3570,7 +3600,7 @@ fn every_dialog_in_every_language_is_translated() {
 fn every_command_runs_against_rows_in_every_state() {
     // The speed limiter's toggle saves the settings file the settings
     // tests read back.
-    let _file = SETTINGS_FILE.lock().unwrap_or_else(|e| e.into_inner());
+    let _file = settings_file();
     let world = world();
     let mut harness = world.harness();
     add_url(&mut harness, &world.url("file.zip"), "Start now");
@@ -4069,7 +4099,7 @@ fn is_there(h: &Harness<'_, DmApp>, name: &str) -> bool {
 /// and a test makes no request off this computer.
 #[test]
 fn every_menu_item_clicked_does_what_it_says() {
-    let _file = SETTINGS_FILE.lock().unwrap_or_else(|e| e.into_inner());
+    let _file = settings_file();
     let world = world();
     let mut h = world.harness();
     add_url(&mut h, &world.url("file.zip"), "Start now");
@@ -4807,7 +4837,7 @@ fn the_status_bars_folder_never_covers_what_it_says() {
 
 #[test]
 fn the_speed_limit_last_turned_off_comes_back_after_a_restart() {
-    let _file = SETTINGS_FILE.lock().unwrap_or_else(|e| e.into_inner());
+    let _file = settings_file();
     let world = world();
     let mut harness = world.harness();
     let mut wanted = harness.state().applied.clone();
@@ -4921,7 +4951,7 @@ fn f3_finds_the_next_one_while_find_is_open() {
 
 #[test]
 fn options_holds_only_new_or_renamed_folders_to_every_computers_rules() {
-    let _file = SETTINGS_FILE.lock().unwrap_or_else(|e| e.into_inner());
+    let _file = settings_file();
     let world = world();
     // Saved before by a dm that took them, and usable on this computer: a
     // kind's folder and a category with a colon in it.
@@ -5068,7 +5098,7 @@ fn a_dialog_is_typed_in_at_once_and_enter_presses_its_default_button() {
 /// opens, and a held row says why it waits.
 #[test]
 fn the_status_bar_says_the_schedule_holds_downloads_and_until_when() {
-    let _file = SETTINGS_FILE.lock().unwrap_or_else(|e| e.into_inner());
+    let _file = settings_file();
     use chrono::Timelike;
     let world = world();
     let mut harness = world.harness();
@@ -5306,7 +5336,7 @@ fn downloads_finishing_under_the_exit_question_never_quit_dm() {
 /// it, and Options keeps its place whichever tab shows.
 #[test]
 fn the_sort_survives_a_restart_and_options_keeps_its_place() {
-    let _file = SETTINGS_FILE.lock().unwrap_or_else(|e| e.into_inner());
+    let _file = settings_file();
     let world = world();
     let mut harness = world.harness();
     add_url(&mut harness, &world.url("file.zip"), "Add for later");
@@ -5398,7 +5428,7 @@ fn a_refused_sign_in_says_where_to_give_one() {
 /// Gap 115: the speed limiter's menu item is ticked while a limit is on.
 #[test]
 fn the_speed_limiter_item_shows_whether_it_is_on() {
-    let _file = SETTINGS_FILE.lock().unwrap_or_else(|e| e.into_inner());
+    let _file = settings_file();
     let world = world();
     let mut h = world.harness();
     let state = |h: &mut Harness<'_, DmApp>| {
@@ -5829,7 +5859,7 @@ fn long_status_text_wraps_and_stays_on_screen() {
 /// outside the schedule, and it then downloads while the schedule stays shut.
 #[test]
 fn resume_on_a_held_row_offers_to_start_it_outside_the_schedule() {
-    let _file = SETTINGS_FILE.lock().unwrap_or_else(|e| e.into_inner());
+    let _file = settings_file();
     use chrono::Timelike;
     let world = world();
     let mut harness = world.harness();
@@ -5931,7 +5961,7 @@ fn a_sign_in_saved_in_properties_retries_the_download() {
 /// applies it.
 #[test]
 fn the_delete_key_asks_and_the_limiter_takes_enter() {
-    let _file = SETTINGS_FILE.lock().unwrap_or_else(|e| e.into_inner());
+    let _file = settings_file();
     let world = world();
     let mut harness = world.harness();
     add_url(&mut harness, &world.url("file.zip"), "Start now");
@@ -6237,7 +6267,7 @@ fn save_as_takes_the_servers_name() {
 /// whether to start it outside the schedule, as Resume does.
 #[test]
 fn start_now_under_a_shut_schedule_offers_to_start_outside_it() {
-    let _file = SETTINGS_FILE.lock().unwrap_or_else(|e| e.into_inner());
+    let _file = settings_file();
     use chrono::Timelike;
     let world = world();
     let mut harness = world.harness();
@@ -6273,7 +6303,7 @@ fn start_now_under_a_shut_schedule_offers_to_start_outside_it() {
 /// headings.
 #[test]
 fn the_small_things_of_round_eight() {
-    let _file = SETTINGS_FILE.lock().unwrap_or_else(|e| e.into_inner());
+    let _file = settings_file();
     let world = world();
     // Under the headings, with nothing in the list.
     {
@@ -6422,7 +6452,7 @@ fn the_progress_bar_keeps_its_width_in_the_classic_look() {
 /// where its host goes, and says why on the Proxy tab; nothing is put in force.
 #[test]
 fn options_refuses_a_proxy_with_no_host() {
-    let _file = SETTINGS_FILE.lock().unwrap_or_else(|e| e.into_inner());
+    let _file = settings_file();
     let world = world();
     let mut harness = world.harness();
     click(&mut harness, "Options");
@@ -7918,7 +7948,7 @@ fn a_row_of_no_known_kind_is_under_other() {
 /// is greyed once every queue has one.
 #[test]
 fn each_queue_has_at_most_one_limit() {
-    let _file = SETTINGS_FILE.lock().unwrap_or_else(|e| e.into_inner());
+    let _file = settings_file();
     let world = world();
     let mut harness = world.harness();
     click(&mut harness, "Options");
@@ -8016,7 +8046,7 @@ fn import_says_the_lines_it_could_not_read() {
 /// one saved in Options afterwards, as a fresh copy of the address was.
 #[test]
 fn retry_uses_a_sign_in_saved_since_it_failed() {
-    let _file = SETTINGS_FILE.lock().unwrap_or_else(|e| e.into_inner());
+    let _file = settings_file();
     let world = world();
     let mut harness = world.harness();
     harness
@@ -8052,7 +8082,7 @@ fn retry_uses_a_sign_in_saved_since_it_failed() {
 /// dialog that lists them; only the first was, and the rest dropped.
 #[test]
 fn the_clipboard_watcher_offers_every_link_copied_together() {
-    let _file = SETTINGS_FILE.lock().unwrap_or_else(|e| e.into_inner());
+    let _file = settings_file();
     let world = world();
     *world.fake.clipboard.lock().unwrap() = Some("old".into());
     let mut harness = world.harness();
@@ -8262,7 +8292,7 @@ fn add_url_takes_a_torrent_on_this_computer() {
 /// Download and Dismiss stay in the window.
 #[test]
 fn the_clipboard_bar_keeps_its_buttons_in_the_window() {
-    let _file = SETTINGS_FILE.lock().unwrap_or_else(|e| e.into_inner());
+    let _file = settings_file();
     let world = world();
     *world.fake.clipboard.lock().unwrap() = Some("old".into());
     let mut harness = world.harness();
@@ -8284,4 +8314,35 @@ fn the_clipboard_bar_keeps_its_buttons_in_the_window() {
     let mut off = harness.state().backend().settings();
     off.watch_clipboard = false;
     harness.state_mut().apply_settings(off).unwrap();
+}
+
+/// Speed check, 2026-10-19: the progress window was held at the room on
+/// the screen, 84% of the window's height for three connections. It is as
+/// tall as what it holds, its connections shut until asked for.
+#[test]
+fn the_progress_window_is_as_tall_as_what_it_holds() {
+    let world = world();
+    let mut harness = world.harness();
+    harness
+        .state()
+        .backend()
+        .add(&world.url("stalled.bin"))
+        .unwrap();
+    until(&mut harness, "it to run", |app| {
+        app.rows().iter().any(|r| r.state == State::Running)
+    });
+    let id = harness.state().rows()[0].id;
+    harness.state_mut().dialogs.progress.insert(id);
+    harness.run_steps(4);
+    let window = harness
+        .query_all_by_label_contains("Download progress")
+        .map(|n| n.rect())
+        .next()
+        .expect("no progress window");
+    let screen = harness.ctx.content_rect();
+    assert!(
+        window.height() < screen.height() * 0.5,
+        "{window:?} is {:.0}% of the window's height",
+        100.0 * window.height() / screen.height()
+    );
 }

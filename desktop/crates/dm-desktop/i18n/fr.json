@@ -237,6 +237,8 @@
  "Start queue": "Démarrer la file",
  "Start the Main queue when dm opens": "Démarrer la file principale à l'ouverture de dm",
  "Started {} download in {}.||Started {} downloads in {}.": "{} téléchargement démarré dans {}.||{} téléchargements démarrés dans {}.",
+ "{} so far": "{} jusqu'ici",
+ "Joining parts…": "Assemblage des morceaux…",
  "The finished one's file stays where it is.": "Le fichier du téléchargement terminé reste où il est.",
  "The finished one's file is deleted from the disk too.": "Le fichier du téléchargement terminé est aussi supprimé du disque.",
  "Turn on sorting to set the kinds' folders and your own categories.": "Activez le tri pour définir les dossiers des types et vos propres catégories.",

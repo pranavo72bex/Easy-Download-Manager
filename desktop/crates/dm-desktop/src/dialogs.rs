@@ -2504,10 +2504,14 @@ fn progress(app: &mut DmApp, ctx: &egui::Context) {
             let tall = (below_menu.height() - 130.0 - step)
                 .min((screen.height() * 0.7).max(400.0))
                 .max(120.0);
+            // As tall as what it holds, up to that: held at the room on the
+            // screen whatever it held, it filled 84% of the window's height
+            // with three connections and a band of nothing (speed check,
+            // 2026-10-19). Its height changes only when Connections is
+            // opened or shut, which a person does.
             egui::ScrollArea::vertical()
-                .auto_shrink([false, false])
+                .auto_shrink([false, true])
                 .max_height(tall)
-                .min_scrolled_height(tall)
                 .show(ui, |ui| {
                     ui.add(
                         egui::Label::new(RichText::new(format::shown_url(&row.url)).small().weak())
@@ -2515,8 +2519,13 @@ fn progress(app: &mut DmApp, ctx: &egui::Context) {
                     )
                     .on_hover_text(&row.url);
                     let p = &row.progress;
+                    // Rows as tall as their text, not as a control: six
+                    // lines of words took a third of its height (speed
+                    // check, 2026-10-19).
+                    ui.spacing_mut().interact_size.y = ui.text_style_height(&egui::TextStyle::Body);
                     egui::Grid::new(("progress-grid", id))
                         .num_columns(2)
+                        .spacing([12.0, 4.0])
                         .max_col_width(room - 110.0)
                         .show(ui, |ui| {
                             ui.label(t("Status"));
@@ -2605,8 +2614,10 @@ fn progress(app: &mut DmApp, ctx: &egui::Context) {
                     // yet." while megabytes arrived (torrent check).
                     let torrent = dm_core::is_torrent(&row.url);
                     if !torrent {
+                        // Shut until asked for: what most want is the bar,
+                        // the bytes, the speed and the time left above.
                         egui::CollapsingHeader::new(t("Connections"))
-                            .default_open(true)
+                            .default_open(false)
                             .id_salt(("connections", id))
                             .show(ui, |ui| {
                                 if connections.is_empty() {
@@ -2685,6 +2696,15 @@ fn progress(app: &mut DmApp, ctx: &egui::Context) {
                                                 ))
                                                 .weak(),
                                             );
+                                        } else if row.progress.total.is_none() || span >= 1 << 60 {
+                                            // Of a length nobody said: what has
+                                            // come, not a bar against the range's
+                                            // open end, which read "of 16777216.00
+                                            // TB" (speed check, 2026-10-19).
+                                            ui.label(crate::table::digits(
+                                                ui,
+                                                tf("{} so far", &[&format::bytes(done)]),
+                                            ));
                                         } else {
                                             bar_beside(
                                                 ui,
