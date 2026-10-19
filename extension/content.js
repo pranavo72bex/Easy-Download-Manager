@@ -25,8 +25,11 @@
   // key. The take key is held to isTrusted, since it hands something over;
   // a made-up keep click can only leave a download with the browser.
   const keys = { keep: 'alt', take: 'shift' };
-  // The app's master switch: off, a magnet link is the browser's.
-  let catching = true;
+  // The app's master switch and the popup's "Catch downloads": either
+  // off, a magnet link is the browser's.
+  let rulesOn = true;
+  let popupOn = true;
+  const catchingNow = () => rulesOn && popupOn;
   const held = (event, key) => (key === 'alt' && event.altKey)
     || (key === 'shift' && event.shiftKey)
     || (key === 'ctrl' && (event.ctrlKey || event.metaKey));
@@ -34,11 +37,17 @@
     if (!rules || typeof rules !== 'object') return;
     if (typeof rules.keepKey === 'string') keys.keep = rules.keepKey;
     if (typeof rules.takeKey === 'string') keys.take = rules.takeKey;
-    if (typeof rules.enabled === 'boolean') catching = rules.enabled;
+    if (typeof rules.enabled === 'boolean') rulesOn = rules.enabled;
   };
   try {
-    ext.storage.local.get('dm.catch').then((got) => readKeys(got?.['dm.catch'])).catch(() => {});
-    ext.storage.onChanged.addListener((changes) => readKeys(changes?.['dm.catch']?.newValue));
+    ext.storage.local.get(['dm.catch', 'dm.catching']).then((got) => {
+      readKeys(got?.['dm.catch']);
+      popupOn = got?.['dm.catching'] !== false;
+    }).catch(() => {});
+    ext.storage.onChanged.addListener((changes) => {
+      readKeys(changes?.['dm.catch']?.newValue);
+      if (changes && 'dm.catching' in changes) popupOn = changes['dm.catching'].newValue !== false;
+    });
   } catch {
     // No storage here; the keys stay as they ship.
   }
@@ -53,7 +62,7 @@
     // Windows. The background gives it back to the browser when the app
     // cannot take it. Not with the keep key held, nor in a private window.
     const magnet = event.target.closest('a[href]');
-    if (magnet && event.button === 0 && catching && !privateTab && !held(event, keys.keep)
+    if (magnet && event.button === 0 && catchingNow() && !privateTab && !held(event, keys.keep)
         && /^magnet:\?/i.test(String(magnet.href))) {
       event.preventDefault();
       try {

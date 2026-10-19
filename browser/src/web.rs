@@ -850,7 +850,13 @@ async fn give_back(id: &JsValue, url: &str) {
 /// person asked for the file, and gets it either way. A page (a player for
 /// yt-dlp) has nothing the browser could save, so its reason stands.
 async fn in_browser_instead(target: &Target, why: &str) -> Result<String, String> {
-    if target.page {
+    // Only what the browser downloads: a magnet given to its downloader was
+    // accepted and failed, said as taken, and nothing was opened (torrent
+    // check, 2026-10-19). The caller gives a magnet back to the page.
+    let web = ["http://", "https://", "ftp://"]
+        .iter()
+        .any(|s| target.url.to_ascii_lowercase().starts_with(s));
+    if target.page || !web {
         return Err(why.to_string());
     }
     RELEASED.with(|r| r.borrow_mut().remember(&target.url, now()));
@@ -970,9 +976,16 @@ async fn formats_of(target: &Target) -> Result<Vec<dm_protocol::Choice>, String>
 
 /// Hands something a person asked for, and says so when it cannot.
 async fn hand_asked(target: Target, store: Option<String>) {
-    let name = decide::taken_name("", &target.url);
+    let name = if target.url.to_ascii_lowercase().starts_with("magnet:") {
+        decide::magnet_name(&target.url)
+    } else {
+        decide::taken_name("", &target.url)
+    };
     match hand_target(target, store).await {
         Ok(said) if said == decide::NO_YTDLP => notify("dm", &said),
+        // Left to the browser, which is downloading it: said so, not as
+        // dm's (torrent check, 2026-10-19).
+        Ok(said) if said.starts_with("the browser is downloading it") => notify("dm", &said),
         // Said, as a caught download is: nothing in the browser showed it
         // had been taken (UI round 13).
         Ok(_) => notify("dm is downloading it", &name),
@@ -1036,8 +1049,12 @@ pub async fn on_page_message(message: JsValue, sender: JsValue) -> JsValue {
             referrer: tab_url.clone(),
             page: false,
         };
+        // The popup's "Catch downloads" switch off: the browser's, as a
+        // clicked file would be (torrent check, 2026-10-19).
         let refused = if private {
             Some("dm takes nothing from a private window".to_string())
+        } else if !catching().await {
+            Some("catching is switched off".to_string())
         } else {
             match hand_target(target, tab_store(&sender, "tab")).await {
                 Ok(_) => {
