@@ -98,7 +98,7 @@ def window(env):
     if sys.platform.startswith("linux") and not (os.environ.get("DISPLAY") or os.environ.get("WAYLAND_DISPLAY")):
         print("--    the window: no display here, not checked", flush=True)
         return
-    app = subprocess.Popen([str(BINARY)], env=env, stdout=subprocess.DEVNULL, stderr=subprocess.PIPE)
+    app = launch([str(BINARY)], env)
     try:
         time.sleep(6)
         if app.poll() is not None:
@@ -106,12 +106,40 @@ def window(env):
                  f"{app.stderr.read().decode(errors='replace')[:500]}")
         ok("opens its window")
     finally:
-        if app.poll() is None:
-            app.terminate()
-            try:
-                app.wait(15)
-            except subprocess.TimeoutExpired:
-                app.kill()
+        stop(app)
+
+
+def launch(argv, env):
+    """dm started in a process group of its own, so stopping it stops what
+    it started: an AppImage is a wrapper that runs dm as its child, and a
+    signal to the wrapper alone left that dm running, which the next launch
+    then handed over to and quit (0.2.0's CI)."""
+    extra = {"start_new_session": True} if os.name == "posix" else {}
+    return subprocess.Popen(argv, env=env, stdout=subprocess.DEVNULL, stderr=subprocess.PIPE, **extra)
+
+
+def stop(app):
+    """Ends dm and everything in its group, then waits for it."""
+    if app.poll() is not None:
+        return
+    if os.name == "posix":
+        import signal
+        try:
+            os.killpg(app.pid, signal.SIGTERM)
+        except ProcessLookupError:
+            return
+    else:
+        app.terminate()
+    try:
+        app.wait(15)
+    except subprocess.TimeoutExpired:
+        if os.name == "posix":
+            import signal
+            os.killpg(app.pid, signal.SIGKILL)
+        else:
+            app.kill()
+    # The group's other members (the AppImage's dm) a moment to go.
+    time.sleep(1)
 
 
 def main():
@@ -129,8 +157,7 @@ def main():
         native_host(env)
         window(env)
 
-        app = subprocess.Popen([str(BINARY), "--headless", "--control", "0"], env=env,
-                               stdout=subprocess.DEVNULL, stderr=subprocess.PIPE)
+        app = launch([str(BINARY), "--headless", "--control", "0"], env)
         port_file = home / "control.port"
         deadline = time.time() + 60
         while not (port_file.exists() and port_file.read_text().strip()):
@@ -166,12 +193,8 @@ def main():
         ok(f"downloads a file byte-exact ({len(BODY) // (1024 * 1024)} MiB, ranges)")
         control.close()
     finally:
-        if app is not None and app.poll() is None:
-            app.terminate()
-            try:
-                app.wait(15)
-            except subprocess.TimeoutExpired:
-                app.kill()
+        if app is not None:
+            stop(app)
         server.shutdown()
         shutil.rmtree(work, ignore_errors=True)
     print("the installed dm works")

@@ -899,6 +899,13 @@ fn main() {
         return;
     }
 
+    // `--version`: the version, and nothing else. Without it, `dm --version`
+    // opened the window (found checking an installed AppImage, 0.2.0).
+    if matches!(args.first().map(String::as_str), Some("--version" | "-V")) {
+        println!("dm {}", env!("CARGO_PKG_VERSION"));
+        return;
+    }
+
     // `mcp`: a Model Context Protocol server on stdin and stdout, relaying
     // to the running dm's control protocol. Takes no lock: it is a client.
     if args.first().map(String::as_str) == Some("mcp") {
