@@ -40,6 +40,17 @@ wait
 }
 
 fn alive(pid: &str) -> bool {
+    // A process ended but not yet reaped is a zombie, and answers `kill -0`:
+    // in a container whose first process reaps no orphans (the Arch
+    // package's check in CI) it stays one. Ended is ended.
+    if let Ok(stat) = std::fs::read_to_string(format!("/proc/{pid}/stat")) {
+        let state = stat
+            .rsplit_once(')')
+            .and_then(|(_, rest)| rest.split_whitespace().next());
+        if matches!(state, Some("Z" | "X")) {
+            return false;
+        }
+    }
     std::process::Command::new("/bin/kill")
         .args(["-0", pid])
         .stderr(std::process::Stdio::null())
