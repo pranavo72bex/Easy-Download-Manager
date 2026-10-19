@@ -853,7 +853,14 @@ def main():
     }))
     # yt-dlp as it is, except that the player page, which has no real video
     # for it to read, is said to come in two qualities.
-    real_ytdlp = shutil.which("yt-dlp") or "/opt/homebrew/bin/yt-dlp"
+    # Found where it is usually installed, on any system: a Linux run fell
+    # back to the Mac's /opt/homebrew/bin and the player-page check failed
+    # though yt-dlp was in ~/.local/bin (Linux QA, 2026-10-19).
+    real_ytdlp = shutil.which(
+        "yt-dlp",
+        path=os.pathsep.join([os.environ.get("PATH", ""), str(pathlib.Path.home() / ".local/bin"),
+                              "/opt/homebrew/bin", "/usr/local/bin", "/usr/bin"]),
+    ) or "yt-dlp"
     stand_in = engine_home / "yt-dlp"
     stand_in.write_text(
         "#!/bin/sh\n"

@@ -698,7 +698,21 @@ pub async fn on_download_created(item: JsValue) {
                 decide::BrowserCopy::Cancel => ("cancelled", "cancel"),
                 decide::BrowserCopy::Remove => ("removed", "removeFile"),
             };
-            match call("downloads", what, std::slice::from_ref(&id)).await {
+            let mut done = call("downloads", what, std::slice::from_ref(&id)).await;
+            // Finished between the look and the cancel: a fast file (a
+            // 300 KB PDF) refused the cancel, its list entry was erased below
+            // and the whole file stayed in the browser's folder beside dm's
+            // (Linux QA, 2026-10-19). Removed instead, once it says complete.
+            if done.is_err() && what == "cancel" {
+                for _ in 0..20 {
+                    if state_of(found.id).await.as_deref() == Some("complete") {
+                        done = call("downloads", "removeFile", std::slice::from_ref(&id)).await;
+                        break;
+                    }
+                    sleep(100.0).await;
+                }
+            }
+            match done {
                 // Gone from the browser before it named the file: its Save
                 // dialog, where it would have asked, never opens.
                 Ok(_) => decided.taken = true,
