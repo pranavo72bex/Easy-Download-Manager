@@ -397,8 +397,7 @@ fn a_finished_file_dragged_out_of_the_list_is_handed_to_the_systems_drag() {
         .clone();
 
     // Pressed on its name and moved: a drag, not a click.
-    let drag = |harness: &mut Harness<'_, DmApp>, name: &str| {
-        let at = harness.get_by_label(name).rect().center();
+    let drag_at = |harness: &mut Harness<'_, DmApp>, at: egui::Pos2| {
         harness
             .input_mut()
             .events
@@ -429,6 +428,10 @@ fn a_finished_file_dragged_out_of_the_list_is_handed_to_the_systems_drag() {
         harness.run_steps(2);
         carried
     };
+    let drag = |harness: &mut Harness<'_, DmApp>, name: &str| {
+        let at = harness.get_by_label(name).rect().left_center() + egui::vec2(8.0, 0.0);
+        drag_at(harness, at)
+    };
     assert_eq!(
         drag(&mut harness, "file.zip"),
         [std::path::PathBuf::from(&done.path)],
@@ -437,6 +440,46 @@ fn a_finished_file_dragged_out_of_the_list_is_handed_to_the_systems_drag() {
     assert!(
         drag(&mut harness, "stalled.bin").is_empty(),
         "an unfinished download has no file to carry"
+    );
+    // A quick drag from a column's edge resizes the column; it carried the
+    // row's file away (UI round 11).
+    let edge = egui::pos2(
+        harness.get_by_label("Status").rect().left() - 4.0,
+        harness.get_by_label("file.zip").rect().center().y,
+    );
+    // Pressed and moved far in one frame, as a quick hand does.
+    harness
+        .input_mut()
+        .events
+        .push(egui::Event::PointerMoved(edge));
+    harness.step();
+    harness.input_mut().events.push(egui::Event::PointerButton {
+        pos: edge,
+        button: egui::PointerButton::Primary,
+        pressed: true,
+        modifiers: Default::default(),
+    });
+    harness
+        .input_mut()
+        .events
+        .push(egui::Event::PointerMoved(edge + egui::vec2(60.0, 4.0)));
+    harness.step();
+    harness
+        .input_mut()
+        .events
+        .push(egui::Event::PointerMoved(edge + egui::vec2(80.0, 6.0)));
+    harness.step();
+    let carried = std::mem::take(&mut harness.state_mut().drag_out);
+    harness.input_mut().events.push(egui::Event::PointerButton {
+        pos: edge + egui::vec2(80.0, 6.0),
+        button: egui::PointerButton::Primary,
+        pressed: false,
+        modifiers: Default::default(),
+    });
+    harness.run_steps(2);
+    assert!(
+        carried.is_empty(),
+        "a drag from a column's edge carried the row"
     );
 }
 

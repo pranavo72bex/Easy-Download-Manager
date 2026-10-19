@@ -130,6 +130,10 @@ pub fn show(app: &mut DmApp, ui: &mut egui::Ui) {
             // name 120 points beside a band of nothing, and one shrunk cut
             // Status to "Co…" (UI round 7).
             let state_id = ui.scope_id().with(egui::IdSalt::new("list"));
+            // Where a column's resize handle is: half the spacing past its
+            // cell, and how near it a press grabs it.
+            let grab = ui.style().interaction.resize_grab_radius_side;
+            let half_gap = ui.spacing().item_spacing.x / 2.0;
             let dragged_id = egui::Id::unique("dm-columns-dragged");
             let width_id = egui::Id::unique("dm-list-width");
             // A person's widths are for the text size they were dragged at:
@@ -191,10 +195,12 @@ pub fn show(app: &mut DmApp, ui: &mut egui::Ui) {
             if refit {
                 table.reset();
             }
+            let mut edges: Vec<f32> = Vec::new();
             let out = table
                 .header(22.0, |mut header| {
                     for column in &columns {
-                        header.col(|ui| heading(app, ui, *column));
+                        let (rect, _) = header.col(|ui| heading(app, ui, *column));
+                        edges.push(rect.right() + half_gap);
                     }
                 })
                 .body(|mut body| {
@@ -245,7 +251,14 @@ pub fn show(app: &mut DmApp, ui: &mut egui::Ui) {
                         if response.secondary_clicked() {
                             menu = Some(i);
                         }
-                        if response.drag_started_by(egui::PointerButton::Primary) {
+                        // Not where a column's edge is: a quick press and
+                        // drag there to resize took the row along (UI
+                        // round 11).
+                        let on_edge = response
+                            .ctx
+                            .input(|i| i.pointer.press_origin())
+                            .is_some_and(|at| edges.iter().any(|x| (at.x - x).abs() <= grab));
+                        if response.drag_started_by(egui::PointerButton::Primary) && !on_edge {
                             dragged = Some(i);
                         }
                         response.context_menu(|ui| row_menu(app, ui));
