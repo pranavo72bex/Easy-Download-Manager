@@ -1335,12 +1335,45 @@ impl Streams {
     }
 }
 
+/// What a person is told the app took: the file's own name where the
+/// browser gave one, else the last part of its address. A caught link
+/// otherwise vanished from the browser without a word (UI round 13).
+pub fn taken_name(filename: &str, url: &str) -> String {
+    let from_file = filename.rsplit(['/', '\\']).next().unwrap_or("").trim();
+    if !from_file.is_empty() {
+        return from_file.to_string();
+    }
+    let path = url.split(['?', '#']).next().unwrap_or("");
+    let last = path.trim_end_matches('/').rsplit('/').next().unwrap_or("");
+    if last.is_empty() {
+        url.to_string()
+    } else {
+        last.to_string()
+    }
+}
+
 #[cfg(test)]
 #[path = "../../desktop/test-support/secrets.rs"]
 mod test_secrets;
 
 #[cfg(test)]
 mod tests {
+    use super::taken_name;
+
+    #[test]
+    fn what_was_taken_is_named_by_its_file() {
+        assert_eq!(
+            taken_name("/home/a/Downloads/big.zip", "https://e.com/x"),
+            "big.zip"
+        );
+        assert_eq!(taken_name("C:\\Users\\a\\big.zip", ""), "big.zip");
+        assert_eq!(
+            taken_name("", "https://e.com/files/report.pdf?x=1"),
+            "report.pdf"
+        );
+        assert_eq!(taken_name("", "https://e.com/"), "e.com");
+    }
+
     use super::*;
     use serde_json::json;
 

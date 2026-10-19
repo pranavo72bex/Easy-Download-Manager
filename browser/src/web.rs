@@ -686,6 +686,12 @@ pub async fn on_download_created(item: JsValue) {
     match hand(port, start).await {
         Ok(()) => {
             log("info", &format!("handed {} to the dm app", found.url));
+            // Said in the browser, where the download just vanished; dm's
+            // own window may be behind it (UI round 13).
+            notify(
+                "dm is downloading it",
+                &decide::taken_name(&found.filename, &found.url),
+            );
             // Held or not, it can have finished in the browser meanwhile:
             // a pause does not stop what Chromium has already received.
             let (verb, what) = match decide::after_taken(state_of(found.id).await.as_deref()) {
@@ -944,9 +950,12 @@ async fn formats_of(target: &Target) -> Result<Vec<dm_protocol::Choice>, String>
 
 /// Hands something a person asked for, and says so when it cannot.
 async fn hand_asked(target: Target, store: Option<String>) {
+    let name = decide::taken_name("", &target.url);
     match hand_target(target, store).await {
         Ok(said) if said == decide::NO_YTDLP => notify("dm", &said),
-        Ok(_) => {}
+        // Said, as a caught download is: nothing in the browser showed it
+        // had been taken (UI round 13).
+        Ok(_) => notify("dm is downloading it", &name),
         Err(why) => notify("dm could not take that", &why),
     }
 }

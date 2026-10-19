@@ -75,6 +75,33 @@ pub fn way(action: WhenDone, os: &str) -> Option<Way> {
     }
 }
 
+/// Whether `action` can be done here: this system has a way, and where the
+/// way is a program, the program is there. Sleep was offered without
+/// `systemctl`, and failed when the countdown ran out (UI round 13).
+pub fn available(action: WhenDone) -> bool {
+    match way(action, std::env::consts::OS) {
+        Some(Way::Run(program, _)) => installed(program),
+        Some(Way::Suspend { .. }) => true,
+        None => false,
+    }
+}
+
+/// Whether `program` is on the PATH or in the system's own folders, which
+/// a launch from a desktop may leave off the PATH.
+fn installed(program: &str) -> bool {
+    let mut dirs: Vec<std::path::PathBuf> = std::env::var_os("PATH")
+        .map(|p| std::env::split_paths(&p).collect())
+        .unwrap_or_default();
+    dirs.extend(["/usr/bin", "/bin", "/usr/sbin", "/sbin"].map(std::path::PathBuf::from));
+    let names: Vec<String> = if cfg!(windows) {
+        vec![format!("{program}.exe"), program.to_string()]
+    } else {
+        vec![program.to_string()]
+    };
+    dirs.iter()
+        .any(|d| names.iter().any(|n| d.join(n).is_file()))
+}
+
 /// Where a refusal that comes back later is told: the window's list of
 /// problems.
 pub type Report = Box<dyn FnOnce(String) + Send>;
@@ -221,6 +248,13 @@ pub fn chime() {
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    #[cfg(unix)]
+    fn a_program_counts_only_where_it_is_installed() {
+        assert!(super::installed("sh"));
+        assert!(!super::installed("dm-no-such-power-program"));
+    }
+
     use super::*;
 
     #[cfg(unix)]

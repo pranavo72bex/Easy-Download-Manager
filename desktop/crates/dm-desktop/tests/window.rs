@@ -7917,3 +7917,45 @@ fn each_queue_has_at_most_one_limit() {
     );
     click(&mut harness, "Cancel");
 }
+
+/// UI round 13: Escape cancels the When-done countdown, even with Download
+/// complete open behind it, and the keyboard starts on Cancel.
+#[test]
+fn escape_cancels_the_when_done_countdown() {
+    use egui::accesskit::Role;
+    let world = world();
+    let mut harness = world.harness();
+    harness.state_mut().applied.show_complete = true;
+    add_url(&mut harness, &world.url("file.zip"), "Start now");
+    until(&mut harness, "it to finish", |app| {
+        app.rows().iter().any(|r| r.state == State::Completed)
+    });
+    harness.state_mut().countdown = Some((
+        dm_desktop::power::WhenDone::Sleep,
+        std::time::Instant::now() + std::time::Duration::from_secs(30),
+    ));
+    harness.run_steps(3);
+    assert!(
+        harness
+            .get_by_role_and_label(Role::Button, "Cancel")
+            .accesskit_node()
+            .is_focused(),
+        "the keyboard is not on Cancel"
+    );
+    harness.key_press(egui::Key::Escape);
+    harness.run_steps(3);
+    assert!(
+        harness.state().countdown.is_none(),
+        "Escape did not cancel it"
+    );
+    assert!(
+        !world
+            .fake
+            .opened
+            .lock()
+            .unwrap()
+            .iter()
+            .any(|o| o.contains("sleep")),
+        "it slept"
+    );
+}

@@ -456,6 +456,8 @@ impl Dialogs {
     }
 
     pub fn open_file_info(&mut self, urls: Vec<String>) {
+        // The keyboard comes off the list behind it (UI round 13).
+        self.focus_on("Download details");
         self.file_info = Some(FileInfo {
             urls,
             queue: MAIN_QUEUE.into(),
@@ -465,6 +467,7 @@ impl Dialogs {
 
     /// The dialog for a video the browser's panel handed over.
     pub fn open_handed(&mut self, request: dm_shell::host::Request) {
+        self.focus_on("Download details");
         self.file_info = Some(FileInfo {
             urls: vec![request.url],
             referrer: request.referrer,
@@ -1758,6 +1761,9 @@ fn list_file(app: &mut DmApp, ctx: &egui::Context) {
             if let Some(d) = app.dialogs.list_file.as_mut() {
                 d.says = why;
             }
+            // The path field keeps the keyboard, to be put right (UI
+            // round 13: typing went nowhere).
+            app.dialogs.focus_on("List file");
         }
     }
 }
@@ -1931,6 +1937,10 @@ fn add_url(app: &mut DmApp, ctx: &egui::Context) {
 }
 
 fn file_info(app: &mut DmApp, ctx: &egui::Context) {
+    if app.dialogs.file_info.is_none() {
+        return;
+    }
+    let focus = app.dialogs.take_focus("Download details");
     let Some(d) = app.dialogs.file_info.as_mut() else {
         return;
     };
@@ -2231,7 +2241,7 @@ fn file_info(app: &mut DmApp, ctx: &egui::Context) {
             }
             ui.separator();
             ui.horizontal(|ui| {
-                if primary(ui, "Start now").clicked() || enter_free(ui) {
+                if focused(primary(ui, "Start now"), focus).clicked() || enter_free(ui) {
                     chosen = Some(false);
                 }
                 // Read as one phrase: "Add for later to Main queue ▾"; the
@@ -2650,12 +2660,12 @@ fn complete(app: &mut DmApp, ctx: &egui::Context) {
     // Not over a question waiting for its answer: it opened over Exit, its
     // Open folder under the pointer, and took the click (UI round 10). The
     // files wait in the list and the window opens once it is answered.
-    if app.dialogs.asking() {
+    // Nor over a dialog that keeps the clicks: behind Scheduler its Close
+    // closed it (UI round 12), and over it, it hid the Scheduler's days
+    // (UI round 13). It opens once the dialog is done.
+    if app.dialogs.asking() || app.dialogs.modal() {
         return;
     }
-    // Behind a dialog that keeps the clicks it is shown, and takes none
-    // (UI round 12: behind Scheduler its Close closed it).
-    let behind = app.dialogs.modal();
     let mut done: Vec<Id> = Vec::new();
     let mut close = false;
     let mut shut = true;
@@ -2680,9 +2690,6 @@ fn complete(app: &mut DmApp, ctx: &egui::Context) {
         .max_height((screen.height() * 0.6).max(160.0))
         .open(&mut shut)
         .show(ctx, |ui| {
-            if behind {
-                ui.disable();
-            }
             if rows.len() > 1 {
                 ui.label(tf("{} downloads finished.", &[&rows.len()]));
                 ui.separator();
@@ -2790,7 +2797,7 @@ fn complete(app: &mut DmApp, ctx: &egui::Context) {
             ui.separator();
             close = ui.button(t("Close")).clicked();
         });
-    if !behind && (close || !shut) {
+    if close || !shut {
         app.dialogs.complete.clear();
     }
     for id in done {
@@ -2813,9 +2820,18 @@ fn properties(app: &mut DmApp, ctx: &egui::Context) {
             .or_else(|| app.sizes_told.get(&id).copied())
             .map(format::bytes)
             .unwrap_or_default();
-        let kind = crate::app::kind_of(&row)
-            .map(|c| crate::i18n::name(&format::titled(&category_word(c))))
-            .unwrap_or_default();
+        // As the tree places it: a person's own category, the kind, or
+        // Other for a kind not yet known (UI round 13: "—" for a row the
+        // tree had under Other).
+        let kind = match (app.custom_of(&row), crate::app::kind_of(&row)) {
+            (Some(own), _) => own,
+            (None, kind) => crate::i18n::name(&format::titled(&category_word(
+                kind.unwrap_or(dm_core::Category::Other),
+            ))),
+        };
+        // And the name the list shows: a waiting copy read "slow.bin"
+        // beside the list's "slow (2).bin".
+        let shown_name = app.name_it_will_get(&row, &mut app.applied.categories());
         let saved_to = if row.path.is_empty() {
             let mut categories = app.applied.categories();
             let folder = row
@@ -2893,7 +2909,7 @@ fn properties(app: &mut DmApp, ctx: &egui::Context) {
                             .max_col_width(value)
                             .show(ui, |ui| {
                                 ui.label(t("File name"));
-                                said(ui, &d.name);
+                                said(ui, &shown_name);
                                 ui.end_row();
                                 ui.label(t("Status"));
                                 // Held to the values' column like the rest:
@@ -4788,15 +4804,26 @@ fn countdown(app: &mut DmApp, ctx: &egui::Context) {
     let left = at
         .saturating_duration_since(std::time::Instant::now())
         .as_secs();
-    let mut cancel = false;
+    // Escape cancels it, taken before any window behind it sees the key:
+    // it closed Download complete instead, and the countdown ran out (UI
+    // round 13). It is drawn first of the dialogs for that.
+    let mut cancel = ctx.input_mut(|i| i.consume_key(egui::Modifiers::NONE, egui::Key::Escape));
     let mut now = false;
+    // The keyboard on Cancel as it appears, so Enter or Space stops it.
+    let shown_id = egui::Id::unique("countdown-shown");
+    let first = ctx.data(|d| d.get_temp::<std::time::Instant>(shown_id)) != Some(at);
     window(ctx, "Downloads are done").show(ctx, |ui| {
         ui.label(tf("dm will {} in {} seconds.", &[&t(action.verb()), &left]));
         ui.horizontal(|ui| {
             now = ui.button(t("Now")).clicked();
-            cancel = ui.button(t("Cancel")).clicked();
+            let stop = ui.button(t("Cancel"));
+            if first {
+                stop.request_focus();
+            }
+            cancel |= stop.clicked();
         });
     });
+    ctx.data_mut(|d| d.insert_temp(shown_id, at));
     if cancel {
         app.countdown = None;
     } else if now {

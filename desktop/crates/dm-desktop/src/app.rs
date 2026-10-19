@@ -167,12 +167,13 @@ pub fn name_of(row: &Entry) -> String {
     }
 }
 
-/// A row's kind: what dm learned from the server, or before that what its
-/// name says. Queued rows had none, so Videos listed one of a hundred
-/// queued videos and their icons were blank (UI round 6).
+/// A row's kind: what its name says, else what dm learned from the server.
+/// Queued rows had none, so Videos listed one of a hundred queued videos
+/// and their icons were blank (UI round 6); and with what the server said
+/// first, a file renamed to "report (1).pdf" stayed under Other (UI round
+/// 13). One named "get.php" is still known by what the server sent.
 pub fn kind_of(row: &Entry) -> Option<Category> {
-    row.category
-        .or_else(|| dm_core::category::by_name(&name_of(row)))
+    dm_core::category::by_name(&name_of(row)).or(row.category)
 }
 
 /// Whether the pointer is in `rect`.
@@ -1801,10 +1802,9 @@ impl DmApp {
             Command::MoveToQueue | Command::Properties => !targets.is_empty(),
             // Only where there is something to fetch again: a row that has
             // fetched nothing yet would only start (UI round 12).
+            // A failure with nothing fetched is Retry's (UI round 13).
             Command::Redownload => any(|r| {
-                r.state.settled()
-                    || matches!(r.state, State::Failed(_))
-                    || r.progress.downloaded > 0
+                matches!(r.state, State::Completed | State::Cancelled) || r.progress.downloaded > 0
             }),
             Command::UpdateLink => {
                 targets.len() == 1
@@ -1812,7 +1812,14 @@ impl DmApp {
                         || retrying(targets[0].id).is_some())
             }
             Command::RemoveFromQueue => any(|r| !r.queue.is_empty()),
-            Command::MoveUp | Command::MoveDown => targets.len() == 1,
+            // Not where it would do nothing: at the top or the bottom of
+            // the order (UI round 13).
+            Command::MoveUp => {
+                targets.len() == 1 && self.rows.first().is_some_and(|r| r.id != targets[0].id)
+            }
+            Command::MoveDown => {
+                targets.len() == 1 && self.rows.last().is_some_and(|r| r.id != targets[0].id)
+            }
             Command::ShowProgress => any(|r| r.state != State::Completed),
             // Open folder stays: it says the file is gone, which is an answer.
             Command::OpenFolder => {
@@ -3218,7 +3225,7 @@ impl DmApp {
                         // (macOS does not hibernate), rather than failing
                         // when the queue runs dry.
                         let can = matches!(w, WhenDone::Nothing | WhenDone::Quit)
-                            || crate::power::way(w, std::env::consts::OS).is_some();
+                            || crate::power::available(w);
                         if ui
                             .add_enabled(
                                 can,
