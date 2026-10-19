@@ -499,7 +499,7 @@ pub fn answer(
             } else if !dm_core::queue::accepted(&url)
                 // A file on this computer is dm's to read only when the
                 // person opens it with dm, never at a web page's word.
-                || dm_core::torrent::local_file(&url).is_some()
+                || url.get(..5).is_some_and(|s| s.eq_ignore_ascii_case("file:"))
             {
                 // Refused here by the queue's own rule, rather than accepted
                 // and then dropped by the queue unseen.
