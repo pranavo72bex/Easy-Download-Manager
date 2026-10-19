@@ -7749,3 +7749,15 @@ fn properties_of_a_row_added_for_later_says_where_it_will_go() {
         "no place it will be saved"
     );
 }
+
+/// UI round 11: Find has a Close button, as every other dialog has.
+#[test]
+fn find_closes_with_its_close_button() {
+    let world = world();
+    let mut harness = world.harness();
+    harness.state_mut().run(Command::Find);
+    harness.run_steps(3);
+    assert!(harness.state().dialogs.find_open);
+    click(&mut harness, "Close");
+    assert!(!harness.state().dialogs.find_open, "Close left Find open");
+}

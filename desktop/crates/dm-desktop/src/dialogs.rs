@@ -3706,6 +3706,7 @@ fn find(app: &mut DmApp, ctx: &egui::Context) {
             place = place.anchor(egui::Align2::CENTER_TOP, [0.0, top - screen.top()]);
         }
     }
+    let mut close = false;
     place.open(&mut open).show(ctx, |ui| {
         let r = focused(
             field(ui, t("Find what"), &mut app.dialogs.find_text, 260.0),
@@ -3717,8 +3718,17 @@ fn find(app: &mut DmApp, ctx: &egui::Context) {
         if typed {
             r.request_focus();
         }
-        next = ui.button(t("Find next")).clicked() || typed;
+        // A Close beside it, as every other dialog has (UI round 11).
+        ui.horizontal(|ui| {
+            next = ui.button(t("Find next")).clicked() || typed;
+            if ui.button(t("Close")).clicked() {
+                close = true;
+            }
+        });
     });
+    if close {
+        open = false;
+    }
     if next {
         app.find_next();
     }
@@ -3809,37 +3819,42 @@ fn limiter(app: &mut DmApp, ctx: &egui::Context) {
     window(ctx, "Speed limiter")
         .open(&mut open)
         .show(ctx, |ui| {
-            ui.horizontal(|ui| {
-                let name = ui.label(t("Maximum, KB/s across every download (0 for none)"));
-                // The limit takes the keyboard as the dialog opens, and Enter
-                // in it applies, as in any other dialog's field.
-                let field = focused(
-                    ui.add(number_box(limit).range(0..=1024 * 1024))
-                        .labelled_by(name.id),
-                    focus,
-                );
-                select_on_focus(ui, &field, &limit.to_string());
-                apply |= entered(&field);
-            });
-            ui.add_space(8.0);
-            // Download limits, for a link with a fair-use
-            // allowance: downloads are held once it is used and go on after.
-            ui.horizontal(|ui| {
-                let name = ui.label(t("Download at most this many MB (0 for no limit)"));
-                let mb_field = ui
-                    .add(number_box(mb).range(0..=1024 * 1024 * 1024))
-                    .labelled_by(name.id);
-                select_on_focus(ui, &mb_field, &mb.to_string());
-                apply |= entered(&mb_field);
-            });
-            ui.horizontal(|ui| {
-                let name = ui.label(t("in each period of this many hours"));
-                let hours_field = ui
-                    .add(number_box(hours).range(1..=24 * 31))
-                    .labelled_by(name.id);
-                select_on_focus(ui, &hours_field, &hours.to_string());
-                apply |= entered(&hours_field);
-            });
+            // The fields in one column, the buttons apart below them: each
+            // field sat where its label happened to end (UI round 11).
+            egui::Grid::new("limiter")
+                .num_columns(2)
+                .spacing([12.0, 8.0])
+                .show(ui, |ui| {
+                    let name = ui.label(t("Maximum, KB/s across every download (0 for none)"));
+                    // The limit takes the keyboard as the dialog opens, and
+                    // Enter in it applies, as in any other dialog's field.
+                    let field = focused(
+                        ui.add(number_box(limit).range(0..=1024 * 1024))
+                            .labelled_by(name.id),
+                        focus,
+                    );
+                    select_on_focus(ui, &field, &limit.to_string());
+                    apply |= entered(&field);
+                    ui.end_row();
+                    // Download limits, for a link with a fair-use
+                    // allowance: downloads are held once it is used and go
+                    // on after.
+                    let name = ui.label(t("Download at most this many MB (0 for no limit)"));
+                    let mb_field = ui
+                        .add(number_box(mb).range(0..=1024 * 1024 * 1024))
+                        .labelled_by(name.id);
+                    select_on_focus(ui, &mb_field, &mb.to_string());
+                    apply |= entered(&mb_field);
+                    ui.end_row();
+                    let name = ui.label(t("in each period of this many hours"));
+                    let hours_field = ui
+                        .add(number_box(hours).range(1..=24 * 31))
+                        .labelled_by(name.id);
+                    select_on_focus(ui, &hours_field, &hours.to_string());
+                    apply |= entered(&hours_field);
+                    ui.end_row();
+                });
+            ui.separator();
             if !says.is_empty() {
                 ui.colored_label(warn(ui), says.as_str());
             }

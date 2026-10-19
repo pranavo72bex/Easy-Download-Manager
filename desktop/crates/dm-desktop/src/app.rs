@@ -3332,7 +3332,9 @@ impl DmApp {
             for (command, icon, name, widest) in &buttons {
                 // The modern toolbar leads with one primary action.
                 let primary = *command == Command::AddUrl;
-                let enabled = self.enabled(*command);
+                // Greyed behind a dialog too: Add URL stayed bright blue
+                // under the dim (UI round 11).
+                let enabled = self.enabled(*command) && ui.is_enabled();
                 let response = if icons_only {
                     tool(
                         ui,
