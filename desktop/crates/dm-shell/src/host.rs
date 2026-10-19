@@ -496,7 +496,11 @@ pub fn answer(
             let url = url.trim().to_string();
             if url.is_empty() {
                 Reply::failed(&id, "no URL was given")
-            } else if !dm_core::queue::accepted(&url) {
+            } else if !dm_core::queue::accepted(&url)
+                // A file on this computer is dm's to read only when the
+                // person opens it with dm, never at a web page's word.
+                || dm_core::torrent::local_file(&url).is_some()
+            {
                 // Refused here by the queue's own rule, rather than accepted
                 // and then dropped by the queue unseen.
                 Reply::failed(
@@ -1208,7 +1212,14 @@ mod tests {
     #[test]
     fn what_the_queue_would_drop_is_refused_by_name() {
         let dir = tempfile::tempdir().unwrap();
-        for url in ["", "javascript:alert(1)", "file:///etc/passwd"] {
+        // A .torrent on this computer is opened with dm by the person, never
+        // handed over by a page.
+        for url in [
+            "",
+            "javascript:alert(1)",
+            "file:///etc/passwd",
+            "file:///home/a/x.torrent",
+        ] {
             let (reply, launched) = ask(dir.path(), start("x", url), true, Ok(()));
             assert!(matches!(reply, Some(Reply::Failed { .. })), "{url}");
             assert!(!launched);

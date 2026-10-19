@@ -43,6 +43,21 @@ fn is_magnet(url: &str) -> bool {
         .is_some_and(|scheme| scheme.eq_ignore_ascii_case("magnet:"))
 }
 
+/// The path of a `file://` address, which is how a desktop's file manager
+/// hands dm a `.torrent` it was asked to open.
+pub fn local_file(url: &str) -> Option<std::path::PathBuf> {
+    let url = url.trim();
+    if !url.get(..7)?.eq_ignore_ascii_case("file://") {
+        return None;
+    }
+    url::Url::parse(url).ok()?.to_file_path().ok()
+}
+
+/// The `file://` address of a path on this computer.
+pub fn file_url(path: &std::path::Path) -> Option<String> {
+    url::Url::from_file_path(path).ok().map(String::from)
+}
+
 fn ends_with_ignoring_case(s: &str, suffix: &str) -> bool {
     s.len() >= suffix.len()
         && s.get(s.len() - suffix.len()..)
@@ -126,6 +141,12 @@ pub async fn download_torrent(
         // In the spelling librqbit looks for: it matches `magnet:` exactly.
         let rest = url.trim().get(7..).unwrap_or_default();
         AddTorrent::Url(format!("magnet:{rest}").into())
+    } else if let Some(path) = local_file(url) {
+        // A .torrent on this computer, opened with dm from a file manager.
+        let bytes = tokio::fs::read(&path)
+            .await
+            .map_err(|e| Error::Internal(format!("could not read {}: {e}", path.display())))?;
+        AddTorrent::TorrentFileBytes(bytes.into())
     } else {
         // Fetched with dm's client rather than librqbit's, so a .torrent
         // behind a proxy is reachable exactly as a file would be, and with
@@ -604,6 +625,7 @@ mod tests {
     #[test]
     fn magnets_and_torrent_files_are_for_the_torrent_engine() {
         assert!(is_torrent("magnet:?xt=urn:btih:0123456789abcdef"));
+        assert!(is_torrent("file:///home/a/Some%20Thing.torrent"));
         assert!(is_torrent("  magnet:?xt=urn:btih:x  ")); // pasted with spaces
         assert!(is_torrent("https://example.com/ubuntu.torrent"));
         // A query string is where a signed link keeps its token; the path is

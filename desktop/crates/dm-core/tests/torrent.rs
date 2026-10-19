@@ -211,6 +211,29 @@ async fn a_torrent_is_fetched_from_a_real_swarm() {
         leftover.is_empty(),
         "left in the parts directory: {leftover:?}"
     );
+
+    // The same .torrent opened from this computer, as a file manager hands
+    // it over: a file:// address, read rather than fetched.
+    let here = tempdir();
+    let file = here.path().join("payload copy.torrent");
+    std::fs::write(&file, &torrent_bytes).unwrap();
+    let local = dm_core::torrent::file_url(&file).unwrap();
+    assert!(dm_core::is_torrent(&local) && dm_core::queue::accepted(&local));
+    let out2 = tempdir();
+    let options = Options {
+        control: Control::new(),
+        dest_dir: out2.path().to_path_buf(),
+        parts_dir: out2.path().join("parts"),
+        ..options
+    };
+    let finished = tokio::time::timeout(
+        Duration::from_secs(60),
+        download_torrent(&client(), &local, &options, None),
+    )
+    .await
+    .expect("the local torrent timed out")
+    .expect("the local torrent failed");
+    assert_eq!(std::fs::read(&finished.path).unwrap(), payload);
 }
 
 #[tokio::test]

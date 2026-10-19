@@ -403,7 +403,8 @@ of them.
       `DM_YTDLP` — empty for the refusal, a stand-in that records its
       arguments for the hand-off — so neither can be deleted unnoticed
 - [x] BitTorrent — client only, which is the only place it can be: an
-      extension has no sockets. A magnet or a `.torrent` is routed to
+      extension has no sockets. A magnet or a `.torrent` (fetched, or one on
+      this computer opened with dm) is routed to
       `librqbit` before the HTTP path, reports progress on the same row as
       any download, is given the speed ceiling, and pauses and resumes from
       the files on disk. Staged under the row's own parts directory like

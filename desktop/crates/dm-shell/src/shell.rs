@@ -94,6 +94,19 @@ fn is_link(arg: &str) -> bool {
         || arg.starts_with("https://")
         || arg.starts_with("magnet:")
         || dm_core::ftp::is_ftp(arg)
+        || dm_core::torrent::local_file(arg).is_some() && dm_core::is_torrent(arg)
+}
+
+/// A `.torrent` on this computer named by its path, as a shell gives it,
+/// as the `file://` address the queue takes; a file manager gives that
+/// address itself.
+fn local_torrent(arg: &str) -> Option<String> {
+    let path = Path::new(arg);
+    if arg.contains("://") || !dm_core::is_torrent(arg) || !path.is_file() {
+        return None;
+    }
+    let full = std::path::absolute(path).ok()?;
+    dm_core::torrent::file_url(&full)
 }
 
 /// Reads the command line: links, each taking the options given before it,
@@ -141,7 +154,14 @@ pub fn orders(args: &[String]) -> Orders {
                     ..std::mem::take(&mut next)
                 });
             }
-            _ => {}
+            _ => {
+                if let Some(url) = local_torrent(arg) {
+                    orders.downloads.push(host::Request {
+                        url,
+                        ..std::mem::take(&mut next)
+                    });
+                }
+            }
         }
         i += 1;
     }
@@ -1218,6 +1238,27 @@ mod tests {
         let urls: Vec<String> = orders(&args).downloads.into_iter().map(|r| r.url).collect();
         assert_eq!(urls, ["https://e.com/a", "magnet:?xt=x"]);
         assert!(launched_at_login(&args));
+    }
+
+    #[test]
+    fn a_torrent_on_this_computer_is_taken_by_path_or_file_address() {
+        let dir = tempfile::tempdir().unwrap();
+        let file = dir.path().join("a b.torrent");
+        std::fs::write(&file, b"d4:infod4:name1:xee").unwrap();
+        let address = dm_core::torrent::file_url(&file).unwrap();
+        let other = dir.path().join("notes.txt");
+        std::fs::write(&other, b"x").unwrap();
+        let got: Vec<String> = orders(&argv(&[
+            file.to_str().unwrap(),
+            address.as_str(),
+            other.to_str().unwrap(),
+            dir.path().join("gone.torrent").to_str().unwrap(),
+        ]))
+        .downloads
+        .into_iter()
+        .map(|r| r.url)
+        .collect();
+        assert_eq!(got, [address.clone(), address]);
     }
 
     #[test]
