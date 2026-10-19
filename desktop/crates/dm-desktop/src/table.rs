@@ -790,10 +790,17 @@ fn row_menu(app: &mut DmApp, ui: &mut egui::Ui) {
 }
 
 fn menu_item(app: &mut DmApp, ui: &mut egui::Ui, command: Command, label: &str) {
-    if ui
-        .add_enabled(app.enabled(command), egui::Button::new(label))
-        .clicked()
-    {
+    // "…" where it opens a dialog, as in the menu bar (UI round 11), said
+    // by its name alone.
+    let shown = if command.asks_more() && !label.ends_with('…') {
+        format!("{label}…")
+    } else {
+        label.to_string()
+    };
+    let enabled = app.enabled(command);
+    let response = ui.add_enabled(enabled, egui::Button::new(shown));
+    response.widget_info(|| egui::WidgetInfo::labeled(egui::Role::Button, enabled, label));
+    if response.clicked() {
         app.queued.push(command);
         ui.close();
     }

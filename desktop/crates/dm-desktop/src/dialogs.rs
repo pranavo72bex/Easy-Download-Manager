@@ -1326,7 +1326,8 @@ fn confirm_remove(app: &mut DmApp, ctx: &egui::Context) {
             // Which one, by name: "this download" was all it said.
             if let [only] = ids.as_slice() {
                 if let Some(row) = app.row(*only) {
-                    ui.strong(&*crate::bidi::visual(&name_of(row)));
+                    let named = app.name_it_will_get(row, &mut app.applied.categories());
+                    ui.strong(&*crate::bidi::visual(&named));
                 }
             }
             // The buttons say what the sentence asked, in its number, and
@@ -1423,7 +1424,7 @@ fn confirm_cancel(app: &mut DmApp, ctx: &egui::Context) {
     let Some(name) = app
         .row(id)
         .filter(|r| matches!(r.state, State::Running | State::Queued | State::Paused))
-        .map(name_of)
+        .map(|r| app.name_it_will_get(r, &mut app.applied.categories()))
     else {
         app.dialogs.confirm_cancel = None;
         return;
@@ -1459,10 +1460,13 @@ fn confirm_outside(app: &mut DmApp, ctx: &egui::Context) {
         return;
     };
     let (mut start, mut wait) = (false, false);
+    // The name the list shows: "big.zip" was asked about while the row
+    // read "big (1).zip" (UI round 11).
+    let mut categories = app.applied.categories();
     let names: Vec<String> = ids
         .iter()
         .filter_map(|id| app.row(*id))
-        .map(name_of)
+        .map(|r| app.name_it_will_get(r, &mut categories))
         .collect();
     let why = app.held_because().unwrap_or_default();
     window(ctx, "Start outside the schedule?").show(ctx, |ui| {
@@ -2160,8 +2164,7 @@ fn file_info(app: &mut DmApp, ctx: &egui::Context) {
                 let plain = format::reason(why).map(t).unwrap_or(why.as_str());
                 ui.add(
                     egui::Label::new(
-                        RichText::new(tf("The server would not give it: {}.", &[&plain]))
-                            .color(warn(ui)),
+                        RichText::new(tf("Not available: {}.", &[&plain])).color(warn(ui)),
                     )
                     .wrap(),
                 )
@@ -2723,6 +2726,32 @@ fn properties(app: &mut DmApp, ctx: &egui::Context) {
             app.dialogs.properties.remove(&id);
             continue;
         };
+        // What a row not yet placed will have, as the list shows it: its
+        // size, kind and folder were dashes here (UI round 11).
+        let size = crate::table::shown_size(&row)
+            .map(format::bytes)
+            .unwrap_or_default();
+        let kind = crate::app::kind_of(&row)
+            .map(|c| crate::i18n::name(&format::titled(&category_word(c))))
+            .unwrap_or_default();
+        let saved_to = if row.path.is_empty() {
+            let mut categories = app.applied.categories();
+            let folder = row
+                .save_dir
+                .clone()
+                .filter(|d| !d.trim().is_empty())
+                .or_else(|| app.planned_folder(&row, &mut categories));
+            folder
+                .map(|f| {
+                    std::path::Path::new(&f)
+                        .join(app.name_it_will_get(&row, &mut categories))
+                        .display()
+                        .to_string()
+                })
+                .unwrap_or_default()
+        } else {
+            row.path.clone()
+        };
         let (mut ok, mut cancel, mut open_file) = (false, false, false);
         let focus = app.dialogs.take_focus("File properties");
         let Some(d) = app.dialogs.properties.get_mut(&id) else {
@@ -2799,25 +2828,15 @@ fn properties(app: &mut DmApp, ctx: &egui::Context) {
                                 }
                                 ui.end_row();
                                 ui.label(t("Size"));
-                                said(
-                                    ui,
-                                    &row.progress.total.map(format::bytes).unwrap_or_default(),
-                                );
+                                said(ui, &size);
                                 ui.end_row();
                                 ui.label(t("Category"));
                                 // In the window's language, as the category tree
                                 // names it.
-                                said(
-                                    ui,
-                                    &row.category
-                                        .map(|c| {
-                                            crate::i18n::name(&format::titled(&category_word(c)))
-                                        })
-                                        .unwrap_or_default(),
-                                );
+                                said(ui, &kind);
                                 ui.end_row();
                                 ui.label(t("Saved to"));
-                                said(ui, &row.path);
+                                said(ui, &saved_to);
                                 ui.end_row();
                                 ui.label(t("Referrer"));
                                 said(ui, &row.referrer);

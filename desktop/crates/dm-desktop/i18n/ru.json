@@ -238,7 +238,7 @@
  "Start queue": "Запустить очередь",
  "Start the Main queue when dm opens": "Запускать основную очередь при открытии dm",
  "Started {} download in {}.||Started {} downloads in {}.": "Запущена {} загрузка в «{}».||Запущено {} загрузки в «{}».||Запущено {} загрузок в «{}».",
- "The server would not give it: {}.": "Сервер его не отдаёт: {}.",
+ "Not available: {}.": "Недоступно: {}.",
  "A file of that name is in the folder already; this one will be {}.": "В папке уже есть файл с таким именем; этот будет называться {}.",
  "{} is waiting for the schedule; it starts by itself when the schedule opens.": "«{}» ждёт расписания; начнётся само, когда оно откроется.",
  "Starting…": "Запуск…",

@@ -2420,7 +2420,21 @@ impl DmApp {
         if command == Command::DownloadNow && self.failed_only() {
             return t("Retry");
         }
+        // A row the schedule or the download limit holds is not resumed but
+        // started outside it, as its progress window says (UI round 11).
+        if command == Command::DownloadNow && self.held_only() {
+            return t("Start now");
+        }
         command.title()
+    }
+
+    /// Whether every selected row is held by the schedule or the limit.
+    fn held_only(&self) -> bool {
+        let targets = self.targets();
+        !targets.is_empty()
+            && targets
+                .iter()
+                .all(|r| r.state == State::Paused && r.paused_by_schedule)
     }
 
     /// Whether every selected row failed, so Resume would retry each.
@@ -2646,7 +2660,7 @@ impl DmApp {
             egui::Panel::left("categories")
                 .resizable(true)
                 .show_separator_line(lines)
-                .default_size(if t.modern { 230.0 } else { 200.0 })
+                .default_size(self.rail_width(ui, if t.modern { 230.0 } else { 200.0 }))
                 .frame(flat(t.frame, 8, 4))
                 .show(ui, |ui| {
                     // More places than fit scroll, rather than being cut off,
@@ -2984,6 +2998,36 @@ impl DmApp {
             self.queued.push(command);
             ui.close();
         }
+    }
+
+    /// How wide the places start: room for the longest name in them,
+    /// queues included, up to a third of the window. German and Russian
+    /// queue names were cut short in a rail that had the room (UI round 11).
+    fn rail_width(&self, ui: &egui::Ui, least: f32) -> f32 {
+        let mut names: Vec<String> = self
+            .backend
+            .queues()
+            .iter()
+            .map(|q| crate::i18n::name(q))
+            .collect();
+        names.extend(
+            Category::ALL
+                .iter()
+                .map(|c| crate::i18n::name(&format::titled(&category_word(*c)))),
+        );
+        names.extend(["In progress", "Done"].map(|w| t(w).to_string()));
+        let widest = names
+            .into_iter()
+            .map(|n| {
+                ui.fonts_mut(|f| {
+                    f.layout_no_wrap(n, egui::FontId::proportional(14.0), egui::Color32::WHITE)
+                        .size()
+                        .x
+                })
+            })
+            .fold(0.0_f32, f32::max);
+        // The icon and count beside it, the branch's indent and the margins.
+        (widest + 36.0 + 34.0 + 18.0 + 16.0).clamp(least, (ui.available_width() / 3.0).max(least))
     }
 
     /// Whether a question or a dialog that keeps the clicks is open: the
@@ -3576,7 +3620,12 @@ impl DmApp {
                     "· download limit of {} MB reached, held for {}",
                     &[&self.applied.limit_mb, &format::span(wait)],
                 ));
-            } else if let Some(at) = self.schedule_holds() {
+            } else if let Some(at) = self
+                .schedule_holds()
+                // Not beside a sentence that says so already: it was said
+                // twice and the second cut off (UI round 11).
+                .filter(|_| !(showing && self.said.is_schedule_wait()))
+            {
                 // Said while the schedule is what downloads wait for, so a
                 // queue that does nothing is not taken for a broken one.
                 ui.label(match at {
@@ -3935,6 +3984,12 @@ fn nav_item(
     );
     job.wrap = egui::text::TextWrapping::truncate_at_width(room);
     let galley = ui.fonts_mut(|f| f.layout_job(job));
+    // A name cut short is whole on hover.
+    let response = if galley.elided {
+        response.on_hover_text(label)
+    } else {
+        response
+    };
     let painter = ui.painter();
     painter.galley(
         egui::pos2(rect.left() + 36.0, rect.center().y - galley.size().y / 2.0),

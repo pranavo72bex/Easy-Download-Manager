@@ -7602,7 +7602,7 @@ fn download_details_says_the_name_it_will_get_and_a_server_refusal() {
     click(&mut harness, "Add URL");
     type_into(&mut harness, "Address", &world.url("missing.bin"));
     click(&mut harness, "OK");
-    let refused = "The server would not give it: the server has no file at this address (404).";
+    let refused = "Not available: the server has no file at this address (404).";
     for _ in 0..100 {
         if harness.query_by_label(refused).is_some() {
             break;
@@ -7682,5 +7682,27 @@ fn the_columns_start_in_one_place_whatever_the_rows_queues() {
     assert!(
         (before - after).abs() < 1.0,
         "Size moved from {before} to {after}"
+    );
+}
+
+/// UI round 11: Properties of a row not yet started says its kind and
+/// where it will be saved, as the list does, rather than dashes.
+#[test]
+fn properties_of_a_row_added_for_later_says_where_it_will_go() {
+    let world = world();
+    let mut harness = world.harness();
+    add_url(&mut harness, &world.url("other.pdf"), "Add for later");
+    select(&mut harness, "other.pdf");
+    harness.state_mut().run(Command::Properties);
+    harness.run_steps(3);
+    assert!(harness.query_by_label("Documents").is_some(), "no kind");
+
+    assert!(
+        harness.query_all_by_label_contains("other.pdf").any(|n| {
+            n.accesskit_node()
+                .value()
+                .is_some_and(|v| v.ends_with("/other.pdf") || v.ends_with("\\other.pdf"))
+        }),
+        "no place it will be saved"
     );
 }

@@ -238,7 +238,7 @@
  "Start queue": "Avvia coda",
  "Start the Main queue when dm opens": "Avvia la coda principale all'apertura di dm",
  "Started {} download in {}.||Started {} downloads in {}.": "Avviato {} download in {}.||Avviati {} download in {}.",
- "The server would not give it: {}.": "Il server non lo fornisce: {}.",
+ "Not available: {}.": "Non disponibile: {}.",
  "A file of that name is in the folder already; this one will be {}.": "Nella cartella c'è già un file con questo nome; questo sarà {}.",
  "{} is waiting for the schedule; it starts by itself when the schedule opens.": "{} attende la pianificazione; parte da sola quando si apre.",
  "Starting…": "Avvio…",

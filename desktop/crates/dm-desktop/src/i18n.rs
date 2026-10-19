@@ -550,7 +550,9 @@ impl Said {
     /// Whether it says a held download waits for the schedule, which is
     /// true only while one does.
     pub fn is_schedule_wait(&self) -> bool {
-        matches!(&self.0, Sentence::Worded { template, .. } if template.starts_with("Waiting for the schedule"))
+        matches!(&self.0, Sentence::Worded { template, .. }
+            if template.starts_with("Waiting for the schedule")
+                || template.contains("is waiting for the schedule"))
     }
 }
 
