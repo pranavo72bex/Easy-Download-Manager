@@ -118,7 +118,7 @@ Rust compiled to WebAssembly. Test paths are under
 | Saves at the same time | PASS | `saves_at_the_same_time_do_not_report_a_failure_that_did_not_happen`; `lib.rs` `writes_to_one_file_at_once_all_succeed` |
 | Schedule window; a person's pause survives it | PASS | `queue.rs` schedule tests; `app-check.py` |
 | Schedule's pauses survive a restart | PASS | `what_the_schedule_paused_is_started_after_a_restart` |
-| Schedule with no day ticked runs every day; a time that is not HH:MM is refused in the Scheduler with the reason | PASS | `no_day_ticked_means_every_day`, `the_scheduler_refuses_a_time_that_is_not_one_and_says_why` |
+| A saved schedule with no days runs every day, and the Scheduler shows it as every day ticked and refuses none ticked; a time that is not HH:MM is refused in the Scheduler with the reason | PASS | `no_day_ticked_means_every_day`, `the_scheduler_refuses_a_time_that_is_not_one_and_says_why` |
 | A settings change is in force whole or not at all; a missing cookies file is a problem shown, not a refused change; the cookies file is read at launch | PASS | `dm-shell/tests/apply.rs`, `an_option_that_cannot_be_applied_is_said_and_what_was_typed_is_kept` |
 | One odd entry in the settings file costs that entry only; an unknown proxy type is turned off | PASS | `one_odd_entry_costs_that_entry_and_not_every_setting` |
 | Removing rows never deletes finished files | PASS | audit reading; `clear_finished` test |

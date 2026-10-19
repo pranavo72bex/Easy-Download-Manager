@@ -798,6 +798,10 @@ fn row_menu(app: &mut DmApp, ui: &mut egui::Ui) {
         Command::RemoveFromQueue,
         Command::RemoveFromQueue.title(),
     );
+    // Its place in the queue, from the row itself: only the File menu had
+    // them (UI round 12).
+    menu_item(app, ui, Command::MoveUp, Command::MoveUp.title());
+    menu_item(app, ui, Command::MoveDown, Command::MoveDown.title());
     ui.separator();
     menu_item(app, ui, Command::Properties, t("Properties"));
 }

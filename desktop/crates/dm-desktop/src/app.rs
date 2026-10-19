@@ -1799,7 +1799,13 @@ impl DmApp {
                         .all(|r| !matches!(r.state, State::Running | State::Queued))
             }
             Command::MoveToQueue | Command::Properties => !targets.is_empty(),
-            Command::Redownload => !targets.is_empty(),
+            // Only where there is something to fetch again: a row that has
+            // fetched nothing yet would only start (UI round 12).
+            Command::Redownload => any(|r| {
+                r.state.settled()
+                    || matches!(r.state, State::Failed(_))
+                    || r.progress.downloaded > 0
+            }),
             Command::UpdateLink => {
                 targets.len() == 1
                     && (!matches!(targets[0].state, State::Running | State::Completed)

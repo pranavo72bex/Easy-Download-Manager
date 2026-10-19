@@ -3134,7 +3134,8 @@ fn the_scheduler_refuses_a_time_that_is_not_one_and_says_why() {
         .is_some());
     assert!(!harness.state().backend().settings().schedule.enabled);
 
-    // No day ticked is every day, as the dialog says, and is taken.
+    // No day ticked is refused where it was unticked: every day is shown,
+    // and kept, as seven ticks (UI round 12).
     if let Some((schedule, _)) = harness.state_mut().dialogs.scheduler.as_mut() {
         schedule.from = "01:00".into();
         schedule.to = "07:00".into();
@@ -3142,8 +3143,15 @@ fn the_scheduler_refuses_a_time_that_is_not_one_and_says_why() {
     }
     harness.run_steps(2);
     click(&mut harness, "OK");
+    assert!(harness.query_by_label("Tick at least one day.").is_some());
+    assert!(!harness.state().backend().settings().schedule.enabled);
+    if let Some((schedule, _)) = harness.state_mut().dialogs.scheduler.as_mut() {
+        schedule.days = (0..=6).collect();
+    }
+    harness.run_steps(2);
+    click(&mut harness, "OK");
     let held = harness.state().backend().settings().schedule;
-    assert!(held.enabled && held.days.is_empty());
+    assert!(held.enabled);
     assert!(held.open_at(0, 2 * 60) && held.open_at(3, 2 * 60));
     let mut back = harness.state().backend().settings();
     back.schedule.enabled = false;

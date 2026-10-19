@@ -714,7 +714,12 @@ impl Dialogs {
         if self.keep("Scheduler", self.scheduler.is_some()) {
             return;
         }
-        self.scheduler = Some((settings.schedule.clone(), String::new()));
+        // No days kept means every day, shown as every day ticked.
+        let mut schedule = settings.schedule.clone();
+        if schedule.days.is_empty() {
+            schedule.days = (0..=6).collect();
+        }
+        self.scheduler = Some((schedule, String::new()));
     }
 
     pub fn open_limiter(&mut self, settings: &Settings) {
@@ -3837,10 +3842,9 @@ fn scheduler(app: &mut DmApp, ctx: &egui::Context) {
     let mut apply = false;
     let mut cancel = false;
     window(ctx, "Scheduler").open(&mut open).show(ctx, |ui| {
-        ui.label(tf(
-            "When {} and every other download may run.",
-            &[&crate::i18n::name(MAIN_QUEUE)],
-        ));
+        // Plainly, for every queue: "When Main queue and every other
+        // download may run." read oddly (UI round 12).
+        ui.label(t("The hours when downloads may run, in every queue."));
         ui.checkbox(&mut schedule.enabled, t("Only download between set hours"));
         ui.add_enabled_ui(schedule.enabled, |ui| {
             ui.horizontal(|ui| {
@@ -3861,7 +3865,15 @@ fn scheduler(app: &mut DmApp, ctx: &egui::Context) {
                     }
                 }
             });
-            ui.label(RichText::new(t("HH:MM, local time; no days ticked means every day. A window ending before it starts runs overnight.")).small().weak());
+            // The days are shown as they are kept, all ticked for every
+            // day; the hint said no tick meant every day beside seven ticks.
+            ui.label(
+                RichText::new(t(
+                    "HH:MM, local time. A window ending before it starts runs overnight.",
+                ))
+                .small()
+                .weak(),
+            );
         });
         if !says.is_empty() {
             ui.colored_label(warn(ui), says.as_str());
@@ -3872,7 +3884,9 @@ fn scheduler(app: &mut DmApp, ctx: &egui::Context) {
         });
     });
     open &= !cancel;
-    if apply
+    if apply && schedule.enabled && schedule.days.is_empty() {
+        *says = t("Tick at least one day.").to_string();
+    } else if apply
         && schedule.enabled
         && !(dm_core::schedule::is_time(&schedule.from) && dm_core::schedule::is_time(&schedule.to))
     {
