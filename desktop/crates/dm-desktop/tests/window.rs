@@ -7509,25 +7509,43 @@ fn a_text_field_has_cut_copy_and_paste_on_a_right_click() {
 #[test]
 fn windows_a_download_opens_keep_clear_of_the_toolbar_and_questions() {
     let world = world();
-    let mut harness = world.harness();
-    harness
-        .state()
-        .backend()
-        .add(&world.url("stalled.bin"))
-        .unwrap();
-    until(&mut harness, "it to run", |app| {
-        app.rows().iter().any(|r| r.state == State::Running)
+    // The usual window's size, where a tall progress window was pushed back
+    // up over the toolbar to fit (UI round 11).
+    let mut harness = Harness::builder()
+        .with_size(egui::vec2(960.0, 660.0))
+        .build_ui_state(|ui, app: &mut DmApp| app.ui(ui), world.app());
+    for _ in 0..2 {
+        harness
+            .state()
+            .backend()
+            .add(&world.url("stalled.bin"))
+            .unwrap();
+    }
+    until(&mut harness, "both to run", |app| {
+        app.rows()
+            .iter()
+            .filter(|r| r.state == State::Running)
+            .count()
+            == 2
     });
-    let id = harness.state().rows()[0].id;
-    harness.state_mut().dialogs.progress.insert(id);
+    let ids: Vec<_> = harness.state().rows().iter().map(|r| r.id).collect();
+    harness.state_mut().dialogs.progress.extend(ids);
     harness.run_steps(3);
     let add = harness.get_by_label("Add URL").rect();
-    let window = harness
-        .get_by_label("Download progress — stalled.bin")
-        .rect();
+    let windows: Vec<egui::Rect> = harness
+        .query_all_by_label_contains("Download progress")
+        .map(|n| n.rect())
+        .collect();
+    assert_eq!(windows.len(), 2);
+    for window in &windows {
+        assert!(
+            window.top() > add.bottom(),
+            "{window:?} over Add URL at {add:?}"
+        );
+    }
     assert!(
-        window.top() > add.bottom(),
-        "{window:?} over Add URL at {add:?}"
+        (windows[0].top() - windows[1].top()).abs() > 10.0,
+        "they do not cascade: {windows:?}"
     );
 
     harness.state_mut().dialogs.progress.clear();
@@ -7595,5 +7613,53 @@ fn download_details_says_the_name_it_will_get_and_a_server_refusal() {
     assert!(
         harness.query_by_label(refused).is_some(),
         "the 404 was not said"
+    );
+}
+
+/// UI round 11: behind Options the toolbar and the places take no clicks,
+/// and a progress window takes none under a question.
+#[test]
+fn the_window_behind_a_dialog_takes_no_clicks() {
+    use egui::accesskit::Role;
+    let world = world();
+    let mut harness = world.harness();
+    harness
+        .state()
+        .backend()
+        .add(&world.url("stalled.bin"))
+        .unwrap();
+    until(&mut harness, "it to run", |app| {
+        app.rows().iter().any(|r| r.state == State::Running)
+    });
+    click(&mut harness, "Options");
+    harness
+        .get_by_role_and_label(Role::Button, "Add URL")
+        .click();
+    harness.run_steps(3);
+    assert!(
+        harness.state().dialogs.add_url.is_none(),
+        "Add URL opened behind Options"
+    );
+    let before = harness.state().place.clone();
+    harness.get_by_label("Done (0)").click();
+    harness.run_steps(3);
+    assert_eq!(
+        harness.state().place,
+        before,
+        "a place was picked behind Options"
+    );
+    click(&mut harness, "Cancel");
+
+    let id = harness.state().rows()[0].id;
+    harness.state_mut().dialogs.progress.insert(id);
+    harness.state_mut().dialogs.confirm_exit = true;
+    harness.run_steps(3);
+    harness.get_by_label("Stop download").click();
+    harness.run_steps(3);
+    harness.state_mut().refresh();
+    assert_eq!(
+        harness.state().rows()[0].state,
+        State::Running,
+        "Stop download worked under the Exit question"
     );
 }

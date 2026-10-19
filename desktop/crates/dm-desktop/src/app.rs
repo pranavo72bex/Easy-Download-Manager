@@ -673,6 +673,11 @@ pub struct DmApp {
     pub rechecked: Arc<std::sync::Mutex<Option<(usize, usize)>>>,
     /// Why the system could not open a file or folder, said when it is known.
     opener_said: Arc<std::sync::Mutex<Option<String>>>,
+    /// What had the keyboard when a dialog came in front, given it back
+    /// when none is: the window behind takes no clicks meanwhile, and a
+    /// control that cannot be used lets the keyboard go.
+    focus_before: Option<egui::Id>,
+    was_behind: bool,
     /// Whether a menu, combo box or right-click menu was open at the end
     /// of the last frame: an Escape this frame was theirs, not a dialog's.
     pub popup_was_open: bool,
@@ -799,6 +804,8 @@ impl DmApp {
             popup_was_open: false,
             rechecked: Arc::default(),
             opener_said: Arc::default(),
+            focus_before: None,
+            was_behind: false,
             cancelled_hand_offs: std::collections::HashMap::new(),
             dry: DryWatch::default(),
             countdown: None,
@@ -2596,6 +2603,15 @@ impl DmApp {
                 .fill(fill)
                 .inner_margin(egui::Margin::symmetric(x, y))
         };
+        let behind = self.behind_a_dialog();
+        if behind && !self.was_behind {
+            self.focus_before = ui.ctx().memory(|m| m.focused());
+        } else if !behind && self.was_behind {
+            if let Some(id) = self.focus_before.take() {
+                ui.ctx().memory_mut(|m| m.request_focus(id));
+            }
+        }
+        self.was_behind = behind;
         let menu = egui::Panel::top("menu")
             .show_separator_line(lines)
             .frame(flat(t.frame, 6, 2))
@@ -2609,7 +2625,10 @@ impl DmApp {
             let bar = egui::Panel::top("toolbar")
                 .show_separator_line(lines)
                 .frame(flat(t.frame, 8, if t.modern { 4 } else { 0 }))
-                .show(ui, |ui| self.toolbar(ui));
+                .show(ui, |ui| {
+                    let behind = self.behind_a_dialog();
+                    ui.add_enabled_ui(!behind, |ui| self.toolbar(ui));
+                });
             self.bars_bottom = bar.response.rect.bottom();
         }
         egui::Panel::bottom("status")
@@ -2634,9 +2653,12 @@ impl DmApp {
                     // with a bar that shows it: hidden until hovered, a tree
                     // cut by a two-row toolbar looked as though it ended there.
                     ui.spacing_mut().scroll = crate::theme::steady_scroll();
+                    let behind = self.behind_a_dialog();
                     egui::ScrollArea::vertical()
                         .auto_shrink([false, false])
-                        .show(ui, |ui| self.categories(ui));
+                        .show(ui, |ui| {
+                            ui.add_enabled_ui(!behind, |ui| self.categories(ui))
+                        });
                 });
         }
         // The list on its own surface: in the modern look, a card with rounded
@@ -2964,12 +2986,19 @@ impl DmApp {
         }
     }
 
+    /// Whether a question or a dialog that keeps the clicks is open: the
+    /// menu bar, the toolbar and the places then take none (UI round 11:
+    /// behind Options, Add URL opened over it and Done was picked).
+    fn behind_a_dialog(&self) -> bool {
+        self.dialogs.asking() || self.dialogs.modal()
+    }
+
     fn menu_bar(&mut self, ui: &mut egui::Ui) {
         // Greyed while a question waits, as the list and toolbar take no
         // clicks then: it opened bright over the dimmed window (round 16).
         // And while any dialog keeps the clicks: behind Options its menus
         // opened and their items did nothing (UI round 10).
-        let behind = self.dialogs.asking() || self.dialogs.modal();
+        let behind = self.behind_a_dialog();
         if behind {
             self.open_menu_by_key = false;
         }

@@ -2283,11 +2283,17 @@ fn progress(app: &mut DmApp, ctx: &egui::Context) {
         // window too tall scrolls rather than running off the bottom.
         let screen = ctx.content_rect();
         let room = (screen.width() - 48.0).clamp(300.0, 560.0);
+        // Below the menu bar and the toolbar, which it opened over and hid
+        // (gap 168; UI rounds 10 and 11: kept on screen, a tall window was
+        // pushed back up over Add URL).
         let mut below_menu = screen;
         below_menu.min.y = app
             .menu_bottom
+            .max(app.bars_bottom)
             .max(screen.top())
             .min(screen.bottom() - 120.0);
+        let step = 28.0 * (nth % 8) as f32;
+        let asking = app.dialogs.asking();
         // The name it will get, as the list says it: two catches of one
         // link were both "big.zip" until they had begun (UI round 10).
         let mut categories = app.applied.categories();
@@ -2305,26 +2311,29 @@ fn progress(app: &mut DmApp, ctx: &egui::Context) {
         // cascade: three started together opened exactly over each other.
         // Below the toolbar too: over it, the window covered Add URL and
         // took the click meant for it (UI round 10).
-        .default_pos(
-            egui::pos2(
-                below_menu.left(),
-                app.bars_bottom
-                    .max(below_menu.top())
-                    .min(below_menu.bottom() - 120.0),
-            ) + egui::Vec2::splat(24.0 + 28.0 * (nth % 8) as f32),
-        )
+        .default_pos(below_menu.left_top() + egui::Vec2::new(24.0 + step, 8.0 + step))
         .default_width(room.min(460.0))
         .min_width(room.min(460.0))
         .max_width(room)
         .open(&mut open)
         .show(ctx, |ui| {
+            // Under a question, it takes no clicks: Stop download stopped
+            // a download behind the Exit question (UI round 11).
+            if asking {
+                ui.disable();
+            }
             // One height whatever it holds: grown and shrunk as
             // connections came and went, the window jumped about
             // the screen, kept on it by being moved (gap 140).
             // As tall as a tall window allows, so sixteen connections are
             // seen without scrolling in one (UI round 8: held at 400 points
             // in a 900-point window).
-            let tall = (screen.height() - 170.0).clamp(120.0, (screen.height() * 0.7).max(400.0));
+            // No taller than the room under the toolbar leaves, less the
+            // title, the buttons and its step down, so a window does not
+            // have to be pushed up over the toolbar to fit.
+            let tall = (below_menu.height() - 130.0 - step)
+                .min((screen.height() * 0.7).max(400.0))
+                .max(120.0);
             egui::ScrollArea::vertical()
                 .auto_shrink([false, false])
                 .max_height(tall)
