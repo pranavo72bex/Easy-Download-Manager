@@ -2466,8 +2466,14 @@ impl DmApp {
         {
             return None;
         }
+        // The folder it began in, once it has begun (UI round 18).
+        let root = if row.began_in.is_empty() {
+            self.applied.download_dir.clone()
+        } else {
+            std::path::PathBuf::from(&row.began_in)
+        };
         if !categories.enabled {
-            return Some(self.applied.download_dir.display().to_string());
+            return Some(root.display().to_string());
         }
         let name = if row.filename.is_empty() {
             format::provisional(&row.url)
@@ -2482,12 +2488,7 @@ impl DmApp {
             }
             None => return None,
         };
-        Some(
-            categories
-                .place(&self.applied.download_dir, kind, &name)
-                .display()
-                .to_string(),
-        )
+        Some(categories.place(&root, kind, &name).display().to_string())
     }
 
     /// The name a row's file will have: for one not yet placed, with the
@@ -4709,6 +4710,7 @@ mod status_tests {
             validator: None,
             quality: None,
             parts_dir: String::new(),
+            began_in: String::new(),
             cookies: String::new(),
             replaces: None,
         }

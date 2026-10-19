@@ -140,6 +140,12 @@ pub struct Entry {
     /// Empty until then.
     #[serde(default)]
     pub parts_dir: String,
+    /// The download folder in force when it first started, kept so a
+    /// download begun goes on into the folder it began in: one running when
+    /// the folder was changed in Options finished in the new one (UI round
+    /// 18). Empty until then, and unused where `save_dir` names a folder.
+    #[serde(default)]
+    pub began_in: String,
     /// The `Cookie` header the browser handed over with this download, for
     /// a site a person switched that on for; sent on every request of this
     /// row's, so a resume reaches the server signed in. Empty for none.
@@ -463,6 +469,7 @@ impl Queue {
                 validator: None,
                 quality: None,
                 parts_dir: String::new(),
+                began_in: String::new(),
                 cookies: String::new(),
                 replaces: None,
             },
@@ -1347,6 +1354,10 @@ impl Queue {
                         slot.entry.parts_dir = own_parts.display().to_string();
                     }
                     options.parts_dir = PathBuf::from(&slot.entry.parts_dir);
+                    if slot.entry.began_in.is_empty() {
+                        slot.entry.began_in = options.dest_dir.display().to_string();
+                    }
+                    options.dest_dir = PathBuf::from(&slot.entry.began_in);
                     // The browser's cookies for this site, where handed
                     // over: this download's alone, for its own server.
                     options.sign_in =

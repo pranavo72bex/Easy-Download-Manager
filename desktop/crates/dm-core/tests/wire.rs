@@ -37,6 +37,7 @@ fn entry(state: State) -> Entry {
         validator: None,
         quality: None,
         parts_dir: String::new(),
+        began_in: String::new(),
         cookies: String::new(),
         replaces: None,
     }

@@ -2413,3 +2413,33 @@ async fn a_recheck_leaves_alone_a_row_made_from_a_web_page() {
     assert_eq!(q.get(1).await.unwrap().state, DownloadState::Completed);
     assert!(video.exists());
 }
+
+/// UI round 18: a download begun goes on into the folder it began in, when
+/// the download folder is changed before it runs again.
+#[tokio::test]
+async fn a_download_goes_on_into_the_folder_it_began_in() {
+    let (addr, _) = serve().await;
+    let dir = tempdir();
+    let q = queue(dir.path(), 1);
+    // Its first run fails, as a stopped or interrupted one ends.
+    let id = q.add(&format!("http://{addr}/flaky.bin")).await.unwrap();
+    q.run().await;
+    let began = q.get(id).await.unwrap().began_in;
+    assert!(!began.is_empty(), "no folder recorded at its start");
+
+    // The download folder moved meanwhile.
+    let elsewhere = tempdir();
+    let mut options = q.options().await;
+    options.dest_dir = elsewhere.path().to_path_buf();
+    q.set_options(options).await;
+
+    assert!(q.retry(id).await);
+    q.run().await;
+    let done = q.get(id).await.unwrap();
+    assert_eq!(done.state, DownloadState::Completed);
+    assert!(
+        std::path::Path::new(&done.path).starts_with(&began),
+        "{} is not in the folder it began in, {began}",
+        done.path
+    );
+}
