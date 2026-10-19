@@ -919,3 +919,19 @@ the name (gap 140): a list that stays where it was is worth more than 24
 points of name. Widths a person dragged are kept until the text size
 changes, when the list fits itself again: kept at 140% text, Status and
 every column after it were out of view.
+
+## Behind a proxy, a torrent finds peers through http(s) trackers only (2026-10-19)
+
+A SOCKS5 proxy carries TCP connections; the DHT, local service discovery
+and `udp://` trackers are UDP, and the torrent engine sends them directly.
+Left on, they told the swarm the info-hash from the real address on a
+machine set up to make no direct connection. Behind a proxy they are off,
+and a torrent's `udp://` trackers are dropped from it (its info dictionary
+kept byte for byte, so it stays the same torrent). A magnet or a torrent
+that lists only `udp://` trackers is refused with that reason rather than
+sent around the proxy. An HTTP proxy is still refused for torrents
+altogether, as before.
+
+A torrent shares the whole speed ceiling while none of dm's own downloads
+is running; with one running, the ceiling is split as before, one part for
+dm's own downloads and one for each torrent or yt-dlp run.

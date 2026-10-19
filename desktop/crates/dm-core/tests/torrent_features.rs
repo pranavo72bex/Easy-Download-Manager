@@ -289,12 +289,36 @@ async fn a_checksum_on_several_files_fails_rather_than_going_unchecked() {
     let err = download_torrent(&client(), &s.torrent_url, &o, None)
         .await
         .expect_err("unchecked");
+    // Refused before the tree was fetched, and nothing of it left staged
+    // for a Retry that could only fail again (torrent check, 2026-10-19).
+    fn fetched(dir: &std::path::Path) -> u64 {
+        std::fs::read_dir(dir)
+            .map(|entries| {
+                entries
+                    .flatten()
+                    .map(|e| {
+                        let path = e.path();
+                        if path.is_dir() {
+                            fetched(&path)
+                        } else {
+                            std::fs::metadata(&path).map(|m| m.len()).unwrap_or(0)
+                        }
+                    })
+                    .sum()
+            })
+            .unwrap_or(0)
+    }
+    assert_eq!(
+        fetched(dir.path()),
+        0,
+        "the tree was fetched before refusing"
+    );
     println!("VERIFY checksum on a tree: refused ({err})");
 }
 
 #[tokio::test(flavor = "multi_thread")]
 async fn progress_is_reported_and_the_speed_limit_holds() {
-    let data = bytes(2 * 1024 * 1024, 7);
+    let data = bytes(4 * 1024 * 1024, 7);
     let s = swarm("slow.bin", &[("slow.bin", data.clone())]).await;
     let dir = tempdir();
     let mut o = options(dir.path());
@@ -322,11 +346,19 @@ async fn progress_is_reported_and_the_speed_limit_holds() {
     assert_eq!(std::fs::read(&done.path).unwrap(), data);
     assert_eq!(named.as_deref(), Some("slow.bin"));
     assert!(samples >= 3, "only {samples} progress samples");
+    // About seven seconds, a first second's allowance aside. Set afresh
+    // twice a second, the engine's limit ran at three times its share and
+    // this took under three (torrent check, 2026-10-19); held to half the
+    // ceiling with nothing else downloading, it took about fifteen.
     assert!(
-        took >= Duration::from_secs(2),
-        "2 MB at 512 KB/s took only {took:?}"
+        took >= Duration::from_secs(6),
+        "4 MB at 512 KB/s took only {took:?}"
     );
-    println!("VERIFY progress+limit: named, {samples} samples, 2 MB at 512 KB/s took {took:.1?}");
+    assert!(
+        took <= Duration::from_secs(12),
+        "4 MB at 512 KB/s took {took:?}: held below the ceiling"
+    );
+    println!("VERIFY progress+limit: named, {samples} samples, 4 MB at 512 KB/s took {took:.1?}");
 }
 
 #[tokio::test(flavor = "multi_thread")]

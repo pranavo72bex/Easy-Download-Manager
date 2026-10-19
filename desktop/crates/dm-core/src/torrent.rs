@@ -58,6 +58,79 @@ pub fn file_url(path: &std::path::Path) -> Option<String> {
     url::Url::from_file_path(path).ok().map(String::from)
 }
 
+/// Whether a tracker's address is one a proxy carries: HTTP or HTTPS.
+/// A `udp://` tracker is asked directly, around any proxy.
+fn tcp_tracker(address: &str) -> bool {
+    let lower = address.trim().to_ascii_lowercase();
+    lower.starts_with("http://") || lower.starts_with("https://")
+}
+
+/// The refusal when a proxy leaves a torrent no way to find peers.
+fn no_tracker_behind_proxy() -> Error {
+    Error::Internal(
+        "behind a proxy dm finds peers only through http or https trackers, and this torrent lists none"
+            .into(),
+    )
+}
+
+/// A magnet with only the trackers a proxy carries: behind one, the DHT is
+/// off and a `udp://` tracker would be asked directly with the info-hash
+/// and the real address (torrent check, 2026-10-19).
+fn tcp_trackers_of_magnet(magnet: &str) -> Result<String, Error> {
+    let (head, query) = magnet.split_once('?').unwrap_or((magnet, ""));
+    let mut trackers = 0;
+    let kept: Vec<&str> = query
+        .split('&')
+        .filter(|part| {
+            let Some(value) = part.strip_prefix("tr=") else {
+                return true;
+            };
+            let address = percent_encoding::percent_decode_str(value).decode_utf8_lossy();
+            let keep = tcp_tracker(&address);
+            trackers += usize::from(keep);
+            keep
+        })
+        .collect();
+    if trackers == 0 {
+        return Err(no_tracker_behind_proxy());
+    }
+    Ok(format!("{head}?{}", kept.join("&")))
+}
+
+/// A `.torrent` with only the trackers a proxy carries, its info dictionary
+/// kept byte for byte so it is still the same torrent.
+fn tcp_trackers_of(metainfo: &[u8]) -> Result<Vec<u8>, Error> {
+    let parsed = librqbit::torrent_from_bytes(metainfo)
+        .map_err(|e| Error::Internal(format!("this file is not a torrent: {e}")))?;
+    let trackers: Vec<String> = parsed
+        .iter_announce()
+        .map(|t| String::from_utf8_lossy(t.as_ref()).into_owned())
+        .filter(|t| tcp_tracker(t))
+        .collect();
+    let Some(first) = trackers.first() else {
+        return Err(no_tracker_behind_proxy());
+    };
+    let string = |out: &mut Vec<u8>, s: &[u8]| {
+        out.extend_from_slice(s.len().to_string().as_bytes());
+        out.push(b':');
+        out.extend_from_slice(s);
+    };
+    // Its keys in order, as bencoding requires.
+    let mut out = b"d".to_vec();
+    string(&mut out, b"announce");
+    string(&mut out, first.as_bytes());
+    string(&mut out, b"announce-list");
+    out.extend_from_slice(b"ll");
+    for t in &trackers {
+        string(&mut out, t.as_bytes());
+    }
+    out.extend_from_slice(b"ee");
+    string(&mut out, b"info");
+    out.extend_from_slice(parsed.info.raw_bytes.as_ref());
+    out.push(b'e');
+    Ok(out)
+}
+
 fn ends_with_ignoring_case(s: &str, suffix: &str) -> bool {
     s.len() >= suffix.len()
         && s.get(s.len() - suffix.len()..)
@@ -88,6 +161,7 @@ pub async fn download_torrent(
         return Err(Error::Internal(why));
     }
     let connect = swarm_proxy(options.proxy_for(url))?;
+    let proxied = connect.is_some();
 
     /* Staged like every other download, under its own parts directory, and
      * moved into the download folder only when whole. Written straight into
@@ -117,10 +191,15 @@ pub async fn download_torrent(
             // torrents at once, or a resume while the paused one is still
             // closing) failed to start with "error initializing persistent
             // DHT". Each session finds peers afresh on a port of its own.
-            dht: Some(librqbit::DhtSessionConfig {
+            // Off behind a proxy, and local discovery with it: both are UDP,
+            // which a SOCKS5 connection cannot carry, so they went out
+            // directly with the info-hash and the real address (torrent
+            // check, 2026-10-19). A magnet then needs a tracker.
+            dht: (!proxied).then(|| librqbit::DhtSessionConfig {
                 persistence: None,
                 ..Default::default()
             }),
+            disable_local_service_discovery: proxied,
             cancellation_token: Some(token.clone()),
             ratelimits: librqbit::limits::LimitsConfig {
                 download_bps: download_cap(options).await,
@@ -140,13 +219,28 @@ pub async fn download_torrent(
     let add = if is_magnet(url) {
         // In the spelling librqbit looks for: it matches `magnet:` exactly.
         let rest = url.trim().get(7..).unwrap_or_default();
-        AddTorrent::Url(format!("magnet:{rest}").into())
+        let magnet = format!("magnet:{rest}");
+        AddTorrent::Url(
+            if proxied {
+                tcp_trackers_of_magnet(&magnet)?
+            } else {
+                magnet
+            }
+            .into(),
+        )
     } else if let Some(path) = local_file(url) {
         // A .torrent on this computer, opened with dm from a file manager.
         let bytes = tokio::fs::read(&path)
             .await
             .map_err(|e| Error::Internal(format!("could not read {}: {e}", path.display())))?;
-        AddTorrent::TorrentFileBytes(bytes.into())
+        AddTorrent::TorrentFileBytes(
+            if proxied {
+                tcp_trackers_of(&bytes)?
+            } else {
+                bytes
+            }
+            .into(),
+        )
     } else {
         // Fetched with dm's client rather than librqbit's, so a .torrent
         // behind a proxy is reachable exactly as a file would be, and with
@@ -161,7 +255,14 @@ pub async fn download_torrent(
             ),
         )
         .await?;
-        AddTorrent::TorrentFileBytes(bytes.into())
+        AddTorrent::TorrentFileBytes(
+            if proxied {
+                tcp_trackers_of(&bytes)?
+            } else {
+                bytes
+            }
+            .into(),
+        )
     };
 
     /* Raced against the row's control: a magnet's metadata comes from its
@@ -189,6 +290,20 @@ pub async fn download_torrent(
         .into_handle()
         .ok_or_else(|| Error::Internal("the torrent produced no handle".into()))?;
 
+    // A digest is for one file: refused as soon as the metadata shows more,
+    // rather than after the whole tree was fetched for nothing (torrent
+    // check, 2026-10-19).
+    let several = handle
+        .with_metadata(|metadata| metadata.file_infos.len() > 1)
+        .unwrap_or(false);
+    if several && options.checksum.is_some() {
+        let _ = session.delete(handle.id().into(), true).await;
+        token.cancel();
+        return Err(Error::Internal(
+            "a checksum cannot be checked over a torrent of several files".into(),
+        ));
+    }
+
     let mut named = false;
     let mut last = Instant::now();
     /* From the first sample, not from zero: a resumed torrent's first report
@@ -215,9 +330,13 @@ pub async fn download_torrent(
         // limit slider — and an HTTP download picks that up on its next chunk.
         // A torrent must too, or "one ceiling governs files and torrents
         // together" would hold only at the moment it started.
-        session
-            .ratelimits
-            .set_download_bps(download_cap(options).await);
+        // Only when it changed: each call makes a fresh limiter with a full
+        // second's allowance, and set twice a second it let a torrent run at
+        // three times its share (torrent check, 2026-10-19).
+        let cap = download_cap(options).await;
+        if session.ratelimits.get_download_bps() != cap {
+            session.ratelimits.set_download_bps(cap);
+        }
 
         let stats = handle.stats();
 
@@ -550,6 +669,45 @@ impl Drop for CancelOnDrop {
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn behind_a_proxy_only_http_trackers_are_kept() {
+        let magnet = "magnet:?xt=urn:btih:0123456789abcdef0123456789abcdef01234567\
+            &tr=udp%3A%2F%2Ft.example%3A6969&tr=http%3A%2F%2Ft.example%2Fannounce&dn=x";
+        let kept = super::tcp_trackers_of_magnet(magnet).unwrap();
+        assert!(!kept.contains("udp"), "{kept}");
+        assert!(kept.contains("tr=http%3A%2F%2Ft.example%2Fannounce") && kept.contains("dn=x"));
+        assert!(super::tcp_trackers_of_magnet(
+            "magnet:?xt=urn:btih:0123456789abcdef0123456789abcdef01234567&tr=udp%3A%2F%2Fa%3A1"
+        )
+        .is_err());
+
+        // A .torrent: the udp tracker dropped, the info kept byte for byte.
+        let info = b"d6:lengthi3e4:name1:x12:piece lengthi16384e6:pieces20:aaaaaaaaaaaaaaaaaaaae";
+        let b = |s: &str| format!("{}:{s}", s.len());
+        let (udp, http) = ("udp://t.example:69", "http://t.example/announce");
+        let mut file = format!(
+            "d{}{}{}ll{}el{}ee{}",
+            b("announce"),
+            b(udp),
+            b("announce-list"),
+            b(udp),
+            b(http),
+            b("info")
+        )
+        .into_bytes();
+        file.extend_from_slice(info);
+        file.push(b'e');
+        let before = librqbit::torrent_from_bytes(&file).unwrap().info_hash;
+        let kept = super::tcp_trackers_of(&file).unwrap();
+        let parsed = librqbit::torrent_from_bytes(&kept).unwrap();
+        assert_eq!(parsed.info_hash, before, "another torrent");
+        let trackers: Vec<String> = parsed
+            .iter_announce()
+            .map(|t| String::from_utf8_lossy(t.as_ref()).into_owned())
+            .collect();
+        assert_eq!(trackers, ["http://t.example/announce"]);
+    }
+
     use super::*;
 
     /// Gap 61: a move across disks copied straight into the download

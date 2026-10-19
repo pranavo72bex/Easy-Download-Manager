@@ -49,8 +49,17 @@ pub struct Limiter {
     rate: Arc<AtomicU64>,
     /// How many outside engines hold a share right now.
     outside: Arc<AtomicU64>,
+    /// When one of dm's own downloads last took bytes, in milliseconds
+    /// after `born`: while none has lately, the outside engines share the
+    /// whole ceiling rather than leaving a part for nobody.
+    own_seen: Arc<AtomicU64>,
+    born: Instant,
     inner: Arc<Mutex<Bucket>>,
 }
+
+/// How long after its last bytes one of dm's own downloads still counts as
+/// running, for sharing the ceiling.
+const OWN_QUIET: Duration = Duration::from_secs(2);
 
 /// One outside engine's claim on the ceiling, for as long as it runs.
 /// Dropping it gives the share back.
@@ -94,6 +103,8 @@ impl Limiter {
         Limiter {
             rate: Arc::new(AtomicU64::new(rate)),
             outside: Arc::new(AtomicU64::new(0)),
+            own_seen: Arc::new(AtomicU64::new(u64::MAX)),
+            born: Instant::now(),
             inner: Arc::new(Mutex::new(Bucket {
                 rate,
                 next: Instant::now(),
@@ -115,8 +126,27 @@ impl Limiter {
     }
 
     /// The rate one outside engine may use now: its part of the ceiling.
+    /// With none of dm's own downloads running, the outside engines share
+    /// all of it: a torrent alone was held to half the limit a person set
+    /// (torrent check, 2026-10-19).
     pub async fn part(&self) -> u64 {
-        split(self.rate().await, self.outside.load(Ordering::Acquire))
+        let rate = self.rate().await;
+        let outside = self.outside.load(Ordering::Acquire);
+        if self.own_running() {
+            split(rate, outside)
+        } else if rate == 0 {
+            0
+        } else {
+            (rate / outside.max(1)).max(1)
+        }
+    }
+
+    /// Whether one of dm's own downloads took bytes lately.
+    fn own_running(&self) -> bool {
+        let seen = self.own_seen.load(Ordering::Acquire);
+        seen != u64::MAX
+            && self.born.elapsed().as_millis() as u64
+                <= seen.saturating_add(OWN_QUIET.as_millis() as u64)
     }
 
     /// Changes the ceiling for everything already running.
@@ -149,6 +179,8 @@ impl Limiter {
             return;
         }
 
+        self.own_seen
+            .store(self.born.elapsed().as_millis() as u64, Ordering::Release);
         let (deadline, generation) = {
             let mut bucket = self.inner.lock().await;
             if bucket.rate == 0 {
@@ -309,6 +341,10 @@ mod tests {
         let limiter = Limiter::new(900);
         assert_eq!(limiter.part().await, 900);
         let torrent = limiter.share();
+        // A torrent alone has the whole ceiling: nothing of dm's own runs.
+        assert_eq!(limiter.part().await, 900, "a lone torrent was held to half");
+        // One of dm's own downloads taking bytes: halves.
+        limiter.take(1).await;
         assert_eq!(limiter.part().await, 450, "a torrent and dm's own, halves");
         let ytdlp = limiter.share();
         assert_eq!(

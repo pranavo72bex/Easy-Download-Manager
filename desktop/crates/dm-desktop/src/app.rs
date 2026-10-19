@@ -300,6 +300,10 @@ fn status_in(row: &Entry, words: fn(&'static str) -> &'static str) -> String {
                     format::bytes(row.progress.downloaded)
                 }
             }
+            // A torrent with nothing yet is looking for peers, for as long
+            // as that takes; "Starting…" read as stuck (torrent check,
+            // 2026-10-19).
+            None if dm_core::is_torrent(&row.url) => words("Finding peers…").into(),
             None => words("Starting…").into(),
         },
         State::Queued => words("Queued").into(),
@@ -487,7 +491,7 @@ fn address_in(word: &str) -> &str {
 const DROP_LOOK: u64 = 64 * 1024;
 
 /// The kinds of file a drop is read for links: a browser's link file, a
-/// list, a page. Anything else — a PDF, an ISO, a photo — is not a list of
+/// list, a page (a `.torrent` is taken whole, as the download itself). Anything else — a PDF, an ISO, a photo — is not a list of
 /// links, and the addresses that happen to be inside one are not what the
 /// person dropping it wanted queued.
 const DROP_KINDS: [&str; 6] = ["webloc", "url", "txt", "text", "html", "htm"];
@@ -508,6 +512,15 @@ pub fn dropped_links(file: &dyn egui::DroppedFile) -> Vec<String> {
     let kind = path
         .extension()
         .map(|e| e.to_string_lossy().to_ascii_lowercase());
+    // A .torrent is itself the download, read from where it lies: a drop
+    // of one was ignored (torrent check, 2026-10-19).
+    if kind.as_deref() == Some("torrent") && path.is_file() {
+        return std::path::absolute(path)
+            .ok()
+            .and_then(|full| dm_core::torrent::file_url(&full))
+            .into_iter()
+            .collect();
+    }
     if kind
         .as_deref()
         .is_some_and(|kind| !DROP_KINDS.contains(&kind))
@@ -4565,6 +4578,11 @@ mod status_tests {
         row.progress.downloaded = 3 * 1024 * 1024;
         row.progress.speed = 2048.0;
         assert_eq!(status_in_english(&row), "3.0 MB · 2.0 KB/s");
+        // A torrent with nothing yet is finding its peers.
+        let mut magnet = paused(false);
+        magnet.state = State::Running;
+        magnet.url = "magnet:?xt=urn:btih:0123456789abcdef0123456789abcdef01234567".into();
+        assert_eq!(status_in_english(&magnet), "Finding peers…");
     }
 
     #[test]
@@ -4693,6 +4711,13 @@ mod toolbar_tests {
         let blob = dir.path().join("blob");
         std::fs::write(&blob, b"\0\x01https://example.com/x.bin").unwrap();
         assert!(dropped_links(&Dropped(blob)).is_empty());
+
+        // A .torrent is the download itself, by its file address.
+        let torrent = dir.path().join("a set.torrent");
+        std::fs::write(&torrent, b"d4:infodee").unwrap();
+        let taken = dropped_links(&Dropped(torrent.clone()));
+        assert_eq!(taken, [dm_core::torrent::file_url(&torrent).unwrap()]);
+        assert!(dm_core::is_torrent(&taken[0]) && dm_core::queue::accepted(&taken[0]));
     }
 }
 

@@ -1986,7 +1986,11 @@ fn file_info(app: &mut DmApp, ctx: &egui::Context) {
         let remux = app.applied.remux_ts;
         d.probed = Some(slot.clone());
         let url = d.urls.first().cloned().unwrap_or_default();
-        if url.starts_with("http://") || url.starts_with("https://") {
+        // Not a torrent's: what the server says of a .torrent is the
+        // metainfo's few kilobytes and its file name, which Download details
+        // showed as the download's (torrent check, 2026-10-19).
+        if (url.starts_with("http://") || url.starts_with("https://")) && !dm_core::is_torrent(&url)
+        {
             let client = dm_core::proxy::client_with(&app.backend.settings().proxy)
                 .unwrap_or_else(|_| dm_core::client());
             let sign_in = dm_core::cookies::SignIn::new(&url, &d.cookies);
@@ -2033,6 +2037,9 @@ fn file_info(app: &mut DmApp, ctx: &egui::Context) {
                     ctx.request_repaint();
                 }
             });
+        } else {
+            // Nothing to ask: known at once, so nothing waits on it.
+            *dm_core::lock(&slot) = Some(Probed::default());
         }
     }
     let probed = d.probed.as_ref().and_then(|p| dm_core::lock(p).clone());
@@ -2170,6 +2177,8 @@ fn file_info(app: &mut DmApp, ctx: &egui::Context) {
                                         // the file came as something else (UI
                                         // round 8).
                                         t("The video's own title").to_string()
+                                    } else if dm_core::is_torrent(&first) {
+                                        t("The torrent's own name").to_string()
                                     } else {
                                         stream_name(&first, None, remux)
                                             .unwrap_or_else(|| format::provisional(&first))
@@ -2476,15 +2485,16 @@ fn progress(app: &mut DmApp, ctx: &egui::Context) {
                             ui.label(match resumable {
                                 Some(true) => t("Yes"),
                                 Some(false) => t("No — a stop starts it again from the beginning"),
+                                // A torrent goes on from the pieces it has;
+                                // there is no server to ask (UI round 12),
+                                // whether or not it failed (torrent check).
+                                None if dm_core::is_torrent(&row.url) => {
+                                    t("Yes, from the pieces it already has")
+                                }
                                 // Failed before the server said: a 401
                                 // is an answer, but not to this.
                                 None if matches!(row.state, State::Failed(_)) => {
                                     t("Not yet known (the server refused the request)")
-                                }
-                                // A torrent goes on from the pieces it has;
-                                // there is no server to ask (UI round 12).
-                                None if dm_core::is_torrent(&row.url) => {
-                                    t("Yes, from the pieces it already has")
                                 }
                                 None => t("Unknown until the server answers"),
                             });
@@ -2494,96 +2504,107 @@ fn progress(app: &mut DmApp, ctx: &egui::Context) {
                     // No words of its own: Status above says the percentage
                     // (UI round 9: it was said twice).
                     bar(ui, fraction, 420.0, "");
-                    egui::CollapsingHeader::new(t("Connections"))
-                        .default_open(true)
-                        .id_salt(("connections", id))
-                        .show(ui, |ui| {
-                            if connections.is_empty() {
-                                ui.label(RichText::new(t("Nothing fetched yet.")).weak());
-                            }
-                            // The file is cut into more pieces than connections,
-                            // and each connection takes the next piece when it is
-                            // done: the pieces under way are the connections at
-                            // work, and the rest is a count.
-                            let span_of =
-                                |c: &dm_core::Connection| (c.end - c.start).saturating_add(1);
-                            // Each held to its range and adding up to the
-                            // Downloaded above (gap 166).
-                            let held = format::pieces_shown_open(
-                                &connections
-                                    .iter()
-                                    .map(|c| (span_of(c), c.done))
-                                    .collect::<Vec<_>>(),
-                                &connections.iter().map(|c| c.started).collect::<Vec<_>>(),
-                                p.downloaded,
-                            );
-                            let finished = connections
-                                .iter()
-                                .zip(&held)
-                                .filter(|(c, &done)| done >= span_of(c))
-                                .count();
-                            if !connections.is_empty() {
-                                ui.label(
-                                    RichText::new(crate::i18n::tn(
-                                        "{} of {} piece done||{} of {} pieces done",
-                                        connections.len() as u64,
-                                        &[&finished, &connections.len()],
-                                    ))
-                                    .weak(),
+                    // A torrent's pieces come from its peers, not from
+                    // connections dm plans: the section said "Nothing fetched
+                    // yet." while megabytes arrived (torrent check).
+                    let torrent = dm_core::is_torrent(&row.url);
+                    if !torrent {
+                        egui::CollapsingHeader::new(t("Connections"))
+                            .default_open(true)
+                            .id_salt(("connections", id))
+                            .show(ui, |ui| {
+                                if connections.is_empty() {
+                                    ui.label(RichText::new(t("Nothing fetched yet.")).weak());
+                                }
+                                // The file is cut into more pieces than connections,
+                                // and each connection takes the next piece when it is
+                                // done: the pieces under way are the connections at
+                                // work, and the rest is a count.
+                                let span_of =
+                                    |c: &dm_core::Connection| (c.end - c.start).saturating_add(1);
+                                // Each held to its range and adding up to the
+                                // Downloaded above (gap 166).
+                                let held = format::pieces_shown_open(
+                                    &connections
+                                        .iter()
+                                        .map(|c| (span_of(c), c.done))
+                                        .collect::<Vec<_>>(),
+                                    &connections.iter().map(|c| c.started).collect::<Vec<_>>(),
+                                    p.downloaded,
                                 );
-                            }
-                            // Every piece of the plan: those under way with
-                            // their bars, the rest said to be waiting or
-                            // done, so the list does not grow and shrink as
-                            // connections start (gap 160).
-                            // The longest words any piece's bar could have,
-                            // so every bar is one length.
-                            let widest = connections
-                                .iter()
-                                .map(|c| {
-                                    let most = format::bytes(span_of(c));
-                                    tf("{} of {}", &[&most, &most])
-                                })
-                                .max_by_key(|w| w.chars().count())
-                                .unwrap_or_default();
-                            for (n, (c, &done)) in connections.iter().zip(&held).enumerate() {
-                                let span = span_of(c);
-                                ui.horizontal(|ui| {
-                                    // Digits of one width, so the bars start
-                                    // in one line (UI round 8: 1's was 2 px
-                                    // left of the others).
-                                    ui.label(crate::table::digits(ui, format!("{:>3}", n + 1)));
-                                    if done >= span {
-                                        ui.label(
-                                            RichText::new(tf("done, {}", &[&format::bytes(span)]))
+                                let finished = connections
+                                    .iter()
+                                    .zip(&held)
+                                    .filter(|(c, &done)| done >= span_of(c))
+                                    .count();
+                                if !connections.is_empty() {
+                                    ui.label(
+                                        RichText::new(crate::i18n::tn(
+                                            "{} of {} piece done||{} of {} pieces done",
+                                            connections.len() as u64,
+                                            &[&finished, &connections.len()],
+                                        ))
+                                        .weak(),
+                                    );
+                                }
+                                // Every piece of the plan: those under way with
+                                // their bars, the rest said to be waiting or
+                                // done, so the list does not grow and shrink as
+                                // connections start (gap 160).
+                                // The longest words any piece's bar could have,
+                                // so every bar is one length.
+                                let widest = connections
+                                    .iter()
+                                    .map(|c| {
+                                        let most = format::bytes(span_of(c));
+                                        tf("{} of {}", &[&most, &most])
+                                    })
+                                    .max_by_key(|w| w.chars().count())
+                                    .unwrap_or_default();
+                                for (n, (c, &done)) in connections.iter().zip(&held).enumerate() {
+                                    let span = span_of(c);
+                                    ui.horizontal(|ui| {
+                                        // Digits of one width, so the bars start
+                                        // in one line (UI round 8: 1's was 2 px
+                                        // left of the others).
+                                        ui.label(crate::table::digits(ui, format!("{:>3}", n + 1)));
+                                        if done >= span {
+                                            ui.label(
+                                                RichText::new(tf(
+                                                    "done, {}",
+                                                    &[&format::bytes(span)],
+                                                ))
                                                 .weak(),
-                                        );
-                                    // Waiting only where no request for it is
-                                    // open yet (UI round 8).
-                                    } else if done == 0 && !c.started && row.state == State::Running
-                                    {
-                                        ui.label(
-                                            RichText::new(tf(
-                                                "waiting, {}",
-                                                &[&format::bytes(span)],
-                                            ))
-                                            .weak(),
-                                        );
-                                    } else {
-                                        bar_beside(
-                                            ui,
-                                            done as f32 / span.max(1) as f32,
-                                            260.0,
-                                            &tf(
-                                                "{} of {}",
-                                                &[&format::bytes(done), &format::bytes(span)],
-                                            ),
-                                            &widest,
-                                        );
-                                    }
-                                });
-                            }
-                        });
+                                            );
+                                        // Waiting only where no request for it is
+                                        // open yet (UI round 8).
+                                        } else if done == 0
+                                            && !c.started
+                                            && row.state == State::Running
+                                        {
+                                            ui.label(
+                                                RichText::new(tf(
+                                                    "waiting, {}",
+                                                    &[&format::bytes(span)],
+                                                ))
+                                                .weak(),
+                                            );
+                                        } else {
+                                            bar_beside(
+                                                ui,
+                                                done as f32 / span.max(1) as f32,
+                                                260.0,
+                                                &tf(
+                                                    "{} of {}",
+                                                    &[&format::bytes(done), &format::bytes(span)],
+                                                ),
+                                                &widest,
+                                            );
+                                        }
+                                    });
+                                }
+                            });
+                    }
                 });
             // The buttons below what scrolls, always in view.
             ui.horizontal(|ui| {

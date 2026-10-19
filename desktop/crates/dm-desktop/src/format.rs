@@ -236,7 +236,7 @@ pub fn titled(word: &str) -> String {
 /// one for what the network library says in its own terms ("error decoding
 /// response body" is a connection cut mid-file). The first that matches
 /// wins; anything else is shown as the engine said it.
-pub const REASONS: [(&[&str], &str); 9] = [
+pub const REASONS: [(&[&str], &str); 10] = [
     (
         &[
             "error decoding response body",
@@ -282,6 +282,10 @@ pub const REASONS: [(&[&str], &str); 9] = [
     (
         &["the server answered 404"],
         "the server has no file at this address (404)",
+    ),
+    (
+        &["error decoding torrent", "this file is not a torrent"],
+        "the file is not a torrent",
     ),
 ];
 
@@ -628,6 +632,10 @@ mod tests {
         assert_eq!(
             reason("the server answered 404 Not Found for https://e.com/birth-certificate.pdf"),
             Some("the server has no file at this address (404)")
+        );
+        assert_eq!(
+            reason("the torrent could not be added: error decoding torrent: invalid value"),
+            Some("the file is not a torrent")
         );
         assert_eq!(
             reason("the server answered 502 Bad Gateway for https://e.com/a — upstream timed out"),
