@@ -6320,8 +6320,9 @@ fn the_small_things_of_round_eight() {
         (after.min - before.min).length() < 1.0,
         "the progress window moved from {before:?} to {after:?}"
     );
+    // The server answered, with a refusal: said as one (UI round 17).
     assert!(harness
-        .query_by_label("Not yet known: it failed before the server said")
+        .query_by_label("No — the server refused it")
         .is_some());
     // The bar no longer says the percentage beside itself (UI round 9:
     // Status above says it); no words of its own to be cut off.
