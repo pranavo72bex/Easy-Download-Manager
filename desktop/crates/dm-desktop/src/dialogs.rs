@@ -2488,6 +2488,15 @@ fn progress(app: &mut DmApp, ctx: &egui::Context) {
                                 // A torrent goes on from the pieces it has;
                                 // there is no server to ask (UI round 12),
                                 // whether or not it failed (torrent check).
+                                // Not one that failed before it had any:
+                                // a .torrent that could not be read has no
+                                // pieces to go on from (torrent check, pass 2).
+                                None if dm_core::is_torrent(&row.url)
+                                    && matches!(row.state, State::Failed(_))
+                                    && p.downloaded == 0 =>
+                                {
+                                    t("No — nothing of it was fetched")
+                                }
                                 None if dm_core::is_torrent(&row.url) => {
                                     t("Yes, from the pieces it already has")
                                 }

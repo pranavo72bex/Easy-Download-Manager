@@ -230,9 +230,12 @@ pub async fn download_torrent(
         )
     } else if let Some(path) = local_file(url) {
         // A .torrent on this computer, opened with dm from a file manager.
-        let bytes = tokio::fs::read(&path)
-            .await
-            .map_err(|e| Error::Internal(format!("could not read {}: {e}", path.display())))?;
+        let bytes = tokio::fs::read(&path).await.map_err(|e| {
+            Error::Internal(format!(
+                "could not read the torrent file {}: {e}",
+                path.display()
+            ))
+        })?;
         AddTorrent::TorrentFileBytes(
             if proxied {
                 tcp_trackers_of(&bytes)?

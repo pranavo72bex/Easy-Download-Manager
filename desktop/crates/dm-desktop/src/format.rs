@@ -236,7 +236,7 @@ pub fn titled(word: &str) -> String {
 /// one for what the network library says in its own terms ("error decoding
 /// response body" is a connection cut mid-file). The first that matches
 /// wins; anything else is shown as the engine said it.
-pub const REASONS: [(&[&str], &str); 10] = [
+pub const REASONS: [(&[&str], &str); 11] = [
     (
         &[
             "error decoding response body",
@@ -286,6 +286,10 @@ pub const REASONS: [(&[&str], &str); 10] = [
     (
         &["error decoding torrent", "this file is not a torrent"],
         "the file is not a torrent",
+    ),
+    (
+        &["could not read the torrent file"],
+        "the .torrent file could not be read",
     ),
 ];
 
@@ -636,6 +640,10 @@ mod tests {
         assert_eq!(
             reason("the torrent could not be added: error decoding torrent: invalid value"),
             Some("the file is not a torrent")
+        );
+        assert_eq!(
+            reason("could not read the torrent file /home/a/x.torrent: No such file or directory (os error 2)"),
+            Some("the .torrent file could not be read")
         );
         assert_eq!(
             reason("the server answered 502 Bad Gateway for https://e.com/a — upstream timed out"),
