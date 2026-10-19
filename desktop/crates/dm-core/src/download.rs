@@ -2885,6 +2885,17 @@ pub fn free_name(dir: &Path, name: &str) -> String {
         .unwrap_or_else(|| name.to_string())
 }
 
+/// The name the `nth` download of `name` into `dir` will get, counting from
+/// 0, where `nth` others of that name are already waiting to be placed
+/// there: each takes the next free one in turn.
+pub fn nth_free_name(dir: &Path, name: &str, nth: usize) -> String {
+    candidates(dir, name)
+        .filter(|path| std::fs::symlink_metadata(path).is_err())
+        .nth(nth)
+        .and_then(|path| path.file_name().map(|n| n.to_string_lossy().into_owned()))
+        .unwrap_or_else(|| name.to_string())
+}
+
 fn all_taken(dir: &Path, name: &str) -> Error {
     Error::Internal(format!(
         "ten thousand files named {name} already in {}; nothing will be overwritten",

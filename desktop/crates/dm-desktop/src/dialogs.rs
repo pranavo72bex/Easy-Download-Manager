@@ -626,6 +626,26 @@ impl Dialogs {
             || self.skip_offer.is_some()
     }
 
+    /// The titles of the questions waiting for an answer.
+    fn questions(&self) -> Vec<&'static str> {
+        [
+            (self.confirm_exit, "Exit dm?"),
+            (self.confirm_remove.is_some(), "Delete unfinished downloads"),
+            (
+                self.confirm_outside.is_some(),
+                "Start outside the schedule?",
+            ),
+            (self.confirm_cancel.is_some(), "Cancel this download?"),
+            (self.duplicate.is_some(), "Already in the list"),
+            (self.import_ask.is_some(), "Some are already in the list"),
+            (self.skip_offer.is_some(), "Leave this site to the browser?"),
+        ]
+        .into_iter()
+        .filter(|(open, _)| *open)
+        .map(|(_, title)| title)
+        .collect()
+    }
+
     pub fn in_front(&self) -> bool {
         self.open_names()
             .iter()
@@ -1237,6 +1257,11 @@ pub fn show(app: &mut DmApp, ctx: &egui::Context) {
     app.popup_was_open = ctx.any_popup_open();
     // The topmost of the dialogs in front keeps the keyboard and the
     // clicks: egui takes the highest layer given.
+    // A question is kept on top: a progress window opened by the same
+    // click covered "Start outside the schedule?" (UI round 12).
+    for title in app.dialogs.questions() {
+        ctx.move_to_top(egui::LayerId::new(egui::Order::Middle, window_id(title)));
+    }
     for layer in app.dialogs.modal_layers() {
         ctx.memory_mut(|m| m.set_modal_layer(layer));
     }
@@ -2015,27 +2040,32 @@ fn file_info(app: &mut DmApp, ctx: &egui::Context) {
                     app.applied.download_dir.clone()
                 }
             };
-            let free = dm_core::download::free_name(&dir, name);
-            // A download of that name still under way is not on disk yet,
-            // and the file still came as "big (1).zip" (UI round 11).
-            let pending = free == name
-                && app.rows.iter().any(|r| {
+            // Every download of that name still waiting to be placed there
+            // takes a free name first (UI round 12: two rows read
+            // "big (1).zip" and one landed as "big (2).zip").
+            let waiting = app
+                .rows
+                .iter()
+                .filter(|r| {
                     !r.state.settled()
                         && r.path.is_empty()
                         && name_of(r) == name
                         && r.save_dir.as_deref().is_none_or(|s| {
                             s.trim().is_empty() || std::path::Path::new(s) == dir
                         })
-                });
-            if pending {
+                })
+                .count();
+            let free = dm_core::download::nth_free_name(&dir, name, waiting);
+            if free == name {
+                None
+            } else if dm_core::download::free_name(&dir, name) == name {
+                // Free on disk: it is the list that has the name.
                 Some(t("Another download in the list has this name; this one will be given a number.").to_string())
-            } else if free != name {
+            } else {
                 Some(tf(
                     "A file of that name is in the folder already; this one will be {}.",
                     &[&crate::bidi::visual(&free)],
                 ))
-            } else {
-                None
             }
         })
         .flatten();
@@ -2269,7 +2299,11 @@ fn file_info(app: &mut DmApp, ctx: &egui::Context) {
             // Start now while the schedule or the download limit holds
             // downloads: asked, as Resume asks, whether to start it outside
             // the schedule; it only waited, without a word (gap 139).
-            if !later && !app.headless && app.held_because().is_some() {
+            // Asked of the schedule itself: the list, not yet refreshed,
+            // had no row waiting on it, so nothing asked (UI round 12).
+            let shut = app.applied.schedule.enabled && !app.applied.schedule.open();
+            let spent = app.backend.queue.allowance_spent().is_some();
+            if !later && !app.headless && (shut || spent) {
                 app.dialogs.confirm_outside = Some(app.last_added.clone());
             }
         }
@@ -2308,7 +2342,9 @@ fn progress(app: &mut DmApp, ctx: &egui::Context) {
             .max(screen.top())
             .min(screen.bottom() - 120.0);
         let step = 28.0 * (nth % 8) as f32;
-        let asking = app.dialogs.asking();
+        // Behind any dialog that keeps the clicks too: behind Options its
+        // Stop download paused a download (UI round 12).
+        let asking = app.dialogs.asking() || app.dialogs.modal();
         // The name it will get, as the list says it: two catches of one
         // link were both "big.zip" until they had begun (UI round 10).
         let mut categories = app.applied.categories();
@@ -2556,7 +2592,8 @@ fn progress(app: &mut DmApp, ctx: &egui::Context) {
         if cancel {
             app.dialogs.confirm_cancel = Some(id);
         }
-        if !open {
+        // Its × too takes no click while it is behind.
+        if !open && !asking {
             app.dialogs.progress.remove(&id);
             app.dialogs.progress_closed.insert(id);
         }
@@ -2592,6 +2629,9 @@ fn complete(app: &mut DmApp, ctx: &egui::Context) {
     if app.dialogs.asking() {
         return;
     }
+    // Behind a dialog that keeps the clicks it is shown, and takes none
+    // (UI round 12: behind Scheduler its Close closed it).
+    let behind = app.dialogs.modal();
     let mut done: Vec<Id> = Vec::new();
     let mut close = false;
     let mut shut = true;
@@ -2616,6 +2656,9 @@ fn complete(app: &mut DmApp, ctx: &egui::Context) {
         .max_height((screen.height() * 0.6).max(160.0))
         .open(&mut shut)
         .show(ctx, |ui| {
+            if behind {
+                ui.disable();
+            }
             if rows.len() > 1 {
                 ui.label(tf("{} downloads finished.", &[&rows.len()]));
                 ui.separator();
@@ -2723,7 +2766,7 @@ fn complete(app: &mut DmApp, ctx: &egui::Context) {
             ui.separator();
             close = ui.button(t("Close")).clicked();
         });
-    if close || !shut {
+    if !behind && (close || !shut) {
         app.dialogs.complete.clear();
     }
     for id in done {

@@ -2361,7 +2361,22 @@ impl DmApp {
             if free.len() > 2000 {
                 free.clear();
             }
-            let said = dm_core::download::free_name(std::path::Path::new(&folder), &name);
+            // Each earlier row of the same name bound for the same folder,
+            // and not yet placed, takes a free name first: three added for
+            // later all read "slow (1).bin" (UI round 12).
+            let before = self
+                .rows
+                .iter()
+                .filter(|r| {
+                    r.id < row.id
+                        && !r.state.settled()
+                        && r.path.is_empty()
+                        && r.save_dir == row.save_dir
+                        && name_of(r) == name
+                })
+                .count();
+            let said =
+                dm_core::download::nth_free_name(std::path::Path::new(&folder), &name, before);
             free.insert(key, (Instant::now(), said.clone()));
             said
         })

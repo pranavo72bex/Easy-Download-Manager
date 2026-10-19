@@ -320,6 +320,9 @@ fn double_click(harness: &mut Harness<'_, DmApp>, name: &str) {
 
 /// Clicks something by its name and lets the window catch up.
 fn click(harness: &mut Harness<'_, DmApp>, name: &str) {
+    if harness.state().dialogs.file_info.is_some() {
+        settle_details(harness);
+    }
     harness.get_by_label(name).click();
     harness.run_steps(3);
 }
@@ -359,6 +362,20 @@ fn add_url(harness: &mut Harness<'_, DmApp>, url: &str, button: &str) {
         "OK did not lead to Download details"
     );
     click(harness, button);
+}
+
+/// Waits for Download details to hear from the server: its answer can add
+/// a line and move the buttons, so a click under load landed where a
+/// button was a frame before. A person, too, sees the dialog settle.
+fn settle_details(harness: &mut Harness<'_, DmApp>) {
+    until(harness, "Download details to hear from the server", |app| {
+        app.dialogs.file_info.as_ref().is_none_or(|d| {
+            d.probed
+                .as_ref()
+                .is_none_or(|p| p.lock().map_or(true, |p| p.is_some()))
+        })
+    });
+    harness.run_steps(2);
 }
 
 /// Selects a row by clicking its name in the table.
@@ -7713,10 +7730,20 @@ fn the_window_behind_a_dialog_takes_no_clicks() {
         before,
         "a place was picked behind Options"
     );
-    click(&mut harness, "Cancel");
-
+    // A progress window behind Options takes none either (UI round 12).
     let id = harness.state().rows()[0].id;
     harness.state_mut().dialogs.progress.insert(id);
+    harness.run_steps(3);
+    harness.get_by_label("Stop download").click();
+    harness.run_steps(3);
+    harness.state_mut().refresh();
+    assert_eq!(
+        harness.state().rows()[0].state,
+        State::Running,
+        "Stop download worked behind Options"
+    );
+    click(&mut harness, "Cancel");
+
     harness.state_mut().dialogs.confirm_exit = true;
     harness.run_steps(3);
     harness.get_by_label("Stop download").click();
@@ -7782,4 +7809,22 @@ fn find_closes_with_its_close_button() {
     assert!(harness.state().dialogs.find_open);
     click(&mut harness, "Close");
     assert!(!harness.state().dialogs.find_open, "Close left Find open");
+}
+
+/// UI round 12: copies of one file added for later are each named as they
+/// will be saved, not all "other (1).pdf".
+#[test]
+fn copies_waiting_in_the_list_each_get_their_own_name() {
+    let world = world();
+    let mut harness = world.harness();
+    for _ in 0..3 {
+        add_url(&mut harness, &world.url("other.pdf"), "Add for later");
+    }
+    harness.run_steps(3);
+    for name in ["other.pdf", "other (1).pdf", "other (2).pdf"] {
+        assert!(
+            harness.query_by_label(name).is_some(),
+            "no row reads {name}"
+        );
+    }
 }
