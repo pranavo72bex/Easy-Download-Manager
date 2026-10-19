@@ -1768,6 +1768,28 @@ fn list_file(app: &mut DmApp, ctx: &egui::Context) {
     }
 }
 
+/// Sites as the rules match them, by host name: an address pasted whole,
+/// "https://ads.example.com/path", was kept as it was and matched nothing
+/// (UI round 14). A bare name, or one with a leading dot, is kept.
+pub fn sites(words: &[String]) -> Vec<String> {
+    words
+        .iter()
+        .map(|w| {
+            let host = if w.contains("://") {
+                url::Url::parse(w)
+                    .ok()
+                    .and_then(|u| u.host_str().map(str::to_string))
+            } else {
+                // "example.com/path" or "example.com:8080": the name alone.
+                w.split(['/', ':']).next().map(str::to_string)
+            };
+            host.filter(|h| !h.is_empty())
+                .unwrap_or_else(|| w.clone())
+                .to_ascii_lowercase()
+        })
+        .collect()
+}
+
 /// Where Export offers to write the list when its path is typed.
 pub fn default_list_path(settings: &Settings) -> std::path::PathBuf {
     settings.download_dir.join("downloads.dmlist")
@@ -4569,7 +4591,23 @@ fn options(app: &mut DmApp, ctx: &egui::Context) {
                             .selected_text(kind_name(p.kind))
                             .show_ui(ui, |ui| {
                                 for kind in [Kind::System, Kind::Http, Kind::Https, Kind::Socks4, Kind::Socks5] {
-                                    ui.selectable_value(&mut p.kind, kind, kind_name(kind));
+                                    let was = p.kind;
+                                    if ui.selectable_value(&mut p.kind, kind, kind_name(kind)).changed() {
+                                        // The usual port of the kind picked,
+                                        // where the port was the last kind's
+                                        // usual one: SOCKS5 kept 8080 (UI
+                                        // round 14). A port typed in stays.
+                                        let usual = |k: Kind| match k {
+                                            Kind::Socks4 | Kind::Socks5 => Some(1080),
+                                            Kind::Http | Kind::Https => Some(8080),
+                                            Kind::System => None,
+                                        };
+                                        if usual(was).is_some_and(|port| port == p.port) || p.port == 0 {
+                                            if let Some(port) = usual(kind) {
+                                                p.port = port;
+                                            }
+                                        }
+                                    }
                                 }
                             })
                             .response
@@ -4745,25 +4783,26 @@ fn options(app: &mut DmApp, ctx: &egui::Context) {
         return;
     }
     if ok {
+        // Split on ';' too: "xlsx;" was kept as a type (UI round 14).
         let words = |text: &str| -> Vec<String> {
-            text.split(|c: char| c.is_whitespace() || c == ',')
+            text.split(|c: char| c.is_whitespace() || c == ',' || c == ';')
                 .map(|w| w.trim().trim_start_matches('.').to_ascii_lowercase())
                 .filter(|w| !w.is_empty())
                 .collect()
         };
         let mut wanted = d.draft.clone();
         wanted.catch.extensions = words(&d.types);
-        wanted.catch.skip_hosts = words(&d.skip);
-        wanted.catch.once_hosts = words(&d.once);
+        wanted.catch.skip_hosts = sites(&words(&d.skip));
+        wanted.catch.once_hosts = sites(&words(&d.once));
         wanted.proxy.bypass = words(&d.bypass);
         wanted.custom_categories = d
             .custom
             .iter()
             .filter(|[name, ..]| !name.trim().is_empty())
-            .map(|[name, types, sites]| dm_core::Custom {
+            .map(|[name, types, only]| dm_core::Custom {
                 name: name.trim().to_string(),
                 extensions: words(types),
-                sites: words(sites),
+                sites: sites(&words(only)),
             })
             .collect();
         // A category's name is its folder: one that is not one folder
@@ -4955,6 +4994,32 @@ mod changed_only_tests {
         assert_eq!(wanted.connections, 4, "Options' own change");
         assert_eq!(wanted.language, "de", "the language picked meanwhile");
         assert!(wanted.schedule.enabled, "the schedule set meanwhile");
+    }
+}
+
+#[cfg(test)]
+mod sites_tests {
+    /// UI round 14: a site pasted as an address is kept by its host name,
+    /// which is what the rules match.
+    #[test]
+    fn sites_are_kept_by_their_host_name() {
+        let given: Vec<String> = [
+            "https://ads.example.com/path",
+            "tracker.example:8080",
+            "example.org/files",
+            "plain.example",
+        ]
+        .map(String::from)
+        .to_vec();
+        assert_eq!(
+            super::sites(&given),
+            [
+                "ads.example.com",
+                "tracker.example",
+                "example.org",
+                "plain.example"
+            ]
+        );
     }
 }
 

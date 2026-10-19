@@ -143,7 +143,24 @@ impl Backend {
         self.block_on(self.queue.pause(id));
     }
 
+    /// Puts a sign-in saved in Options since the row was added on its
+    /// address: Retry of a 401 asked again without it, while a fresh copy
+    /// of the address worked (UI round 14).
+    fn login_now(&self, id: Id) {
+        let Some(row) = self.block_on(self.queue.get(id)) else {
+            return;
+        };
+        if row.state == dm_core::State::Running {
+            return;
+        }
+        let signed = self.settings().with_login(&row.url);
+        if signed != row.url {
+            self.block_on(self.queue.set_url(id, &signed));
+        }
+    }
+
     pub fn resume(&self, id: Id) {
+        self.login_now(id);
         self.block_on(async {
             self.queue.resume(id).await;
             shell::wake(&self.queue);
@@ -162,6 +179,7 @@ impl Backend {
     }
 
     pub fn retry(&self, id: Id) {
+        self.login_now(id);
         self.block_on(async {
             if self.queue.retry(id).await {
                 shell::wake(&self.queue);

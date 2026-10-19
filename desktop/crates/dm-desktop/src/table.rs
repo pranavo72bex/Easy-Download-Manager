@@ -151,8 +151,13 @@ pub fn show(app: &mut DmApp, ui: &mut egui::Ui) {
                 .unwrap_or(false);
             let width_before = ui.data(|d| d.get_temp::<f32>(width_id));
             ui.data_mut(|d| d.insert_temp(width_id, list_rect.width()));
-            let refit =
-                !dragged_before && width_before.is_none_or(|w| (w - list_rect.width()).abs() > 0.5);
+            let rearranged = std::mem::take(&mut app.columns_changed);
+            if rearranged {
+                ui.data_mut(|d| d.insert_persisted(dragged_id, false));
+            }
+            let refit = rearranged
+                || (!dragged_before
+                    && width_before.is_none_or(|w| (w - list_rect.width()).abs() > 0.5));
             let mut table = TableBuilder::new(ui)
                 .scroll_bar_visibility(egui::scroll_area::ScrollBarVisibility::AlwaysHidden)
                 // One memory of the widths, whatever the window's width or

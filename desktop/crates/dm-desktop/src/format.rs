@@ -236,7 +236,7 @@ pub fn titled(word: &str) -> String {
 /// one for what the network library says in its own terms ("error decoding
 /// response body" is a connection cut mid-file). The first that matches
 /// wins; anything else is shown as the engine said it.
-pub const REASONS: [(&[&str], &str); 11] = [
+pub const REASONS: [(&[&str], &str); 14] = [
     (
         &[
             "error decoding response body",
@@ -290,6 +290,25 @@ pub const REASONS: [(&[&str], &str); 11] = [
     (
         &["could not read the torrent file"],
         "the .torrent file could not be read",
+    ),
+    // UI round 14: raw engine text shown for these.
+    (
+        &["the server answered 401"],
+        "the server wants a sign-in (add one in Options › Sign-ins)",
+    ),
+    (
+        &[
+            "socks error",
+            "proxy connect",
+            "error connecting to proxy",
+            "proxy server",
+        ],
+        "the proxy could not be reached",
+    ),
+    // Last: the specific failures above say more.
+    (
+        &["error sending request"],
+        "the server could not be reached",
     ),
 ];
 
@@ -644,6 +663,15 @@ mod tests {
         assert_eq!(
             reason("could not read the torrent file /home/a/x.torrent: No such file or directory (os error 2)"),
             Some("the .torrent file could not be read")
+        );
+        assert_eq!(
+            reason("network: error sending request for url (http://h/x) — SOCKS error: failed to create underlying connection"),
+            Some("the server could not be reached"),
+            "only the words before the dash decide"
+        );
+        assert_eq!(
+            reason("the server answered 401 Unauthorized for http://h/x"),
+            Some("the server wants a sign-in (add one in Options › Sign-ins)")
         );
         assert_eq!(
             reason("the server answered 502 Bad Gateway for https://e.com/a — upstream timed out"),

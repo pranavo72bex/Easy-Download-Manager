@@ -7977,3 +7977,103 @@ fn import_says_the_lines_it_could_not_read() {
     assert!(said.starts_with("Imported: 2."), "{said}");
     assert!(said.ends_with(": 1."), "{said}");
 }
+
+/// UI round 14: a download refused for want of a sign-in is retried with
+/// one saved in Options afterwards, as a fresh copy of the address was.
+#[test]
+fn retry_uses_a_sign_in_saved_since_it_failed() {
+    let _file = SETTINGS_FILE.lock().unwrap_or_else(|e| e.into_inner());
+    let world = world();
+    let mut harness = world.harness();
+    harness
+        .state()
+        .backend()
+        .add(&world.url("locked.zip"))
+        .unwrap();
+    until(&mut harness, "it to be refused", |app| {
+        app.rows()
+            .iter()
+            .any(|r| matches!(r.state, State::Failed(_)))
+    });
+    let mut wanted = harness.state().backend().settings();
+    wanted.site_logins = vec![dm_shell::settings::SiteLogin {
+        host: "127.0.0.1".into(),
+        username: "me".into(),
+        password: test_secrets::secret("password"),
+    }];
+    harness.state_mut().apply_settings(wanted).unwrap();
+    let id = harness.state().rows()[0].id;
+    harness.state().backend().retry(id);
+    until(
+        &mut harness,
+        "it to complete with the saved sign-in",
+        |app| app.rows().iter().any(|r| r.state == State::Completed),
+    );
+    let mut back = harness.state().backend().settings();
+    back.site_logins.clear();
+    harness.state_mut().apply_settings(back).unwrap();
+}
+
+/// UI round 14: several links copied at once are all offered, through the
+/// dialog that lists them; only the first was, and the rest dropped.
+#[test]
+fn the_clipboard_watcher_offers_every_link_copied_together() {
+    let _file = SETTINGS_FILE.lock().unwrap_or_else(|e| e.into_inner());
+    let world = world();
+    *world.fake.clipboard.lock().unwrap() = Some("old".into());
+    let mut harness = world.harness();
+    let mut on = harness.state().backend().settings();
+    on.watch_clipboard = true;
+    harness.state_mut().apply_settings(on).unwrap();
+    let links = [
+        world.url("file.zip"),
+        world.url("other.pdf"),
+        world.url("deep.pdf"),
+    ];
+    *world.fake.clipboard.lock().unwrap() = Some(links.join("\n"));
+    harness.state_mut().check_clipboard();
+    harness.run_steps(3);
+    assert!(harness
+        .query_by_label("Links on your clipboard: 3")
+        .is_some());
+    click(&mut harness, "Download…");
+    let offered: Vec<String> = harness
+        .state()
+        .dialogs
+        .clip_links
+        .as_ref()
+        .expect("the links dialog did not open")
+        .iter()
+        .map(|l| l.0.clone())
+        .collect();
+    assert_eq!(offered, links);
+    let mut off = harness.state().backend().settings();
+    off.watch_clipboard = false;
+    harness.state_mut().apply_settings(off).unwrap();
+}
+
+/// UI round 14: where the places give way at large text, a drop-down
+/// above the list reaches them; nothing did.
+#[test]
+fn the_places_are_reachable_when_they_give_way_at_large_text() {
+    use egui::accesskit::Role;
+    let world = world();
+    let mut harness = world.harness();
+    harness.ctx.set_zoom_factor(2.0);
+    harness.run_steps(3);
+    assert!(
+        harness.query_by_label("Everything").is_none(),
+        "the places did not give way"
+    );
+    harness
+        .get_by_role_and_label(Role::ComboBox, "Place")
+        .click();
+    harness.run_steps(3);
+    // One in view of the drop-down at this size; the rest scroll.
+    harness.get_by_label("Videos (0)").click();
+    harness.run_steps(3);
+    assert_eq!(
+        harness.state().place,
+        dm_desktop::app::Place::Kind(dm_core::Category::Videos)
+    );
+}

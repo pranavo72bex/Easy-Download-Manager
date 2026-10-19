@@ -70,7 +70,12 @@ impl Update {
                 "No release of dm has been published yet, so there is nothing to update to (this is {}).",
                 &[&running],
             ),
-            Update::Failed(why) => tf("Could not reach the update server: {}", &[why]),
+            // In plain words where dm knows them (UI round 14: the raw
+            // "error sending request for url (…)" offline).
+            Update::Failed(why) => tf(
+                "Could not reach the update server: {}",
+                &[&crate::format::reason(why).map(t).unwrap_or(why.as_str())],
+            ),
         }
     }
 }

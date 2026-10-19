@@ -473,7 +473,13 @@ fn listed(list: &[String], urls: &[&str]) -> bool {
         .filter(|host| !host.is_empty())
         .collect();
     list.iter().any(|entry| {
-        let entry = entry.trim().trim_start_matches("*.").to_ascii_lowercase();
+        // An address saved whole names its host (UI round 14: one pasted
+        // into "sites to skip" matched nothing).
+        let entry = if entry.contains("://") {
+            host_of(entry)
+        } else {
+            entry.trim().trim_start_matches("*.").to_ascii_lowercase()
+        };
         !entry.is_empty()
             && hosts.iter().any(|host| {
                 *host == entry
@@ -1012,6 +1018,16 @@ mod tests {
         for caught in ["https://notexample.com/f.zip", "https://example.org/f.zip"] {
             assert_eq!(rules.catches(&file(caught)), Ok(()), "{caught}");
         }
+        // An address saved whole, as one pasted in before Options cut it
+        // down to its host (UI round 14).
+        let pasted = CatchRules {
+            skip_hosts: vec!["https://Ads.Example.com/path".into()],
+            ..Default::default()
+        };
+        assert_eq!(
+            pasted.catches(&file("https://ads.example.com/f.zip")),
+            Err(Left::SkippedHost)
+        );
     }
 
     #[test]

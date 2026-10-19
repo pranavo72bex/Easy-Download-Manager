@@ -594,6 +594,9 @@ pub struct Clipboard {
     pub on: bool,
     pub last: Option<String>,
     pub offered: Option<String>,
+    /// Every link offered, when the clipboard holds several and nothing
+    /// else: only the first was offered and the rest dropped (UI round 14).
+    pub offered_all: Vec<String>,
     pub dismissed: HashSet<String>,
     pub polled: Option<Instant>,
 }
@@ -724,6 +727,8 @@ pub struct DmApp {
     placed: HashMap<Id, (Option<Category>, Option<String>)>,
     /// The language the places were last drawn in.
     rail_language: Option<String>,
+    /// Columns were moved, shown or hidden since the list was drawn.
+    pub columns_changed: bool,
     /// F10 was pressed: the first menu opens on the next drawing of the bar.
     pub open_menu_by_key: bool,
     /// A text field's right-click menu: the field and where it opened.
@@ -835,6 +840,7 @@ impl DmApp {
             sizes_told: HashMap::new(),
             placed: HashMap::new(),
             rail_language: None,
+            columns_changed: false,
             recent_hands: Vec::new(),
             min_size_zoom: None,
             open_menu_by_key: false,
@@ -1650,6 +1656,7 @@ impl DmApp {
         self.clipboard.on = on;
         if !on {
             self.clipboard.offered = None;
+            self.clipboard.offered_all.clear();
             return;
         }
         // Seeded with whatever is there now, so turning it on does not offer
@@ -1669,10 +1676,30 @@ impl DmApp {
             return;
         }
         self.clipboard.last = text.clone();
-        let url = text.as_deref().and_then(looks_downloadable);
-        self.clipboard.offered = url.filter(|url| {
+        let fresh = |url: &String| {
             !self.clipboard.dismissed.contains(url) && !self.rows.iter().any(|r| &r.url == url)
-        });
+        };
+        // Text that is links and nothing else, one or several; a sentence
+        // with a link in it is not an offer (UI round 12).
+        let words: Vec<&str> = text.as_deref().unwrap_or("").split_whitespace().collect();
+        let links: Vec<String> =
+            if !words.is_empty() && words.iter().all(|w| looks_downloadable(w).is_some()) {
+                let mut links: Vec<String> = Vec::new();
+                for w in words {
+                    if !links.iter().any(|l| l == w) {
+                        links.push(w.to_string());
+                    }
+                }
+                links.into_iter().filter(fresh).collect()
+            } else {
+                text.as_deref()
+                    .and_then(looks_downloadable)
+                    .filter(fresh)
+                    .into_iter()
+                    .collect()
+            };
+        self.clipboard.offered = links.first().cloned();
+        self.clipboard.offered_all = links;
     }
 
     pub fn clipboard_offer(&self) -> Option<&str> {
@@ -2335,6 +2362,10 @@ impl DmApp {
         }
         if changed {
             self.save_columns();
+            // The widths go with the places, not the columns: Status took
+            // Size's 76 points and read "Compl…" (UI round 14). Fitted
+            // afresh to what is shown now.
+            self.columns_changed = true;
         }
     }
 
@@ -2767,6 +2798,7 @@ impl DmApp {
         // left: at 200% text in the usual window it left two columns
         // (round 16). View › Categories still turns it off and on.
         let room = ui.available_width();
+        let rail_gone = self.show_categories && room < 640.0;
         if self.show_categories && room >= 640.0 {
             // Fitted afresh in another language: kept from a German run,
             // the places stayed wide in English and cut the list's last
@@ -2818,6 +2850,9 @@ impl DmApp {
             .show(ui, |ui| {
                 card.show(ui, |ui| {
                     ui.set_min_size(ui.available_size());
+                    if rail_gone {
+                        self.place_picker(ui);
+                    }
                     self.clipboard_bar(ui);
                     crate::table::show(self, ui);
                 });
@@ -3307,6 +3342,8 @@ impl DmApp {
                                 can,
                                 egui::RadioButton::new(self.when_done == w, c.title()),
                             )
+                            // Why, where it is greyed (UI round 14).
+                            .on_disabled_hover_text(t("This computer gives dm no way to do this."))
                             .clicked()
                         {
                             self.queued.push(c);
@@ -3631,6 +3668,58 @@ impl DmApp {
         }
     }
 
+    /// The places as one drop-down above the list, where the window has no
+    /// room for them beside it: at large text they went, and All, Done and
+    /// the queues could not be reached at all (UI round 14).
+    fn place_picker(&mut self, ui: &mut egui::Ui) {
+        let mut places: Vec<(Place, String)> = vec![(Place::All, t("All").into())];
+        for c in Category::ALL {
+            places.push((
+                Place::Kind(c),
+                crate::i18n::name(&format::titled(&category_word(c))),
+            ));
+        }
+        for custom in &self.applied.custom_categories {
+            let name = custom.name.trim().to_string();
+            if !name.is_empty() {
+                places.push((Place::Custom(name.clone()), name));
+            }
+        }
+        places.push((Place::Unfinished, t("In progress").into()));
+        places.push((Place::Finished, t("Done").into()));
+        for queue in self.backend.queues() {
+            let label = crate::i18n::name(&queue);
+            places.push((Place::Queue(queue), label));
+        }
+        let shown = |place: &Place, label: &str| format!("{label} ({})", self.count(place));
+        let current = places
+            .iter()
+            .find(|(p, _)| *p == self.place)
+            .map(|(p, l)| shown(p, l))
+            .unwrap_or_default();
+        let mut chosen = None;
+        ui.horizontal(|ui| {
+            let name = ui.label(t("Place"));
+            egui::ComboBox::from_id_salt("place-picker")
+                .selected_text(current)
+                .show_ui(ui, |ui| {
+                    for (place, label) in &places {
+                        if ui
+                            .selectable_label(*place == self.place, shown(place, label))
+                            .clicked()
+                        {
+                            chosen = Some(place.clone());
+                        }
+                    }
+                })
+                .response
+                .labelled_by(name.id);
+        });
+        if let Some(place) = chosen {
+            self.place = place;
+        }
+    }
+
     /// Runs what a place's right-click menu asked for. The place is chosen
     /// first, as a right-click selects it.
     pub fn tree_action(&mut self, place: Place, action: TreeAction) {
@@ -3660,6 +3749,26 @@ impl DmApp {
         let Some(url) = self.clipboard.offered.clone() else {
             return;
         };
+        let all = self.clipboard.offered_all.clone();
+        if all.len() > 1 {
+            ui.horizontal(|ui| {
+                ui.label(tf("Links on your clipboard: {}", &[&all.len()]));
+                // The dialog that lists them, each to tick or not.
+                if ui.button(format!("{}…", t("Download"))).clicked() {
+                    self.clipboard.dismissed.extend(all.iter().cloned());
+                    self.clipboard.offered = None;
+                    self.clipboard.offered_all.clear();
+                    self.queued.push(Command::AddFromClipboard);
+                }
+                if ui.button(t("Dismiss")).clicked() {
+                    self.clipboard.dismissed.extend(all.iter().cloned());
+                    self.clipboard.offered = None;
+                    self.clipboard.offered_all.clear();
+                }
+            });
+            ui.separator();
+            return;
+        }
         ui.horizontal(|ui| {
             ui.label(t("Link on your clipboard:"));
             ui.label(RichText::new(format::shown_url(&url)).weak());
