@@ -7663,3 +7663,24 @@ fn the_window_behind_a_dialog_takes_no_clicks() {
         "Stop download worked under the Exit question"
     );
 }
+
+/// UI round 11: the columns start where they did at the last launch
+/// whether or not a row has a queue yet; Queue started narrower in an
+/// empty list, so a relaunch moved Size and the rest and cut "Time left".
+#[test]
+fn the_columns_start_in_one_place_whatever_the_rows_queues() {
+    let world = world();
+    let mut harness = world.harness();
+    harness.run_steps(3);
+    let before = harness.get_by_label("Size").rect().left();
+    add_url(&mut harness, &world.url("other.pdf"), "Add for later");
+    assert!(harness.state().rows().iter().any(|r| !r.queue.is_empty()));
+    // A launch: nothing of the list's widths remembered, no column dragged.
+    harness.ctx.memory_mut(|m| m.data.clear());
+    harness.run_steps(3);
+    let after = harness.get_by_label("Size").rect().left();
+    assert!(
+        (before - after).abs() < 1.0,
+        "Size moved from {before} to {after}"
+    );
+}

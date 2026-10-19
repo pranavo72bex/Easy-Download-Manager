@@ -88,8 +88,7 @@ pub fn show(app: &mut DmApp, ui: &mut egui::Ui) {
     ui.visuals_mut().selection.stroke.color = t.row_selected_text;
     // A Queue column with nothing in it gives its room to the name: at
     // 720 px it stood wider than the name, empty (gap 140).
-    let queue_empty = rows.iter().all(|r| r.queue.is_empty());
-    let name_width = name_width(&columns, ui.available_width(), queue_empty);
+    let name_width = name_width(&columns, ui.available_width());
     // Wider than the window, the columns scroll sideways rather than
     // running off its edge: at the default size the Note, Referrer and
     // Folder columns were past it with no way to reach them.
@@ -133,6 +132,16 @@ pub fn show(app: &mut DmApp, ui: &mut egui::Ui) {
             let state_id = ui.scope_id().with(egui::IdSalt::new("list"));
             let dragged_id = egui::Id::unique("dm-columns-dragged");
             let width_id = egui::Id::unique("dm-list-width");
+            // A person's widths are for the text size they were dragged at:
+            // kept at another, Status and all after it were out of view at
+            // 140% (UI round 11), so the list fits itself again.
+            let zoom_id = egui::Id::unique("dm-columns-zoom");
+            let zoom = ui.ctx().zoom_factor();
+            let zoom_before = ui.data_mut(|d| d.get_persisted::<f32>(zoom_id));
+            if zoom_before.is_some_and(|z| (z - zoom).abs() > 0.01) {
+                ui.data_mut(|d| d.insert_persisted(dragged_id, false));
+            }
+            ui.data_mut(|d| d.insert_persisted(zoom_id, zoom));
             let dragged_before = ui
                 .data_mut(|d| d.get_persisted::<bool>(dragged_id))
                 .unwrap_or(false);
@@ -161,13 +170,11 @@ pub fn show(app: &mut DmApp, ui: &mut egui::Ui) {
                 // width: Folder was left 80 px and read "/home/p/d…" in a
                 // maximized window (round 13); the list scrolls sideways.
                 table = table.column(if n + 1 == columns.len() {
-                    Width::remainder()
-                        .at_least(initial(*column, queue_empty))
-                        .clip(true)
+                    Width::remainder().at_least(initial(*column)).clip(true)
                 } else if *column == Column::Name {
                     Width::initial(name_width).at_least(120.0).clip(true)
                 } else {
-                    width(*column, queue_empty)
+                    width(*column)
                 });
             }
             // The row the keys moved to, brought into view.
@@ -445,7 +452,7 @@ fn files_to_drag(app: &DmApp, rows: &[Entry], i: usize) -> Vec<std::path::PathBu
 /// How wide the file name starts in `room`: its 220 points where the
 /// columns up to Status fit beside it, else what is left after them, but
 /// never under 120.
-pub fn name_width(columns: &[Column], room: f32, queue_empty: bool) -> f32 {
+pub fn name_width(columns: &[Column], room: f32) -> f32 {
     let through_status = columns
         .iter()
         .position(|c| *c == Column::Status)
@@ -454,19 +461,20 @@ pub fn name_width(columns: &[Column], room: f32, queue_empty: bool) -> f32 {
         .iter()
         .take(through_status + 1)
         .filter(|c| **c != Column::Name)
-        .map(|c| initial(*c, queue_empty) + 8.0)
+        .map(|c| initial(*c) + 8.0)
         .sum();
     (room - others - 24.0).clamp(120.0, 220.0)
 }
 
 /// Where each column but the name starts, in points.
-fn initial(column: Column, queue_empty: bool) -> f32 {
+fn initial(column: Column) -> f32 {
     match column {
         Column::Name => 220.0,
-        // Room for "Main queue": the width it starts with is the width it
-        // keeps when rows get a queue, and 60 read "Main q…" (UI round 6).
-        Column::Queue if queue_empty => 96.0,
-        Column::Queue => 140.0,
+        // Room for "Main queue" (60 read "Main q…", UI round 6), and one
+        // width whether or not a row has a queue yet: it started at 96 in
+        // an empty list and 140 in one with a queue, so a relaunch moved
+        // every column after it and cut "Time left" (UI round 11).
+        Column::Queue => 116.0,
         Column::Size => 76.0,
         // "Waiting for Start queue" whole, with its shape (UI round 6).
         Column::Status => 196.0,
@@ -478,12 +486,12 @@ fn initial(column: Column, queue_empty: bool) -> f32 {
 }
 
 /// How wide a column starts.
-fn width(column: Column, queue_empty: bool) -> Width {
+fn width(column: Column) -> Width {
     match column {
         Column::Name => Width::initial(220.0).at_least(120.0).clip(true),
-        Column::Queue => Width::initial(initial(Column::Queue, queue_empty)).clip(true),
+        Column::Queue => Width::initial(initial(Column::Queue)).clip(true),
         Column::Size => Width::initial(76.0),
-        Column::Status => Width::initial(initial(Column::Status, queue_empty)).clip(true),
+        Column::Status => Width::initial(initial(Column::Status)).clip(true),
         Column::TimeLeft => Width::initial(88.0),
         Column::Rate => Width::initial(92.0),
         Column::LastTry => Width::initial(100.0),
@@ -587,7 +595,7 @@ fn header_only(app: &mut DmApp, ui: &mut egui::Ui) {
                 let tall = ui.spacing().interact_size.y;
                 for column in app.column_order.clone() {
                     if !app.hidden_columns.contains(&column) {
-                        let wide = initial(column, true);
+                        let wide = initial(column);
                         ui.allocate_ui_with_layout(
                             egui::vec2(wide, tall),
                             egui::Layout::left_to_right(egui::Align::Center),
@@ -1015,20 +1023,16 @@ mod tests {
     #[test]
     fn the_name_gives_way_first_in_a_narrow_window() {
         let columns = Column::ALL.to_vec();
-        assert_eq!(name_width(&columns, 1200.0, false), 220.0);
-        let narrow = name_width(&columns, 600.0, false);
+        assert_eq!(name_width(&columns, 1200.0), 220.0);
+        let narrow = name_width(&columns, 600.0);
         assert!((120.0..220.0).contains(&narrow), "{narrow}");
         // What it gave is what Queue, Size and Status need beside it.
         let beside: f32 = [Column::Queue, Column::Size, Column::Status]
             .iter()
-            .map(|c| initial(*c, false) + 8.0)
+            .map(|c| initial(*c) + 8.0)
             .sum();
         assert!(narrow + beside <= 600.0, "{narrow} + {beside}");
-        assert_eq!(name_width(&columns, 200.0, false), 120.0, "never under 120");
-        // Gap 140: an empty Queue column gives its room to the name.
-        let room = 600.0;
-        assert!(name_width(&columns, room, true) > name_width(&columns, room, false));
-        assert!(name_width(&columns, room, true) >= initial(Column::Queue, true));
+        assert_eq!(name_width(&columns, 200.0), 120.0, "never under 120");
     }
 
     /// Gap 117: the arrow keys, Home and End move the selection, and Shift

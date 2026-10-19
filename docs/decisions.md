@@ -907,3 +907,15 @@ beside them, and nothing is lost by clicking past one. A tester asked for
 the Scheduler and Speed limiter to dim like the questions (UI round 8);
 they are settings, so they stay as Options is.
 
+
+## The Queue column starts at one width (2026-10-19)
+
+The list's columns fit themselves to the window at each launch until a
+person drags one. Queue started at 96 points in a list where no row had a
+queue and at 140 in one where some did, so the columns after it moved
+between launches and "Time left" was cut to "T" (UI round 11). It now
+starts at 116 either way. An empty Queue column no longer gives its room to
+the name (gap 140): a list that stays where it was is worth more than 24
+points of name. Widths a person dragged are kept until the text size
+changes, when the list fits itself again: kept at 140% text, Status and
+every column after it were out of view.
