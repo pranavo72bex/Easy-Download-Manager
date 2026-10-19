@@ -4422,10 +4422,14 @@ fn options(app: &mut DmApp, ctx: &egui::Context) {
         if d.fresh_tab > 0 {
             ui.scroll_to_cursor(Some(egui::Align::TOP));
         }
-        // The tabs scroll sideways where they do not all fit.
-        egui::ScrollArea::horizontal()
-            .id_salt("options-tabs")
-            .show(ui, |ui| {
+        // The tabs scroll sideways where they do not all fit, with a bar
+        // that shows it: one shown only under the pointer left Sign-ins cut
+        // off at 150% text with no sign of more (UI round 10). Wrapped on
+        // to more rows, they left the page no room at 200%.
+        let strip = egui::ScrollArea::horizontal().id_salt("options-tabs");
+        ui.scope(|ui| {
+            ui.spacing_mut().scroll = crate::theme::steady_scroll();
+            strip.show(ui, |ui| {
                 ui.horizontal(|ui| {
                     for (tab, label) in TABS {
                         let picked = ui.selectable_label(d.tab == tab, t(label));
@@ -4442,8 +4446,9 @@ fn options(app: &mut DmApp, ctx: &egui::Context) {
                             picked.scroll_to_me(Some(egui::Align::TOP));
                         }
                     }
-                });
+                })
             });
+        });
         let fresh = d.fresh_tab > 0;
         d.fresh_tab = d.fresh_tab.saturating_sub(1);
         ui.separator();

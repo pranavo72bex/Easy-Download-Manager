@@ -3262,12 +3262,26 @@ fn view_language_puts_the_window_in_another_language_and_back() {
     let mut harness = world.harness();
     harness.run_steps(2);
     assert!(harness.query_by_label("Program").is_some());
+    // Everything shut stays shut in another language (UI round 10).
+    assert!(harness.query_by_label("All (0)").is_some());
+    click(&mut harness, "Everything");
+    assert!(
+        harness.query_by_label("All (0)").is_none(),
+        "Everything did not shut"
+    );
     click(&mut harness, "View");
     harness.get_by_label_contains("Language").click();
     harness.run_steps(3);
     harness.get_by_label("Deutsch").click();
     harness.run_steps(3);
     assert_eq!(harness.state().backend().settings().language, "de");
+    harness.run_steps(10);
+    assert!(harness.query_by_label("Alles").is_some());
+    assert!(
+        harness.query_by_label("Alle (0)").is_none(),
+        "the language switch opened Everything again"
+    );
+    click(&mut harness, "Alles");
     assert!(
         harness.query_by_label("Programm").is_some() && harness.query_by_label("Program").is_none(),
         "the menu is not in German"

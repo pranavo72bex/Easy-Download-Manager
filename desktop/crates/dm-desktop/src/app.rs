@@ -3386,7 +3386,10 @@ impl DmApp {
                 });
             });
         };
+        // Kept open or shut by an id of its own, not its words: a language
+        // switch opened a shut one again (UI round 10).
         egui::CollapsingHeader::new(t("Everything"))
+            .id_salt("tree-everything")
             .default_open(true)
             .show(ui, |ui| {
                 place(ui, self, Place::All, t("All").into());
@@ -3405,6 +3408,7 @@ impl DmApp {
         place(ui, self, Place::Finished, t("Done").into());
         let queues = self.backend.queues();
         egui::CollapsingHeader::new(t("Queues"))
+            .id_salt("tree-queues")
             .default_open(true)
             .show(ui, |ui| {
                 for name in queues {
