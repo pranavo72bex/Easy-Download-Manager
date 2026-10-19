@@ -17,7 +17,7 @@
 #![cfg_attr(not(test), deny(clippy::indexing_slicing))]
 use std::path::{Path, PathBuf};
 
-use dm_protocol::{CHROME_EXTENSION_ID, FIREFOX_EXTENSION_ID, NATIVE_HOST};
+use dm_protocol::{CHROME_EXTENSION_ID, EDGE_EXTENSION_ID, FIREFOX_EXTENSION_ID, NATIVE_HOST};
 
 /// Which kind of manifest a directory wants.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -362,8 +362,9 @@ fn windows_data(home: &Path) -> PathBuf {
         .join("dm")
 }
 
-/// Which extensions may talk to dm: the two built from this repository, and
-/// any named — a Chrome Web Store id, or a signed Firefox add-on's.
+/// Which extensions may talk to dm: the two built from this repository, the
+/// Edge Add-ons listing's, and any named — a Chrome Web Store id, or a
+/// signed Firefox add-on's.
 #[derive(Debug, Clone, PartialEq)]
 pub struct Allowed {
     pub chromium: Vec<String>,
@@ -373,7 +374,10 @@ pub struct Allowed {
 impl Allowed {
     pub fn with(named: &[String]) -> Result<Self, String> {
         let mut allowed = Allowed {
-            chromium: vec![CHROME_EXTENSION_ID.to_string()],
+            chromium: vec![
+                CHROME_EXTENSION_ID.to_string(),
+                EDGE_EXTENSION_ID.to_string(),
+            ],
             firefox: vec![FIREFOX_EXTENSION_ID.to_string()],
         };
         for id in named {
@@ -605,17 +609,26 @@ pub fn ensure(
         if manifest.get("path").and_then(|p| p.as_str()) != exe.to_str() {
             stale = true;
         }
-        let (key, current) = match family {
+        // Every id dm allows of itself: a manifest written before the Edge
+        // Add-ons listing had its id refused the extension from that store.
+        let (key, current): (&str, Vec<String>) = match family {
             Family::Chromium => (
                 "allowed_origins",
-                format!("chrome-extension://{CHROME_EXTENSION_ID}/"),
+                [CHROME_EXTENSION_ID, EDGE_EXTENSION_ID]
+                    .iter()
+                    .map(|id| format!("chrome-extension://{id}/"))
+                    .collect(),
             ),
-            Family::Firefox => ("allowed_extensions", FIREFOX_EXTENSION_ID.to_string()),
+            Family::Firefox => ("allowed_extensions", vec![FIREFOX_EXTENSION_ID.to_string()]),
         };
         let allows_current = manifest
             .get(key)
             .and_then(|v| v.as_array())
-            .is_some_and(|ids| ids.iter().any(|id| id.as_str() == Some(&current)));
+            .is_some_and(|ids| {
+                current
+                    .iter()
+                    .all(|want| ids.iter().any(|id| id.as_str() == Some(want.as_str())))
+            });
         if !allows_current {
             stale = true;
         }
@@ -989,7 +1002,10 @@ mod tests {
             match place.family {
                 Family::Chromium => assert_eq!(
                     manifest["allowed_origins"],
-                    serde_json::json!([format!("chrome-extension://{CHROME_EXTENSION_ID}/")])
+                    serde_json::json!([
+                        format!("chrome-extension://{CHROME_EXTENSION_ID}/"),
+                        format!("chrome-extension://{EDGE_EXTENSION_ID}/")
+                    ])
                 ),
                 Family::Firefox => assert_eq!(
                     manifest["allowed_extensions"],
@@ -1092,7 +1108,11 @@ mod tests {
         let allowed = Allowed::with(&[store.clone(), "dm@example.org".into()]).unwrap();
         assert_eq!(
             allowed.chromium,
-            vec![CHROME_EXTENSION_ID.to_string(), store]
+            vec![
+                CHROME_EXTENSION_ID.to_string(),
+                EDGE_EXTENSION_ID.to_string(),
+                store
+            ]
         );
         assert_eq!(
             allowed.firefox,
@@ -1156,6 +1176,37 @@ mod tests {
         ));
         // The real flags: this test's own folder is writable.
         assert!(!mounted_read_only(&std::env::temp_dir()));
+    }
+
+    /// A manifest written before the Edge Add-ons listing allowed only the
+    /// unpacked build: the next launch adds the store's id.
+    #[cfg(not(target_os = "windows"))]
+    #[test]
+    fn a_manifest_without_the_edge_stores_id_is_rewritten() {
+        let home = home_with_browsers();
+        let elsewhere = tempfile::tempdir().unwrap();
+        let exe = program(elsewhere.path());
+        register(
+            home.path(),
+            &exe,
+            &Allowed {
+                chromium: vec![CHROME_EXTENSION_ID.into()],
+                firefox: vec![FIREFOX_EXTENSION_ID.into()],
+            },
+        )
+        .unwrap();
+        ensure(home.path(), &exe)
+            .unwrap()
+            .expect("left without the Edge store's id");
+        let chromium = places(home.path())
+            .into_iter()
+            .find(|p| p.family == Family::Chromium && p.installed(&Programs::default()))
+            .unwrap()
+            .manifest();
+        let allowed = read(&chromium)["allowed_origins"].to_string();
+        assert!(allowed.contains(EDGE_EXTENSION_ID), "{allowed}");
+        assert!(allowed.contains(CHROME_EXTENSION_ID), "{allowed}");
+        assert_eq!(ensure(home.path(), &exe).unwrap(), None);
     }
 
     /// Gap 84: 0.1.0 allowed Firefox's old id. Upgraded in place, the path

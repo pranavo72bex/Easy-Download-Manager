@@ -75,6 +75,10 @@ pub const FIREFOX_EXTENSION_ID: &str = "easy-download-manager@pranavo72bex.githu
 /// which is registered by naming it.
 pub const CHROME_EXTENSION_ID: &str = "fojpndfjodldkfbamkofdmnfedgjjejo";
 
+/// The id Microsoft Edge Add-ons gave the extension's listing, which every
+/// registration allows beside the unpacked build's.
+pub const EDGE_EXTENSION_ID: &str = "ooafpfjpliofcdlnbdkjhonaoebcpnej";
+
 /// The frame types, for code that has to name one without building it.
 pub mod kind {
     pub const HELLO: &str = "engine.hello";

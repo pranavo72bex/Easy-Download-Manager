@@ -6,7 +6,7 @@
 
 // Reads what the browser and the app send: every index is checked.
 #![cfg_attr(not(test), deny(clippy::indexing_slicing))]
-use dm_protocol::{Candidate, CatchRules, Hello, Reply, CHROME_EXTENSION_ID};
+use dm_protocol::{Candidate, CatchRules, Hello, Reply, CHROME_EXTENSION_ID, EDGE_EXTENSION_ID};
 use serde::Deserialize;
 use serde_json::Value;
 
@@ -514,7 +514,9 @@ fn absent_said(reason: &str, own_id: &str, firefox: bool, then: &str) -> String 
     if let Some(said) = reason.strip_prefix(MISMATCH) {
         return said.to_string();
     }
-    let register = if firefox || own_id == CHROME_EXTENSION_ID || own_id.is_empty() {
+    // The ids every registration allows need no naming.
+    let known = own_id == CHROME_EXTENSION_ID || own_id == EDGE_EXTENSION_ID;
+    let register = if firefox || known || own_id.is_empty() {
         "dm-desktop --register".to_string()
     } else {
         format!("dm-desktop --register {own_id}")

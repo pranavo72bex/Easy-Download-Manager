@@ -109,7 +109,14 @@ close its window, so your browser always has it to hand downloads to.
 
 ## Step 4 — Add the extension
 
-### Chrome, Edge, Brave, Vivaldi, Opera
+### Microsoft Edge
+
+dm is on Microsoft Edge Add-ons, Microsoft's own store.
+
+1. Open **[dm on Microsoft Edge Add-ons](https://microsoftedge.microsoft.com/addons/detail/ooafpfjpliofcdlnbdkjhonaoebcpnej)** in Edge.
+2. Click **Get**, then **Add extension**.
+
+### Chrome, Brave, Vivaldi, Opera (and Edge without the store)
 
 1. Unzip `dm-chrome-….zip`. Move the folder it makes somewhere it can stay,
    such as your Documents folder. **Do not delete this folder later** — the
