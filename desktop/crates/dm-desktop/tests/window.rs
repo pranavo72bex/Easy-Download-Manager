@@ -8102,6 +8102,12 @@ fn the_places_are_reachable_when_they_give_way_at_large_text() {
 /// the last rows could never be scrolled into view.
 #[test]
 fn the_last_row_can_be_reached_at_large_text() {
+    last_row_reached(false);
+    // And with the clipboard's bar above the list (UI round 18).
+    last_row_reached(true);
+}
+
+fn last_row_reached(clipboard_bar: bool) {
     let world = world();
     // A maximized window, where it was seen.
     let mut harness = Harness::builder()
@@ -8114,6 +8120,9 @@ fn the_last_row_can_be_reached_at_large_text() {
     harness.state().backend().add(&links.join(" ")).unwrap();
     harness.state().backend().pause_all();
     harness.state_mut().refresh();
+    if clipboard_bar {
+        harness.state_mut().clipboard.offered = Some(world.url("offered.zip"));
+    }
     harness.ctx.set_zoom_factor(3.0);
     harness.run_steps(3);
     let last = harness.state().rows().last().unwrap().id;

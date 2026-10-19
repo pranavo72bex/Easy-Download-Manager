@@ -1,0 +1,116 @@
+name: Edge Add-ons, upload and submit
+
+# Started by hand (Actions › this workflow › Run workflow). Builds the
+# Chromium extension, takes out the manifest's `key` (the store gives the
+# add-on its own id, and refuses a package that names one), uploads it to
+# the existing Microsoft Edge Add-ons listing as a new draft and submits
+# that draft for review, through the Edge Add-ons publish API.
+#
+# Each submission needs a version above the listing's: bump the extension's
+# version (both manifests and browser/Cargo.toml) before running it again.
+#
+# Secrets, from Partner Center › Microsoft Edge › Publish API:
+#   EDGE_CLIENT_ID, EDGE_API_KEY  the API credentials
+#   EDGE_PRODUCT_ID               the listing's Product ID (a GUID, on the
+#                                 extension's Overview page)
+on:
+  workflow_dispatch:
+    inputs:
+      notes:
+        description: 'Notes for the reviewers (what changed)'
+        required: false
+        default: 'Bug fixes and small improvements.'
+      submit:
+        description: 'Submit for review after uploading (off: upload the draft only)'
+        type: boolean
+        default: true
+
+permissions:
+  contents: read
+
+jobs:
+  edge:
+    name: Upload to Edge Add-ons and submit
+    runs-on: ubuntu-latest
+    env:
+      EDGE_CLIENT_ID: ${{ secrets.EDGE_CLIENT_ID }}
+      EDGE_API_KEY: ${{ secrets.EDGE_API_KEY }}
+      EDGE_PRODUCT_ID: ${{ secrets.EDGE_PRODUCT_ID }}
+      NOTES: ${{ inputs.notes }}
+      API: https://api.addons.microsoftedge.microsoft.com/v1/products
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: dtolnay/rust-toolchain@b725eda525362e7cf34af9a7243cac1e3f01a7ec # stable
+        with:
+          toolchain: stable
+          targets: wasm32-unknown-unknown
+      - name: Tests
+        working-directory: browser
+        run: cargo test --locked
+      - name: Build the Edge zip
+        run: |
+          set -e
+          if [ -z "$EDGE_CLIENT_ID" ] || [ -z "$EDGE_API_KEY" ] || [ -z "$EDGE_PRODUCT_ID" ]; then
+            echo "EDGE_CLIENT_ID, EDGE_API_KEY and EDGE_PRODUCT_ID are not all set"; exit 1
+          fi
+          sh scripts/package.sh
+          rm -rf dist/edge
+          cp -R dist/chrome dist/edge
+          python3 - <<'PY'
+          import json
+          p = "dist/edge/manifest.json"
+          m = json.load(open(p))
+          m.pop("key", None)
+          json.dump(m, open(p, "w"), indent=2, ensure_ascii=False)
+          print("version", m["version"])
+          PY
+          (cd dist/edge && zip -qr ../dm-edge.zip . -x '.*')
+          ls -la dist/dm-edge.zip
+      - name: Upload it as the listing's draft
+        run: |
+          set -e
+          auth() { printf 'Authorization: ApiKey %s' "$EDGE_API_KEY"; }
+          # The answer's Location header names the upload's operation.
+          curl -sS --fail-with-body -D headers.txt -o /dev/null \
+            -H "$(auth)" -H "X-ClientID: $EDGE_CLIENT_ID" \
+            -H "Content-Type: application/zip" \
+            -X POST "$API/$EDGE_PRODUCT_ID/submissions/draft/package" \
+            --data-binary @dist/dm-edge.zip
+          operation=$(grep -i '^location:' headers.txt | awk '{print $2}' | tr -d '\r')
+          echo "upload operation: $operation"
+          for _ in $(seq 1 60); do
+            curl -sS --fail-with-body -o status.json -H "$(auth)" -H "X-ClientID: $EDGE_CLIENT_ID" \
+              "$API/$EDGE_PRODUCT_ID/submissions/draft/package/operations/$operation"
+            status=$(python3 -c "import json; print(json.load(open('status.json')).get('status', ''))")
+            echo "upload: $status"
+            case "$status" in
+              Succeeded) exit 0 ;;
+              Failed) cat status.json; exit 1 ;;
+            esac
+            sleep 10
+          done
+          echo "the upload did not finish in ten minutes"; cat status.json; exit 1
+      - name: Submit the draft for review
+        if: ${{ inputs.submit }}
+        run: |
+          set -e
+          auth() { printf 'Authorization: ApiKey %s' "$EDGE_API_KEY"; }
+          body=$(python3 -c "import json, os; print(json.dumps({'notes': os.environ.get('NOTES', '')}))")
+          curl -sS --fail-with-body -D headers.txt -o /dev/null \
+            -H "$(auth)" -H "X-ClientID: $EDGE_CLIENT_ID" \
+            -H "Content-Type: application/json" \
+            -X POST "$API/$EDGE_PRODUCT_ID/submissions" --data "$body"
+          operation=$(grep -i '^location:' headers.txt | awk '{print $2}' | tr -d '\r')
+          echo "submit operation: $operation"
+          for _ in $(seq 1 60); do
+            curl -sS --fail-with-body -o status.json -H "$(auth)" -H "X-ClientID: $EDGE_CLIENT_ID" \
+              "$API/$EDGE_PRODUCT_ID/submissions/operations/$operation"
+            status=$(python3 -c "import json; print(json.load(open('status.json')).get('status', ''))")
+            echo "submission: $status"
+            case "$status" in
+              Succeeded) echo "submitted for review"; exit 0 ;;
+              Failed) cat status.json; exit 1 ;;
+            esac
+            sleep 10
+          done
+          echo "the submission did not finish in ten minutes"; cat status.json; exit 1

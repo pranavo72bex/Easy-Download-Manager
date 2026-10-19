@@ -91,6 +91,16 @@ before a Web Store upload (the store assigns its own id, which is then
 registered with `dm-desktop --register <id>`). Chrome's needs uploading to the
 Web Store.
 
+Microsoft Edge Add-ons: Actions › "Edge Add-ons, upload and submit" ›
+Run workflow builds the Chromium zip, takes out the manifest's `key`,
+uploads it to the existing listing as a draft and submits it for review
+(untick "Submit" to upload the draft only). It needs the repository
+secrets `EDGE_CLIENT_ID` and `EDGE_API_KEY` (Partner Center › Microsoft
+Edge › Publish API) and `EDGE_PRODUCT_ID` (the listing's Product ID, a GUID
+on its Overview page). The version must be above the listing's. A copy
+installed from the store has the store's own id (the listing's CRX ID):
+until dm knows it, people run `dm-desktop --register <that id>`.
+
 Firefox installs only add-ons Mozilla has signed. A `v*` tag submits the
 Firefox build to AMO as a listed add-on and includes the source archive for
 review, given the AMO API key as the secrets `AMO_JWT_ISSUER` and
