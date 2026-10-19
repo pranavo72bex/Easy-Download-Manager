@@ -20,6 +20,15 @@ version=$(sed -n 's/.*"version": "\([^"]*\)".*/\1/p' "$root/extension/manifest.j
 dist="$root/dist"
 pkg="$root/extension/pkg"
 
+# The stores refuse a description over 132 characters (Edge Add-ons said
+# so on a manual upload); refused here first.
+for manifest in "$root/extension/manifest.json" "$root/extension/manifest.firefox.json"; do
+  if ! python3 -c "import json,sys; d=json.load(open(sys.argv[1]))['description']; sys.exit(len(d) > 132)" "$manifest"; then
+    echo "$manifest: the description is over the stores' 132 characters" >&2
+    exit 1
+  fi
+done
+
 # ------------------------------------------------------------- toolchain
 
 if ! rustup target list --installed 2>/dev/null | grep -qx wasm32-unknown-unknown; then
