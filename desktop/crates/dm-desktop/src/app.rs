@@ -284,6 +284,15 @@ fn status_in(row: &Entry, words: fn(&'static str) -> &'static str) -> String {
             None => String::new(),
         },
         State::Running => match row.progress.fraction() {
+            // A torrent with nothing arriving is waiting for peers, said:
+            // "0%" stood there with nothing to say why (UI round 17).
+            Some(f)
+                if dm_core::is_torrent(&row.url)
+                    && row.progress.speed < 1.0
+                    && !fetched_all(row) =>
+            {
+                format!("{}% · {}", whole_percent(f), words("waiting for peers"))
+            }
             // Whole percents everywhere, rounded down so 99.9 is not 100:
             // the list said 28.88% beside a bar saying 28% (UI round 1).
             Some(f) => format!("{}%", whole_percent(f)),
@@ -4753,6 +4762,12 @@ mod status_tests {
         magnet.state = State::Running;
         magnet.url = "magnet:?xt=urn:btih:0123456789abcdef0123456789abcdef01234567".into();
         assert_eq!(status_in_english(&magnet), "Finding peers…");
+        // Known, but nothing arriving: waiting for peers (UI round 17).
+        magnet.progress.total = Some(100);
+        magnet.progress.downloaded = 10;
+        assert_eq!(status_in_english(&magnet), "10% · waiting for peers");
+        magnet.progress.speed = 5000.0;
+        assert_eq!(status_in_english(&magnet), "10%");
     }
 
     #[test]

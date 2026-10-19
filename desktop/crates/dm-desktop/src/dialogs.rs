@@ -1314,9 +1314,10 @@ fn confirm_remove(app: &mut DmApp, ctx: &egui::Context) {
         .map(|r| r.path.clone())
         .collect();
     let (mut yes, mut no) = (false, false);
+    // Not "unfinished" of a set with finished files in it (UI round 17).
     let english = if unfinished && ids.len() == 1 {
         "Remove an unfinished download"
-    } else if unfinished {
+    } else if unfinished && files.is_empty() {
         "Remove unfinished downloads"
     } else {
         "Remove from the list"
@@ -2577,6 +2578,12 @@ fn progress(app: &mut DmApp, ctx: &egui::Context) {
                                 }
                                 // Failed before the server said: a 401
                                 // is an answer, but not to this.
+                                // The server answered, with a refusal: a
+                                // 404 read "Not yet known" under its own
+                                // reason (UI round 17).
+                                None if matches!(&row.state, State::Failed(why) if why.contains("the server answered")) => {
+                                    t("No — the server refused it")
+                                }
                                 None if matches!(row.state, State::Failed(_)) => {
                                     t("Not yet known: it failed before the server said")
                                 }

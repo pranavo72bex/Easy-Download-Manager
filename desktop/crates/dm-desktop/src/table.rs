@@ -2,7 +2,7 @@
 //! add, Shift for a run), a menu on the right button, and a double-click to
 //! open a row's progress, or its properties once finished.
 
-use crate::i18n::t;
+use crate::i18n::{t, tf};
 use std::collections::BTreeSet;
 
 use dm_core::{Entry, Id, State};
@@ -1039,8 +1039,11 @@ fn status_cell(ui: &mut egui::Ui, entry: &Entry, held: Option<&str>, selected: b
                     // The whole reason on hover, with where to sign in when
                     // the server wants it: in plain words, and below them
                     // what the engine said.
+                    // The engine's words named as such, under the plain
+                    // ones: two lines saying the same, one in lowercase,
+                    // read as a mistake (UI round 17).
                     let hover = match crate::app::failure_as_said(entry) {
-                        Some(raw) => format!("{text}\n\n{raw}"),
+                        Some(raw) => format!("{text}\n\n{}", tf("In dm's own words: {}", &[&raw])),
                         None => text,
                     };
                     ui.colored_label(on_row(tokens.error), t("Error"))
