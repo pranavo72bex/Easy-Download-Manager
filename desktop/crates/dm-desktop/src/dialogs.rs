@@ -1784,8 +1784,8 @@ fn list_file(app: &mut DmApp, ctx: &egui::Context) {
 }
 
 /// Sites as the rules match them, by host name: an address pasted whole,
-/// "https://ads.example.com/path", was kept as it was and matched nothing
-/// (UI round 14). A bare name, or one with a leading dot, is kept.
+/// scheme and path and all, was kept as it was and matched nothing (UI
+/// round 14). A bare name, or one with a leading dot, is kept.
 pub fn sites(words: &[String]) -> Vec<String> {
     words
         .iter()
