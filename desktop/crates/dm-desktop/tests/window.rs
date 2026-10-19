@@ -5819,7 +5819,14 @@ fn resume_on_a_held_row_offers_to_start_it_outside_the_schedule() {
             .is_some(),
         "Resume on a held row asked nothing"
     );
-    click(&mut harness, "Start now");
+    // The question's Start now; the toolbar's reads the same for a held row.
+    let question = harness.get_by_label("Start outside the schedule?").rect();
+    harness
+        .get_all_by_label("Start now")
+        .find(|n| question.contains_rect(n.rect()))
+        .expect("the question's Start now")
+        .click();
+    harness.run_steps(3);
     until(&mut harness, "it to finish outside the schedule", |app| {
         app.rows().iter().all(|r| r.state == State::Completed)
     });
@@ -7827,4 +7834,78 @@ fn copies_waiting_in_the_list_each_get_their_own_name() {
             "no row reads {name}"
         );
     }
+}
+
+/// UI round 12: Export to a folder that is not there keeps its dialog
+/// open, with the path as typed and why, rather than closing and saying
+/// it only in the status bar.
+#[test]
+fn a_list_that_cannot_be_written_keeps_its_dialog_open() {
+    let world = world();
+    let mut harness = world.harness();
+    let path = world.dir.path().join("no such folder").join("list.dmlist");
+    harness.state_mut().dialogs.list_file = Some(dm_desktop::dialogs::ListFile {
+        save: true,
+        path: path.display().to_string(),
+        says: String::new(),
+    });
+    harness.run_steps(3);
+    click(&mut harness, "OK");
+    let d = harness.state().dialogs.list_file.as_ref();
+    assert!(d.is_some(), "the dialog closed on a failure");
+    let d = d.unwrap();
+    assert_eq!(d.path, path.display().to_string());
+    assert!(d.says.contains("could not be written"), "{}", d.says);
+}
+
+/// UI round 12: a row whose kind is not known yet is under Other, so the
+/// kinds' counts add up to All's.
+#[test]
+fn a_row_of_no_known_kind_is_under_other() {
+    let world = world();
+    let mut harness = world.harness();
+    add_url(&mut harness, &world.url("stalled.bin"), "Add for later");
+    harness.run_steps(3);
+    assert!(
+        harness.query_by_label("Other (1)").is_some(),
+        "the queued .bin is in no place"
+    );
+}
+
+/// UI round 12: a queue has one limit; Add picks a queue without one and
+/// is greyed once every queue has one.
+#[test]
+fn each_queue_has_at_most_one_limit() {
+    let _file = SETTINGS_FILE.lock().unwrap_or_else(|e| e.into_inner());
+    let world = world();
+    let mut harness = world.harness();
+    click(&mut harness, "Options");
+    harness.state_mut().dialogs.options.as_mut().unwrap().tab = dm_desktop::dialogs::Tab::Downloads;
+    harness.run_steps(3);
+    let queues = harness.state().backend().queues();
+    for _ in 0..queues.len() + 1 {
+        harness.get_by_label("Add a queue limit").click();
+        harness.run_steps(2);
+    }
+    let limits: Vec<String> = harness
+        .state()
+        .dialogs
+        .options
+        .as_ref()
+        .unwrap()
+        .draft
+        .queue_limits
+        .iter()
+        .map(|l| l.queue.clone())
+        .collect();
+    let mut unique = limits.clone();
+    unique.sort();
+    unique.dedup();
+    assert_eq!(limits.len(), queues.len(), "{limits:?}");
+    assert_eq!(
+        unique.len(),
+        limits.len(),
+        "two limits for one queue: {limits:?}"
+    );
+    click(&mut harness, "Cancel");
 }

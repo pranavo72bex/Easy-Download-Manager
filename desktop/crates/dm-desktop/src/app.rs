@@ -1693,7 +1693,13 @@ impl DmApp {
     fn within(&self, place: &Place, row: &Entry) -> bool {
         match place {
             Place::All => true,
-            Place::Kind(c) => kind_of(row) == Some(*c),
+            // A row whose kind is not known yet, and in no category of a
+            // person's own, is Other: queued `.bin` rows were in no place
+            // and the counts did not add up (UI round 12).
+            Place::Kind(c) => match kind_of(row) {
+                Some(kind) => kind == *c,
+                None => *c == Category::Other && self.custom_of(row).is_none(),
+            },
             Place::Custom(name) => self.custom_of(row).as_deref() == Some(name.as_str()),
             // What is under way: running, waiting its turn, or held by the
             // schedule or the download limit. Not a failed row or one a
@@ -1873,7 +1879,7 @@ impl DmApp {
                     self.dialogs.focus_on("List file");
                     self.dialogs.list_file = Some(crate::dialogs::ListFile::default());
                 } else if let Some(path) = self.backend.platform.choose_file(false, "") {
-                    self.import_from(&path);
+                    let _ = self.import_from(&path);
                 }
             }
             Command::Export => {
@@ -1889,7 +1895,7 @@ impl DmApp {
                 } else if let Some(path) =
                     self.backend.platform.choose_file(true, "downloads.dmlist")
                 {
-                    self.export_to(&path);
+                    let _ = self.export_to(&path);
                 }
             }
             Command::SiteFiles => self.dialogs.open_site_files(),
@@ -2135,13 +2141,14 @@ impl DmApp {
 
     /// Imports the list in the file at `path`. Addresses already in the
     /// list are asked about first, as Add URL asks (gap 143).
-    pub fn import_from(&mut self, path: &std::path::Path) {
+    /// Reads a list into the queue; why it could not, as said, if not.
+    pub fn import_from(&mut self, path: &std::path::Path) -> Result<(), String> {
         let text = match std::fs::read_to_string(path) {
             Ok(text) => text,
             Err(e) => {
                 self.said =
                     crate::i18n::Said::new("{} could not be read: {}", &[&path.display(), &e]);
-                return;
+                return Err(self.said.shown());
             }
         };
         let listed = Backend::listed(&text);
@@ -2155,9 +2162,10 @@ impl DmApp {
                 already,
                 total: listed.len(),
             });
-            return;
+            return Ok(());
         }
         self.import_text(&text, false);
+        Ok(())
     }
 
     /// Adds the downloads a list holds; `skip_listed`, not those whose
@@ -2190,11 +2198,19 @@ impl DmApp {
     }
 
     /// Writes the list to `path`, and says where or why not.
-    pub fn export_to(&mut self, path: &std::path::Path) {
-        self.said = match std::fs::write(path, self.backend.export()) {
-            Ok(()) => crate::i18n::Said::new("Exported to {}.", &[&path.display()]),
-            Err(e) => crate::i18n::Said::new("{} could not be written: {}", &[&path.display(), &e]),
-        };
+    /// Writes the list to `path`; why it could not, as said, if not.
+    pub fn export_to(&mut self, path: &std::path::Path) -> Result<(), String> {
+        match std::fs::write(path, self.backend.export()) {
+            Ok(()) => {
+                self.said = crate::i18n::Said::new("Exported to {}.", &[&path.display()]);
+                Ok(())
+            }
+            Err(e) => {
+                self.said =
+                    crate::i18n::Said::new("{} could not be written: {}", &[&path.display(), &e]);
+                Err(self.said.shown())
+            }
+        }
     }
 
     /// Takes rows out of the list, with their staged parts; finished files
@@ -2676,6 +2692,10 @@ impl DmApp {
                 .resizable(true)
                 .show_separator_line(lines)
                 .default_size(self.rail_width(ui, if t.modern { 230.0 } else { 200.0 }))
+                // And never narrower than its longest name needs: a width
+                // kept from English cut German names after a switch and a
+                // relaunch (UI round 12).
+                .min_size(self.rail_width(ui, 120.0))
                 .frame(flat(t.frame, 8, 4))
                 .show(ui, |ui| {
                     // More places than fit scroll, rather than being cut off,
@@ -3291,6 +3311,7 @@ impl DmApp {
             })
             .collect();
         let failed_only = self.failed_only();
+        let held_only = self.held_only();
         // Each button with the name it shows and the widest it can show,
         // which is the room it takes: Resume becoming Retry moved every
         // button after it (gap 140).
@@ -3298,12 +3319,19 @@ impl DmApp {
             .into_iter()
             .map(|(command, icon, label)| {
                 let names = if command == Command::DownloadNow {
-                    vec![crate::i18n::t(label), crate::i18n::t("Retry")]
+                    vec![
+                        crate::i18n::t(label),
+                        crate::i18n::t("Retry"),
+                        crate::i18n::t("Start now"),
+                    ]
                 } else {
                     vec![crate::i18n::t(label)]
                 };
                 let shown = if command == Command::DownloadNow && failed_only {
                     crate::i18n::t("Retry")
+                } else if command == Command::DownloadNow && held_only {
+                    // As the row menu says (UI round 12).
+                    crate::i18n::t("Start now")
                 } else {
                     crate::i18n::t(label)
                 };
@@ -4205,7 +4233,11 @@ fn tool(
         )
     };
     // The picture in colour, its name in the text colour.
-    let picture = if enabled {
+    // On the brand fill, in the colour that shows on it: the "+" was drawn
+    // dark on blue (UI round 12).
+    let picture = if filled {
+        t.on_brand
+    } else if enabled {
         crate::theme::Tokens::get(ui.ctx()).tool(icon, true)
     } else {
         color

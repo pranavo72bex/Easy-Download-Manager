@@ -1740,11 +1740,20 @@ fn list_file(app: &mut DmApp, ctx: &egui::Context) {
         return;
     }
     let save = d.save;
-    app.dialogs.list_file = None;
-    if save {
-        app.export_to(&path);
+    let done = if save {
+        app.export_to(&path)
     } else {
-        app.import_from(&path);
+        app.import_from(&path)
+    };
+    // Kept open with what went wrong, and the path as typed: closed, the
+    // path was lost and further typing went to the list (UI round 12).
+    match done {
+        Ok(()) => app.dialogs.list_file = None,
+        Err(why) => {
+            if let Some(d) = app.dialogs.list_file.as_mut() {
+                d.says = why;
+            }
+        }
     }
 }
 
@@ -2319,10 +2328,15 @@ fn progress(app: &mut DmApp, ctx: &egui::Context) {
     let mut ids: Vec<Id> = app.dialogs.progress.iter().copied().collect();
     ids.sort_unstable();
     for (nth, id) in ids.into_iter().enumerate() {
-        let Some(row) = app.row(id).cloned() else {
+        let Some(mut row) = app.row(id).cloned() else {
             app.dialogs.progress.remove(&id);
             continue;
         };
+        // The size a dialog learned, until the row learns its own, as the
+        // list shows it (UI round 12: "File size unknown" beside it).
+        if row.progress.total.is_none() {
+            row.progress.total = app.sizes_told.get(&id).copied();
+        }
         let connections = app.backend.connections(id);
         let resumable = app.backend.resumable(id);
         let mut open = true;
@@ -2783,7 +2797,10 @@ fn properties(app: &mut DmApp, ctx: &egui::Context) {
         };
         // What a row not yet placed will have, as the list shows it: its
         // size, kind and folder were dashes here (UI round 11).
+        // And the size a dialog learned before it started, as the list
+        // shows (UI round 12: a dash beside the list's 300.0 KB).
         let size = crate::table::shown_size(&row)
+            .or_else(|| app.sizes_told.get(&id).copied())
             .map(format::bytes)
             .unwrap_or_default();
         let kind = crate::app::kind_of(&row)
@@ -4303,6 +4320,10 @@ fn options(app: &mut DmApp, ctx: &egui::Context) {
                     "Queues that run fewer files at once than the number above:",
                 ));
                 let mut remove = None;
+                // One limit a queue: two for Main queue were both kept and
+                // the last won without a word (UI round 12). Each offers
+                // only the queues no other limit has.
+                let limited: Vec<String> = s.queue_limits.iter().map(|l| l.queue.clone()).collect();
                 for (i, limit) in s.queue_limits.iter_mut().enumerate() {
                     ui.horizontal_wrapped(|ui| {
                         // Chosen from the queues there are, shown in the
@@ -4312,7 +4333,17 @@ fn options(app: &mut DmApp, ctx: &egui::Context) {
                         egui::ComboBox::from_id_salt(("queue limit", i))
                             .selected_text(crate::i18n::name(&limit.queue))
                             .show_ui(ui, |ui| {
-                                let mut offered = queues.clone();
+                                let mut offered: Vec<String> = queues
+                                    .iter()
+                                    .filter(|q| {
+                                        **q == limit.queue
+                                            || !limited
+                                                .iter()
+                                                .enumerate()
+                                                .any(|(j, l)| j != i && l == *q)
+                                    })
+                                    .cloned()
+                                    .collect();
                                 if !offered.contains(&limit.queue) {
                                     offered.push(limit.queue.clone());
                                 }
@@ -4334,11 +4365,21 @@ fn options(app: &mut DmApp, ctx: &egui::Context) {
                 if let Some(i) = remove {
                     s.queue_limits.remove(i);
                 }
-                if ui.button(t("Add a queue limit")).clicked() {
-                    s.queue_limits.push(dm_shell::settings::QueueLimit {
-                        queue: dm_core::MAIN_QUEUE.into(),
-                        files: 1,
-                    });
+                let unlimited = queues
+                    .iter()
+                    .find(|q| !s.queue_limits.iter().any(|l| &l.queue == *q))
+                    .cloned();
+                if ui
+                    .add_enabled(
+                        unlimited.is_some(),
+                        egui::Button::new(t("Add a queue limit")),
+                    )
+                    .clicked()
+                {
+                    if let Some(queue) = unlimited {
+                        s.queue_limits
+                            .push(dm_shell::settings::QueueLimit { queue, files: 1 });
+                    }
                 }
                 ui.horizontal_wrapped(|ui| {
                     let name = ui.label(t("Ask the Recheck queue's servers for changes every, hours (0 only when asked)"));
