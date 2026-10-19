@@ -76,6 +76,9 @@ pub struct FileInfo {
 pub struct Probed {
     pub name: Option<String>,
     pub size: Option<u64>,
+    /// Why the server would not give the file, where it said: a 404 was
+    /// found only once the download had failed (UI round 10).
+    pub problem: Option<String>,
 }
 
 /// The name an HLS stream at `url` is saved under: the engine's own naming
@@ -1956,7 +1959,7 @@ fn file_info(app: &mut DmApp, ctx: &egui::Context) {
                     let found = if let Some(name) = stream_name(&url, kind, remux) {
                         Probed {
                             name: Some(name),
-                            size: None,
+                            ..Probed::default()
                         }
                     } else if dm_core::ytdlp::is_page(kind) {
                         Probed::default()
@@ -1964,9 +1967,16 @@ fn file_info(app: &mut DmApp, ctx: &egui::Context) {
                         Probed {
                             name: Some(probe.filename).filter(|n| !n.is_empty()),
                             size: probe.size,
+                            problem: None,
                         }
                     };
                     *dm_core::lock(&slot) = Some(found);
+                    ctx.request_repaint();
+                } else if let Ok(Err(e)) = asked {
+                    *dm_core::lock(&slot) = Some(Probed {
+                        problem: Some(e.to_string()),
+                        ..Probed::default()
+                    });
                     ctx.request_repaint();
                 }
             });
@@ -1974,6 +1984,7 @@ fn file_info(app: &mut DmApp, ctx: &egui::Context) {
     }
     let probed = d.probed.as_ref().and_then(|p| dm_core::lock(p).clone());
     let server_name = probed.as_ref().and_then(|p| p.name.clone());
+    let problem = probed.as_ref().and_then(|p| p.problem.clone());
     let size = probed.and_then(|p| p.size);
     let remux = app.applied.remux_ts;
     if let Some(name) = &server_name {
@@ -1981,6 +1992,28 @@ fn file_info(app: &mut DmApp, ctx: &egui::Context) {
             d.name = name.clone();
         }
     }
+    // The name it will really get where its folder has one of that name
+    // already: Save as said `big.zip` and the file came as `big (1).zip`
+    // (UI round 10).
+    let renamed = (d.urls.len() == 1 && !d.name.trim().is_empty())
+        .then(|| {
+            let name = d.name.trim();
+            let url = d.urls.first().map(String::as_str).unwrap_or_default();
+            let dir = if !d.folder.trim().is_empty() {
+                std::path::PathBuf::from(d.folder.trim())
+            } else {
+                let mut categories = app.applied.categories();
+                if categories.enabled {
+                    categories.site = dm_core::category::host_of(url);
+                    let kind = dm_core::category::by_name(name).unwrap_or(dm_core::Category::Other);
+                    categories.place(&app.applied.download_dir, kind, name)
+                } else {
+                    app.applied.download_dir.clone()
+                }
+            };
+            dm_core::download::free_name(&dir, name)
+        })
+        .filter(|free| free != d.name.trim());
     let mut open = true;
     let mut chosen: Option<bool> = None; // Some(later)
     let mut cancel = false;
@@ -2110,6 +2143,29 @@ fn file_info(app: &mut DmApp, ctx: &egui::Context) {
                     )
                     .wrap(),
                 );
+            }
+            if let Some(free) = &renamed {
+                ui.add(
+                    egui::Label::new(
+                        RichText::new(tf(
+                            "A file of that name is in the folder already; this one will be {}.",
+                            &[&crate::bidi::visual(free)],
+                        ))
+                        .color(warn(ui)),
+                    )
+                    .wrap(),
+                );
+            }
+            if let Some(why) = &problem {
+                let plain = format::reason(why).map(t).unwrap_or(why.as_str());
+                ui.add(
+                    egui::Label::new(
+                        RichText::new(tf("The server would not give it: {}.", &[&plain]))
+                            .color(warn(ui)),
+                    )
+                    .wrap(),
+                )
+                .on_hover_text(why);
             }
             if !d.says.is_empty() {
                 ui.add(egui::Label::new(RichText::new(&d.says).color(warn(ui))).wrap());
@@ -2439,8 +2495,15 @@ fn progress(app: &mut DmApp, ctx: &egui::Context) {
                 if matches!(row.state, State::Failed(_)) {
                     resume = ui.button(t("Retry")).clicked();
                 }
+                // Held by the schedule, it is not resumed but started
+                // outside it, as the row's own button says (UI round 10).
                 if row.state == State::Paused {
-                    resume = ui.button(t("Resume")).clicked();
+                    let word = if row.paused_by_schedule {
+                        "Start now"
+                    } else {
+                        "Resume"
+                    };
+                    resume = ui.button(t(word)).clicked();
                 }
                 if !row.state.settled() {
                     cancel = ui.button(t("Cancel download")).clicked();

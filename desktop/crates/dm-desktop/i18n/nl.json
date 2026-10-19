@@ -238,6 +238,8 @@
  "Start queue": "Wachtrij starten",
  "Start the Main queue when dm opens": "De hoofdwachtrij starten als dm opent",
  "Started {} download in {}.||Started {} downloads in {}.": "{} download gestart in {}.||{} downloads gestart in {}.",
+ "The server would not give it: {}.": "De server geeft het niet: {}.",
+ "A file of that name is in the folder already; this one will be {}.": "Er staat al een bestand met die naam in de map; dit wordt {}.",
  "{} is waiting for the schedule; it starts by itself when the schedule opens.": "{} wacht op de planning; start vanzelf zodra die opent.",
  "Starting…": "Starten…",
  "Status": "Status",

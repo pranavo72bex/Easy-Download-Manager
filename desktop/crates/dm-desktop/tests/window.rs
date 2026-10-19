@@ -2225,7 +2225,10 @@ fn escape_closes_the_menu_or_the_dialog_in_front_and_nothing_behind_it() {
     // opened and their items did nothing).
     harness.get_by_label("View").click();
     harness.run_steps(3);
-    assert!(!harness.ctx.any_popup_open(), "a menu opened behind Options");
+    assert!(
+        !harness.ctx.any_popup_open(),
+        "a menu opened behind Options"
+    );
     assert!(harness.state().dialogs.options.is_some());
 
     // A combo box dropped down in the dialog, the same.
@@ -7531,4 +7534,52 @@ fn windows_a_download_opens_keep_clear_of_the_toolbar_and_questions() {
     harness.state_mut().dialogs.confirm_exit = false;
     harness.run_steps(3);
     assert!(harness.query_by_label("Download complete").is_some());
+}
+
+/// UI round 10: Download details says the name a file will really get
+/// where its folder has one of that name already, and that the server has
+/// no file at an address, before Start now rather than after.
+#[test]
+fn download_details_says_the_name_it_will_get_and_a_server_refusal() {
+    let world = world();
+    let mut harness = world.harness();
+    add_url(&mut harness, &world.url("file.zip"), "Start now");
+    until(&mut harness, "the download to complete", |app| {
+        app.rows().iter().any(|r| r.state == State::Completed)
+    });
+    click(&mut harness, "Add URL");
+    type_into(&mut harness, "Address", &world.url("file.zip"));
+    click(&mut harness, "OK");
+    if harness.query_by_label("Already in the list").is_some() {
+        click(&mut harness, "Download again");
+    }
+    let said = "A file of that name is in the folder already; this one will be file (1).zip.";
+    for _ in 0..50 {
+        if harness.query_by_label(said).is_some() {
+            break;
+        }
+        std::thread::sleep(std::time::Duration::from_millis(40));
+        harness.run_steps(1);
+    }
+    assert!(
+        harness.query_by_label(said).is_some(),
+        "the renaming was not said"
+    );
+    click(&mut harness, "Cancel");
+
+    click(&mut harness, "Add URL");
+    type_into(&mut harness, "Address", &world.url("missing.bin"));
+    click(&mut harness, "OK");
+    let refused = "The server would not give it: the server has no file at this address (404).";
+    for _ in 0..100 {
+        if harness.query_by_label(refused).is_some() {
+            break;
+        }
+        std::thread::sleep(std::time::Duration::from_millis(40));
+        harness.run_steps(1);
+    }
+    assert!(
+        harness.query_by_label(refused).is_some(),
+        "the 404 was not said"
+    );
 }
