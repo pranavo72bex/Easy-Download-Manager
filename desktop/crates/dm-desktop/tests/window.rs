@@ -1820,6 +1820,14 @@ fn a_site_search_reads_pages_deep_and_a_saved_one_runs_on_its_own() {
     );
     assert_eq!(saved[0].types, ["zip", "pdf"]);
     assert!(harness.query_by_label_contains("Nightly").is_some());
+    // Not at once: its first run on the timer is an hour from saving (UI
+    // round 15: run at once, its files were queued with nothing said).
+    harness.run_steps(5);
+    assert!(harness.state().rows().is_empty(), "it ran as it was saved");
+    // An hour on.
+    let mut later = harness.state().backend().settings();
+    later.site_searches[0].last_run -= 3600;
+    harness.state_mut().apply_settings(later).unwrap();
     until(&mut harness, "the saved search's files", |app| {
         app.rows().len() == 3
     });
@@ -8087,4 +8095,55 @@ fn the_places_are_reachable_when_they_give_way_at_large_text() {
         harness.state().place,
         dm_desktop::app::Place::Kind(dm_core::Category::Videos)
     );
+}
+
+/// UI round 15: at large text, with the Place drop-down above the list,
+/// the last rows could never be scrolled into view.
+#[test]
+fn the_last_row_can_be_reached_at_large_text() {
+    let world = world();
+    // A maximized window, where it was seen.
+    let mut harness = Harness::builder()
+        .with_size(egui::vec2(1600.0, 1000.0))
+        .build_ui_state(|ui, app: &mut DmApp| app.ui(ui), world.app());
+    let links: Vec<String> = (0..34)
+        .map(|i| world.url(&format!("stalled-{i:02}.bin")))
+        .collect();
+    harness.state().backend().pause_all();
+    harness.state().backend().add(&links.join(" ")).unwrap();
+    harness.state().backend().pause_all();
+    harness.state_mut().refresh();
+    harness.ctx.set_zoom_factor(3.0);
+    harness.run_steps(3);
+    let last = harness.state().rows().last().unwrap().id;
+    harness.state_mut().scroll_to = Some(last);
+    harness.run_steps(4);
+    let name = dm_desktop::app::name_of(harness.state().rows().last().unwrap());
+    let screen = harness.ctx.content_rect();
+    let row = harness
+        .query_all_by_label(&name)
+        .map(|n| n.rect())
+        .find(|r| r.width() > 0.0)
+        .unwrap_or_else(|| panic!("{name} was never drawn"));
+    assert!(
+        row.bottom() <= screen.bottom() + 0.5 && row.top() >= screen.top(),
+        "{name} at {row:?} outside the window {screen:?}"
+    );
+}
+
+/// UI round 15: a new queue's name typed in Move to queue is the name, not
+/// "Main queueNight" after the picked queue's name standing in the field.
+#[test]
+fn move_to_queue_makes_the_queue_named() {
+    let world = world();
+    let mut harness = world.harness();
+    add_url(&mut harness, &world.url("other.pdf"), "Add for later");
+    select(&mut harness, "other.pdf");
+    harness.state_mut().run(Command::MoveToQueue);
+    harness.run_steps(3);
+    type_into(&mut harness, "Or a new queue", "Night");
+    harness.key_press(egui::Key::Enter);
+    harness.run_steps(3);
+    harness.state_mut().refresh();
+    assert_eq!(harness.state().rows()[0].queue, "Night");
 }

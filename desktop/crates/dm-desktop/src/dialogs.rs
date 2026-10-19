@@ -374,7 +374,8 @@ pub struct Dialogs {
     pub links: Option<LinksImport>,
     pub site_files: Option<SiteFiles>,
     pub update_link: Option<(Id, String, String)>,
-    pub move_to_queue: Option<(Vec<Id>, String)>,
+    /// The rows, the queue picked (as shown) and a new queue's name typed.
+    pub move_to_queue: Option<(Vec<Id>, String, String)>,
     pub rename: Option<MoveRename>,
     /// Whether a dialog was in front last frame, and what had the keyboard
     /// before it opened.
@@ -3622,11 +3623,22 @@ fn site_files(app: &mut DmApp, ctx: &egui::Context) {
         let state = Arc::clone(&d.state);
         *dm_core::lock(&state) = Grab::Looking;
         let ctx = ctx.clone();
+        // Those already in the list offered unticked, as the links dialog
+        // offers them: all were ticked, and Add for later queued them again
+        // without asking (UI round 15).
+        let listed = listed.clone();
         app.backend.runtime.spawn(async move {
             let found = dm_shell::lists::crawl(&client, &search).await;
             *dm_core::lock(&state) = match found {
                 Ok(found) => Grab::Found(
-                    found.files.into_iter().map(|l| (l, true)).collect(),
+                    found
+                        .files
+                        .into_iter()
+                        .map(|l| {
+                            let new = !listed.contains(&bare(&l));
+                            (l, new)
+                        })
+                        .collect(),
                     found.pages,
                 ),
                 Err(e) => Grab::Failed(e),
@@ -3645,12 +3657,19 @@ fn site_files(app: &mut DmApp, ctx: &egui::Context) {
             let mut settings = app.applied.clone();
             // Saved again under its name: what it found before is kept.
             let mut search = search;
+            // Its first run on the timer one interval from now: run at once,
+            // a search just saved queued its files with nothing said in the
+            // dialog (UI round 15). Find files runs it now.
+            search.last_run = std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .map_or(0, |d| d.as_secs());
             if let Some(before) = settings
                 .site_searches
                 .iter()
                 .find(|s| s.name == search.name)
             {
                 search.seen = before.seen.clone();
+                search.last_run = before.last_run;
             }
             settings.site_searches.retain(|s| s.name != search.name);
             settings.site_searches.push(search);
@@ -3750,7 +3769,7 @@ fn update_link(app: &mut DmApp, ctx: &egui::Context) {
 
 fn move_to_queue(app: &mut DmApp, ctx: &egui::Context) {
     let focus = app.dialogs.take_focus("Move to queue");
-    let Some((ids, queue)) = app.dialogs.move_to_queue.as_mut() else {
+    let Some((ids, queue, new)) = app.dialogs.move_to_queue.as_mut() else {
         return;
     };
     let mut open = true;
@@ -3759,26 +3778,34 @@ fn move_to_queue(app: &mut DmApp, ctx: &egui::Context) {
     let known = app.backend.queues();
     // The queue is held as shown, so the field reads in the language in
     // force, and taken back to dm's own name on OK: typing "Principal" in
-    // Spanish is the Main queue, not a new one beside it.
+    // Spanish is the Main queue, not a new one beside it. The pick and a
+    // new name are kept apart: one field for both started with "Main
+    // queue" in it, and typing "Night" made "Main queueNight" (UI round 15).
     window(ctx, "Move to queue")
         .open(&mut open)
         .show(ctx, |ui| {
             for q in &known {
                 let shown = crate::i18n::name(q);
-                ui.radio_value(queue, shown.clone(), shown);
+                let picked = new.trim().is_empty() && *queue == shown;
+                if ui.radio(picked, shown.clone()).clicked() {
+                    *queue = shown;
+                    new.clear();
+                }
             }
-            ok = entered(&focused(
-                field(ui, t("Or a new queue"), queue, 240.0),
-                focus,
-            ));
+            ok = entered(&focused(field(ui, t("Or a new queue"), new, 240.0), focus));
             ui.horizontal(|ui| {
                 ok |= primary(ui, "OK").clicked() || enter_free(ui);
                 cancel = ui.button(t("Cancel")).clicked();
             });
         });
     open &= !cancel;
-    if ok && open && !queue.trim().is_empty() {
-        let named = crate::i18n::queue_named(queue);
+    let chosen = if new.trim().is_empty() {
+        queue.trim().to_string()
+    } else {
+        new.trim().to_string()
+    };
+    if ok && open && !chosen.is_empty() {
+        let named = crate::i18n::queue_named(&chosen);
         for id in ids.iter() {
             app.backend.set_queue(*id, &named);
         }
@@ -4809,6 +4836,13 @@ fn options(app: &mut DmApp, ctx: &egui::Context) {
         wanted.catch.skip_hosts = sites(&words(&d.skip));
         wanted.catch.once_hosts = sites(&words(&d.once));
         wanted.proxy.bypass = words(&d.bypass);
+        // A sign-in's host as the rules read it: an address pasted whole
+        // matched nothing (UI round 15).
+        for login in &mut wanted.site_logins {
+            if let Some(host) = sites(&[login.host.trim().to_string()]).pop() {
+                login.host = host;
+            }
+        }
         wanted.custom_categories = d
             .custom
             .iter()

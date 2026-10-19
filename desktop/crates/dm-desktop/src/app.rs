@@ -2057,6 +2057,7 @@ impl DmApp {
                     targets.iter().map(|r| r.id).collect(),
                     // As the dialog shows it; taken back to dm's own on OK.
                     crate::i18n::name(MAIN_QUEUE),
+                    String::new(),
                 ))
             }
             Command::RemoveFromQueue => {

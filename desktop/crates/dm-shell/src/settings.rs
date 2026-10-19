@@ -743,11 +743,18 @@ impl Settings {
         }
         let host = parsed.host_str().unwrap_or("").to_ascii_lowercase();
         let found = self.site_logins.iter().find(|login| {
-            let want = login
-                .host
-                .trim()
-                .trim_start_matches('.')
-                .to_ascii_lowercase();
+            // A host saved as a whole address names its host (UI round 15:
+            // one pasted in matched nothing, and the download got 401).
+            let given = login.host.trim();
+            let given = if given.contains("://") {
+                url::Url::parse(given)
+                    .ok()
+                    .and_then(|u| u.host_str().map(str::to_string))
+                    .unwrap_or_default()
+            } else {
+                given.split(['/', ':']).next().unwrap_or("").to_string()
+            };
+            let want = given.trim_start_matches('.').to_ascii_lowercase();
             !want.is_empty() && (host == want || host.ends_with(&format!(".{want}")))
         });
         match found {
@@ -998,6 +1005,18 @@ mod tests {
         let theirs = format!("https://you:{}@example.com/f", secret("other"));
         assert_eq!(settings.with_login(&theirs), theirs);
         assert_eq!(settings.with_login("magnet:?xt=1"), "magnet:?xt=1");
+        // A host saved as a whole address (UI round 15).
+        let pasted = Settings {
+            site_logins: vec![SiteLogin {
+                host: "http://127.0.0.1:8000/basic.bin".into(),
+                username: "me".into(),
+                password: crate::test_secrets::secret("password"),
+            }],
+            ..Settings::default()
+        };
+        assert!(pasted
+            .with_login("http://127.0.0.1:8000/other.bin")
+            .starts_with("http://me:"));
     }
 
     #[test]

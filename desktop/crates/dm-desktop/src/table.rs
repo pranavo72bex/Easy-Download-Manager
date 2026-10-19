@@ -103,7 +103,11 @@ pub fn show(app: &mut DmApp, ui: &mut egui::Ui) {
      * ran past the window (gap 152): the table's is hidden and this one
      * follows it, or moves it when dragged or wheeled. */
     let bar_room = ui.spacing().scroll.allocated_width();
-    let whole = ui.available_rect_before_wrap();
+    // Only what can be seen: with the Place drop-down or the clipboard's
+    // bar above the list, the room left ran past the card's visible edge,
+    // and at large text the last rows could never be scrolled to (UI
+    // round 15).
+    let whole = ui.available_rect_before_wrap().intersect(ui.clip_rect());
     let list_rect = egui::Rect::from_min_max(
         whole.min,
         egui::pos2((whole.max.x - bar_room).max(whole.min.x), whole.max.y),
@@ -168,6 +172,11 @@ pub fn show(app: &mut DmApp, ui: &mut egui::Ui) {
                 // row seen, its bar and the focus ring lay under it (UI
                 // round 6).
                 .max_scroll_height(body_room)
+                // Never taller than the room, either: the table's own least
+                // height is 200 points, and in less (large text, the Place
+                // drop-down above) its last rows ran under the status bar
+                // and could never be scrolled to (UI round 15).
+                .min_scrolled_height(body_room.min(200.0))
                 .striped(striped)
                 .resizable(true)
                 // Dragged as well as clicked: a finished file is dragged out of the
