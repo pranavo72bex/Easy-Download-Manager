@@ -1747,7 +1747,7 @@ fn the_site_file_finder_finds_the_files_a_page_links_to() {
     harness.run_steps(1);
     click(&mut harness, "Find files");
     let deadline = Instant::now() + Duration::from_secs(10);
-    while harness.query_by_label_contains("2 files found").is_none() {
+    while harness.query_by_label_contains("Files found: 2 ").is_none() {
         assert!(
             Instant::now() < deadline,
             "the site file finder found nothing"
@@ -1789,7 +1789,7 @@ fn a_site_search_reads_pages_deep_and_a_saved_one_runs_on_its_own() {
     // page.html and next.html on this site; the page elsewhere is not read.
     let deadline = Instant::now() + Duration::from_secs(10);
     while harness
-        .query_by_label_contains("3 files found on 2 pages")
+        .query_by_label_contains("Files found: 3 · pages read: 2")
         .is_none()
     {
         assert!(

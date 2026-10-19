@@ -2466,6 +2466,11 @@ fn progress(app: &mut DmApp, ctx: &egui::Context) {
                                 None if matches!(row.state, State::Failed(_)) => {
                                     t("Not yet known (the server refused the request)")
                                 }
+                                // A torrent goes on from the pieces it has;
+                                // there is no server to ask (UI round 12).
+                                None if dm_core::is_torrent(&row.url) => {
+                                    t("Yes, from the pieces it already has")
+                                }
                                 None => t("Unknown until the server answers"),
                             });
                             ui.end_row();
@@ -3438,6 +3443,7 @@ fn site_files(app: &mut DmApp, ctx: &egui::Context) {
         return;
     };
     let mut open = true;
+    let mut close = false;
     let mut add: Option<Vec<String>> = None;
     let mut look = false;
     let mut save = false;
@@ -3501,14 +3507,27 @@ fn site_files(app: &mut DmApp, ctx: &egui::Context) {
                     ui.label(t("No files of those types are linked from that page."));
                 }
                 Grab::Found(links, pages) => {
-                    ui.label(tf("{} files found on {} pages", &[&links.len(), pages]));
+                    // Counted with a colon, which needs no plural: "on 1
+                    // pages" (UI round 12).
+                    ui.label(tf(
+                        "Files found: {} · pages read: {}",
+                        &[&links.len(), pages],
+                    ));
                     pick_list(ui, links, &listed);
                     if ui.button(t("Add for later")).clicked() {
                         add = Some(links.iter().filter(|l| l.1).map(|l| l.0.clone()).collect());
                     }
                 }
             }
+            // A Close, as every other dialog has (UI round 12).
+            ui.separator();
+            if ui.button(t("Close")).clicked() {
+                close = true;
+            }
         });
+    if close {
+        open = false;
+    }
     if look {
         let search = d.search();
         let state = Arc::clone(&d.state);
