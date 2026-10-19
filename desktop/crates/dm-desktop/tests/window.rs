@@ -6321,7 +6321,7 @@ fn the_small_things_of_round_eight() {
         "the progress window moved from {before:?} to {after:?}"
     );
     assert!(harness
-        .query_by_label("Not yet known (the server refused the request)")
+        .query_by_label("Not yet known: it failed before the server said")
         .is_some());
     // The bar no longer says the percentage beside itself (UI round 9:
     // Status above says it); no words of its own to be cut off.

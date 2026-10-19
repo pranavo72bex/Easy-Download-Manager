@@ -2542,7 +2542,7 @@ fn progress(app: &mut DmApp, ctx: &egui::Context) {
                                 // Failed before the server said: a 401
                                 // is an answer, but not to this.
                                 None if matches!(row.state, State::Failed(_)) => {
-                                    t("Not yet known (the server refused the request)")
+                                    t("Not yet known: it failed before the server said")
                                 }
                                 None => t("Unknown until the server answers"),
                             });
@@ -3002,7 +3002,12 @@ fn properties(app: &mut DmApp, ctx: &egui::Context) {
                                 // names it.
                                 said(ui, &kind);
                                 ui.end_row();
-                                ui.label(t("Saved to"));
+                                // Not yet, for one not yet placed (UI round 15).
+                                ui.label(if row.path.is_empty() {
+                                    t("Will be saved to")
+                                } else {
+                                    t("Saved to")
+                                });
                                 said(ui, &saved_to);
                                 ui.end_row();
                                 ui.label(t("Referrer"));

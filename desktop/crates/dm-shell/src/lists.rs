@@ -63,6 +63,13 @@ pub fn series(
         if b - a >= 10_000 {
             return Err(SeriesError::TooMany);
         }
+        // A From typed with its zeros ("09") is padded as typed: the zero
+        // was dropped and "file9" made (UI round 15).
+        let width = if from.len() > 1 && from.starts_with('0') {
+            width.max(from.len())
+        } else {
+            width
+        };
         return Ok((a..=b).map(|n| fill(format!("{n:0width$}"))).collect());
     }
 
@@ -74,7 +81,12 @@ pub fn series(
         }
     };
     match (letter(from), letter(to)) {
-        (Some(a), Some(b)) if a.is_ascii_lowercase() == b.is_ascii_lowercase() && a <= b => {
+        (Some(a), Some(b)) if a.is_ascii_lowercase() == b.is_ascii_lowercase() => {
+            // z to a runs backwards, as 9 to 1 does: it was said to be
+            // neither numbers nor letters (UI round 15).
+            if a > b {
+                return Err(SeriesError::Backwards);
+            }
             Ok((a..=b).map(|c| fill(c.to_string())).collect())
         }
         _ => Err(SeriesError::Ends),
@@ -541,6 +553,16 @@ mod tests {
         assert_eq!(series("https://e.com/*/*", "1", "2", 0), Err(Star));
         assert_eq!(series("https://e.com/*", "5", "1", 0), Err(Backwards));
         assert_eq!(series("https://e.com/*", "a", "Z", 0), Err(Ends));
+        // UI round 15: letters backwards say so, and a typed zero pads.
+        assert_eq!(series("https://e.com/*", "z", "a", 0), Err(Backwards));
+        assert_eq!(
+            series("https://e.com/f*", "09", "11", 0).unwrap(),
+            [
+                "https://e.com/f09",
+                "https://e.com/f10",
+                "https://e.com/f11"
+            ]
+        );
         assert_eq!(series("https://e.com/*", "0", "99999", 0), Err(TooMany));
     }
 

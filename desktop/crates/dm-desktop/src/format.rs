@@ -294,7 +294,7 @@ pub const REASONS: [(&[&str], &str); 17] = [
     // UI round 14: raw engine text shown for these.
     (
         &["the server answered 401"],
-        "the server wants a sign-in (add one in Options › Sign-ins)",
+        "the server wants a sign-in (Properties › Login, or Options › Sign-ins for the whole site)",
     ),
     (
         &[
@@ -687,7 +687,7 @@ mod tests {
         );
         assert_eq!(
             reason("the server answered 401 Unauthorized for http://h/x"),
-            Some("the server wants a sign-in (add one in Options › Sign-ins)")
+            Some("the server wants a sign-in (Properties › Login, or Options › Sign-ins for the whole site)")
         );
         assert_eq!(
             reason("the server answered 502 Bad Gateway for https://e.com/a — upstream timed out"),
