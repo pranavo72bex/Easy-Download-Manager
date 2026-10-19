@@ -491,7 +491,10 @@ impl Settings {
                     Err(std::io::Error::other("it is not a file"))
                 }
             }) {
-                return Some(format!("the cookies file {cookies} could not be read: {e}"));
+                return Some(format!(
+                    "the cookies file {cookies} could not be read: {}",
+                    dm_core::file_error(&e)
+                ));
             }
         }
         None

@@ -2234,8 +2234,10 @@ impl DmApp {
         let text = match std::fs::read_to_string(path) {
             Ok(text) => text,
             Err(e) => {
-                self.said =
-                    crate::i18n::Said::new("{} could not be read: {}", &[&path.display(), &e]);
+                self.said = crate::i18n::Said::new(
+                    "{} could not be read: {}",
+                    &[&path.display(), &format::file_error(&e)],
+                );
                 return Err(self.said.shown());
             }
         };
@@ -2313,8 +2315,10 @@ impl DmApp {
                 Ok(())
             }
             Err(e) => {
-                self.said =
-                    crate::i18n::Said::new("{} could not be written: {}", &[&path.display(), &e]);
+                self.said = crate::i18n::Said::new(
+                    "{} could not be written: {}",
+                    &[&path.display(), &format::file_error(&e)],
+                );
                 Err(self.said.shown())
             }
         }

@@ -5654,8 +5654,19 @@ fn the_complete_window_scrolls_cuts_long_names_and_closes_on_escape() {
     assert!(close.x1 <= 1100.0, "Close is off the window: {close:?}");
     // In the corner, out of the middle of the list.
     assert!(close.x0 > 1100.0 / 2.0, "not in the corner: {close:?}");
-    let last = dm_desktop::app::name_of(harness.state().rows().last().unwrap());
-    let open_last = format!("Open the folder of {last}");
+    // The entry lowest in the window: it lists the newest first, so which
+    // row that is depends on the order they finished in, and under load the
+    // list's last row could finish last and stand at the top.
+    let open_last = harness
+        .query_all_by_label_contains("Open the folder of")
+        .max_by(|a, b| {
+            let y = |n: &egui_kittest::Node<'_>| {
+                n.accesskit_node().bounding_box().map_or(0.0, |r| r.y0)
+            };
+            y(a).total_cmp(&y(b))
+        })
+        .and_then(|n| n.accesskit_node().label().map(|l| l.to_string()))
+        .expect("no Open the folder of");
     let before = bounds(&harness, &open_last);
     assert!(
         before.y0 > close.y0,

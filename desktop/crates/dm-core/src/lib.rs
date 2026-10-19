@@ -636,8 +636,40 @@ pub fn client() -> reqwest::Client {
         .expect("a client with no TLS backend cannot be built")
 }
 
+/// What a file error means, in words a person reads: "No such file or
+/// directory (os error 2)" said nothing a person could act on (UI round 14).
+pub fn file_error(e: &std::io::Error) -> String {
+    match e.kind() {
+        std::io::ErrorKind::NotFound => "it is not there".into(),
+        std::io::ErrorKind::PermissionDenied => "dm is not allowed to use it".into(),
+        std::io::ErrorKind::AlreadyExists => "something of that name is already there".into(),
+        _ => {
+            // The system's words without its error number.
+            let said = e.to_string();
+            match said.rfind(" (os error ") {
+                Some(at) => said[..at].to_string(),
+                None => said,
+            }
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn a_file_error_is_said_without_its_system_number() {
+        use std::io::{Error, ErrorKind};
+        assert_eq!(
+            super::file_error(&Error::from(ErrorKind::NotFound)),
+            "it is not there"
+        );
+        assert_eq!(
+            super::file_error(&Error::from(ErrorKind::PermissionDenied)),
+            "dm is not allowed to use it"
+        );
+        assert!(!super::file_error(&Error::from_raw_os_error(5)).contains("os error"));
+    }
+
     use super::readable;
 
     #[tokio::test]

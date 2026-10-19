@@ -236,7 +236,7 @@ pub fn titled(word: &str) -> String {
 /// one for what the network library says in its own terms ("error decoding
 /// response body" is a connection cut mid-file). The first that matches
 /// wins; anything else is shown as the engine said it.
-pub const REASONS: [(&[&str], &str); 14] = [
+pub const REASONS: [(&[&str], &str); 17] = [
     (
         &[
             "error decoding response body",
@@ -305,12 +305,28 @@ pub const REASONS: [(&[&str], &str); 14] = [
         ],
         "the proxy could not be reached",
     ),
+    // A file's own errors, as `dm_core::file_error` words them.
+    (&["it is not there"], "it is not there"),
+    (
+        &["dm is not allowed to use it"],
+        "dm is not allowed to use it",
+    ),
+    (
+        &["something of that name is already there"],
+        "something of that name is already there",
+    ),
     // Last: the specific failures above say more.
     (
         &["error sending request"],
         "the server could not be reached",
     ),
 ];
+
+/// A file error in the window's language, without the system's number.
+pub fn file_error(e: &std::io::Error) -> String {
+    let words = dm_core::file_error(e);
+    reason(&words).map(t).map(String::from).unwrap_or(words)
+}
 
 /// A `file://` address for an absolute path, every byte but the
 /// unreserved ones and `/` escaped, as a file manager reads it back.

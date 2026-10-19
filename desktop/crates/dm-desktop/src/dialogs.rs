@@ -1362,6 +1362,10 @@ fn confirm_remove(app: &mut DmApp, ctx: &egui::Context) {
                     let named = app.name_it_will_get(row, &mut app.applied.categories());
                     ui.strong(&*crate::bidi::visual(&named));
                 }
+            } else {
+                // And how many, where it is more than one: 507 went with
+                // no number said (UI round 14).
+                ui.strong(tf("Downloads: {}", &[&ids.len()]));
             }
             // The buttons say what the sentence asked, in its number, and
             // Enter is the one that loses nothing (gap 149).
