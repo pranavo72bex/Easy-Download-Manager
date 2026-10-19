@@ -76,11 +76,15 @@ jobs:
           EDGE_PRODUCT_ID=$(printf '%s' "$EDGE_PRODUCT_ID" | tr -d '[:space:]')
           auth() { printf 'Authorization: ApiKey %s' "$EDGE_API_KEY"; }
           # The answer's Location header names the upload's operation.
-          curl -sS --fail-with-body -D headers.txt -o /dev/null \
+          # Microsoft's answer is shown when it refuses: a 401 alone said
+          # nothing of why.
+          if ! curl -sS --fail-with-body -D headers.txt -o answer.txt \
             -H "$(auth)" -H "X-ClientID: $EDGE_CLIENT_ID" \
             -H "Content-Type: application/zip" \
             -X POST "$API/$EDGE_PRODUCT_ID/submissions/draft/package" \
-            --data-binary @dist/dm-edge.zip
+            --data-binary @dist/dm-edge.zip; then
+            echo "Microsoft answered:"; cat headers.txt answer.txt; exit 1
+          fi
           operation=$(grep -i '^location:' headers.txt | awk '{print $2}' | tr -d '\r')
           echo "upload operation: $operation"
           for _ in $(seq 1 60); do
