@@ -1237,7 +1237,10 @@ impl DmApp {
         use crate::power::WhenDone;
         match std::mem::take(&mut self.when_done) {
             WhenDone::Nothing => {}
-            WhenDone::Quit => self.quit_asked = true,
+            // With nobody to see a countdown, at once.
+            WhenDone::Quit if self.headless => self.quit_asked = true,
+            // The others' countdown for Exit too: it quit the moment the
+            // last download ended, with no word (UI round 18).
             action => {
                 let at = Instant::now() + Duration::from_secs(crate::power::COUNTDOWN_SECS);
                 self.countdown = Some((action, at));
@@ -1313,6 +1316,10 @@ impl DmApp {
         if let Some((action, at)) = self.countdown {
             if Instant::now() >= at {
                 self.countdown = None;
+                if action == crate::power::WhenDone::Quit {
+                    self.quit_asked = true;
+                    return;
+                }
                 // In the list of problems as well as the status line: whoever
                 // set it is likely away, and a status line is overwritten.
                 // A refusal that comes back later is left for the list too,

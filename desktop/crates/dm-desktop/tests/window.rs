@@ -602,9 +602,23 @@ fn when_the_queue_runs_dry_dm_chimes_and_counts_down_to_what_was_chosen() {
         ["power ShutDown"]
     );
 
+    // Exit counts down as the others do, then quits (UI round 18: it quit
+    // the moment the last download ended, with no word).
     harness.state_mut().run(Command::WhenDoneQuit);
     add_url(&mut harness, &world.url("file.zip"), "Start now");
-    until(&mut harness, "dm to quit", |app| app.quit_asked);
+    quit_after_its_countdown(&mut harness);
+}
+
+/// Waits for Exit's countdown, says it has not quit yet, then runs it out.
+fn quit_after_its_countdown(harness: &mut Harness<'_, DmApp>) {
+    until(harness, "Exit's countdown", |app| {
+        app.countdown
+            .is_some_and(|(action, _)| action == dm_desktop::power::WhenDone::Quit)
+    });
+    assert!(!harness.state().quit_asked, "quit before its countdown");
+    harness.state_mut().countdown =
+        Some((dm_desktop::power::WhenDone::Quit, std::time::Instant::now()));
+    until(harness, "dm to quit", |app| app.quit_asked);
 }
 
 /// Gap 83: "When done" waited for nothing Running or Queued, so a queue a
@@ -640,7 +654,7 @@ fn when_done_does_not_fire_on_a_stopped_or_schedule_held_queue() {
 
     // Something else finishes; the stopped row is left alone, not waited for.
     add_url(&mut harness, &world.url("file.zip"), "Start now");
-    until(&mut harness, "dm to quit", |app| app.quit_asked);
+    quit_after_its_countdown(&mut harness);
     harness.state_mut().quit_asked = false;
 
     // The schedule's window closes on a running download: it is held, not
@@ -8216,7 +8230,7 @@ fn remove_says_when_finished_and_unfinished_rows_are_mixed() {
         .query_by_label_contains("Some of these are finished and some are not")
         .is_some());
     assert!(harness
-        .query_by_label("The finished ones' files stay where they are.")
+        .query_by_label("The finished one's file stays where it is.")
         .is_some());
     assert!(harness
         .query_by_label_contains("have not fetched anything yet")

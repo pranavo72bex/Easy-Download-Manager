@@ -1376,10 +1376,12 @@ fn confirm_remove(app: &mut DmApp, ctx: &egui::Context) {
                 }
             });
             if mixed {
-                ui.label(if app.dialogs.remove_files {
-                    t("The finished ones' files are deleted from the disk too.")
-                } else {
-                    t("The finished ones' files stay where they are.")
+                // In its number: "the finished ones'" of one (UI round 18).
+                ui.label(match (app.dialogs.remove_files, files.len()) {
+                    (true, 1) => t("The finished one's file is deleted from the disk too."),
+                    (true, _) => t("The finished ones' files are deleted from the disk too."),
+                    (false, 1) => t("The finished one's file stays where it is."),
+                    (false, _) => t("The finished ones' files stay where they are."),
                 });
             }
             // Which one, by name: "this download" was all it said.
@@ -1498,6 +1500,9 @@ fn confirm_cancel(app: &mut DmApp, ctx: &egui::Context) {
         if fetched {
             ui.label(t("Cancelling it throws away what has been fetched."));
         }
+        // Apart from the words, as in the other questions: the buttons sat
+        // against the file's name (UI round 18).
+        ui.add_space(8.0);
         // The default first, as in every dialog (UI round 7).
         ui.horizontal(|ui| {
             keep = primary_worded(ui, t("Keep downloading")).clicked() || enter_free(ui);
@@ -4426,6 +4431,17 @@ fn options(app: &mut DmApp, ctx: &egui::Context) {
                     &mut s.categorize,
                     t("Sort finished files into folders by kind"),
                 );
+                // Why what follows is greyed: "Add a category" did nothing,
+                // with no word (UI round 18).
+                if !s.categorize {
+                    ui.label(
+                        RichText::new(t(
+                            "Turn on sorting to set the kinds' folders and your own categories.",
+                        ))
+                        .small()
+                        .weak(),
+                    );
+                }
                 ui.add_enabled_ui(s.categorize, |ui| {
                     // Two kinds a row: seven rows pushed the categories
                     // below out of sight. One where two do not fit: at 200%
@@ -4808,6 +4824,12 @@ fn options(app: &mut DmApp, ctx: &egui::Context) {
                     for (tab, label) in TABS {
                         let picked = ui.selectable_label(d.tab == tab, t(label));
                         if picked.clicked() {
+                            // At its top, not where it was left: Folders
+                            // opened with its first field scrolled out of
+                            // sight (UI round 18).
+                            if d.tab != tab {
+                                d.fresh_tab = 2;
+                            }
                             d.tab = tab;
                         }
                         // The tab in force in sight as the dialog opens: the
