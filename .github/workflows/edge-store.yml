@@ -69,6 +69,11 @@ jobs:
       - name: Upload it as the listing's draft
         run: |
           set -e
+          # Pasted secrets can carry a newline or spaces at their ends,
+          # which broke the address ("Malformed input to a URL function").
+          EDGE_CLIENT_ID=$(printf '%s' "$EDGE_CLIENT_ID" | tr -d '[:space:]')
+          EDGE_API_KEY=$(printf '%s' "$EDGE_API_KEY" | tr -d '[:space:]')
+          EDGE_PRODUCT_ID=$(printf '%s' "$EDGE_PRODUCT_ID" | tr -d '[:space:]')
           auth() { printf 'Authorization: ApiKey %s' "$EDGE_API_KEY"; }
           # The answer's Location header names the upload's operation.
           curl -sS --fail-with-body -D headers.txt -o /dev/null \
@@ -94,6 +99,11 @@ jobs:
         if: ${{ inputs.submit }}
         run: |
           set -e
+          # Pasted secrets can carry a newline or spaces at their ends,
+          # which broke the address ("Malformed input to a URL function").
+          EDGE_CLIENT_ID=$(printf '%s' "$EDGE_CLIENT_ID" | tr -d '[:space:]')
+          EDGE_API_KEY=$(printf '%s' "$EDGE_API_KEY" | tr -d '[:space:]')
+          EDGE_PRODUCT_ID=$(printf '%s' "$EDGE_PRODUCT_ID" | tr -d '[:space:]')
           auth() { printf 'Authorization: ApiKey %s' "$EDGE_API_KEY"; }
           body=$(python3 -c "import json, os; print(json.dumps({'notes': os.environ.get('NOTES', '')}))")
           curl -sS --fail-with-body -D headers.txt -o /dev/null \
