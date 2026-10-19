@@ -237,6 +237,7 @@
  "Start queue": "Démarrer la file",
  "Start the Main queue when dm opens": "Démarrer la file principale à l'ouverture de dm",
  "Started {} download in {}.||Started {} downloads in {}.": "{} téléchargement démarré dans {}.||{} téléchargements démarrés dans {}.",
+ "Every piece is in; putting them together.": "Tous les morceaux sont là ; ils sont assemblés.",
  "{} so far": "{} jusqu'ici",
  "Joining parts…": "Assemblage des morceaux…",
  "The finished one's file stays where it is.": "Le fichier du téléchargement terminé reste où il est.",

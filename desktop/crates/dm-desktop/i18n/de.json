@@ -237,6 +237,7 @@
  "Start queue": "Warteschlange starten",
  "Start the Main queue when dm opens": "Die Hauptwarteschlange starten, wenn dm öffnet",
  "Started {} download in {}.||Started {} downloads in {}.": "{} Download in {} gestartet.||{} Downloads in {} gestartet.",
+ "Every piece is in; putting them together.": "Alle Teile sind da; sie werden zusammengefügt.",
  "{} so far": "{} bisher",
  "Joining parts…": "Teile werden zusammengefügt…",
  "The finished one's file stays where it is.": "Die Datei des fertigen bleibt, wo sie ist.",

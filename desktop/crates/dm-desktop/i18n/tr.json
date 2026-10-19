@@ -237,6 +237,7 @@
  "Start queue": "Kuyruğu başlat",
  "Start the Main queue when dm opens": "dm açıldığında ana kuyruğu başlat",
  "Started {} download in {}.||Started {} downloads in {}.": "{1} içinde {0} indirme başlatıldı.",
+ "Every piece is in; putting them together.": "Tüm parçalar geldi; birleştiriliyor.",
  "{} so far": "şu ana kadar {}",
  "Joining parts…": "Parçalar birleştiriliyor…",
  "The finished one's file stays where it is.": "Bitenin dosyası yerinde kalır.",

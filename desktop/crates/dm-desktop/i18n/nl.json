@@ -237,6 +237,7 @@
  "Start queue": "Wachtrij starten",
  "Start the Main queue when dm opens": "De hoofdwachtrij starten als dm opent",
  "Started {} download in {}.||Started {} downloads in {}.": "{} download gestart in {}.||{} downloads gestart in {}.",
+ "Every piece is in; putting them together.": "Alle delen zijn binnen; ze worden samengevoegd.",
  "{} so far": "{} tot nu toe",
  "Joining parts…": "Delen samenvoegen…",
  "The finished one's file stays where it is.": "Het bestand van de voltooide blijft waar het is.",

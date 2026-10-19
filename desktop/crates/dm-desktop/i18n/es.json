@@ -237,6 +237,7 @@
  "Start queue": "Iniciar cola",
  "Start the Main queue when dm opens": "Iniciar la cola principal al abrir dm",
  "Started {} download in {}.||Started {} downloads in {}.": "Se inició {} descarga en {}.||Se iniciaron {} descargas en {}.",
+ "Every piece is in; putting them together.": "Todas las partes han llegado; se están uniendo.",
  "{} so far": "{} hasta ahora",
  "Joining parts…": "Uniendo las partes…",
  "The finished one's file stays where it is.": "El archivo de la terminada se queda donde está.",

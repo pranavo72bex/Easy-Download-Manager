@@ -367,6 +367,8 @@ pub struct Dialogs {
     /// Progress windows a person closed: Resume does not open them again.
     pub progress_closed: BTreeSet<Id>,
     pub complete: BTreeSet<Id>,
+    /// Whether each download could resume, as last read while it ran.
+    pub resumable_seen: std::collections::HashMap<Id, bool>,
     pub properties: BTreeMap<Id, Properties>,
     pub series: Option<Series>,
     pub clip_links: Option<Vec<(String, bool)>>,
@@ -878,6 +880,7 @@ impl Dialogs {
         self.progress_closed.remove(&id);
         self.complete.remove(&id);
         self.properties.remove(&id);
+        self.resumable_seen.remove(&id);
     }
 }
 
@@ -1901,6 +1904,11 @@ fn add_url(app: &mut DmApp, ctx: &egui::Context) {
         // dialog past the window's edge (UI round 1).
         let wide = (ctx.content_rect().width() - 160.0).clamp(200.0, 420.0);
         let address = focused(field(ui, t("Address"), &mut d.address, wide), focus);
+        // What was said of the last address goes when it is changed: the
+        // error stayed under a good one (speed check 2, 2026-10-19).
+        if address.changed() {
+            d.says.clear();
+        }
         // The link it was opened with is selected, so a link pasted or
         // typed replaces it rather than joining it (gap 142).
         select_on_focus(ui, &address, &d.address);
@@ -2441,7 +2449,18 @@ fn progress(app: &mut DmApp, ctx: &egui::Context) {
             row.progress.total = app.sizes_told.get(&id).copied();
         }
         let connections = app.backend.connections(id);
-        let resumable = app.backend.resumable(id);
+        // While its parts are joined the plan they are read from is gone:
+        // the last answer stands, and nothing reads as unknown or unstarted
+        // with every byte in (speed check 2, 2026-10-19).
+        let joining = row.state == State::Running && crate::app::fetched_all(&row);
+        let resumable = match app.backend.resumable(id) {
+            Some(answer) => {
+                app.dialogs.resumable_seen.insert(id, answer);
+                Some(answer)
+            }
+            None if joining => app.dialogs.resumable_seen.get(&id).copied(),
+            None => None,
+        };
         let mut open = true;
         let (mut pause, mut resume, mut cancel) = (false, false, false);
         // No wider or taller than the screen leaves room for: a long
@@ -2549,7 +2568,7 @@ fn progress(app: &mut DmApp, ctx: &egui::Context) {
                             ui.label(crate::table::digits(ui, fetched));
                             ui.end_row();
                             ui.label(t("Speed"));
-                            let rate = if row.state == State::Running {
+                            let rate = if row.state == State::Running && !joining {
                                 format::rate(p.speed)
                             } else {
                                 String::new()
@@ -2620,7 +2639,12 @@ fn progress(app: &mut DmApp, ctx: &egui::Context) {
                             .default_open(false)
                             .id_salt(("connections", id))
                             .show(ui, |ui| {
-                                if connections.is_empty() {
+                                if connections.is_empty() && joining {
+                                    ui.label(
+                                        RichText::new(t("Every piece is in; putting them together."))
+                                            .weak(),
+                                    );
+                                } else if connections.is_empty() {
                                     ui.label(RichText::new(t("Nothing fetched yet.")).weak());
                                 }
                                 // The file is cut into more pieces than connections,

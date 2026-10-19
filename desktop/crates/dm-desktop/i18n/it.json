@@ -237,6 +237,7 @@
  "Start queue": "Avvia coda",
  "Start the Main queue when dm opens": "Avvia la coda principale all'apertura di dm",
  "Started {} download in {}.||Started {} downloads in {}.": "Avviato {} download in {}.||Avviati {} download in {}.",
+ "Every piece is in; putting them together.": "Tutte le parti sono arrivate; vengono unite.",
  "{} so far": "{} finora",
  "Joining parts…": "Unione delle parti…",
  "The finished one's file stays where it is.": "Il file di quello finito resta dov'è.",

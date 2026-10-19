@@ -72,8 +72,11 @@ pub fn clock(eta: Option<Duration>) -> String {
 pub fn span(time: Duration) -> String {
     let s = time.as_secs();
     let (d, h, m) = (s / 86_400, (s % 86_400) / 3600, (s % 3600) / 60);
-    if s == 0 {
+    if time.is_zero() {
         String::new()
+    } else if s == 0 {
+        // Under a second, said: Time left went blank at 99% (speed check 2).
+        format!("<{}", tf("{}s", &[&1]))
     } else if d > 0 {
         tf("{}d {}h", &[&d, &h])
     } else if h > 0 {
@@ -730,6 +733,9 @@ mod tests {
         let long = Duration::from_secs(1494 * 3600 + 36 * 60);
         assert_eq!(clock(Some(long)), "62d 6h left");
         assert_eq!(span(Duration::from_secs(7380)), "2h 3m", "no \"left\"");
+        // Under a second is said; nothing is nothing.
+        assert_eq!(span(Duration::from_millis(400)), "<1s");
+        assert_eq!(span(Duration::ZERO), "");
     }
 
     #[test]
