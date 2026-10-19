@@ -2381,7 +2381,7 @@ impl DmApp {
         for (at, column) in order.iter().copied().enumerate().skip(1) {
             ui.horizontal(|ui| {
                 let mut on = !self.hidden_columns.contains(&column);
-                if ui.checkbox(&mut on, column.title()).clicked() {
+                if crate::dialogs::check(ui, &mut on, column.title()).clicked() {
                     if on {
                         self.hidden_columns.remove(&column);
                     } else {
@@ -2901,6 +2901,7 @@ impl DmApp {
             });
 
         crate::dialogs::show(self, &ctx);
+        underline_fields(&ctx);
         self.focus_ring(&ctx);
         self.field_menu(&ctx);
 
@@ -3037,7 +3038,7 @@ impl DmApp {
             return;
         }
         let t = crate::theme::Tokens::get(ctx);
-        let stroke = egui::Stroke::new(2.0, t.accent);
+        let stroke = egui::Stroke::new(2.0, t.focus_outer);
         let focused = ctx
             .memory(|m| m.focused())
             .and_then(|id| ctx.read_response(id));
@@ -3055,12 +3056,12 @@ impl DmApp {
             },
         };
         if rect.is_positive() {
-            // Two lines: the accent one, and inside it one in a light
-            // colour, which is what shows on a primary button or a
-            // selected row: those are filled with the accent colour itself.
+            // Two lines, as WinUI draws its focus: an outer one in the
+            // text colour and an inner one in the background's, so one of
+            // them shows on whatever the control is filled with.
             let painter = ctx.layer_painter(layer);
             let radius = egui::CornerRadius::same(t.radius);
-            let inner = egui::Stroke::new(1.5, t.focus_inner);
+            let inner = egui::Stroke::new(1.0, t.focus_inner);
             if row {
                 // A row's inside its frame, where the list ends.
                 painter.rect_stroke(rect.shrink(1.0), radius, stroke, egui::StrokeKind::Inside);
@@ -3069,7 +3070,7 @@ impl DmApp {
                 // Round a control, not over it: inside, it crossed a
                 // checkbox's box and its last letter (UI round 6).
                 painter.rect_stroke(rect, radius, inner, egui::StrokeKind::Outside);
-                painter.rect_stroke(rect.expand(1.5), radius, stroke, egui::StrokeKind::Outside);
+                painter.rect_stroke(rect.expand(1.0), radius, stroke, egui::StrokeKind::Outside);
             }
             self.focus_ring = Some(rect);
         }
@@ -3607,7 +3608,7 @@ impl DmApp {
             let id = command.id().to_string();
             ui.horizontal(|ui| {
                 let mut on = !wanted.toolbar_hidden.contains(&id);
-                if ui.checkbox(&mut on, t(label)).changed() {
+                if crate::dialogs::check(ui, &mut on, t(label)).changed() {
                     if on {
                         wanted.toolbar_hidden.retain(|h| *h != id);
                     } else {
@@ -3742,7 +3743,7 @@ impl DmApp {
         let mut chosen = None;
         ui.horizontal(|ui| {
             let name = ui.label(t("Place"));
-            egui::ComboBox::from_id_salt("place-picker")
+            crate::dialogs::combo("place-picker")
                 .selected_text(current)
                 .show_ui(ui, |ui| {
                     for (place, label) in &places {
@@ -4150,6 +4151,53 @@ fn modern_width(ui: &egui::Ui, label: &str, stacked: bool) -> f32 {
     }
 }
 
+/// Every text field drawn this frame gets WinUI's bottom line: 1 px in the
+/// strong stroke at rest and 2 px in the accent while it has the keyboard,
+/// where egui outlines a focused field all round in the text colour. The
+/// fields are found among this frame's widgets by the state each one keeps.
+fn underline_fields(ctx: &egui::Context) {
+    let t = crate::theme::Tokens::get(ctx);
+    if !t.modern {
+        return;
+    }
+    let focused = ctx.memory(|m| m.focused());
+    // Read under the viewport's lock, and only then asked about, which
+    // takes the context's lock again.
+    let widgets: Vec<egui::WidgetRect> = ctx.viewport(|v| {
+        v.this_pass
+            .widgets
+            .layers()
+            .flat_map(|(_, widgets)| widgets.iter())
+            // A disabled field keeps its soft edge alone, as WinUI's does.
+            .filter(|w| w.enabled && w.visible && w.interact_rect.is_positive())
+            .copied()
+            .collect()
+    });
+    for w in widgets {
+        if egui::TextEdit::load_state(ctx, w.id).is_none() {
+            continue;
+        }
+        let (layer, rect, seen, focus) =
+            (w.layer_id, w.rect, w.interact_rect, focused == Some(w.id));
+        let painter = ctx.layer_painter(layer).with_clip_rect(seen.expand(1.0));
+        let radius = egui::CornerRadius::same(t.radius);
+        if focus {
+            painter.rect_stroke(
+                rect,
+                radius,
+                egui::Stroke::new(1.0, t.edge),
+                egui::StrokeKind::Inside,
+            );
+        }
+        let height = if focus { 2.0 } else { 1.0 };
+        let line = egui::Rect::from_min_max(
+            egui::pos2(rect.left() + 1.0, rect.bottom() - height),
+            egui::pos2(rect.right() - 1.0, rect.bottom()),
+        );
+        painter.rect_filled(line, 0.0, if focus { t.brand } else { t.stroke });
+    }
+}
+
 /// A modern toolbar button: the picture beside its name, 32 px tall,
 /// subtle until hovered; the primary one is filled with the brand colour.
 /// `stacked`, the name goes under the picture, where a row is too narrow
@@ -4190,7 +4238,7 @@ fn modern_tool(
     response.widget_info(|| egui::WidgetInfo::labeled(egui::Role::Button, enabled, label));
     let pressed = response.is_pointer_button_down_on();
     let fill = match (primary && enabled, response.hovered() && enabled, pressed) {
-        (true, _, true) => t.brand_hover,
+        (true, _, true) => t.brand_pressed,
         (true, true, _) => t.brand_hover,
         (true, false, _) => t.brand,
         (false, _, true) => t.pressed,
@@ -4236,13 +4284,14 @@ fn nav_item(
     t: &crate::theme::Tokens,
 ) -> egui::Response {
     let width = ui.available_width().max(120.0);
+    // NavigationViewItemOnLeftMinHeight, compact.
     let (rect, response) = ui.allocate_exact_size(egui::vec2(width, 32.0), egui::Sense::click());
     let name = format!("{label} ({count})");
     response.widget_info(|| egui::WidgetInfo::selected(egui::Role::Button, true, selected, &name));
-    let fill = if selected {
+    let fill = if response.is_pointer_button_down_on() {
+        t.pressed
+    } else if selected || response.hovered() {
         t.selection
-    } else if response.hovered() {
-        t.hover
     } else {
         egui::Color32::TRANSPARENT
     };
@@ -4259,16 +4308,10 @@ fn nav_item(
         egui::pos2(rect.left() + 20.0, rect.center().y),
         egui::vec2(16.0, 14.0),
     );
-    icons::folder_outline(
-        painter,
-        icon_rect,
-        if selected { t.accent } else { t.folder },
-    );
-    let family = if selected {
-        crate::theme::bold(ui.ctx())
-    } else {
-        egui::FontFamily::Proportional
-    };
+    // As a navigation view's item: the selection is the fill and the
+    // accent pill, the picture and the name stay as they are.
+    icons::folder_outline(painter, icon_rect, t.folder);
+    let family = egui::FontFamily::Proportional;
     // A long name is shortened with "…" before the count, never over it.
     let room = (rect.width() - 36.0 - 34.0).max(20.0);
     let mut job = egui::text::LayoutJob::simple_singleline(

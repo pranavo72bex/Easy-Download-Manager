@@ -73,8 +73,9 @@ pub fn show(app: &mut DmApp, ui: &mut egui::Ui) {
         .collect();
     // Plain rows; the modern look's are taller.
     let striped = false;
+    // ListViewItemMinHeight, compact.
     let row_height = if crate::theme::Tokens::get(ui.ctx()).modern {
-        36.0
+        32.0
     } else {
         22.0
     };
@@ -83,9 +84,18 @@ pub fn show(app: &mut DmApp, ui: &mut egui::Ui) {
     // 220 and pushed Status off the edge.
     // A selected row in a fill that stands out from the list, its words in
     // the colour that reads on it (gap 132: it was 235 on 255).
+    // In the modern look, a list view's: the subtle fill, for a hovered row
+    // as for a selected one, which also carries the accent indicator; and
+    // no column lines down the rows, only between the headings (a column's
+    // edge still shows when the pointer is on it).
     let t = crate::theme::Tokens::get(ui.ctx());
     ui.visuals_mut().selection.bg_fill = t.row_selected;
     ui.visuals_mut().selection.stroke.color = t.row_selected_text;
+    if t.modern {
+        ui.visuals_mut().widgets.hovered.bg_fill = t.hover;
+        ui.visuals_mut().widgets.noninteractive.bg_stroke = egui::Stroke::NONE;
+    }
+    let paint_on = (ui.ctx().clone(), ui.layer_id(), ui.clip_rect());
     // A Queue column with nothing in it gives its room to the name: at
     // 720 px it stood wider than the name, empty (gap 140).
     let name_width = name_width(&columns, ui.available_width());
@@ -232,10 +242,28 @@ pub fn show(app: &mut DmApp, ui: &mut egui::Ui) {
             }
             let mut edges: Vec<f32> = Vec::new();
             let out = table
-                .header(22.0, |mut header| {
-                    for column in &columns {
-                        let (rect, _) = header.col(|ui| heading(app, ui, *column));
+                .header(if t.modern { 32.0 } else { 22.0 }, |mut header| {
+                    for (n, column) in columns.iter().enumerate() {
+                        let mut cell = egui::Rect::NOTHING;
+                        let (rect, _) = header.col(|ui| {
+                            cell = ui.max_rect();
+                            // Room for the selection's indicator at the
+                            // row's start, kept by the headings too.
+                            if n == 0 && t.modern {
+                                ui.add_space(LEAD);
+                            }
+                            heading(app, ui, *column)
+                        });
                         edges.push(rect.right() + half_gap);
+                        // A line between the headings, not down the rows.
+                        if t.modern && n + 1 < columns.len() && cell.is_positive() {
+                            let (ctx, layer, clip) = &paint_on;
+                            ctx.layer_painter(*layer).with_clip_rect(*clip).vline(
+                                cell.right() + half_gap,
+                                cell.y_range().shrink(8.0),
+                                egui::Stroke::new(1.0, t.border),
+                            );
+                        }
                     }
                 })
                 .body(|mut body| {
@@ -255,8 +283,11 @@ pub fn show(app: &mut DmApp, ui: &mut egui::Ui) {
                             .then(|| app.planned_folder(entry, &mut categories))
                             .flatten();
                         let name = app.name_it_will_get(entry, &mut categories);
-                        for column in &columns {
+                        for (n, column) in columns.iter().enumerate() {
                             row.col(|ui| {
+                                if n == 0 && t.modern {
+                                    ui.add_space(LEAD);
+                                }
                                 cell(
                                     ui,
                                     *column,
@@ -270,6 +301,20 @@ pub fn show(app: &mut DmApp, ui: &mut egui::Ui) {
                         }
                         let response = row.response();
                         drawn.push((entry.id, response.rect));
+                        // The selection's indicator: the accent pill at the
+                        // row's start, where the row can be seen.
+                        if selected && t.modern {
+                            let left = response.rect.left().max(seen.left());
+                            let pill = egui::Rect::from_center_size(
+                                egui::pos2(left + 2.5, response.rect.center().y),
+                                egui::vec2(3.0, 16.0),
+                            );
+                            response
+                                .ctx
+                                .layer_painter(response.layer_id)
+                                .with_clip_rect(seen)
+                                .rect_filled(pill, 1.5, t.brand);
+                        }
                         // While a question waits, the list behind it takes
                         // no clicks: a row selected or opened under the
                         // Remove question was not the one it removed
@@ -676,6 +721,10 @@ fn header_only(app: &mut DmApp, ui: &mut egui::Ui) {
 }
 
 /// A heading that sorts by its column, saying which way.
+/// The room before the first column's words in the modern look, where a
+/// selected row's indicator is drawn.
+const LEAD: f32 = 8.0;
+
 fn heading(app: &mut DmApp, ui: &mut egui::Ui, column: Column) {
     let t = crate::theme::Tokens::get(ui.ctx());
     let marker = match app.sort {
@@ -989,10 +1038,11 @@ fn draw_glyph(ui: &mut egui::Ui, glyph: Glyph, colour: egui::Color32) {
 fn status_cell(ui: &mut egui::Ui, entry: &Entry, held: Option<&str>, selected: bool) {
     let text = status_of(entry);
     let tokens = crate::theme::Tokens::get(ui.ctx());
-    // On a selected row every word is in the selection's own colour: red,
-    // the brand's blue or a faded grey would not read on its fill.
+    // On the classic look's selected row every word is in the selection's
+    // own colour: red, blue or a faded grey would not read on its fill.
+    // The modern selection is a subtle fill, and its words keep theirs.
     let on_row = |colour: egui::Color32| {
-        if selected {
+        if selected && !tokens.modern {
             tokens.row_selected_text
         } else {
             colour
@@ -1059,7 +1109,12 @@ fn status_cell(ui: &mut egui::Ui, entry: &Entry, held: Option<&str>, selected: b
                 // said, rather than offered to Open as if it were there.
                 State::Completed if gone(entry) => {
                     let words = egui::RichText::new(t("File missing"));
-                    let words = if selected { words } else { words.weak() };
+                    let classic = !crate::theme::Tokens::get(ui.ctx()).modern;
+                    let words = if selected && classic {
+                        words
+                    } else {
+                        words.weak()
+                    };
                     ui.label(words)
                         .on_hover_text(format!("{} is no longer there", entry.path));
                 }
@@ -1085,7 +1140,10 @@ fn status_cell(ui: &mut egui::Ui, entry: &Entry, held: Option<&str>, selected: b
                     info.value = Some((f64::from(fraction.clamp(0.0, 1.0)) * 100.0).floor());
                     info
                 });
-                ui.painter().rect_filled(track, 1.5, tokens.border);
+                // WinUI's progress bar: a 1 px track under a 3 px bar.
+                let line =
+                    egui::Rect::from_center_size(track.center(), egui::vec2(track.width(), 1.0));
+                ui.painter().rect_filled(line, 0.5, tokens.stroke);
                 let mut done = track;
                 done.set_width(track.width() * fraction.clamp(0.0, 1.0));
                 ui.painter().rect_filled(done, 1.5, on_row(bar_colour));

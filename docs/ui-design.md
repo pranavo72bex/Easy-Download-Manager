@@ -18,34 +18,49 @@ Chosen in Options › General › Look; saved as `theme` in the settings.
 
 ## Tokens (`crates/dm-desktop/src/theme.rs`)
 
-| Token | Light | Dark |
-|---|---|---|
-| `frame` | `#f5f5f5` | `#141414` |
-| `pane` | `#fafafa` | `#1f1f1f` |
-| `list` | `#ffffff` | `#292929` |
-| `border` / `stroke` | `#e0e0e0` / `#d1d1d1` | `#3d3d3d` / `#666666` |
-| `text` / `text2` / `weak` | `#242424` / `#424242` / `#616161` | `#ffffff` / `#d6d6d6` / `#adadad` |
-| `selection` / `hover` / `pressed` | `#ebebeb` / `#f5f5f5` / `#e0e0e0` | `#383838` / `#3d3d3d` / `#2e2e2e` |
-| `brand` / `brand_hover` / `accent` | `#0f6cbd` / `#115ea3` / `#0f6cbd` | `#115ea3` / `#0f6cbd` / `#479ef5` |
-| `row_selected` / `row_selected_text` | `#0f6cbd` / `#ffffff` | `#1c76d0` / `#ffffff` |
-| `focus_inner` (the focus ring's inner line, inside the `accent` one) | `#ffffff` | `#ffffff` |
-| `radius` / `card_radius` | 4 / 8 px | 4 / 8 px |
+The modern looks are WinUI 3's Fluent 2 brushes (decisions.md, 2026-10-19),
+each laid over the surface it sits on; see-through ones are given as WinUI
+gives them.
 
-Type: Inter (SIL OFL 1.1, `crates/dm-desktop/fonts/LICENSE-Inter.txt`), which covers Latin, Cyrillic and Greek in regular and semibold:
-body 14, caption 12, titles 18 semibold; sizes, speeds and times in Inter's
-tabular figures, so they line up down a column. A soft shadow under dialogs, a
-smaller one under menus.
+| Token | Light | Dark | WinUI brush |
+|---|---|---|---|
+| `frame` / `pane` | `#f3f3f3` | `#202020` | SolidBackgroundFillColorBase |
+| `list` / `header` | `#f9f9f9` | `#282828` | LayerFillColorDefault |
+| `dialog` | `#ffffff` | `#2b2b2b` | LayerFillColorAlt |
+| `border` | `#e5e5e5` | `#3a3a3a` | CardStroke / DividerStroke |
+| `stroke` | `#8a8a8a` | `#9e9e9e` | ControlStrongStroke |
+| `edge` | `#e5e5e5` | `#3e3e3e` | ControlElevationBorder |
+| `text` / `weak` / `disabled` | `#1b1b1b` / `#616161` / `#9a9a9a` | `#ffffff` / `#cfcfcf` / `#787878` | TextFillColor Primary / Secondary / Disabled |
+| `hover` / `pressed` / `selection` / `row_selected` | black 3.5% / 2.4% / 3.5% / 3.5% | white 5.9% / 3.9% / 5.9% / 5.9% | SubtleFillColor Secondary / Tertiary |
+| `control` / `control_hover` / `control_pressed` | `#fbfbfb` / `#f6f6f6` / `#f5f5f5` | `#373737` / `#3c3c3c` / `#323232` | ControlFillColor |
+| `brand` / `brand_hover` / `brand_pressed` | `#005fb8` / `#1a6fbf` / `#337fc6` | `#60cdff` / `#5bbdea` / `#55acd4` | AccentFillColor |
+| `on_brand` | `#ffffff` | `#000000` | TextOnAccentFillColorPrimary |
+| `accent` (links) | `#003e92` | `#99ebff` | AccentTextFillColorPrimary |
+| `focus_outer` / `focus_inner` | `#1b1b1b` / `#ffffff` | `#ffffff` / `#0b0b0b` | FocusStrokeColor Outer / Inner |
+| `error` / `success` / `warn` | `#c42b1c` / `#0f7b0f` / `#9d5d00` | `#ff99a4` / `#6ccb5f` / `#fce100` | SystemFillColor Critical / Success / Caution |
+| `radius` / `card_radius` | 4 / 8 px | 4 / 8 px | ControlCornerRadius / OverlayCornerRadius |
+
+Type: Inter (SIL OFL 1.1, `crates/dm-desktop/fonts/LICENSE-Inter.txt`)
+standing in for Segoe UI Variable, which is not shipped: the WinUI ramp's
+Body 14, Caption 12, Body Strong 14 semibold for group headings, Subtitle
+20 semibold for a dialog's title; sizes, speeds and times in tabular
+figures. Sizes: WinUI's compact density (24 px fields and drop-downs, 32 px
+rows and places, buttons padded 11×5), 8 px between controls, dialogs
+padded 24, a check box's box 20 px. Shadows: Fluent's 28 under dialogs, 16
+under menus.
 
 ## Rules
 
 - **Layout:** surfaces meet without lines; the list sits on a rounded card;
-  the command bar keeps as many names as fit and shows the rest as pictures;
-  a dialog's main action is the filled accent button.
+  the command bar keeps as many names as fit and shows the rest as pictures.
+  A dialog is laid out as WinUI's ContentDialog: its title at the top left
+  (`dialogs::Dialog`), its buttons on a footer band at the right, the main
+  action first and filled with the accent (`dialogs::footer`).
 - **Contrast is tested, not eyeballed** (`theme.rs`): a selected row
-  stands out from the list at 3:1 or more and its words on it at 4.5:1
-  (Classic's row is `#0072d0`); the focus ring is two lines, the accent one
-  for the list and the frame and a white one inside it for whatever is
-  itself in the accent colour (a primary button, a selected row).
+  carries the accent pill at 3:1 on the list and its words at 4.5:1 on its
+  fill (Classic's row is a solid `#0072d0`); the focus ring is two lines,
+  one in the text colour and one in the background's, so one of them shows
+  on any fill.
 - **Scroll bars** in the list and Options take their own room and are
   drawn whether or not the pointer is over them (`theme::steady_scroll`),
   the handle in the text colour; the focus ring is kept inside the list's

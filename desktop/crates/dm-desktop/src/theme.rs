@@ -39,78 +39,112 @@ impl Theme {
 
     pub fn tokens(self) -> Tokens {
         match self {
-            // The modern look, light.
+            // The modern look, light: WinUI 3's light brushes (Fluent 2 as
+            // Windows draws it), each laid over the surface it sits on.
             Theme::Light => Tokens {
                 dark: false,
                 modern: true,
-                frame: hex(0xf5f5f5),
-                pane: hex(0xfafafa),
-                list: hex(0xffffff),
-                header: hex(0xffffff),
-                border: hex(0xe0e0e0),
+                // SolidBackgroundFillColorBase: the window, the menu bar,
+                // the command bar and the navigation pane.
+                frame: hex(0xf3f3f3),
+                pane: hex(0xf3f3f3),
+                // LayerFillColorDefault over the base: the list's surface.
+                list: hex(0xf9f9f9),
+                header: hex(0xf9f9f9),
+                // LayerFillColorAlt: a dialog's body.
+                dialog: hex(0xffffff),
+                // CardStrokeColorDefault and DividerStrokeColorDefault.
+                border: hex(0xe5e5e5),
+                // ControlStrongStrokeColorDefault: a check box's box, a
+                // field's underline; a shade darker than WinUI's #8d8d8d,
+                // which is 2.99:1 on the list.
                 stroke: hex(0x8a8a8a),
-                text: hex(0x242424),
-                text2: hex(0x424242),
+                // ControlElevationBorder: a button's or a field's edge.
+                edge: hex(0xe5e5e5),
+                // TextFillColorPrimary, Secondary and Disabled.
+                text: hex(0x1b1b1b),
+                text2: hex(0x1b1b1b),
                 weak: hex(0x616161),
-                disabled: hex(0x8f8f8f),
-                // Darker than hover, so the place hovered is not taken for
-                // the one chosen (UI round 2).
-                selection: hex(0xcfcfcf),
-                selection_edge: hex(0xb0b0b0),
-                selection_text: hex(0x242424),
-                row_selected: hex(0x0f6cbd),
-                row_selected_text: Color32::WHITE,
+                // TextFillColorDisabled over the list (#9f9f9f), a shade
+                // darker to hold 2.5:1.
+                disabled: hex(0x9a9a9a),
+                // SubtleFillColorSecondary: a selected place or row, and
+                // a hovered one; the accent indicator tells them apart.
+                selection: Color32::from_black_alpha(0x09),
+                selection_text: hex(0x1b1b1b),
+                row_selected: Color32::from_black_alpha(0x09),
+                row_selected_text: hex(0x1b1b1b),
+                // FocusStrokeColorOuter and Inner.
+                focus_outer: hex(0x1b1b1b),
                 focus_inner: Color32::WHITE,
-                // Darker than the frame and the pane it lies on: the same
-                // grey as the frame showed no hover at all (UI round 1).
-                hover: hex(0xdcdcdc),
-                pressed: hex(0xcccccc),
-                accent: hex(0x0f6cbd),
-                brand: hex(0x0f6cbd),
-                brand_hover: hex(0x115ea3),
-                brand_soft: hex(0xebf3fc),
+                // SubtleFillColorSecondary and Tertiary, for controls
+                // without a fill of their own.
+                hover: Color32::from_black_alpha(0x09),
+                pressed: Color32::from_black_alpha(0x06),
+                // ControlFillColorDefault, Secondary and Tertiary on Mica:
+                // a button's or a field's fill.
+                control: hex(0xfbfbfb),
+                control_hover: hex(0xf6f6f6),
+                control_pressed: hex(0xf5f5f5),
+                // AccentTextFillColorPrimary: links and words in the accent.
+                accent: hex(0x003e92),
+                // AccentFillColorDefault, Secondary and Tertiary from the
+                // default accent (#0078d4): the primary button, the
+                // selection indicator, a checked box, the progress bar.
+                brand: hex(0x005fb8),
+                brand_hover: hex(0x1a6fbf),
+                brand_pressed: hex(0x337fc6),
+                // TextOnAccentFillColorPrimary.
                 on_brand: Color32::WHITE,
-                error: hex(0xc50f1f),
-                success: hex(0x0e700e),
-                warn: hex(0xbc4b09),
-                folder: hex(0x616161),
+                // The system accent itself, behind selected words in a field.
+                text_selection: hex(0x0078d4),
+                // SystemFillColorCritical, Success and Caution.
+                error: hex(0xc42b1c),
+                success: hex(0x0f7b0f),
+                warn: hex(0x9d5d00),
+                folder: hex(0x1b1b1b),
                 coloured_tools: false,
+                // ControlCornerRadius and OverlayCornerRadius.
                 radius: 4,
                 card_radius: 8,
             },
-            // The modern look, dark.
+            // The modern look, dark: WinUI 3's dark brushes.
             Theme::Dark => Tokens {
                 dark: true,
                 modern: true,
-                frame: hex(0x141414),
-                pane: hex(0x1f1f1f),
-                list: hex(0x292929),
-                header: hex(0x292929),
-                border: hex(0x3d3d3d),
-                stroke: hex(0x808080),
+                frame: hex(0x202020),
+                pane: hex(0x202020),
+                list: hex(0x282828),
+                header: hex(0x282828),
+                dialog: hex(0x2b2b2b),
+                border: hex(0x3a3a3a),
+                stroke: hex(0x9e9e9e),
+                edge: hex(0x3e3e3e),
                 text: Color32::WHITE,
-                text2: hex(0xd6d6d6),
-                weak: hex(0xadadad),
-                disabled: hex(0x8a8a8a),
-                // Lighter than hover in the dark, as darker in the light:
-                // a hovered place read as the chosen one (UI round 3).
-                selection: hex(0x575757),
-                selection_edge: hex(0x525252),
+                text2: Color32::WHITE,
+                weak: hex(0xcfcfcf),
+                disabled: hex(0x787878),
+                selection: Color32::from_white_alpha(0x0f),
                 selection_text: Color32::WHITE,
-                row_selected: hex(0x1c76d0),
+                row_selected: Color32::from_white_alpha(0x0f),
                 row_selected_text: Color32::WHITE,
-                focus_inner: Color32::WHITE,
-                hover: hex(0x3d3d3d),
-                pressed: hex(0x505050),
-                accent: hex(0x479ef5),
-                brand: hex(0x115ea3),
-                brand_hover: hex(0x0f6cbd),
-                brand_soft: hex(0x082338),
-                on_brand: Color32::WHITE,
-                error: hex(0xee7b85),
-                success: hex(0x54b054),
-                warn: hex(0xfaa06b),
-                folder: hex(0xadadad),
+                focus_outer: Color32::WHITE,
+                focus_inner: hex(0x0b0b0b),
+                hover: Color32::from_white_alpha(0x0f),
+                pressed: Color32::from_white_alpha(0x0a),
+                control: hex(0x373737),
+                control_hover: hex(0x3c3c3c),
+                control_pressed: hex(0x323232),
+                accent: hex(0x99ebff),
+                brand: hex(0x60cdff),
+                brand_hover: hex(0x5bbdea),
+                brand_pressed: hex(0x55acd4),
+                on_brand: Color32::BLACK,
+                text_selection: hex(0x0078d4),
+                error: hex(0xff99a4),
+                success: hex(0x6ccb5f),
+                warn: hex(0xfce100),
+                folder: Color32::WHITE,
                 coloured_tools: false,
                 radius: 4,
                 card_radius: 8,
@@ -123,25 +157,31 @@ impl Theme {
                 pane: hex(0xf0f0f0),
                 list: Color32::WHITE,
                 header: hex(0xf7f7f7),
+                dialog: Color32::WHITE,
                 border: hex(0xd4d4d4),
                 stroke: hex(0x8a8a8a),
+                edge: hex(0x8a8a8a),
                 text: hex(0x1a1a1a),
                 text2: hex(0x1a1a1a),
                 weak: hex(0x6d6d6d),
                 disabled: hex(0x8f8f8f),
                 selection: hex(0xa9d1f5),
-                selection_edge: hex(0x99d1ff),
                 selection_text: hex(0x1a1a1a),
                 row_selected: hex(0x0072d0),
                 row_selected_text: Color32::WHITE,
+                focus_outer: hex(0x0078d7),
                 focus_inner: Color32::WHITE,
                 hover: hex(0xd9ebf9),
                 pressed: hex(0xb8dcf8),
+                control: Color32::WHITE,
+                control_hover: hex(0xd9ebf9),
+                control_pressed: hex(0xb8dcf8),
                 accent: hex(0x0078d7),
                 brand: hex(0x0078d7),
                 brand_hover: hex(0x005a9e),
-                brand_soft: hex(0xe5f3ff),
+                brand_pressed: hex(0x005a9e),
                 on_brand: Color32::WHITE,
+                text_selection: hex(0x0078d7),
                 error: hex(0xc42b1c),
                 success: hex(0x107c10),
                 warn: hex(0x9c5006),
@@ -155,14 +195,10 @@ impl Theme {
 }
 
 impl Tokens {
-    /// The progress bar's fill: the brand's blue, or the lighter accent on
-    /// a dark list, where the brand's reads at 2.2:1.
+    /// The progress bar's fill: the accent fill, which each look already
+    /// makes stand out on its own list.
     pub fn progress(&self) -> Color32 {
-        if self.dark {
-            self.accent
-        } else {
-            self.brand
-        }
+        self.brand
     }
 }
 
@@ -201,32 +237,46 @@ pub struct Tokens {
     /// The download list's card.
     pub list: Color32,
     pub header: Color32,
+    /// A dialog's body.
+    pub dialog: Color32,
     /// Hairlines and the card's edge.
     pub border: Color32,
-    /// Control outlines.
+    /// Strong outlines: a check box's box, a field's underline.
     pub stroke: Color32,
+    /// The soft edge of a button or a field.
+    pub edge: Color32,
     pub text: Color32,
     pub text2: Color32,
     pub weak: Color32,
     pub disabled: Color32,
+    /// The selected place in the navigation pane.
     pub selection: Color32,
-    pub selection_edge: Color32,
     pub selection_text: Color32,
     /// A selected row of the download list, and its words: a fill that
     /// stands out from the list at 3:1 or more, words on it at 4.5:1.
     pub row_selected: Color32,
     pub row_selected_text: Color32,
-    /// The focus ring's inner line, inside its `accent` one: seen on a
-    /// primary button or a selected row, which are in the accent colour.
+    /// The focus ring: two lines, the outer one in the text colour and an
+    /// inner one in the background's, so it shows on any fill.
+    pub focus_outer: Color32,
     pub focus_inner: Color32,
+    /// Hover and press on a control without a fill of its own.
     pub hover: Color32,
     pub pressed: Color32,
+    /// A button's or a field's fill, at rest, hovered and pressed.
+    pub control: Color32,
+    pub control_hover: Color32,
+    pub control_pressed: Color32,
+    /// Links and words in the accent colour.
     pub accent: Color32,
-    /// The primary button and the selection indicator.
+    /// The accent fill: the primary button, the selection indicator, a
+    /// checked box, the progress bar.
     pub brand: Color32,
     pub brand_hover: Color32,
-    pub brand_soft: Color32,
+    pub brand_pressed: Color32,
     pub on_brand: Color32,
+    /// Behind selected words in a field.
+    pub text_selection: Color32,
     pub error: Color32,
     pub success: Color32,
     pub warn: Color32,
@@ -616,8 +666,8 @@ pub fn apply(ctx: &Context, theme: Theme) {
         Visuals::light()
     };
     v.panel_fill = t.frame;
-    v.window_fill = t.list;
-    v.extreme_bg_color = t.list;
+    v.window_fill = t.dialog;
+    v.extreme_bg_color = t.control;
     v.faint_bg_color = t.header;
     v.code_bg_color = t.pane;
     v.override_text_color = Some(t.text);
@@ -627,22 +677,28 @@ pub fn apply(ctx: &Context, theme: Theme) {
     v.error_fg_color = t.error;
     v.warn_fg_color = t.warn;
     v.window_stroke = Stroke::new(1.0, t.border);
+    // The navigation pane and the places tree draw no guide lines down
+    // their indents, as a navigation view does not.
+    v.indent_has_left_vline = !t.modern;
     let radius = CornerRadius::same(t.radius);
     v.window_corner_radius = CornerRadius::same(t.card_radius);
     v.menu_corner_radius = CornerRadius::same(t.card_radius);
-    // A deeper shadow for dialogs, a lighter one for menus.
-    let alpha = if t.dark { 72 } else { 36 };
+    // Fluent's elevation: a dialog at 28, a menu or a tooltip at 16 (a key
+    // and an ambient shadow, here as the one egui draws). Not 64: egui
+    // counts a window's shadow in its size, and at 200% a dialog with that
+    // much shadow no longer fitted the window.
+    let (deep, soft) = if t.dark { (71, 71) } else { (61, 36) };
     v.window_shadow = Shadow {
+        offset: [0, 14],
+        blur: 28,
+        spread: 0,
+        color: Color32::from_black_alpha(deep),
+    };
+    v.popup_shadow = Shadow {
         offset: [0, 8],
         blur: 16,
         spread: 0,
-        color: Color32::from_black_alpha(alpha),
-    };
-    v.popup_shadow = Shadow {
-        offset: [0, 4],
-        blur: 8,
-        spread: 0,
-        color: Color32::from_black_alpha(alpha),
+        color: Color32::from_black_alpha(soft),
     };
     for w in [
         &mut v.widgets.noninteractive,
@@ -654,24 +710,48 @@ pub fn apply(ctx: &Context, theme: Theme) {
         w.corner_radius = radius;
         w.expansion = 0.0;
     }
-    // The secondary button: the card's colour with a hairline.
+    // A button: the control fill with its soft edge; hovered and pressed
+    // in the control's own lighter fills, and pressed words in the
+    // secondary colour. Controls without a fill of their own (a menu's
+    // items, the command bar) take the subtle fills, `weak_bg_fill`.
     v.widgets.noninteractive.bg_stroke = Stroke::new(1.0, t.border);
     v.widgets.noninteractive.fg_stroke = Stroke::new(1.0, t.text);
-    v.widgets.inactive.bg_fill = t.list;
-    v.widgets.inactive.weak_bg_fill = t.list;
-    v.widgets.inactive.bg_stroke = Stroke::new(1.0, t.stroke);
+    v.widgets.inactive.bg_fill = t.control;
+    v.widgets.inactive.weak_bg_fill = t.control;
+    v.widgets.inactive.bg_stroke = Stroke::new(1.0, t.edge);
     v.widgets.inactive.fg_stroke = Stroke::new(1.0, t.text);
-    v.widgets.hovered.bg_fill = t.hover;
-    v.widgets.hovered.weak_bg_fill = t.hover;
-    v.widgets.hovered.bg_stroke = Stroke::new(1.0, t.stroke);
+    v.widgets.hovered.bg_fill = t.control_hover;
+    v.widgets.hovered.weak_bg_fill = if t.modern { t.control_hover } else { t.hover };
+    v.widgets.hovered.bg_stroke = Stroke::new(1.0, t.edge);
     v.widgets.hovered.fg_stroke = Stroke::new(1.0, t.text);
-    v.widgets.active.bg_fill = t.pressed;
-    v.widgets.active.weak_bg_fill = t.pressed;
-    v.widgets.active.bg_stroke = Stroke::new(1.0, t.stroke);
-    v.widgets.active.fg_stroke = Stroke::new(1.0, t.text);
-    v.widgets.open.bg_fill = t.selection;
+    v.widgets.active.bg_fill = t.control_pressed;
+    v.widgets.active.weak_bg_fill = if t.modern {
+        t.control_pressed
+    } else {
+        t.pressed
+    };
+    v.widgets.active.bg_stroke = Stroke::new(1.0, t.edge);
+    v.widgets.active.fg_stroke = Stroke::new(1.0, if t.modern { t.weak } else { t.text });
+    v.widgets.open.bg_fill = t.control_pressed;
     v.widgets.open.weak_bg_fill = t.selection;
+    v.widgets.open.bg_stroke = Stroke::new(1.0, t.edge);
     v.widgets.open.fg_stroke = Stroke::new(1.0, t.text);
+    if !t.modern {
+        // The classic look as it was: its controls on the list's white,
+        // outlined in the strong stroke.
+        v.window_fill = t.list;
+        v.extreme_bg_color = t.list;
+        v.widgets.hovered.bg_fill = t.hover;
+        v.widgets.active.bg_fill = t.pressed;
+        v.widgets.open.bg_fill = t.selection;
+        for w in [
+            &mut v.widgets.inactive,
+            &mut v.widgets.hovered,
+            &mut v.widgets.active,
+        ] {
+            w.bg_stroke = Stroke::new(1.0, t.stroke);
+        }
+    }
 
     // Pinned, so the system's own light/dark switch does not swap it; the
     // "system" choice is resolved before this, from the computer's setting.
@@ -688,7 +768,8 @@ pub fn apply(ctx: &Context, theme: Theme) {
         // a folder's path and a field's name showed the text cursor and
         // could be dragged over (UI round 1). Fields keep theirs.
         style.interaction.selectable_labels = false;
-        // Type sizes: body 14, caption 12, and 18 for titles.
+        // The type ramp: Body 14, Caption 12, and Subtitle (20
+        // semibold) for a dialog's title.
         style.text_styles = [
             (
                 TextStyle::Small,
@@ -699,7 +780,7 @@ pub fn apply(ctx: &Context, theme: Theme) {
                 TextStyle::Button,
                 FontId::new(14.0, FontFamily::Proportional),
             ),
-            (TextStyle::Heading, FontId::new(18.0, heading.clone())),
+            (TextStyle::Heading, FontId::new(20.0, heading.clone())),
             (
                 TextStyle::Monospace,
                 FontId::new(13.0, FontFamily::Monospace),
@@ -716,11 +797,18 @@ pub fn apply(ctx: &Context, theme: Theme) {
         // (UI round 5).
         style.spacing.scroll = steady_scroll();
         if t.modern {
-            style.spacing.button_padding = egui::vec2(12.0, 5.0);
-            style.spacing.item_spacing = egui::vec2(8.0, 6.0);
-            style.spacing.interact_size.y = 28.0;
+            // WinUI's compact density, which it offers for information-
+            // dense apps: fields and drop-downs 24 tall, buttons padded 11
+            // by 5; 8 between controls, a dialog padded 24, a check box's
+            // box 20 with 8 before its words.
+            style.spacing.button_padding = egui::vec2(11.0, 5.0);
+            style.spacing.item_spacing = egui::vec2(8.0, 8.0);
+            style.spacing.interact_size.y = 24.0;
             style.spacing.menu_margin = egui::Margin::same(4);
-            style.spacing.window_margin = egui::Margin::same(16);
+            style.spacing.window_margin = egui::Margin::same(24);
+            style.spacing.icon_width = 20.0;
+            style.spacing.icon_width_inner = 10.0;
+            style.spacing.icon_spacing = 8.0;
         }
     });
     ctx.data_mut(|d| d.insert_temp(egui::Id::unique("dm-tokens"), t));
@@ -740,109 +828,101 @@ mod tests {
         assert_eq!(Theme::resolve("classic", true), Theme::Classic);
     }
 
-    #[test]
-    fn the_modern_palette_is_dms_own() {
-        let light = Theme::Light.tokens();
-        assert_eq!(light.brand, hex(0x0f6cbd), "dm's brand blue");
-        assert_eq!(light.text, hex(0x242424), "from the palette");
-        assert_eq!((light.radius, light.card_radius), (4, 8));
-        let dark = Theme::Dark.tokens();
-        assert_eq!(dark.accent, hex(0x479ef5), "brandForeground1, dark");
-        assert_eq!(dark.list, hex(0x292929), "the list, dark");
-        // Text must stand out from the card it is drawn on, in every look.
-        for theme in [Theme::Light, Theme::Dark, Theme::Classic] {
-            let t = theme.tokens();
-            let light = |c: Color32| c.r() as i32 + c.g() as i32 + c.b() as i32;
-            assert!((light(t.text) - light(t.list)).abs() > 400, "{theme:?}");
-            assert!(
-                (light(t.on_brand) - light(t.brand)).abs() > 300,
-                "{theme:?}"
-            );
-        }
+    /// A fill as it shows on `surface`: the subtle fills are see-through.
+    fn over(fill: Color32, surface: Color32) -> Color32 {
+        let a = fill.a() as f32 / 255.0;
+        // Premultiplied: the fill's channels already carry its alpha.
+        let mix = |f: u8, s: u8| (f as f32 + s as f32 * (1.0 - a)).round() as u8;
+        Color32::from_rgb(
+            mix(fill.r(), surface.r()),
+            mix(fill.g(), surface.g()),
+            mix(fill.b(), surface.b()),
+        )
     }
 
-    /// Gap 132: the focus ring shows on a primary button and on a selected
-    /// row, and a selected row stands out from the list, in every look.
-    /// The ring was the accent colour drawn on the accent-filled button;
-    /// the selection was 235 on 255.
+    #[test]
+    fn the_modern_looks_are_winui_3s_brushes() {
+        let light = Theme::Light.tokens();
+        assert_eq!(light.frame, hex(0xf3f3f3), "SolidBackgroundFillColorBase");
+        assert_eq!(light.brand, hex(0x005fb8), "AccentFillColorDefault");
+        assert_eq!(light.text, hex(0x1b1b1b), "TextFillColorPrimary");
+        assert_eq!(
+            over(light.hover, light.frame),
+            hex(0xeaeaea),
+            "SubtleFillColorSecondary"
+        );
+        assert_eq!((light.radius, light.card_radius), (4, 8));
+        let dark = Theme::Dark.tokens();
+        assert_eq!(dark.frame, hex(0x202020), "SolidBackgroundFillColorBase");
+        assert_eq!(dark.brand, hex(0x60cdff), "AccentFillColorDefault");
+        assert_eq!(
+            dark.on_brand,
+            Color32::BLACK,
+            "TextOnAccentFillColorPrimary"
+        );
+        assert_eq!(
+            over(dark.hover, dark.frame),
+            hex(0x2d2d2d),
+            "SubtleFillColorSecondary"
+        );
+    }
+
+    /// The focus ring and the selection can be seen in every look (gap
+    /// 132: the ring was the accent drawn on an accent button, and the
+    /// selection 235 on 255). The ring is two lines, one of which shows on
+    /// anything; a selected row or place carries the accent indicator at
+    /// 3:1, its words at 4.5:1 on its fill.
     #[test]
     fn the_focus_ring_and_the_selection_can_be_seen_in_every_look() {
         for theme in [Theme::Light, Theme::Dark, Theme::Classic] {
             let t = theme.tokens();
-            assert!(
-                contrast(t.row_selected, t.list) >= 3.0,
-                "{theme:?}: selection on the list {}",
-                contrast(t.row_selected, t.list)
-            );
-            assert!(
-                contrast(t.row_selected_text, t.row_selected) >= 4.5,
-                "{theme:?}: words on the selection {}",
-                contrast(t.row_selected_text, t.row_selected)
-            );
-            // The ring's outer line on the list, its inner one on what
-            // carries the accent: a primary button and a selected row.
-            assert!(
-                contrast(t.accent, t.list) >= 3.0,
-                "{theme:?}: ring on the list"
-            );
-            assert!(
-                contrast(t.accent, t.frame) >= 3.0,
-                "{theme:?}: ring on the frame"
-            );
-            for filled in [t.brand, t.row_selected] {
-                assert!(
-                    contrast(t.focus_inner, filled) >= 3.0,
-                    "{theme:?}: ring on {filled:?} {}",
-                    contrast(t.focus_inner, filled)
-                );
+            let selected = over(t.row_selected, t.list);
+            let words = contrast(t.row_selected_text, selected);
+            assert!(words >= 4.5, "{theme:?}: words on the selection {words}");
+            let marked = if t.modern {
+                contrast(t.brand, selected)
+            } else {
+                contrast(selected, t.list)
+            };
+            assert!(marked >= 3.0, "{theme:?}: the selection's mark {marked}");
+            for surface in [t.list, t.frame, t.dialog, t.brand, selected] {
+                let seen = contrast(t.focus_outer, surface).max(contrast(t.focus_inner, surface));
+                assert!(seen >= 3.0, "{theme:?}: ring on {surface:?} {seen}");
             }
         }
         assert!((contrast(Color32::BLACK, Color32::WHITE) - 21.0).abs() < 0.01);
     }
 
-    /// Hovering and pressing show on every surface a control sits on, in
-    /// every look: the light look's hover was the frame's own grey.
+    /// Hovering and pressing change what a control looks like on every
+    /// surface it sits on: the light look's hover was once the frame's own
+    /// grey. WinUI's fills are subtle by design, so this asks for a change,
+    /// not for contrast.
     #[test]
     fn hover_and_press_can_be_seen_on_every_surface() {
         for theme in [Theme::Light, Theme::Dark, Theme::Classic] {
             let t = theme.tokens();
-            // Told apart by lightness, or (the classic look's blue tint)
-            // by hue.
-            let apart = |a: Color32, b: Color32| {
-                let hue = (a.r() as i32 - b.r() as i32).abs()
-                    + (a.g() as i32 - b.g() as i32).abs()
-                    + (a.b() as i32 - b.b() as i32).abs();
-                contrast(a, b) >= 1.2 || hue >= 30
-            };
-            for surface in [t.frame, t.pane, t.list] {
+            for surface in [t.frame, t.pane, t.list, t.dialog] {
                 for (what, fill) in [("hover", t.hover), ("pressed", t.pressed)] {
-                    assert!(
-                        apart(fill, surface),
-                        "{theme:?}: {what} on {surface:?} {:.2}",
-                        contrast(fill, surface)
-                    );
+                    assert_ne!(over(fill, surface), surface, "{theme:?}: {what}");
                 }
             }
-            assert!(
-                apart(t.hover, t.pressed),
-                "{theme:?}: hover and pressed alike"
-            );
-            assert!(
-                apart(t.hover, t.selection),
-                "{theme:?}: hovered taken for selected"
-            );
+            assert_ne!(t.hover, t.pressed, "{theme:?}: hover and pressed alike");
+            assert_ne!(t.control, t.control_hover, "{theme:?}: a button's hover");
+            assert_ne!(t.brand, t.brand_hover, "{theme:?}: the primary's hover");
         }
     }
 
-    /// Words and the edges of controls can be read in every look: status
-    /// colours at 4.5:1 on the list, a control's outline and the progress
-    /// bar at 3:1, and disabled words still visible (a design review found
-    /// outlines at 1.5:1 and the dark error colour at 4.2:1).
+    /// Words and the strong outlines can be read in every look: status
+    /// colours and secondary words at 4.5:1 on every surface, a check
+    /// box's box, a field's underline and the progress bar at 3:1, and
+    /// disabled words still visible (a design review found outlines at
+    /// 1.5:1 and the dark error colour at 4.2:1).
     #[test]
     fn status_words_outlines_and_progress_can_be_read_in_every_look() {
         for theme in [Theme::Light, Theme::Dark, Theme::Classic] {
             let t = theme.tokens();
             for (what, colour, floor) in [
+                ("words", t.text, 4.5),
                 ("error", t.error, 4.5),
                 ("warning", t.warn, 4.5),
                 ("success", t.success, 4.5),
@@ -851,11 +931,23 @@ mod tests {
                 ("the progress bar", t.progress(), 3.0),
                 ("disabled words", t.disabled, 2.5),
             ] {
-                for surface in [t.list, t.pane] {
+                for surface in [t.list, t.pane, t.dialog] {
                     let got = contrast(colour, surface);
                     assert!(got >= floor, "{theme:?}: {what} {got:.2} < {floor}");
                 }
             }
+            // The classic look's own blue holds 4.49:1, as it always has.
+            let on = contrast(t.on_brand, t.brand);
+            let floor = if t.modern { 4.5 } else { 4.4 };
+            assert!(
+                on >= floor,
+                "{theme:?}: words on the primary button {on:.2}"
+            );
+            let picked = contrast(Color32::WHITE, t.text_selection);
+            assert!(
+                picked >= floor,
+                "{theme:?}: selected words in a field {picked:.2}"
+            );
         }
     }
 
@@ -874,7 +966,7 @@ mod tests {
     fn going_from_a_modern_look_to_classic_leaves_none_of_its_spacing() {
         let ctx = Context::default();
         apply(&ctx, Theme::Light);
-        assert_eq!(ctx.global_style().spacing.interact_size.y, 28.0);
+        assert_eq!(ctx.global_style().spacing.interact_size.y, 24.0);
         apply(&ctx, Theme::Classic);
         let fresh = egui::style::Spacing::default();
         let now = ctx.global_style().spacing.clone();

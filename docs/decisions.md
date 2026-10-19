@@ -935,3 +935,45 @@ altogether, as before.
 A torrent shares the whole speed ceiling while none of dm's own downloads
 is running; with one running, the ceiling is split as before, one part for
 dm's own downloads and one for each torrent or yt-dlp run.
+
+## The modern looks follow WinUI 3's Fluent 2 (2026-10-19)
+
+Asked for twice: the window follows Fluent 2 as WinUI 3 draws it, with the
+values read from WinUI's own open-source control templates
+(microsoft-ui-xaml's `*_themeresources.xaml`), the ones the WinUI 3 Gallery
+renders with. dm is not presented as a Microsoft product and does not ship
+Segoe UI (not redistributable); Inter stands in.
+
+What was taken, and where it was bent:
+
+- Brushes: the base, layer and dialog surfaces, text primary/secondary/
+  disabled, the strong and soft strokes, the accent fills from the default
+  accent (#0078d4), status colours, and the subtle fills for hover and
+  selection, kept see-through as WinUI's are. Two were darkened a shade to
+  hold dm's contrast floors on the list: the strong stroke (#8d8d8d to
+  #8a8a8a, 3:1) and disabled text (#9f9f9f to #9a9a9a, 2.5:1). The hover test
+  now asks only that hover changes something, since WinUI's subtle fill is
+  about 1.1:1 by design; the selection is told apart by the accent pill.
+- A selected row is the subtle fill with the accent pill, not the solid
+  accent of gap 132: the pill is 3:1 on the list and the words keep their
+  colours. Selected words in a field stay on the accent (#0078d4), white.
+- Density: WinUI's compact sizes (24 px fields and drop-downs, 32 px list
+  rows and places), which WinUI offers for information-dense apps; the
+  standard 32/40 px pushed Options' and Properties' content out of reach at
+  large text.
+- Dialogs: no egui title bar; the title painted at the top left in the
+  Subtitle style, a subtle close button, 24 px padding, and the buttons on a
+  footer band at the right. The title is painted rather than a label so a
+  screen reader is not given the dialog's name twice; a scrolled body
+  scrolls under the title, which keeps the close button in reach.
+- Shadow: Fluent's 28 for dialogs rather than 64, which is large for a
+  window this small.
+- Radio buttons stand in a column under their group's name, as WinUI's
+  RadioButtons do; side by side, egui shrank a choice's words to a letter a
+  line at 200%.
+
+Tried and dropped: egui's experimental style providers (they cannot tell a
+ticked box from an empty one, and they sit behind a feature flag), and
+right-aligning the footer from last frame's window size (it fed back on
+itself and grew Options past the window at 200%).
+

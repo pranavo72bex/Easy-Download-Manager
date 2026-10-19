@@ -893,7 +893,7 @@ pub fn menu_bottom_id() -> egui::Id {
     egui::Id::unique("dm-menu-bottom")
 }
 
-fn window(ctx: &egui::Context, title: &'static str) -> egui::Window<'static> {
+fn window(ctx: &egui::Context, title: &'static str) -> Dialog<'static> {
     // Below the menu bar: Options and Properties opened over it, while the
     // per-download windows kept clear of it (UI round 5).
     let mut room = ctx.content_rect();
@@ -906,14 +906,14 @@ fn window(ctx: &egui::Context, title: &'static str) -> egui::Window<'static> {
         // With some slack: a scrolled dialog stands about as tall as it may,
         // and one that flipped between scrolling and not lost its place.
         .is_some_and(|was| was.height() >= tall - 8.0);
-    egui::Window::new(t(title))
+    Dialog::new(t(title))
         .id(window_id(title))
         .collapsible(false)
         .resizable(false)
-        // Wide enough for its title in the 18 px heading, but never wider
+        // Wide enough for its title in the 20 px heading, but never wider
         // than the window: at 150% text in the smallest window 440 points
         // ran off both sides (UI round 5).
-        .min_width(440.0_f32.min(room.width() - 32.0).max(200.0))
+        .min_width(440.0_f32.min(room.width() - sides(ctx)).max(200.0))
         // And never taller: a dialog longer than the room scrolls, rather
         // than losing its title and buttons off the top and bottom (Files
         // on a site at 150% in the smallest window, UI round 5). Only one
@@ -923,6 +923,253 @@ fn window(ctx: &egui::Context, title: &'static str) -> egui::Window<'static> {
         .vscroll(cramped)
         .constrain_to(room)
         .anchor(egui::Align2::CENTER_CENTER, [0.0, 0.0])
+}
+
+/// A dialog laid out as WinUI's are: no title bar, but its title at the
+/// top of the body on the left in the Subtitle style (20 px semibold), a
+/// close button at the right for the dialogs that have one, and 12 px
+/// under them. egui's own title bar centred the title in a grey band.
+pub(crate) struct Dialog<'o> {
+    window: egui::Window<'static>,
+    title: String,
+    open: Option<&'o mut bool>,
+    /// The least width of its body, as `min_width` set it.
+    least: f32,
+    /// The width `fixed_size` gave it, frame and all.
+    fixed: Option<f32>,
+    /// Whether its body scrolls, under a title that stays.
+    scrolls: bool,
+}
+
+/// Where a dialog keeps, for its title and buttons, how wide its body is:
+/// the least width it was given, and the body's own width last frame.
+fn least_id(layer: egui::LayerId) -> egui::Id {
+    layer.id.with("dm-dialog-least")
+}
+
+fn body_id(layer: egui::LayerId) -> egui::Id {
+    layer.id.with("dm-dialog-body")
+}
+
+impl<'o> Dialog<'o> {
+    pub(crate) fn new(title: impl Into<String>) -> Self {
+        let title = title.into();
+        Dialog {
+            window: egui::Window::new(title.clone()).title_bar(false),
+            title,
+            open: None,
+            least: 0.0,
+            fixed: None,
+            scrolls: false,
+        }
+    }
+
+    fn with(mut self, change: impl FnOnce(egui::Window<'static>) -> egui::Window<'static>) -> Self {
+        self.window = change(self.window);
+        self
+    }
+
+    pub(crate) fn open(mut self, open: &'o mut bool) -> Self {
+        self.open = Some(open);
+        self
+    }
+
+    pub(crate) fn id(self, id: egui::Id) -> Self {
+        self.with(|w| w.id(id))
+    }
+
+    pub(crate) fn collapsible(self, on: bool) -> Self {
+        self.with(|w| w.collapsible(on))
+    }
+
+    pub(crate) fn resizable(self, on: bool) -> Self {
+        self.with(|w| w.resizable(on))
+    }
+
+    pub(crate) fn constrain(self, on: bool) -> Self {
+        self.with(|w| w.constrain(on))
+    }
+
+    pub(crate) fn constrain_to(self, rect: egui::Rect) -> Self {
+        self.with(|w| w.constrain_to(rect))
+    }
+
+    pub(crate) fn pivot(self, pivot: egui::Align2) -> Self {
+        self.with(|w| w.pivot(pivot))
+    }
+
+    pub(crate) fn anchor(self, align: egui::Align2, offset: impl Into<egui::Vec2>) -> Self {
+        let offset = offset.into();
+        self.with(|w| w.anchor(align, offset))
+    }
+
+    pub(crate) fn default_pos(self, pos: impl Into<egui::Pos2>) -> Self {
+        let pos = pos.into();
+        self.with(|w| w.default_pos(pos))
+    }
+
+    pub(crate) fn default_width(self, width: f32) -> Self {
+        self.with(|w| w.default_width(width))
+    }
+
+    pub(crate) fn default_height(self, height: f32) -> Self {
+        self.with(|w| w.default_height(height))
+    }
+
+    pub(crate) fn min_width(mut self, width: f32) -> Self {
+        self.least = width;
+        self.with(|w| w.min_width(width))
+    }
+
+    pub(crate) fn min_height(self, height: f32) -> Self {
+        self.with(|w| w.min_height(height))
+    }
+
+    pub(crate) fn max_width(self, width: f32) -> Self {
+        self.with(|w| w.max_width(width))
+    }
+
+    pub(crate) fn max_height(self, height: f32) -> Self {
+        self.with(|w| w.max_height(height))
+    }
+
+    pub(crate) fn fixed_size(mut self, size: impl Into<egui::Vec2>) -> Self {
+        let size = size.into();
+        self.fixed = Some(size.x);
+        // The least width an earlier call gave it no longer applies.
+        self.least = 0.0;
+        self.with(|w| w.min_width(0.0).fixed_size(size))
+    }
+
+    /// The body scrolls, below the title and its close button, which stay
+    /// where they can be reached; egui's own scrolled them away with it.
+    pub(crate) fn vscroll(mut self, on: bool) -> Self {
+        self.scrolls = on;
+        self
+    }
+
+    pub(crate) fn show<R>(
+        self,
+        ctx: &egui::Context,
+        add: impl FnOnce(&mut egui::Ui) -> R,
+    ) -> Option<egui::InnerResponse<Option<R>>> {
+        let Dialog {
+            window,
+            title,
+            open,
+            least,
+            fixed,
+            scrolls,
+        } = self;
+        if open.as_deref() == Some(&false) {
+            return None;
+        }
+        let closable = open.is_some();
+        let mut closed = false;
+        let shown = window.show(ctx, |ui| {
+            let layer = ui.layer_id();
+            // A dialog of fixed size holds its body to the width inside its
+            // frame: egui offered the body the width it had grown to the
+            // frame before, a scroll area took all of it, and the dialog,
+            // placed by its middle, ran off the window (Options at 200%).
+            let least = match fixed {
+                Some(width) => {
+                    let inner = width - ui.spacing().window_margin.sum().x;
+                    ui.set_max_width(inner);
+                    inner
+                }
+                None => least,
+            }
+            .min(ui.max_rect().width());
+            ui.ctx().data_mut(|d| d.insert_temp(least_id(layer), least));
+            closed = head(ui, &title, closable);
+            if scrolls {
+                egui::ScrollArea::vertical()
+                    .id_salt("dm-dialog-body")
+                    .show(ui, add)
+                    .inner
+            } else {
+                add(ui)
+            }
+        });
+        if let (true, Some(open)) = (closed, open) {
+            *open = false;
+        }
+        shown
+    }
+}
+
+/// A dialog's title and close button; true when the button was clicked.
+fn head(ui: &mut egui::Ui, title: &str, closable: bool) -> bool {
+    // As wide as the dialog's body was last frame, which is how egui's own
+    // title bar finds the far edge of a window that sizes itself to its
+    // body; nothing on the first, when egui's own answer is the whole room
+    // and a dialog took that as its width (Options at 200%).
+    // Measured without the title and the buttons, which would otherwise
+    // hold a dialog at any width it once had.
+    let layer = ui.layer_id();
+    let (least, body) = ui.ctx().data(|d| {
+        (
+            d.get_temp::<f32>(least_id(layer)).unwrap_or(0.0),
+            d.get_temp::<f32>(body_id(layer)).unwrap_or(0.0),
+        )
+    });
+    let wide = least.max(body).min(ui.max_rect().width());
+    let mut closed = false;
+    ui.horizontal(|ui| {
+        // Painted, not a label: the window already gives a screen reader
+        // its title, and a second node of the same name was a second
+        // "Download details" to every search by name.
+        let galley = ui.painter().layout_no_wrap(
+            title.to_string(),
+            egui::TextStyle::Heading.resolve(ui.style()),
+            ui.visuals().text_color(),
+        );
+        let (rect, _) = ui.allocate_exact_size(
+            egui::vec2(galley.size().x, galley.size().y.max(32.0)),
+            egui::Sense::hover(),
+        );
+        let at = egui::pos2(rect.left(), rect.center().y - galley.size().y / 2.0);
+        ui.painter().galley(at, galley, ui.visuals().text_color());
+        if closable {
+            let size = egui::vec2(32.0, 32.0);
+            let gap = wide - ui.min_rect().width() - size.x - ui.spacing().item_spacing.x;
+            ui.add_space(gap.max(0.0));
+            closed = close_button(ui, size).clicked();
+        }
+    });
+    ui.add_space(4.0);
+    closed
+}
+
+/// A subtle button with a ×, as egui named its own: "Close window".
+fn close_button(ui: &mut egui::Ui, size: egui::Vec2) -> egui::Response {
+    let t = crate::theme::Tokens::get(ui.ctx());
+    let (rect, response) = ui.allocate_exact_size(size, egui::Sense::click());
+    response.widget_info(|| {
+        egui::WidgetInfo::labeled(egui::Role::Button, ui.is_enabled(), "Close window")
+    });
+    let fill = if response.is_pointer_button_down_on() {
+        t.pressed
+    } else if response.hovered() {
+        t.hover
+    } else {
+        Color32::TRANSPARENT
+    };
+    ui.painter().rect_filled(rect, t.radius, fill);
+    let cross = egui::Rect::from_center_size(rect.center(), egui::vec2(10.0, 10.0));
+    let line = egui::Stroke::new(1.0, if ui.is_enabled() { t.text } else { t.disabled });
+    ui.painter()
+        .line_segment([cross.left_top(), cross.right_bottom()], line);
+    ui.painter()
+        .line_segment([cross.right_top(), cross.left_bottom()], line);
+    response
+}
+
+/// What a dialog's margins take of the window's width, both sides: a
+/// dialog sized to the window less this fills it and no more.
+fn sides(ctx: &egui::Context) -> f32 {
+    ctx.global_style().spacing.window_margin.sum().x
 }
 
 /// The id of a dialog's window, by its English title.
@@ -974,14 +1221,96 @@ fn bar_beside(ui: &mut egui::Ui, fraction: f32, width: f32, words: &str, widest:
         return;
     }
     ui.horizontal(|ui| {
+        // WinUI's progress bar: a 1 px track in the strong stroke under a
+        // 3 px bar in the accent, both rounded.
         let (track, _) = ui.allocate_exact_size(egui::vec2(width, 18.0), egui::Sense::hover());
-        let line = egui::Rect::from_center_size(track.center(), egui::vec2(width, 4.0));
-        ui.painter().rect_filled(line, 2.0, t.border);
-        let mut done = line;
-        done.set_width(line.width() * fraction);
-        ui.painter().rect_filled(done, 2.0, t.brand);
+        let line = egui::Rect::from_center_size(track.center(), egui::vec2(width, 1.0));
+        ui.painter().rect_filled(line, 0.5, t.stroke);
+        let mut done = egui::Rect::from_center_size(track.center(), egui::vec2(width, 3.0));
+        done.set_width(width * fraction);
+        ui.painter().rect_filled(done, 1.5, t.brand);
         ui.label(RichText::new(words).small().color(t.weak));
     });
+}
+
+/// A dialog's buttons as WinUI's ContentDialog has them: on a band in the
+/// window's base colour under a hairline, across the whole dialog to its
+/// bottom edge, 24 px below the body; the buttons at the right, the
+/// default first. Classic keeps a plain row.
+pub(crate) fn footer<R>(
+    ui: &mut egui::Ui,
+    add: impl FnOnce(&mut egui::Ui) -> R,
+) -> egui::InnerResponse<R> {
+    let t = crate::theme::Tokens::get(ui.ctx());
+    if !t.modern {
+        return ui.horizontal(add);
+    }
+    let margin = ui.spacing().window_margin;
+    // The body's width as laid out so far this frame, or the dialog's inner
+    // width last frame where that was wider (a dialog's least width): the
+    // row reaches that edge and never past it, so it cannot widen the
+    // dialog it is measured against.
+    let layer = ui.layer_id();
+    let least = ui
+        .ctx()
+        .data(|d| d.get_temp::<f32>(least_id(layer)))
+        .unwrap_or(0.0);
+    let left = ui.max_rect().left();
+    let body = (ui.min_rect().right() - left).max(least);
+    ui.ctx().data_mut(|d| d.insert_temp(body_id(layer), body));
+    let right = (left + body).min(ui.max_rect().right());
+    // 24 between the body and the band: the gap goes above the row, which
+    // in a layout built from the foot up means after it.
+    let upward = ui.layout().main_dir() == egui::Direction::BottomUp;
+    if !upward {
+        ui.add_space(16.0);
+    }
+    let band = ui.painter().add(egui::Shape::Noop);
+    let group = ui.scope_id().with("dm-footer-group");
+    let group_width = ui.ctx().data(|d| d.get_temp::<f32>(group));
+    let shown = ui.horizontal(|ui| {
+        if let Some(width) = group_width {
+            let free = right - ui.cursor().left() - width;
+            ui.add_space(free.max(0.0).floor());
+        }
+        let start = ui.cursor().left();
+        let inner = add(ui);
+        let width = ui.min_rect().right() - start;
+        ui.ctx().data_mut(|d| d.insert_temp(group, width));
+        inner
+    });
+    if upward {
+        ui.add_space(16.0);
+    }
+    let row = shown.response.rect;
+    let rect = egui::Rect::from_min_max(
+        egui::pos2(
+            left - f32::from(margin.left),
+            row.top() - f32::from(margin.top),
+        ),
+        egui::pos2(
+            right.max(row.right()) + f32::from(margin.right),
+            row.bottom() + f32::from(margin.bottom),
+        ),
+    )
+    // Inside the dialog's hairline edge.
+    .shrink2(egui::vec2(1.0, 0.0))
+    .with_max_y(row.bottom() + f32::from(margin.bottom) - 1.0);
+    let radius = egui::CornerRadius {
+        nw: 0,
+        ne: 0,
+        sw: t.card_radius.saturating_sub(1),
+        se: t.card_radius.saturating_sub(1),
+    };
+    let painter = ui.painter().with_clip_rect(rect.expand(1.0));
+    painter.set(
+        band,
+        egui::Shape::Vec(vec![
+            egui::Shape::rect_filled(rect, radius, t.frame),
+            egui::Shape::hline(rect.x_range(), rect.top(), egui::Stroke::new(1.0, t.border)),
+        ]),
+    );
+    shown
 }
 
 /// A dialog's main action: the primary button, filled with the brand
@@ -1038,15 +1367,186 @@ pub(crate) fn primary(ui: &mut egui::Ui, text: &'static str) -> egui::Response {
 
 /// [`primary`], with words already in the language in force.
 fn primary_worded(ui: &mut egui::Ui, text: &str) -> egui::Response {
+    primary_sized(ui, text, 0.0)
+}
+
+/// [`primary_worded`], at least `width` wide.
+fn primary_sized(ui: &mut egui::Ui, text: &str, width: f32) -> egui::Response {
+    let t = crate::theme::Tokens::get(ui.ctx());
+    let min = egui::vec2(width, 0.0);
+    if !t.modern {
+        return ui.add(egui::Button::new(text).min_size(min));
+    }
+    // An accent button: its fill a shade lighter under the pointer and
+    // lighter again pressed, as WinUI's AccentButton is.
+    ui.scope(|ui| {
+        let w = &mut ui.visuals_mut().widgets;
+        for (state, fill) in [
+            (&mut w.inactive, t.brand),
+            (&mut w.hovered, t.brand_hover),
+            (&mut w.active, t.brand_pressed),
+        ] {
+            state.weak_bg_fill = fill;
+            state.bg_fill = fill;
+            state.bg_stroke = egui::Stroke::new(1.0, fill);
+            state.fg_stroke = egui::Stroke::new(1.0, t.on_brand);
+        }
+        ui.add(egui::Button::new(RichText::new(text).color(t.on_brand)).min_size(min))
+    })
+    .inner
+}
+
+/// A drop-down list with WinUI's chevron, in the secondary colour, where
+/// egui draws a filled triangle.
+pub(crate) fn combo(salt: impl std::hash::Hash + std::fmt::Debug) -> egui::ComboBox<'static> {
+    egui::ComboBox::from_id_salt(salt).icon(chevron)
+}
+
+fn chevron(ui: &egui::Ui, rect: egui::Rect, visuals: &egui::style::WidgetVisuals, _open: bool) {
     let t = crate::theme::Tokens::get(ui.ctx());
     if !t.modern {
-        return ui.button(text);
+        // egui's own triangle, for the classic look.
+        let rect = egui::Rect::from_center_size(
+            rect.center(),
+            egui::vec2(rect.width() * 0.7, rect.height() * 0.45),
+        );
+        ui.painter().add(egui::Shape::convex_polygon(
+            vec![rect.left_top(), rect.right_top(), rect.center_bottom()],
+            visuals.fg_stroke.color,
+            visuals.fg_stroke,
+        ));
+        return;
     }
-    ui.add(
-        egui::Button::new(RichText::new(text).color(t.on_brand))
-            .fill(t.brand)
-            .stroke(egui::Stroke::new(1.0, t.brand)),
-    )
+    let c = rect.center();
+    let line = egui::Stroke::new(1.0, if ui.is_enabled() { t.weak } else { t.disabled });
+    ui.painter().line(
+        vec![
+            c + egui::vec2(-4.5, -2.0),
+            c + egui::vec2(0.0, 2.5),
+            c + egui::vec2(4.5, -2.0),
+        ],
+        line,
+    );
+}
+
+/// One item of a row of pages, as WinUI's selector bar draws it: words in
+/// the secondary colour, the picked one in the primary colour with the
+/// accent pill under it, the subtle fill under the pointer. Classic keeps
+/// egui's selectable label.
+fn selector(ui: &mut egui::Ui, selected: bool, label: &str) -> egui::Response {
+    let t = crate::theme::Tokens::get(ui.ctx());
+    if !t.modern {
+        return ui.selectable_label(selected, label);
+    }
+    let galley = ui.painter().layout_no_wrap(
+        label.to_string(),
+        egui::TextStyle::Button.resolve(ui.style()),
+        t.text,
+    );
+    let size = egui::vec2(galley.size().x + 24.0, 40.0);
+    let (rect, response) = ui.allocate_exact_size(size, egui::Sense::click());
+    response.widget_info(|| {
+        egui::WidgetInfo::selected(egui::Role::Button, ui.is_enabled(), selected, label)
+    });
+    let fill = if response.is_pointer_button_down_on() {
+        t.pressed
+    } else if response.hovered() {
+        t.hover
+    } else {
+        Color32::TRANSPARENT
+    };
+    let painter = ui.painter();
+    painter.rect_filled(rect.shrink2(egui::vec2(0.0, 4.0)), t.radius, fill);
+    let words = if selected { t.text } else { t.weak };
+    painter.galley(
+        rect.center() - galley.size() / 2.0 - egui::vec2(0.0, 1.0),
+        galley,
+        words,
+    );
+    if selected {
+        let pill = egui::Rect::from_center_size(
+            egui::pos2(rect.center().x, rect.bottom() - 3.5),
+            egui::vec2(16.0, 3.0),
+        );
+        painter.rect_filled(pill, 1.5, t.brand);
+    }
+    response
+}
+
+/// A check box as WinUI draws one: a 20 px box outlined in the strong
+/// stroke, filled with the accent and a check in the colour on it once
+/// ticked; lighter under the pointer.
+pub(crate) fn check(
+    ui: &mut egui::Ui,
+    on: &mut bool,
+    text: impl Into<egui::WidgetText>,
+) -> egui::Response {
+    let checked = *on;
+    let text = choice_words(ui, checked, text.into());
+    ui.scope(|ui| {
+        choice_look(ui, checked);
+        ui.checkbox(on, text)
+    })
+    .inner
+}
+
+/// A radio button as WinUI draws one, in [`check`]'s colours.
+pub(crate) fn radio<V: PartialEq>(
+    ui: &mut egui::Ui,
+    current: &mut V,
+    value: V,
+    text: impl Into<egui::WidgetText>,
+) -> egui::Response {
+    let checked = *current == value;
+    let text = choice_words(ui, checked, text.into());
+    ui.scope(|ui| {
+        choice_look(ui, checked);
+        ui.radio_value(current, value, text)
+    })
+    .inner
+}
+
+/// A choice's words in the text colour: egui takes them from the colour
+/// the check mark is drawn in, which is the one on the accent.
+fn choice_words(ui: &egui::Ui, checked: bool, text: egui::WidgetText) -> egui::WidgetText {
+    let t = crate::theme::Tokens::get(ui.ctx());
+    if checked && t.modern {
+        text.color(t.text)
+    } else {
+        text
+    }
+}
+
+fn choice_look(ui: &mut egui::Ui, checked: bool) {
+    let t = crate::theme::Tokens::get(ui.ctx());
+    if !t.modern {
+        return;
+    }
+    // ControlAltFillColorSecondary, Tertiary and Quarternary behind an
+    // empty box.
+    let alt = |light: u8, dark: u8| {
+        if t.dark {
+            egui::Color32::from_white_alpha(dark)
+        } else {
+            egui::Color32::from_black_alpha(light)
+        }
+    };
+    let w = &mut ui.visuals_mut().widgets;
+    let states = [
+        (&mut w.inactive, t.brand, alt(0x06, 0x00)),
+        (&mut w.hovered, t.brand_hover, alt(0x0f, 0x0b)),
+        (&mut w.active, t.brand_pressed, alt(0x18, 0x12)),
+    ];
+    for (state, accent, empty) in states {
+        if checked {
+            state.bg_fill = accent;
+            state.bg_stroke = egui::Stroke::new(1.0, accent);
+            state.fg_stroke = egui::Stroke::new(1.5, t.on_brand);
+        } else {
+            state.bg_fill = empty;
+            state.bg_stroke = egui::Stroke::new(1.0, t.stroke);
+        }
+    }
 }
 
 /// A text field with a name a screen reader says.
@@ -1083,8 +1583,8 @@ fn field(ui: &mut egui::Ui, label: &str, text: &mut String, width: f32) -> egui:
 fn selection_seen(ui: &mut egui::Ui) {
     let tokens = crate::theme::Tokens::get(ui.ctx());
     let selection = &mut ui.visuals_mut().selection;
-    selection.bg_fill = tokens.row_selected;
-    selection.stroke.color = tokens.row_selected_text;
+    selection.bg_fill = tokens.text_selection;
+    selection.stroke.color = egui::Color32::WHITE;
 }
 
 /// A dialog's warning, under its fields, with its room kept while there is
@@ -1331,7 +1831,7 @@ fn confirm_remove(app: &mut DmApp, ctx: &egui::Context) {
         "Remove unfinished downloads" => t("Remove unfinished downloads"),
         _ => t("Remove from the list"),
     };
-    egui::Window::new(title)
+    Dialog::new(title)
         .id(window_id("Delete unfinished downloads"))
         .collapsible(false)
         .resizable(false)
@@ -1410,7 +1910,7 @@ fn confirm_remove(app: &mut DmApp, ctx: &egui::Context) {
             // default, and never by Enter (round 15's audit).
             let files = files.len();
             let go = if files > 0 {
-                ui.checkbox(
+                check(ui,
                     &mut app.dialogs.remove_files,
                     if files == 1 {
                         t("Also delete the file from the disk")
@@ -1428,7 +1928,7 @@ fn confirm_remove(app: &mut DmApp, ctx: &egui::Context) {
             };
             // The default first, on the left, as every dialog has it (UI
             // round 7: here alone it was on the right).
-            ui.horizontal(|ui| {
+            footer(ui, |ui| {
                 no = primary_worded(ui, keep).clicked() || enter_free(ui);
                 yes = ui.button(go).clicked();
             });
@@ -1507,7 +2007,7 @@ fn confirm_cancel(app: &mut DmApp, ctx: &egui::Context) {
         // against the file's name (UI round 18).
         ui.add_space(8.0);
         // The default first, as in every dialog (UI round 7).
-        ui.horizontal(|ui| {
+        footer(ui, |ui| {
             keep = primary_worded(ui, t("Keep downloading")).clicked() || enter_free(ui);
             cancel = ui.button(t("Yes, cancel")).clicked();
         });
@@ -1558,7 +2058,7 @@ fn confirm_outside(app: &mut DmApp, ctx: &egui::Context) {
         ui.label(t(
             "Start it now anyway? Only what you picked starts; the rest keep waiting.",
         ));
-        ui.horizontal(|ui| {
+        footer(ui, |ui| {
             start = primary(ui, "Start now").clicked() || enter_free(ui);
             wait = ui.button(t("Keep waiting")).clicked();
         });
@@ -1642,18 +2142,31 @@ fn confirm_exit(app: &mut DmApp, ctx: &egui::Context) {
                 ui.add(egui::Label::new(said.join(" ")).wrap());
             },
         );
-        ui.horizontal(|ui| {
+        footer(ui, |ui| {
             // With downloads running, the highlighted answer is the one that
             // loses nothing, as Remove's is; Exit only by its own click
             // (gap 163). With nothing running, Exit is what was asked for.
             // Each button keeps its place whatever the question says (gap
             // 163); only which one is highlighted changes.
+            // The second as wide as its longer words, so that the row,
+            // set at the right, keeps Exit where it was either way.
+            let font = egui::TextStyle::Button.resolve(ui.style());
+            let words = |w: &str| {
+                ui.painter()
+                    .layout_no_wrap(w.to_string(), font.clone(), Color32::WHITE)
+                    .size()
+                    .x
+            };
+            let second = words(t("Stay")).max(words(t("Keep downloading")))
+                + ui.spacing().button_padding.x * 2.0;
             if finished {
                 exit = primary(ui, "Exit").clicked();
-                stay = ui.button(t("Stay")).clicked();
+                stay = ui
+                    .add(egui::Button::new(t("Stay")).min_size(egui::vec2(second, 0.0)))
+                    .clicked();
             } else {
                 exit = ui.button(t("Exit")).clicked();
-                stay = primary_worded(ui, t("Keep downloading")).clicked();
+                stay = primary_sized(ui, t("Keep downloading"), second).clicked();
             }
         });
     });
@@ -1682,7 +2195,7 @@ fn skip_offer(app: &mut DmApp, ctx: &egui::Context) {
             "You cancelled two downloads handed over from {}. Leave its downloads to the browser from now on?",
             &[&site],
         ));
-        ui.horizontal(|ui| {
+        footer(ui, |ui| {
             leave = primary(ui, "Leave them to the browser").clicked();
             keep = ui.button(t("Keep handing them over")).clicked();
         });
@@ -1726,7 +2239,7 @@ fn import_ask(app: &mut DmApp, ctx: &egui::Context) {
             already as u64,
             &[&already, &total],
         ));
-        ui.horizontal(|ui| {
+        footer(ui, |ui| {
             skip = primary(ui, "Skip them").clicked() || enter_free(ui);
             again = ui.button(t("Add them again")).clicked();
             cancel = ui.button(t("Cancel")).clicked();
@@ -1762,7 +2275,7 @@ fn list_file(app: &mut DmApp, ctx: &egui::Context) {
         if !d.says.is_empty() {
             ui.colored_label(warn(ui), &d.says);
         }
-        ui.horizontal(|ui| {
+        footer(ui, |ui| {
             ok |= primary(ui, "OK").clicked() || enter_free(ui);
             cancel = ui.button(t("Cancel")).clicked();
         });
@@ -1869,7 +2382,7 @@ fn duplicate(app: &mut DmApp, ctx: &egui::Context) {
     window(ctx, "Already in the list").show(ctx, |ui| {
         ui.label(RichText::new(format::shown_url(&address)).weak());
         ui.label(tf("This address is already in the list ({}).", &[&status]));
-        ui.horizontal(|ui| {
+        footer(ui, |ui| {
             // Enter presses it, as in every other dialog (gap 154).
             // Enter shows the row, which changes nothing: an Enter pressed
             // for Download details, a moment before this asked, fetched the
@@ -1920,7 +2433,7 @@ fn add_url(app: &mut DmApp, ctx: &egui::Context) {
                 let label = ui.label(t("Recent"));
                 // As wide as the address beside it allows: a fixed 320 with
                 // Clear history beside it ran past a narrow window.
-                egui::ComboBox::from_id_salt("add-url-recent")
+                combo("add-url-recent")
                     .selected_text("")
                     .width((wide - 160.0).max(120.0))
                     .show_ui(ui, |ui| {
@@ -1935,7 +2448,7 @@ fn add_url(app: &mut DmApp, ctx: &egui::Context) {
                 forget = ui.button(t("Clear history")).clicked();
             });
         }
-        ui.checkbox(&mut d.authorize, t("Needs a sign-in"));
+        check(ui, &mut d.authorize, t("Needs a sign-in"));
         ui.add_enabled_ui(d.authorize, |ui| {
             ui.horizontal(|ui| {
                 ok |= entered(&field(ui, t("Login"), &mut d.login, 140.0));
@@ -1951,7 +2464,7 @@ fn add_url(app: &mut DmApp, ctx: &egui::Context) {
             });
         });
         warning_line(ui, &d.says);
-        ui.horizontal(|ui| {
+        footer(ui, |ui| {
             ok |= primary(ui, "OK").clicked() || enter_free(ui);
             cancel = ui.button(t("Cancel")).clicked();
         });
@@ -2192,7 +2705,7 @@ fn file_info(app: &mut DmApp, ctx: &egui::Context) {
     let mut cancel = false;
     // No wider than the window: a warning in it wraps rather than pushing
     // Start now off the edge (gap 133).
-    let room = (ctx.content_rect().width() - 32.0).clamp(360.0, 600.0);
+    let room = (ctx.content_rect().width() - sides(ctx)).clamp(360.0, 600.0);
     window(ctx, "Download details")
         .max_width(room)
         .open(&mut open)
@@ -2208,7 +2721,7 @@ fn file_info(app: &mut DmApp, ctx: &egui::Context) {
                 .spacing([12.0, 8.0])
                 .show(ui, |ui| {
                     let name = ui.label(t("Category"));
-                    egui::ComboBox::from_id_salt("details-category")
+                    combo("details-category")
                         .selected_text(
                             places
                                 .iter()
@@ -2335,8 +2848,7 @@ fn file_info(app: &mut DmApp, ctx: &egui::Context) {
             if !d.says.is_empty() {
                 ui.add(egui::Label::new(RichText::new(&d.says).color(warn(ui))).wrap());
             }
-            ui.separator();
-            ui.horizontal(|ui| {
+            footer(ui, |ui| {
                 if focused(primary(ui, "Start now"), focus).clicked() || enter_free(ui) {
                     chosen = Some(false);
                 }
@@ -2349,7 +2861,7 @@ fn file_info(app: &mut DmApp, ctx: &egui::Context) {
                 // "to" by itself is many words in other languages: the key
                 // says which one.
                 let to = ui.label(t("queue:to").trim_start_matches("queue:"));
-                egui::ComboBox::from_id_salt("details-queue")
+                combo("details-queue")
                     .selected_text(crate::i18n::name(&d.queue))
                     .show_ui(ui, |ui| {
                         for q in &queues {
@@ -2467,7 +2979,7 @@ fn progress(app: &mut DmApp, ctx: &egui::Context) {
         // status (a server's refusal, with where to sign in) wraps, and a
         // window too tall scrolls rather than running off the bottom.
         let screen = ctx.content_rect();
-        let room = (screen.width() - 48.0).clamp(300.0, 560.0);
+        let room = (screen.width() - 16.0 - sides(ctx)).clamp(300.0, 560.0);
         // Below the menu bar and the toolbar, which it opened over and hid
         // (gap 168; UI rounds 10 and 11: kept on screen, a tall window was
         // pushed back up over Add URL).
@@ -2485,7 +2997,7 @@ fn progress(app: &mut DmApp, ctx: &egui::Context) {
         // link were both "big.zip" until they had begun (UI round 10).
         let mut categories = app.applied.categories();
         let named = app.name_it_will_get(&row, &mut categories);
-        egui::Window::new(tf(
+        Dialog::new(tf(
             "Download progress — {}",
             &[&crate::bidi::visual(&named)],
         ))
@@ -2835,7 +3347,7 @@ fn complete(app: &mut DmApp, ctx: &egui::Context) {
     // the middle; resizable, and no wider than the window.
     let screen = ctx.content_rect();
     let width = (screen.width() - 32.0).clamp(280.0, 440.0);
-    egui::Window::new(t("Download complete"))
+    Dialog::new(t("Download complete"))
         .id(window_id("Download complete"))
         .collapsible(false)
         .resizable(true)
@@ -3022,21 +3534,31 @@ fn properties(app: &mut DmApp, ctx: &egui::Context) {
         // No wider than the window leaves room for, however long a name,
         // path or referrer: they wrap, rather than pushing the buttons off
         // the screen.
-        let room = (ctx.content_rect().width() - 48.0).clamp(320.0, 620.0);
+        let room = (ctx.content_rect().width() - 16.0 - sides(ctx)).clamp(320.0, 620.0);
         // A close box in its title bar, as every other window has.
         let mut shut = true;
-        egui::Window::new(t("File properties"))
-            .id(egui::Id::unique(("properties", id)))
+        // Below the menu bar, as the progress window keeps (UI round 5).
+        let below = {
+            let mut below = ctx.content_rect();
+            below.min.y = app.menu_bottom.max(below.top()).min(below.bottom() - 120.0);
+            below
+        };
+        // Taller than that room, its body scrolls: in a 720×460 window its
+        // buttons were under the window's foot.
+        let window = egui::Id::unique(("properties", id));
+        let tall = (below.height() - 16.0).max(160.0);
+        let cramped = ctx
+            .memory(|m| m.area_rect(window))
+            .is_some_and(|was| was.height() >= tall - 8.0);
+        Dialog::new(t("File properties"))
+            .id(window)
             .collapsible(false)
             .resizable(false)
             .open(&mut shut)
             .max_width(room)
-            // Below the menu bar, as the progress window keeps (UI round 5).
-            .constrain_to({
-                let mut below = ctx.content_rect();
-                below.min.y = app.menu_bottom.max(below.top()).min(below.bottom() - 120.0);
-                below
-            })
+            .max_height(tall)
+            .vscroll(cramped)
+            .constrain_to(below)
             .show(ctx, |ui| {
                 ui.set_max_width(room);
                 // The values' column: what is left beside the headings.
@@ -3156,7 +3678,7 @@ fn properties(app: &mut DmApp, ctx: &egui::Context) {
                 if !d.says.is_empty() {
                     ui.colored_label(warn(ui), &d.says);
                 }
-                ui.horizontal(|ui| {
+                footer(ui, |ui| {
                     // Properties runs a finished file from here.
                     let can_open = row.state == State::Completed && !crate::table::gone(&row);
                     open_file = ui
@@ -3271,7 +3793,7 @@ fn series(app: &mut DmApp, ctx: &egui::Context) {
             } else {
                 warning_line(ui, &warn);
             }
-            ui.horizontal(|ui| {
+            footer(ui, |ui| {
                 if primary(ui, "Start now").clicked() || enter || enter_free(ui) {
                     add = Some(false);
                 }
@@ -3364,9 +3886,9 @@ fn pick_list(
             for (link, on) in links.iter_mut() {
                 let shown = format::shown_url(link);
                 if listed.contains(&bare(link)) {
-                    ui.checkbox(on, tf("{} (already in the list)", &[&shown]));
+                    check(ui, on, tf("{} (already in the list)", &[&shown]));
                 } else {
-                    ui.checkbox(on, shown);
+                    check(ui, on, shown);
                 }
             }
         });
@@ -3408,7 +3930,7 @@ fn links(app: &mut DmApp, ctx: &egui::Context) {
                 );
             }
             ui.horizontal(|ui| {
-                ui.checkbox(&mut d.hide_html, t("Hide HTML files"));
+                check(ui, &mut d.hide_html, t("Hide HTML files"));
                 if ui.button(t("Check all")).clicked() {
                     d.items.iter_mut().for_each(|l| l.1 = true);
                 }
@@ -3452,7 +3974,7 @@ fn links(app: &mut DmApp, ctx: &egui::Context) {
                                     name
                                 };
                                 // The name is the checkbox's, so a screen reader says it.
-                                ui.checkbox(on, &name).on_hover_text(format::shown_url(url));
+                                check(ui, on, &name).on_hover_text(format::shown_url(url));
                                 match what {
                                     Some(Found {
                                         failed: Some(why), ..
@@ -3480,8 +4002,7 @@ fn links(app: &mut DmApp, ctx: &egui::Context) {
                             }
                         });
                 });
-            ui.separator();
-            ui.horizontal(|ui| {
+            footer(ui, |ui| {
                 if primary(ui, "Start now").clicked() || enter_free(ui) {
                     chosen = Some(false);
                 }
@@ -3572,8 +4093,7 @@ fn clip_links(app: &mut DmApp, ctx: &egui::Context) {
                 &[&links.len(), &ticked],
             ));
             pick_list(ui, links, &listed);
-            ui.separator();
-            ui.horizontal(|ui| {
+            footer(ui, |ui| {
                 if primary(ui, "Start now").clicked() || enter_free(ui) {
                     add = Some(false);
                 }
@@ -3845,7 +4365,7 @@ fn update_link(app: &mut DmApp, ctx: &egui::Context) {
                 ui.colored_label(warn(ui), says.as_str());
             }
             // Cancel beside OK, as every dialog has (UI round 4).
-            ui.horizontal(|ui| {
+            footer(ui, |ui| {
                 ok |= primary(ui, "OK").clicked() || enter_free(ui);
                 if ui.button(t("Cancel")).clicked() {
                     cancel = true;
@@ -3890,7 +4410,7 @@ fn move_to_queue(app: &mut DmApp, ctx: &egui::Context) {
                 }
             }
             ok = entered(&focused(field(ui, t("Or a new queue"), new, 240.0), focus));
-            ui.horizontal(|ui| {
+            footer(ui, |ui| {
                 ok |= primary(ui, "OK").clicked() || enter_free(ui);
                 cancel = ui.button(t("Cancel")).clicked();
             });
@@ -3944,7 +4464,7 @@ fn rename(app: &mut DmApp, ctx: &egui::Context) {
             ok |= entered(&folder);
             browse_button(ui, &*platform, &mut d.folder);
         });
-        ui.horizontal(|ui| {
+        footer(ui, |ui| {
             ok |= primary(ui, "OK").clicked() || enter_free(ui);
             cancel = ui.button(t("Cancel")).clicked();
         });
@@ -4071,7 +4591,11 @@ fn scheduler(app: &mut DmApp, ctx: &egui::Context) {
         // Plainly, for every queue: "When Main queue and every other
         // download may run." read oddly (UI round 12).
         ui.label(t("The hours when downloads may run, in every queue."));
-        ui.checkbox(&mut schedule.enabled, t("Only download between set hours"));
+        check(
+            ui,
+            &mut schedule.enabled,
+            t("Only download between set hours"),
+        );
         ui.add_enabled_ui(schedule.enabled, |ui| {
             ui.horizontal(|ui| {
                 apply |= entered(&field(ui, t("Start at"), &mut schedule.from, 60.0));
@@ -4081,7 +4605,7 @@ fn scheduler(app: &mut DmApp, ctx: &egui::Context) {
                 for (day, word) in DAYS.iter().enumerate() {
                     let day = day as u8;
                     let mut on = schedule.days.contains(&day);
-                    if ui.checkbox(&mut on, t(word)).changed() {
+                    if check(ui, &mut on, t(word)).changed() {
                         if on {
                             schedule.days.push(day);
                             schedule.days.sort_unstable();
@@ -4104,7 +4628,7 @@ fn scheduler(app: &mut DmApp, ctx: &egui::Context) {
         if !says.is_empty() {
             ui.colored_label(warn(ui), says.as_str());
         }
-        ui.horizontal(|ui| {
+        footer(ui, |ui| {
             apply |= primary(ui, "OK").clicked() || enter_free(ui);
             cancel = ui.button(t("Cancel")).clicked();
         });
@@ -4189,7 +4713,7 @@ fn limiter(app: &mut DmApp, ctx: &egui::Context) {
             if !says.is_empty() {
                 ui.colored_label(warn(ui), says.as_str());
             }
-            ui.horizontal(|ui| {
+            footer(ui, |ui| {
                 apply |= primary(ui, "OK").clicked() || enter_free(ui);
                 cancel = ui.button(t("Cancel")).clicked();
             });
@@ -4259,7 +4783,7 @@ fn options(app: &mut DmApp, ctx: &egui::Context) {
     let (mut ok, mut cancel) = (false, false);
     // No wider than the window: at 200% text in a 960-point window the
     // tabs, the title and OK were off its edges (UI round 3).
-    let wide = (ctx.content_rect().width() - 32.0).clamp(320.0, 660.0);
+    let wide = (ctx.content_rect().width() - sides(ctx)).clamp(320.0, 660.0);
     // The settings of the tab picked, drawn in whichever layout fits.
     let settings = |ui: &mut egui::Ui, d: &mut OptionsDialog| {
         let s = &mut d.draft;
@@ -4279,7 +4803,7 @@ fn options(app: &mut DmApp, ctx: &egui::Context) {
                     // the name before the choice, as every number and choice
                     // in Options has it (UI round 5: some had it after).
                     let name = ui.label(t("Language"));
-                    egui::ComboBox::from_id_salt("language")
+                    combo("language")
                         .selected_text(crate::i18n::name_of(now))
                         .show_ui(ui, |ui| {
                             if let Some(code) = crate::i18n::pick(ui, now) {
@@ -4292,53 +4816,62 @@ fn options(app: &mut DmApp, ctx: &egui::Context) {
                 // In groups under headings: one list of a dozen boxes was
                 // hard to find a setting in (a design review).
                 section(ui, t("Starting and updating"));
-                ui.checkbox(&mut s.start_on_login, t("Start dm when you log in, so a browser hand-off always has an app to land in"));
-                ui.checkbox(&mut s.check_updates, t("Look for a new version about once a week (asks GitHub; nothing about you is sent)"));
+                check(ui, &mut s.start_on_login, t("Start dm when you log in, so a browser hand-off always has an app to land in"));
+                check(ui, &mut s.check_updates, t("Look for a new version about once a week (asks GitHub; nothing about you is sent)"));
                 section(ui, t("Windows and sounds"));
-                ui.checkbox(
+                check(
+                    ui,
                     &mut s.show_progress,
                     t("Show a progress window when a download starts"),
                 );
-                ui.checkbox(
+                check(
+                    ui,
                     &mut s.show_complete,
                     t("Show a window when a download finishes"),
                 );
-                ui.checkbox(
+                check(
+                    ui,
                     &mut s.sound_on_complete,
                     t("Play a sound when a download finishes"),
                 );
-                ui.checkbox(
+                check(
+                    ui,
                     &mut s.sound_on_failure,
                     t("Play a sound when a download fails"),
                 );
                 section(ui, t("Adding and keeping files"));
-                ui.checkbox(
+                check(
+                    ui,
                     &mut s.watch_clipboard,
                     t("Watch the clipboard for links and offer to download them"),
                 );
-                ui.checkbox(
+                check(
+                    ui,
                     &mut s.ask_panel_downloads,
                     t("Ask where to save a video from the browser's panel"),
                 );
-                ui.checkbox(
+                check(
+                    ui,
                     &mut s.server_dates,
                     t("Give a finished file the date its server says it last changed"),
                 );
                 section(ui, t("The list"));
-                ui.horizontal_wrapped(|ui| {
-                    ui.label(t("Double-clicking a download"));
+                // Each choice of a group under its name, as WinUI's radio
+                // buttons stand.
+                ui.label(t("Double-clicking a download"));
+                ui.vertical(|ui| {
                     for (word, name) in [
                         ("properties", t("shows its properties")),
                         ("open", t("opens the file")),
                         ("folder", t("opens its folder")),
                     ] {
-                        ui.radio_value(&mut s.double_click, word.to_string(), name);
+                        radio(ui, &mut s.double_click, word.to_string(), name);
                     }
                 });
-                ui.horizontal_wrapped(|ui| {
-                    ui.label(t("Look"));
+                ui.label(t("Look"));
+                ui.vertical(|ui| {
                     for (word, name) in THEMES {
-                        ui.radio_value(&mut s.theme, word.to_string(), t(name));
+                        radio(ui, &mut s.theme, word.to_string(), t(name));
                     }
                 });
                 // Settings to carry to another computer, never with a
@@ -4389,7 +4922,8 @@ fn options(app: &mut DmApp, ctx: &egui::Context) {
             }
             Tab::FileTypes => {
                 let c = &mut s.catch;
-                ui.checkbox(
+                check(
+                    ui,
                     &mut c.enabled,
                     t("Take downloads of these types from the browser"),
                 );
@@ -4423,7 +4957,7 @@ fn options(app: &mut DmApp, ctx: &egui::Context) {
                 };
                 ui.horizontal_wrapped(|ui| {
                     let name = ui.label(t("Hold while clicking to leave it with the browser"));
-                    egui::ComboBox::from_id_salt("keep-key")
+                    combo("keep-key")
                         .selected_text(word(&c.keep_key))
                         .show_ui(ui, |ui| {
                             for (key, _) in &keys {
@@ -4437,7 +4971,7 @@ fn options(app: &mut DmApp, ctx: &egui::Context) {
                     let name = ui.label(t(
                         "Hold while clicking to send it to dm whatever its type or size",
                     ));
-                    egui::ComboBox::from_id_salt("take-key")
+                    combo("take-key")
                         .selected_text(word(&c.take_key))
                         .show_ui(ui, |ui| {
                             ui.selectable_value(&mut c.take_key, String::new(), word(""));
@@ -4471,7 +5005,8 @@ fn options(app: &mut DmApp, ctx: &egui::Context) {
                         .small()
                         .weak(),
                 );
-                ui.checkbox(
+                check(
+                    ui,
                     &mut s.categorize,
                     t("Sort finished files into folders by kind"),
                 );
@@ -4560,7 +5095,7 @@ fn options(app: &mut DmApp, ctx: &egui::Context) {
                             .map(|(_, l)| *l)
                             .unwrap_or("Best available");
                         ui.label(t("Video quality"));
-                        egui::ComboBox::from_id_salt("quality")
+                        combo("quality")
                             .selected_text(t(current))
                             .show_ui(ui, |ui| {
                                 for (value, label) in choices {
@@ -4573,15 +5108,18 @@ fn options(app: &mut DmApp, ctx: &egui::Context) {
                             });
                         ui.end_row();
                     });
-                ui.checkbox(
+                check(
+                    ui,
                     &mut s.start_queue_on_launch,
                     t("Start the Main queue when dm opens"),
                 );
-                ui.checkbox(
+                check(
+                    ui,
                     &mut s.subtitles,
                     t("Embed subtitles in videos from player pages (needs ffmpeg)"),
                 );
-                ui.checkbox(
+                check(
+                    ui,
                     &mut s.remux_ts,
                     t("Save streams that arrive as .ts as MP4 (needs ffmpeg)"),
                 );
@@ -4600,7 +5138,7 @@ fn options(app: &mut DmApp, ctx: &egui::Context) {
                         // language in force and kept by dm's own name: a
                         // typed name had to be the English one to match.
                         let name = ui.label(t("Queue"));
-                        egui::ComboBox::from_id_salt(("queue limit", i))
+                        combo(("queue limit", i))
                             .selected_text(crate::i18n::name(&limit.queue))
                             .show_ui(ui, |ui| {
                                 let mut offered: Vec<String> = queues
@@ -4737,7 +5275,7 @@ fn options(app: &mut DmApp, ctx: &egui::Context) {
             Tab::Proxy => {
                 use dm_core::proxy::Kind;
                 let p = &mut s.proxy;
-                ui.checkbox(&mut p.enabled, t("Connect through a proxy"));
+                check(ui, &mut p.enabled, t("Connect through a proxy"));
                 ui.add_enabled_ui(p.enabled, |ui| {
                     let kind_name = |kind: Kind| match kind {
                         Kind::System => t("The computer's proxy settings").to_string(),
@@ -4745,7 +5283,7 @@ fn options(app: &mut DmApp, ctx: &egui::Context) {
                     };
                     ui.horizontal_wrapped(|ui| {
                         let name = ui.label(t("Proxy type"));
-                        egui::ComboBox::from_id_salt("proxy-kind")
+                        combo("proxy-kind")
                             .selected_text(kind_name(p.kind))
                             .show_ui(ui, |ui| {
                                 for kind in [Kind::System, Kind::Http, Kind::Https, Kind::Socks4, Kind::Socks5] {
@@ -4853,8 +5391,10 @@ fn options(app: &mut DmApp, ctx: &egui::Context) {
         // At its top as it opens, in a window where the whole dialog
         // scrolls: asked of the tab, the request went to the tabs' own
         // sideways strip and the page stayed where it was left (UI round 8).
+        // Its very top, title and all: the cursor is under the title now.
         if d.fresh_tab > 0 {
-            ui.scroll_to_cursor(Some(egui::Align::TOP));
+            let top = egui::Rect::from_min_size(ui.min_rect().min, egui::vec2(1.0, 1.0));
+            ui.scroll_to_rect(top, Some(egui::Align::TOP));
         }
         // The tabs scroll sideways where they do not all fit, with a bar
         // that shows it: one shown only under the pointer left Sign-ins cut
@@ -4866,7 +5406,7 @@ fn options(app: &mut DmApp, ctx: &egui::Context) {
             strip.show(ui, |ui| {
                 ui.horizontal(|ui| {
                     for (tab, label) in TABS {
-                        let picked = ui.selectable_label(d.tab == tab, t(label));
+                        let picked = selector(ui, d.tab == tab, t(label));
                         if picked.clicked() {
                             // At its top, not where it was left: Folders
                             // opened with its first field scrolled out of
@@ -4894,11 +5434,13 @@ fn options(app: &mut DmApp, ctx: &egui::Context) {
         ui.separator();
         if short {
             settings(ui, d);
-            ui.separator();
+            if !crate::theme::Tokens::get(ui.ctx()).modern {
+                ui.separator();
+            }
             if !d.says.is_empty() {
                 ui.add(egui::Label::new(RichText::new(&d.says).color(warn(ui))).wrap());
             }
-            ui.horizontal_wrapped(|ui| {
+            footer(ui, |ui| {
                 ok = primary(ui, "OK").clicked() || enter_free(ui);
                 cancel = ui.button(t("Cancel")).clicked();
             });
@@ -4911,11 +5453,14 @@ fn options(app: &mut DmApp, ctx: &egui::Context) {
         // a measured one lagged a frame behind a warning (UI round 5).
         let top = ui.cursor().top();
         ui.with_layout(egui::Layout::bottom_up(egui::Align::Min), |ui| {
-            ui.horizontal_wrapped(|ui| {
+            footer(ui, |ui| {
                 ok = primary(ui, "OK").clicked() || enter_free(ui);
                 cancel = ui.button(t("Cancel")).clicked();
             });
-            ui.separator();
+            // The modern footer draws its own line.
+            if !crate::theme::Tokens::get(ui.ctx()).modern {
+                ui.separator();
+            }
             if !d.says.is_empty() {
                 ui.add(egui::Label::new(RichText::new(&d.says).color(warn(ui))).wrap());
             }

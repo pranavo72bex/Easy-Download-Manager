@@ -2038,6 +2038,9 @@ fn a_category_made_in_options_takes_its_files_into_its_own_folder() {
     // Deleted, it takes nothing more.
     click(&mut harness, "Options");
     click(&mut harness, "Folders");
+    // Under the page's fold, scrolled to as a person would.
+    harness.get_by_label("Delete category").scroll_to_me();
+    harness.run_steps(3);
     click(&mut harness, "Delete category");
     click(&mut harness, "OK");
     assert!(harness
@@ -4877,6 +4880,9 @@ fn properties_fit_a_small_window_and_close_from_the_title_bar() {
     select(&mut harness, "file.zip");
     harness.state_mut().run(Command::Properties);
     harness.run_steps(4);
+    // Reached, scrolling the dialog's body where it is taller than the room.
+    harness.get_by_label("OK").scroll_to_me();
+    harness.run_steps(3);
     let ok = harness.get_by_label("OK").rect();
     assert!(
         ok.max.x <= 720.0 && ok.max.y <= 460.0,
@@ -7403,7 +7409,9 @@ fn every_dialog_keeps_its_title_and_buttons_on_screen_at_large_text() {
             );
             // Its buttons on screen, or brought there by scrolling its body
             // with the wheel; never past the window's edge out of reach.
-            harness.hover_at(heading.center() + egui::vec2(0.0, 60.0));
+            // The title is the window's own name now, its node the whole
+            // dialog: the wheel goes in under its top.
+            harness.hover_at(heading.left_top() + egui::vec2(40.0, 96.0));
             for _ in 0..10 {
                 harness.event(egui::Event::MouseWheel {
                     unit: egui::MouseWheelUnit::Point,
