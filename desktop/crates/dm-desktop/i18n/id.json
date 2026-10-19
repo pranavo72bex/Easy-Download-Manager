@@ -237,6 +237,7 @@
  "Start queue": "Mulai antrean",
  "Start the Main queue when dm opens": "Mulai antrean utama saat dm dibuka",
  "Started {} download in {}.||Started {} downloads in {}.": "{} unduhan dimulai di {}.",
+ "Imported: {}. Lines skipped, with no address dm can read (one starts with http://, https://, ftp:// or magnet:): {}.": "Diimpor: {}. Baris dilewati, tanpa alamat yang dapat dibaca dm (alamat diawali http://, https://, ftp:// atau magnet:): {}.",
  "No — nothing of it was fetched": "Tidak — belum ada yang diambil",
  "the .torrent file could not be read": "berkas .torrent tidak dapat dibaca",
  "the file is not a torrent": "berkas itu bukan torrent",

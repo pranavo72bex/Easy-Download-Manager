@@ -722,6 +722,8 @@ pub struct DmApp {
     pub sizes_told: HashMap<Id, u64>,
     /// See [`Self::place_rows`].
     placed: HashMap<Id, (Option<Category>, Option<String>)>,
+    /// The language the places were last drawn in.
+    rail_language: Option<String>,
     /// F10 was pressed: the first menu opens on the next drawing of the bar.
     pub open_menu_by_key: bool,
     /// A text field's right-click menu: the field and where it opened.
@@ -832,6 +834,7 @@ impl DmApp {
             said_about: None,
             sizes_told: HashMap::new(),
             placed: HashMap::new(),
+            rail_language: None,
             recent_hands: Vec::new(),
             min_size_zoom: None,
             open_menu_by_key: false,
@@ -2247,11 +2250,30 @@ impl DmApp {
                 .map(|r| r.id)
                 .filter(|id| !before.contains(id)),
         );
-        self.said = crate::i18n::Said::counting(
-            "Imported {} download.||Imported {} downloads.",
-            added as u64,
-            &[&added],
-        );
+        // Lines of a plain list with no address dm can read are said, not
+        // passed over: "127.0.0.1:8000/notes.txt" went without a word (UI
+        // round 13).
+        let unread = if text.trim_start().starts_with('{') {
+            0
+        } else {
+            text.lines()
+                .map(str::trim)
+                .filter(|l| !l.is_empty() && !l.starts_with('#'))
+                .filter(|l| !l.contains("://") && !l.to_ascii_lowercase().contains("magnet:?"))
+                .count()
+        };
+        self.said = if unread > 0 {
+            crate::i18n::Said::naming(
+                "Imported: {}. Lines skipped, with no address dm can read (one starts with http://, https://, ftp:// or magnet:): {}.",
+                &[&added, &unread],
+            )
+        } else {
+            crate::i18n::Said::counting(
+                "Imported {} download.||Imported {} downloads.",
+                added as u64,
+                &[&added],
+            )
+        };
         self.refresh();
     }
 
@@ -2746,6 +2768,15 @@ impl DmApp {
         // (round 16). View › Categories still turns it off and on.
         let room = ui.available_width();
         if self.show_categories && room >= 640.0 {
+            // Fitted afresh in another language: kept from a German run,
+            // the places stayed wide in English and cut the list's last
+            // column (UI round 13).
+            let language = self.applied.language.clone();
+            if self.rail_language.as_ref().is_some_and(|l| *l != language) {
+                let id = ui.scope_id().with_salt(egui::IdSalt::new("categories"));
+                ui.ctx().data_mut(|d| d.remove::<egui::PanelState>(id));
+            }
+            self.rail_language = Some(language);
             egui::Panel::left("categories")
                 .resizable(true)
                 .show_separator_line(lines)

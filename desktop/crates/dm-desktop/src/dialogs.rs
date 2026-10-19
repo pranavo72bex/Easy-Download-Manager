@@ -2401,9 +2401,11 @@ fn progress(app: &mut DmApp, ctx: &egui::Context) {
         // Below the toolbar too: over it, the window covered Add URL and
         // took the click meant for it (UI round 10).
         .default_pos(below_menu.left_top() + egui::Vec2::new(24.0 + step, 8.0 + step))
-        .default_width(room.min(460.0))
-        .min_width(room.min(460.0))
-        .max_width(room)
+        // One width: free to grow, it widened a few points as its numbers
+        // did (UI round 13). A long status wraps inside it.
+        .default_width(room.min(480.0))
+        .min_width(room.min(480.0))
+        .max_width(room.min(480.0))
         .open(&mut open)
         .show(ctx, |ui| {
             // Under a question, it takes no clicks: Stop download stopped
@@ -3658,6 +3660,18 @@ fn site_files(app: &mut DmApp, ctx: &egui::Context) {
 
 fn update_link(app: &mut DmApp, ctx: &egui::Context) {
     let focus = app.dialogs.take_focus("Update download link");
+    // Which download, and the address it has now: the dialog named neither
+    // (UI round 13).
+    let Some(row) = app
+        .dialogs
+        .update_link
+        .as_ref()
+        .and_then(|(id, _, _)| app.row(*id).cloned())
+    else {
+        app.dialogs.update_link = None;
+        return;
+    };
+    let named = app.name_it_will_get(&row, &mut app.applied.categories());
     let Some((id, address, says)) = app.dialogs.update_link.as_mut() else {
         return;
     };
@@ -3667,6 +3681,12 @@ fn update_link(app: &mut DmApp, ctx: &egui::Context) {
     window(ctx, "Update download link")
         .open(&mut open)
         .show(ctx, |ui| {
+            ui.strong(&*crate::bidi::visual(&named));
+            ui.add(
+                egui::Label::new(RichText::new(format::shown_url(&row.url)).small().weak())
+                    .truncate(),
+            )
+            .on_hover_text(format::shown_url(&row.url));
             ui.label(t("The download's link has expired? Paste a fresh one:"));
             ok = entered(&focused(field(ui, t("New address"), address, 420.0), focus));
             if !says.is_empty() {

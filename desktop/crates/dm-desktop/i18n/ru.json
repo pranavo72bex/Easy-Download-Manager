@@ -237,6 +237,7 @@
  "Start queue": "Запустить очередь",
  "Start the Main queue when dm opens": "Запускать основную очередь при открытии dm",
  "Started {} download in {}.||Started {} downloads in {}.": "Запущена {} загрузка в «{}».||Запущено {} загрузки в «{}».||Запущено {} загрузок в «{}».",
+ "Imported: {}. Lines skipped, with no address dm can read (one starts with http://, https://, ftp:// or magnet:): {}.": "Импортировано: {}. Пропущено строк без адреса, понятного dm (адрес начинается с http://, https://, ftp:// или magnet:): {}.",
  "No — nothing of it was fetched": "Нет — ничего не было получено",
  "the .torrent file could not be read": "не удалось прочитать файл .torrent",
  "the file is not a torrent": "файл не является торрентом",

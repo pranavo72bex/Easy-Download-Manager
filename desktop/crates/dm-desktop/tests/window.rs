@@ -7959,3 +7959,21 @@ fn escape_cancels_the_when_done_countdown() {
         "it slept"
     );
 }
+
+/// UI round 13: Import of a plain list says how many lines it skipped for
+/// having no address dm can read, rather than passing over them.
+#[test]
+fn import_says_the_lines_it_could_not_read() {
+    let world = world();
+    let mut harness = world.harness();
+    let text = format!(
+        "{}\n127.0.0.1:8000/notes.txt\n# a comment\n\n{}\n",
+        world.url("other.pdf"),
+        world.url("deep.pdf")
+    );
+    harness.state_mut().import_text(&text, false);
+    harness.run_steps(2);
+    let said = harness.state().said.shown();
+    assert!(said.starts_with("Imported: 2."), "{said}");
+    assert!(said.ends_with(": 1."), "{said}");
+}

@@ -237,6 +237,7 @@
  "Start queue": "Wachtrij starten",
  "Start the Main queue when dm opens": "De hoofdwachtrij starten als dm opent",
  "Started {} download in {}.||Started {} downloads in {}.": "{} download gestart in {}.||{} downloads gestart in {}.",
+ "Imported: {}. Lines skipped, with no address dm can read (one starts with http://, https://, ftp:// or magnet:): {}.": "Geïmporteerd: {}. Overgeslagen regels zonder adres dat dm kan lezen (een adres begint met http://, https://, ftp:// of magnet:): {}.",
  "No — nothing of it was fetched": "Nee — er is niets van opgehaald",
  "the .torrent file could not be read": "het .torrent-bestand kon niet worden gelezen",
  "the file is not a torrent": "het bestand is geen torrent",

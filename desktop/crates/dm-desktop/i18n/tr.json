@@ -237,6 +237,7 @@
  "Start queue": "Kuyruğu başlat",
  "Start the Main queue when dm opens": "dm açıldığında ana kuyruğu başlat",
  "Started {} download in {}.||Started {} downloads in {}.": "{1} içinde {0} indirme başlatıldı.",
+ "Imported: {}. Lines skipped, with no address dm can read (one starts with http://, https://, ftp:// or magnet:): {}.": "İçe aktarılan: {}. dm'nin okuyabildiği bir adres içermediği için atlanan satırlar (adres http://, https://, ftp:// ya da magnet: ile başlar): {}.",
  "No — nothing of it was fetched": "Hayır — hiçbir parçası alınmadı",
  "the .torrent file could not be read": ".torrent dosyası okunamadı",
  "the file is not a torrent": "dosya bir torrent değil",

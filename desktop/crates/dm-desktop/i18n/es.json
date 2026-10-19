@@ -237,6 +237,7 @@
  "Start queue": "Iniciar cola",
  "Start the Main queue when dm opens": "Iniciar la cola principal al abrir dm",
  "Started {} download in {}.||Started {} downloads in {}.": "Se inició {} descarga en {}.||Se iniciaron {} descargas en {}.",
+ "Imported: {}. Lines skipped, with no address dm can read (one starts with http://, https://, ftp:// or magnet:): {}.": "Importadas: {}. Líneas omitidas, sin una dirección que dm pueda leer (una empieza por http://, https://, ftp:// o magnet:): {}.",
  "No — nothing of it was fetched": "No — no se descargó nada",
  "the .torrent file could not be read": "no se pudo leer el archivo .torrent",
  "the file is not a torrent": "el archivo no es un torrent",

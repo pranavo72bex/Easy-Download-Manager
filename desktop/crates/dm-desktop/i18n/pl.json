@@ -237,6 +237,7 @@
  "Start queue": "Uruchom kolejkę",
  "Start the Main queue when dm opens": "Uruchamiaj kolejkę główną przy otwarciu dm",
  "Started {} download in {}.||Started {} downloads in {}.": "Uruchomiono {} pobieranie w {}.||Uruchomiono {} pobierania w {}.||Uruchomiono {} pobrań w {}.",
+ "Imported: {}. Lines skipped, with no address dm can read (one starts with http://, https://, ftp:// or magnet:): {}.": "Zaimportowano: {}. Pominięte wiersze bez adresu, który dm umie odczytać (adres zaczyna się od http://, https://, ftp:// lub magnet:): {}.",
  "No — nothing of it was fetched": "Nie — nic z niego nie pobrano",
  "the .torrent file could not be read": "nie udało się odczytać pliku .torrent",
  "the file is not a torrent": "plik nie jest torrentem",
