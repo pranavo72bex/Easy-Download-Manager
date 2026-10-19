@@ -133,6 +133,15 @@ dm is on Firefox Add-ons, Mozilla's own store.
 3. If Firefox asks, allow it to run in private windows only if you want it
    to; dm leaves private-window downloads with the browser either way.
 
+**If Firefox Add-ons says it is not available yet** (a new version waits
+in Mozilla's review), install the copy Mozilla has already signed from the
+Releases page instead. It is the same extension, and it stays installed:
+
+1. On the **[Releases page](https://github.com/pranavo72bex/Easy-Download-Manager/releases/latest)**,
+   click **dm-firefox-3.0.5.xpi** *in Firefox*.
+2. Firefox asks whether to allow the site to install an add-on: click
+   **Continue to Installation**, then **Add**.
+
 On Ubuntu, where Firefox comes as a Snap, open dm once *before* adding the
 extension, so that it can tell Firefox where it is. If you installed Firefox
 while dm was already running, open dm again (from the Start menu,

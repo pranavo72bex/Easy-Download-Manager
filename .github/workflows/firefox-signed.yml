@@ -1,0 +1,60 @@
+name: Firefox, signed for self-distribution
+
+# Started by hand (Actions › this workflow › Run workflow). Mozilla signs the
+# Firefox build as unlisted, for self-distribution: automatic, usually
+# within minutes, without the human review the listed add-on waits in. The
+# signed .xpi is attached to the release named below, so people can install
+# dm's extension in ordinary Firefox while the store review is pending.
+#
+# Each version can be signed once: bump the extension's version (both
+# manifests and browser/Cargo.toml) before running it again.
+on:
+  workflow_dispatch:
+    inputs:
+      release:
+        description: 'The release tag to attach the signed .xpi to'
+        required: true
+        default: 'desktop-v0.2.0'
+
+permissions:
+  contents: write
+
+jobs:
+  sign:
+    name: Sign the Firefox build (unlisted) and attach it
+    runs-on: ubuntu-latest
+    # The addons.mozilla.org API key, from the repository's Actions secrets
+    # only (Developer Hub › Manage API Keys).
+    env:
+      AMO_JWT_ISSUER: ${{ secrets.AMO_JWT_ISSUER }}
+      AMO_JWT_SECRET: ${{ secrets.AMO_JWT_SECRET }}
+      GH_TOKEN: ${{ github.token }}
+      RELEASE: ${{ inputs.release }}
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: dtolnay/rust-toolchain@b725eda525362e7cf34af9a7243cac1e3f01a7ec # stable
+        with:
+          toolchain: stable
+          targets: wasm32-unknown-unknown
+      - name: Tests
+        working-directory: browser
+        run: cargo test --locked
+      - name: Build the Firefox zip
+        run: sh scripts/package.sh
+      - name: Sign it with Mozilla, unlisted
+        run: |
+          set -e
+          if [ -z "$AMO_JWT_ISSUER" ] || [ -z "$AMO_JWT_SECRET" ]; then
+            echo "AMO_JWT_ISSUER and AMO_JWT_SECRET are not set"; exit 1
+          fi
+          version=$(python3 -c "import json; print(json.load(open('extension/manifest.firefox.json'))['version'])")
+          git archive --format=zip -o dist/source.zip HEAD
+          npx --yes web-ext@8.3.0 sign --channel=unlisted \
+            --source-dir dist/firefox --artifacts-dir dist/signed \
+            --upload-source-code dist/source.zip \
+            --api-key "$AMO_JWT_ISSUER" --api-secret "$AMO_JWT_SECRET"
+          rm dist/source.zip
+          for x in dist/signed/*.xpi; do mv "$x" "dist/signed/dm-firefox-$version.xpi"; done
+          ls -la dist/signed
+      - name: Attach it to the release
+        run: gh release upload "$RELEASE" dist/signed/*.xpi --clobber
