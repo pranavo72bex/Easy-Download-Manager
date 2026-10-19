@@ -962,12 +962,16 @@ def main():
         except RuntimeError as e:
             check("the WebAssembly loads and its handlers are there", False, str(e))
             return
-        listeners = worker.evaluate(
-            "['downloads.onCreated','downloads.onDeterminingFilename','contextMenus.onClicked',"
-            "'action.onClicked','runtime.onInstalled','runtime.onStartup',"
-            "'webRequest.onResponseStarted'].filter(p => {"
-            " const [a, b] = p.split('.'); return chrome[a][b].hasListeners(); }).length")
-        check("every listener is registered on the first turn", listeners == 7, f"{listeners} of 7")
+        # Each named, not counted: a run reading "6 of 7" could not say which
+        # (Linux QA, 2026-10-19). An event the browser lacks counts as missing.
+        names = ["downloads.onCreated", "downloads.onDeterminingFilename", "contextMenus.onClicked",
+                 "action.onClicked", "runtime.onInstalled", "runtime.onStartup",
+                 "webRequest.onResponseStarted"]
+        missing = worker.evaluate(
+            f"{json.dumps(names)}.filter(p => {{ const [a, b] = p.split('.');"
+            " try { return !chrome[a][b].hasListeners(); } catch (e) { return true; } })")
+        check("every listener is registered on the first turn", missing == [],
+              f"{len(names) - len(missing)} of {len(names)}" + (f"; not registered: {missing}" if missing else ""))
 
         # 2. A link click, caught and handed over.
         page = f"{origin}/page.html"

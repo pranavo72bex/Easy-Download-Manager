@@ -700,16 +700,22 @@ pub async fn on_download_created(item: JsValue) {
             };
             let mut done = call("downloads", what, std::slice::from_ref(&id)).await;
             // Finished between the look and the cancel: a fast file (a
-            // 300 KB PDF) refused the cancel, its list entry was erased below
-            // and the whole file stayed in the browser's folder beside dm's
-            // (Linux QA, 2026-10-19). Removed instead, once it says complete.
-            if done.is_err() && what == "cancel" {
+            // 300 KB PDF) stayed whole in the browser's folder beside dm's,
+            // its list entry erased below (Linux QA, 2026-10-19). Chromium's
+            // cancel of a finished download succeeds and does nothing, so
+            // the state is looked at after every cancel, and a finished copy
+            // removed.
+            if what == "cancel" {
                 for _ in 0..20 {
-                    if state_of(found.id).await.as_deref() == Some("complete") {
-                        done = call("downloads", "removeFile", std::slice::from_ref(&id)).await;
-                        break;
+                    match state_of(found.id).await.as_deref() {
+                        Some("complete") => {
+                            done = call("downloads", "removeFile", std::slice::from_ref(&id)).await;
+                            break;
+                        }
+                        Some("in_progress") => sleep(100.0).await,
+                        // Interrupted, as a cancel that took leaves it, or gone.
+                        _ => break,
                     }
-                    sleep(100.0).await;
                 }
             }
             match done {
@@ -1149,13 +1155,24 @@ async fn page_links(
                 "injectImmediately": true,
             }));
             if let Err(why) = call("scripting", "executeScript", &[target]).await {
-                log("info", &format!("the links reader could not be put into {page}: {why} (asked first: {first})"));
+                log("warn", &format!("the links reader could not be put into {page}: {why} (asked first: {first})"));
                 return Err(decide::NO_LINKS_HERE.into());
             }
-            ask().await.map_err(|why| {
+            // Asked a few times: a reader just put in can take a moment to
+            // be listening on a page still arriving (Linux QA, 2026-10-19:
+            // 0 of 3 links on one machine, not seen elsewhere).
+            let mut answer = ask().await;
+            for _ in 0..3 {
+                if answer.is_ok() {
+                    break;
+                }
+                sleep(150.0).await;
+                answer = ask().await;
+            }
+            answer.map_err(|why| {
                 log(
-                    "info",
-                    &format!("{page} did not answer for its links: {why}"),
+                    "warn",
+                    &format!("{page} did not answer for its links: {why} (asked first: {first})"),
                 );
                 decide::NO_LINKS_HERE.to_string()
             })?
