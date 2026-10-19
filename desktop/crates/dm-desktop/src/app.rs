@@ -707,6 +707,8 @@ pub struct DmApp {
     /// Sizes a dialog learned from the server before a row was added for
     /// later, shown until the row learns its own.
     pub sizes_told: HashMap<Id, u64>,
+    /// See [`Self::place_rows`].
+    placed: HashMap<Id, (Option<Category>, Option<String>)>,
     /// F10 was pressed: the first menu opens on the next drawing of the bar.
     pub open_menu_by_key: bool,
     /// A text field's right-click menu: the field and where it opened.
@@ -816,6 +818,7 @@ impl DmApp {
             last_added: Vec::new(),
             said_about: None,
             sizes_told: HashMap::new(),
+            placed: HashMap::new(),
             recent_hands: Vec::new(),
             min_size_zoom: None,
             open_menu_by_key: false,
@@ -1033,6 +1036,7 @@ impl DmApp {
     /// announcing what finished, collecting problems.
     pub fn refresh(&mut self) {
         self.rows = self.backend.list();
+        self.place_rows();
         set_retrying(self.backend.retrying());
         set_limit_holds(self.backend.queue.allowance_spent().is_some());
         self.saved_sizes();
@@ -1672,6 +1676,8 @@ impl DmApp {
                     self.searches_checked = None;
                 }
                 self.applied = now;
+                // Categories of a person's own may have changed.
+                self.place_rows();
                 if watch_changed {
                     self.set_clipboard_watch(self.applied.watch_clipboard);
                 }
@@ -1697,11 +1703,11 @@ impl DmApp {
             // A row whose kind is not known yet, and in no category of a
             // person's own, is Other: queued `.bin` rows were in no place
             // and the counts did not add up (UI round 12).
-            Place::Kind(c) => match kind_of(row) {
-                Some(kind) => kind == *c,
-                None => *c == Category::Other && self.custom_of(row).is_none(),
+            Place::Kind(c) => match self.placed(row) {
+                (Some(kind), _) => kind == *c,
+                (None, custom) => *c == Category::Other && custom.is_none(),
             },
-            Place::Custom(name) => self.custom_of(row).as_deref() == Some(name.as_str()),
+            Place::Custom(name) => self.placed(row).1.as_deref() == Some(name.as_str()),
             // What is under way: running, waiting its turn, or held by the
             // schedule or the download limit. Not a failed row or one a
             // person stopped, which the status bar does not count as
@@ -1723,6 +1729,32 @@ impl DmApp {
         categories
             .custom_for(&name, &dm_core::category::host_of(&row.url))
             .map(|c| c.name.clone())
+    }
+
+    /// Each row's kind and category of a person's own, worked out once a
+    /// refresh: the places' counts asked for them per row, per place, per
+    /// frame, and 500 rows went past the frame budget (CI, 909e714).
+    fn place_rows(&mut self) {
+        let categories = self.applied.categories();
+        self.placed = self
+            .rows
+            .iter()
+            .map(|row| {
+                let custom = categories
+                    .custom_for(&name_of(row), &dm_core::category::host_of(&row.url))
+                    .map(|c| c.name.clone());
+                (row.id, (kind_of(row), custom))
+            })
+            .collect();
+    }
+
+    /// A row's kind and own category, from [`Self::place_rows`] when it has
+    /// been placed.
+    fn placed(&self, row: &Entry) -> (Option<Category>, Option<String>) {
+        match self.placed.get(&row.id) {
+            Some(placed) => placed.clone(),
+            None => (kind_of(row), self.custom_of(row)),
+        }
     }
 
     pub fn count(&self, place: &Place) -> usize {
