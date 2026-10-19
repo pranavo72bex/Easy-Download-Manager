@@ -238,6 +238,7 @@
  "Start queue": "Kuyruğu başlat",
  "Start the Main queue when dm opens": "dm açıldığında ana kuyruğu başlat",
  "Started {} download in {}.||Started {} downloads in {}.": "{1} içinde {0} indirme başlatıldı.",
+ "Another download in the list has this name; this one will be given a number.": "Listedeki başka bir indirme bu adı taşıyor; bu dosyaya numara verilecek.",
  "Not available: {}.": "Kullanılamıyor: {}.",
  "A file of that name is in the folder already; this one will be {}.": "Klasörde bu adda bir dosya zaten var; bu dosya {} olacak.",
  "{} is waiting for the schedule; it starts by itself when the schedule opens.": "{} zamanlamayı bekliyor; zamanlama açılınca kendiliğinden başlar.",

@@ -2015,9 +2015,30 @@ fn file_info(app: &mut DmApp, ctx: &egui::Context) {
                     app.applied.download_dir.clone()
                 }
             };
-            dm_core::download::free_name(&dir, name)
+            let free = dm_core::download::free_name(&dir, name);
+            // A download of that name still under way is not on disk yet,
+            // and the file still came as "big (1).zip" (UI round 11).
+            let pending = free == name
+                && app.rows.iter().any(|r| {
+                    !r.state.settled()
+                        && r.path.is_empty()
+                        && name_of(r) == name
+                        && r.save_dir.as_deref().is_none_or(|s| {
+                            s.trim().is_empty() || std::path::Path::new(s) == dir
+                        })
+                });
+            if pending {
+                Some(t("Another download in the list has this name; this one will be given a number.").to_string())
+            } else if free != name {
+                Some(tf(
+                    "A file of that name is in the folder already; this one will be {}.",
+                    &[&crate::bidi::visual(&free)],
+                ))
+            } else {
+                None
+            }
         })
-        .filter(|free| free != d.name.trim());
+        .flatten();
     let mut open = true;
     let mut chosen: Option<bool> = None; // Some(later)
     let mut cancel = false;
@@ -2148,17 +2169,8 @@ fn file_info(app: &mut DmApp, ctx: &egui::Context) {
                     .wrap(),
                 );
             }
-            if let Some(free) = &renamed {
-                ui.add(
-                    egui::Label::new(
-                        RichText::new(tf(
-                            "A file of that name is in the folder already; this one will be {}.",
-                            &[&crate::bidi::visual(free)],
-                        ))
-                        .color(warn(ui)),
-                    )
-                    .wrap(),
-                );
+            if let Some(said) = &renamed {
+                ui.add(egui::Label::new(RichText::new(said).color(warn(ui))).wrap());
             }
             if let Some(why) = &problem {
                 let plain = format::reason(why).map(t).unwrap_or(why.as_str());

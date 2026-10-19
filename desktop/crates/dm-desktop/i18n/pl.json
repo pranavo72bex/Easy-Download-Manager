@@ -238,6 +238,7 @@
  "Start queue": "Uruchom kolejkę",
  "Start the Main queue when dm opens": "Uruchamiaj kolejkę główną przy otwarciu dm",
  "Started {} download in {}.||Started {} downloads in {}.": "Uruchomiono {} pobieranie w {}.||Uruchomiono {} pobierania w {}.||Uruchomiono {} pobrań w {}.",
+ "Another download in the list has this name; this one will be given a number.": "Inne pobieranie na liście ma tę nazwę; to dostanie numer.",
  "Not available: {}.": "Niedostępne: {}.",
  "A file of that name is in the folder already; this one will be {}.": "W folderze jest już plik o tej nazwie; ten będzie {}.",
  "{} is waiting for the schedule; it starts by itself when the schedule opens.": "{} czeka na harmonogram; ruszy sam, gdy harmonogram się otworzy.",

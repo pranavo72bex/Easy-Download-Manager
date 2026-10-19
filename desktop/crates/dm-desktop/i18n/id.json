@@ -238,6 +238,7 @@
  "Start queue": "Mulai antrean",
  "Start the Main queue when dm opens": "Mulai antrean utama saat dm dibuka",
  "Started {} download in {}.||Started {} downloads in {}.": "{} unduhan dimulai di {}.",
+ "Another download in the list has this name; this one will be given a number.": "Unduhan lain di daftar memakai nama ini; yang ini akan diberi nomor.",
  "Not available: {}.": "Tidak tersedia: {}.",
  "A file of that name is in the folder already; this one will be {}.": "Sudah ada berkas bernama itu di folder; yang ini akan menjadi {}.",
  "{} is waiting for the schedule; it starts by itself when the schedule opens.": "{} menunggu jadwal; mulai sendiri saat jadwal dibuka.",

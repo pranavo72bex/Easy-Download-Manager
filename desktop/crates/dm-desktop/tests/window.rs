@@ -7657,6 +7657,28 @@ fn download_details_says_the_name_it_will_get_and_a_server_refusal() {
         harness.query_by_label(refused).is_some(),
         "the 404 was not said"
     );
+
+    // The first copy still under way, not yet on disk: said as well.
+    click(&mut harness, "Cancel");
+    add_url(&mut harness, &world.url("stalled.bin"), "Start now");
+    click(&mut harness, "Add URL");
+    type_into(&mut harness, "Address", &world.url("stalled.bin"));
+    click(&mut harness, "OK");
+    if harness.query_by_label("Already in the list").is_some() {
+        click(&mut harness, "Download again");
+    }
+    let pending = "Another download in the list has this name; this one will be given a number.";
+    for _ in 0..100 {
+        if harness.query_by_label(pending).is_some() {
+            break;
+        }
+        std::thread::sleep(std::time::Duration::from_millis(40));
+        harness.run_steps(1);
+    }
+    assert!(
+        harness.query_by_label(pending).is_some(),
+        "the numbering was not said"
+    );
 }
 
 /// UI round 11: behind Options the toolbar and the places take no clicks,

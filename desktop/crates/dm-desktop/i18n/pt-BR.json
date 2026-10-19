@@ -238,6 +238,7 @@
  "Start queue": "Iniciar fila",
  "Start the Main queue when dm opens": "Iniciar a fila principal quando o dm abrir",
  "Started {} download in {}.||Started {} downloads in {}.": "{} download iniciado em {}.||{} downloads iniciados em {}.",
+ "Another download in the list has this name; this one will be given a number.": "Outro download da lista tem este nome; este receberá um número.",
  "Not available: {}.": "Indisponível: {}.",
  "A file of that name is in the folder already; this one will be {}.": "Já há um arquivo com esse nome na pasta; este será {}.",
  "{} is waiting for the schedule; it starts by itself when the schedule opens.": "{} aguarda o agendamento; começa sozinho quando ele abrir.",
