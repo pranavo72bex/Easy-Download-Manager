@@ -29,6 +29,9 @@ pub const MIN_WINDOW: (f32, f32) = (720.0, 460.0);
 
 /// How often it is read back while nothing downloads.
 const IDLE_REFRESH: Duration = Duration::from_secs(1);
+/// How often dm wakes hidden in the tray: while something moves, and idle.
+const HIDDEN_REFRESH: Duration = Duration::from_secs(1);
+const HIDDEN_IDLE: Duration = Duration::from_secs(5);
 /// How often the clipboard is looked at, when watching it is on.
 const CLIPBOARD: Duration = Duration::from_secs(1);
 
@@ -720,6 +723,8 @@ pub struct DmApp {
     pub countdown: Option<(crate::power::WhenDone, Instant)>,
     /// Running without a window (`--headless`).
     pub headless: bool,
+    /// The window is hidden in the tray: wakes are fewer.
+    pub hidden: bool,
     /// Requests from the control protocol, when it is on.
     control: Option<std::sync::mpsc::Receiver<crate::control::Request>>,
     /// Rows the window added itself (Add URL, a series, an import): they
@@ -846,6 +851,7 @@ impl DmApp {
             dry: DryWatch::default(),
             countdown: None,
             headless: false,
+            hidden: false,
             control: None,
             own: HashSet::new(),
             last_added: Vec::new(),
@@ -1379,7 +1385,17 @@ impl DmApp {
                 .rows
                 .iter()
                 .any(|r| matches!(r.state, State::Running | State::Queued));
-        ctx.request_repaint_after(if moving { REFRESH } else { IDLE_REFRESH });
+        // Hidden in the tray, no one sees a frame: woken each second while
+        // something moves or the clipboard is watched (When done, the
+        // complete window, a new link), else every five, which the
+        // schedule's and saved searches' minutes allow.
+        let wake = match (self.hidden, moving || self.clipboard.on) {
+            (true, true) => HIDDEN_REFRESH,
+            (true, false) => HIDDEN_IDLE,
+            (false, _) if moving => REFRESH,
+            (false, _) => IDLE_REFRESH,
+        };
+        ctx.request_repaint_after(wake);
     }
 
     /// The weekly update check: about once a week, where turned on,
@@ -4641,6 +4657,9 @@ struct DryWatch {
     busy_seen: bool,
     /// A row finished or failed since the queue last ran dry.
     settled_seen: bool,
+    /// The list has been looked at once: rows already finished then are
+    /// history, not news.
+    primed: bool,
 }
 
 impl DryWatch {
@@ -4654,6 +4673,18 @@ impl DryWatch {
         });
         if settled {
             self.settled_seen = true;
+        }
+        // A row added and finished between two looks: it was downloading,
+        // though no look saw it so, and it settled. A 1 MB file handed over
+        // under When done › Exit never fired it (life-cycle QA, gap 68).
+        let primed = std::mem::replace(&mut self.primed, true);
+        if primed
+            && rows.iter().any(|r| {
+                matches!(r.state, State::Completed | State::Failed(_)) && !last.contains_key(&r.id)
+            })
+        {
+            self.settled_seen = true;
+            self.busy_seen = true;
         }
         let busy = rows.iter().any(|r| match r.state {
             State::Running | State::Queued => true,
@@ -5014,5 +5045,19 @@ mod dry_tests {
         let done = vec![row(1, State::Completed)];
         assert!(watch.look(&done, &states(&running)));
         assert!(!watch.look(&done, &states(&done)), "fired twice");
+    }
+
+    /// Gap 68: a small file added and finished between two looks is a
+    /// stretch that finished something; rows already finished at the first
+    /// look are history.
+    #[test]
+    fn a_download_that_came_and_went_between_two_looks_fires() {
+        let mut watch = DryWatch::default();
+        let history = vec![row(1, State::Completed)];
+        assert!(!watch.look(&history, &HashMap::new()), "history fired");
+        let last = states(&history);
+        let quick = vec![row(1, State::Completed), row(2, State::Completed)];
+        assert!(watch.look(&quick, &last));
+        assert!(!watch.look(&quick, &states(&quick)), "fired twice");
     }
 }

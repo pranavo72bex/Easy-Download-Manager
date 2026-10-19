@@ -217,6 +217,9 @@ struct Window {
     /// this moment, the window opens rather than leave dm unreachable.
     hidden_until: Option<std::time::Instant>,
     quitting: bool,
+    /// The window is in the tray: nothing is drawn, and dm wakes only as
+    /// often as its timers need.
+    hidden: bool,
     /// Frames left in which to hide the window again, for the login item's
     /// launch. eframe shows the window after its first frame whatever the
     /// builder asked for — a `--hidden` launch opened a window over the
@@ -267,6 +270,7 @@ impl Window {
             ctx.send_viewport_cmd(egui::ViewportCommand::OuterPosition(at));
         }
         ctx.send_viewport_cmd(egui::ViewportCommand::Focus);
+        self.hidden = false;
     }
 
     /// Into the tray, remembering where it was.
@@ -276,6 +280,7 @@ impl Window {
         }
         self.hidden_maximized = ctx.input(|i| i.viewport().maximized.unwrap_or(false));
         ctx.send_viewport_cmd(egui::ViewportCommand::Visible(false));
+        self.hidden = true;
     }
 }
 
@@ -340,7 +345,19 @@ impl eframe::App for Window {
         {
             ctx.send_viewport_cmd(egui::ViewportCommand::CancelClose);
             self.hide(ctx);
+        } else if ctx.input(|i| i.viewport().close_requested())
+            && !self.quitting
+            && !self.app.quit_asked
+            && self.app.downloading() > 0
+        {
+            // With no tray to go to, closing the window ends dm: asked
+            // first while downloads run, as Exit is (it went at once, life-
+            // cycle QA, gap 66). The answer Exit comes back through
+            // `quit_asked`.
+            ctx.send_viewport_cmd(egui::ViewportCommand::CancelClose);
+            self.app.ask_quit();
         }
+        self.app.hidden = self.hidden;
         self.app.logic(ctx);
         if self.app.applied.language != self.tray_language {
             self.tray_language = self.app.applied.language.clone();
@@ -369,6 +386,11 @@ impl eframe::App for Window {
     }
 
     fn ui(&mut self, ui: &mut egui::Ui, frame: &mut eframe::Frame) {
+        // Hidden in the tray, nothing is drawn: it was drawn on every wake,
+        // a tenth of a core idle (life-cycle QA, gap 67).
+        if self.hidden {
+            return;
+        }
         self.app.ui(ui);
         let files = std::mem::take(&mut self.app.drag_out);
         if !files.is_empty() {
@@ -932,6 +954,26 @@ fn remove_login_item() {
     }
 }
 
+/// `--unregister`'s last part: the login setting turned off, so the next
+/// launch does not put the login item back, and a dm still running asked
+/// to end, which otherwise wrote the browser manifest and the login entry
+/// straight back (life-cycle QA, gap 69).
+fn unregister_the_rest() {
+    let (mut saved, _) = settings::Settings::load();
+    if saved.start_on_login {
+        saved.start_on_login = false;
+        match saved.save() {
+            Ok(()) => println!("turned off starting dm at login"),
+            Err(e) => eprintln!("dm: the login setting could not be turned off: {e}"),
+        }
+    }
+    match shell::ask_running_to_quit(&settings::home()) {
+        Ok(true) => println!("asked the running dm to end"),
+        Ok(false) => {}
+        Err(e) => eprintln!("dm: the running dm could not be asked to end: {e}"),
+    }
+}
+
 /// On Windows a release build is a GUI program with no console, so what
 /// `--register` and `--unregister` print went nowhere when run from cmd or
 /// PowerShell (gap 90). Attached to the console of whatever started it,
@@ -982,6 +1024,7 @@ fn main() {
     }
     if args.first().map(String::as_str) == Some("--unregister") {
         remove_login_item();
+        unregister_the_rest();
     }
     if let Some(code) = dm_shell::register::from_args(&args) {
         std::process::exit(code);
@@ -1105,6 +1148,7 @@ fn main() {
             Arc::clone(&show_asked),
             Arc::clone(&repaint),
         );
+        let quit_repaint = Arc::clone(&repaint);
         runtime.spawn(shell::watch_inbox(
             watched,
             move || {
@@ -1118,6 +1162,13 @@ fn main() {
                 dm_core::lock(&asked).push_back(request);
                 ask_flag.store(true, Ordering::Relaxed);
                 if let Some(ctx) = ask_repaint.get() {
+                    ctx.request_repaint();
+                }
+            },
+            // `--unregister` of an uninstall: ended as a stop signal ends dm.
+            move || {
+                SIGNALLED.store(true, Ordering::SeqCst);
+                if let Some(ctx) = quit_repaint.get() {
                     ctx.request_repaint();
                 }
             },
@@ -1221,6 +1272,7 @@ fn main() {
                 tray: receive,
                 has_tray,
                 hide_frames: if hidden { 3 } else { 0 },
+                hidden,
                 hidden_until: hidden
                     .then(|| std::time::Instant::now() + std::time::Duration::from_secs(10)),
                 quitting: false,

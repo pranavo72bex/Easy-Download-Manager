@@ -797,6 +797,21 @@ pub fn open_with(path: &str, app: &Path) -> Result<(), String> {
 /// Takes downloads the browser left for us, and a second launch's request
 /// to be shown, for as long as the app runs.
 ///
+/// The inbox file that asks a running dm to end.
+pub const QUIT: &str = "quit";
+
+/// Asks a running dm to end, through its inbox; nothing when none runs, so
+/// that a later launch does not read the request and end at once.
+pub fn ask_running_to_quit(home: &Path) -> std::io::Result<bool> {
+    if !crate::instance::running(home)? {
+        return Ok(false);
+    }
+    let dir = host::inbox(home);
+    std::fs::create_dir_all(&dir)?;
+    std::fs::write(dir.join(QUIT), b"")?;
+    Ok(true)
+}
+
 /// Polled rather than watched: a filesystem notifier is another dependency
 /// and another set of platform differences, for a directory that sees a
 /// handful of files a day.
@@ -804,9 +819,16 @@ pub async fn watch_inbox(
     queue: Queue,
     show: impl Fn() + Send + 'static,
     ask: impl Fn(host::Request) + Send + 'static,
+    quit: impl Fn() + Send + 'static,
 ) {
     let dir = host::inbox(&settings::home());
     loop {
+        // `--unregister`, uninstalling dm: this dm ends, as a stop signal
+        // ends it, rather than stay in the tray and write back what the
+        // uninstall removed (life-cycle QA, gap 69).
+        if tokio::fs::remove_file(dir.join(QUIT)).await.is_ok() {
+            quit();
+        }
         // A second dm, launched by hand while this one was in the tray,
         // leaves this instead of opening a second window.
         if tokio::fs::remove_file(dir.join("show")).await.is_ok() {
@@ -943,6 +965,20 @@ pub fn run_after(command: &str, file: &Path) -> Result<(), String> {
 
 #[cfg(test)]
 mod tests {
+
+    /// Gap 69: an uninstall asks a running dm to end, and leaves nothing
+    /// when none runs, or the next launch would end on its own.
+    #[test]
+    fn a_quit_is_asked_only_of_a_running_dm() {
+        let home = tempfile::tempdir().unwrap();
+        assert!(!ask_running_to_quit(home.path()).unwrap());
+        assert!(!host::inbox(home.path()).join(QUIT).exists());
+        let _held = crate::instance::claim(home.path())
+            .unwrap()
+            .expect("the lock");
+        assert!(ask_running_to_quit(home.path()).unwrap());
+        assert!(host::inbox(home.path()).join(QUIT).exists());
+    }
 
     #[test]
     fn a_launch_that_hands_off_registers_first_and_still_hands_off_when_that_fails() {
