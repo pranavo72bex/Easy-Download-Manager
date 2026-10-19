@@ -178,6 +178,29 @@ impl Command {
         }
     }
 
+    /// Whether the command opens a dialog that asks for more before
+    /// anything is done, which a menu marks with "…" (UI round 10: only
+    /// Open with… had it).
+    pub fn asks_more(self) -> bool {
+        matches!(
+            self,
+            Command::AddUrl
+                | Command::AddSeries
+                | Command::AddFromClipboard
+                | Command::Import
+                | Command::Export
+                | Command::SiteFiles
+                | Command::UpdateLink
+                | Command::MoveToQueue
+                | Command::Properties
+                | Command::MoveRename
+                | Command::Find
+                | Command::Scheduler
+                | Command::SpeedLimiterSettings
+                | Command::Options
+        )
+    }
+
     /// What a person reads on the menu item or button, in the language in
     /// force.
     pub fn title(self) -> &'static str {

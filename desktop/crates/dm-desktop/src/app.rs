@@ -2944,11 +2944,21 @@ impl DmApp {
     /// A menu item for a command: its label, its key, and greyed out when
     /// it has nothing to act on.
     fn item(&mut self, ui: &mut egui::Ui, command: Command) {
-        let mut button = egui::Button::new(self.title_of(command));
+        let title = self.title_of(command);
+        let shown = if command.asks_more() && !title.ends_with('…') {
+            format!("{title}…")
+        } else {
+            title.to_string()
+        };
+        let mut button = egui::Button::new(shown);
         if let Some(shortcut) = command.shortcut() {
             button = button.shortcut_text(format::shortcut(ui.ctx(), &shortcut));
         }
-        if ui.add_enabled(self.enabled(command), button).clicked() {
+        let enabled = self.enabled(command);
+        let response = ui.add_enabled(enabled, button);
+        // Said by its name alone: the "…" is for the eye.
+        response.widget_info(|| egui::WidgetInfo::labeled(egui::Role::Button, enabled, title));
+        if response.clicked() {
             self.queued.push(command);
             ui.close();
         }
