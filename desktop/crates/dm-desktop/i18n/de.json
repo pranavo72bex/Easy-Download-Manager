@@ -237,6 +237,7 @@
  "Start queue": "Warteschlange starten",
  "Start the Main queue when dm opens": "Die Hauptwarteschlange starten, wenn dm öffnet",
  "Started {} download in {}.||Started {} downloads in {}.": "{} Download in {} gestartet.||{} Downloads in {} gestartet.",
+ "From {} to {}": "Von {} bis {}",
  "something of that name is already there": "dort gibt es schon etwas mit diesem Namen",
  "dm is not allowed to use it": "dm darf nicht darauf zugreifen",
  "it is not there": "sie ist nicht vorhanden",

@@ -986,10 +986,12 @@ fn bar_beside(ui: &mut egui::Ui, fraction: f32, width: f32, words: &str, widest:
 /// changed by dragging across it, with the text cursor over it. The drag
 /// to change, and the resize arrow that announced it, surprised people
 /// (UI round 1).
-pub(crate) struct NumberBox<'a>(egui::DragValue<'a>);
+/// Its range is said on hover: 35 in Files at once became 10 without a
+/// word (UI round 14).
+pub(crate) struct NumberBox<'a>(egui::DragValue<'a>, Option<String>);
 
 pub(crate) fn number_box<Num: egui::emath::Numeric>(value: &mut Num) -> NumberBox<'_> {
-    NumberBox(egui::DragValue::new(value).speed(0.0))
+    NumberBox(egui::DragValue::new(value).speed(0.0), None)
 }
 
 impl NumberBox<'_> {
@@ -997,13 +999,21 @@ impl NumberBox<'_> {
         self,
         range: std::ops::RangeInclusive<Num>,
     ) -> Self {
-        NumberBox(self.0.range(range))
+        let said = tf(
+            "From {} to {}",
+            &[&range.start().to_f64(), &range.end().to_f64()],
+        );
+        NumberBox(self.0.range(range), Some(said))
     }
 }
 
 impl egui::Widget for NumberBox<'_> {
     fn ui(self, ui: &mut egui::Ui) -> egui::Response {
-        ui.add(self.0).on_hover_cursor(egui::CursorIcon::Text)
+        let response = ui.add(self.0).on_hover_cursor(egui::CursorIcon::Text);
+        match self.1 {
+            Some(range) => response.on_hover_text(range),
+            None => response,
+        }
     }
 }
 

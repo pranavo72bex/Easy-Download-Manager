@@ -237,6 +237,7 @@
  "Start queue": "Démarrer la file",
  "Start the Main queue when dm opens": "Démarrer la file principale à l'ouverture de dm",
  "Started {} download in {}.||Started {} downloads in {}.": "{} téléchargement démarré dans {}.||{} téléchargements démarrés dans {}.",
+ "From {} to {}": "De {} à {}",
  "something of that name is already there": "un élément de ce nom existe déjà",
  "dm is not allowed to use it": "dm n'a pas le droit de l'utiliser",
  "it is not there": "il n'existe pas",

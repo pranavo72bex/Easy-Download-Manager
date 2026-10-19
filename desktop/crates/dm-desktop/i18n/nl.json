@@ -237,6 +237,7 @@
  "Start queue": "Wachtrij starten",
  "Start the Main queue when dm opens": "De hoofdwachtrij starten als dm opent",
  "Started {} download in {}.||Started {} downloads in {}.": "{} download gestart in {}.||{} downloads gestart in {}.",
+ "From {} to {}": "Van {} tot {}",
  "something of that name is already there": "er staat al iets met die naam",
  "dm is not allowed to use it": "dm mag het niet gebruiken",
  "it is not there": "het bestaat niet",

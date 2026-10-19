@@ -237,6 +237,7 @@
  "Start queue": "Uruchom kolejkę",
  "Start the Main queue when dm opens": "Uruchamiaj kolejkę główną przy otwarciu dm",
  "Started {} download in {}.||Started {} downloads in {}.": "Uruchomiono {} pobieranie w {}.||Uruchomiono {} pobierania w {}.||Uruchomiono {} pobrań w {}.",
+ "From {} to {}": "Od {} do {}",
  "something of that name is already there": "coś o tej nazwie już tam jest",
  "dm is not allowed to use it": "dm nie ma do tego uprawnień",
  "it is not there": "nie istnieje",
