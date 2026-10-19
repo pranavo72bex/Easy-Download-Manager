@@ -34,6 +34,30 @@ RESULTS = []
 ORACLE = None
 
 
+
+def dm_popen(argv, **kw):
+    """dm started in a process group of its own, so `end` stops all of it:
+    an AppImage runs dm as its wrapper's child, and a signal to the wrapper
+    alone left that dm running, which later launches then handed over to."""
+    return subprocess.Popen(argv, start_new_session=True, **kw)
+
+
+def end(app):
+    """Stops a dm and everything in its group, and waits for it."""
+    if app.poll() is not None:
+        return
+    import signal
+    try:
+        os.killpg(app.pid, signal.SIGTERM)
+    except ProcessLookupError:
+        return
+    try:
+        app.wait(10)
+    except subprocess.TimeoutExpired:
+        os.killpg(app.pid, signal.SIGKILL)
+        app.wait(5)
+    time.sleep(1)
+
 def check(name, ok, detail=""):
     RESULTS.append(bool(ok))
     print(f"  {'ok  ' if ok else 'FAIL'}  {name}" + (f" — {detail}" if detail and not ok else ""), flush=True)
@@ -659,7 +683,7 @@ def human_session(home, env, app):
         time.sleep(1.5)
         check("Program › Exit, clicked, quits dm",
               click("*", "Program") and click("*", "Exit", contains=True) and wait_for(lambda: app.poll() is not None, 15))
-        app = subprocess.Popen([str(BINARY), "--control", "0"], env=env, stdout=subprocess.DEVNULL, stderr=subprocess.PIPE)
+        app = dm_popen([str(BINARY), "--control", "0"], env=env, stdout=subprocess.DEVNULL, stderr=subprocess.PIPE)
         window = wait_for(dm_windows, 30)
         ORACLE = oracle(home)
         size = x("xdotool", "getwindowgeometry", "--shell", window[0]).stdout if window else ""
@@ -673,7 +697,7 @@ def human_session(home, env, app):
         x("xdotool", "windowactivate", "--sync", window[0]) if window else None
         key("ctrl+q")
         check("Ctrl+Q quits", wait_for(lambda: app.poll() is not None, 15))
-        app = subprocess.Popen([str(BINARY), "--control", "0"], env=env, stdout=subprocess.DEVNULL, stderr=subprocess.PIPE)
+        app = dm_popen([str(BINARY), "--control", "0"], env=env, stdout=subprocess.DEVNULL, stderr=subprocess.PIPE)
         wait_for(dm_windows, 30)
         ORACLE = oracle(home)
         return app
@@ -710,13 +734,13 @@ def tray_host_timing(env):
     x("pkill", "-f", "^[^ ]*python3?[^ ]* [^ ]*tray_host\\.py")
     wait_for(lambda: not x("pgrep", "-f", "^status-notifier-watcher").stdout.strip(), 10)
 
-    app = subprocess.Popen([str(BINARY)], env=env, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    app = dm_popen([str(BINARY)], env=env, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
     check("with no tray host dm still opens", wait_for(dm_windows, 30))
     x("wmctrl", "-i", "-c", dm_windows()[0])
     check("and closing the window quits, having no tray to hide into",
           wait_for(lambda: app.poll() is not None, 15))
 
-    app = subprocess.Popen([str(BINARY)], env=env, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    app = dm_popen([str(BINARY)], env=env, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
     wait_for(dm_windows, 30)
     time.sleep(2)
     watcher = panel()
@@ -733,7 +757,7 @@ def tray_host_timing(env):
     wait_for(lambda: app.poll() is not None, 15)
 
     end_panel(watcher)
-    hidden = subprocess.Popen([str(BINARY), "--hidden"], env=env, stdout=subprocess.DEVNULL,
+    hidden = dm_popen([str(BINARY), "--hidden"], env=env, stdout=subprocess.DEVNULL,
                               stderr=subprocess.DEVNULL)
     time.sleep(3)
     check("a login launch with no tray host waits hidden at first", not dm_windows())
@@ -757,13 +781,12 @@ def start_on_login(home, env):
     entry = config / "autostart" / "dm.desktop"
 
     # Turned on: the next launch writes the entry, aimed at this dm.
-    first = subprocess.Popen([str(BINARY)], env=env, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    first = dm_popen([str(BINARY)], env=env, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
     written = wait_for(entry.exists, 15)
     text = entry.read_text() if written else ""
     check("turning it on writes an autostart entry", written)
     check("which starts this dm into the tray", f"Exec={BINARY} --hidden\n" in text, text)
-    first.terminate()
-    first.wait(10)
+    end(first)
 
     # The login: the session starts the entry.
     # Not captured: dm inherits whatever dex is given, and a pipe it holds
@@ -784,7 +807,7 @@ def start_on_login(home, env):
 
     # Turned off: the next launch removes it.
     settings.write_text(json.dumps(dict(saved, start_on_login=False)))
-    last = subprocess.Popen([str(BINARY)], env=env, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    last = dm_popen([str(BINARY)], env=env, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
     check("turning it off removes the entry", wait_for(lambda: not entry.exists(), 15))
     return last
 
@@ -801,7 +824,7 @@ def main():
     }))
     env = dict(os.environ, DM_HOME=str(home))
     screen_reader_on()
-    app = subprocess.Popen([str(BINARY), "--control", "0"], env=env, stdout=subprocess.DEVNULL, stderr=subprocess.PIPE)
+    app = dm_popen([str(BINARY), "--control", "0"], env=env, stdout=subprocess.DEVNULL, stderr=subprocess.PIPE)
     try:
         print("the window and the tray, with real input")
         check("dm opens its window", wait_for(dm_windows, 30))
@@ -904,17 +927,10 @@ def main():
         check("the tray menu's Quit dm ends dm", quit_ is not None and quit_ is not False)
 
         app = start_on_login(home, env)
-        if app.poll() is None:
-            app.terminate()
-            app.wait(10)
+        end(app)
         app = tray_host_timing(env)
     finally:
-        if app.poll() is None:
-            app.terminate()
-            try:
-                app.wait(10)
-            except subprocess.TimeoutExpired:
-                app.kill()
+        end(app)
     print()
     failed = RESULTS.count(False)
     print(f"{len(RESULTS) - failed} of {len(RESULTS)} real-input checks passed")
