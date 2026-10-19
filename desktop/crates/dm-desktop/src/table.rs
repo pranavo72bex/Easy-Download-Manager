@@ -102,7 +102,12 @@ pub fn show(app: &mut DmApp, ui: &mut egui::Ui) {
      * the sideways scroll area, so it was out of sight whenever the columns
      * ran past the window (gap 152): the table's is hidden and this one
      * follows it, or moves it when dragged or wheeled. */
-    let bar_room = ui.spacing().scroll.allocated_width();
+    // The sideways bar's whole thickness: a floating one is drawn over the
+    // content, and the room it allocates is less than it covers.
+    let scroll = &ui.spacing().scroll;
+    let bar_room = scroll
+        .allocated_width()
+        .max(scroll.bar_width + scroll.bar_inner_margin + scroll.bar_outer_margin);
     // Only what can be seen: with the Place drop-down or the clipboard's
     // bar above the list, the room left ran past the card's visible edge,
     // and at large text the last rows could never be scrolled to (UI
@@ -125,9 +130,16 @@ pub fn show(app: &mut DmApp, ui: &mut egui::Ui) {
     }
     ui.scope_builder(egui::UiBuilder::new().max_rect(list_rect), |ui| {
         sideways.show(ui, |ui| {
-            let body_room =
-                (list_rect.height() - 22.0 - bar_room - 2.0 * ui.spacing().item_spacing.y)
-                    .max(row_height);
+            // The header's height as drawn last frame, not a guess: at 300%
+            // it took more than the 22 points allowed, the body was sized a
+            // row too tall and the last row stayed under the sideways bar
+            // (UI round 16).
+            let head_id = egui::Id::unique("dm-list-head");
+            let head = ui
+                .data(|d| d.get_temp::<f32>(head_id))
+                .unwrap_or(22.0 + ui.spacing().item_spacing.y);
+            let body_room = (list_rect.height() - head - bar_room - ui.spacing().item_spacing.y)
+                .max(f32::min(row_height, list_rect.height()));
             // The widths follow the window until the person drags one: then
             // theirs are kept. Kept from the first draw whatever happened to
             // the window after, a list opened narrow and widened left the
@@ -310,6 +322,12 @@ pub fn show(app: &mut DmApp, ui: &mut egui::Ui) {
             if dragged_now && !dragged_before {
                 ui.data_mut(|d| d.insert_persisted(dragged_id, true));
             }
+            ui.data_mut(|d| {
+                d.insert_temp(
+                    egui::Id::unique("dm-list-head"),
+                    (out.inner_rect.min.y - list_rect.min.y).max(0.0),
+                )
+            });
             body_out = Some((
                 out.state.clamped_offset().y,
                 out.content_size.y,

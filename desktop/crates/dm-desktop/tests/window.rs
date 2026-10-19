@@ -8129,6 +8129,18 @@ fn the_last_row_can_be_reached_at_large_text() {
         row.bottom() <= screen.bottom() + 0.5 && row.top() >= screen.top(),
         "{name} at {row:?} outside the window {screen:?}"
     );
+    // And whole above the list's sideways bar, which sits on the status
+    // bar: the row ended under it at 300% (UI round 16).
+    let status = harness
+        .query_all_by_label_contains("Nothing downloading")
+        .map(|n| n.rect())
+        .next()
+        .expect("the status bar");
+    let bar = 8.0;
+    assert!(
+        row.bottom() + bar <= status.top(),
+        "{name} at {row:?} runs under the sideways bar above the status bar at {status:?}"
+    );
 }
 
 /// UI round 15: a new queue's name typed in Move to queue is the name, not
@@ -8146,4 +8158,57 @@ fn move_to_queue_makes_the_queue_named() {
     harness.run_steps(3);
     harness.state_mut().refresh();
     assert_eq!(harness.state().rows()[0].queue, "Night");
+}
+
+/// UI round 16: at 230% in the smallest window the toolbar wrapped to
+/// three rows and no download showed; it gives way and a row shows.
+#[test]
+fn a_row_shows_at_230_percent_in_the_smallest_window() {
+    let world = world();
+    let mut harness = Harness::builder()
+        .with_size(egui::vec2(720.0, 460.0))
+        .build_ui_state(|ui, app: &mut DmApp| app.ui(ui), world.app());
+    harness
+        .state()
+        .backend()
+        .add(&world.url("other.pdf"))
+        .unwrap();
+    harness.state_mut().refresh();
+    harness.ctx.set_zoom_factor(2.3);
+    harness.run_steps(4);
+    let screen = harness.ctx.content_rect();
+    // By the name the list gives it, which may be numbered.
+    let row = harness
+        .query_all_by_label_contains("other")
+        .map(|n| n.rect())
+        .find(|r| r.height() > 0.0)
+        .expect("no row drawn");
+    assert!(row.bottom() <= screen.bottom(), "{row:?} below {screen:?}");
+}
+
+/// UI round 16: removing finished and unfinished rows together says so,
+/// and what happens to the finished files; it said none had fetched
+/// anything.
+#[test]
+fn remove_says_when_finished_and_unfinished_rows_are_mixed() {
+    let world = world();
+    let mut harness = world.harness();
+    harness.state_mut().applied.show_complete = false;
+    add_url(&mut harness, &world.url("file.zip"), "Start now");
+    until(&mut harness, "it to finish", |app| {
+        app.rows().iter().any(|r| r.state == State::Completed)
+    });
+    add_url(&mut harness, &world.url("other.pdf"), "Add for later");
+    harness.state_mut().run(Command::SelectAll);
+    harness.state_mut().run(Command::Remove);
+    harness.run_steps(3);
+    assert!(harness
+        .query_by_label_contains("Some of these are finished and some are not")
+        .is_some());
+    assert!(harness
+        .query_by_label("The finished ones' files stay where they are.")
+        .is_some());
+    assert!(harness
+        .query_by_label_contains("have not fetched anything yet")
+        .is_none());
 }

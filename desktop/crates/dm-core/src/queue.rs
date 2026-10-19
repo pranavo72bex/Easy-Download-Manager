@@ -992,6 +992,15 @@ impl Queue {
                 if slot.entry.state != State::Paused {
                     continue;
                 }
+                // Not one added for later, waiting for its queue to be
+                // started: Resume all is for what was stopped, and started
+                // a file put aside on purpose (UI round 16).
+                let for_later = !slot.entry.paused_by_schedule
+                    && !slot.entry.queue.is_empty()
+                    && slot.entry.progress.downloaded == 0;
+                if for_later {
+                    continue;
+                }
                 slot.requeue();
                 resumed += 1;
             }

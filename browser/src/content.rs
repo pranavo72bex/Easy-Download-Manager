@@ -646,6 +646,15 @@ fn on_move(_: Event) {
 
 /// The line under the bar: what happened, or what ? says. Empty hides it.
 fn say(p: &Panel, text: &str) {
+    // A line of its own starts with a capital: "the dm app has it" read
+    // as half a sentence (UI round 16). The words are the background's,
+    // shared with its notifications, where they follow a title.
+    let mut chars = text.chars();
+    let text = match chars.next() {
+        Some(first) => first.to_uppercase().chain(chars).collect::<String>(),
+        None => String::new(),
+    };
+    let text = text.as_str();
     p.sub.set_text_content(Some(text));
     if text.is_empty() {
         let _ = p.sub.set_attribute("hidden", "");

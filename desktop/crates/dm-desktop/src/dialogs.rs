@@ -1336,7 +1336,14 @@ fn confirm_remove(app: &mut DmApp, ctx: &egui::Context) {
         .show(ctx, |ui| {
             // Whole sentences, one for each number, since languages do not
             // build them from the same pieces.
+            // Finished files beside unfinished rows: said apart, with what
+            // happens to the files; "have not fetched anything yet" was said
+            // of two finished files the box would delete (UI round 16).
+            let mixed = unfinished && !files.is_empty();
             ui.label(match (unfinished, ids.len()) {
+                (true, _) if mixed => t(
+                    "Some of these are finished and some are not. Unfinished ones lose what they fetched.",
+                ),
                 (true, 1) if !fetched => {
                     t("This download has not fetched anything yet. Delete it from the list?")
                 }
@@ -1367,6 +1374,13 @@ fn confirm_remove(app: &mut DmApp, ctx: &egui::Context) {
                     t("Take these downloads off the list? Their files stay where they are.")
                 }
             });
+            if mixed {
+                ui.label(if app.dialogs.remove_files {
+                    t("The finished ones' files are deleted from the disk too.")
+                } else {
+                    t("The finished ones' files stay where they are.")
+                });
+            }
             // Which one, by name: "this download" was all it said.
             if let [only] = ids.as_slice() {
                 if let Some(row) = app.row(*only) {
@@ -4607,6 +4621,7 @@ fn options(app: &mut DmApp, ctx: &egui::Context) {
                 }
                 ui.add_space(8.0);
                 ui.label(t("For downloads that need you signed in: a cookies.txt exported from your browser."));
+                let cookies_before = s.cookies_file.clone();
                 ui.horizontal_wrapped(|ui| {
                     field(ui, t("Cookies file"), &mut s.cookies_file, 260.0);
                     if ui.button(t("Choose…")).clicked() {
@@ -4621,6 +4636,14 @@ fn options(app: &mut DmApp, ctx: &egui::Context) {
                         s.cookies_file.clear();
                     }
                 });
+                // What was said about the file goes with it: cleared, the
+                // red "could not be read" stayed on every tab (UI round 16).
+                if s.cookies_file != cookies_before
+                    && !cookies_before.is_empty()
+                    && d.says.contains(&cookies_before)
+                {
+                    d.says.clear();
+                }
             }
             Tab::Proxy => {
                 use dm_core::proxy::Kind;

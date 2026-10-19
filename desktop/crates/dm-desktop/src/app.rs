@@ -2782,7 +2782,12 @@ impl DmApp {
         ui.ctx()
             .data_mut(|d| d.insert_temp(crate::dialogs::menu_bottom_id(), self.menu_bottom));
         self.bars_bottom = self.menu_bottom;
-        if self.show_toolbar {
+        // Left out where the window is too short for it and a row of the
+        // list: at 230% in the smallest window it wrapped to three rows and
+        // no download showed at all (UI round 16). Its commands are all in
+        // the menus.
+        let tall_enough = ui.ctx().content_rect().height() >= 215.0;
+        if self.show_toolbar && tall_enough {
             let bar = egui::Panel::top("toolbar")
                 .show_separator_line(lines)
                 .frame(flat(t.frame, 8, if t.modern { 4 } else { 0 }))

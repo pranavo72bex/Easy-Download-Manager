@@ -257,11 +257,26 @@ async fn pausing_everything_leaves_nothing_running_and_starting_it_puts_it_back(
         "the queue ran a download that had been paused"
     );
 
+    // One added for later, waiting for its queue to be started, is not
+    // something Resume all starts (UI round 16).
+    let later = q
+        .add_with(
+            &format!("http://{addr}/later.bin"),
+            dm_core::AddOptions {
+                later: true,
+                queue: dm_core::MAIN_QUEUE.into(),
+                ..Default::default()
+            },
+        )
+        .await
+        .unwrap();
+
     assert_eq!(q.resume_all().await, 3);
     q.run().await;
     for id in &ids {
         assert_eq!(q.get(*id).await.unwrap().state, DownloadState::Completed);
     }
+    assert_eq!(q.get(later).await.unwrap().state, DownloadState::Paused);
 
     // A settled row is not something start-all reaches back into.
     assert_eq!(q.resume_all().await, 0);
