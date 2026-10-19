@@ -1069,10 +1069,8 @@ pub async fn on_page_message(message: JsValue, sender: JsValue) -> JsValue {
             "info",
             &format!("a clicked magnet is left to the browser: {why}"),
         );
-        if let Some(tab) = get(&sender, "tab.id").as_f64() {
-            let to = to_js(&serde_json::json!({ "url": url }));
-            let _ = call("tabs", "update", &[tab.into(), to]).await;
-        }
+        // The page opens it on this answer, as it would have without dm,
+        // so the browser's prompt names the site, not the extension.
         return answer(false, &why);
     }
     // A click with the take key held: the download about to start is the

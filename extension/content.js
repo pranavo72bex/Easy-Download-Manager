@@ -66,7 +66,11 @@
         && /^magnet:\?/i.test(String(magnet.href))) {
       event.preventDefault();
       try {
+        // Opened by the page itself where dm does not take it, so the
+        // browser's prompt names the site, as it would without dm, not the
+        // extension (torrent check 4).
         ext.runtime.sendMessage({ type: 'dm.magnet', src: String(magnet.href), frame: '' })
+          .then((answer) => { if (!answer?.ok) window.location.href = magnet.href; })
           .catch(() => { window.location.href = magnet.href; });
       } catch {
         window.location.href = magnet.href;
