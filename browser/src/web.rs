@@ -1023,6 +1023,41 @@ pub async fn on_page_message(message: JsValue, sender: JsValue) -> JsValue {
     let tab_url = get(&sender, "tab.url").as_string().unwrap_or_default();
     let private = get(&sender, "tab.incognito").as_bool() == Some(true);
     let click: decide::PanelClick = serde_json::from_value(from_js(&message)).unwrap_or_default();
+    // A magnet link clicked on a page: the app's, as a clicked .torrent is;
+    // and where the app cannot take it, the browser does what it would
+    // have done, opening it with whatever the system has for magnets.
+    if click.kind == decide::MAGNET_MESSAGE {
+        let url = match decide::magnet_url(&click) {
+            Ok(url) => url,
+            Err(why) => return answer(false, &why),
+        };
+        let target = Target {
+            url: url.clone(),
+            referrer: tab_url.clone(),
+            page: false,
+        };
+        let refused = if private {
+            Some("dm takes nothing from a private window".to_string())
+        } else {
+            match hand_target(target, tab_store(&sender, "tab")).await {
+                Ok(_) => {
+                    notify("dm is downloading it", &decide::magnet_name(&url));
+                    return answer(true, "the app takes it");
+                }
+                Err(why) => Some(why),
+            }
+        };
+        let why = refused.unwrap_or_default();
+        log(
+            "info",
+            &format!("a clicked magnet is left to the browser: {why}"),
+        );
+        if let Some(tab) = get(&sender, "tab.id").as_f64() {
+            let to = to_js(&serde_json::json!({ "url": url }));
+            let _ = call("tabs", "update", &[tab.into(), to]).await;
+        }
+        return answer(false, &why);
+    }
     // A click with the take key held: the download about to start is the
     // app's, whatever the types and size floor say.
     // Handed over as "Download link with dm" is: a link that is not itself

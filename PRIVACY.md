@@ -28,6 +28,12 @@ them; on a tab that was open before dm was installed, the extension first
 puts its small links reader into that page (the `scripting` permission),
 which reads link addresses and nothing else.
 
+**Magnet links you click.** A click on a magnet link sends that one link to
+the app, as a clicked `.torrent` file is; the page script reads nothing else
+from the page. With catching turned off, in a private window, or with the
+key that leaves a download to the browser held, the browser handles it as
+it always would.
+
 **The media a page's player loads.** To offer a video on sites no page
 reader knows, the extension looks at the type and
 size of each response a page receives (the `webRequest` permission, read

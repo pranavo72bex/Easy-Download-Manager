@@ -800,6 +800,56 @@ pub const SKIP_MESSAGE: &str = "dm.skip";
 /// whatever the types and size floor say.
 pub const TAKE_MESSAGE: &str = "dm.take";
 
+/// A click on a magnet link on a page: the torrent is the app's, as a
+/// clicked `.torrent` file is. Left alone, it went to whatever the system
+/// opens magnets with, which on macOS and Windows was never dm.
+pub const MAGNET_MESSAGE: &str = "dm.magnet";
+
+/// The magnet a clicked link names, if it names a torrent.
+pub fn magnet_url(click: &PanelClick) -> Result<String, String> {
+    if click.kind != MAGNET_MESSAGE {
+        return Err("that is not a magnet link's click".into());
+    }
+    let url = click.src.trim();
+    let lower = url.to_ascii_lowercase();
+    if lower.starts_with("magnet:?") && lower.contains("xt=urn:bt") {
+        Ok(url.to_string())
+    } else {
+        Err("that magnet link names no torrent".into())
+    }
+}
+
+/// What to call a magnet in a notice: its `dn=`, or "the torrent".
+pub fn magnet_name(url: &str) -> String {
+    url.split(['?', '&'])
+        .find_map(|part| part.strip_prefix("dn="))
+        .map(|name| name.replace('+', " "))
+        .map(|name| percent_decoded(&name))
+        .filter(|name| !name.trim().is_empty())
+        .unwrap_or_else(|| "the torrent".to_string())
+}
+
+/// `%XX` escapes undone, bytes read as UTF-8 where they make it.
+fn percent_decoded(text: &str) -> String {
+    let bytes = text.as_bytes();
+    let mut out = Vec::with_capacity(bytes.len());
+    let mut i = 0;
+    let hex = |b: u8| (b as char).to_digit(16);
+    while let Some(&byte) = bytes.get(i) {
+        match (byte, bytes.get(i + 1), bytes.get(i + 2)) {
+            (b'%', Some(&h), Some(&l)) if hex(h).is_some() && hex(l).is_some() => {
+                out.push((hex(h).unwrap_or(0) * 16 + hex(l).unwrap_or(0)) as u8);
+                i += 3;
+            }
+            (b, _, _) => {
+                out.push(b);
+                i += 1;
+            }
+        }
+    }
+    String::from_utf8_lossy(&out).into_owned()
+}
+
 /// The address a click with the take key held asks the app to take.
 pub fn take_url(click: &PanelClick) -> Result<String, String> {
     if click.kind != TAKE_MESSAGE {
@@ -1358,6 +1408,23 @@ mod test_secrets;
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn a_clicked_magnet_is_taken_and_named_by_its_dn() {
+        use super::{magnet_name, magnet_url, PanelClick, MAGNET_MESSAGE};
+        let click = |src: &str| PanelClick {
+            kind: MAGNET_MESSAGE.into(),
+            src: src.into(),
+            ..PanelClick::default()
+        };
+        let magnet =
+            "magnet:?xt=urn:btih:0123456789abcdef0123456789abcdef01234567&dn=Some+Linux%20ISO";
+        assert_eq!(magnet_url(&click(magnet)).as_deref(), Ok(magnet));
+        assert!(magnet_url(&click("magnet:?dn=nothing")).is_err());
+        assert!(magnet_url(&click("https://e.com/x.torrent")).is_err());
+        assert_eq!(magnet_name(magnet), "Some Linux ISO");
+        assert_eq!(magnet_name("magnet:?xt=urn:btih:00"), "the torrent");
+    }
+
     use super::taken_name;
 
     #[test]

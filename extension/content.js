@@ -25,6 +25,8 @@
   // key. The take key is held to isTrusted, since it hands something over;
   // a made-up keep click can only leave a download with the browser.
   const keys = { keep: 'alt', take: 'shift' };
+  // The app's master switch: off, a magnet link is the browser's.
+  let catching = true;
   const held = (event, key) => (key === 'alt' && event.altKey)
     || (key === 'shift' && event.shiftKey)
     || (key === 'ctrl' && (event.ctrlKey || event.metaKey));
@@ -32,6 +34,7 @@
     if (!rules || typeof rules !== 'object') return;
     if (typeof rules.keepKey === 'string') keys.keep = rules.keepKey;
     if (typeof rules.takeKey === 'string') keys.take = rules.takeKey;
+    if (typeof rules.enabled === 'boolean') catching = rules.enabled;
   };
   try {
     ext.storage.local.get('dm.catch').then((got) => readKeys(got?.['dm.catch'])).catch(() => {});
@@ -45,6 +48,22 @@
   })();
   document.addEventListener('click', (event) => {
     if (!(event.target instanceof Element)) return;
+    // A magnet link is the app's, as a clicked .torrent is: it went to
+    // whatever the system opens magnets with, never dm on macOS or
+    // Windows. The background gives it back to the browser when the app
+    // cannot take it. Not with the keep key held, nor in a private window.
+    const magnet = event.target.closest('a[href]');
+    if (magnet && event.button === 0 && catching && !privateTab && !held(event, keys.keep)
+        && /^magnet:\?/i.test(String(magnet.href))) {
+      event.preventDefault();
+      try {
+        ext.runtime.sendMessage({ type: 'dm.magnet', src: String(magnet.href), frame: '' })
+          .catch(() => { window.location.href = magnet.href; });
+      } catch {
+        window.location.href = magnet.href;
+      }
+      return;
+    }
     const keep = held(event, keys.keep);
     const take = !keep && !privateTab && keys.take !== '' && event.isTrusted && held(event, keys.take);
     if (!keep && !take) return;
