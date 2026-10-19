@@ -649,8 +649,11 @@ fn say(p: &Panel, text: &str) {
     // A line of its own starts with a capital: "the dm app has it" read
     // as half a sentence (UI round 16). The words are the background's,
     // shared with its notifications, where they follow a title.
+    // But dm's own name stays as it is written everywhere, lowercase
+    // ("Dm downloads this video…", UI round 17).
     let mut chars = text.chars();
     let text = match chars.next() {
+        _ if text.starts_with("dm ") => text.to_string(),
         Some(first) => first.to_uppercase().chain(chars).collect::<String>(),
         None => String::new(),
     };

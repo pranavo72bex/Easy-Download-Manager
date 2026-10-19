@@ -2232,6 +2232,17 @@ impl DmApp {
     /// list are asked about first, as Add URL asks (gap 143).
     /// Reads a list into the queue; why it could not, as said, if not.
     pub fn import_from(&mut self, path: &std::path::Path) -> Result<(), String> {
+        // A .torrent is a download, not a list of them: read as text it was
+        // "not valid UTF-8" (UI round 17).
+        if let Some(local) = crate::dialogs::local_torrent(&path.to_string_lossy()) {
+            return match self.add(&[local], Default::default()) {
+                Ok(_) => Ok(()),
+                Err(e) => {
+                    self.said = e.clone().into();
+                    Err(e)
+                }
+            };
+        }
         let text = match std::fs::read_to_string(path) {
             Ok(text) => text,
             Err(e) => {
@@ -3779,18 +3790,27 @@ impl DmApp {
             ui.separator();
             return;
         }
+        // The buttons first, from the right, and the link in what is left,
+        // cut short with the whole of it on hover: a long one pushed
+        // Download and Dismiss past the window's edge (UI round 17).
         ui.horizontal(|ui| {
             ui.label(t("Link on your clipboard:"));
-            ui.label(RichText::new(format::shown_url(&url)).weak());
-            if ui.button(t("Download")).clicked() {
-                self.clipboard.dismissed.insert(url.clone());
-                self.clipboard.offered = None;
-                self.dialogs.open_file_info(vec![url.clone()]);
-            }
-            if ui.button(t("Dismiss")).clicked() {
-                self.clipboard.dismissed.insert(url.clone());
-                self.clipboard.offered = None;
-            }
+            ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                if ui.button(t("Dismiss")).clicked() {
+                    self.clipboard.dismissed.insert(url.clone());
+                    self.clipboard.offered = None;
+                }
+                if ui.button(t("Download")).clicked() {
+                    self.clipboard.dismissed.insert(url.clone());
+                    self.clipboard.offered = None;
+                    self.dialogs.open_file_info(vec![url.clone()]);
+                }
+                let shown = format::shown_url(&url);
+                ui.with_layout(egui::Layout::left_to_right(egui::Align::Center), |ui| {
+                    ui.add(egui::Label::new(RichText::new(&shown).weak()).truncate())
+                        .on_hover_text(&shown);
+                });
+            });
         });
         ui.separator();
     }

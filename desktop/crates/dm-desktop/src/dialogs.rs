@@ -1819,6 +1819,22 @@ pub fn sites(words: &[String]) -> Vec<String> {
         .collect()
 }
 
+/// The `file://` address of a `.torrent` on this computer named by `text`,
+/// its path (`~` for the home folder) or that address itself, if the file
+/// is there.
+pub fn local_torrent(text: &str) -> Option<String> {
+    let text = text.trim();
+    let path = match dm_core::torrent::local_file(text) {
+        Some(path) => path,
+        None if !text.contains("://") => dm_shell::settings::full_path(text)?,
+        None => return None,
+    };
+    if !dm_core::is_torrent(&path.to_string_lossy()) || !path.is_file() {
+        return None;
+    }
+    dm_core::torrent::file_url(&path)
+}
+
 /// Where Export offers to write the list when its path is typed.
 pub fn default_list_path(settings: &Settings) -> std::path::PathBuf {
     settings.download_dir.join("downloads.dmlist")
@@ -1941,7 +1957,13 @@ fn add_url(app: &mut DmApp, ctx: &egui::Context) {
         return;
     }
     let mut address = d.address.trim().to_string();
-    if crate::app::looks_downloadable(&address).is_none() {
+    // A .torrent on this computer, by its path or its file:// address: it
+    // could only be dragged in, and Add URL called it no link (UI round
+    // 17).
+    if let Some(local) = local_torrent(&address) {
+        address = local;
+    }
+    if crate::app::looks_downloadable(&address).is_none() && local_torrent(&address).is_none() {
         // Nothing typed is asked for, not called a bad link.
         d.says = if address.is_empty() {
             t("Type or paste the address of what to download.").into()

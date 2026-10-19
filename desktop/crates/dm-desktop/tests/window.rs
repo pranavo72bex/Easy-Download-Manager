@@ -8212,3 +8212,52 @@ fn remove_says_when_finished_and_unfinished_rows_are_mixed() {
         .query_by_label_contains("have not fetched anything yet")
         .is_none());
 }
+
+/// UI round 17: a .torrent on this computer is added by its path or its
+/// file address in Add URL; only a drop took it.
+#[test]
+fn add_url_takes_a_torrent_on_this_computer() {
+    let world = world();
+    let mut harness = world.harness();
+    let file = world.dir.path().join("a set.torrent");
+    std::fs::write(&file, b"d4:infodee").unwrap();
+    click(&mut harness, "Add URL");
+    type_into(&mut harness, "Address", file.to_str().unwrap());
+    click(&mut harness, "OK");
+    let urls = harness
+        .state()
+        .dialogs
+        .file_info
+        .as_ref()
+        .map(|d| d.urls.clone())
+        .expect("Download details did not open");
+    assert_eq!(urls, [dm_core::torrent::file_url(&file).unwrap()]);
+}
+
+/// UI round 17: a long link on the clipboard is cut short, and its
+/// Download and Dismiss stay in the window.
+#[test]
+fn the_clipboard_bar_keeps_its_buttons_in_the_window() {
+    let _file = SETTINGS_FILE.lock().unwrap_or_else(|e| e.into_inner());
+    let world = world();
+    *world.fake.clipboard.lock().unwrap() = Some("old".into());
+    let mut harness = world.harness();
+    let mut on = harness.state().backend().settings();
+    on.watch_clipboard = true;
+    harness.state_mut().apply_settings(on).unwrap();
+    let long = world.url(&format!("{}.zip", "a-very-long-name".repeat(8)));
+    *world.fake.clipboard.lock().unwrap() = Some(long);
+    harness.state_mut().check_clipboard();
+    harness.run_steps(3);
+    let screen = harness.ctx.content_rect();
+    for name in ["Download", "Dismiss"] {
+        let button = harness.get_by_label(name).rect();
+        assert!(
+            button.right() <= screen.right(),
+            "{name} at {button:?} past {screen:?}"
+        );
+    }
+    let mut off = harness.state().backend().settings();
+    off.watch_clipboard = false;
+    harness.state_mut().apply_settings(off).unwrap();
+}

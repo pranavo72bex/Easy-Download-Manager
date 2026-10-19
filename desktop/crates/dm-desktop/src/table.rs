@@ -138,8 +138,17 @@ pub fn show(app: &mut DmApp, ui: &mut egui::Ui) {
             let head = ui
                 .data(|d| d.get_temp::<f32>(head_id))
                 .unwrap_or(22.0 + ui.spacing().item_spacing.y);
-            let body_room = (list_rect.height() - head - bar_room - ui.spacing().item_spacing.y)
-                .max(f32::min(row_height, list_rect.height()));
+            // And what the body ran past the visible list by, measured last
+            // frame, until the list's height changes: with the clipboard's
+            // bar above it at 300% the last row was still cut (UI round 17).
+            let over_id = egui::Id::unique("dm-list-over");
+            let over = ui
+                .data(|d| d.get_temp::<(f32, f32)>(over_id))
+                .filter(|(height, _)| (height - list_rect.height()).abs() < 0.5)
+                .map_or(0.0, |(_, over)| over);
+            let body_room =
+                (list_rect.height() - head - bar_room - ui.spacing().item_spacing.y - over)
+                    .max(f32::min(row_height, list_rect.height()));
             // The widths follow the window until the person drags one: then
             // theirs are kept. Kept from the first draw whatever happened to
             // the window after, a list opened narrow and widened left the
@@ -327,6 +336,17 @@ pub fn show(app: &mut DmApp, ui: &mut egui::Ui) {
                     egui::Id::unique("dm-list-head"),
                     (out.inner_rect.min.y - list_rect.min.y).max(0.0),
                 )
+            });
+            // How far the body ran past what can be seen above the bar.
+            let seen_bottom = list_rect.max.y.min(ui.clip_rect().max.y) - bar_room;
+            let past = (out.inner_rect.max.y - seen_bottom).max(0.0);
+            ui.data_mut(|d| {
+                let id = egui::Id::unique("dm-list-over");
+                let before = d
+                    .get_temp::<(f32, f32)>(id)
+                    .filter(|(height, _)| (height - list_rect.height()).abs() < 0.5)
+                    .map_or(0.0, |(_, over)| over);
+                d.insert_temp(id, (list_rect.height(), before + past));
             });
             body_out = Some((
                 out.state.clamped_offset().y,
