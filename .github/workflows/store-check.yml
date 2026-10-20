@@ -39,6 +39,10 @@ jobs:
             sudo apt-get install -y microsoft-edge-stable
           fi
           microsoft-edge-stable --version
+      - name: The browser's sandbox
+        # Ubuntu 24.04 keeps unprivileged programs from the namespaces
+        # Chromium's sandbox is made of, and Edge then exits at once.
+        run: sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0
       - name: The listing's build, installed from the store by policy
         run: |
           sudo mkdir -p /etc/opt/edge/policies/managed

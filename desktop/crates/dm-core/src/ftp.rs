@@ -193,6 +193,15 @@ async fn connect(route: Option<&Route>, host: &str, port: u16) -> Result<TcpStre
 
 impl Target {
     fn parse(url: &str) -> Result<Target, Error> {
+        Self::parse_as(url, false)
+    }
+
+    /// A folder's address, for listing it: a trailing `/` or none at all.
+    fn parse_folder(url: &str) -> Result<Target, Error> {
+        Self::parse_as(url, true)
+    }
+
+    fn parse_as(url: &str, folder: bool) -> Result<Target, Error> {
         let parsed = url::Url::parse(url)
             .map_err(|e| Error::Internal(format!("that is not an FTP address: {e}")))?;
         let host = parsed
@@ -203,7 +212,7 @@ impl Target {
             .trim_end_matches(']')
             .to_string();
         let path = crate::probe::decode(parsed.path());
-        if path.ends_with('/') || path.is_empty() {
+        if !folder && (path.ends_with('/') || path.is_empty()) {
             return Err(Error::Internal(
                 "that FTP address is a folder, not a file".into(),
             ));
@@ -524,6 +533,125 @@ async fn describe(target: &Target) -> Result<Described, Error> {
     })
 }
 
+/// One thing in an FTP folder.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Listed {
+    pub name: String,
+    pub folder: bool,
+}
+
+/// The most of a folder's listing read: a server sending one without end
+/// does not fill memory.
+const MAX_LISTING: usize = 4 * 1024 * 1024;
+
+/// An `MLSD` listing: `facts; name` a line, the type a fact.
+fn parse_mlsd(text: &str) -> Vec<Listed> {
+    text.lines()
+        .filter_map(|line| {
+            let (facts, name) = line.split_once(' ')?;
+            let kind = facts.split(';').find_map(|f| {
+                let (k, v) = f.split_once('=')?;
+                k.eq_ignore_ascii_case("type")
+                    .then(|| v.to_ascii_lowercase())
+            })?;
+            let folder = match kind.as_str() {
+                "dir" => true,
+                "file" => false,
+                // The folder itself and its parent.
+                _ => return None,
+            };
+            Some(Listed {
+                name: name.to_string(),
+                folder,
+            })
+        })
+        .collect()
+}
+
+/// A `LIST` listing as Unix servers write it (`drwxr-xr-x 2 u g 4096 Jan 1
+/// 00:00 name`) or Windows ones (`01-01-24 12:00AM <DIR> name`).
+fn parse_list(text: &str) -> Vec<Listed> {
+    text.lines()
+        .filter_map(|line| {
+            let words: Vec<&str> = line.split_whitespace().collect();
+            let (folder, name) =
+                if words.first()?.len() == 10 && words.first()?.starts_with(['d', '-', 'l']) {
+                    // Unix: the name is everything after the eighth field.
+                    let mut rest = line;
+                    for _ in 0..8 {
+                        rest = rest.trim_start();
+                        rest = rest.split_once(char::is_whitespace)?.1;
+                    }
+                    let name = rest.trim_start();
+                    // A link's "name -> target".
+                    let name = name.split(" -> ").next().unwrap_or(name);
+                    (words.first()?.starts_with('d'), name)
+                } else if words.len() >= 4 {
+                    let mut rest = line;
+                    for _ in 0..3 {
+                        rest = rest.trim_start();
+                        rest = rest.split_once(char::is_whitespace)?.1;
+                    }
+                    (*words.get(2)? == "<DIR>", rest.trim_start())
+                } else {
+                    return None;
+                };
+            (!name.is_empty() && name != "." && name != "..").then(|| Listed {
+                name: name.to_string(),
+                folder,
+            })
+        })
+        .collect()
+}
+
+/// What an FTP folder holds: its files and folders, by `MLSD` where the
+/// server has it, else by `LIST`. Through the proxy the settings name for
+/// it, as a download is; never around one.
+pub async fn list(url: &str, options: &Options) -> Result<Vec<Listed>, Error> {
+    if let Some(why) = options.no_route_through_system_proxy(url, "FTP") {
+        return Err(Error::Internal(why));
+    }
+    let mut target = Target::parse_folder(url)?;
+    target.route = Route::parse(options.proxy_for(url))?;
+    let mut session = Session::open(&target).await?;
+    let folder = target.path.trim_end_matches('/').to_string();
+    for (verb, parse) in [
+        ("MLSD", parse_mlsd as fn(&str) -> Vec<Listed>),
+        ("LIST", parse_list),
+    ] {
+        let data = session.data(&folder).await?;
+        let command = if folder.is_empty() {
+            verb.to_string()
+        } else {
+            format!("{verb} {folder}")
+        };
+        let (code, text) = session.command(&command).await?;
+        if code != 150 && code != 125 {
+            drop(data);
+            // Not a command this server knows: the older one.
+            if verb == "MLSD" && (500..=504).contains(&code) {
+                continue;
+            }
+            return Err(refusal(code, &text, &folder));
+        }
+        let mut bytes = Vec::new();
+        timed(async {
+            let mut data = data;
+            (&mut data)
+                .take(MAX_LISTING as u64)
+                .read_to_end(&mut bytes)
+                .await
+        })
+        .await?;
+        let _ = session.reply().await;
+        let _ = session.command("QUIT").await;
+        return Ok(parse(&String::from_utf8_lossy(&bytes)));
+    }
+    Err(Error::Internal(
+        "the FTP server would not list the folder".into(),
+    ))
+}
+
 /// Fetches an FTP file into `options.dest_dir`, over several connections
 /// where the server takes `REST`.
 pub async fn download_ftp(
@@ -823,6 +951,56 @@ async fn fetch_range(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn folder_listings_are_read_in_both_forms() {
+        let mlsd = "type=cdir;modify=20240101000000; .\r\ntype=pdir; ..\r\ntype=dir;modify=1; pub stuff\r\ntype=file;size=12; a file.zip\r\n";
+        assert_eq!(
+            parse_mlsd(mlsd),
+            vec![
+                Listed {
+                    name: "pub stuff".into(),
+                    folder: true
+                },
+                Listed {
+                    name: "a file.zip".into(),
+                    folder: false
+                },
+            ]
+        );
+        let unix = "drwxr-xr-x   2 ftp ftp   4096 Jan 01 00:00 releases\r\n-rw-r--r--   1 ftp ftp 123456 Jan 01  2024 big file.iso\r\nlrwxrwxrwx 1 ftp ftp 4 Jan 01 00:00 latest -> releases\r\ndrwxr-xr-x 2 ftp ftp 4096 Jan 01 00:00 ..\r\n";
+        assert_eq!(
+            parse_list(unix),
+            vec![
+                Listed {
+                    name: "releases".into(),
+                    folder: true
+                },
+                Listed {
+                    name: "big file.iso".into(),
+                    folder: false
+                },
+                Listed {
+                    name: "latest".into(),
+                    folder: false
+                },
+            ]
+        );
+        let dos = "01-01-24  12:00AM       <DIR>          old\r\n01-01-24  12:00AM               1024 notes.txt\r\n";
+        assert_eq!(
+            parse_list(dos),
+            vec![
+                Listed {
+                    name: "old".into(),
+                    folder: true
+                },
+                Listed {
+                    name: "notes.txt".into(),
+                    folder: false
+                },
+            ]
+        );
+    }
 
     #[test]
     fn an_ftp_address_is_read_into_its_parts() {

@@ -30,6 +30,8 @@ struct Quirks {
     aborts: bool,
     /// Where the file is, if not `f.bin` in the login directory.
     at: Option<&'static str>,
+    /// No MLSD, so a folder is listed with LIST.
+    no_mlsd: bool,
 }
 
 #[derive(Clone)]
@@ -167,6 +169,30 @@ async fn session(stream: TcpStream, s: Server) {
                     "426 aborted"
                 }
                 .to_string()
+            }
+            "MLSD" if s.quirks.no_mlsd => "500 no MLSD".into(),
+            // The login folder holds f.bin and a folder, sub, which holds
+            // g.zip.
+            "MLSD" | "LIST" => {
+                let Some(listener) = passive.take() else {
+                    let _ = say(&mut write, "425 no data connection".into()).await;
+                    continue;
+                };
+                let listing = match (verb, arg) {
+                    ("MLSD", "") => "type=cdir; .\r\ntype=file;size=3; f.bin\r\ntype=dir; sub\r\n",
+                    ("MLSD", "sub") => "type=file;size=3; g.zip\r\n",
+                    ("LIST", "") => "-rw-r--r-- 1 ftp ftp 3 Jan 01 00:00 f.bin\r\ndrwxr-xr-x 2 ftp ftp 4096 Jan 01 00:00 sub\r\n",
+                    ("LIST", "sub") => "-rw-r--r-- 1 ftp ftp 3 Jan 01 00:00 g.zip\r\n",
+                    _ => {
+                        let _ = say(&mut write, "550 No such folder.".into()).await;
+                        continue;
+                    }
+                };
+                let _ = say(&mut write, "150 listing".into()).await;
+                if let Ok((mut data, _)) = listener.accept().await {
+                    let _ = data.write_all(listing.as_bytes()).await;
+                }
+                "226 done".to_string()
             }
             "QUIT" => {
                 let _ = say(&mut write, "221 bye".into()).await;
@@ -710,4 +736,49 @@ async fn an_empty_ftp_file_downloads() {
     .expect("an empty file was waited for")
     .expect("an empty file failed");
     assert_eq!(std::fs::read(&done.path).unwrap(), Vec::<u8>::new());
+}
+
+/// An FTP folder's listing, by MLSD and, where the server has none, by
+/// LIST: its files and folders told apart, a folder within listed too.
+#[tokio::test]
+async fn an_ftp_folder_is_listed_by_mlsd_or_list() {
+    for quirks in [
+        Quirks::default(),
+        Quirks {
+            no_mlsd: true,
+            ..Quirks::default()
+        },
+    ] {
+        let (host, _server) = serve(body(3), quirks).await;
+        let dir = tempdir();
+        let top = dm_core::ftp::list(&format!("ftp://{host}/"), &options(dir.path()))
+            .await
+            .expect("the login folder");
+        let names: Vec<(String, bool)> = top.into_iter().map(|l| (l.name, l.folder)).collect();
+        assert_eq!(
+            names,
+            [("f.bin".to_string(), false), ("sub".to_string(), true)]
+        );
+        let sub = dm_core::ftp::list(&format!("ftp://{host}/sub/"), &options(dir.path()))
+            .await
+            .expect("a folder within");
+        assert_eq!(sub.len(), 1);
+        assert_eq!(sub[0].name, "g.zip");
+    }
+}
+
+/// Listed through the proxy the settings name, as a download is, and
+/// refused rather than sent around one FTP cannot use.
+#[tokio::test]
+async fn an_ftp_folder_is_not_listed_around_a_proxy() {
+    let dir = tempdir();
+    let behind = dm_core::Options {
+        proxy: Some("https://127.0.0.1:1".into()),
+        ..options(dir.path())
+    };
+    let said = dm_core::ftp::list("ftp://127.0.0.1:1/", &behind)
+        .await
+        .unwrap_err()
+        .to_string();
+    assert!(said.contains("does not go around"), "{said}");
 }

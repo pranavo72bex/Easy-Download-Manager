@@ -448,10 +448,113 @@ async fn fetch_page(
 /// [`MAX_PAGES`] of them. A start page that cannot be read is the error;
 /// a page further in that cannot is skipped.
 pub async fn crawl(client: &dm_core::reqwest::Client, search: &Search) -> Result<Crawled, String> {
+    crawl_with(client, search, None).await
+}
+
+/// [`crawl`], with the engine's settings for an FTP server's folders: its
+/// proxy, which a listing goes through as a download does. An FTP search
+/// without them is refused, never sent around a proxy.
+pub async fn crawl_with(
+    client: &dm_core::reqwest::Client,
+    search: &Search,
+    options: Option<&dm_core::Options>,
+) -> Result<Crawled, String> {
     let minutes = search.stop_after_minutes.min(MOST_MINUTES);
     let deadline = (minutes > 0)
         .then(|| tokio::time::Instant::now() + std::time::Duration::from_secs(minutes * 60));
+    if dm_core::ftp::is_ftp(search.page.trim()) {
+        let Some(options) = options else {
+            return Err("an FTP server's folders are searched with dm's settings".into());
+        };
+        return crawl_ftp(search, options, deadline).await;
+    }
     crawl_until(client, search, deadline).await
+}
+
+/// An FTP server's folders, from the start folder down `depth` levels:
+/// each folder is a page, its files the links. Kept or skipped by the same
+/// filters as a site's pages, and stopped at the same limits.
+pub async fn crawl_ftp(
+    search: &Search,
+    options: &dm_core::Options,
+    deadline: Option<tokio::time::Instant>,
+) -> Result<Crawled, String> {
+    walk_folders(search, deadline, |folder| async move {
+        dm_core::ftp::list(&folder, options).await
+    })
+    .await
+}
+
+/// The walk itself, with what lists a folder given: dm's FTP client, or a
+/// test's made-up server.
+async fn walk_folders<F, Fut>(
+    search: &Search,
+    deadline: Option<tokio::time::Instant>,
+    list: F,
+) -> Result<Crawled, String>
+where
+    F: Fn(String) -> Fut,
+    Fut: std::future::Future<Output = Result<Vec<dm_core::ftp::Listed>, dm_core::Error>>,
+{
+    use std::collections::VecDeque;
+    let mut start = url::Url::parse(search.page.trim())
+        .map_err(|e| format!("that is not an FTP address: {e}"))?;
+    if !start.path().ends_with('/') {
+        let path = format!("{}/", start.path());
+        start.set_path(&path);
+    }
+    let depth = search.depth.min(MAX_DEPTH);
+    let mut found = Crawled::default();
+    let mut frontier: VecDeque<(url::Url, u8)> = VecDeque::from([(start, 0)]);
+    while let Some((folder, level)) = frontier.pop_front() {
+        if found.pages >= MAX_PAGES {
+            break;
+        }
+        let listing = list(folder.to_string());
+        let listed = match deadline {
+            Some(at) if found.pages > 0 => match tokio::time::timeout_at(at, listing).await {
+                Ok(listed) => listed,
+                Err(_) => {
+                    found.stopped = true;
+                    break;
+                }
+            },
+            _ => listing.await,
+        };
+        let entries = match listed {
+            Ok(entries) => entries,
+            Err(e) if found.pages == 0 => return Err(e.to_string()),
+            Err(_) => continue,
+        };
+        found.pages += 1;
+        for entry in entries {
+            let mut child = folder.clone();
+            if let Ok(mut segments) = child.path_segments_mut() {
+                segments.pop_if_empty().push(&entry.name);
+                if entry.folder {
+                    segments.push("");
+                }
+            }
+            let link = child.to_string();
+            let path = path_of(&link);
+            if has_any(&path, &search.exclude) {
+                continue;
+            }
+            if entry.folder {
+                if level < depth {
+                    frontier.push_back((child, level + 1));
+                }
+                continue;
+            }
+            let wanted_type = search.types.is_empty() || has_extension(&link, &search.types);
+            let wanted = search.include.iter().all(|w| w.trim().is_empty())
+                || has_any(&path, &search.include);
+            if wanted_type && wanted && !found.files.contains(&link) {
+                found.files.push(link);
+            }
+        }
+    }
+    Ok(found)
 }
 
 /// [`crawl`], stopping at `deadline` (after the start page) rather than at
@@ -537,6 +640,50 @@ pub async fn crawl_until(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// An FTP server's folders walked as a site's pages are: down to the
+    /// depth asked, files kept by type and path, names with spaces made
+    /// into addresses.
+    #[tokio::test]
+    async fn ftp_folders_are_walked_to_their_depth_with_the_filters() {
+        use dm_core::ftp::Listed;
+        let tree = |folder: String| async move {
+            let entry = |name: &str, folder: bool| Listed {
+                name: name.into(),
+                folder,
+            };
+            Ok(match folder.as_str() {
+                "ftp://host/pub/" => vec![
+                    entry("a.zip", false),
+                    entry("notes.txt", false),
+                    entry("old stuff", true),
+                    entry("skip", true),
+                ],
+                "ftp://host/pub/old%20stuff/" => {
+                    vec![entry("b c.zip", false), entry("deeper", true)]
+                }
+                "ftp://host/pub/old%20stuff/deeper/" => vec![entry("d.zip", false)],
+                "ftp://host/pub/skip/" => vec![entry("e.zip", false)],
+                other => panic!("listed {other}"),
+            })
+        };
+        let search = Search {
+            page: "ftp://host/pub".into(),
+            types: vec!["zip".into()],
+            depth: 1,
+            exclude: vec!["skip".into()],
+            ..Search::default()
+        };
+        let found = walk_folders(&search, None, tree).await.unwrap();
+        assert_eq!(
+            found.files,
+            [
+                "ftp://host/pub/a.zip",
+                "ftp://host/pub/old%20stuff/b%20c.zip"
+            ]
+        );
+        assert_eq!(found.pages, 2);
+    }
 
     /// Gaps 59 and 70: a last run in the future (a clock once set ahead)
     /// held the search until that date; an interval read from a hand-edited

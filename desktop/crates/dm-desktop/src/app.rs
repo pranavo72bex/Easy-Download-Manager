@@ -929,9 +929,11 @@ impl DmApp {
     pub fn run_search(&mut self, search: dm_shell::lists::Search) {
         let client = self.client();
         let results = Arc::clone(&self.search_results);
+        let queue = self.backend.queue.clone();
         self.searches_running += 1;
         self.backend.runtime.spawn(async move {
-            let found = dm_shell::lists::crawl(&client, &search).await;
+            let options = queue.options().await;
+            let found = dm_shell::lists::crawl_with(&client, &search, Some(&options)).await;
             dm_core::lock(&results).push((search.name, found));
         });
     }

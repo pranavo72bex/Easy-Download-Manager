@@ -4619,8 +4619,10 @@ fn site_files(app: &mut DmApp, ctx: &egui::Context) {
         // offers them: all were ticked, and Add for later queued them again
         // without asking (UI round 15).
         let listed = listed.clone();
+        let queue = app.backend.queue.clone();
         app.backend.runtime.spawn(async move {
-            let found = dm_shell::lists::crawl(&client, &search).await;
+            let options = queue.options().await;
+            let found = dm_shell::lists::crawl_with(&client, &search, Some(&options)).await;
             *dm_core::lock(&state) = match found {
                 Ok(found) => Grab::Found(
                     found

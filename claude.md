@@ -177,7 +177,8 @@ and is not carried over.
       a progress window per download with each connection, Download
       complete, Properties with Update download link, Add numbered series,
       Add links from clipboard, Files on a site (pages deep on one site,
-      path filters, saved searches that run on a timer), Import/Export as dm's
+      or an FTP server's folders read by MLSD or LIST; path filters, saved
+      searches that run on a timer and can stop reading after so many minutes), Import/Export as dm's
       `.dmlist` (plain lists of links import too), Find, Scheduler, Speed
       limiter, Options (General, Folders, Downloads, Browser, Network,
       Proxy, Sign-ins). Every action is a named command (`commands.rs`),
