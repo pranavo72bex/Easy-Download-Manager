@@ -51,10 +51,11 @@ was removed on 2026-10-12 and is in git history.
       and that run's late word on how it ended — Paused, seen at the read
       timeout — is not written over the row that has since been put back in
       line, which a queue test against a stalled server found it was
-- [x] Large file support — assembly used to copy every part into the finished
-      file and only then delete them, so both existed in full at the end and a
-      4 GB download needed 8 GB. Each part is freed as it is consumed, and a
-      test watches the directory and fails at anything approaching 2x
+- [x] Large file support — a ranged download is written in place: every
+      range at its own offset in one staged file, renamed into place when
+      whole, so nothing is copied and a 4 GB download needs 4 GB (it used to
+      copy every part into the finished file at the end). A test watches the
+      directory and fails at anything approaching 2x
 
 ## Browser integration
 State of the Rust extension, 2026-10-12. What the JavaScript one had
