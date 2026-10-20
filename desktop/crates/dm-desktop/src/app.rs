@@ -28,10 +28,15 @@ const REFRESH: Duration = Duration::from_millis(250);
 pub const MIN_WINDOW: (f32, f32) = (720.0, 460.0);
 
 /// How often it is read back while nothing downloads.
-const IDLE_REFRESH: Duration = Duration::from_secs(1);
+/// How often a window with nothing moving wakes of its own accord: a change
+/// to the queue wakes it at once (`Queue::on_change`), so this is only for
+/// what changes with no one telling (a saved search's timer, a date).
+const IDLE_REFRESH: Duration = Duration::from_secs(30);
+/// While the clipboard is watched, which nothing can tell it about.
+const CLIPBOARD_REFRESH: Duration = Duration::from_secs(1);
 /// How often dm wakes hidden in the tray: while something moves, and idle.
 const HIDDEN_REFRESH: Duration = Duration::from_secs(1);
-const HIDDEN_IDLE: Duration = Duration::from_secs(5);
+const HIDDEN_IDLE: Duration = Duration::from_secs(30);
 /// How often the clipboard is looked at, when watching it is on.
 const CLIPBOARD: Duration = Duration::from_secs(1);
 
@@ -1387,12 +1392,14 @@ impl DmApp {
                 .any(|r| matches!(r.state, State::Running | State::Queued));
         // Hidden in the tray, no one sees a frame: woken each second while
         // something moves or the clipboard is watched (When done, the
-        // complete window, a new link), else every five, which the
-        // schedule's and saved searches' minutes allow.
+        // complete window, a new link). With nothing moving, a change to
+        // the queue wakes it, visible or hidden, and the rest is every 30
+        // seconds, which the saved searches' minutes allow.
         let wake = match (self.hidden, moving || self.clipboard.on) {
             (true, true) => HIDDEN_REFRESH,
             (true, false) => HIDDEN_IDLE,
             (false, _) if moving => REFRESH,
+            (false, _) if self.clipboard.on => CLIPBOARD_REFRESH,
             (false, _) => IDLE_REFRESH,
         };
         ctx.request_repaint_after(wake);

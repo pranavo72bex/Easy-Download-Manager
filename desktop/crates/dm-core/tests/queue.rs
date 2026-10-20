@@ -93,6 +93,37 @@ fn queue(dir: &std::path::Path, concurrency: usize) -> Queue {
     )
 }
 
+/// The window waits to be told rather than looking every second while
+/// nothing moves: a row added or taken away tells it.
+#[tokio::test]
+async fn a_change_to_the_queue_is_told() {
+    use std::sync::atomic::{AtomicUsize, Ordering};
+    let dir = tempdir();
+    let q = queue(dir.path(), 1);
+    let told = std::sync::Arc::new(AtomicUsize::new(0));
+    let count = std::sync::Arc::clone(&told);
+    q.on_change(move || {
+        count.fetch_add(1, Ordering::SeqCst);
+    });
+    let id = q
+        .add_with(
+            "http://127.0.0.1:9/f.bin",
+            dm_core::AddOptions {
+                later: true,
+                ..Default::default()
+            },
+        )
+        .await
+        .unwrap();
+    let after_add = told.load(Ordering::SeqCst);
+    assert!(after_add > 0, "adding a row told nothing");
+    q.remove(id).await;
+    assert!(
+        told.load(Ordering::SeqCst) > after_add,
+        "removing it told nothing"
+    );
+}
+
 #[tokio::test]
 async fn downloads_run_together_but_not_all_at_once() {
     let (addr, peak) = serve().await;

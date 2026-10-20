@@ -1139,6 +1139,16 @@ fn main() {
     // the inbox; anything that was mid-flight came back queued.
     let show_asked = Arc::new(AtomicBool::new(false));
     let repaint = repaint_early;
+    // A change to the queue wakes the window, which then has no need to look
+    // every second for one while nothing moves.
+    {
+        let repaint = Arc::clone(&repaint);
+        queue.on_change(move || {
+            if let Some(ctx) = repaint.get() {
+                ctx.request_repaint();
+            }
+        });
+    }
     let handed: Arc<Mutex<std::collections::VecDeque<dm_shell::host::Request>>> = Arc::default();
     {
         let (watched, flag, repaint) =

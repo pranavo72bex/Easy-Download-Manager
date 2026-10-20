@@ -302,6 +302,10 @@ struct Inner {
     /// How many times the queue file has been written, for a test to hold
     /// a batch to one save.
     saves: AtomicU64,
+    /// Told whenever the queue changes, so a window that is not polling
+    /// draws the change: a hand-off arriving, the schedule starting a row, a
+    /// row finishing.
+    changed: std::sync::Mutex<Option<Arc<dyn Fn() + Send + Sync>>>,
 }
 
 /// A queue of downloads.
@@ -354,6 +358,7 @@ impl Queue {
                 recheck: std::sync::Mutex::new((None, now_millis())),
                 client: Mutex::new(client),
                 saves: AtomicU64::new(0),
+                changed: std::sync::Mutex::new(None),
             }),
         }
     }
@@ -614,6 +619,10 @@ impl Queue {
     /// Called on state changes rather than on progress: a byte count moves
     /// thousands of times a download and says nothing a restart needs.
     async fn save(&self) {
+        let told = crate::lock(&self.inner.changed).clone();
+        if let Some(tell) = told {
+            tell();
+        }
         let Some(path) = self.inner.store.lock().await.clone() else {
             return;
         };
@@ -654,10 +663,18 @@ impl Queue {
 
     /// Records something that went wrong and belongs to no row.
     fn note(&self, problem: String) {
-        let mut problems = crate::lock(&self.inner.problems);
-        // The same failure on every save is one problem, not a hundred.
-        if problems.last() != Some(&problem) {
+        {
+            let mut problems = crate::lock(&self.inner.problems);
+            // The same failure on every save is one problem, not a hundred.
+            if problems.last() == Some(&problem) {
+                return;
+            }
             problems.push(problem);
+        }
+        // Shown now, not at the window's next look.
+        let told = crate::lock(&self.inner.changed).clone();
+        if let Some(tell) = told {
+            tell();
         }
     }
 
@@ -691,6 +708,12 @@ impl Queue {
                 ));
             }
         }
+    }
+
+    /// What to call whenever the queue changes. One at a time: a second
+    /// replaces the first.
+    pub fn on_change(&self, tell: impl Fn() + Send + Sync + 'static) {
+        *crate::lock(&self.inner.changed) = Some(Arc::new(tell));
     }
 
     /// How many may run at once.
