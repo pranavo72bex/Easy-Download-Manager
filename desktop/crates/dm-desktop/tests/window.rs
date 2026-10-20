@@ -8521,3 +8521,31 @@ fn properties_open_in_the_middle() {
         "Properties opened at the top: {title:?}"
     );
 }
+
+/// Gap 71: at 150% text in the window's first size, Options' tabs all fit
+/// inside the dialog; Sign-ins stood 19 points past its edge.
+#[test]
+fn options_tabs_fit_at_150_percent() {
+    use egui::accesskit::Role;
+    let world = world();
+    let mut harness = Harness::builder()
+        .with_size(egui::vec2(960.0, 660.0))
+        .build_ui_state(|ui, app: &mut DmApp| app.ui(ui), world.app());
+    harness.ctx.set_zoom_factor(1.5);
+    harness.run_steps(3);
+    harness.state_mut().run(Command::Options);
+    harness.run_steps(6);
+    let edge = harness.get_by_label("Close window").rect().right();
+    let first = harness
+        .get_by_role_and_label(Role::Button, "General")
+        .rect();
+    let last = harness
+        .get_by_role_and_label(Role::Button, "Sign-ins")
+        .rect();
+    assert!(
+        last.right() <= edge + 0.5,
+        "Sign-ins ends at {} past {edge}",
+        last.right()
+    );
+    assert!(first.left() >= 40.0, "General moved: {first:?}");
+}

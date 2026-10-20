@@ -1666,11 +1666,31 @@ fn chevron(ui: &egui::Ui, rect: egui::Rect, visuals: &egui::style::WidgetVisuals
     );
 }
 
+/// How much of its 24 points' padding each of these tabs keeps so that
+/// all of them fit in `room`: all of it where they fit, else down to 12.
+/// At 150% text Options' tabs stood 19 points past the dialog's edge.
+fn tabs_padding(ui: &egui::Ui, labels: &[&str], room: f32) -> f32 {
+    let font = egui::TextStyle::Button.resolve(ui.style());
+    let words: f32 = labels
+        .iter()
+        .map(|l| {
+            ui.painter()
+                .layout_no_wrap((*l).to_string(), font.clone(), Color32::WHITE)
+                .size()
+                .x
+        })
+        .sum();
+    let gaps = ui.spacing().item_spacing.x * labels.len().saturating_sub(1) as f32;
+    let each = (room - words - gaps) / labels.len().max(1) as f32;
+    each.clamp(12.0, 24.0)
+}
+
 /// One item of a row of pages, as WinUI's selector bar draws it: words in
 /// the secondary colour, the picked one in the primary colour with the
 /// accent pill under it, the subtle fill under the pointer. Classic keeps
 /// egui's selectable label.
-fn selector(ui: &mut egui::Ui, selected: bool, label: &str) -> egui::Response {
+/// `padding` is the room beside its words, both sides together.
+fn selector(ui: &mut egui::Ui, selected: bool, label: &str, padding: f32) -> egui::Response {
     let t = crate::theme::Tokens::get(ui.ctx());
     if !t.modern {
         return ui.selectable_label(selected, label);
@@ -1683,7 +1703,7 @@ fn selector(ui: &mut egui::Ui, selected: bool, label: &str) -> egui::Response {
         egui::TextStyle::Button.resolve(ui.style()),
         words,
     );
-    let size = egui::vec2(galley.size().x + 24.0, 40.0);
+    let size = egui::vec2(galley.size().x + padding, 40.0);
     let (rect, response) = ui.allocate_exact_size(size, egui::Sense::click());
     response.widget_info(|| {
         egui::WidgetInfo::selected(egui::Role::Button, ui.is_enabled(), selected, label)
@@ -5682,12 +5702,14 @@ fn options(app: &mut DmApp, ctx: &egui::Context) {
         // off at 150% text with no sign of more (UI round 10). Wrapped on
         // to more rows, they left the page no room at 200%.
         let strip = egui::ScrollArea::horizontal().id_salt("options-tabs");
+        let labels: Vec<&str> = TABS.iter().map(|(_, label)| t(label)).collect();
+        let padding = tabs_padding(ui, &labels, ui.available_width());
         ui.scope(|ui| {
             ui.spacing_mut().scroll = crate::theme::steady_scroll();
             strip.show(ui, |ui| {
                 ui.horizontal(|ui| {
                     for (tab, label) in TABS {
-                        let picked = selector(ui, d.tab == tab, t(label));
+                        let picked = selector(ui, d.tab == tab, t(label), padding);
                         if picked.clicked() {
                             // At its top, not where it was left: Folders
                             // opened with its first field scrolled out of
