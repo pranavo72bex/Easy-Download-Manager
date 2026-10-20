@@ -26,7 +26,7 @@ itself is NOT VERIFIED.
 |---|---|---|---|
 | 3.1.1 | Runs without admin | PARTIAL | macOS `.app` and the Linux AppImage run without it, and the `.deb`/`.rpm` install through the package manager; Windows not verified |
 | 3.1.2 | Not flagged by SmartScreen or antivirus | FAIL | Unsigned (gap 5); SmartScreen and Gatekeeper warn |
-| 3.1.3 | First window fast, sensible size, follows light/dark | PARTIAL | Follows the system's look (`the_default_look_is_modern_and_follows_the_computer`); size and place remembered. First frame 0.40–0.47 s on this Mac and 0.13–0.18 s on Linux, against a 300 ms target |
+| 3.1.3 | First window fast, sensible size, follows light/dark | PARTIAL | Follows the system's look (`the_default_look_is_modern_and_follows_the_computer`); size and place remembered. First frame 0.40–0.47 s on this Mac and 0.13–0.18 s on Linux, against a 300 ms target; on macOS about 300 ms of it is eframe making the window and GL context, dm's own part is 30–40 ms (`qa/after.md`, Startup) |
 | 3.1.4 | Default folder exists, is writable, is said | PASS | The status bar names it; an unwritable one is said before fetching (`a_download_folder_that_cannot_be_written_is_said_before_fetching`) |
 | 3.1.5 | Non-English user name, spaces or Unicode in paths | NOT VERIFIED | Unicode file names are fuzzed and held to `shared/naming-cases.json`; a Windows account with such a name has never been tried |
 

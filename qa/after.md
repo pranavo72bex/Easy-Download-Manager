@@ -29,3 +29,23 @@ Notes:
   the row saved.
 - The Chromium figures are from the Linux container (Chromium 155, the
   real dm as the native host), median of 3 fresh browsers.
+
+## Startup (bottleneck 4), split, 2026-10-20
+
+Timed inside a release build with temporary marks (removed again), three
+launches on a fresh home, this Mac:
+
+| Stretch | Time |
+|---|---|
+| Launch → settings, queue and client built (`shell::start`) | 13–66 ms (the first launch cold) |
+| → handed to eframe | 6–19 ms |
+| eframe making the window and its GL context, before dm's code runs again | 290–320 ms warm, about 1 s cold |
+| tray, browser check and dm's state | about 10 ms |
+| first `ui()` | 4–7 ms |
+
+dm's own work before the first frame is about 30–40 ms; the rest is the
+system making a window with a GL context. Moving the tray or the browser
+check after the first frame would save under 10 ms. The wgpu renderer
+(Metal) was tried in place of glow: the same 320 ms and the same 102 MB,
+with a larger binary, so glow stays. Linux reaches the first frame in
+0.13–0.18 s. The 300 ms target is not met on macOS and is left as eframe's.
