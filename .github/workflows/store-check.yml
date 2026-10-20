@@ -48,6 +48,18 @@ jobs:
           sudo mkdir -p /etc/opt/edge/policies/managed
           echo '{"ExtensionInstallForcelist": ["ooafpfjpliofcdlnbdkjhonaoebcpnej;https://edge.microsoft.com/extensionwebstorebase/v1/crx"]}' \
             | sudo tee /etc/opt/edge/policies/managed/dm.json
+      - name: Edge, started alone
+        # That it starts at all, and with the store's copy of the extension,
+        # before the check leans on both.
+        continue-on-error: true
+        run: |
+          mkdir -p /tmp/alone
+          xvfb-run -a sh -c 'microsoft-edge-stable --user-data-dir=/tmp/alone --remote-debugging-port=9333 \
+            --no-first-run --no-default-browser-check --disable-gpu about:blank > /tmp/alone.log 2>&1 & \
+            sleep 30; ls -la /tmp/alone; cat /tmp/alone/DevToolsActivePort; \
+            curl -s http://127.0.0.1:9333/json/list | head -c 2000; ps aux | grep -c "[m]sedge"'
+          tail -40 /tmp/alone.log
+          ls /tmp/alone/Default/Extensions 2>/dev/null || true
       - name: dm
         working-directory: desktop
         run: cargo build -p dm-desktop --locked
