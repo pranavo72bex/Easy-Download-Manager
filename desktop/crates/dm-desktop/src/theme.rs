@@ -612,10 +612,27 @@ fn system_font_data(script: Script) -> Option<egui::FontData> {
     READ.get(at)?
         .get_or_init(|| {
             let (path, index) = system_font(script)?;
-            let bytes = std::fs::read(path).ok()?;
-            Some(egui::FontData::from_blob(std::sync::Arc::new(bytes), index))
+            Some(egui::FontData::from_blob(font_file(&path)?, index))
         })
         .clone()
+}
+
+/// A font file of the computer's, mapped into memory rather than read
+/// into it: a CJK collection is about 20 MB, all of it held for a few
+/// glyphs, where mapped only the pages read are in memory and the system
+/// can drop them again (Linux QA, 2026-10-20: +19 MB for one Japanese
+/// name). Read whole where it cannot be mapped.
+fn font_file(path: &std::path::Path) -> Option<egui::epaint::text::Blob> {
+    let file = std::fs::File::open(path).ok()?;
+    // SAFETY: a system font, which package managers and system updates
+    // replace by putting a new file in its place, leaving this mapping
+    // whole; macOS keeps its own fonts on a read-only volume. A font cut
+    // short where it lies, under a running dm, is the case this does not
+    // survive.
+    match unsafe { memmap2::Mmap::map(&file) } {
+        Ok(map) => Some(std::sync::Arc::new(map)),
+        Err(_) => Some(std::sync::Arc::new(std::fs::read(path).ok()?)),
+    }
 }
 
 /// The scripts asked for so far in this window.

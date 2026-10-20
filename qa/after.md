@@ -11,6 +11,7 @@ machine with room on its disk.
 | same | bytes written to disk for a file of N bytes on more than one connection | 2N (fetched into parts, copied into the file) | N | −50 % |
 | An idle window waits to be told of a change rather than looking every second (the queue calls back on every change) | idle CPU, window open, 60 s, nothing downloading (old 2 runs, new 5) | 0.45–0.47 % | median 0.17 % (0.13–0.38, one outlier at 1.48) | about −63 % |
 | same | wakes a minute, window open and idle | 60 | 2 (and one for each change to the queue) | −97 % |
+| The computer's fonts for other scripts mapped, not read whole | window memory after a row named in Japanese is drawn (3 runs each) | +35.0 to +36.8 MB (138–140 MB) | +15.0 MB (118 MB) | −20 MB |
 | The panel's WebAssembly loaded only where there is media (gap 73) | Chromium renderer, page of 20 plain frames: WebAssembly loads / private dirty memory | 21 / 55.9 MB | 0 / 30.2 MB | −26 MB |
 | same | same, a page with one video | 1 / 15.1 MB | 1 / 15.2 MB | none |
 

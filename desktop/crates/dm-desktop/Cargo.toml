@@ -19,6 +19,9 @@ name = "dm_desktop"
 path = "src/lib.rs"
 
 [dependencies]
+# The computer's fonts for other scripts, mapped rather than read: a CJK
+# collection is 20 MB, of which a window draws a few glyphs.
+memmap2 = "0.9"
 dm-core = { path = "../dm-core" }
 dm-shell = { path = "../dm-shell" }
 eframe = { version = "0.37", default-features = false, features = ["default_fonts", "glow", "persistence", "wayland", "x11", "accesskit", "clipboard"] }
