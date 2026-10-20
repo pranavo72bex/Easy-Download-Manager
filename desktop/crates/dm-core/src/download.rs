@@ -1652,7 +1652,11 @@ async fn attempt_segment(
         already
     };
 
-    let mut file = tokio::io::BufWriter::with_capacity(256 * 1024, file);
+    /* Small: tokio's file keeps a copy of every write it hands to the
+     * disk, so each connection holds this twice. 256 KiB cost 20–30 MB more
+     * over ten downloads of eight connections than 16 KiB, and fetched 2 GB
+     * over loopback no faster nor with less CPU (qa/after.md). */
+    let mut file = tokio::io::BufWriter::with_capacity(16 * 1024, file);
     // At this range's own place in the staged file.
     file.seek(std::io::SeekFrom::Start(start + already)).await?;
 

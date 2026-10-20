@@ -49,3 +49,35 @@ check after the first frame would save under 10 ms. The wgpu renderer
 (Metal) was tried in place of glow: the same 320 ms and the same 102 MB,
 with a larger binary, so glow stays. Linux reaches the first frame in
 0.13–0.18 s. The 300 ms target is not met on macOS and is left as eframe's.
+
+## Memory as the system counts it, 2026-10-20
+
+The baseline's memory rows are resident set size, which on macOS counts
+the system frameworks every windowed program maps and shares (AppKit, the
+GL driver's code). `vmmap` puts 355 MB of resident `__TEXT` and 35 MB of
+`__OBJC_RO` in such a process; none of it is dm's. What Activity Monitor
+shows is `phys_footprint` (`footprint <pid>`):
+
+| State | RSS | phys_footprint |
+|---|---|---|
+| Idle, window open | 103–105 MB | 43 MB |
+| Idle, `--hidden` (in the tray) | 101 MB | 43 MB |
+| Idle, `--headless` | 19 MB | 4 MB |
+
+So the window costs about 39 MB, not 84, and the idle target (< 60 MB) is
+met. A window made only when first shown would save those 39 MB for a
+login launch; eframe can be driven from dm's own event loop
+(`eframe::create_native`), not done yet.
+
+Ten downloads of eight connections each (part 4 of the harness, 2 runs
+each, footprint):
+
+| Write buffer per connection | Window | Headless | 2 GB loopback, 8 conns, time / CPU |
+|---|---|---|---|
+| 256 KiB (before) | 160–180 MB | 126–136 MB | 2.01–2.39 s / 2.24–2.54 s |
+| 64 KiB | 164 MB | 110 MB | 1.99–2.34 s / 2.39–2.61 s |
+| 16 KiB (now) | 146–147 MB | 88–107 MB | 2.03–2.07 s / 2.50–2.57 s |
+
+tokio's file keeps its own copy of each write, so every connection held
+the buffer twice; the heap was 108 MB of a 126 MB headless footprint. The
+rest is the HTTP client's read buffers, about 1 MB a connection.
