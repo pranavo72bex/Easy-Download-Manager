@@ -2164,14 +2164,16 @@ impl Queue {
                 .iter()
                 .enumerate()
                 .map(|(i, &(start, end))| {
+                    // Its ledger, or the part file an earlier dm wrote.
+                    let ledger = crate::download::read_ledger(&parts, i);
                     let part = std::fs::metadata(parts.join(format!("part-{i:04}"))).ok();
-                    let on_disk = part.as_ref().map_or(0, |m| m.len());
+                    let on_disk = ledger.or(part.as_ref().map(|m| m.len())).unwrap_or(0);
                     let span = (end - start).saturating_add(1);
                     Connection {
                         start,
                         end,
                         done: on_disk.min(span),
-                        started: part.is_some(),
+                        started: ledger.is_some() || part.is_some(),
                     }
                 })
                 .collect()
@@ -2225,7 +2227,13 @@ async fn staged_bytes(dir: &std::path::Path) -> Option<u64> {
         if name.starts_with("part-") {
             parts += 1;
             total += entry.metadata().await.map(|m| m.len()).unwrap_or(0);
-        } else if name != "plan.json" {
+        } else if let Some(done) = name.strip_prefix("done-") {
+            // A range's ledger: what is on disk of it in the staged file.
+            parts += 1;
+            if let Ok(index) = done.parse::<usize>() {
+                total += crate::download::read_ledger(dir, index).unwrap_or(0);
+            }
+        } else if name != "plan.json" && name != crate::download::STAGED {
             others += 1;
         }
     }

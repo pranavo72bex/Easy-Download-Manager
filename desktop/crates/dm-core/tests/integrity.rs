@@ -55,13 +55,25 @@ fn ranged(data: &[u8], etag: &str, headers: &HeaderMap) -> Response {
     }
 }
 
-/// Bytes on disk under `dir`'s part files.
+/// Bytes staged under `dir`: what each range's ledger says is on disk (and
+/// any part file an earlier dm left).
 fn staged(dir: &std::path::Path) -> u64 {
     std::fs::read_dir(dir.join("parts"))
         .map(|it| {
             it.filter_map(|e| e.ok())
-                .filter(|e| e.file_name().to_string_lossy().starts_with("part-"))
-                .map(|e| e.metadata().map(|m| m.len()).unwrap_or(0))
+                .map(|e| {
+                    let name = e.file_name().to_string_lossy().into_owned();
+                    if name.starts_with("done-") {
+                        std::fs::read_to_string(e.path())
+                            .ok()
+                            .and_then(|t| t.trim().parse::<u64>().ok())
+                            .unwrap_or(0)
+                    } else if name.starts_with("part-") {
+                        e.metadata().map(|m| m.len()).unwrap_or(0)
+                    } else {
+                        0
+                    }
+                })
                 .sum()
         })
         .unwrap_or(0)

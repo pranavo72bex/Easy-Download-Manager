@@ -274,8 +274,28 @@ const MAX_RANGES: usize = 256;
 const MIN_SPLIT: u64 = 256 * 1024;
 
 impl Job {
-    fn part_path(&self, index: usize) -> PathBuf {
-        part_path(&self.parts, index)
+    /// The one file every range of this download is written into, each at
+    /// its own offset; renamed into place when whole.
+    fn staged(&self) -> PathBuf {
+        staged_path(&self.parts)
+    }
+
+    /// How much of range `index` is on disk, as its ledger last said.
+    fn ledger(&self, index: usize) -> u64 {
+        read_ledger(&self.parts, index).unwrap_or(0)
+    }
+
+    /// Range `index`'s ledger, open for an attempt to write. Held open, as
+    /// a part file was: a connection still winding down after a pause
+    /// writes through it into a file already removed with the row, rather
+    /// than making one again in a folder being deleted.
+    async fn open_ledger(&self, index: usize) -> Result<fs::File, Error> {
+        Ok(fs::OpenOptions::new()
+            .create(true)
+            .write(true)
+            .truncate(false)
+            .open(ledger_path(&self.parts, index))
+            .await?)
     }
 
     /// Which mirror this range should use on this attempt.
@@ -551,12 +571,14 @@ async fn fetch_reporting(
 
     // Anything already staged from a previous run counts as done. Read from
     // the files rather than remembered, because the files are the truth.
-    adopt_staged(&job).await;
+    adopt_staged(&job).await?;
 
     let claimed = match info.size {
         Some(size) => Some(room_for(size, &job.downloaded, options)?),
         None => None,
     };
+    // Once there is known to be room for it.
+    preallocate(&job).await?;
 
     if let Some(tx) = &report {
         // Before the first byte: this is the whole point of sending it.
@@ -872,18 +894,16 @@ async fn planned_segments(info: &Probe, options: &Options) -> Result<Vec<Segment
                 && info.resumable
                 && recorded.validator == info.validator =>
         {
-            /* Part files past the plan's last range belong to a split the
-             * plan does not remember — a power cut can leave the plan from
-             * before it, which is safe only if those parts go: a later split
-             * reusing the index would take one at another offset. */
+            /* Ledgers (and an earlier dm's part files) past the plan's last
+             * range belong to a split the plan does not remember — a power
+             * cut can leave the plan from before it, which is safe only if
+             * they go: a later split reusing the index would take its bytes
+             * as done at another offset. */
             let ranges = recorded.segments().len();
             if let Ok(mut listing) = fs::read_dir(&options.parts_dir).await {
                 while let Ok(Some(entry)) = listing.next_entry().await {
                     let name = entry.file_name();
-                    let index = name
-                        .to_str()
-                        .and_then(|n| n.strip_prefix("part-"))
-                        .and_then(|n| n.parse::<usize>().ok());
+                    let index = name.to_str().and_then(staged_index);
                     if index.is_some_and(|i| i >= ranges) {
                         let _ = fs::remove_file(entry.path()).await;
                     }
@@ -1077,23 +1097,41 @@ pub(crate) fn watch(
 }
 
 /// Picks up where a previous run stopped.
-async fn adopt_staged(job: &Job) {
+async fn adopt_staged(job: &Job) -> Result<(), Error> {
     let mut segments = job.segments.lock().await;
-    for index in 0..segments.len() {
-        let part = job.part_path(index);
-        if let Ok(meta) = fs::metadata(&part).await {
-            let segment = &mut segments[index];
-            /* A part cannot be longer than its range under the plan that was
-             * recorded beside it; one that is was written by something that
-             * did not keep to the plan, and the bytes past the range would
-             * be copied into the finished file whole. Cut to the range, so
-             * what is adopted is exactly what assembly will use. */
-            if meta.len() > segment.span() {
-                if let Ok(file) = fs::OpenOptions::new().write(true).open(&part).await {
-                    let _ = file.set_len(segment.span()).await;
-                }
+    let staged = job.staged();
+    let ranges: Vec<(u64, u64)> = segments.iter().map(|s| (s.start, s.span())).collect();
+    let (dir, had_staged) = (job.parts.clone(), staged.exists());
+    // Part files an earlier dm left go into the staged file first. A ledger
+    // with no staged file under it vouches for bytes that are not there.
+    let adopted = tokio::task::spawn_blocking(move || {
+        let mut adopted = Vec::new();
+        for (index, &(start, span)) in ranges.iter().enumerate() {
+            if part_path(&dir, index).exists() {
+                adopted.push((index, adopt_part(&dir, index, start, span)));
+            } else if !had_staged {
+                let _ = std::fs::remove_file(ledger_path(&dir, index));
             }
-            segment.done = meta.len().min(segment.span());
+        }
+        adopted
+    })
+    .await
+    .map_err(|e| Error::Internal(e.to_string()))?;
+    for (index, result) in adopted {
+        result.map_err(|e| {
+            Error::Internal(format!(
+                "the part of range {index} could not be adopted: {e}"
+            ))
+        })?;
+    }
+    for index in 0..segments.len() {
+        let segment = &mut segments[index];
+        /* A ledger cannot say more than its range under the plan that was
+         * recorded beside it; one that does was written by something that
+         * did not keep to the plan. Held to the range, so what is adopted
+         * is exactly what assembly will use. */
+        segment.done = job.ledger(index).min(segment.span());
+        if segment.done > 0 {
             job.downloaded.fetch_add(segment.done, Ordering::Relaxed);
             // Claimed, so a split never takes bytes already on disk.
             if let Some(live) = job.live.get(index) {
@@ -1101,6 +1139,26 @@ async fn adopt_staged(job: &Job) {
             }
         }
     }
+    Ok(())
+}
+
+/// The staged file, made as long as the file will be, so every range's
+/// region is there to be written; on most file systems the room is only
+/// taken as bytes land. Never cut: a longer staged file holds nothing a
+/// ledger vouches for past its ranges.
+async fn preallocate(job: &Job) -> Result<(), Error> {
+    let file = fs::OpenOptions::new()
+        .create(true)
+        .write(true)
+        .truncate(false)
+        .open(job.staged())
+        .await?;
+    if let Some(size) = job.size {
+        if file.metadata().await?.len() < size {
+            file.set_len(size).await?;
+        }
+    }
+    Ok(())
 }
 
 /// Runs every range, and keeps running until none are left unfinished.
@@ -1287,6 +1345,8 @@ async fn split_largest(job: &Job) -> Option<usize> {
         end,
         done: 0,
     });
+    // A new range starts with nothing written down for it.
+    let _ = fs::remove_file(ledger_path(&job.parts, index)).await;
     *crate::lock(&job.live[index]) = Live {
         start,
         end,
@@ -1310,21 +1370,14 @@ async fn fetch_segment(
         return Ok(());
     }
 
-    /* Each attempt reads the part file's length rather than anything
+    /* Each attempt reads the range's ledger rather than anything
      * remembered, so a stream that died halfway resumes from where it
      * actually stopped. Trusting an in-memory figure would seek past bytes
-     * already written and leave a hole in the middle of the range. */
-    let part = job.part_path(index);
+     * never written and leave a hole in the middle of the range. */
     // Progress counts only where an attempt continues the last: from a
     // server without ranges every attempt starts again from nothing, and
     // one that got further than the last is not progress toward the end.
-    let on_disk = || {
-        if resumable {
-            std::fs::metadata(&part).map_or(0, |m| m.len())
-        } else {
-            0
-        }
-    };
+    let on_disk = || if resumable { job.ledger(index) } else { 0 };
     // Said while it waits, so the row tells a retry from a stall.
     let retrying = |attempt, of| {
         if let Some(tx) = &job.report {
@@ -1367,11 +1420,9 @@ async fn attempt_segment(
         (l.start, l.end)
     };
     let span = (end - start).saturating_add(1);
-    // The ledger, read fresh: whatever is on disk is what has arrived.
-    let already = match fs::metadata(job.part_path(index)).await {
-        Ok(meta) => meta.len().min(span),
-        Err(_) => 0,
-    };
+    // The ledger, read fresh: what it says is on disk is what has arrived.
+    let already = job.ledger(index).min(span);
+    let mut ledger = job.open_ledger(index).await?;
     {
         let mut l = crate::lock(&job.live[index]);
         l.reserved = l.reserved.max(already);
@@ -1388,11 +1439,7 @@ async fn attempt_segment(
      * earlier attempt left wrote the body at that offset: the part only grew
      * and every retry after the first drop was corrupt. Start again. */
     let already = if !resumable && already > 0 {
-        let file = tokio::fs::OpenOptions::new()
-            .write(true)
-            .open(job.part_path(index))
-            .await?;
-        file.set_len(0).await?;
+        put(&mut ledger, 0).await?;
         job.downloaded.fetch_sub(already, Ordering::Relaxed);
         0
     } else {
@@ -1499,15 +1546,14 @@ async fn attempt_segment(
     /* Created if absent, never truncated.
      *
      * clippy suggests `.truncate(true)` here and it would be exactly wrong:
-     * the part file's length is the resume ledger, so emptying it on every
-     * attempt would throw away the bytes this attempt is about to seek past
-     * and turn every retry into a fresh download. Stated explicitly so the
+     * the staged file holds every range, so emptying it on any attempt
+     * would throw away the bytes of all of them. Stated explicitly so the
      * next person to read the lint does not take its advice. */
     let file = tokio::fs::OpenOptions::new()
         .create(true)
         .write(true)
         .truncate(false)
-        .open(job.part_path(index))
+        .open(job.staged())
         .await?;
 
     /* Buffered, because chunks arrive far smaller than a useful write.
@@ -1521,9 +1567,9 @@ async fn attempt_segment(
     let mut carry = None;
     let already = if check > 0 {
         let mut tail = vec![0u8; check as usize];
-        let mut on_disk = tokio::fs::File::open(job.part_path(index)).await?;
+        let mut on_disk = tokio::fs::File::open(job.staged()).await?;
         on_disk
-            .seek(std::io::SeekFrom::Start(already - check))
+            .seek(std::io::SeekFrom::Start(start + already - check))
             .await?;
         tokio::io::AsyncReadExt::read_exact(&mut on_disk, &mut tail).await?;
         drop(on_disk);
@@ -1573,10 +1619,12 @@ async fn attempt_segment(
                 .is_some_and(|run| run.iter().all(|&b| b == 0));
             if base > 0 && zeros_through_difference {
                 let floor = base.saturating_sub(ZERO_RUN_STEP);
-                let zeros_from = zeros_ending_at(&job.part_path(index), base, floor).await?;
+                // In the staged file, at this range's offset.
+                let zeros_from =
+                    zeros_ending_at(&job.staged(), start + base, start + floor).await? - start;
                 let cut = zeros_from - zeros_from % DISK_BLOCK;
                 if cut < base {
-                    file.set_len(cut).await?;
+                    put(&mut ledger, cut).await?;
                     drop(file);
                     // Its connection goes before the next is opened: a site
                     // held to one connection would refuse the repair's.
@@ -1595,7 +1643,7 @@ async fn attempt_segment(
         carry = rest;
         let keep = already - check + agree;
         if keep < already {
-            file.set_len(keep).await?;
+            put(&mut ledger, keep).await?;
             job.downloaded.fetch_sub(already - keep, Ordering::Relaxed);
             crate::lock(&job.live[index]).reserved = keep;
         }
@@ -1605,9 +1653,14 @@ async fn attempt_segment(
     };
 
     let mut file = tokio::io::BufWriter::with_capacity(256 * 1024, file);
-    file.seek(std::io::SeekFrom::Start(already)).await?;
+    // At this range's own place in the staged file.
+    file.seek(std::io::SeekFrom::Start(start + already)).await?;
 
     let mut written = already;
+    // What the ledger says and when it said it, so it is written down
+    // again every few megabytes or every second rather than every chunk.
+    let mut recorded = already;
+    let mut recorded_at = std::time::Instant::now();
     // Where this range ends now: sooner than asked, once a split has taken
     // its back half.
     let mut span_now = span;
@@ -1623,6 +1676,7 @@ async fn attempt_segment(
                 // disk before the range lets go, or a resume fetches it again.
                 Err(stopped) => {
                     file.flush().await?;
+                    put(&mut ledger, written).await?;
                     if matches!(stopped, Error::Paused) {
                         job.segments.lock().await[index].done = written.min(span_now);
                     }
@@ -1637,6 +1691,7 @@ async fn attempt_segment(
             Ok(c) => c,
             Err(e) => {
                 file.flush().await?;
+                put(&mut ledger, written).await?;
                 return Err(Error::Network(e));
             }
         };
@@ -1656,6 +1711,7 @@ async fn attempt_segment(
             // Flushed first either way: the bytes already written are what a
             // resume picks up from, and a pause also records where it got to.
             file.flush().await?;
+            put(&mut ledger, written).await?;
             if matches!(stopped, Error::Paused) {
                 job.segments.lock().await[index].done = written.min(span_now);
             }
@@ -1673,6 +1729,7 @@ async fn attempt_segment(
              * through. A file of the right size and the wrong contents is the
              * one thing a download manager must never produce. */
             file.flush().await?;
+            put(&mut ledger, written).await?;
             return Err(Error::DishonestRanges);
         }
 
@@ -1691,6 +1748,16 @@ async fn attempt_segment(
         }
         file.write_all(&chunk).await?;
         written += chunk.len() as u64;
+        // Written down every few megabytes or every second: a crash then
+        // costs no more than that of this range, fetched again.
+        if written > recorded
+            && (written - recorded >= LEDGER_EVERY || recorded_at.elapsed() >= LEDGER_EVERY_SECOND)
+        {
+            file.flush().await?;
+            put(&mut ledger, written).await?;
+            recorded = written;
+            recorded_at = std::time::Instant::now();
+        }
         if cut {
             job.downloaded
                 .fetch_add(chunk.len() as u64, Ordering::Relaxed);
@@ -1720,6 +1787,7 @@ async fn attempt_segment(
             job.downloaded
                 .fetch_add(chunk.len() as u64 - through, Ordering::Relaxed);
             file.flush().await?;
+            put(&mut ledger, written).await?;
             if matches!(stopped, Error::Paused) {
                 job.segments.lock().await[index].done = written.min(span_now);
             }
@@ -1728,6 +1796,7 @@ async fn attempt_segment(
     }
 
     file.flush().await?;
+    put(&mut ledger, written).await?;
 
     /* The shared plan is touched once, at the end, rather than per chunk.
      *
@@ -1767,6 +1836,11 @@ async fn attempt_segment(
     Ok(())
 }
 
+/// How often a range's ledger is written down while it downloads: every
+/// this many bytes, or every second, whichever comes first.
+const LEDGER_EVERY: u64 = 4 * 1024 * 1024;
+const LEDGER_EVERY_SECOND: Duration = Duration::from_secs(1);
+
 /// How much of a part's end is fetched again and compared on a resume: more
 /// than a filesystem leaves unwritten at a power cut, little enough to cost
 /// nothing beside the rest.
@@ -1784,7 +1858,8 @@ async fn discard_staged(dir: &Path) {
     let _ = fs::remove_file(crate::plan::record_path(dir)).await;
     if let Ok(mut listing) = fs::read_dir(dir).await {
         while let Ok(Some(entry)) = listing.next_entry().await {
-            if entry.file_name().to_string_lossy().starts_with("part-") {
+            let name = entry.file_name().to_string_lossy().into_owned();
+            if name.starts_with("part-") || name.starts_with("done-") || name == STAGED {
                 let _ = fs::remove_file(entry.path()).await;
             }
         }
@@ -2450,14 +2525,13 @@ fn copy_parts_blocking(parts: &[PathBuf], into: &Path) -> Result<u64, Error> {
 /// No overlap byte fetched for a range (one fetched is 0–255).
 const NO_OVERLAP: u16 = u16::MAX;
 
-/// The last byte of a part file, if it has one.
-async fn last_byte(path: &Path) -> Option<u8> {
+/// The byte at `at` in a file, if it has one there.
+async fn byte_at(path: &Path, at: u64) -> Option<u8> {
     let mut file = fs::File::open(path).await.ok()?;
-    let len = file.metadata().await.ok()?.len();
-    if len == 0 {
+    if file.metadata().await.ok()?.len() <= at {
         return None;
     }
-    file.seek(std::io::SeekFrom::Start(len - 1)).await.ok()?;
+    file.seek(std::io::SeekFrom::Start(at)).await.ok()?;
     let mut byte = [0u8; 1];
     tokio::io::AsyncReadExt::read_exact(&mut file, &mut byte)
         .await
@@ -2497,7 +2571,13 @@ async fn assemble(
         if byte == NO_OVERLAP {
             continue;
         }
-        let before = last_byte(&job.part_path(previous)).await;
+        let before = {
+            let p = &segments[previous];
+            match p.done {
+                0 => None,
+                done => byte_at(&job.staged(), p.start + done - 1).await,
+            }
+        };
         if before.is_some_and(|b| u16::from(b) != byte) {
             drop(segments);
             let mut listing = fs::read_dir(&options.parts_dir).await?;
@@ -2514,8 +2594,21 @@ async fn assemble(
         info.filename.clone()
     };
 
-    let parts: Vec<PathBuf> = order.iter().map(|&i| job.part_path(i)).collect();
-    finish(&name, info.content_type.as_deref(), &parts, options).await
+    /* Every range is in place in the staged file, so it is the file: held
+     * to the length that arrived (an unknown length was never known to
+     * preallocate) and renamed into place, with nothing copied. */
+    let length: u64 = info
+        .size
+        .unwrap_or_else(|| segments.iter().map(|s| s.done).sum());
+    drop(segments);
+    let staged = job.staged();
+    fs::OpenOptions::new()
+        .write(true)
+        .open(&staged)
+        .await?
+        .set_len(length)
+        .await?;
+    finish(&name, info.content_type.as_deref(), &[staged], options).await
 }
 
 /// Everything that happens once the bytes are all on disk.
@@ -2574,6 +2667,14 @@ pub(crate) async fn finish(
     // stream without them, goes too.
     for note in ["plan.json", "rendition", "joined.ts.partial", REMUXED] {
         let _ = fs::remove_file(options.parts_dir.join(note)).await;
+    }
+    // And each range's ledger, which the bytes they spoke for have left.
+    if let Ok(mut listing) = fs::read_dir(&options.parts_dir).await {
+        while let Ok(Some(entry)) = listing.next_entry().await {
+            if entry.file_name().to_string_lossy().starts_with("done-") {
+                let _ = fs::remove_file(entry.path()).await;
+            }
+        }
     }
     Ok((path, bytes, category))
 }
@@ -2835,6 +2936,79 @@ pub fn free_space(_dir: &Path) -> Option<u64> {
 /// than re-typed wherever a part is opened.
 fn part_path(parts_dir: &Path, index: usize) -> PathBuf {
     parts_dir.join(format!("part-{index:04}"))
+}
+
+/// The file a ranged download is written into, every range at its own
+/// offset.
+///
+/// Ranges used to go into a part file each, and the parts were copied into
+/// the finished file at the end: every byte written twice, and on a fast
+/// link the copy took longer than the fetch (2 GB: 4.4 s fetched, then 7 to
+/// 9 s joining, `qa/baseline.md`). Written in place, finishing is a rename.
+pub(crate) const STAGED: &str = "staged";
+
+pub(crate) fn staged_path(parts_dir: &Path) -> PathBuf {
+    parts_dir.join(STAGED)
+}
+
+/// The ledger of range `index`: how many of its bytes are on disk, in
+/// decimal. A part file's length used to be this number; in one shared
+/// file, where every range's region exists from the start, it is written
+/// down instead.
+pub(crate) fn ledger_path(parts_dir: &Path, index: usize) -> PathBuf {
+    parts_dir.join(format!("done-{index:04}"))
+}
+
+/// Writes down how much of a range is on disk. Behind the bytes, never ahead
+/// of them: written after they are handed to the disk, and one that lags
+/// costs only the bytes fetched again. Always as many digits, written over
+/// the last in one write, so a shorter number never leaves a longer one's
+/// tail behind it (which would read as more than is there).
+async fn put(ledger: &mut fs::File, done: u64) -> Result<(), Error> {
+    use tokio::io::AsyncWriteExt;
+    ledger.seek(std::io::SeekFrom::Start(0)).await?;
+    ledger.write_all(format!("{done:020}").as_bytes()).await?;
+    ledger.flush().await?;
+    Ok(())
+}
+
+/// What range `index`'s ledger says, if it has one that reads. One cut
+/// short by a crash reads as nothing, which is safe: a ledger behind the
+/// bytes costs a fetch, never a wrong file.
+pub(crate) fn read_ledger(parts_dir: &Path, index: usize) -> Option<u64> {
+    std::fs::read_to_string(ledger_path(parts_dir, index))
+        .ok()?
+        .trim()
+        .parse()
+        .ok()
+}
+
+/// The index a staged file's name gives it: `part-0003` or `done-0003`.
+fn staged_index(name: &str) -> Option<usize> {
+    name.strip_prefix("part-")
+        .or_else(|| name.strip_prefix("done-"))
+        .and_then(|n| n.parse().ok())
+}
+
+/// A part file an earlier dm left, copied into the staged file at its
+/// range's offset and written down in the range's ledger: a download begun
+/// before ranges were written in place resumes rather than starting again.
+fn adopt_part(parts_dir: &Path, index: usize, start: u64, span: u64) -> std::io::Result<u64> {
+    use std::io::{Read, Seek, SeekFrom, Write};
+    let part = part_path(parts_dir, index);
+    let mut source = std::fs::File::open(&part)?;
+    let mut staged = std::fs::OpenOptions::new()
+        .create(true)
+        .write(true)
+        .truncate(false)
+        .open(staged_path(parts_dir))?;
+    staged.seek(SeekFrom::Start(start))?;
+    let copied = std::io::copy(&mut (&mut source).take(span), &mut staged)?;
+    staged.flush()?;
+    std::fs::write(ledger_path(parts_dir, index), format!("{copied:020}"))?;
+    drop(source);
+    std::fs::remove_file(&part)?;
+    Ok(copied)
 }
 
 /// Whether files can be made in the download folder, said with its path.

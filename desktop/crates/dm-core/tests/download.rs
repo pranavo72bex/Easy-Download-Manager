@@ -722,6 +722,73 @@ async fn a_paused_download_stops_and_keeps_what_it_had() {
     );
 }
 
+/// Ranges are written in place, into one staged file, and finishing is a
+/// rename: a download on many connections stages no part files to copy
+/// from, writes down how far each range got, and leaves nothing staged once
+/// it is whole. The copy it replaced took longer than the fetch on a fast
+/// link (2 GB on 8 connections: about 3.6 s end to end against 2.0 s now,
+/// `qa/after.md`).
+#[tokio::test]
+async fn ranges_are_written_in_place_and_finishing_copies_nothing() {
+    let body = bytes(12 * MB);
+    let (addr, _) = serve(Mode::Honest, body.clone()).await;
+    let dir = tempdir();
+    let dir = dir.path();
+    let mut opts = options(dir);
+    opts.connections = 8;
+    let names = |opts: &dm_core::Options| -> Vec<String> {
+        std::fs::read_dir(&opts.parts_dir)
+            .map(|it| {
+                it.filter_map(|e| e.ok())
+                    .map(|e| e.file_name().to_string_lossy().into_owned())
+                    .collect()
+            })
+            .unwrap_or_default()
+    };
+
+    // Held to 2 MB/s, so a pause after a moment stops it part-way.
+    opts.limiter = dm_core::Limiter::new(2 * MB as u64);
+    let control = opts.control.clone();
+    tokio::spawn(async move {
+        tokio::time::sleep(Duration::from_millis(1500)).await;
+        control.pause();
+    });
+    let err = download(&client(), &format!("http://{addr}/f.bin"), &opts)
+        .await
+        .expect_err("a paused download ran to completion");
+    assert!(matches!(err, Error::Paused), "got {err:?}");
+    let staged = names(&opts);
+    assert!(staged.iter().any(|n| n == "staged"), "{staged:?}");
+    assert!(staged.iter().any(|n| n.starts_with("done-")), "{staged:?}");
+    assert!(
+        !staged.iter().any(|n| n.starts_with("part-")),
+        "a part file was staged: {staged:?}"
+    );
+    assert_eq!(
+        std::fs::metadata(opts.parts_dir.join("staged"))
+            .unwrap()
+            .len(),
+        body.len() as u64,
+        "the staged file is made as long as the file"
+    );
+
+    opts.control = Control::new();
+    let done = download(&client(), &format!("http://{addr}/f.bin"), &opts)
+        .await
+        .expect("resuming failed");
+    assert!(
+        std::fs::read(&done.path).unwrap() == body,
+        "the file is wrong"
+    );
+    let left = names(&opts);
+    assert!(
+        !left
+            .iter()
+            .any(|n| n == "staged" || n.starts_with("done-") || n.starts_with("part-")),
+        "left staged: {left:?}"
+    );
+}
+
 #[tokio::test]
 async fn a_cancelled_download_leaves_nothing_saved() {
     let (addr, _) = serve(Mode::Honest, bytes(12 * MB)).await;

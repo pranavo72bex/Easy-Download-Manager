@@ -9,9 +9,13 @@ use std::path::Path;
 
 /// One piece of the file, as a byte range that includes both ends.
 ///
-/// `done` is how much of it is already on disk. It is not derived from a
-/// separate ledger — the length of the part file *is* this number — so there
-/// is no bookkeeping that can fall out of step with the bytes themselves.
+/// `done` is how much of it is already on disk. A ranged download writes
+/// every range into one staged file at its own offset, so each range's
+/// `done` is written down in a ledger of its own (`done-NNNN` beside the
+/// plan), always after the bytes it speaks for and never ahead of them; the
+/// end of what it vouches for is fetched again and compared on a resume.
+/// Streams and FTP still stage a part file per piece, whose length is this
+/// number.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Segment {
     pub start: u64,
