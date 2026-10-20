@@ -1042,3 +1042,17 @@ tokio's file keeps its own copy of each write, so a connection held its
 `BufWriter` twice: 256 KiB cost 20–30 MB over ten downloads of eight
 connections against 16 KiB, which fetched 2 GB over loopback no slower
 and with no more CPU (`qa/after.md`).
+
+## NTLM sign-ins (2026-10-20)
+
+NTLMv2 is written in dm (`ntlm.rs`, MD4 from RustCrypto, HMAC-MD5 over the
+`md5` already used for Digest) rather than taken from a crate: the
+algorithm is short, its worked example in MS-NLMP pins it, and the crates
+on offer bring signing and sealing dm has no use for. It is answered under
+NTLM and under Negotiate, which Windows servers accept. Only the NTLMv2
+answer: LM and NTLMv1 are broken. NTLM signs in a connection, which
+reqwest does not expose; each reply is read to its end so the connection
+returns to the pool, whose next request takes it again, and an answer
+that still lands elsewhere (ranges signing in at once) is tried once more.
+Kerberos is not offered: it needs the system's GSSAPI or SSPI and a domain
+to be tested against.

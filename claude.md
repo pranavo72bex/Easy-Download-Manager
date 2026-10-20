@@ -109,8 +109,11 @@ and is not carried over.
       it (2026-10-13). Chrome's menu was clicked for real in UI round 10 (2026-10-19). `dm-desktop --register` replaces
       `engine/install.mjs` and refuses a binary macOS keeps from browsers
 - [x] Handle authentication/cookies — Basic from the address or Options ›
-      Sign-ins, and Digest where the server asks for it (`auth.rs`,
-      `tests/auth.rs`); a `cookies.txt` chosen in Options › Network is sent
+      Sign-ins, Digest where the server asks for it (`auth.rs`,
+      `tests/auth.rs`), and NTLMv2 where it asks for NTLM or for Negotiate
+      (a `DOMAIN\user` login; `ntlm.rs` checked against MS-NLMP's worked
+      example, `tests/ntlm.rs` against a server that signs each connection
+      in, the file fetched over several). Kerberos is not offered; a `cookies.txt` chosen in Options › Network is sent
       and handed to yt-dlp. The browser's own cookies stay with the browser
       unless the popup's "Hand over this site's sign-in" is on for the site,
       when they travel with the hand-off and the row keeps them

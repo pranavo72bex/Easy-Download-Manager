@@ -248,8 +248,9 @@ async fn a_sign_in_dm_does_not_speak_is_said_rather_than_tried() {
     async fn negotiate() -> Response {
         Response::builder()
             .status(401)
-            .header("www-authenticate", "Negotiate")
-            .header("www-authenticate", "NTLM")
+            // A token scheme: nothing a login in an address can answer.
+            // (NTLM and Negotiate are spoken: tests/ntlm.rs.)
+            .header("www-authenticate", "Bearer realm=\"files\"")
             .body(Body::empty())
             .unwrap()
     }

@@ -12,6 +12,12 @@
 //! not seen). The challenge a server gives is kept per server, so after the
 //! probe's one 401 every range request carries its Digest from the start
 //! rather than paying a round trip each.
+//!
+//! A server that asks for `NTLM`, or for `Negotiate` (which takes NTLM
+//! under it), is signed in to with NTLMv2 (`ntlm.rs`). That sign-in holds
+//! for a connection rather than a request, so every request goes through
+//! its three messages; a server known to want it gets the first of them at
+//! once rather than after a refusal.
 
 // Reads outside input: an index out of range here is a crash a server could
 // cause, so every access is checked.
@@ -336,6 +342,11 @@ pub async fn send(
         return Ok(request.send().await?);
     };
     let mut request = request.build()?;
+    let ntlm_known = server_of(request.url())
+        .and_then(|server| crate::lock(ntlm_servers()).get(&server).copied());
+    if let Some(scheme) = ntlm_known {
+        return ntlm_sign_in(client, request, scheme, &username, &password).await;
+    }
     if let Some(header) = remembered(&request, &username, &password) {
         set_authorization(&mut request, &header);
     }
@@ -359,7 +370,28 @@ pub async fn send(
             .filter_map(|v| v.to_str().ok())
             .find_map(challenge)
         else {
-            return Ok(res);
+            // No Digest: NTLM, where the server offers it (as NTLM, or
+            // as Negotiate, which takes it), on its own server only.
+            let offered = res
+                .headers()
+                .get_all(reqwest::header::WWW_AUTHENTICATE)
+                .iter()
+                .filter_map(|v| v.to_str().ok())
+                .find_map(crate::ntlm::offered);
+            let landed = res.url().clone();
+            let (Some(scheme), true, 0) = (
+                offered,
+                server_of(&landed) == server_of(again.url()),
+                rounds,
+            ) else {
+                return Ok(res);
+            };
+            drain(res).await;
+            *again.url_mut() = landed;
+            if let Some(server) = server_of(again.url()) {
+                crate::lock(ntlm_servers()).insert(server, scheme);
+            }
+            return ntlm_sign_in(client, again, scheme, &username, &password).await;
         };
         rounds += 1;
         if rounds > 3 || (rounds > 1 && !challenge.stale) {
@@ -388,6 +420,80 @@ pub async fn send(
         }
         set_authorization(&mut again, &header);
         request = again;
+    }
+}
+
+/// The servers that asked for NTLM, and under which name.
+fn ntlm_servers() -> &'static Mutex<HashMap<String, &'static str>> {
+    static SERVERS: std::sync::OnceLock<Mutex<HashMap<String, &'static str>>> =
+        std::sync::OnceLock::new();
+    SERVERS.get_or_init(Default::default)
+}
+
+/// A refusal's body read to its end (as much of it as a refusal should
+/// have), so its connection goes back to the pool for the next message of
+/// an NTLM sign-in, which must come on the same connection.
+async fn drain(mut res: reqwest::Response) {
+    let mut read = 0usize;
+    while let Ok(Some(chunk)) = res.chunk().await {
+        read += chunk.len();
+        if read > 1 << 20 {
+            break;
+        }
+    }
+}
+
+/// Signs `request` in with NTLM under `scheme`: the negotiate message, the
+/// server's challenge, the answer. Once more where the answer is refused,
+/// which is an answer that went out on another connection than its
+/// challenge came on (two ranges of one download signing in at once).
+async fn ntlm_sign_in(
+    client: &reqwest::Client,
+    request: reqwest::Request,
+    scheme: &'static str,
+    username: &str,
+    password: &str,
+) -> Result<reqwest::Response, Error> {
+    use base64::Engine as _;
+    let b64 = base64::engine::general_purpose::STANDARD;
+    let mut tries = 0;
+    loop {
+        tries += 1;
+        let Some(mut first) = request.try_clone() else {
+            return Ok(client.execute(request).await?);
+        };
+        set_authorization(
+            &mut first,
+            &format!("{scheme} {}", b64.encode(crate::ntlm::negotiate())),
+        );
+        let res = client.execute(first).await?;
+        if res.status() != reqwest::StatusCode::UNAUTHORIZED {
+            return Ok(res);
+        }
+        let Some(challenge) = res
+            .headers()
+            .get_all(reqwest::header::WWW_AUTHENTICATE)
+            .iter()
+            .filter_map(|v| v.to_str().ok())
+            .find_map(|v| crate::ntlm::challenge_in(v, scheme))
+        else {
+            return Ok(res);
+        };
+        drain(res).await;
+        let Some(answer) = crate::ntlm::authenticate(&challenge, username, password) else {
+            return Err(Error::Internal(
+                "the NTLM sign-in could not be made: no random numbers to make it with".into(),
+            ));
+        };
+        let Some(mut last) = request.try_clone() else {
+            return Ok(client.execute(request).await?);
+        };
+        set_authorization(&mut last, &format!("{scheme} {}", b64.encode(answer)));
+        let res = client.execute(last).await?;
+        if res.status() != reqwest::StatusCode::UNAUTHORIZED || tries >= 2 {
+            return Ok(res);
+        }
+        drain(res).await;
     }
 }
 

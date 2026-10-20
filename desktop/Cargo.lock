@@ -1568,10 +1568,12 @@ dependencies = [
  "dirs 7.0.0",
  "flate2",
  "futures-util",
+ "getrandom 0.3.4",
  "hex",
  "libc",
  "librqbit",
  "md-5",
+ "md4",
  "memory-stats",
  "percent-encoding",
  "proptest",
@@ -3835,6 +3837,15 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "69b6441f590336821bb897fb28fc622898ccceb1d6cea3fde5ea86b090c4de98"
 dependencies = [
  "cfg-if",
+ "digest",
+]
+
+[[package]]
+name = "md4"
+version = "0.11.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "bd76fb0fd6b2e4be62a73f8e0858ca97f81babcb1af322dcaca196f735f17f80"
+dependencies = [
  "digest",
 ]
 

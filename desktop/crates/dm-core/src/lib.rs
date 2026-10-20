@@ -20,6 +20,7 @@ pub mod download;
 pub mod ftp;
 pub mod limit;
 pub mod metalink;
+pub mod ntlm;
 pub mod plan;
 pub mod probe;
 pub mod progress;
