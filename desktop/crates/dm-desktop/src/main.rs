@@ -1143,9 +1143,13 @@ fn main() {
     // every second for one while nothing moves.
     {
         let repaint = Arc::clone(&repaint);
+        // Within a quarter of a second, not at once: while downloads run the
+        // queue changes many times a second, and a repaint for each drew the
+        // window far more often than it is drawn anyway (10 downloads: 9.7 %
+        // of a core became 14.6 %). Requests within the quarter are one.
         queue.on_change(move || {
             if let Some(ctx) = repaint.get() {
-                ctx.request_repaint();
+                ctx.request_repaint_after(std::time::Duration::from_millis(250));
             }
         });
     }
