@@ -823,7 +823,11 @@ impl Dialogs {
     /// the large ones (Find over Download details, the Speed limiter over
     /// Options), then the large ones, then the windows per download. True
     /// if one closed.
-    pub fn close_top(&mut self) -> bool {
+    /// Closes the dialog in front. `back_to_front` is the windows' order
+    /// on screen, which decides among the ones that stay open beside each
+    /// other (Find, Download complete, the progress windows): Escape closed
+    /// one behind the window in front (Fluent QA, gap 71).
+    pub fn close_top(&mut self, back_to_front: &[egui::Id]) -> bool {
         if std::mem::take(&mut self.confirm_exit)
             || self.confirm_remove.take().is_some()
             || self.confirm_outside.take().is_some()
@@ -834,44 +838,119 @@ impl Dialogs {
         {
             return true;
         }
-        if std::mem::take(&mut self.find_open) {
-            return true;
+        /* Then the window in front. Find opens over Download details, and
+         * Download complete and the progress windows stand beside the
+         * rest, so a fixed order closed one behind the window in front.
+         * One not on screen yet counts as behind every one that is, and
+         * among those the old order holds: Find first, the progress
+         * windows last. */
+        enum Shut {
+            Find,
+            Limiter,
+            Scheduler,
+            UpdateLink,
+            MoveToQueue,
+            Rename,
+            ListFile,
+            AddUrl,
+            ClipLinks,
+            Series,
+            Links,
+            SiteFiles,
+            FileInfo,
+            Options,
+            About,
+            Properties(Id),
+            Complete,
+            Progress(Id),
         }
-        if self.limiter.take().is_some()
-            || self.scheduler.take().is_some()
-            || self.update_link.take().is_some()
-            || self.move_to_queue.take().is_some()
-            || self.rename.take().is_some()
-            || self.list_file.take().is_some()
-            || self.add_url.take().is_some()
-            || self.clip_links.take().is_some()
-            || self.series.take().is_some()
-            || self.links.take().is_some()
-            || self.site_files.take().is_some()
-            || self.file_info.take().is_some()
-            || self.options.take().is_some()
-        {
-            return true;
+        let list_title = match &self.list_file {
+            Some(f) if f.save => "Export the list",
+            _ => "Import a list",
+        };
+        let mut open: Vec<(egui::Id, Shut)> = [
+            (self.find_open, "Find", Shut::Find),
+            (self.limiter.is_some(), "Speed limiter", Shut::Limiter),
+            (self.scheduler.is_some(), "Scheduler", Shut::Scheduler),
+            (
+                self.update_link.is_some(),
+                "Update download link",
+                Shut::UpdateLink,
+            ),
+            (
+                self.move_to_queue.is_some(),
+                "Move to queue",
+                Shut::MoveToQueue,
+            ),
+            (self.rename.is_some(), "Move/Rename", Shut::Rename),
+            (self.list_file.is_some(), list_title, Shut::ListFile),
+            (self.add_url.is_some(), "Add URL", Shut::AddUrl),
+            (
+                self.clip_links.is_some(),
+                "Links on the clipboard",
+                Shut::ClipLinks,
+            ),
+            (self.series.is_some(), "Add numbered series", Shut::Series),
+            (self.links.is_some(), "Download links", Shut::Links),
+            (
+                self.site_files.is_some(),
+                "Files on a site",
+                Shut::SiteFiles,
+            ),
+            (self.file_info.is_some(), "Download details", Shut::FileInfo),
+            (self.options.is_some(), "Options", Shut::Options),
+            (self.about_open, "About dm", Shut::About),
+        ]
+        .into_iter()
+        .filter(|(on, _, _)| *on)
+        .map(|(_, title, shut)| (window_id(title), shut))
+        .collect();
+        for id in self.properties.keys().rev() {
+            open.push((egui::Id::unique(("properties", *id)), Shut::Properties(*id)));
         }
-        if std::mem::take(&mut self.about_open) {
-            return true;
-        }
-        if let Some(id) = self.properties.keys().last().copied() {
-            self.properties.remove(&id);
-            return true;
-        }
-        // One window for every finished file: Escape closes it, all of it,
-        // as its close box does.
         if !self.complete.is_empty() {
-            self.complete.clear();
-            return true;
+            open.push((window_id("Download complete"), Shut::Complete));
         }
-        if let Some(id) = self.progress.iter().last().copied() {
-            self.progress.remove(&id);
-            self.progress_closed.insert(id);
-            return true;
+        for id in self.progress.iter().rev() {
+            open.push((egui::Id::unique(("progress", *id)), Shut::Progress(*id)));
         }
-        false
+        let place = |id: &egui::Id| back_to_front.iter().position(|w| w == id);
+        let Some((_, front)) = open
+            .into_iter()
+            .enumerate()
+            .max_by_key(|(n, (id, _))| (place(id), std::cmp::Reverse(*n)))
+            .map(|(_, chosen)| chosen)
+        else {
+            return false;
+        };
+        match front {
+            Shut::Find => self.find_open = false,
+            Shut::Limiter => self.limiter = None,
+            Shut::Scheduler => self.scheduler = None,
+            Shut::UpdateLink => self.update_link = None,
+            Shut::MoveToQueue => self.move_to_queue = None,
+            Shut::Rename => self.rename = None,
+            Shut::ListFile => self.list_file = None,
+            Shut::AddUrl => self.add_url = None,
+            Shut::ClipLinks => self.clip_links = None,
+            Shut::Series => self.series = None,
+            Shut::Links => self.links = None,
+            Shut::SiteFiles => self.site_files = None,
+            Shut::FileInfo => self.file_info = None,
+            Shut::Options => self.options = None,
+            Shut::About => self.about_open = false,
+            Shut::Properties(id) => {
+                self.properties.remove(&id);
+            }
+            // One window for every finished file: Escape closes it, all of
+            // it, as its close box does.
+            Shut::Complete => self.complete.clear(),
+            Shut::Progress(id) => {
+                self.progress.remove(&id);
+                self.progress_closed.insert(id);
+            }
+        }
+        true
     }
 
     /// Closes everything about a row that is gone.
@@ -1958,7 +2037,8 @@ pub fn show(app: &mut DmApp, ctx: &egui::Context) {
      * same Escape that closes the dialog, as dialogs generally do. */
     let escape = ctx.input_mut(|i| i.consume_key(egui::Modifiers::NONE, egui::Key::Escape));
     if escape && !app.popup_was_open {
-        app.dialogs.close_top();
+        let order: Vec<egui::Id> = ctx.memory(|m| m.layer_ids().map(|layer| layer.id).collect());
+        app.dialogs.close_top(&order);
     }
     app.popup_was_open = ctx.any_popup_open();
     // The topmost of the dialogs in front keeps the keyboard and the

@@ -8431,3 +8431,60 @@ fn the_progress_window_is_as_tall_as_what_it_holds() {
         100.0 * window.height() / screen.height()
     );
 }
+
+/// Gap 71: Escape closes the window in front, not one behind it. Download
+/// complete and a progress window stay open side by side; Escape closed
+/// Download complete whichever was in front.
+#[test]
+fn escape_closes_the_window_in_front() {
+    let world = world();
+    let mut harness = world.harness();
+    harness.run_steps(3);
+    harness
+        .state()
+        .backend()
+        .add_with(
+            &world.url("stalled.bin"),
+            dm_core::AddOptions {
+                later: true,
+                queue: dm_core::MAIN_QUEUE.into(),
+                ..Default::default()
+            },
+        )
+        .unwrap();
+    harness.state_mut().refresh();
+    harness.run_steps(3);
+    let id = harness.state().rows()[0].id;
+    let progress = egui::LayerId::new(egui::Order::Middle, egui::Id::unique(("progress", id)));
+    let complete = egui::LayerId::new(
+        egui::Order::Middle,
+        egui::Id::unique(("dm-dialog", "Download complete")),
+    );
+    for front in [progress, complete] {
+        harness.state_mut().dialogs.progress.insert(id);
+        harness.state_mut().dialogs.complete.insert(id);
+        harness.run_steps(3);
+        harness.ctx.move_to_top(front);
+        harness.run_steps(2);
+        harness.key_press(egui::Key::Escape);
+        harness.run_steps(2);
+        let dialogs = &harness.state().dialogs;
+        let (progress_open, complete_open) =
+            (dialogs.progress.contains(&id), !dialogs.complete.is_empty());
+        if front == progress {
+            assert_eq!(
+                (progress_open, complete_open),
+                (false, true),
+                "progress was in front"
+            );
+        } else {
+            assert_eq!(
+                (progress_open, complete_open),
+                (true, false),
+                "complete was in front"
+            );
+        }
+        harness.state_mut().dialogs = Default::default();
+        harness.run_steps(2);
+    }
+}
