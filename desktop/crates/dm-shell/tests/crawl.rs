@@ -190,3 +190,37 @@ async fn a_start_page_that_sends_everyone_to_another_host_is_searched_there() {
     assert_eq!(found.pages, 2, "the page past the start was not read");
     assert_eq!(names(&found.files), ["a.zip", "c.zip"]);
 }
+
+/// A run given a time limit stops reading pages when it runs out, with
+/// what it found so far, and says that it stopped.
+#[tokio::test]
+async fn a_search_stops_when_its_time_runs_out() {
+    let app = axum::Router::new()
+        .route(
+            "/",
+            get(|| async { Html(r#"<a href="a.zip">a</a> <a href="slow/">slow</a>"#) }),
+        )
+        .route(
+            "/slow/",
+            get(|| async {
+                tokio::time::sleep(std::time::Duration::from_secs(5)).await;
+                Html(r#"<a href="late.zip">late</a>"#)
+            }),
+        );
+    let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let addr = listener.local_addr().unwrap();
+    tokio::spawn(async move { axum::serve(listener, app).await.unwrap() });
+    let search = zips(&format!("http://{addr}"), 1);
+    let started = std::time::Instant::now();
+    let deadline = tokio::time::Instant::now() + std::time::Duration::from_secs(1);
+    let found = dm_shell::lists::crawl_until(&dm_core::client(), &search, Some(deadline))
+        .await
+        .unwrap();
+    assert!(
+        started.elapsed() < std::time::Duration::from_secs(4),
+        "{:?}",
+        started.elapsed()
+    );
+    assert!(found.stopped);
+    assert_eq!(names(&found.files), ["a.zip"]);
+}

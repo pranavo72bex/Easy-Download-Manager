@@ -547,5 +547,7 @@
  "Nothing in {} was waiting to start.": "Niets in {} wachtte om te starten.",
  "Nothing here yet.": "Hier staat nog niets.",
  "Copy link": "Link kopiëren",
- "Copied {} link.||Copied {} links.": "{} link gekopieerd.||{} links gekopieerd."
+ "Copied {} link.||Copied {} links.": "{} link gekopieerd.||{} links gekopieerd.",
+  "Stop reading pages after, minutes (0 for no limit)": "Stoppen met pagina's lezen na, minuten (0 voor geen limiet)",
+  "Its time ran out with pages still to read; these are the files found until then.": "De tijd was op terwijl er nog pagina's te lezen waren; dit zijn de bestanden die tot dan zijn gevonden."
 }

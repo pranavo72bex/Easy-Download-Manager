@@ -278,6 +278,10 @@ pub struct Search {
     pub exclude: Vec<String>,
     /// Hours between runs on its own; 0 is only by hand.
     pub every_hours: u64,
+    /// Minutes a run reads pages for before it stops with what it has
+    /// found; 0 is no limit beyond [`MAX_PAGES`]. A site slow to answer
+    /// held a run for as long as its hundred pages took.
+    pub stop_after_minutes: u64,
     /// When it last ran, in seconds since 1970; 0 is never.
     pub last_run: u64,
     /// What it has found before, without logins: added once, not again
@@ -310,11 +314,15 @@ impl Default for Search {
             include: Vec::new(),
             exclude: Vec::new(),
             every_hours: 0,
+            stop_after_minutes: 0,
             last_run: 0,
             seen: Vec::new(),
         }
     }
 }
+
+/// The longest a run may be given to read pages: a day.
+pub const MOST_MINUTES: u64 = 24 * 60;
 
 /// The longest a saved search waits between runs on its own: a month, as
 /// the dialog offers. A settings file can say anything, and an unbounded
@@ -353,6 +361,8 @@ pub struct Crawled {
     pub files: Vec<String>,
     /// How many pages were read.
     pub pages: usize,
+    /// Whether the run stopped at its time limit with pages left to read.
+    pub stopped: bool,
 }
 
 /// A link's path, for the filters: lower-cased, decoded.
@@ -438,6 +448,19 @@ async fn fetch_page(
 /// [`MAX_PAGES`] of them. A start page that cannot be read is the error;
 /// a page further in that cannot is skipped.
 pub async fn crawl(client: &dm_core::reqwest::Client, search: &Search) -> Result<Crawled, String> {
+    let minutes = search.stop_after_minutes.min(MOST_MINUTES);
+    let deadline = (minutes > 0)
+        .then(|| tokio::time::Instant::now() + std::time::Duration::from_secs(minutes * 60));
+    crawl_until(client, search, deadline).await
+}
+
+/// [`crawl`], stopping at `deadline` (after the start page) rather than at
+/// the search's own time limit.
+pub async fn crawl_until(
+    client: &dm_core::reqwest::Client,
+    search: &Search,
+    deadline: Option<tokio::time::Instant>,
+) -> Result<Crawled, String> {
     use std::collections::{HashSet, VecDeque};
     let start = url::Url::parse(search.page.trim())
         .map_err(|e| format!("that is not a page address: {e}"))?;
@@ -456,7 +479,20 @@ pub async fn crawl(client: &dm_core::reqwest::Client, search: &Search) -> Result
         if found.pages >= MAX_PAGES {
             break;
         }
-        let (base, html) = match fetch_page(client, &page, found.pages == 0).await {
+        // Past the time it was given: what was found so far is the answer.
+        // The start page is always read, however slow.
+        let fetch = fetch_page(client, &page, found.pages == 0);
+        let read = match deadline {
+            Some(at) if found.pages > 0 => match tokio::time::timeout_at(at, fetch).await {
+                Ok(read) => read,
+                Err(_) => {
+                    found.stopped = true;
+                    break;
+                }
+            },
+            _ => fetch.await,
+        };
+        let (base, html) = match read {
             Ok(read) => read,
             Err(e) if found.pages == 0 => return Err(e),
             Err(_) => continue,

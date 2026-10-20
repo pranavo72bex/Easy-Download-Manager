@@ -547,5 +547,7 @@
  "Nothing in {} was waiting to start.": "Niente in {} era in attesa di partire.",
  "Nothing here yet.": "Ancora niente qui.",
  "Copy link": "Copia link",
- "Copied {} link.||Copied {} links.": "{} link copiato.||{} link copiati."
+ "Copied {} link.||Copied {} links.": "{} link copiato.||{} link copiati.",
+  "Stop reading pages after, minutes (0 for no limit)": "Smetti di leggere le pagine dopo, minuti (0 senza limite)",
+  "Its time ran out with pages still to read; these are the files found until then.": "Il tempo è scaduto con pagine ancora da leggere; questi sono i file trovati fino ad allora."
 }

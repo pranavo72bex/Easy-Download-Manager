@@ -917,9 +917,6 @@ fn row_menu(app: &mut DmApp, ui: &mut egui::Ui) {
         app.title_of(Command::DownloadNow),
     );
     menu_item(app, ui, Command::StopDownload, t("Stop download"));
-    // Where its progress window is found: only in File and on Enter, a
-    // person looking for it here did not find it (QA loop 2).
-    menu_item(app, ui, Command::ShowProgress, t("Show progress"));
     menu_item(app, ui, Command::UpdateLink, t("Update download link"));
     menu_item(app, ui, Command::CopyLink, t("Copy link"));
     menu_item(app, ui, Command::Remove, t("Remove"));

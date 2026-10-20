@@ -219,7 +219,8 @@ pub enum Grab {
     Looking,
     /// The files found, each with whether it is ticked, and how many pages
     /// were read.
-    Found(Vec<(String, bool)>, usize),
+    /// The links, the pages read, and whether the run's time ran out.
+    Found(Vec<(String, bool)>, usize, bool),
     Failed(String),
 }
 
@@ -234,6 +235,8 @@ pub struct SiteFiles {
     /// The name to save this search under, and how often it runs.
     pub name: String,
     pub every_hours: u64,
+    /// Minutes a run reads pages for; 0 is no limit.
+    pub stop_after_minutes: u64,
     pub says: String,
     pub state: Arc<Mutex<Grab>>,
 }
@@ -248,6 +251,7 @@ impl Default for SiteFiles {
             exclude: String::new(),
             name: String::new(),
             every_hours: 0,
+            stop_after_minutes: 0,
             says: String::new(),
             state: Arc::default(),
         }
@@ -271,6 +275,7 @@ impl SiteFiles {
             include: words(&self.include),
             exclude: words(&self.exclude),
             every_hours: self.every_hours,
+            stop_after_minutes: self.stop_after_minutes,
             last_run: 0,
             seen: Vec::new(),
         }
@@ -4524,6 +4529,13 @@ fn site_files(app: &mut DmApp, ctx: &egui::Context) {
                 ui.add(number_box(&mut d.depth).range(0..=dm_shell::lists::MAX_DEPTH))
                     .labelled_by(name.id);
             });
+            ui.horizontal(|ui| {
+                let name = ui.label(t("Stop reading pages after, minutes (0 for no limit)"));
+                ui.add(
+                    number_box(&mut d.stop_after_minutes).range(0..=dm_shell::lists::MOST_MINUTES),
+                )
+                .labelled_by(name.id);
+            });
             field(ui, t("Only paths containing"), &mut d.include, 420.0);
             field(ui, t("Skip paths containing"), &mut d.exclude, 420.0);
             // Saving and the saved list come before the results, which can
@@ -4564,16 +4576,24 @@ fn site_files(app: &mut DmApp, ctx: &egui::Context) {
                 Grab::Failed(e) => {
                     ui.colored_label(warn(ui), e.as_str());
                 }
-                Grab::Found(links, _) if links.is_empty() => {
+                Grab::Found(links, _, _) if links.is_empty() => {
                     ui.label(t("No files of those types are linked from that page."));
                 }
-                Grab::Found(links, pages) => {
+                Grab::Found(links, pages, stopped) => {
                     // Counted with a colon, which needs no plural: "on 1
                     // pages" (UI round 12).
                     ui.label(tf(
                         "Files found: {} · pages read: {}",
                         &[&links.len(), pages],
                     ));
+                    if *stopped {
+                        ui.label(
+                            RichText::new(t(
+                                "Its time ran out with pages still to read; these are the files found until then.",
+                            ))
+                            .weak(),
+                        );
+                    }
                     pick_list(ui, links, &listed);
                     if ui.button(t("Add for later")).clicked() {
                         add = Some(links.iter().filter(|l| l.1).map(|l| l.0.clone()).collect());
@@ -4612,6 +4632,7 @@ fn site_files(app: &mut DmApp, ctx: &egui::Context) {
                         })
                         .collect(),
                     found.pages,
+                    found.stopped,
                 ),
                 Err(e) => Grab::Failed(e),
             };
