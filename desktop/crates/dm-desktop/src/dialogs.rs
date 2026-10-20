@@ -1644,6 +1644,43 @@ pub(crate) fn combo(salt: impl std::hash::Hash + std::fmt::Debug) -> egui::Combo
     egui::ComboBox::from_id_salt(salt).icon(chevron)
 }
 
+/// One choice in a drop-down's list: egui's selectable item, and the
+/// picked one marked with the accent pill at its left, as WinUI's list
+/// items are. It had only the subtle fill (Fluent QA, gap 71).
+pub(crate) fn option(
+    ui: &mut egui::Ui,
+    selected: bool,
+    label: impl Into<egui::WidgetText>,
+) -> egui::Response {
+    let response = ui.selectable_label(selected, label);
+    let t = crate::theme::Tokens::get(ui.ctx());
+    if selected && t.modern {
+        let tall = (response.rect.height() - 8.0).clamp(8.0, 16.0);
+        let pill = egui::Rect::from_center_size(
+            egui::pos2(response.rect.left() + 1.5, response.rect.center().y),
+            egui::vec2(3.0, tall),
+        );
+        ui.painter().rect_filled(pill, 1.5, t.brand);
+    }
+    response
+}
+
+/// [`option`] for a value, as egui's `selectable_value`: a click picks
+/// `value`, and the response says it changed when it did.
+pub(crate) fn pick<V: PartialEq>(
+    ui: &mut egui::Ui,
+    current: &mut V,
+    value: V,
+    label: impl Into<egui::WidgetText>,
+) -> egui::Response {
+    let mut response = option(ui, *current == value, label);
+    if response.clicked() && *current != value {
+        *current = value;
+        response.mark_changed();
+    }
+    response
+}
+
 fn chevron(ui: &egui::Ui, rect: egui::Rect, visuals: &egui::style::WidgetVisuals, _open: bool) {
     let t = crate::theme::Tokens::get(ui.ctx());
     if !t.modern {
@@ -3029,17 +3066,13 @@ fn file_info(app: &mut DmApp, ctx: &egui::Context) {
                                 .unwrap_or_else(|| t("As its type says").to_string()),
                         )
                         .show_ui(ui, |ui| {
-                            if ui
-                                .selectable_label(d.folder.trim().is_empty(), t("As its type says"))
+                            if option(ui, d.folder.trim().is_empty(), t("As its type says"))
                                 .clicked()
                             {
                                 d.folder.clear();
                             }
                             for (label, path) in &places {
-                                if ui
-                                    .selectable_label(d.folder.trim() == path, label)
-                                    .clicked()
-                                {
+                                if option(ui, d.folder.trim() == path, label).clicked() {
                                     d.folder = path.clone();
                                 }
                             }
@@ -3164,7 +3197,7 @@ fn file_info(app: &mut DmApp, ctx: &egui::Context) {
                     .selected_text(crate::i18n::name(&d.queue))
                     .show_ui(ui, |ui| {
                         for q in &queues {
-                            ui.selectable_value(&mut d.queue, q.clone(), crate::i18n::name(q));
+                            pick(ui, &mut d.queue, q.clone(), crate::i18n::name(q));
                         }
                     })
                     .response
@@ -5277,7 +5310,7 @@ fn options(app: &mut DmApp, ctx: &egui::Context) {
                         .selected_text(word(&c.keep_key))
                         .show_ui(ui, |ui| {
                             for (key, _) in &keys {
-                                ui.selectable_value(&mut c.keep_key, key.to_string(), word(key));
+                                pick(ui, &mut c.keep_key, key.to_string(), word(key));
                             }
                         })
                         .response
@@ -5290,9 +5323,9 @@ fn options(app: &mut DmApp, ctx: &egui::Context) {
                     combo("take-key")
                         .selected_text(word(&c.take_key))
                         .show_ui(ui, |ui| {
-                            ui.selectable_value(&mut c.take_key, String::new(), word(""));
+                            pick(ui, &mut c.take_key, String::new(), word(""));
                             for (key, _) in &keys {
-                                ui.selectable_value(&mut c.take_key, key.to_string(), word(key));
+                                pick(ui, &mut c.take_key, key.to_string(), word(key));
                             }
                         })
                         .response
@@ -5415,11 +5448,7 @@ fn options(app: &mut DmApp, ctx: &egui::Context) {
                             .selected_text(t(current))
                             .show_ui(ui, |ui| {
                                 for (value, label) in choices {
-                                    ui.selectable_value(
-                                        &mut s.stream_quality,
-                                        value.to_string(),
-                                        t(label),
-                                    );
+                                    pick(ui, &mut s.stream_quality, value.to_string(), t(label));
                                 }
                             });
                         ui.end_row();
@@ -5473,7 +5502,7 @@ fn options(app: &mut DmApp, ctx: &egui::Context) {
                                 }
                                 for q in offered {
                                     let shown = crate::i18n::name(&q);
-                                    ui.selectable_value(&mut limit.queue, q, shown);
+                                    pick(ui, &mut limit.queue, q, shown);
                                 }
                             })
                             .response
@@ -5604,7 +5633,7 @@ fn options(app: &mut DmApp, ctx: &egui::Context) {
                             .show_ui(ui, |ui| {
                                 for kind in [Kind::System, Kind::Http, Kind::Https, Kind::Socks4, Kind::Socks5] {
                                     let was = p.kind;
-                                    if ui.selectable_value(&mut p.kind, kind, kind_name(kind)).changed() {
+                                    if pick(ui, &mut p.kind, kind, kind_name(kind)).changed() {
                                         // The usual port of the kind picked,
                                         // where the port was the last kind's
                                         // usual one: SOCKS5 kept 8080 (UI

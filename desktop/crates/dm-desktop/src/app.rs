@@ -3837,8 +3837,7 @@ impl DmApp {
                 .selected_text(current)
                 .show_ui(ui, |ui| {
                     for (place, label) in &places {
-                        if ui
-                            .selectable_label(*place == self.place, shown(place, label))
+                        if crate::dialogs::option(ui, *place == self.place, shown(place, label))
                             .clicked()
                         {
                             chosen = Some(place.clone());
