@@ -1848,6 +1848,8 @@ fn choice_look(ui: &mut egui::Ui, checked: bool) {
     if !t.modern {
         return;
     }
+    // WinUI's 20 px box; the window's own icon width is a drop-down's.
+    ui.spacing_mut().icon_width = 20.0;
     // ControlAltFillColorSecondary, Tertiary and Quarternary behind an
     // empty box.
     let alt = |light: u8, dark: u8| {

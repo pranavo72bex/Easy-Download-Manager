@@ -124,7 +124,7 @@ pub fn chosen(setting: &str) -> &'static str {
 pub fn pick(ui: &mut egui::Ui, now: &str) -> Option<&'static str> {
     let mut picked = None;
     for (code, name) in LANGUAGES {
-        if ui.radio(now == code, name).clicked() {
+        if crate::dialogs::radio_flag(ui, now == code, name.to_string()).clicked() {
             picked = Some(code);
         }
     }

@@ -867,7 +867,11 @@ pub fn apply(ctx: &Context, theme: Theme) {
             style.spacing.interact_size.y = 24.0;
             style.spacing.menu_margin = egui::Margin::same(4);
             style.spacing.window_margin = egui::Margin::same(24);
-            style.spacing.icon_width = 20.0;
+            // A drop-down's chevron takes a square this wide: at 20, a
+            // drop-down stood 30 tall beside 27 for a button (Fluent QA,
+            // gap 71). The check box's 20 is set where one is drawn
+            // (`dialogs::check`).
+            style.spacing.icon_width = 16.0;
             style.spacing.icon_width_inner = 10.0;
             style.spacing.icon_spacing = 8.0;
         }
