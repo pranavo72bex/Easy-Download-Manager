@@ -489,7 +489,14 @@ def main():
             args[1:1] = ["--no-sandbox", "--disable-dev-shm-usage"]
         browser = subprocess.Popen(args, env=env, stdout=subprocess.DEVNULL,
                                    stderr=open(work / "chromium-stderr.txt", "wb"), preexec_fn=os.setpgrp)
-        base = common.devtools(profile)
+        try:
+            base = common.devtools(profile)
+        except SystemExit:
+            # What the browser said as it failed to start, which is all
+            # there is to go on from a CI run.
+            said = (work / "chromium-stderr.txt").read_text(errors="replace")
+            print(f"{NAME} said on stderr:\n" + "\n".join(said.splitlines()[-40:]), flush=True)
+            raise
         worker_t = wait_for(lambda: next((t for t in common.targets(base) if t["type"] == "service_worker"
                                           and t["url"].endswith("/background.js")), None),
                             # A store install is fetched first.
