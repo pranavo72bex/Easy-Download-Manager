@@ -49,9 +49,12 @@ cut down to those drawn (`icons::fluent`). Sizes and weights: the WinUI ramp's
 Body 14, Caption 12, Body Strong 14 semibold for group headings, Subtitle
 20 semibold for a dialog's title; sizes, speeds and times in tabular
 figures. Sizes: WinUI's compact density (24 px fields and drop-downs, 32 px
-rows and places, buttons padded 11×5), 8 px between controls, dialogs
-padded 24, a check box's box 20 px. Shadows: Fluent's 28 under dialogs, 16
-under menus.
+rows and places, buttons padded 11×5, a drop-down as tall as a button
+beside it), 8 px between controls, dialogs padded 24, a check box's box
+20 px (grey when ticked but disabled). Fields and number boxes carry the
+bottom line at rest, the accent's 2 px while typed in; a drop-down's
+picked item carries the accent pill, as a list's selected row does.
+Shadows: Fluent's 28 under dialogs, 16 under menus.
 
 ## Rules
 
