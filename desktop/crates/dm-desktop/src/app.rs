@@ -4224,7 +4224,9 @@ pub fn tree_menu(place: &Place) -> Vec<(&'static str, TreeAction)> {
 /// How wide a modern toolbar button is: its name beside its picture, or
 /// (`stacked`) under it in smaller type.
 fn modern_width(ui: &egui::Ui, label: &str, stacked: bool) -> f32 {
-    let size = if stacked { 11.5 } else { 14.0 };
+    // The size the words are drawn at (`modern_tool`): measured at 11.5,
+    // a long name stood wider than the room kept for it.
+    let size = if stacked { 12.0 } else { 14.0 };
     let text = ui
         .painter()
         .layout_no_wrap(
