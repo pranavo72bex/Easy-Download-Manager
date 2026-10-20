@@ -1566,7 +1566,17 @@ fn chevron(ui: &egui::Ui, rect: egui::Rect, visuals: &egui::style::WidgetVisuals
         return;
     }
     let c = rect.center();
-    let line = egui::Stroke::new(1.0, if ui.is_enabled() { t.weak } else { t.disabled });
+    let colour = if ui.is_enabled() { t.weak } else { t.disabled };
+    let glyph = egui::Rect::from_center_size(c, egui::vec2(12.0, 12.0));
+    if crate::icons::glyph(
+        ui.painter(),
+        glyph,
+        crate::icons::fluent::CHEVRON_DOWN,
+        colour,
+    ) {
+        return;
+    }
+    let line = egui::Stroke::new(1.0, colour);
     ui.painter().line(
         vec![
             c + egui::vec2(-4.5, -2.0),

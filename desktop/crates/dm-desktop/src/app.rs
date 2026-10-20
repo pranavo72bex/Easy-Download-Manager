@@ -3709,7 +3709,14 @@ impl DmApp {
             let text = format!("{label} ({n})");
             ui.horizontal(|ui| {
                 let response = if tokens.modern {
-                    nav_item(ui, app.place == place, &label, n, &tokens)
+                    nav_item(
+                        ui,
+                        app.place == place,
+                        &label,
+                        n,
+                        place_icon(&place),
+                        &tokens,
+                    )
                 } else {
                     // The tree is folders.
                     let (rect, _) =
@@ -4349,7 +4356,14 @@ fn submenu<R>(
     if !t.modern {
         return ui.menu_button(label, add);
     }
-    let button = egui::Button::new(label).right_text(egui::RichText::new("›").color(t.weak));
+    let arrow = if crate::theme::fonts_ready(ui.ctx()) {
+        egui::RichText::new(icons::fluent::CHEVRON_RIGHT.to_string())
+            .family(icons::family())
+            .size(12.0)
+    } else {
+        egui::RichText::new("›")
+    };
+    let button = egui::Button::new(label).right_text(arrow.color(t.weak));
     let (response, inner) = egui::containers::menu::SubMenuButton::from_button(button).ui(ui, add);
     egui::InnerResponse::new(inner.map(|i| i.inner), response)
 }
@@ -4410,17 +4424,47 @@ fn nav_group(
     );
     // ChevronUp open, ChevronDown shut, as a navigation view turns it.
     let c = egui::pos2(rect.right() - 16.0, rect.center().y);
-    let dy = if open { 2.0 } else { -2.0 };
-    painter.line(
-        vec![
-            c + egui::vec2(-4.5, dy),
-            c + egui::vec2(0.0, -dy),
-            c + egui::vec2(4.5, dy),
-        ],
-        egui::Stroke::new(1.0, t.weak),
-    );
+    let chevron = egui::Rect::from_center_size(c, egui::vec2(12.0, 12.0));
+    let which = if open {
+        icons::fluent::CHEVRON_UP
+    } else {
+        icons::fluent::CHEVRON_DOWN
+    };
+    if !icons::glyph(painter, chevron, which, t.weak) {
+        let dy = if open { 2.0 } else { -2.0 };
+        painter.line(
+            vec![
+                c + egui::vec2(-4.5, dy),
+                c + egui::vec2(0.0, -dy),
+                c + egui::vec2(4.5, dy),
+            ],
+            egui::Stroke::new(1.0, t.weak),
+        );
+    }
     if open {
         ui.indent(key, add);
+    }
+}
+
+/// A place's icon, as a navigation view gives each item its own.
+fn place_icon(place: &Place) -> char {
+    use icons::fluent;
+    match place {
+        Place::All => fluent::APPS_LIST,
+        Place::Kind(kind) => match kind {
+            Category::Videos => fluent::VIDEO,
+            Category::Audio => fluent::MUSIC,
+            Category::Documents => fluent::DOCUMENT,
+            Category::Apps => fluent::APPS,
+            Category::Archives => fluent::FOLDER_ZIP,
+            Category::Pictures => fluent::IMAGE,
+            _ => fluent::FOLDER,
+        },
+        Place::Custom(_) => fluent::FOLDER,
+        Place::Unfinished => fluent::ARROW_DOWNLOAD,
+        Place::Finished => fluent::CHECKMARK_CIRCLE,
+        Place::Queue(name) if name == dm_core::RECHECK_QUEUE => fluent::ARROW_SYNC,
+        Place::Queue(_) => fluent::LIST,
     }
 }
 
@@ -4432,6 +4476,7 @@ fn nav_item(
     selected: bool,
     label: &str,
     count: usize,
+    icon: char,
     t: &crate::theme::Tokens,
 ) -> egui::Response {
     let width = ui.available_width().max(120.0);
@@ -4461,7 +4506,10 @@ fn nav_item(
     );
     // As a navigation view's item: the selection is the fill and the
     // accent pill, the picture and the name stay as they are.
-    icons::folder_outline(painter, icon_rect, t.folder);
+    let icon_rect = egui::Rect::from_center_size(icon_rect.center(), egui::vec2(16.0, 16.0));
+    if !icons::glyph(painter, icon_rect, icon, t.folder) {
+        icons::folder_outline(painter, icon_rect, t.folder);
+    }
     let family = egui::FontFamily::Proportional;
     // A long name is shortened with "…" before the count, never over it.
     let room = (rect.width() - 36.0 - 34.0).max(20.0);

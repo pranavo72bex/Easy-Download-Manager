@@ -1002,3 +1002,16 @@ in the translations); its digits are one width, like Segoe UI's. The
 static Segoe UI is used rather than the variable one, whose weights egui
 cannot pick. Not yet seen on Windows (gap 2).
 
+## Fluent UI System Icons for the window's pictures (2026-10-20)
+
+Segoe Fluent Icons, WinUI's icon font, comes with Windows and may not be
+shipped. Chosen by the person: Microsoft's Fluent UI System Icons (MIT), the
+same icons published for other platforms, as a font cut down to the 26 the
+window draws (`fonts/FluentSystemIcons-dm.ttf`, 5 KB, made with fontTools'
+`pyftsubset`; `icons::fluent` names each by its `ic_fluent_<name>_20_regular`).
+The modern look draws the toolbar, every place (each its own, as the WinUI 3
+Gallery's pane has them), the pane's group chevrons, drop-downs' and
+submenus' chevrons from it; the classic look keeps its drawn pictures. The
+progress window's Connections opener keeps its drawn chevron, which turns
+with egui's opening animation where a glyph would jump.
+

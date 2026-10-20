@@ -43,7 +43,9 @@ gives them.
 Type: Segoe UI, Fluent's face, taken from Windows where it is installed
 (it is never shipped); elsewhere Selawik, Microsoft's open stand-in made to
 its measure (SIL OFL 1.1, `crates/dm-desktop/fonts/LICENSE-Selawik.txt`);
-Inter behind both for Greek and Cyrillic (SIL OFL 1.1): the WinUI ramp's
+Inter behind both for Greek and Cyrillic (SIL OFL 1.1). Icons: Fluent UI
+System Icons (MIT, `fonts/LICENSE-FluentSystemIcons.txt`), 20 px regular,
+cut down to those drawn (`icons::fluent`). Sizes and weights: the WinUI ramp's
 Body 14, Caption 12, Body Strong 14 semibold for group headings, Subtitle
 20 semibold for a dialog's title; sizes, speeds and times in tabular
 figures. Sizes: WinUI's compact density (24 px fields and drop-downs, 32 px

@@ -433,6 +433,14 @@ fn definitions(scripts: &[Script]) -> egui::FontDefinitions {
             .unwrap_or_default(),
     );
     fonts.families.insert(numbers_family(), numbers);
+    // Fluent UI System Icons, the few the window draws (MIT).
+    fonts.font_data.insert(
+        "fluent-icons".into(),
+        egui::FontData::from_static(include_bytes!("../fonts/FluentSystemIcons-dm.ttf")).into(),
+    );
+    fonts
+        .families
+        .insert(crate::icons::family(), vec!["fluent-icons".to_string()]);
     fonts
 }
 

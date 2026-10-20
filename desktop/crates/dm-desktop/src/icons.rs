@@ -1,7 +1,79 @@
-//! The toolbar's icons, drawn as strokes rather than shipped as pictures:
-//! no image files, and sharp at any scale.
+//! The window's icons. In the modern look they are Fluent UI System Icons,
+//! Microsoft's open icons in the style of Fluent (MIT,
+//! `fonts/LICENSE-FluentSystemIcons.txt`), as a font of the few dm draws;
+//! the classic look keeps its own, drawn as strokes. Either way no image
+//! files, and sharp at any scale.
 
 use egui::{pos2, vec2, Color32, Painter, Rect, Shape, Stroke};
+
+/// The Fluent icons dm draws, as the characters `fonts/FluentSystemIcons-dm.ttf`
+/// holds them at (each `ic_fluent_<name>_20_regular`).
+pub mod fluent {
+    pub const ADD: char = '\u{f109}';
+    pub const PLAY: char = '\u{f605}';
+    pub const STOP: char = '\u{f72a}';
+    pub const RECORD_STOP: char = '\u{f75a}';
+    pub const DELETE: char = '\u{f34c}';
+    pub const BROOM: char = '\u{f201}';
+    pub const SETTINGS: char = '\u{f6a9}';
+    pub const CALENDAR_CLOCK: char = '\u{f21d}';
+    pub const PLAY_CIRCLE: char = '\u{e994}';
+    pub const PAUSE_CIRCLE: char = '\u{f6bc}';
+    pub const GLOBE: char = '\u{f45a}';
+    pub const APPS_LIST: char = '\u{f8cb}';
+    pub const VIDEO: char = '\u{f84c}';
+    pub const MUSIC: char = '\u{e854}';
+    pub const DOCUMENT: char = '\u{f378}';
+    pub const APPS: char = '\u{f133}';
+    pub const FOLDER_ZIP: char = '\u{f435}';
+    pub const IMAGE: char = '\u{f488}';
+    pub const FOLDER: char = '\u{f418}';
+    pub const ARROW_DOWNLOAD: char = '\u{f150}';
+    pub const CHECKMARK_CIRCLE: char = '\u{f298}';
+    pub const LIST: char = '\u{ecd9}';
+    pub const ARROW_SYNC: char = '\u{f190}';
+    pub const CHEVRON_DOWN: char = '\u{f2a3}';
+    pub const CHEVRON_UP: char = '\u{f2b6}';
+    pub const CHEVRON_RIGHT: char = '\u{f2b0}';
+}
+
+/// The font family the Fluent icons are drawn from.
+pub fn family() -> egui::FontFamily {
+    egui::FontFamily::Name("icons".into())
+}
+
+/// Draws a Fluent icon centred in `rect`, as big as its shorter side. False
+/// where the icons are not loaded yet (the first frame) or the look is the
+/// classic one, for the caller to draw its own.
+pub fn glyph(painter: &Painter, rect: Rect, icon: char, color: Color32) -> bool {
+    let ctx = painter.ctx();
+    if !crate::theme::fonts_ready(ctx) || !crate::theme::Tokens::get(ctx).modern {
+        return false;
+    }
+    let size = rect.width().min(rect.height());
+    let galley = painter.layout_no_wrap(icon.to_string(), egui::FontId::new(size, family()), color);
+    // By the glyph's own box, which a row's height does not centre.
+    let at = rect.center() - galley.size() / 2.0;
+    painter.galley(at, galley, color);
+    true
+}
+
+/// The Fluent icon for a toolbar command.
+fn fluent_of(icon: Icon) -> char {
+    match icon {
+        Icon::Add => fluent::ADD,
+        Icon::Resume => fluent::PLAY,
+        Icon::Stop => fluent::STOP,
+        Icon::StopAll => fluent::RECORD_STOP,
+        Icon::Delete => fluent::DELETE,
+        Icon::DeleteCompleted => fluent::BROOM,
+        Icon::Options => fluent::SETTINGS,
+        Icon::Scheduler => fluent::CALENDAR_CLOCK,
+        Icon::StartQueue => fluent::PLAY_CIRCLE,
+        Icon::StopQueue => fluent::PAUSE_CIRCLE,
+        Icon::SiteFiles => fluent::GLOBE,
+    }
+}
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Icon {
@@ -20,6 +92,9 @@ pub enum Icon {
 
 /// Draws `icon` inside `rect` in `color`.
 pub fn paint(painter: &Painter, rect: Rect, icon: Icon, color: Color32) {
+    if glyph(painter, rect, fluent_of(icon), color) {
+        return;
+    }
     let s = rect.width().min(rect.height());
     let c = rect.center();
     let stroke = Stroke::new((s / 12.0).max(1.5), color);
