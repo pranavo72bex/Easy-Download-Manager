@@ -490,8 +490,13 @@ def main():
         browser = subprocess.Popen(args, env=env, stdout=subprocess.DEVNULL,
                                    stderr=open(work / "chromium-stderr.txt", "wb"), preexec_fn=os.setpgrp)
         try:
+            if STORE:
+                # A first start installs the store's copy before it is up.
+                wait_for(lambda: (profile / "DevToolsActivePort").exists(), 120)
             base = common.devtools(profile)
         except SystemExit:
+            print(f"{NAME} is {'still running' if browser.poll() is None else f'gone (exit {browser.poll()})'}; "
+                  f"profile holds {sorted(p.name for p in profile.iterdir())}", flush=True)
             # What the browser said as it failed to start, which is all
             # there is to go on from a CI run.
             said = (work / "chromium-stderr.txt").read_text(errors="replace")
