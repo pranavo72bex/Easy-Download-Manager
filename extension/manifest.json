@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "dm — Download Manager",
-  "version": "3.0.6",
+  "version": "3.0.7",
   "description": "Hands downloads and videos to the dm app, which downloads them. With no app, the browser keeps them.",
   "minimum_chrome_version": "116",
   "key": "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAvBZBZWDQ4KKpBdPD2g9V4ZzWVRxm2rZjOXj/cr7SaGOUeAo+d4YI7MnyF1lKRs31Q3FSO6Ksao9KtbCtuXg5Cvn21y9kjlaLt5nfjCvnFV1Q7gr0e5SiQmTpiby56l5QM6+Zs+ZHKeOvVa1Pv1RVT1a6Jf6j5GzfLiN7lQne7S7hUKmjScAjLvaSy2BQw3jzgMThKtr5LiyxjynmZjEf7w/j1bDwurEfajVTru5Hy6vijrqHQB0ijQWt7RRMj7UcWc1DF1U2smpDLdlG6n8bm3aeglN3ezSLagj67vEsK1FiDNETCosjacqa3qhhtqNDFPvyrDr2MMn3V98dh0xeIQIDAQAB",
