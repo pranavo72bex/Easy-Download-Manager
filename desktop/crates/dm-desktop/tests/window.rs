@@ -8549,3 +8549,25 @@ fn options_tabs_fit_at_150_percent() {
     );
     assert!(first.left() >= 40.0, "General moved: {first:?}");
 }
+
+/// A stream server's address goes in through Add URL like any other, is
+/// named as it will be saved, and is queued; ffmpeg fetches it (the engine's
+/// `tests/live.rs`).
+#[test]
+fn a_stream_servers_address_is_taken_through_add_url() {
+    let world = world();
+    let mut harness = world.harness();
+    add_url(
+        &mut harness,
+        "rtmp://127.0.0.1:1/live/show",
+        "Add for later",
+    );
+    harness.state_mut().refresh();
+    harness.run_steps(3);
+    let rows = harness.state().rows();
+    assert_eq!(rows.len(), 1, "{rows:?}");
+    assert_eq!(rows[0].url, "rtmp://127.0.0.1:1/live/show");
+    assert!(harness.query_by_label_contains("show").is_some());
+    assert!(dm_desktop::app::looks_downloadable("rtmp://h/live/x").is_some());
+    assert!(dm_desktop::app::looks_downloadable("mms://h/clip.asf").is_some());
+}

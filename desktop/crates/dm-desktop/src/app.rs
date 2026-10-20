@@ -379,12 +379,18 @@ pub fn needs_sign_in(reason: &str) -> bool {
 pub fn looks_downloadable(text: &str) -> Option<String> {
     let first = text.split_whitespace().next()?;
     let lower = first.to_ascii_lowercase();
-    (lower.starts_with("http://")
-        || lower.starts_with("https://")
-        || lower.starts_with("ftp://")
-        || lower.starts_with("magnet:?"))
-    .then(|| first.to_string())
+    SCHEMES
+        .iter()
+        .any(|s| lower.starts_with(s))
+        .then(|| first.to_string())
 }
+
+/// The starts of the addresses dm takes: the web and FTP, magnets, and the
+/// stream servers' protocols ffmpeg fetches (`dm_core::live`).
+const SCHEMES: [&str; 13] = [
+    "http://", "https://", "ftp://", "magnet:?", "rtmp://", "rtmps://", "rtmpe://", "rtmpt://",
+    "rtsp://", "rtsps://", "mms://", "mmsh://", "mmst://",
+];
 
 /// Whether `text` holds a second address after its first: two links
 /// pasted into one field, run together ("…/a.ziphttps://…") or with a
@@ -394,7 +400,7 @@ pub fn looks_downloadable(text: &str) -> Option<String> {
 pub fn two_addresses(text: &str) -> bool {
     let text = text.trim();
     let lower = text.to_ascii_lowercase();
-    let schemes = ["http://", "https://", "ftp://", "magnet:?"];
+    let schemes = SCHEMES;
     let starts = |at: usize| {
         lower
             .get(at..)
@@ -468,7 +474,7 @@ fn address_in(word: &str) -> &str {
         return word;
     }
     let lower = word.to_ascii_lowercase();
-    let schemes = ["http://", "https://", "ftp://", "magnet:?"];
+    let schemes = SCHEMES;
     let start = word.char_indices().find_map(|(at, c)| {
         let next = at + c.len_utf8();
         ("=;([".contains(c)

@@ -1056,3 +1056,15 @@ returns to the pool, whose next request takes it again, and an answer
 that still lands elsewhere (ranges signing in at once) is tried once more.
 Kerberos is not offered: it needs the system's GSSAPI or SSPI and a domain
 to be tested against.
+
+## RTMP, RTSP and MMS through ffmpeg (2026-10-20)
+
+These are media servers' protocols, not files: dm has no client for them
+and does not write one. ffmpeg, which dm already finds for joining
+streams, reads all three, so an address of these schemes is handed to it
+with `-c copy`: nothing is re-encoded. MP4 is written fragmented
+(`frag_keyframe+empty_moov`), so a live stream stopped by hand still
+plays; MMS, which carries Windows Media, goes into its own container. A
+stream has no length and no position to resume from: progress is the
+bytes written, and a resume starts it again. ffmpeg cannot go through
+dm's proxy for these, so with one in force the download is refused.

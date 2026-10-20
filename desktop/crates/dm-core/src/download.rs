@@ -398,6 +398,10 @@ async fn fetch_reporting(
     if crate::ftp::is_ftp(url) {
         return crate::ftp::download_ftp(url, options, report).await;
     }
+    // Nor do RTMP, RTSP and MMS streams, which ffmpeg fetches.
+    if crate::live::is_live(url) {
+        return crate::live::download_live(url, options, report).await;
+    }
 
     // A site with a limit of its own is fetched on that many connections,
     // whatever the setting says; decided once, here, for every path below.

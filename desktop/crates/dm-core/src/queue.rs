@@ -317,7 +317,7 @@ pub struct Queue {
 }
 
 /// Whether the queue will take this URL: something the HTTP engine can fetch,
-/// or something the torrent engine can. Anything else is refused before it
+/// or the FTP, torrent or stream (ffmpeg) one can. Anything else is refused before it
 /// becomes a row that could only ever fail.
 ///
 /// Public so the native host can answer a browser with the same rule: it
@@ -334,6 +334,7 @@ pub fn accepted(url: &str) -> bool {
         || scheme("https://")
         || crate::ftp::is_ftp(url)
         || crate::torrent::is_torrent(url)
+        || crate::live::is_live(url)
 }
 
 impl Queue {

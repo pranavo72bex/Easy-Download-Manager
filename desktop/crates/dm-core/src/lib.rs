@@ -19,6 +19,7 @@ pub mod cookies;
 pub mod download;
 pub mod ftp;
 pub mod limit;
+pub mod live;
 pub mod metalink;
 pub mod ntlm;
 pub mod plan;

@@ -411,6 +411,14 @@ of them.
       a URL without `.mpd` takes the same route. Each route is pinned by
       `DM_YTDLP` — empty for the refusal, a stand-in that records its
       arguments for the hand-off — so neither can be deleted unnoticed
+- [x] RTMP, RTSP and MMS streams — client (`live.rs`): an `rtmp://`,
+      `rtsp://` or `mms://` address (and their `s`, `e`, `t`, `h` forms) is
+      fetched by the ffmpeg dm already finds for streams, copied as it comes
+      into a part file (MP4 written so a stream cut short still plays; MMS
+      into its own container) and placed as any finished file is. No
+      ffmpeg is "install ffmpeg"; a proxy in force is a refusal, never a
+      route around it. `tests/live.rs` serves a clip over RTMP with ffmpeg
+      itself and gets it back as a playable file
 - [x] BitTorrent — client only, which is the only place it can be: an
       extension has no sockets. A magnet or a `.torrent` (fetched, or one on
       this computer opened with dm) is routed to
