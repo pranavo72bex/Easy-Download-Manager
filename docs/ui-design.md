@@ -40,8 +40,10 @@ gives them.
 | `error` / `success` / `warn` | `#c42b1c` / `#0f7b0f` / `#9d5d00` | `#ff99a4` / `#6ccb5f` / `#fce100` | SystemFillColor Critical / Success / Caution |
 | `radius` / `card_radius` | 4 / 8 px | 4 / 8 px | ControlCornerRadius / OverlayCornerRadius |
 
-Type: Inter (SIL OFL 1.1, `crates/dm-desktop/fonts/LICENSE-Inter.txt`)
-standing in for Segoe UI Variable, which is not shipped: the WinUI ramp's
+Type: Segoe UI, Fluent's face, taken from Windows where it is installed
+(it is never shipped); elsewhere Selawik, Microsoft's open stand-in made to
+its measure (SIL OFL 1.1, `crates/dm-desktop/fonts/LICENSE-Selawik.txt`);
+Inter behind both for Greek and Cyrillic (SIL OFL 1.1): the WinUI ramp's
 Body 14, Caption 12, Body Strong 14 semibold for group headings, Subtitle
 20 semibold for a dialog's title; sizes, speeds and times in tabular
 figures. Sizes: WinUI's compact density (24 px fields and drop-downs, 32 px

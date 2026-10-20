@@ -4,8 +4,9 @@
 //! The default look is dm's modern one, light or dark as the computer is
 //! set: neutral backgrounds, foregrounds and strokes, a blue brand colour,
 //! 4 px control and 8 px card radii, and soft shadows. Its typeface is
-//! Inter, embedded under its open licence (SIL OFL 1.1,
-//! `fonts/LICENSE-Inter.txt`). A classic look stays as a choice in
+//! Segoe UI where Windows has it, else Selawik, Microsoft's open stand-in
+//! for it (SIL OFL 1.1, `fonts/LICENSE-Selawik.txt`), with Inter behind
+//! both for Greek and Cyrillic (SIL OFL 1.1, `fonts/LICENSE-Inter.txt`). A classic look stays as a choice in
 //! Options. `docs/ui-design.md` lists the tokens.
 
 use egui::epaint::Shadow;
@@ -357,7 +358,7 @@ pub fn fonts_ready(ctx: &Context) -> bool {
         .is_some_and(|set| ctx.cumulative_pass_nr() > set)
 }
 
-/// Embeds Inter once, an openly licensed typeface (SIL OFL).
+/// Sets the window's fonts once: see [`definitions`].
 fn fonts(ctx: &Context) {
     let id = egui::Id::unique("dm-fonts-pass");
     if ctx.data(|d| d.get_temp::<u64>(id)).is_some() {
@@ -368,11 +369,19 @@ fn fonts(ctx: &Context) {
     ctx.data_mut(|d| d.insert_temp(id, pass));
 }
 
-/// dm's fonts: Inter first, egui's own after it, and the computer's
+/// dm's fonts: the window's face (Segoe UI or Selawik) first, Inter
+/// behind it, egui's own after them, and the computer's
 /// fonts for `scripts` last of all, so each only draws what the others
 /// cannot.
 fn definitions(scripts: &[Script]) -> egui::FontDefinitions {
     let mut fonts = egui::FontDefinitions::default();
+    // The face WinUI draws with where the computer has it, else its open
+    // stand-in; Inter behind it for what it has no letters for.
+    let (regular, semibold) = ui_faces();
+    fonts.font_data.insert("ui".into(), regular.into());
+    fonts
+        .font_data
+        .insert("ui-semibold".into(), semibold.into());
     fonts.font_data.insert(
         "inter".into(),
         egui::FontData::from_static(include_bytes!("../fonts/Inter-Regular.ttf")).into(),
@@ -383,6 +392,7 @@ fn definitions(scripts: &[Script]) -> egui::FontDefinitions {
     );
     if let Some(family) = fonts.families.get_mut(&FontFamily::Proportional) {
         family.insert(0, "inter".into());
+        family.insert(0, "ui".into());
         // Last: the sort arrows (↑ ↓) are in none of the others, and were
         // drawn as a missing-glyph box until egui 0.37 made that visible.
         family.push("Hack".into());
@@ -399,7 +409,7 @@ fn definitions(scripts: &[Script]) -> egui::FontDefinitions {
             }
         }
     }
-    let mut semibold = vec!["inter-semibold".to_string()];
+    let mut semibold = vec!["ui-semibold".to_string(), "inter-semibold".to_string()];
     semibold.extend(
         fonts
             .families
@@ -412,7 +422,9 @@ fn definitions(scripts: &[Script]) -> egui::FontDefinitions {
         "inter-digits".into(),
         egui::FontData::from_static(include_bytes!("../fonts/Inter-TabularDigits.ttf")).into(),
     );
-    let mut numbers = vec!["inter-digits".to_string()];
+    // Segoe UI's and Selawik's digits are each one width already; Inter's
+    // tabular ones are for what falls through to Inter.
+    let mut numbers = vec!["ui".to_string(), "inter-digits".to_string()];
     numbers.extend(
         fonts
             .families
@@ -422,6 +434,32 @@ fn definitions(scripts: &[Script]) -> egui::FontDefinitions {
     );
     fonts.families.insert(numbers_family(), numbers);
     fonts
+}
+
+/// The window's typeface, regular and semibold. Fluent's is Segoe UI,
+/// which Microsoft licenses with Windows and nobody may ship: on Windows the
+/// computer's own is used, as WinUI does; elsewhere, and on a Windows
+/// without it, Selawik, Microsoft's open stand-in made to its measure for
+/// other systems (SIL OFL 1.1, `fonts/LICENSE-Selawik.txt`), embedded.
+fn ui_faces() -> (egui::FontData, egui::FontData) {
+    if let Some(found) = windows_segoe() {
+        return found;
+    }
+    (
+        egui::FontData::from_static(include_bytes!("../fonts/Selawik-Regular.ttf")),
+        egui::FontData::from_static(include_bytes!("../fonts/Selawik-Semibold.ttf")),
+    )
+}
+
+/// Segoe UI and its semibold from the computer's font folder, mapped.
+fn windows_segoe() -> Option<(egui::FontData, egui::FontData)> {
+    if !cfg!(windows) {
+        return None;
+    }
+    let dir = std::path::PathBuf::from(std::env::var_os("WINDIR")?).join("Fonts");
+    let face =
+        |name: &str| font_file(&dir.join(name)).map(|blob| egui::FontData::from_blob(blob, 0));
+    Some((face("segoeui.ttf")?, face("seguisb.ttf")?))
 }
 
 /* ------------------------------------------- the computer's own fonts */
@@ -1028,9 +1066,14 @@ mod tests {
         for c in "023456789".chars() {
             assert_eq!(width(numbers_family(), c), ones, "{c} is not as wide as 1");
         }
-        // Inter's own digits are proportional, which is why this is needed.
-        assert!(width(FontFamily::Proportional, '1') < width(FontFamily::Proportional, '8'));
-        // Letters and units are not lost: they come from Inter, behind it.
+        // The window's face is first in both, so the two agree; Inter's
+        // tabular digits are for what falls through to Inter.
+        assert_eq!(
+            width(FontFamily::Proportional, '8'),
+            width(numbers_family(), '8')
+        );
+        // Letters and units are not lost: Cyrillic comes from Inter, behind
+        // the window's face.
         assert!(ctx.fonts_mut(|f| f.has_glyphs(&FontId::new(14.0, numbers_family()), "MB/s ГБ")));
         assert_eq!(
             width(numbers_family(), 'M'),

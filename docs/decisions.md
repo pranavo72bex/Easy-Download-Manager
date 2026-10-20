@@ -988,3 +988,17 @@ under the pointer (checked at most twice a second), or a play. The
 key-held clicks, magnet links and "Download all/selected links" stay plain
 JavaScript and work from the start, as before.
 
+## Segoe UI from Windows, Selawik elsewhere (2026-10-20)
+
+Fluent's face is Segoe UI (Segoe UI Variable on Windows 11), which
+Microsoft licenses with Windows: dm may not ship it. Chosen by the person:
+on Windows dm draws with the computer's own Segoe UI and its semibold
+(`%WINDIR%\Fonts\segoeui.ttf`, `seguisb.ttf`, mapped, as WinUI uses the
+system's); on macOS and Linux, and on a Windows without them, with Selawik,
+the open stand-in Microsoft made to Segoe UI's measure for other systems
+(SIL OFL 1.1, Reserved Font Name, shipped unmodified, 44 KB a face). Selawik
+has Latin only, so Inter stays behind it for Greek and Cyrillic (Russian,
+in the translations); its digits are one width, like Segoe UI's. The
+static Segoe UI is used rather than the variable one, whose weights egui
+cannot pick. Not yet seen on Windows (gap 2).
+
