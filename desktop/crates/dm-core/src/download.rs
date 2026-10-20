@@ -2806,10 +2806,20 @@ fn room_for(size: u64, done: &Arc<AtomicU64>, options: &Options) -> Result<Claim
             } else {
                 String::new()
             };
+            // The folder the person chose, not the row's own staging
+            // folder inside dm's (QA loop 1, bug 4): the download folder
+            // where the two share a disk, the chosen parts folder where not.
+            let named = if same_disk(parts, dest) {
+                dest.as_path()
+            } else if dir == &parts {
+                parts.parent().unwrap_or(parts)
+            } else {
+                dir.as_path()
+            };
             return Err(Error::Internal(format!(
                 "not enough room: the file needs {}, and {} has {} free{others}",
                 amount(need),
-                dir.display(),
+                named.display(),
                 amount(free)
             )));
         }

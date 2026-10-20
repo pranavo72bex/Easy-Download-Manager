@@ -81,3 +81,17 @@ each, footprint):
 tokio's file keeps its own copy of each write, so every connection held
 the buffer twice; the heap was 108 MB of a 126 MB headless footprint. The
 rest is the HTTP client's read buffers, about 1 MB a connection.
+
+## A login launch with no window, and threads after downloads, 2026-10-20
+
+| State | Before | After |
+|---|---|---|
+| `--hidden`, idle in the tray, phys_footprint | 43 MB | 13 MB |
+| same, CPU over 60 s | — | 0.07 s (0.12 %) |
+| shown from there (second launch) | — | 42–43 MB, window drawn |
+| threads a minute after ten 60 MB downloads (headless) | 40 | 13 (14 before they began) |
+
+The window is made the first time it is asked for; until then dm's logic
+runs on a stand-in context woken by what wakes the window. On Linux the
+QA run's 100 threads and 200+ MB after a soak are expected to fall with
+the thread count: each thread kept a glibc malloc arena.

@@ -220,11 +220,6 @@ struct Window {
     /// The window is in the tray: nothing is drawn, and dm wakes only as
     /// often as its timers need.
     hidden: bool,
-    /// Frames left in which to hide the window again, for the login item's
-    /// launch. eframe shows the window after its first frame whatever the
-    /// builder asked for — a `--hidden` launch opened a window over the
-    /// desktop, which the Linux check counted — so it is put back.
-    hide_frames: u8,
     /// Set by a second launch through the inbox, or a click on the Dock
     /// icon, asking for the window back.
     show_asked: Arc<AtomicBool>,
@@ -288,6 +283,29 @@ impl eframe::App for Window {
     /// Runs while the window is hidden too, which is what lets the tray and
     /// a second launch bring it back.
     fn logic(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
+        self.tick(ctx);
+    }
+
+    fn ui(&mut self, ui: &mut egui::Ui, frame: &mut eframe::Frame) {
+        // Hidden in the tray, nothing is drawn: it was drawn on every wake,
+        // a tenth of a core idle (life-cycle QA, gap 67).
+        if self.hidden {
+            return;
+        }
+        self.app.ui(ui);
+        let files = std::mem::take(&mut self.app.drag_out);
+        if !files.is_empty() {
+            if let Err(e) = drag_out(frame, files) {
+                self.app.said = e.into();
+            }
+        }
+    }
+}
+
+impl Window {
+    /// Everything but the drawing: the tray, a second launch, the queue.
+    /// Also run before there is a window at all, for a login launch.
+    fn tick(&mut self, ctx: &egui::Context) {
         while let Ok(asked) = self.tray.try_recv() {
             match asked {
                 Tray::Show => self.show(ctx),
@@ -305,11 +323,6 @@ impl eframe::App for Window {
                     self.app.run(command);
                 }
             }
-        }
-        if self.hide_frames > 0 {
-            self.hide_frames -= 1;
-            ctx.send_viewport_cmd(egui::ViewportCommand::Visible(false));
-            ctx.request_repaint();
         }
         // Asked to show itself — dm opened again, or its Dock icon
         // clicked: a browser installed since dm started is registered now,
@@ -384,19 +397,239 @@ impl eframe::App for Window {
             ctx.send_viewport_cmd(egui::ViewportCommand::Close);
         }
     }
+}
 
-    fn ui(&mut self, ui: &mut egui::Ui, frame: &mut eframe::Frame) {
-        // Hidden in the tray, nothing is drawn: it was drawn on every wake,
-        // a tenth of a core idle (life-cycle QA, gap 67).
-        if self.hidden {
+/// A login launch: dm waits in the tray with no window until one is asked
+/// for — the tray's Show, a second launch, the Dock icon, a hand-off that
+/// opens a dialog, or no tray to wait in. The window and its GL context
+/// are about 40 MB (`qa/after.md`) that a dm waiting in the tray all day has
+/// no use for; eframe's own start made them at once and hid them, after
+/// showing them for a frame.
+///
+/// Until then dm's logic runs on a stand-in context with no fonts and no
+/// drawing (`run_logic`), woken by what wakes the window: its own timers,
+/// the queue, the tray, a second launch. Once shown, eframe's context takes
+/// over, and every wake the stand-in is asked for is passed on to it.
+fn run_hidden(
+    options: eframe::NativeOptions,
+    make: impl FnOnce(&egui::Context) -> Window + 'static,
+) -> Result<(), String> {
+    use winit::event_loop::EventLoop;
+    let event_loop = EventLoop::<eframe::UserEvent>::with_user_event()
+        .build()
+        .map_err(|e| e.to_string())?;
+    let real: Arc<std::sync::OnceLock<egui::Context>> = Arc::default();
+    let real_ctx = Arc::clone(&real);
+    let made: std::rc::Rc<std::cell::RefCell<Option<Window>>> = std::rc::Rc::default();
+    let eframe_app = eframe::create_native(
+        "dm",
+        options,
+        Box::new({
+            let (real, made) = (Arc::clone(&real), std::rc::Rc::clone(&made));
+            move |cc| {
+                let _ = real.set(cc.egui_ctx.clone());
+                match made.borrow_mut().take() {
+                    Some(window) => Ok(Box::new(window)),
+                    None => Err("the window was asked for before dm had started".into()),
+                }
+            }
+        }),
+        &event_loop,
+    );
+    let ctx = egui::Context::default();
+    let due: Arc<Mutex<Option<std::time::Instant>>> = Arc::default();
+    let ticking = Arc::new(AtomicBool::new(false));
+    ctx.set_repaint_observer({
+        let (due, ticking, proxy) = (
+            Arc::clone(&due),
+            Arc::clone(&ticking),
+            event_loop.create_proxy(),
+        );
+        move |info| {
+            if let Some(real) = real.get() {
+                real.request_repaint_after(info.delay);
+                return;
+            }
+            let at = std::time::Instant::now() + info.delay;
+            {
+                let mut due = dm_core::lock(&due);
+                if due.is_none_or(|d| at < d) {
+                    *due = Some(at);
+                }
+            }
+            // From another thread, or a timer's: the loop is woken to look
+            // at the new time. A tick's own asks are read when it ends.
+            if !ticking.load(Ordering::Relaxed) {
+                let _ = proxy.send_event(eframe::UserEvent::RequestRepaint {
+                    viewport_id: egui::ViewportId::ROOT,
+                    when: at,
+                    cumulative_pass_nr: info.current_cumulative_pass_nr,
+                });
+            }
+        }
+    });
+    let mut lazy = Lazy {
+        eframe: eframe_app,
+        make: Some(Box::new(make)),
+        made,
+        ctx,
+        real: real_ctx,
+        asked: Vec::new(),
+        due,
+        ticking,
+        shown: false,
+    };
+    event_loop.run_app(&mut lazy).map_err(|e| e.to_string())
+}
+
+/// What makes the window's state around a context.
+type MakeWindow<'a> = Box<dyn FnOnce(&egui::Context) -> Window + 'a>;
+
+/// The event loop of a login launch: dm's own until the window is shown,
+/// eframe's from then on.
+struct Lazy<'a> {
+    eframe: eframe::EframeWinitApplication<'a>,
+    make: Option<MakeWindow<'a>>,
+    /// The window's state, made on the loop's start and handed to eframe's
+    /// creator when shown.
+    made: std::rc::Rc<std::cell::RefCell<Option<Window>>>,
+    ctx: egui::Context,
+    /// eframe's context, once the window is made.
+    real: Arc<std::sync::OnceLock<egui::Context>>,
+    /// What dm asked of a window that was not there yet — a control
+    /// request's screenshot, the focus — given to the window once it is.
+    asked: Vec<egui::ViewportCommand>,
+    /// When dm's logic next asked to run.
+    due: Arc<Mutex<Option<std::time::Instant>>>,
+    ticking: Arc<AtomicBool>,
+    shown: bool,
+}
+
+impl Lazy<'_> {
+    fn tick(&mut self, event_loop: &winit::event_loop::ActiveEventLoop) {
+        let now = std::time::Instant::now();
+        *dm_core::lock(&self.due) = None;
+        let (quitting, show) = {
+            let mut made = self.made.borrow_mut();
+            let Some(window) = made.as_mut() else {
+                return;
+            };
+            self.ticking.store(true, Ordering::Relaxed);
+            let out = self
+                .ctx
+                .run_logic(&egui::RawInput::default(), |ctx| window.tick(ctx));
+            self.ticking.store(false, Ordering::Relaxed);
+            for (_, commands) in out.viewport_commands {
+                self.asked.extend(commands);
+            }
+            (window.quitting, !window.hidden)
+        };
+        if quitting {
+            event_loop.exit();
+        } else if show {
+            self.shown = true;
+            winit::application::ApplicationHandler::resumed(&mut self.eframe, event_loop);
+            if let Some(real) = self.real.get() {
+                for command in self.asked.drain(..) {
+                    real.send_viewport_cmd(command);
+                }
+                real.request_repaint();
+            }
+        } else {
+            // Not straight round again on an ask for "now": dm's headless
+            // loop looks twenty times a second at most, and so does this.
+            let mut due = dm_core::lock(&self.due);
+            let floor = now + std::time::Duration::from_millis(50);
+            *due = Some(due.map_or(now + std::time::Duration::from_secs(30), |d| d.max(floor)));
+        }
+    }
+}
+
+impl winit::application::ApplicationHandler<eframe::UserEvent> for Lazy<'_> {
+    fn resumed(&mut self, event_loop: &winit::event_loop::ActiveEventLoop) {
+        if self.shown {
+            self.eframe.resumed(event_loop);
             return;
         }
-        self.app.ui(ui);
-        let files = std::mem::take(&mut self.app.drag_out);
-        if !files.is_empty() {
-            if let Err(e) = drag_out(frame, files) {
-                self.app.said = e.into();
+        // On the loop's start, as eframe's creator would be: the tray and
+        // the Dock's hook need the application winit has made by now.
+        if let Some(make) = self.make.take() {
+            *self.made.borrow_mut() = Some(make(&self.ctx));
+            *dm_core::lock(&self.due) = Some(std::time::Instant::now());
+        }
+    }
+
+    fn new_events(
+        &mut self,
+        event_loop: &winit::event_loop::ActiveEventLoop,
+        cause: winit::event::StartCause,
+    ) {
+        if self.shown {
+            self.eframe.new_events(event_loop, cause);
+        }
+    }
+
+    fn user_event(
+        &mut self,
+        event_loop: &winit::event_loop::ActiveEventLoop,
+        event: eframe::UserEvent,
+    ) {
+        if self.shown {
+            self.eframe.user_event(event_loop, event);
+        }
+    }
+
+    fn window_event(
+        &mut self,
+        event_loop: &winit::event_loop::ActiveEventLoop,
+        window_id: winit::window::WindowId,
+        event: winit::event::WindowEvent,
+    ) {
+        if self.shown {
+            self.eframe.window_event(event_loop, window_id, event);
+        }
+    }
+
+    fn device_event(
+        &mut self,
+        event_loop: &winit::event_loop::ActiveEventLoop,
+        device_id: winit::event::DeviceId,
+        event: winit::event::DeviceEvent,
+    ) {
+        if self.shown {
+            self.eframe.device_event(event_loop, device_id, event);
+        }
+    }
+
+    fn about_to_wait(&mut self, event_loop: &winit::event_loop::ActiveEventLoop) {
+        if !self.shown {
+            let due = *dm_core::lock(&self.due);
+            if due.is_some_and(|d| d <= std::time::Instant::now()) {
+                self.tick(event_loop);
             }
+        }
+        if self.shown {
+            self.eframe.about_to_wait(event_loop);
+        } else if let Some(due) = *dm_core::lock(&self.due) {
+            event_loop.set_control_flow(winit::event_loop::ControlFlow::WaitUntil(due));
+        }
+    }
+
+    fn suspended(&mut self, event_loop: &winit::event_loop::ActiveEventLoop) {
+        if self.shown {
+            self.eframe.suspended(event_loop);
+        }
+    }
+
+    fn exiting(&mut self, event_loop: &winit::event_loop::ActiveEventLoop) {
+        if self.shown {
+            self.eframe.exiting(event_loop);
+        }
+    }
+
+    fn memory_warning(&mut self, event_loop: &winit::event_loop::ActiveEventLoop) {
+        if self.shown {
+            self.eframe.memory_warning(event_loop);
         }
     }
 }
@@ -1223,9 +1456,7 @@ fn main() {
         .with_min_inner_size([
             dm_desktop::app::MIN_WINDOW.0 / 2.0,
             dm_desktop::app::MIN_WINDOW.1 / 2.0,
-        ])
-        // The login item's launch opens nothing; it waits in the tray.
-        .with_visible(!hidden);
+        ]);
     if let Some(icon) = window_icon() {
         viewport = viewport.with_icon(icon);
     }
@@ -1237,68 +1468,76 @@ fn main() {
         ..Default::default()
     };
 
-    let result = eframe::run_native(
-        "dm",
-        options,
-        Box::new(move |cc| {
-            let _ = repaint.set(cc.egui_ctx.clone());
-            // A click on the Dock icon of an app whose window is hidden asks
-            // for it back; without this the click did nothing.
-            #[cfg(target_os = "macos")]
-            {
-                let (flag, ctx) = (Arc::clone(&show_asked), cc.egui_ctx.clone());
-                dock::on_reopen(move || {
-                    flag.store(true, Ordering::Relaxed);
-                    ctx.request_repaint();
-                });
-            }
-            let (send, receive) = mpsc::channel();
-            // The tray's words in the window's language.
-            let language = backend.settings().language;
-            dm_desktop::i18n::set(dm_desktop::i18n::chosen(&language));
-            let built = start_tray(cc.egui_ctx.clone(), send);
-            if let Err(why) = &built {
-                backend.note(format!(
-                    "the tray icon could not be shown ({}); until it can, closing this window \
-                     quits dm rather than keeping it downloading in the background.",
-                    why.lines().next().unwrap_or("").trim()
-                ));
-            }
-            // An installed dm tells the browsers where it is, so the
-            // extension works without a terminal. Not a development build
-            // or a test's dm (DM_HOME), which must not take the browsers'
-            // registration from the installed one.
-            let mut browsers_said = None;
-            if let Some(why) = dm_shell::register::worth_saying(
-                &mut browsers_said,
-                dm_shell::register::ensure_if_claimed(),
-            ) {
-                backend.note(registration_failed(&why));
-            }
-            let has_tray = built.is_ok();
-            let icon = built.ok().flatten();
-            let mut app = DmApp::new(backend);
-            if let Some(port) = control {
-                start_control(&mut app, port, &cc.egui_ctx);
-            }
-            Ok(Box::new(Window {
-                app,
-                tray: receive,
-                has_tray,
-                hide_frames: if hidden { 3 } else { 0 },
-                hidden,
-                hidden_until: hidden
-                    .then(|| std::time::Instant::now() + std::time::Duration::from_secs(10)),
-                quitting: false,
-                show_asked,
-                icon,
-                tray_language: language,
-                hidden_at: None,
-                hidden_maximized: false,
-                browsers_said,
-            }))
-        }),
-    );
+    // What the window's creator makes, around the context it is given:
+    // eframe's at once, or for a login launch a stand-in's until the window
+    // is first asked for.
+    let make = move |ctx: &egui::Context| {
+        let _ = repaint.set(ctx.clone());
+        // A click on the Dock icon of an app whose window is hidden asks
+        // for it back; without this the click did nothing.
+        #[cfg(target_os = "macos")]
+        {
+            let (flag, ctx) = (Arc::clone(&show_asked), ctx.clone());
+            dock::on_reopen(move || {
+                flag.store(true, Ordering::Relaxed);
+                ctx.request_repaint();
+            });
+        }
+        let (send, receive) = mpsc::channel();
+        // The tray's words in the window's language.
+        let language = backend.settings().language;
+        dm_desktop::i18n::set(dm_desktop::i18n::chosen(&language));
+        let built = start_tray(ctx.clone(), send);
+        if let Err(why) = &built {
+            backend.note(format!(
+                "the tray icon could not be shown ({}); until it can, closing this window \
+                 quits dm rather than keeping it downloading in the background.",
+                why.lines().next().unwrap_or("").trim()
+            ));
+        }
+        // An installed dm tells the browsers where it is, so the
+        // extension works without a terminal. Not a development build
+        // or a test's dm (DM_HOME), which must not take the browsers'
+        // registration from the installed one.
+        let mut browsers_said = None;
+        if let Some(why) = dm_shell::register::worth_saying(
+            &mut browsers_said,
+            dm_shell::register::ensure_if_claimed(),
+        ) {
+            backend.note(registration_failed(&why));
+        }
+        let has_tray = built.is_ok();
+        let icon = built.ok().flatten();
+        let mut app = DmApp::new(backend);
+        if let Some(port) = control {
+            start_control(&mut app, port, ctx);
+        }
+        Window {
+            app,
+            tray: receive,
+            has_tray,
+            hidden,
+            hidden_until: hidden
+                .then(|| std::time::Instant::now() + std::time::Duration::from_secs(10)),
+            quitting: false,
+            show_asked,
+            icon,
+            tray_language: language,
+            hidden_at: None,
+            hidden_maximized: false,
+            browsers_said,
+        }
+    };
+    let result = if hidden {
+        run_hidden(options, make)
+    } else {
+        eframe::run_native(
+            "dm",
+            options,
+            Box::new(move |cc| Ok(Box::new(make(&cc.egui_ctx)))),
+        )
+        .map_err(|e| e.to_string())
+    };
     dm_desktop::control::closing();
     dm_desktop::control::forget_port(&settings::home());
     if let Err(e) = result {

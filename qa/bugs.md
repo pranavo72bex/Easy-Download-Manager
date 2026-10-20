@@ -25,6 +25,11 @@ test where one could hold it. Earlier rounds' bugs are in `docs/gaps.md`
 | 16 | Minor | `--unregister` left a running dm, which wrote back what it removed | Nothing told the running dm | It is asked to end; the login setting is turned off (398a34a) | `a_quit_is_asked_only_of_a_running_dm` |
 | 17 | Minor | One Japanese name cost 36 MB | The whole CJK font file was read into memory | Mapped instead (a5700d9) | Measured (`qa/after.md`) |
 | 18 | Minor | Options' unpicked tabs were in the primary colour | The colour given when laid out won over the one given when drawn | Laid out in their own colour (c84913d) | Screenshot |
+| 19 | Moderate | After ten downloads, 40 threads (Linux: 100, and 200+ MB) stayed for the life of dm | The inbox watcher's file calls went through tokio's blocking pool twice a second, waking its parked threads in turn so none was idle long enough to end | Plain file calls on the watcher's own thread | Measured: 40 → 13 threads a minute after (macOS, `qa/after.md`) |
+| 20 | Moderate | A login launch made and hid a whole window: 43 MB in the tray, and a one-frame flash | eframe makes its window when it starts | No window until one is asked for (`run_hidden`) | `app-check.py` (tray: control answers, a download finishes, a second launch shows a drawn window); `linux-gui-check.sh` 71/71 |
+| 21 | Minor | A failed row said only "Error"; the disk being full was in a tooltip | The status cell drew a fixed word | The plain reason in the cell, truncated to the column; all of it on hover | `a_cut_connection_is_said_plainly` |
+| 22 | Minor | Time left read "Time le" at the window's first size | The name kept 220 points while only Status was fitted beside it | The name gives way so Speed, else Time left, fits; the empty list's headings use the same width | `the_name_gives_way_first_in_a_narrow_window`, `the_columns_start_in_one_place_whatever_the_rows_queues` |
+| 23 | Minor | "Not enough room" named the row's staging folder (`/dl/parts/2`) | The folder checked was named | The download folder is named where the two share a disk | `errors.rs` (the huge-file case) |
 
 Not dm's: my first throughput run counted 404s as downloads (my test
 server kept the query string in the file name), and later runs slowed as

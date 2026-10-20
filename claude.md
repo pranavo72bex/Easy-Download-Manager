@@ -268,10 +268,11 @@ and is not carried over.
       found: a file republished between runs, a server without
       ranges retried, unknown length, a dropped range, empty files.
       Per-behaviour status with evidence: `docs/parity.md`
-- [x] Startup that says what it did — a `--hidden` launch opens no window:
-      eframe shows the window after its first frame whatever it was asked,
-      so the login item's launch hides it again (a one-frame flash is
-      possible). `app-check.py` counts windows under Xvfb in the Linux
+- [x] Startup that says what it did — a `--hidden` launch makes no window
+      until one is asked for (the tray's Show, a second launch, the Dock,
+      no tray to wait in): dm runs its own event loop and hands it to
+      eframe then, so a login launch waits in the tray in 13 MB rather than
+      43 and never flashes a window (2026-10-20). `app-check.py` counts windows under Xvfb in the Linux
       container — one normally, none with `--hidden`; on this Mac the shell
       may not script System Events, so there it says "not checked" rather
       than "ok", which it used to

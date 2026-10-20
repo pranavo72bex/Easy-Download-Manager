@@ -298,7 +298,7 @@ Evidence is `dm-desktop/tests/window.rs` unless it says otherwise.
 | Every control has a name a screen reader says | PASS | `every_control_has_a_name_a_screen_reader_can_say` |
 | 500 rows | PASS | `five_hundred_rows_draw_inside_a_frame_budget` |
 | Lock, second launch, browser hand-off, HLS, yt-dlp, proxy, speed limit, schedule | PASS | `scripts/app-check.py` on macOS and Linux |
-| `--hidden` opens no window | PASS | counted under Xvfb in `linux-check.sh`; a one-frame flash is possible |
+| `--hidden` opens no window | PASS | counted under Xvfb in `linux-check.sh`; no window is made until one is asked for, so none flashes (`app-check.py`, `linux-gui-check.sh`) |
 | Tray: Show, Quit, close hides into it | PASS (Linux) | `scripts/linux-gui-check.sh` drives the StatusNotifierItem as a panel does: the item registers with a watcher, closing hides into it, Show dm, a left click (Activate), Speed limiter and Quit act; a watcher that is missing, late or restarted is handled. Physical clicks on a real panel, and macOS and Windows, not driven |
 | Dock click brings a hidden window back (macOS) | NOT VERIFIED | wired through winit's own delegate class; not clicked |
 | Dragging a link from a browser onto the window | PARTIAL | winit delivers only files: dropped `.webloc`, `.url` and text files are read for links |

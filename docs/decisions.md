@@ -1022,3 +1022,23 @@ are proportional, was the window's face. Segoe UI and Selawik, which lead
 it now, have digits of one width themselves, so it was never reached and
 is gone; the numbers family is the window's face and what follows it.
 
+
+## A login launch makes its window only when asked (2026-10-20)
+
+eframe makes the window and its GL context as it starts, about 40 MB of
+the 43 a dm waiting in the tray held. A `--hidden` launch now runs winit's
+event loop itself (`run_hidden`, `eframe::create_native`), with dm's logic
+on a stand-in egui context (`run_logic`: no fonts, no drawing) whose
+repaint observer wakes the loop; the first ask for the window passes the
+loop to eframe, the window's state to its creator, and the stand-in's
+pending viewport commands (a control request's screenshot, the focus) to
+eframe's context, which every later wake of the stand-in is forwarded to.
+A normal launch keeps `run_native`. Tried and dropped: the wgpu renderer,
+which reached the first frame no sooner and held as much.
+
+## 16 KiB write buffers (2026-10-20)
+
+tokio's file keeps its own copy of each write, so a connection held its
+`BufWriter` twice: 256 KiB cost 20–30 MB over ten downloads of eight
+connections against 16 KiB, which fetched 2 GB over loopback no slower
+and with no more CPU (`qa/after.md`).

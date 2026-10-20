@@ -1624,6 +1624,7 @@ dependencies = [
  "unicode-bidi",
  "url",
  "windows-sys 0.61.2",
+ "winit",
  "zbus",
 ]
 

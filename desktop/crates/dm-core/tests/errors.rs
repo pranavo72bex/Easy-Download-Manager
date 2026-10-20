@@ -99,6 +99,8 @@ async fn a_file_larger_than_the_disk_is_refused_before_it_is_fetched() {
     let said = failure(&format!("http://{addr}/huge.iso")).await;
     assert!(said.starts_with("not enough room"), "{said}");
     assert!(said.contains("100.0 PB"), "{said}");
+    // The download folder the person chose, not dm's staging folder.
+    assert!(!said.contains("parts"), "{said}");
     assert_eq!(fetched.load(Ordering::SeqCst), 0, "ranges were fetched");
 }
 

@@ -565,20 +565,30 @@ fn files_to_drag(app: &DmApp, rows: &[Entry], i: usize) -> Vec<std::path::PathBu
 }
 
 /// How wide the file name starts in `room`: its 220 points where the
-/// columns up to Status fit beside it, else what is left after them, but
-/// never under 120.
+/// columns up to Speed fit beside it, else up to Time left, else up to
+/// Status, giving way for the first of these that leaves it 120. At the
+/// window's first size Time left read "Time le" and its numbers one digit
+/// (QA loop 1, bug 3).
 pub fn name_width(columns: &[Column], room: f32) -> f32 {
-    let through_status = columns
-        .iter()
-        .position(|c| *c == Column::Status)
-        .unwrap_or(columns.len().saturating_sub(1));
-    let others: f32 = columns
-        .iter()
-        .take(through_status + 1)
-        .filter(|c| **c != Column::Name)
-        .map(|c| initial(*c) + 8.0)
-        .sum();
-    (room - others - 24.0).clamp(120.0, 220.0)
+    let beside = |through: Column| -> Option<f32> {
+        let last = columns.iter().position(|c| *c == through)?;
+        Some(
+            columns
+                .iter()
+                .take(last + 1)
+                .filter(|c| **c != Column::Name)
+                .map(|c| initial(*c) + 8.0)
+                .sum(),
+        )
+    };
+    let fits = |others: f32| room - others - 24.0;
+    [Column::Rate, Column::TimeLeft, Column::Status]
+        .into_iter()
+        .filter_map(beside)
+        .map(fits)
+        .find(|&name| name >= 120.0)
+        .unwrap_or(120.0)
+        .min(220.0)
 }
 
 /// Where each column but the name starts, in points.
@@ -695,6 +705,15 @@ fn cell(
 }
 
 fn header_only(app: &mut DmApp, ui: &mut egui::Ui) {
+    // The name as wide as over a list with rows, so the first row moves
+    // no heading.
+    let shown: Vec<Column> = app
+        .column_order
+        .iter()
+        .copied()
+        .filter(|c| !app.hidden_columns.contains(c))
+        .collect();
+    let name = name_width(&shown, ui.available_width());
     ui.add_space(10.0);
     egui::ScrollArea::horizontal()
         .id_salt("headings-sideways")
@@ -710,7 +729,11 @@ fn header_only(app: &mut DmApp, ui: &mut egui::Ui) {
                 let tall = ui.spacing().interact_size.y;
                 for column in app.column_order.clone() {
                     if !app.hidden_columns.contains(&column) {
-                        let wide = initial(column);
+                        let wide = if column == Column::Name {
+                            name
+                        } else {
+                            initial(column)
+                        };
                         ui.allocate_ui_with_layout(
                             egui::vec2(wide, tall),
                             egui::Layout::left_to_right(egui::Align::Center),
@@ -1102,11 +1125,15 @@ fn status_cell(ui: &mut egui::Ui, entry: &Entry, held: Option<&str>, selected: b
                     // The engine's words named as such, under the plain
                     // ones: two lines saying the same, one in lowercase,
                     // read as a mistake (UI round 17).
+                    // The reason in the row itself, as far as the column
+                    // shows it: "Error" alone sent a person hovering to
+                    // learn that the disk was full (QA loop 1, bug 2).
+                    let words = egui::RichText::new(&text).color(on_row(tokens.error));
                     let hover = match crate::app::failure_as_said(entry) {
                         Some(raw) => format!("{text}\n\n{}", tf("In dm's own words: {}", &[&raw])),
                         None => text,
                     };
-                    ui.colored_label(on_row(tokens.error), t("Error"))
+                    ui.add(egui::Label::new(words).truncate())
                         .on_hover_text(hover);
                 }
                 State::Paused if entry.paused_by_schedule => {
@@ -1173,6 +1200,18 @@ mod tests {
         assert_eq!(name_width(&columns, 1200.0), 220.0);
         let narrow = name_width(&columns, 600.0);
         assert!((120.0..220.0).contains(&narrow), "{narrow}");
+        // The window's first size: Time left whole beside the name.
+        let first = name_width(&columns, 730.0);
+        let through_time: f32 = [
+            Column::Queue,
+            Column::Size,
+            Column::Status,
+            Column::TimeLeft,
+        ]
+        .iter()
+        .map(|c| initial(*c) + 8.0)
+        .sum();
+        assert!(first >= 120.0 && first + through_time <= 730.0, "{first}");
         // What it gave is what Queue, Size and Status need beside it.
         let beside: f32 = [Column::Queue, Column::Size, Column::Status]
             .iter()

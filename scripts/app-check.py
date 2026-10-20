@@ -382,14 +382,39 @@ def main():
         (home / "settings.json").write_text(json.dumps(settings))
 
         print("the login item's launch stays in the tray")
-        app = launch(env, "--hidden")
+        (home / "control.port").unlink(missing_ok=True)
+        app = launch(env, "--hidden", "--control", "0")
         wait_for("the app never took its lock", lambda: lock_is_held(home))
+        port_file = home / "control.port"
+        wait_for("the control port was never written", lambda: port_file.exists() and port_file.read_text().strip())
         time.sleep(2)
         hidden = windows_of(BINARY.name)
         if hidden is None:
             unchecked("a --hidden launch shows no window", "the desktop will not count windows here")
         else:
             check("a --hidden launch shows no window", hidden, 0)
+        # It makes no window until one is asked for, and still downloads.
+        conn = socket.create_connection(("127.0.0.1", int(port_file.read_text())), timeout=30)
+        replies = conn.makefile("r")
+        def call(method, **params):
+            conn.sendall((json.dumps({"id": 1, "method": method, "params": params}) + "\n").encode())
+            return json.loads(replies.readline())
+        check("in the tray, the control protocol answers", call("auth", token=(home / "control.token").read_text().strip())["ok"], True)
+        call("downloads.add", urls=[url("tray.zip")])
+        wait_for("a download added in the tray never finished",
+                 lambda: [r for r in rows(home) if r["url"].endswith("/tray.zip") and r["state"]["kind"] == "completed"])
+        check("in the tray, a download finishes", True)
+        second = subprocess.run([BINARY], env=env, timeout=20, capture_output=True)
+        check("opening dm again hands over and ends", second.returncode, 0)
+        wait_for("the window never came out of the tray", lambda: windows_of(BINARY.name) in (None, 1))
+        shown = windows_of(BINARY.name)
+        if shown is None:
+            unchecked("opening dm again shows the tray's window", "the desktop will not count windows here")
+        else:
+            check("opening dm again shows the tray's window", shown, 1)
+        shot = call("ui.screenshot", name="from-the-tray")
+        check("and it is drawn", shot.get("error"), None)
+        conn.close()
         stop(app, home)
 
         print("the command line, handed to a running dm")

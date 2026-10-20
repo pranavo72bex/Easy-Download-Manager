@@ -822,67 +822,70 @@ pub async fn watch_inbox(
     quit: impl Fn() + Send + 'static,
 ) {
     let dir = host::inbox(&settings::home());
+    /* The file calls here are std's, made on the task's own thread: a few
+     * tiny ones twice a second. Through tokio's each was a trip to the
+     * blocking pool, which handed them round its parked threads in turn so
+     * that none was ever idle long enough to end: after ten downloads,
+     * seventy threads and their memory stayed for the life of dm (QA loop
+     * 1, bug 1). */
     loop {
         // `--unregister`, uninstalling dm: this dm ends, as a stop signal
         // ends it, rather than stay in the tray and write back what the
         // uninstall removed (life-cycle QA, gap 69).
-        if tokio::fs::remove_file(dir.join(QUIT)).await.is_ok() {
+        if std::fs::remove_file(dir.join(QUIT)).is_ok() {
             quit();
         }
         // A second dm, launched by hand while this one was in the tray,
         // leaves this instead of opening a second window.
-        if tokio::fs::remove_file(dir.join("show")).await.is_ok() {
+        if std::fs::remove_file(dir.join("show")).is_ok() {
             show();
         }
         // A second launch with `--start-queue`.
-        if tokio::fs::remove_file(dir.join("start-queue"))
-            .await
-            .is_ok()
-        {
+        if std::fs::remove_file(dir.join("start-queue")).is_ok() {
             queue.start_queue(dm_core::MAIN_QUEUE).await;
         }
 
-        if let Ok(mut entries) = tokio::fs::read_dir(&dir).await {
-            while let Ok(Some(entry)) = entries.next_entry().await {
-                let path = entry.path();
-                if path.extension().and_then(|e| e.to_str()) != Some("json") {
-                    continue;
-                }
-                let Ok(text) = tokio::fs::read_to_string(&path).await else {
-                    continue;
-                };
-                // Removed before it is acted on, so a request that upsets the
-                // app is not retried on every restart for ever. One that
-                // cannot be removed is left alone rather than queued again
-                // twice a second for the life of the process.
-                if let Err(e) = tokio::fs::remove_file(&path).await {
-                    eprintln!(
-                        "dm: a hand-off in {} could not be consumed: {e}",
-                        path.display()
-                    );
-                    continue;
-                }
+        let waiting: Vec<std::path::PathBuf> = std::fs::read_dir(&dir)
+            .map(|entries| entries.flatten().map(|e| e.path()).collect())
+            .unwrap_or_default();
+        for path in waiting {
+            if path.extension().and_then(|e| e.to_str()) != Some("json") {
+                continue;
+            }
+            let Ok(text) = std::fs::read_to_string(&path) else {
+                continue;
+            };
+            // Removed before it is acted on, so a request that upsets the
+            // app is not retried on every restart for ever. One that
+            // cannot be removed is left alone rather than queued again
+            // twice a second for the life of the process.
+            if let Err(e) = std::fs::remove_file(&path) {
+                eprintln!(
+                    "dm: a hand-off in {} could not be consumed: {e}",
+                    path.display()
+                );
+                continue;
+            }
 
-                match serde_json::from_str::<host::Request>(&text) {
-                    // add_from, not add: the engine needs the page as Referer
-                    // or a hotlink-protected file 403s in the app where the
-                    // browser's own download would have worked.
-                    // A video from the browser's panel: the window asks first.
-                    Ok(request) if request.ask => ask(request),
-                    Ok(request) => {
-                        let url = host::saved(&settings::home()).with_login(&request.url);
-                        queue.add_with(&url, add_options(&request)).await;
-                    }
-                    // The browser was told this started. It is kept, under a
-                    // name the watcher skips, rather than vanishing.
-                    Err(e) => {
-                        let kept = path.with_extension("unreadable");
-                        let _ = tokio::fs::write(&kept, &text).await;
-                        eprintln!(
-                            "dm: a hand-off could not be read ({e}); kept as {}",
-                            kept.display()
-                        );
-                    }
+            match serde_json::from_str::<host::Request>(&text) {
+                // add_from, not add: the engine needs the page as Referer
+                // or a hotlink-protected file 403s in the app where the
+                // browser's own download would have worked.
+                // A video from the browser's panel: the window asks first.
+                Ok(request) if request.ask => ask(request),
+                Ok(request) => {
+                    let url = host::saved(&settings::home()).with_login(&request.url);
+                    queue.add_with(&url, add_options(&request)).await;
+                }
+                // The browser was told this started. It is kept, under a
+                // name the watcher skips, rather than vanishing.
+                Err(e) => {
+                    let kept = path.with_extension("unreadable");
+                    let _ = std::fs::write(&kept, &text);
+                    eprintln!(
+                        "dm: a hand-off could not be read ({e}); kept as {}",
+                        kept.display()
+                    );
                 }
             }
         }

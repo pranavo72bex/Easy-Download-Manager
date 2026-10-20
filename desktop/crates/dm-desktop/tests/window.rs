@@ -6936,9 +6936,11 @@ fn a_cut_connection_is_said_plainly() {
     harness.state_mut().selected = [row.id].into();
     harness.state_mut().queued.push(Command::Properties);
     harness.run_steps(4);
-    let shown = harness.get_by_label(&status);
-    let rect = shown.rect();
-    assert!(rect.height() < 60.0, "the status stands {rect:?} tall");
+    // In the list's row and in Properties.
+    for shown in harness.get_all_by_label(&status) {
+        let rect = shown.rect();
+        assert!(rect.height() < 60.0, "the status stands {rect:?} tall");
+    }
 }
 
 /// Gap 155: while a range waits to be tried again, the row says which
