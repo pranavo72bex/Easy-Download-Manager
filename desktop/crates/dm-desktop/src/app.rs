@@ -2891,20 +2891,41 @@ impl DmApp {
         }
         // The list on its own surface: in the modern look, a card with rounded
         // corners and a hairline edge on the window's background.
+        // In the modern look, as a navigation view's content: the list on
+        // the layer, reaching the window's right edge, its top-left corner
+        // alone rounded, a hairline where it meets the pane and the bars.
         let card = egui::Frame::new()
             .fill(t.list)
             .stroke(egui::Stroke::new(
                 1.0,
                 if t.modern { t.border } else { t.list },
             ))
-            .corner_radius(t.card_radius)
+            .corner_radius(if t.modern {
+                egui::CornerRadius {
+                    nw: t.card_radius,
+                    ..Default::default()
+                }
+            } else {
+                egui::CornerRadius::same(t.card_radius)
+            })
+            // Its right hairline past the window's edge.
+            .outer_margin(egui::Margin {
+                right: if t.modern { -1 } else { 0 },
+                ..Default::default()
+            })
             .inner_margin(egui::Margin::same(if t.modern { 6 } else { 2 }));
+        let central = if t.modern {
+            egui::Frame::new().fill(t.frame).inner_margin(egui::Margin {
+                left: 0,
+                right: 0,
+                top: 4,
+                bottom: 0,
+            })
+        } else {
+            flat(t.frame, 0, 0)
+        };
         egui::CentralPanel::default_margins()
-            .frame(flat(
-                t.frame,
-                if t.modern { 8 } else { 0 },
-                if t.modern { 4 } else { 0 },
-            ))
+            .frame(central)
             .show(ui, |ui| {
                 card.show(ui, |ui| {
                     ui.set_min_size(ui.available_size());
@@ -3700,34 +3721,28 @@ impl DmApp {
         };
         // Kept open or shut by an id of its own, not its words: a language
         // switch opened a shut one again (UI round 10).
-        egui::CollapsingHeader::new(t("Everything"))
-            .id_salt("tree-everything")
-            .default_open(true)
-            .show(ui, |ui| {
-                place(ui, self, Place::All, t("All").into());
-                for c in Category::ALL {
-                    let label = crate::i18n::name(&format::titled(&category_word(c)));
-                    place(ui, self, Place::Kind(c), label);
+        nav_group(ui, "tree-everything", t("Everything"), &tokens, |ui| {
+            place(ui, self, Place::All, t("All").into());
+            for c in Category::ALL {
+                let label = crate::i18n::name(&format::titled(&category_word(c)));
+                place(ui, self, Place::Kind(c), label);
+            }
+            for custom in &self.applied.custom_categories {
+                let name = custom.name.trim().to_string();
+                if !name.is_empty() {
+                    place(ui, self, Place::Custom(name.clone()), name);
                 }
-                for custom in &self.applied.custom_categories {
-                    let name = custom.name.trim().to_string();
-                    if !name.is_empty() {
-                        place(ui, self, Place::Custom(name.clone()), name);
-                    }
-                }
-            });
+            }
+        });
         place(ui, self, Place::Unfinished, t("In progress").into());
         place(ui, self, Place::Finished, t("Done").into());
         let queues = self.backend.queues();
-        egui::CollapsingHeader::new(t("Queues"))
-            .id_salt("tree-queues")
-            .default_open(true)
-            .show(ui, |ui| {
-                for name in queues {
-                    let label = crate::i18n::name(&name);
-                    place(ui, self, Place::Queue(name.clone()), label);
-                }
-            });
+        nav_group(ui, "tree-queues", t("Queues"), &tokens, |ui| {
+            for name in queues {
+                let label = crate::i18n::name(&name);
+                place(ui, self, Place::Queue(name.clone()), label);
+            }
+        });
         if let Some(place) = chosen {
             self.place = place;
         }
@@ -4300,6 +4315,65 @@ fn modern_tool(
     icons::paint(ui.painter(), icon_rect, icon, picture);
     ui.painter().galley(text_at, galley, text_color);
     response
+}
+
+/// A group of places: in the modern look a navigation view's expandable
+/// item, its name in a 32 px row and a thin chevron at the row's right that
+/// turns as it opens, its places indented under it; in the classic look
+/// egui's tree header. Open at first; kept open or shut by `id`.
+fn nav_group(
+    ui: &mut egui::Ui,
+    id: &str,
+    label: &str,
+    t: &crate::theme::Tokens,
+    add: impl FnOnce(&mut egui::Ui),
+) {
+    if !t.modern {
+        egui::CollapsingHeader::new(label)
+            .id_salt(id)
+            .default_open(true)
+            .show(ui, add);
+        return;
+    }
+    let key = egui::Id::unique(("dm-nav-group", id));
+    let mut open = ui.ctx().data_mut(|d| *d.get_persisted_mut_or(key, true));
+    let width = ui.available_width().max(120.0);
+    let (rect, response) = ui.allocate_exact_size(egui::vec2(width, 32.0), egui::Sense::click());
+    response.widget_info(|| egui::WidgetInfo::labeled(egui::Role::Button, true, label));
+    if response.clicked() {
+        open = !open;
+        ui.ctx().data_mut(|d| d.insert_persisted(key, open));
+    }
+    let fill = if response.is_pointer_button_down_on() {
+        t.pressed
+    } else if response.hovered() {
+        t.hover
+    } else {
+        egui::Color32::TRANSPARENT
+    };
+    let painter = ui.painter();
+    painter.rect_filled(rect, t.radius, fill);
+    painter.text(
+        egui::pos2(rect.left() + 12.0, rect.center().y),
+        egui::Align2::LEFT_CENTER,
+        label,
+        egui::FontId::proportional(14.0),
+        t.text,
+    );
+    // ChevronDown open, ChevronUp shut, as a navigation view turns it.
+    let c = egui::pos2(rect.right() - 16.0, rect.center().y);
+    let dy = if open { -2.0 } else { 2.0 };
+    painter.line(
+        vec![
+            c + egui::vec2(-4.5, dy),
+            c + egui::vec2(0.0, -dy),
+            c + egui::vec2(4.5, dy),
+        ],
+        egui::Stroke::new(1.0, t.weak),
+    );
+    if open {
+        ui.indent(key, add);
+    }
 }
 
 /// One place in the modern navigation pane: a rounded row, the selected one

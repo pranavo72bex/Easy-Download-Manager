@@ -820,6 +820,27 @@ fn a_video_from_the_browsers_panel_opens_download_file_info_with_its_quality() {
     assert_eq!(row.referrer, "https://video.example/watch");
 }
 
+/// The places' groups open and shut from their own row, as a navigation
+/// view's expandable items do.
+#[test]
+fn a_group_of_places_shuts_and_opens_from_its_row() {
+    let world = world();
+    let mut harness = world.harness();
+    harness.run_steps(3);
+    assert!(harness.query_by_label_contains("Videos (").is_some());
+    click(&mut harness, "Everything");
+    assert!(
+        harness.query_by_label_contains("Videos (").is_none(),
+        "Everything did not shut"
+    );
+    assert!(harness.query_by_label_contains("In progress (").is_some());
+    click(&mut harness, "Everything");
+    assert!(
+        harness.query_by_label_contains("Videos (").is_some(),
+        "Everything did not open again"
+    );
+}
+
 #[test]
 fn the_category_tree_has_right_click_menus() {
     let world = world();
