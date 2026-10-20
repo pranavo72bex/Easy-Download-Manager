@@ -1081,8 +1081,12 @@ fn status_cell(ui: &mut egui::Ui, entry: &Entry, held: Option<&str>, selected: b
             egui::Layout::left_to_right(egui::Align::Center)
         };
         ui.with_layout(layout, |ui| {
+            // Words and bar inside the 32 px row: with the window's 8 px
+            // between them and 4 above, the bar fell past the row's edge
+            // and was never drawn (Fluent QA, 2026-10-20).
             if bar {
-                ui.add_space(4.0);
+                ui.spacing_mut().item_spacing.y = 3.0;
+                ui.add_space(1.0);
             }
             match &entry.state {
                 State::Failed(_) => {

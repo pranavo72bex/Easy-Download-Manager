@@ -3058,6 +3058,15 @@ impl DmApp {
         let focused = ctx
             .memory(|m| m.focused())
             .and_then(|id| ctx.read_response(id));
+        // A field with the keyboard shows it by its accent line, as WinUI's
+        // fields do; the ring around it as well was one too many.
+        if t.modern
+            && focused
+                .as_ref()
+                .is_some_and(|r| egui::TextEdit::load_state(ctx, r.id).is_some())
+        {
+            return;
+        }
         let (rect, layer, row) = match focused {
             Some(r) => (r.interact_rect, r.layer_id, false),
             // Kept inside the list's frame: a row is as wide as every
@@ -3397,10 +3406,10 @@ impl DmApp {
                         let can = matches!(w, WhenDone::Nothing | WhenDone::Quit)
                             || crate::power::available(w);
                         if ui
-                            .add_enabled(
-                                can,
-                                egui::RadioButton::new(self.when_done == w, c.title()),
-                            )
+                            .add_enabled_ui(can, |ui| {
+                                crate::dialogs::radio_flag(ui, self.when_done == w, c.title())
+                            })
+                            .inner
                             // Why, where it is greyed (UI round 14).
                             .on_disabled_hover_text(t("This computer gives dm no way to do this."))
                             .clicked()
@@ -3613,7 +3622,7 @@ impl DmApp {
         let mut wanted = self.applied.clone();
         let current = ToolStyle::named(&wanted.toolbar_style);
         for (style, name) in TOOL_STYLES {
-            if ui.radio(current == style, t(name)).clicked() {
+            if crate::dialogs::radio_flag(ui, current == style, t(name)).clicked() {
                 wanted.toolbar_style = style.name().into();
             }
         }
@@ -4185,7 +4194,11 @@ fn underline_fields(ctx: &egui::Context) {
             .layers()
             .flat_map(|(_, widgets)| widgets.iter())
             // A disabled field keeps its soft edge alone, as WinUI's does.
+            // A text field senses clicks and drags; a check box or a label
+            // that took a gone field's id does not (Fluent QA: rows of
+            // Options were underlined).
             .filter(|w| w.enabled && w.visible && w.interact_rect.is_positive())
+            .filter(|w| w.sense.senses_click() && w.sense.senses_drag())
             .copied()
             .collect()
     });

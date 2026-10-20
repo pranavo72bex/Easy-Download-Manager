@@ -1802,6 +1802,10 @@ fn the_site_file_finder_finds_the_files_a_page_links_to() {
     // The window grew to hold the list and, centred, moved: let it settle
     // before clicking where its button now is.
     harness.run_steps(3);
+    // Below the found files, which scroll under the dialog's buttons:
+    // scrolled to, as a person would.
+    harness.get_by_label("Add for later").scroll_to_me();
+    harness.run_steps(3);
     click(&mut harness, "Add for later");
     let urls: Vec<String> = harness
         .state()
@@ -1850,11 +1854,16 @@ fn a_site_search_reads_pages_deep_and_a_saved_one_runs_on_its_own() {
 
     // Saved to run every hour: it runs now, and what it finds is added for
     // later; run again by hand it adds nothing twice.
+    // Below the found files, which scroll under the dialog's buttons.
+    harness.get_by_label("Save this search as").scroll_to_me();
+    harness.run_steps(3);
     type_into(&mut harness, "Save this search as", "Nightly");
     if let Some(d) = harness.state_mut().dialogs.site_files.as_mut() {
         d.every_hours = 1;
     }
     harness.run_steps(1);
+    harness.get_by_label("Save search").scroll_to_me();
+    harness.run_steps(3);
     click(&mut harness, "Save search");
     let saved = harness.state().backend().settings().site_searches;
     assert_eq!(saved.len(), 1);

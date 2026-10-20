@@ -939,6 +939,8 @@ pub(crate) struct Dialog<'o> {
     fixed: Option<f32>,
     /// Whether its body scrolls, under a title that stays.
     scrolls: bool,
+    /// The most it may stand, as `max_height` set it.
+    tallest: Option<f32>,
 }
 
 /// Where a dialog keeps, for its title and buttons, how wide its body is:
@@ -951,6 +953,24 @@ fn body_id(layer: egui::LayerId) -> egui::Id {
     layer.id.with("dm-dialog-body")
 }
 
+/// Whether a dialog's body scrolls this frame, and the room it keeps under
+/// it for the buttons: where, and how tall the buttons took last frame.
+fn scrolls_id(layer: egui::LayerId) -> egui::Id {
+    layer.id.with("dm-dialog-scrolls")
+}
+
+fn foot_rect_id(layer: egui::LayerId) -> egui::Id {
+    layer.id.with("dm-dialog-foot-rect")
+}
+
+fn origin_id(layer: egui::LayerId) -> egui::Id {
+    layer.id.with("dm-dialog-origin")
+}
+
+fn foot_height_id(layer: egui::LayerId) -> egui::Id {
+    layer.id.with("dm-dialog-foot-height")
+}
+
 impl<'o> Dialog<'o> {
     pub(crate) fn new(title: impl Into<String>) -> Self {
         let title = title.into();
@@ -961,6 +981,7 @@ impl<'o> Dialog<'o> {
             least: 0.0,
             fixed: None,
             scrolls: false,
+            tallest: None,
         }
     }
 
@@ -1029,7 +1050,8 @@ impl<'o> Dialog<'o> {
         self.with(|w| w.max_width(width))
     }
 
-    pub(crate) fn max_height(self, height: f32) -> Self {
+    pub(crate) fn max_height(mut self, height: f32) -> Self {
+        self.tallest = Some(height);
         self.with(|w| w.max_height(height))
     }
 
@@ -1060,6 +1082,7 @@ impl<'o> Dialog<'o> {
             least,
             fixed,
             scrolls,
+            tallest,
         } = self;
         if open.as_deref() == Some(&false) {
             return None;
@@ -1083,11 +1106,55 @@ impl<'o> Dialog<'o> {
             .min(ui.max_rect().width());
             ui.ctx().data_mut(|d| d.insert_temp(least_id(layer), least));
             closed = head(ui, &title, closable);
+            let origin = ui.max_rect().min;
+            // The buttons' room kept under the scrolled part, at what they
+            // took last frame; the footer draws them there.
+            let kept = ui
+                .ctx()
+                .data(|d| d.get_temp::<f32>(foot_height_id(layer)))
+                .unwrap_or(0.0);
+            // From the height the dialog may have, less its title and
+            // margins: what egui says is available in a dialog that sizes
+            // itself is not that, and the scrolled part ran under the
+            // buttons (Options at 150%).
+            let spacing = ui.spacing().item_spacing.y;
+            let margins = ui.spacing().window_margin.sum().y;
+            let used = ui.min_rect().height() + spacing;
+            let whole = tallest
+                .map_or(ui.available_height(), |most| most - margins - used)
+                .min(ui.available_height());
+            // Where keeping the buttons in place would leave the body less
+            // than a few rows, the page scrolls whole with its buttons at
+            // the end, as it did (UI round 6): at 150% in the smallest
+            // window Options showed a sliver of its first setting.
+            let fixed_foot = scrolls && whole - kept - spacing >= 120.0;
+            ui.ctx().data_mut(|d| {
+                d.insert_temp(scrolls_id(layer), fixed_foot);
+                d.insert_temp(origin_id(layer), origin);
+            });
             if scrolls {
-                egui::ScrollArea::vertical()
+                let room = if fixed_foot {
+                    whole - kept - spacing
+                } else {
+                    whole
+                }
+                .max(48.0);
+                let inner = egui::ScrollArea::vertical()
                     .id_salt("dm-dialog-body")
+                    .max_height(room)
                     .show(ui, add)
-                    .inner
+                    .inner;
+                if fixed_foot && kept > 0.0 {
+                    let (foot, _) = ui.allocate_exact_size(
+                        egui::vec2(ui.available_width(), kept),
+                        egui::Sense::hover(),
+                    );
+                    // Kept from the dialog's corner, which moves with it.
+                    let foot = foot.translate(-origin.to_vec2());
+                    ui.ctx()
+                        .data_mut(|d| d.insert_temp(foot_rect_id(layer), foot));
+                }
+                inner
             } else {
                 add(ui)
             }
@@ -1114,6 +1181,14 @@ fn head(ui: &mut egui::Ui, title: &str, closable: bool) -> bool {
             d.get_temp::<f32>(body_id(layer)).unwrap_or(0.0),
         )
     });
+    // A dialog with no footer has no body measured: last frame's width.
+    let body = if body > 0.0 {
+        body
+    } else {
+        ui.ctx()
+            .memory(|m| m.area_rect(layer.id))
+            .map_or(0.0, |r| r.width() - ui.spacing().window_margin.sum().x)
+    };
     let wide = least.max(body).min(ui.max_rect().width());
     let mut closed = false;
     ui.horizontal(|ui| {
@@ -1235,8 +1310,10 @@ fn bar_beside(ui: &mut egui::Ui, fraction: f32, width: f32, words: &str, widest:
 
 /// A dialog's buttons as WinUI's ContentDialog has them: on a band in the
 /// window's base colour under a hairline, across the whole dialog to its
-/// bottom edge, 24 px below the body; the buttons at the right, the
-/// default first. Classic keeps a plain row.
+/// bottom edge, below the body; the buttons at the right, the default
+/// first. In a dialog whose body scrolls, the band is drawn in the room
+/// the dialog keeps for it under the scrolled part, so the buttons stay in
+/// reach, as a ContentDialog's do. Classic keeps a plain row.
 pub(crate) fn footer<R>(
     ui: &mut egui::Ui,
     add: impl FnOnce(&mut egui::Ui) -> R,
@@ -1245,12 +1322,39 @@ pub(crate) fn footer<R>(
     if !t.modern {
         return ui.horizontal(add);
     }
-    let margin = ui.spacing().window_margin;
-    // The body's width as laid out so far this frame, or the dialog's inner
-    // width last frame where that was wider (a dialog's least width): the
-    // row reaches that edge and never past it, so it cannot widen the
-    // dialog it is measured against.
     let layer = ui.layer_id();
+    let margin = ui.spacing().window_margin;
+    let (scrolled, kept) = ui.ctx().data(|d| {
+        let origin = d
+            .get_temp::<egui::Pos2>(origin_id(layer))
+            .unwrap_or_default();
+        (
+            d.get_temp::<bool>(scrolls_id(layer)).unwrap_or(false),
+            d.get_temp::<egui::Rect>(foot_rect_id(layer))
+                .map(|r| r.translate(origin.to_vec2())),
+        )
+    });
+    if let (true, Some(foot)) = (scrolled, kept) {
+        // The room kept under the scrolled body: the band at its top, the
+        // row 24 below, outside the scroll area's clip.
+        let mut child = ui.new_child(
+            egui::UiBuilder::new()
+                .max_rect(foot)
+                .layout(egui::Layout::top_down(egui::Align::Min)),
+        );
+        child.set_clip_rect(
+            foot.expand2(egui::vec2(f32::from(margin.left), f32::from(margin.bottom))),
+        );
+        child.add_space(f32::from(margin.top));
+        let shown = row_on_band(&mut child, foot.left(), foot.right(), add);
+        let height = shown.response.rect.bottom() - foot.top();
+        ui.ctx()
+            .data_mut(|d| d.insert_temp(foot_height_id(layer), height));
+        return shown;
+    }
+    // The body's width as laid out so far this frame, or the dialog's least
+    // width: the row reaches that edge and never past it, so it cannot
+    // widen the dialog it is measured against.
     let least = ui
         .ctx()
         .data(|d| d.get_temp::<f32>(least_id(layer)))
@@ -1259,12 +1363,36 @@ pub(crate) fn footer<R>(
     let body = (ui.min_rect().right() - left).max(least);
     ui.ctx().data_mut(|d| d.insert_temp(body_id(layer), body));
     let right = (left + body).min(ui.max_rect().right());
-    // 24 between the body and the band: the gap goes above the row, which
-    // in a layout built from the foot up means after it.
+    // Clear of the body, the band a little below its last line: the gap
+    // goes above the row, which in a layout built from the foot up means
+    // after it. 16 put the band over the last field's foot (Fluent QA).
     let upward = ui.layout().main_dir() == egui::Direction::BottomUp;
+    let gap = 20.0;
     if !upward {
-        ui.add_space(16.0);
+        ui.add_space(gap);
     }
+    let shown = row_on_band(ui, left, right, add);
+    if upward {
+        ui.add_space(gap);
+    }
+    if scrolled {
+        let height = shown.response.rect.height() + f32::from(margin.top);
+        ui.ctx()
+            .data_mut(|d| d.insert_temp(foot_height_id(layer), height));
+    }
+    shown
+}
+
+/// The buttons' row, set at `right`, on the band that runs from 24 above it
+/// to the dialog's foot, `left` to `right` and out over the margins.
+fn row_on_band<R>(
+    ui: &mut egui::Ui,
+    left: f32,
+    right: f32,
+    add: impl FnOnce(&mut egui::Ui) -> R,
+) -> egui::InnerResponse<R> {
+    let t = crate::theme::Tokens::get(ui.ctx());
+    let margin = ui.spacing().window_margin;
     let band = ui.painter().add(egui::Shape::Noop);
     let group = ui.scope_id().with("dm-footer-group");
     let group_width = ui.ctx().data(|d| d.get_temp::<f32>(group));
@@ -1279,9 +1407,6 @@ pub(crate) fn footer<R>(
         ui.ctx().data_mut(|d| d.insert_temp(group, width));
         inner
     });
-    if upward {
-        ui.add_space(16.0);
-    }
     let row = shown.response.rect;
     let rect = egui::Rect::from_min_max(
         egui::pos2(
@@ -1502,6 +1627,21 @@ pub(crate) fn radio<V: PartialEq>(
     ui.scope(|ui| {
         choice_look(ui, checked);
         ui.radio_value(current, value, text)
+    })
+    .inner
+}
+
+/// [`radio`] for a choice that is not one value of a field: picked when
+/// `checked`, its response clicked when chosen.
+pub(crate) fn radio_flag(
+    ui: &mut egui::Ui,
+    checked: bool,
+    text: impl Into<egui::WidgetText>,
+) -> egui::Response {
+    let text = choice_words(ui, checked, text.into());
+    ui.scope(|ui| {
+        choice_look(ui, checked);
+        ui.radio(checked, text)
     })
     .inner
 }
@@ -3258,7 +3398,8 @@ fn progress(app: &mut DmApp, ctx: &egui::Context) {
                             });
                     }
                 });
-            // The buttons below what scrolls, always in view.
+            // The buttons below what scrolls, always in view; a plain row,
+            // which keeps the progress window compact.
             ui.horizontal(|ui| {
                 if matches!(row.state, State::Running | State::Queued) {
                     pause = ui.button(t("Stop download")).clicked();
@@ -3467,8 +3608,9 @@ fn complete(app: &mut DmApp, ctx: &egui::Context) {
                         ui.add_space(6.0);
                     }
                 });
-            ui.separator();
-            close = ui.button(t("Close")).clicked();
+            footer(ui, |ui| {
+                close = ui.button(t("Close")).clicked();
+            });
         });
     if close || !shut {
         app.dialogs.complete.clear();
@@ -3681,10 +3823,11 @@ fn properties(app: &mut DmApp, ctx: &egui::Context) {
                 footer(ui, |ui| {
                     // Properties runs a finished file from here.
                     let can_open = row.state == State::Completed && !crate::table::gone(&row);
+                    // The default first, as every dialog has it.
+                    ok |= primary(ui, "OK").clicked() || enter_free(ui);
                     open_file = ui
                         .add_enabled(can_open, egui::Button::new(t("Open")))
                         .clicked();
-                    ok |= primary(ui, "OK").clicked() || enter_free(ui);
                     cancel = ui.button(t("Cancel")).clicked();
                 });
             });
@@ -4227,10 +4370,11 @@ fn site_files(app: &mut DmApp, ctx: &egui::Context) {
                 }
             }
             // A Close, as every other dialog has (UI round 12).
-            ui.separator();
-            if ui.button(t("Close")).clicked() {
-                close = true;
-            }
+            footer(ui, |ui| {
+                if ui.button(t("Close")).clicked() {
+                    close = true;
+                }
+            });
         });
     if close {
         open = false;
@@ -4404,7 +4548,7 @@ fn move_to_queue(app: &mut DmApp, ctx: &egui::Context) {
             for q in &known {
                 let shown = crate::i18n::name(q);
                 let picked = new.trim().is_empty() && *queue == shown;
-                if ui.radio(picked, shown.clone()).clicked() {
+                if radio_flag(ui, picked, shown.clone()).clicked() {
                     *queue = shown;
                     new.clear();
                 }
@@ -4561,6 +4705,8 @@ fn find(app: &mut DmApp, ctx: &egui::Context) {
             r.request_focus();
         }
         // A Close beside it, as every other dialog has (UI round 11).
+        // A plain row: a band made the small window tall enough to cover
+        // the row it had found.
         ui.horizontal(|ui| {
             next = ui.button(t("Find next")).clicked() || typed;
             if ui.button(t("Close")).clicked() {
@@ -4709,7 +4855,10 @@ fn limiter(app: &mut DmApp, ctx: &egui::Context) {
                     apply |= entered(&hours_field);
                     ui.end_row();
                 });
-            ui.separator();
+            // The modern footer draws its own line.
+            if !crate::theme::Tokens::get(ui.ctx()).modern {
+                ui.separator();
+            }
             if !says.is_empty() {
                 ui.colored_label(warn(ui), says.as_str());
             }
@@ -5619,7 +5768,7 @@ fn countdown(app: &mut DmApp, ctx: &egui::Context) {
     let first = ctx.data(|d| d.get_temp::<std::time::Instant>(shown_id)) != Some(at);
     window(ctx, "Downloads are done").show(ctx, |ui| {
         ui.label(tf("dm will {} in {} seconds.", &[&t(action.verb()), &left]));
-        ui.horizontal(|ui| {
+        footer(ui, |ui| {
             now = ui.button(t("Now")).clicked();
             let stop = ui.button(t("Cancel"));
             if first {
