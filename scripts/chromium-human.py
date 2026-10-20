@@ -524,9 +524,25 @@ def main():
         time.sleep(1)
         shoot("start", tab)
 
+        def ask_worker(expression):
+            """The worker's answer, asking a fresh one where the worker went
+            idle and its first connection died with it (a store build's
+            service worker sleeps between events)."""
+            nonlocal worker
+            for attempt in range(4):
+                try:
+                    return worker.evaluate(expression)
+                except OSError:
+                    time.sleep(1)
+                    again = next((t for t in common.targets(base) if t["type"] == "service_worker"
+                                  and t["url"].endswith("/background.js")), None)
+                    if again:
+                        worker = common.Target(again["webSocketDebuggerUrl"])
+            raise OSError("the extension's worker did not answer")
+
         def browser_list(name):
-            return worker.evaluate(f"chrome.downloads.search({{}}).then(l => l.filter(d => d.url.endsWith('/{name}'))"
-                                   ".map(d => d.state))")
+            return ask_worker(f"chrome.downloads.search({{}}).then(l => l.filter(d => d.url.endsWith('/{name}'))"
+                              ".map(d => d.state))")
 
         def open_page(path, selector):
             address_bar(origin + path)
@@ -716,7 +732,7 @@ def main():
             at = pointer_to(popup, rect_of("#catching"))
             if at:
                 x("xdotool", "click", "1")
-            off = wait_for(lambda: worker.evaluate(
+            off = wait_for(lambda: ask_worker(
                 "chrome.storage.local.get('dm.catching').then(r => r['dm.catching'] === false)"), 5)
             check("6. its 'Catch downloads', clicked, is switched off", off,
                   str(popup.evaluate("document.getElementById('catching').checked")))
