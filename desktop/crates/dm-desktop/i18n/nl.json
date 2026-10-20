@@ -545,5 +545,7 @@
  "Take these downloads off the list?": "Deze downloads uit de lijst halen?",
  "Width of the {} column": "Breedte van de kolom {}",
  "Nothing in {} was waiting to start.": "Niets in {} wachtte om te starten.",
- "Nothing here yet.": "Hier staat nog niets."
+ "Nothing here yet.": "Hier staat nog niets.",
+ "Copy link": "Link kopiëren",
+ "Copied {} link.||Copied {} links.": "{} link gekopieerd.||{} links gekopieerd."
 }

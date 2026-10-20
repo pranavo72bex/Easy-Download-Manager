@@ -545,5 +545,7 @@
  "Take these downloads off the list?": "Diese Downloads aus der Liste nehmen?",
  "Width of the {} column": "Breite der Spalte {}",
  "Nothing in {} was waiting to start.": "Nichts in {} wartete auf den Start.",
- "Nothing here yet.": "Hier ist noch nichts."
+ "Nothing here yet.": "Hier ist noch nichts.",
+ "Copy link": "Link kopieren",
+ "Copied {} link.||Copied {} links.": "{} Link kopiert.||{} Links kopiert."
 }

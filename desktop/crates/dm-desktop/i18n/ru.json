@@ -545,5 +545,7 @@
  "Take these downloads off the list?": "Убрать эти загрузки из списка?",
  "Width of the {} column": "Ширина столбца «{}»",
  "Nothing in {} was waiting to start.": "В «{}» нечего было запускать.",
- "Nothing here yet.": "Здесь пока ничего нет."
+ "Nothing here yet.": "Здесь пока ничего нет.",
+ "Copy link": "Копировать ссылку",
+ "Copied {} link.||Copied {} links.": "Скопирована {} ссылка.||Скопировано {} ссылки.||Скопировано {} ссылок."
 }

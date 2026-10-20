@@ -1450,6 +1450,48 @@ fn delete_waits_for_a_download_to_stop() {
     );
 }
 
+/// Copy link puts the row's address on the clipboard, without the sign-in
+/// that is the row's own; the row menu offers it.
+#[test]
+fn copy_link_copies_the_address_without_its_sign_in() {
+    let password = test_secrets::secret("password");
+    let world = world();
+    let mut harness = world.harness();
+    let plain = world.url("private.bin");
+    harness
+        .state()
+        .backend()
+        .add_with(
+            &plain.replace("http://", &format!("http://me:{password}@")),
+            dm_core::AddOptions {
+                later: true,
+                ..Default::default()
+            },
+        )
+        .unwrap();
+    harness.state_mut().refresh();
+    harness.run_steps(2);
+    select(&mut harness, "private.bin");
+    assert!(harness.state().enabled(Command::CopyLink));
+    harness.state_mut().run(Command::CopyLink);
+    harness.run_steps(1);
+    let copied: Vec<String> = harness
+        .output()
+        .platform_output
+        .commands
+        .iter()
+        .filter_map(|c| match c {
+            egui::OutputCommand::CopyText(text) => Some(text.clone()),
+            _ => None,
+        })
+        .collect();
+    assert_eq!(copied, [plain], "copied {copied:?}");
+    assert!(
+        !copied.concat().contains(&password),
+        "the sign-in went with it"
+    );
+}
+
 #[test]
 fn properties_keep_the_login_out_of_the_address_box() {
     let password = test_secrets::secret("password");

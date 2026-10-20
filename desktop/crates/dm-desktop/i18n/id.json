@@ -545,5 +545,7 @@
  "Take these downloads off the list?": "Hapus unduhan-unduhan ini dari daftar?",
  "Width of the {} column": "Lebar kolom {}",
  "Nothing in {} was waiting to start.": "Tidak ada di {} yang menunggu dimulai.",
- "Nothing here yet.": "Belum ada apa pun di sini."
+ "Nothing here yet.": "Belum ada apa pun di sini.",
+ "Copy link": "Salin tautan",
+ "Copied {} link.||Copied {} links.": "{} tautan disalin."
 }

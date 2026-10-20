@@ -86,7 +86,7 @@ itself is NOT VERIFIED.
 |---|---|---|---|
 | 3.6.1 | 500+ rows: smooth, find, sort | PARTIAL | `five_hundred_rows_draw_inside_a_frame_budget` (debug build); find and sort tested; release-build frame times not measured |
 | 3.6.2 | Multi-select and keyboard (Ctrl/Shift, Delete, Enter, Ctrl+A) | PASS | `window.rs` selection and keyboard tests |
-| 3.6.3 | Row menu: Open, Open folder, Copy link, Redownload, Delete with confirm | FAIL | All of it is there (`every_row_menu_item_clicked_does_what_it_says`) except **Copy link**, which the menu does not have |
+| 3.6.3 | Row menu: Open, Open folder, Copy link, Redownload, Delete with confirm | PASS | `every_row_menu_item_clicked_does_what_it_says`; Copy link added 2026-10-20 (`copy_link_copies_the_address_without_its_sign_in`) |
 | 3.6.4 | Progress, speed, time left readable, not jittery | PASS | Digits of one width; smoothed speed; the list and the progress window agree |
 | 3.6.5 | Completion notification, click opens the file or folder | NOT VERIFIED | The notification is sent; what clicking it does is the desktop's, not checked |
 

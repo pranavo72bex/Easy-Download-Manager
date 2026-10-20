@@ -545,5 +545,7 @@
  "Take these downloads off the list?": "Bu indirmeler listeden kaldırılsın mı?",
  "Width of the {} column": "{} sütununun genişliği",
  "Nothing in {} was waiting to start.": "{} içinde başlamayı bekleyen bir şey yoktu.",
- "Nothing here yet.": "Burada henüz bir şey yok."
+ "Nothing here yet.": "Burada henüz bir şey yok.",
+ "Copy link": "Bağlantıyı kopyala",
+ "Copied {} link.||Copied {} links.": "{} bağlantı kopyalandı."
 }

@@ -895,6 +895,7 @@ fn row_menu(app: &mut DmApp, ui: &mut egui::Ui) {
     );
     menu_item(app, ui, Command::StopDownload, t("Stop download"));
     menu_item(app, ui, Command::UpdateLink, t("Update download link"));
+    menu_item(app, ui, Command::CopyLink, t("Copy link"));
     menu_item(app, ui, Command::Remove, t("Remove"));
     ui.separator();
     menu_item(app, ui, Command::MoveToQueue, t("Move to queue"));

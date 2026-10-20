@@ -690,6 +690,8 @@ pub struct DmApp {
     last_limit: u64,
     /// A word in the status bar about the last thing done.
     pub said: crate::i18n::Said,
+    /// What Copy link asked to put on the clipboard, for the next frame.
+    pub copied: Option<String>,
     /// Whether the look drawn last was dark, for the control protocol.
     pub dark: bool,
     pub quit_asked: bool,
@@ -838,6 +840,7 @@ impl DmApp {
             update: Arc::new(Mutex::new(Update::NotAsked)),
             weekly_pending: false,
             said: Default::default(),
+            copied: None,
             dark: false,
             quit_asked: false,
             theme_in_force: None,
@@ -1924,6 +1927,7 @@ impl DmApp {
             Command::Redownload => any(|r| {
                 matches!(r.state, State::Completed | State::Cancelled) || r.progress.downloaded > 0
             }),
+            Command::CopyLink => !targets.is_empty(),
             Command::UpdateLink => {
                 targets.len() == 1
                     && (!matches!(targets[0].state, State::Running | State::Completed)
@@ -2089,6 +2093,20 @@ impl DmApp {
                 for row in &targets {
                     self.backend.redownload(row.id);
                 }
+            }
+            Command::CopyLink => {
+                // Each address on a line of its own, without a sign-in
+                // that may be in it: what is pasted elsewhere is the link.
+                let links: Vec<String> = targets
+                    .iter()
+                    .map(|r| format::copyable_url(&r.url))
+                    .collect();
+                self.copied = Some(links.join("\n"));
+                self.said = crate::i18n::Said::counting(
+                    "Copied {} link.||Copied {} links.",
+                    links.len() as u64,
+                    &[&links.len()],
+                );
             }
             Command::UpdateLink => {
                 self.dialogs.focus_on("Update download link");
@@ -2752,6 +2770,10 @@ impl DmApp {
     /// The window, drawn once.
     pub fn ui(&mut self, ui: &mut egui::Ui) {
         let ctx = ui.ctx().clone();
+        // Copy link's addresses, onto the system's clipboard.
+        if let Some(text) = self.copied.take() {
+            ctx.copy_text(text);
+        }
         // What a text field's menu chose on the frame before, given to the
         // field as the keys would give it.
         // Escape closes a field's menu first, not the dialog under it,
@@ -3370,6 +3392,7 @@ impl DmApp {
                     Command::Remove,
                     Command::Redownload,
                     Command::UpdateLink,
+                    Command::CopyLink,
                     Command::MoveRename,
                 ] {
                     self.item(ui, c);

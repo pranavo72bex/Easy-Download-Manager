@@ -107,6 +107,19 @@ pub fn host(url: &str) -> String {
 ///
 /// "Needs a sign-in" and Sign-ins put a user and password in the
 /// address; a list, a tooltip or a screenshot must not show the password.
+/// An address to copy: without any sign-in it carries, which belongs to
+/// the row and not to wherever the link is pasted.
+pub fn copyable_url(url: &str) -> String {
+    match url::Url::parse(url) {
+        Ok(mut parsed) if !parsed.username().is_empty() || parsed.password().is_some() => {
+            let _ = parsed.set_password(None);
+            let _ = parsed.set_username("");
+            parsed.to_string()
+        }
+        _ => url.to_string(),
+    }
+}
+
 pub fn shown_url(url: &str) -> String {
     match url::Url::parse(url) {
         Ok(mut parsed) if parsed.password().is_some() => {
