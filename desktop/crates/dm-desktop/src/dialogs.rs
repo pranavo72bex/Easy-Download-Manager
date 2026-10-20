@@ -1859,11 +1859,20 @@ fn choice_look(ui: &mut egui::Ui, checked: bool) {
             egui::Color32::from_black_alpha(light)
         }
     };
+    // Ticked but disabled, AccentFillColorDisabled: grey, not a pale
+    // accent that read as ticked and live (Fluent QA, gap 71).
+    let enabled = ui.is_enabled();
+    let disabled = if t.dark {
+        egui::Color32::from_white_alpha(0x28)
+    } else {
+        egui::Color32::from_black_alpha(0x37)
+    };
+    let accent = |live: egui::Color32| if enabled { live } else { disabled };
     let w = &mut ui.visuals_mut().widgets;
     let states = [
-        (&mut w.inactive, t.brand, alt(0x06, 0x00)),
-        (&mut w.hovered, t.brand_hover, alt(0x0f, 0x0b)),
-        (&mut w.active, t.brand_pressed, alt(0x18, 0x12)),
+        (&mut w.inactive, accent(t.brand), alt(0x06, 0x00)),
+        (&mut w.hovered, accent(t.brand_hover), alt(0x0f, 0x0b)),
+        (&mut w.active, accent(t.brand_pressed), alt(0x18, 0x12)),
     ];
     for (state, accent, empty) in states {
         if checked {
