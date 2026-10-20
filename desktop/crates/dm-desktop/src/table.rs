@@ -917,6 +917,9 @@ fn row_menu(app: &mut DmApp, ui: &mut egui::Ui) {
         app.title_of(Command::DownloadNow),
     );
     menu_item(app, ui, Command::StopDownload, t("Stop download"));
+    // Where its progress window is found: only in File and on Enter, a
+    // person looking for it here did not find it (QA loop 2).
+    menu_item(app, ui, Command::ShowProgress, t("Show progress"));
     menu_item(app, ui, Command::UpdateLink, t("Update download link"));
     menu_item(app, ui, Command::CopyLink, t("Copy link"));
     menu_item(app, ui, Command::Remove, t("Remove"));
@@ -968,7 +971,45 @@ pub fn shown_size(entry: &Entry) -> Option<u64> {
 
 /// A finished row whose file is no longer where dm saved it.
 pub fn gone(entry: &Entry) -> bool {
-    !entry.path.is_empty() && !std::path::Path::new(&entry.path).exists()
+    !entry.path.is_empty()
+        && (!std::path::Path::new(&entry.path).exists()
+            || SUPERSEDED.with(|s| s.borrow().contains(&entry.id)))
+}
+
+thread_local! {
+    /// Finished rows whose path a row finished since also wrote: the
+    /// file there is that one's. A row whose file was deleted turned
+    /// "Complete" again when the same address was downloaded anew under
+    /// its old name (QA loop 2).
+    static SUPERSEDED: std::cell::RefCell<std::collections::HashSet<dm_core::Id>> =
+        std::cell::RefCell::new(std::collections::HashSet::new());
+}
+
+/// Which finished rows another, later one has taken the file of, as the
+/// rows now stand.
+pub fn set_superseded(rows: &[Entry]) {
+    let mut latest: std::collections::HashMap<&str, (u64, dm_core::Id)> =
+        std::collections::HashMap::new();
+    let finished = rows
+        .iter()
+        .filter(|r| r.state == dm_core::State::Completed && !r.path.is_empty());
+    for row in finished.clone() {
+        let at = row.finished_at.unwrap_or(0);
+        let held = latest.entry(row.path.as_str()).or_insert((at, row.id));
+        // Finished in the same second, the later row: the higher id.
+        if (at, row.id) > *held {
+            *held = (at, row.id);
+        }
+    }
+    let superseded = finished
+        .filter(|r| {
+            latest
+                .get(r.path.as_str())
+                .is_some_and(|(_, id)| *id != r.id)
+        })
+        .map(|r| r.id)
+        .collect();
+    SUPERSEDED.with(|s| *s.borrow_mut() = superseded);
 }
 
 /// Lays `add` out against the cell's right edge.

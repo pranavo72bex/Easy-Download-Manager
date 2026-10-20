@@ -1087,6 +1087,7 @@ impl DmApp {
         self.rows = self.backend.list();
         self.place_rows();
         set_retrying(self.backend.retrying());
+        crate::table::set_superseded(&self.rows);
         set_limit_holds(self.backend.queue.allowance_spent().is_some());
         self.saved_sizes();
         self.refreshed = Some(Instant::now());
@@ -5266,5 +5267,39 @@ mod dry_tests {
         let quick = vec![row(1, State::Completed), row(2, State::Completed)];
         assert!(watch.look(&quick, &last));
         assert!(!watch.look(&quick, &states(&quick)), "fired twice");
+    }
+}
+
+#[cfg(test)]
+mod superseded_tests {
+    use super::*;
+
+    /// QA loop 2: a row whose file another, later row wrote again is
+    /// gone, not Complete; the later one is not.
+    #[test]
+    fn a_file_written_again_by_a_later_row_is_that_rows() {
+        let dir = std::env::temp_dir().join(format!("dm-superseded-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        let file = dir.join("same.bin");
+        std::fs::write(&file, b"x").unwrap();
+        let row = |id: Id, at: u64| {
+            let mut row = status_tests::paused(false);
+            row.id = id;
+            row.state = State::Completed;
+            row.path = file.display().to_string();
+            row.finished_at = Some(at);
+            row
+        };
+        let (old, new) = (row(1, 10), row(2, 20));
+        crate::table::set_superseded(&[old.clone(), new.clone()]);
+        assert!(crate::table::gone(&old));
+        assert!(!crate::table::gone(&new));
+        // Finished in the same second: the later row's.
+        let twin = row(3, 20);
+        crate::table::set_superseded(&[new.clone(), twin.clone()]);
+        assert!(crate::table::gone(&new) && !crate::table::gone(&twin));
+        crate::table::set_superseded(std::slice::from_ref(&old));
+        assert!(!crate::table::gone(&old), "alone, its file is its own");
+        let _ = std::fs::remove_dir_all(&dir);
     }
 }
