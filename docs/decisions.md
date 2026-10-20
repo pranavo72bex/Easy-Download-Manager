@@ -977,3 +977,14 @@ ticked box from an empty one, and they sit behind a feature flag), and
 right-aligning the footer from last frame's window size (it fed back on
 itself and grew Options past the window at 200%).
 
+## The page script loads its WebAssembly only where there is media (2026-10-20)
+
+The "Download video" panel is the only thing the page's WebAssembly does,
+and it was loaded into every page and every frame: on a page of advert
+frames, one compile of half a megabyte each. `content.js` now loads it once
+the page shows media: a `<video>` or `<audio>` in the document (checked as
+the page changes, at most once a second), one in a component's shadow root
+under the pointer (checked at most twice a second), or a play. The
+key-held clicks, magnet links and "Download all/selected links" stay plain
+JavaScript and work from the start, as before.
+

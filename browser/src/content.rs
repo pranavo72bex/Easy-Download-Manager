@@ -594,6 +594,28 @@ fn on_pointer(event: Event) {
     let Some(event) = event.dyn_ref::<MouseEvent>() else {
         return;
     };
+    pointer_at(f64::from(event.client_x()), f64::from(event.client_y()));
+}
+
+/// The page script's word, once this has loaded, of where the pointer
+/// rests: it loaded this because the pointer came over a player, and a
+/// pointer that then rests sends no move for the panel to see.
+#[wasm_bindgen]
+pub fn content_pointer(x: f64, y: f64) {
+    with_panel(|p| p.last_scan = 0.0);
+    pointer_at(x, y);
+}
+
+/// The page script's word, once this has loaded, of media that played
+/// before it had: the play that loaded it was over by then.
+#[wasm_bindgen]
+pub fn content_played(element: Element) {
+    if show(&element) {
+        hide_soon(PLAY_SHOWS_MS);
+    }
+}
+
+fn pointer_at(x: f64, y: f64) {
     let due = with_panel(|p| {
         let due = now() - p.last_scan >= SCAN_EVERY_MS;
         if due {
@@ -608,11 +630,7 @@ fn on_pointer(event: Event) {
     let Some(document) = document() else {
         return;
     };
-    match media_at(
-        &document,
-        f64::from(event.client_x()),
-        f64::from(event.client_y()),
-    ) {
+    match media_at(&document, x, y) {
         Some(element) if show(&element) => {
             with_panel(|p| p.on_player = true);
         }

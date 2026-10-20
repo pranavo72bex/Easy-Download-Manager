@@ -120,9 +120,83 @@
     return false;
   });
 
-  (async () => {
-    const dm = await import(ext.runtime.getURL('pkg/dm_catcher.js'));
-    await dm.default({ module_or_path: ext.runtime.getURL('pkg/dm_catcher_bg.wasm') });
-    dm.content_start(ext);
-  })().catch((e) => console.debug('dm:', e));
+  // The panel's WebAssembly is loaded only once the page shows media: it
+  // is half a megabyte, and every page and every frame (an advert's, a
+  // widget's) loaded and compiled it whether or not it ever held a player.
+  // Looked for in the document as it changes (at most once a second), under
+  // the pointer inside components that keep their player in a shadow root,
+  // and on a play the page starts.
+  let loading = false;
+  // Where the pointer last was, and what last played, handed over once the
+  // panel has loaded: the move or the play that loaded it is over by then,
+  // and a pointer resting on a player sends no other.
+  let point = null;
+  let played = null;
+  const load = () => {
+    if (loading) return;
+    loading = true;
+    stop();
+    (async () => {
+      const dm = await import(ext.runtime.getURL('pkg/dm_catcher.js'));
+      await dm.default({ module_or_path: ext.runtime.getURL('pkg/dm_catcher_bg.wasm') });
+      dm.content_start(ext);
+      if (played) dm.content_played(played);
+      else if (point) dm.content_pointer(point.x, point.y);
+    })().catch((e) => console.debug('dm:', e));
+  };
+  const hasMedia = (root) => {
+    try { return root.querySelector('video, audio') !== null; } catch { return false; }
+  };
+  // Media under a point inside components, following shadow roots four
+  // deep as the panel's own hit test does: a player inside a component
+  // inside another was seen only as the outer one.
+  const mediaUnder = (root, x, y, depth) => {
+    let stack = [];
+    try { stack = root.elementsFromPoint(x, y); } catch { return false; }
+    return stack.some((e) => e.shadowRoot && (hasMedia(e.shadowRoot)
+      || (depth < 4 && mediaUnder(e.shadowRoot, x, y, depth + 1))));
+  };
+  let pending = false;
+  const look = () => {
+    if (loading || pending) return;
+    pending = true;
+    setTimeout(() => {
+      pending = false;
+      if (!loading && hasMedia(document)) load();
+    }, 1000);
+  };
+  // At most twice a second, and again at the end of each half second for
+  // where the pointer went meanwhile: one that entered a player just after
+  // a look elsewhere was not looked at again.
+  let lastLook = 0;
+  let later = null;
+  const lookAtPoint = () => {
+    later = null;
+    lastLook = Date.now();
+    if (!loading && point && mediaUnder(document, point.x, point.y, 0)) load();
+  };
+  const onPointer = (event) => {
+    point = { x: event.clientX, y: event.clientY };
+    const wait = 500 - (Date.now() - lastLook);
+    if (wait <= 0) lookAtPoint();
+    else if (!later) later = setTimeout(lookAtPoint, wait);
+  };
+  const onPlay = (event) => {
+    if (event.target instanceof Element) played = event.target;
+    load();
+  };
+  const observer = new MutationObserver(look);
+  const stop = () => {
+    if (later) clearTimeout(later);
+    observer.disconnect();
+    document.removeEventListener('mousemove', onPointer, true);
+    document.removeEventListener('play', onPlay, true);
+  };
+  if (hasMedia(document)) {
+    load();
+  } else {
+    observer.observe(document.documentElement ?? document, { childList: true, subtree: true });
+    document.addEventListener('mousemove', onPointer, { capture: true, passive: true });
+    document.addEventListener('play', onPlay, true);
+  }
 })();
