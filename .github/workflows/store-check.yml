@@ -1,0 +1,69 @@
+name: Store builds, checked with real input
+
+# Started by hand (Actions › this workflow › Run workflow). The extension
+# as Microsoft Edge Add-ons publishes it — installed from the store by a
+# managed policy, not built from this checkout — driven with a real pointer
+# and real keys against a dm built from this checkout, as
+# scripts/chromium-human.py drives it in a container. Edge for Linux is
+# x86_64 only, which this runner is. The screenshots are kept as an
+# artifact.
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  edge:
+    name: Edge, with the extension from Edge Add-ons
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: dtolnay/rust-toolchain@b725eda525362e7cf34af9a7243cac1e3f01a7ec # stable
+        with:
+          toolchain: stable
+      - name: Packages
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends xvfb openbox xdotool dbus-x11 \
+            at-spi2-core python3-pyatspi libglib2.0-bin ffmpeg yt-dlp \
+            libxkbcommon-x11-0 libegl1 libgl1 libgl1-mesa-dri libxcursor1 libx11-xcb1 libxi6
+      - name: Edge
+        run: |
+          if ! command -v microsoft-edge-stable >/dev/null; then
+            curl -fsSL https://packages.microsoft.com/keys/microsoft.asc \
+              | sudo gpg --dearmor -o /usr/share/keyrings/microsoft-edge.gpg
+            echo "deb [arch=amd64 signed-by=/usr/share/keyrings/microsoft-edge.gpg] https://packages.microsoft.com/repos/edge stable main" \
+              | sudo tee /etc/apt/sources.list.d/microsoft-edge.list
+            sudo apt-get update
+            sudo apt-get install -y microsoft-edge-stable
+          fi
+          microsoft-edge-stable --version
+      - name: The listing's build, installed from the store by policy
+        run: |
+          sudo mkdir -p /etc/opt/edge/policies/managed
+          echo '{"ExtensionInstallForcelist": ["ooafpfjpliofcdlnbdkjhonaoebcpnej;https://edge.microsoft.com/extensionwebstorebase/v1/crx"]}' \
+            | sudo tee /etc/opt/edge/policies/managed/dm.json
+      - name: dm
+        working-directory: desktop
+        run: cargo build -p dm-desktop --locked
+      - name: The check
+        env:
+          DM_STORE: "1"
+          CHROMIUM: /usr/bin/microsoft-edge-stable
+          DM_BINARY: ${{ github.workspace }}/desktop/target/debug/dm-desktop
+          DM_SHOTS: ${{ github.workspace }}/store-shots
+        run: |
+          export DISPLAY=:79
+          Xvfb :79 -screen 0 2400x1200x24 >/dev/null 2>&1 &
+          sleep 1
+          # openbox takes Alt+click for moving windows; the check's Alt-click
+          # is meant for the browser.
+          sed "/<mousebind button=\"A-Left\"/,/<\/mousebind>/d" /etc/xdg/openbox/rc.xml > /tmp/openbox-rc.xml
+          openbox --config-file /tmp/openbox-rc.xml >/dev/null 2>&1 &
+          dbus-launch --exit-with-session python3 scripts/chromium-human.py
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        if: always()
+        with:
+          name: edge-store-shots
+          path: store-shots

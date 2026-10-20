@@ -46,6 +46,11 @@ EDGE = "microsoft-edge" in CHROMIUM
 NAME = "Edge" if EDGE else "Chromium"
 PROFILE_DIR = "microsoft-edge" if EDGE else "chromium"
 APP = "edge" if EDGE else "chromium"
+# DM_STORE=1: the extension as its store publishes it, not dist/chrome.
+# The browser is given none on the command line: a managed policy, written
+# before this runs, has it install the listing's build from the store
+# (ExtensionInstallForcelist), which keeps the store's own id.
+STORE = os.environ.get("DM_STORE") == "1"
 
 spec = importlib.util.spec_from_file_location("chrome_check", ROOT / "scripts" / "chrome-check.py")
 common = importlib.util.module_from_spec(spec)
@@ -430,7 +435,7 @@ def make_video(work):
 
 def main():
     global ORACLE, DM_HOME
-    if not (EXT / "pkg" / "dm_catcher_bg.wasm").exists():
+    if not STORE and not (EXT / "pkg" / "dm_catcher_bg.wasm").exists():
         sys.exit("no built extension at dist/chrome — run: sh scripts/package.sh")
     SHOTS.mkdir(parents=True, exist_ok=True)
     work = pathlib.Path(tempfile.mkdtemp(prefix="dm-human-"))
@@ -473,8 +478,8 @@ def main():
         x("xdotool", "windowmove", dm_window(), 1230, 40)
         x("xdotool", "windowsize", dm_window(), 1150, 760)
 
-        args = [CHROMIUM, f"--user-data-dir={profile}", f"--load-extension={EXT}",
-                f"--disable-extensions-except={EXT}", "--remote-debugging-port=0",
+        loaded = [] if STORE else [f"--load-extension={EXT}", f"--disable-extensions-except={EXT}"]
+        args = [CHROMIUM, f"--user-data-dir={profile}", *loaded, "--remote-debugging-port=0",
                 "--no-first-run", "--no-default-browser-check", "--disable-gpu", "--lang=en-US",
                 "--disable-features=DisableLoadExtensionCommandLineSwitch,HttpsUpgrades",
                 "--enable-unsafe-extension-debugging", "--force-renderer-accessibility",
@@ -486,7 +491,9 @@ def main():
                                    stderr=open(work / "chromium-stderr.txt", "wb"), preexec_fn=os.setpgrp)
         base = common.devtools(profile)
         worker_t = wait_for(lambda: next((t for t in common.targets(base) if t["type"] == "service_worker"
-                                          and t["url"].endswith("/background.js")), None), 30)
+                                          and t["url"].endswith("/background.js")), None),
+                            # A store install is fetched first.
+                            180 if STORE else 30)
         if not check(f"{NAME} starts with the extension's worker running", worker_t):
             return
         worker = common.Target(worker_t["webSocketDebuggerUrl"])
