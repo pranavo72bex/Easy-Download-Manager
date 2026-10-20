@@ -509,7 +509,15 @@ def main():
         if not check(f"{NAME} starts with the extension's worker running", worker_t):
             return
         worker = common.Target(worker_t["webSocketDebuggerUrl"])
-        wait_for(lambda: worker.evaluate("typeof dmReady") == "object", 15)
+        def ready():
+            try:
+                return worker.evaluate("typeof dmReady") == "object"
+            except OSError:
+                return False
+        # The store's build may not carry the test hook `dmReady`: its
+        # absence is not a failure there, the checks below are the proof.
+        if not wait_for(ready, 15) and not STORE:
+            sys.exit("the worker never said it was ready")
         page_t = wait_for(lambda: next((t for t in common.targets(base) if t["type"] == "page"), None), 15)
         tab = common.Target(page_t["webSocketDebuggerUrl"])
         wait_for(chromium_window, 15)
