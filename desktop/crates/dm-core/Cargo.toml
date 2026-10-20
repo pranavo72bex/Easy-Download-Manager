@@ -71,3 +71,8 @@ hex = "0.4.3"
 memory-stats = "1.2.0"
 aes = "0.9.3"
 cbc = { version = "0.2.1", features = ["block-padding", "alloc"] }
+
+# Used as `md5` (checksums and Digest sign-ins), which the name `md-5` hides
+# from cargo-machete.
+[package.metadata.cargo-machete]
+ignored = ["md-5"]

@@ -1015,3 +1015,10 @@ submenus' chevrons from it; the classic look keeps its drawn pictures. The
 progress window's Connections opener keeps its drawn chevron, which turns
 with egui's opening animation where a glyph would jump.
 
+## Inter's tabular digits removed (2026-10-20)
+
+`Inter-TabularDigits.ttf` led the numbers family while Inter, whose digits
+are proportional, was the window's face. Segoe UI and Selawik, which lead
+it now, have digits of one width themselves, so it was never reached and
+is gone; the numbers family is the window's face and what follows it.
+

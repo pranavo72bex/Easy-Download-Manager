@@ -418,19 +418,17 @@ fn definitions(scripts: &[Script]) -> egui::FontDefinitions {
             .unwrap_or_default(),
     );
     fonts.families.insert(semibold_family(), semibold);
-    fonts.font_data.insert(
-        "inter-digits".into(),
-        egui::FontData::from_static(include_bytes!("../fonts/Inter-TabularDigits.ttf")).into(),
-    );
-    // Segoe UI's and Selawik's digits are each one width already; Inter's
-    // tabular ones are for what falls through to Inter.
-    let mut numbers = vec!["ui".to_string(), "inter-digits".to_string()];
+    // Segoe UI's and Selawik's digits are each one width, so the window's
+    // face leads the numbers family as it does every other.
+    let mut numbers = vec!["ui".to_string()];
     numbers.extend(
         fonts
             .families
             .get(&FontFamily::Proportional)
             .cloned()
-            .unwrap_or_default(),
+            .unwrap_or_default()
+            .into_iter()
+            .filter(|f| f != "ui"),
     );
     fonts.families.insert(numbers_family(), numbers);
     // Fluent UI System Icons, the few the window draws (MIT).
@@ -1074,8 +1072,7 @@ mod tests {
         for c in "023456789".chars() {
             assert_eq!(width(numbers_family(), c), ones, "{c} is not as wide as 1");
         }
-        // The window's face is first in both, so the two agree; Inter's
-        // tabular digits are for what falls through to Inter.
+        // The window's face is first in both, so the two agree.
         assert_eq!(
             width(FontFamily::Proportional, '8'),
             width(numbers_family(), '8')
