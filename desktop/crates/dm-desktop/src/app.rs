@@ -2881,6 +2881,10 @@ impl DmApp {
                     // with a bar that shows it: hidden until hovered, a tree
                     // cut by a two-row toolbar looked as though it ended there.
                     ui.spacing_mut().scroll = crate::theme::steady_scroll();
+                    // Places 4 apart, as a navigation view's items stand.
+                    if t.modern {
+                        ui.spacing_mut().item_spacing.y = 4.0;
+                    }
                     let behind = self.behind_a_dialog();
                     egui::ScrollArea::vertical()
                         .auto_shrink([false, false])
@@ -3398,7 +3402,7 @@ impl DmApp {
                 for c in [Command::Scheduler, Command::StartQueue, Command::StopQueue] {
                     self.item(ui, c);
                 }
-                ui.menu_button(t("Speed limiter"), |ui| {
+                submenu(ui, t("Speed limiter"), |ui| {
                     // Ticked while a limit is in force: the item says
                     // whether the limiter is on, not only that it toggles.
                     // A menu item like the one under it, its tick at the
@@ -3412,7 +3416,7 @@ impl DmApp {
                     }
                     self.item(ui, Command::SpeedLimiterSettings);
                 });
-                ui.menu_button(t("When done"), |ui| {
+                submenu(ui, t("When done"), |ui| {
                     use crate::power::WhenDone;
                     for (c, w) in [
                         (Command::WhenDoneNothing, WhenDone::Nothing),
@@ -3456,11 +3460,11 @@ impl DmApp {
                 }
                 // "Columns": each column on or off; the file
                 // name stays, since a row without one is no row.
-                ui.menu_button(t("Columns"), |ui| self.columns_menu(ui));
-                ui.menu_button(t("Customize toolbar"), |ui| self.toolbar_menu(ui));
+                submenu(ui, t("Columns"), |ui| self.columns_menu(ui));
+                submenu(ui, t("Customize toolbar"), |ui| self.toolbar_menu(ui));
                 // View › Text size: the window's zoom, kept across launches,
                 // which the keyboard's Ctrl (Cmd) with + and − also changes.
-                ui.menu_button(t("Text size"), |ui| {
+                submenu(ui, t("Text size"), |ui| {
                     let ctx = ui.ctx().clone();
                     let zoom = ctx.zoom_factor();
                     ui.label(RichText::new(tf("{}%", &[&((zoom * 100.0).round() as u32)])).weak());
@@ -3475,7 +3479,7 @@ impl DmApp {
                     }
                 });
                 // View › Language.
-                ui.menu_button(t("Language"), |ui| {
+                submenu(ui, t("Language"), |ui| {
                     let now = crate::i18n::chosen(&self.applied.language);
                     if let Some(code) = crate::i18n::pick(ui, now) {
                         let mut wanted = self.applied.clone();
@@ -3486,7 +3490,7 @@ impl DmApp {
                         ui.close();
                     }
                 });
-                ui.menu_button(t("Sort by"), |ui| {
+                submenu(ui, t("Sort by"), |ui| {
                     for c in [
                         Command::SortByName,
                         Command::SortBySize,
@@ -3721,23 +3725,32 @@ impl DmApp {
         };
         // Kept open or shut by an id of its own, not its words: a language
         // switch opened a shut one again (UI round 10).
-        nav_group(ui, "tree-everything", t("Everything"), &tokens, |ui| {
-            place(ui, self, Place::All, t("All").into());
-            for c in Category::ALL {
-                let label = crate::i18n::name(&format::titled(&category_word(c)));
-                place(ui, self, Place::Kind(c), label);
-            }
-            for custom in &self.applied.custom_categories {
-                let name = custom.name.trim().to_string();
-                if !name.is_empty() {
-                    place(ui, self, Place::Custom(name.clone()), name);
+        let in_everything = matches!(self.place, Place::All | Place::Kind(_) | Place::Custom(_));
+        nav_group(
+            ui,
+            "tree-everything",
+            t("Everything"),
+            in_everything,
+            &tokens,
+            |ui| {
+                place(ui, self, Place::All, t("All").into());
+                for c in Category::ALL {
+                    let label = crate::i18n::name(&format::titled(&category_word(c)));
+                    place(ui, self, Place::Kind(c), label);
                 }
-            }
-        });
+                for custom in &self.applied.custom_categories {
+                    let name = custom.name.trim().to_string();
+                    if !name.is_empty() {
+                        place(ui, self, Place::Custom(name.clone()), name);
+                    }
+                }
+            },
+        );
         place(ui, self, Place::Unfinished, t("In progress").into());
         place(ui, self, Place::Finished, t("Done").into());
         let queues = self.backend.queues();
-        nav_group(ui, "tree-queues", t("Queues"), &tokens, |ui| {
+        let in_queues = matches!(self.place, Place::Queue(_));
+        nav_group(ui, "tree-queues", t("Queues"), in_queues, &tokens, |ui| {
             for name in queues {
                 let label = crate::i18n::name(&name);
                 place(ui, self, Place::Queue(name.clone()), label);
@@ -4317,6 +4330,23 @@ fn modern_tool(
     response
 }
 
+/// A menu inside a menu. In the modern look its arrow is a thin chevron
+/// in the secondary colour, as a menu flyout's sub-item has; egui draws a
+/// filled triangle, which the classic look keeps.
+fn submenu<R>(
+    ui: &mut egui::Ui,
+    label: &str,
+    add: impl FnOnce(&mut egui::Ui) -> R,
+) -> egui::InnerResponse<Option<R>> {
+    let t = crate::theme::Tokens::get(ui.ctx());
+    if !t.modern {
+        return ui.menu_button(label, add);
+    }
+    let button = egui::Button::new(label).right_text(egui::RichText::new("›").color(t.weak));
+    let (response, inner) = egui::containers::menu::SubMenuButton::from_button(button).ui(ui, add);
+    egui::InnerResponse::new(inner.map(|i| i.inner), response)
+}
+
 /// A group of places: in the modern look a navigation view's expandable
 /// item, its name in a 32 px row and a thin chevron at the row's right that
 /// turns as it opens, its places indented under it; in the classic look
@@ -4325,6 +4355,7 @@ fn nav_group(
     ui: &mut egui::Ui,
     id: &str,
     label: &str,
+    holds_selection: bool,
     t: &crate::theme::Tokens,
     add: impl FnOnce(&mut egui::Ui),
 ) {
@@ -4344,15 +4375,25 @@ fn nav_group(
         open = !open;
         ui.ctx().data_mut(|d| d.insert_persisted(key, open));
     }
+    // Shut over the place chosen, it carries the selection, as a
+    // navigation view's parent does: collapsed, nothing showed it.
+    let marked = !open && holds_selection;
     let fill = if response.is_pointer_button_down_on() {
         t.pressed
-    } else if response.hovered() {
+    } else if response.hovered() || marked {
         t.hover
     } else {
         egui::Color32::TRANSPARENT
     };
     let painter = ui.painter();
     painter.rect_filled(rect, t.radius, fill);
+    if marked {
+        let pill = egui::Rect::from_center_size(
+            egui::pos2(rect.left() + 3.0, rect.center().y),
+            egui::vec2(3.0, 16.0),
+        );
+        painter.rect_filled(pill, 1.5, t.brand);
+    }
     painter.text(
         egui::pos2(rect.left() + 12.0, rect.center().y),
         egui::Align2::LEFT_CENTER,
@@ -4360,9 +4401,9 @@ fn nav_group(
         egui::FontId::proportional(14.0),
         t.text,
     );
-    // ChevronDown open, ChevronUp shut, as a navigation view turns it.
+    // ChevronUp open, ChevronDown shut, as a navigation view turns it.
     let c = egui::pos2(rect.right() - 16.0, rect.center().y);
-    let dy = if open { -2.0 } else { 2.0 };
+    let dy = if open { 2.0 } else { -2.0 };
     painter.line(
         vec![
             c + egui::vec2(-4.5, dy),

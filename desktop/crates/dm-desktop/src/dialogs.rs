@@ -1363,11 +1363,13 @@ pub(crate) fn footer<R>(
     let body = (ui.min_rect().right() - left).max(least);
     ui.ctx().data_mut(|d| d.insert_temp(body_id(layer), body));
     let right = (left + body).min(ui.max_rect().right());
-    // Clear of the body, the band a little below its last line: the gap
-    // goes above the row, which in a layout built from the foot up means
-    // after it. 16 put the band over the last field's foot (Fluent QA).
+    // The band 24 below the body's last line, as a ContentDialog pads its
+    // content: the row is 24 into the band, so 40 above it with the 8 the
+    // layout puts after a widget. The gap goes above the row, which in a
+    // layout built from the foot up means after it. 20 left the band 4
+    // under the last line (Fluent QA against the Gallery).
     let upward = ui.layout().main_dir() == egui::Direction::BottomUp;
-    let gap = 20.0;
+    let gap = 40.0;
     if !upward {
         ui.add_space(gap);
     }
@@ -1521,6 +1523,27 @@ fn primary_sized(ui: &mut egui::Ui, text: &str, width: f32) -> egui::Response {
     .inner
 }
 
+/// A section's opener: a thin chevron pointing at its name, turning down
+/// as it opens, as an expander's does; egui's filled triangle in the
+/// classic look.
+fn header_chevron(ui: &mut egui::Ui, openness: f32, response: &egui::Response) {
+    let t = crate::theme::Tokens::get(ui.ctx());
+    if !t.modern {
+        egui::collapsing_header::paint_default_icon(ui, openness, response);
+        return;
+    }
+    let c = response.rect.center();
+    let turn = egui::emath::Rot2::from_angle(openness * std::f32::consts::FRAC_PI_2);
+    let points = [
+        egui::vec2(-2.0, -4.5),
+        egui::vec2(2.5, 0.0),
+        egui::vec2(-2.0, 4.5),
+    ]
+    .map(|p| c + turn * p)
+    .to_vec();
+    ui.painter().line(points, egui::Stroke::new(1.0, t.weak));
+}
+
 /// A drop-down list with WinUI's chevron, in the secondary colour, where
 /// egui draws a filled triangle.
 pub(crate) fn combo(salt: impl std::hash::Hash + std::fmt::Debug) -> egui::ComboBox<'static> {
@@ -1563,10 +1586,13 @@ fn selector(ui: &mut egui::Ui, selected: bool, label: &str) -> egui::Response {
     if !t.modern {
         return ui.selectable_label(selected, label);
     }
+    // Laid out in the colour it is drawn in: a colour given here wins over
+    // the one given when painting, and every word came out primary.
+    let words = if selected { t.text } else { t.weak };
     let galley = ui.painter().layout_no_wrap(
         label.to_string(),
         egui::TextStyle::Button.resolve(ui.style()),
-        t.text,
+        words,
     );
     let size = egui::vec2(galley.size().x + 24.0, 40.0);
     let (rect, response) = ui.allocate_exact_size(size, egui::Sense::click());
@@ -1582,7 +1608,6 @@ fn selector(ui: &mut egui::Ui, selected: bool, label: &str) -> egui::Response {
     };
     let painter = ui.painter();
     painter.rect_filled(rect.shrink2(egui::vec2(0.0, 4.0)), t.radius, fill);
-    let words = if selected { t.text } else { t.weak };
     painter.galley(
         rect.center() - galley.size() / 2.0 - egui::vec2(0.0, 1.0),
         galley,
@@ -1869,12 +1894,21 @@ pub fn show(app: &mut DmApp, ctx: &egui::Context) {
     // A question waiting for its answer dims the window behind it, so it
     // reads as the one thing to deal with (a design review: nothing set it
     // apart, and the list behind looked as usable as ever).
-    if app.dialogs.asking() {
-        let dark = crate::theme::Tokens::get(ctx).dark;
+    // In the modern look every dialog that keeps the clicks to itself
+    // does, as a ContentDialog lays SmokeFillColorDefault over its window.
+    let tokens = crate::theme::Tokens::get(ctx);
+    let smoke = if tokens.modern {
+        app.dialogs.modal().then_some(0x4d)
+    } else {
+        app.dialogs
+            .asking()
+            .then_some(if tokens.dark { 110 } else { 70 })
+    };
+    if let Some(alpha) = smoke {
         ctx.layer_painter(egui::LayerId::background()).rect_filled(
             ctx.content_rect(),
             0.0,
-            egui::Color32::from_black_alpha(if dark { 110 } else { 70 }),
+            egui::Color32::from_black_alpha(alpha),
         );
     }
     for id in std::mem::take(&mut app.dialogs.raise) {
@@ -3288,6 +3322,7 @@ fn progress(app: &mut DmApp, ctx: &egui::Context) {
                         // Shut until asked for: what most want is the bar,
                         // the bytes, the speed and the time left above.
                         egui::CollapsingHeader::new(t("Connections"))
+                            .icon(header_chevron)
                             .default_open(false)
                             .id_salt(("connections", id))
                             .show(ui, |ui| {

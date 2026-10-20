@@ -2037,6 +2037,9 @@ fn a_category_made_in_options_takes_its_files_into_its_own_folder() {
     click(&mut harness, "Options");
     click(&mut harness, "Folders");
     click(&mut harness, "Sort finished files into folders by kind");
+    // At the foot of the page, scrolled to as a person would.
+    harness.get_by_label("Add a category").scroll_to_me();
+    harness.run_steps(3);
     click(&mut harness, "Add a category");
     type_into(&mut harness, "Category", "Lectures");
     type_into(&mut harness, "Types", "zip");

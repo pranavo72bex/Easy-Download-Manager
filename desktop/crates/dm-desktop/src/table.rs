@@ -106,6 +106,11 @@ pub fn show(app: &mut DmApp, ui: &mut egui::Ui) {
     // floating over the list, the sideways one covered its last row, which
     // End and Down could not bring clear of it (gap 147).
     ui.spacing_mut().scroll = crate::theme::steady_scroll();
+    // Rows that meet, each its 32 points, as a list view's: the window's 8
+    // between them made each row and its fill 40 tall (Fluent QA).
+    if t.modern {
+        ui.spacing_mut().item_spacing.y = 0.0;
+    }
     let mut list_clip = None;
     /* The up-and-down bar is the list's own, drawn in a strip at the
      * visible right edge. The table's would sit at its right edge, inside
