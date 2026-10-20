@@ -30,6 +30,10 @@ test where one could hold it. Earlier rounds' bugs are in `docs/gaps.md`
 | 21 | Minor | A failed row said only "Error"; the disk being full was in a tooltip | The status cell drew a fixed word | The plain reason in the cell, truncated to the column; all of it on hover | `a_cut_connection_is_said_plainly` |
 | 22 | Minor | Time left read "Time le" at the window's first size | The name kept 220 points while only Status was fitted beside it | The name gives way so Speed, else Time left, fits; the empty list's headings use the same width | `the_name_gives_way_first_in_a_narrow_window`, `the_columns_start_in_one_place_whatever_the_rows_queues` |
 | 23 | Minor | "Not enough room" named the row's staging folder (`/dl/parts/2`) | The folder checked was named | The download folder is named where the two share a disk | `errors.rs` (the huge-file case) |
+| 24 | Moderate | A cut error showed two tooltips, one over the other | egui's own tooltip for elided words and dm's | egui's turned off for that label | QA loop 2 (screenshots) |
+| 25 | Minor | "Error: the server has no file …" lost the 404 at the column's edge | The cell repeated "Error:" beside the red mark | The reason alone in the cell; "Error:" and all on hover | QA loop 2 |
+| 26 | Minor | A scroll bar under Options' tabs at 150% that scrolled nothing | The tabs were fitted to the exact width | Fitted 4 points short | `options_tabs_fit_at_150_percent` |
+| 27 | Minor | A download given a name, running beside one of the same file, pushed the other to "same (1).bin" | The named one was placed under the server's name and renamed after | Placed under the chosen name in the first place, cleaned as any outside name is | `a_chosen_name_does_not_take_the_servers_name_from_another_row`, `a_chosen_name_cannot_leave_its_folder` |
 
 Not dm's: my first throughput run counted 404s as downloads (my test
 server kept the query string in the file name), and later runs slowed as

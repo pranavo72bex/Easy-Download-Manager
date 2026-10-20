@@ -1128,13 +1128,26 @@ fn status_cell(ui: &mut egui::Ui, entry: &Entry, held: Option<&str>, selected: b
                     // The reason in the row itself, as far as the column
                     // shows it: "Error" alone sent a person hovering to
                     // learn that the disk was full (QA loop 1, bug 2).
-                    let words = egui::RichText::new(&text).color(on_row(tokens.error));
+                    // Without "Error: ", which the red mark before it says:
+                    // the reason's own words reach the column's edge first
+                    // ("Error: the server has no file …" lost the 404, QA
+                    // loop 2). The whole of it, "Error:" too, on hover.
+                    let lead = crate::i18n::fill(t("Error: {}"), &[&""]);
+                    let short = text.strip_prefix(lead.as_str()).unwrap_or(&text);
+                    let short = crate::format::titled(short);
+                    let words = egui::RichText::new(short).color(on_row(tokens.error));
                     let hover = match crate::app::failure_as_said(entry) {
                         Some(raw) => format!("{text}\n\n{}", tf("In dm's own words: {}", &[&raw])),
-                        None => text,
+                        None => text.clone(),
                     };
-                    ui.add(egui::Label::new(words).truncate())
-                        .on_hover_text(hover);
+                    // One tooltip: egui's own for cut words stood over this
+                    // one, saying the same (QA loop 2).
+                    ui.add(
+                        egui::Label::new(words)
+                            .truncate()
+                            .show_tooltip_when_elided(false),
+                    )
+                    .on_hover_text(hover);
                 }
                 State::Paused if entry.paused_by_schedule => {
                     let label = ui.label(text);

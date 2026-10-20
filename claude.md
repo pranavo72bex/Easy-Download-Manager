@@ -329,13 +329,17 @@ and is not carried over.
       check()), installed by pacman and answering a hand-off
       (`scripts/arch-check.sh`, arm64). CI installs and runs every installer on its
       own system before a release is drafted (`desktop.yml`, job
-      `installed`), not yet run there. Unchecked: a real desktop install of
-      each, and the x86_64 AppImage (its tools do not run under emulation)
-- [ ] Windows — never run on Windows. `scripts/windows-check.sh` compiles
-      the whole workspace for `x86_64-pc-windows-msvc` in a Docker image
-      (cargo-xwin) from this Mac, clippy clean. `--register` now writes
-      Windows' registry keys through `reg.exe` (unit-tested on any OS). CI
-      written, never run
+      `installed`), which passed on 2026-10-20 for the .deb, AppImage and
+      .rpm on x86_64 and arm64, the x86_64 AppImage included. Unchecked: a
+      real desktop install of each
+- [ ] Windows — run on CI's Windows machines, not yet on a person's. The
+      workspace tests pass on windows-latest on every push, and on
+      2026-10-20 the NSIS installer was installed silently there and
+      `scripts/smoke.py` passed against the installed binary: native host,
+      the window (on Mesa's software OpenGL), headless, a byte-exact
+      download; the uninstaller removed it. `scripts/windows-check.sh`
+      compiles it from this Mac. Unchecked: a real Windows desktop (GPU
+      driver, tray, SmartScreen, a login)
 - [x] Installer — `cargo packager` (no Tauri) builds a 7.9 MB dmg and
       `dm.app` on macOS, and the binary inside the .app passes every
       `app-check.py` check. The dmg step runs a Finder AppleScript that is

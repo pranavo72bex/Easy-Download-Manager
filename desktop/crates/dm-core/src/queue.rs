@@ -1386,6 +1386,7 @@ impl Queue {
                     options.sign_in =
                         crate::cookies::SignIn::new(&slot.entry.url, &slot.entry.cookies);
                     options.checksum = slot.entry.checksum.clone();
+                    options.save_name = slot.entry.save_name.clone();
                     // Sent as Referer where the row carries one, which is the
                     // downloads a browser handed over.
                     options.referrer =
@@ -1644,11 +1645,9 @@ async fn rename_free(from: &std::path::Path, name: &str) -> std::io::Result<Path
         ));
     }
     let dir = from.parent().unwrap_or(std::path::Path::new("."));
-    if from
-        .file_name()
-        .map(|f| f.to_string_lossy() == name)
-        .unwrap_or(false)
-    {
+    // Placed under the chosen name already, or the free one beside it
+    // where that was taken: renamed again, "name (1)" became "name (2)".
+    if crate::download::candidates(dir, &name).any(|c| c == from) {
         return Ok(from.to_path_buf());
     }
     if let Some(to) = rename_case_only(from, dir, &name).await? {

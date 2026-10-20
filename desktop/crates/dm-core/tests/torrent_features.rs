@@ -175,6 +175,7 @@ fn options(dir: &Path) -> Options {
         server_dates: false,
         retry_wait: 0,
         sign_in: None,
+        save_name: None,
         system_proxy: false,
     }
 }

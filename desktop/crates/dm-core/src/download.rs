@@ -89,6 +89,11 @@ pub struct Options {
     /// The site's sign-in the browser handed over with this download, sent
     /// to that server only.
     pub sign_in: Option<crate::cookies::SignIn>,
+    /// The name a person chose for the file, which it is placed under in
+    /// the first place: placed under the server's name and renamed after,
+    /// it held that name for a moment and pushed a download of the same
+    /// file finishing then to "name (1)" (QA loop 2).
+    pub save_name: Option<String>,
     /// The proxy is the computer's own settings. dm's HTTP client reads
     /// them, but where they name no address the environment carries (the
     /// macOS and Windows network settings), FTP and BitTorrent, which
@@ -2638,7 +2643,14 @@ pub(crate) async fn finish(
     options.control.check()?;
     let dir = options.categories.place(&options.dest_dir, category, name);
     fs::create_dir_all(&dir).await?;
-    let path = claim_path(&dir, name).await?;
+    // Cleaned as any name from outside is: a chosen "../x" stays in the
+    // folder, as the rename it replaces kept it.
+    let chosen = options
+        .save_name
+        .as_deref()
+        .map(crate::probe::sanitize)
+        .filter(|n| !n.trim().is_empty());
+    let path = claim_path(&dir, chosen.as_deref().unwrap_or(name)).await?;
 
     let bytes = join_parts(parts, &path).await?;
 
@@ -3054,7 +3066,7 @@ async fn writable(dir: &Path) -> Result<(), Error> {
 }
 
 /// `name`, then `name (1)`, `name (2)`… — the paths a file may be saved at.
-fn candidates<'a>(dir: &'a Path, name: &'a str) -> impl Iterator<Item = PathBuf> + 'a {
+pub(crate) fn candidates<'a>(dir: &'a Path, name: &'a str) -> impl Iterator<Item = PathBuf> + 'a {
     let (stem, ext) = match name.rsplit_once('.') {
         Some((s, e)) if !s.is_empty() => (s.to_string(), format!(".{e}")),
         _ => (name.to_string(), String::new()),
@@ -3232,6 +3244,7 @@ mod tests {
             server_dates: false,
             retry_wait: 0,
             sign_in: None,
+            save_name: None,
             system_proxy: false,
         }
     }

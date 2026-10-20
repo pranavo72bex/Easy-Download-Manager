@@ -531,6 +531,7 @@ impl Settings {
             server_dates: self.server_dates,
             retry_wait: self.retry_wait,
             sign_in: None,
+            save_name: None,
             system_proxy: self.proxy.enabled && self.proxy.kind == dm_core::proxy::Kind::System,
             proxy_bypass: if self.proxy.enabled {
                 self.proxy.bypass.clone()

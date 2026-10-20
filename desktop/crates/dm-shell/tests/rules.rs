@@ -40,6 +40,7 @@ async fn a_held_download_goes_on_when_the_limit_lets_it() {
             server_dates: false,
             retry_wait: 0,
             sign_in: None,
+            save_name: None,
             system_proxy: false,
         },
         1,

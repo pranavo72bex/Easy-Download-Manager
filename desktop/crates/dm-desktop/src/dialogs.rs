@@ -5758,7 +5758,9 @@ fn options(app: &mut DmApp, ctx: &egui::Context) {
         // to more rows, they left the page no room at 200%.
         let strip = egui::ScrollArea::horizontal().id_salt("options-tabs");
         let labels: Vec<&str> = TABS.iter().map(|(_, label)| t(label)).collect();
-        let padding = tabs_padding(ui, &labels, ui.available_width());
+        // A few points kept spare: fitted exactly, the strip still drew
+        // its scroll bar at 150% under tabs that did not move (QA loop 2).
+        let padding = tabs_padding(ui, &labels, ui.available_width() - 4.0);
         ui.scope(|ui| {
             ui.spacing_mut().scroll = crate::theme::steady_scroll();
             strip.show(ui, |ui| {

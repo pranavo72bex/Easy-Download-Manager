@@ -360,3 +360,63 @@ fn basic_header(user: &str, password: &str) -> String {
         base64::engine::general_purpose::STANDARD.encode(format!("{user}:{password}"))
     )
 }
+
+/// QA loop 2: a file downloaded twice at once, the second time under a
+/// chosen name. That one was placed under the server's name and renamed
+/// after, so for a moment it held the name and pushed the first to
+/// "same (1).bin".
+#[tokio::test]
+async fn a_chosen_name_does_not_take_the_servers_name_from_another_row() {
+    let addr = serve().await;
+    let dir = tempdir();
+    let q = queue(dir.path());
+    let url = format!("http://{addr}/same.bin");
+    let first = q.add(&url).await.unwrap();
+    let second = q
+        .add_with(
+            &url,
+            AddOptions {
+                save_name: Some("two.bin".into()),
+                ..AddOptions::default()
+            },
+        )
+        .await
+        .unwrap();
+    q.run().await;
+    let (first, second) = (q.get(first).await.unwrap(), q.get(second).await.unwrap());
+    let name = |p: &str| {
+        std::path::Path::new(p)
+            .file_name()
+            .unwrap()
+            .to_string_lossy()
+            .into_owned()
+    };
+    assert_eq!(name(&second.path), "two.bin", "{:?}", second.state);
+    assert_eq!(name(&first.path), "same.bin", "{:?}", first.state);
+}
+
+/// A chosen name is cleaned as a server's is: "../" keeps it in its folder.
+#[tokio::test]
+async fn a_chosen_name_cannot_leave_its_folder() {
+    let addr = serve().await;
+    let dir = tempdir();
+    let chosen = dir.path().join("chosen");
+    let q = queue(dir.path());
+    let id = q
+        .add_with(
+            &format!("http://{addr}/x.bin"),
+            AddOptions {
+                save_dir: Some(chosen.to_string_lossy().into_owned()),
+                save_name: Some("../escaped.bin".into()),
+                ..AddOptions::default()
+            },
+        )
+        .await
+        .unwrap();
+    q.run().await;
+    let row = q.get(id).await.unwrap();
+    assert_eq!(row.state, State::Completed, "{:?}", row.state);
+    let path = std::path::Path::new(&row.path);
+    assert_eq!(path.parent().unwrap(), chosen, "{}", row.path);
+    assert!(!dir.path().join("escaped.bin").exists());
+}
