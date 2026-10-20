@@ -15,6 +15,9 @@ machine with room on its disk.
 | The panel's WebAssembly loaded only where there is media (gap 73) | Chromium renderer, page of 20 plain frames: WebAssembly loads / private dirty memory | 21 / 55.9 MB | 0 / 30.2 MB | −26 MB |
 | same | same, a page with one video | 1 / 15.1 MB | 1 / 15.2 MB | none |
 
+| Against curl (the second opinion), 2 GB over loopback to disk, same session | | curl 2.19–2.39 s | dm 1.45–1.75 s on 1 connection, 1.82–2.21 s on 8 | dm at or above curl |
+| 10 downloads at once, CPU (after the repaint fix 48d3a13) | % of one core, 30 s | 9.7–11.7 % | 8.9–9.1 % | about −15 % |
+
 Notes:
 
 - The baseline's throughput rows (2.6–3.2 s and 11.2–13.8 s for 2 GB) were

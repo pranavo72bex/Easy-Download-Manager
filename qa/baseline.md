@@ -57,6 +57,11 @@ Notes on the method:
 3. **About 100 KB per finished row.** 500 rows of history add 50 MB.
    Suspects: per-row cached text layouts, the per-place row cache, and
    what each `Entry` carries. To be measured with dhat.
+   *Corrected 2026-10-20:* measured alike (each reading 4 s after a frame
+   was drawn), 500 rows add 5.4–5.7 MB, about 11 KB a row, in this build
+   and the one before any change; the 50 MB came from comparing a reading
+   taken without a screenshot against one taken just after one. Not a
+   bottleneck.
 4. **Work before the first frame.** 0.4–0.5 s warm to the first frame:
    settings, queue and HTTP client built while blocking (`shell::start`),
    the login item set to match the setting, the tray built, and the
