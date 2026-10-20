@@ -1549,6 +1549,21 @@ impl NumberBox<'_> {
 impl egui::Widget for NumberBox<'_> {
     fn ui(self, ui: &mut egui::Ui) -> egui::Response {
         let response = ui.add(self.0).on_hover_cursor(egui::CursorIcon::Text);
+        // The bottom line a text field has, at rest too: the fields'
+        // pass finds a number box only while it is being typed in, so at
+        // rest it had none (Fluent QA, gap 71).
+        let t = crate::theme::Tokens::get(ui.ctx());
+        if t.modern && ui.is_enabled() {
+            let focus = response.has_focus();
+            let height = if focus { 2.0 } else { 1.0 };
+            let rect = response.rect;
+            let line = egui::Rect::from_min_max(
+                egui::pos2(rect.left() + 1.0, rect.bottom() - height),
+                egui::pos2(rect.right() - 1.0, rect.bottom()),
+            );
+            ui.painter()
+                .rect_filled(line, 0.0, if focus { t.brand } else { t.stroke });
+        }
         match self.1 {
             Some(range) => response.on_hover_text(range),
             None => response,
