@@ -3747,6 +3747,7 @@ fn complete(app: &mut DmApp, ctx: &egui::Context) {
 
 fn properties(app: &mut DmApp, ctx: &egui::Context) {
     let ids: Vec<Id> = app.dialogs.properties.keys().copied().collect();
+    let mut nth = 0.0_f32;
     for id in ids {
         let Some(row) = app.row(id).cloned() else {
             app.dialogs.properties.remove(&id);
@@ -3813,6 +3814,8 @@ fn properties(app: &mut DmApp, ctx: &egui::Context) {
         // Taller than that room, its body scrolls: in a 720×460 window its
         // buttons were under the window's foot.
         let window = egui::Id::unique(("properties", id));
+        let step = nth;
+        nth += 1.0;
         let tall = (below.height() - 16.0).max(160.0);
         let cramped = ctx
             .memory(|m| m.area_rect(window))
@@ -3826,6 +3829,10 @@ fn properties(app: &mut DmApp, ctx: &egui::Context) {
             .max_height(tall)
             .vscroll(cramped)
             .constrain_to(below)
+            // In the middle, as every other dialog opens, each further one
+            // a step down and across; it opened in the top left corner.
+            .pivot(egui::Align2::CENTER_CENTER)
+            .default_pos(below.center() + egui::vec2(24.0, 24.0) * step)
             .show(ctx, |ui| {
                 ui.set_max_width(room);
                 // The values' column: what is left beside the headings.

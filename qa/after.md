@@ -95,3 +95,8 @@ The window is made the first time it is asked for; until then dm's logic
 runs on a stand-in context woken by what wakes the window. On Linux the
 QA run's 100 threads and 200+ MB after a soak are expected to fall with
 the thread count: each thread kept a glibc malloc arena.
+
+Linux (Debian 12 container, release build, headless, the same ten
+downloads): 12 threads at launch, 27 as they finished, 15 within 20 s of
+idle and staying there; 24 MB resident. QA loop 1 saw 100 threads that
+never left, on the build before.

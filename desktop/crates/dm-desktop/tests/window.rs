@@ -8488,3 +8488,36 @@ fn escape_closes_the_window_in_front() {
         harness.run_steps(2);
     }
 }
+
+/// Gap 71: Properties opens in the middle, as the other dialogs do; it
+/// opened in the window's top left corner.
+#[test]
+fn properties_open_in_the_middle() {
+    let world = world();
+    let mut harness = world.harness();
+    harness
+        .state_mut()
+        .add(
+            &[world.url("file.zip")],
+            dm_core::AddOptions {
+                later: true,
+                ..Default::default()
+            },
+        )
+        .unwrap();
+    harness.state_mut().refresh();
+    harness.run_steps(2);
+    select(&mut harness, "file.zip");
+    harness.state_mut().run(Command::Properties);
+    harness.run_steps(4);
+    let title = harness.get_by_label("File properties").rect();
+    // The title is at the dialog's top left; the dialog is about 620 wide.
+    assert!(
+        title.left() > 150.0,
+        "Properties opened at the left: {title:?}"
+    );
+    assert!(
+        title.top() > 100.0,
+        "Properties opened at the top: {title:?}"
+    );
+}
