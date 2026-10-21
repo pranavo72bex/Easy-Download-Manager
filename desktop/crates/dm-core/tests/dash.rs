@@ -93,7 +93,14 @@ for a in "$@"; do
   prev="$a"
 done
 out="$(dirname "$template")/joined [id].mp4"
-printf 'hello dash' > "$out"
+if [ -n "$DM_FAKE_HALVES" ]; then
+  # As yt-dlp leaves a pair it has no ffmpeg to join: side by side under
+  # the name it would have joined them as, which it names all the same.
+  cp "$DM_FAKE_HALVES/picture.f137.mp4" "$(dirname "$template")/joined [id].f137.mp4"
+  cp "$DM_FAKE_HALVES/sound.f140.m4a" "$(dirname "$template")/joined [id].f140.m4a"
+else
+  printf 'hello dash' > "$out"
+fi
 echo "[download] Destination: $out"
 printf '%s\n' "$out" > "$result"
 "#,
@@ -192,8 +199,8 @@ async fn with_ytdlp_a_dash_manifest_is_handed_over_with_the_proxy_and_the_page()
         "the proxy's file outlived the run"
     );
     assert_eq!(after("--referer"), Some("https://page.example/watch"));
-    // No ffmpeg, so one stream that carries both — never a pair.
-    assert_eq!(after("-f"), Some("b"));
+    // No ffmpeg, so an MP4 picture and M4A sound, which dm joins itself.
+    assert_eq!(after("-f"), Some("bv[ext=mp4]+ba[ext=m4a]/b[ext=mp4]/b"));
     assert_eq!(argv.last().map(String::as_str), Some(url.as_str()));
     assert!(
         after("--retries").is_some(),
@@ -265,24 +272,38 @@ async fn a_digest_that_does_not_match_fails_the_hand_off_and_keeps_nothing() {
 }
 
 #[tokio::test]
-async fn without_ffmpeg_a_stream_in_two_halves_says_to_install_it() {
+async fn without_ffmpeg_dm_joins_the_picture_and_sound_yt_dlp_left() {
     let _turn = ENV.lock().await;
     let dir = tempdir();
     std::env::set_var("DM_YTDLP", fake_ytdlp(dir.path()));
     std::env::set_var("DM_FFMPEG", "");
     std::env::set_var("DM_FAKE_RECORD", dir.path().join("argv"));
-    std::env::set_var("DM_FAKE_FAIL", "1");
+    std::env::remove_var("DM_FAKE_FAIL");
+    let fixtures = Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures");
+    std::env::set_var("DM_FAKE_HALVES", &fixtures);
 
     let url = serve_manifest().await;
-    let err = download(&client(), &url, &options(dir.path()))
-        .await
-        .expect_err("nothing was produced, yet it succeeded");
-    std::env::remove_var("DM_FAKE_FAIL");
+    let finished = download(&client(), &url, &options(dir.path())).await;
+    std::env::remove_var("DM_FAKE_HALVES");
+    let finished = finished.expect("the two halves were not joined");
 
-    // yt-dlp's own words name neither the cause nor the fix.
-    let said = err.to_string();
-    assert!(said.contains("install ffmpeg"), "{said}");
-    assert!(!said.contains("Requested format"), "{said}");
+    // One MP4 under the joined name, holding both, and no halves left.
+    assert_eq!(
+        finished.path.file_name().unwrap().to_string_lossy(),
+        "joined [id].mp4"
+    );
+    let joined = std::fs::read(&finished.path).unwrap();
+    let picture = std::fs::read(fixtures.join("picture.f137.mp4")).unwrap();
+    let sound = std::fs::read(fixtures.join("sound.f140.m4a")).unwrap();
+    assert!(joined.len() < picture.len() + sound.len());
+    assert!(joined.len() > picture.len().max(sound.len()));
+    let has = |kind: &[u8]| joined.windows(4).filter(|w| *w == kind).count();
+    assert_eq!(has(b"trak"), 2, "picture and sound are both in it");
+    assert_eq!(has(b"moof"), 0, "written plain, not fragmented");
+    assert_eq!(
+        files_under(&dir.path().join("out")),
+        vec![finished.path.clone()]
+    );
 }
 
 #[tokio::test]

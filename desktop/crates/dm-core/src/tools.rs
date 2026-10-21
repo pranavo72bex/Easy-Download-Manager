@@ -483,16 +483,20 @@ pub async fn ensure(client: &reqwest::Client, tool: Tool) -> Result<PathBuf, Err
     .await
 }
 
-/// yt-dlp for a video page: found or fetched, and with it, where they can
-/// be had, ffmpeg (so picture and sound are joined at full quality; without
-/// it yt-dlp takes the one pre-joined stream, lower in quality) and Deno
-/// (so yt-dlp can answer YouTube's player challenges; without one it gets
-/// little or nothing). All three come down at once. Says why not, where
-/// yt-dlp cannot be had.
-pub async fn for_video(client: &reqwest::Client) -> Result<(), String> {
+/// yt-dlp for a video page: found or fetched, and with it, where it can be
+/// had, Deno (so yt-dlp can answer YouTube's player challenges; without one
+/// it gets little or nothing). ffmpeg only where `ffmpeg` says the download
+/// needs it (`ytdlp::needs_ffmpeg`: WebM, embedded subtitles): an MP4's
+/// picture and sound dm joins itself (`mp4mux`). They come down at once.
+/// Says why not, where yt-dlp cannot be had.
+pub async fn for_video(client: &reqwest::Client, ffmpeg: bool) -> Result<(), String> {
     let (ytdlp, _, _) = tokio::join!(
         ensure(client, Tool::YtDlp),
-        ensure(client, Tool::Ffmpeg),
+        async {
+            if ffmpeg {
+                let _ = ensure(client, Tool::Ffmpeg).await;
+            }
+        },
         ensure(client, Tool::Deno),
     );
     ytdlp

@@ -443,7 +443,14 @@ async fn fetch_reporting(
             refused @ Error::Refused {
                 status: 403 | 429, ..
             },
-        ) if !names_a_document(url) && crate::tools::for_video(client).await.is_ok() => {
+        ) if !names_a_document(url)
+            && crate::tools::for_video(
+                client,
+                crate::ytdlp::needs_ffmpeg(options.container.as_deref(), options.subtitles),
+            )
+            .await
+            .is_ok() =>
+        {
             return match crate::ytdlp::download_ytdlp(url, options, report.clone()).await {
                 Ok(done) => Ok(done),
                 Err(stopped @ (Error::Paused | Error::Cancelled)) => Err(stopped),
@@ -469,7 +476,13 @@ async fn fetch_reporting(
     let kind = stream::kind_of(url, info.content_type.as_deref());
     // yt-dlp found, or fetched by dm where the computer has none (`tools`).
     let dash_tools = match kind {
-        Some(stream::Kind::Dash) => Some(crate::tools::for_video(client).await),
+        Some(stream::Kind::Dash) => Some(
+            crate::tools::for_video(
+                client,
+                crate::ytdlp::needs_ffmpeg(options.container.as_deref(), options.subtitles),
+            )
+            .await,
+        ),
         _ => None,
     };
     match kind {
@@ -518,7 +531,13 @@ async fn fetch_reporting(
          * A watch address with no extension, or a script's (`.php?v=`), is
          * yt-dlp's alone: its HTML is never the download anyone meant. */
         let document = names_a_document(url);
-        if crate::tools::for_video(client).await.is_ok() {
+        if crate::tools::for_video(
+            client,
+            crate::ytdlp::needs_ffmpeg(options.container.as_deref(), options.subtitles),
+        )
+        .await
+        .is_ok()
+        {
             match crate::ytdlp::download_ytdlp(url, options, report.clone()).await {
                 Err(e)
                     if document
@@ -1997,7 +2016,14 @@ async fn download_stream(
         Resolved::Own(listed, rendition) => (listed, rendition),
         // As a DASH stream is: yt-dlp reads these shapes properly; without
         // it the stream is refused rather than saved wrong and called done.
-        Resolved::Beyond(_) if crate::tools::for_video(client).await.is_ok() => {
+        Resolved::Beyond(_)
+            if crate::tools::for_video(
+                client,
+                crate::ytdlp::needs_ffmpeg(options.container.as_deref(), options.subtitles),
+            )
+            .await
+            .is_ok() =>
+        {
             return crate::ytdlp::download_ytdlp(url, options, report).await;
         }
         Resolved::Beyond(why) => {

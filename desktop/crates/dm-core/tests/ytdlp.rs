@@ -70,3 +70,70 @@ async fn a_page_is_handed_to_ytdlp_and_the_file_is_placed() {
         finished.path
     );
 }
+
+/// A DASH manifest whose picture and sound are separate, as a video site
+/// serves its better qualities, fetched by the real yt-dlp with no ffmpeg
+/// anywhere: dm joins the two halves itself into one MP4.
+#[tokio::test(flavor = "multi_thread")]
+async fn a_picture_and_sound_served_apart_arrive_as_one_mp4_with_no_ffmpeg() {
+    if !ytdlp::available() {
+        eprintln!("no yt-dlp installed — skipping the yt-dlp end-to-end test");
+        return;
+    }
+    std::env::set_var("DM_FFMPEG", "");
+    let fixtures = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures");
+    let picture = std::fs::read(fixtures.join("picture.f137.mp4")).unwrap();
+    let sound = std::fs::read(fixtures.join("sound.f140.m4a")).unwrap();
+    let manifest = r#"<?xml version="1.0"?>
+<MPD xmlns="urn:mpeg:dash:schema:mpd:2011" type="static" mediaPresentationDuration="PT1S" minBufferTime="PT1S" profiles="urn:mpeg:dash:profile:isoff-on-demand:2011">
+ <Period>
+  <AdaptationSet mimeType="video/mp4">
+   <Representation id="137" codecs="avc1.64000a" width="64" height="36" bandwidth="20000"><BaseURL>picture.mp4</BaseURL></Representation>
+  </AdaptationSet>
+  <AdaptationSet mimeType="audio/mp4">
+   <Representation id="140" codecs="mp4a.40.2" audioSamplingRate="22050" bandwidth="32000"><BaseURL>sound.m4a</BaseURL></Representation>
+  </AdaptationSet>
+ </Period>
+</MPD>"#;
+    let file = |bytes: Vec<u8>, kind: &'static str| {
+        get(move || {
+            let bytes = bytes.clone();
+            async move {
+                Response::builder()
+                    .header(header::CONTENT_TYPE, kind)
+                    .body(Body::from(bytes))
+                    .unwrap()
+            }
+        })
+    };
+    let app = Router::new()
+        .route(
+            "/clip.mpd",
+            file(manifest.as_bytes().to_vec(), "application/dash+xml"),
+        )
+        .route("/picture.mp4", file(picture, "video/mp4"))
+        .route("/sound.m4a", file(sound, "audio/mp4"));
+    let addr = serve(app).await;
+    let url = format!("http://{addr}/clip.mpd");
+
+    let dir = tempdir();
+    let finished = ytdlp::download_ytdlp(&url, &options(dir.path()), None).await;
+    std::env::remove_var("DM_FFMPEG");
+    let finished = finished.expect("yt-dlp and dm's join failed");
+
+    assert_eq!(
+        finished.path.extension().and_then(|e| e.to_str()),
+        Some("mp4")
+    );
+    let joined = std::fs::read(&finished.path).unwrap();
+    let has = |kind: &[u8]| joined.windows(4).filter(|w| *w == kind).count();
+    assert_eq!(has(b"trak"), 2, "picture and sound are both in it");
+    assert!(has(b"avc1") >= 1 && has(b"mp4a") >= 1);
+    // Nothing of the halves is left beside it.
+    let left: Vec<_> = std::fs::read_dir(finished.path.parent().unwrap())
+        .unwrap()
+        .flatten()
+        .map(|e| e.file_name())
+        .collect();
+    assert_eq!(left.len(), 1, "{left:?}");
+}

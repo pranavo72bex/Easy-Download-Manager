@@ -185,12 +185,16 @@ It appears in dm instead of in the browser, and downloads there.
   starts in your computer's language when it has it.
 
 **Videos from sites like YouTube** work out of the box. They are fetched
-with **yt-dlp**, which finds the video behind a site's player, and their
-picture and sound are joined with **ffmpeg**. If your computer has neither,
-dm fetches both itself the first time a video page needs them — from their
-official GitHub releases, checked against their checksums, into dm's own
-folder — and keeps yt-dlp up to date, since sites change and an old yt-dlp
-stops working on them. You install nothing. A yt-dlp or ffmpeg you
+with **yt-dlp**, which finds the video behind a site's player, and dm
+joins their picture and sound itself. If your computer has no yt-dlp, dm
+fetches it (with Deno, the JavaScript runtime it needs for YouTube) the
+first time a video page needs it — from the official GitHub releases,
+checked against their checksums, into dm's own folder — and keeps yt-dlp up
+to date, since sites change and an old yt-dlp stops working on them. ffmpeg
+is fetched the same way only for a WebM video, embedded subtitles or a live
+stream. You install nothing. The extension sends a video page's session
+along with the video, so a site that checks you are not a bot lets it
+through. A yt-dlp or ffmpeg you
 installed yourself (winget, Homebrew, apt, pip, Scoop, Chocolatey…) is used
 instead, found even when it is not on the PATH a browser or the Start menu
 gives dm.

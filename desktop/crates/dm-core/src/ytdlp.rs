@@ -320,24 +320,72 @@ pub fn is_page(content_type: Option<&str>) -> bool {
     crate::probe::mime_essence(content_type) == "text/html"
 }
 
+/// Who joins a separate picture and sound.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum Joiner {
+    /// yt-dlp, through an ffmpeg on this computer: any container.
+    Ffmpeg,
+    /// dm itself, after yt-dlp has fetched the two (`mp4mux`): MP4
+    /// picture and M4A sound.
+    Dm,
+}
+
 /// The `-f` selector for a wanted quality, in yt-dlp's language.
 ///
-/// The best picture and the best sound are usually separate streams, and
-/// joining them is ffmpeg's job. Without an ffmpeg to join with, asking for a
-/// pair gets two files and no video, so the choice falls to the best single
-/// stream that already carries both — lower quality than a joined pair, but
-/// a video that plays, which is the point.
-fn format_for(quality: Quality, can_merge: bool) -> String {
-    match (quality, can_merge) {
-        (Quality::Best, true) => "bv*+ba/b".to_string(),
-        (Quality::UpTo(height), true) => {
+/// The best picture and the best sound are usually separate streams. With
+/// ffmpeg, yt-dlp joins them in whatever container; without one, dm joins
+/// them, so the pair asked for is the MP4 picture and the M4A sound, and a
+/// single stream carrying both where a site has no such pair.
+fn format_for(quality: Quality, joiner: Joiner) -> String {
+    match (quality, joiner) {
+        (Quality::Best, Joiner::Ffmpeg) => "bv*+ba/b".to_string(),
+        (Quality::UpTo(height), Joiner::Ffmpeg) => {
             format!("bv*[height<={height}]+ba/b[height<={height}]/b")
         }
-        (Quality::Best, false) => "b".to_string(),
-        (Quality::UpTo(height), false) => format!("b[height<={height}]/b"),
+        (Quality::Best, Joiner::Dm) => "bv[ext=mp4]+ba[ext=m4a]/b[ext=mp4]/b".to_string(),
+        (Quality::UpTo(height), Joiner::Dm) => format!(
+            "bv[ext=mp4][height<={height}]+ba[ext=m4a]/b[ext=mp4][height<={height}]/b[height<={height}]/b"
+        ),
         // The best audio-only stream — what "audio" means for a video site.
-        (Quality::Audio, _) => "ba/b".to_string(),
+        (Quality::Audio, Joiner::Ffmpeg) => "ba/b".to_string(),
+        (Quality::Audio, Joiner::Dm) => "ba[ext=m4a]/ba/b".to_string(),
     }
+}
+
+/// Whether a download needs ffmpeg even though dm joins picture and sound
+/// itself: a container other than MP4 (WebM is joined by ffmpeg alone), or
+/// subtitles to embed.
+pub(crate) fn needs_ffmpeg(container: Option<&str>, subtitles: bool) -> bool {
+    subtitles || container.is_some_and(|c| !c.is_empty() && c != "mp4" && c != "m4a")
+}
+
+/// What yt-dlp left when it had no ffmpeg to join with: the picture and
+/// the sound beside the name it would have joined them under,
+/// `name.f137.mp4` and `name.f140.m4a`, picture first.
+async fn parts_of(joined: &Path) -> Vec<PathBuf> {
+    let (Some(dir), Some(stem)) = (joined.parent(), joined.file_stem()) else {
+        return Vec::new();
+    };
+    let prefix = format!("{}.f", stem.to_string_lossy());
+    let Ok(mut listing) = tokio::fs::read_dir(dir).await else {
+        return Vec::new();
+    };
+    let mut parts = Vec::new();
+    while let Ok(Some(entry)) = listing.next_entry().await {
+        let name = entry.file_name().to_string_lossy().into_owned();
+        let media = [".mp4", ".m4a", ".m4v", ".mov"]
+            .iter()
+            .any(|ext| name.to_ascii_lowercase().ends_with(ext));
+        if name.starts_with(&prefix) && media {
+            parts.push(entry.path());
+        }
+    }
+    // Picture before sound, as players expect the first track to be.
+    parts.sort_by_key(|p| {
+        let audio = p.extension().is_some_and(|e| e.eq_ignore_ascii_case("m4a"));
+        (audio, p.clone())
+    });
+    parts
 }
 
 /// yt-dlp's format-sort preference for the container a panel line named, so
@@ -556,6 +604,11 @@ pub async fn download_ytdlp(
     // same way and handed over explicitly. Without one, the format asks for a
     // single stream that needs no joining.
     let ffmpeg = which("ffmpeg");
+    let joiner = if ffmpeg.is_some() {
+        Joiner::Ffmpeg
+    } else {
+        Joiner::Dm
+    };
     let mut command = Command::new(binary);
     crate::no_window_async(&mut command);
     command
@@ -568,7 +621,7 @@ pub async fn download_ytdlp(
         .arg("-o")
         .arg(staging.join("%(title).200B [%(id)s].%(ext)s"))
         .arg("-f")
-        .arg(format_for(options.quality, ffmpeg.is_some()))
+        .arg(format_for(options.quality, joiner))
         .args(container_sort(options.container.as_deref()))
         .arg("--progress-template")
         .arg(format!(
@@ -750,13 +803,6 @@ pub async fn download_ytdlp(
         if let Some(said) = refusal(&stderr) {
             return Err(Error::Internal(said));
         }
-        if ffmpeg.is_none() && tail.contains("Requested format is not available") {
-            return Err(Error::Internal(
-                "that stream's picture and sound are separate and joining them needs \
-                 ffmpeg — install ffmpeg"
-                    .into(),
-            ));
-        }
         return Err(Error::Internal(format!(
             "yt-dlp could not download that{}",
             if tail.is_empty() {
@@ -774,6 +820,23 @@ pub async fn download_ytdlp(
         .filter(|p| !p.as_os_str().is_empty())
         .ok_or_else(|| Error::Internal("yt-dlp reported no output file".into()))?;
 
+    /* No ffmpeg: yt-dlp left the picture and the sound side by side under
+     * the name it would have joined them as, and dm joins them into it. */
+    if !produced.is_file() && joiner == Joiner::Dm {
+        let parts = parts_of(&produced).await;
+        if !parts.is_empty() {
+            let joined = produced.with_extension("mp4");
+            crate::mp4mux::join_async(parts.clone(), joined.clone())
+                .await
+                .map_err(|why| {
+                    Error::Internal(format!("the picture and sound could not be joined: {why}"))
+                })?;
+            for part in parts {
+                let _ = tokio::fs::remove_file(part).await;
+            }
+            return place(&joined, options).await;
+        }
+    }
     place(&produced, options).await
 }
 
@@ -784,9 +847,7 @@ async fn place(produced: &Path, options: &Options) -> Result<Finished, Error> {
     // cause is a join that never happened, and "No such file" says nothing.
     if !produced.is_file() {
         return Err(Error::Internal(
-            "yt-dlp finished but the file it named is missing — install ffmpeg so \
-             separate video and audio can be joined"
-                .into(),
+            "yt-dlp finished but the file it named is missing".into(),
         ));
     }
     let name = produced
@@ -1203,18 +1264,26 @@ mod tests {
 
     #[test]
     fn a_quality_becomes_a_format_selector() {
-        assert_eq!(format_for(Quality::Best, true), "bv*+ba/b");
-        assert_eq!(format_for(Quality::Audio, true), "ba/b");
-        assert!(format_for(Quality::UpTo(720), true).contains("height<=720"));
+        assert_eq!(format_for(Quality::Best, Joiner::Ffmpeg), "bv*+ba/b");
+        assert_eq!(format_for(Quality::Audio, Joiner::Ffmpeg), "ba/b");
+        assert!(format_for(Quality::UpTo(720), Joiner::Ffmpeg).contains("height<=720"));
     }
 
     #[test]
-    fn without_ffmpeg_a_single_stream_is_asked_for() {
-        // Two streams and no way to join them is two files and no video, so
-        // the selector must not ask for a pair when nothing can merge it.
-        assert_eq!(format_for(Quality::Best, false), "b");
-        assert_eq!(format_for(Quality::UpTo(480), false), "b[height<=480]/b");
-        assert!(!format_for(Quality::Best, false).contains('+'));
+    fn without_ffmpeg_an_mp4_picture_and_m4a_sound_are_asked_for_for_dm_to_join() {
+        // A picture-only stream (`bv`, never `bv*`): one that carries sound
+        // too would be joined with a second sound.
+        assert_eq!(
+            format_for(Quality::Best, Joiner::Dm),
+            "bv[ext=mp4]+ba[ext=m4a]/b[ext=mp4]/b"
+        );
+        assert!(format_for(Quality::UpTo(480), Joiner::Dm)
+            .starts_with("bv[ext=mp4][height<=480]+ba[ext=m4a]/"));
+        assert_eq!(format_for(Quality::Audio, Joiner::Dm), "ba[ext=m4a]/ba/b");
+        assert!(!needs_ffmpeg(None, false));
+        assert!(!needs_ffmpeg(Some("mp4"), false));
+        assert!(needs_ffmpeg(Some("webm"), false));
+        assert!(needs_ffmpeg(None, true));
     }
 
     #[test]

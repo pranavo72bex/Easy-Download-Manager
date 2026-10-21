@@ -400,7 +400,7 @@ impl World for Here<'_> {
         // through the same proxy the download will take.
         let settings = saved(self.home);
         if let Ok(client) = dm_core::proxy::client_with(&settings.proxy) {
-            runtime.block_on(dm_core::tools::for_video(&client))?;
+            runtime.block_on(dm_core::tools::for_video(&client, false))?;
         }
         let listed = runtime
             .block_on(dm_core::ytdlp::list_choices(

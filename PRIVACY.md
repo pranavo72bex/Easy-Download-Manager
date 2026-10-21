@@ -13,15 +13,18 @@ for a public file, as it does for any download.
 
 ## Getting the tools for video sites
 
-A video site's page (YouTube and the like) is downloaded with yt-dlp, and
-its picture and sound are joined with ffmpeg. If your computer has neither,
-dm fetches them the first time such a page needs them: yt-dlp's own build
-from yt-dlp's GitHub releases, and an ffmpeg build from GitHub, each checked
-against a published or built-in checksum before it is kept in dm's own
-folder. A yt-dlp fetched this way is fetched afresh once a week while it is
-in use. These requests, like any download, carry nothing about you; GitHub
-sees an address asking for a public file. A yt-dlp or ffmpeg you installed
-yourself is used instead, and then nothing is fetched.
+A video site's page (YouTube and the like) is downloaded with yt-dlp, which
+needs a JavaScript runtime (Deno) for some sites; dm joins the picture and
+sound itself. If your computer has no yt-dlp, dm fetches it and Deno the
+first time such a page needs them, from their GitHub releases, each checked
+against its published checksum before it is kept in dm's own folder. ffmpeg
+is fetched the same way (an ffmpeg build from GitHub, checked against a
+checksum built into dm) only for what dm does not do itself: a WebM video,
+subtitles embedded in the file, or a live RTMP, RTSP or MMS stream. A yt-dlp
+fetched this way is fetched afresh once a week while it is in use. These
+requests, like any download, carry nothing about you; GitHub sees an address
+asking for a public file. A yt-dlp or ffmpeg you installed yourself is used
+instead, and then it is not fetched.
 
 ## What the extension handles
 
@@ -107,5 +110,5 @@ This is also checked, not only promised: `cargo xtask privacy` (in
 `desktop/`, and as a test in every build) fails if any crate that sends
 reports — analytics, crash reporting, telemetry — enters the build, or if
 shipped code names any address but GitHub's. dm reaches GitHub only when
-you check for updates or open Help, or to fetch yt-dlp and ffmpeg when a
-video page needs them and your computer has none.
+you check for updates or open Help, or to fetch yt-dlp, Deno and ffmpeg
+when a video needs them and your computer has none.

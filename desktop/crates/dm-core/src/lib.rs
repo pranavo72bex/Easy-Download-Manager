@@ -21,6 +21,7 @@ pub mod ftp;
 pub mod limit;
 pub mod live;
 pub mod metalink;
+pub mod mp4mux;
 pub mod ntlm;
 pub mod plan;
 pub mod probe;

@@ -1101,3 +1101,23 @@ removed when it ends, and — unlike a kept one — dropped from the row once
 the video is downloaded (`Start.cookies_once`, `Entry.cookies_once`).
 Nothing from a private window. Dropped: writing a token generator of dm's
 own, which is the site logic this project does not write.
+
+## dm joins a video's picture and sound itself (2026-10-21)
+
+ffmpeg was fetched (40–80 MB) for every video page only to join a picture
+and a sound that yt-dlp had already fetched. `mp4mux.rs` does that join in
+Rust: each input's samples are read from its index — a plain `moov`, or the
+`moof` fragments a DASH server's files carry — and written as one plain MP4
+with its index first and picture and sound interleaved a second at a time,
+the samples copied byte for byte. A DASH picture with B-frames and no edit
+list is given one that starts it at its first shown frame, as ffmpeg's own
+join does (it played 67 ms behind its sound without). With no ffmpeg, yt-dlp
+is asked for an MP4 picture and an M4A sound (`bv[ext=mp4]+ba[ext=m4a]`),
+leaves them side by side (its default `ignoreerrors='only_download'` turns
+the missing merger into a warning), and dm joins them under the name yt-dlp
+reported. Measured: 120 MB joined in 96 ms where ffmpeg's `-c copy` took
+174 ms; the decoded frames and sound match the inputs' (`tests/mp4mux.rs`),
+and AVFoundation reads the result. ffmpeg is still fetched where dm does not
+do the work: a WebM picked in the panel, embedded subtitles, RTMP/RTSP/MMS.
+Not written: a WebM (Matroska) muxer, and turning an HLS `.ts` into MP4,
+which `stream.rs` still leaves to an ffmpeg if there is one.
