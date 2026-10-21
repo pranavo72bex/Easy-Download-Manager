@@ -236,7 +236,7 @@ mod tests {
     fn a_sign_in_is_taken_out_of_the_address() {
         use crate::test_secrets::{escaped, marked, secret};
         // A password with the characters an address must escape.
-        let (user, password) = (secret("rtsp-user"), marked("rtsp"));
+        let (user, password) = (secret("rtsp_user"), marked("rtsp"));
         let address = format!("rtsp://{user}:{}@cam.example:554/s1", escaped(&password));
         let (address, creds) = split_credentials(&address).unwrap();
         assert_eq!(address.as_str(), "rtsp://cam.example:554/s1");
