@@ -766,7 +766,18 @@ def main():
                                                   if t["url"].endswith("/popup.html")), None), 10)
         check("6. the Extensions button, then dm, opens the popup", popup_t,
               "no Extensions button found" if not button else "no dm entry" if not entry else "no popup")
-        if popup_t:
+        if popup_t and STORE:
+            # A store copy's popup does not answer the debugger: its switch is
+            # found where a screen reader finds it, and judged by what follows.
+            time.sleep(1)
+            shoot("6-popup", tab)
+            at = wait_for(lambda: where(APP, "*", "Catch downloads", prefix=True), 10)
+            if at:
+                press(at)
+            check("6. its 'Catch downloads' is found and clicked", at)
+            time.sleep(1)
+            shoot("6-catching-off", tab)
+        elif popup_t:
             popup = common.Target(popup_t["webSocketDebuggerUrl"])
             wait_for(lambda: popup.evaluate("!!document.getElementById('catching')"), 10)
             time.sleep(0.5)
@@ -779,6 +790,7 @@ def main():
             check("6. its 'Catch downloads', clicked, is switched off", off,
                   str(popup.evaluate("document.getElementById('catching').checked")))
             shoot("6-catching-off", tab)
+        if popup_t:
             x("xdotool", "key", "Escape")
             time.sleep(0.5)
             front(chromium_window())
