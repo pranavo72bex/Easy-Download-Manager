@@ -2,7 +2,8 @@
 //! ffmpeg.
 //!
 //! Players open an MP4; few open a `.ts`. An HLS stream's segments are a
-//! transport stream: 188-byte packets carrying H.264 pictures and AAC sound
+//! transport stream: 188-byte packets carrying H.264 or HEVC pictures and
+//! AAC, MP3/MP2 or AC-3 sound
 //! in PES packets, each stamped with when it plays. This reads them out —
 //! the tables that say which packets are which stream, the pictures as the
 //! byte stream an encoder wrote and the sound as ADTS frames — and hands
@@ -28,11 +29,49 @@ const TIMESCALE: u32 = 90_000;
 const WRAP: i64 = 1 << 33;
 
 const H264: u8 = 0x1b;
+const HEVC: u8 = 0x24;
 const AAC: u8 = 0x0f;
+const MPEG1_AUDIO: u8 = 0x03;
+const MPEG2_AUDIO: u8 = 0x04;
+const AC3: u8 = 0x81;
+const PICTURES: [u8; 2] = [H264, HEVC];
+const SOUNDS: [u8; 4] = [AAC, MPEG1_AUDIO, MPEG2_AUDIO, AC3];
 /// Picture and sound kinds this does not carry: MPEG-1/2 and MPEG-4 Part 2
-/// pictures, HEVC; MPEG audio, LATM AAC, AC-3, E-AC-3. A stream with one is
-/// refused whole rather than put into an MP4 without it.
-const OTHERS: [u8; 10] = [0x01, 0x02, 0x10, 0x24, 0x03, 0x04, 0x11, 0x81, 0x87, 0x42];
+/// pictures, AVS; LATM AAC, E-AC-3. A stream with one is refused whole
+/// rather than put into an MP4 without it.
+const OTHERS: [u8; 6] = [0x01, 0x02, 0x10, 0x42, 0x11, 0x87];
+
+/// The shape of a sound stream, from its first frame.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum Sound {
+    Aac {
+        profile: u8,
+        rate_index: u8,
+        channels: u8,
+    },
+    /// MPEG-1 or -2 audio (MP3, MP2): its frames go in whole.
+    Mpeg {
+        mpeg1: bool,
+        rate: u32,
+        channels: u16,
+        per_frame: u32,
+    },
+    Ac3 {
+        dac3: [u8; 3],
+        rate: u32,
+        channels: u16,
+    },
+}
+
+impl Sound {
+    fn per_frame(self) -> u32 {
+        match self {
+            Sound::Aac { .. } => 1024,
+            Sound::Mpeg { per_frame, .. } => per_frame,
+            Sound::Ac3 { .. } => 1536,
+        }
+    }
+}
 
 /// One elementary stream being read out.
 #[derive(Default)]
@@ -47,11 +86,12 @@ struct Elementary {
     /// Picture: per sample, its offset, size, PTS, DTS and whether it is a
     /// key frame. Sound: per frame, its offset and size.
     samples: Vec<(u64, u32, i64, i64, bool)>,
+    vps: Option<Vec<u8>>,
     sps: Option<Vec<u8>>,
     pps: Option<Vec<u8>>,
-    /// Sound: the ADTS bytes not yet a whole frame, and the stream's shape.
+    /// Sound: the bytes not yet a whole frame, and the stream's shape.
     adts: Vec<u8>,
-    audio_config: Option<(u8, u8, u8)>,
+    sound: Option<Sound>,
     first_pts: Option<i64>,
     last_pts: Option<i64>,
 }
@@ -139,11 +179,15 @@ fn read_ts(input: &Path, scratch: &dyn Fn(&str) -> PathBuf) -> Result<Vec<Elemen
                          not put into an MP4"
                     ));
                 }
-                if !streams.iter().any(|(p, _)| *p == es_pid) && (kind == H264 || kind == AAC) {
-                    let has_kind = streams.iter().any(|(_, s)| s.kind == kind);
+                let picture = PICTURES.contains(&kind);
+                if !streams.iter().any(|(p, _)| *p == es_pid) && (picture || SOUNDS.contains(&kind))
+                {
+                    let has_kind = streams
+                        .iter()
+                        .any(|(_, s)| PICTURES.contains(&s.kind) == picture);
                     // One picture and one sound: the first of each.
                     if !has_kind {
-                        let path = scratch(if kind == H264 { "video" } else { "audio" });
+                        let path = scratch(if picture { "video" } else { "audio" });
                         let out = File::create(&path)
                             .map_err(|e| format!("a scratch file could not be made: {e}"))?;
                         streams.push((
@@ -290,9 +334,10 @@ fn take_pes(stream: &mut Elementary, pes: &[u8]) -> Result<(), String> {
     if let Some(p) = pts {
         stream.last_pts = Some(p);
     }
-    match stream.kind {
-        H264 => take_picture(stream, data, pts, dts),
-        _ => take_sound(stream, data, pts),
+    if PICTURES.contains(&stream.kind) {
+        take_picture(stream, data, pts, dts)
+    } else {
+        take_sound(stream, data, pts)
     }
 }
 
@@ -330,25 +375,46 @@ fn take_picture(
 ) -> Result<(), String> {
     let mut sample = Vec::with_capacity(data.len() + 16);
     let mut key = false;
+    let hevc = stream.kind == HEVC;
     for unit in nal_units(data) {
-        match unit.first().map(|h| h & 0x1f) {
-            Some(7) => {
-                stream.sps.get_or_insert_with(|| unit.to_vec());
-            }
-            Some(8) => {
-                stream.pps.get_or_insert_with(|| unit.to_vec());
-            }
-            // Access unit delimiters and filler: not part of an MP4 sample.
-            Some(9) | Some(12) => {}
-            Some(kind) => {
-                if kind == 5 {
-                    key = true;
-                }
-                sample.extend_from_slice(&(unit.len() as u32).to_be_bytes());
-                sample.extend_from_slice(unit);
-            }
-            None => {}
+        let Some(head) = unit.first() else {
+            continue;
+        };
+        /* What each unit is: a parameter set (kept for the sample
+         * description, not the samples), a delimiter or filler (dropped),
+         * or part of the picture, a key frame's or not. */
+        let (parameter, dropped, keyframe) = if hevc {
+            let kind = (head >> 1) & 0x3f;
+            let parameter = match kind {
+                32 => Some(&mut stream.vps),
+                33 => Some(&mut stream.sps),
+                34 => Some(&mut stream.pps),
+                _ => None,
+            };
+            (
+                parameter,
+                matches!(kind, 35 | 38),
+                (16..=21).contains(&kind),
+            )
+        } else {
+            let kind = head & 0x1f;
+            let parameter = match kind {
+                7 => Some(&mut stream.sps),
+                8 => Some(&mut stream.pps),
+                _ => None,
+            };
+            (parameter, matches!(kind, 9 | 12), kind == 5)
+        };
+        if let Some(slot) = parameter {
+            slot.get_or_insert_with(|| unit.to_vec());
+            continue;
         }
+        if dropped {
+            continue;
+        }
+        key |= keyframe;
+        sample.extend_from_slice(&(unit.len() as u32).to_be_bytes());
+        sample.extend_from_slice(unit);
     }
     if sample.is_empty() {
         return Ok(());
@@ -393,59 +459,252 @@ fn take_sound(stream: &mut Elementary, data: &[u8], pts: Option<i64>) -> Result<
     stream.adts.extend_from_slice(data);
     let mut at = 0;
     let buffered = std::mem::take(&mut stream.adts);
-    while let Some(head) = buffered
-        .get(at..at + 7)
-        .and_then(|h| <[u8; 7]>::try_from(h).ok())
-    {
-        if head[0] != 0xff || head[1] & 0xf0 != 0xf0 {
-            // Not on a frame: step to the next sync word.
-            at += 1;
-            continue;
+    let reader = match stream.kind {
+        AAC => adts_frame,
+        AC3 => ac3_frame,
+        _ => mpeg_audio_frame,
+    };
+    while let Some(rest) = buffered.get(at..) {
+        match reader(rest) {
+            Frame::Whole {
+                shape,
+                skip,
+                length,
+            } => {
+                // The first frame's shape is the stream's.
+                stream.sound.get_or_insert(shape);
+                let frame = rest.get(skip..length).unwrap_or_default().to_vec();
+                write(stream, &frame)?;
+                let offset = stream.written - frame.len() as u64;
+                stream
+                    .samples
+                    .push((offset, frame.len() as u32, 0, 0, true));
+                at += length;
+            }
+            Frame::NotHere => at += 1,
+            Frame::Short => break,
         }
-        let protection_absent = head[1] & 1 != 0;
-        let profile = head[2] >> 6;
-        let rate = (head[2] >> 2) & 0x0f;
-        let channels = ((head[2] & 1) << 2) | (head[3] >> 6);
-        let length = (usize::from(head[3] & 3) << 11)
-            | (usize::from(head[4]) << 3)
-            | (usize::from(head[5]) >> 5);
-        let header = if protection_absent { 7 } else { 9 };
-        if length <= header {
-            at += 1;
-            continue;
-        }
-        let Some(frame) = buffered.get(at + header..at + length) else {
-            break;
-        };
-        stream.audio_config.get_or_insert((profile, rate, channels));
-        let frame = frame.to_vec();
-        write(stream, &frame)?;
-        let offset = stream.written - frame.len() as u64;
-        stream
-            .samples
-            .push((offset, frame.len() as u32, 0, 0, true));
-        at += length;
     }
     stream.adts = buffered.get(at..).unwrap_or_default().to_vec();
     Ok(())
+}
+
+/// What a sound frame reader found at the start of its bytes.
+enum Frame {
+    /// A frame of `length` bytes, its sample from `skip` on.
+    Whole {
+        shape: Sound,
+        skip: usize,
+        length: usize,
+    },
+    /// No frame starts here: step on a byte.
+    NotHere,
+    /// One starts, but its end has not arrived.
+    Short,
+}
+
+/// An ADTS frame: AAC with a 7- or 9-byte header, which is not part of the
+/// MP4 sample.
+fn adts_frame(rest: &[u8]) -> Frame {
+    let Some(head) = rest.get(..7).and_then(|h| <[u8; 7]>::try_from(h).ok()) else {
+        return Frame::Short;
+    };
+    if head[0] != 0xff || head[1] & 0xf0 != 0xf0 {
+        return Frame::NotHere;
+    }
+    let header = if head[1] & 1 != 0 { 7 } else { 9 };
+    let length = (usize::from(head[3] & 3) << 11)
+        | (usize::from(head[4]) << 3)
+        | (usize::from(head[5]) >> 5);
+    if length <= header {
+        return Frame::NotHere;
+    }
+    if rest.len() < length {
+        return Frame::Short;
+    }
+    Frame::Whole {
+        shape: Sound::Aac {
+            profile: head[2] >> 6,
+            rate_index: (head[2] >> 2) & 0x0f,
+            channels: ((head[2] & 1) << 2) | (head[3] >> 6),
+        },
+        skip: header,
+        length,
+    }
+}
+
+/// An MPEG-1/2 audio frame (MP3, MP2), header and all.
+fn mpeg_audio_frame(rest: &[u8]) -> Frame {
+    let Some(head) = rest.get(..4).and_then(|h| <[u8; 4]>::try_from(h).ok()) else {
+        return Frame::Short;
+    };
+    if head[0] != 0xff || head[1] & 0xe0 != 0xe0 {
+        return Frame::NotHere;
+    }
+    let version = (head[1] >> 3) & 3; // 3: MPEG-1, 2: MPEG-2, 0: MPEG-2.5
+    let layer = (head[1] >> 1) & 3; // 3: I, 2: II, 1: III
+    let bitrate_index = usize::from(head[2] >> 4);
+    let rate_index = usize::from((head[2] >> 2) & 3);
+    let padding = u32::from((head[2] >> 1) & 1);
+    if version == 1 || layer == 0 || bitrate_index == 0 || bitrate_index == 15 || rate_index == 3 {
+        return Frame::NotHere;
+    }
+    const V1: [[u32; 15]; 3] = [
+        [
+            0, 32, 64, 96, 128, 160, 192, 224, 256, 288, 320, 352, 384, 416, 448,
+        ],
+        [
+            0, 32, 48, 56, 64, 80, 96, 112, 128, 160, 192, 224, 256, 320, 384,
+        ],
+        [
+            0, 32, 40, 48, 56, 64, 80, 96, 112, 128, 160, 192, 224, 256, 320,
+        ],
+    ];
+    const V2: [[u32; 15]; 2] = [
+        [
+            0, 32, 48, 56, 64, 80, 96, 112, 128, 144, 160, 176, 192, 224, 256,
+        ],
+        [0, 8, 16, 24, 32, 40, 48, 56, 64, 80, 96, 112, 128, 144, 160],
+    ];
+    let mpeg1 = version == 3;
+    let row = 3 - usize::from(layer); // 0: I, 1: II, 2: III
+    let kbps = if mpeg1 {
+        V1.get(row).and_then(|r| r.get(bitrate_index))
+    } else {
+        V2.get(row.min(1)).and_then(|r| r.get(bitrate_index))
+    };
+    let base = [44100, 48000, 32000];
+    let Some(rate) = base.get(rate_index).map(|r| match version {
+        3 => *r,
+        2 => r / 2,
+        _ => r / 4,
+    }) else {
+        return Frame::NotHere;
+    };
+    let Some(bitrate) = kbps.map(|k| k * 1000) else {
+        return Frame::NotHere;
+    };
+    let (length, per_frame) = match row {
+        0 => ((12 * bitrate / rate + padding) * 4, 384),
+        1 => (144 * bitrate / rate + padding, 1152),
+        _ if mpeg1 => (144 * bitrate / rate + padding, 1152),
+        _ => (72 * bitrate / rate + padding, 576),
+    };
+    let length = length as usize;
+    if length < 4 {
+        return Frame::NotHere;
+    }
+    if rest.len() < length {
+        return Frame::Short;
+    }
+    Frame::Whole {
+        shape: Sound::Mpeg {
+            mpeg1,
+            rate,
+            channels: if head[3] >> 6 == 3 { 1 } else { 2 },
+            per_frame,
+        },
+        skip: 0,
+        length,
+    }
+}
+
+/// An AC-3 sync frame, whole.
+fn ac3_frame(rest: &[u8]) -> Frame {
+    let Some(head) = rest.get(..8) else {
+        return Frame::Short;
+    };
+    if head.get(..2) != Some(&[0x0b, 0x77]) {
+        return Frame::NotHere;
+    }
+    let (Some(b4), Some(b5)) = (head.get(4), head.get(5)) else {
+        return Frame::Short;
+    };
+    let fscod = b4 >> 6;
+    let frmsizecod = usize::from(b4 & 0x3f);
+    let bsid = b5 >> 3;
+    let bsmod = b5 & 7;
+    if fscod == 3 || frmsizecod > 37 || bsid > 10 {
+        return Frame::NotHere;
+    }
+    const WORDS: [[u16; 19]; 3] = [
+        [
+            64, 80, 96, 112, 128, 160, 192, 224, 256, 320, 384, 448, 512, 640, 768, 896, 1024,
+            1152, 1280,
+        ],
+        [
+            69, 87, 104, 121, 139, 174, 208, 243, 278, 348, 417, 487, 557, 696, 835, 975, 1114,
+            1253, 1393,
+        ],
+        [
+            96, 120, 144, 168, 192, 240, 288, 336, 384, 480, 576, 672, 768, 960, 1152, 1344, 1536,
+            1728, 1920,
+        ],
+    ];
+    let Some(words) = WORDS
+        .get(usize::from(fscod))
+        .and_then(|row| row.get(frmsizecod / 2))
+    else {
+        return Frame::NotHere;
+    };
+    // At 44.1 kHz an odd code is a frame one word longer.
+    let words = usize::from(*words) + usize::from(fscod == 1 && frmsizecod % 2 == 1);
+    let length = words * 2;
+    let mut bits = Bits {
+        data: head.get(6..).unwrap_or_default(),
+        at: 0,
+    };
+    let Some(acmod) = bits.take(3) else {
+        return Frame::Short;
+    };
+    if acmod & 1 != 0 && acmod != 1 {
+        bits.take(2);
+    }
+    if acmod & 4 != 0 {
+        bits.take(2);
+    }
+    if acmod == 2 {
+        bits.take(2);
+    }
+    let lfe = bits.take(1).unwrap_or(0);
+    if rest.len() < length {
+        return Frame::Short;
+    }
+    let rate = [48000, 44100, 32000]
+        .get(usize::from(fscod))
+        .copied()
+        .unwrap_or(48000);
+    let bit_rate_code = (frmsizecod / 2) as u32;
+    let packed: u32 = (u32::from(fscod) << 22)
+        | (u32::from(bsid) << 17)
+        | (u32::from(bsmod) << 14)
+        | (acmod << 11)
+        | (lfe << 10)
+        | (bit_rate_code << 5);
+    let [_, a, b, c] = packed.to_be_bytes();
+    let channels = [2u16, 1, 2, 3, 3, 4, 4, 5]
+        .get(acmod as usize)
+        .copied()
+        .unwrap_or(2)
+        + lfe as u16;
+    Frame::Whole {
+        shape: Sound::Ac3 {
+            dac3: [a, b, c],
+            rate,
+            channels,
+        },
+        skip: 0,
+        length,
+    }
 }
 
 // ---- the MP4 tracks -----------------------------------------------------
 
 /// Reads an H.264 sequence parameter set's picture size.
 fn picture_size(sps: &[u8]) -> Option<(u32, u32)> {
-    // Emulation prevention bytes out: 00 00 03 is 00 00.
-    let mut rbsp = Vec::with_capacity(sps.len());
-    let mut zeros = 0;
-    for b in sps.iter().skip(1) {
-        if zeros >= 2 && *b == 3 {
-            zeros = 0;
-            continue;
-        }
-        zeros = if *b == 0 { zeros + 1 } else { 0 };
-        rbsp.push(*b);
-    }
-    let mut bits = Bits { data: &rbsp, at: 0 };
+    // Past the one-byte NAL header, emulation prevention bytes out.
+    let data = rbsp(sps.get(1..)?);
+    let mut bits = Bits { data: &data, at: 0 };
     let profile = bits.take(8)?;
     bits.take(16)?; // constraints, level
     bits.ue()?; // seq_parameter_set_id
@@ -579,7 +838,150 @@ fn tkhd_tail(volume: u16, width: u32, height: u32) -> Vec<u8> {
     tail
 }
 
+/// An RBSP: a NAL unit's payload with its emulation prevention bytes out.
+fn rbsp(unit: &[u8]) -> Vec<u8> {
+    let mut out = Vec::with_capacity(unit.len());
+    let mut zeros = 0;
+    for b in unit {
+        if zeros >= 2 && *b == 3 {
+            zeros = 0;
+            continue;
+        }
+        zeros = if *b == 0 { zeros + 1 } else { 0 };
+        out.push(*b);
+    }
+    out
+}
+
+/// What an HEVC sequence parameter set says that its `hvcC` repeats: the
+/// profile, tier and level bytes as they are, the sub-layers, the chroma
+/// format and bit depths, and the picture's size.
+struct HevcSps {
+    profile: Vec<u8>,
+    sub_layers: u32,
+    nested: bool,
+    chroma: u32,
+    luma_bits: u32,
+    chroma_bits: u32,
+    width: u32,
+    height: u32,
+}
+
+fn hevc_sps(sps: &[u8]) -> Option<HevcSps> {
+    // Past the two-byte NAL header.
+    let data = rbsp(sps.get(2..)?);
+    let mut bits = Bits { data: &data, at: 0 };
+    bits.take(4)?;
+    let max_sub_layers = bits.take(3)?;
+    let nested = bits.take(1)? == 1;
+    // general_profile_space … general_level_idc: twelve whole bytes.
+    let profile = data.get(1..13)?.to_vec();
+    bits.at = 13 * 8;
+    let mut present = Vec::new();
+    for _ in 0..max_sub_layers {
+        present.push((bits.take(1)?, bits.take(1)?));
+    }
+    if max_sub_layers > 0 {
+        for _ in max_sub_layers..8 {
+            bits.take(2)?;
+        }
+    }
+    for (profile_present, level_present) in present {
+        if profile_present == 1 {
+            bits.at += 88;
+        }
+        if level_present == 1 {
+            bits.at += 8;
+        }
+    }
+    bits.ue()?;
+    let chroma = bits.ue()?;
+    if chroma == 3 {
+        bits.take(1)?;
+    }
+    let mut width = bits.ue()?;
+    let mut height = bits.ue()?;
+    if bits.take(1)? == 1 {
+        let (sub_w, sub_h) = match chroma {
+            1 => (2, 2),
+            2 => (2, 1),
+            _ => (1, 1),
+        };
+        let (left, right, top, bottom) = (bits.ue()?, bits.ue()?, bits.ue()?, bits.ue()?);
+        width = width.checked_sub((left + right) * sub_w)?;
+        height = height.checked_sub((top + bottom) * sub_h)?;
+    }
+    let luma_bits = bits.ue()? + 8;
+    let chroma_bits = bits.ue()? + 8;
+    Some(HevcSps {
+        profile,
+        sub_layers: max_sub_layers + 1,
+        nested,
+        chroma,
+        luma_bits,
+        chroma_bits,
+        width,
+        height,
+    })
+}
+
+/// An HEVC picture's sample entry: `hvc1`, its parameter sets in `hvcC`
+/// (and none in the samples), and its size.
+fn hevc_entry(stream: &Elementary) -> Result<(Vec<u8>, u32, u32), String> {
+    let (Some(vps), Some(sps), Some(pps)) = (&stream.vps, &stream.sps, &stream.pps) else {
+        return Err("its pictures have no parameter sets".into());
+    };
+    let info = hevc_sps(sps).ok_or("its sequence parameter set could not be read")?;
+    let mut hvcc = vec![1];
+    hvcc.extend_from_slice(&info.profile);
+    hvcc.extend_from_slice(&[0xf0, 0x00, 0xfc]);
+    hvcc.push(0xfc | (info.chroma & 3) as u8);
+    hvcc.push(0xf8 | (info.luma_bits.saturating_sub(8) & 7) as u8);
+    hvcc.push(0xf8 | (info.chroma_bits.saturating_sub(8) & 7) as u8);
+    hvcc.extend_from_slice(&[0, 0]);
+    hvcc.push((((info.sub_layers & 7) << 3) as u8) | (u8::from(info.nested) << 2) | 3);
+    hvcc.push(3);
+    for (kind, unit) in [(32u8, vps), (33, sps), (34, pps)] {
+        hvcc.push(0x80 | kind);
+        hvcc.extend_from_slice(&1u16.to_be_bytes());
+        hvcc.extend_from_slice(&(unit.len() as u16).to_be_bytes());
+        hvcc.extend_from_slice(unit);
+    }
+    Ok((boxed(b"hvcC", &[&hvcc]), info.width, info.height))
+}
+
 fn video_track(stream: &Elementary, input: usize, lead: i64) -> Result<Track, String> {
+    let (config, codec, width, height) = if stream.kind == HEVC {
+        let (hvcc, width, height) = hevc_entry(stream)?;
+        (hvcc, *b"hvc1", width, height)
+    } else {
+        let (avcc, width, height) = avc_entry(stream)?;
+        (avcc, *b"avc1", width, height)
+    };
+    let mut entry = vec![0u8; 6];
+    entry.extend_from_slice(&1u16.to_be_bytes());
+    entry.extend_from_slice(&[0u8; 16]);
+    entry.extend_from_slice(&(width as u16).to_be_bytes());
+    entry.extend_from_slice(&(height as u16).to_be_bytes());
+    entry.extend_from_slice(&0x0048_0000u32.to_be_bytes());
+    entry.extend_from_slice(&0x0048_0000u32.to_be_bytes());
+    entry.extend_from_slice(&0u32.to_be_bytes());
+    entry.extend_from_slice(&1u16.to_be_bytes());
+    entry.extend_from_slice(&[0u8; 32]);
+    entry.extend_from_slice(&0x0018u16.to_be_bytes());
+    entry.extend_from_slice(&0xffffu16.to_be_bytes());
+    let sample_entry = boxed(&codec, &[&entry, &config]);
+    let stsd = full(
+        b"stsd",
+        0,
+        0,
+        &[&1u32.to_be_bytes()[..], &sample_entry].concat(),
+    );
+    picture_track(stream, input, lead, stsd, width, height)
+}
+
+/// An H.264 picture's `avcC` and size.
+fn avc_entry(stream: &Elementary) -> Result<(Vec<u8>, u32, u32), String> {
     let (Some(sps), Some(pps)) = (&stream.sps, &stream.pps) else {
         return Err("its pictures have no parameter sets".into());
     };
@@ -597,21 +999,17 @@ fn video_track(stream: &Elementary, input: usize, lead: i64) -> Result<Track, St
     avcc.push(1);
     avcc.extend_from_slice(&(pps.len() as u16).to_be_bytes());
     avcc.extend_from_slice(pps);
-    let mut entry = vec![0u8; 6];
-    entry.extend_from_slice(&1u16.to_be_bytes());
-    entry.extend_from_slice(&[0u8; 16]);
-    entry.extend_from_slice(&(width as u16).to_be_bytes());
-    entry.extend_from_slice(&(height as u16).to_be_bytes());
-    entry.extend_from_slice(&0x0048_0000u32.to_be_bytes());
-    entry.extend_from_slice(&0x0048_0000u32.to_be_bytes());
-    entry.extend_from_slice(&0u32.to_be_bytes());
-    entry.extend_from_slice(&1u16.to_be_bytes());
-    entry.extend_from_slice(&[0u8; 32]);
-    entry.extend_from_slice(&0x0018u16.to_be_bytes());
-    entry.extend_from_slice(&0xffffu16.to_be_bytes());
-    let avc1 = boxed(b"avc1", &[&entry, &boxed(b"avcC", &[&avcc])]);
-    let stsd = full(b"stsd", 0, 0, &[&1u32.to_be_bytes()[..], &avc1].concat());
+    Ok((boxed(b"avcC", &[&avcc]), width, height))
+}
 
+fn picture_track(
+    stream: &Elementary,
+    input: usize,
+    lead: i64,
+    stsd: Vec<u8>,
+    width: u32,
+    height: u32,
+) -> Result<Track, String> {
     let first_dts = stream.samples.first().map_or(0, |s| s.3);
     let mut durations: Vec<u32> = stream
         .samples
@@ -688,36 +1086,78 @@ fn descriptor(tag: u8, body: &[u8]) -> Vec<u8> {
 }
 
 fn audio_track(stream: &Elementary, input: usize, lead: i64) -> Result<Track, String> {
-    let (profile, rate_index, channels) = stream.audio_config.ok_or("its sound has no frames")?;
-    let rate = *RATES
-        .get(usize::from(rate_index))
-        .ok_or("its sound has an unknown sample rate")?;
-    let config =
-        (u16::from(profile + 1) << 11) | (u16::from(rate_index) << 7) | (u16::from(channels) << 3);
-    let mut decoder = vec![0x40, 0x15, 0, 0, 0];
-    decoder.extend_from_slice(&0u32.to_be_bytes());
-    decoder.extend_from_slice(&0u32.to_be_bytes());
-    decoder.extend(descriptor(5, &config.to_be_bytes()));
-    let mut es = vec![0, 0, 0];
-    es.extend(descriptor(4, &decoder));
-    es.extend(descriptor(6, &[2]));
-    let esds = full(b"esds", 0, 0, &descriptor(3, &es));
+    let shape = stream.sound.ok_or("its sound has no frames")?;
+    let es = |object: u8, specific: Option<&[u8]>| {
+        let mut decoder = vec![object, 0x15, 0, 0, 0];
+        decoder.extend_from_slice(&0u32.to_be_bytes());
+        decoder.extend_from_slice(&0u32.to_be_bytes());
+        if let Some(specific) = specific {
+            decoder.extend(descriptor(5, specific));
+        }
+        let mut es = vec![0, 0, 0];
+        es.extend(descriptor(4, &decoder));
+        es.extend(descriptor(6, &[2]));
+        full(b"esds", 0, 0, &descriptor(3, &es))
+    };
+    let (codec, config, rate, channels) = match shape {
+        Sound::Aac {
+            profile,
+            rate_index,
+            channels,
+        } => {
+            let rate = *RATES
+                .get(usize::from(rate_index))
+                .ok_or("its sound has an unknown sample rate")?;
+            let specific = (u16::from(profile + 1) << 11)
+                | (u16::from(rate_index) << 7)
+                | (u16::from(channels) << 3);
+            (
+                *b"mp4a",
+                es(0x40, Some(&specific.to_be_bytes())),
+                rate,
+                u16::from(channels),
+            )
+        }
+        // MPEG-1 audio is object type 0x6B; MPEG-2's (and 2.5's) 0x69.
+        Sound::Mpeg {
+            mpeg1,
+            rate,
+            channels,
+            ..
+        } => (
+            *b"mp4a",
+            es(if mpeg1 { 0x6b } else { 0x69 }, None),
+            rate,
+            channels,
+        ),
+        Sound::Ac3 {
+            dac3,
+            rate,
+            channels,
+        } => (*b"ac-3", boxed(b"dac3", &[&dac3]), rate, channels),
+    };
     let mut entry = vec![0u8; 6];
     entry.extend_from_slice(&1u16.to_be_bytes());
     entry.extend_from_slice(&[0u8; 8]);
-    entry.extend_from_slice(&u16::from(channels.max(1)).to_be_bytes());
+    entry.extend_from_slice(&channels.clamp(1, 2).to_be_bytes());
     entry.extend_from_slice(&16u16.to_be_bytes());
     entry.extend_from_slice(&[0u8; 4]);
     entry.extend_from_slice(&(rate << 16).to_be_bytes());
-    let mp4a = boxed(b"mp4a", &[&entry, &esds]);
-    let stsd = full(b"stsd", 0, 0, &[&1u32.to_be_bytes()[..], &mp4a].concat());
+    let sample_entry = boxed(&codec, &[&entry, &config]);
+    let stsd = full(
+        b"stsd",
+        0,
+        0,
+        &[&1u32.to_be_bytes()[..], &sample_entry].concat(),
+    );
+    let per_frame = shape.per_frame();
     let samples = stream
         .samples
         .iter()
         .map(|s| Sample {
             offset: s.0,
             size: s.1,
-            duration: 1024,
+            duration: per_frame,
             cts: 0,
             sync: true,
         })
@@ -751,12 +1191,12 @@ fn audio_track(stream: &Elementary, input: usize, lead: i64) -> Result<Track, St
 fn build(streams: &mut [Elementary], out: &Path) -> Result<u64, String> {
     let video = streams
         .iter()
-        .position(|s| s.kind == H264 && !s.samples.is_empty());
+        .position(|s| PICTURES.contains(&s.kind) && !s.samples.is_empty());
     let audio = streams
         .iter()
-        .position(|s| s.kind == AAC && !s.samples.is_empty());
+        .position(|s| SOUNDS.contains(&s.kind) && !s.samples.is_empty());
     if video.is_none() && audio.is_none() {
-        return Err("it holds no H.264 picture or AAC sound dm can put into an MP4".into());
+        return Err("it holds no picture or sound dm can put into an MP4".into());
     }
     // Picture and sound start together: whichever starts later waits.
     let start = |i: Option<usize>| i.and_then(|i| streams.get(i)).and_then(|s| s.first_pts);

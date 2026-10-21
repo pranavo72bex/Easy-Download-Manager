@@ -616,3 +616,88 @@ fn subtitles_are_carried_in_the_mp4_and_the_webm_dm_joins() {
         );
     }
 }
+
+/// A transport stream of `video` (an ffmpeg encoder) and `audio`, put into
+/// an MP4 by dm: it decodes as the stream does, picture and sound.
+fn check_ts_kind(video: &str, audio: &str) {
+    let Some(ffmpeg) = tool("ffmpeg") else {
+        eprintln!("no ffmpeg here to make and judge real files; skipped");
+        return;
+    };
+    let encoders = run(&ffmpeg, &["-v", "error", "-encoders"]);
+    if !encoders.contains(video) || !encoders.contains(audio) {
+        eprintln!("this ffmpeg has no {video} or {audio} encoder; skipped");
+        return;
+    }
+    let dir = tempfile::tempdir().unwrap();
+    let ts = dir.path().join("joined.ts");
+    run(
+        &ffmpeg,
+        &[
+            "-v",
+            "error",
+            "-y",
+            "-f",
+            "lavfi",
+            "-i",
+            "testsrc2=duration=4:size=320x180:rate=25",
+            "-f",
+            "lavfi",
+            "-i",
+            "sine=frequency=440:duration=4:sample_rate=48000",
+            "-c:v",
+            video,
+            "-g",
+            "25",
+            "-pix_fmt",
+            "yuv420p",
+            "-c:a",
+            audio,
+            "-ac",
+            "2",
+            "-f",
+            "mpegts",
+            ts.to_str().unwrap(),
+        ],
+    );
+    let out = dir.path().join("joined.mp4");
+    dm_core::tsmux::to_mp4(&ts, &out).unwrap_or_else(|e| panic!("{video}/{audio}: {e}"));
+    let said = Command::new(&ffmpeg)
+        .args([
+            "-v",
+            "error",
+            "-i",
+            out.to_str().unwrap(),
+            "-f",
+            "null",
+            "-",
+        ])
+        .output()
+        .unwrap();
+    assert!(
+        said.status.success() && said.stderr.is_empty(),
+        "{video}/{audio}: {}",
+        String::from_utf8_lossy(&said.stderr)
+    );
+    same_as_ffmpeg(&ffmpeg, &out, &[&ts]);
+}
+
+#[test]
+fn a_transport_stream_with_mp3_sound_becomes_an_mp4() {
+    check_ts_kind("libx264", "libmp3lame");
+}
+
+#[test]
+fn a_transport_stream_with_mp2_sound_becomes_an_mp4() {
+    check_ts_kind("libx264", "mp2");
+}
+
+#[test]
+fn a_transport_stream_with_ac3_sound_becomes_an_mp4() {
+    check_ts_kind("libx264", "ac3");
+}
+
+#[test]
+fn a_transport_stream_with_hevc_pictures_becomes_an_mp4() {
+    check_ts_kind("libx265", "aac");
+}

@@ -1160,3 +1160,14 @@ again with them; one that will not take them keeps its picture and sound.
 A real YouTube video's English and German subtitles read back exact. A
 block before zero (Opus's delay) now keeps its time, the first cluster at
 zero and its offset negative, rather than moving everything 7 ms on.
+
+## More of a transport stream put into MP4 by dm (2026-10-21)
+
+`tsmux.rs` now also carries HEVC pictures (an `hvc1` with its `hvcC` built
+from the VPS, SPS and PPS: profile bytes as they are, sub-layers, chroma
+format, bit depths and size read from the SPS), MPEG-1/2 audio (MP3, MP2:
+frames whole, object type 0x6B or 0x69) and AC-3 (`ac-3` with its `dac3`,
+frame sizes from the standard's table). Each was made by ffmpeg, put into an
+MP4 by dm and decoded identical to the stream; AVFoundation reads the HEVC
+and AC-3 one. Still refused, and left to an ffmpeg or kept as `.ts`:
+MPEG-1/2 and MPEG-4 Part 2 pictures, LATM AAC, E-AC-3.

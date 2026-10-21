@@ -405,7 +405,7 @@ static FFMPEG_ENV: tokio::sync::Mutex<()> = tokio::sync::Mutex::const_new(());
 
 /// A real HLS stream of `seconds`, made by ffmpeg into `site`: H.264 and
 /// `sound` (an ffmpeg encoder: `aac`, which dm puts into an MP4 itself, or
-/// `mp2`, which it leaves to an ffmpeg). False where this ffmpeg cannot
+/// `eac3`, which it leaves to an ffmpeg). False where this ffmpeg cannot
 /// make one.
 #[cfg(unix)]
 fn make_stream(
@@ -460,7 +460,7 @@ async fn a_remux_that_fails_keeps_the_stream_whole_as_ts() {
         return;
     };
     let site = tempdir();
-    if !make_stream(&real, site.path(), 3, "mp2") {
+    if !make_stream(&real, site.path(), 3, "eac3") {
         return;
     }
     let addr = serve_folder(site.path().to_path_buf()).await;
@@ -616,7 +616,7 @@ async fn a_pause_during_the_remux_keeps_the_stream_and_a_resume_fetches_nothing_
         return;
     };
     let site = tempdir();
-    if !make_stream(&real, site.path(), 3, "mp2") {
+    if !make_stream(&real, site.path(), 3, "eac3") {
         return;
     }
     // Segments served and counted.
