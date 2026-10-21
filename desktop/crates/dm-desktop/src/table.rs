@@ -359,6 +359,12 @@ pub fn show(app: &mut DmApp, ui: &mut egui::Ui) {
                             // under the whole row, which runs past the
                             // window, it opened over the places (UI round 5).
                             .anchor(egui::PopupAnchor::ParentRect(response.rect.intersect(seen)))
+                            // Below the row, else above it: where neither
+                            // fitted, egui put it at the row's left, over
+                            // the places (a short window, or the browser bar
+                            // above the list).
+                            .align(egui::RectAlign::BOTTOM_START)
+                            .align_alternatives(&[egui::RectAlign::TOP_START])
                             .open_memory(by_key.then_some(egui::SetOpenCommand::Bool(true)))
                             .show(|ui| row_menu(app, ui));
                     });
