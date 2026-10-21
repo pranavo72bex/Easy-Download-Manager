@@ -558,5 +558,12 @@
  "Chrome and others": "Chrome ve diğerleri",
  "Not now": "Şimdi değil",
  "Add dm to your browser:": "dm'yi tarayıcınıza ekleyin:",
- "Downloads you click in your browser come to dm once its extension is added.": "Uzantısı eklendiğinde, tarayıcıda tıkladığınız indirmeler dm'ye gelir."
+ "Downloads you click in your browser come to dm once its extension is added.": "Uzantısı eklendiğinde, tarayıcıda tıkladığınız indirmeler dm'ye gelir.",
+ "the server had a problem on its side: try again later": "Sunucu kendi tarafında bir sorun yaşadı: daha sonra yeniden deneyin",
+ "the site is turning away too many requests just now: try again later": "Site şu anda çok fazla isteği geri çeviriyor: daha sonra yeniden deneyin",
+ "the site would not give dm the file: it may need you signed in (Properties › Login)": "Site dosyayı dm'ye vermedi: oturum açmanız gerekebilir (Özellikler › Oturum)",
+ "the site wants to check you are not a bot: play the video in your browser, then use its Download video button": "Site bot olmadığınızı denetlemek istiyor: videoyu tarayıcıda oynatın, sonra oradaki Videoyu indir düğmesini kullanın",
+ "this video is not available: it may be private, removed or not shown in your country": "Bu video kullanılamıyor: özel, kaldırılmış ya da ülkenizde gösterilmiyor olabilir",
+ "dm could not get the video from this page": "dm bu sayfadaki videoyu alamadı",
+ "Known once the video starts": "Video başladığında bilinir"
 }

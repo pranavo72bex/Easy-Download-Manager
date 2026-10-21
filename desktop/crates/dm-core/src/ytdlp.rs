@@ -38,7 +38,71 @@ pub fn available() -> bool {
 
 /// Where yt-dlp actually is, resolved the same way `available` decides.
 pub(crate) fn binary() -> Option<PathBuf> {
-    which("yt-dlp")
+    let found = which("yt-dlp")?;
+    // An installed yt-dlp months old fails on the sites that changed since
+    // (Debian's and Ubuntu's own packages lag far behind): passed over for
+    // the copy dm keeps current, or for one fetched now (`tools::ensure`).
+    // One named outright (`DM_YTDLP`) is used as it is.
+    let named = std::env::var_os("DM_YTDLP").is_some();
+    if named || crate::tools::is_fetched(&found) || !stale(&found) {
+        return Some(found);
+    }
+    crate::tools::fetched("yt-dlp")
+}
+
+/// How old an installed yt-dlp may be before dm prefers its own: YouTube
+/// changes often enough that a release four months old is often broken.
+const STALE_DAYS: i64 = 120;
+
+/// Whether the yt-dlp at `path` says it is older than [`STALE_DAYS`]. Asked
+/// once a run for each copy; one that does not answer with a date is taken
+/// as it is.
+fn stale(path: &Path) -> bool {
+    static SEEN: std::sync::OnceLock<std::sync::Mutex<std::collections::HashMap<PathBuf, bool>>> =
+        std::sync::OnceLock::new();
+    let seen = SEEN.get_or_init(Default::default);
+    if let Some(known) = crate::lock(seen).get(path) {
+        return *known;
+    }
+    let mut command = std::process::Command::new(path);
+    crate::no_window(&mut command);
+    let said = command
+        .arg("--version")
+        .stdin(std::process::Stdio::null())
+        .stderr(std::process::Stdio::null())
+        .output()
+        .ok()
+        .filter(|o| o.status.success())
+        .map(|o| String::from_utf8_lossy(&o.stdout).into_owned());
+    let today = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map_or(0, |d| (d.as_secs() / 86_400) as i64);
+    let old = said
+        .as_deref()
+        .and_then(released_on)
+        .is_some_and(|day| today - day > STALE_DAYS);
+    crate::lock(seen).insert(path.to_path_buf(), old);
+    old
+}
+
+/// The day a yt-dlp version names, as days since 1970: its versions are
+/// dates, `2026.08.19` (a nightly adds `.123456`).
+fn released_on(version: &str) -> Option<i64> {
+    let mut parts = version.trim().split('.');
+    let year: i64 = parts.next()?.parse().ok()?;
+    let month: i64 = parts.next()?.parse().ok()?;
+    let day: i64 = parts.next()?.parse().ok()?;
+    if !(2000..=2200).contains(&year) || !(1..=12).contains(&month) || !(1..=31).contains(&day) {
+        return None;
+    }
+    // Days from the civil date (Howard Hinnant's algorithm).
+    let y = if month <= 2 { year - 1 } else { year };
+    let era = y.div_euclid(400);
+    let yoe = y - era * 400;
+    let mp = (month + 9) % 12;
+    let doy = (153 * mp + 2) / 5 + day - 1;
+    let doe = yoe * 365 + yoe / 4 - yoe / 100 + doy;
+    Some(era * 146_097 + doe - 719_468)
 }
 
 /// The ffmpeg dm can run, if any: for joining picture and sound, and for
@@ -1314,6 +1378,17 @@ mod tests {
     }
 
     use super::*;
+
+    /// An installed yt-dlp is judged by the date its version names.
+    #[test]
+    fn a_yt_dlp_version_is_read_as_the_day_it_came_out() {
+        assert_eq!(released_on("2000.03.01"), Some(11_017));
+        assert_eq!(released_on("2026.08.19\n"), Some(20_684));
+        assert_eq!(released_on("2026.08.19.232509"), Some(20_684));
+        assert_eq!(released_on("2023.03.04"), Some(19_420));
+        assert_eq!(released_on("stable@2026.08.19"), None);
+        assert_eq!(released_on("1.2.3"), None);
+    }
 
     #[test]
     fn the_list_offers_mp4_where_there_is_one_as_youtube_lists_webm_bigger() {

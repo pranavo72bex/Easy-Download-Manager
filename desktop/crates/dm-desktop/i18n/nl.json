@@ -558,5 +558,12 @@
  "Chrome and others": "Chrome en andere",
  "Not now": "Niet nu",
  "Add dm to your browser:": "Voeg dm toe aan je browser:",
- "Downloads you click in your browser come to dm once its extension is added.": "Downloads waarop je in je browser klikt, gaan naar dm zodra de extensie is toegevoegd."
+ "Downloads you click in your browser come to dm once its extension is added.": "Downloads waarop je in je browser klikt, gaan naar dm zodra de extensie is toegevoegd.",
+ "the server had a problem on its side: try again later": "De server had een probleem aan zijn kant: probeer het later opnieuw",
+ "the site is turning away too many requests just now: try again later": "De site weigert op dit moment te veel verzoeken: probeer het later opnieuw",
+ "the site would not give dm the file: it may need you signed in (Properties › Login)": "De site gaf dm het bestand niet: misschien moet je aangemeld zijn (Eigenschappen › Gebruikersnaam)",
+ "the site wants to check you are not a bot: play the video in your browser, then use its Download video button": "De site wil controleren dat je geen bot bent: speel de video af in je browser en gebruik daar de knop Video downloaden",
+ "this video is not available: it may be private, removed or not shown in your country": "Deze video is niet beschikbaar: hij is misschien privé, verwijderd of niet te zien in je land",
+ "dm could not get the video from this page": "dm kon de video niet van deze pagina halen",
+ "Known once the video starts": "Bekend zodra de video begint"
 }

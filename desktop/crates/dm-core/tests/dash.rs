@@ -477,10 +477,18 @@ async fn a_page_refused_to_dm_is_handed_to_ytdlp() {
     assert_eq!(std::fs::read(&done.path).unwrap(), b"hello dash");
     assert!(recorded(&record).iter().any(|a| a.ends_with("/watch")));
 
+    // yt-dlp failing on it: its reason is said, not the 429 it got past
+    // (an old yt-dlp or a bot check was hidden behind the refusal, and the
+    // refusal was tried ten times over).
     std::env::set_var("DM_FAKE_FAIL", "1");
     match download(&client(), &format!("{base}/watch"), &once).await {
-        Err(dm_core::Error::Refused { status: 429, .. }) => {}
-        other => panic!("expected the 429, got {other:?}"),
+        Err(e @ dm_core::Error::Internal(_)) => {
+            assert!(
+                e.to_string().contains("yt-dlp could not download that"),
+                "{e}"
+            );
+        }
+        other => panic!("expected yt-dlp's reason, got {other:?}"),
     }
     std::env::remove_var("DM_FAKE_FAIL");
     let _ = std::fs::remove_file(&record);

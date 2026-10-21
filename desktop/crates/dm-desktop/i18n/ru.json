@@ -558,5 +558,12 @@
  "Chrome and others": "Chrome и другие",
  "Not now": "Не сейчас",
  "Add dm to your browser:": "Добавьте dm в браузер:",
- "Downloads you click in your browser come to dm once its extension is added.": "Загрузки, по которым вы щёлкаете в браузере, попадают в dm после добавления его расширения."
+ "Downloads you click in your browser come to dm once its extension is added.": "Загрузки, по которым вы щёлкаете в браузере, попадают в dm после добавления его расширения.",
+ "the server had a problem on its side: try again later": "У сервера возникла проблема на его стороне: попробуйте позже",
+ "the site is turning away too many requests just now: try again later": "Сайт сейчас отклоняет слишком много запросов: попробуйте позже",
+ "the site would not give dm the file: it may need you signed in (Properties › Login)": "Сайт не отдал dm файл: возможно, нужно войти (Свойства › Вход)",
+ "the site wants to check you are not a bot: play the video in your browser, then use its Download video button": "Сайт хочет убедиться, что вы не бот: воспроизведите видео в браузере и нажмите там кнопку «Скачать видео»",
+ "this video is not available: it may be private, removed or not shown in your country": "Это видео недоступно: возможно, оно закрыто, удалено или не показывается в вашей стране",
+ "dm could not get the video from this page": "dm не смог получить видео с этой страницы",
+ "Known once the video starts": "Станет известен, когда начнётся видео"
 }

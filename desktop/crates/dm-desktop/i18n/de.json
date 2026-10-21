@@ -558,5 +558,12 @@
  "Chrome and others": "Chrome und andere",
  "Not now": "Nicht jetzt",
  "Add dm to your browser:": "dm zum Browser hinzufügen:",
- "Downloads you click in your browser come to dm once its extension is added.": "Downloads, die Sie im Browser anklicken, landen bei dm, sobald seine Erweiterung hinzugefügt ist."
+ "Downloads you click in your browser come to dm once its extension is added.": "Downloads, die Sie im Browser anklicken, landen bei dm, sobald seine Erweiterung hinzugefügt ist.",
+ "the server had a problem on its side: try again later": "Der Server hatte ein Problem auf seiner Seite: Versuchen Sie es später erneut",
+ "the site is turning away too many requests just now: try again later": "Die Website weist gerade zu viele Anfragen ab: Versuchen Sie es später erneut",
+ "the site would not give dm the file: it may need you signed in (Properties › Login)": "Die Website hat dm die Datei nicht gegeben: Möglicherweise müssen Sie angemeldet sein (Eigenschaften › Anmeldung)",
+ "the site wants to check you are not a bot: play the video in your browser, then use its Download video button": "Die Website will prüfen, dass Sie kein Bot sind: Spielen Sie das Video im Browser ab und nutzen Sie dann dessen Schaltfläche Video herunterladen",
+ "this video is not available: it may be private, removed or not shown in your country": "Dieses Video ist nicht verfügbar: Es ist vielleicht privat, entfernt oder in Ihrem Land nicht zu sehen",
+ "dm could not get the video from this page": "dm konnte das Video von dieser Seite nicht holen",
+ "Known once the video starts": "Bekannt, sobald das Video beginnt"
 }

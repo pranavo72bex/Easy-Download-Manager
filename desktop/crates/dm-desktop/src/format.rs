@@ -252,7 +252,7 @@ pub fn titled(word: &str) -> String {
 /// one for what the network library says in its own terms ("error decoding
 /// response body" is a connection cut mid-file). The first that matches
 /// wins; anything else is shown as the engine said it.
-pub const REASONS: [(&[&str], &str); 20] = [
+pub const REASONS: [(&[&str], &str); 26] = [
     (
         &[
             "error decoding response body",
@@ -331,6 +331,26 @@ pub const REASONS: [(&[&str], &str); 20] = [
         &["something of that name is already there"],
         "something of that name is already there",
     ),
+    // The server's own trouble, and its refusals, said as what to do: the
+    // row read "the server answered 500 Internal Server Error for http://…"
+    // (newcomer check, 2026-10-21).
+    (
+        &[
+            "the server answered 500",
+            "the server answered 502",
+            "the server answered 503",
+            "the server answered 504",
+        ],
+        "the server had a problem on its side: try again later",
+    ),
+    (
+        &["the server answered 429"],
+        "the site is turning away too many requests just now: try again later",
+    ),
+    (
+        &["the server answered 403"],
+        "the site would not give dm the file: it may need you signed in (Properties › Login)",
+    ),
     // Video pages: yt-dlp and Deno are "dm's video helper" to a person,
     // who never installs them (dm fetches them).
     (
@@ -343,6 +363,25 @@ pub const REASONS: [(&[&str], &str); 20] = [
             "yt-dlp could not read that page",
         ],
         "dm found no video on this page",
+    ),
+    // What yt-dlp says most, from YouTube and the like.
+    (
+        &["confirm you're not a bot", "confirm you’re not a bot", "sign in to confirm"],
+        "the site wants to check you are not a bot: play the video in your browser, then use its Download video button",
+    ),
+    (
+        &[
+            "video unavailable",
+            "private video",
+            "this video is not available",
+            "has been removed",
+            "not available in your country",
+        ],
+        "this video is not available: it may be private, removed or not shown in your country",
+    ),
+    (
+        &["yt-dlp could not download that"],
+        "dm could not get the video from this page",
     ),
     (
         &["an encrypted stream dm cannot record"],
@@ -724,7 +763,32 @@ mod tests {
         );
         assert_eq!(
             reason("the server answered 502 Bad Gateway for https://e.com/a — upstream timed out"),
-            None
+            Some("the server had a problem on its side: try again later"),
+            "the server's status decides, not the page's \"timed out\""
+        );
+        assert_eq!(
+            reason("the server answered 500 Internal Server Error for http://127.0.0.1:1/broken-link.zip"),
+            Some("the server had a problem on its side: try again later")
+        );
+        assert_eq!(
+            reason("the server answered 429 Too Many Requests for https://www.google.com/sorry/index — In order to continue"),
+            Some("the site is turning away too many requests just now: try again later")
+        );
+        assert_eq!(
+            reason("yt-dlp could not download that: ERROR: [youtube] x: Sign in to confirm you're not a bot"),
+            Some("the site wants to check you are not a bot: play the video in your browser, then use its Download video button")
+        );
+        assert_eq!(
+            reason("yt-dlp could not download that: ERROR: [youtube] x: Video unavailable"),
+            Some("this video is not available: it may be private, removed or not shown in your country")
+        );
+        assert_eq!(
+            reason("yt-dlp could not download that: ERROR: Requested format is not available"),
+            Some("dm could not get the video from this page")
+        );
+        assert_eq!(
+            reason("dm's video helper could not be got ready (network: error sending request for url (https://github.com/x))"),
+            Some("dm could not get ready for videos: check that you are online, then click Retry")
         );
         assert_eq!(
             reason("could not write C:\\Users\\me\\no space left\\a.zip"),

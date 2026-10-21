@@ -302,6 +302,11 @@ async fn place(path: &Path, bytes: &[u8]) -> Result<(), Error> {
 const MACOS_DIR: &str = "yt-dlp-macos";
 const MACOS_PROGRAM: &str = "yt-dlp_macos";
 
+/// Whether `path` is a copy dm fetched (under its tools folder).
+pub(crate) fn is_fetched(path: &Path) -> bool {
+    folder().is_some_and(|folder| path.starts_with(folder))
+}
+
 /// The copy of `program` dm fetched, if there is one.
 pub(crate) fn fetched(program: &str) -> Option<PathBuf> {
     let folder = folder()?;

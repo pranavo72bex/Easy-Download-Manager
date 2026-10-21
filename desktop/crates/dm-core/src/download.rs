@@ -445,7 +445,12 @@ async fn fetch_reporting(
             return match crate::ytdlp::download_ytdlp(url, options, report.clone()).await {
                 Ok(done) => Ok(done),
                 Err(stopped @ (Error::Paused | Error::Cancelled)) => Err(stopped),
-                Err(_) => Err(refused),
+                // A site yt-dlp does not know: the page's own refusal says
+                // more. Anything else is why the video did not come, which
+                // the refusal hid (an old yt-dlp, a bot check), and which
+                // is not tried ten times over as the refusal was.
+                Err(e) if e.to_string().contains(crate::ytdlp::UNKNOWN_SITE) => Err(refused),
+                Err(e) => Err(e),
             };
         }
         other => other?,
@@ -728,7 +733,7 @@ fn names_a_file(url: &str) -> bool {
 /// Whether the address's last segment names a document by its extension —
 /// `.html`, `.xml`, `.txt` — rather than a script that makes pages
 /// (`.php`, `.aspx`, `.cgi`), which is how a watch page is often reached.
-fn names_a_document(url: &str) -> bool {
+pub fn names_a_document(url: &str) -> bool {
     const SCRIPTS: [&str; 12] = [
         "php", "php5", "asp", "aspx", "jsp", "jspx", "cgi", "pl", "py", "do", "action", "cfm",
     ];

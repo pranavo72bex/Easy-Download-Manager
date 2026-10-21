@@ -81,6 +81,9 @@ pub struct Probed {
     /// Why the server would not give the file, where it said: a 404 was
     /// found only once the download had failed (UI round 10).
     pub problem: Option<String>,
+    /// A web page rather than a file (a video site's watch page): dm finds
+    /// the video in it when it starts, so nothing is wrong to say.
+    pub page: bool,
 }
 
 /// The name an HLS stream at `url` is saved under: the engine's own naming
@@ -3041,20 +3044,42 @@ fn file_info(app: &mut DmApp, ctx: &egui::Context) {
                             ..Probed::default()
                         }
                     } else if dm_core::ytdlp::is_page(kind) {
-                        Probed::default()
+                        Probed {
+                            page: !dm_core::download::names_a_document(&url),
+                            ..Probed::default()
+                        }
                     } else {
                         Probed {
                             name: Some(probe.filename).filter(|n| !n.is_empty()),
                             size: probe.size,
-                            problem: None,
+                            ..Probed::default()
                         }
                     };
                     *dm_core::lock(&slot) = Some(found);
                     ctx.request_repaint();
                 } else if let Ok(Err(e)) = asked {
-                    *dm_core::lock(&slot) = Some(Probed {
-                        problem: Some(e.to_string()),
-                        ..Probed::default()
+                    // A watch page that turned dm's quick look away (a 429
+                    // bot check, a 403) is the video helper's to read when
+                    // the download starts, as the engine does: no
+                    // "Not available" and the bot page's text (newcomer
+                    // check, 2026-10-21).
+                    let refused_page = matches!(
+                        e,
+                        dm_core::Error::Refused {
+                            status: 403 | 429,
+                            ..
+                        }
+                    ) && !dm_core::download::names_a_document(&url);
+                    *dm_core::lock(&slot) = Some(if refused_page {
+                        Probed {
+                            page: true,
+                            ..Probed::default()
+                        }
+                    } else {
+                        Probed {
+                            problem: Some(e.to_string()),
+                            ..Probed::default()
+                        }
                     });
                     ctx.request_repaint();
                 }
@@ -3067,6 +3092,7 @@ fn file_info(app: &mut DmApp, ctx: &egui::Context) {
     let probed = d.probed.as_ref().and_then(|p| dm_core::lock(p).clone());
     let server_name = probed.as_ref().and_then(|p| p.name.clone());
     let problem = probed.as_ref().and_then(|p| p.problem.clone());
+    let page = probed.as_ref().is_some_and(|p| p.page);
     let size = probed.and_then(|p| p.size);
     let remux = app.applied.remux_ts;
     if let Some(name) = &server_name {
@@ -3188,7 +3214,7 @@ fn file_info(app: &mut DmApp, ctx: &egui::Context) {
                         let save_as = ui
                             .add(
                                 egui::TextEdit::singleline(&mut d.name)
-                                    .hint_text(if d.quality.is_some() {
+                                    .hint_text(if d.quality.is_some() || page {
                                         // A video picked from a player page is
                                         // named from its title: the page's own
                                         // name ("player2.html") was shown, and
@@ -3217,8 +3243,16 @@ fn file_info(app: &mut DmApp, ctx: &egui::Context) {
                     // not move when the answer comes.
                     if d.urls.len() == 1 {
                         ui.label(t("Size"));
+                        // A video page's size is learned once it starts:
+                        // said here, in the row that is always there, so
+                        // the dialog does not grow as the answer comes and
+                        // move Start now from under the pointer (newcomer
+                        // check, 2026-10-21).
                         match size {
                             Some(size) => ui.label(format::bytes(size)),
+                            None if page => {
+                                ui.label(RichText::new(t("Known once the video starts")).weak())
+                            }
                             None => ui.label(RichText::new("—").weak()),
                         };
                         ui.end_row();

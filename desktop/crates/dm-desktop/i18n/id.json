@@ -558,5 +558,12 @@
  "Chrome and others": "Chrome dan lainnya",
  "Not now": "Jangan sekarang",
  "Add dm to your browser:": "Tambahkan dm ke peramban Anda:",
- "Downloads you click in your browser come to dm once its extension is added.": "Unduhan yang Anda klik di peramban masuk ke dm setelah ekstensinya ditambahkan."
+ "Downloads you click in your browser come to dm once its extension is added.": "Unduhan yang Anda klik di peramban masuk ke dm setelah ekstensinya ditambahkan.",
+ "the server had a problem on its side: try again later": "Server mengalami masalah di sisinya: coba lagi nanti",
+ "the site is turning away too many requests just now: try again later": "Situs sedang menolak terlalu banyak permintaan: coba lagi nanti",
+ "the site would not give dm the file: it may need you signed in (Properties › Login)": "Situs tidak memberikan berkas ke dm: mungkin Anda perlu masuk (Properti › Login)",
+ "the site wants to check you are not a bot: play the video in your browser, then use its Download video button": "Situs ingin memastikan Anda bukan bot: putar video di peramban, lalu gunakan tombol Unduh video di sana",
+ "this video is not available: it may be private, removed or not shown in your country": "Video ini tidak tersedia: mungkin pribadi, dihapus, atau tidak ditampilkan di negara Anda",
+ "dm could not get the video from this page": "dm tidak dapat mengambil video dari halaman ini",
+ "Known once the video starts": "Diketahui setelah video dimulai"
 }
