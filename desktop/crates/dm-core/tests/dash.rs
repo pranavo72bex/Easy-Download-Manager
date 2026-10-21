@@ -204,8 +204,9 @@ async fn with_ytdlp_a_dash_manifest_is_handed_over_with_the_proxy_and_the_page()
         "the proxy's file outlived the run"
     );
     assert_eq!(after("--referer"), Some("https://page.example/watch"));
-    // No ffmpeg, so an MP4 picture and M4A sound, which dm joins itself.
-    assert_eq!(after("-f"), Some("bv[ext=mp4]+ba[ext=m4a]/b[ext=mp4]/b"));
+    // No ffmpeg: what ffmpeg was asked for, a picture-only stream and its
+    // sound, which dm joins itself.
+    assert_eq!(after("-f"), Some("bv+ba/b"));
     assert_eq!(argv.last().map(String::as_str), Some(url.as_str()));
     assert!(
         after("--retries").is_some(),

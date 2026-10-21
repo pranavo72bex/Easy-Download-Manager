@@ -706,3 +706,90 @@ fn a_transport_stream_with_hevc_pictures_becomes_an_mp4() {
 fn a_transport_stream_with_eac3_sound_becomes_an_mp4() {
     check_ts_kind("libx264", "eac3");
 }
+
+/// A WebM picture with its sound into one MP4, as ffmpeg did when a
+/// video's tallest picture came only as WebM: VP9 with AAC, AV1 with Opus.
+fn check_webm_into_mp4(video_codec: &str, audio_codec: &str, audio_ext: &str) {
+    let Some(ffmpeg) = tool("ffmpeg") else {
+        eprintln!("no ffmpeg here to make and judge real files; skipped");
+        return;
+    };
+    let encoders = run(&ffmpeg, &["-v", "error", "-encoders"]);
+    if !encoders.contains(video_codec) || !encoders.contains(audio_codec) {
+        eprintln!("this ffmpeg has no {video_codec} or {audio_codec}; skipped");
+        return;
+    }
+    let dir = tempfile::tempdir().unwrap();
+    let video = dir.path().join("v.f313.webm");
+    let audio = dir.path().join(format!("a.f251.{audio_ext}"));
+    let mut v = vec![
+        "-v",
+        "error",
+        "-y",
+        "-f",
+        "lavfi",
+        "-i",
+        "testsrc2=duration=4:size=320x180:rate=30",
+        "-c:v",
+        video_codec,
+        "-g",
+        "30",
+    ];
+    if video_codec == "libvpx-vp9" {
+        v.extend(["-deadline", "realtime"]);
+    } else {
+        v.extend(["-cpu-used", "8"]);
+    }
+    v.extend(["-dash", "1", "-f", "webm", video.to_str().unwrap()]);
+    run(&ffmpeg, &v);
+    let format = if audio_ext == "webm" { "webm" } else { "mp4" };
+    let mut a = vec![
+        "-v",
+        "error",
+        "-y",
+        "-f",
+        "lavfi",
+        "-i",
+        "sine=frequency=440:duration=4:sample_rate=48000",
+        "-c:a",
+        audio_codec,
+    ];
+    if format == "webm" {
+        a.extend(["-dash", "1"]);
+    } else {
+        a.extend(["-movflags", "+dash+global_sidx"]);
+    }
+    a.extend(["-f", format, audio.to_str().unwrap()]);
+    run(&ffmpeg, &a);
+    let out = dir.path().join("joined.mp4");
+    dm_core::mp4mux::join(&[video.clone(), audio.clone()], &out)
+        .unwrap_or_else(|e| panic!("{video_codec}/{audio_codec}: {e}"));
+    let said = Command::new(&ffmpeg)
+        .args([
+            "-v",
+            "error",
+            "-i",
+            out.to_str().unwrap(),
+            "-f",
+            "null",
+            "-",
+        ])
+        .output()
+        .unwrap();
+    assert!(
+        said.status.success() && said.stderr.is_empty(),
+        "{video_codec}/{audio_codec}: {}",
+        String::from_utf8_lossy(&said.stderr)
+    );
+    same_as_ffmpeg(&ffmpeg, &out, &[&video, &audio]);
+}
+
+#[test]
+fn a_vp9_webm_picture_and_aac_sound_join_into_one_mp4() {
+    check_webm_into_mp4("libvpx-vp9", "aac", "m4a");
+}
+
+#[test]
+fn an_av1_webm_picture_and_opus_sound_join_into_one_mp4() {
+    check_webm_into_mp4("libaom-av1", "libopus", "webm");
+}

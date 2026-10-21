@@ -34,6 +34,7 @@ BINARY = pathlib.Path(os.environ.get("DM_BINARY", ROOT / "desktop/target/release
 CASES = [
     ("the best, as the panel's first line asks", "https://www.youtube.com/watch?v=jNQXAC9IVRw", None, ("mp4", "best")),
     ("the best of a 1080p video", "https://www.youtube.com/watch?v=9bZkp7q19f0", None, ("mp4", "best")),
+    ("the best of a 4K video", "https://www.youtube.com/watch?v=dQw4w9WgXcQ", None, ("mp4", "best")),
     ("720p MP4", "https://www.youtube.com/watch?v=dQw4w9WgXcQ", "720/mp4", ("mp4", 720)),
     ("480p WebM", "https://www.youtube.com/watch?v=dQw4w9WgXcQ", "480/webm", ("webm", 480)),
     ("the sound alone", "https://www.youtube.com/watch?v=dQw4w9WgXcQ", "audio/m4a", ("m4a", "audio")),

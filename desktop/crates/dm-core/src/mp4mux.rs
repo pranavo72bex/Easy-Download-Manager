@@ -98,8 +98,14 @@ pub fn join_with_text(
             .metadata()
             .map_err(|e| format!("{} could not be read: {e}", path.display()))?
             .len();
-        let read = read_input(&mut file, length, index)
-            .map_err(|e| format!("{} is not an MP4 dm can join: {e}", path.display()))?;
+        // A WebM picture or sound (VP9, AV1, Opus) goes into the MP4 as
+        // ffmpeg put it: a video's tallest picture can come only as WebM.
+        let read = if crate::mkvmux::is_webm(path) {
+            crate::mkvmux::mp4_tracks(path, index)
+        } else {
+            read_input(&mut file, length, index)
+        }
+        .map_err(|e| format!("{} is not an MP4 dm can join: {e}", path.display()))?;
         for track in &read {
             if let Some(end) = track
                 .samples

@@ -899,7 +899,7 @@ impl Bits<'_> {
     }
 }
 
-fn hdlr(kind: &[u8; 4], name: &str) -> Vec<u8> {
+pub(crate) fn hdlr(kind: &[u8; 4], name: &str) -> Vec<u8> {
     let mut body = vec![0u8; 4];
     body.extend_from_slice(kind);
     body.extend_from_slice(&[0u8; 12]);
@@ -908,7 +908,7 @@ fn hdlr(kind: &[u8; 4], name: &str) -> Vec<u8> {
     full(b"hdlr", 0, 0, &body)
 }
 
-fn tkhd_tail(volume: u16, width: u32, height: u32) -> Vec<u8> {
+pub(crate) fn tkhd_tail(volume: u16, width: u32, height: u32) -> Vec<u8> {
     let mut tail = vec![0u8; 8];
     tail.extend_from_slice(&0u16.to_be_bytes());
     tail.extend_from_slice(&0u16.to_be_bytes());

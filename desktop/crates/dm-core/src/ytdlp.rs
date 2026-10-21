@@ -337,26 +337,29 @@ enum Joiner {
 /// them, so the pair asked for is the MP4 picture and the M4A sound, and a
 /// single stream carrying both where a site has no such pair.
 fn format_for(quality: Quality, joiner: Joiner, webm: bool) -> String {
-    // dm joins either kind, but never one of each: WebM with WebM.
-    let (picture, sound) = if webm {
-        ("webm", "webm")
-    } else {
-        ("mp4", "m4a")
-    };
     match (quality, joiner) {
         (Quality::Best, Joiner::Ffmpeg) => "bv*+ba/b".to_string(),
         (Quality::UpTo(height), Joiner::Ffmpeg) => {
             format!("bv*[height<={height}]+ba/b[height<={height}]/b")
         }
-        (Quality::Best, Joiner::Dm) => {
-            format!("bv[ext={picture}]+ba[ext={sound}]/b[ext={picture}]/b")
+        /* A WebM asked for is WebM picture and sound, which dm joins into a
+         * WebM. Anything else is what ffmpeg was asked for — the tallest
+         * picture, MP4 preferred at a height, whatever its container — and
+         * dm puts it into an MP4, a WebM picture included, as ffmpeg did.
+         * A picture-only stream (`bv`), so one that carries its own sound
+         * is not joined with a second. */
+        (Quality::Best, Joiner::Dm) if webm => {
+            "bv[ext=webm]+ba[ext=webm]/b[ext=webm]/b".to_string()
         }
-        (Quality::UpTo(height), Joiner::Dm) => format!(
-            "bv[ext={picture}][height<={height}]+ba[ext={sound}]/b[ext={picture}][height<={height}]/b[height<={height}]/b"
+        (Quality::UpTo(height), Joiner::Dm) if webm => format!(
+            "bv[ext=webm][height<={height}]+ba[ext=webm]/b[ext=webm][height<={height}]/b[height<={height}]/b"
         ),
+        (Quality::Best, Joiner::Dm) => "bv+ba/b".to_string(),
+        (Quality::UpTo(height), Joiner::Dm) => {
+            format!("bv[height<={height}]+ba/b[height<={height}]/b")
+        }
         // The best audio-only stream — what "audio" means for a video site.
-        (Quality::Audio, Joiner::Ffmpeg) => "ba/b".to_string(),
-        (Quality::Audio, Joiner::Dm) => format!("ba[ext={sound}]/ba/b"),
+        (Quality::Audio, _) => "ba/b".to_string(),
     }
 }
 
@@ -872,10 +875,13 @@ async fn finish_dm(
     if !produced.is_file() && joiner == Joiner::Dm {
         let parts = parts_of(&produced).await;
         if !parts.is_empty() {
-            let webm = parts.iter().all(|p| {
-                p.extension()
-                    .is_some_and(|e| e.eq_ignore_ascii_case("webm"))
-            });
+            // A WebM where one was asked for; else an MP4, which takes a
+            // WebM picture or sound too.
+            let webm = options.container.as_deref() == Some("webm")
+                && parts.iter().all(|p| {
+                    p.extension()
+                        .is_some_and(|e| e.eq_ignore_ascii_case("webm"))
+                });
             let joined = produced.with_extension(if webm { "webm" } else { "mp4" });
             let joining = if webm {
                 crate::mkvmux::join_with_text_async(parts.clone(), texts, joined.clone()).await
@@ -1369,19 +1375,16 @@ mod tests {
     }
 
     #[test]
-    fn without_ffmpeg_an_mp4_picture_and_m4a_sound_are_asked_for_for_dm_to_join() {
-        // A picture-only stream (`bv`, never `bv*`): one that carries sound
-        // too would be joined with a second sound.
+    fn without_ffmpeg_dm_asks_for_what_ffmpeg_was_asked_for() {
+        // The same choice as the ffmpeg route, so the same quality arrives;
+        // a picture-only stream (`bv`, never `bv*`), since one that carries
+        // sound too would be joined with a second sound.
+        assert_eq!(format_for(Quality::Best, Joiner::Dm, false), "bv+ba/b");
         assert_eq!(
-            format_for(Quality::Best, Joiner::Dm, false),
-            "bv[ext=mp4]+ba[ext=m4a]/b[ext=mp4]/b"
+            format_for(Quality::UpTo(480), Joiner::Dm, false),
+            "bv[height<=480]+ba/b[height<=480]/b"
         );
-        assert!(format_for(Quality::UpTo(480), Joiner::Dm, false)
-            .starts_with("bv[ext=mp4][height<=480]+ba[ext=m4a]/"));
-        assert_eq!(
-            format_for(Quality::Audio, Joiner::Dm, false),
-            "ba[ext=m4a]/ba/b"
-        );
+        assert_eq!(format_for(Quality::Audio, Joiner::Dm, false), "ba/b");
         assert!(!needs_ffmpeg(None));
         assert!(!needs_ffmpeg(Some("mp4")));
         assert_eq!(

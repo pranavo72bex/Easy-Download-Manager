@@ -1218,3 +1218,17 @@ protocol (MMST) is not spoken: servers that had it also answered HTTP, and
 none are known to be left. With this, ffmpeg is fetched only for RTMPE,
 RTMPT, RTSPS and a transport stream whose picture is MPEG-1/2 or MPEG-4
 Part 2.
+
+## The same formats as the ffmpeg route (2026-10-21)
+
+Without ffmpeg dm had asked yt-dlp for an MP4 picture and M4A sound, which
+would have given a lower picture for a video whose tallest came only as
+WebM. `mkvmux::mp4_tracks` now reads a WebM's VP9 (`vp09`, its `vpcC` from
+the first key frame's header), AV1 (`av01`, WebM's `av1C`) and Opus (`Opus`,
+`dOps` from OpusHead) as MP4 tracks, and `mp4mux` takes a WebM input beside
+MP4 ones, so dm asks for what ffmpeg was asked for (`bv+ba/b` and its height
+forms, with the same sort) and puts it into an MP4 as ffmpeg did; a WebM is
+made only when one is asked for. Checked: on six YouTube videos at best and
+at 720p, yt-dlp picks the same format IDs for the old and the new selector,
+and `scripts/out-of-box-check.py` gets a 4K video's best (format 625, 2160p
+VP9 over HLS) as one MP4 with its AAC sound that plays.

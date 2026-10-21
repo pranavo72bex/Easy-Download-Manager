@@ -776,6 +776,281 @@ fn write(
     Ok(data_start + segment_len)
 }
 
+// ---- a WebM's tracks for an MP4 ------------------------------------------
+
+/// Whether the file at `path` starts as an EBML (WebM, Matroska) file.
+pub(crate) fn is_webm(path: &Path) -> bool {
+    let mut head = [0u8; 4];
+    File::open(path)
+        .and_then(|mut f| f.read_exact(&mut head))
+        .is_ok()
+        && u32::from_be_bytes(head) == EBML
+}
+
+/// An element's body among `elements`, by its ID.
+fn find(elements: &[u8], id: u32) -> Option<&[u8]> {
+    self::elements(elements)
+        .find(|(i, _, _)| *i == id)
+        .map(|(_, body, _)| body)
+}
+
+/// A VP9 key frame's profile, bit depth and chroma subsampling, from its
+/// uncompressed header, for the `vpcC` an MP4 names them in.
+fn vp9_shape(frame: &[u8]) -> Option<(u8, u8, u8)> {
+    let mut bits = BitReader { data: frame, at: 0 };
+    if bits.take(2)? != 2 {
+        return None;
+    }
+    let low = bits.take(1)?;
+    let high = bits.take(1)?;
+    let profile = (high << 1 | low) as u8;
+    if profile == 3 {
+        bits.take(1)?;
+    }
+    if bits.take(1)? == 1 {
+        return None; // shows an earlier frame: no header here
+    }
+    if bits.take(1)? != 0 {
+        return None; // not a key frame
+    }
+    bits.take(2)?; // show_frame, error_resilient_mode
+    if bits.take(24)? != 0x49_8342 {
+        return None;
+    }
+    let depth = if profile >= 2 {
+        if bits.take(1)? == 1 {
+            12
+        } else {
+            10
+        }
+    } else {
+        8
+    };
+    let space = bits.take(3)?;
+    // 1 is 4:2:0 with chroma beside the first luma sample, what VP9 uses.
+    let mut chroma = 1;
+    if space != 7 {
+        bits.take(1)?; // colour range
+        if profile == 1 || profile == 3 {
+            let x = bits.take(1)?;
+            let y = bits.take(1)?;
+            chroma = match (x, y) {
+                (1, 0) => 2,
+                (0, 0) => 3,
+                _ => 1,
+            };
+        }
+    } else {
+        chroma = 3;
+    }
+    Some((profile, depth, chroma))
+}
+
+struct BitReader<'a> {
+    data: &'a [u8],
+    at: usize,
+}
+
+impl BitReader<'_> {
+    fn take(&mut self, n: u32) -> Option<u32> {
+        let mut v = 0u32;
+        for _ in 0..n {
+            let byte = self.data.get(self.at / 8)?;
+            v = (v << 1) | u32::from((byte >> (7 - self.at % 8)) & 1);
+            self.at += 1;
+        }
+        Some(v)
+    }
+}
+
+/// An Opus packet's length in 48 kHz samples, from its table of contents.
+fn opus_samples(packet: &[u8]) -> u32 {
+    let Some(&toc) = packet.first() else {
+        return 960;
+    };
+    let config = toc >> 3;
+    // In tenths of a millisecond.
+    let tenths: u32 = match config {
+        0..=11 => [100, 200, 400, 600]
+            .get(usize::from(config % 4))
+            .copied()
+            .unwrap_or(200),
+        12..=15 => [100, 200]
+            .get(usize::from(config % 2))
+            .copied()
+            .unwrap_or(200),
+        _ => [25, 50, 100, 200]
+            .get(usize::from(config % 4))
+            .copied()
+            .unwrap_or(200),
+    };
+    let frames = match toc & 3 {
+        0 => 1,
+        1 | 2 => 2,
+        _ => u32::from(packet.get(1).copied().unwrap_or(1) & 0x3f).max(1),
+    };
+    tenths * 48 / 10 * frames
+}
+
+/// The tracks of the WebM at `path` as MP4 tracks whose samples are its
+/// frames, where they are: VP9 (`vp09` with `vpcC`), AV1 (`av01` with the
+/// `av1C` WebM keeps as its private data) and Opus (`Opus` with `dOps`).
+/// What ffmpeg did when a video's tallest picture came only as WebM and was
+/// joined into an MP4. Another codec, or frames laced together, is refused.
+pub(crate) fn mp4_tracks(path: &Path, input: usize) -> Result<Vec<crate::mp4mux::Track>, String> {
+    use crate::mp4mux::{full, Sample, Track};
+    let read = read_input(path, input)?;
+    let mut tracks = Vec::new();
+    for track in &read.tracks {
+        let blocks: Vec<&Block> = read
+            .blocks
+            .iter()
+            .filter(|b| b.track == track.number)
+            .collect();
+        if blocks.is_empty() {
+            continue;
+        }
+        if blocks.iter().any(|b| b.flags & 0x06 != 0) {
+            return Err("its frames are laced together".into());
+        }
+        let private = find(&track.rest, 0x63A2).unwrap_or_default();
+        let ms = |b: &Block| (i128::from(b.ticks) * i128::from(read.scale) / 1_000_000) as i64;
+        let mut file = File::open(path).map_err(|e| e.to_string())?;
+        let mut first = |b: &Block, n: usize| -> Vec<u8> {
+            let mut buf = vec![0u8; (b.data_len as usize).min(n)];
+            let ok = file
+                .seek(SeekFrom::Start(b.data_at))
+                .and_then(|_| file.read_exact(&mut buf));
+            if ok.is_ok() {
+                buf
+            } else {
+                Vec::new()
+            }
+        };
+        match track.codec.as_str() {
+            "V_VP9" | "V_AV1" => {
+                let video = find(&track.rest, 0xE0).unwrap_or_default();
+                let width = find(video, 0xB0).map_or(0, uint) as u32;
+                let height = find(video, 0xBA).map_or(0, uint) as u32;
+                let entry = if track.codec == "V_VP9" {
+                    let key = blocks.iter().find(|b| b.key).copied();
+                    let (profile, depth, chroma) = key
+                        .and_then(|b| vp9_shape(&first(b, 64)))
+                        .unwrap_or((0, 8, 1));
+                    // Level unknown (0 says so); colour unspecified (2).
+                    let mut vpcc = vec![profile, 0, (depth << 4) | (chroma << 1), 2, 2, 2];
+                    vpcc.extend_from_slice(&0u16.to_be_bytes());
+                    crate::fmp4::visual(b"vp09", &full(b"vpcC", 1, 0, &vpcc), width, height)
+                } else {
+                    if private.len() < 4 {
+                        return Err("its AV1 has no configuration".into());
+                    }
+                    crate::fmp4::visual(
+                        b"av01",
+                        &crate::mp4mux::boxed(b"av1C", &[private]),
+                        width,
+                        height,
+                    )
+                };
+                let mut samples = Vec::with_capacity(blocks.len());
+                for (i, b) in blocks.iter().enumerate() {
+                    let next = blocks.get(i + 1).map(|n| ms(n));
+                    let duration = next.map_or(0, |n| (n - ms(b)).max(0)) as u32;
+                    samples.push(Sample {
+                        offset: b.data_at,
+                        size: b.data_len as u32,
+                        duration,
+                        cts: 0,
+                        sync: b.key,
+                    });
+                }
+                // The last lasts as long as the one before it.
+                let usual = samples
+                    .iter()
+                    .rev()
+                    .nth(1)
+                    .map_or(33, |s| s.duration.max(1));
+                if let Some(last) = samples.last_mut() {
+                    last.duration = usual;
+                }
+                tracks.push(Track {
+                    input,
+                    id: track.number as u32,
+                    tkhd_tail: crate::tsmux::tkhd_tail(0, width, height),
+                    timescale: 1000,
+                    language: 0x55c4,
+                    hdlr: crate::tsmux::hdlr(b"vide", "VideoHandler"),
+                    media_header: full(b"vmhd", 0, 1, &[0u8; 8]),
+                    stsd: full(b"stsd", 0, 0, &[&1u32.to_be_bytes()[..], &entry].concat()),
+                    edits: Vec::new(),
+                    edits_timescale: 1000,
+                    samples,
+                    start: blocks.first().map(|b| ms(b).max(0) as u64),
+                });
+            }
+            "A_OPUS" => {
+                // OpusHead, little-endian, as WebM keeps it; dOps is the same
+                // fields big-endian, without the magic.
+                let head = private
+                    .get(8..)
+                    .filter(|h| h.len() >= 11)
+                    .ok_or("its Opus has no header")?;
+                let byte = |i: usize| head.get(i).copied().unwrap_or(0);
+                let channels = byte(1);
+                let pre_skip = u16::from_le_bytes([byte(2), byte(3)]);
+                let rate = u32::from_le_bytes([byte(4), byte(5), byte(6), byte(7)]);
+                let gain = i16::from_le_bytes([byte(8), byte(9)]);
+                let mut dops = vec![0, channels];
+                dops.extend_from_slice(&pre_skip.to_be_bytes());
+                dops.extend_from_slice(&rate.to_be_bytes());
+                dops.extend_from_slice(&gain.to_be_bytes());
+                dops.extend_from_slice(head.get(10..).unwrap_or_default());
+                let mut entry = vec![0u8; 6];
+                entry.extend_from_slice(&1u16.to_be_bytes());
+                entry.extend_from_slice(&[0u8; 8]);
+                entry.extend_from_slice(&u16::from(channels.max(1)).to_be_bytes());
+                entry.extend_from_slice(&16u16.to_be_bytes());
+                entry.extend_from_slice(&[0u8; 4]);
+                entry.extend_from_slice(&(48_000u32 << 16).to_be_bytes());
+                let opus = crate::mp4mux::boxed(
+                    b"Opus",
+                    &[&entry, &crate::mp4mux::boxed(b"dOps", &[&dops])],
+                );
+                let mut samples = Vec::with_capacity(blocks.len());
+                for b in &blocks {
+                    samples.push(Sample {
+                        offset: b.data_at,
+                        size: b.data_len as u32,
+                        duration: opus_samples(&first(b, 2)),
+                        cts: 0,
+                        sync: true,
+                    });
+                }
+                tracks.push(Track {
+                    input,
+                    id: track.number as u32,
+                    tkhd_tail: crate::tsmux::tkhd_tail(0x0100, 0, 0),
+                    timescale: 48_000,
+                    language: 0x55c4,
+                    hdlr: crate::tsmux::hdlr(b"soun", "SoundHandler"),
+                    media_header: full(b"smhd", 0, 0, &[0u8; 4]),
+                    stsd: full(b"stsd", 0, 0, &[&1u32.to_be_bytes()[..], &opus].concat()),
+                    // The encoder's delay skipped, as dOps says.
+                    edits: vec![crate::mp4mux::Edit {
+                        duration: 0,
+                        media_time: i64::from(pre_skip),
+                    }],
+                    edits_timescale: 1000,
+                    samples,
+                    start: blocks.first().map(|b| (ms(b).max(0) as u64) * 48),
+                });
+            }
+            other => return Err(format!("dm does not put {other} into an MP4")),
+        }
+    }
+    Ok(tracks)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

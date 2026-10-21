@@ -335,7 +335,7 @@ pub fn hvc1(hvcc: &[u8], width: u32, height: u32) -> Vec<u8> {
     visual(b"hvc1", &boxed(b"hvcC", &[hvcc]), width, height)
 }
 
-fn visual(kind: &[u8; 4], config: &[u8], width: u32, height: u32) -> Vec<u8> {
+pub(crate) fn visual(kind: &[u8; 4], config: &[u8], width: u32, height: u32) -> Vec<u8> {
     let mut entry = vec![0u8; 6];
     entry.extend_from_slice(&1u16.to_be_bytes());
     entry.extend_from_slice(&[0u8; 16]);
