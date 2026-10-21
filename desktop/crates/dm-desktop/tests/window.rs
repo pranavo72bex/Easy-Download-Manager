@@ -1921,7 +1921,11 @@ fn a_site_search_reads_pages_deep_and_a_saved_one_runs_on_its_own() {
     {
         assert!(
             Instant::now() < deadline,
-            "the search did not go a page deep"
+            "the search did not go a page deep: {:?}",
+            {
+                let d = harness.state().dialogs.site_files.as_ref();
+                d.map(|d| format!("{:?}", dm_core::lock(&d.state)))
+            }
         );
         harness.run_steps(1);
         std::thread::sleep(Duration::from_millis(25));

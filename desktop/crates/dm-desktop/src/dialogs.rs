@@ -214,7 +214,7 @@ pub struct Series {
     pub says: String,
 }
 
-#[derive(Default)]
+#[derive(Default, Debug)]
 pub enum Grab {
     #[default]
     Idle,
