@@ -746,7 +746,10 @@ def main():
             seen = accessible(APP, "push button", "-", dump=True)
             print(f"        AT-SPI apps {seen.get('apps')}; buttons seen: "
                   f"{[s for s in seen.get('seen', []) if 'button' in s][:40]}")
-        entry = button and wait_for(lambda: where(APP, "*", "dm — Download Manager"), 10)
+        # By the start of its name: a store's copy, managed by policy, is
+        # listed with more after it.
+        entry = button and wait_for(lambda: where(APP, "*", "dm — Download Manager")
+                                    or where(APP, "*", "dm —", prefix=True), 10)
         shoot("6-extensions-menu", tab)
         if entry:
             press(entry)
