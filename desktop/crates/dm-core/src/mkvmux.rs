@@ -39,6 +39,7 @@ const TIMECODE: u32 = 0xE7;
 const SIMPLE_BLOCK: u32 = 0xA3;
 const BLOCK_GROUP: u32 = 0xA0;
 const BLOCK: u32 = 0xA1;
+const DISCARD_PADDING: u32 = 0x75A2;
 const REFERENCE_BLOCK: u32 = 0xFB;
 const CUES: u32 = 0x1C53_BB6B;
 const CUE_POINT: u32 = 0xBB;
@@ -863,6 +864,37 @@ impl BitReader<'_> {
     }
 }
 
+/// How long an Opus track plays, in 48 kHz samples: all of them, less the
+/// encoder's delay before and its padding after (WebM's DiscardPadding on
+/// the last block, a signed count of nanoseconds). 0, which an edit reads
+/// as "to the end", where nothing is to be cut there.
+fn opus_shown(samples: &[crate::mp4mux::Sample], pre_skip: u16, last: Option<&Block>) -> u64 {
+    let padding_ns = last
+        .and_then(|b| b.group.as_deref())
+        .and_then(|group| find(group, DISCARD_PADDING))
+        .map(sint)
+        .unwrap_or(0);
+    if padding_ns <= 0 {
+        return 0;
+    }
+    let padding = u64::try_from(padding_ns).unwrap_or(0) * 48_000 / 1_000_000_000;
+    let all: u64 = samples.iter().map(|s| u64::from(s.duration)).sum();
+    all.saturating_sub(u64::from(pre_skip))
+        .saturating_sub(padding)
+        .max(1)
+}
+
+/// A signed integer element's value.
+fn sint(body: &[u8]) -> i64 {
+    let len = body.len().min(8);
+    if len == 0 {
+        return 0;
+    }
+    let value = uint(body);
+    let shift = 64 - 8 * len as u32;
+    ((value << shift) as i64) >> shift
+}
+
 /// An Opus packet's length in 48 kHz samples, from its table of contents.
 fn opus_samples(packet: &[u8]) -> u32 {
     let Some(&toc) = packet.first() else {
@@ -1035,12 +1067,15 @@ pub(crate) fn mp4_tracks(path: &Path, input: usize) -> Result<Vec<crate::mp4mux:
                     hdlr: crate::tsmux::hdlr(b"soun", "SoundHandler"),
                     media_header: full(b"smhd", 0, 0, &[0u8; 4]),
                     stsd: full(b"stsd", 0, 0, &[&1u32.to_be_bytes()[..], &opus].concat()),
-                    // The encoder's delay skipped, as dOps says.
+                    // The encoder's delay skipped, as dOps says, and its
+                    // padding after the end, as the last block's
+                    // DiscardPadding says: kept, the sound ran 13 ms past
+                    // its end where a player honours where it ends.
                     edits: vec![crate::mp4mux::Edit {
-                        duration: 0,
+                        duration: opus_shown(&samples, pre_skip, blocks.last().copied()),
                         media_time: i64::from(pre_skip),
                     }],
-                    edits_timescale: 1000,
+                    edits_timescale: 48_000,
                     samples,
                     start: blocks.first().map(|b| (ms(b).max(0) as u64) * 48),
                 });
@@ -1054,6 +1089,14 @@ pub(crate) fn mp4_tracks(path: &Path, input: usize) -> Result<Vec<crate::mp4mux:
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn a_signed_element_is_read_with_its_sign() {
+        assert_eq!(sint(&[0x01, 0x00]), 256);
+        assert_eq!(sint(&[0xFF]), -1);
+        assert_eq!(sint(&[0xFE, 0x0C]), -500);
+        assert_eq!(sint(&[]), 0);
+    }
 
     #[test]
     fn sizes_and_ids_read_back() {
