@@ -548,7 +548,8 @@
  "Nothing here yet.": "Ancora niente qui.",
  "Copy link": "Copia link",
  "Copied {} link.||Copied {} links.": "{} link copiato.||{} link copiati.",
-  "Stop reading pages after, minutes (0 for no limit)": "Smetti di leggere le pagine dopo, minuti (0 senza limite)",
-  "Its time ran out with pages still to read; these are the files found until then.": "Il tempo è scaduto con pagine ancora da leggere; questi sono i file trovati fino ad allora.",
-  "Error: the disk is full in {}": "Errore: il disco è pieno in {}"
+ "Stop reading pages after, minutes (0 for no limit)": "Smetti di leggere le pagine dopo, minuti (0 senza limite)",
+ "Its time ran out with pages still to read; these are the files found until then.": "Il tempo è scaduto con pagine ancora da leggere; questi sono i file trovati fino ad allora.",
+ "Error: the disk is full in {}": "Errore: il disco è pieno in {}",
+ "Numbers only: the one before was kept": "Solo numeri: è stato mantenuto il precedente"
 }

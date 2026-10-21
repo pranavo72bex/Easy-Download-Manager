@@ -4121,7 +4121,7 @@ impl DmApp {
         let mut dismissed = None;
         for (i, problem) in self.problems.iter().enumerate() {
             ui.horizontal_wrapped(|ui| {
-                ui.colored_label(crate::theme::Tokens::get(ui.ctx()).warn, problem);
+                ui.colored_label(crate::theme::Tokens::get(ui.ctx()).warn, as_shown(problem));
                 if ui.button(t("Dismiss")).clicked() {
                     dismissed = Some(i);
                 }
@@ -4146,6 +4146,17 @@ pub fn worded_problem(problem: &str) -> String {
             &[&why],
         ),
         None => problem.to_string(),
+    }
+}
+
+/// A problem as it is shown on its own: begun with a capital. Problems are
+/// worded to sit inside a sentence ("the cookies file … could not be
+/// read"), and alone one read as cut off (UI round 14).
+pub fn as_shown(problem: &str) -> String {
+    let mut chars = problem.chars();
+    match chars.next() {
+        Some(first) => first.to_uppercase().chain(chars).collect(),
+        None => String::new(),
     }
 }
 
@@ -4966,6 +4977,12 @@ mod two_addresses_tests {
             "{said}"
         );
         assert_eq!(worded_problem("something else"), "something else");
+        assert_eq!(
+            as_shown("the cookies file x could not be read"),
+            "The cookies file x could not be read"
+        );
+        assert_eq!(as_shown("ünlü"), "Ünlü");
+        assert_eq!(as_shown(""), "");
     }
 
     #[test]

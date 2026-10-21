@@ -548,7 +548,8 @@
  "Nothing here yet.": "Здесь пока ничего нет.",
  "Copy link": "Копировать ссылку",
  "Copied {} link.||Copied {} links.": "Скопирована {} ссылка.||Скопировано {} ссылки.||Скопировано {} ссылок.",
-  "Stop reading pages after, minutes (0 for no limit)": "Прекратить чтение страниц через, минуты (0 — без ограничения)",
-  "Its time ran out with pages still to read; these are the files found until then.": "Время вышло, а страницы ещё оставались; вот файлы, найденные до этого момента.",
-  "Error: the disk is full in {}": "Ошибка: диск заполнен в {}"
+ "Stop reading pages after, minutes (0 for no limit)": "Прекратить чтение страниц через, минуты (0 — без ограничения)",
+ "Its time ran out with pages still to read; these are the files found until then.": "Время вышло, а страницы ещё оставались; вот файлы, найденные до этого момента.",
+ "Error: the disk is full in {}": "Ошибка: диск заполнен в {}",
+ "Numbers only: the one before was kept": "Только числа: оставлено прежнее значение"
 }

@@ -8571,3 +8571,56 @@ fn a_stream_servers_address_is_taken_through_add_url() {
     assert!(dm_desktop::app::looks_downloadable("rtmp://h/live/x").is_some());
     assert!(dm_desktop::app::looks_downloadable("mms://h/clip.asf").is_some());
 }
+
+/// Letters typed into a number box leave its number as it was, and the box
+/// says so once it is left, rather than appearing to have taken them (UI
+/// round 14: "abc" in a size floor silently stayed 0).
+#[test]
+fn a_number_box_says_when_what_was_typed_is_not_a_number() {
+    let _file = settings_file();
+    let world = world();
+    let mut harness = world.harness();
+    click(&mut harness, "Options");
+    click(&mut harness, "Network");
+    let label = "Give up on a connection that sends nothing for, seconds";
+    let before = harness
+        .state()
+        .dialogs
+        .options
+        .as_ref()
+        .map(|d| d.draft.read_timeout)
+        .unwrap();
+    harness.get_by_label(label).click();
+    harness.run_steps(2);
+    harness.key_press_modifiers(egui::Modifiers::COMMAND, egui::Key::A);
+    harness.get_by_label(label).type_text("abc");
+    harness.run_steps(2);
+    assert!(
+        harness
+            .query_by_label("Numbers only: the one before was kept")
+            .is_none(),
+        "said while still typing"
+    );
+    harness.key_press(egui::Key::Tab);
+    harness.run_steps(3);
+    assert!(
+        harness
+            .query_by_label("Numbers only: the one before was kept")
+            .is_some(),
+        "nothing said about the letters"
+    );
+    let after = harness
+        .state()
+        .dialogs
+        .options
+        .as_ref()
+        .map(|d| d.draft.read_timeout)
+        .unwrap();
+    assert_eq!(after, before, "the number changed");
+    // Typed in again, the word goes.
+    harness.get_by_label(label).click();
+    harness.run_steps(3);
+    assert!(harness
+        .query_by_label("Numbers only: the one before was kept")
+        .is_none());
+}

@@ -1556,7 +1556,40 @@ impl NumberBox<'_> {
 
 impl egui::Widget for NumberBox<'_> {
     fn ui(self, ui: &mut egui::Ui) -> egui::Response {
-        let response = ui.add(self.0).on_hover_cursor(egui::CursorIcon::Text);
+        /* Text that is not a number leaves the number as it was, which
+         * egui does without a word: "abc" in a size floor left 0 there and
+         * looked taken (UI round 14). The parser notes the refusal, and
+         * leaving the box says so beside it until it is typed in again. */
+        let refused = std::rc::Rc::new(std::cell::Cell::new(false));
+        let noted = std::rc::Rc::clone(&refused);
+        let parser = move |text: &str| {
+            let text: String = text
+                .chars()
+                .filter(|c| !c.is_whitespace())
+                .map(|c| if c == '−' { '-' } else { c })
+                .collect();
+            let parsed = text.parse::<f64>().ok();
+            noted.set(parsed.is_none() && !text.is_empty());
+            parsed
+        };
+        let response = ui
+            .add(self.0.custom_parser(parser))
+            .on_hover_cursor(egui::CursorIcon::Text);
+        let said = response.id.with("not a number");
+        if response.gained_focus() || response.changed() {
+            ui.ctx().data_mut(|d| d.remove::<bool>(said));
+        }
+        if response.lost_focus() && refused.get() {
+            ui.ctx().data_mut(|d| d.insert_temp(said, true));
+        }
+        if ui.ctx().data(|d| d.get_temp::<bool>(said)).unwrap_or(false) {
+            let t = crate::theme::Tokens::get(ui.ctx());
+            ui.label(
+                RichText::new(crate::i18n::t("Numbers only: the one before was kept"))
+                    .small()
+                    .color(t.warn),
+            );
+        }
         // The bottom line a text field has, at rest too: the fields'
         // pass finds a number box only while it is being typed in, so at
         // rest it had none (Fluent QA, gap 71).
