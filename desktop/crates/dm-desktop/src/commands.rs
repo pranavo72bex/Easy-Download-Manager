@@ -219,7 +219,7 @@ impl Command {
             Command::AddFromClipboard => "Add links from clipboard",
             Command::Import => "Import",
             Command::Export => "Export",
-            Command::SiteFiles => "Find files on a site",
+            Command::SiteFiles => "Site files",
             Command::Quit => "Exit",
             Command::DownloadNow => "Resume download",
             Command::StopDownload => "Stop download",

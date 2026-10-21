@@ -176,7 +176,7 @@ and is not carried over.
       Download details (folder, Save as, Note, Start now / Add for later),
       a progress window per download with each connection, Download
       complete, Properties with Update download link, Add numbered series,
-      Add links from clipboard, Files on a site (pages deep on one site,
+      Add links from clipboard, Site files (pages deep on one site,
       or an FTP server's folders read by MLSD or LIST; path filters, saved
       searches that run on a timer and can stop reading after so many minutes), Import/Export as dm's
       `.dmlist` (plain lists of links import too), Find, Scheduler, Speed

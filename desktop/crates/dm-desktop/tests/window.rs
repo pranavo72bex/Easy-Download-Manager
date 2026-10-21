@@ -4273,10 +4273,10 @@ fn every_menu_item_clicked_does_what_it_says() {
     press(&mut h, &["Program", "Add links from clipboard"]);
     assert!(h.state().dialogs.clip_links.is_some(), "… from clipboard");
     h.state_mut().dialogs.clip_links = None;
-    press(&mut h, &["Program", "Find files on a site"]);
+    press(&mut h, &["Program", "Site files"]);
     assert!(
         h.state().dialogs.site_files.is_some(),
-        "Program › Find files on a site"
+        "Program › Site files"
     );
     h.state_mut().dialogs.site_files = None;
     let list = world.dir.path().join("list.dmlist");
@@ -4828,7 +4828,7 @@ fn a_dialog_asked_for_while_open_keeps_what_was_typed_in_it() {
     for (command, open) in [
         (Command::Scheduler, "Scheduler"),
         (Command::AddSeries, "Add numbered series"),
-        (Command::SiteFiles, "Files on a site"),
+        (Command::SiteFiles, "Site files"),
         (Command::SpeedLimiterSettings, "Speed limiter"),
     ] {
         harness.state_mut().run(command);
@@ -7447,7 +7447,7 @@ fn every_dialog_keeps_its_title_and_buttons_on_screen_at_large_text() {
         (2.0, egui::vec2(960.0, 660.0)),
     ] {
         for (command, title, button) in [
-            (Command::SiteFiles, "Files on a site", "Find files"),
+            (Command::SiteFiles, "Site files", "Find files"),
             (Command::AddUrl, "Add URL", "OK"),
             (Command::AddSeries, "Add numbered series", "Cancel"),
             (Command::Scheduler, "Scheduler", "Cancel"),

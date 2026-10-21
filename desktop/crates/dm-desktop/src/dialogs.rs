@@ -617,8 +617,8 @@ impl Dialogs {
     }
 
     pub fn open_site_files(&mut self) {
-        self.focus_on("Files on a site");
-        if !self.keep("Files on a site", self.site_files.is_some()) {
+        self.focus_on("Site files");
+        if !self.keep("Site files", self.site_files.is_some()) {
             self.site_files = Some(Default::default());
         }
     }
@@ -701,7 +701,7 @@ impl Dialogs {
             (self.series.is_some(), "Add numbered series"),
             (self.clip_links.is_some(), "Links on the clipboard"),
             (self.links.is_some(), "Download links"),
-            (self.site_files.is_some(), "Files on a site"),
+            (self.site_files.is_some(), "Site files"),
             (self.update_link.is_some(), "Update download link"),
             (self.move_to_queue.is_some(), "Move to queue"),
             (self.rename.is_some(), "Move/Rename"),
@@ -813,7 +813,7 @@ impl Dialogs {
         say(!self.properties.is_empty(), "File properties");
         say(self.series.is_some(), "Add numbered series");
         say(self.clip_links.is_some(), "Links on the clipboard");
-        say(self.site_files.is_some(), "Files on a site");
+        say(self.site_files.is_some(), "Site files");
         say(self.update_link.is_some(), "Update download link");
         say(self.move_to_queue.is_some(), "Move to queue");
         say(self.rename.is_some(), "Move/Rename");
@@ -902,7 +902,7 @@ impl Dialogs {
             (self.links.is_some(), "Download links", Shut::Links),
             (
                 self.site_files.is_some(),
-                "Files on a site",
+                "Site files",
                 Shut::SiteFiles,
             ),
             (self.file_info.is_some(), "Download details", Shut::FileInfo),
@@ -4165,7 +4165,7 @@ fn series(app: &mut DmApp, ctx: &egui::Context) {
     window(ctx, "Add numbered series")
         .open(&mut open)
         .show(ctx, |ui| {
-            ui.label(t("An address with * where the number or letter goes:"));
+            ui.label(t("Put * where the number or letter changes, as in example.com/photo*.jpg"));
             let mut enter = entered(&focused(
                 field(ui, t("Address with *"), &mut d.template, 420.0),
                 focus,
@@ -4562,7 +4562,7 @@ fn site_files(app: &mut DmApp, ctx: &egui::Context) {
     // Built before the dialog is borrowed: the client reads the settings.
     let client = app.client();
     let listed = listed_addresses(app);
-    let focus = app.dialogs.take_focus("Files on a site");
+    let focus = app.dialogs.take_focus("Site files");
     let Some(d) = app.dialogs.site_files.as_mut() else {
         return;
     };
@@ -4574,7 +4574,7 @@ fn site_files(app: &mut DmApp, ctx: &egui::Context) {
     let mut run_saved: Option<dm_shell::lists::Search> = None;
     let mut delete_saved: Option<String> = None;
     let saved = app.applied.site_searches.clone();
-    window(ctx, "Files on a site")
+    window(ctx, "Site files")
         .open(&mut open)
         .show(ctx, |ui| {
             look |= entered(&focused(
