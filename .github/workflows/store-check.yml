@@ -25,7 +25,7 @@ jobs:
       - name: Packages
         run: |
           sudo apt-get update
-          sudo apt-get install -y --no-install-recommends xvfb openbox xdotool dbus-x11 \
+          sudo apt-get install -y --no-install-recommends xvfb openbox xdotool x11-utils dbus-x11 \
             at-spi2-core python3-pyatspi libglib2.0-bin ffmpeg yt-dlp \
             libxkbcommon-x11-0 libegl1 libgl1 libgl1-mesa-dri libxcursor1 libx11-xcb1 libxi6
       - name: Edge

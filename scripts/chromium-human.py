@@ -207,7 +207,7 @@ for i in range(desktop.childCount):
             seen.append(f"{r}: {n}")
         if r in ("document web", "document frame") and role not in ("document web", "*doc"):
             return
-        if (role == "*" or r == role) and (n == name or (prefix and n.startswith(name))):
+        if (role in ("*", "*doc") or r == role) and (n == name or (prefix and n.startswith(name))):
             try:
                 e = node.queryComponent().getExtents(pyatspi.DESKTOP_COORDS)
                 if e.width > 0 and e.height > 0:
@@ -266,6 +266,17 @@ def geometry(window):
         k, _, v = line.partition("=")
         if k in ("X", "Y", "WIDTH", "HEIGHT"):
             g[k] = int(v)
+    # Where the window's own content starts on screen, as the X server says:
+    # under some window managers xdotool's X and Y are off by the title
+    # bar, and a click on a row landed on the row below (Edge's CI run).
+    info = x("xwininfo", "-id", window)
+    if info.returncode == 0:
+        for line in info.stdout.splitlines():
+            line = line.strip()
+            if line.startswith("Absolute upper-left X:"):
+                g["X"] = int(line.split(":")[1])
+            elif line.startswith("Absolute upper-left Y:"):
+                g["Y"] = int(line.split(":")[1])
     return g
 
 
@@ -771,7 +782,8 @@ def main():
             # found where a screen reader finds it, and judged by what follows.
             time.sleep(1)
             shoot("6-popup", tab)
-            at = wait_for(lambda: where(APP, "*", "Catch downloads", prefix=True), 10)
+            # Inside the popup's page, which the lookup enters when asked.
+            at = wait_for(lambda: where(APP, "*doc", "Catch downloads", prefix=True), 10)
             if at:
                 press(at)
             check("6. its 'Catch downloads' is found and clicked", at)
