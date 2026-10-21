@@ -1911,7 +1911,11 @@ fn a_site_search_reads_pages_deep_and_a_saved_one_runs_on_its_own() {
         d.depth = 1;
         d.types = "zip pdf".into();
     }
-    harness.run_steps(1);
+    // The centred dialog takes a few frames to settle at its size; a click
+    // sent sooner landed where Find files had been, on Windows' fonts.
+    harness.run_steps(4);
+    harness.get_by_label("Find files").scroll_to_me();
+    harness.run_steps(2);
     click(&mut harness, "Find files");
     // page.html and next.html on this site; the page elsewhere is not read.
     let deadline = Instant::now() + Duration::from_secs(10);
