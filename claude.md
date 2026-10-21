@@ -455,8 +455,11 @@ of them.
       `PATH` hides `/opt/homebrew/bin` and `~/.local/bin` — the usual homes
       are searched and the tool is spawned by its resolved path, and ffmpeg,
       which joins a separate picture and sound, is resolved and handed over
-      the same way; with no ffmpeg a single pre-joined stream is asked for
-      instead. Proven under `PATH=/usr/bin:/bin`: a real watch URL completes
+      the same way. With no ffmpeg dm needs none: yt-dlp (and Deno, its
+      JavaScript runtime) are fetched by dm, an MP4 picture and M4A sound
+      are joined by dm itself (`mp4mux.rs`) and an HLS transport stream put
+      into an MP4 by dm (`tsmux.rs`); a real 720p YouTube video arrived that
+      way, decoded identical (2026-10-21). Proven under `PATH=/usr/bin:/bin`: a real watch URL completes
       as one merged file. Before this, that same launch quietly saved the
       page's HTML as a "completed" download named `watch`. Since 2026-10-21 nothing has to be installed:
       with no yt-dlp or ffmpeg on the computer, dm fetches the official
