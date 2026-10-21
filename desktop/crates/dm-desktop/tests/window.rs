@@ -1916,6 +1916,12 @@ fn a_site_search_reads_pages_deep_and_a_saved_one_runs_on_its_own() {
     harness.run_steps(4);
     harness.get_by_label("Find files").scroll_to_me();
     harness.run_steps(2);
+    let button = harness.get_by_label("Find files").rect();
+    let under = harness.ctx.layer_id_at(button.center());
+    let placed = format!(
+        "button {button:?}, screen {:?}, layer under it {under:?}",
+        harness.ctx.content_rect()
+    );
     click(&mut harness, "Find files");
     // page.html and next.html on this site; the page elsewhere is not read.
     let deadline = Instant::now() + Duration::from_secs(10);
@@ -1925,7 +1931,7 @@ fn a_site_search_reads_pages_deep_and_a_saved_one_runs_on_its_own() {
     {
         assert!(
             Instant::now() < deadline,
-            "the search did not go a page deep: {:?}",
+            "the search did not go a page deep ({placed}): {:?}",
             {
                 let d = harness.state().dialogs.site_files.as_ref();
                 d.map(|d| format!("{:?}", dm_core::lock(&d.state)))
