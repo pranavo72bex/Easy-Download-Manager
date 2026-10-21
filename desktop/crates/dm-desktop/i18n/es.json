@@ -549,5 +549,6 @@
  "Copy link": "Copiar enlace",
  "Copied {} link.||Copied {} links.": "{} enlace copiado.||{} enlaces copiados.",
   "Stop reading pages after, minutes (0 for no limit)": "Dejar de leer páginas tras, minutos (0 sin límite)",
-  "Its time ran out with pages still to read; these are the files found until then.": "Se acabó el tiempo con páginas aún por leer; estos son los archivos encontrados hasta entonces."
+  "Its time ran out with pages still to read; these are the files found until then.": "Se acabó el tiempo con páginas aún por leer; estos son los archivos encontrados hasta entonces.",
+  "Error: the disk is full in {}": "Error: el disco está lleno en {}"
 }

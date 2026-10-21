@@ -549,5 +549,6 @@
  "Copy link": "Salin tautan",
  "Copied {} link.||Copied {} links.": "{} tautan disalin.",
   "Stop reading pages after, minutes (0 for no limit)": "Berhenti membaca halaman setelah, menit (0 tanpa batas)",
-  "Its time ran out with pages still to read; these are the files found until then.": "Waktunya habis sementara masih ada halaman yang belum dibaca; inilah berkas yang ditemukan sampai saat itu."
+  "Its time ran out with pages still to read; these are the files found until then.": "Waktunya habis sementara masih ada halaman yang belum dibaca; inilah berkas yang ditemukan sampai saat itu.",
+  "Error: the disk is full in {}": "Galat: disk penuh di {}"
 }

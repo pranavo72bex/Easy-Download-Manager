@@ -549,5 +549,6 @@
  "Copy link": "Bağlantıyı kopyala",
  "Copied {} link.||Copied {} links.": "{} bağlantı kopyalandı.",
   "Stop reading pages after, minutes (0 for no limit)": "Sayfaları okumayı şu kadar sonra durdur, dakika (0 sınırsız)",
-  "Its time ran out with pages still to read; these are the files found until then.": "Okunacak sayfalar varken süre doldu; bunlar o ana kadar bulunan dosyalar."
+  "Its time ran out with pages still to read; these are the files found until then.": "Okunacak sayfalar varken süre doldu; bunlar o ana kadar bulunan dosyalar.",
+  "Error: the disk is full in {}": "Hata: {} içinde disk dolu"
 }

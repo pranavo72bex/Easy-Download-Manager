@@ -359,12 +359,29 @@ fn status_in(row: &Entry, words: fn(&'static str) -> &'static str) -> String {
             words("it needs a sign-in: Properties › Login")
         ),
         // In plain words where dm knows them; the engine's own on hover.
+        // A full disk says which folder's: "the disk is full" left a person
+        // to guess which disk (QA loop 2).
+        State::Failed(reason)
+            if format::reason(reason) == Some("the disk is full")
+                && !going_into(row).is_empty() =>
+        {
+            crate::i18n::fill(words("Error: the disk is full in {}"), &[&going_into(row)])
+        }
         State::Failed(reason) => crate::i18n::fill(
             words("Error: {}"),
             &[&format::reason(reason).map_or(reason.as_str(), words)],
         ),
         State::Cancelled => words("Cancelled").into(),
     }
+}
+
+/// The folder a row's file was going into: the one chosen for it, else the
+/// download folder it began in; empty where neither is known yet.
+fn going_into(row: &Entry) -> String {
+    row.save_dir
+        .clone()
+        .filter(|d| !d.trim().is_empty())
+        .unwrap_or_else(|| row.began_in.clone())
 }
 
 /// Whether a failure is a server refusing without a sign-in (401, 403).
@@ -5309,5 +5326,30 @@ mod superseded_tests {
         crate::table::set_superseded(std::slice::from_ref(&old));
         assert!(!crate::table::gone(&old), "alone, its file is its own");
         let _ = std::fs::remove_dir_all(&dir);
+    }
+}
+
+#[cfg(test)]
+mod disk_full_tests {
+    use super::*;
+
+    /// QA loop 2: a full disk says whose, the folder the file was going to.
+    #[test]
+    fn a_full_disk_says_which_folder() {
+        let mut row = status_tests::paused(false);
+        row.state = State::Failed("disk: No space left on device (os error 28)".into());
+        row.began_in = "/media/usb/Downloads".into();
+        assert_eq!(
+            status_in_english(&row),
+            "Error: the disk is full in /media/usb/Downloads"
+        );
+        row.save_dir = Some("/mnt/big".into());
+        assert_eq!(
+            status_in_english(&row),
+            "Error: the disk is full in /mnt/big"
+        );
+        row.save_dir = None;
+        row.began_in.clear();
+        assert_eq!(status_in_english(&row), "Error: the disk is full");
     }
 }
