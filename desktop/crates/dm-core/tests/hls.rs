@@ -403,16 +403,16 @@ fn ffmpeg() -> Option<std::path::PathBuf> {
 /// The remux tests set `DM_FFMPEG`, which is process-wide: they take turns.
 static FFMPEG_ENV: tokio::sync::Mutex<()> = tokio::sync::Mutex::const_new(());
 
-/// A real HLS stream of `seconds`, made by ffmpeg into `site`: H.264 and
-/// `sound` (an ffmpeg encoder: `aac`, which dm puts into an MP4 itself, or
-/// `eac3`, which it leaves to an ffmpeg). False where this ffmpeg cannot
-/// make one.
+/// A real HLS stream of `seconds`, made by ffmpeg into `site`: pictures by
+/// `picture` (an ffmpeg encoder: `libx264`, which dm puts into an MP4
+/// itself, or `mpeg2video`, which it leaves to an ffmpeg) and AAC sound.
+/// False where this ffmpeg cannot make one.
 #[cfg(unix)]
 fn make_stream(
     ffmpeg: &std::path::Path,
     site: &std::path::Path,
     seconds: u32,
-    sound: &str,
+    picture: &str,
 ) -> bool {
     std::process::Command::new(ffmpeg)
         .args([
@@ -429,13 +429,13 @@ fn make_stream(
             "-i",
             &format!("sine=frequency=440:duration={seconds}"),
             "-c:v",
-            "libx264",
+            picture,
             "-preset",
             "ultrafast",
             "-pix_fmt",
             "yuv420p",
             "-c:a",
-            sound,
+            "aac",
             "-f",
             "hls",
             "-hls_time",
@@ -460,7 +460,7 @@ async fn a_remux_that_fails_keeps_the_stream_whole_as_ts() {
         return;
     };
     let site = tempdir();
-    if !make_stream(&real, site.path(), 3, "eac3") {
+    if !make_stream(&real, site.path(), 3, "mpeg2video") {
         return;
     }
     let addr = serve_folder(site.path().to_path_buf()).await;
@@ -616,7 +616,7 @@ async fn a_pause_during_the_remux_keeps_the_stream_and_a_resume_fetches_nothing_
         return;
     };
     let site = tempdir();
-    if !make_stream(&real, site.path(), 3, "eac3") {
+    if !make_stream(&real, site.path(), 3, "mpeg2video") {
         return;
     }
     // Segments served and counted.
@@ -727,7 +727,7 @@ async fn an_hls_stream_becomes_an_mp4_with_no_ffmpeg() {
         return;
     };
     let site = tempdir();
-    if !make_stream(&real, site.path(), 3, "aac") {
+    if !make_stream(&real, site.path(), 3, "libx264") {
         return;
     }
     let addr = serve_folder(site.path().to_path_buf()).await;
@@ -770,7 +770,7 @@ async fn an_mp4_left_from_an_earlier_run_is_not_placed_when_the_remux_is_off() {
         return;
     };
     let site = tempdir();
-    if !make_stream(&real, site.path(), 3, "aac") {
+    if !make_stream(&real, site.path(), 3, "libx264") {
         return;
     }
     let addr = serve_folder(site.path().to_path_buf()).await;

@@ -3,7 +3,7 @@
 //!
 //! Players open an MP4; few open a `.ts`. An HLS stream's segments are a
 //! transport stream: 188-byte packets carrying H.264 or HEVC pictures and
-//! AAC, MP3/MP2 or AC-3 sound
+//! AAC, MP3/MP2, AC-3 or E-AC-3 sound
 //! in PES packets, each stamped with when it plays. This reads them out —
 //! the tables that say which packets are which stream, the pictures as the
 //! byte stream an encoder wrote and the sound as ADTS frames — and hands
@@ -34,12 +34,13 @@ const AAC: u8 = 0x0f;
 const MPEG1_AUDIO: u8 = 0x03;
 const MPEG2_AUDIO: u8 = 0x04;
 const AC3: u8 = 0x81;
+const EAC3: u8 = 0x87;
 const PICTURES: [u8; 2] = [H264, HEVC];
-const SOUNDS: [u8; 4] = [AAC, MPEG1_AUDIO, MPEG2_AUDIO, AC3];
+const SOUNDS: [u8; 5] = [AAC, MPEG1_AUDIO, MPEG2_AUDIO, AC3, EAC3];
 /// Picture and sound kinds this does not carry: MPEG-1/2 and MPEG-4 Part 2
-/// pictures, AVS; LATM AAC, E-AC-3. A stream with one is refused whole
-/// rather than put into an MP4 without it.
-const OTHERS: [u8; 6] = [0x01, 0x02, 0x10, 0x42, 0x11, 0x87];
+/// pictures, AVS; LATM AAC. A stream with one is refused whole rather than
+/// put into an MP4 without it.
+const OTHERS: [u8; 5] = [0x01, 0x02, 0x10, 0x42, 0x11];
 
 /// The shape of a sound stream, from its first frame.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -61,6 +62,12 @@ enum Sound {
         rate: u32,
         channels: u16,
     },
+    Eac3 {
+        dec3: [u8; 5],
+        rate: u32,
+        channels: u16,
+        per_frame: u32,
+    },
 }
 
 impl Sound {
@@ -69,6 +76,7 @@ impl Sound {
             Sound::Aac { .. } => 1024,
             Sound::Mpeg { per_frame, .. } => per_frame,
             Sound::Ac3 { .. } => 1536,
+            Sound::Eac3 { per_frame, .. } => per_frame,
         }
     }
 }
@@ -462,6 +470,7 @@ fn take_sound(stream: &mut Elementary, data: &[u8], pts: Option<i64>) -> Result<
     let reader = match stream.kind {
         AAC => adts_frame,
         AC3 => ac3_frame,
+        EAC3 => eac3_frame,
         _ => mpeg_audio_frame,
     };
     while let Some(rest) = buffered.get(at..) {
@@ -602,6 +611,81 @@ fn mpeg_audio_frame(rest: &[u8]) -> Frame {
             mpeg1,
             rate,
             channels: if head[3] >> 6 == 3 { 1 } else { 2 },
+            per_frame,
+        },
+        skip: 0,
+        length,
+    }
+}
+
+/// An E-AC-3 sync frame, whole: one independent substream (a stream with
+/// dependent ones, for more than 5.1, is not read).
+fn eac3_frame(rest: &[u8]) -> Frame {
+    let Some(head) = rest.get(..8) else {
+        return Frame::Short;
+    };
+    if head.get(..2) != Some(&[0x0b, 0x77]) {
+        return Frame::NotHere;
+    }
+    let mut bits = Bits {
+        data: head.get(2..).unwrap_or_default(),
+        at: 0,
+    };
+    let (Some(kind), Some(_substream), Some(size), Some(fscod)) =
+        (bits.take(2), bits.take(3), bits.take(11), bits.take(2))
+    else {
+        return Frame::Short;
+    };
+    let (rate, blocks) = if fscod == 3 {
+        let Some(rate) = bits
+            .take(2)
+            .and_then(|code| [24000u32, 22050, 16000].get(code as usize).copied())
+        else {
+            return Frame::NotHere;
+        };
+        (rate, 6)
+    } else {
+        let Some(code) = bits.take(2) else {
+            return Frame::Short;
+        };
+        let rate = [48000u32, 44100, 32000]
+            .get(fscod as usize)
+            .copied()
+            .unwrap_or(48000);
+        (
+            rate,
+            [1u32, 2, 3, 6].get(code as usize).copied().unwrap_or(6),
+        )
+    };
+    let (Some(acmod), Some(lfe), Some(bsid)) = (bits.take(3), bits.take(1), bits.take(5)) else {
+        return Frame::Short;
+    };
+    // Type 0 is an independent substream; E-AC-3 says bsid 11 to 16.
+    if kind != 0 || !(11..=16).contains(&bsid) {
+        return Frame::NotHere;
+    }
+    let length = (size as usize + 1) * 2;
+    if rest.len() < length {
+        return Frame::Short;
+    }
+    let per_frame = blocks * 256;
+    let kbps = length as u64 * 8 * u64::from(rate) / u64::from(per_frame) / 1000;
+    // dec3: the data rate and one independent substream (the count is one
+    // less), then that substream's shape.
+    let rate_bits = (kbps.min(8191) as u16) << 3;
+    let sub: u32 = (fscod.min(3) << 22) | (bsid << 17) | (acmod << 9) | (lfe << 8);
+    let [_, a, b, c] = sub.to_be_bytes();
+    let [high, low] = rate_bits.to_be_bytes();
+    let channels = [2u16, 1, 2, 3, 3, 4, 4, 5]
+        .get(acmod as usize)
+        .copied()
+        .unwrap_or(2)
+        + lfe as u16;
+    Frame::Whole {
+        shape: Sound::Eac3 {
+            dec3: [high, low, a, b, c],
+            rate,
+            channels,
             per_frame,
         },
         skip: 0,
@@ -1135,6 +1219,12 @@ fn audio_track(stream: &Elementary, input: usize, lead: i64) -> Result<Track, St
             rate,
             channels,
         } => (*b"ac-3", boxed(b"dac3", &[&dac3]), rate, channels),
+        Sound::Eac3 {
+            dec3,
+            rate,
+            channels,
+            ..
+        } => (*b"ec-3", boxed(b"dec3", &[&dec3]), rate, channels),
     };
     let mut entry = vec![0u8; 6];
     entry.extend_from_slice(&1u16.to_be_bytes());

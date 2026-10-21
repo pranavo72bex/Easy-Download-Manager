@@ -701,3 +701,8 @@ fn a_transport_stream_with_ac3_sound_becomes_an_mp4() {
 fn a_transport_stream_with_hevc_pictures_becomes_an_mp4() {
     check_ts_kind("libx265", "aac");
 }
+
+#[test]
+fn a_transport_stream_with_eac3_sound_becomes_an_mp4() {
+    check_ts_kind("libx264", "eac3");
+}

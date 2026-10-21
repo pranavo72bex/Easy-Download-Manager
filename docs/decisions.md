@@ -1169,5 +1169,6 @@ format, bit depths and size read from the SPS), MPEG-1/2 audio (MP3, MP2:
 frames whole, object type 0x6B or 0x69) and AC-3 (`ac-3` with its `dac3`,
 frame sizes from the standard's table). Each was made by ffmpeg, put into an
 MP4 by dm and decoded identical to the stream; AVFoundation reads the HEVC
-and AC-3 one. Still refused, and left to an ffmpeg or kept as `.ts`:
-MPEG-1/2 and MPEG-4 Part 2 pictures, LATM AAC, E-AC-3.
+and AC-3 one. E-AC-3 too (`ec-3` with its `dec3`; one independent
+substream). Still refused, and left to an ffmpeg or kept as `.ts`: MPEG-1/2
+and MPEG-4 Part 2 pictures and LATM AAC, which HLS does not use.
