@@ -265,6 +265,41 @@ async fn proxy_by_file(
     Ok(RemoveOnDrop(path))
 }
 
+/// Hands yt-dlp the site's sign-in in a cookies file of the run's own at
+/// `path`, readable by this account alone and removed when the run ends —
+/// never on the command line, where any local user's `ps` reads it — and
+/// scoped to the site's own server, so yt-dlp sends it there and nowhere
+/// else. A cookies file a person chose is copied in beside it, since yt-dlp
+/// takes one; with no sign-in for `url`, that file is handed over as it is.
+async fn cookies_by_file(
+    command: &mut Command,
+    path: &Path,
+    sign_in: Option<&crate::cookies::SignIn>,
+    url: &str,
+) -> Result<Option<RemoveOnDrop>, Error> {
+    let Some(sign_in) = sign_in.filter(|s| s.for_url(url).is_some()) else {
+        if let Some(cookies) = crate::cookies::file() {
+            command.arg("--cookies").arg(cookies);
+        }
+        return Ok(None);
+    };
+    let mut text = String::from("# Netscape HTTP Cookie File\n");
+    if let Some(chosen) = crate::cookies::file() {
+        if let Ok(theirs) = tokio::fs::read_to_string(&chosen).await {
+            text.push_str(&theirs);
+            if !text.ends_with('\n') {
+                text.push('\n');
+            }
+        }
+    }
+    text.push_str(&sign_in.netscape_lines());
+    // A file left by a run that ended uncleanly is not one to add to.
+    let _ = tokio::fs::remove_file(path).await;
+    write_private(path, &text).await?;
+    command.arg("--cookies").arg(path);
+    Ok(Some(RemoveOnDrop(path.to_path_buf())))
+}
+
 /// Removes a file when it goes out of scope: a run's private cookies file,
 /// whichever way the run ends.
 struct RemoveOnDrop(PathBuf);
@@ -446,6 +481,7 @@ pub async fn list_choices(
     url: &str,
     referrer: Option<&str>,
     proxy: Option<&str>,
+    sign_in: Option<&crate::cookies::SignIn>,
 ) -> Result<Vec<Choice>, Error> {
     let binary = binary().ok_or_else(|| Error::Internal("yt-dlp is not installed".into()))?;
     let mut command = Command::new(binary);
@@ -467,11 +503,14 @@ pub async fn list_choices(
     if let Some(referrer) = referrer {
         command.arg("--referer").arg(referrer);
     }
-    // The cookies file a person chose, so a video that needs them signed
-    // in (or a site's "not a bot" check) is fetched as their browser would.
-    if let Some(cookies) = crate::cookies::file() {
-        command.arg("--cookies").arg(cookies);
-    }
+    // The page's session from the browser, or the cookies file a person
+    // chose, so a video that needs them signed in (or a site's "not a bot"
+    // check) is read as their browser would.
+    static RUNS: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
+    let run = RUNS.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+    let path =
+        std::env::temp_dir().join(format!("dm-list-{}-{run}.cookies.txt", std::process::id()));
+    let _signed = cookies_by_file(&mut command, &path, sign_in, url).await?;
     // After `--`: whatever the address, yt-dlp never reads it as an option.
     command.arg("--").arg(url);
     let run = command.output();
@@ -585,34 +624,13 @@ pub async fn download_ytdlp(
      * site's own domain, so yt-dlp sends it there and nowhere else. A
      * cookies file a person chose is copied in beside it, since yt-dlp
      * takes one. */
-    let _signed = match options
-        .sign_in
-        .as_ref()
-        .filter(|s| s.for_url(url).is_some())
-    {
-        Some(sign_in) => {
-            let mut text = String::from("# Netscape HTTP Cookie File\n");
-            if let Some(chosen) = crate::cookies::file() {
-                if let Ok(theirs) = tokio::fs::read_to_string(&chosen).await {
-                    text.push_str(&theirs);
-                    if !text.ends_with('\n') {
-                        text.push('\n');
-                    }
-                }
-            }
-            text.push_str(&sign_in.netscape_lines());
-            let path = staging.join("sign-in.cookies.txt");
-            write_private(&path, &text).await?;
-            command.arg("--cookies").arg(&path);
-            Some(RemoveOnDrop(path))
-        }
-        None => {
-            if let Some(cookies) = crate::cookies::file() {
-                command.arg("--cookies").arg(cookies);
-            }
-            None
-        }
-    };
+    let _signed = cookies_by_file(
+        &mut command,
+        &staging.join("sign-in.cookies.txt"),
+        options.sign_in.as_ref(),
+        url,
+    )
+    .await?;
 
     // This run's part of the shared ceiling, if one is set, held until it
     // ends. yt-dlp takes bytes per second, once: it keeps the part it was

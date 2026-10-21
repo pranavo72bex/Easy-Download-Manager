@@ -335,11 +335,17 @@ async fn forced_for(found: &Catchable) -> bool {
 }
 
 /// The browser's cookies for `url`, as the header it would send, where the
-/// toolbar popup has that switched on for the site and the browser granted
-/// the `cookies` permission; empty otherwise, and empty on any failure.
-/// `store` is the cookie store (Firefox's container) the download or tab
-/// belongs to, whose cookies are its sign-in.
+/// toolbar popup has that switched on for the site; empty otherwise, and
+/// empty on any failure. `store` is the cookie store (Firefox's container)
+/// the download or tab belongs to, whose cookies are its sign-in.
 async fn cookies_for(url: &str, store: Option<&str>) -> String {
+    sign_in_for(url, store, false).await.0
+}
+
+/// The cookies a hand-off of `url` carries (`decide::cookies_sent`), and
+/// whether they are for that download alone. A video page (`video`) sends
+/// its session whether or not the site is listed.
+async fn sign_in_for(url: &str, store: Option<&str>, video: bool) -> (String, bool) {
     let Ok(got) = call(
         "storage.local",
         "get",
@@ -347,30 +353,21 @@ async fn cookies_for(url: &str, store: Option<&str>) -> String {
     )
     .await
     else {
-        return String::new();
+        return (String::new(), false);
     };
     let sites: Vec<String> =
         serde_json::from_value(from_js(&field(&got, decide::COOKIES_SITES_KEY)))
             .unwrap_or_default();
-    if !decide::cookies_wanted(&sites, url) {
-        return String::new();
-    }
-    let wanted = to_js(&serde_json::json!({ "permissions": ["cookies"] }));
-    let granted = call("permissions", "contains", &[wanted])
-        .await
-        .ok()
-        .and_then(|v| v.as_bool())
-        .unwrap_or(false);
-    if !granted {
-        return String::new();
-    }
+    let Some(once) = decide::cookies_sent(&sites, url, video) else {
+        return (String::new(), false);
+    };
     let query = to_js(&decide::cookie_query(url, store));
     let Ok(listed) = call("cookies", "getAll", &[query]).await else {
-        return String::new();
+        return (String::new(), false);
     };
     let cookies: Vec<decide::BrowserCookie> =
         serde_json::from_value(from_js(&listed)).unwrap_or_default();
-    decide::cookie_header(&cookies)
+    (decide::cookie_header(&cookies), once)
 }
 
 /// Where a tab's streams are kept between the worker's naps: the session's
@@ -899,12 +896,13 @@ async fn hand_chosen(
         }
         App::Present { hello, .. } => hello,
     };
-    let cookies = cookies_for(&target.url, store.as_deref()).await;
+    let (cookies, cookies_once) = sign_in_for(&target.url, store.as_deref(), target.page).await;
     let start = Start {
         id: hand_id("m", 0, now()),
         url: target.url.clone(),
         referrer: target.referrer.clone(),
         cookies,
+        cookies_once,
         // A file is checked before dm takes it, as a caught download is: a
         // site that refuses dm (W3Schools did, with 403, on one network)
         // would otherwise leave a failed row and nothing downloaded.
@@ -935,7 +933,10 @@ async fn hand_chosen(
 
 /// The qualities a player page's video comes in, from the app's yt-dlp. A
 /// file is one quality, so it has no list.
-async fn formats_of(target: &Target) -> Result<Vec<dm_protocol::Choice>, String> {
+async fn formats_of(
+    target: &Target,
+    store: Option<&str>,
+) -> Result<Vec<dm_protocol::Choice>, String> {
     if !target.page {
         return Ok(Vec::new());
     }
@@ -951,9 +952,13 @@ async fn formats_of(target: &Target) -> Result<Vec<dm_protocol::Choice>, String>
         Some(port) => port,
         None => Port::open()?,
     };
+    // The page's session, for this one reading: a video site asks yt-dlp
+    // to "confirm you're not a bot" without it.
+    let (cookies, _) = sign_in_for(&target.url, store, true).await;
     port.send(&Request::Formats(dm_protocol::FormatsAsked {
         url: target.url.clone(),
         referrer: target.referrer.clone(),
+        cookies,
     }))?;
     // yt-dlp reads a page in a few seconds; the app gives it thirty.
     let deadline = now() + 40_000.0;
@@ -1128,7 +1133,7 @@ pub async fn on_page_message(message: JsValue, sender: JsValue) -> JsValue {
     if click.kind == decide::FORMATS_MESSAGE {
         let tab = get(&sender, "tab.id").as_f64().map_or(-1, |id| id as i64);
         let streams = streams_of(tab).await;
-        let read = formats_of(&target).await;
+        let read = formats_of(&target, tab_store(&sender, "tab").as_deref()).await;
         let mut lines: Vec<serde_json::Value> = match &read {
             Ok(choices) => choices
                 .iter()

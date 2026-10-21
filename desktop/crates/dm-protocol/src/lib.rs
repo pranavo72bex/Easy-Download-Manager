@@ -137,6 +137,11 @@ pub struct FormatsAsked {
     pub url: String,
     #[serde(default)]
     pub referrer: String,
+    /// The page's site's cookies, as the `Cookie` header the browser would
+    /// send: a video site checks them before it lists anything ("confirm
+    /// you're not a bot"). Used for this one query and kept nowhere.
+    #[serde(default, skip_serializing_if = "String::is_empty")]
+    pub cookies: String,
 }
 
 /// One quality the panel offers: what the list says, the quality to fetch it
@@ -181,6 +186,12 @@ pub struct Start {
     /// site's sign-in" on in the toolbar popup. Empty otherwise.
     #[serde(default, skip_serializing_if = "String::is_empty")]
     pub cookies: String,
+    /// The cookies are for this download alone: a video page's session,
+    /// handed over with every video so the site lets yt-dlp in, rather than
+    /// a sign-in the person asked dm to keep. The row drops them once it
+    /// finishes. False from an extension that sends only kept ones.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub cookies_once: bool,
     /// What the browser said the download was (its `DownloadItem.mime`), for
     /// a download it had started. A server that sends the browser a zip and
     /// dm, without the browser's sign-in, a login page is not one dm can

@@ -151,6 +151,10 @@ pub struct Entry {
     /// row's, so a resume reaches the server signed in. Empty for none.
     #[serde(default)]
     pub cookies: String,
+    /// The cookies were for this download alone (a video page's session
+    /// the browser sends with every video): dropped once it completes.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub cookies_once: bool,
     /// The finished file a recheck found changed on its server, kept until
     /// the new version is whole and then replaced by it. Fetched beside it
     /// rather than after deleting it: a server that fails halfway through
@@ -189,6 +193,8 @@ pub struct AddOptions {
     /// The browser's cookies for this download's site, as a `Cookie`
     /// header, where the person switched that on for the site.
     pub cookies: String,
+    /// Those cookies are for this download alone, not kept once it is done.
+    pub cookies_once: bool,
 }
 
 struct Slot {
@@ -477,6 +483,7 @@ impl Queue {
                 parts_dir: String::new(),
                 began_in: String::new(),
                 cookies: String::new(),
+                cookies_once: false,
                 replaces: None,
             },
             control: Control::new(),
@@ -1606,6 +1613,9 @@ impl Queue {
                     slot.entry.verified = finished.verified;
                     slot.entry.mirrors = finished.mirrors;
                     slot.entry.replaces = None;
+                    if std::mem::take(&mut slot.entry.cookies_once) {
+                        slot.entry.cookies.clear();
+                    }
                     State::Completed
                 }
                 // Both were asked for, and the queue has already recorded
@@ -1754,6 +1764,7 @@ impl Queue {
             slot.entry.save_name = with.save_name.filter(|n| !n.trim().is_empty());
             slot.entry.quality = with.quality.filter(|q| !q.trim().is_empty());
             slot.entry.cookies = with.cookies.trim().to_string();
+            slot.entry.cookies_once = with.cookies_once && !slot.entry.cookies.is_empty();
             if with.later {
                 slot.hold(false);
             }

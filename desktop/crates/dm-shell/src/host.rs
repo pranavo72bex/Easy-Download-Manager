@@ -55,6 +55,9 @@ pub struct Request {
     /// person switched that on for the site in the toolbar popup.
     #[serde(default, skip_serializing_if = "String::is_empty")]
     pub cookies: String,
+    /// Those cookies are a video page's session, for this download alone.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub cookies_once: bool,
 }
 
 /// Frames one message the way native messaging wants it.
@@ -298,7 +301,7 @@ pub trait World {
         within_ms: u64,
     ) -> Result<String, String>;
     /// The qualities a page's video comes in, as yt-dlp reads them.
-    fn formats(&mut self, url: &str, referrer: &str) -> Result<Vec<Choice>, String>;
+    fn formats(&mut self, url: &str, referrer: &str, cookies: &str) -> Result<Vec<Choice>, String>;
     /// Milliseconds since the Unix epoch, the clock the extension's
     /// deadline is read against.
     fn now_ms(&mut self) -> u64 {
@@ -383,7 +386,7 @@ impl World for Here<'_> {
     }
 
     /// yt-dlp's reading of the page, through the saved proxy, bounded.
-    fn formats(&mut self, url: &str, referrer: &str) -> Result<Vec<Choice>, String> {
+    fn formats(&mut self, url: &str, referrer: &str, cookies: &str) -> Result<Vec<Choice>, String> {
         if !(url.starts_with("http://") || url.starts_with("https://")) {
             return Err("only a web page has qualities to list".into());
         }
@@ -404,6 +407,7 @@ impl World for Here<'_> {
                 url,
                 referrer,
                 proxy.as_deref(),
+                dm_core::cookies::SignIn::new(url, cookies).as_ref(),
             ))
             .map_err(|e| e.to_string())?;
         Ok(listed
@@ -506,18 +510,20 @@ pub fn answer(
             }
         }
 
-        Ok(Asked::Formats(FormatsAsked { url, referrer })) => {
-            match world.formats(url.trim(), referrer.trim()) {
-                Ok(choices) => Reply::Formats {
-                    choices,
-                    reason: None,
-                },
-                Err(why) => Reply::Formats {
-                    choices: Vec::new(),
-                    reason: Some(why),
-                },
-            }
-        }
+        Ok(Asked::Formats(FormatsAsked {
+            url,
+            referrer,
+            cookies,
+        })) => match world.formats(url.trim(), referrer.trim(), &cookies) {
+            Ok(choices) => Reply::Formats {
+                choices,
+                reason: None,
+            },
+            Err(why) => Reply::Formats {
+                choices: Vec::new(),
+                reason: Some(why),
+            },
+        },
 
         Ok(Asked::Start(Start {
             id,
@@ -528,6 +534,7 @@ pub fn answer(
             label,
             ask,
             cookies,
+            cookies_once,
             mime,
             deadline,
             ..
@@ -575,6 +582,7 @@ pub fn answer(
                         label,
                         ask,
                         cookies: cookies.trim().to_string(),
+                        cookies_once: cookies_once && !cookies.trim().is_empty(),
                         ..Request::default()
                     },
                 ) {
@@ -887,7 +895,12 @@ mod tests {
         fn now_ms(&mut self) -> u64 {
             self.clock
         }
-        fn formats(&mut self, url: &str, _referrer: &str) -> Result<Vec<Choice>, String> {
+        fn formats(
+            &mut self,
+            url: &str,
+            _referrer: &str,
+            _cookies: &str,
+        ) -> Result<Vec<Choice>, String> {
             if url.contains("unreadable") {
                 return Err("yt-dlp could not read that page".into());
             }
@@ -985,6 +998,7 @@ mod tests {
             Asked::Formats(FormatsAsked {
                 url: url.into(),
                 referrer: String::new(),
+                cookies: String::new(),
             })
             .to_frame()
         };
@@ -1047,6 +1061,23 @@ mod tests {
         )
         .unwrap();
         assert_eq!(filed.cookies, "session=abc; theme=dark");
+        assert!(!filed.cookies_once, "a kept sign-in was filed as one-off");
+
+        // A video page's session is filed as that download's alone.
+        let frame = Asked::Start(Start {
+            id: "c3".into(),
+            url: "https://video.example/watch?v=1".into(),
+            cookies: "SID=1".into(),
+            cookies_once: true,
+            ..Start::default()
+        })
+        .to_frame();
+        answer(dir.path(), &frame, &mut world);
+        let filed: Request = serde_json::from_str(
+            &std::fs::read_to_string(inbox(dir.path()).join("c3.json")).unwrap(),
+        )
+        .unwrap();
+        assert!(filed.cookies_once && filed.cookies == "SID=1", "{filed:?}");
         // A start without any hands none over.
         let (_, _) = ask(
             dir.path(),

@@ -5023,6 +5023,7 @@ mod status_tests {
             parts_dir: String::new(),
             began_in: String::new(),
             cookies: String::new(),
+            cookies_once: false,
             replaces: None,
         }
     }

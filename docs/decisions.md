@@ -1084,3 +1084,20 @@ afresh once a week. One the person installed is preferred, wherever it is.
 Not bundled in the installers: a bundled yt-dlp goes stale between dm
 releases, and both would add 100–150 MB to every installer. Not written as
 dm's own extractor: that is the site logic this project does not write.
+
+## A video page's session goes with its video (2026-10-21)
+
+Measured on 2026-10-21: YouTube's streams stop with a 403 after about 1 MB
+unless the client holds a proof-of-origin token, and an address that has
+asked too often is told "Sign in to confirm you're not a bot". yt-dlp gets
+past both with a JavaScript runtime (Deno, now fetched with it) and the
+browser's session. So the extension sends the page's cookies with every
+video handed over (the panel, "Download media with dm") and with the
+panel's quality list, whether or not the site is in the popup's sign-in
+list, and the `cookies` permission moved from optional to required (it
+carries no install warning in Chrome or Firefox). Bounded the way a kept
+sign-in is: to the page's own server, in a private file of yt-dlp's run
+removed when it ends, and — unlike a kept one — dropped from the row once
+the video is downloaded (`Start.cookies_once`, `Entry.cookies_once`).
+Nothing from a private window. Dropped: writing a token generator of dm's
+own, which is the site logic this project does not write.

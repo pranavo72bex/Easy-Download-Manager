@@ -61,6 +61,8 @@ pub struct FileInfo {
     pub handed: bool,
     /// The site's sign-in the browser handed over with it, if any.
     pub cookies: String,
+    /// Those cookies are for this download alone.
+    pub cookies_once: bool,
     /// Browse… was pressed on a desktop with no folder chooser: said in
     /// this opening of the dialog only (gap 133: it stayed for the next).
     pub no_chooser: bool,
@@ -485,6 +487,7 @@ impl Dialogs {
             queue: MAIN_QUEUE.into(),
             handed: true,
             cookies: request.cookies,
+            cookies_once: request.cookies_once,
             ..FileInfo::default()
         });
     }
@@ -3256,6 +3259,7 @@ fn file_info(app: &mut DmApp, ctx: &egui::Context) {
         referrer: d.referrer.clone(),
         quality: d.quality.clone(),
         cookies: d.cookies.clone(),
+        cookies_once: d.cookies_once,
     };
     let urls = d.urls.clone();
     // The size the dialog showed stays on the row until the row learns its

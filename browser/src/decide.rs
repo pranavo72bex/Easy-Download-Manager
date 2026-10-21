@@ -964,6 +964,20 @@ pub fn cookies_wanted(sites: &[String], url: &str) -> bool {
     site_listed(sites, url)
 }
 
+/// Whether the browser's cookies go with a hand-off of `url`, and if so
+/// whether they are for that download alone: `None` sends none; `Some(false)`
+/// is a site the person listed, whose sign-in the row keeps;
+/// `Some(true)` is a video page, whose session goes with every video —
+/// a video site lets yt-dlp in only with it ("confirm you're not a bot") —
+/// and is dropped once that download is done.
+pub fn cookies_sent(sites: &[String], url: &str, video: bool) -> Option<bool> {
+    if cookies_wanted(sites, url) {
+        Some(false)
+    } else {
+        video.then_some(true)
+    }
+}
+
 /// What `cookies.getAll` is asked for a download's sign-in: its address and,
 /// where the browser named one, the cookie store it was made in. Firefox
 /// keeps each container's cookies in a store of its own, and without the
@@ -1527,6 +1541,22 @@ mod tests {
         assert!(cookies_wanted(&sites, "https://dl.files.example/a.zip"));
         assert!(!cookies_wanted(&sites, "https://other.example/a.zip"));
         assert!(!cookies_wanted(&[], "https://files.example/a.zip"));
+        // A video page's session goes with its video, for that one alone; a
+        // listed site's is kept; anything else sends none.
+        let video = "https://www.video.example/watch?v=1";
+        assert_eq!(cookies_sent(&[], video, true), Some(true));
+        assert_eq!(
+            cookies_sent(&[], "https://other.example/a.zip", false),
+            None
+        );
+        assert_eq!(
+            cookies_sent(&sites, "https://dl.files.example/a.zip", false),
+            Some(false)
+        );
+        assert_eq!(
+            cookies_sent(&sites, "https://files.example/watch", true),
+            Some(false)
+        );
         let header = cookie_header(&[
             BrowserCookie {
                 name: "session".into(),

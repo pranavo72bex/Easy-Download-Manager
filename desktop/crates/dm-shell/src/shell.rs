@@ -177,6 +177,7 @@ pub fn add_options(request: &host::Request) -> dm_core::AddOptions {
         later: request.later,
         quality: request.quality.clone(),
         cookies: request.cookies.clone(),
+        cookies_once: request.cookies_once,
         queue: if request.later {
             dm_core::MAIN_QUEUE.to_string()
         } else {

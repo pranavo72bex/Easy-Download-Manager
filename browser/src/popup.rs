@@ -10,9 +10,8 @@
 //!   refuses what only the browser can fetch).
 //! - **Hand over this site's sign-in**: the browser's cookies for this site
 //!   go to dm with its downloads, so a file behind a sign-in is taken and
-//!   not left. Asks the browser for the `cookies` permission the first time
-//!   it is switched on, for that is when it is first needed, and reads on
-//!   only while the browser still grants it.
+//!   not left, and the row keeps them. A video page's session goes with
+//!   its video either way, for that download alone (`decide::cookies_sent`).
 //!
 //! A switch turned off on part of a listed site turns it off for the listed
 //! site too, and says so.
@@ -105,39 +104,9 @@ fn on_change(element: &Element, handler: impl Fn() + 'static) {
     closure.forget();
 }
 
-/// `ext.<path>.<method>(args…)`, started now and not awaited: for what must
-/// happen inside a person's gesture (Firefox refuses `permissions.request`
-/// from anywhere else) or before the popup can close.
-fn start(ext: &JsValue, path: &str, method: &str, args: &[JsValue]) -> Option<Promise> {
-    let mut target = ext.clone();
-    for part in path.split('.') {
-        target = Reflect::get(&target, &part.into()).ok()?;
-    }
-    let function: Function = Reflect::get(&target, &method.into())
-        .ok()?
-        .dyn_into()
-        .ok()?;
-    let list: Array = args.iter().cloned().collect();
-    function.apply(&target, &list).ok()?.dyn_into().ok()
-}
-
 fn as_array(list: &[String]) -> JsValue {
     let array: Array = list.iter().map(|s| JsValue::from_str(s)).collect();
     array.into()
-}
-
-fn item(key: &str, value: &JsValue) -> JsValue {
-    let item = Object::new();
-    let _ = Reflect::set(&item, &key.into(), value);
-    item.into()
-}
-
-/// The `{ permissions: ["cookies"] }` the cookies permission is asked by.
-fn cookies_permission() -> JsValue {
-    let wanted = Object::new();
-    let names: Array = [JsValue::from_str("cookies")].into_iter().collect();
-    let _ = Reflect::set(&wanted, &"permissions".into(), &names);
-    wanted.into()
 }
 
 /// The address of the tab in front.
@@ -210,12 +179,9 @@ async fn site_switch(ext: JsValue, switch: SiteSwitch) {
     });
 }
 
-/// The sign-in switch: on only where the site is listed and the browser
-/// still grants the cookies permission, which a person can take back in
-/// the browser's settings. Switched on, the site is stored before the
-/// permission is asked — Firefox closes the popup for the prompt, and
-/// whatever was to happen after it never does — and taken out again if the
-/// permission is refused.
+/// The sign-in switch: on where the site is listed. The browser grants the
+/// `cookies` permission with the extension, so switching it on only lists
+/// the site.
 async fn cookies_switch(ext: JsValue) {
     let (Some(input), Some(row), Some(label)) = (
         input("cookies"),
@@ -236,11 +202,7 @@ async fn cookies_switch(ext: JsValue) {
         "Hand over {site}'s sign-in with its downloads"
     )));
     let listed = sites(&stored(&ext, decide::COOKIES_SITES_KEY).await);
-    let granted = call(&ext, "permissions", "contains", &[cookies_permission()])
-        .await
-        .and_then(|v| v.as_bool())
-        .unwrap_or(false);
-    input.set_checked(granted && decide::cookies_wanted(&listed, &url));
+    input.set_checked(decide::cookies_wanted(&listed, &url));
     // Kept here, so a switch-on can store the site without waiting.
     let known = std::rc::Rc::new(std::cell::RefCell::new(listed));
     let box_ = input.clone();
@@ -254,45 +216,11 @@ async fn cookies_switch(ext: JsValue) {
         };
         let after = decide::with_site(&before, &site, on);
         *known.borrow_mut() = after.clone();
-        // Both started inside the gesture, the site first.
-        let stored = start(
-            &ext,
-            "storage.local",
-            "set",
-            &[item(decide::COOKIES_SITES_KEY, &as_array(&after))],
-        );
-        let asked = if on {
-            start(&ext, "permissions", "request", &[cookies_permission()])
-        } else {
-            None
-        };
-        let (ext, box_, known) = (ext.clone(), box_.clone(), known.clone());
+        let ext = ext.clone();
         wasm_bindgen_futures::spawn_local(async move {
-            if let Some(stored) = stored {
-                let _ = JsFuture::from(stored).await;
-            }
+            store(&ext, decide::COOKIES_SITES_KEY, as_array(&after)).await;
             if let Some(note) = note {
                 say(&note, false);
-            }
-            if !on {
-                return;
-            }
-            let granted = match asked {
-                Some(asked) => JsFuture::from(asked)
-                    .await
-                    .ok()
-                    .and_then(|v| v.as_bool())
-                    .unwrap_or(false),
-                None => false,
-            };
-            if !granted {
-                *known.borrow_mut() = before.clone();
-                store(&ext, decide::COOKIES_SITES_KEY, as_array(&before)).await;
-                box_.set_checked(false);
-                say(
-                    "Without the cookies permission, sign-ins stay with the browser",
-                    true,
-                );
             }
         });
     });

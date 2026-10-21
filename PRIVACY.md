@@ -71,15 +71,26 @@ is there is kept in memory for a minute and then forgotten.
 ## What the app handles
 
 The app downloads what it is given, with the page as referrer, and keeps its
-queue and history on this computer. It does not have your browser's cookies;
-a download that needs a sign-in is left to the browser — unless you switch
-"Hand over this site's sign-in" on for that site in the extension's toolbar
-popup. The first time you do, the browser asks you for its cookies
-permission; from then on that site's cookies travel with its downloads to
-the app, are sent to that site's server only, and are kept with the row in
-its queue file (readable by your account alone) — so that Redownload and
-the Recheck queue can ask that server again — until you delete the download
-from dm's list. Switching it off stops that for new downloads.
+queue and history on this computer.
+
+**Your session on a video page.** When you ask dm for a video from a page —
+the "Download video" panel, or "Download media with dm" — the extension
+sends that page's cookies along, for that one video. Video sites turn away a
+download that does not carry the session your browser has ("confirm you're
+not a bot"). They go to the app on this computer only, are sent to that
+page's server only (in a file of the download's own, readable by your
+account alone and removed when the download ends), and are dropped from the
+row once the video is downloaded. This is why the extension has the
+browser's cookies permission.
+
+**Sign-ins for other downloads.** Other downloads go without your cookies;
+one that needs a sign-in is left to the browser — unless you switch "Hand
+over this site's sign-in" on for that site in the extension's toolbar popup.
+From then on that site's cookies travel with its downloads to the app, are
+sent to that site's server only, and are kept with the row in its queue file
+(readable by your account alone) — so that Redownload and the Recheck queue
+can ask that server again — until you delete the download from dm's list.
+Switching it off stops that for new downloads.
 
 ## What dm never does
 

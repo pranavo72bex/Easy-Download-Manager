@@ -27,7 +27,12 @@ impl World for Nowhere {
     ) -> Result<String, String> {
         Ok(String::new())
     }
-    fn formats(&mut self, _url: &str, _referrer: &str) -> Result<Vec<dm_protocol::Choice>, String> {
+    fn formats(
+        &mut self,
+        _url: &str,
+        _referrer: &str,
+        _cookies: &str,
+    ) -> Result<Vec<dm_protocol::Choice>, String> {
         Ok(Vec::new())
     }
 }

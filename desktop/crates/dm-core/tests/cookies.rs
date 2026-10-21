@@ -163,6 +163,25 @@ async fn a_handed_over_sign_in_is_its_downloads_alone_and_for_its_server_alone()
         "the row forgot its sign-in"
     );
 
+    // A video page's session, handed over for that download alone, signs
+    // it in and is not kept once it is done.
+    let once = q
+        .add_with(
+            &format!("{url}?video"),
+            dm_core::AddOptions {
+                cookies: "session=1".into(),
+                cookies_once: true,
+                ..Default::default()
+            },
+        )
+        .await
+        .unwrap();
+    q.run().await;
+    let row = q.get(once).await.unwrap();
+    assert_eq!(row.state, dm_core::State::Completed, "{row:?}");
+    assert_eq!(row.cookies, "", "a one-download session was kept");
+    assert!(!row.cookies_once);
+
     // A later download from the same site, handed over without them, does
     // not borrow the first one's.
     let other = q.add(&format!("{url}?again")).await.unwrap();

@@ -1,19 +1,17 @@
 {
   "manifest_version": 3,
   "name": "dm — Download Manager",
-  "version": "3.0.7",
+  "version": "3.0.8",
   "description": "Hands downloads and videos to the dm app, which downloads them. With no app, the browser keeps them.",
   "permissions": [
     "downloads",
     "contextMenus",
+    "cookies",
     "nativeMessaging",
     "notifications",
     "scripting",
     "storage",
     "webRequest"
-  ],
-  "optional_permissions": [
-    "cookies"
   ],
   "host_permissions": [
     "<all_urls>"
