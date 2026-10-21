@@ -341,7 +341,10 @@ and is not carried over.
       2026-10-20 the NSIS installer was installed silently there and
       `scripts/smoke.py` passed against the installed binary: native host,
       the window (on Mesa's software OpenGL), headless, a byte-exact
-      download; the uninstaller removed it. `scripts/windows-check.sh`
+      download; the uninstaller removed it. And the whole of `app-check.py`
+      passes against the real `dm-desktop.exe` there (`windows-check.yml`,
+      2026-10-21), which found and fixed a native host that held the
+      browser's pipes open through the dm it started. `scripts/windows-check.sh`
       compiles it from this Mac. Unchecked: a real Windows desktop (GPU
       driver, tray, SmartScreen, a login)
 - [x] Installer — `cargo packager` (no Tauri) builds a 7.9 MB dmg and
