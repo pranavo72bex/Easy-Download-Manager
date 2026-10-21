@@ -62,6 +62,7 @@ async fn fetched_tools_are_kept_only_when_they_match() {
         ytdlp: format!("{base}/y"),
         ffmpeg: format!("{base}/f"),
         ffmpeg_digests: vec![("linux-x64".into(), ffmpeg_digest)],
+        deno: format!("{base}/d"),
     };
     let dir = common::tempdir();
     let client = dm_core::client();
@@ -143,7 +144,7 @@ async fn the_official_builds_are_fetched_and_run() {
     let dir = common::tempdir();
     let client = dm_core::client();
     let (os, arch) = (std::env::consts::OS, std::env::consts::ARCH);
-    for tool in [Tool::YtDlp, Tool::Ffmpeg] {
+    for tool in [Tool::YtDlp, Tool::Ffmpeg, Tool::Deno] {
         let path = fetch_into(
             &client,
             tool,
@@ -154,7 +155,7 @@ async fn the_official_builds_are_fetched_and_run() {
         )
         .await
         .unwrap_or_else(|e| panic!("{tool:?}: {e}"));
-        let flag = if tool == Tool::YtDlp {
+        let flag = if tool != Tool::Ffmpeg {
             "--version"
         } else {
             "-version"

@@ -47,6 +47,22 @@ pub(crate) fn ffmpeg() -> Option<PathBuf> {
     which("ffmpeg")
 }
 
+/// The Deno yt-dlp can run a site's player challenges in, if any: one
+/// installed, or the one dm fetched.
+pub(crate) fn deno() -> Option<PathBuf> {
+    which("deno")
+}
+
+/// Tells yt-dlp which JavaScript runtime to use: it looks for Deno only on
+/// the PATH, which a fetched one, or one a Dock launch cannot see, is not on.
+fn js_runtime(command: &mut Command) {
+    if let Some(deno) = deno() {
+        command
+            .arg("--js-runtimes")
+            .arg(format!("deno:{}", deno.display()));
+    }
+}
+
 /// The first `yt-dlp` on `PATH`, or in the places package managers put it.
 ///
 /// `PATH` alone is not enough, and this is the bug that made "YouTube does
@@ -434,6 +450,7 @@ pub async fn list_choices(
     let binary = binary().ok_or_else(|| Error::Internal("yt-dlp is not installed".into()))?;
     let mut command = Command::new(binary);
     crate::no_window_async(&mut command);
+    js_runtime(&mut command);
     command
         .arg("-J")
         .arg("--no-playlist")
@@ -539,6 +556,7 @@ pub async fn download_ytdlp(
     #[cfg(unix)]
     command.process_group(0);
 
+    js_runtime(&mut command);
     if let Some(ffmpeg) = &ffmpeg {
         command.arg("--ffmpeg-location").arg(ffmpeg);
         // Subtitles ride inside the file, which is ffmpeg's work; without
