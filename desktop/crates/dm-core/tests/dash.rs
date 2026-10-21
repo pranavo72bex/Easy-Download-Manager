@@ -96,6 +96,9 @@ out="$(dirname "$template")/joined [id].mp4"
 if [ -n "$DM_FAKE_HALVES" ]; then
   # As yt-dlp leaves a pair it has no ffmpeg to join: side by side under
   # the name it would have joined them as, which it names all the same.
+  if [ -n "$DM_FAKE_SUBS" ]; then
+    printf 'WEBVTT\n\n00:00:00.200 --> 00:00:00.800\nHello\n' > "$(dirname "$template")/joined [id].en.vtt"
+  fi
   for half in "$DM_FAKE_HALVES"/*; do
     name=$(basename "$half")
     cp "$half" "$(dirname "$template")/joined [id].${name#*.}"
@@ -366,7 +369,7 @@ async fn a_webm_asked_for_is_joined_by_dm_into_one_webm() {
 }
 
 #[tokio::test]
-async fn subtitles_are_fetched_and_embedded_only_where_an_ffmpeg_can_embed_them() {
+async fn subtitles_are_fetched_and_carried_in_the_video_with_or_without_ffmpeg() {
     let _turn = ENV.lock().await;
     let dir = tempdir();
     let record = dir.path().join("argv");
@@ -393,23 +396,37 @@ async fn subtitles_are_fetched_and_embedded_only_where_an_ffmpeg_can_embed_them(
         );
     }
 
-    // Without an ffmpeg nothing can embed them, so they are not asked for:
-    // files beside the video are files dm would not place.
+    // Without an ffmpeg they are fetched as WebVTT and dm puts them inside
+    // the video it joins; no subtitle file is left beside it.
     let dir = tempdir();
     let record = dir.path().join("argv");
     std::env::set_var("DM_YTDLP", fake_ytdlp(dir.path()));
     std::env::set_var("DM_FFMPEG", "");
     std::env::set_var("DM_FAKE_RECORD", &record);
+    std::env::set_var(
+        "DM_FAKE_HALVES",
+        Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/mp4"),
+    );
+    std::env::set_var("DM_FAKE_SUBS", "1");
     let with = Options {
         subtitles: true,
         ..options(dir.path())
     };
-    download(&client(), &url, &with)
-        .await
-        .expect("the hand-off failed");
+    let done = download(&client(), &url, &with).await;
+    std::env::remove_var("DM_FAKE_HALVES");
+    std::env::remove_var("DM_FAKE_SUBS");
+    let done = done.expect("the hand-off failed");
     let args = recorded(&record);
     assert!(!args.iter().any(|a| a == "--embed-subs"), "{args:?}");
-    assert!(!args.iter().any(|a| a == "--write-subs"), "{args:?}");
+    assert!(args.iter().any(|a| a == "--write-subs"), "{args:?}");
+    let joined = std::fs::read(&done.path).unwrap();
+    let has = |kind: &[u8]| joined.windows(kind.len()).filter(|w| *w == kind).count();
+    assert_eq!(has(b"tx3g"), 1, "no subtitle track");
+    assert_eq!(has(b"Hello"), 1, "the cue's text is not in it");
+    assert_eq!(
+        files_under(&dir.path().join("out")),
+        vec![done.path.clone()]
+    );
 
     // And off, nothing about subtitles at all.
     let dir = tempdir();

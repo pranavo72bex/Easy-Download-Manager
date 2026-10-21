@@ -231,7 +231,7 @@ the host and the extension.
 | Behaviour | Status | Evidence |
 |---|---|---|
 | A stream that arrives as a transport stream is saved as an MP4 where an ffmpeg can remux it (Options › Downloads, on by default); the `.ts` where not asked or not possible | PASS | `hls.rs` `a_transport_stream_is_saved_as_an_mp4_where_ffmpeg_can_and_as_ts_where_not_asked`: a real stream made by ffmpeg lands as `show.mp4` that ffmpeg decodes to the end, nothing left staged; off, the segments in order as `show.ts` |
-| Subtitles fetched and embedded by yt-dlp when asked (Options › Downloads), only where an ffmpeg can embed them | PASS | `dash.rs` `subtitles_are_fetched_and_embedded_only_where_an_ffmpeg_can_embed_them` (the stand-in records `--write-subs --sub-langs all --embed-subs`; nothing without ffmpeg or when off) |
+| Subtitles carried inside the video when asked (Options › Downloads): embedded by yt-dlp's ffmpeg where there is one, else fetched as WebVTT and put in by dm (MP4 `tx3g`, WebM WebVTT tracks, one per language) | PASS | `dash.rs` `subtitles_are_fetched_and_carried_in_the_video_with_or_without_ffmpeg`; `tests/mp4mux.rs` `subtitles_are_carried_in_the_mp4_and_the_webm_dm_joins`; a real YouTube video's English and German subtitles read back exact (2026-10-21) |
 | Direct media files | PASS | ordinary downloads |
 | HLS, including AES-128 and resume | PASS | `hls.rs`; `app-check.py` |
 | HLS behind redirects: entries joined against where each playlist landed | PASS | `hls.rs` `relative_entries_are_joined_against_where_a_redirect_landed` |

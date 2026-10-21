@@ -446,7 +446,7 @@ async fn fetch_reporting(
         ) if !names_a_document(url)
             && crate::tools::for_video(
                 client,
-                crate::ytdlp::needs_ffmpeg(options.container.as_deref(), options.subtitles),
+                crate::ytdlp::needs_ffmpeg(options.container.as_deref()),
             )
             .await
             .is_ok() =>
@@ -479,7 +479,7 @@ async fn fetch_reporting(
         Some(stream::Kind::Dash) => Some(
             crate::tools::for_video(
                 client,
-                crate::ytdlp::needs_ffmpeg(options.container.as_deref(), options.subtitles),
+                crate::ytdlp::needs_ffmpeg(options.container.as_deref()),
             )
             .await,
         ),
@@ -533,7 +533,7 @@ async fn fetch_reporting(
         let document = names_a_document(url);
         if crate::tools::for_video(
             client,
-            crate::ytdlp::needs_ffmpeg(options.container.as_deref(), options.subtitles),
+            crate::ytdlp::needs_ffmpeg(options.container.as_deref()),
         )
         .await
         .is_ok()
@@ -2019,7 +2019,7 @@ async fn download_stream(
         Resolved::Beyond(_)
             if crate::tools::for_video(
                 client,
-                crate::ytdlp::needs_ffmpeg(options.container.as_deref(), options.subtitles),
+                crate::ytdlp::needs_ffmpeg(options.container.as_deref()),
             )
             .await
             .is_ok() =>

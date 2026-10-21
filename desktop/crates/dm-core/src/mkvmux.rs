@@ -436,6 +436,63 @@ struct Placed<'a> {
 
 /// Joins the WebM files `inputs` into one at `out`. Returns its length.
 pub fn join(inputs: &[PathBuf], out: &Path) -> Result<u64, String> {
+    join_with_text(inputs, &[], out)
+}
+
+/// The subtitles as WebVTT tracks, their cues' text written on the end of
+/// `data`, which is input `input`.
+fn text_input(texts: &[crate::subtitles::Subtitle], input: usize, data: &mut Vec<u8>) -> Input {
+    let mut tracks = Vec::new();
+    let mut blocks = Vec::new();
+    for (n, text) in texts.iter().enumerate() {
+        let number = n as u64 + 1;
+        let mut rest = uint_element(TRACK_TYPE, 0x11);
+        rest.extend(element(CODEC_ID, b"D_WEBVTT/SUBTITLES"));
+        rest.extend(element(
+            0x22_B59C,
+            &crate::subtitles::iso639_2(&text.language),
+        ));
+        rest.extend(uint_element(0x88, 0)); // not shown unless picked
+        rest.extend(uint_element(0x9C, 0)); // no lacing
+        tracks.push(TrackIn {
+            number,
+            kind: 0x11,
+            codec: "D_WEBVTT/SUBTITLES".into(),
+            rest,
+        });
+        for cue in &text.cues {
+            // WebM's WebVTT block: the cue's identifier line and settings
+            // line (both empty here), then its text. Readers drop a block
+            // without the first two.
+            let data_at = data.len() as u64;
+            data.extend_from_slice(b"\n\n");
+            data.extend_from_slice(cue.text.as_bytes());
+            blocks.push(Block {
+                input,
+                track: number,
+                ticks: i64::try_from(cue.start).unwrap_or(i64::MAX),
+                key: true,
+                flags: 0,
+                data_at,
+                data_len: cue.text.len() as u64 + 2,
+                // How long it shows.
+                group: Some(uint_element(0x9B, cue.end.saturating_sub(cue.start))),
+            });
+        }
+    }
+    Input {
+        scale: SCALE_NS,
+        tracks,
+        blocks,
+    }
+}
+
+/// [`join`], with `texts` carried as subtitle tracks, one per language.
+pub fn join_with_text(
+    inputs: &[PathBuf],
+    texts: &[crate::subtitles::Subtitle],
+    out: &Path,
+) -> Result<u64, String> {
     let mut read = Vec::new();
     for (i, path) in inputs.iter().enumerate() {
         let input = read_input(path, i)
@@ -446,7 +503,23 @@ pub fn join(inputs: &[PathBuf], out: &Path) -> Result<u64, String> {
         }
         read.push(input);
     }
-    // Pictures first, then sound; each numbered afresh.
+    let mut scratch_name = out.as_os_str().to_owned();
+    scratch_name.push(".text");
+    let scratch = PathBuf::from(scratch_name);
+    let mut sources = inputs.to_vec();
+    if !texts.is_empty() {
+        let mut data = Vec::new();
+        read.push(text_input(texts, inputs.len(), &mut data));
+        std::fs::write(&scratch, &data).map_err(|e| format!("subtitles: {e}"))?;
+        sources.push(scratch.clone());
+    }
+    let joined = join_read(&read, &sources, out);
+    let _ = std::fs::remove_file(&scratch);
+    joined
+}
+
+fn join_read(read: &[Input], inputs: &[PathBuf], out: &Path) -> Result<u64, String> {
+    // Pictures first, then sound, then subtitles; each numbered afresh.
     let mut order: Vec<(usize, &TrackIn)> = read
         .iter()
         .enumerate()
@@ -456,7 +529,7 @@ pub fn join(inputs: &[PathBuf], out: &Path) -> Result<u64, String> {
                 .is_some_and(|r| r.blocks.iter().any(|b| b.track == t.number))
         })
         .collect();
-    order.sort_by_key(|(i, t)| (t.kind != 1, *i));
+    order.sort_by_key(|(i, t)| (t.kind != 1, t.kind == 0x11, *i));
     if order.is_empty() {
         return Err("there is nothing to join".into());
     }
@@ -467,7 +540,7 @@ pub fn join(inputs: &[PathBuf], out: &Path) -> Result<u64, String> {
             .map(|p| p as u64 + 1)
     };
     let mut placed: Vec<Placed> = Vec::new();
-    for input in &read {
+    for input in read {
         for block in &input.blocks {
             let Some(track) = number_of(block.input, block.track) else {
                 continue;
@@ -483,15 +556,22 @@ pub fn join(inputs: &[PathBuf], out: &Path) -> Result<u64, String> {
             });
         }
     }
-    // A track that starts before zero (an encoder's delay) moves everything
-    // on by as much: a cluster's time has no sign.
-    let earliest = placed.iter().map(|p| p.ms).min().unwrap_or(0).min(0);
-    for p in &mut placed {
-        p.ms -= earliest;
+    // A block before zero (an Opus encoder's delay) is kept there: the
+    // first cluster starts at zero and the block's own offset is negative.
+    if placed.iter().any(|p| p.ms < -30_000) {
+        return Err("a track starts too far before the others".into());
     }
     placed.sort_by_key(|p| (p.ms, !p.video));
     let webm = order.iter().all(|(_, t)| {
-        ["V_VP8", "V_VP9", "V_AV1", "A_OPUS", "A_VORBIS"].contains(&t.codec.as_str())
+        [
+            "V_VP8",
+            "V_VP9",
+            "V_AV1",
+            "A_OPUS",
+            "A_VORBIS",
+            "D_WEBVTT/SUBTITLES",
+        ]
+        .contains(&t.codec.as_str())
     });
     let has_video = order.iter().any(|(_, t)| t.kind == 1);
     let mut files: Vec<Positioned> = inputs
@@ -504,7 +584,16 @@ pub fn join(inputs: &[PathBuf], out: &Path) -> Result<u64, String> {
 
 /// [`join`], off the async runtime.
 pub async fn join_async(inputs: Vec<PathBuf>, out: PathBuf) -> Result<u64, String> {
-    tokio::task::spawn_blocking(move || join(&inputs, &out))
+    join_with_text_async(inputs, Vec::new(), out).await
+}
+
+/// [`join_with_text`], off the async runtime.
+pub async fn join_with_text_async(
+    inputs: Vec<PathBuf>,
+    texts: Vec<crate::subtitles::Subtitle>,
+    out: PathBuf,
+) -> Result<u64, String> {
+    tokio::task::spawn_blocking(move || join_with_text(&inputs, &texts, &out))
         .await
         .map_err(|e| format!("joining stopped: {e}"))?
 }
@@ -582,7 +671,7 @@ fn write(
     let mut i = 0;
     let mut buffer = vec![0u8; 1 << 20];
     while let Some(first) = placed.get(i) {
-        let start = first.ms;
+        let start = first.ms.max(0);
         let mut end = i + 1;
         while let Some(p) = placed.get(end) {
             let span = p.ms - start;
@@ -627,7 +716,6 @@ fn write(
                     w.write_all(&[BLOCK_GROUP as u8]).map_err(wrote)?;
                     w.write_all(&size8(1 + 8 + 4 + p.block.data_len + extra.len() as u64))
                         .map_err(wrote)?;
-                    w.write_all(extra).map_err(wrote)?;
                     w.write_all(&[BLOCK as u8]).map_err(wrote)?;
                     w.write_all(&size8(4 + p.block.data_len)).map_err(wrote)?;
                 }
@@ -646,6 +734,10 @@ fn write(
                 from += take as u64;
                 w.write_all(part).map_err(wrote)?;
                 left -= take as u64;
+            }
+            // A group's other elements after its block, which comes first.
+            if let Some(extra) = &p.block.group {
+                w.write_all(extra).map_err(wrote)?;
             }
         }
         at += 4 + 8 + body;

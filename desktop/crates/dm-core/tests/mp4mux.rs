@@ -43,6 +43,35 @@ fn decoded(ffmpeg: &Path, file: &Path, stream: &str) -> String {
     )
 }
 
+/// Picture and sound decode as the inputs' do, or as ffmpeg's own
+/// `-c copy` join of them does. The two differ in the sound's last frame
+/// from ffmpeg 9 on: a DASH sound's edit list leaves its end open, and a
+/// joined file says where it ends, so the encoder's padding after the end
+/// is played from the input and not from either join.
+fn same_as_ffmpeg(ffmpeg: &Path, out: &Path, inputs: &[&Path]) {
+    let mut name = std::ffi::OsString::from("ffmpeg-joined.");
+    name.push(out.extension().unwrap());
+    let reference = out.with_file_name(name);
+    let mut args: Vec<&str> = vec!["-v", "error", "-y"];
+    for input in inputs {
+        args.extend(["-i", input.to_str().unwrap()]);
+    }
+    for n in ["0", "1"].iter().take(inputs.len()) {
+        args.extend(["-map", n]);
+    }
+    args.extend(["-c", "copy", reference.to_str().unwrap()]);
+    run(ffmpeg, &args);
+    for (stream, source) in [("0:v", inputs[0]), ("0:a", *inputs.last().unwrap())] {
+        let ours = decoded(ffmpeg, out, stream);
+        let theirs = decoded(ffmpeg, source, stream);
+        let joined = decoded(ffmpeg, &reference, stream);
+        assert!(
+            ours == theirs || ours == joined,
+            "{stream}: ours {ours} / the input's {theirs} / ffmpeg's join {joined}"
+        );
+    }
+}
+
 fn make(ffmpeg: &Path, dir: &Path, fragmented: bool) -> (PathBuf, PathBuf) {
     let flags = if fragmented {
         // As a DASH server's files are: an empty index, a segment index,
@@ -173,14 +202,7 @@ fn check(fragmented: bool) {
         assert!((seconds - 6.0).abs() < 0.2, "{streams}");
     }
 
-    assert_eq!(
-        decoded(&ffmpeg, &out, "0:v"),
-        decoded(&ffmpeg, &video, "0:v")
-    );
-    assert_eq!(
-        decoded(&ffmpeg, &out, "0:a"),
-        decoded(&ffmpeg, &audio, "0:a")
-    );
+    same_as_ffmpeg(&ffmpeg, &out, &[&video, &audio]);
 }
 
 #[test]
@@ -334,8 +356,7 @@ fn check_ts(segmented: bool) {
         "{source} / {streams}"
     );
 
-    assert_eq!(decoded(&ffmpeg, &out, "0:v"), decoded(&ffmpeg, &ts, "0:v"));
-    assert_eq!(decoded(&ffmpeg, &out, "0:a"), decoded(&ffmpeg, &ts, "0:a"));
+    same_as_ffmpeg(&ffmpeg, &out, &[&ts]);
 }
 
 #[test]
@@ -445,14 +466,7 @@ fn a_webm_picture_and_sound_join_into_one_webm_that_decodes_the_same() {
         "{streams}"
     );
     assert!(streams.contains("matroska,webm"), "{streams}");
-    assert_eq!(
-        decoded(&ffmpeg, &out, "0:v"),
-        decoded(&ffmpeg, &video, "0:v")
-    );
-    assert_eq!(
-        decoded(&ffmpeg, &out, "0:a"),
-        decoded(&ffmpeg, &audio, "0:a")
-    );
+    same_as_ffmpeg(&ffmpeg, &out, &[&video, &audio]);
     // It seeks: a decode from four seconds in starts there, by its index.
     let seeked = run(
         &ffprobe,
@@ -472,4 +486,133 @@ fn a_webm_picture_and_sound_join_into_one_webm_that_decodes_the_same() {
     );
     let first: f64 = seeked.lines().next().unwrap().trim().parse().unwrap();
     assert!((3.0..=4.1).contains(&first), "{seeked}");
+}
+
+const VTT_EN: &str = "WEBVTT\n\n00:00:01.000 --> 00:00:02.500\nHello <i>there</i>\n\n00:00:03.000 --> 00:00:04.000\nA &amp; B\n";
+const VTT_DE: &str = "WEBVTT\n\n00:00:01.000 --> 00:00:02.000\nHallo\n";
+
+/// The cues ffmpeg reads back from a file's first and second subtitle
+/// tracks, as SRT, and the tracks' languages.
+fn subtitles_read_back(ffmpeg: &Path, ffprobe: &Path, file: &Path) -> (String, String, String) {
+    // Without the font tags ffmpeg writes around an MP4's text.
+    let srt = |n: &str| {
+        let text = run(
+            ffmpeg,
+            &[
+                "-v",
+                "error",
+                // The file's own times, not shifted to start at zero.
+                "-copyts",
+                "-i",
+                file.to_str().unwrap(),
+                "-map",
+                n,
+                "-f",
+                "srt",
+                "-",
+            ],
+        );
+        let mut plain = String::new();
+        let mut in_tag = false;
+        for c in text.chars() {
+            match c {
+                '<' => in_tag = true,
+                '>' if in_tag => in_tag = false,
+                _ if !in_tag => plain.push(c),
+                _ => {}
+            }
+        }
+        plain
+    };
+    let languages = run(
+        ffprobe,
+        &[
+            "-v",
+            "error",
+            "-select_streams",
+            "s",
+            "-show_entries",
+            "stream=codec_name:stream_tags=language",
+            "-of",
+            "csv=p=0",
+            file.to_str().unwrap(),
+        ],
+    );
+    (srt("0:s:0"), srt("0:s:1"), languages)
+}
+
+#[test]
+fn subtitles_are_carried_in_the_mp4_and_the_webm_dm_joins() {
+    let (Some(ffmpeg), Some(ffprobe)) = (tool("ffmpeg"), tool("ffprobe")) else {
+        eprintln!("no ffmpeg here to judge real files; skipped");
+        return;
+    };
+    let fixtures = Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures");
+    let dir = tempfile::tempdir().unwrap();
+    let texts = vec![
+        dm_core::subtitles::Subtitle {
+            language: "de".into(),
+            cues: dm_core::subtitles::parse_vtt(VTT_DE),
+        },
+        dm_core::subtitles::Subtitle {
+            language: "en".into(),
+            cues: dm_core::subtitles::parse_vtt(VTT_EN),
+        },
+    ];
+    let mp4 = dir.path().join("joined.mp4");
+    dm_core::mp4mux::join_with_text(
+        &[
+            fixtures.join("mp4/picture.f137.mp4"),
+            fixtures.join("mp4/sound.f140.m4a"),
+        ],
+        &texts,
+        &mp4,
+    )
+    .unwrap();
+    let (de, en, languages) = subtitles_read_back(&ffmpeg, &ffprobe, &mp4);
+    eprintln!("{languages}{de}{en}");
+    assert_eq!(languages.trim(), "mov_text,deu\nmov_text,eng");
+    assert!(de.contains("00:00:01,000 --> 00:00:02,000\nHallo"), "{de}");
+    assert!(
+        en.contains("00:00:01,000 --> 00:00:02,500\nHello there"),
+        "{en}"
+    );
+    assert!(en.contains("00:00:03,000 --> 00:00:04,000\nA & B"), "{en}");
+
+    let webm = dir.path().join("joined.webm");
+    dm_core::mkvmux::join_with_text(
+        &[
+            fixtures.join("webm/picture.f247.webm"),
+            fixtures.join("webm/sound.f251.webm"),
+        ],
+        &texts,
+        &webm,
+    )
+    .unwrap();
+    let (de, en, languages) = subtitles_read_back(&ffmpeg, &ffprobe, &webm);
+    eprintln!("{languages}{de}{en}");
+    assert_eq!(languages.trim(), "webvtt,deu\nwebvtt,eng");
+    assert!(de.contains("00:00:01,000 --> 00:00:02,000\nHallo"), "{de}");
+    assert!(en.contains("00:00:01,000 --> 00:00:02,500"), "{en}");
+    assert!(en.contains("00:00:03,000 --> 00:00:04,000\nA & B"), "{en}");
+    // Both still decode whole.
+    for file in [&mp4, &webm] {
+        let said = Command::new(&ffmpeg)
+            .args([
+                "-v",
+                "error",
+                "-i",
+                file.to_str().unwrap(),
+                "-f",
+                "null",
+                "-",
+            ])
+            .output()
+            .unwrap();
+        assert!(
+            said.status.success() && said.stderr.is_empty(),
+            "{}",
+            String::from_utf8_lossy(&said.stderr)
+        );
+    }
 }

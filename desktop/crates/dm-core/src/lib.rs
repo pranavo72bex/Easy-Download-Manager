@@ -33,6 +33,7 @@ pub mod quota;
 pub mod retry;
 pub mod schedule;
 pub mod stream;
+pub mod subtitles;
 /// The tests' logins and secrets, never written in the code.
 #[cfg(test)]
 #[path = "../../../test-support/secrets.rs"]

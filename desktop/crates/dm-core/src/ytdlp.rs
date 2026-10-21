@@ -361,10 +361,10 @@ fn format_for(quality: Quality, joiner: Joiner, webm: bool) -> String {
 }
 
 /// Whether a download needs ffmpeg even though dm joins picture and sound
-/// itself (MP4 with `mp4mux`, WebM with `mkvmux`): a container other than
-/// those, or subtitles to embed.
-pub(crate) fn needs_ffmpeg(container: Option<&str>, subtitles: bool) -> bool {
-    subtitles || container.is_some_and(|c| !c.is_empty() && !["mp4", "m4a", "webm"].contains(&c))
+/// itself (MP4 with `mp4mux`, WebM with `mkvmux`, subtitles carried in
+/// either): a container other than those.
+pub(crate) fn needs_ffmpeg(container: Option<&str>) -> bool {
+    container.is_some_and(|c| !c.is_empty() && !["mp4", "m4a", "webm"].contains(&c))
 }
 
 /// What yt-dlp left when it had no ffmpeg to join with: the picture and
@@ -676,6 +676,9 @@ pub async fn download_ytdlp(
         if options.subtitles {
             command.args(["--write-subs", "--sub-langs", "all", "--embed-subs"]);
         }
+    } else if options.subtitles {
+        // Fetched as WebVTT beside the video, and put into it by dm.
+        command.args(["--write-subs", "--sub-langs", "all", "--sub-format", "vtt"]);
     }
 
     /* The same two things every request of dm's own carries. yt-dlp makes
@@ -842,6 +845,30 @@ pub async fn download_ytdlp(
 
     /* No ffmpeg: yt-dlp left the picture and the sound side by side under
      * the name it would have joined them as, and dm joins them into it. */
+    let found = if joiner == Joiner::Dm {
+        crate::subtitles::beside(&produced)
+    } else {
+        Vec::new()
+    };
+    let (vtt_files, texts): (Vec<PathBuf>, Vec<crate::subtitles::Subtitle>) =
+        found.into_iter().unzip();
+    let outcome = finish_dm(&produced, joiner, texts, options).await;
+    for file in vtt_files {
+        let _ = tokio::fs::remove_file(file).await;
+    }
+    outcome
+}
+
+/// What dm does with yt-dlp's output when it has no ffmpeg: joins the
+/// picture and sound it left apart, puts a transport stream into an MP4,
+/// carries the subtitles inside, and places the result.
+async fn finish_dm(
+    produced: &Path,
+    joiner: Joiner,
+    texts: Vec<crate::subtitles::Subtitle>,
+    options: &Options,
+) -> Result<Finished, Error> {
+    let produced = produced.to_path_buf();
     if !produced.is_file() && joiner == Joiner::Dm {
         let parts = parts_of(&produced).await;
         if !parts.is_empty() {
@@ -851,9 +878,9 @@ pub async fn download_ytdlp(
             });
             let joined = produced.with_extension(if webm { "webm" } else { "mp4" });
             let joining = if webm {
-                crate::mkvmux::join_async(parts.clone(), joined.clone()).await
+                crate::mkvmux::join_with_text_async(parts.clone(), texts, joined.clone()).await
             } else {
-                crate::mp4mux::join_async(parts.clone(), joined.clone()).await
+                crate::mp4mux::join_with_text_async(parts.clone(), texts, joined.clone()).await
             };
             joining.map_err(|why| {
                 Error::Internal(format!("the picture and sound could not be joined: {why}"))
@@ -876,6 +903,26 @@ pub async fn download_ytdlp(
             let _ = tokio::fs::rename(&fixed, &produced).await;
         } else {
             let _ = tokio::fs::remove_file(&fixed).await;
+        }
+    }
+    /* One file that already held picture and sound, with subtitles beside
+     * it: written again with them inside. A video that will not take them
+     * is kept as it is; the subtitles are not worth the video. */
+    let kind = produced
+        .extension()
+        .map(|e| e.to_string_lossy().to_ascii_lowercase())
+        .unwrap_or_default();
+    if !texts.is_empty() && ["mp4", "m4v", "webm", "mkv"].contains(&kind.as_str()) {
+        let with = produced.with_extension(format!("dm-subtitles.{kind}"));
+        let written = if kind == "webm" || kind == "mkv" {
+            crate::mkvmux::join_with_text_async(vec![produced.clone()], texts, with.clone()).await
+        } else {
+            crate::mp4mux::join_with_text_async(vec![produced.clone()], texts, with.clone()).await
+        };
+        if written.is_ok() {
+            let _ = tokio::fs::rename(&with, &produced).await;
+        } else {
+            let _ = tokio::fs::remove_file(&with).await;
         }
     }
     place(&produced, options).await
@@ -1335,15 +1382,14 @@ mod tests {
             format_for(Quality::Audio, Joiner::Dm, false),
             "ba[ext=m4a]/ba/b"
         );
-        assert!(!needs_ffmpeg(None, false));
-        assert!(!needs_ffmpeg(Some("mp4"), false));
+        assert!(!needs_ffmpeg(None));
+        assert!(!needs_ffmpeg(Some("mp4")));
         assert_eq!(
             format_for(Quality::Best, Joiner::Dm, true),
             "bv[ext=webm]+ba[ext=webm]/b[ext=webm]/b"
         );
-        assert!(!needs_ffmpeg(Some("webm"), false));
-        assert!(needs_ffmpeg(Some("mkv"), false));
-        assert!(needs_ffmpeg(None, true));
+        assert!(!needs_ffmpeg(Some("webm")));
+        assert!(needs_ffmpeg(Some("mkv")));
     }
 
     #[test]

@@ -1144,3 +1144,19 @@ groups kept). A WebM line picked in the panel no longer fetches ffmpeg. A
 real YouTube 720p VP9/Opus pair (21 MB) joins in 44 ms and decodes identical
 to its halves. Reads move within one megabyte buffer rather than seeking
 (seeking threw the buffer away per block: 1.47 s for the same file).
+
+## Subtitles put in by dm (2026-10-21)
+
+With no ffmpeg, yt-dlp is asked for subtitles as WebVTT beside the video
+(`--sub-format vtt`, no `--embed-subs`), and dm carries them inside what it
+writes: in an MP4 as `tx3g` text tracks, one per language in one alternate
+group, each cue a sample and each gap an empty one, with a closing empty
+sample (readers time a subtitle by the sample after it; without one the
+last cue ended with the picture); in a WebM as `D_WEBVTT/SUBTITLES` tracks,
+each block "id line, settings line, text" as the WebM spec has it (ffmpeg
+drops a block without the two lines; Matroska's newer `S_TEXT/WEBVTT` is not
+read by the ffmpeg 7 tried). A file that was already one stream is written
+again with them; one that will not take them keeps its picture and sound.
+A real YouTube video's English and German subtitles read back exact. A
+block before zero (Opus's delay) now keeps its time, the first cluster at
+zero and its offset negative, rather than moving everything 7 ms on.
