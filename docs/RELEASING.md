@@ -82,6 +82,11 @@ curl -sL https://github.com/pranavo72bex/Easy-Download-Manager/archive/refs/tags
 `SKIP` means the package will build from whatever is at that URL, which is not
 what anyone wants in a package other people install.
 
+The pinned digest is that release's alone. CI's Arch builds skip it for the
+tarballs they make themselves (the checkout's, and a new tag's archive), so a
+pin never fails them; set it back to `SKIP` when bumping `pkgver`, and pin the
+new tag's digest once the tag is pushed.
+
 ## The browser extension
 
 The zips are built by `sh scripts/package.sh`, which compiles `browser/` to

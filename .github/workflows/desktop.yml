@@ -413,7 +413,9 @@ jobs:
         working-directory: desktop/packaging
         run: |
           version="${GITHUB_REF_NAME#desktop-v}"
-          sed -i "s/^pkgver=.*/pkgver=$version/" PKGBUILD
+          # The digest in the PKGBUILD is the last release's, pinned once its
+          # tag existed; this tag's archive has none yet to be held to.
+          sed -i -e "s/^pkgver=.*/pkgver=$version/" -e "s/^sha256sums=.*/sha256sums=('SKIP')/" PKGBUILD
           chown -R builder:builder "$GITHUB_WORKSPACE"
           su builder -c "makepkg --cleanbuild --nodeps --noconfirm"
 

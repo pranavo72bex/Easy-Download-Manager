@@ -19,7 +19,10 @@ rm -rf "$build" && mkdir -p "$build/$top"
 cp -r . "$build/$top/"
 (cd "$build" && tar -czf "dm-$version.tar.gz" "$top" && rm -rf "$top")
 # The release PKGBUILD, fetching this checkout instead of a GitHub tag.
-sed -e "s|^source=.*|source=(\"dm-$version.tar.gz\")|" desktop/packaging/PKGBUILD > "$build/PKGBUILD"
+# Its digest is the release tarball's, which this tarball made just now is
+# not: skipped for it, and kept in the PKGBUILD a person builds.
+sed -e "s|^source=.*|source=(\"dm-$version.tar.gz\")|" \
+    -e "s|^sha256sums=.*|sha256sums=('SKIP')|" desktop/packaging/PKGBUILD > "$build/PKGBUILD"
 cp desktop/packaging/dm.desktop "$build/" 2>/dev/null || true
 chown -R builder:builder "$build"
 
