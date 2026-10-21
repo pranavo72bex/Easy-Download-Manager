@@ -14,6 +14,7 @@ use axum::http::HeaderMap;
 use axum::response::Response;
 use axum::routing::get;
 use dm_core::{client, download, HostLimit, Options};
+use futures_util::StreamExt as _;
 
 use common::{options, serve, tempdir};
 
@@ -274,4 +275,85 @@ async fn a_link_that_drops_every_half_megabyte_still_delivers_the_file() {
         .await
         .expect("five resumed drops failed the download");
     assert_eq!(std::fs::read(&done.path).unwrap(), *data);
+}
+
+/// Serves two requests at a time and turns the rest away with 429, as
+/// Hetzner's mirror does: with no limit set for the site.
+async fn two_at_a_time(State(b): State<Arc<Busy>>, headers: HeaderMap) -> Response {
+    let now = b.now.fetch_add(1, Ordering::SeqCst) + 1;
+    if now > 2 && headers.contains_key("range") {
+        b.now.fetch_sub(1, Ordering::SeqCst);
+        b.most.fetch_add(1, Ordering::SeqCst);
+        return Response::builder()
+            .status(429)
+            .body(Body::from("too many connections"))
+            .unwrap();
+    }
+    // Each served at about 2 MB/s, as a real server's connection is: the
+    // two it serves are busy for a while, as on a large file.
+    let res = ranged(&b.data, &headers);
+    let status = res.status();
+    let range = res.headers().get("content-range").cloned();
+    let bytes = axum::body::to_bytes(res.into_body(), usize::MAX)
+        .await
+        .unwrap();
+    let busy = Arc::clone(&b);
+    let chunks: Vec<Vec<u8>> = bytes.chunks(64 * 1024).map(<[u8]>::to_vec).collect();
+    let paced = futures_util::stream::iter(chunks.into_iter().enumerate()).then(move |(i, c)| {
+        let busy = Arc::clone(&busy);
+        let last = i + 1 == bytes.len().div_ceil(64 * 1024);
+        async move {
+            tokio::time::sleep(Duration::from_millis(30)).await;
+            if last {
+                busy.now.fetch_sub(1, Ordering::SeqCst);
+            }
+            Ok::<_, std::io::Error>(c)
+        }
+    });
+    let mut built = Response::builder().status(status);
+    if let Some(range) = range {
+        built = built.header("content-range", range);
+    }
+    built.body(Body::from_stream(paced)).unwrap()
+}
+
+/// A server that takes only two connections at once, with no limit of its
+/// own set for it: the connections it turns away step aside at once and
+/// the two it serves fetch the file. They used to wait each refusal out
+/// with backoff, ten times over, which made a 100 MB file take minutes at
+/// a seventh of curl's speed.
+#[tokio::test]
+async fn connections_a_server_turns_away_step_aside_at_once() {
+    let busy = Arc::new(Busy {
+        data: body(4 * 1024 * 1024),
+        now: AtomicUsize::new(0),
+        // Here: how many requests were turned away.
+        most: AtomicUsize::new(0),
+    });
+    let app = axum::Router::new()
+        .route("/big.bin", get(two_at_a_time))
+        .with_state(Arc::clone(&busy));
+    let addr = serve(app).await;
+    let dir = tempdir();
+    let url = format!("http://127.0.0.1:{}/big.bin", addr.port());
+    let started = Instant::now();
+    let done = download(&client(), &url, &options(dir.path()))
+        .await
+        .expect("download");
+    let took = started.elapsed();
+    assert_eq!(
+        std::fs::read(&done.path).unwrap(),
+        busy.data,
+        "bytes differ"
+    );
+    assert!(
+        busy.most.load(Ordering::SeqCst) > 0,
+        "the server turned none away"
+    );
+    // 4 MiB at 2 MB/s a connection on two: about two seconds. The refusals
+    // waited out took sixteen.
+    assert!(
+        took < Duration::from_secs(8),
+        "took {took:?}: the refusals were waited out"
+    );
 }

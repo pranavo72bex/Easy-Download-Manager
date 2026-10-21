@@ -7,7 +7,7 @@
 //! flight and nothing else.
 
 use std::path::{Path, PathBuf};
-use std::sync::atomic::{AtomicU64, Ordering};
+use std::sync::atomic::{AtomicU64, AtomicUsize, Ordering};
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 
@@ -1244,13 +1244,14 @@ async fn run(
                     }
                 };
                 crate::lock(&job.live[index]).taken = true;
-                match fetch_segment(&client, &job, index, resumable).await {
+                match fetch_segment(&client, &job, index, resumable, &active).await {
                     Ok(()) => {}
-                    /* The server would not take this connection after every
-                     * retry (429, 503, a refused connect) while others are
-                     * working: this one steps aside and leaves its range to
-                     * them, as a server that limits connections asks, rather
-                     * than failing a download the rest are fetching. */
+                    /* The server would not take this connection (a 429 or
+                     * 503 at once, a refused connect after its retries)
+                     * while others are working: this one steps aside and
+                     * leaves its range to them, as a server that limits
+                     * connections asks, rather than failing a download the
+                     * rest are fetching. */
                     Err(e) if crate::retry::transient(&e) && active.load(Ordering::SeqCst) > 1 => {
                         crate::lock(&job.live[index]).taken = false;
                         crate::lock(&orphans).push(index);
@@ -1318,7 +1319,7 @@ async fn run(
     let left: Vec<usize> = std::mem::take(&mut *crate::lock(&orphans));
     for index in left {
         crate::lock(&job.live[index]).taken = true;
-        fetch_segment(client, job, index, resumable).await?;
+        fetch_segment(client, job, index, resumable, &AtomicUsize::new(1)).await?;
     }
     Ok(())
 }
@@ -1403,6 +1404,7 @@ async fn fetch_segment(
     job: &Job,
     index: usize,
     resumable: bool,
+    active: &AtomicUsize,
 ) -> Result<(), Error> {
     // A part found whole on a resume is still checked at its end where the
     // server can be asked for it, since a power cut can tear a whole part
@@ -1425,8 +1427,23 @@ async fn fetch_segment(
             let _ = tx.try_send(Update::Retrying { attempt, of });
         }
     };
+    /* A server that takes only so many connections at once answers the
+     * rest 429 or 503 at once, while the others go on being served (seen
+     * with Hetzner's mirror: two at a time). Waited out with backoff, ten
+     * times over, that held most of the download for minutes at a seventh
+     * of the speed one connection gets; stepping aside at once leaves the
+     * range to those the server takes. */
+    let busy = |e: &Error| {
+        matches!(
+            e,
+            Error::Refused {
+                status: 429 | 503,
+                ..
+            }
+        ) && active.load(Ordering::SeqCst) > 1
+    };
     let outcome =
-        retry::run_making_progress_telling(&job.control, job.tries, on_disk, retrying, || {
+        retry::run_making_progress_unless(&job.control, job.tries, on_disk, retrying, busy, || {
             // Counted before the attempt, so the next one picks a different
             // mirror where there is one to pick.
             job.attempts[index].fetch_add(1, Ordering::Relaxed);

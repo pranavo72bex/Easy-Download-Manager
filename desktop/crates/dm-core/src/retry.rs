@@ -114,6 +114,24 @@ pub async fn run_making_progress_telling<F, Fut, T>(
     tries: impl Into<Tries>,
     progress: impl Fn() -> u64,
     retrying: impl Fn(u32, u32),
+    op: F,
+) -> Result<T, Error>
+where
+    F: FnMut() -> Fut,
+    Fut: Future<Output = Result<T, Error>>,
+{
+    run_making_progress_unless(control, tries, progress, retrying, |_| false, op).await
+}
+
+/// As [`run_making_progress_telling`], giving up at once on an error
+/// `give_up` says is not worth waiting out here, though it is transient: a
+/// server turning away one more connection while others are being served.
+pub async fn run_making_progress_unless<F, Fut, T>(
+    control: &Control,
+    tries: impl Into<Tries>,
+    progress: impl Fn() -> u64,
+    retrying: impl Fn(u32, u32),
+    give_up: impl Fn(&Error) -> bool,
     mut op: F,
 ) -> Result<T, Error>
 where
@@ -136,7 +154,7 @@ where
                     attempt = 0;
                 }
                 attempt = attempt.saturating_add(1);
-                if attempt >= limit || !transient(&error) {
+                if attempt >= limit || !transient(&error) || give_up(&error) {
                     return Err(error);
                 }
                 retrying(attempt.saturating_add(1), attempts);
