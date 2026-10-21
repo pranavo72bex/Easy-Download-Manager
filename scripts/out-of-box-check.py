@@ -108,6 +108,7 @@ def main():
         time.sleep(2)
         inbox = home / "inbox"
         inbox.mkdir(exist_ok=True)
+        handed = time.time()
         for n, (_, url, quality, _) in enumerate(CASES):
             request = {"url": url, "referrer": url}
             if quality:
@@ -137,6 +138,10 @@ def main():
             if state.get("kind") != "completed":
                 continue
             path = pathlib.Path(row["path"])
+            if row.get("finished_at"):
+                # How long a person waited, the first video's tool fetch
+                # included.
+                print(f"        done {row['finished_at'] - handed:.0f} s after it was handed over")
             check(f"as a .{container}", path.suffix == f".{container}", path.name)
             info = probe(path)
             streams = info.get("streams", [])
