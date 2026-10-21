@@ -83,8 +83,8 @@ pub struct Options {
     /// Sites `proxy` is not used for; see `Proxy::bypass`. The client
     /// already knows them; the tools and the FTP client are told here.
     pub proxy_bypass: Vec<String>,
-    /// Ask yt-dlp for a video's subtitles and embed them, where an ffmpeg
-    /// is there to embed with.
+    /// Ask yt-dlp for a video's subtitles and carry them inside the video:
+    /// embedded by an ffmpeg where there is one, else by dm (`subtitles`).
     pub subtitles: bool,
     /// The site's sign-in the browser handed over with this download, sent
     /// to that server only.

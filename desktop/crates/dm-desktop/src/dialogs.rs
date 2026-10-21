@@ -1612,6 +1612,27 @@ impl egui::Widget for NumberBox<'_> {
     }
 }
 
+/// A setting's words and its number box: the words wrap in the room the
+/// box leaves them, and the box stays beside them, centred on them. Laid
+/// out as one wrapped line, a long setting (Russian's recheck interval)
+/// wrapped its words and left the box hanging after their second line
+/// (UI round 10).
+fn number_row(ui: &mut egui::Ui, words: &str, add: impl FnOnce(&mut egui::Ui, egui::Id)) {
+    ui.horizontal(|ui| {
+        let room = (ui.available_width() - 96.0).max(120.0);
+        let name = ui
+            // At least a box's height, centred in it: one line of words
+            // sat below the box's middle.
+            .allocate_ui_with_layout(
+                egui::vec2(room, ui.spacing().interact_size.y),
+                egui::Layout::left_to_right(egui::Align::Center).with_main_wrap(true),
+                |ui| ui.add(egui::Label::new(words).wrap()),
+            )
+            .inner;
+        add(ui, name.id);
+    });
+}
+
 /// A heading over a group of settings: a little room above, in the
 /// heading's weight, on the 4-point grid.
 fn section(ui: &mut egui::Ui, words: &str) {
@@ -5352,9 +5373,8 @@ fn options(app: &mut DmApp, ctx: &egui::Context) {
                     ui.add(egui::TextEdit::multiline(&mut d.types).desired_rows(3).desired_width(ui.available_width().min(480.0)))
                         .labelled_by(name.id);
                     ui.label(RichText::new(t("Without dots, separated by spaces. Empty takes every type.")).small().weak());
-                    ui.horizontal_wrapped(|ui| {
-                        let name = ui.label(t("Leave files smaller than, KB (0 for none)"));
-                        ui.add(number_box(&mut c.min_size_kb).range(0..=1024 * 1024)).labelled_by(name.id);
+                    number_row(ui, t("Leave files smaller than, KB (0 for none)"), |ui, name| {
+                        ui.add(number_box(&mut c.min_size_kb).range(0..=1024 * 1024)).labelled_by(name);
                     });
                     field(ui, t("Never take downloads from these sites"), &mut d.skip, 480.0);
                     ui.label(RichText::new(t("Sites such as example.com or *.example.com, separated by spaces; each covers its subdomains.")).small().weak());
@@ -5448,7 +5468,10 @@ fn options(app: &mut DmApp, ctx: &egui::Context) {
                     let per_row = if ui.available_width() >= 600.0 { 2 } else { 1 };
                     egui::Grid::new("folders").num_columns(2 * per_row).spacing([12.0, 6.0]).show(ui, |ui| {
                         for (i, c) in Category::ALL.iter().enumerate() {
-                            let name = ui.label(format::titled(&category_word(*c)));
+                            // In the window's language, as the places
+                            // name them; the folder beside it is a name on
+                            // disk and stays as it is.
+                            let name = ui.label(crate::i18n::name(&format::titled(&category_word(*c))));
                             if let Some(folder) = s.category_folders.get_mut(i) {
                                 // Sized to what it holds, and given that
                                 // size: a field in a grid took the width its
@@ -5532,12 +5555,12 @@ fn options(app: &mut DmApp, ctx: &egui::Context) {
                 check(
                     ui,
                     &mut s.subtitles,
-                    t("Embed subtitles in videos from player pages (needs ffmpeg)"),
+                    t("Embed subtitles in videos from player pages"),
                 );
                 check(
                     ui,
                     &mut s.remux_ts,
-                    t("Save streams that arrive as .ts as MP4 (needs ffmpeg)"),
+                    t("Save streams that arrive as .ts as MP4"),
                 );
                 ui.add_space(4.0);
                 ui.label(t(
@@ -5605,36 +5628,42 @@ fn options(app: &mut DmApp, ctx: &egui::Context) {
                             .push(dm_shell::settings::QueueLimit { queue, files: 1 });
                     }
                 }
-                ui.horizontal_wrapped(|ui| {
-                    let name = ui.label(t("Ask the Recheck queue's servers for changes every, hours (0 only when asked)"));
-                    ui.add(number_box(&mut s.recheck_hours).range(0..=24 * 31)).labelled_by(name.id);
+                number_row(ui, t("Ask the Recheck queue's servers for changes every, hours (0 only when asked)"), |ui, name| {
+                    ui.add(number_box(&mut s.recheck_hours).range(0..=24 * 31)).labelled_by(name);
                 });
                 ui.add_space(8.0);
                 ui.label(t("When a download finishes, run (a virus checker, a script); the file's path is added at the end:"));
                 field(ui, t("Command"), &mut s.on_complete, 320.0);
             }
             Tab::Connection => {
-                ui.horizontal_wrapped(|ui| {
-                    let name = ui.label(t("Speed limit, KB/s (0 for none)"));
+                number_row(ui, t("Speed limit, KB/s (0 for none)"), |ui, name| {
                     ui.add(number_box(&mut s.speed_limit).range(0..=1024 * 1024))
-                        .labelled_by(name.id);
+                        .labelled_by(name);
                 });
-                ui.horizontal_wrapped(|ui| {
-                    let name = ui.label(t("Attempts per connection (0 to keep trying)"));
-                    ui.add(number_box(&mut s.attempts).range(0..=100))
-                        .labelled_by(name.id);
-                });
-                ui.horizontal_wrapped(|ui| {
-                    let name = ui.label(t("Seconds between attempts (0 lets dm choose)"));
-                    ui.add(number_box(&mut s.retry_wait).range(0..=3600))
-                        .labelled_by(name.id);
-                });
-                ui.horizontal_wrapped(|ui| {
-                    let name =
-                        ui.label(t("Give up on a connection that sends nothing for, seconds"));
-                    ui.add(number_box(&mut s.read_timeout).range(5..=600))
-                        .labelled_by(name.id);
-                });
+                number_row(
+                    ui,
+                    t("Attempts per connection (0 to keep trying)"),
+                    |ui, name| {
+                        ui.add(number_box(&mut s.attempts).range(0..=100))
+                            .labelled_by(name);
+                    },
+                );
+                number_row(
+                    ui,
+                    t("Seconds between attempts (0 lets dm choose)"),
+                    |ui, name| {
+                        ui.add(number_box(&mut s.retry_wait).range(0..=3600))
+                            .labelled_by(name);
+                    },
+                );
+                number_row(
+                    ui,
+                    t("Give up on a connection that sends nothing for, seconds"),
+                    |ui, name| {
+                        ui.add(number_box(&mut s.read_timeout).range(5..=600))
+                            .labelled_by(name);
+                    },
+                );
                 ui.add_space(8.0);
                 ui.label(t(
                     "Sites that take fewer connections at once than the setting:",
@@ -5697,7 +5726,7 @@ fn options(app: &mut DmApp, ctx: &egui::Context) {
                         Kind::System => t("The computer's proxy settings").to_string(),
                         other => format!("{other:?}").to_uppercase(),
                     };
-                    ui.horizontal_wrapped(|ui| {
+                    ui.horizontal(|ui| {
                         let name = ui.label(t("Proxy type"));
                         combo("proxy-kind")
                             .selected_text(kind_name(p.kind))
@@ -5727,9 +5756,8 @@ fn options(app: &mut DmApp, ctx: &egui::Context) {
                     });
                     ui.add_enabled_ui(p.kind != Kind::System, |ui| {
                         field(ui, t("Host"), &mut p.host, 260.0);
-                        ui.horizontal_wrapped(|ui| {
-                            let name = ui.label(t("Port"));
-                            ui.add(number_box(&mut p.port).range(1..=65535)).labelled_by(name.id);
+                        number_row(ui, t("Port"), |ui, name| {
+                            ui.add(number_box(&mut p.port).range(1..=65535)).labelled_by(name);
                         });
                         field(ui, t("Username, if it needs one"), &mut p.username, 200.0);
                         let name = ui.label(t("Password"));

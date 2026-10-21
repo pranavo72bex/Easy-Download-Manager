@@ -184,8 +184,7 @@ pub struct Settings {
     /// at the next launch without a click.
     #[serde(default)]
     pub start_queue_on_launch: bool,
-    /// Have yt-dlp fetch a video's subtitles and embed them, where an
-    /// ffmpeg is there to do it.
+    /// Have yt-dlp fetch a video's subtitles, carried inside the video.
     #[serde(default)]
     pub subtitles: bool,
     /// "Files on a site" searches saved to run again, by hand or on a timer.
@@ -194,7 +193,7 @@ pub struct Settings {
     /// Queues that run fewer files at once than `concurrency`.
     #[serde(default, deserialize_with = "lenient::queue_limits")]
     pub queue_limits: Vec<QueueLimit>,
-    /// Put a `.ts` stream into an MP4 where an ffmpeg is there to do it.
+    /// Put a `.ts` stream into an MP4 (dm's own remux, else an ffmpeg's).
     #[serde(default = "yes")]
     pub remux_ts: bool,
     /// Where unfinished downloads are staged; empty for dm's own folder.
