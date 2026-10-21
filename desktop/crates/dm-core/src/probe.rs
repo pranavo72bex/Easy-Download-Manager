@@ -372,11 +372,21 @@ pub fn sanitize(name: &str) -> String {
     // Bytes as well as characters: two hundred CJK characters are six
     // hundred bytes, which ext4 and NTFS refuse after the whole download.
     if out.chars().count() > 200 || out.len() > MAX_NAME_BYTES {
-        let tail = if !extension.is_empty() && extension.chars().count() <= 21 {
+        let mut tail = if !extension.is_empty() && extension.chars().count() <= 21 {
             extension.clone()
         } else {
             String::new()
         };
+        // A compressed tar keeps both halves: `.tar.gz` cut to `.gz` was a
+        // file nothing offered to unpack as an archive of files (UI round 14).
+        let stem = out.get(..out.len() - tail.len()).unwrap_or("");
+        if !tail.is_empty()
+            && stem
+                .get(stem.len().saturating_sub(4)..)
+                .is_some_and(|s| s.eq_ignore_ascii_case(".tar"))
+        {
+            tail = format!("{}{tail}", stem.get(stem.len() - 4..).unwrap_or(""));
+        }
         let mut keep = String::new();
         for c in out.chars().take(200 - tail.chars().count()) {
             if keep.len() + c.len_utf8() + tail.len() > MAX_NAME_BYTES {
@@ -520,6 +530,16 @@ mod tests {
         let cut = sanitize(&long);
         assert!(cut.ends_with(".mkv"), "the extension was cut off: {cut}");
         assert_eq!(cut.chars().count(), 200);
+        // A compressed tar keeps both halves of its extension.
+        let tar = format!("{}.tar.gz", "a".repeat(258));
+        let cut = sanitize(&tar);
+        assert!(cut.ends_with("a.tar.gz"), "{cut}");
+        assert_eq!(cut.chars().count(), 200);
+        let upper = sanitize(&format!("{}.TAR.XZ", "b".repeat(258)));
+        assert!(upper.ends_with("b.TAR.XZ"), "{upper}");
+        // Only a tar: another name's dot is not taken for one.
+        let plain = sanitize(&format!("{}.v2.gz", "c".repeat(258)));
+        assert!(plain.ends_with("c.gz") || plain.ends_with("cc.gz"), "{plain}");
     }
 
     #[test]
