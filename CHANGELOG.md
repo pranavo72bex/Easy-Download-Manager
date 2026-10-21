@@ -3,6 +3,38 @@
 What changed in each release, newest first. The app (`desktop-v*` tags) and
 the browser extension (`v*` tags) are versioned separately.
 
+## App 0.3.0
+
+A Fluent look throughout, a faster and lighter engine, and new ways in:
+sign-ins, streams and FTP folders.
+
+- Looks: Fluent 2 throughout — WinUI's colours, dialogs laid out with
+  their buttons on a footer band, the navigation pane's expandable places,
+  Fluent UI System Icons, Segoe UI on Windows and Selawik elsewhere. Drop-
+  downs as tall as the buttons beside them, a picked item marked with the
+  accent, number boxes and fields underlined, Options' tabs fitting at 150%
+  text, Properties opening in the middle.
+- Faster: a download over several connections is written in place into
+  one file and finished with a rename, not copied together at the end —
+  2 GB in about 2 s where it took about 3.6 s, and half the writes.
+- Lighter: started at login, dm waits in the tray without making a window
+  until one is asked for (13 MB rather than 43, and no flash); threads end
+  once downloads do; ten downloads at once hold 20–30 MB less; an idle
+  window wakes only when something changes.
+- Sign-ins: NTLM, under NTLM or Negotiate, for Windows servers and company
+  intranets (`DOMAIN\user` in Options › Sign-ins or the address).
+- Streams: `rtmp://`, `rtsp://` and `mms://` addresses, fetched through an
+  installed ffmpeg and saved as playable files.
+- Files on a site: reads an FTP server's folders too, and a saved search
+  can stop reading pages after so many minutes.
+- Clearer: a failed row says why in the list itself; a full disk says
+  which folder's; "not enough room" names the download folder; Escape
+  closes the window in front; Copy link in the row and File menus.
+- Fixed: a file downloaded twice at once under a chosen name pushing the
+  other to "(1)"; a deleted file's row turning Complete when the same
+  address was downloaded again; Time left cut off at the first window
+  size; two tooltips over a shortened error.
+
 ## App 0.2.0
 
 Nine rounds of hands-on testing, each fixed (docs/gaps.md, gaps 169–243).
