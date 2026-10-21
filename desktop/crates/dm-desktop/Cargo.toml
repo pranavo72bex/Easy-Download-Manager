@@ -96,6 +96,11 @@ windows-sys = { version = "0.61", features = [
 
 [target.'cfg(target_os = "linux")'.dependencies]
 zbus = { version = "5", default-features = false, features = ["blocking-api"] }
+# Dragging finished files out of the window on X11 (xdnd.rs): a connection
+# of dm's own speaking XDND as the drag's source, and winit's own display,
+# to let go of the pointer it holds. Both already in the tree through winit.
+x11rb = { version = "0.13", default-features = false }
+x11-dl = "2.19"
 
 [dev-dependencies]
 proptest = "1"

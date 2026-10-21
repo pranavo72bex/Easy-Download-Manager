@@ -1232,3 +1232,27 @@ made only when one is asked for. Checked: on six YouTube videos at best and
 at 720p, yt-dlp picks the same format IDs for the old and the new selector,
 and `scripts/out-of-box-check.py` gets a 4K video's best (format 625, 2160p
 VP9 over HLS) as one MP4 with its AAC sound that plays.
+
+## Links dragged in and files dragged out, around winit (2026-10-21)
+
+winit 0.30 takes only files in a drop, and on Linux the `drag` crate needs a
+GTK window. Each system is met where winit stops, rather than moving off
+winit:
+
+- macOS: `draggingEntered:` and `performDragOperation:` on winit's window
+  delegate class are replaced at run time; a pasteboard with files goes on to
+  winit's own, one with a URL or text holding a link is taken by dm.
+- Windows: winit's drop target is revoked and dm registers its own OLE
+  `IDropTarget`, which reads files, `UniformResourceLocatorW` and text.
+- X11: winit is vendored (`desktop/vendor/winit`, `[patch.crates-io]`) with a
+  small patch, marked `dm:`, choosing `_NETSCAPE_URL` or UTF-8 text when no
+  `text/uri-list` is offered — Firefox offers none for a link. Dragging out
+  is dm's own XDND source on a connection of its own (`xdnd.rs`): winit's
+  pointer grab (core and XInput 2) is let go so the drag can take it, and
+  dm's window is told the button is up afterwards, since winit never sees
+  that release.
+- Wayland: neither. winit has no data-device support there; a hint says so.
+
+Tried and dropped: asking for the selection with type `ANY` (X servers
+answered TypeMismatch; the chosen target's own atom is asked for).
+Replacing the vendored copy goes away when a winit release reads links.

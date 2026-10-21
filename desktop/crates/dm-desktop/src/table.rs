@@ -53,7 +53,7 @@ pub fn show(app: &mut DmApp, ui: &mut egui::Ui) {
                     app.queued.push(Command::AddUrl);
                 }
                 ui.add_space(8.0);
-                ui.label(RichText::new(t(crate::app::DROP_HINT)).small().weak());
+                ui.label(RichText::new(t(crate::app::drop_hint())).small().weak());
             }
         });
         return;

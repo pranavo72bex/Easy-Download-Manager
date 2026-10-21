@@ -219,13 +219,20 @@ and is not carried over.
       an assembly that fails no longer leaves a truncated file holding the
       name. A queue test fails a download, retries it and completes it;
       driven in the window test too
-- [ ] Drag and drop — winit delivers dropped files only, so a `.webloc`,
-      `.url` or text file dropped on the window is read for links and they
-      are queued: a `.url` file dropped from a real GTK file chooser was
-      watched queuing and downloading (round 9, 2026-10-18). A drop with no
-      link in it says how to add one, and so does the empty list. Links
-      dragged from a browser are still not received at all (the web window
-      took those)
+- [ ] Drag and drop — a `.webloc`, `.url`, `.torrent` or text file dropped
+      on the window is read for links and they are queued (a `.url` from a
+      real GTK file chooser watched downloading, round 9). Since 2026-10-21 a
+      link dragged from a browser is taken too, where winit took files only:
+      on macOS by dm's own handler on winit's window delegate (tested on a
+      real pasteboard), on Windows by dm's own OLE drop target (compiled and
+      unit-tested, run in CI), and on X11 by a patched, vendored winit
+      (`desktop/vendor/winit`) that reads `_NETSCAPE_URL` and text —
+      `scripts/linux-drag-check.sh` drags a link from real Firefox with
+      xdotool and sees it queued. Finished files drag out on macOS and
+      Windows (`drag` crate) and on X11 by dm's own XDND source (`xdnd.rs`),
+      watched landing in Firefox by the same script. Wayland does neither:
+      winit 0.30 has no drag and drop there, and the hint says so. Unchecked:
+      a physical drag by hand on macOS and Windows
 - [x] Start on login — an opt-in setting, off by default, registers dm as a
       login item so a browser hand-off always has an app to land in.
       Launched by the login item it stays in the tray (`--hidden`) rather

@@ -31,3 +31,5 @@ pub mod system_theme;
 pub mod table;
 pub mod theme;
 pub mod update;
+#[cfg(target_os = "linux")]
+pub mod xdnd;

@@ -626,10 +626,22 @@ pub fn links_in_file(kind: Option<&str>, text: &str) -> Vec<String> {
 }
 
 /// What a drop with no link in it is answered with, and what the empty list
-/// says: a link dragged from a browser is not handed to dm by the window
-/// system, only files are.
+/// says. A link dragged from a browser is taken on macOS, Windows and X11
+/// (`drops`, and winit's X11 drops as dm builds it); on Wayland the window
+/// system hands dm files only, which `DROP_HINT_WAYLAND` says.
 pub const DROP_HINT: &str =
-    "Drop a .torrent, a .url or .webloc file, or a text file of links, here. A link dragged straight from a browser cannot be dropped yet: use Add URL or the browser's right-click menu.";
+    "Drop a link from a browser, a .torrent, a .url or .webloc file, or a text file of links, here.";
+pub const DROP_HINT_WAYLAND: &str =
+    "Drop a .torrent, a .url or .webloc file, or a text file of links, here. On Wayland a link dragged straight from a browser cannot be dropped: use Add URL or the browser's right-click menu.";
+
+/// The drop hint for the session dm runs in.
+pub fn drop_hint() -> &'static str {
+    if cfg!(target_os = "linux") && std::env::var_os("WAYLAND_DISPLAY").is_some() {
+        DROP_HINT_WAYLAND
+    } else {
+        DROP_HINT
+    }
+}
 
 /// The clipboard watcher's memory: offered once, never again once dismissed,
 /// and nothing offered for what was copied before it was turned on.
@@ -3289,10 +3301,8 @@ impl DmApp {
             let _ = self.add(&links, Default::default());
         } else if !dropped.is_empty() || !texts.is_empty() {
             // A drop with no link in it was ignored without a word (gap
-            // 150). A link dragged from a browser does not reach dm at all
-            // (the window system hands over files only), so the empty
-            // list says the same.
-            self.said = crate::i18n::Said::new(DROP_HINT, &[]);
+            // 150).
+            self.said = crate::i18n::Said::new(drop_hint(), &[]);
         }
     }
 
@@ -4243,6 +4253,7 @@ pub fn run_time_words() -> Vec<&'static str> {
     words.extend(crate::i18n::BUILT_IN_NAMES);
     words.extend(crate::format::MONTHS);
     words.push(DROP_HINT);
+    words.push(DROP_HINT_WAYLAND);
     words.extend(format::REASONS.iter().map(|(_, plain)| *plain));
     for place in [
         Place::All,

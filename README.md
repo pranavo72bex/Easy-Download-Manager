@@ -201,12 +201,12 @@ gives dm.
 
 ## What dm cannot do (yet)
 
-- **Dragging a link from a browser onto dm's window does nothing** (dm says
-  so when a drop holds no link). Right-click the link and pick **Download link
-  with dm**, or copy it and use **Add URL**. Dropping a saved link file
-  (`.url`, `.webloc` or a text file of links) works.
-- **On Linux, finished files cannot be dragged out of dm's window.** Use
-  **Open folder** on the row instead. On Mac and Windows they can.
+- **On Linux under Wayland, links cannot be dragged onto dm's window and
+  finished files cannot be dragged out of it.** Right-click a link and pick
+  **Download link with dm**, or use **Add URL**; for a finished file use
+  **Open folder** on the row. Dropping a saved link file (`.torrent`, `.url`,
+  `.webloc` or a text file of links) works there too. On Mac, Windows and
+  Linux under X11, both kinds of drag work.
 
 ## If something is not working
 

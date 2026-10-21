@@ -6792,7 +6792,7 @@ fn a_drop_with_no_link_says_how_to_add_one() {
     let world = world();
     let mut harness = world.harness();
     assert!(harness
-        .query_by_label_contains("A link dragged straight from a browser cannot be dropped yet")
+        .query_by_label_contains(dm_desktop::app::drop_hint())
         .is_some());
     let file = world.dir.path().join("picture.png");
     std::fs::write(&file, [0u8, 1, 2, 3]).unwrap();
@@ -6814,9 +6814,7 @@ fn a_drop_with_no_link_says_how_to_add_one() {
     assert!(harness.state().rows().is_empty());
     assert!(
         harness
-            .query_all_by_label_contains(
-                "A link dragged straight from a browser cannot be dropped yet"
-            )
+            .query_all_by_label_contains(dm_desktop::app::drop_hint())
             .count()
             >= 2,
         "the drop was ignored without a word"

@@ -286,6 +286,22 @@ impl eframe::App for Window {
         self.tick(ctx);
     }
 
+    /// A drag out of the window on X11 ends with the button let go under
+    /// the drag's own grab, which winit never hears: egui is told, or it
+    /// would go on thinking the button held (`xdnd`).
+    #[cfg(target_os = "linux")]
+    fn raw_input_hook(&mut self, ctx: &egui::Context, raw_input: &mut egui::RawInput) {
+        if dm_desktop::xdnd::ENDED.swap(false, std::sync::atomic::Ordering::Relaxed) {
+            let pos = ctx.input(|i| i.pointer.latest_pos()).unwrap_or_default();
+            raw_input.events.push(egui::Event::PointerButton {
+                pos,
+                button: egui::PointerButton::Primary,
+                pressed: false,
+                modifiers: ctx.input(|i| i.modifiers),
+            });
+        }
+    }
+
     fn ui(&mut self, ui: &mut egui::Ui, frame: &mut eframe::Frame) {
         // Hidden in the tray, nothing is drawn: it was drawn on every wake,
         // a tenth of a core idle (life-cycle QA, gap 67).
@@ -656,12 +672,22 @@ fn drag_out(frame: &eframe::Frame, files: Vec<std::path::PathBuf>) -> Result<(),
     .map_err(|e| format!("the file could not be dragged out: {e}"))
 }
 
-/// The drag library starts a drag from a GTK window on Linux, and dm's
-/// window is not one; said rather than silently doing nothing.
+/// On Linux the drag library needs a GTK window, and dm's is not one: on
+/// X11 dm speaks the drag protocol itself (`xdnd`); on Wayland there is no
+/// route outside winit, and that is said rather than nothing happening.
 #[cfg(not(any(target_os = "macos", target_os = "windows")))]
-fn drag_out(_frame: &eframe::Frame, _files: Vec<std::path::PathBuf>) -> Result<(), String> {
+fn drag_out(frame: &eframe::Frame, files: Vec<std::path::PathBuf>) -> Result<(), String> {
+    use raw_window_handle::{HasDisplayHandle, RawDisplayHandle};
+    #[cfg(target_os = "linux")]
+    if let Ok(handle) = frame.display_handle() {
+        if let RawDisplayHandle::Xlib(xlib) = handle.as_raw() {
+            let display = xlib.display.map_or(std::ptr::null_mut(), |d| d.as_ptr());
+            return dm_desktop::xdnd::start(display, files);
+        }
+    }
+    let _ = (frame, files);
     Err(dm_desktop::i18n::t(
-        "Dragging files out of dm is not available on Linux yet: right-click › Open folder",
+        "Dragging files out of dm is not available on Wayland: right-click › Open folder",
     )
     .into())
 }
