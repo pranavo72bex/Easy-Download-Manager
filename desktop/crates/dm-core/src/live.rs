@@ -1,15 +1,16 @@
 //! Streams served over RTMP, RTSP and MMS: the protocols of media servers
 //! and older players, which no HTTP request reaches.
 //!
-//! dm has no client of its own for them. ffmpeg has, and dm already finds
-//! it for joining streams (`ytdlp::ffmpeg`), so such an address is handed
-//! to it: the stream copied as it comes, picture and sound untouched, into
-//! a part file, then placed as every finished download is (`finish`: its
-//! category, its folder, a digest checked). A live stream has no end and no
-//! position to come back to: it runs until its server ends it or the
-//! person stops it, and a resume starts it again. ffmpeg has no proxy for
-//! these, so with a proxy in force the download is refused rather than
-//! sent around it.
+//! RTMP is dm's own (`rtmp.rs`): the stream recorded as it comes into a
+//! fragmented MP4 that plays however far it got (`fmp4`), rewritten as a
+//! plain one when it ends (`mp4mux`). The rest — RTMPE, RTMPT, RTSP, MMS —
+//! is handed to ffmpeg, fetched by dm where the computer has none: the
+//! stream copied, picture and sound untouched, into a part file. Either
+//! way it is placed as every finished download is (`finish`: its category,
+//! its folder, a digest checked). A live stream has no end and no position
+//! to come back to: it runs until its server ends it or the person stops
+//! it, and a resume starts it again. Neither has a proxy for these, so with
+//! a proxy in force the download is refused rather than sent around it.
 
 use std::path::PathBuf;
 use std::sync::atomic::{AtomicU64, Ordering};
@@ -39,9 +40,19 @@ fn scheme_of(url: &str) -> Option<&'static (&'static str, &'static str)> {
     SCHEMES.iter().find(|(s, _)| s.eq_ignore_ascii_case(scheme))
 }
 
-/// Whether `url` is one of the stream addresses ffmpeg fetches.
+/// Whether `url` is one of the stream addresses this module fetches.
 pub fn is_live(url: &str) -> bool {
     scheme_of(url).is_some()
+}
+
+/// Whether dm fetches such a stream itself, without ffmpeg.
+fn own(url: &str) -> bool {
+    scheme_of(url).is_some_and(|(s, _)| ["rtmp", "rtmps"].contains(s))
+}
+
+/// Whether a stream address needs ffmpeg: one dm does not speak itself.
+pub fn needs_ffmpeg(url: &str) -> bool {
+    is_live(url) && !own(url)
 }
 
 /// The name a stream is saved under: the address's last part, in the
@@ -103,11 +114,12 @@ pub async fn download_live(
              turn the proxy off for this site (Options › Proxy) to fetch it"
         )));
     }
-    let Some(ffmpeg) = crate::ytdlp::ffmpeg() else {
+    let ffmpeg = crate::ytdlp::ffmpeg();
+    if ffmpeg.is_none() && !own(url) {
         return Err(Error::Internal(format!(
             "a {scheme}:// stream is fetched by ffmpeg — install ffmpeg"
         )));
-    };
+    }
     let name = name_for(url);
     fs::create_dir_all(&options.parts_dir).await?;
     let ext = name.rsplit('.').next().unwrap_or("mp4");
@@ -127,6 +139,32 @@ pub async fn download_live(
     }
     let downloaded = Arc::new(AtomicU64::new(0));
     let reporter = report.map(|tx| crate::download::watch(Arc::clone(&downloaded), None, tx));
+
+    let ffmpeg = match ffmpeg {
+        Some(ffmpeg) if !own(url) => ffmpeg,
+        _ => {
+            let recorded = crate::rtmp::record(url, &part, &options.control, &downloaded).await;
+            stop_reporting(reporter).await;
+            if let Err(stopped) = recorded {
+                if !matches!(stopped, Error::Paused) {
+                    let _ = fs::remove_file(&part).await;
+                }
+                return Err(stopped);
+            }
+            // Rewritten plain, its index first so it seeks; kept fragmented
+            // (it plays) where that fails.
+            let plain = part.with_extension("plain.mp4");
+            if crate::mp4mux::join_async(vec![part.clone()], plain.clone())
+                .await
+                .is_ok()
+            {
+                fs::rename(&plain, &part).await?;
+            } else {
+                let _ = fs::remove_file(&plain).await;
+            }
+            return placed(&name, &part, options).await;
+        }
+    };
 
     let mut command = tokio::process::Command::new(&ffmpeg);
     let child = crate::no_window_async(&mut command)
@@ -202,8 +240,13 @@ pub async fn download_live(
             )
         }));
     }
+    placed(&name, &part, options).await
+}
+
+/// The stream's part file placed as any finished download is.
+async fn placed(name: &str, part: &std::path::Path, options: &Options) -> Result<Finished, Error> {
     let (path, bytes, category) =
-        crate::download::finish(&name, None, std::slice::from_ref(&part), options).await?;
+        crate::download::finish(name, None, &[part.to_path_buf()], options).await?;
     Ok(Finished {
         path,
         bytes,

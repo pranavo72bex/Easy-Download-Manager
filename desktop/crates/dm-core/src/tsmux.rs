@@ -44,7 +44,7 @@ const OTHERS: [u8; 5] = [0x01, 0x02, 0x10, 0x42, 0x11];
 
 /// The shape of a sound stream, from its first frame.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-enum Sound {
+pub(crate) enum Sound {
     Aac {
         profile: u8,
         rate_index: u8,
@@ -71,7 +71,7 @@ enum Sound {
 }
 
 impl Sound {
-    fn per_frame(self) -> u32 {
+    pub(crate) fn per_frame(self) -> u32 {
         match self {
             Sound::Aac { .. } => 1024,
             Sound::Mpeg { per_frame, .. } => per_frame,
@@ -499,7 +499,7 @@ fn take_sound(stream: &mut Elementary, data: &[u8], pts: Option<i64>) -> Result<
 }
 
 /// What a sound frame reader found at the start of its bytes.
-enum Frame {
+pub(crate) enum Frame {
     /// A frame of `length` bytes, its sample from `skip` on.
     Whole {
         shape: Sound,
@@ -543,7 +543,7 @@ fn adts_frame(rest: &[u8]) -> Frame {
 }
 
 /// An MPEG-1/2 audio frame (MP3, MP2), header and all.
-fn mpeg_audio_frame(rest: &[u8]) -> Frame {
+pub(crate) fn mpeg_audio_frame(rest: &[u8]) -> Frame {
     let Some(head) = rest.get(..4).and_then(|h| <[u8; 4]>::try_from(h).ok()) else {
         return Frame::Short;
     };
@@ -785,7 +785,7 @@ fn ac3_frame(rest: &[u8]) -> Frame {
 // ---- the MP4 tracks -----------------------------------------------------
 
 /// Reads an H.264 sequence parameter set's picture size.
-fn picture_size(sps: &[u8]) -> Option<(u32, u32)> {
+pub(crate) fn picture_size(sps: &[u8]) -> Option<(u32, u32)> {
     // Past the one-byte NAL header, emulation prevention bytes out.
     let data = rbsp(sps.get(1..)?);
     let mut bits = Bits { data: &data, at: 0 };
@@ -940,18 +940,18 @@ fn rbsp(unit: &[u8]) -> Vec<u8> {
 /// What an HEVC sequence parameter set says that its `hvcC` repeats: the
 /// profile, tier and level bytes as they are, the sub-layers, the chroma
 /// format and bit depths, and the picture's size.
-struct HevcSps {
-    profile: Vec<u8>,
-    sub_layers: u32,
-    nested: bool,
-    chroma: u32,
-    luma_bits: u32,
-    chroma_bits: u32,
-    width: u32,
-    height: u32,
+pub(crate) struct HevcSps {
+    pub(crate) profile: Vec<u8>,
+    pub(crate) sub_layers: u32,
+    pub(crate) nested: bool,
+    pub(crate) chroma: u32,
+    pub(crate) luma_bits: u32,
+    pub(crate) chroma_bits: u32,
+    pub(crate) width: u32,
+    pub(crate) height: u32,
 }
 
-fn hevc_sps(sps: &[u8]) -> Option<HevcSps> {
+pub(crate) fn hevc_sps(sps: &[u8]) -> Option<HevcSps> {
     // Past the two-byte NAL header.
     let data = rbsp(sps.get(2..)?);
     let mut bits = Bits { data: &data, at: 0 };
@@ -1156,6 +1156,7 @@ fn picture_track(
         edits,
         edits_timescale: TIMESCALE,
         samples,
+        start: None,
     })
 }
 
@@ -1275,6 +1276,7 @@ fn audio_track(stream: &Elementary, input: usize, lead: i64) -> Result<Track, St
         edits,
         edits_timescale: TIMESCALE,
         samples,
+        start: None,
     })
 }
 

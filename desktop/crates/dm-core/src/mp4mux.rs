@@ -57,6 +57,10 @@ pub(crate) struct Track {
     pub(crate) edits: Vec<Edit>,
     pub(crate) edits_timescale: u32,
     pub(crate) samples: Vec<Sample>,
+    /// When its first sample plays, in its timescale, where a fragmented
+    /// file says (`tfdt`): a live stream's sound may start after its
+    /// picture.
+    pub(crate) start: Option<u64>,
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -240,6 +244,7 @@ fn text_track(text: &crate::subtitles::Subtitle, input: usize, data: &mut Vec<u8
         edits: Vec::new(),
         edits_timescale: MOVIE_TIMESCALE,
         samples,
+        start: None,
     }
 }
 
@@ -405,6 +410,7 @@ fn tracks_of(moov: &[u8], input: usize) -> Result<Vec<Track>, String> {
             edits,
             edits_timescale: movie_scale,
             samples: plain_samples(stbl)?,
+            start: None,
         });
     }
     Ok(tracks)
@@ -610,6 +616,12 @@ fn read_fragment(
         let Some(track) = tracks.iter_mut().find(|t| t.id == id) else {
             continue;
         };
+        if track.samples.is_empty() && track.start.is_none() {
+            track.start = child(traf, b"tfdt").and_then(|t| match t.first() {
+                Some(1) => u64_at(t, 4),
+                _ => u32_at(t, 4).map(u64::from),
+            });
+        }
         let mut next = base;
         for (kind, trun, _) in boxes(traf) {
             if &kind != b"trun" {
@@ -775,23 +787,31 @@ fn shown(track: &Track) -> (i64, i64) {
 /// none and its first frame shown a frame or two in, which played that
 /// much behind its sound: it is given one that starts it at that frame, as
 /// a joined file from any other tool would have.
-fn edit_list(track: &Track) -> Option<Vec<u8>> {
+fn edit_list(track: &Track, lead_ms: u64) -> Option<Vec<u8>> {
     let (first, last) = shown(track);
-    let made;
-    let edits = if track.edits.is_empty() {
-        if first <= 0 {
+    let mut edits = if track.edits.is_empty() {
+        if first <= 0 && lead_ms == 0 {
             return None;
         }
-        made = [Edit {
+        vec![Edit {
             duration: 0,
-            media_time: first,
-        }];
-        &made[..]
+            media_time: first.max(0),
+        }]
     } else {
-        &track.edits[..]
+        track.edits.clone()
     };
+    // A track that starts later than the earliest waits that long.
+    if lead_ms > 0 {
+        edits.insert(
+            0,
+            Edit {
+                duration: scale(lead_ms, MOVIE_TIMESCALE, track.edits_timescale),
+                media_time: -1,
+            },
+        );
+    }
     let mut body = Vec::new();
-    for edit in edits {
+    for edit in &edits {
         let duration = if edit.media_time < 0 {
             scale(edit.duration, track.edits_timescale, MOVIE_TIMESCALE)
         } else if edit.duration == 0 {
@@ -890,7 +910,7 @@ fn sample_table(track: &Track, offsets: &[u64], per_chunk: &[u32]) -> Vec<u8> {
     boxed(b"stbl", &refs)
 }
 
-fn trak(track: &Track, id: u32, offsets: &[u64], per_chunk: &[u32]) -> Vec<u8> {
+fn trak(track: &Track, id: u32, offsets: &[u64], per_chunk: &[u32], lead_ms: u64) -> Vec<u8> {
     let media = media_duration(track);
     let movie = scale(media, track.timescale, MOVIE_TIMESCALE);
     let mut tkhd = Vec::new();
@@ -919,7 +939,7 @@ fn trak(track: &Track, id: u32, offsets: &[u64], per_chunk: &[u32]) -> Vec<u8> {
         ],
     );
     let mdia = boxed(b"mdia", &[&full(b"mdhd", 1, 0, &mdhd), &track.hdlr, &minf]);
-    let edts = edit_list(track).unwrap_or_default();
+    let edts = edit_list(track, lead_ms).unwrap_or_default();
     boxed(b"trak", &[&full(b"tkhd", 1, 3, &tkhd), &edts, &mdia])
 }
 
@@ -965,11 +985,15 @@ fn moov(tracks: &[Track], layout: &[Chunk], data_at: u64) -> Vec<u8> {
     mvhd.extend_from_slice(&(tracks.len() as u32 + 1).to_be_bytes());
     let mut parts = vec![full(b"mvhd", 1, 0, &mvhd)];
     for (i, track) in tracks.iter().enumerate() {
+        let start_ms = |t: &Track| t.start.map(|s| scale(s, t.timescale, MOVIE_TIMESCALE));
+        let earliest = tracks.iter().filter_map(start_ms).min().unwrap_or(0);
+        let lead = start_ms(track).map_or(0, |s| s - earliest);
         parts.push(trak(
             track,
             i as u32 + 1,
             offsets.get(i).map(Vec::as_slice).unwrap_or_default(),
             per_chunk.get(i).map(Vec::as_slice).unwrap_or_default(),
+            lead,
         ));
     }
     let refs: Vec<&[u8]> = parts.iter().map(Vec::as_slice).collect();

@@ -1172,3 +1172,20 @@ MP4 by dm and decoded identical to the stream; AVFoundation reads the HEVC
 and AC-3 one. E-AC-3 too (`ec-3` with its `dec3`; one independent
 substream). Still refused, and left to an ffmpeg or kept as `.ts`: MPEG-1/2
 and MPEG-4 Part 2 pictures and LATM AAC, which HLS does not use.
+
+## RTMP spoken by dm (2026-10-21)
+
+`rtmp.rs` is a client of dm's own for `rtmp://` and `rtmps://` (TLS through
+tokio-rustls with the webpki roots reqwest already uses, the ring provider
+named since two are compiled in): the simple handshake, the chunk stream
+(all four header forms, extended timestamps, the server's chunk size,
+acknowledgements at its window, pings answered), and AMF0 `connect`,
+`createStream`, `play`. H.264, HEVC (both RTMP extensions) and AAC or MP3
+arrive as FLV tags, aggregates included, and go into `fmp4.rs`: a
+fragmented MP4 written a fragment a second, so a stream cut short plays.
+When the stream ends it is rewritten plain by `mp4mux`, which now keeps a
+fragmented track's start (`tfdt`) as an edit, so sound that began after the
+picture still lines up. Checked against ffmpeg serving a clip over RTMP: the
+saved file decodes identical to the clip, picture and sound, with dm told
+there is no ffmpeg. RTMPE (Adobe's encryption) and RTMPT (HTTP tunnelling)
+stay with ffmpeg; neither is in use any more.

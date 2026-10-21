@@ -7,7 +7,7 @@ edition = "2021"
 [dependencies]
 # Already in the tree through reqwest; named for its chunk type.
 bytes = "1"
-tokio = { version = "1", features = ["rt-multi-thread", "macros", "fs", "io-util", "sync", "time", "process"] }
+tokio = { version = "1", features = ["rt-multi-thread", "macros", "fs", "io-util", "sync", "time", "process", "net"] }
 # rustls rather than the system OpenSSL: a download manager that fails to
 # build on a machine without libssl headers is one nobody can package.
 # `socks`, or a SOCKS proxy in the settings failed every HTTP download with
@@ -16,6 +16,9 @@ reqwest = { version = "0.12", default-features = false, features = ["stream", "r
 # FTP through a SOCKS proxy: the handshake, after which the connection is a
 # plain one. HTTP CONNECT is a few lines and is written here.
 tokio-socks = "0.5"
+# rtmps:// streams (rtmp.rs): TLS as reqwest has it, with the same roots.
+tokio-rustls = { version = "0.26", default-features = false, features = ["ring", "tls12"] }
+webpki-roots = "1"
 # The `Proxy-Authorization` an HTTP CONNECT to a proxy with a login carries.
 base64 = "0.22"
 futures-util = "0.3"

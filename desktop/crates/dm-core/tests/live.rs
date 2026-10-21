@@ -1,7 +1,7 @@
-//! Streams from a media server: an RTMP address fetched through ffmpeg and
-//! placed as a file, and the refusals where it cannot be — no ffmpeg, or a
-//! proxy it would go around. The server is ffmpeg itself, which can serve
-//! one client over RTMP.
+//! Streams from a media server: an RTMP address fetched by dm's own client
+//! and placed as a file, and the refusals where one cannot be — a scheme
+//! left to ffmpeg with no ffmpeg, or a proxy it would go around. The server
+//! is ffmpeg itself, which can serve one client over RTMP.
 
 mod common;
 
@@ -38,7 +38,7 @@ fn free_port() -> u16 {
 }
 
 #[tokio::test]
-async fn an_rtmp_stream_is_fetched_by_ffmpeg_and_saved_as_a_file() {
+async fn an_rtmp_stream_is_fetched_by_dm_and_saved_as_a_file_that_decodes_the_same() {
     let _turn = FFMPEG_ENV.lock().await;
     let Some(real) = ffmpeg() else {
         eprintln!("no ffmpeg installed — skipping");
@@ -80,10 +80,12 @@ async fn an_rtmp_stream_is_fetched_by_ffmpeg_and_saved_as_a_file() {
     // client it serves.
     tokio::time::sleep(std::time::Duration::from_millis(1500)).await;
 
+    // dm is told there is no ffmpeg: the stream is its own client's.
+    std::env::set_var("DM_FFMPEG", "");
     let dir = tempdir();
-    let done = download(&client(), &address, &options(dir.path()))
-        .await
-        .expect("the RTMP stream");
+    let done = download(&client(), &address, &options(dir.path())).await;
+    std::env::remove_var("DM_FFMPEG");
+    let done = done.expect("the RTMP stream");
     let _ = server.kill().await;
     assert_eq!(done.path.file_name().unwrap(), "show.mp4");
     assert!(done.bytes > 10_000, "{} bytes", done.bytes);
@@ -104,8 +106,34 @@ async fn an_rtmp_stream_is_fetched_by_ffmpeg_and_saved_as_a_file() {
             .trim()
             .parse()
             .unwrap_or(0.0);
-        assert!(seconds > 1.5, "{seconds} s of stream saved");
+        assert!(seconds > 2.5, "{seconds} s of stream saved");
     }
+    // Every picture and sound the server sent, as they were.
+    let md5 = |file: &std::path::Path, stream: &str| {
+        let out = std::process::Command::new(&real)
+            .args(["-v", "error", "-i"])
+            .arg(file)
+            .args(["-map", stream, "-fps_mode", "passthrough", "-f", "md5", "-"])
+            .output()
+            .unwrap();
+        String::from_utf8_lossy(&out.stdout).into_owned()
+    };
+    assert_eq!(
+        md5(&done.path, "0:v"),
+        md5(&clip, "0:v"),
+        "the pictures differ"
+    );
+    assert_eq!(
+        md5(&done.path, "0:a"),
+        md5(&clip, "0:a"),
+        "the sound differs"
+    );
+    let kinds = std::fs::read(&done.path).unwrap();
+    assert_eq!(kinds.get(4..8), Some(&b"ftyp"[..]));
+    assert!(
+        !kinds.windows(4).any(|w| w == b"moof"),
+        "left fragmented, not rewritten plain"
+    );
 }
 
 #[tokio::test]
@@ -113,7 +141,13 @@ async fn without_ffmpeg_a_stream_is_refused_plainly() {
     let _turn = FFMPEG_ENV.lock().await;
     std::env::set_var("DM_FFMPEG", "");
     let dir = tempdir();
-    let outcome = download(&client(), "rtmp://127.0.0.1:1/live/x", &options(dir.path())).await;
+    // RTMPT (RTMP over HTTP) is one dm leaves to ffmpeg.
+    let outcome = download(
+        &client(),
+        "rtmpt://127.0.0.1:1/live/x",
+        &options(dir.path()),
+    )
+    .await;
     std::env::remove_var("DM_FFMPEG");
     let said = outcome.unwrap_err().to_string();
     assert!(said.contains("install ffmpeg"), "{said}");

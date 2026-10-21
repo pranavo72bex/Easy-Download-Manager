@@ -398,10 +398,12 @@ async fn fetch_reporting(
     if crate::ftp::is_ftp(url) {
         return crate::ftp::download_ftp(url, options, report).await;
     }
-    // Nor do RTMP, RTSP and MMS streams, which ffmpeg fetches: fetched
-    // itself first where the computer has none.
+    // Nor do RTMP, RTSP and MMS streams. RTMP dm speaks itself; the others
+    // ffmpeg fetches, fetched itself first where the computer has none.
     if crate::live::is_live(url) {
-        let _ = crate::tools::ensure(client, crate::tools::Tool::Ffmpeg).await;
+        if crate::live::needs_ffmpeg(url) {
+            let _ = crate::tools::ensure(client, crate::tools::Tool::Ffmpeg).await;
+        }
         return crate::live::download_live(url, options, report).await;
     }
 
