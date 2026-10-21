@@ -81,7 +81,7 @@ async fn a_picture_and_sound_served_apart_arrive_as_one_mp4_with_no_ffmpeg() {
         return;
     }
     std::env::set_var("DM_FFMPEG", "");
-    let fixtures = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures");
+    let fixtures = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/mp4");
     let picture = std::fs::read(fixtures.join("picture.f137.mp4")).unwrap();
     let sound = std::fs::read(fixtures.join("sound.f140.m4a")).unwrap();
     let manifest = r#"<?xml version="1.0"?>

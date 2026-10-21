@@ -1133,3 +1133,14 @@ where there is one, else the `.ts` is kept. When dm joins, yt-dlp is given
 an `--ffmpeg-location` that does not exist, so it never uses an ffmpeg dm
 did not choose. Tests that would pass with yt-dlp's own ffmpeg were checked
 to fail with dm's join turned off.
+
+## WebM joined by dm too (2026-10-21)
+
+`mkvmux.rs` joins a WebM picture (VP9, AV1) and sound (Opus) the way
+`mp4mux.rs` joins MP4: tracks and blocks read from each input's EBML, written
+as one WebM with clusters starting at the picture's key frames, `Cues` and a
+`SeekHead` so it seeks, the frames copied as they are (laced or not, block
+groups kept). A WebM line picked in the panel no longer fetches ffmpeg. A
+real YouTube 720p VP9/Opus pair (21 MB) joins in 44 ms and decodes identical
+to its halves. Reads move within one megabyte buffer rather than seeking
+(seeking threw the buffer away per block: 1.47 s for the same file).

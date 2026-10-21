@@ -336,27 +336,35 @@ enum Joiner {
 /// ffmpeg, yt-dlp joins them in whatever container; without one, dm joins
 /// them, so the pair asked for is the MP4 picture and the M4A sound, and a
 /// single stream carrying both where a site has no such pair.
-fn format_for(quality: Quality, joiner: Joiner) -> String {
+fn format_for(quality: Quality, joiner: Joiner, webm: bool) -> String {
+    // dm joins either kind, but never one of each: WebM with WebM.
+    let (picture, sound) = if webm {
+        ("webm", "webm")
+    } else {
+        ("mp4", "m4a")
+    };
     match (quality, joiner) {
         (Quality::Best, Joiner::Ffmpeg) => "bv*+ba/b".to_string(),
         (Quality::UpTo(height), Joiner::Ffmpeg) => {
             format!("bv*[height<={height}]+ba/b[height<={height}]/b")
         }
-        (Quality::Best, Joiner::Dm) => "bv[ext=mp4]+ba[ext=m4a]/b[ext=mp4]/b".to_string(),
+        (Quality::Best, Joiner::Dm) => {
+            format!("bv[ext={picture}]+ba[ext={sound}]/b[ext={picture}]/b")
+        }
         (Quality::UpTo(height), Joiner::Dm) => format!(
-            "bv[ext=mp4][height<={height}]+ba[ext=m4a]/b[ext=mp4][height<={height}]/b[height<={height}]/b"
+            "bv[ext={picture}][height<={height}]+ba[ext={sound}]/b[ext={picture}][height<={height}]/b[height<={height}]/b"
         ),
         // The best audio-only stream — what "audio" means for a video site.
         (Quality::Audio, Joiner::Ffmpeg) => "ba/b".to_string(),
-        (Quality::Audio, Joiner::Dm) => "ba[ext=m4a]/ba/b".to_string(),
+        (Quality::Audio, Joiner::Dm) => format!("ba[ext={sound}]/ba/b"),
     }
 }
 
 /// Whether a download needs ffmpeg even though dm joins picture and sound
-/// itself: a container other than MP4 (WebM is joined by ffmpeg alone), or
-/// subtitles to embed.
+/// itself (MP4 with `mp4mux`, WebM with `mkvmux`): a container other than
+/// those, or subtitles to embed.
 pub(crate) fn needs_ffmpeg(container: Option<&str>, subtitles: bool) -> bool {
-    subtitles || container.is_some_and(|c| !c.is_empty() && c != "mp4" && c != "m4a")
+    subtitles || container.is_some_and(|c| !c.is_empty() && !["mp4", "m4a", "webm"].contains(&c))
 }
 
 /// What yt-dlp left when it had no ffmpeg to join with: the picture and
@@ -373,7 +381,7 @@ async fn parts_of(joined: &Path) -> Vec<PathBuf> {
     let mut parts = Vec::new();
     while let Ok(Some(entry)) = listing.next_entry().await {
         let name = entry.file_name().to_string_lossy().into_owned();
-        let media = [".mp4", ".m4a", ".m4v", ".mov"]
+        let media = [".mp4", ".m4a", ".m4v", ".mov", ".webm"]
             .iter()
             .any(|ext| name.to_ascii_lowercase().ends_with(ext));
         if name.starts_with(&prefix) && media {
@@ -621,7 +629,11 @@ pub async fn download_ytdlp(
         .arg("-o")
         .arg(staging.join("%(title).200B [%(id)s].%(ext)s"))
         .arg("-f")
-        .arg(format_for(options.quality, joiner))
+        .arg(format_for(
+            options.quality,
+            joiner,
+            options.container.as_deref() == Some("webm"),
+        ))
         .args(container_sort(options.container.as_deref()))
         .arg("--progress-template")
         .arg(format!(
@@ -833,12 +845,19 @@ pub async fn download_ytdlp(
     if !produced.is_file() && joiner == Joiner::Dm {
         let parts = parts_of(&produced).await;
         if !parts.is_empty() {
-            let joined = produced.with_extension("mp4");
-            crate::mp4mux::join_async(parts.clone(), joined.clone())
-                .await
-                .map_err(|why| {
-                    Error::Internal(format!("the picture and sound could not be joined: {why}"))
-                })?;
+            let webm = parts.iter().all(|p| {
+                p.extension()
+                    .is_some_and(|e| e.eq_ignore_ascii_case("webm"))
+            });
+            let joined = produced.with_extension(if webm { "webm" } else { "mp4" });
+            let joining = if webm {
+                crate::mkvmux::join_async(parts.clone(), joined.clone()).await
+            } else {
+                crate::mp4mux::join_async(parts.clone(), joined.clone()).await
+            };
+            joining.map_err(|why| {
+                Error::Internal(format!("the picture and sound could not be joined: {why}"))
+            })?;
             for part in parts {
                 let _ = tokio::fs::remove_file(part).await;
             }
@@ -1297,9 +1316,9 @@ mod tests {
 
     #[test]
     fn a_quality_becomes_a_format_selector() {
-        assert_eq!(format_for(Quality::Best, Joiner::Ffmpeg), "bv*+ba/b");
-        assert_eq!(format_for(Quality::Audio, Joiner::Ffmpeg), "ba/b");
-        assert!(format_for(Quality::UpTo(720), Joiner::Ffmpeg).contains("height<=720"));
+        assert_eq!(format_for(Quality::Best, Joiner::Ffmpeg, false), "bv*+ba/b");
+        assert_eq!(format_for(Quality::Audio, Joiner::Ffmpeg, false), "ba/b");
+        assert!(format_for(Quality::UpTo(720), Joiner::Ffmpeg, false).contains("height<=720"));
     }
 
     #[test]
@@ -1307,15 +1326,23 @@ mod tests {
         // A picture-only stream (`bv`, never `bv*`): one that carries sound
         // too would be joined with a second sound.
         assert_eq!(
-            format_for(Quality::Best, Joiner::Dm),
+            format_for(Quality::Best, Joiner::Dm, false),
             "bv[ext=mp4]+ba[ext=m4a]/b[ext=mp4]/b"
         );
-        assert!(format_for(Quality::UpTo(480), Joiner::Dm)
+        assert!(format_for(Quality::UpTo(480), Joiner::Dm, false)
             .starts_with("bv[ext=mp4][height<=480]+ba[ext=m4a]/"));
-        assert_eq!(format_for(Quality::Audio, Joiner::Dm), "ba[ext=m4a]/ba/b");
+        assert_eq!(
+            format_for(Quality::Audio, Joiner::Dm, false),
+            "ba[ext=m4a]/ba/b"
+        );
         assert!(!needs_ffmpeg(None, false));
         assert!(!needs_ffmpeg(Some("mp4"), false));
-        assert!(needs_ffmpeg(Some("webm"), false));
+        assert_eq!(
+            format_for(Quality::Best, Joiner::Dm, true),
+            "bv[ext=webm]+ba[ext=webm]/b[ext=webm]/b"
+        );
+        assert!(!needs_ffmpeg(Some("webm"), false));
+        assert!(needs_ffmpeg(Some("mkv"), false));
         assert!(needs_ffmpeg(None, true));
     }
 

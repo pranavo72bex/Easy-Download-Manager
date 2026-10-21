@@ -96,8 +96,10 @@ out="$(dirname "$template")/joined [id].mp4"
 if [ -n "$DM_FAKE_HALVES" ]; then
   # As yt-dlp leaves a pair it has no ffmpeg to join: side by side under
   # the name it would have joined them as, which it names all the same.
-  cp "$DM_FAKE_HALVES/picture.f137.mp4" "$(dirname "$template")/joined [id].f137.mp4"
-  cp "$DM_FAKE_HALVES/sound.f140.m4a" "$(dirname "$template")/joined [id].f140.m4a"
+  for half in "$DM_FAKE_HALVES"/*; do
+    name=$(basename "$half")
+    cp "$half" "$(dirname "$template")/joined [id].${name#*.}"
+  done
 else
   printf 'hello dash' > "$out"
 fi
@@ -279,7 +281,7 @@ async fn without_ffmpeg_dm_joins_the_picture_and_sound_yt_dlp_left() {
     std::env::set_var("DM_FFMPEG", "");
     std::env::set_var("DM_FAKE_RECORD", dir.path().join("argv"));
     std::env::remove_var("DM_FAKE_FAIL");
-    let fixtures = Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures");
+    let fixtures = Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/mp4");
     std::env::set_var("DM_FAKE_HALVES", &fixtures);
 
     let url = serve_manifest().await;
@@ -300,6 +302,63 @@ async fn without_ffmpeg_dm_joins_the_picture_and_sound_yt_dlp_left() {
     let has = |kind: &[u8]| joined.windows(4).filter(|w| *w == kind).count();
     assert_eq!(has(b"trak"), 2, "picture and sound are both in it");
     assert_eq!(has(b"moof"), 0, "written plain, not fragmented");
+    assert_eq!(
+        files_under(&dir.path().join("out")),
+        vec![finished.path.clone()]
+    );
+}
+
+/// A WebM line picked in the panel, with no ffmpeg: yt-dlp is asked for a
+/// WebM picture and sound, and dm joins them into one WebM.
+#[tokio::test]
+async fn a_webm_asked_for_is_joined_by_dm_into_one_webm() {
+    let _turn = ENV.lock().await;
+    let dir = tempdir();
+    let record = dir.path().join("argv");
+    std::env::set_var("DM_YTDLP", fake_ytdlp(dir.path()));
+    std::env::set_var("DM_FFMPEG", "");
+    std::env::set_var("DM_FAKE_RECORD", &record);
+    std::env::remove_var("DM_FAKE_FAIL");
+    let fixtures = Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/webm");
+    std::env::set_var("DM_FAKE_HALVES", &fixtures);
+
+    let url = serve_manifest().await;
+    let finished = download(
+        &client(),
+        &url,
+        &Options {
+            container: Some("webm".into()),
+            ..options(dir.path())
+        },
+    )
+    .await;
+    std::env::remove_var("DM_FAKE_HALVES");
+    let finished = finished.expect("the two halves were not joined");
+
+    assert_eq!(
+        finished.path.file_name().unwrap().to_string_lossy(),
+        "joined [id].webm"
+    );
+    let argv = recorded(&record);
+    let f = argv
+        .iter()
+        .position(|a| a == "-f")
+        .map(|i| argv[i + 1].clone());
+    assert_eq!(
+        f.as_deref(),
+        Some("bv[ext=webm]+ba[ext=webm]/b[ext=webm]/b")
+    );
+    let joined = std::fs::read(&finished.path).unwrap();
+    assert_eq!(
+        joined.get(..4),
+        Some(&[0x1A, 0x45, 0xDF, 0xA3][..]),
+        "an EBML file"
+    );
+    let has = |kind: &[u8]| joined.windows(kind.len()).filter(|w| *w == kind).count();
+    assert!(
+        has(b"V_VP9") == 1 && has(b"A_OPUS") == 1,
+        "both tracks in it"
+    );
     assert_eq!(
         files_under(&dir.path().join("out")),
         vec![finished.path.clone()]

@@ -347,3 +347,129 @@ fn a_transport_stream_becomes_an_mp4_that_decodes_the_same() {
 fn an_hls_streams_segments_become_one_mp4_that_decodes_the_same() {
     check_ts(true);
 }
+
+/// WebM, as a video site serves its VP9 and Opus qualities: picture and
+/// sound apart, joined by dm into one WebM that decodes the same and seeks.
+#[test]
+fn a_webm_picture_and_sound_join_into_one_webm_that_decodes_the_same() {
+    let (Some(ffmpeg), Some(ffprobe)) = (tool("ffmpeg"), tool("ffprobe")) else {
+        eprintln!("no ffmpeg here to make and judge real files; skipped");
+        return;
+    };
+    let encoders = run(&ffmpeg, &["-v", "error", "-encoders"]);
+    if !encoders.contains("libvpx-vp9") || !encoders.contains("libopus") {
+        eprintln!("this ffmpeg has no VP9 or Opus encoder; skipped");
+        return;
+    }
+    let dir = tempfile::tempdir().unwrap();
+    let video = dir.path().join("v.f248.webm");
+    let audio = dir.path().join("a.f251.webm");
+    run(
+        &ffmpeg,
+        &[
+            "-v",
+            "error",
+            "-y",
+            "-f",
+            "lavfi",
+            "-i",
+            "testsrc2=duration=6:size=320x180:rate=30",
+            "-c:v",
+            "libvpx-vp9",
+            "-deadline",
+            "realtime",
+            "-g",
+            "30",
+            "-dash",
+            "1",
+            "-f",
+            "webm",
+            video.to_str().unwrap(),
+        ],
+    );
+    run(
+        &ffmpeg,
+        &[
+            "-v",
+            "error",
+            "-y",
+            "-f",
+            "lavfi",
+            "-i",
+            "sine=frequency=440:duration=6:sample_rate=48000",
+            "-c:a",
+            "libopus",
+            "-dash",
+            "1",
+            "-f",
+            "webm",
+            audio.to_str().unwrap(),
+        ],
+    );
+    let out = dir.path().join("joined.webm");
+    let started = std::time::Instant::now();
+    dm_core::mkvmux::join(&[video.clone(), audio.clone()], &out).unwrap();
+    eprintln!("joined in {:?}", started.elapsed());
+    let said = Command::new(&ffmpeg)
+        .args([
+            "-v",
+            "error",
+            "-i",
+            out.to_str().unwrap(),
+            "-f",
+            "null",
+            "-",
+        ])
+        .output()
+        .unwrap();
+    assert!(
+        said.status.success() && said.stderr.is_empty(),
+        "{}",
+        String::from_utf8_lossy(&said.stderr)
+    );
+    let streams = run(
+        &ffprobe,
+        &[
+            "-v",
+            "error",
+            "-show_entries",
+            "stream=codec_name,start_time:format=format_name,duration",
+            "-of",
+            "csv=p=0",
+            out.to_str().unwrap(),
+        ],
+    );
+    eprintln!("{streams}");
+    assert!(
+        streams.contains("vp9") && streams.contains("opus"),
+        "{streams}"
+    );
+    assert!(streams.contains("matroska,webm"), "{streams}");
+    assert_eq!(
+        decoded(&ffmpeg, &out, "0:v"),
+        decoded(&ffmpeg, &video, "0:v")
+    );
+    assert_eq!(
+        decoded(&ffmpeg, &out, "0:a"),
+        decoded(&ffmpeg, &audio, "0:a")
+    );
+    // It seeks: a decode from four seconds in starts there, by its index.
+    let seeked = run(
+        &ffprobe,
+        &[
+            "-v",
+            "error",
+            "-read_intervals",
+            "4%+0.1",
+            "-select_streams",
+            "v",
+            "-show_entries",
+            "frame=pts_time",
+            "-of",
+            "csv=p=0",
+            out.to_str().unwrap(),
+        ],
+    );
+    let first: f64 = seeked.lines().next().unwrap().trim().parse().unwrap();
+    assert!((3.0..=4.1).contains(&first), "{seeked}");
+}
