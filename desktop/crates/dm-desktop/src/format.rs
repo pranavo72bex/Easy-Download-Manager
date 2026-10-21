@@ -907,7 +907,10 @@ mod tests {
             "youtube.com/watch?v=jNQXAC9IVRw"
         );
         // A file is still its file's name, whatever follows it.
-        assert_eq!(provisional("https://e.com/get/report.pdf?token=1"), "report.pdf");
+        assert_eq!(
+            provisional("https://e.com/get/report.pdf?token=1"),
+            "report.pdf"
+        );
         assert_eq!(
             provisional("magnet:?xt=urn:btih:abc&dn=Big+Film"),
             "Big Film"
