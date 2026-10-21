@@ -83,11 +83,130 @@ fn which(program: &str) -> Option<PathBuf> {
         home.join("Library/Python/3.13/bin"),
         home.join("Library/Python/3.12/bin"),
     ];
-    on_path
-        .into_iter()
-        .chain(usual)
-        .map(|dir| dir.join(program))
-        .find(|candidate| candidate.is_file())
+    let windows = if cfg!(windows) {
+        let var = |name: &str| std::env::var_os(name).map(PathBuf::from);
+        windows_homes(&Homes {
+            local: var("LOCALAPPDATA"),
+            roaming: var("APPDATA"),
+            home: home.clone(),
+            program_data: var("ProgramData"),
+            program_files: var("ProgramFiles"),
+            system_drive: var("SystemDrive"),
+        })
+    } else {
+        Vec::new()
+    };
+    find_in(
+        on_path.into_iter().chain(usual).chain(windows),
+        &names(program, cfg!(windows)),
+    )
+}
+
+/// The file names a program goes by: on Windows its `.exe` (and `.com`),
+/// which is what is on disk. The bare name was looked for there and never
+/// found, so an installed yt-dlp was reported missing (issue 10).
+fn names(program: &str, windows: bool) -> Vec<String> {
+    if windows {
+        vec![format!("{program}.exe"), format!("{program}.com")]
+    } else {
+        vec![program.to_string()]
+    }
+}
+
+/// The first of `names` in the first of `dirs` that has one.
+fn find_in(dirs: impl Iterator<Item = PathBuf>, names: &[String]) -> Option<PathBuf> {
+    for dir in dirs {
+        for name in names {
+            let candidate = dir.join(name);
+            if candidate.is_file() {
+                return Some(candidate);
+            }
+        }
+    }
+    None
+}
+
+/// The folders a Windows account's own environment names.
+struct Homes {
+    local: Option<PathBuf>,
+    roaming: Option<PathBuf>,
+    home: PathBuf,
+    program_data: Option<PathBuf>,
+    program_files: Option<PathBuf>,
+    system_drive: Option<PathBuf>,
+}
+
+/// The folders in `dir` whose names start with `prefix` (any case), newest
+/// first where they are versioned: Python313 before Python312.
+fn children(dir: &Path, prefix: &str) -> Vec<PathBuf> {
+    let Ok(listing) = std::fs::read_dir(dir) else {
+        return Vec::new();
+    };
+    let prefix = prefix.to_ascii_lowercase();
+    let mut found: Vec<PathBuf> = listing
+        .flatten()
+        .filter(|e| e.path().is_dir())
+        .filter(|e| {
+            e.file_name()
+                .to_string_lossy()
+                .to_ascii_lowercase()
+                .starts_with(&prefix)
+        })
+        .map(|e| e.path())
+        .collect();
+    found.sort();
+    found.reverse();
+    found
+}
+
+/// Where Windows installs put yt-dlp and ffmpeg, beside `PATH`: winget's
+/// links and its package folders (an ffmpeg build keeps its own in a `bin`
+/// one level down), pip's Scripts folders for python.org's and the Store's
+/// Pythons, Scoop's shims, pipx's folder, Chocolatey's bin, and the folders
+/// people unpack ffmpeg into by hand. A dm started by a browser or from the
+/// Start menu has a `PATH` that may name none of them.
+fn windows_homes(h: &Homes) -> Vec<PathBuf> {
+    let mut dirs = Vec::new();
+    if let Some(local) = &h.local {
+        let winget = local.join("Microsoft").join("WinGet");
+        dirs.push(winget.join("Links"));
+        for package in children(&winget.join("Packages"), "") {
+            dirs.push(package.join("bin"));
+            for inner in children(&package, "") {
+                dirs.push(inner.join("bin"));
+                dirs.push(inner);
+            }
+            dirs.push(package);
+        }
+        for python in children(&local.join("Programs").join("Python"), "python") {
+            dirs.push(python.join("Scripts"));
+        }
+        for store in children(&local.join("Packages"), "pythonsoftwarefoundation.python") {
+            for python in children(&store.join("LocalCache").join("local-packages"), "python") {
+                dirs.push(python.join("Scripts"));
+            }
+        }
+    }
+    if let Some(roaming) = &h.roaming {
+        for python in children(&roaming.join("Python"), "python") {
+            dirs.push(python.join("Scripts"));
+        }
+    }
+    dirs.push(h.home.join("scoop").join("shims"));
+    dirs.push(h.home.join(".local").join("bin"));
+    if let Some(data) = &h.program_data {
+        dirs.push(data.join("chocolatey").join("bin"));
+    }
+    if let Some(files) = &h.program_files {
+        dirs.push(files.join("ffmpeg").join("bin"));
+        dirs.push(files.join("yt-dlp"));
+    }
+    if let Some(drive) = &h.system_drive {
+        let root = PathBuf::from(format!("{}\\", drive.display()));
+        dirs.push(root.join("ffmpeg").join("bin"));
+        dirs.push(root.join("yt-dlp"));
+    }
+    dirs
 }
 
 /// Writes `text` to `path` readable by this account alone.
@@ -1099,5 +1218,86 @@ mod tests {
     #[test]
     fn a_line_without_the_numbers_is_ignored() {
         assert!(parse_progress("not numbers here").is_none());
+    }
+}
+
+#[cfg(test)]
+mod windows_homes_tests {
+    use super::{find_in, names, windows_homes, Homes};
+    use std::path::PathBuf;
+
+    /// Issue 10: on Windows the program is `yt-dlp.exe`, installed where
+    /// pip, winget, Scoop or Chocolatey put it, none of them on the `PATH`
+    /// a dm started by a browser has. Each is found there, laid out as a
+    /// Windows profile is under a folder of this test's.
+    #[test]
+    fn windows_installs_are_found_by_their_exe() {
+        let root = std::env::temp_dir().join(format!("dm-win-homes-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&root);
+        let (local, roaming, home, data) = (
+            root.join("Local"),
+            root.join("Roaming"),
+            root.join("me"),
+            root.join("ProgramData"),
+        );
+        let homes = Homes {
+            local: Some(local.clone()),
+            roaming: Some(roaming.clone()),
+            home: home.clone(),
+            program_data: Some(data.clone()),
+            program_files: None,
+            system_drive: None,
+        };
+        let put = |dir: PathBuf, name: &str| {
+            std::fs::create_dir_all(&dir).unwrap();
+            std::fs::write(dir.join(name), b"MZ").unwrap();
+            dir.join(name)
+        };
+        let exe = names("yt-dlp", true);
+        assert_eq!(exe[0], "yt-dlp.exe");
+        let find = |h: &Homes| find_in(windows_homes(h).into_iter(), &exe);
+        assert_eq!(find(&homes), None);
+
+        // pip install --user, with python.org's Python 3.13.
+        let pip = put(
+            roaming.join("Python").join("Python313").join("Scripts"),
+            "yt-dlp.exe",
+        );
+        assert_eq!(find(&homes), Some(pip.clone()));
+        std::fs::remove_file(&pip).unwrap();
+        // winget's link, then its package folder alone.
+        let winget = local.join("Microsoft").join("WinGet");
+        let link = put(winget.join("Links"), "yt-dlp.exe");
+        assert_eq!(find(&homes), Some(link.clone()));
+        std::fs::remove_file(&link).unwrap();
+        let package = put(
+            winget.join("Packages").join("yt-dlp.yt-dlp_8wekyb3d8bbwe"),
+            "yt-dlp.exe",
+        );
+        assert_eq!(find(&homes), Some(package.clone()));
+        std::fs::remove_file(&package).unwrap();
+        // Scoop, then Chocolatey.
+        let scoop = put(home.join("scoop").join("shims"), "yt-dlp.exe");
+        assert_eq!(find(&homes), Some(scoop.clone()));
+        std::fs::remove_file(&scoop).unwrap();
+        let choco = put(data.join("chocolatey").join("bin"), "yt-dlp.exe");
+        assert_eq!(find(&homes), Some(choco));
+
+        // A winget ffmpeg build keeps it in a bin folder one level down.
+        let ffmpeg = put(
+            winget
+                .join("Packages")
+                .join("Gyan.FFmpeg_8wekyb3d8bbwe")
+                .join("ffmpeg-7.1-full_build")
+                .join("bin"),
+            "ffmpeg.exe",
+        );
+        assert_eq!(
+            find_in(windows_homes(&homes).into_iter(), &names("ffmpeg", true)),
+            Some(ffmpeg)
+        );
+        // Elsewhere the bare name, as before.
+        assert_eq!(names("yt-dlp", false), ["yt-dlp"]);
+        let _ = std::fs::remove_dir_all(&root);
     }
 }
