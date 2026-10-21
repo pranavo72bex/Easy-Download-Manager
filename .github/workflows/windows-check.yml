@@ -1,0 +1,50 @@
+name: Windows, the app driven end to end
+
+# Started by hand (Actions › this workflow › Run workflow). The real
+# dm-desktop.exe on Windows, driven by scripts/app-check.py as it is on
+# macOS and Linux: one dm at a time and links handed to it, a browser's
+# hand-off through the native host, downloads sorted by kind, an HLS stream
+# and a player page handed to yt-dlp (installed with pip, outside the PATH
+# a browser gives dm), a proxy not gone around, a speed limit and a
+# schedule, the login item's launch, the command line, the control protocol,
+# headless and MCP.
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  windows:
+    name: Windows, app-check
+    runs-on: windows-latest
+    defaults:
+      run:
+        shell: pwsh
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: dtolnay/rust-toolchain@b725eda525362e7cf34af9a7243cac1e3f01a7ec # stable
+        with:
+          toolchain: stable
+      - name: dm
+        working-directory: desktop
+        run: cargo build --release -p dm-desktop --locked
+      - name: yt-dlp, as a person installs it
+        run: |
+          python -m pip install --user --quiet yt-dlp
+          $scripts = python -c "import sysconfig; print(sysconfig.get_path('scripts', 'nt_user'))"
+          Get-ChildItem $scripts -Filter 'yt-dlp*'
+      - name: OpenGL for the window
+        # The runner has no graphics driver and the window needs OpenGL 2.0:
+        # Mesa's software one beside the program, for this check only.
+        run: |
+          $mesa = "$env:RUNNER_TEMP\mesa"
+          Invoke-WebRequest 'https://github.com/pal1000/mesa-dist-win/releases/download/26.2.4/mesa3d-26.2.4-release-msvc.7z' -OutFile "$mesa.7z"
+          7z x "$mesa.7z" "-o$mesa" | Out-Null
+          Get-ChildItem "$mesa\x64" -Filter '*.dll' | Copy-Item -Destination desktop\target\release
+      - name: app-check
+        env:
+          GALLIUM_DRIVER: llvmpipe
+          DM_BINARY: ${{ github.workspace }}\desktop\target\release\dm-desktop.exe
+          PYTHONUNBUFFERED: "1"
+        run: python scripts/app-check.py

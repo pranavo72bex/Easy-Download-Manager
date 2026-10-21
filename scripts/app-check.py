@@ -11,15 +11,21 @@ settings name, sorted as they say.
 
 macOS and Linux; it opens the real window, so it wants a display.
 """
-import fcntl, json, os, pathlib, shutil, socket, struct, subprocess, sys, tempfile, threading, time
+import json, os, pathlib, shutil, socket, struct, subprocess, sys, tempfile, threading, time
+WINDOWS = sys.platform == "win32"
+if WINDOWS:
+    import msvcrt
+else:
+    import fcntl
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 # Where cargo put the client: its own target directory unless one was named.
 TARGET = pathlib.Path(os.environ["CARGO_TARGET_DIR"]) if os.environ.get("CARGO_TARGET_DIR") else ROOT / "desktop" / "target"
 CLIENT = "dm-desktop"
+EXE = CLIENT + (".exe" if WINDOWS else "")
 # Or the binary a package installed, so what is shipped is what is driven.
-BINARY = pathlib.Path(os.environ["DM_BINARY"]) if os.environ.get("DM_BINARY") else TARGET / "debug" / CLIENT
+BINARY = pathlib.Path(os.environ["DM_BINARY"]) if os.environ.get("DM_BINARY") else TARGET / "debug" / EXE
 PAYLOAD = bytes(range(256)) * 4096  # 1 MiB, distinctive
 
 failures = []
@@ -143,6 +149,17 @@ def read_frames(data):
 
 def lock_is_held(home):
     with open(home / "instance.lock", "a+") as f:
+        if WINDOWS:
+            # dm holds the whole file with LockFileEx; a byte of it is
+            # enough to see that, and is given back at once.
+            f.seek(0)
+            try:
+                msvcrt.locking(f.fileno(), msvcrt.LK_NBLCK, 1)
+            except OSError:
+                return True
+            f.seek(0)
+            msvcrt.locking(f.fileno(), msvcrt.LK_UNLCK, 1)
+            return False
         try:
             fcntl.flock(f, fcntl.LOCK_EX | fcntl.LOCK_NB)
         except OSError:
@@ -218,12 +235,15 @@ def stop(app, home):
 
 def stop_any(home):
     """Ends a dm the host started, which is nobody's child here."""
-    got = subprocess.run(["pgrep", "-f", str(BINARY)], capture_output=True, text=True)
-    for pid in got.stdout.split():
-        try:
-            os.kill(int(pid), 15)
-        except ProcessLookupError:
-            pass
+    if WINDOWS:
+        subprocess.run(["taskkill", "/F", "/IM", BINARY.name], capture_output=True)
+    else:
+        got = subprocess.run(["pgrep", "-f", str(BINARY)], capture_output=True, text=True)
+        for pid in got.stdout.split():
+            try:
+                os.kill(int(pid), 15)
+            except ProcessLookupError:
+                pass
     wait_for("the dm the host started did not exit", lambda: not lock_is_held(home), 15)
 
 
@@ -243,7 +263,12 @@ def main():
     (home / "settings.json").write_text(json.dumps(settings))
     # The PATH a Dock or login launch has: no Homebrew, no ~/.local/bin. The
     # tools dm runs are found by their usual homes, or they are not found.
-    env["PATH"] = "/usr/bin:/bin:/usr/sbin:/sbin"
+    # On Windows, the System32 a Start-menu or browser launch is sure of.
+    if WINDOWS:
+        root = os.environ.get("SystemRoot", r"C:\Windows")
+        env["PATH"] = f"{root}\\System32;{root}"
+    else:
+        env["PATH"] = "/usr/bin:/bin:/usr/sbin:/sbin"
 
     server = ThreadingHTTPServer(("127.0.0.1", 0), Serve)
     threading.Thread(target=server.serve_forever, daemon=True).start()
@@ -311,7 +336,14 @@ def main():
             check("holding every segment in order", pathlib.Path(hls["path"]).read_bytes() == b"".join(SEGMENTS))
         page = done["watch"]
         # Where dm itself looks for the tool, on either platform.
-        ytdlp = shutil.which("yt-dlp", path="/opt/homebrew/bin:/usr/local/bin:/usr/bin:" + str(pathlib.Path.home() / ".local/bin"))
+        if WINDOWS:
+            homes = [pathlib.Path(os.environ.get("LOCALAPPDATA", "")) / "Microsoft" / "WinGet" / "Links",
+                     pathlib.Path.home() / "scoop" / "shims",
+                     pathlib.Path(os.environ.get("ProgramData", "")) / "chocolatey" / "bin"]
+            homes += sorted((pathlib.Path(os.environ.get("APPDATA", "")) / "Python").glob("Python3*/Scripts"))
+            ytdlp = shutil.which("yt-dlp", path=os.pathsep.join(map(str, homes)))
+        else:
+            ytdlp = shutil.which("yt-dlp", path="/opt/homebrew/bin:/usr/local/bin:/usr/bin:" + str(pathlib.Path.home() / ".local/bin"))
         if ytdlp:
             check("a player page is handed to yt-dlp, found without the shell's PATH", page["state"], {"kind": "completed"})
             if page["state"]["kind"] == "completed":
@@ -440,7 +472,10 @@ def main():
         port_file = home / "control.port"
         wait_for("the control port was never written", lambda: port_file.exists() and port_file.read_text().strip())
         token = (home / "control.token").read_text().strip()
-        check("the token is private", oct((home / "control.token").stat().st_mode & 0o777), "0o600")
+        if WINDOWS:
+            unchecked("the token is private", "Windows keeps it private by its folder's permissions, not mode bits")
+        else:
+            check("the token is private", oct((home / "control.token").stat().st_mode & 0o777), "0o600")
         conn = socket.create_connection(("127.0.0.1", int(port_file.read_text())), timeout=30)
         replies = conn.makefile("r")
         def call(method, **params):
@@ -512,7 +547,10 @@ def main():
 
     finally:
         server.shutdown()
-        subprocess.run(["pgrep", "-f", str(BINARY)], capture_output=True)
+        if WINDOWS:
+            subprocess.run(["taskkill", "/F", "/IM", BINARY.name], capture_output=True)
+        else:
+            subprocess.run(["pgrep", "-f", str(BINARY)], capture_output=True)
         shutil.rmtree(home, ignore_errors=True)
 
     if failures:
