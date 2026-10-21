@@ -69,6 +69,11 @@ fn which(program: &str) -> Option<PathBuf> {
             .then(|| PathBuf::from(named))
             .filter(|p| p.is_file());
     }
+    // As a computer with nothing installed: only what dm fetched itself.
+    // For checking the out-of-the-box route where tools are installed.
+    if std::env::var_os("DM_ONLY_FETCHED_TOOLS").is_some_and(|v| !v.is_empty()) {
+        return crate::tools::fetched(program);
+    }
     let on_path = std::env::var_os("PATH")
         .map(|p| std::env::split_paths(&p).collect::<Vec<_>>())
         .unwrap_or_default();
