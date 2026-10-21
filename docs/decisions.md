@@ -1119,5 +1119,17 @@ reported. Measured: 120 MB joined in 96 ms where ffmpeg's `-c copy` took
 174 ms; the decoded frames and sound match the inputs' (`tests/mp4mux.rs`),
 and AVFoundation reads the result. ffmpeg is still fetched where dm does not
 do the work: a WebM picked in the panel, embedded subtitles, RTMP/RTSP/MMS.
-Not written: a WebM (Matroska) muxer, and turning an HLS `.ts` into MP4,
-which `stream.rs` still leaves to an ffmpeg if there is one.
+Not written: a WebM (Matroska) muxer.
+
+Later the same day, the HLS side: `tsmux.rs` reads a transport stream's
+tables, its H.264 pictures (start codes turned into lengths, the picture
+size read from the SPS) and its ADTS AAC frames, and hands them to the same
+writer, picture and sound kept the distance apart they had in the stream.
+It runs before ffmpeg for dm's own HLS downloads, and on a file yt-dlp saved
+as `.mp4` that is a transport stream (yt-dlp's HLS downloader leaves that to
+ffmpeg's fix-up). A stream with any other picture or sound kind (HEVC, MP3,
+AC-3…) is refused whole, so nothing is dropped from it: an ffmpeg does it
+where there is one, else the `.ts` is kept. When dm joins, yt-dlp is given
+an `--ffmpeg-location` that does not exist, so it never uses an ffmpeg dm
+did not choose. Tests that would pass with yt-dlp's own ffmpeg were checked
+to fail with dm's join turned off.

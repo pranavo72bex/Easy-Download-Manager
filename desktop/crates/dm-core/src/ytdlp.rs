@@ -649,6 +649,14 @@ pub async fn download_ytdlp(
     command.process_group(0);
 
     js_runtime(&mut command);
+    if ffmpeg.is_none() {
+        /* dm joins, so yt-dlp is told it has no ffmpeg (a location that is
+         * not there) rather than left to find one dm was told not to use,
+         * or one dm's lookup does not trust. */
+        command
+            .arg("--ffmpeg-location")
+            .arg(staging.join("no-ffmpeg"));
+    }
     if let Some(ffmpeg) = &ffmpeg {
         command.arg("--ffmpeg-location").arg(ffmpeg);
         // Subtitles ride inside the file, which is ffmpeg's work; without
@@ -837,7 +845,32 @@ pub async fn download_ytdlp(
             return place(&joined, options).await;
         }
     }
+    /* An HLS site's video, fetched by yt-dlp's own downloader, is the
+     * stream's transport stream under an `.mp4` name, which yt-dlp leaves
+     * to ffmpeg to put right. With none, dm does. */
+    if joiner == Joiner::Dm && is_transport_stream(&produced).await {
+        let fixed = produced.with_extension("dm-remux.mp4");
+        if crate::tsmux::to_mp4_async(produced.clone(), fixed.clone())
+            .await
+            .is_ok()
+        {
+            let _ = tokio::fs::rename(&fixed, &produced).await;
+        } else {
+            let _ = tokio::fs::remove_file(&fixed).await;
+        }
+    }
     place(&produced, options).await
+}
+
+/// Whether a file is an MPEG transport stream, whatever its name: a sync
+/// byte at the start of its first two packets.
+async fn is_transport_stream(path: &Path) -> bool {
+    use tokio::io::AsyncReadExt;
+    let Ok(mut file) = tokio::fs::File::open(path).await else {
+        return false;
+    };
+    let mut head = [0u8; 189];
+    file.read_exact(&mut head).await.is_ok() && head[0] == 0x47 && head[188] == 0x47
 }
 
 /// Moves a finished yt-dlp file into its category folder under the download

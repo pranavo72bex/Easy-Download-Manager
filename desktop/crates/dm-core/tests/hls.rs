@@ -403,10 +403,17 @@ fn ffmpeg() -> Option<std::path::PathBuf> {
 /// The remux tests set `DM_FFMPEG`, which is process-wide: they take turns.
 static FFMPEG_ENV: tokio::sync::Mutex<()> = tokio::sync::Mutex::const_new(());
 
-/// A real HLS stream of `seconds`, made by ffmpeg into `site`. False where
-/// this ffmpeg cannot make one.
+/// A real HLS stream of `seconds`, made by ffmpeg into `site`: H.264 and
+/// `sound` (an ffmpeg encoder: `aac`, which dm puts into an MP4 itself, or
+/// `mp2`, which it leaves to an ffmpeg). False where this ffmpeg cannot
+/// make one.
 #[cfg(unix)]
-fn make_stream(ffmpeg: &std::path::Path, site: &std::path::Path, seconds: u32) -> bool {
+fn make_stream(
+    ffmpeg: &std::path::Path,
+    site: &std::path::Path,
+    seconds: u32,
+    sound: &str,
+) -> bool {
     std::process::Command::new(ffmpeg)
         .args([
             "-y",
@@ -428,7 +435,7 @@ fn make_stream(ffmpeg: &std::path::Path, site: &std::path::Path, seconds: u32) -
             "-pix_fmt",
             "yuv420p",
             "-c:a",
-            "aac",
+            sound,
             "-f",
             "hls",
             "-hls_time",
@@ -453,7 +460,7 @@ async fn a_remux_that_fails_keeps_the_stream_whole_as_ts() {
         return;
     };
     let site = tempdir();
-    if !make_stream(&real, site.path(), 3) {
+    if !make_stream(&real, site.path(), 3, "mp2") {
         return;
     }
     let addr = serve_folder(site.path().to_path_buf()).await;
@@ -609,7 +616,7 @@ async fn a_pause_during_the_remux_keeps_the_stream_and_a_resume_fetches_nothing_
         return;
     };
     let site = tempdir();
-    if !make_stream(&real, site.path(), 3) {
+    if !make_stream(&real, site.path(), 3, "mp2") {
         return;
     }
     // Segments served and counted.
@@ -708,6 +715,53 @@ async fn a_pause_during_the_remux_keeps_the_stream_and_a_resume_fetches_nothing_
     );
 }
 
+/// H.264 and AAC, as nearly every HLS stream is, put into an MP4 by dm with
+/// no ffmpeg on the computer at all. (One is needed here only to make the
+/// stream and judge the result.)
+#[cfg(unix)]
+#[tokio::test]
+async fn an_hls_stream_becomes_an_mp4_with_no_ffmpeg() {
+    let _turn = FFMPEG_ENV.lock().await;
+    let Some(real) = ffmpeg() else {
+        eprintln!("no ffmpeg installed — skipping");
+        return;
+    };
+    let site = tempdir();
+    if !make_stream(&real, site.path(), 3, "aac") {
+        return;
+    }
+    let addr = serve_folder(site.path().to_path_buf()).await;
+    std::env::set_var("DM_FFMPEG", "");
+    let dir = tempdir();
+    let asked = Options {
+        room: Default::default(),
+        remux: true,
+        ..options(dir.path(), dm_core::stream::Quality::Best)
+    };
+    let done = download(&client(), &format!("http://{addr}/show.m3u8"), &asked).await;
+    std::env::remove_var("DM_FFMPEG");
+    let done = done.expect("the stream");
+    assert_eq!(
+        done.path.file_name().and_then(|n| n.to_str()),
+        Some("show.mp4")
+    );
+    let probed = std::process::Command::new(&real)
+        .args(["-nostdin", "-v", "error", "-i"])
+        .arg(&done.path)
+        .args(["-f", "null", "-"])
+        .output()
+        .unwrap();
+    assert!(
+        probed.status.success() && probed.stderr.is_empty(),
+        "{}",
+        String::from_utf8_lossy(&probed.stderr)
+    );
+    let left = std::fs::read_dir(dir.path().join("parts"))
+        .map(|d| d.count())
+        .unwrap_or(0);
+    assert_eq!(left, 0, "parts were left behind");
+}
+
 #[cfg(unix)]
 #[tokio::test]
 async fn an_mp4_left_from_an_earlier_run_is_not_placed_when_the_remux_is_off() {
@@ -716,7 +770,7 @@ async fn an_mp4_left_from_an_earlier_run_is_not_placed_when_the_remux_is_off() {
         return;
     };
     let site = tempdir();
-    if !make_stream(&real, site.path(), 3) {
+    if !make_stream(&real, site.path(), 3, "aac") {
         return;
     }
     let addr = serve_folder(site.path().to_path_buf()).await;

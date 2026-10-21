@@ -38,6 +38,7 @@ pub mod stream;
 pub(crate) mod test_secrets;
 pub mod tools;
 pub mod torrent;
+pub mod tsmux;
 pub mod ytdlp;
 
 /// The HTTP client crate, for callers that take or build a client of the

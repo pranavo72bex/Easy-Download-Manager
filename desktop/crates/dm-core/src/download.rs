@@ -101,8 +101,8 @@ pub struct Options {
     /// around it.
     pub system_proxy: bool,
     /// Put a stream that arrives as a transport stream (`.ts`) into an MP4,
-    /// losslessly, where an ffmpeg is there to do it. Players open an MP4;
-    /// few open a `.ts`.
+    /// losslessly: H.264 and AAC by dm itself, anything else where an
+    /// ffmpeg is there to do it. Players open an MP4; few open a `.ts`.
     pub remux: bool,
     /// Give a finished file the date the server says it last changed
     /// (`Last-Modified`) rather than when it was fetched.
@@ -2232,16 +2232,16 @@ const GATHERED: &str = "joined.ts";
 /// That stream put into an MP4.
 const REMUXED: &str = "joined.mp4";
 
-/// Puts the segments of a `.ts` stream into one MP4 with ffmpeg, copying
-/// the picture and sound as they are. `None` where that is not asked for,
-/// not possible (no ffmpeg, a digest that names the `.ts` bytes, another
-/// container) or did not work, in which case the parts are left for the
-/// ordinary join: a stream a person can play as `.ts` beats no stream.
+/// Puts the segments of a `.ts` stream into one MP4, copying the picture
+/// and sound as they are: by dm itself (`tsmux`, H.264 and AAC), else by an
+/// ffmpeg where there is one. `None` where that is not asked for or not
+/// possible (a digest that names the `.ts` bytes, another container), in
+/// which case the parts are left for the ordinary join; the gathered `.ts`
+/// where neither could: a stream a person can play as `.ts` beats no stream.
 async fn remux_ts(name: &str, parts: &[PathBuf], options: &Options) -> Option<(PathBuf, String)> {
     if !remux_wanted(name, options) {
         return None;
     }
-    let ffmpeg = crate::ytdlp::ffmpeg()?;
     options.control.check().ok()?;
     let joined = options.parts_dir.join(GATHERED);
     let mp4 = options.parts_dir.join(REMUXED);
@@ -2268,6 +2268,21 @@ async fn remux_ts(name: &str, parts: &[PathBuf], options: &Options) -> Option<(P
         // The stream, whole, as the one part to place: what not remuxing
         // would have saved.
         Some((joined.clone(), ts_name.clone()))
+    };
+    if options.control.check().is_err() {
+        return keep_ts().await;
+    }
+    /* dm's own first. Not raced against a pause: it runs at the disk's
+     * speed, and a blocking task cut loose would go on writing the file a
+     * resume makes afresh. */
+    let ours = crate::tsmux::to_mp4_async(joined.clone(), mp4.clone()).await;
+    if ours.is_ok() && fs::metadata(&mp4).await.is_ok_and(|m| m.len() > 0) {
+        let _ = fs::remove_file(&joined).await;
+        return Some((mp4, format!("{}.mp4", ts_stem(name))));
+    }
+    let _ = fs::remove_file(&mp4).await;
+    let Some(ffmpeg) = crate::ytdlp::ffmpeg() else {
+        return keep_ts().await;
     };
     if options.control.check().is_err() {
         return keep_ts().await;
@@ -2313,7 +2328,7 @@ async fn remux_ts(name: &str, parts: &[PathBuf], options: &Options) -> Option<(P
 }
 
 /// Whether a stream of this name is put into an MP4: asked for, a `.ts`,
-/// and no digest of the `.ts` bytes to check. ffmpeg is looked for later.
+/// and no digest of the `.ts` bytes to check.
 fn remux_wanted(name: &str, options: &Options) -> bool {
     options.remux && options.checksum.is_none() && name.to_ascii_lowercase().ends_with(".ts")
 }

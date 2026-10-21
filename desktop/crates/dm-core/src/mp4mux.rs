@@ -30,39 +30,39 @@ const COPY_BUFFER: usize = 1 << 20;
 
 /// One sample: where its bytes are in its input, and when it plays.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-struct Sample {
-    offset: u64,
-    size: u32,
-    duration: u32,
+pub(crate) struct Sample {
+    pub(crate) offset: u64,
+    pub(crate) size: u32,
+    pub(crate) duration: u32,
     /// Composition offset: when it shows, after it is decoded.
-    cts: i32,
-    sync: bool,
+    pub(crate) cts: i32,
+    pub(crate) sync: bool,
 }
 
 /// One track read out of an input, with the boxes copied to the output.
 #[derive(Debug, Default)]
-struct Track {
-    input: usize,
-    id: u32,
+pub(crate) struct Track {
+    pub(crate) input: usize,
+    pub(crate) id: u32,
     /// The input's `tkhd` from its layer field on: volume, matrix, size.
-    tkhd_tail: Vec<u8>,
-    timescale: u32,
-    language: u16,
-    hdlr: Vec<u8>,
+    pub(crate) tkhd_tail: Vec<u8>,
+    pub(crate) timescale: u32,
+    pub(crate) language: u16,
+    pub(crate) hdlr: Vec<u8>,
     /// `vmhd` for a picture, `smhd` for sound.
-    media_header: Vec<u8>,
-    stsd: Vec<u8>,
+    pub(crate) media_header: Vec<u8>,
+    pub(crate) stsd: Vec<u8>,
     /// The input's edit list and its movie timescale: what an AAC track
     /// uses to skip its encoder's priming samples.
-    edits: Vec<Edit>,
-    edits_timescale: u32,
-    samples: Vec<Sample>,
+    pub(crate) edits: Vec<Edit>,
+    pub(crate) edits_timescale: u32,
+    pub(crate) samples: Vec<Sample>,
 }
 
 #[derive(Debug, Clone, Copy)]
-struct Edit {
-    duration: u64,
-    media_time: i64,
+pub(crate) struct Edit {
+    pub(crate) duration: u64,
+    pub(crate) media_time: i64,
 }
 
 /// A track's defaults from `trex`, for its fragments.
@@ -552,7 +552,7 @@ fn read_fragment(
 
 // ---- writing ------------------------------------------------------------
 
-fn boxed(kind: &[u8; 4], parts: &[&[u8]]) -> Vec<u8> {
+pub(crate) fn boxed(kind: &[u8; 4], parts: &[&[u8]]) -> Vec<u8> {
     let len: usize = parts.iter().map(|p| p.len()).sum::<usize>() + 8;
     let mut out = Vec::with_capacity(len);
     out.extend_from_slice(&(len as u32).to_be_bytes());
@@ -563,12 +563,12 @@ fn boxed(kind: &[u8; 4], parts: &[&[u8]]) -> Vec<u8> {
     out
 }
 
-fn full(kind: &[u8; 4], version: u8, flags: u32, body: &[u8]) -> Vec<u8> {
+pub(crate) fn full(kind: &[u8; 4], version: u8, flags: u32, body: &[u8]) -> Vec<u8> {
     let head = ((u32::from(version) << 24) | (flags & 0x00ff_ffff)).to_be_bytes();
     boxed(kind, &[&head, body])
 }
 
-const MATRIX: [u32; 9] = [0x0001_0000, 0, 0, 0, 0x0001_0000, 0, 0, 0, 0x4000_0000];
+pub(crate) const MATRIX: [u32; 9] = [0x0001_0000, 0, 0, 0, 0x0001_0000, 0, 0, 0, 0x4000_0000];
 
 fn scale(value: u64, from: u32, to: u32) -> u64 {
     if from == 0 {
@@ -848,7 +848,11 @@ fn moov(tracks: &[Track], layout: &[Chunk], data_at: u64) -> Vec<u8> {
     boxed(b"moov", &refs)
 }
 
-fn write_output(tracks: &[Track], files: &mut [File], out: &Path) -> Result<u64, String> {
+pub(crate) fn write_output(
+    tracks: &[Track],
+    files: &mut [File],
+    out: &Path,
+) -> Result<u64, String> {
     let ftyp = boxed(
         b"ftyp",
         &[b"isom", &0x200u32.to_be_bytes(), b"isomiso2avc1mp41"],
