@@ -539,7 +539,10 @@ mod tests {
         assert!(upper.ends_with("b.TAR.XZ"), "{upper}");
         // Only a tar: another name's dot is not taken for one.
         let plain = sanitize(&format!("{}.v2.gz", "c".repeat(258)));
-        assert!(plain.ends_with("c.gz") || plain.ends_with("cc.gz"), "{plain}");
+        assert!(
+            plain.ends_with("c.gz") || plain.ends_with("cc.gz"),
+            "{plain}"
+        );
     }
 
     #[test]

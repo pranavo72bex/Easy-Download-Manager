@@ -1646,6 +1646,22 @@ fn a_column_turned_off_is_gone_and_comes_back() {
         .get_by_role_and_label(egui::accesskit::Role::CheckBox, "Speed")
         .click();
     harness.run_steps(3);
+    // Still open after a tick: a second column is a second click, not a
+    // second trip through View (UI round 14).
+    assert!(
+        harness
+            .query_by_role_and_label(egui::accesskit::Role::CheckBox, "Speed")
+            .is_some(),
+        "the Columns menu closed at a tick"
+    );
+    harness
+        .get_by_role_and_label(egui::accesskit::Role::CheckBox, "Note")
+        .click();
+    harness.run_steps(3);
+    harness
+        .get_by_role_and_label(egui::accesskit::Role::CheckBox, "Note")
+        .click();
+    harness.run_steps(3);
     harness.key_press(egui::Key::Escape);
     harness.run_steps(3);
     assert!(harness.state().hidden_columns.contains(&Column::Rate));

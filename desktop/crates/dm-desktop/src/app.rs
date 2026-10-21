@@ -3516,7 +3516,7 @@ impl DmApp {
                 }
                 // "Columns": each column on or off; the file
                 // name stays, since a row without one is no row.
-                submenu(ui, t("Columns"), |ui| self.columns_menu(ui));
+                submenu_kept(ui, t("Columns"), |ui| self.columns_menu(ui));
                 submenu(ui, t("Customize toolbar"), |ui| self.toolbar_menu(ui));
                 // View › Text size: the window's zoom, kept across launches,
                 // which the keyboard's Ctrl (Cmd) with + and − also changes.
@@ -4413,9 +4413,37 @@ fn submenu<R>(
     label: &str,
     add: impl FnOnce(&mut egui::Ui) -> R,
 ) -> egui::InnerResponse<Option<R>> {
+    submenu_with(ui, label, false, add)
+}
+
+/// [`submenu`] that stays open while what is in it is clicked, for a list
+/// of switches: View › Columns closed at every tick, and three columns
+/// took three trips through the menu (UI round 14).
+fn submenu_kept<R>(
+    ui: &mut egui::Ui,
+    label: &str,
+    add: impl FnOnce(&mut egui::Ui) -> R,
+) -> egui::InnerResponse<Option<R>> {
+    submenu_with(ui, label, true, add)
+}
+
+fn submenu_with<R>(
+    ui: &mut egui::Ui,
+    label: &str,
+    kept: bool,
+    add: impl FnOnce(&mut egui::Ui) -> R,
+) -> egui::InnerResponse<Option<R>> {
     let t = crate::theme::Tokens::get(ui.ctx());
+    let config = egui::containers::menu::MenuConfig::new().close_behavior(if kept {
+        egui::PopupCloseBehavior::CloseOnClickOutside
+    } else {
+        egui::PopupCloseBehavior::CloseOnClick
+    });
     if !t.modern {
-        return ui.menu_button(label, add);
+        let (response, inner) = egui::containers::menu::SubMenuButton::new(label)
+            .config(config)
+            .ui(ui, add);
+        return egui::InnerResponse::new(inner.map(|i| i.inner), response);
     }
     let arrow = if crate::theme::fonts_ready(ui.ctx()) {
         egui::RichText::new(icons::fluent::CHEVRON_RIGHT.to_string())
@@ -4425,7 +4453,9 @@ fn submenu<R>(
         egui::RichText::new("›")
     };
     let button = egui::Button::new(label).right_text(arrow.color(t.weak));
-    let (response, inner) = egui::containers::menu::SubMenuButton::from_button(button).ui(ui, add);
+    let (response, inner) = egui::containers::menu::SubMenuButton::from_button(button)
+        .config(config)
+        .ui(ui, add);
     egui::InnerResponse::new(inner.map(|i| i.inner), response)
 }
 
