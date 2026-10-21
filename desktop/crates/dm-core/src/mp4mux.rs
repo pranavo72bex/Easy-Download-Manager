@@ -717,6 +717,14 @@ fn scale(value: u64, from: u32, to: u32) -> u64 {
     (u128::from(value) * u128::from(to) / u128::from(from)) as u64
 }
 
+/// [`scale`], rounded up.
+fn scale_up(value: u64, from: u32, to: u32) -> u64 {
+    if from == 0 {
+        return 0;
+    }
+    (u128::from(value) * u128::from(to)).div_ceil(u128::from(from)) as u64
+}
+
 /// A run of one track's samples written together.
 struct Chunk {
     track: usize,
@@ -815,7 +823,9 @@ fn edit_list(track: &Track, lead_ms: u64) -> Option<Vec<u8>> {
         let duration = if edit.media_time < 0 {
             scale(edit.duration, track.edits_timescale, MOVIE_TIMESCALE)
         } else if edit.duration == 0 {
-            scale(
+            // Rounded up: to the end means every sample, and 6.037188 s
+            // written as 6.037 had a player cut the last eight (ffmpeg 9).
+            scale_up(
                 u64::try_from(last.saturating_sub(edit.media_time)).unwrap_or(0),
                 track.timescale,
                 MOVIE_TIMESCALE,

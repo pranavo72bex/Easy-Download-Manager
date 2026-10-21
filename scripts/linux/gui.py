@@ -298,6 +298,24 @@ def tray_icon():
     return tray_item() is not None
 
 
+def tray_tooltip():
+    """dm's tray item's ToolTip property, as a panel reads it: (icon name,
+    pixmaps, title, description)."""
+    item = tray_item()
+    if not item:
+        return ""
+    name, _, _, path = item
+    return gdbus("--dest", name, "--object-path", path, "--method",
+                 "org.freedesktop.DBus.Properties.Get", "org.kde.StatusNotifierItem", "ToolTip")
+
+
+def tray_tooltip_said():
+    """Its title is dm and its words say the downloads go on: a panel that
+    shows only the title shows dm, and one that shows more says why."""
+    said = tray_tooltip()
+    return "'dm'" in said and "downloads keep running here" in said
+
+
 # dm's tray menu, by label, as a panel shows it.
 SHOW, SPEED_LIMITER, SCHEDULER, QUIT = "Show dm", "Speed limiter", "Scheduler…", "Exit dm"
 
@@ -745,6 +763,8 @@ def tray_host_timing(env):
     time.sleep(2)
     watcher = panel()
     check("a tray host that comes later gets dm's item", wait_for(tray_icon, 20), "nothing registered")
+    check("and its tooltip names dm and says the downloads go on", tray_tooltip_said(),
+          tray_tooltip())
     x("wmctrl", "-i", "-c", dm_windows()[0])
     check("and closing then hides it into that tray",
           wait_for(lambda: not dm_windows(), 10) and app.poll() is None)
