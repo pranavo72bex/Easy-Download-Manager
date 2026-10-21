@@ -3388,188 +3388,194 @@ impl DmApp {
                 egui::Popup::open_id(&ctx, next);
             }
         }
-        egui::MenuBar::new().ui(ui, |ui| {
-            let program = ui.menu_button(t("Program"), |ui| {
-                for c in [
-                    Command::AddUrl,
-                    Command::AddSeries,
-                    Command::AddFromClipboard,
-                ] {
-                    self.item(ui, c);
-                }
-                ui.separator();
-                self.item(ui, Command::Export);
-                self.item(ui, Command::Import);
-                ui.separator();
-                self.item(ui, Command::SiteFiles);
-                ui.separator();
-                self.item(ui, Command::Quit);
-            });
-            let file = ui.menu_button(t("File"), |ui| {
-                for c in [
-                    Command::DownloadNow,
-                    Command::StopDownload,
-                    Command::ShowProgress,
-                ] {
-                    self.item(ui, c);
-                }
-                ui.separator();
-                for c in [
-                    Command::Remove,
-                    Command::Redownload,
-                    Command::UpdateLink,
-                    Command::CopyLink,
-                    Command::MoveRename,
-                ] {
-                    self.item(ui, c);
-                }
-                ui.separator();
-                for c in [
-                    Command::OpenFile,
-                    Command::OpenWith,
-                    Command::OpenFolder,
-                    Command::Properties,
-                ] {
-                    self.item(ui, c);
-                }
-                ui.separator();
-                for c in [
-                    Command::MoveToQueue,
-                    Command::RemoveFromQueue,
-                    Command::MoveUp,
-                    Command::MoveDown,
-                    Command::SelectAll,
-                ] {
-                    self.item(ui, c);
-                }
-            });
-            let downloads = ui.menu_button(t("Downloads"), |ui| {
-                for c in [
-                    Command::ResumeAll,
-                    Command::StopAll,
-                    Command::DeleteCompleted,
-                ] {
-                    self.item(ui, c);
-                }
-                ui.separator();
-                self.item(ui, Command::Find);
-                self.item(ui, Command::FindNext);
-                ui.separator();
-                for c in [Command::Scheduler, Command::StartQueue, Command::StopQueue] {
-                    self.item(ui, c);
-                }
-                submenu(ui, t("Speed limiter"), |ui| {
-                    // Ticked while a limit is in force: the item says
-                    // whether the limiter is on, not only that it toggles.
-                    // A menu item like the one under it, its tick at the
-                    // right: as a checkbox its words started further in
-                    // than the item below (gap 140).
-                    let on = self.applied.speed_limit > 0;
-                    let item = ticked_item(ui, Command::SpeedLimiterToggle.title(), on);
-                    if item.clicked() {
-                        self.queued.push(Command::SpeedLimiterToggle);
-                        ui.close();
-                    }
-                    self.item(ui, Command::SpeedLimiterSettings);
-                });
-                submenu(ui, t("When done"), |ui| {
-                    use crate::power::WhenDone;
-                    for (c, w) in [
-                        (Command::WhenDoneNothing, WhenDone::Nothing),
-                        (Command::WhenDoneQuit, WhenDone::Quit),
-                        (Command::WhenDoneSleep, WhenDone::Sleep),
-                        (Command::WhenDoneHibernate, WhenDone::Hibernate),
-                        (Command::WhenDoneShutDown, WhenDone::ShutDown),
-                    ] {
-                        // Greyed where this computer has no such command
-                        // (macOS does not hibernate), rather than failing
-                        // when the queue runs dry.
-                        let can = matches!(w, WhenDone::Nothing | WhenDone::Quit)
-                            || crate::power::available(w);
-                        if ui
-                            .add_enabled_ui(can, |ui| {
-                                crate::dialogs::radio_flag(ui, self.when_done == w, c.title())
-                            })
-                            .inner
-                            // Why, where it is greyed (UI round 14).
-                            .on_disabled_hover_text(t("This computer gives dm no way to do this."))
-                            .clicked()
-                        {
-                            self.queued.push(c);
-                            ui.close();
-                        }
-                    }
-                });
-                ui.separator();
-                self.item(ui, Command::Options);
-            });
-            let view = ui.menu_button(t("View"), |ui| {
-                // Menu items with their tick at the right, so their words
-                // start where the items under them do (gap 148).
-                if ticked_item(ui, t("Categories"), self.show_categories).clicked() {
-                    self.queued.push(Command::ToggleCategories);
-                    ui.close();
-                }
-                if ticked_item(ui, t("Toolbar"), self.show_toolbar).clicked() {
-                    self.queued.push(Command::ToggleToolbar);
-                    ui.close();
-                }
-                // "Columns": each column on or off; the file
-                // name stays, since a row without one is no row.
-                submenu_kept(ui, t("Columns"), |ui| self.columns_menu(ui));
-                submenu(ui, t("Customize toolbar"), |ui| self.toolbar_menu(ui));
-                // View › Text size: the window's zoom, kept across launches,
-                // which the keyboard's Ctrl (Cmd) with + and − also changes.
-                submenu(ui, t("Text size"), |ui| {
-                    let ctx = ui.ctx().clone();
-                    let zoom = ctx.zoom_factor();
-                    ui.label(RichText::new(tf("{}%", &[&((zoom * 100.0).round() as u32)])).weak());
-                    if ui.button(t("Larger")).clicked() {
-                        ctx.set_zoom_factor((zoom + 0.1).min(3.0));
-                    }
-                    if ui.button(t("Smaller")).clicked() {
-                        ctx.set_zoom_factor((zoom - 0.1).max(0.5));
-                    }
-                    if ui.button(t("Normal size")).clicked() {
-                        ctx.set_zoom_factor(1.0);
-                    }
-                });
-                // View › Language.
-                submenu(ui, t("Language"), |ui| {
-                    let now = crate::i18n::chosen(&self.applied.language);
-                    if let Some(code) = crate::i18n::pick(ui, now) {
-                        let mut wanted = self.applied.clone();
-                        wanted.language = code.to_string();
-                        if let Err(e) = self.apply_settings(wanted) {
-                            self.said = e.into();
-                        }
-                        ui.close();
-                    }
-                });
-                submenu(ui, t("Sort by"), |ui| {
+        egui::MenuBar::new()
+            .config(egui::containers::menu::MenuConfig::new().style(menu_style))
+            .ui(ui, |ui| {
+                let program = ui.menu_button(t("Program"), |ui| {
                     for c in [
-                        Command::SortByName,
-                        Command::SortBySize,
-                        Command::SortByStatus,
-                        Command::SortByTimeLeft,
-                        Command::SortByRate,
-                        Command::SortByDate,
-                        Command::SortByDescription,
+                        Command::AddUrl,
+                        Command::AddSeries,
+                        Command::AddFromClipboard,
+                    ] {
+                        self.item(ui, c);
+                    }
+                    ui.separator();
+                    self.item(ui, Command::Export);
+                    self.item(ui, Command::Import);
+                    ui.separator();
+                    self.item(ui, Command::SiteFiles);
+                    ui.separator();
+                    self.item(ui, Command::Quit);
+                });
+                let file = ui.menu_button(t("File"), |ui| {
+                    for c in [
+                        Command::DownloadNow,
+                        Command::StopDownload,
+                        Command::ShowProgress,
+                    ] {
+                        self.item(ui, c);
+                    }
+                    ui.separator();
+                    for c in [
+                        Command::Remove,
+                        Command::Redownload,
+                        Command::UpdateLink,
+                        Command::CopyLink,
+                        Command::MoveRename,
+                    ] {
+                        self.item(ui, c);
+                    }
+                    ui.separator();
+                    for c in [
+                        Command::OpenFile,
+                        Command::OpenWith,
+                        Command::OpenFolder,
+                        Command::Properties,
+                    ] {
+                        self.item(ui, c);
+                    }
+                    ui.separator();
+                    for c in [
+                        Command::MoveToQueue,
+                        Command::RemoveFromQueue,
+                        Command::MoveUp,
+                        Command::MoveDown,
+                        Command::SelectAll,
                     ] {
                         self.item(ui, c);
                     }
                 });
+                let downloads = ui.menu_button(t("Downloads"), |ui| {
+                    for c in [
+                        Command::ResumeAll,
+                        Command::StopAll,
+                        Command::DeleteCompleted,
+                    ] {
+                        self.item(ui, c);
+                    }
+                    ui.separator();
+                    self.item(ui, Command::Find);
+                    self.item(ui, Command::FindNext);
+                    ui.separator();
+                    for c in [Command::Scheduler, Command::StartQueue, Command::StopQueue] {
+                        self.item(ui, c);
+                    }
+                    submenu(ui, t("Speed limiter"), |ui| {
+                        // Ticked while a limit is in force: the item says
+                        // whether the limiter is on, not only that it toggles.
+                        // A menu item like the one under it, its tick at the
+                        // right: as a checkbox its words started further in
+                        // than the item below (gap 140).
+                        let on = self.applied.speed_limit > 0;
+                        let item = ticked_item(ui, Command::SpeedLimiterToggle.title(), on);
+                        if item.clicked() {
+                            self.queued.push(Command::SpeedLimiterToggle);
+                            ui.close();
+                        }
+                        self.item(ui, Command::SpeedLimiterSettings);
+                    });
+                    submenu(ui, t("When done"), |ui| {
+                        use crate::power::WhenDone;
+                        for (c, w) in [
+                            (Command::WhenDoneNothing, WhenDone::Nothing),
+                            (Command::WhenDoneQuit, WhenDone::Quit),
+                            (Command::WhenDoneSleep, WhenDone::Sleep),
+                            (Command::WhenDoneHibernate, WhenDone::Hibernate),
+                            (Command::WhenDoneShutDown, WhenDone::ShutDown),
+                        ] {
+                            // Greyed where this computer has no such command
+                            // (macOS does not hibernate), rather than failing
+                            // when the queue runs dry.
+                            let can = matches!(w, WhenDone::Nothing | WhenDone::Quit)
+                                || crate::power::available(w);
+                            if ui
+                                .add_enabled_ui(can, |ui| {
+                                    crate::dialogs::radio_flag(ui, self.when_done == w, c.title())
+                                })
+                                .inner
+                                // Why, where it is greyed (UI round 14).
+                                .on_disabled_hover_text(t(
+                                    "This computer gives dm no way to do this.",
+                                ))
+                                .clicked()
+                            {
+                                self.queued.push(c);
+                                ui.close();
+                            }
+                        }
+                    });
+                    ui.separator();
+                    self.item(ui, Command::Options);
+                });
+                let view = ui.menu_button(t("View"), |ui| {
+                    // Menu items with their tick at the right, so their words
+                    // start where the items under them do (gap 148).
+                    if ticked_item(ui, t("Categories"), self.show_categories).clicked() {
+                        self.queued.push(Command::ToggleCategories);
+                        ui.close();
+                    }
+                    if ticked_item(ui, t("Toolbar"), self.show_toolbar).clicked() {
+                        self.queued.push(Command::ToggleToolbar);
+                        ui.close();
+                    }
+                    // "Columns": each column on or off; the file
+                    // name stays, since a row without one is no row.
+                    submenu_kept(ui, t("Columns"), |ui| self.columns_menu(ui));
+                    submenu(ui, t("Customize toolbar"), |ui| self.toolbar_menu(ui));
+                    // View › Text size: the window's zoom, kept across launches,
+                    // which the keyboard's Ctrl (Cmd) with + and − also changes.
+                    submenu(ui, t("Text size"), |ui| {
+                        let ctx = ui.ctx().clone();
+                        let zoom = ctx.zoom_factor();
+                        ui.label(
+                            RichText::new(tf("{}%", &[&((zoom * 100.0).round() as u32)])).weak(),
+                        );
+                        if ui.button(t("Larger")).clicked() {
+                            ctx.set_zoom_factor((zoom + 0.1).min(3.0));
+                        }
+                        if ui.button(t("Smaller")).clicked() {
+                            ctx.set_zoom_factor((zoom - 0.1).max(0.5));
+                        }
+                        if ui.button(t("Normal size")).clicked() {
+                            ctx.set_zoom_factor(1.0);
+                        }
+                    });
+                    // View › Language.
+                    submenu(ui, t("Language"), |ui| {
+                        let now = crate::i18n::chosen(&self.applied.language);
+                        if let Some(code) = crate::i18n::pick(ui, now) {
+                            let mut wanted = self.applied.clone();
+                            wanted.language = code.to_string();
+                            if let Err(e) = self.apply_settings(wanted) {
+                                self.said = e.into();
+                            }
+                            ui.close();
+                        }
+                    });
+                    submenu(ui, t("Sort by"), |ui| {
+                        for c in [
+                            Command::SortByName,
+                            Command::SortBySize,
+                            Command::SortByStatus,
+                            Command::SortByTimeLeft,
+                            Command::SortByRate,
+                            Command::SortByDate,
+                            Command::SortByDescription,
+                        ] {
+                            self.item(ui, c);
+                        }
+                    });
+                });
+                let help = ui.menu_button(t("Help"), |ui| {
+                    self.item(ui, Command::Help);
+                    self.item(ui, Command::CheckForUpdates);
+                    self.item(ui, Command::About);
+                });
+                self.menus = [program, file, downloads, view, help]
+                    .iter()
+                    .map(|menu| egui::Popup::default_response_id(&menu.response))
+                    .collect();
             });
-            let help = ui.menu_button(t("Help"), |ui| {
-                self.item(ui, Command::Help);
-                self.item(ui, Command::CheckForUpdates);
-                self.item(ui, Command::About);
-            });
-            self.menus = [program, file, downloads, view, help]
-                .iter()
-                .map(|menu| egui::Popup::default_response_id(&menu.response))
-                .collect();
-        });
     }
 
     fn toolbar(&mut self, ui: &mut egui::Ui) {
@@ -4408,6 +4414,14 @@ fn modern_tool(
 /// A menu inside a menu. In the modern look its arrow is a thin chevron
 /// in the secondary colour, as a menu flyout's sub-item has; egui draws a
 /// filled triangle, which the classic look keeps.
+/// A menu's look: egui's, with room at an item's sides. Its two points
+/// left a shortcut flush with the menu's right edge ("Ctrl+," touched it,
+/// UI round 11) while the names began a few points in.
+fn menu_style(style: &mut egui::Style) {
+    egui::containers::menu::menu_style(style);
+    style.spacing.button_padding.x = 8.0;
+}
+
 fn submenu<R>(
     ui: &mut egui::Ui,
     label: &str,
@@ -4434,11 +4448,13 @@ fn submenu_with<R>(
     add: impl FnOnce(&mut egui::Ui) -> R,
 ) -> egui::InnerResponse<Option<R>> {
     let t = crate::theme::Tokens::get(ui.ctx());
-    let config = egui::containers::menu::MenuConfig::new().close_behavior(if kept {
-        egui::PopupCloseBehavior::CloseOnClickOutside
-    } else {
-        egui::PopupCloseBehavior::CloseOnClick
-    });
+    let config = egui::containers::menu::MenuConfig::new()
+        .style(menu_style)
+        .close_behavior(if kept {
+            egui::PopupCloseBehavior::CloseOnClickOutside
+        } else {
+            egui::PopupCloseBehavior::CloseOnClick
+        });
     if !t.modern {
         let (response, inner) = egui::containers::menu::SubMenuButton::new(label)
             .config(config)

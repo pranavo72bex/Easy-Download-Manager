@@ -4444,19 +4444,13 @@ fn every_menu_item_clicked_does_what_it_says() {
     );
     h.state_mut().dialogs.limiter = None;
     let limit = h.state().backend().settings().speed_limit;
-    press(
-        &mut h,
-        &["Downloads", "Speed limiter", "Turn speed limiter on or off"],
-    );
+    press(&mut h, &["Downloads", "Speed limiter", "Limit speed"]);
     assert_ne!(
         h.state().backend().settings().speed_limit,
         limit,
-        "Turn speed limiter on or off"
+        "Limit speed"
     );
-    press(
-        &mut h,
-        &["Downloads", "Speed limiter", "Turn speed limiter on or off"],
-    );
+    press(&mut h, &["Downloads", "Speed limiter", "Limit speed"]);
     assert_eq!(
         h.state().backend().settings().speed_limit,
         limit,
@@ -5537,10 +5531,7 @@ fn the_speed_limiter_item_shows_whether_it_is_on() {
             .unwrap()
             .click();
         h.run_steps(3);
-        let ticked = h
-            .get_by_label("Turn speed limiter on or off")
-            .accesskit_node()
-            .toggled();
+        let ticked = h.get_by_label("Limit speed").accesskit_node().toggled();
         h.key_press(egui::Key::Escape);
         h.run_steps(2);
         h.key_press(egui::Key::Escape);

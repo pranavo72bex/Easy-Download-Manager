@@ -246,7 +246,7 @@ impl Command {
             Command::Scheduler => "Scheduler",
             Command::StartQueue => "Start queue",
             Command::StopQueue => "Stop queue",
-            Command::SpeedLimiterToggle => "Turn speed limiter on or off",
+            Command::SpeedLimiterToggle => "Limit speed",
             Command::SpeedLimiterSettings => "Speed limiter settings",
             Command::WhenDoneNothing => "Do nothing",
             Command::WhenDoneQuit => "Exit dm",
