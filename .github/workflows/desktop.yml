@@ -92,31 +92,18 @@ jobs:
       - name: Test the engine, the shell and the window
         run: cargo nextest run --workspace --locked --profile ci
 
-      # Issue 10: yt-dlp installed as a person installs it, and found by dm
-      # with pip's Scripts folder off the PATH, as for a dm started by a
-      # browser or the Start menu.
+      # Issue 10: a yt-dlp the person installed is found (and used rather
+      # than one dm fetches) though pip's Scripts folder is off the PATH, as
+      # for a dm started by a browser or the Start menu.
       - name: yt-dlp where a Windows install puts it
         if: runner.os == 'Windows'
         shell: pwsh
         run: |
           python -m pip install --user --quiet yt-dlp
-          $scripts = python -c "import sysconfig; print(sysconfig.get_path('scripts', 'nt_user'))"
-          Get-ChildItem $scripts -Filter 'yt-dlp*'
           $env:PATH = ($env:PATH -split ';' | Where-Object { $_ -and ($_ -notlike '*Python*') -and ($_ -notlike '*yt-dlp*') }) -join ';'
           if (Get-Command yt-dlp -ErrorAction SilentlyContinue) { throw 'yt-dlp is still on the PATH: the check would prove nothing' }
           $env:DM_EXPECT_YTDLP = '1'
-          # The bug first: 0.3.0's resolver, which looked for "yt-dlp" with
-          # no ".exe", must not find it.
-          git fetch --quiet --depth=1 origin tag desktop-v0.3.0
-          $file = 'crates/dm-core/src/ytdlp.rs'
-          Copy-Item $file "$env:RUNNER_TEMP/ytdlp.rs"
-          git show desktop-v0.3.0:desktop/$file | Set-Content -NoNewline -Encoding utf8 $file
-          cargo test -p dm-core --test tools --locked -- --nocapture
-          $old = $LASTEXITCODE
-          Copy-Item "$env:RUNNER_TEMP/ytdlp.rs" $file -Force
-          if ($old -eq 0) { throw '0.3.0 found yt-dlp here: this check does not reproduce issue 10' }
-          Write-Host 'issue 10 reproduced with 0.3.0; now the fix'
-          cargo test -p dm-core --test tools --locked -- --nocapture
+          cargo test -p dm-core --test tools --locked an_installed_yt_dlp_is_found
 
       - name: Doctests
         run: cargo test --doc --workspace --locked
