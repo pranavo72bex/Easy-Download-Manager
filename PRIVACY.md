@@ -17,10 +17,12 @@ A video site's page (YouTube and the like) is downloaded with yt-dlp, which
 needs a JavaScript runtime (Deno) for some sites; dm joins the picture and
 sound itself. If your computer has no yt-dlp, dm fetches it and Deno the
 first time such a page needs them, from their GitHub releases, each checked
-against its published checksum before it is kept in dm's own folder. ffmpeg
-is fetched the same way (an ffmpeg build from GitHub, checked against a
-checksum built into dm) only for what dm does not do itself: a WebM video,
-subtitles embedded in the file, or a live RTMP, RTSP or MMS stream. A yt-dlp
+against its published checksum before it is kept in dm's own folder. dm
+does the rest itself: joining picture and sound, subtitles, and live RTMP,
+RTSP and MMS streams. ffmpeg is fetched the same way (an ffmpeg build from
+GitHub, checked against a checksum built into dm) only for what dm does not
+do: the long-unused RTMPE and RTMPT, RTSP over TLS, and a stream whose
+picture is MPEG-2. A yt-dlp
 fetched this way is fetched afresh once a week while it is in use. These
 requests, like any download, carry nothing about you; GitHub sees an address
 asking for a public file. A yt-dlp or ffmpeg you installed yourself is used

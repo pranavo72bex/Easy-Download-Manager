@@ -23,6 +23,7 @@ pub mod limit;
 pub mod live;
 pub mod metalink;
 pub mod mkvmux;
+pub mod mms;
 pub mod mp4mux;
 pub mod ntlm;
 pub mod plan;

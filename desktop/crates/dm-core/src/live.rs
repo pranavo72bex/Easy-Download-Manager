@@ -3,8 +3,9 @@
 //!
 //! RTMP and RTSP are dm's own (`rtmp.rs`, `rtsp.rs`): the stream recorded
 //! as it comes into a fragmented MP4 that plays however far it got
-//! (`fmp4`), rewritten as a plain one when it ends (`mp4mux`). The rest —
-//! RTMPE, RTMPT, RTSPS, MMS — is handed to ffmpeg, fetched by dm where the computer has none: the
+//! (`fmp4`), rewritten as a plain one when it ends (`mp4mux`). MMS is
+//! asked for over HTTP (`mms.rs`) and kept as the Windows Media it is. The
+//! rest — RTMPE and RTMPT, both long unused, and RTSPS — is handed to ffmpeg, fetched by dm where the computer has none: the
 //! stream copied, picture and sound untouched, into a part file. Either
 //! way it is placed as every finished download is (`finish`: its category,
 //! its folder, a digest checked). A live stream has no end and no position
@@ -47,7 +48,8 @@ pub fn is_live(url: &str) -> bool {
 
 /// Whether dm fetches such a stream itself, without ffmpeg.
 fn own(url: &str) -> bool {
-    scheme_of(url).is_some_and(|(s, _)| ["rtmp", "rtmps", "rtsp"].contains(s))
+    scheme_of(url)
+        .is_some_and(|(s, _)| ["rtmp", "rtmps", "rtsp", "mms", "mmsh", "mmst"].contains(s))
 }
 
 /// Whether a stream address needs ffmpeg: one dm does not speak itself.
@@ -145,6 +147,8 @@ pub async fn download_live(
         _ => {
             let recorded = if scheme.starts_with("rtsp") {
                 crate::rtsp::record(url, &part, &options.control, &downloaded).await
+            } else if scheme.starts_with("mms") {
+                crate::mms::record(url, &part, &options.control, &downloaded).await
             } else {
                 crate::rtmp::record(url, &part, &options.control, &downloaded).await
             };
@@ -156,11 +160,13 @@ pub async fn download_live(
                 return Err(stopped);
             }
             // Rewritten plain, its index first so it seeks; kept fragmented
-            // (it plays) where that fails.
+            // (it plays) where that fails. An MMS stream is Windows Media,
+            // kept as the server sent it.
             let plain = part.with_extension("plain.mp4");
-            if crate::mp4mux::join_async(vec![part.clone()], plain.clone())
-                .await
-                .is_ok()
+            if !scheme.starts_with("mms")
+                && crate::mp4mux::join_async(vec![part.clone()], plain.clone())
+                    .await
+                    .is_ok()
             {
                 fs::rename(&plain, &part).await?;
             } else {

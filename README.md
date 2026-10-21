@@ -190,9 +190,9 @@ joins their picture and sound itself. If your computer has no yt-dlp, dm
 fetches it (with Deno, the JavaScript runtime it needs for YouTube) the
 first time a video page needs it — from the official GitHub releases,
 checked against their checksums, into dm's own folder — and keeps yt-dlp up
-to date, since sites change and an old yt-dlp stops working on them. ffmpeg
-is fetched the same way only for a WebM video, embedded subtitles or a live
-stream. You install nothing. The extension sends a video page's session
+to date, since sites change and an old yt-dlp stops working on them. Live
+streams (RTMP, RTSP, MMS), WebM, HLS and subtitles dm handles itself, with
+no ffmpeg. You install nothing. The extension sends a video page's session
 along with the video, so a site that checks you are not a bot lets it
 through. A yt-dlp or ffmpeg you
 installed yourself (winget, Homebrew, apt, pip, Scoop, Chocolatey…) is used

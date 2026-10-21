@@ -1204,3 +1204,17 @@ Checked against mediamtx 1.12 fed by ffmpeg (H.264 and AAC; the recorded
 pictures are the clip's frames 75–198 in order) and, in the suite, against
 a one-client RTSP server in `tests/live.rs` sending real H.264 as single NAL
 and FU-A packets (all 75 pictures identical). RTSPS and MMS remain ffmpeg's.
+
+## MMS over HTTP by dm (2026-10-21)
+
+`mms.rs` asks an `mms://` (or `mmsh://`, `mmst://`) address over HTTP as a
+Windows Media player does: a first request for the ASF header, from which
+the packet size and every stream's number are read, then `xPlayStrm=1`
+with every stream switched on; the `$H`, `$D` and `$E` chunks are read
+across reads and each data packet padded back to the header's packet size.
+What is saved is the ASF the server streamed: in the suite an ffmpeg-made
+Windows Media file served this way comes back byte for byte. MMS's own TCP
+protocol (MMST) is not spoken: servers that had it also answered HTTP, and
+none are known to be left. With this, ffmpeg is fetched only for RTMPE,
+RTMPT, RTSPS and a transport stream whose picture is MPEG-1/2 or MPEG-4
+Part 2.

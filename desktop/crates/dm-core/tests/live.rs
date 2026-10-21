@@ -352,3 +352,114 @@ async fn an_rtsp_stream_is_recorded_by_dm_picture_for_picture() {
     assert_eq!(sent.len(), 75);
     assert_eq!(got, sent, "the recorded pictures are not the ones sent");
 }
+
+/// An MMS stream asked for over HTTP, as a Windows Media server serves one:
+/// the header alone, then on `xPlayStrm=1` the header and every packet,
+/// each framed, padding trimmed. Saved, it is the file the server streamed.
+#[tokio::test]
+async fn an_mms_stream_is_fetched_over_http_by_dm_byte_for_byte() {
+    let _turn = FFMPEG_ENV.lock().await;
+    let Some(real) = ffmpeg() else {
+        eprintln!("no ffmpeg installed — skipping");
+        return;
+    };
+    let site = tempdir();
+    let clip = site.path().join("clip.wmv");
+    let made = std::process::Command::new(&real)
+        .args(["-y", "-loglevel", "error", "-f", "lavfi", "-i"])
+        .arg("testsrc=duration=3:size=160x120:rate=10")
+        .args(["-f", "lavfi", "-i", "sine=duration=3"])
+        .args(["-c:v", "wmv2", "-c:a", "wmav2", "-f", "asf"])
+        .arg(&clip)
+        .status();
+    if !made.is_ok_and(|s| s.success()) {
+        eprintln!("this ffmpeg cannot make Windows Media — skipping");
+        return;
+    }
+    let file = std::fs::read(&clip).unwrap();
+    let header_len = u64::from_le_bytes(file[16..24].try_into().unwrap()) as usize;
+    let data_len =
+        u64::from_le_bytes(file[header_len + 16..header_len + 24].try_into().unwrap()) as usize;
+    let packet = 3200usize;
+    // The header and the Data Object's own start; then its packets.
+    let head = file[..header_len + 50].to_vec();
+    let packets: Vec<Vec<u8>> = file[header_len + 50..header_len + data_len]
+        .chunks(packet)
+        .map(|p| {
+            let mut p = p.to_vec();
+            while p.last() == Some(&0) {
+                p.pop();
+            }
+            p
+        })
+        .collect();
+    let streamed = file[..header_len + data_len].to_vec();
+    let frame = |kind: u8, body: &[u8]| {
+        let mut out = vec![b'$', kind];
+        let extra = if kind == b'E' { 0 } else { 8 };
+        out.extend_from_slice(&((body.len() + extra) as u16).to_le_bytes());
+        if extra > 0 {
+            out.extend_from_slice(&[0, 0, 0, 0, 0, 0x0c]);
+            out.extend_from_slice(&((body.len() + 8) as u16).to_le_bytes());
+        }
+        out.extend_from_slice(body);
+        out
+    };
+    let app = axum::Router::new().route(
+        "/old/clip.asf",
+        axum::routing::get(move |headers: axum::http::HeaderMap| {
+            let (head, packets) = (head.clone(), packets.clone());
+            async move {
+                let pragmas: Vec<String> = headers
+                    .get_all("pragma")
+                    .iter()
+                    .filter_map(|v| v.to_str().ok().map(str::to_string))
+                    .collect();
+                let mut body = frame(b'H', &head);
+                if pragmas.iter().any(|p| p.contains("xPlayStrm=1")) {
+                    assert!(
+                        pragmas
+                            .iter()
+                            .any(|p| p.contains("stream-switch-entry=ffff:1:0 ffff:2:0")),
+                        "both streams were not asked for: {pragmas:?}"
+                    );
+                    for p in &packets {
+                        body.extend(frame(b'D', p));
+                    }
+                    body.extend(frame(b'E', &[]));
+                }
+                axum::response::Response::builder()
+                    .header("content-type", "application/vnd.ms.wms-hdr.asfv1")
+                    .body(axum::body::Body::from(body))
+                    .unwrap()
+            }
+        }),
+    );
+    let addr = common::serve(app).await;
+    std::env::set_var("DM_FFMPEG", "");
+    let dir = tempdir();
+    let done = download(
+        &client(),
+        &format!("mms://{addr}/old/clip.asf"),
+        &options(dir.path()),
+    )
+    .await;
+    std::env::remove_var("DM_FFMPEG");
+    let done = done.expect("the MMS stream");
+    assert_eq!(done.path.file_name().unwrap(), "clip.wmv");
+    assert!(
+        std::fs::read(&done.path).unwrap() == streamed,
+        "not the stream the server sent"
+    );
+    let decoded = std::process::Command::new(&real)
+        .args(["-v", "error", "-i"])
+        .arg(&done.path)
+        .args(["-f", "null", "-"])
+        .output()
+        .unwrap();
+    assert!(
+        decoded.status.success() && decoded.stderr.is_empty(),
+        "{}",
+        String::from_utf8_lossy(&decoded.stderr)
+    );
+}
