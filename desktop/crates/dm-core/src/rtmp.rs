@@ -813,6 +813,10 @@ pub(crate) fn tls_config() -> Result<Arc<tokio_rustls::rustls::ClientConfig>, Er
     Ok(Arc::new(config))
 }
 
+/// The most one RTMPT answer may carry: far more than the few hundred
+/// milliseconds of stream a server holds between polls.
+const TUNNEL_MOST: usize = 16 * 1024 * 1024;
+
 /// RTMPT: the RTMP conversation in HTTP POSTs. `/open/1` names a session;
 /// what dm writes goes out in `/send/<session>/<n>`, and with nothing to
 /// send it asks `/idle/<session>/<n>` for what the server has. Each answer
@@ -838,8 +842,18 @@ async fn tunnel(target: &Target) -> Result<Box<dyn Io>, Error> {
             .header("Content-Type", "application/x-fcs")
             .body(body);
         async move {
-            let answer = request.send().await?.error_for_status()?;
-            Ok::<_, reqwest::Error>(answer.bytes().await?.to_vec())
+            let mut answer = request.send().await.map_err(|e| e.to_string())?;
+            answer = answer.error_for_status().map_err(|e| e.to_string())?;
+            // Read in pieces, and no more than a stream's answers hold: a
+            // server sending without end would otherwise fill the memory.
+            let mut body = Vec::new();
+            while let Some(piece) = answer.chunk().await.map_err(|e| e.to_string())? {
+                if body.len() + piece.len() > TUNNEL_MOST {
+                    return Err("an RTMPT answer too large".to_string());
+                }
+                body.extend_from_slice(&piece);
+            }
+            Ok::<_, String>(body)
         }
     };
     let opened = post("/open/1".into(), vec![0]).await.map_err(|e| {

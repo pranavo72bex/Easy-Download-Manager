@@ -1268,6 +1268,14 @@ file that needs no joining. RTMPE is refused: it is Flash's encrypted RTMP,
 a protection dm does not undo. An ffmpeg the person installed is still
 used where it helps.
 
+Bounded, as everything read from a server is: an RTMPT answer is read in
+pieces and refused past 16 MiB. The RTSPS bridge takes the first
+connection to a random loopback port: another program on the same
+computer that got there first would reach the camera without dm's login,
+which retina sends only on its own connection, and dm's recording would
+then fail rather than go anywhere else. Accepted, as a program already
+running as the person can read dm's files anyway.
+
 yt-dlp stays the one thing fetched, with Deno. Written into dm instead it
 would be the site logic this project does not write (see "Player pages go
 to the user's yt-dlp"): YouTube's player code changes weekly and is answered
