@@ -11,25 +11,61 @@
 //!   that read a link off the drag's pasteboard and pass every file drag
 //!   on to winit's own unchanged (as `dock.rs` adds a method to winit's
 //!   application delegate).
+//! - Windows: winit's drop target (an OLE `IDropTarget` taking files only)
+//!   is replaced on the window by dm's, which takes files as it did and a
+//!   browser's link (`UniformResourceLocatorW`, else plain text).
 
+use std::path::{Path, PathBuf};
 use std::sync::{Mutex, OnceLock};
 
-static PENDING: Mutex<Vec<String>> = Mutex::new(Vec::new());
+/// What a drop handed over: text (a link, or lines of links), or a file.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum Dropped {
+    Text(String),
+    File(PathBuf),
+}
+
+static PENDING: Mutex<Vec<Dropped>> = Mutex::new(Vec::new());
 static WINDOW: OnceLock<egui::Context> = OnceLock::new();
 
-/// Text a drop handed over (a link, or lines of links), for the window to
-/// read; the window is woken to do so.
+/// A drop for the window to read; the window is woken to do so.
 #[allow(dead_code)]
-pub(crate) fn arrived(text: String) {
-    dm_core::lock(&PENDING).push(text);
+pub(crate) fn arrived(what: Dropped) {
+    dm_core::lock(&PENDING).push(what);
     if let Some(ctx) = WINDOW.get() {
         ctx.request_repaint();
     }
 }
 
 /// What has been dropped since the last call.
-pub fn take() -> Vec<String> {
+pub fn take() -> Vec<Dropped> {
     std::mem::take(&mut *dm_core::lock(&PENDING))
+}
+
+/// A file dropped through dm's own drop target, read as one winit hands
+/// over is.
+#[derive(Debug)]
+pub struct DroppedPath(pub PathBuf);
+
+impl egui::DroppedFile for DroppedPath {
+    fn path(&self) -> &Path {
+        &self.0
+    }
+
+    fn bytes(&self) -> Result<Vec<u8>, String> {
+        std::fs::read(&self.0).map_err(|e| e.to_string())
+    }
+}
+
+/// Puts dm's drop target on the window whose native handle this is, where
+/// the window system's own needs replacing (Windows). Once; later calls do
+/// nothing.
+pub fn attach(window: raw_window_handle::RawWindowHandle) {
+    #[cfg(windows)]
+    if let raw_window_handle::RawWindowHandle::Win32(handle) = window {
+        win::install(handle.hwnd.get());
+    }
+    let _ = window;
 }
 
 /// Has the window take links dropped on it, where the window system offers
@@ -132,7 +168,7 @@ mod mac {
             if let Some(board) = pasteboard(sender) {
                 if !has_files(&board) {
                     if let Some(text) = link_text(&board) {
-                        super::arrived(text);
+                        super::arrived(super::Dropped::Text(text));
                         return Bool::YES;
                     }
                 }
@@ -211,6 +247,377 @@ mod mac {
     }
 }
 
+#[cfg(windows)]
+mod win {
+    //! An OLE drop target of dm's own. The interfaces are written out as
+    //! their vtables, as winit's own drop target is.
+
+    use std::ffi::c_void;
+    use std::path::PathBuf;
+    use std::sync::atomic::{AtomicBool, Ordering};
+
+    use windows_sys::core::{GUID, HRESULT};
+    use windows_sys::Win32::Foundation::{E_NOINTERFACE, E_POINTER, HWND, POINTL, S_OK};
+    use windows_sys::Win32::System::Com::{DVASPECT_CONTENT, FORMATETC, STGMEDIUM, TYMED_HGLOBAL};
+    use windows_sys::Win32::System::DataExchange::RegisterClipboardFormatW;
+    use windows_sys::Win32::System::Memory::{GlobalLock, GlobalSize, GlobalUnlock};
+    use windows_sys::Win32::System::Ole::{
+        RegisterDragDrop, ReleaseStgMedium, RevokeDragDrop, CF_HDROP, CF_UNICODETEXT,
+        DROPEFFECT_COPY, DROPEFFECT_NONE,
+    };
+    use windows_sys::Win32::UI::Shell::{DragQueryFileW, HDROP};
+
+    use super::{arrived, Dropped};
+
+    #[repr(C)]
+    pub(super) struct DataObjectVtbl {
+        query_interface: usize,
+        add_ref: usize,
+        release: usize,
+        pub(super) get_data:
+            unsafe extern "system" fn(*mut c_void, *const FORMATETC, *mut STGMEDIUM) -> HRESULT,
+        get_data_here: usize,
+        pub(super) query_get_data:
+            unsafe extern "system" fn(*mut c_void, *const FORMATETC) -> HRESULT,
+    }
+
+    #[repr(C)]
+    struct DropTargetVtbl {
+        query_interface:
+            unsafe extern "system" fn(*mut c_void, *const GUID, *mut *mut c_void) -> HRESULT,
+        add_ref: unsafe extern "system" fn(*mut c_void) -> u32,
+        release: unsafe extern "system" fn(*mut c_void) -> u32,
+        drag_enter:
+            unsafe extern "system" fn(*mut c_void, *mut c_void, u32, POINTL, *mut u32) -> HRESULT,
+        drag_over: unsafe extern "system" fn(*mut c_void, u32, POINTL, *mut u32) -> HRESULT,
+        drag_leave: unsafe extern "system" fn(*mut c_void) -> HRESULT,
+        drop: unsafe extern "system" fn(*mut c_void, *mut c_void, u32, POINTL, *mut u32) -> HRESULT,
+    }
+
+    #[repr(C)]
+    pub(super) struct DropTarget {
+        vtbl: &'static DropTargetVtbl,
+    }
+
+    // SAFETY: a pointer to a static table of functions; it holds no state.
+    unsafe impl Sync for DropTarget {}
+
+    static VTBL: DropTargetVtbl = DropTargetVtbl {
+        query_interface,
+        add_ref,
+        release,
+        drag_enter,
+        drag_over,
+        drag_leave,
+        drop,
+    };
+    pub(super) static TARGET: DropTarget = DropTarget { vtbl: &VTBL };
+    static INSTALLED: AtomicBool = AtomicBool::new(false);
+    /// Whether what is being dragged over the window is something dm takes.
+    static TAKES: AtomicBool = AtomicBool::new(false);
+
+    const IID_IUNKNOWN: GUID = GUID::from_u128(0x00000000_0000_0000_c000_000000000046);
+    const IID_IDROPTARGET: GUID = GUID::from_u128(0x00000122_0000_0000_c000_000000000046);
+
+    unsafe extern "system" fn query_interface(
+        this: *mut c_void,
+        riid: *const GUID,
+        out: *mut *mut c_void,
+    ) -> HRESULT {
+        if out.is_null() || riid.is_null() {
+            return E_POINTER;
+        }
+        let id = unsafe { *riid };
+        let same = |a: &GUID, b: &GUID| {
+            a.data1 == b.data1 && a.data2 == b.data2 && a.data3 == b.data3 && a.data4 == b.data4
+        };
+        if same(&id, &IID_IUNKNOWN) || same(&id, &IID_IDROPTARGET) {
+            unsafe { *out = this };
+            S_OK
+        } else {
+            unsafe { *out = std::ptr::null_mut() };
+            E_NOINTERFACE
+        }
+    }
+
+    // A static object: counting references keeps nothing alive.
+    unsafe extern "system" fn add_ref(_this: *mut c_void) -> u32 {
+        1
+    }
+
+    unsafe extern "system" fn release(_this: *mut c_void) -> u32 {
+        1
+    }
+
+    fn format(format: u16) -> FORMATETC {
+        FORMATETC {
+            cfFormat: format,
+            ptd: std::ptr::null_mut(),
+            dwAspect: DVASPECT_CONTENT,
+            lindex: -1,
+            tymed: TYMED_HGLOBAL as u32,
+        }
+    }
+
+    /// The registered format a browser puts a link's address in.
+    fn url_format() -> u16 {
+        let name: Vec<u16> = "UniformResourceLocatorW\0".encode_utf16().collect();
+        unsafe { RegisterClipboardFormatW(name.as_ptr()) as u16 }
+    }
+
+    unsafe fn vtbl(data: *mut c_void) -> &'static DataObjectVtbl {
+        unsafe { &**(data as *mut *const DataObjectVtbl) }
+    }
+
+    unsafe fn offers(data: *mut c_void, kind: u16) -> bool {
+        if data.is_null() {
+            return false;
+        }
+        let wanted = format(kind);
+        unsafe { (vtbl(data).query_get_data)(data, &wanted) == S_OK }
+    }
+
+    /// The UTF-16 text the data object holds in `kind`, up to its first NUL.
+    unsafe fn text(data: *mut c_void, kind: u16) -> Option<String> {
+        let wanted = format(kind);
+        let mut medium: STGMEDIUM = unsafe { std::mem::zeroed() };
+        if unsafe { (vtbl(data).get_data)(data, &wanted, &mut medium) } != S_OK {
+            return None;
+        }
+        let global = unsafe { medium.u.hGlobal };
+        let size = unsafe { GlobalSize(global) } / 2;
+        let at = unsafe { GlobalLock(global) } as *const u16;
+        let text = (!at.is_null()).then(|| {
+            let units = unsafe { std::slice::from_raw_parts(at, size) };
+            let end = units.iter().position(|u| *u == 0).unwrap_or(units.len());
+            String::from_utf16_lossy(&units[..end])
+        });
+        unsafe {
+            GlobalUnlock(global);
+            ReleaseStgMedium(&mut medium);
+        }
+        text
+    }
+
+    /// The paths of the files the data object holds.
+    unsafe fn files(data: *mut c_void) -> Vec<PathBuf> {
+        let wanted = format(CF_HDROP);
+        let mut medium: STGMEDIUM = unsafe { std::mem::zeroed() };
+        if unsafe { (vtbl(data).get_data)(data, &wanted, &mut medium) } != S_OK {
+            return Vec::new();
+        }
+        let drop = unsafe { medium.u.hGlobal } as HDROP;
+        let count = unsafe { DragQueryFileW(drop, u32::MAX, std::ptr::null_mut(), 0) };
+        let mut paths = Vec::new();
+        for i in 0..count {
+            let len = unsafe { DragQueryFileW(drop, i, std::ptr::null_mut(), 0) } as usize;
+            let mut name = vec![0u16; len + 1];
+            unsafe { DragQueryFileW(drop, i, name.as_mut_ptr(), name.len() as u32) };
+            name.truncate(len);
+            use std::os::windows::ffi::OsStringExt;
+            paths.push(std::ffi::OsString::from_wide(&name).into());
+        }
+        unsafe { ReleaseStgMedium(&mut medium) };
+        paths
+    }
+
+    /// What a drop over the window holds that dm takes, read.
+    pub(super) unsafe fn read(data: *mut c_void) -> Vec<Dropped> {
+        if data.is_null() {
+            return Vec::new();
+        }
+        unsafe {
+            if offers(data, CF_HDROP) {
+                return files(data).into_iter().map(Dropped::File).collect();
+            }
+            for kind in [url_format(), CF_UNICODETEXT] {
+                if let Some(text) = text(data, kind).filter(|t| !crate::app::links_in(t).is_empty())
+                {
+                    return vec![Dropped::Text(text)];
+                }
+            }
+        }
+        Vec::new()
+    }
+
+    unsafe extern "system" fn drag_enter(
+        _this: *mut c_void,
+        data: *mut c_void,
+        _keys: u32,
+        _at: POINTL,
+        effect: *mut u32,
+    ) -> HRESULT {
+        let takes = unsafe { offers(data, CF_HDROP) || !read(data).is_empty() };
+        TAKES.store(takes, Ordering::Relaxed);
+        if !effect.is_null() {
+            unsafe {
+                *effect = if takes {
+                    DROPEFFECT_COPY
+                } else {
+                    DROPEFFECT_NONE
+                }
+            };
+        }
+        S_OK
+    }
+
+    unsafe extern "system" fn drag_over(
+        _this: *mut c_void,
+        _keys: u32,
+        _at: POINTL,
+        effect: *mut u32,
+    ) -> HRESULT {
+        if !effect.is_null() {
+            let takes = TAKES.load(Ordering::Relaxed);
+            unsafe {
+                *effect = if takes {
+                    DROPEFFECT_COPY
+                } else {
+                    DROPEFFECT_NONE
+                }
+            };
+        }
+        S_OK
+    }
+
+    unsafe extern "system" fn drag_leave(_this: *mut c_void) -> HRESULT {
+        TAKES.store(false, Ordering::Relaxed);
+        S_OK
+    }
+
+    unsafe extern "system" fn drop(
+        _this: *mut c_void,
+        data: *mut c_void,
+        _keys: u32,
+        _at: POINTL,
+        effect: *mut u32,
+    ) -> HRESULT {
+        let taken = unsafe { read(data) };
+        if !effect.is_null() {
+            unsafe {
+                *effect = if taken.is_empty() {
+                    DROPEFFECT_NONE
+                } else {
+                    DROPEFFECT_COPY
+                }
+            };
+        }
+        for what in taken {
+            arrived(what);
+        }
+        TAKES.store(false, Ordering::Relaxed);
+        S_OK
+    }
+
+    pub(super) fn install(hwnd: isize) {
+        if INSTALLED.swap(true, Ordering::Relaxed) {
+            return;
+        }
+        let window = hwnd as HWND;
+        // winit's own, which takes files only, out; dm's in. OLE was
+        // started on this thread by winit for its own.
+        unsafe {
+            RevokeDragDrop(window);
+            let target = &TARGET as *const DropTarget as *mut c_void;
+            if RegisterDragDrop(window, target) != S_OK {
+                INSTALLED.store(false, Ordering::Relaxed);
+            }
+        }
+    }
+
+    /// The drop target, for the tests to call as OLE would.
+    #[cfg(test)]
+    pub(super) unsafe fn drop_for_test(data: *mut c_void) -> u32 {
+        let mut effect = 0u32;
+        let target = &TARGET as *const DropTarget as *mut c_void;
+        unsafe { (TARGET.vtbl.drop)(target, data, 0, POINTL { x: 0, y: 0 }, &mut effect) };
+        effect
+    }
+
+    #[cfg(test)]
+    mod tests {
+        use super::*;
+        use windows_sys::Win32::System::Memory::{GlobalAlloc, GMEM_MOVEABLE};
+
+        thread_local! {
+            /// What the stand-in data object holds: its format and text.
+            static HOLDS: std::cell::RefCell<Option<(u16, String)>> = const { std::cell::RefCell::new(None) };
+        }
+
+        unsafe extern "system" fn query(_this: *mut c_void, wanted: *const FORMATETC) -> HRESULT {
+            let kind = unsafe { (*wanted).cfFormat };
+            let holds = HOLDS.with(|h| h.borrow().as_ref().map(|(k, _)| *k));
+            if holds == Some(kind) {
+                S_OK
+            } else {
+                -2147221404
+            } // DV_E_FORMATETC
+        }
+
+        unsafe extern "system" fn get(
+            this: *mut c_void,
+            wanted: *const FORMATETC,
+            medium: *mut STGMEDIUM,
+        ) -> HRESULT {
+            if unsafe { query(this, wanted) } != S_OK {
+                return -2147221404;
+            }
+            let text = HOLDS
+                .with(|h| h.borrow().as_ref().map(|(_, t)| t.clone()))
+                .unwrap_or_default();
+            let units: Vec<u16> = text.encode_utf16().chain([0]).collect();
+            unsafe {
+                let global = GlobalAlloc(GMEM_MOVEABLE, units.len() * 2);
+                let at = GlobalLock(global) as *mut u16;
+                std::ptr::copy_nonoverlapping(units.as_ptr(), at, units.len());
+                GlobalUnlock(global);
+                (*medium).tymed = TYMED_HGLOBAL as u32;
+                (*medium).u.hGlobal = global;
+                (*medium).pUnkForRelease = std::ptr::null_mut();
+            }
+            S_OK
+        }
+
+        static DATA_VTBL: DataObjectVtbl = DataObjectVtbl {
+            query_interface: 0,
+            add_ref: 0,
+            release: 0,
+            get_data: get,
+            get_data_here: 0,
+            query_get_data: query,
+        };
+
+        #[repr(C)]
+        struct Data {
+            vtbl: &'static DataObjectVtbl,
+        }
+
+        fn dropped(kind: u16, text: &str) -> (u32, Vec<Dropped>) {
+            let _ = super::super::take();
+            HOLDS.with(|h| *h.borrow_mut() = Some((kind, text.to_string())));
+            let mut data = Data { vtbl: &DATA_VTBL };
+            let effect = unsafe { drop_for_test(&mut data as *mut Data as *mut c_void) };
+            (effect, super::super::take())
+        }
+
+        #[test]
+        fn a_link_dragged_from_a_browser_is_taken_and_words_are_not() {
+            let (effect, taken) = dropped(url_format(), "https://example.com/files/big.zip");
+            assert_eq!(effect, DROPEFFECT_COPY);
+            assert_eq!(
+                taken,
+                [Dropped::Text("https://example.com/files/big.zip".into())]
+            );
+            // A browser that hands over only text.
+            let (_, taken) = dropped(CF_UNICODETEXT, "magnet:?xt=urn:btih:abc");
+            assert_eq!(taken, [Dropped::Text("magnet:?xt=urn:btih:abc".into())]);
+            let (effect, taken) = dropped(CF_UNICODETEXT, "just some words");
+            assert_eq!(effect, DROPEFFECT_NONE);
+            assert!(taken.is_empty());
+        }
+    }
+}
+
 #[cfg(all(test, target_os = "macos"))]
 mod tests {
     use objc2::rc::Retained;
@@ -265,7 +672,12 @@ mod tests {
             let _: Bool = unsafe { msg_send![board, setString: &*url, forType: kind] };
         });
         assert_eq!(drop_it(), Bool::YES);
-        assert_eq!(super::take(), ["https://example.com/files/big.zip"]);
+        assert_eq!(
+            super::take(),
+            [super::Dropped::Text(
+                "https://example.com/files/big.zip".into()
+            )]
+        );
 
         // Text that is no link is not taken.
         board_with("public.utf8-plain-text", |board, kind| {

@@ -19,6 +19,9 @@ name = "dm_desktop"
 path = "src/lib.rs"
 
 [dependencies]
+# The window's native handle, for the drag and drop the window system does
+# outside winit (drops.rs, and dragging files out).
+raw-window-handle = "0.6"
 # The computer's fonts for other scripts, mapped rather than read: a CJK
 # collection is 20 MB, of which a window draws a few glyphs.
 memmap2 = "0.9"
@@ -81,6 +84,14 @@ windows-sys = { version = "0.61", features = [
   "Win32_System_Power",
   "Win32_System_Registry",
   "Win32_UI_WindowsAndMessaging",
+  # dm's own drop target, for a link dragged from a browser (drops.rs).
+  "Win32_System_Com",
+  "Win32_System_Com_StructuredStorage",
+  "Win32_System_DataExchange",
+  "Win32_System_Memory",
+  "Win32_System_Ole",
+  "Win32_System_SystemServices",
+  "Win32_UI_Shell",
 ] }
 
 [target.'cfg(target_os = "linux")'.dependencies]

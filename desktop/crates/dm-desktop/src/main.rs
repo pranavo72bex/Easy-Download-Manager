@@ -293,6 +293,13 @@ impl eframe::App for Window {
             return;
         }
         self.app.ui(ui);
+        // Links dragged in from a browser, where winit hands over files only.
+        {
+            use raw_window_handle::HasWindowHandle;
+            if let Ok(handle) = frame.window_handle() {
+                dm_desktop::drops::attach(handle.as_raw());
+            }
+        }
         let files = std::mem::take(&mut self.app.drag_out);
         if !files.is_empty() {
             if let Err(e) = drag_out(frame, files) {

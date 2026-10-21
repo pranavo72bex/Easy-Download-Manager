@@ -3277,8 +3277,13 @@ impl DmApp {
         for file in &dropped {
             links.extend(dropped_links(file.as_ref()));
         }
-        for text in &texts {
-            links.extend(links_in(text));
+        for what in &texts {
+            match what {
+                crate::drops::Dropped::Text(text) => links.extend(links_in(text)),
+                crate::drops::Dropped::File(path) => {
+                    links.extend(dropped_links(&crate::drops::DroppedPath(path.clone())));
+                }
+            }
         }
         if !links.is_empty() {
             let _ = self.add(&links, Default::default());
