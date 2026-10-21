@@ -3,6 +3,37 @@
 What changed in each release, newest first. The app (`desktop-v*` tags) and
 the browser extension (`v*` tags) are versioned separately.
 
+## App 0.4.0
+
+Video sites with nothing else to install, and drag and drop that takes a
+browser's links.
+
+- Nothing to install for video: the first time a video page needs them, dm
+  fetches yt-dlp (and Deno, which it runs YouTube's checks with) into its
+  own folder, checked against their published checksums, and keeps yt-dlp
+  current weekly. Picture and sound are joined by dm itself, MP4 and WebM
+  alike (VP9, AV1, Opus), at the same qualities as before, 4K included.
+- Streams without ffmpeg: HLS and other transport streams become MP4s
+  (H.264, HEVC, AAC, MP3, AC-3, E-AC-3); `rtmp://`, `rtsp://` and `mms://`
+  are recorded by dm, into a file that plays even if cut short. Subtitles
+  go inside the video. Only RTMPE, RTMPT and RTSPS still fetch an ffmpeg.
+- Drag and drop: a link dragged from a browser onto the window is queued
+  on macOS, Windows and Linux (X11), and a finished file can be dragged out
+  of the list on Linux (X11) as on macOS and Windows. Under Wayland neither
+  works yet; the window says what to do instead.
+- Windows finds a yt-dlp and ffmpeg installed by winget, pip, Scoop or
+  Chocolatey, and the dm a browser starts no longer holds the browser's
+  pipes open.
+- Clearer: "Site files" is the one name for the finder, with Find files
+  right after its fields; the numbered series shows where `*` goes; a
+  number box says when what was typed is not a number; View › Columns stays
+  open while columns are ticked; a long `.tar.gz` name keeps `.tar.gz` when
+  shortened; menu shortcuts no longer touch the edge.
+- Fixed: a dialog about as tall as the window flipping between scrolling
+  and not, so its buttons missed clicks (Site files on Windows); a joined
+  sound running a few milliseconds past its end in newer players.
+- Security: rustls-webpki 0.103.16 (RUSTSEC-2026-0381, -0382, -0383).
+
 ## App 0.3.0
 
 A Fluent look throughout, a faster and lighter engine, and new ways in:
