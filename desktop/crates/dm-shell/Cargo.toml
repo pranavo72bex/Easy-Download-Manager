@@ -30,3 +30,8 @@ reqwest = { version = "0.12", default-features = false, features = ["json"] }
 tokio = { version = "1", features = ["full"] }
 tempfile = "3"
 axum = "0.7"
+
+# A browser's pipes to the native host, kept from the dm it starts
+# (`host::launch_desktop`): inherited, they held the host's answer open.
+[target.'cfg(windows)'.dependencies]
+windows-sys = { version = "0.61", features = ["Win32_Foundation", "Win32_System_Console"] }

@@ -201,6 +201,7 @@ fn file_new(dir: &Path, name: &str, bytes: &[u8]) -> std::io::Result<Filed> {
 /// A failure comes back: the browser is about to be told the download has
 /// started, and with no app to consume the inbox it has not.
 fn launch_desktop() -> std::io::Result<()> {
+    keep_pipes_from_children();
     let executable = std::env::current_exe()?;
     let start = |breakaway: bool| {
         let mut command = Command::new(&executable);
@@ -230,6 +231,37 @@ fn launch_desktop() -> std::io::Result<()> {
     };
     start(true).or_else(|_| start(false))
 }
+
+/// Marks this process's standard handles as not for its children.
+///
+/// On Windows a child gets every handle marked inheritable, not only the
+/// three it is given: the dm started here held the browser's pipes to this
+/// host, so the browser (or a script) reading the host's answer waited for
+/// that dm to exit before it saw the answer end (found running app-check
+/// on Windows). Its own are null, and the host's own writes are unchanged.
+#[cfg(windows)]
+fn keep_pipes_from_children() {
+    use windows_sys::Win32::Foundation::{
+        SetHandleInformation, HANDLE_FLAG_INHERIT, INVALID_HANDLE_VALUE,
+    };
+    use windows_sys::Win32::System::Console::{
+        GetStdHandle, STD_ERROR_HANDLE, STD_INPUT_HANDLE, STD_OUTPUT_HANDLE,
+    };
+    for which in [STD_INPUT_HANDLE, STD_OUTPUT_HANDLE, STD_ERROR_HANDLE] {
+        // SAFETY: two Win32 calls on this process's own standard handles,
+        // which it keeps; a failure leaves the handle as it was.
+        unsafe {
+            let handle = GetStdHandle(which);
+            if !handle.is_null() && handle != INVALID_HANDLE_VALUE {
+                SetHandleInformation(handle, HANDLE_FLAG_INHERIT, 0);
+            }
+        }
+    }
+}
+
+/// Elsewhere a child gets only the descriptors it is given.
+#[cfg(not(windows))]
+fn keep_pipes_from_children() {}
 
 /// The catch rules in the app's settings file, read without touching it.
 ///
