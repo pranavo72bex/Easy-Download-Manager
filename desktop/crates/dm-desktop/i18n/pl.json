@@ -400,7 +400,6 @@
  "No file chooser on this desktop; type the file's path.": "Na tym pulpicie nie ma okna wyboru pliku; wpisz ścieżkę pliku.",
  "Skip them": "Pomiń je",
  "Some are already in the list": "Niektóre są już na liście",
- "That is not a link dm can download.": "To nie jest link, który dm może pobrać.",
  "That is two addresses run together. Add one at a time, or several with Program › Add links from clipboard.": "To dwa sklejone adresy. Dodawaj je po jednym albo kilka naraz przez Program › Dodaj linki ze schowka.",
  "The saved proxy could not be used ({}), so it is turned off and downloads go out directly. Fix it under Options › Proxy and tick it again.": "Nie można było użyć zapisanego proxy ({}), więc zostało wyłączone, a pobieranie idzie bezpośrednio. Popraw je w Opcje › Proxy i zaznacz ponownie.",
  "Type the file's full path, such as {}.": "Wpisz pełną ścieżkę pliku, np. {}.",
@@ -565,5 +564,6 @@
  "the site wants to check you are not a bot: play the video in your browser, then use its Download video button": "Witryna chce sprawdzić, że nie jesteś botem: odtwórz film w przeglądarce, a potem użyj jego przycisku Pobierz film",
  "this video is not available: it may be private, removed or not shown in your country": "Ten film jest niedostępny: może być prywatny, usunięty lub niewidoczny w twoim kraju",
  "dm could not get the video from this page": "dm nie mógł pobrać filmu z tej strony",
- "Known once the video starts": "Znany, gdy film się zacznie"
+ "Known once the video starts": "Znany, gdy film się zacznie",
+ "That is not a link dm can download. Paste a web address, such as https://example.com/file.zip.": "To nie jest link, który dm może pobrać. Wklej adres internetowy, na przykład https://example.com/file.zip."
 }

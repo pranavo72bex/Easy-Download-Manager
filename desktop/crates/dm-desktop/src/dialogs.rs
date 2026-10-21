@@ -2920,7 +2920,7 @@ fn add_url(app: &mut DmApp, ctx: &egui::Context) {
         d.says = if address.is_empty() {
             t("Type or paste the address of what to download.").into()
         } else {
-            t("That is not a link dm can download.").into()
+            t("That is not a link dm can download. Paste a web address, such as https://example.com/file.zip.").into()
         };
         // The address keeps the keyboard, to be put right: after the
         // warning, typing went nowhere (round 13).

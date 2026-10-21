@@ -152,9 +152,23 @@ pub fn provisional(url: &str) -> String {
         .unwrap_or_default();
     let last = percent_decode(&last);
     if last.is_empty() {
-        host(url)
-    } else {
-        last
+        return host(url);
+    }
+    // A page made by a script, named by its query (`watch?v=…`), is shown
+    // by its short address until it is named: a failed YouTube video's row
+    // said only "watch" (newcomer check, 2026-10-22).
+    match parsed.query().filter(|q| !q.is_empty()) {
+        Some(query) if !last.contains('.') => {
+            let host = parsed.host_str().unwrap_or_default();
+            let host = host.strip_prefix("www.").unwrap_or(host);
+            let path = parsed.path().trim_start_matches('/');
+            let shown = format!("{host}/{path}?{query}");
+            match shown.char_indices().nth(60) {
+                Some((at, _)) => format!("{}…", &shown[..at]),
+                None => shown,
+            }
+        }
+        _ => last,
     }
 }
 
@@ -888,6 +902,12 @@ mod tests {
             "My File.zip"
         );
         assert_eq!(provisional("https://e.com/"), "e.com");
+        assert_eq!(
+            provisional("https://www.youtube.com/watch?v=jNQXAC9IVRw"),
+            "youtube.com/watch?v=jNQXAC9IVRw"
+        );
+        // A file is still its file's name, whatever follows it.
+        assert_eq!(provisional("https://e.com/get/report.pdf?token=1"), "report.pdf");
         assert_eq!(
             provisional("magnet:?xt=urn:btih:abc&dn=Big+Film"),
             "Big Film"

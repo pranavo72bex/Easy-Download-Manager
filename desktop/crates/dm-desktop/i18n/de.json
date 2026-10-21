@@ -400,7 +400,6 @@
  "No file chooser on this desktop; type the file's path.": "Auf diesem Desktop gibt es keine Dateiauswahl; geben Sie den Pfad der Datei ein.",
  "Skip them": "Überspringen",
  "Some are already in the list": "Einige sind schon in der Liste",
- "That is not a link dm can download.": "Das ist kein Link, den dm herunterladen kann.",
  "That is two addresses run together. Add one at a time, or several with Program › Add links from clipboard.": "Das sind zwei aneinanderhängende Adressen. Fügen Sie sie einzeln hinzu, oder mehrere über Programm › Links aus der Zwischenablage hinzufügen.",
  "The saved proxy could not be used ({}), so it is turned off and downloads go out directly. Fix it under Options › Proxy and tick it again.": "Der gespeicherte Proxy konnte nicht verwendet werden ({}); er ist daher ausgeschaltet und Downloads gehen direkt hinaus. Korrigieren Sie ihn unter Optionen › Proxy und setzen Sie den Haken wieder.",
  "Type the file's full path, such as {}.": "Geben Sie den vollständigen Pfad der Datei ein, etwa {}.",
@@ -565,5 +564,6 @@
  "the site wants to check you are not a bot: play the video in your browser, then use its Download video button": "Die Website will prüfen, dass Sie kein Bot sind: Spielen Sie das Video im Browser ab und nutzen Sie dann dessen Schaltfläche Video herunterladen",
  "this video is not available: it may be private, removed or not shown in your country": "Dieses Video ist nicht verfügbar: Es ist vielleicht privat, entfernt oder in Ihrem Land nicht zu sehen",
  "dm could not get the video from this page": "dm konnte das Video von dieser Seite nicht holen",
- "Known once the video starts": "Bekannt, sobald das Video beginnt"
+ "Known once the video starts": "Bekannt, sobald das Video beginnt",
+ "That is not a link dm can download. Paste a web address, such as https://example.com/file.zip.": "Das ist kein Link, den dm herunterladen kann. Fügen Sie eine Webadresse ein, etwa https://example.com/file.zip."
 }

@@ -400,7 +400,6 @@
  "No file chooser on this desktop; type the file's path.": "Geen bestandskiezer op dit bureaublad; typ het pad van het bestand.",
  "Skip them": "Overslaan",
  "Some are already in the list": "Sommige staan al in de lijst",
- "That is not a link dm can download.": "Dat is geen link die dm kan downloaden.",
  "That is two addresses run together. Add one at a time, or several with Program › Add links from clipboard.": "Dat zijn twee adressen aan elkaar. Voeg ze een voor een toe, of meerdere via Programma › Links van het klembord toevoegen.",
  "The saved proxy could not be used ({}), so it is turned off and downloads go out directly. Fix it under Options › Proxy and tick it again.": "De opgeslagen proxy kon niet worden gebruikt ({}), dus hij staat uit en downloads gaan direct naar buiten. Herstel hem onder Opties › Proxy en vink hem weer aan.",
  "Type the file's full path, such as {}.": "Typ het volledige pad van het bestand, zoals {}.",
@@ -565,5 +564,6 @@
  "the site wants to check you are not a bot: play the video in your browser, then use its Download video button": "De site wil controleren dat je geen bot bent: speel de video af in je browser en gebruik daar de knop Video downloaden",
  "this video is not available: it may be private, removed or not shown in your country": "Deze video is niet beschikbaar: hij is misschien privé, verwijderd of niet te zien in je land",
  "dm could not get the video from this page": "dm kon de video niet van deze pagina halen",
- "Known once the video starts": "Bekend zodra de video begint"
+ "Known once the video starts": "Bekend zodra de video begint",
+ "That is not a link dm can download. Paste a web address, such as https://example.com/file.zip.": "Dat is geen link die dm kan downloaden. Plak een webadres, zoals https://example.com/file.zip."
 }

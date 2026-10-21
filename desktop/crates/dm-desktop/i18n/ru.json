@@ -400,7 +400,6 @@
  "No file chooser on this desktop; type the file's path.": "На этом рабочем столе нет окна выбора файла; введите путь к файлу.",
  "Skip them": "Пропустить их",
  "Some are already in the list": "Некоторые уже в списке",
- "That is not a link dm can download.": "Это не ссылка, которую dm может скачать.",
  "That is two addresses run together. Add one at a time, or several with Program › Add links from clipboard.": "Это два адреса, слитые вместе. Добавляйте по одному или несколько через Программа › Добавить ссылки из буфера обмена.",
  "The saved proxy could not be used ({}), so it is turned off and downloads go out directly. Fix it under Options › Proxy and tick it again.": "Сохранённый прокси использовать не удалось ({}), поэтому он выключен, и загрузки идут напрямую. Исправьте его в Параметры › Прокси и снова включите.",
  "Type the file's full path, such as {}.": "Введите полный путь к файлу, например {}.",
@@ -565,5 +564,6 @@
  "the site wants to check you are not a bot: play the video in your browser, then use its Download video button": "Сайт хочет убедиться, что вы не бот: воспроизведите видео в браузере и нажмите там кнопку «Скачать видео»",
  "this video is not available: it may be private, removed or not shown in your country": "Это видео недоступно: возможно, оно закрыто, удалено или не показывается в вашей стране",
  "dm could not get the video from this page": "dm не смог получить видео с этой страницы",
- "Known once the video starts": "Станет известен, когда начнётся видео"
+ "Known once the video starts": "Станет известен, когда начнётся видео",
+ "That is not a link dm can download. Paste a web address, such as https://example.com/file.zip.": "Это не ссылка, которую dm может загрузить. Вставьте веб-адрес, например https://example.com/file.zip."
 }

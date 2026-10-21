@@ -400,7 +400,6 @@
  "No file chooser on this desktop; type the file's path.": "Nessun selettore di file su questo desktop; digita il percorso del file.",
  "Skip them": "Saltali",
  "Some are already in the list": "Alcuni sono già nell'elenco",
- "That is not a link dm can download.": "Questo non è un link che dm possa scaricare.",
  "That is two addresses run together. Add one at a time, or several with Program › Add links from clipboard.": "Sono due indirizzi attaccati. Aggiungine uno alla volta, o più di uno con Programma › Aggiungi link dagli appunti.",
  "The saved proxy could not be used ({}), so it is turned off and downloads go out directly. Fix it under Options › Proxy and tick it again.": "Il proxy salvato non si è potuto usare ({}), quindi è disattivato e i download escono direttamente. Correggilo in Opzioni › Proxy e rimetti la spunta.",
  "Type the file's full path, such as {}.": "Digita il percorso completo del file, come {}.",
@@ -565,5 +564,6 @@
  "the site wants to check you are not a bot: play the video in your browser, then use its Download video button": "Il sito vuole verificare che tu non sia un bot: riproduci il video nel browser, poi usa il suo pulsante Scarica video",
  "this video is not available: it may be private, removed or not shown in your country": "Questo video non è disponibile: potrebbe essere privato, rimosso o non visibile nel tuo paese",
  "dm could not get the video from this page": "dm non è riuscito a prendere il video da questa pagina",
- "Known once the video starts": "Noto quando il video inizia"
+ "Known once the video starts": "Noto quando il video inizia",
+ "That is not a link dm can download. Paste a web address, such as https://example.com/file.zip.": "Questo non è un link che dm può scaricare. Incolla un indirizzo web, come https://example.com/file.zip."
 }

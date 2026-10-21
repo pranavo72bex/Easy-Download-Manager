@@ -127,20 +127,23 @@ def newcomer():
         landed = [p for p in folder.rglob("*") if p.is_file()] if folder.exists() else []
         print(f"        landed: {[p.name for p in landed]}", flush=True)
 
+        click("push button", "Not now")
+        time.sleep(1)
+        shot("08-not-now")
+        check("not now puts the bar away", not where("push button", "Microsoft Edge"))
+
+        # Then Options › Browser, where the same buttons stay: the only
+        # "Chrome and others" left is the one in Options.
         settle()
         click("push button", "Options")
         time.sleep(1)
-        click("page tab", "Browser")
+        tab = click("*", "Browser")
         time.sleep(1)
-        shot("08-options-browser")
-        check("Options › Browser offers the extension too", where("push button", "Chrome and others"))
+        shot("09-options-browser")
+        check("Options has a Browser tab", tab)
+        check("and it offers the extension", where("push button", "Chrome and others"))
         key("Escape")
         time.sleep(0.5)
-
-        click("push button", "Not now")
-        time.sleep(1)
-        shot("09-not-now")
-        check("not now puts the bar away", not where("push button", "Microsoft Edge"))
         check("dm ran throughout", app.poll() is None)
     finally:
         end(app)
