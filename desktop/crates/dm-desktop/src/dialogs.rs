@@ -900,11 +900,7 @@ impl Dialogs {
             ),
             (self.series.is_some(), "Add numbered series", Shut::Series),
             (self.links.is_some(), "Download links", Shut::Links),
-            (
-                self.site_files.is_some(),
-                "Site files",
-                Shut::SiteFiles,
-            ),
+            (self.site_files.is_some(), "Site files", Shut::SiteFiles),
             (self.file_info.is_some(), "Download details", Shut::FileInfo),
             (self.options.is_some(), "Options", Shut::Options),
             (self.about_open, "About dm", Shut::About),
@@ -4165,7 +4161,9 @@ fn series(app: &mut DmApp, ctx: &egui::Context) {
     window(ctx, "Add numbered series")
         .open(&mut open)
         .show(ctx, |ui| {
-            ui.label(t("Put * where the number or letter changes, as in example.com/photo*.jpg"));
+            ui.label(t(
+                "Put * where the number or letter changes, as in example.com/photo*.jpg",
+            ));
             let mut enter = entered(&focused(
                 field(ui, t("Address with *"), &mut d.template, 420.0),
                 focus,
@@ -4598,14 +4596,17 @@ fn site_files(app: &mut DmApp, ctx: &egui::Context) {
             field(ui, t("Skip paths containing"), &mut d.exclude, 420.0);
             // Saving and the saved list come before the results, which can
             // run long enough to push anything below them off the screen.
-            // Wrapped: in the smallest window its Save search ran off the edge.
+            // A line each: wrapped as one, its words broke as "Run every," /
+            // "hours" (UI round 12), and in the smallest window Save search
+            // ran off the edge.
             ui.horizontal_wrapped(|ui| {
                 field(ui, t("Save this search as"), &mut d.name, 160.0);
-                let name = ui.label(t("Run every, hours (0 only by hand)"));
-                ui.add(number_box(&mut d.every_hours).range(0..=24 * 31))
-                    .labelled_by(name.id);
-                save = ui.button(t("Save search")).clicked();
             });
+            number_row(ui, t("Run every, hours (0 only by hand)"), |ui, name| {
+                ui.add(number_box(&mut d.every_hours).range(0..=24 * 31))
+                    .labelled_by(name);
+            });
+            save = ui.button(t("Save search")).clicked();
             if !d.says.is_empty() {
                 ui.colored_label(warn(ui), &d.says);
             }
