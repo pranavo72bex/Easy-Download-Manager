@@ -1917,11 +1917,28 @@ fn a_site_search_reads_pages_deep_and_a_saved_one_runs_on_its_own() {
     harness.get_by_label("Find files").scroll_to_me();
     harness.run_steps(2);
     let button = harness.get_by_label("Find files").rect();
-    let under = harness.ctx.layer_id_at(button.center());
-    let placed = format!(
-        "button {button:?}, screen {:?}, layer under it {under:?}",
-        harness.ctx.content_rect()
-    );
+    harness.get_by_label("Find files").hover();
+    harness.run_steps(1);
+    let ctx = harness.ctx.clone();
+    let ids: Vec<egui::Id> = ctx.interaction_snapshot(|i| {
+        i.hovered
+            .iter()
+            .chain(i.contains_pointer.iter())
+            .copied()
+            .collect()
+    });
+    let hovered: Vec<String> = ids
+        .iter()
+        .map(|id| {
+            let r = ctx.read_response(*id);
+            format!(
+                "{id:?} {:?} {:?}",
+                r.as_ref().map(|r| r.rect),
+                r.map(|r| r.sense)
+            )
+        })
+        .collect();
+    let placed = format!("button {button:?}, hovered {hovered:?}");
     click(&mut harness, "Find files");
     // page.html and next.html on this site; the page elsewhere is not read.
     let deadline = Instant::now() + Duration::from_secs(10);
