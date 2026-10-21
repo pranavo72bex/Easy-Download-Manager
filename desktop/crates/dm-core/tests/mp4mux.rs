@@ -103,6 +103,11 @@ fn check(fragmented: bool) {
         eprintln!("no ffmpeg here to make and judge real files; skipped");
         return;
     };
+    let encoders = run(&ffmpeg, &["-v", "error", "-encoders"]);
+    if !encoders.contains("libx264") {
+        eprintln!("this ffmpeg has no H.264 encoder to make real files with; skipped");
+        return;
+    }
     let dir = tempfile::tempdir().unwrap();
     let (video, audio) = make(&ffmpeg, dir.path(), fragmented);
     let out = dir.path().join("joined.mp4");
