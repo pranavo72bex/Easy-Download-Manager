@@ -19,6 +19,9 @@ tokio-socks = "0.5"
 # rtmps:// streams (rtmp.rs): TLS as reqwest has it, with the same roots.
 tokio-rustls = { version = "0.26", default-features = false, features = ["ring", "tls12"] }
 webpki-roots = "1"
+# rtsp:// streams (rtsp.rs): RTSP, RTP and the H.264, H.265 and AAC
+# depacketizers, which every camera and media server speaks.
+retina = "0.4"
 # The `Proxy-Authorization` an HTTP CONNECT to a proxy with a login carries.
 base64 = "0.22"
 futures-util = "0.3"

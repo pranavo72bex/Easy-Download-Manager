@@ -1,10 +1,10 @@
 //! Streams served over RTMP, RTSP and MMS: the protocols of media servers
 //! and older players, which no HTTP request reaches.
 //!
-//! RTMP is dm's own (`rtmp.rs`): the stream recorded as it comes into a
-//! fragmented MP4 that plays however far it got (`fmp4`), rewritten as a
-//! plain one when it ends (`mp4mux`). The rest — RTMPE, RTMPT, RTSP, MMS —
-//! is handed to ffmpeg, fetched by dm where the computer has none: the
+//! RTMP and RTSP are dm's own (`rtmp.rs`, `rtsp.rs`): the stream recorded
+//! as it comes into a fragmented MP4 that plays however far it got
+//! (`fmp4`), rewritten as a plain one when it ends (`mp4mux`). The rest —
+//! RTMPE, RTMPT, RTSPS, MMS — is handed to ffmpeg, fetched by dm where the computer has none: the
 //! stream copied, picture and sound untouched, into a part file. Either
 //! way it is placed as every finished download is (`finish`: its category,
 //! its folder, a digest checked). A live stream has no end and no position
@@ -47,7 +47,7 @@ pub fn is_live(url: &str) -> bool {
 
 /// Whether dm fetches such a stream itself, without ffmpeg.
 fn own(url: &str) -> bool {
-    scheme_of(url).is_some_and(|(s, _)| ["rtmp", "rtmps"].contains(s))
+    scheme_of(url).is_some_and(|(s, _)| ["rtmp", "rtmps", "rtsp"].contains(s))
 }
 
 /// Whether a stream address needs ffmpeg: one dm does not speak itself.
@@ -143,7 +143,11 @@ pub async fn download_live(
     let ffmpeg = match ffmpeg {
         Some(ffmpeg) if !own(url) => ffmpeg,
         _ => {
-            let recorded = crate::rtmp::record(url, &part, &options.control, &downloaded).await;
+            let recorded = if scheme.starts_with("rtsp") {
+                crate::rtsp::record(url, &part, &options.control, &downloaded).await
+            } else {
+                crate::rtmp::record(url, &part, &options.control, &downloaded).await
+            };
             stop_reporting(reporter).await;
             if let Err(stopped) = recorded {
                 if !matches!(stopped, Error::Paused) {

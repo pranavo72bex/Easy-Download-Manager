@@ -1189,3 +1189,18 @@ picture still lines up. Checked against ffmpeg serving a clip over RTMP: the
 saved file decodes identical to the clip, picture and sound, with dm told
 there is no ffmpeg. RTMPE (Adobe's encryption) and RTMPT (HTTP tunnelling)
 stay with ffmpeg; neither is in use any more.
+
+## RTSP recorded by dm (2026-10-21)
+
+`rtsp.rs` records `rtsp://` with the `retina` crate (MIT/Apache, a
+maintained RTSP client used for IP cameras): DESCRIBE, SETUP with RTP
+interleaved on the RTSP connection (passes NAT and firewalls), PLAY, and
+retina's H.264, H.265 and AAC depacketizers giving frames already in MP4
+form, which go into the same fragmented MP4 as RTMP. A sign-in in the
+address goes to retina separately (it refuses an address carrying one).
+The initial-timestamp policy is permissive: mediamtx, and servers like it,
+leave `rtptime` out of the PLAY reply, which retina's default rejects.
+Checked against mediamtx 1.12 fed by ffmpeg (H.264 and AAC; the recorded
+pictures are the clip's frames 75–198 in order) and, in the suite, against
+a one-client RTSP server in `tests/live.rs` sending real H.264 as single NAL
+and FU-A packets (all 75 pictures identical). RTSPS and MMS remain ffmpeg's.

@@ -164,3 +164,191 @@ async fn a_stream_is_not_sent_around_a_proxy() {
     let said = outcome.unwrap_err().to_string();
     assert!(said.contains("proxy"), "{said}");
 }
+
+/// The NAL units of an H.264 byte stream.
+fn nal_units(data: &[u8]) -> Vec<&[u8]> {
+    let mut starts = Vec::new();
+    let mut i = 0;
+    while i + 3 <= data.len() {
+        if data[i..i + 3] == [0, 0, 1] {
+            starts.push(i + 3);
+            i += 3;
+        } else {
+            i += 1;
+        }
+    }
+    starts
+        .iter()
+        .enumerate()
+        .map(|(n, &s)| {
+            let mut end = starts.get(n + 1).map_or(data.len(), |e| e - 3);
+            while end > s && data[end - 1] == 0 {
+                end -= 1;
+            }
+            &data[s..end]
+        })
+        .collect()
+}
+
+/// A one-client RTSP server for the test: DESCRIBE, SETUP (RTP interleaved
+/// on the connection), PLAY, then each picture of `units` as RTP — a
+/// small unit as it is, a large one in FU-A fragments — 25 a second; then
+/// it hangs up.
+async fn serve_rtsp(listener: tokio::net::TcpListener, units: Vec<Vec<u8>>) {
+    use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader};
+    let (socket, _) = listener.accept().await.unwrap();
+    let (read, mut write) = socket.into_split();
+    let mut lines = BufReader::new(read).lines();
+    let sps = units.iter().find(|u| u[0] & 0x1f == 7).unwrap().clone();
+    let pps = units.iter().find(|u| u[0] & 0x1f == 8).unwrap().clone();
+    use base64::Engine as _;
+    let b64 = |b: &[u8]| base64::engine::general_purpose::STANDARD.encode(b);
+    let sdp = format!(
+        "v=0\r\no=- 0 0 IN IP4 127.0.0.1\r\ns=dm test\r\nt=0 0\r\nm=video 0 RTP/AVP 96\r\nc=IN IP4 0.0.0.0\r\na=rtpmap:96 H264/90000\r\na=fmtp:96 packetization-mode=1;sprop-parameter-sets={},{}\r\na=control:track1\r\n",
+        b64(&sps),
+        b64(&pps)
+    );
+    loop {
+        let mut request = Vec::new();
+        while let Ok(Some(line)) = lines.next_line().await {
+            if line.is_empty() {
+                break;
+            }
+            request.push(line);
+        }
+        let Some(first) = request.first().cloned() else {
+            return;
+        };
+        let cseq = request
+            .iter()
+            .find_map(|l| l.strip_prefix("CSeq: "))
+            .unwrap_or("0")
+            .to_string();
+        let method = first.split(' ').next().unwrap_or("").to_string();
+        let reply = match method.as_str() {
+            "OPTIONS" => format!("RTSP/1.0 200 OK\r\nCSeq: {cseq}\r\nPublic: DESCRIBE, SETUP, PLAY, TEARDOWN\r\n\r\n"),
+            "DESCRIBE" => format!(
+                "RTSP/1.0 200 OK\r\nCSeq: {cseq}\r\nContent-Base: {}/\r\nContent-Type: application/sdp\r\nContent-Length: {}\r\n\r\n{sdp}",
+                first.split(' ').nth(1).unwrap_or(""),
+                sdp.len()
+            ),
+            "SETUP" => format!("RTSP/1.0 200 OK\r\nCSeq: {cseq}\r\nSession: 12345678;timeout=60\r\nTransport: RTP/AVP/TCP;unicast;interleaved=0-1;ssrc=0000ABCD\r\n\r\n"),
+            "PLAY" => format!("RTSP/1.0 200 OK\r\nCSeq: {cseq}\r\nSession: 12345678\r\nRTP-Info: url=track1;seq=1;rtptime=0\r\n\r\n"),
+            _ => format!("RTSP/1.0 200 OK\r\nCSeq: {cseq}\r\nSession: 12345678\r\n\r\n"),
+        };
+        write.write_all(reply.as_bytes()).await.unwrap();
+        if method == "PLAY" {
+            break;
+        }
+    }
+    // The pictures: units grouped at each access unit delimiter.
+    let mut pictures: Vec<Vec<&Vec<u8>>> = Vec::new();
+    for unit in &units {
+        if unit[0] & 0x1f == 9 || pictures.is_empty() {
+            pictures.push(Vec::new());
+        }
+        if unit[0] & 0x1f != 9 {
+            pictures.last_mut().unwrap().push(unit);
+        }
+    }
+    let mut seq: u16 = 1;
+    for (n, picture) in pictures.iter().enumerate() {
+        let time = (n as u32) * 3600;
+        let mut packets: Vec<Vec<u8>> = Vec::new();
+        for unit in picture {
+            if unit.len() <= 1200 {
+                packets.push(unit.to_vec());
+            } else {
+                let (head, body) = (unit[0], &unit[1..]);
+                let parts: Vec<&[u8]> = body.chunks(1200).collect();
+                for (i, part) in parts.iter().enumerate() {
+                    let mut fu = vec![(head & 0xe0) | 28, head & 0x1f];
+                    if i == 0 {
+                        fu[1] |= 0x80;
+                    }
+                    if i == parts.len() - 1 {
+                        fu[1] |= 0x40;
+                    }
+                    fu.extend_from_slice(part);
+                    packets.push(fu);
+                }
+            }
+        }
+        let count = packets.len();
+        for (i, payload) in packets.into_iter().enumerate() {
+            let mut rtp = vec![0x80, 96 | if i == count - 1 { 0x80 } else { 0 }];
+            rtp.extend_from_slice(&seq.to_be_bytes());
+            rtp.extend_from_slice(&time.to_be_bytes());
+            rtp.extend_from_slice(&0xABCDu32.to_be_bytes());
+            rtp.extend_from_slice(&payload);
+            seq = seq.wrapping_add(1);
+            let mut frame = vec![b'$', 0];
+            frame.extend_from_slice(&(rtp.len() as u16).to_be_bytes());
+            frame.extend_from_slice(&rtp);
+            if write.write_all(&frame).await.is_err() {
+                return;
+            }
+        }
+        tokio::time::sleep(std::time::Duration::from_millis(5)).await;
+    }
+    let _ = write.shutdown().await;
+}
+
+#[tokio::test]
+async fn an_rtsp_stream_is_recorded_by_dm_picture_for_picture() {
+    let _turn = FFMPEG_ENV.lock().await;
+    let Some(real) = ffmpeg() else {
+        eprintln!("no ffmpeg installed — skipping");
+        return;
+    };
+    let site = tempdir();
+    let stream = site.path().join("clip.h264");
+    let made = std::process::Command::new(&real)
+        .args(["-y", "-loglevel", "error", "-f", "lavfi", "-i"])
+        .arg("testsrc2=duration=3:size=320x180:rate=25")
+        .args([
+            "-c:v", "libx264", "-bf", "0", "-g", "25", "-pix_fmt", "yuv420p",
+        ])
+        .args(["-x264-params", "aud=1", "-f", "h264"])
+        .arg(&stream)
+        .status();
+    if !made.is_ok_and(|s| s.success()) {
+        eprintln!("this ffmpeg cannot make an H.264 stream — skipping");
+        return;
+    }
+    let data = std::fs::read(&stream).unwrap();
+    let units: Vec<Vec<u8>> = nal_units(&data).into_iter().map(<[u8]>::to_vec).collect();
+    let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let port = listener.local_addr().unwrap().port();
+    let server = tokio::spawn(serve_rtsp(listener, units));
+
+    std::env::set_var("DM_FFMPEG", "");
+    let dir = tempdir();
+    let done = download(
+        &client(),
+        &format!("rtsp://127.0.0.1:{port}/cam/show"),
+        &options(dir.path()),
+    )
+    .await;
+    std::env::remove_var("DM_FFMPEG");
+    let done = done.expect("the RTSP stream");
+    let _ = server.await;
+    assert_eq!(done.path.file_name().unwrap(), "show.mp4");
+    let hashes = |file: &std::path::Path| -> Vec<String> {
+        let out = std::process::Command::new(&real)
+            .args(["-v", "error", "-i"])
+            .arg(file)
+            .args(["-map", "0:v", "-f", "framemd5", "-"])
+            .output()
+            .unwrap();
+        String::from_utf8_lossy(&out.stdout)
+            .lines()
+            .filter(|l| !l.starts_with('#'))
+            .filter_map(|l| l.rsplit(',').next().map(|h| h.trim().to_string()))
+            .collect()
+    };
+    let sent = hashes(&stream);
+    let got = hashes(&done.path);
+    assert_eq!(sent.len(), 75);
+    assert_eq!(got, sent, "the recorded pictures are not the ones sent");
+}

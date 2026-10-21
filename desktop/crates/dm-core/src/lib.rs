@@ -33,6 +33,7 @@ pub mod queue;
 pub mod quota;
 pub mod retry;
 pub mod rtmp;
+pub mod rtsp;
 pub mod schedule;
 pub mod stream;
 pub mod subtitles;
