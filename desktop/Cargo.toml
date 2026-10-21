@@ -14,3 +14,7 @@ opt-level = 3
 lto = true
 codegen-units = 1
 strip = true
+
+# Crates built with a change of dm's own (desktop/vendor/README.md).
+[patch.crates-io]
+winit = { path = "vendor/winit" }
