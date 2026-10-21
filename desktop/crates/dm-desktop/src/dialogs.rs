@@ -4594,19 +4594,26 @@ fn site_files(app: &mut DmApp, ctx: &egui::Context) {
             });
             field(ui, t("Only paths containing"), &mut d.include, 420.0);
             field(ui, t("Skip paths containing"), &mut d.exclude, 420.0);
+            // The dialog's action straight after what it acts on: below the
+            // saving lines it was out of sight at 960×660 (UI round 12).
+            look |= ui.button(t("Find files")).clicked() || enter_free(ui);
+            ui.separator();
             // Saving and the saved list come before the results, which can
             // run long enough to push anything below them off the screen.
-            // A line each: wrapped as one, its words broke as "Run every," /
-            // "hours" (UI round 12), and in the smallest window Save search
-            // ran off the edge.
+            // The name on a line of its own, then the timer and the button:
+            // wrapped as one line, its words broke as "Run every," / "hours"
+            // (UI round 12). The words are not wrapped, so the line breaks
+            // between its parts if anywhere; in the smallest window Save
+            // search goes below rather than off the edge.
             ui.horizontal_wrapped(|ui| {
                 field(ui, t("Save this search as"), &mut d.name, 160.0);
             });
-            number_row(ui, t("Run every, hours (0 only by hand)"), |ui, name| {
+            ui.horizontal_wrapped(|ui| {
+                let name = ui.add(egui::Label::new(t("Run every, hours (0 only by hand)")).extend());
                 ui.add(number_box(&mut d.every_hours).range(0..=24 * 31))
-                    .labelled_by(name);
+                    .labelled_by(name.id);
+                save = ui.button(t("Save search")).clicked();
             });
-            save = ui.button(t("Save search")).clicked();
             if !d.says.is_empty() {
                 ui.colored_label(warn(ui), &d.says);
             }
@@ -4625,7 +4632,6 @@ fn site_files(app: &mut DmApp, ctx: &egui::Context) {
                 }
             }
             ui.separator();
-            look |= ui.button(t("Find files")).clicked() || enter_free(ui);
             let mut state = dm_core::lock(&d.state);
             match &mut *state {
                 Grab::Idle => {}
