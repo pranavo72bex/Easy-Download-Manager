@@ -143,7 +143,7 @@ async fn without_ytdlp_a_dash_manifest_is_refused_and_names_the_fix() {
 
     let said = err.to_string();
     assert!(
-        said.contains("install yt-dlp"),
+        said.contains("video helper"),
         "the refusal should say what fixes it: {said}"
     );
     // Not the video half, not the manifest's own XML, nothing.
@@ -226,7 +226,7 @@ async fn without_ytdlp_a_web_page_is_refused_rather_than_saved_as_html() {
         .expect_err("a web page was saved as a download");
 
     let said = err.to_string();
-    assert!(said.contains("install yt-dlp"), "{said}");
+    assert!(said.contains("video helper"), "{said}");
     // Not the page's own HTML under the name `watch`, which is what this
     // route replaced.
     assert_eq!(files_under(&dir.path().join("out")), Vec::<PathBuf>::new());

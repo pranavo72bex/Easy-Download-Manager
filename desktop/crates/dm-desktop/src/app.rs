@@ -325,6 +325,12 @@ fn status_in(row: &Entry, words: fn(&'static str) -> &'static str) -> String {
             // as that takes; "Starting…" read as stuck (torrent check,
             // 2026-10-19).
             None if dm_core::is_torrent(&row.url) => words("Finding peers…").into(),
+            // The first video waits while dm fetches what it needs for
+            // videos, half a minute or so: said, so it does not read as
+            // stuck.
+            None if dm_core::tools::preparing() => {
+                words("Getting ready for videos (first time only)…").into()
+            }
             None => words("Starting…").into(),
         },
         State::Queued => words("Queued").into(),
@@ -629,6 +635,18 @@ pub fn links_in_file(kind: Option<&str>, text: &str) -> Vec<String> {
 /// says. A link dragged from a browser is taken on macOS, Windows and X11
 /// (`drops`, and winit's X11 drops as dm builds it); on Wayland the window
 /// system hands dm files only, which `DROP_HINT_WAYLAND` says.
+/// Where each browser gets dm's extension: its store's page where it is
+/// listed, otherwise the README's steps for loading it.
+pub const EXTENSION_EDGE: &str =
+    "https://microsoftedge.microsoft.com/addons/detail/ooafpfjpliofcdlnbdkjhonaoebcpnej";
+pub const EXTENSION_FIREFOX: &str = "https://addons.mozilla.org/firefox/addon/dm-download-manager/";
+pub const EXTENSION_CHROME: &str =
+    "https://github.com/pranavo72bex/Easy-Download-Manager#chrome-brave-vivaldi-and-opera";
+
+/// The file under dm's home that says the person asked not to be offered
+/// the extension again.
+const BROWSER_HINT_HIDDEN: &str = "browser-hint.hidden";
+
 pub const DROP_HINT: &str =
     "Drop a link from a browser, a .torrent, a .url or .webloc file, or a text file of links, here.";
 pub const DROP_HINT_WAYLAND: &str =
@@ -685,6 +703,11 @@ pub struct DmApp {
     pub hidden_columns: HashSet<Column>,
     /// Every column, in the order the list draws them.
     pub column_order: Vec<Column>,
+
+    /// Whether to offer the browser extension, until one has connected or
+    /// the person said not now: looked up every few seconds, since the
+    /// browser's side writes it (`host::browser_seen`).
+    pub browser_hint: (Option<Instant>, bool),
 
     /// Commands asked for while drawing, run once the frame is drawn.
     pub queued: Vec<Command>,
@@ -872,6 +895,7 @@ impl DmApp {
                 .unwrap_or(512),
             applied: settings,
             clipboard: Clipboard::default(),
+            browser_hint: (None, false),
             update: Arc::new(Mutex::new(Update::NotAsked)),
             weekly_pending: false,
             said: Default::default(),
@@ -3003,6 +3027,7 @@ impl DmApp {
                     if rail_gone {
                         self.place_picker(ui);
                     }
+                    self.browser_bar(ui);
                     self.clipboard_bar(ui);
                     crate::table::show(self, ui);
                 });
@@ -3929,6 +3954,53 @@ impl DmApp {
                 self.open_file(&dir.to_string_lossy());
             }
         }
+    }
+
+    /// Until a browser has connected, how to connect one: a person who
+    /// installed only the app sees why clicked downloads still go to the
+    /// browser, and gets to the extension in one click.
+    fn browser_bar(&mut self, ui: &mut egui::Ui) {
+        let home = dm_shell::settings::home();
+        let stale = self
+            .browser_hint
+            .0
+            .is_none_or(|at| at.elapsed() > Duration::from_secs(3));
+        if stale {
+            self.browser_hint = (
+                Some(Instant::now()),
+                !dm_shell::host::browser_seen(&home) && !home.join(BROWSER_HINT_HIDDEN).exists(),
+            );
+        }
+        // Not where the list would be left with no room for its rows: the
+        // last of them could no longer be scrolled to at 300% (UI round 16).
+        let room = ui.available_height() / ui.text_style_height(&egui::TextStyle::Body);
+        if !self.browser_hint.1 || room < 16.0 {
+            return;
+        }
+        let mut open: Option<&str> = None;
+        ui.horizontal_wrapped(|ui| {
+            ui.label(t("Add dm to your browser:")).on_hover_text(t(
+                "Downloads you click in your browser come to dm once its extension is added.",
+            ));
+            if ui.button("Microsoft Edge").clicked() {
+                open = Some(EXTENSION_EDGE);
+            }
+            if ui.button("Firefox").clicked() {
+                open = Some(EXTENSION_FIREFOX);
+            }
+            if ui.button(t("Chrome and others")).clicked() {
+                open = Some(EXTENSION_CHROME);
+            }
+            if ui.button(t("Not now")).clicked() {
+                let _ = std::fs::create_dir_all(&home);
+                let _ = std::fs::write(home.join(BROWSER_HINT_HIDDEN), b"");
+                self.browser_hint = (Some(Instant::now()), false);
+            }
+        });
+        if let Some(page) = open {
+            self.open_file(page);
+        }
+        ui.separator();
     }
 
     fn clipboard_bar(&mut self, ui: &mut egui::Ui) {

@@ -18,11 +18,9 @@ needs a JavaScript runtime (Deno) for some sites; dm joins the picture and
 sound itself. If your computer has no yt-dlp, dm fetches it and Deno the
 first time such a page needs them, from their GitHub releases, each checked
 against its published checksum before it is kept in dm's own folder. dm
-does the rest itself: joining picture and sound, subtitles, and live RTMP,
-RTSP and MMS streams. ffmpeg is fetched the same way (an ffmpeg build from
-GitHub, checked against a checksum built into dm) only for what dm does not
-do: the long-unused RTMPE and RTMPT, RTSP over TLS, and a stream whose
-picture is MPEG-2. A yt-dlp
+does the rest itself: joining picture and sound, subtitles, and live RTMP
+(RTMPS and RTMPT too), RTSP (RTSPS too) and MMS streams. dm never fetches
+ffmpeg. A yt-dlp
 fetched this way is fetched afresh once a week while it is in use. These
 requests, like any download, carry nothing about you; GitHub sees an address
 asking for a public file. A yt-dlp or ffmpeg you installed yourself is used
@@ -112,5 +110,6 @@ This is also checked, not only promised: `cargo xtask privacy` (in
 `desktop/`, and as a test in every build) fails if any crate that sends
 reports — analytics, crash reporting, telemetry — enters the build, or if
 shipped code names any address but GitHub's. dm reaches GitHub only when
-you check for updates or open Help, or to fetch yt-dlp, Deno and ffmpeg
-when a video needs them and your computer has none.
+you check for updates or open Help, or to fetch yt-dlp and Deno when a
+video needs them and your computer has none. The two extension stores are
+opened in your browser only when you click to add dm to it.

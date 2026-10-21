@@ -345,8 +345,14 @@ const REPORTERS: &[&str] = &[
 ];
 
 /// The only addresses shipped code may hold: the project's own release
-/// page (the update check and Help, both only when asked).
-const ALLOWED_HOSTS: &[&str] = &["github.com"];
+/// page (the update check and Help, both only when asked), and the two
+/// stores dm's extension is listed in, opened in the person's browser when
+/// they click "add dm to your browser".
+const ALLOWED_HOSTS: &[&str] = &[
+    "github.com",
+    "microsoftedge.microsoft.com",
+    "addons.mozilla.org",
+];
 
 fn privacy() -> Result<(), String> {
     let root = root();

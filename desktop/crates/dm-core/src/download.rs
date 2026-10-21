@@ -398,12 +398,8 @@ async fn fetch_reporting(
     if crate::ftp::is_ftp(url) {
         return crate::ftp::download_ftp(url, options, report).await;
     }
-    // Nor do RTMP, RTSP and MMS streams. RTMP dm speaks itself; the others
-    // ffmpeg fetches, fetched itself first where the computer has none.
+    // Nor do RTMP, RTSP and MMS streams, which dm records itself.
     if crate::live::is_live(url) {
-        if crate::live::needs_ffmpeg(url) {
-            let _ = crate::tools::ensure(client, crate::tools::Tool::Ffmpeg).await;
-        }
         return crate::live::download_live(url, options, report).await;
     }
 
@@ -445,14 +441,7 @@ async fn fetch_reporting(
             refused @ Error::Refused {
                 status: 403 | 429, ..
             },
-        ) if !names_a_document(url)
-            && crate::tools::for_video(
-                client,
-                crate::ytdlp::needs_ffmpeg(options.container.as_deref()),
-            )
-            .await
-            .is_ok() =>
-        {
+        ) if !names_a_document(url) && crate::tools::for_video(client).await.is_ok() => {
             return match crate::ytdlp::download_ytdlp(url, options, report.clone()).await {
                 Ok(done) => Ok(done),
                 Err(stopped @ (Error::Paused | Error::Cancelled)) => Err(stopped),
@@ -478,13 +467,7 @@ async fn fetch_reporting(
     let kind = stream::kind_of(url, info.content_type.as_deref());
     // yt-dlp found, or fetched by dm where the computer has none (`tools`).
     let dash_tools = match kind {
-        Some(stream::Kind::Dash) => Some(
-            crate::tools::for_video(
-                client,
-                crate::ytdlp::needs_ffmpeg(options.container.as_deref()),
-            )
-            .await,
-        ),
+        Some(stream::Kind::Dash) => Some(crate::tools::for_video(client).await),
         _ => None,
     };
     match kind {
@@ -493,7 +476,7 @@ async fn fetch_reporting(
         }
         Some(stream::Kind::Dash) => {
             return Err(Error::Internal(format!(
-                "a DASH stream needs yt-dlp to join its picture and sound — install yt-dlp ({})",
+                "this stream needs dm's video helper, which could not be got ready ({})",
                 dash_tools.and_then(Result::err).unwrap_or_default()
             )));
         }
@@ -533,13 +516,7 @@ async fn fetch_reporting(
          * A watch address with no extension, or a script's (`.php?v=`), is
          * yt-dlp's alone: its HTML is never the download anyone meant. */
         let document = names_a_document(url);
-        if crate::tools::for_video(
-            client,
-            crate::ytdlp::needs_ffmpeg(options.container.as_deref()),
-        )
-        .await
-        .is_ok()
-        {
+        if crate::tools::for_video(client).await.is_ok() {
             match crate::ytdlp::download_ytdlp(url, options, report.clone()).await {
                 Err(e)
                     if document
@@ -553,7 +530,7 @@ async fn fetch_reporting(
              * "YouTube does not download" looks like success — refused
              * plainly instead, with the one thing that fixes it. */
             return Err(Error::Internal(
-                "that is a web page, not a file — install yt-dlp to download from video sites"
+                "that is a web page, not a file, and dm's video helper, which finds the video in a page, could not be got ready"
                     .into(),
             ));
         }
@@ -2018,19 +1995,12 @@ async fn download_stream(
         Resolved::Own(listed, rendition) => (listed, rendition),
         // As a DASH stream is: yt-dlp reads these shapes properly; without
         // it the stream is refused rather than saved wrong and called done.
-        Resolved::Beyond(_)
-            if crate::tools::for_video(
-                client,
-                crate::ytdlp::needs_ffmpeg(options.container.as_deref()),
-            )
-            .await
-            .is_ok() =>
-        {
+        Resolved::Beyond(_) if crate::tools::for_video(client).await.is_ok() => {
             return crate::ytdlp::download_ytdlp(url, options, report).await;
         }
         Resolved::Beyond(why) => {
             return Err(Error::Internal(format!(
-                "{why}, which dm does not assemble itself — install yt-dlp to download it"
+                "{why}, which needs dm's video helper, and it could not be got ready"
             )));
         }
     };

@@ -400,7 +400,7 @@ impl World for Here<'_> {
         // through the same proxy the download will take.
         let settings = saved(self.home);
         if let Ok(client) = dm_core::proxy::client_with(&settings.proxy) {
-            runtime.block_on(dm_core::tools::for_video(&client, false))?;
+            runtime.block_on(dm_core::tools::for_video(&client))?;
         }
         let listed = runtime
             .block_on(dm_core::ytdlp::list_choices(
@@ -422,6 +422,27 @@ impl World for Here<'_> {
 }
 
 /// The answer to one frame, or `None` for a frame that gets none.
+/// The file whose being there says a browser's extension has talked to dm.
+fn browser_seen_file(home: &Path) -> std::path::PathBuf {
+    home.join("browser.seen")
+}
+
+/// Notes that an extension has said hello. Best effort: a home that cannot
+/// be written to only means the window goes on offering the extension.
+fn mark_browser_seen(home: &Path) {
+    let file = browser_seen_file(home);
+    if !file.exists() {
+        let _ = std::fs::create_dir_all(home);
+        let _ = std::fs::write(file, b"");
+    }
+}
+
+/// Whether any browser's extension has ever talked to this dm: until one
+/// has, the window says how to add it.
+pub fn browser_seen(home: &Path) -> bool {
+    browser_seen_file(home).exists()
+}
+
 pub fn answer(
     home: &Path,
     frame: &serde_json::Value,
@@ -431,14 +452,19 @@ pub fn answer(
         // What this app can do, said up front: a player page handed to an
         // app with no yt-dlp fails in the app, where the browser never hears
         // of it. Told now, the extension can say so.
-        Ok(Asked::Hello) => Reply::Hello(Hello {
-            engine_version: env!("CARGO_PKG_VERSION").into(),
-            // There, or fetched by dm when a page needs it (`tools`).
-            ytdlp: Some(dm_core::tools::video_possible()),
-            // The extension hands a download the browser holds only to an
-            // app that says it judges what it is served.
-            protocol: Some(dm_protocol::PROTOCOL_VERSION),
-        }),
+        Ok(Asked::Hello) => {
+            // Remembered, so the window stops offering the extension to
+            // someone who has it (`browser_seen`).
+            mark_browser_seen(home);
+            Reply::Hello(Hello {
+                engine_version: env!("CARGO_PKG_VERSION").into(),
+                // There, or fetched by dm when a page needs it (`tools`).
+                ytdlp: Some(dm_core::tools::video_possible()),
+                // The extension hands a download the browser holds only to an
+                // app that says it judges what it is served.
+                protocol: Some(dm_protocol::PROTOCOL_VERSION),
+            })
+        }
 
         // Which downloads to catch: the app's choice, read on every ask so a
         // change in the window is in force by the next download.
@@ -1154,6 +1180,19 @@ mod tests {
             ..Start::default()
         })
         .to_frame()
+    }
+
+    #[test]
+    fn a_hello_is_remembered_so_the_window_stops_offering_the_extension() {
+        let home = tempfile::tempdir().unwrap();
+        assert!(!browser_seen(home.path()));
+        let _ = ask(
+            home.path(),
+            dm_protocol::Request::Hello.to_frame(),
+            true,
+            Ok(()),
+        );
+        assert!(browser_seen(home.path()));
     }
 
     #[test]

@@ -5386,6 +5386,21 @@ fn options(app: &mut DmApp, ctx: &egui::Context) {
                 });
             }
             Tab::FileTypes => {
+                // The extension, for someone who said not now to the bar
+                // over the list, or has a second browser.
+                ui.horizontal_wrapped(|ui| {
+                    ui.label(t("Add dm to your browser:"));
+                    for (name, page) in [
+                        ("Microsoft Edge", crate::app::EXTENSION_EDGE),
+                        ("Firefox", crate::app::EXTENSION_FIREFOX),
+                        (t("Chrome and others"), crate::app::EXTENSION_CHROME),
+                    ] {
+                        if ui.button(name).clicked() {
+                            platform.open_later(page, Box::new(|_| {}));
+                        }
+                    }
+                });
+                ui.add_space(8.0);
                 let c = &mut s.catch;
                 check(
                     ui,

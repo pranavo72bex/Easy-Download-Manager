@@ -474,7 +474,7 @@ pub fn status_line(hello: &Hello) -> (String, bool) {
         return (line, true);
     }
     if hello.ytdlp == Some(false) {
-        line.push_str(" · install yt-dlp for video sites");
+        line.push_str(" · update the dm app to download from video sites");
     }
     (line, false)
 }
@@ -535,8 +535,8 @@ fn absent_said(reason: &str, own_id: &str, firefox: bool, then: &str) -> String 
 }
 
 /// Said alongside a page sent to an app that has no yt-dlp.
-pub const NO_YTDLP: &str = "Sent to dm. If this is a video page rather than a file, dm needs \
-                            yt-dlp to fetch it, and it has none: install yt-dlp.";
+pub const NO_YTDLP: &str = "Sent to dm. If this is a video page rather than a file, update the \
+                            dm app: the newest gets video sites ready by itself.";
 
 /// What the extension knows of the app.
 #[derive(Debug, Clone, PartialEq)]
@@ -2363,7 +2363,7 @@ mod tests {
         };
         assert_eq!(takes_caught(&new), Ok(()));
         let (line, bad) = status_line(&new);
-        assert!(!bad && line.contains("install yt-dlp"), "{line}");
+        assert!(!bad && line.contains("update the dm app"), "{line}");
     }
 
     #[test]

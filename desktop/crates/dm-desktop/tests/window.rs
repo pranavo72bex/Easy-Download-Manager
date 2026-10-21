@@ -8661,3 +8661,42 @@ fn a_number_box_says_when_what_was_typed_is_not_a_number() {
         .query_by_label("Numbers only: the one before was kept")
         .is_none());
 }
+
+/// Someone who installed only the app is shown how to add dm to their
+/// browser, one click from its store page, until a browser connects or
+/// they say not now.
+#[test]
+fn a_new_user_is_shown_how_to_add_dm_to_their_browser() {
+    let _file = settings_file();
+    let seen = home().join("browser.seen");
+    let hidden = home().join("browser-hint.hidden");
+    let _ = std::fs::remove_file(&seen);
+    let _ = std::fs::remove_file(&hidden);
+    let world = world();
+    let mut harness = world.harness();
+    harness.run_steps(2);
+    click(&mut harness, "Microsoft Edge");
+    assert!(
+        world
+            .fake
+            .opened
+            .lock()
+            .unwrap()
+            .iter()
+            .any(|o| o == dm_desktop::app::EXTENSION_EDGE),
+        "{:?}",
+        world.fake.opened.lock().unwrap()
+    );
+    click(&mut harness, "Not now");
+    assert!(harness.query_by_label("Microsoft Edge").is_none());
+    assert!(hidden.exists(), "not now is remembered");
+
+    // A browser that has connected: nothing offered, from the start.
+    std::fs::remove_file(&hidden).unwrap();
+    std::fs::write(&seen, b"").unwrap();
+    let mut harness = world.harness();
+    harness.run_steps(2);
+    let offered = harness.query_by_label("Microsoft Edge").is_some();
+    std::fs::remove_file(&seen).unwrap();
+    assert!(!offered, "offered to someone whose browser has connected");
+}

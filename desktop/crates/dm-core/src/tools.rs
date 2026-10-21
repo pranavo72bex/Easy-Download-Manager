@@ -1,14 +1,16 @@
-//! yt-dlp and ffmpeg, fetched by dm itself where the computer has none, so
-//! a video site's page downloads with nothing installed by hand.
+//! yt-dlp (and Deno, which it runs a site's player checks with), fetched by
+//! dm itself where the computer has none, so a video site's page downloads
+//! with nothing installed by hand. ffmpeg is not fetched: dm joins picture
+//! and sound and records streams itself (`mp4mux`, `mkvmux`, `tsmux`,
+//! `rtmp`, `rtsp`, `mms`); one the person installed is still used.
 //!
 //! dm still writes no site logic of its own: it runs yt-dlp, as it always
 //! has. What changes is where that yt-dlp comes from. One the person
 //! installed is used first, wherever it is (`ytdlp::which`); with none,
 //! the first video page that needs it has dm fetch yt-dlp's own standalone
 //! build from yt-dlp's GitHub releases, checked against the `SHA2-256SUMS`
-//! published beside it, and a single-file ffmpeg build from one pinned
-//! release, checked against digests written into dm. Both go into dm's
-//! own `tools` folder, through dm's proxy like any download, and yt-dlp is
+//! published beside it, and Deno's the same way. Both go into dm's own
+//! `tools` folder, through dm's proxy like any download, and yt-dlp is
 //! kept current there with its own `-U`: sites change, and an old yt-dlp
 //! stops working on them.
 
@@ -39,18 +41,42 @@ pub fn folder() -> Option<&'static Path> {
 }
 
 /// One fetch of each tool at a time: two downloads needing yt-dlp at once
-/// wait for the one fetch; yt-dlp, ffmpeg and Deno come down side by side.
-static FETCHING: [tokio::sync::Mutex<()>; 3] = [
-    tokio::sync::Mutex::const_new(()),
+/// wait for the one fetch; yt-dlp and Deno come down side by side.
+static FETCHING: [tokio::sync::Mutex<()>; 2] = [
     tokio::sync::Mutex::const_new(()),
     tokio::sync::Mutex::const_new(()),
 ];
 
+/// How many tool fetches are under way, for the window to say why a video
+/// waits the first time ("Getting ready for videos") rather than
+/// "Starting…" for the half-minute the fetch takes.
+static PREPARING: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsize::new(0);
+
+/// Whether dm is fetching a tool a video needs, just now.
+pub fn preparing() -> bool {
+    PREPARING.load(std::sync::atomic::Ordering::Relaxed) > 0
+}
+
+/// Counts a fetch for as long as it lasts, however it ends.
+struct Preparing;
+
+impl Preparing {
+    fn new() -> Self {
+        PREPARING.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+        Preparing
+    }
+}
+
+impl Drop for Preparing {
+    fn drop(&mut self) {
+        PREPARING.fetch_sub(1, std::sync::atomic::Ordering::Relaxed);
+    }
+}
+
 fn lock_of(tool: Tool) -> &'static tokio::sync::Mutex<()> {
     match tool {
         Tool::YtDlp => &FETCHING[0],
-        Tool::Ffmpeg => &FETCHING[1],
-        Tool::Deno => &FETCHING[2],
+        Tool::Deno => &FETCHING[1],
     }
 }
 
@@ -58,7 +84,6 @@ fn lock_of(tool: Tool) -> &'static tokio::sync::Mutex<()> {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Tool {
     YtDlp,
-    Ffmpeg,
     /// The JavaScript runtime yt-dlp answers a site's player challenges
     /// with; without one, YouTube gives it too little to download.
     Deno,
@@ -68,7 +93,6 @@ impl Tool {
     fn program(self) -> &'static str {
         match self {
             Tool::YtDlp => "yt-dlp",
-            Tool::Ffmpeg => "ffmpeg",
             Tool::Deno => "deno",
         }
     }
@@ -88,47 +112,15 @@ impl Tool {
 pub struct Sources {
     /// yt-dlp's newest release, its files under this address.
     pub ytdlp: String,
-    /// The pinned ffmpeg release, its files under this address.
-    pub ffmpeg: String,
-    /// The pinned release's digest of each `ffmpeg-<platform>.gz`.
-    pub ffmpeg_digests: Vec<(String, String)>,
     /// Deno's newest release, each zip with its `.sha256sum` beside it.
     pub deno: String,
 }
 
-/// yt-dlp's own releases, and ffmpeg-static's b6.1.1 (an FFmpeg 6 build,
-/// one file per platform), whose files publish no digests of their own:
-/// these are theirs, taken when it was chosen.
+/// yt-dlp's and Deno's own newest releases.
 pub fn official() -> Sources {
     Sources {
         ytdlp: "https://github.com/yt-dlp/yt-dlp/releases/latest/download".into(),
-        ffmpeg: "https://github.com/eugeneware/ffmpeg-static/releases/download/b6.1.1".into(),
         deno: "https://github.com/denoland/deno/releases/latest/download".into(),
-        ffmpeg_digests: [
-            (
-                "darwin-arm64",
-                "8923876afa8db5585022d7860ec7e589af192f441c56793971276d450ed3bbfa",
-            ),
-            (
-                "darwin-x64",
-                "929b375c1182d956c51f7ac25e0b2b0411fb01f6f407aa15c9758efeb4242106",
-            ),
-            (
-                "linux-x64",
-                "bfe8a8fc511530457b528c48d77b5737527b504a3797a9bc4866aeca69c2dffa",
-            ),
-            (
-                "linux-arm64",
-                "754a678672298bc68156adff58aa7385a592c2b30b1d0ae8750c45c915c4bac0",
-            ),
-            (
-                "win32-x64",
-                "8883a3dffbd0a16cf4ef95206ea05283f78908dbfb118f73c83f4951dcc06d77",
-            ),
-        ]
-        .iter()
-        .map(|(p, d)| ((*p).to_string(), (*d).to_string()))
-        .collect(),
     }
 }
 
@@ -229,18 +221,6 @@ pub fn unzip_one(zip: &[u8], name: &str) -> Option<Vec<u8>> {
     None
 }
 
-/// ffmpeg-static's name for an OS and processor.
-pub fn ffmpeg_platform(os: &str, arch: &str) -> Option<&'static str> {
-    Some(match (os, arch) {
-        ("macos", "aarch64") => "darwin-arm64",
-        ("macos", "x86_64") => "darwin-x64",
-        ("linux", "x86_64") => "linux-x64",
-        ("linux", "aarch64") => "linux-arm64",
-        ("windows", "x86_64") => "win32-x64",
-        _ => return None,
-    })
-}
-
 /// The digest a `SHA2-256SUMS` file gives `name`: lines of a hex digest,
 /// space(s), then the file's name (a `*` before it marks binary).
 pub fn digest_in(sums: &str, name: &str) -> Option<String> {
@@ -253,8 +233,8 @@ pub fn digest_in(sums: &str, name: &str) -> Option<String> {
     })
 }
 
-/// The most a fetched file may be: yt-dlp's builds are under 50 MB, the
-/// pinned ffmpeg's under 30 MB packed and 90 MB unpacked.
+/// The most a fetched file may be: yt-dlp's builds are under 50 MB, Deno's
+/// zip under 50 MB and its program under 120 MB.
 const MOST: usize = 160 * 1024 * 1024;
 
 /// `url`'s body, tried three times: a dropped connection or a server's
@@ -418,44 +398,17 @@ pub async fn fetch_into(
             })?;
             place(&path, &program).await?;
         }
-        Tool::Ffmpeg => {
-            let platform = ffmpeg_platform(os, arch).ok_or_else(|| {
-                Error::Internal(format!("there is no ffmpeg build for {os} on {arch}"))
-            })?;
-            let expected = sources
-                .ffmpeg_digests
-                .iter()
-                .find(|(p, _)| p == platform)
-                .map(|(_, d)| d.clone())
-                .ok_or_else(|| Error::Internal(format!("no ffmpeg digest for {platform}")))?;
-            let packed = fetch(client, &format!("{}/ffmpeg-{platform}.gz", sources.ffmpeg)).await?;
-            if hex_of(&packed) != expected {
-                return Err(Error::Internal(
-                    "the ffmpeg fetched does not match the build dm knows, so it was not kept"
-                        .into(),
-                ));
-            }
-            let mut bytes = Vec::new();
-            {
-                use std::io::Read as _;
-                flate2::read::GzDecoder::new(packed.as_slice())
-                    .take(MOST as u64)
-                    .read_to_end(&mut bytes)?;
-            }
-            place(&path, &bytes).await?;
-        }
     }
     Ok(path)
 }
 
 /// `tool`, found or fetched. Found first (one the person installed, or one
 /// dm fetched before); fetched only where dm has a tools folder and no
-/// test or person has named the program outright (`DM_YTDLP`, `DM_FFMPEG`,
+/// test or person has named the program outright (`DM_YTDLP`, `DM_DENO`,
 /// which is how a test pins down what dm does without one).
 pub async fn ensure(client: &reqwest::Client, tool: Tool) -> Result<PathBuf, Error> {
     let find = || match tool {
         Tool::YtDlp => crate::ytdlp::binary(),
-        Tool::Ffmpeg => crate::ytdlp::ffmpeg(),
         Tool::Deno => crate::ytdlp::deno(),
     };
     if let Some(found) = find() {
@@ -466,8 +419,12 @@ pub async fn ensure(client: &reqwest::Client, tool: Tool) -> Result<PathBuf, Err
         tool.program().replace('-', "").to_ascii_uppercase()
     );
     let Some(folder) = folder().filter(|_| std::env::var_os(named).is_none()) else {
-        return Err(Error::Internal(format!("install {}", tool.program())));
+        return Err(Error::Internal(format!(
+            "dm's video helper ({}) is not available here",
+            tool.program()
+        )));
     };
+    let _preparing = Preparing::new();
     let _one = lock_of(tool).lock().await;
     if let Some(found) = find() {
         return Ok(found);
@@ -485,23 +442,14 @@ pub async fn ensure(client: &reqwest::Client, tool: Tool) -> Result<PathBuf, Err
 
 /// yt-dlp for a video page: found or fetched, and with it, where it can be
 /// had, Deno (so yt-dlp can answer YouTube's player challenges; without one
-/// it gets little or nothing). ffmpeg only where `ffmpeg` says the download
-/// needs it (`ytdlp::needs_ffmpeg`: WebM, embedded subtitles): an MP4's
-/// picture and sound dm joins itself (`mp4mux`). They come down at once.
-/// Says why not, where yt-dlp cannot be had.
-pub async fn for_video(client: &reqwest::Client, ffmpeg: bool) -> Result<(), String> {
-    let (ytdlp, _, _) = tokio::join!(
-        ensure(client, Tool::YtDlp),
-        async {
-            if ffmpeg {
-                let _ = ensure(client, Tool::Ffmpeg).await;
-            }
-        },
-        ensure(client, Tool::Deno),
-    );
+/// it gets little or nothing). They come down at once. Picture and sound
+/// dm joins itself (`mp4mux`, `mkvmux`). Says why not, where yt-dlp cannot
+/// be had.
+pub async fn for_video(client: &reqwest::Client) -> Result<(), String> {
+    let (ytdlp, _) = tokio::join!(ensure(client, Tool::YtDlp), ensure(client, Tool::Deno));
     ytdlp
         .map(|_| ())
-        .map_err(|e| format!("a video page needs yt-dlp, and dm could not get it ({e})"))
+        .map_err(|e| format!("dm's video helper could not be got ready ({e})"))
 }
 
 /// Whether yt-dlp is there, or dm would fetch it when a page needs it.
@@ -557,27 +505,6 @@ mod tests {
             Some("yt-dlp_linux_aarch64")
         );
         assert_eq!(ytdlp_asset("freebsd", "x86_64"), None);
-        assert_eq!(ffmpeg_platform("windows", "x86_64"), Some("win32-x64"));
-        assert_eq!(ffmpeg_platform("macos", "aarch64"), Some("darwin-arm64"));
-        assert_eq!(ffmpeg_platform("windows", "aarch64"), None);
-        // Every platform with an ffmpeg build has its digest in dm.
-        let sources = official();
-        for os_arch in [
-            ("macos", "aarch64"),
-            ("macos", "x86_64"),
-            ("linux", "x86_64"),
-            ("linux", "aarch64"),
-            ("windows", "x86_64"),
-        ] {
-            let p = ffmpeg_platform(os_arch.0, os_arch.1).unwrap();
-            assert!(
-                sources
-                    .ffmpeg_digests
-                    .iter()
-                    .any(|(n, d)| n == p && d.len() == 64),
-                "{p}"
-            );
-        }
     }
 
     #[test]

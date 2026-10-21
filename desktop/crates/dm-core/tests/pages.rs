@@ -53,7 +53,7 @@ async fn a_page_named_as_a_document_is_saved_without_yt_dlp() {
         )
         .await
         .unwrap_err();
-        assert!(err.to_string().contains("yt-dlp"), "{watch}: {err}");
+        assert!(err.to_string().contains("video helper"), "{watch}: {err}");
     }
 }
 

@@ -136,21 +136,149 @@ async fn an_rtmp_stream_is_fetched_by_dm_and_saved_as_a_file_that_decodes_the_sa
     );
 }
 
+/// An RTMPT server in front of an RTMP one, as a web-only network's
+/// streaming server is: each POST's bytes go to the RTMP server, and each
+/// answer is a polling byte and whatever the RTMP server has sent since.
+async fn relay_rtmpt(listener: tokio::net::TcpListener, rtmp_port: u16) {
+    use axum::extract::{Path, State};
+    use std::sync::{Arc, Mutex};
+    use tokio::io::{AsyncReadExt, AsyncWriteExt};
+    type Shared = Arc<(
+        tokio::sync::Mutex<Option<tokio::net::tcp::OwnedWriteHalf>>,
+        Mutex<Vec<u8>>,
+        std::sync::atomic::AtomicBool,
+    )>;
+    let shared: Shared = Arc::new((
+        tokio::sync::Mutex::new(None),
+        Mutex::new(Vec::new()),
+        std::sync::atomic::AtomicBool::new(false),
+    ));
+    /// The bytes waiting, or, once the RTMP server has hung up and all
+    /// were taken, a 404: the session is over.
+    async fn drained(shared: &Shared) -> axum::response::Response {
+        use axum::response::IntoResponse;
+        // A moment for the RTMP server's answer to arrive.
+        tokio::time::sleep(std::time::Duration::from_millis(15)).await;
+        let mut waiting = shared.1.lock().unwrap();
+        if waiting.is_empty() && shared.2.load(std::sync::atomic::Ordering::SeqCst) {
+            return axum::http::StatusCode::NOT_FOUND.into_response();
+        }
+        let mut answer = vec![1u8];
+        answer.append(&mut waiting);
+        answer.into_response()
+    }
+    let open = move |State(shared): State<Shared>| async move {
+        let tcp = tokio::net::TcpStream::connect(("127.0.0.1", rtmp_port))
+            .await
+            .unwrap();
+        let (mut read, write) = tcp.into_split();
+        *shared.0.lock().await = Some(write);
+        let from = Arc::clone(&shared);
+        tokio::spawn(async move {
+            let mut buffer = vec![0u8; 65536];
+            while let Ok(n) = read.read(&mut buffer).await {
+                if n == 0 {
+                    break;
+                }
+                from.1.lock().unwrap().extend_from_slice(&buffer[..n]);
+            }
+            from.2.store(true, std::sync::atomic::Ordering::SeqCst);
+        });
+        "dmsession\n"
+    };
+    let send = |State(shared): State<Shared>,
+                Path((_, _)): Path<(String, String)>,
+                body: axum::body::Bytes| async move {
+        if let Some(write) = shared.0.lock().await.as_mut() {
+            let _ = write.write_all(&body).await;
+        }
+        drained(&shared).await
+    };
+    let idle = |State(shared): State<Shared>, Path((_, _)): Path<(String, String)>| async move {
+        drained(&shared).await
+    };
+    let app = axum::Router::new()
+        .route("/open/1", axum::routing::post(open))
+        .route("/send/:id/:n", axum::routing::post(send))
+        .route("/idle/:id/:n", axum::routing::post(idle))
+        .route("/close/:id/:n", axum::routing::post(|| async { "" }))
+        .with_state(shared);
+    axum::serve(listener, app).await.unwrap();
+}
+
+#[tokio::test]
+async fn an_rtmpt_stream_is_fetched_by_dm_through_http() {
+    let _turn = FFMPEG_ENV.lock().await;
+    let Some(real) = ffmpeg() else {
+        eprintln!("no ffmpeg installed — skipping");
+        return;
+    };
+    let site = tempdir();
+    let clip = site.path().join("clip.flv");
+    let made = std::process::Command::new(&real)
+        .args(["-y", "-loglevel", "error", "-f", "lavfi", "-i"])
+        .arg("testsrc=duration=3:size=160x120:rate=10")
+        .args(["-c:v", "libx264", "-pix_fmt", "yuv420p"])
+        .arg(&clip)
+        .status();
+    if !made.is_ok_and(|s| s.success()) {
+        eprintln!("this ffmpeg cannot make an H.264 clip — skipping");
+        return;
+    }
+    let rtmp_port = free_port();
+    let mut server = tokio::process::Command::new(&real)
+        .args(["-loglevel", "error", "-re", "-i"])
+        .arg(&clip)
+        .args(["-c", "copy", "-f", "flv", "-listen", "1"])
+        .arg(format!("rtmp://127.0.0.1:{rtmp_port}/live/show"))
+        .kill_on_drop(true)
+        .spawn()
+        .unwrap();
+    tokio::time::sleep(std::time::Duration::from_millis(1500)).await;
+    let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let http_port = listener.local_addr().unwrap().port();
+    let relay = tokio::spawn(relay_rtmpt(listener, rtmp_port));
+
+    std::env::set_var("DM_FFMPEG", "");
+    let dir = tempdir();
+    let done = download(
+        &client(),
+        &format!("rtmpt://127.0.0.1:{http_port}/live/show"),
+        &options(dir.path()),
+    )
+    .await;
+    std::env::remove_var("DM_FFMPEG");
+    relay.abort();
+    let _ = server.kill().await;
+    let done = done.expect("the RTMPT stream");
+    assert_eq!(done.path.file_name().unwrap(), "show.mp4");
+    let md5 = |file: &std::path::Path| {
+        let out = std::process::Command::new(&real)
+            .args(["-v", "error", "-i"])
+            .arg(file)
+            .args(["-map", "0:v", "-fps_mode", "passthrough", "-f", "md5", "-"])
+            .output()
+            .unwrap();
+        String::from_utf8_lossy(&out.stdout).into_owned()
+    };
+    assert_eq!(md5(&done.path), md5(&clip), "the pictures differ");
+}
+
 #[tokio::test]
 async fn without_ffmpeg_a_stream_is_refused_plainly() {
     let _turn = FFMPEG_ENV.lock().await;
     std::env::set_var("DM_FFMPEG", "");
     let dir = tempdir();
-    // RTMPT (RTMP over HTTP) is one dm leaves to ffmpeg.
+    // RTMPE (Flash's encrypted RTMP) is the one dm leaves to an ffmpeg.
     let outcome = download(
         &client(),
-        "rtmpt://127.0.0.1:1/live/x",
+        "rtmpe://127.0.0.1:1/live/x",
         &options(dir.path()),
     )
     .await;
     std::env::remove_var("DM_FFMPEG");
     let said = outcome.unwrap_err().to_string();
-    assert!(said.contains("install ffmpeg"), "{said}");
+    assert!(said.contains("encrypted stream dm cannot record"), "{said}");
 }
 
 #[tokio::test]

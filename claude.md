@@ -426,8 +426,12 @@ of them.
       2026-10-21: RTMP and RTMPS by dm's own client (`rtmp.rs`), RTSP
       through `retina` (`rtsp.rs`), both recorded into a fragmented MP4 that
       plays if cut short (`fmp4.rs`) and rewritten plain at the end; MMS over
-      HTTP (`mms.rs`), kept as the Windows Media it is. RTMPE, RTMPT and
-      RTSPS still go to an ffmpeg (fetched). A proxy in force is a refusal,
+      HTTP (`mms.rs`), kept as the Windows Media it is. RTMPT through dm's
+      own HTTP tunnel (2026-10-21, `tests/live.rs` through an RTMPT relay,
+      every picture identical) and RTSPS through a loopback TLS bridge in
+      front of retina (unit-tested against a TLS server; no real camera
+      yet). RTMPE, Flash's encrypted RTMP, is refused unless the person has
+      an ffmpeg: dm fetches none. A proxy in force is a refusal,
       never a route around it. `tests/live.rs`: RTMP from ffmpeg's server
       decodes identical to the clip; RTSP from an in-test server, every
       picture identical; MMS from an in-test server, byte for byte; mediamtx
@@ -471,10 +475,12 @@ of them.
       way, decoded identical (2026-10-21). Proven under `PATH=/usr/bin:/bin`: a real watch URL completes
       as one merged file. Before this, that same launch quietly saved the
       page's HTML as a "completed" download named `watch`. Since 2026-10-21 nothing has to be installed:
-      with no yt-dlp or ffmpeg on the computer, dm fetches the official
-      yt-dlp build and a pinned ffmpeg build from GitHub into its own folder
-      the first time a video page needs them, checked against their
-      checksums, and fetches yt-dlp afresh weekly (`tools.rs`); a page
+      with no yt-dlp on the computer, dm fetches the official yt-dlp and
+      Deno builds from GitHub into its own folder the first time a video
+      page needs them, checked against their checksums, and fetches yt-dlp
+      afresh weekly (`tools.rs`); the row says "Getting ready for videos
+      (first time only)" meanwhile. ffmpeg is not fetched at all since
+      2026-10-21; a page
       refused to dm's own request (a 429 bot check) is yt-dlp's to try
 
 # Autonomous Development Rules

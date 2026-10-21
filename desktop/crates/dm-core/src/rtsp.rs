@@ -46,6 +46,61 @@ fn split_credentials(url: &str) -> Result<(url::Url, Option<Credentials>), Error
     Ok((parsed, creds))
 }
 
+/// A task that ends with the recording that needed it.
+struct Aborted(tokio::task::JoinHandle<()>);
+
+impl Drop for Aborted {
+    fn drop(&mut self) {
+        self.0.abort();
+    }
+}
+
+/// The address retina is to use for an `rtsps://` one, and the task that
+/// carries it: one connection taken on a loopback port, relayed over TLS
+/// (checked against `config`) to the server, by default on port 322. The
+/// server is asked for the loopback address; servers go by its path.
+pub(crate) async fn bridge(
+    address: &url::Url,
+    config: std::sync::Arc<tokio_rustls::rustls::ClientConfig>,
+) -> Result<(url::Url, tokio::task::JoinHandle<()>), Error> {
+    let host = address
+        .host_str()
+        .ok_or_else(|| Error::Internal("the address names no server".into()))?
+        .trim_start_matches('[')
+        .trim_end_matches(']')
+        .to_string();
+    let port = address.port().unwrap_or(322);
+    let tcp = tokio::time::timeout(
+        Duration::from_secs(15),
+        tokio::net::TcpStream::connect((host.as_str(), port)),
+    )
+    .await
+    .map_err(|_| Error::Internal(format!("{host} did not answer")))??;
+    let name = tokio_rustls::rustls::pki_types::ServerName::try_from(host.clone())
+        .map_err(|e| Error::Internal(format!("{host}: {e}")))?;
+    let mut tls = tokio_rustls::TlsConnector::from(config)
+        .connect(name, tcp)
+        .await?;
+    let listener = tokio::net::TcpListener::bind(("127.0.0.1", 0)).await?;
+    let local_port = listener.local_addr()?.port();
+    let task = tokio::spawn(async move {
+        if let Ok((mut local, _)) = listener.accept().await {
+            let _ = tokio::io::copy_bidirectional(&mut local, &mut tls).await;
+        }
+    });
+    let mut local = address.clone();
+    let rewritten = local.set_scheme("rtsp").is_ok()
+        && local.set_host(Some("127.0.0.1")).is_ok()
+        && local.set_port(Some(local_port)).is_ok();
+    if !rewritten {
+        task.abort();
+        return Err(Error::Internal(
+            "the rtsps:// address could not be read".into(),
+        ));
+    }
+    Ok((local, task))
+}
+
 /// Records the stream at `url` into `part` until its server ends it, the
 /// connection closes, or `control` stops it. Returns the bytes written; a
 /// stop is returned after the file is closed, so what arrived plays.
@@ -55,7 +110,16 @@ pub async fn record(
     control: &Control,
     downloaded: &Arc<AtomicU64>,
 ) -> Result<u64, Error> {
-    let (address, creds) = split_credentials(url)?;
+    let (mut address, creds) = split_credentials(url)?;
+    // rtsps://: retina speaks plain RTSP only, so it is given a loopback
+    // address that dm carries over TLS to the server. Held for the run.
+    let _bridge = if address.scheme().eq_ignore_ascii_case("rtsps") {
+        let (local, task) = bridge(&address, crate::rtmp::tls_config()?).await?;
+        address = local;
+        Some(Aborted(task))
+    } else {
+        None
+    };
     let options = SessionOptions::default()
         .creds(creds)
         .user_agent("dm".into());
@@ -231,6 +295,62 @@ pub async fn record(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// rtsps://: retina is handed a loopback rtsp:// address with the
+    /// path, query and port it needs, and what it sends there reaches the
+    /// server over TLS, and the server's answer comes back.
+    #[tokio::test]
+    async fn an_rtsps_address_is_carried_over_tls() {
+        use tokio::io::{AsyncReadExt, AsyncWriteExt};
+        use tokio_rustls::rustls;
+        let made = rcgen::generate_simple_self_signed(vec!["localhost".into()]).unwrap();
+        let cert = made.cert.der().clone();
+        let key =
+            rustls::pki_types::PrivateKeyDer::try_from(made.key_pair.serialize_der()).unwrap();
+        let provider = std::sync::Arc::new(rustls::crypto::ring::default_provider());
+        let server = rustls::ServerConfig::builder_with_provider(provider.clone())
+            .with_safe_default_protocol_versions()
+            .unwrap()
+            .with_no_client_auth()
+            .with_single_cert(vec![cert.clone()], key)
+            .unwrap();
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let port = listener.local_addr().unwrap().port();
+        let acceptor = tokio_rustls::TlsAcceptor::from(std::sync::Arc::new(server));
+        let served = tokio::spawn(async move {
+            let (tcp, _) = listener.accept().await.unwrap();
+            let mut tls = acceptor.accept(tcp).await.unwrap();
+            let mut asked = vec![0u8; 64];
+            let n = tls.read(&mut asked).await.unwrap();
+            tls.write_all(b"RTSP/1.0 200 OK\r\n\r\n").await.unwrap();
+            tls.flush().await.unwrap();
+            String::from_utf8_lossy(&asked[..n]).into_owned()
+        });
+        let mut roots = rustls::RootCertStore::empty();
+        roots.add(cert).unwrap();
+        let client = rustls::ClientConfig::builder_with_provider(provider)
+            .with_safe_default_protocol_versions()
+            .unwrap()
+            .with_root_certificates(roots)
+            .with_no_client_auth();
+        let address = url::Url::parse(&format!("rtsps://localhost:{port}/cam/one?x=1")).unwrap();
+        let (local, _task) = bridge(&address, std::sync::Arc::new(client)).await.unwrap();
+        assert_eq!(local.scheme(), "rtsp");
+        assert_eq!(local.host_str(), Some("127.0.0.1"));
+        assert_eq!(local.path(), "/cam/one");
+        assert_eq!(local.query(), Some("x=1"));
+        let mut plain = tokio::net::TcpStream::connect(("127.0.0.1", local.port().unwrap()))
+            .await
+            .unwrap();
+        plain
+            .write_all(b"OPTIONS * RTSP/1.0\r\n\r\n")
+            .await
+            .unwrap();
+        let mut answer = vec![0u8; 64];
+        let n = plain.read(&mut answer).await.unwrap();
+        assert!(answer[..n].starts_with(b"RTSP/1.0 200 OK"));
+        assert!(served.await.unwrap().starts_with("OPTIONS * RTSP/1.0"));
+    }
 
     #[test]
     fn a_sign_in_is_taken_out_of_the_address() {

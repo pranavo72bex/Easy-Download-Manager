@@ -550,5 +550,13 @@
  "Stop reading pages after, minutes (0 for no limit)": "Arrêter de lire les pages après, minutes (0 sans limite)",
  "Its time ran out with pages still to read; these are the files found until then.": "Le temps est écoulé alors qu'il restait des pages à lire ; voici les fichiers trouvés jusque-là.",
  "Error: the disk is full in {}": "Erreur : le disque est plein dans {}",
- "Numbers only: the one before was kept": "Chiffres uniquement : le nombre précédent est conservé"
+ "Numbers only: the one before was kept": "Chiffres uniquement : le nombre précédent est conservé",
+ "dm could not get ready for videos: check that you are online, then click Retry": "dm n'a pas pu se préparer pour les vidéos : vérifiez votre connexion, puis cliquez sur Réessayer",
+ "dm found no video on this page": "dm n'a trouvé aucune vidéo sur cette page",
+ "dm cannot record this kind of encrypted stream": "dm ne peut pas enregistrer ce type de flux chiffré",
+ "Getting ready for videos (first time only)…": "Préparation des vidéos (la première fois seulement)…",
+ "Chrome and others": "Chrome et autres",
+ "Not now": "Pas maintenant",
+ "Add dm to your browser:": "Ajoutez dm à votre navigateur :",
+ "Downloads you click in your browser come to dm once its extension is added.": "Les téléchargements cliqués dans votre navigateur arrivent dans dm une fois son extension ajoutée."
 }

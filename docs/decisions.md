@@ -1256,3 +1256,32 @@ winit:
 Tried and dropped: asking for the selection with type `ANY` (X servers
 answered TypeMismatch; the chosen target's own atom is asked for).
 Replacing the vendored copy goes away when a winit release reads links.
+
+## Out of the box for someone new: nothing to install but the extension (2026-10-21)
+
+dm no longer fetches ffmpeg for anything. What it was still fetched for is
+dm's own now, or refused: RTMPT through an HTTP tunnel in `rtmp.rs`, RTSPS
+through a loopback TLS bridge in front of retina (which speaks plain RTSP
+only: patching it was the alternative, and the bridge needs no vendored
+copy), and a video in a container dm does not join asked of yt-dlp as one
+file that needs no joining. RTMPE is refused: it is Flash's encrypted RTMP,
+a protection dm does not undo. An ffmpeg the person installed is still
+used where it helps.
+
+yt-dlp stays the one thing fetched, with Deno. Written into dm instead it
+would be the site logic this project does not write (see "Player pages go
+to the user's yt-dlp"): YouTube's player code changes weekly and is answered
+by running it, which is why yt-dlp needs a JavaScript runtime, and yt-dlp's
+thousands of sites are kept working by hundreds of people. Fetched and kept
+current is what makes video work for someone who installs nothing; the row
+says "Getting ready for videos (first time only)" while it happens.
+
+Someone who installed only the app is shown how to add the extension: a bar
+over the list, until a browser connects (the native host leaves
+`browser.seen` in dm's home on the extension's hello) or they say not now,
+with the same buttons in Options › Browser. Messages never say "install
+yt-dlp" or "install ffmpeg": a failed video says dm could not get ready for
+videos and to check the connection, and an extension talking to an older
+app says to update the app. The two store addresses are allowed in shipped
+code by `cargo xtask privacy`, since they open in the person's browser only
+when clicked.

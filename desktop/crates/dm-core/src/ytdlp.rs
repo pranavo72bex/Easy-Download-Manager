@@ -336,7 +336,21 @@ enum Joiner {
 /// ffmpeg, yt-dlp joins them in whatever container; without one, dm joins
 /// them, so the pair asked for is the MP4 picture and the M4A sound, and a
 /// single stream carrying both where a site has no such pair.
-fn format_for(quality: Quality, joiner: Joiner, webm: bool) -> String {
+fn format_for(quality: Quality, joiner: Joiner, container: Option<&str>) -> String {
+    let webm = container == Some("webm");
+    let chosen = format_for_known(quality, joiner, webm);
+    /* Another container (a site's FLV, 3GP, MOV) is one dm does not join
+     * into: asked for whole, picture and sound in the one file, which
+     * needs no joining; else what dm joins. ffmpeg is not fetched for it. */
+    match container {
+        Some(c) if joiner == Joiner::Dm && needs_ffmpeg(Some(c)) && quality != Quality::Audio => {
+            format!("b[ext={c}]/{chosen}")
+        }
+        _ => chosen,
+    }
+}
+
+fn format_for_known(quality: Quality, joiner: Joiner, webm: bool) -> String {
     match (quality, joiner) {
         (Quality::Best, Joiner::Ffmpeg) => "bv*+ba/b".to_string(),
         (Quality::UpTo(height), Joiner::Ffmpeg) => {
@@ -542,7 +556,8 @@ pub async fn list_choices(
     proxy: Option<&str>,
     sign_in: Option<&crate::cookies::SignIn>,
 ) -> Result<Vec<Choice>, Error> {
-    let binary = binary().ok_or_else(|| Error::Internal("yt-dlp is not installed".into()))?;
+    let binary = binary()
+        .ok_or_else(|| Error::Internal("dm's video helper is not available here".into()))?;
     let mut command = Command::new(binary);
     crate::no_window_async(&mut command);
     js_runtime(&mut command);
@@ -609,7 +624,8 @@ pub async fn download_ytdlp(
     // through `PATH`, which is exactly what a GUI-launched app lacks, so
     // finding it in /opt/homebrew/bin and then failing to start it would be
     // the same bug one step later.
-    let binary = binary().ok_or_else(|| Error::Internal("yt-dlp is not installed".into()))?;
+    let binary = binary()
+        .ok_or_else(|| Error::Internal("dm's video helper is not available here".into()))?;
     // ffmpeg is what joins a separate picture and sound, and yt-dlp finds it
     // on the same minimal PATH that hid yt-dlp itself — so it is resolved the
     // same way and handed over explicitly. Without one, the format asks for a
@@ -635,7 +651,7 @@ pub async fn download_ytdlp(
         .arg(format_for(
             options.quality,
             joiner,
-            options.container.as_deref() == Some("webm"),
+            options.container.as_deref(),
         ))
         .args(container_sort(options.container.as_deref()))
         .arg("--progress-template")
@@ -1369,9 +1385,9 @@ mod tests {
 
     #[test]
     fn a_quality_becomes_a_format_selector() {
-        assert_eq!(format_for(Quality::Best, Joiner::Ffmpeg, false), "bv*+ba/b");
-        assert_eq!(format_for(Quality::Audio, Joiner::Ffmpeg, false), "ba/b");
-        assert!(format_for(Quality::UpTo(720), Joiner::Ffmpeg, false).contains("height<=720"));
+        assert_eq!(format_for(Quality::Best, Joiner::Ffmpeg, None), "bv*+ba/b");
+        assert_eq!(format_for(Quality::Audio, Joiner::Ffmpeg, None), "ba/b");
+        assert!(format_for(Quality::UpTo(720), Joiner::Ffmpeg, None).contains("height<=720"));
     }
 
     #[test]
@@ -1379,16 +1395,16 @@ mod tests {
         // The same choice as the ffmpeg route, so the same quality arrives;
         // a picture-only stream (`bv`, never `bv*`), since one that carries
         // sound too would be joined with a second sound.
-        assert_eq!(format_for(Quality::Best, Joiner::Dm, false), "bv+ba/b");
+        assert_eq!(format_for(Quality::Best, Joiner::Dm, None), "bv+ba/b");
         assert_eq!(
-            format_for(Quality::UpTo(480), Joiner::Dm, false),
+            format_for(Quality::UpTo(480), Joiner::Dm, None),
             "bv[height<=480]+ba/b[height<=480]/b"
         );
-        assert_eq!(format_for(Quality::Audio, Joiner::Dm, false), "ba/b");
+        assert_eq!(format_for(Quality::Audio, Joiner::Dm, None), "ba/b");
         assert!(!needs_ffmpeg(None));
         assert!(!needs_ffmpeg(Some("mp4")));
         assert_eq!(
-            format_for(Quality::Best, Joiner::Dm, true),
+            format_for(Quality::Best, Joiner::Dm, Some("webm")),
             "bv[ext=webm]+ba[ext=webm]/b[ext=webm]/b"
         );
         assert!(!needs_ffmpeg(Some("webm")));

@@ -107,6 +107,11 @@ all it takes: the first time it opens, dm tells your browsers where it is.
 dm keeps running in the tray (Windows, Linux) or the menu bar (Mac) when you
 close its window, so your browser always has it to hand downloads to.
 
+Until you add the extension, dm shows a bar above its list with a button for
+each browser: **Microsoft Edge**, **Firefox** and **Chrome and others**.
+Click yours and it opens the page you add it from. (The same buttons are in
+**Options › Browser**.)
+
 ## Step 4 — Add the extension
 
 ### Microsoft Edge
@@ -116,7 +121,7 @@ dm is on Microsoft Edge Add-ons, Microsoft's own store.
 1. Open **[dm on Microsoft Edge Add-ons](https://microsoftedge.microsoft.com/addons/detail/ooafpfjpliofcdlnbdkjhonaoebcpnej)** in Edge.
 2. Click **Get**, then **Add extension**.
 
-### Chrome, Brave, Vivaldi, Opera (and Edge without the store)
+### Chrome, Brave, Vivaldi and Opera
 
 1. Unzip `dm-chrome-….zip`. Move the folder it makes somewhere it can stay,
    such as your Documents folder. **Do not delete this folder later** — the
@@ -144,8 +149,9 @@ dm is on Firefox Add-ons, Mozilla's own store.
 in Mozilla's review), install the copy Mozilla has already signed from the
 Releases page instead. It is the same extension, and it stays installed:
 
-1. On the **[Releases page](https://github.com/pranavo72bex/Easy-Download-Manager/releases/latest)**,
-   click **dm-firefox-3.0.5.xpi** *in Firefox*.
+1. On the **[Releases page](https://github.com/pranavo72bex/Easy-Download-Manager/releases)**,
+   find the newest release with a `dm-firefox-….xpi` file and click it
+   *in Firefox*.
 2. Firefox asks whether to allow the site to install an add-on: click
    **Continue to Installation**, then **Add**.
 
@@ -168,36 +174,47 @@ Click a download link on any website, for example a `.zip` or `.exe` file.
 It appears in dm instead of in the browser, and downloads there.
 
 - **Download a video:** play it, move the mouse over it and click
-  **Download video** in its top corner, then pick a quality. The list
-  also offers the streams the page's player loaded, so videos on sites
-  yt-dlp does not know can be downloaded too.
-- **Hide the video panel:** click its **×**: **Hide for now**, or **Never on**
-  this site.
+  **Download video** in its top corner, then pick a quality. That is all:
+  YouTube and most video sites work straight away, with nothing else to
+  install. The very first video takes a little longer while dm gets ready
+  for videos; its row says so.
+- **Hide the video panel:** click its **×**: **Hide for now**, or **Never on
+  this site**.
 - **The dm icon in the toolbar** opens a small menu: whether dm is
   connected, **Catch downloads** on or off, the video panel on this site on
   or off, and **Open dm**. It never downloads anything by itself.
 - **Download a link:** right-click it and choose **Download link with dm**.
 - **Add a link by hand:** in dm, click **Add URL** and paste it. Web
   (`https://`), FTP (`ftp://`) and magnet links all work.
+- **Drag a link** from the browser onto dm's window to download it.
 - **Change the language:** **View › Language** — English, Español,
   Português, Français, Deutsch, Italiano, Nederlands, Polski, Русский,
-  Bahasa Indonesia or Türkçe. dm
-  starts in your computer's language when it has it.
+  Bahasa Indonesia or Türkçe. dm starts in your computer's language when it
+  has it.
 
-**Videos from sites like YouTube** work out of the box. They are fetched
-with **yt-dlp**, which finds the video behind a site's player, and dm
-joins their picture and sound itself. If your computer has no yt-dlp, dm
-fetches it (with Deno, the JavaScript runtime it needs for YouTube) the
-first time a video page needs it — from the official GitHub releases,
-checked against their checksums, into dm's own folder — and keeps yt-dlp up
-to date, since sites change and an old yt-dlp stops working on them. Live
-streams (RTMP, RTSP, MMS), WebM, HLS and subtitles dm handles itself, with
-no ffmpeg. You install nothing. The extension sends a video page's session
-along with the video, so a site that checks you are not a bot lets it
-through. A yt-dlp or ffmpeg you
-installed yourself (winget, Homebrew, apt, pip, Scoop, Chocolatey…) is used
-instead, found even when it is not on the PATH a browser or the Start menu
-gives dm.
+### How video downloads work
+
+You do not need to install anything for video. Two things happen behind the
+scenes:
+
+- **Finding the video in a page.** Video sites hide the real video behind
+  their player. dm uses [yt-dlp](https://github.com/yt-dlp/yt-dlp), the
+  free tool made for exactly this, which hundreds of people keep working as
+  sites change. The first time you download a video, dm fetches the official
+  yt-dlp (and Deno, which yt-dlp needs for YouTube) from their GitHub
+  releases, checks them against their published checksums, and keeps them
+  in its own folder. It updates yt-dlp once a week, because an old one
+  stops working on sites that change. If you already have yt-dlp installed,
+  dm uses yours.
+- **Putting the video together.** Sites send picture and sound separately.
+  dm joins them into one file itself, in MP4 or WebM, at the quality you
+  picked, 4K included. Live streams (`rtmp://`, `rtmpt://`, `rtsp://`,
+  `rtsps://`, `mms://`), HLS playlists and subtitles are handled by dm too.
+  dm does not need ffmpeg; one you installed yourself is used for the rare
+  encrypted Flash stream (`rtmpe://`), which dm does not record.
+
+The extension sends the page's sign-in along with the video, so a site that
+checks you are not a bot lets the download through.
 
 ## What dm cannot do (yet)
 

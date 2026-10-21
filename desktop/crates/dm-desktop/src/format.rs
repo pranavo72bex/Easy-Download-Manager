@@ -252,7 +252,7 @@ pub fn titled(word: &str) -> String {
 /// one for what the network library says in its own terms ("error decoding
 /// response body" is a connection cut mid-file). The first that matches
 /// wins; anything else is shown as the engine said it.
-pub const REASONS: [(&[&str], &str); 17] = [
+pub const REASONS: [(&[&str], &str); 20] = [
     (
         &[
             "error decoding response body",
@@ -330,6 +330,23 @@ pub const REASONS: [(&[&str], &str); 17] = [
     (
         &["something of that name is already there"],
         "something of that name is already there",
+    ),
+    // Video pages: yt-dlp and Deno are "dm's video helper" to a person,
+    // who never installs them (dm fetches them).
+    (
+        &["video helper"],
+        "dm could not get ready for videos: check that you are online, then click Retry",
+    ),
+    (
+        &[
+            "yt-dlp does not know this site",
+            "yt-dlp could not read that page",
+        ],
+        "dm found no video on this page",
+    ),
+    (
+        &["an encrypted stream dm cannot record"],
+        "dm cannot record this kind of encrypted stream",
     ),
     // Last: the specific failures above say more.
     (

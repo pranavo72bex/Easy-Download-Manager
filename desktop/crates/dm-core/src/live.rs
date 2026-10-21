@@ -48,11 +48,16 @@ pub fn is_live(url: &str) -> bool {
 
 /// Whether dm fetches such a stream itself, without ffmpeg.
 fn own(url: &str) -> bool {
-    scheme_of(url)
-        .is_some_and(|(s, _)| ["rtmp", "rtmps", "rtsp", "mms", "mmsh", "mmst"].contains(s))
+    scheme_of(url).is_some_and(|(s, _)| {
+        [
+            "rtmp", "rtmps", "rtmpt", "rtsp", "rtsps", "mms", "mmsh", "mmst",
+        ]
+        .contains(s)
+    })
 }
 
-/// Whether a stream address needs ffmpeg: one dm does not speak itself.
+/// Whether a stream address needs an ffmpeg on the computer: RTMPE, the
+/// one dm does not record itself.
 pub fn needs_ffmpeg(url: &str) -> bool {
     is_live(url) && !own(url)
 }
@@ -116,10 +121,12 @@ pub async fn download_live(
              turn the proxy off for this site (Options › Proxy) to fetch it"
         )));
     }
+    // RTMPE alone is not dm's: Flash's encrypted RTMP, a protection dm
+    // does not undo. An ffmpeg the person installed may record it.
     let ffmpeg = crate::ytdlp::ffmpeg();
     if ffmpeg.is_none() && !own(url) {
         return Err(Error::Internal(format!(
-            "a {scheme}:// stream is fetched by ffmpeg — install ffmpeg"
+            "{scheme}:// is an encrypted stream dm cannot record"
         )));
     }
     let name = name_for(url);

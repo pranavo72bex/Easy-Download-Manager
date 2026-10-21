@@ -32,6 +32,9 @@ pub struct Target {
     pub host: String,
     pub port: u16,
     pub tls: bool,
+    /// RTMPT: the same conversation carried in HTTP requests, for networks
+    /// that let only the web through.
+    pub tunnel: bool,
     /// The application: every part of the path but the last.
     pub app: String,
     /// The stream's name: the last part, with its query.
@@ -39,16 +42,23 @@ pub struct Target {
     pub tc_url: String,
 }
 
-/// Reads an `rtmp://` or `rtmps://` address.
+/// Reads an `rtmp://`, `rtmps://` or `rtmpt://` address.
 pub fn target(url: &str) -> Result<Target, String> {
     let (scheme, rest) = url
         .trim()
         .split_once("://")
         .ok_or("not an rtmp:// address")?;
-    let tls = match scheme.to_ascii_lowercase().as_str() {
-        "rtmp" => false,
-        "rtmps" => true,
+    let scheme = scheme.to_ascii_lowercase();
+    let (tls, tunnel) = match scheme.as_str() {
+        "rtmp" => (false, false),
+        "rtmps" => (true, false),
+        "rtmpt" => (false, true),
         other => return Err(format!("dm does not speak {other}://")),
+    };
+    let usual = match (tls, tunnel) {
+        (true, _) => 443,
+        (_, true) => 80,
+        _ => 1935,
     };
     let (authority, path) = rest.split_once('/').unwrap_or((rest, ""));
     let authority = authority.rsplit('@').next().unwrap_or(authority);
@@ -56,10 +66,10 @@ pub fn target(url: &str) -> Result<Target, String> {
         Some((host, port)) if !host.ends_with(']') || authority.starts_with('[') => {
             match port.parse() {
                 Ok(port) => (host, port),
-                Err(_) => (authority, if tls { 443 } else { 1935 }),
+                Err(_) => (authority, usual),
             }
         }
-        _ => (authority, if tls { 443 } else { 1935 }),
+        _ => (authority, usual),
     };
     let host = host
         .trim_start_matches('[')
@@ -85,8 +95,7 @@ pub fn target(url: &str) -> Result<Target, String> {
         return Err("the address names no application and stream".into());
     }
     let tc_url = format!(
-        "{}://{}:{port}/{app}",
-        if tls { "rtmps" } else { "rtmp" },
+        "{scheme}://{}:{port}/{app}",
         if host.contains(':') {
             format!("[{host}]")
         } else {
@@ -97,6 +106,7 @@ pub fn target(url: &str) -> Result<Target, String> {
         host,
         port,
         tls,
+        tunnel,
         app,
         play,
         tc_url,
@@ -765,6 +775,9 @@ trait Io: AsyncRead + AsyncWrite + Unpin + Send {}
 impl<T: AsyncRead + AsyncWrite + Unpin + Send> Io for T {}
 
 async fn open(target: &Target) -> Result<Box<dyn Io>, Error> {
+    if target.tunnel {
+        return tunnel(target).await;
+    }
     let tcp = tokio::time::timeout(
         Duration::from_secs(15),
         tokio::net::TcpStream::connect((target.host.as_str(), target.port)),
@@ -775,6 +788,17 @@ async fn open(target: &Target) -> Result<Box<dyn Io>, Error> {
     if !target.tls {
         return Ok(Box::new(tcp));
     }
+    let name = tokio_rustls::rustls::pki_types::ServerName::try_from(target.host.clone())
+        .map_err(|e| Error::Internal(format!("{}: {e}", target.host)))?;
+    let tls = tokio_rustls::TlsConnector::from(tls_config()?)
+        .connect(name, tcp)
+        .await?;
+    Ok(Box::new(tls))
+}
+
+/// TLS as a stream server is checked: the public roots, no client
+/// certificate. Shared with `rtsps://` (`rtsp::bridge`).
+pub(crate) fn tls_config() -> Result<Arc<tokio_rustls::rustls::ClientConfig>, Error> {
     let mut roots = tokio_rustls::rustls::RootCertStore::empty();
     roots.extend(webpki_roots::TLS_SERVER_ROOTS.iter().cloned());
     // The provider named: two are compiled in (through other crates), and
@@ -786,12 +810,87 @@ async fn open(target: &Target) -> Result<Box<dyn Io>, Error> {
     .map_err(|e| Error::Internal(format!("TLS: {e}")))?
     .with_root_certificates(roots)
     .with_no_client_auth();
-    let name = tokio_rustls::rustls::pki_types::ServerName::try_from(target.host.clone())
-        .map_err(|e| Error::Internal(format!("{}: {e}", target.host)))?;
-    let tls = tokio_rustls::TlsConnector::from(Arc::new(config))
-        .connect(name, tcp)
-        .await?;
-    Ok(Box::new(tls))
+    Ok(Arc::new(config))
+}
+
+/// RTMPT: the RTMP conversation in HTTP POSTs. `/open/1` names a session;
+/// what dm writes goes out in `/send/<session>/<n>`, and with nothing to
+/// send it asks `/idle/<session>/<n>` for what the server has. Each answer
+/// starts with a byte saying how soon to ask again, then the server's
+/// bytes. Spoken by a task of its own behind an in-memory pipe, so the
+/// client above sees a stream like any other.
+async fn tunnel(target: &Target) -> Result<Box<dyn Io>, Error> {
+    let base = if target.host.contains(':') {
+        format!("http://[{}]:{}", target.host, target.port)
+    } else {
+        format!("http://{}:{}", target.host, target.port)
+    };
+    // No proxy: a stream is refused under one before it gets here.
+    let http = reqwest::Client::builder()
+        .no_proxy()
+        .connect_timeout(Duration::from_secs(15))
+        .timeout(Duration::from_secs(30))
+        .build()
+        .map_err(|e| Error::Internal(format!("RTMPT: {e}")))?;
+    let post = move |path: String, body: Vec<u8>| {
+        let request = http
+            .post(format!("{base}{path}"))
+            .header("Content-Type", "application/x-fcs")
+            .body(body);
+        async move {
+            let answer = request.send().await?.error_for_status()?;
+            Ok::<_, reqwest::Error>(answer.bytes().await?.to_vec())
+        }
+    };
+    let opened = post("/open/1".into(), vec![0]).await.map_err(|e| {
+        Error::Internal(format!(
+            "{} did not open an RTMPT session: {e}",
+            target.host
+        ))
+    })?;
+    let session = String::from_utf8_lossy(&opened).trim().to_string();
+    if session.is_empty() || session.contains('/') {
+        return Err(Error::Internal(format!(
+            "{} answered no RTMPT session",
+            target.host
+        )));
+    }
+    let (ours, theirs) = tokio::io::duplex(1 << 20);
+    tokio::spawn(async move {
+        let (mut from_client, mut to_client) = tokio::io::split(theirs);
+        let mut buffer = vec![0u8; 64 * 1024];
+        let mut wait = Duration::from_millis(10);
+        for n in 1u64.. {
+            // What the client has written, or nothing after a short wait.
+            let read = tokio::time::timeout(wait, from_client.read(&mut buffer)).await;
+            let (path, body) = match read {
+                Ok(Ok(0)) | Ok(Err(_)) => break,
+                Ok(Ok(len)) => (
+                    format!("/send/{session}/{n}"),
+                    buffer.get(..len).unwrap_or_default().to_vec(),
+                ),
+                Err(_) => (format!("/idle/{session}/{n}"), vec![0]),
+            };
+            let Ok(answer) = post(path, body).await else {
+                break;
+            };
+            let Some((&interval, data)) = answer.split_first() else {
+                break;
+            };
+            if to_client.write_all(data).await.is_err() {
+                break;
+            }
+            // Quick while bytes flow; as slow as the server says otherwise,
+            // within reason.
+            wait = if data.is_empty() {
+                Duration::from_millis(u64::from(interval.clamp(1, 50)) * 10)
+            } else {
+                Duration::from_millis(10)
+            };
+        }
+        let _ = post(format!("/close/{session}/0"), vec![0]).await;
+    });
+    Ok(Box::new(ours))
 }
 
 /// The simple handshake: C0 and C1 out, S0, S1 and S2 in, C2 (S1 back).

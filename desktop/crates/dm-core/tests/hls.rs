@@ -844,7 +844,7 @@ async fn a_stream_cut_by_byte_ranges_is_refused_without_yt_dlp_not_saved_wrong()
     let said = outcome
         .expect_err("a byte-range stream was saved as joined segments")
         .to_string();
-    assert!(said.contains("install yt-dlp"), "{said}");
+    assert!(said.contains("video helper"), "{said}");
     let saved = std::fs::read_dir(dir.path().join("out"))
         .map(|d| d.count())
         .unwrap_or(0);
