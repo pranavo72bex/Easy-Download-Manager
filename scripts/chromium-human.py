@@ -718,10 +718,19 @@ def main():
         done = wait_for(lambda: whole(dm_dl, "slow.zip"), 120)
         check("5. and the slow .zip lands whole and byte-exact", done,
               f"{dm_row('slow.zip')}; on disk {(dm_dl / 'slow.zip').stat().st_size if (dm_dl / 'slow.zip').exists() else 0}")
-        at = wait_for(lambda: row_point("grab.zip"), 10)
-        if at:
-            press(at)
-        picked = (ORACLE("ui.inspect") or {}).get("selected") or []
+        # Settled first: a row still finishing moves the list under the click.
+        wait_for(lambda: (dm_row("slow.zip") or {}).get("status") == "Complete", 15)
+        time.sleep(1)
+        wanted = (dm_row("grab.zip") or {}).get("id")
+        picked = []
+        for _ in range(2):
+            at = wait_for(lambda: row_point("grab.zip"), 10)
+            if at:
+                press(at)
+            time.sleep(0.5)
+            picked = (ORACLE("ui.inspect") or {}).get("selected") or []
+            if wanted is None or picked == [wanted]:
+                break
         check("5. the finished row from step 1, clicked, is selected",
               (dm_row("grab.zip") or {}).get("id") in picked, str(picked))
         click_control("dm-desktop", "push button", "Remove")
