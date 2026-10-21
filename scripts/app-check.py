@@ -468,6 +468,9 @@ def main():
         stop(app, home)
 
         print("the control protocol drives the running window")
+        # A dm ended hard (as Windows' terminate is) leaves its port file;
+        # the new one's is waited for, not the old one read.
+        (home / "control.port").unlink(missing_ok=True)
         app = launch(env, "--control", "0")
         port_file = home / "control.port"
         wait_for("the control port was never written", lambda: port_file.exists() and port_file.read_text().strip())

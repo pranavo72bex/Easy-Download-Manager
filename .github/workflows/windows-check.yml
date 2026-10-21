@@ -18,6 +18,8 @@ jobs:
   windows:
     name: Windows, app-check
     runs-on: windows-latest
+    # A hang is a failure, not hours of waiting.
+    timeout-minutes: 45
     defaults:
       run:
         shell: pwsh
