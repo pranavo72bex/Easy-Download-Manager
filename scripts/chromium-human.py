@@ -293,19 +293,36 @@ def oracle(home):
     port_file = home / "control.port"
     if not wait_for(lambda: port_file.exists() and port_file.read_text().strip(), 30):
         return None
-    sock = socket.create_connection(("127.0.0.1", int(port_file.read_text())), timeout=60)
-    lines = sock.makefile("r")
     lock = threading.Lock()
+    link = {}
+
+    def connect():
+        sock = socket.create_connection(("127.0.0.1", int(port_file.read_text())), timeout=60)
+        link["sock"], link["lines"] = sock, sock.makefile("r")
+        ask("auth", token=(home / "control.token").read_text().strip())
+
+    def ask(method, **params):
+        link["sock"].sendall((json.dumps({"id": 1, "method": method, "params": params}) + "\n").encode())
+        line = link["lines"].readline()
+        if not line:
+            raise BrokenPipeError("dm closed the connection")
+        return json.loads(line)
 
     def call(method, **params):
         with lock:
-            sock.sendall((json.dumps({"id": 1, "method": method, "params": params}) + "\n").encode())
-            answer = json.loads(lines.readline())
+            try:
+                answer = ask(method, **params)
+            except OSError:
+                # dm ends a connection left idle five minutes, which a
+                # store install's first start can take: connected afresh.
+                connect()
+                answer = ask(method, **params)
         if not answer.get("ok", True):
             raise RuntimeError(f"{method}: {answer.get('error')}")
         return answer.get("result")
 
-    call("auth", token=(home / "control.token").read_text().strip())
+    with lock:
+        connect()
     return call
 
 
