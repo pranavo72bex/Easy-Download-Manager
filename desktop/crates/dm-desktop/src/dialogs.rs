@@ -984,11 +984,28 @@ fn window(ctx: &egui::Context, title: &'static str) -> Dialog<'static> {
         room.min.y = room.min.y.max(bottom).min(room.max.y - 160.0);
     }
     let tall = (room.height() - 56.0).max(160.0);
-    let cramped = ctx
+    let reached = ctx
         .memory(|m| m.area_rect(window_id(title)))
-        // With some slack: a scrolled dialog stands about as tall as it may,
-        // and one that flipped between scrolling and not lost its place.
+        // With some slack: a scrolled dialog stands about as tall as it may.
         .is_some_and(|was| was.height() >= tall - 8.0);
+    // And once scrolled, it stays so while it is open in the same room: a
+    // scrolled body is shorter than the room, and turning the scrolling off
+    // again for it made the dialog flip between the two every frame, its
+    // buttons moving under the pointer so that no click took (Site files on
+    // Windows' fonts).
+    let held_id = window_id(title).with("scrolled");
+    let pass = ctx.cumulative_pass_nr();
+    let held = ctx
+        .data(|d| d.get_temp::<(f32, u64)>(held_id))
+        .is_some_and(|(room_tall, seen)| (room_tall - tall).abs() < 1.0 && seen + 1 >= pass);
+    let cramped = reached || held;
+    ctx.data_mut(|d| {
+        if cramped {
+            d.insert_temp(held_id, (tall, pass));
+        } else {
+            d.remove::<(f32, u64)>(held_id);
+        }
+    });
     Dialog::new(t(title))
         .id(window_id(title))
         .collapsible(false)

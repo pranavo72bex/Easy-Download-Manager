@@ -1897,6 +1897,35 @@ fn the_site_file_finder_finds_the_files_a_page_links_to() {
     assert!(urls.iter().any(|u| u.ends_with("/other.pdf")));
 }
 
+/// A dialog as tall as the room lets it be, give or take: it turned
+/// scrolling on and off on alternate frames, and no click on it took
+/// (Site files on Windows' fonts, which stand it 28 points taller).
+#[test]
+fn a_dialog_at_the_edge_of_scrolling_still_takes_clicks() {
+    let _file = settings_file();
+    let world = world();
+    for height in (684..=720).step_by(4) {
+        let mut harness = Harness::builder()
+            .with_size(egui::vec2(1100.0, height as f32))
+            .build_ui_state(|ui, app: &mut DmApp| app.ui(ui), world.app());
+        harness.run_steps(2);
+        click(&mut harness, "Site files");
+        type_into(&mut harness, "Start page", &world.url("page.html"));
+        click(&mut harness, "Find files");
+        let started = harness
+            .state()
+            .dialogs
+            .site_files
+            .as_ref()
+            .map(|d| !matches!(*dm_core::lock(&d.state), dm_desktop::dialogs::Grab::Idle));
+        assert_eq!(
+            started,
+            Some(true),
+            "Find files did not take at {height} points tall"
+        );
+    }
+}
+
 #[test]
 fn a_site_search_reads_pages_deep_and_a_saved_one_runs_on_its_own() {
     let _file = settings_file();
@@ -1911,34 +1940,6 @@ fn a_site_search_reads_pages_deep_and_a_saved_one_runs_on_its_own() {
         d.depth = 1;
         d.types = "zip pdf".into();
     }
-    // The centred dialog takes a few frames to settle at its size; a click
-    // sent sooner landed where Find files had been, on Windows' fonts.
-    harness.run_steps(4);
-    harness.get_by_label("Find files").scroll_to_me();
-    harness.run_steps(2);
-    let button = harness.get_by_label("Find files").rect();
-    harness.get_by_label("Find files").hover();
-    harness.run_steps(1);
-    let ctx = harness.ctx.clone();
-    let ids: Vec<egui::Id> = ctx.interaction_snapshot(|i| {
-        i.hovered
-            .iter()
-            .chain(i.contains_pointer.iter())
-            .copied()
-            .collect()
-    });
-    let hovered: Vec<String> = ids
-        .iter()
-        .map(|id| {
-            let r = ctx.read_response(*id);
-            format!(
-                "{id:?} {:?} {:?}",
-                r.as_ref().map(|r| r.rect),
-                r.map(|r| r.sense)
-            )
-        })
-        .collect();
-    let placed = format!("button {button:?}, hovered {hovered:?}");
     click(&mut harness, "Find files");
     // page.html and next.html on this site; the page elsewhere is not read.
     let deadline = Instant::now() + Duration::from_secs(10);
@@ -1948,7 +1949,7 @@ fn a_site_search_reads_pages_deep_and_a_saved_one_runs_on_its_own() {
     {
         assert!(
             Instant::now() < deadline,
-            "the search did not go a page deep ({placed}): {:?}",
+            "the search did not go a page deep: {:?}",
             {
                 let d = harness.state().dialogs.site_files.as_ref();
                 d.map(|d| format!("{:?}", dm_core::lock(&d.state)))
