@@ -237,7 +237,7 @@ pub struct Started {
 }
 
 pub async fn start(orders: &Orders) -> Started {
-    // yt-dlp and ffmpeg, fetched into dm's own folder when a video page
+    // yt-dlp and Deno, fetched into dm's own folder when a video page
     // needs them; a yt-dlp fetched before is kept current.
     dm_core::tools::set_folder(settings::home().join("tools"));
     let (mut saved, unreadable) = Settings::load();

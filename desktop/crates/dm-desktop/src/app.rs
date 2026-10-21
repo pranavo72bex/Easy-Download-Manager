@@ -409,7 +409,7 @@ pub fn looks_downloadable(text: &str) -> Option<String> {
 }
 
 /// The starts of the addresses dm takes: the web and FTP, magnets, and the
-/// stream servers' protocols ffmpeg fetches (`dm_core::live`).
+/// stream servers' protocols dm records (`dm_core::live`).
 const SCHEMES: [&str; 13] = [
     "http://", "https://", "ftp://", "magnet:?", "rtmp://", "rtmps://", "rtmpe://", "rtmpt://",
     "rtsp://", "rtsps://", "mms://", "mmsh://", "mmst://",

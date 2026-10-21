@@ -1041,7 +1041,7 @@ which reached the first frame no sooner and held as much.
 tokio's file keeps its own copy of each write, so a connection held its
 `BufWriter` twice: 256 KiB cost 20–30 MB over ten downloads of eight
 connections against 16 KiB, which fetched 2 GB over loopback no slower
-and with no more CPU (`qa/after.md`).
+and with no more CPU (measured on 2026-10-20).
 
 ## NTLM sign-ins (2026-10-20)
 

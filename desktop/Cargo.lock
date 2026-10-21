@@ -1735,7 +1735,6 @@ dependencies = [
  "futures-util",
  "libc",
  "proptest",
- "reqwest 0.12.28",
  "serde",
  "serde_json",
  "tempfile",

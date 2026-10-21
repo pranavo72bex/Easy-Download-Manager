@@ -10,3 +10,6 @@ human-shots/
 .env
 .env.*
 !.env.example
+
+# Internal QA notes and screenshots, kept on the tester's computer.
+qa/

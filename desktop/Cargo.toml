@@ -8,6 +8,8 @@
 [workspace]
 resolver = "2"
 members = ["crates/dm-core", "crates/dm-protocol", "crates/dm-shell", "crates/dm-desktop", "xtask"]
+# A patched copy, used through [patch.crates-io], not a member.
+exclude = ["vendor/winit"]
 
 [profile.release]
 opt-level = 3
