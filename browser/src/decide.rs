@@ -502,15 +502,27 @@ pub fn not_connected(reason: &str) -> bool {
 /// that fixes it for this browser — or, for an app of a protocol version
 /// this extension cannot talk to, which side to update.
 pub fn absent_text(reason: &str, own_id: &str, firefox: bool) -> String {
-    absent_said(reason, own_id, firefox, "try again")
+    absent_said(
+        reason,
+        own_id,
+        firefox,
+        "try again",
+        "get it from github.com/pranavo72bex/Easy-Download-Manager/releases",
+    )
 }
 
 /// [`absent_text`] for the toolbar popup, which is read again by opening it.
 pub fn absent_popup_text(reason: &str, own_id: &str, firefox: bool) -> String {
-    absent_said(reason, own_id, firefox, "reopen this popup")
+    absent_said(
+        reason,
+        own_id,
+        firefox,
+        "reopen this popup",
+        "click Get the dm app below",
+    )
 }
 
-fn absent_said(reason: &str, own_id: &str, firefox: bool, then: &str) -> String {
+fn absent_said(reason: &str, own_id: &str, firefox: bool, then: &str, get: &str) -> String {
     if let Some(said) = reason.strip_prefix(MISMATCH) {
         return said.to_string();
     }
@@ -522,9 +534,12 @@ fn absent_said(reason: &str, own_id: &str, firefox: bool, then: &str) -> String 
         format!("dm-desktop --register {own_id}")
     };
     if not_connected(reason) {
+        // Someone who added the extension from a store first has no app
+        // yet: told where it is, before how to connect one.
         format!(
-            "dm isn't connected to this browser yet. Open dm once (if it's already open, \
-             open it again) so it can connect, then {then}. Advanced: {register}"
+            "dm isn't connected to this browser yet. No dm app on this computer yet? \
+             {get}, install it and open it once. Already installed: open dm once (if it's \
+             already open, open it again) so it can connect, then {then}. Advanced: {register}"
         )
     } else {
         format!(

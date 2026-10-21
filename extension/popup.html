@@ -23,7 +23,9 @@
   .actions { padding: 10px 14px 14px; border-top: 1px solid var(--line); }
   button { width: 100%; padding: 7px 12px; border: 0; border-radius: 4px; background: var(--brand);
            color: var(--on-brand); font: inherit; font-weight: 600; cursor: pointer; }
-  button:hover { background: var(--brand-hover); }
+  button:hover, a.button:hover { background: var(--brand-hover); }
+  a.button { display: block; box-sizing: border-box; width: 100%; padding: 7px 12px; border-radius: 4px; background: var(--brand);
+             color: var(--on-brand); font-weight: 600; text-align: center; text-decoration: none; }
   [hidden] { display: none !important; }
 </style>
 </head>
@@ -35,6 +37,7 @@
 <label class="row" id="catchall-row"><input type="checkbox" id="catchall"><span id="catchall-label">Take every download from this site</span></label>
 <label class="row" id="cookies-row"><input type="checkbox" id="cookies"><span id="cookies-label">Hand over this site's sign-in with its downloads</span></label>
 <div class="actions" id="open-actions"><button id="open" type="button">Open dm</button></div>
+<div class="actions" id="get-actions" hidden><a class="button" id="get-app" target="_blank" rel="noopener" href="https://github.com/pranavo72bex/Easy-Download-Manager/releases/latest">Get the dm app</a></div>
 <script type="module" src="popup.js"></script>
 </body>
 </html>

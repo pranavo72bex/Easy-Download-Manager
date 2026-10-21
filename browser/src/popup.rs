@@ -250,9 +250,13 @@ pub fn popup_start(ext: JsValue) {
                 .ok()
                 .and_then(|v| v.as_bool())
                 .unwrap_or(true);
+            // with no app to open, where to get one.
             if !host {
                 if let Some(open) = by_id("open-actions") {
                     let _ = open.set_attribute("hidden", "");
+                }
+                if let Some(get) = by_id("get-actions") {
+                    let _ = get.remove_attribute("hidden");
                 }
             }
             let said = text(&reply, "said");
