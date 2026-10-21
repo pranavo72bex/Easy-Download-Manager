@@ -184,26 +184,16 @@ It appears in dm instead of in the browser, and downloads there.
   Bahasa Indonesia or Türkçe. dm
   starts in your computer's language when it has it.
 
-**Videos from sites like YouTube** need two free tools, installed once:
-**yt-dlp**, which finds the video behind a site's player, and **ffmpeg**,
-which joins its picture and sound. dm does not ship them: sites change
-often and yt-dlp is updated to keep up, so the copy your system keeps
-current works where one bundled with dm would go stale; and dm writes no
-site logic of its own. Ordinary files, and video files linked directly,
-need neither.
-
-| Computer | How |
-|---|---|
-| Windows | Open **Terminal** and run `winget install yt-dlp.yt-dlp Gyan.FFmpeg` |
-| Mac | Install [Homebrew](https://brew.sh), then run `brew install yt-dlp ffmpeg` |
-| Ubuntu / Debian | Run `sudo apt install yt-dlp ffmpeg` |
-
-dm finds them however they were installed — winget, pip, Scoop or
-Chocolatey on Windows; Homebrew, pip or the system's packages elsewhere —
-even when they are not on the PATH a browser or the Start menu gives it,
-and as soon as they are installed: there is nothing to restart. Keep
-yt-dlp current (`winget upgrade yt-dlp.yt-dlp`, `brew upgrade yt-dlp`,
-`yt-dlp -U`) when a site stops working.
+**Videos from sites like YouTube** work out of the box. They are fetched
+with **yt-dlp**, which finds the video behind a site's player, and their
+picture and sound are joined with **ffmpeg**. If your computer has neither,
+dm fetches both itself the first time a video page needs them — from their
+official GitHub releases, checked against their checksums, into dm's own
+folder — and keeps yt-dlp up to date, since sites change and an old yt-dlp
+stops working on them. You install nothing. A yt-dlp or ffmpeg you
+installed yourself (winget, Homebrew, apt, pip, Scoop, Chocolatey…) is used
+instead, found even when it is not on the PATH a browser or the Start menu
+gives dm.
 
 ## What dm cannot do (yet)
 

@@ -236,6 +236,9 @@ pub struct Started {
 }
 
 pub async fn start(orders: &Orders) -> Started {
+    // yt-dlp and ffmpeg, fetched into dm's own folder when a video page
+    // needs them; a yt-dlp fetched before is kept current.
+    dm_core::tools::set_folder(settings::home().join("tools"));
     let (mut saved, unreadable) = Settings::load();
     let mut notices: Vec<String> = unreadable.into_iter().collect();
 
@@ -257,6 +260,8 @@ pub async fn start(orders: &Orders) -> Started {
             dm_core::client()
         }
     };
+    // A yt-dlp dm fetched itself, a week old, is fetched afresh.
+    tokio::spawn(dm_core::tools::freshen(client.clone()));
     // The cookies file, read now rather than at the first change of a
     // setting: before, a download that needed it failed until then.
     notices.extend(use_cookies(&saved));

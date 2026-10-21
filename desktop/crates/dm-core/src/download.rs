@@ -398,8 +398,10 @@ async fn fetch_reporting(
     if crate::ftp::is_ftp(url) {
         return crate::ftp::download_ftp(url, options, report).await;
     }
-    // Nor do RTMP, RTSP and MMS streams, which ffmpeg fetches.
+    // Nor do RTMP, RTSP and MMS streams, which ffmpeg fetches: fetched
+    // itself first where the computer has none.
     if crate::live::is_live(url) {
+        let _ = crate::tools::ensure(client, crate::tools::Tool::Ffmpeg).await;
         return crate::live::download_live(url, options, report).await;
     }
 
@@ -418,7 +420,7 @@ async fn fetch_reporting(
             let _ = tx.try_send(Update::Retrying { attempt, of });
         }
     };
-    let mut info = retry::run_up_to_telling(&options.control, options.tries(), retrying, || {
+    let probed = retry::run_up_to_telling(&options.control, options.tries(), retrying, || {
         or_stop(
             &options.control,
             probe(
@@ -429,7 +431,27 @@ async fn fetch_reporting(
             ),
         )
     })
-    .await?;
+    .await;
+    /* A page refused to dm's own request (a 429 bot check, a 403 to a
+     * client that is not a browser) is yt-dlp's to try: it gets through
+     * where a plain request does not, and a video site's watch page failed
+     * at the probe though yt-dlp could fetch it (seen with YouTube). Only an
+     * address that names no file; if yt-dlp makes nothing of it either, the
+     * refusal is what is said. */
+    let mut info = match probed {
+        Err(
+            refused @ Error::Refused {
+                status: 403 | 429, ..
+            },
+        ) if !names_a_document(url) && crate::tools::for_video(client).await.is_ok() => {
+            return match crate::ytdlp::download_ytdlp(url, options, report.clone()).await {
+                Ok(done) => Ok(done),
+                Err(stopped @ (Error::Paused | Error::Cancelled)) => Err(stopped),
+                Err(_) => Err(refused),
+            };
+        }
+        other => other?,
+    };
 
     /* A manifest is not a file. It lists segments that concatenate into one,
      * with no length to split into ranges and no position to resume from, so
@@ -444,14 +466,21 @@ async fn fetch_reporting(
      * from the URL and the content type together — a manifest served as
      * `application/dash+xml` from a URL that does not end in `.mpd` is DASH
      * just the same. */
-    match stream::kind_of(url, info.content_type.as_deref()) {
-        Some(stream::Kind::Dash) if crate::ytdlp::available() => {
+    let kind = stream::kind_of(url, info.content_type.as_deref());
+    // yt-dlp found, or fetched by dm where the computer has none (`tools`).
+    let dash_tools = match kind {
+        Some(stream::Kind::Dash) => Some(crate::tools::for_video(client).await),
+        _ => None,
+    };
+    match kind {
+        Some(stream::Kind::Dash) if matches!(dash_tools, Some(Ok(()))) => {
             return crate::ytdlp::download_ytdlp(url, options, report).await;
         }
         Some(stream::Kind::Dash) => {
-            return Err(Error::Internal(
-                "a DASH stream needs yt-dlp to join its picture and sound — install yt-dlp".into(),
-            ));
+            return Err(Error::Internal(format!(
+                "a DASH stream needs yt-dlp to join its picture and sound — install yt-dlp ({})",
+                dash_tools.and_then(Result::err).unwrap_or_default()
+            )));
         }
         Some(stream::Kind::Hls) => {
             return download_stream(client, url, options, report).await;
@@ -489,7 +518,7 @@ async fn fetch_reporting(
          * A watch address with no extension, or a script's (`.php?v=`), is
          * yt-dlp's alone: its HTML is never the download anyone meant. */
         let document = names_a_document(url);
-        if crate::ytdlp::available() {
+        if crate::tools::for_video(client).await.is_ok() {
             match crate::ytdlp::download_ytdlp(url, options, report.clone()).await {
                 Err(e)
                     if document
@@ -1968,7 +1997,7 @@ async fn download_stream(
         Resolved::Own(listed, rendition) => (listed, rendition),
         // As a DASH stream is: yt-dlp reads these shapes properly; without
         // it the stream is refused rather than saved wrong and called done.
-        Resolved::Beyond(_) if crate::ytdlp::available() => {
+        Resolved::Beyond(_) if crate::tools::for_video(client).await.is_ok() => {
             return crate::ytdlp::download_ytdlp(url, options, report).await;
         }
         Resolved::Beyond(why) => {

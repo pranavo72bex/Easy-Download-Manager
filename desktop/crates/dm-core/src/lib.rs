@@ -35,6 +35,7 @@ pub mod stream;
 #[cfg(test)]
 #[path = "../../../test-support/secrets.rs"]
 pub(crate) mod test_secrets;
+pub mod tools;
 pub mod torrent;
 pub mod ytdlp;
 

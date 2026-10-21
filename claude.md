@@ -458,7 +458,12 @@ of them.
       the same way; with no ffmpeg a single pre-joined stream is asked for
       instead. Proven under `PATH=/usr/bin:/bin`: a real watch URL completes
       as one merged file. Before this, that same launch quietly saved the
-      page's HTML as a "completed" download named `watch`
+      page's HTML as a "completed" download named `watch`. Since 2026-10-21 nothing has to be installed:
+      with no yt-dlp or ffmpeg on the computer, dm fetches the official
+      yt-dlp build and a pinned ffmpeg build from GitHub into its own folder
+      the first time a video page needs them, checked against their
+      checksums, and fetches yt-dlp afresh weekly (`tools.rs`); a page
+      refused to dm's own request (a 429 bot check) is yt-dlp's to try
 
 # Autonomous Development Rules
 

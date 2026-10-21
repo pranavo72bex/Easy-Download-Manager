@@ -343,3 +343,54 @@ async fn subtitles_are_fetched_and_embedded_only_where_an_ffmpeg_can_embed_them(
         .expect("the hand-off failed");
     assert!(!recorded(&record).iter().any(|a| a.contains("subs")));
 }
+
+/// A watch page that refuses dm's own request (a 429 bot check) is
+/// yt-dlp's to try, and downloads through it; a page yt-dlp makes nothing
+/// of keeps the refusal; a file that refuses is not handed over at all.
+#[tokio::test]
+async fn a_page_refused_to_dm_is_handed_to_ytdlp() {
+    let _turn = ENV.lock().await;
+    let dir = tempdir();
+    let record = dir.path().join("argv");
+    std::env::set_var("DM_YTDLP", fake_ytdlp(dir.path()));
+    std::env::set_var("DM_FFMPEG", "");
+    std::env::set_var("DM_FAKE_RECORD", &record);
+    std::env::remove_var("DM_FAKE_FAIL");
+    let refuse = |status: u16| {
+        move || async move {
+            axum::response::Response::builder()
+                .status(status)
+                .body(axum::body::Body::from("unusual traffic"))
+                .unwrap()
+        }
+    };
+    let app = axum::Router::new()
+        .route("/watch", axum::routing::get(refuse(429)))
+        .route("/file.zip", axum::routing::get(refuse(403)));
+    let base = format!("http://{}", common::serve(app).await);
+    let once = Options {
+        attempts: 1,
+        ..options(dir.path())
+    };
+
+    let done = download(&client(), &format!("{base}/watch"), &once)
+        .await
+        .expect("the refused page, through yt-dlp");
+    assert_eq!(std::fs::read(&done.path).unwrap(), b"hello dash");
+    assert!(recorded(&record).iter().any(|a| a.ends_with("/watch")));
+
+    std::env::set_var("DM_FAKE_FAIL", "1");
+    match download(&client(), &format!("{base}/watch"), &once).await {
+        Err(dm_core::Error::Refused { status: 429, .. }) => {}
+        other => panic!("expected the 429, got {other:?}"),
+    }
+    std::env::remove_var("DM_FAKE_FAIL");
+    let _ = std::fs::remove_file(&record);
+    match download(&client(), &format!("{base}/file.zip"), &once).await {
+        Err(dm_core::Error::Refused { status: 403, .. }) => {}
+        other => panic!("expected the 403, got {other:?}"),
+    }
+    assert!(!record.exists(), "a refused file was handed to yt-dlp");
+    std::env::remove_var("DM_YTDLP");
+    std::env::remove_var("DM_FFMPEG");
+}

@@ -349,8 +349,12 @@ def main():
             if page["state"]["kind"] == "completed":
                 check("and the file it produced is the clip", pathlib.Path(page["path"]).read_bytes() == CLIP)
         else:
-            check("with no yt-dlp a player page is refused with the fix named",
-                  "install yt-dlp" in page["state"].get("reason", ""))
+            # None installed: dm fetches yt-dlp itself into its own folder.
+            exe = "yt-dlp.exe" if WINDOWS else "yt-dlp"
+            check("with no yt-dlp installed, dm fetches its own and the page downloads",
+                  (page["state"], (home / "tools" / exe).exists()), ({"kind": "completed"}, True))
+            if page["state"]["kind"] == "completed":
+                check("and the file it produced is the clip", pathlib.Path(page["path"]).read_bytes() == CLIP)
         stop(app, home)
         check("the lock is released when dm exits", not lock_is_held(home))
 

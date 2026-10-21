@@ -1068,3 +1068,19 @@ plays; MMS, which carries Windows Media, goes into its own container. A
 stream has no length and no position to resume from: progress is the
 bytes written, and a resume starts it again. ffmpeg cannot go through
 dm's proxy for these, so with one in force the download is refused.
+
+## yt-dlp and ffmpeg fetched by dm itself (2026-10-21)
+
+YouTube is to work out of the box, with nothing installed by hand. dm still
+writes no site logic of its own: it runs yt-dlp. Where the computer has no
+yt-dlp (or ffmpeg), the first video page that needs one has dm fetch it
+into `<dm home>/tools`, through dm's proxy like any download: yt-dlp's own
+standalone build from its GitHub releases, checked against the
+`SHA2-256SUMS` published with it (on macOS the unpacked build, which starts
+in 0.3 s where the single-file one took 8–14); ffmpeg as one file from
+ffmpeg-static's b6.1.1 release on GitHub, checked against digests written
+into dm, since that project publishes none. Fetched yt-dlp is fetched
+afresh once a week. One the person installed is preferred, wherever it is.
+Not bundled in the installers: a bundled yt-dlp goes stale between dm
+releases, and both would add 100–150 MB to every installer. Not written as
+dm's own extractor: that is the site logic this project does not write.

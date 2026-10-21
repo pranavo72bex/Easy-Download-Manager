@@ -26,6 +26,11 @@ fn free_port() -> u16 {
         .port()
 }
 
+/// The one test that times a download runs alone: eight swarms starting
+/// beside it took half the machine, and 4 MB at 512 KB/s came in past its
+/// bound one run in two (2026-10-21). The others share.
+static TIMING: tokio::sync::RwLock<()> = tokio::sync::RwLock::const_new(());
+
 async fn tracker_returning(peer: SocketAddr) -> SocketAddr {
     use axum::{extract::State, routing::get, Router};
     async fn announce(State(peer): State<SocketAddr>) -> axum::body::Bytes {
@@ -206,6 +211,7 @@ fn files_under(dir: &Path) -> Vec<PathBuf> {
 
 #[tokio::test(flavor = "multi_thread")]
 async fn magnet_link_downloads_from_the_swarm() {
+    let _shared = TIMING.read().await;
     let data = bytes(512 * 1024, 1);
     let s = swarm("magnet.bin", &[("magnet.bin", data.clone())]).await;
     let dir = tempdir();
@@ -222,6 +228,7 @@ async fn magnet_link_downloads_from_the_swarm() {
 
 #[tokio::test(flavor = "multi_thread")]
 async fn a_torrent_of_several_files_lands_as_a_folder() {
+    let _shared = TIMING.read().await;
     let a = bytes(300 * 1024, 2);
     let b = bytes(70 * 1024, 3);
     let s = swarm("album", &[("one.bin", a.clone()), ("two.bin", b.clone())]).await;
@@ -248,6 +255,7 @@ async fn a_torrent_of_several_files_lands_as_a_folder() {
 
 #[tokio::test(flavor = "multi_thread")]
 async fn a_checksum_is_checked_and_a_wrong_one_fails_and_removes() {
+    let _shared = TIMING.read().await;
     use sha2::Digest;
     let data = bytes(200 * 1024, 4);
     let s = swarm("sum.bin", &[("sum.bin", data.clone())]).await;
@@ -279,6 +287,7 @@ async fn a_checksum_is_checked_and_a_wrong_one_fails_and_removes() {
 
 #[tokio::test(flavor = "multi_thread")]
 async fn a_checksum_on_several_files_fails_rather_than_going_unchecked() {
+    let _shared = TIMING.read().await;
     let s = swarm(
         "tree",
         &[("a.bin", bytes(40_000, 5)), ("b.bin", bytes(40_000, 6))],
@@ -319,6 +328,7 @@ async fn a_checksum_on_several_files_fails_rather_than_going_unchecked() {
 
 #[tokio::test(flavor = "multi_thread")]
 async fn progress_is_reported_and_the_speed_limit_holds() {
+    let _alone = TIMING.write().await;
     let data = bytes(4 * 1024 * 1024, 7);
     let s = swarm("slow.bin", &[("slow.bin", data.clone())]).await;
     let dir = tempdir();
@@ -364,6 +374,7 @@ async fn progress_is_reported_and_the_speed_limit_holds() {
 
 #[tokio::test(flavor = "multi_thread")]
 async fn a_paused_torrent_resumes_from_its_files_on_disk() {
+    let _shared = TIMING.read().await;
     let data = bytes(3 * 1024 * 1024, 8);
     let s = swarm("pause.bin", &[("pause.bin", data.clone())]).await;
     let dir = tempdir();
@@ -399,6 +410,7 @@ async fn a_paused_torrent_resumes_from_its_files_on_disk() {
 
 #[tokio::test(flavor = "multi_thread")]
 async fn a_single_file_torrent_is_sorted_into_its_category_folder() {
+    let _shared = TIMING.read().await;
     let data = bytes(100 * 1024, 9);
     let s = swarm("clip.mp4", &[("clip.mp4", data.clone())]).await;
     let dir = tempdir();
@@ -421,6 +433,7 @@ async fn a_single_file_torrent_is_sorted_into_its_category_folder() {
 
 #[tokio::test(flavor = "multi_thread")]
 async fn a_magnet_through_the_queue_completes_and_removing_a_paused_one_clears_its_files() {
+    let _shared = TIMING.read().await;
     let data = bytes(256 * 1024, 10);
     let s = swarm("queued.bin", &[("queued.bin", data.clone())]).await;
     let dir = tempdir();
@@ -470,6 +483,7 @@ async fn a_magnet_through_the_queue_completes_and_removing_a_paused_one_clears_i
 
 #[tokio::test(flavor = "multi_thread")]
 async fn two_torrents_download_at_the_same_time() {
+    let _shared = TIMING.read().await;
     let a = bytes(400 * 1024, 20);
     let b = bytes(400 * 1024, 21);
     let sa = swarm("a.bin", &[("a.bin", a.clone())]).await;

@@ -393,6 +393,12 @@ impl World for Here<'_> {
             .build()
             .map_err(|e| e.to_string())?;
         let referrer = (!referrer.is_empty()).then_some(referrer);
+        // yt-dlp found, or fetched now by dm where the computer has none,
+        // through the same proxy the download will take.
+        let settings = saved(self.home);
+        if let Ok(client) = dm_core::proxy::client_with(&settings.proxy) {
+            runtime.block_on(dm_core::tools::for_video(&client))?;
+        }
         let listed = runtime
             .block_on(dm_core::ytdlp::list_choices(
                 url,
@@ -423,7 +429,8 @@ pub fn answer(
         // of it. Told now, the extension can say so.
         Ok(Asked::Hello) => Reply::Hello(Hello {
             engine_version: env!("CARGO_PKG_VERSION").into(),
-            ytdlp: Some(dm_core::ytdlp::available()),
+            // There, or fetched by dm when a page needs it (`tools`).
+            ytdlp: Some(dm_core::tools::video_possible()),
             // The extension hands a download the browser holds only to an
             // app that says it judges what it is served.
             protocol: Some(dm_protocol::PROTOCOL_VERSION),
@@ -638,6 +645,7 @@ fn checked(
 
 /// Runs as the browser's native messaging host until the browser closes it.
 pub fn run(home: &Path) {
+    dm_core::tools::set_folder(home.join("tools"));
     let mut input = std::io::stdin();
     let mut output = std::io::stdout();
     let mut here = Here {

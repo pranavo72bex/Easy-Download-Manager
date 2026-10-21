@@ -11,6 +11,18 @@ click it: it fetches the release's `latest.json` from GitHub. That request
 carries nothing about you or your downloads; GitHub sees an address asking
 for a public file, as it does for any download.
 
+## Getting the tools for video sites
+
+A video site's page (YouTube and the like) is downloaded with yt-dlp, and
+its picture and sound are joined with ffmpeg. If your computer has neither,
+dm fetches them the first time such a page needs them: yt-dlp's own build
+from yt-dlp's GitHub releases, and an ffmpeg build from GitHub, each checked
+against a published or built-in checksum before it is kept in dm's own
+folder. A yt-dlp fetched this way is fetched afresh once a week while it is
+in use. These requests, like any download, carry nothing about you; GitHub
+sees an address asking for a public file. A yt-dlp or ffmpeg you installed
+yourself is used instead, and then nothing is fetched.
+
 ## What the extension handles
 
 **Downloads your browser starts.** When the browser begins a download, the
@@ -83,5 +95,6 @@ the truth and the disagreement is a bug worth reporting.
 This is also checked, not only promised: `cargo xtask privacy` (in
 `desktop/`, and as a test in every build) fails if any crate that sends
 reports — analytics, crash reporting, telemetry — enters the build, or if
-shipped code names any address but the project's own GitHub release page.
-dm reaches that page only when you check for updates or open Help.
+shipped code names any address but GitHub's. dm reaches GitHub only when
+you check for updates or open Help, or to fetch yt-dlp and ffmpeg when a
+video page needs them and your computer has none.

@@ -37,7 +37,7 @@ pub fn available() -> bool {
 }
 
 /// Where yt-dlp actually is, resolved the same way `available` decides.
-fn binary() -> Option<PathBuf> {
+pub(crate) fn binary() -> Option<PathBuf> {
     which("yt-dlp")
 }
 
@@ -96,10 +96,13 @@ fn which(program: &str) -> Option<PathBuf> {
     } else {
         Vec::new()
     };
+    // Last, the copy dm fetched itself (`tools`): one the person installed
+    // is theirs to choose.
     find_in(
         on_path.into_iter().chain(usual).chain(windows),
         &names(program, cfg!(windows)),
     )
+    .or_else(|| crate::tools::fetched(program))
 }
 
 /// The file names a program goes by: on Windows its `.exe` (and `.com`),
