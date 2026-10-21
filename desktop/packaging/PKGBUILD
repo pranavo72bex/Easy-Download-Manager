@@ -34,7 +34,7 @@ optdepends=('yt-dlp: downloads from sites that serve video through a player'
 options=('!debug' '!lto')
 
 source=("$pkgname-$pkgver.tar.gz::$url/archive/refs/tags/desktop-v$pkgver.tar.gz")
-sha256sums=('SKIP')
+sha256sums=('15bcb30438d75e580cd28a8fe5d427f78abfb63da876aa058fd35a929fb79247')
 
 # The name GitHub gives the extracted tag archive, which is the repository
 # name and not the package name.
