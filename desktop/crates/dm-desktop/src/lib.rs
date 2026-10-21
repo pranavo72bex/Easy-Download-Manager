@@ -21,6 +21,7 @@ pub mod bidi;
 pub mod commands;
 pub mod control;
 pub mod dialogs;
+pub mod drops;
 pub mod format;
 pub mod i18n;
 pub mod icons;

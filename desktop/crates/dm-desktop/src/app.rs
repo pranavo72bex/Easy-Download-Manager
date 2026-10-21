@@ -3268,14 +3268,21 @@ impl DmApp {
     }
 
     fn take_drops(&mut self, ctx: &egui::Context) {
+        crate::drops::watch(ctx);
         let dropped = ctx.input(|i| i.raw.dropped_files.clone());
+        // Links dragged in from a browser, where the window system offers
+        // them (`drops`).
+        let texts = crate::drops::take();
         let mut links = Vec::new();
         for file in &dropped {
             links.extend(dropped_links(file.as_ref()));
         }
+        for text in &texts {
+            links.extend(links_in(text));
+        }
         if !links.is_empty() {
             let _ = self.add(&links, Default::default());
-        } else if !dropped.is_empty() {
+        } else if !dropped.is_empty() || !texts.is_empty() {
             // A drop with no link in it was ignored without a word (gap
             // 150). A link dragged from a browser does not reach dm at all
             // (the window system hands over files only), so the empty
