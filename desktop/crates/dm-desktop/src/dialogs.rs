@@ -151,6 +151,8 @@ pub struct LinksImport {
     /// can tick one again (round 15: they were added and failed).
     pub refused: std::collections::HashSet<String>,
     pub hide_html: bool,
+    /// File types to list alone, as typed ("zip pdf"); empty lists all.
+    pub types: String,
     pub found: std::sync::Arc<std::sync::Mutex<std::collections::HashMap<String, Found>>>,
 }
 
@@ -174,11 +176,41 @@ impl LinksImport {
                 .any(|e| last.ends_with(e))
     }
 
+    /// Whether the filters leave `url` in the list.
+    pub fn shown(&self, url: &str) -> bool {
+        if self.hide_html && self.is_html(url) {
+            return false;
+        }
+        let wanted: Vec<String> = self
+            .types
+            .split([' ', ',', ';'])
+            .map(|t| t.trim().trim_start_matches('.').to_ascii_lowercase())
+            .filter(|t| !t.is_empty())
+            .collect();
+        if wanted.is_empty() {
+            return true;
+        }
+        // By the name its server gave, or before it answers, its address.
+        let name = dm_core::lock(&self.found)
+            .get(url)
+            .map(|f| f.name.clone())
+            .filter(|n| !n.is_empty())
+            .unwrap_or_else(|| {
+                let path = url.split(['?', '#']).next().unwrap_or(url);
+                path.rsplit('/').next().unwrap_or_default().to_string()
+            });
+        let ext = name
+            .rsplit_once('.')
+            .map(|(_, e)| e.to_ascii_lowercase())
+            .unwrap_or_default();
+        wanted.contains(&ext)
+    }
+
     /// The links OK would add: checked, and shown.
     pub fn chosen(&self) -> Vec<String> {
         self.items
             .iter()
-            .filter(|(url, on)| *on && !(self.hide_html && self.is_html(url)))
+            .filter(|(url, on)| *on && self.shown(url))
             .map(|(url, _)| url.clone())
             .collect()
     }
@@ -598,6 +630,7 @@ impl Dialogs {
                 .collect(),
             listed,
             refused: Default::default(),
+            types: String::new(),
             hide_html: true,
             found,
         });
@@ -4548,32 +4581,52 @@ fn links(app: &mut DmApp, ctx: &egui::Context) {
         .show(ctx, |ui| {
             // The links listed, and the pages left out of the list said
             // so: "4 links" over three lines read as one lost (UI round 8).
-            let hidden = if d.hide_html {
+            let pages = if d.hide_html {
                 d.items.iter().filter(|(u, _)| d.is_html(u)).count()
             } else {
                 0
             };
+            let hidden = d.items.iter().filter(|(u, _)| !d.shown(u)).count();
             ui.label(tf(
                 "{} links on {}",
                 &[&(d.items.len() - hidden), &format::shown_url(&d.page)],
             ));
-            if hidden > 0 {
+            if pages > 0 {
                 ui.label(
                     RichText::new(crate::i18n::tn(
                         "{} web page hidden||{} web pages hidden",
-                        hidden as u64,
-                        &[&hidden],
+                        pages as u64,
+                        &[&pages],
                     ))
                     .weak(),
                 );
             }
             ui.horizontal(|ui| {
+                let name = ui.label(t("Only these types"));
+                ui.add(
+                    egui::TextEdit::singleline(&mut d.types)
+                        .hint_text(t("zip pdf mp4"))
+                        .desired_width(180.0),
+                )
+                .labelled_by(name.id);
+            });
+            ui.horizontal(|ui| {
                 check(ui, &mut d.hide_html, t("Hide HTML files"));
+                // Check all and Uncheck all act on what is listed.
+                let listed: Vec<bool> = d.items.iter().map(|(u, _)| d.shown(u)).collect();
                 if ui.button(t("Check all")).clicked() {
-                    d.items.iter_mut().for_each(|l| l.1 = true);
+                    for (l, shown) in d.items.iter_mut().zip(&listed) {
+                        if *shown {
+                            l.1 = true;
+                        }
+                    }
                 }
                 if ui.button(t("Uncheck all")).clicked() {
-                    d.items.iter_mut().for_each(|l| l.1 = false);
+                    for (l, shown) in d.items.iter_mut().zip(&listed) {
+                        if *shown {
+                            l.1 = false;
+                        }
+                    }
                 }
             });
             let found = dm_core::lock(&d.found).clone();
@@ -4584,8 +4637,7 @@ fn links(app: &mut DmApp, ctx: &egui::Context) {
                     *on = false;
                 }
             }
-            let hide = d.hide_html;
-            let html: Vec<bool> = d.items.iter().map(|(u, _)| d.is_html(u)).collect();
+            let listed: Vec<bool> = d.items.iter().map(|(u, _)| d.shown(u)).collect();
             egui::ScrollArea::vertical()
                 .max_height(320.0)
                 .show(ui, |ui| {
@@ -4597,8 +4649,8 @@ fn links(app: &mut DmApp, ctx: &egui::Context) {
                             ui.strong(t("Type"));
                             ui.strong(t("Size"));
                             ui.end_row();
-                            for ((url, on), is_html) in d.items.iter_mut().zip(html) {
-                                if hide && is_html {
+                            for ((url, on), shown) in d.items.iter_mut().zip(listed) {
+                                if !shown {
                                     continue;
                                 }
                                 let what = found.get(url.as_str());

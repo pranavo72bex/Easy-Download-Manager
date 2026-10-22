@@ -1109,6 +1109,26 @@ fn a_pages_links_open_the_download_links_dialog() {
     harness.run_steps(2);
     assert!(harness.query_by_label("256.0 KB").is_some());
 
+    // Only the types typed are listed, and only those are added.
+    hand_links(
+        &mut harness,
+        &world,
+        vec![world.url("file.zip"), world.url("other.pdf")],
+    );
+    type_into(&mut harness, "Only these types", "PDF");
+    // file.zip is in the list behind the dialog, so its line here is
+    // known by what follows its name.
+    assert!(harness
+        .query_by_label("file.zip (already in the list)")
+        .is_none());
+    let links = harness.state().dialogs.links.as_ref().unwrap();
+    assert!(!links.shown(&world.url("file.zip")));
+    assert!(links.shown(&world.url("other.pdf")));
+    click(&mut harness, "Check all");
+    let chosen = harness.state().dialogs.links.as_ref().unwrap().chosen();
+    assert_eq!(chosen, [world.url("other.pdf")]);
+    click(&mut harness, "Cancel");
+
     // OK's place is "Start now", and it starts them.
     hand_links(&mut harness, &world, vec![world.url("other.pdf")]);
     click(&mut harness, "Start now");
@@ -6540,6 +6560,7 @@ fn enter_starts_the_links_dialogs() {
         listed: Default::default(),
         refused: Default::default(),
         hide_html: true,
+        types: String::new(),
         found: Default::default(),
     });
     harness.run_steps(3);
