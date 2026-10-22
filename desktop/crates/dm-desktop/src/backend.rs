@@ -299,6 +299,29 @@ impl Backend {
         Ok(settings.clone())
     }
 
+    /// The folder Download details last saved a kind of file to, kept and
+    /// saved alone as Add URL's addresses are; `None` forgets it, for the
+    /// kind's own folder.
+    pub fn remember_folder(&self, kind: &str, folder: Option<String>) -> Result<Settings, String> {
+        let (mut on_disk, _) = Settings::load();
+        let set = |s: &mut Settings| match &folder {
+            Some(f) => {
+                s.last_folders.insert(kind.to_string(), f.clone());
+            }
+            None => {
+                s.last_folders.remove(kind);
+            }
+        };
+        set(&mut on_disk);
+        on_disk
+            .clamped()
+            .save()
+            .map_err(|e| format!("settings could not be saved: {e}"))?;
+        let mut settings = dm_core::lock(&self.settings);
+        set(&mut settings);
+        Ok(settings.clone())
+    }
+
     /// What went wrong that no row can carry, each handed over once.
     pub fn problems(&self) -> Vec<String> {
         let mut all = std::mem::take(&mut *dm_core::lock(&self.notices));

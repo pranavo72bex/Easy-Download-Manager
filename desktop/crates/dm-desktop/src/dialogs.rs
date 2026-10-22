@@ -70,6 +70,9 @@ pub struct FileInfo {
     /// whether a person typed in Save as since, which it then leaves alone.
     pub probed: Option<std::sync::Arc<std::sync::Mutex<Option<Probed>>>>,
     pub name_typed: bool,
+    /// The folder last used for this kind of file has been offered (once
+    /// the name says the kind), so clearing it is not undone.
+    pub folder_offered: bool,
 }
 
 /// What Download details learned by asking the server: the name the file
@@ -3100,6 +3103,20 @@ fn file_info(app: &mut DmApp, ctx: &egui::Context) {
             d.name = name.clone();
         }
     }
+    // The folder this kind of file went to last time, where it still is.
+    if !d.folder_offered && d.urls.len() == 1 && !d.name.trim().is_empty() {
+        d.folder_offered = true;
+        if d.folder.trim().is_empty() {
+            if let Some(last) = app
+                .applied
+                .last_folders
+                .get(kind_key(d.name.trim()))
+                .filter(|f| std::path::Path::new(f).is_dir())
+            {
+                d.folder = last.clone();
+            }
+        }
+    }
     // The name it will really get where its folder has one of that name
     // already: Save as said `big.zip` and the file came as `big (1).zip`
     // (UI round 10).
@@ -3363,6 +3380,18 @@ fn file_info(app: &mut DmApp, ctx: &egui::Context) {
         cookies_once: d.cookies_once,
     };
     let urls = d.urls.clone();
+    // Where this kind of file was put, for next time; the kind's own folder
+    // chosen again forgets it.
+    if urls.len() == 1 && !d.name.trim().is_empty() {
+        let kind = kind_key(d.name.trim());
+        let folder = Some(d.folder.trim().to_string()).filter(|f| !f.is_empty());
+        if app.applied.last_folders.get(kind) != folder.as_ref() {
+            match app.backend.remember_folder(kind, folder) {
+                Ok(now) => app.applied.last_folders = now.last_folders,
+                Err(e) => app.said = e.into(),
+            }
+        }
+    }
     // The size the dialog showed stays on the row until the row learns its
     // own: a row added for later had none to show (gap 167).
     let sizes: HashMap<String, u64> = urls
@@ -4354,6 +4383,13 @@ fn series(app: &mut DmApp, ctx: &egui::Context) {
         }
         Err(e) => d.says = series_error(e).to_string(),
     }
+}
+
+/// The key a file's kind is remembered under in `last_folders`.
+fn kind_key(name: &str) -> &'static str {
+    dm_core::category::by_name(name)
+        .unwrap_or(dm_core::Category::Other)
+        .folder()
 }
 
 /// Why a series cannot be made, in the language in force.

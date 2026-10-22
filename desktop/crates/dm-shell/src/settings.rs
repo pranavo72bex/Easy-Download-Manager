@@ -48,6 +48,12 @@ pub struct Settings {
     #[serde(default)]
     pub recent_urls: Vec<String>,
 
+    /// The folder last chosen in Download details for each kind of file,
+    /// by its folder name (`Category::folder`), offered first the next
+    /// time a file of that kind is added there.
+    #[serde(default)]
+    pub last_folders: std::collections::BTreeMap<String, String>,
+
     /// The download limit: no more than this many megabytes
     /// every `limit_hours` hours. Zero is none.
     pub limit_mb: u64,
@@ -243,6 +249,7 @@ impl Settings {
         }
         out.proxy.password.clear();
         out.recent_urls.clear();
+        out.last_folders.clear();
         serde_json::to_string_pretty(&out).unwrap_or_default()
     }
 
@@ -266,6 +273,7 @@ impl Settings {
             read.proxy.password = self.proxy.password.clone();
         }
         read.recent_urls = self.recent_urls.clone();
+        read.last_folders = self.last_folders.clone();
         // Never a program to run from someone else's file: the command run
         // after every download stays this computer's own, so a settings file
         // passed around cannot make dm start something.
@@ -322,6 +330,7 @@ impl Default for Settings {
             speed_limit: 0,
             last_speed_limit: 0,
             recent_urls: Vec::new(),
+            last_folders: Default::default(),
             limit_mb: 0,
             limit_hours: 1,
             categorize: true,
@@ -1349,6 +1358,7 @@ mod tests {
                 password: kept.clone(),
             }],
             recent_urls: vec!["https://e.com/a.zip".into()],
+            last_folders: [("Archives".to_string(), "/home/me/private zips".to_string())].into(),
             connections: 5,
             ..Settings::default()
         };
@@ -1358,6 +1368,10 @@ mod tests {
         let file = here.exported();
         assert!(!file.contains(&kept), "a password left in the file");
         assert!(!file.contains("e.com/a.zip"), "history left in the file");
+        assert!(
+            !file.contains("private zips"),
+            "a folder used left in the file"
+        );
         let mut elsewhere = Settings {
             site_logins: here.site_logins.clone(),
             ..Settings::default()

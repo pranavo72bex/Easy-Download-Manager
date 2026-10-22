@@ -1069,8 +1069,59 @@ fn open_with_asks_for_an_application_and_opens_the_file_with_it() {
     *world.fake.no_chooser.lock().unwrap() = false;
 }
 
+/// Download details offers the folder a kind of file was last put in, and
+/// only for that kind; choosing the kind's own folder again forgets it.
+#[test]
+fn download_details_offers_the_folder_last_used_for_that_kind() {
+    let _file = settings_file();
+    let world = world();
+    let mut harness = world.harness();
+    let folder = world.dir.path().join("my zips");
+    std::fs::create_dir_all(&folder).unwrap();
+    let details = |harness: &mut Harness<'_, DmApp>, url: String| {
+        harness.state_mut().dialogs.open_file_info(vec![url]);
+        harness.run_steps(2);
+        settle_details(harness);
+        harness.run_steps(2);
+        harness
+            .state()
+            .dialogs
+            .file_info
+            .as_ref()
+            .map(|d| d.folder.clone())
+            .unwrap()
+    };
+    assert_eq!(details(&mut harness, world.url("file.zip")), "");
+    type_into(&mut harness, "Save to folder", &folder.to_string_lossy());
+    click(&mut harness, "Add for later");
+    assert_eq!(
+        harness.state().applied.last_folders.get("Archives"),
+        Some(&folder.to_string_lossy().to_string())
+    );
+    // A document is not an archive.
+    assert_eq!(details(&mut harness, world.url("other.pdf")), "");
+    click(&mut harness, "Cancel");
+    // The next archive is offered it, and saved there.
+    let offered = details(&mut harness, world.url("file.zip"));
+    assert_eq!(offered, folder.to_string_lossy());
+    // Its own folder chosen again: forgotten.
+    harness
+        .state_mut()
+        .dialogs
+        .file_info
+        .as_mut()
+        .unwrap()
+        .folder
+        .clear();
+    harness.run_steps(2);
+    click(&mut harness, "Add for later");
+    assert!(harness.state().applied.last_folders.is_empty());
+}
+
 #[test]
 fn the_file_info_dialog_puts_the_file_where_and_as_what_it_says() {
+    // Its folder is remembered for the kind, in the settings file.
+    let _file = settings_file();
     let world = world();
     let mut harness = world.harness();
     click(&mut harness, "Add URL");
