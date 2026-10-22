@@ -259,6 +259,7 @@
  "The dm update is downloaded and checked.": "Обновление dm загружено и проверено.",
  "The new installer is downloading; dm offers to install it once it is checked.": "Новый установщик загружается; dm предложит установить его после проверки.",
  "This computer has no way to do that when the downloads are done.": "Этот компьютер не умеет делать это по окончании загрузок.",
+ "this video is copy-protected (DRM); only the site's own player can play it, and dm does not download it": "это видео защищено от копирования (DRM); воспроизвести его может только плеер сайта, и dm его не загружает",
  "zip pdf mp4": "zip pdf mp4",
  "{} shown||{} shown": "{} показан||{} показаны||{} показано",
  "{} so far": "пока {}",

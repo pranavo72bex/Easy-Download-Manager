@@ -266,7 +266,7 @@ pub fn titled(word: &str) -> String {
 /// one for what the network library says in its own terms ("error decoding
 /// response body" is a connection cut mid-file). The first that matches
 /// wins; anything else is shown as the engine said it.
-pub const REASONS: [(&[&str], &str); 27] = [
+pub const REASONS: [(&[&str], &str); 28] = [
     (
         &[
             "error decoding response body",
@@ -300,6 +300,10 @@ pub const REASONS: [(&[&str], &str); 27] = [
     (
         &["certificate"],
         "the server's security certificate could not be checked",
+    ),
+    (
+        &["copy-protected", "drm protected"],
+        "this video is copy-protected (DRM); only the site's own player can play it, and dm does not download it",
     ),
     (
         &["no space left", "os error 28", "disk full"],

@@ -806,6 +806,13 @@ pub fn human_size(bytes: u64) -> String {
     }
 }
 
+/// What the panel says over a copy-protected player (one the page plays
+/// through the browser's DRM, EME): offered nothing, and said so, rather
+/// than handing over something that could only fail or come out scrambled.
+pub const PROTECTED_TITLE: &str = "Protected video";
+pub const PROTECTED_SAID: &str =
+    "This video is copy-protected, so only the site's own player can play it. dm does not download protected video.";
+
 /// The message type a panel click is sent as.
 pub const PANEL_MESSAGE: &str = "dm.media";
 

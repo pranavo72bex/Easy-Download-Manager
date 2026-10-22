@@ -259,6 +259,7 @@
  "The dm update is downloaded and checked.": "Aktualizacja dm jest pobrana i sprawdzona.",
  "The new installer is downloading; dm offers to install it once it is checked.": "Nowy instalator jest pobierany; dm zaproponuje instalację, gdy zostanie sprawdzony.",
  "This computer has no way to do that when the downloads are done.": "Ten komputer nie potrafi tego zrobić po zakończeniu pobierania.",
+ "this video is copy-protected (DRM); only the site's own player can play it, and dm does not download it": "ten film jest zabezpieczony przed kopiowaniem (DRM); odtworzy go tylko odtwarzacz witryny, a dm go nie pobiera",
  "zip pdf mp4": "zip pdf mp4",
  "{} shown||{} shown": "{} widoczny||{} widoczne||{} widocznych",
  "{} so far": "{} do tej pory",

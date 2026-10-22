@@ -259,6 +259,7 @@
  "The dm update is downloaded and checked.": "Pembaruan dm sudah diunduh dan diperiksa.",
  "The new installer is downloading; dm offers to install it once it is checked.": "Penginstal baru sedang diunduh; dm menawarkan untuk memasangnya setelah diperiksa.",
  "This computer has no way to do that when the downloads are done.": "Komputer ini tidak bisa melakukan itu saat unduhan selesai.",
+ "this video is copy-protected (DRM); only the site's own player can play it, and dm does not download it": "video ini dilindungi salinan (DRM); hanya pemutar situs itu sendiri yang bisa memutarnya, dan dm tidak mengunduhnya",
  "zip pdf mp4": "zip pdf mp4",
  "{} shown||{} shown": "{} ditampilkan",
  "{} so far": "{} sejauh ini",

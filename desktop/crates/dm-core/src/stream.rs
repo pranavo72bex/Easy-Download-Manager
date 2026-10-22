@@ -422,6 +422,15 @@ pub fn media_playlist(
             let uri = attribute(row, "URI").ok_or_else(|| {
                 Error::Internal("the stream is encrypted but names no key".into())
             })?;
+            /* Plain AES-128 is HLS's own scrambling, its key handed to any
+             * player that asks, as every player and ffmpeg read it. A key
+             * kept by a rights system (FairPlay's skd://, Widevine's or
+             * PlayReady's key formats) is copy protection, and dm does not
+             * get around copy protection: the stream is refused. */
+            let format = attribute(row, "KEYFORMAT").unwrap_or_default();
+            if protected_key(&format, &uri) {
+                return Err(Error::Internal(PROTECTED.into()));
+            }
             key = Some(Key {
                 uri: join(url, &uri)?,
                 iv: attribute(row, "IV"),
@@ -612,6 +621,20 @@ pub fn iv_for(key: &Key, sequence: u64) -> [u8; 16] {
     }
     iv[8..].copy_from_slice(&sequence.to_be_bytes());
     iv
+}
+
+/// What a copy-protected stream is told.
+pub const PROTECTED: &str =
+    "this video is copy-protected (DRM), so only the site's own player can play it; dm does not download it";
+
+/// Whether an HLS key belongs to a rights system rather than to HLS's own
+/// scrambling: any key format but `identity`, or a key address that is not
+/// one dm can fetch (FairPlay's `skd://`, a `data:` licence blob).
+fn protected_key(format: &str, uri: &str) -> bool {
+    let format = format.trim();
+    let uri = uri.trim().to_ascii_lowercase();
+    (!format.is_empty() && !format.eq_ignore_ascii_case("identity"))
+        || !(uri.starts_with("http://") || uri.starts_with("https://") || !uri.contains(':'))
 }
 
 /// Decrypts one segment in place, AES-128-CBC with PKCS#7 padding.
@@ -1022,6 +1045,34 @@ mod tests {
         ] {
             assert_eq!(name_for(url, "ts"), expected, "for {url}");
         }
+    }
+
+    #[test]
+    fn a_rights_system_key_is_refused_as_copy_protection() {
+        for (format, uri) in [
+            ("com.apple.streamingkeydelivery", "skd://key"),
+            ("", "skd://key"),
+            (
+                "urn:uuid:edef8ba9-79d6-4ace-a3c8-27dcd51d21ed",
+                "data:text/plain;base64,AAAA",
+            ),
+            ("com.microsoft.playready", "https://lic.example/k"),
+        ] {
+            assert!(protected_key(format, uri), "{format} {uri}");
+        }
+        assert!(!protected_key("", "https://e.com/k.key"));
+        assert!(!protected_key("identity", "key.bin"));
+        let playlist = "#EXTM3U\n#EXT-X-KEY:METHOD=AES-128,URI=\"skd://x\",KEYFORMAT=\"com.apple.streamingkeydelivery\"\na.ts\n";
+        let refused = media_playlist(
+            playlist,
+            "https://e.com/v.m3u8",
+            "https://e.com/v.m3u8",
+            Quality::Best,
+        )
+        .err()
+        .map(|e| e.to_string())
+        .unwrap_or_default();
+        assert!(refused.contains("copy-protected"), "{refused}");
     }
 
     #[test]

@@ -259,6 +259,7 @@
  "The dm update is downloaded and checked.": "dm güncellemesi indirildi ve doğrulandı.",
  "The new installer is downloading; dm offers to install it once it is checked.": "Yeni yükleyici indiriliyor; doğrulandığında dm kurmayı önerecek.",
  "This computer has no way to do that when the downloads are done.": "Bu bilgisayar indirmeler bitince bunu yapamaz.",
+ "this video is copy-protected (DRM); only the site's own player can play it, and dm does not download it": "bu video kopya korumalı (DRM); yalnızca sitenin kendi oynatıcısı oynatabilir ve dm onu indirmez",
  "zip pdf mp4": "zip pdf mp4",
  "{} shown||{} shown": "{} gösteriliyor",
  "{} so far": "şu ana kadar {}",

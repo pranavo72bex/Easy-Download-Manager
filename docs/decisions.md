@@ -3,6 +3,20 @@
 Decisions that shape dm and are not obvious from the code, newest first. Each says what was decided and why, so a later change
 can see what it is undoing.
 
+## 2026-10-22: dm does not get around copy protection
+
+dm has no DRM remover and never will: no licence-server requests, no key
+extraction, no content-decryption-module hooks. What it decrypts is HLS's
+own AES-128 scrambling, whose key the server hands to any player that asks
+(as every player and ffmpeg read it). A stream whose key belongs to a rights
+system is refused as copy-protected: SAMPLE-AES, any `KEYFORMAT` other than
+`identity` (FairPlay, Widevine, PlayReady), or a key address dm could only
+reach through one (`skd://`, a `data:` licence). yt-dlp is never given
+`--allow-unplayable-formats`, and its own "DRM protected" refusal reaches the
+row in plain words. In the browser, a player the page plays through EME (its
+`mediaKeys` set) gets a "Protected video" bar that says dm does not download
+protected video and hands nothing over.
+
 ## 2026-10-17: A key is taken by the command that asks for the most modifiers
 
 egui matches a shortcut ignoring an extra Shift, so ⌘N matched ⌘⇧N and Add

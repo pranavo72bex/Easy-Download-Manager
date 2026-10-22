@@ -470,6 +470,10 @@ fn show(element: &Element) -> bool {
     let Some(offer) = decide::offer(&media) else {
         return false;
     };
+    // Played through the browser's DRM: a `mediaKeys` is set on it.
+    let protected = Reflect::get(element, &"mediaKeys".into())
+        .ok()
+        .is_some_and(|keys| !keys.is_null() && !keys.is_undefined());
     let Some(window) = window() else {
         return false;
     };
@@ -505,8 +509,17 @@ fn show(element: &Element) -> bool {
             // A new player: a fresh offer, whatever the last one said.
             p.settled = false;
             p.wrap.set_class_name("wrap");
-            p.title.set_text_content(Some(offer.title));
-            if offer.page {
+            p.title.set_text_content(Some(if protected {
+                decide::PROTECTED_TITLE
+            } else {
+                offer.title
+            }));
+            if protected {
+                let _ = p.go.set_attribute("data-protected", "");
+            } else {
+                let _ = p.go.remove_attribute("data-protected");
+            }
+            if offer.page && !protected {
                 let _ = p.go.set_attribute("aria-haspopup", "menu");
                 let _ = p.go.set_attribute("aria-expanded", "false");
             } else {
@@ -515,7 +528,7 @@ fn show(element: &Element) -> bool {
             }
             // Where it comes from, on hover; the bar says nothing more.
             let _ = p.go.set_attribute("title", &offer.sub);
-            if offer.page {
+            if offer.page && !protected {
                 let _ = p.caret.remove_attribute("hidden");
             } else {
                 let _ = p.caret.set_attribute("hidden", "");
@@ -1236,6 +1249,18 @@ fn text_of(reply: &JsValue, key: &str) -> String {
 /// page's qualities are asked of the app first and, when there is more than
 /// one, listed with their sizes.
 fn clicked() {
+    // A copy-protected player: said, and nothing handed over.
+    if with_panel(|p| {
+        let protected = p.go.has_attribute("data-protected");
+        if protected {
+            say(p, decide::PROTECTED_SAID);
+        }
+        protected
+    })
+    .unwrap_or(false)
+    {
+        return;
+    }
     let Some((src, frame)) = asking() else {
         return;
     };
