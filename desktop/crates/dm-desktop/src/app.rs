@@ -163,6 +163,19 @@ pub fn category_word(c: Category) -> String {
 
 /// The name a row is shown by: the file's, or a guess at it until the
 /// server says.
+/// Whether `row` failed as a link that has run out does: refused (403,
+/// 404 or 410) by its server after part of it had arrived, where the same
+/// address worked a moment before.
+pub fn link_expired(row: &Entry) -> bool {
+    let State::Failed(why) = &row.state else {
+        return false;
+    };
+    row.progress.downloaded > 0
+        && ["answered 403", "answered 404", "answered 410"]
+            .iter()
+            .any(|code| why.contains(code))
+}
+
 pub fn name_of(row: &Entry) -> String {
     if !row.filename.is_empty() {
         return row.filename.clone();
@@ -1173,6 +1186,7 @@ impl DmApp {
 
         let mut finished = Vec::new();
         let mut failed = Vec::new();
+        let mut expired = Vec::new();
         for row in &self.rows {
             // Once per failure: a row retried and back in line is told
             // again when it fails again.
@@ -1184,6 +1198,9 @@ impl DmApp {
                 && self.notify_ready
             {
                 failed.push(row.id);
+                if link_expired(row) {
+                    expired.push(row.id);
+                }
                 // Told as a finish is, with why in plain words: a failure
                 // was only a sound, if that was on (QA pass, 2026-10-22).
                 self.backend.platform.notify(
@@ -1219,6 +1236,17 @@ impl DmApp {
                 // In place of its progress window.
                 self.dialogs.progress.remove(&id);
                 self.dialogs.complete.insert(id);
+            }
+        }
+        // A link that stopped working part-way, as signed links run out:
+        // asked for a fresh one at once, which goes on from the parts
+        // already here, rather than left for a person to know of Update
+        // download link. Not over another dialog; the row's own failure
+        // says Retry, and the row menu has it, either way.
+        if let Some(id) = expired.first() {
+            if !self.headless && !self.dialogs.in_front() && self.dialogs.update_link.is_none() {
+                self.dialogs.focus_on("Update download link");
+                self.dialogs.update_link = Some((*id, String::new(), String::new()));
             }
         }
         // A download that started without the window starting it — handed

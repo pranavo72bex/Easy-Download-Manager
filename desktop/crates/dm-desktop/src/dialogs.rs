@@ -5093,7 +5093,14 @@ fn update_link(app: &mut DmApp, ctx: &egui::Context) {
     open &= !cancel;
     if ok && open {
         match app.backend.set_url(*id, address) {
-            Ok(()) => open = false,
+            Ok(()) => {
+                open = false;
+                // A download that failed for want of it goes on, from the
+                // parts it has.
+                if matches!(row.state, State::Failed(_)) {
+                    app.backend.retry(*id);
+                }
+            }
             Err(e) => *says = e,
         }
     }

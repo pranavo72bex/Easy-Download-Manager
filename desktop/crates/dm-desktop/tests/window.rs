@@ -254,6 +254,81 @@ fn world() -> World {
                     .unwrap()
             }),
         );
+        // A signed link that runs out part-way: asked from the start, it
+        // sends a fifth of a million bytes and is cut (more than the 64 KiB
+        // a resume fetches again to check); asked to go on from part-way,
+        // it has expired.
+        let app = app.route(
+            "/expires.bin",
+            axum::routing::get(|headers: axum::http::HeaderMap| async move {
+                let from_start = headers
+                    .get("range")
+                    .and_then(|r| r.to_str().ok())
+                    .is_none_or(|r| r.starts_with("bytes=0-"));
+                if !from_start {
+                    return Response::builder()
+                        .status(403)
+                        .body(Body::from("Request has expired"))
+                        .unwrap();
+                }
+                // The engine's first look: one byte, and the size.
+                if headers.get("range").is_some_and(|r| r == "bytes=0-0") {
+                    return Response::builder()
+                        .status(206)
+                        .header("content-range", "bytes 0-0/1000000")
+                        .header("accept-ranges", "bytes")
+                        .body(Body::from(vec![7u8]))
+                        .unwrap();
+                }
+                use futures_util::StreamExt;
+                // The bytes first, and the cut a moment after, as a
+                // connection that drops does.
+                let some = futures_util::stream::iter([true, false]).then(|bytes| async move {
+                    if bytes {
+                        Ok::<Vec<u8>, std::io::Error>(vec![7u8; 200_000])
+                    } else {
+                        tokio::time::sleep(Duration::from_millis(100)).await;
+                        Err(std::io::Error::other("cut"))
+                    }
+                });
+                Response::builder()
+                    .status(if headers.contains_key("range") { 206 } else { 200 })
+                    .header("content-length", "1000000")
+                    .header("content-range", "bytes 0-999999/1000000")
+                    .header("accept-ranges", "bytes")
+                    .body(Body::from_stream(some))
+                    .unwrap()
+            }),
+        );
+        // The same file at a fresh link, whole and in ranges.
+        let app = app.route(
+            "/renewed.bin",
+            axum::routing::get(|headers: axum::http::HeaderMap| async move {
+                const SIZE: usize = 1_000_000;
+                let range = headers
+                    .get("range")
+                    .and_then(|r| r.to_str().ok())
+                    .and_then(|r| r.strip_prefix("bytes="))
+                    .and_then(|r| r.split_once('-'))
+                    .and_then(|(a, b)| {
+                        let a: usize = a.parse().ok()?;
+                        let b: usize = b.parse().unwrap_or(SIZE - 1).min(SIZE - 1);
+                        (a <= b).then_some((a, b))
+                    });
+                match range {
+                    Some((a, b)) => Response::builder()
+                        .status(206)
+                        .header("content-range", format!("bytes {a}-{b}/{SIZE}"))
+                        .header("accept-ranges", "bytes")
+                        .body(Body::from(vec![7u8; b - a + 1]))
+                        .unwrap(),
+                    None => Response::builder()
+                        .header("accept-ranges", "bytes")
+                        .body(Body::from(vec![7u8; SIZE]))
+                        .unwrap(),
+                }
+            }),
+        );
         let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
         let addr = listener.local_addr().unwrap();
         tokio::spawn(async move { axum::serve(listener, app).await.unwrap() });
@@ -7214,6 +7289,56 @@ fn the_lists_bar_stays_in_view_when_the_columns_run_past_it() {
         moved < top - 100.0,
         "the list did not scroll: {top} to {moved}"
     );
+}
+
+/// A link that runs out part-way asks for a fresh one at once, and the
+/// fresh one goes on from the parts already fetched.
+#[test]
+fn a_link_that_runs_out_part_way_asks_for_a_fresh_one() {
+    let world = world();
+    let mut harness = Harness::builder()
+        .with_size(egui::vec2(1100.0, 720.0))
+        .build_ui_state(
+            |ui, app: &mut DmApp| app.ui(ui),
+            world.app_with(Settings {
+                download_dir: world.dir.path().join("out"),
+                connections: 1,
+                attempts: 3,
+                retry_wait: 0,
+                show_progress: false,
+                show_complete: false,
+                language: "en".into(),
+                ..Settings::default()
+            }),
+        );
+    harness
+        .state()
+        .backend()
+        .add(&world.url("expires.bin"))
+        .unwrap();
+    until(&mut harness, "the expired link to fail", |app| {
+        app.rows()
+            .iter()
+            .any(|r| matches!(r.state, State::Failed(_)))
+    });
+    let row = harness.state().rows()[0].clone();
+    assert!(dm_desktop::app::link_expired(&row), "{:?}", row.state);
+    harness.run_steps(3);
+    assert!(
+        harness.query_by_label("Update download link").is_some(),
+        "no fresh link asked for"
+    );
+    // The fresh link to the same file: it goes on, and finishes whole.
+    type_into(&mut harness, "New address", &world.url("renewed.bin"));
+    click(&mut harness, "OK");
+    assert!(harness.state().dialogs.update_link.is_none());
+    until(&mut harness, "the download to finish", |app| {
+        app.rows().iter().any(|r| r.state == State::Completed)
+    });
+    let row = harness.state().rows()[0].clone();
+    let bytes = std::fs::read(&row.path).unwrap();
+    assert_eq!(bytes.len(), 1_000_000);
+    assert!(bytes.iter().all(|b| *b == 7));
 }
 
 /// Gap 153: a failed row's status is a plain reason, in Properties held to
