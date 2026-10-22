@@ -60,9 +60,11 @@
     // A magnet link is the app's, as a clicked .torrent is: it went to
     // whatever the system opens magnets with, never dm on macOS or
     // Windows. The background gives it back to the browser when the app
-    // cannot take it. Not with the keep key held, nor in a private window.
+    // cannot take it. Not with the keep key held, nor in a private window,
+    // nor for a click a page's script made up: a person's click only, or
+    // any page could hand dm a torrent to fetch.
     const magnet = event.target.closest('a[href]');
-    if (magnet && event.button === 0 && catchingNow() && !privateTab && !held(event, keys.keep)
+    if (magnet && event.isTrusted && event.button === 0 && catchingNow() && !privateTab && !held(event, keys.keep)
         && /^magnet:\?/i.test(String(magnet.href))) {
       event.preventDefault();
       try {
