@@ -1341,7 +1341,17 @@ impl DmApp {
     /// A video the browser's panel handed over: "Download details",
     /// one at a time. With no window to ask in, it is simply added.
     pub fn take_handed(&mut self) {
-        let ask = !self.headless && self.applied.ask_panel_downloads;
+        // A caught download by its own setting, the panel's and menus' by
+        // theirs.
+        let caught = dm_core::lock(&self.backend.handed)
+            .front()
+            .is_some_and(|r| r.caught);
+        let ask = !self.headless
+            && if caught {
+                self.applied.ask_caught_downloads
+            } else {
+                self.applied.ask_panel_downloads
+            };
         if ask && (self.dialogs.file_info.is_some() || self.dialogs.links.is_some()) {
             return;
         }

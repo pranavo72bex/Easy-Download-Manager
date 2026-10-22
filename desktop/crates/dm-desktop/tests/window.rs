@@ -824,6 +824,47 @@ fn a_video_from_the_browsers_panel_opens_download_file_info_with_its_quality() {
     assert_eq!(row.referrer, "https://video.example/watch");
 }
 
+/// A download caught from the browser opens Download details where
+/// Options says so, and starts at once where it does not, whatever the
+/// panel's own setting.
+#[test]
+fn a_caught_download_asks_where_to_save_by_its_own_setting() {
+    let world = world();
+    let mut harness = world.harness();
+    let caught = |harness: &mut Harness<'_, DmApp>, name: &str| {
+        harness
+            .state()
+            .backend()
+            .handed
+            .lock()
+            .unwrap()
+            .push_back(dm_shell::host::Request {
+                url: world.url(name),
+                referrer: "https://e.com/page".into(),
+                ask: true,
+                caught: true,
+                ..Default::default()
+            });
+        harness.state_mut().take_handed();
+        harness.run_steps(3);
+    };
+    harness.state_mut().applied.ask_panel_downloads = false;
+    harness.state_mut().applied.ask_caught_downloads = true;
+    caught(&mut harness, "file.zip");
+    assert!(harness.query_by_label("Download details").is_some());
+    assert!(harness.state().rows().is_empty(), "started before asking");
+    click(&mut harness, "Start now");
+    harness.state_mut().refresh();
+    assert_eq!(harness.state().rows().len(), 1);
+
+    harness.state_mut().applied.ask_panel_downloads = true;
+    harness.state_mut().applied.ask_caught_downloads = false;
+    caught(&mut harness, "other.pdf");
+    assert!(harness.state().dialogs.file_info.is_none());
+    harness.state_mut().refresh();
+    assert_eq!(harness.state().rows().len(), 2, "not started at once");
+}
+
 /// The places' groups open and shut from their own row, as a navigation
 /// view's expandable items do.
 #[test]

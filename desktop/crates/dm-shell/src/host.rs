@@ -48,6 +48,10 @@ pub struct Request {
     /// video from the browser's panel.
     #[serde(default, skip_serializing_if = "std::ops::Not::not")]
     pub ask: bool,
+    /// Caught by the browser extension, rather than asked for from its
+    /// panel or menu: which of Options' two "ask" settings governs it.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub caught: bool,
     /// A page's links, for the app's "Download all links" dialog.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub links: Vec<String>,
@@ -606,7 +610,9 @@ pub fn answer(
                         referrer,
                         quality: quality.filter(|q| !q.trim().is_empty()),
                         label,
-                        ask,
+                        // A caught download asks too, where Options says so.
+                        ask: ask || (caught && saved(home).ask_caught_downloads),
+                        caught,
                         cookies: cookies.trim().to_string(),
                         cookies_once: cookies_once && !cookies.trim().is_empty(),
                         ..Request::default()
@@ -1268,6 +1274,33 @@ mod tests {
             }))
         );
         assert!(dir.path().join("settings.json").exists());
+    }
+
+    #[test]
+    fn a_caught_download_asks_where_to_save_only_where_options_say() {
+        let filed = |home: &Path, id: &str| -> Request {
+            let (reply, _) = ask(home, start(id, "https://e.com/a.zip"), true, Ok(()));
+            assert_eq!(reply, Some(Reply::Started { id: id.into() }));
+            serde_json::from_str(
+                &std::fs::read_to_string(inbox(home).join(format!("{id}.json"))).unwrap(),
+            )
+            .unwrap()
+        };
+        // A new install asks.
+        let home = tempfile::tempdir().unwrap();
+        let new = filed(home.path(), "c1");
+        assert!(new.caught && new.ask);
+        // A settings file from before the choice existed keeps downloads
+        // starting at once, as they did.
+        std::fs::write(home.path().join("settings.json"), r#"{"connections":4}"#).unwrap();
+        let old = filed(home.path(), "c2");
+        assert!(old.caught && !old.ask);
+        std::fs::write(
+            home.path().join("settings.json"),
+            r#"{"ask_caught_downloads":true}"#,
+        )
+        .unwrap();
+        assert!(filed(home.path(), "c3").ask);
     }
 
     #[test]

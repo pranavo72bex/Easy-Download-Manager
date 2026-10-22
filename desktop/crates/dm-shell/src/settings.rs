@@ -113,6 +113,11 @@ pub struct Settings {
     pub sound_on_complete: bool,
     /// A video from the browser's panel: "Download details" opens for it, to name it and choose where it goes, before it starts.
     pub ask_panel_downloads: bool,
+    /// A download caught from the browser: "Download details" opens for it
+    /// too, rather than it starting at once. On for a new install; a
+    /// settings file written before it existed keeps downloads starting.
+    #[serde(default)]
+    pub ask_caught_downloads: bool,
     /// The window's look: "system" (the modern look, light or dark as the computer
     /// is), "light", "dark", or "classic" (a classic Windows look).
     pub theme: String,
@@ -348,6 +353,7 @@ impl Default for Settings {
             show_complete: true,
             sound_on_complete: false,
             ask_panel_downloads: true,
+            ask_caught_downloads: true,
             theme: "system".into(),
             double_click: "properties".into(),
             server_dates: false,

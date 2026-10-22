@@ -5438,6 +5438,11 @@ fn options(app: &mut DmApp, ctx: &egui::Context) {
                 );
                 check(
                     ui,
+                    &mut s.ask_caught_downloads,
+                    t("Ask where to save a download taken from the browser"),
+                );
+                check(
+                    ui,
                     &mut s.server_dates,
                     t("Give a finished file the date its server says it last changed"),
                 );

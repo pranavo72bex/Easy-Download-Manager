@@ -82,7 +82,9 @@ and is not carried over.
       listed type caught and an unlisted one, and one the app's settings
       leave out, finished in the browser
 - [x] Intercept download links — a clicked link's download is paused, handed
-      over, and cancelled and erased in the browser once the app has it:
+      over, and cancelled and erased in the browser once the app has it; on
+      a new install the app opens Download details for it first (Options ›
+      General turns that off, and an older install keeps starting at once):
       `chrome-check.py`, file byte-exact in dm's folder, the browser's list
       and folder empty
 - [x] Send downloads to desktop application — over native messaging with the
