@@ -83,8 +83,8 @@ pub struct Options {
     /// Sites `proxy` is not used for; see `Proxy::bypass`. The client
     /// already knows them; the tools and the FTP client are told here.
     pub proxy_bypass: Vec<String>,
-    /// Ask yt-dlp for a video's subtitles and carry them inside the video:
-    /// embedded by an ffmpeg where there is one, else by dm (`subtitles`).
+    /// Ask yt-dlp for a video's subtitles and carry them inside the video,
+    /// put there by dm (`subtitles`).
     pub subtitles: bool,
     /// The site's sign-in the browser handed over with this download, sent
     /// to that server only.
@@ -101,8 +101,8 @@ pub struct Options {
     /// around it.
     pub system_proxy: bool,
     /// Put a stream that arrives as a transport stream (`.ts`) into an MP4,
-    /// losslessly: H.264 and AAC by dm itself, anything else where an
-    /// ffmpeg is there to do it. Players open an MP4; few open a `.ts`.
+    /// losslessly, by dm itself (`tsmux`); a stream in a format it does not
+    /// put into one stays a `.ts`. Players open an MP4; few open a `.ts`.
     pub remux: bool,
     /// Give a finished file the date the server says it last changed
     /// (`Last-Modified`) rather than when it was fetched.
@@ -461,8 +461,8 @@ async fn fetch_reporting(
      * it takes a path of its own rather than being fetched as the few
      * kilobytes of text it literally is. */
     /* A DASH manifest routinely carries picture and sound as separate
-     * representations, and joining them needs a muxer. yt-dlp has one — it
-     * reads MPDs natively and merges with ffmpeg — so where it is installed a
+     * representations, and joining them needs a muxer. yt-dlp reads MPDs
+     * natively and dm joins what it fetches — so where yt-dlp is there a
      * DASH stream is handed to it, the way a player page is. Without it the
      * manifest is refused plainly rather than fetched by half: only the
      * video, reported as a success, is a silent film. Decided once, here,
@@ -2386,8 +2386,8 @@ const GATHERED: &str = "joined.ts";
 const REMUXED: &str = "joined.mp4";
 
 /// Puts the segments of a `.ts` stream into one MP4, copying the picture
-/// and sound as they are: by dm itself (`tsmux`, H.264 and AAC), else by an
-/// ffmpeg where there is one. `None` where that is not asked for or not
+/// and sound as they are, by dm itself (`tsmux`, H.264 and AAC). `None`
+/// where that is not asked for or not
 /// possible (a digest that names the `.ts` bytes, another container), in
 /// which case the parts are left for the ordinary join; the gathered `.ts`
 /// where neither could: a stream a person can play as `.ts` beats no stream.

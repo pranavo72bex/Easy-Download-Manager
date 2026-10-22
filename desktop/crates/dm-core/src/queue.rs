@@ -357,7 +357,7 @@ pub struct Queue {
 }
 
 /// Whether the queue will take this URL: something the HTTP engine can fetch,
-/// or the FTP, torrent or stream (ffmpeg) one can. Anything else is refused before it
+/// or the FTP, torrent or live-stream one can. Anything else is refused before it
 /// becomes a row that could only ever fail.
 ///
 /// Public so the native host can answer a browser with the same rule: it
@@ -1646,7 +1646,7 @@ impl Queue {
                     }
                 }
                 // The cancel removed the parts while this run still held
-                // some open — ffmpeg's, during a remux — and on Windows an
+                // some open — a helper's, such as yt-dlp's — and on Windows an
                 // open file cannot be deleted. Now the run has let go,
                 // whatever is left goes.
                 let leftover = PathBuf::from(&slot.entry.parts_dir);

@@ -9394,8 +9394,8 @@ fn options_tabs_fit_at_150_percent() {
 }
 
 /// A stream server's address goes in through Add URL like any other, is
-/// named as it will be saved, and is queued; ffmpeg fetches it (the engine's
-/// `tests/live.rs`).
+/// named as it will be saved, and is queued; dm's own stream client records
+/// it (the engine's `tests/live.rs`).
 #[test]
 fn a_stream_servers_address_is_taken_through_add_url() {
     let world = world();

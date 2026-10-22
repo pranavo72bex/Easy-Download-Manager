@@ -5,8 +5,7 @@
 //! `rtsp.rs`): the stream recorded as it comes into a fragmented MP4 that
 //! plays however far it got (`fmp4`), rewritten as a plain one when it ends
 //! (`mp4mux`). MMS is asked for over HTTP (`mms.rs`) and kept as the
-//! Windows Media it is. RTMPE, Flash's encrypted RTMP, goes to an ffmpeg
-//! the person installed, or is refused; dm fetches none. Either way it is
+//! Windows Media it is. RTMPE, Flash's encrypted RTMP, is refused. Each is
 //! placed as every finished download is (`finish`: its category,
 //! its folder, a digest checked). A live stream has no end and no position
 //! to come back to: it runs until its server ends it or the person stops

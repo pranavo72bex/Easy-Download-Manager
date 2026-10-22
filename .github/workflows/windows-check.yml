@@ -51,7 +51,7 @@ jobs:
           PYTHONUNBUFFERED: "1"
         run: python scripts/app-check.py
       - name: Out of the box, nothing installed
-        # The official yt-dlp.exe and the pinned ffmpeg, fetched by dm's own
+        # The official yt-dlp.exe and QuickJS, fetched by dm's own
         # code from GitHub, checked, and run on Windows.
         working-directory: desktop
         env:

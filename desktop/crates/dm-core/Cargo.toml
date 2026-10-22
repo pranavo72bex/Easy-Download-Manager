@@ -40,8 +40,6 @@ md-5 = "0.11.0"
 # NTLM sign-ins (`ntlm.rs`): its NT hash is MD4 of the password, and its
 # client challenge must be unpredictable.
 md4 = "0.11"
-# The ffmpeg dm fetches comes gzipped (`tools.rs`).
-flate2 = "1"
 getrandom = "0.3"
 hex = "0.4.3"
 quick-xml = "0.42.0"

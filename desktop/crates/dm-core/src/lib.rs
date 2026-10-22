@@ -621,8 +621,8 @@ pub fn prefer_agent(url: &str, agent: &'static str) {
 }
 
 /// On Windows, starts a helper program without a console window: dm's
-/// release build has none of its own, so each `powershell`, `reg`, yt-dlp
-/// or ffmpeg it ran flashed one up. Nothing elsewhere.
+/// release build has none of its own, so each `powershell`, `reg` or
+/// yt-dlp it ran flashed one up. Nothing elsewhere.
 pub fn no_window(command: &mut std::process::Command) -> &mut std::process::Command {
     #[cfg(windows)]
     {

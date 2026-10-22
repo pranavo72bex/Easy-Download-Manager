@@ -255,11 +255,11 @@ fn children(dir: &Path, prefix: &str) -> Vec<PathBuf> {
     found
 }
 
-/// Where Windows installs put yt-dlp and ffmpeg, beside `PATH`: winget's
-/// links and its package folders (an ffmpeg build keeps its own in a `bin`
-/// one level down), pip's Scripts folders for python.org's and the Store's
-/// Pythons, Scoop's shims, pipx's folder, Chocolatey's bin, and the folders
-/// people unpack ffmpeg into by hand. A dm started by a browser or from the
+/// Where Windows installs put yt-dlp, beside `PATH`: winget's links and its
+/// package folders (a build that keeps its program in a `bin` one level
+/// down), pip's Scripts folders for python.org's and the Store's Pythons,
+/// Scoop's shims, pipx's folder, Chocolatey's bin, and the folders people
+/// unpack tools into by hand. A dm started by a browser or from the
 /// Start menu has a `PATH` that may name none of them.
 fn windows_homes(h: &Homes) -> Vec<PathBuf> {
     let mut dirs = Vec::new();
@@ -423,7 +423,7 @@ fn joined_by_dm(container: &str) -> bool {
     container.is_empty() || ["mp4", "m4a", "webm"].contains(&container)
 }
 
-/// What yt-dlp left when it had no ffmpeg to join with: the picture and
+/// What yt-dlp leaves, pointed at no joiner of its own: the picture and
 /// the sound beside the name it would have joined them under,
 /// `name.f137.mp4` and `name.f140.m4a`, picture first.
 async fn parts_of(joined: &Path) -> Vec<PathBuf> {
@@ -1013,12 +1013,12 @@ async fn place(produced: &Path, options: &Options) -> Result<Finished, Error> {
 ///
 /// No `kill` program on unix: looked up on `PATH`, it was not found under
 /// the minimal one a browser's native host or the Dock starts dm with, the
-/// error went unread, and the ffmpeg under yt-dlp ran on. On unix nothing
+/// error went unread, and the worker under yt-dlp ran on. On unix nothing
 /// here waits. On Windows `taskkill` is waited for, at most
 /// [`TREE_KILL_WAIT`], before yt-dlp itself is killed: the one-file yt-dlp
 /// is a launcher with the real yt-dlp as its child, and `/T` finds that
 /// child through the launcher, so a launcher killed first (dm used to start
-/// taskkill and kill yt-dlp at once) left the worker and its ffmpeg running
+/// taskkill and kill yt-dlp at once) left the worker running
 /// (gap 98). The async path waits off the runtime; `Drop`, the rare path of
 /// a run abandoned mid-way, waits where it is.
 struct Tree(Option<u32>);
@@ -1033,7 +1033,7 @@ static LIVE: std::sync::Mutex<Vec<u32>> = std::sync::Mutex::new(Vec::new());
 /// Ends every yt-dlp tree still running. For a dm leaving at once (a second
 /// interrupt) without the unwinding that would end each on its own: yt-dlp
 /// runs in a process group of its own, which a terminal's Ctrl+C no longer
-/// reaches, so nothing else would stop it and its ffmpeg. Each tree is
+/// reaches, so nothing else would stop it. Each tree is
 /// waited for (on Windows, briefly) before dm exits and takes yt-dlp's
 /// launcher down with it.
 pub fn end_all() {
