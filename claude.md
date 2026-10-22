@@ -394,7 +394,9 @@ of them.
       part for dm's own downloads (`limit.rs` tests). A torrent re-reads its
       part every tick; a yt-dlp run keeps the part it started with
 - [x] Scheduler (download between set hours) — client. Local time, wraps past
-      midnight, and does not restart what a person paused on purpose
+      midnight, and does not restart what a person paused on purpose; and
+      a named queue can start on its own each day at a time of its own
+      (Options › Downloads)
 - [x] Checksum verification — client. A mismatch fails the download and
       removes the file rather than reporting success beside a warning
 - [x] Proxy support — client. HTTP, HTTPS, SOCKS4 and SOCKS5, with credentials,

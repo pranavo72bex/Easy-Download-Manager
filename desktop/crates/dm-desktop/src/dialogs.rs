@@ -5942,6 +5942,47 @@ fn options(app: &mut DmApp, ctx: &egui::Context) {
                             .push(dm_shell::settings::QueueLimit { queue, files: 1 });
                     }
                 }
+                // Queues that start on their own, each at its own time.
+                ui.add_space(4.0);
+                ui.label(t("Queues that start on their own each day:"));
+                let mut remove = None;
+                for (i, start) in s.queue_starts.iter_mut().enumerate() {
+                    ui.horizontal_wrapped(|ui| {
+                        let name = ui.label(t("Queue"));
+                        combo(("queue start", i))
+                            .selected_text(crate::i18n::name(&start.queue))
+                            .show_ui(ui, |ui| {
+                                for q in queues.iter().cloned() {
+                                    let shown = crate::i18n::name(&q);
+                                    pick(ui, &mut start.queue, q, shown);
+                                }
+                            })
+                            .response
+                            .labelled_by(name.id);
+                        let name = ui.label(t("Starts at (HH:MM)"));
+                        ui.add(egui::TextEdit::singleline(&mut start.at).desired_width(60.0))
+                            .labelled_by(name.id);
+                        if !dm_core::schedule::is_time(&start.at) {
+                            ui.colored_label(warn(ui), t("Not a time"));
+                        }
+                        if ui.button(t("Delete start time")).clicked() {
+                            remove = Some(i);
+                        }
+                    });
+                }
+                if let Some(i) = remove {
+                    s.queue_starts.remove(i);
+                }
+                if ui.button(t("Add a start time")).clicked() {
+                    let queue = queues
+                        .first()
+                        .cloned()
+                        .unwrap_or_else(|| MAIN_QUEUE.to_string());
+                    s.queue_starts.push(dm_shell::settings::QueueStart {
+                        queue,
+                        at: "02:00".into(),
+                    });
+                }
                 number_row(ui, t("Ask the Recheck queue's servers for changes every, hours (0 only when asked)"), |ui, name| {
                     ui.add(number_box(&mut s.recheck_hours).range(0..=24 * 31)).labelled_by(name);
                 });

@@ -313,6 +313,7 @@ pub async fn start(orders: &Orders) -> Started {
     queue.set_allowance(saved.allowance());
     queue.set_recheck_every(saved.recheck_every());
     queue.set_queue_limits(saved.queue_limit_map());
+    queue.set_queue_starts(saved.queue_start_list());
     watch_rules(&queue);
     // Read back whatever the last run left before anything can add a row:
     // the command line below, the inbox watcher and the window all number
@@ -419,6 +420,7 @@ pub async fn apply(
     queue.set_allowance(settings.allowance());
     queue.set_recheck_every(settings.recheck_every());
     queue.set_queue_limits(settings.queue_limit_map());
+    queue.set_queue_starts(settings.queue_start_list());
     Ok(problems)
 }
 
@@ -439,6 +441,13 @@ pub fn watch_rules(queue: &Queue) {
             // The recheck queue's own timer, where one is set.
             if queue.recheck_if_due().await.is_some() {
                 queue.run().await;
+            }
+            // Queues that start on their own at a time of day.
+            let (day, minute) = dm_core::schedule::now_local();
+            for name in queue.starts_due(day, minute) {
+                if queue.start_queue(&name).await > 0 {
+                    wake(&queue);
+                }
             }
         }
     });

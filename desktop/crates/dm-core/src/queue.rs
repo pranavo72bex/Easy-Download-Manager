@@ -211,6 +211,14 @@ pub struct AddOptions {
     pub checksum: Option<crate::checksum::Checksum>,
 }
 
+/// Named queues that start on their own each day: each with its minute of
+/// the local day, and the day each last started.
+#[derive(Default)]
+struct QueueStarts {
+    at: Vec<(String, u32)>,
+    fired: HashMap<String, i64>,
+}
+
 struct Slot {
     entry: Entry,
     control: Control,
@@ -307,6 +315,9 @@ struct Inner {
     /// day for anyone who quits dm at night, and a monotonic clock stops
     /// while the computer sleeps.
     recheck: std::sync::Mutex<(Option<Duration>, u64)>,
+    /// Named queues that start on their own each day at a minute of the
+    /// local day, and the day each last did.
+    starts: std::sync::Mutex<QueueStarts>,
     /// Replaceable, because changing the proxy means a different client and
     /// a preference that needed a restart is one people assume is broken.
     /// Running downloads keep the client they started with.
@@ -380,6 +391,7 @@ impl Queue {
                 quota: std::sync::Mutex::new(crate::quota::Meter::default()),
                 quota_saved: std::sync::Mutex::new(None),
                 recheck: std::sync::Mutex::new((None, now_millis())),
+                starts: std::sync::Mutex::new(QueueStarts::default()),
                 client: Mutex::new(client),
                 saves: AtomicU64::new(0),
                 changed: std::sync::Mutex::new(None),
@@ -757,6 +769,34 @@ impl Queue {
     /// The excess drains as those finish.
     /// How many files each named queue runs at once, where fewer than the
     /// whole queue's limit; unnamed queues run up to that limit.
+    /// Named queues to start on their own each day, at a minute past local
+    /// midnight. Which already started today is kept across a change.
+    pub fn set_queue_starts(&self, starts: Vec<(String, u32)>) {
+        let mut held = crate::lock(&self.inner.starts);
+        held.at = starts
+            .into_iter()
+            .filter(|(name, at)| !name.trim().is_empty() && *at < 24 * 60)
+            .collect();
+    }
+
+    /// The queues whose start time has come on `day` (any count of days)
+    /// at `minute` past midnight, each once a day: within five minutes of
+    /// its time, so a loop that slept a little late still starts it, and
+    /// a computer that slept through it does not start it hours after.
+    pub fn starts_due(&self, day: i64, minute: u32) -> Vec<String> {
+        let mut held = crate::lock(&self.inner.starts);
+        let QueueStarts { at: starts, fired } = &mut *held;
+        let mut due = Vec::new();
+        for (queue, at) in starts.iter() {
+            let near = minute >= *at && minute < at + 5;
+            if near && fired.get(queue) != Some(&day) {
+                fired.insert(queue.clone(), day);
+                due.push(queue.clone());
+            }
+        }
+        due
+    }
+
     pub fn set_queue_limits(&self, limits: HashMap<String, usize>) {
         *crate::lock(&self.inner.queue_limits) = limits
             .into_iter()

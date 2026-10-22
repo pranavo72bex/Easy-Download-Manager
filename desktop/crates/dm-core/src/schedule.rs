@@ -46,8 +46,18 @@ pub fn is_time(text: &str) -> bool {
     minutes(text).is_some()
 }
 
+/// The local day (counted from the calendar's start) and the minute past
+/// its midnight, for things that happen at a time of day.
+pub fn now_local() -> (i64, u32) {
+    let now = Local::now();
+    (
+        i64::from(now.num_days_from_ce()),
+        now.time().hour() * 60 + now.time().minute(),
+    )
+}
+
 /// Minutes past local midnight, or `None` if that is not a time.
-fn minutes(text: &str) -> Option<u32> {
+pub fn minutes(text: &str) -> Option<u32> {
     let (h, m) = text.split_once(':')?;
     let (h, m): (u32, u32) = (h.trim().parse().ok()?, m.trim().parse().ok()?);
     (h < 24 && m < 60).then_some(h * 60 + m)

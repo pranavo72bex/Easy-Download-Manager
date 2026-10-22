@@ -1167,6 +1167,27 @@ async fn a_downloads_own_limit_slows_it_alone_and_is_kept() {
     assert_eq!(q.get(slow).await.unwrap().speed_limit, 0);
 }
 
+#[tokio::test]
+async fn a_queue_starts_on_its_own_once_a_day_at_its_time() {
+    let dir = tempdir();
+    let q = queue(dir.path(), 1);
+    q.set_queue_starts(vec![
+        ("Night".into(), 120),
+        ("".into(), 60),
+        ("Odd".into(), 9999),
+    ]);
+    let day = 739_000;
+    assert!(q.starts_due(day, 119).is_empty(), "before its time");
+    assert_eq!(q.starts_due(day, 121), ["Night"]);
+    assert!(q.starts_due(day, 122).is_empty(), "twice in a day");
+    // A change of settings keeps what already started today.
+    q.set_queue_starts(vec![("Night".into(), 120)]);
+    assert!(q.starts_due(day, 123).is_empty());
+    // Hours late, as after a computer that slept through it: not started.
+    assert!(q.starts_due(day + 1, 600).is_empty());
+    assert_eq!(q.starts_due(day + 2, 120), ["Night"]);
+}
+
 /* ------------------------------------------------------------- metalink */
 
 /// A server that hosts a mirror list and the mirrors it names.

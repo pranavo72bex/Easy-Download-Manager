@@ -3420,6 +3420,38 @@ fn two_cancelled_hand_offs_from_a_site_offer_to_leave_it_to_the_browser() {
     harness.state_mut().apply_settings(wanted).unwrap();
 }
 
+/// A queue's own daily start time is set in Options › Downloads; one that
+/// is not a time is said beside it and refused.
+#[test]
+fn a_queues_start_time_is_set_in_options() {
+    let _file = settings_file();
+    let world = world();
+    let mut harness = world.harness();
+    click(&mut harness, "Options");
+    if let Some(d) = harness.state_mut().dialogs.options.as_mut() {
+        d.tab = dm_desktop::dialogs::Tab::Downloads;
+    }
+    harness.run_steps(2);
+    click(&mut harness, "Add a start time");
+    type_role(&mut harness, "Starts at (HH:MM)", "x");
+    assert!(harness.query_by_label("Not a time").is_some());
+    if let Some(d) = harness.state_mut().dialogs.options.as_mut() {
+        d.draft.queue_starts[0].at = "23:45".into();
+    }
+    harness.run_steps(2);
+    assert!(harness.query_by_label("Not a time").is_none());
+    click(&mut harness, "OK");
+    let settings = harness.state().backend().settings();
+    assert_eq!(
+        settings.queue_start_list(),
+        [(dm_core::MAIN_QUEUE.to_string(), 23 * 60 + 45)]
+    );
+    // Put back for the other tests.
+    let mut wanted = settings;
+    wanted.queue_starts.clear();
+    harness.state_mut().apply_settings(wanted).unwrap();
+}
+
 #[test]
 fn a_queues_own_file_limit_and_the_parts_folder_are_set_in_options() {
     let _file = settings_file();

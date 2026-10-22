@@ -204,6 +204,9 @@ pub struct Settings {
     /// Queues that run fewer files at once than `concurrency`.
     #[serde(default, deserialize_with = "lenient::queue_limits")]
     pub queue_limits: Vec<QueueLimit>,
+    /// Queues that start on their own each day at a time of their own.
+    #[serde(default)]
+    pub queue_starts: Vec<QueueStart>,
     /// Put a `.ts` stream into an MP4 (dm's own remux).
     #[serde(default = "yes")]
     pub remux_ts: bool,
@@ -211,6 +214,15 @@ pub struct Settings {
     /// A download already begun keeps the folder it began in.
     #[serde(default)]
     pub parts_dir: String,
+}
+
+/// A named queue that starts on its own each day at a time.
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(default)]
+pub struct QueueStart {
+    pub queue: String,
+    /// `HH:MM`, local time.
+    pub at: String,
 }
 
 /// Fewer files at once for one named queue.
@@ -320,6 +332,7 @@ impl Default for Settings {
             subtitles: false,
             site_searches: Vec::new(),
             queue_limits: Vec::new(),
+            queue_starts: Vec::new(),
             remux_ts: true,
             parts_dir: String::new(),
             on_complete: String::new(),
@@ -457,6 +470,18 @@ impl Settings {
                 self.schedule.from, self.schedule.to
             ));
         }
+        if self.queue_starts != previous.queue_starts {
+            if let Some(bad) = self
+                .queue_starts
+                .iter()
+                .find(|s| !dm_core::schedule::is_time(&s.at))
+            {
+                return Some(format!(
+                    "a queue's start time must be HH:MM in 24 hours, not {:?}",
+                    bad.at
+                ));
+            }
+        }
         if self.download_dir != previous.download_dir {
             let typed = self.download_dir.display().to_string();
             if full_path(&typed).is_none() {
@@ -571,6 +596,14 @@ impl Settings {
     }
 
     /// The per-queue limits as the engine takes them.
+    /// The start times that are times, for the queue.
+    pub fn queue_start_list(&self) -> Vec<(String, u32)> {
+        self.queue_starts
+            .iter()
+            .filter_map(|s| Some((s.queue.clone(), dm_core::schedule::minutes(&s.at)?)))
+            .collect()
+    }
+
     pub fn queue_limit_map(&self) -> std::collections::HashMap<String, usize> {
         self.queue_limits
             .iter()
@@ -1353,6 +1386,20 @@ mod tests {
 
     /// Settings carried to another computer leave every password behind,
     /// and the one they arrive on keeps its own.
+    #[test]
+    fn a_queue_start_must_be_a_time() {
+        let before = Settings::default();
+        let mut wanted = before.clone();
+        wanted.queue_starts.push(QueueStart {
+            queue: "Night".into(),
+            at: "25:00".into(),
+        });
+        assert!(wanted.refusal(&before).is_some());
+        wanted.queue_starts[0].at = "02:30".into();
+        assert!(wanted.refusal(&before).is_none());
+        assert_eq!(wanted.queue_start_list(), [("Night".to_string(), 150)]);
+    }
+
     #[test]
     fn exported_settings_carry_no_password_and_imported_ones_keep_this_computers() {
         let kept = crate::test_secrets::secret("password");
