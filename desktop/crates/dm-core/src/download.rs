@@ -2015,6 +2015,9 @@ async fn download_stream(
 ) -> Result<Finished, Error> {
     let (mut listed, rendition) = match resolve_stream(client, url, options).await? {
         Resolved::Own(listed, rendition) => (listed, rendition),
+        Resolved::Live(playlist) => {
+            return record_live(client, &playlist, url, options, report).await
+        }
         // As a DASH stream is: yt-dlp reads these shapes properly; without
         // it the stream is refused rather than saved wrong and called done.
         Resolved::Beyond(_) if crate::tools::for_video(client).await.is_ok() => {
@@ -2115,6 +2118,158 @@ async fn download_stream(
         connections: 1,
         category,
         verified: options.checksum.is_some(),
+        mirrors: 1,
+    })
+}
+
+/// A live stream recorded as it goes: its playlist asked for again at the
+/// pace its segments come (half their length), each segment not yet
+/// written fetched once, by its sequence number, decrypted where it is
+/// scrambled, and added to one growing file, so what is recorded is never
+/// more than a segment behind. It ends when the playlist says the stream
+/// has, or when the person stops it, which keeps what was recorded rather
+/// than pausing: a live stream cannot be resumed from where it was.
+async fn record_live(
+    client: &reqwest::Client,
+    playlist: &str,
+    named_from: &str,
+    options: &Options,
+    report: Option<tokio::sync::mpsc::Sender<Update>>,
+) -> Result<Finished, Error> {
+    fs::create_dir_all(&options.parts_dir).await?;
+    let recording = options.parts_dir.join("live.recording");
+    let mut out = tokio::io::BufWriter::new(fs::File::create(&recording).await?);
+    let downloaded = Arc::new(AtomicU64::new(0));
+    let meter = report
+        .clone()
+        .map(|tx| watch(Arc::clone(&downloaded), None, tx));
+    let mut written: Option<u64> = None;
+    let mut init_written = false;
+    let mut keys: std::collections::HashMap<String, Vec<u8>> = std::collections::HashMap::new();
+    let mut filename = String::new();
+    let mut misses = 0u32;
+    let ended = loop {
+        let fetched = match fetch_playlist(client, playlist, options).await {
+            Ok(fetched) => fetched,
+            Err(e @ (Error::Paused | Error::Cancelled)) => break Err(e),
+            // A playlist that does not answer once is asked again; one that
+            // stops answering ends the recording with what it has.
+            Err(_) if misses < 5 && written.is_some() => {
+                misses += 1;
+                tokio::time::sleep(Duration::from_secs(2)).await;
+                continue;
+            }
+            Err(e) => break Err(e),
+        };
+        misses = 0;
+        let (text, landed) = fetched;
+        let listed = stream::media_playlist(&text, &landed, named_from, options.quality)?;
+        if filename.is_empty() {
+            filename = listed.filename.clone();
+            if let Some(tx) = &report {
+                let _ = tx
+                    .send(Update::Named {
+                        name: filename.clone(),
+                        category: category::classify(&filename, None),
+                    })
+                    .await;
+            }
+        }
+        for part in &listed.parts {
+            let wanted = if part.init {
+                !init_written
+            } else {
+                written.is_none_or(|last| part.sequence > last)
+            };
+            if !wanted {
+                continue;
+            }
+            let body = match retry::run_up_to(&options.control, options.tries(), || {
+                fetch_segment_body(client, &part.url, options)
+            })
+            .await
+            {
+                Ok(body) => body,
+                // Asked for again with the playlist on the next round, or
+                // the stop that ended it seen there.
+                Err(_) => break,
+            };
+            let bytes = match &listed.key {
+                Some(declared) if !part.init => {
+                    if !keys.contains_key(&declared.uri) {
+                        let key = fetch_capped(client, &declared.uri, 1024, options)
+                            .await?
+                            .body;
+                        keys.insert(declared.uri.clone(), key);
+                    }
+                    let key = keys.get(&declared.uri).map(Vec::as_slice).unwrap_or(&[]);
+                    stream::decrypt(key, &stream::iv_for(declared, part.sequence), &body)?
+                }
+                _ => body,
+            };
+            out.write_all(&bytes).await?;
+            downloaded.fetch_add(bytes.len() as u64, Ordering::Relaxed);
+            if part.init {
+                init_written = true;
+            } else {
+                written = Some(part.sequence);
+            }
+        }
+        out.flush().await?;
+        if !stream::is_live(&text) {
+            break Ok(());
+        }
+        // Half a segment's length, so a new one is not left waiting long.
+        let pause = Duration::from_millis(stream::target_duration(&text) * 500);
+        if let Err(stop) = or_stop(&options.control, async {
+            tokio::time::sleep(pause).await;
+            Ok(())
+        })
+        .await
+        {
+            break Err(stop);
+        }
+    };
+    out.flush().await?;
+    drop(out);
+    if let Some((handle, finished)) = meter {
+        let _ = finished.send(());
+        let _ = handle.await;
+    }
+    match ended {
+        Ok(()) | Err(Error::Paused) => {}
+        Err(Error::Cancelled) => {
+            let _ = fs::remove_file(&recording).await;
+            return Err(Error::Cancelled);
+        }
+        // Whatever stopped it, what was recorded is kept where there is any.
+        Err(e) if written.is_none() => return Err(e),
+        Err(_) => {}
+    }
+    if written.is_none() {
+        return Err(Error::Internal(
+            "the live stream sent nothing to record".into(),
+        ));
+    }
+    // Stopped by the person: the recording is finished, not paused, so
+    // placing it must not wait on the stop that ended it.
+    let placing = Options {
+        control: crate::control::Control::new(),
+        ..options.clone()
+    };
+    let parts = vec![recording];
+    let (parts, filename) = match remux_ts(&filename, &parts, &placing).await {
+        Some((mp4, name)) => (vec![mp4], name),
+        None => (parts, filename),
+    };
+    let (path, bytes, category) = finish(&filename, None, &parts, &placing).await?;
+    Ok(Finished {
+        left_behind: None,
+        path,
+        bytes,
+        connections: 1,
+        category,
+        verified: false,
         mirrors: 1,
     })
 }
@@ -2302,6 +2457,8 @@ fn ts_stem(name: &str) -> &str {
 /// A stream as resolved: dm's to assemble, or a shape it hands on.
 enum Resolved {
     Own(stream::Stream, String),
+    /// A live stream, recorded as it goes: its media playlist's address.
+    Live(String),
     /// Why dm does not assemble it itself (`stream::beyond_dm`).
     Beyond(&'static str),
 }
@@ -2328,11 +2485,17 @@ async fn resolve_stream(
         {
             return Ok(Resolved::Beyond(why));
         }
+        if stream::is_live(&media) {
+            return Ok(Resolved::Live(chosen.url));
+        }
         let listed = stream::media_playlist(&media, &media_landed, url, quality)?;
         return Ok(Resolved::Own(listed, chosen.url));
     }
     if let Some(why) = stream::beyond_dm(None, None, &text, &landed) {
         return Ok(Resolved::Beyond(why));
+    }
+    if stream::is_live(&text) {
+        return Ok(Resolved::Live(url.to_string()));
     }
     let listed = stream::media_playlist(&text, &landed, url, quality)?;
     Ok(Resolved::Own(listed, url.to_string()))

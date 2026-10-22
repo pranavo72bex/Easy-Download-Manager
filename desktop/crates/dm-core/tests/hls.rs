@@ -836,3 +836,77 @@ async fn packed_audio_from_tokenised_addresses_is_saved_as_aac() {
     both.extend(frames(1));
     assert_eq!(std::fs::read(&done.path).unwrap(), both);
 }
+
+/// A live stream: its playlist keeps a window of the latest three segments
+/// and adds one each time it is asked for, until it says the stream ended
+/// after six. Recorded as it goes, each segment once, in order.
+async fn serve_live(segments: usize) -> SocketAddr {
+    use std::sync::atomic::{AtomicUsize, Ordering};
+    let asked = Arc::new(AtomicUsize::new(0));
+    let app = axum::Router::new().fallback(move |uri: Uri| {
+        let asked = Arc::clone(&asked);
+        async move {
+            let path = uri.path().to_string();
+            if path.ends_with(".m3u8") {
+                // One more segment out with each request, up to `segments`.
+                let out = (asked.fetch_add(1, Ordering::SeqCst) + 1).min(segments);
+                let first = out.saturating_sub(3);
+                let mut text = format!(
+                    "#EXTM3U\n#EXT-X-VERSION:3\n#EXT-X-TARGETDURATION:1\n#EXT-X-MEDIA-SEQUENCE:{first}\n"
+                );
+                for n in first..out {
+                    text.push_str(&format!("#EXTINF:1.0,\nseg{n}.ts\n"));
+                }
+                if out == segments {
+                    text.push_str("#EXT-X-ENDLIST\n");
+                }
+                return Response::new(Body::from(text));
+            }
+            let n: usize = path
+                .trim_start_matches("/seg")
+                .trim_end_matches(".ts")
+                .parse()
+                .unwrap_or(999);
+            Response::new(Body::from(segment(n)))
+        }
+    });
+    common::serve(app).await
+}
+
+#[tokio::test]
+async fn a_live_stream_is_recorded_as_it_goes_each_segment_once() {
+    let addr = serve_live(6).await;
+    let dir = tempdir();
+    let done = download(
+        &client(),
+        &format!("http://{addr}/live.m3u8"),
+        &options(dir.path(), dm_core::stream::Quality::Best),
+    )
+    .await
+    .unwrap();
+    let got = std::fs::read(&done.path).unwrap();
+    let wanted: Vec<u8> = (0..6).flat_map(segment).collect();
+    assert_eq!(got, wanted, "{:?}", done.path);
+}
+
+#[tokio::test]
+async fn a_live_recording_stopped_keeps_what_it_recorded() {
+    // A stream that would run for a long time.
+    let addr = serve_live(10_000).await;
+    let dir = tempdir();
+    let opts = options(dir.path(), dm_core::stream::Quality::Best);
+    let control = opts.control.clone();
+    let stop = tokio::spawn(async move {
+        tokio::time::sleep(std::time::Duration::from_millis(1800)).await;
+        control.pause();
+    });
+    let done = download(&client(), &format!("http://{addr}/live.m3u8"), &opts)
+        .await
+        .unwrap();
+    stop.await.unwrap();
+    let got = std::fs::read(&done.path).unwrap();
+    // Some segments, whole and in order from the first.
+    let first = segment(0).len();
+    assert!(got.len() >= first * 2, "{} bytes", got.len());
+    assert_eq!(&got[..first], segment(0).as_slice());
+}

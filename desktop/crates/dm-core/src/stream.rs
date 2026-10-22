@@ -210,10 +210,6 @@ pub fn beyond_dm(
     if upper.contains("#EXT-X-BYTERANGE") || upper.contains("BYTERANGE=") {
         return Some("this stream is cut from one file by byte ranges");
     }
-    // A playlist that says it is VOD is finished, end tag or not.
-    if !upper.contains("#EXT-X-ENDLIST") && !upper.contains("#EXT-X-PLAYLIST-TYPE:VOD") {
-        return Some("this is a live stream, still being added to");
-    }
     // Keys that differ, not key lines: some packagers restate the same key
     // before every segment, which dm decrypts as one key.
     let keys: std::collections::BTreeSet<String> = lines(media)
@@ -623,6 +619,28 @@ pub fn iv_for(key: &Key, sequence: u64) -> [u8; 16] {
     iv
 }
 
+/// Whether a media playlist is still being added to: a live stream, with no
+/// end tag and not said to be a finished video.
+pub fn is_live(media: &str) -> bool {
+    let upper = media.to_ascii_uppercase();
+    !upper.contains("#EXT-X-ENDLIST") && !upper.contains("#EXT-X-PLAYLIST-TYPE:VOD")
+}
+
+/// How long a live playlist's segments last, at most (`#EXT-X-TARGETDURATION`),
+/// in seconds: how often it is worth asking for it again. Six where it does
+/// not say, as the specification's examples have it.
+pub fn target_duration(media: &str) -> u64 {
+    lines(media)
+        .iter()
+        .find_map(|l| {
+            l.trim()
+                .strip_prefix("#EXT-X-TARGETDURATION:")
+                .and_then(|v| v.trim().parse::<u64>().ok())
+        })
+        .filter(|s| (1..=60).contains(s))
+        .unwrap_or(6)
+}
+
 /// What a copy-protected stream is told.
 pub const PROTECTED: &str =
     "this video is copy-protected (DRM), so only the site's own player can play it; dm does not download it";
@@ -757,10 +775,11 @@ mod tests {
         let ranged_map =
             "#EXTM3U\n#EXT-X-MAP:URI=\"m.mp4\",BYTERANGE=\"720@0\"\nm.mp4\n#EXT-X-ENDLIST\n";
         assert!(beyond_dm(None, None, ranged_map, "http://h/v/i.m3u8").is_some());
+        // Live is recorded as it goes, not refused.
         let live = "#EXTM3U\n#EXTINF:4,\na.ts\n";
-        assert!(beyond_dm(None, None, live, "http://h/v/i.m3u8")
-            .unwrap()
-            .contains("live"));
+        assert_eq!(beyond_dm(None, None, live, "http://h/v/i.m3u8"), None);
+        assert!(is_live(live));
+        assert!(!is_live(vod) && !is_live(plain));
         let rotated = "#EXTM3U\n#EXT-X-KEY:METHOD=AES-128,URI=\"k1\"\na.ts\n#EXT-X-KEY:METHOD=NONE\nb.ts\n#EXT-X-ENDLIST\n";
         assert!(beyond_dm(None, None, rotated, "http://h/v/i.m3u8")
             .unwrap()

@@ -421,6 +421,7 @@ of them.
 - [x] HLS / DASH — HLS is done in the client (and a stream that arrives
       as `.ts` is put into an MP4 by dm, `tsmux.rs`): master and media playlists, rendition
       choice, AES-128 with per-segment vectors, fMP4 initialisation segments,
+      a live stream recorded as it goes until Stop or its end (2026-10-22, `record_live`),
       and resume from the segments already fetched — of the same rendition:
       the one chosen is written beside the parts, and segments of another
       are discarded rather than spliced in after a quality change. The page's
