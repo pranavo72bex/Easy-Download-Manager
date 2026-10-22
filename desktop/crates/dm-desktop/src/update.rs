@@ -14,6 +14,15 @@ use crate::i18n::{t, tf};
 /// Where dm's documentation is: the project's README.
 pub const HELP: &str = "https://github.com/pranavo72bex/Easy-Download-Manager#readme";
 
+/// The project's source, licence, privacy statement and code signing
+/// policy, as About dm links them (QA pass, gap 87).
+pub const SOURCE: &str = "https://github.com/pranavo72bex/Easy-Download-Manager";
+pub const LICENCE: &str = "https://github.com/pranavo72bex/Easy-Download-Manager/blob/main/LICENSE";
+pub const PRIVACY: &str =
+    "https://github.com/pranavo72bex/Easy-Download-Manager/blob/main/PRIVACY.md";
+pub const SIGNING: &str =
+    "https://github.com/pranavo72bex/Easy-Download-Manager#code-signing-policy";
+
 /// Where a release's notes may be: its page on the project's releases.
 pub const NOTES: &str = "https://github.com/pranavo72bex/Easy-Download-Manager/releases/tag/";
 

@@ -1966,8 +1966,24 @@ impl DmApp {
                     description: text("description").unwrap_or_default(),
                     ..dm_core::AddOptions::default()
                 };
-                let added = self.add(&urls, with)?;
-                Ok(json!({ "added": added }))
+                /* An address already listed is not added a second time
+                 * unless `again` says so: Add URL asks a person, and a
+                 * script that repeats itself (or an AI client that calls
+                 * twice) made two rows fetching one file (QA pass, gap
+                 * 85). Said back, so the caller knows. */
+                let again = params
+                    .get("again")
+                    .and_then(|v| v.as_bool())
+                    .unwrap_or(false);
+                let (listed, fresh): (Vec<String>, Vec<String>) = urls
+                    .into_iter()
+                    .partition(|u| !again && crate::dialogs::already_listed(self, u).is_some());
+                let added = if fresh.is_empty() {
+                    0
+                } else {
+                    self.add(&fresh, with)?
+                };
+                Ok(json!({ "added": added, "already_listed": listed }))
             }
             // Up to 256 requests in one, answered in order: faster for a
             // script than a round trip each.

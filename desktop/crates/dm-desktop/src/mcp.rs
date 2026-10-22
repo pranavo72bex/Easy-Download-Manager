@@ -39,9 +39,12 @@ fn tools() -> Value {
         ),
         tool(
             "dm_add_downloads",
-            "Add downloads: one link or several. `later` puts them in the main queue unstarted.",
+            "Add downloads: one link or several. `later` puts them in the main queue unstarted. \
+             A link already in the list is not added again (it is named in `already_listed`) \
+             unless `again` is true.",
             json!({ "urls": { "type": "array", "items": { "type": "string" } },
-                     "later": { "type": "boolean" }, "folder": { "type": "string" },
+                     "later": { "type": "boolean" }, "again": { "type": "boolean" },
+                     "folder": { "type": "string" },
                      "name": { "type": "string" }, "description": { "type": "string" } }),
             vec!["urls"]
         ),

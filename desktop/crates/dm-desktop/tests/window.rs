@@ -4493,6 +4493,46 @@ fn the_mcp_bridge_gives_an_agent_dm_as_tools() {
 }
 
 /// An empty list of links was answered "added 0" as a success, and any
+/// QA pass, gap 85: an address already listed is not added again over the
+/// control protocol (or MCP) unless `again` says so, and the reply says
+/// which were skipped.
+#[test]
+fn the_control_protocol_does_not_add_an_address_twice_unless_asked() {
+    let world = world();
+    let mut harness = world.harness();
+    let app = harness.state_mut();
+    let url = world.url("twice.bin");
+    let first = app
+        .control_call(
+            "downloads.add",
+            &serde_json::json!({ "urls": [url], "later": true }),
+        )
+        .unwrap();
+    assert_eq!(first["added"], 1, "{first}");
+    app.refresh();
+    let second = app
+        .control_call(
+            "downloads.add",
+            &serde_json::json!({ "urls": [url], "later": true }),
+        )
+        .unwrap();
+    assert_eq!(second["added"], 0, "{second}");
+    assert_eq!(
+        second["already_listed"],
+        serde_json::json!([url]),
+        "{second}"
+    );
+    let forced = app
+        .control_call(
+            "downloads.add",
+            &serde_json::json!({ "urls": [url], "later": true, "again": true }),
+        )
+        .unwrap();
+    assert_eq!(forced["added"], 1, "{forced}");
+    app.refresh();
+    assert_eq!(app.rows().len(), 2);
+}
+
 /// `queue:` name — one never made, or 100 KB of one — was taken as a place.
 #[test]
 fn the_control_protocol_refuses_nothing_to_add_and_a_queue_that_is_not_there() {

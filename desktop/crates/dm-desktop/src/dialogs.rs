@@ -4460,9 +4460,14 @@ fn series(app: &mut DmApp, ctx: &egui::Context) {
             ui.horizontal(|ui| {
                 enter |= entered(&field(ui, t("From"), &mut d.from, 60.0));
                 enter |= entered(&field(ui, t("To"), &mut d.to, 60.0));
-                let name = ui.label(t("Wildcard size"));
+                // "Wildcard size" said nothing of what it does (QA pass,
+                // gap 86).
+                let name = ui.label(t("Digits"));
                 ui.add(number_box(&mut d.width).range(0..=9))
-                    .labelled_by(name.id);
+                    .labelled_by(name.id)
+                    .on_hover_text(t(
+                        "How many digits each number has: 3 makes 7 into 007; 0 leaves it as it is",
+                    ));
             });
             // One line, its room kept whether or not it says anything, so
             // the dialog does not jump as it starts to; and nothing said
@@ -4523,13 +4528,20 @@ fn series(app: &mut DmApp, ctx: &egui::Context) {
                         }
                     });
             });
+            // Greyed until there is an address to make a series of; with
+            // one, a press says what is wrong with the range instead.
+            let addressed = !d.template.trim().is_empty();
             footer(ui, |ui| {
-                if primary(ui, "Start now").clicked() || enter || enter_free(ui) {
-                    add = Some(false);
-                }
-                if ui.button(t("Add for later")).clicked() {
-                    add = Some(true);
-                }
+                ui.add_enabled_ui(addressed, |ui| {
+                    if primary(ui, "Start now").clicked()
+                        || (addressed && (enter || enter_free(ui)))
+                    {
+                        add = Some(false);
+                    }
+                    if ui.button(t("Add for later")).clicked() {
+                        add = Some(true);
+                    }
+                });
                 if ui.button(t("Cancel")).clicked() {
                     cancel = true;
                 }
@@ -6637,6 +6649,20 @@ fn about(app: &mut DmApp, ctx: &egui::Context) {
         ui.heading("dm");
         ui.label(tf("Version {}", &[&env!("CARGO_PKG_VERSION")]));
         ui.label(t("A free download manager, written in Rust."));
+        ui.horizontal_wrapped(|ui| {
+            for (words, page) in [
+                (t("Source code"), crate::update::SOURCE),
+                (t("Licence (MIT)"), crate::update::LICENCE),
+                (t("Privacy"), crate::update::PRIVACY),
+                (t("Code signing policy"), crate::update::SIGNING),
+            ] {
+                if ui.link(words).on_hover_text(page).clicked() {
+                    if let Err(e) = app.backend.platform.open(page) {
+                        app.said = e.into();
+                    }
+                }
+            }
+        });
         ui.separator();
         if ui.button(t("Check for updates")).clicked()
             || std::mem::take(&mut app.dialogs.check_update)
