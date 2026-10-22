@@ -374,7 +374,9 @@ and is not carried over.
       latest.json, which now lists every installer. When a newer version is
       out, "Download the update" queues the installer for this OS and
       processor as an ordinary dm download, and the person opens it. Nothing
-      installs itself. The picker is unit-tested and the button is driven in
+      installs itself. The release lists each installer's SHA-256 and the
+      download is checked against it: one that does not match is removed,
+      and one with no digest listed is not offered. The picker is unit-tested and the button is driven in
       `window.rs`. Never run against a real release: none has been published
 - [ ] Code signing / notarisation
 

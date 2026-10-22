@@ -42,8 +42,8 @@ pub enum Update {
     Asking,
     Current,
     /// A later version, and the installer for this machine when the
-    /// release lists one.
-    Newer(String, Option<String>),
+    /// release lists one with its digest.
+    Newer(String, Option<Installer>),
     /// The update server answered that it has no release at all: nothing
     /// to update to, which is not a failure to reach it (round 13).
     NoRelease,
@@ -89,6 +89,29 @@ pub fn newer(published: &str, running: &str) -> bool {
             .collect()
     };
     parts(published) > parts(running)
+}
+
+/// An installer a release offers for this machine, and the SHA-256 the
+/// release published for it, which the download is checked against: a
+/// file that does not match is removed, never offered to open.
+#[derive(Debug, Clone, PartialEq)]
+pub struct Installer {
+    pub url: String,
+    pub sha256: String,
+}
+
+/// The SHA-256 a `latest.json` lists for the installer at `url`, under
+/// `sha256` by its file name; only a whole, well-formed digest.
+pub fn digest_in(manifest: &str, url: &str) -> Option<String> {
+    let value: serde_json::Value = serde_json::from_str(manifest).ok()?;
+    let name = url.rsplit('/').next()?;
+    let digest = value
+        .get("sha256")?
+        .get(name)?
+        .as_str()?
+        .trim()
+        .to_ascii_lowercase();
+    (digest.len() == 64 && digest.chars().all(|c| c.is_ascii_hexdigit())).then_some(digest)
 }
 
 /// The version a `latest.json` names.
@@ -174,12 +197,15 @@ pub fn check(
             let published = version_in(&text).ok_or("the release names no version")?;
             *dm_core::lock(&LATEST_NOTES) = notes_in(&text);
             Ok(if newer(&published, env!("CARGO_PKG_VERSION")) {
+                // Offered only with its digest: an installer that cannot be
+                // checked is left to the releases page.
                 let installer = installer_in(
                     &text,
                     std::env::consts::OS,
                     std::env::consts::ARCH,
                     std::env::var_os("APPIMAGE").is_some(),
-                );
+                )
+                .and_then(|url| digest_in(&text, &url).map(|sha256| Installer { url, sha256 }));
                 Update::Newer(published, installer)
             } else {
                 Update::Current
@@ -224,6 +250,26 @@ mod tests {
             Some("1.2.3")
         );
         assert_eq!(version_in("not json"), None);
+    }
+
+    #[test]
+    fn an_installers_digest_is_read_by_its_name_and_only_whole() {
+        let url = format!("{RELEASES}desktop-v9.9.9/dm_9.9.9_aarch64.dmg");
+        let good = "AB".repeat(32);
+        let manifest = serde_json::json!({
+            "version": "9.9.9",
+            "installers": [url],
+            "sha256": {
+                "dm_9.9.9_aarch64.dmg": good,
+                "dm_9.9.9_x64-setup.exe": "abc",
+            },
+        })
+        .to_string();
+        assert_eq!(digest_in(&manifest, &url), Some(good.to_lowercase()));
+        // Too short to be one, or not listed: none.
+        let exe = format!("{RELEASES}desktop-v9.9.9/dm_9.9.9_x64-setup.exe");
+        assert_eq!(digest_in(&manifest, &exe), None);
+        assert_eq!(digest_in(r#"{"version":"9.9.9"}"#, &url), None);
     }
 
     #[test]

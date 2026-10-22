@@ -572,18 +572,70 @@ fn add_url_downloads_the_file_announces_it_once_and_says_it_is_complete() {
 fn a_newer_release_offers_its_installer_as_a_download_in_dm() {
     let world = world();
     let mut harness = world.harness();
-    // The local server's file stands in for the release's installer.
+    // The local server's files stand in for the release's installer.
+    let sample = world.dir.path().join("sample");
+    std::fs::write(&sample, payload()).unwrap();
+    let sha256 = tokio::runtime::Runtime::new()
+        .unwrap()
+        .block_on(dm_core::checksum::digest(
+            &sample,
+            dm_core::checksum::Algorithm::Sha256,
+        ))
+        .unwrap();
+    let offer = |harness: &mut Harness<'_, DmApp>, url: String, sha256: String| {
+        *harness.state().update.lock().unwrap() = dm_desktop::update::Update::Newer(
+            "9.9.9".into(),
+            Some(dm_desktop::update::Installer { url, sha256 }),
+        );
+        harness.state_mut().dialogs.about_open = true;
+        harness.run_steps(2);
+        click(harness, "Download the update");
+    };
     let installer = world.url("file.zip");
-    *harness.state().update.lock().unwrap() =
-        dm_desktop::update::Update::Newer("9.9.9".into(), Some(installer.clone()));
-    harness.state_mut().dialogs.about_open = true;
-    harness.run_steps(2);
-    click(&mut harness, "Download the update");
+    offer(&mut harness, installer.clone(), sha256);
     until(&mut harness, "the installer to be fetched", |app| {
         app.rows()
             .iter()
-            .any(|r| r.url == installer && r.state == State::Completed)
+            .any(|r| r.url == installer && r.state == State::Completed && r.verified)
     });
+    // One that does not match what the release published is not kept.
+    let other = world.url("other.pdf");
+    offer(&mut harness, other.clone(), "0".repeat(64));
+    until(&mut harness, "the wrong installer to fail", |app| {
+        app.rows()
+            .iter()
+            .any(|r| r.url == other && matches!(r.state, State::Failed(_)))
+    });
+    let row = harness
+        .state()
+        .rows()
+        .iter()
+        .find(|r| r.url == other)
+        .cloned()
+        .unwrap();
+    assert!(row.path.is_empty() || !std::path::Path::new(&row.path).exists());
+    let out = harness.state().applied.download_dir.clone();
+    let left: Vec<_> = walk(&out)
+        .into_iter()
+        .filter(|p| p.ends_with("other.pdf"))
+        .collect();
+    assert!(
+        left.is_empty(),
+        "the mismatched installer was kept: {left:?}"
+    );
+}
+
+fn walk(dir: &std::path::Path) -> Vec<std::path::PathBuf> {
+    let mut found = Vec::new();
+    for entry in std::fs::read_dir(dir).into_iter().flatten().flatten() {
+        let path = entry.path();
+        if path.is_dir() {
+            found.extend(walk(&path));
+        } else {
+            found.push(path);
+        }
+    }
+    found
 }
 
 #[test]

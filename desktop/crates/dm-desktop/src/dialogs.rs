@@ -3434,6 +3434,7 @@ fn file_info(app: &mut DmApp, ctx: &egui::Context) {
         quality: d.quality.clone(),
         cookies: d.cookies.clone(),
         cookies_once: d.cookies_once,
+        checksum: None,
         replaces: match &clash {
             Some(Clash::OnDisk { taken, .. }) if d.replace => {
                 Some(taken.to_string_lossy().into_owned())
@@ -6353,7 +6354,13 @@ fn about(app: &mut DmApp, ctx: &egui::Context) {
         }
         if let crate::update::Update::Newer(_, Some(installer)) = state {
             if ui.button(t("Download the update")).clicked() {
-                app.said = match app.backend.add(&installer) {
+                // Checked against the digest the release published; one that
+                // does not match fails and is removed.
+                let with = AddOptions {
+                    checksum: dm_core::Checksum::parse(&format!("sha256:{}", installer.sha256)),
+                    ..AddOptions::default()
+                };
+                app.said = match app.backend.add_with(&installer.url, with) {
                     Ok(_) => crate::i18n::Said::new(
                         "The new installer is downloading. Open it when it has finished.",
                         &[],

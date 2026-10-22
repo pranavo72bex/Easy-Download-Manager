@@ -199,6 +199,8 @@ pub struct AddOptions {
     /// recheck's new version does: kept until then, so a failed download
     /// leaves it.
     pub replaces: Option<String>,
+    /// The digest the file must have, set before it can start.
+    pub checksum: Option<crate::checksum::Checksum>,
 }
 
 struct Slot {
@@ -1770,6 +1772,9 @@ impl Queue {
             slot.entry.cookies = with.cookies.trim().to_string();
             slot.entry.cookies_once = with.cookies_once && !slot.entry.cookies.is_empty();
             slot.entry.replaces = with.replaces.filter(|p| !p.trim().is_empty());
+            if with.checksum.is_some() {
+                slot.entry.checksum = with.checksum;
+            }
             if with.later {
                 slot.hold(false);
             }

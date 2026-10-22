@@ -387,10 +387,15 @@ jobs:
           base="https://github.com/$GITHUB_REPOSITORY/releases/download/$GITHUB_REF_NAME"
           installers=$(find installers -maxdepth 1 -type f -printf '%f\n' | sort \
             | jq -R --arg base "$base" '"\($base)/\(.)"' | jq -s .)
+          # Each installer's SHA-256 by its name: dm checks the one it
+          # downloads against it and removes one that does not match.
+          digests=$(cd installers && find . -maxdepth 1 -type f -printf '%f\n' | sort \
+            | xargs -d '\n' sha256sum \
+            | jq -R 'capture("^(?<d>[0-9a-f]{64})  (?<f>.+)$") | {(.f): .d}' | jq -s 'add // {}')
           jq -n --arg version "$version" --arg date "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
             --arg notes "https://github.com/$GITHUB_REPOSITORY/releases/tag/$GITHUB_REF_NAME" \
-            --argjson installers "$installers" \
-            '{version: $version, pub_date: $date, notes: $notes, installers: $installers}' \
+            --argjson installers "$installers" --argjson sha256 "$digests" \
+            '{version: $version, pub_date: $date, notes: $notes, installers: $installers, sha256: $sha256}' \
             > installers/latest.json
           cat installers/latest.json
 
