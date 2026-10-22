@@ -104,6 +104,50 @@ async fn a_file_larger_than_the_disk_is_refused_before_it_is_fetched() {
     assert_eq!(fetched.load(Ordering::SeqCst), 0, "ranges were fetched");
 }
 
+/// QA checklist EN-09: a file over 4 GB bound for a FAT32 drive is refused
+/// before a byte is fetched, naming why and what to do, where it used to
+/// run to 4 GB and fail there. A test's drive holds nothing over 1,000
+/// bytes.
+#[tokio::test]
+async fn a_file_too_large_for_the_drive_is_refused_before_it_is_fetched() {
+    use axum::body::Body;
+    use std::sync::atomic::{AtomicUsize, Ordering};
+    use std::sync::Arc;
+    let fetched = Arc::new(AtomicUsize::new(0));
+    let counter = Arc::clone(&fetched);
+    let handler = move |headers: axum::http::HeaderMap| {
+        let counter = Arc::clone(&counter);
+        async move {
+            if headers.get("range").and_then(|v| v.to_str().ok()) != Some("bytes=0-0") {
+                counter.fetch_add(1, Ordering::SeqCst);
+            }
+            axum::response::Response::builder()
+                .status(206)
+                .header("content-range", "bytes 0-0/5000")
+                .header("content-length", 1)
+                .body(Body::from(vec![0u8]))
+                .unwrap()
+        }
+    };
+    let addr = common::serve(axum::Router::new().fallback(handler)).await;
+    let dir = tempdir();
+    let small = dm_core::Options {
+        room: dm_core::Room::with_largest_file(|_| Some(1000)),
+        ..options(dir.path())
+    };
+    let said = dm_core::download(
+        &dm_core::client(),
+        &format!("http://{addr}/big.iso"),
+        &small,
+    )
+    .await
+    .unwrap_err()
+    .to_string();
+    assert!(said.starts_with("too large for this drive"), "{said}");
+    assert!(said.contains("FAT32"), "{said}");
+    assert_eq!(fetched.load(Ordering::SeqCst), 0, "ranges were fetched");
+}
+
 /// Gap 94: two downloads started together each checked the free space
 /// alone, so together they could still fill the disk. The second is
 /// checked against what the first still needs, and passes once the first

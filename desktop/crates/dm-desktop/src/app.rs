@@ -358,12 +358,18 @@ fn status_in(row: &Entry, words: fn(&'static str) -> &'static str) -> String {
         // said "Complete").
         State::Completed if crate::table::gone(row) => words("File missing").into(),
         State::Completed => words("Complete").into(),
-        // A server that wants a sign-in says where to give one.
-        State::Failed(reason) if needs_sign_in(reason) => format!(
-            "{} — {}",
-            crate::i18n::fill(words("Error: {}"), &[reason]),
-            words("it needs a sign-in: Properties › Login")
-        ),
+        // A server that wants a sign-in says where to give one: the plain
+        // sentences for 401 and 403 do (`format::REASONS`); anything else
+        // with that status is said as the engine said it, with where. The
+        // address and the server's own page were shown in the row
+        // (QA checklist ER-02, 2026-10-22).
+        State::Failed(reason) if needs_sign_in(reason) && format::reason(reason).is_none() => {
+            format!(
+                "{} — {}",
+                crate::i18n::fill(words("Error: {}"), &[reason]),
+                words("it needs a sign-in: Properties › Login")
+            )
+        }
         // In plain words where dm knows them; the engine's own on hover.
         // A full disk says which folder's: "the disk is full" left a person
         // to guess which disk (QA loop 2).
@@ -1163,6 +1169,12 @@ impl DmApp {
                 && self.notify_ready
             {
                 failed.push(row.id);
+                // Told as a finish is, with why in plain words: a failure
+                // was only a sound, if that was on (QA checklist UX-09).
+                self.backend.platform.notify(
+                    t("Download failed"),
+                    &format!("{} — {}", name_of(row), status_of(row)),
+                );
             }
             if row.state == State::Completed && self.notified.insert(row.id) && self.notify_ready {
                 self.backend
@@ -2198,18 +2210,8 @@ impl DmApp {
                 self.open_file(&targets[0].path);
             }
             Command::OpenWith => {
-                // Nothing to pick an application with: said, rather than a
-                // menu item that did nothing.
-                if !self.backend.platform.can_choose_file() {
-                    self.said = crate::i18n::Said::new(
-                        "No file chooser on this desktop to pick an application with; Open uses the file's usual one.",
-                        &[],
-                    );
-                } else if let Some(app) = self.backend.platform.choose_app() {
-                    if let Err(e) = self.backend.platform.open_with(&targets[0].path, &app) {
-                        self.said = e.into();
-                    }
-                }
+                let path = targets[0].path.clone();
+                self.open_with_chosen(&path);
             }
             Command::OpenFolder => {
                 self.reveal_file(&targets[0].path);
@@ -4046,6 +4048,26 @@ impl DmApp {
         ui.separator();
     }
 
+    /// What the tray's tooltip says while downloads run: how many and how
+    /// fast, as the status bar says it; `None` when nothing is downloading.
+    /// It said only "downloads keep running here" (QA checklist UX-08).
+    pub fn tray_activity(&self) -> Option<String> {
+        let running: Vec<&Entry> = self
+            .rows
+            .iter()
+            .filter(|r| r.state == State::Running && !fetched_all(r))
+            .collect();
+        if running.is_empty() {
+            return None;
+        }
+        let rate: f64 = running.iter().map(|r| r.progress.speed).sum();
+        Some(crate::i18n::tn(
+            "{} downloading at {}||{} downloading at {}",
+            running.len() as u64,
+            &[&running.len(), &format::rate(rate)],
+        ))
+    }
+
     fn status_bar(&mut self, ui: &mut egui::Ui) {
         // A row with every byte is only putting its file together: said
         // to be finishing, not counted as downloading at 0 B/s (gap 168).
@@ -4182,6 +4204,23 @@ impl DmApp {
                 }
             });
         });
+    }
+
+    /// Opens `path` with an application the person picks: from the row
+    /// menu and from Download complete.
+    pub fn open_with_chosen(&mut self, path: &str) {
+        // Nothing to pick an application with: said, rather than a button
+        // that did nothing.
+        if !self.backend.platform.can_choose_file() {
+            self.said = crate::i18n::Said::new(
+                "No file chooser on this desktop to pick an application with; Open uses the file's usual one.",
+                &[],
+            );
+        } else if let Some(app) = self.backend.platform.choose_app() {
+            if let Err(e) = self.backend.platform.open_with(path, &app) {
+                self.said = e.into();
+            }
+        }
     }
 
     /// Opens `path` with the system's opener, off the window's thread.

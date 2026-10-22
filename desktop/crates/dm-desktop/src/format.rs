@@ -266,7 +266,7 @@ pub fn titled(word: &str) -> String {
 /// one for what the network library says in its own terms ("error decoding
 /// response body" is a connection cut mid-file). The first that matches
 /// wins; anything else is shown as the engine said it.
-pub const REASONS: [(&[&str], &str); 26] = [
+pub const REASONS: [(&[&str], &str); 27] = [
     (
         &[
             "error decoding response body",
@@ -304,6 +304,10 @@ pub const REASONS: [(&[&str], &str); 26] = [
     (
         &["no space left", "os error 28", "disk full"],
         "the disk is full",
+    ),
+    (
+        &["too large for this drive"],
+        "the file is too large for this drive, which holds no file over 4 GB (FAT32): choose a folder on another drive",
     ),
     (
         &["disk: permission denied", "os error 13"],

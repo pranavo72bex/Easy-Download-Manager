@@ -564,5 +564,10 @@
  "dm could not get the video from this page": "dm bu sayfadaki videoyu alamadı",
  "Known once the video starts": "Video başladığında bilinir",
  "That is not a link dm can download. Paste a web address, such as https://example.com/file.zip.": "Bu, dm'nin indirebileceği bir bağlantı değil. https://example.com/file.zip gibi bir web adresi yapıştırın.",
- "Dragging files out of dm is not available here: right-click › Open folder": "Dosyaları dm'den sürüklemek burada kullanılamıyor: sağ tık › Klasörü aç"
+ "Dragging files out of dm is not available here: right-click › Open folder": "Dosyaları dm'den sürüklemek burada kullanılamıyor: sağ tık › Klasörü aç",
+ "Download failed": "İndirme başarısız oldu",
+ "Open {} with…": "{} ile birlikte aç…",
+ "Don't show this window again": "Bu pencereyi bir daha gösterme",
+ "Download complete will not open again; turn it back on in Options › General.": "İndirme tamamlandı penceresi bir daha açılmayacak; Seçenekler › Genel'den yeniden açın.",
+ "the file is too large for this drive, which holds no file over 4 GB (FAT32): choose a folder on another drive": "Dosya bu sürücü için çok büyük; bu sürücü 4 GB'tan büyük dosya tutamaz (FAT32): başka bir sürücüde bir klasör seçin"
 }

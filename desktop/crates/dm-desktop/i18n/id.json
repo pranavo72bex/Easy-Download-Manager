@@ -564,5 +564,10 @@
  "dm could not get the video from this page": "dm tidak dapat mengambil video dari halaman ini",
  "Known once the video starts": "Diketahui setelah video dimulai",
  "That is not a link dm can download. Paste a web address, such as https://example.com/file.zip.": "Itu bukan tautan yang dapat diunduh dm. Tempel alamat web, misalnya https://example.com/file.zip.",
- "Dragging files out of dm is not available here: right-click › Open folder": "Menyeret berkas keluar dari dm tidak tersedia di sini: klik kanan › Buka folder"
+ "Dragging files out of dm is not available here: right-click › Open folder": "Menyeret berkas keluar dari dm tidak tersedia di sini: klik kanan › Buka folder",
+ "Download failed": "Unduhan gagal",
+ "Open {} with…": "Buka {} dengan…",
+ "Don't show this window again": "Jangan tampilkan jendela ini lagi",
+ "Download complete will not open again; turn it back on in Options › General.": "Unduhan selesai tidak akan terbuka lagi; nyalakan kembali di Opsi › Umum.",
+ "the file is too large for this drive, which holds no file over 4 GB (FAT32): choose a folder on another drive": "Berkas terlalu besar untuk drive ini, yang tidak menampung berkas di atas 4 GB (FAT32): pilih folder di drive lain"
 }

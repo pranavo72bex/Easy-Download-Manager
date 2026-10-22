@@ -3796,6 +3796,8 @@ fn complete(app: &mut DmApp, ctx: &egui::Context) {
     }
     let mut done: Vec<Id> = Vec::new();
     let mut close = false;
+    let mut never_again = false;
+    let mut with: Vec<String> = Vec::new();
     let mut shut = true;
     // In the corner above the status bar, out of the way of the rows a
     // person is clicking while a batch finishes, rather than over them in
@@ -3911,6 +3913,10 @@ fn complete(app: &mut DmApp, ctx: &egui::Context) {
                                 app.open_file(&row.path);
                                 done.push(row.id);
                             }
+                            if named(ui, t("Open with…"), tf("Open {} with…", &[&name])) {
+                                with.push(row.path.clone());
+                                done.push(row.id);
+                            }
                             if named(ui, t("Open folder"), tf("Open the folder of {}", &[&name])) {
                                 app.reveal_file(&row.path);
                                 done.push(row.id);
@@ -3924,13 +3930,32 @@ fn complete(app: &mut DmApp, ctx: &egui::Context) {
                 });
             footer(ui, |ui| {
                 close = ui.button(t("Close")).clicked();
+                // As the window's own choice, not only Options': IDM's
+                // "Don't show this dialog again" (QA checklist UX-07).
+                ui.checkbox(&mut never_again, t("Don't show this window again"));
             });
         });
+    if never_again {
+        let mut wanted = app.applied.clone();
+        wanted.show_complete = false;
+        if let Err(why) = app.apply_settings(wanted) {
+            app.said = why.into();
+        } else {
+            app.said = crate::i18n::Said::new(
+                "Download complete will not open again; turn it back on in Options › General.",
+                &[],
+            );
+        }
+        app.dialogs.complete.clear();
+    }
     if close || !shut {
         app.dialogs.complete.clear();
     }
     for id in done {
         app.dialogs.complete.remove(&id);
+    }
+    for path in with {
+        app.open_with_chosen(&path);
     }
 }
 

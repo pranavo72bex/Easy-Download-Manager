@@ -564,5 +564,10 @@
  "dm could not get the video from this page": "O dm não conseguiu pegar o vídeo desta página",
  "Known once the video starts": "Conhecido quando o vídeo começar",
  "That is not a link dm can download. Paste a web address, such as https://example.com/file.zip.": "Isso não é um link que o dm possa baixar. Cole um endereço da web, como https://example.com/file.zip.",
- "Dragging files out of dm is not available here: right-click › Open folder": "Arrastar arquivos para fora do dm não está disponível aqui: clique direito › Abrir pasta"
+ "Dragging files out of dm is not available here: right-click › Open folder": "Arrastar arquivos para fora do dm não está disponível aqui: clique direito › Abrir pasta",
+ "Download failed": "O download falhou",
+ "Open {} with…": "Abrir {} com…",
+ "Don't show this window again": "Não mostrar esta janela de novo",
+ "Download complete will not open again; turn it back on in Options › General.": "Download concluído não abrirá de novo; ative de novo em Opções › Geral.",
+ "the file is too large for this drive, which holds no file over 4 GB (FAT32): choose a folder on another drive": "O arquivo é grande demais para esta unidade, que não aceita arquivos acima de 4 GB (FAT32): escolha uma pasta em outra unidade"
 }

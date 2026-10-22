@@ -564,5 +564,10 @@
  "dm could not get the video from this page": "dm не смог получить видео с этой страницы",
  "Known once the video starts": "Станет известен, когда начнётся видео",
  "That is not a link dm can download. Paste a web address, such as https://example.com/file.zip.": "Это не ссылка, которую dm может загрузить. Вставьте веб-адрес, например https://example.com/file.zip.",
- "Dragging files out of dm is not available here: right-click › Open folder": "Перетаскивать файлы из dm здесь нельзя: правый щелчок › Открыть папку"
+ "Dragging files out of dm is not available here: right-click › Open folder": "Перетаскивать файлы из dm здесь нельзя: правый щелчок › Открыть папку",
+ "Download failed": "Загрузка не удалась",
+ "Open {} with…": "Открыть {} с помощью…",
+ "Don't show this window again": "Больше не показывать это окно",
+ "Download complete will not open again; turn it back on in Options › General.": "Окно «Загрузка завершена» больше не откроется; включить снова можно в Параметры › Общие.",
+ "the file is too large for this drive, which holds no file over 4 GB (FAT32): choose a folder on another drive": "Файл слишком велик для этого диска, который не вмещает файлы больше 4 ГБ (FAT32): выберите папку на другом диске"
 }

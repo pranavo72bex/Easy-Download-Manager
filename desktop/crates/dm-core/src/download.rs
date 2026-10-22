@@ -2736,6 +2736,9 @@ pub struct Room {
     inner: Arc<std::sync::Mutex<Claims>>,
     /// Where the free space is read; `free_space` unless a test says.
     free: Option<Arc<FreeSpace>>,
+    /// Where the largest file a folder's drive holds is read;
+    /// `largest_file` unless a test says.
+    largest: Option<Arc<FreeSpace>>,
 }
 
 /// A reader of a folder's free space.
@@ -2777,6 +2780,25 @@ impl Room {
         Room {
             inner: Arc::default(),
             free: Some(Arc::new(free)),
+            largest: None,
+        }
+    }
+
+    /// A ledger whose drives hold no file over what `largest` says: for
+    /// tests, a FAT32 drive.
+    pub fn with_largest_file(
+        largest: impl Fn(&Path) -> Option<u64> + Send + Sync + 'static,
+    ) -> Self {
+        Room {
+            largest: Some(Arc::new(largest)),
+            ..Room::default()
+        }
+    }
+
+    fn largest_file(&self, dir: &Path) -> Option<u64> {
+        match &self.largest {
+            Some(largest) => largest(dir),
+            None => largest_file(dir),
         }
     }
 
@@ -2818,6 +2840,21 @@ fn room_for(size: u64, done: &Arc<AtomicU64>, options: &Options) -> Result<Claim
     let mut needs = vec![(parts, Some(Arc::clone(done)))];
     if !same_disk(parts, dest) {
         needs.push((dest, None));
+    }
+    // A drive whose file system cannot hold a file this big (FAT32's 4 GB)
+    // is said before a byte is fetched: the download ran to 4 GB and failed
+    // there (QA checklist EN-09).
+    for (dir, _) in &needs {
+        if let Some(most) = room.largest_file(dir) {
+            if size > most {
+                return Err(Error::Internal(format!(
+                    "too large for this drive: the file is {}, and {} is on a FAT32 drive, which \
+                     holds no file over 4 GB; choose a folder on another drive",
+                    amount(size),
+                    dir.display()
+                )));
+            }
+        }
     }
     // Held across the check and the claim, so two downloads starting at
     // once cannot both pass against the same space.
@@ -2945,6 +2982,87 @@ pub fn free_space(dir: &Path) -> Option<u64> {
         (stat.f_bavail as u64).saturating_mul(stat.f_frsize as u64),
         (stat.f_blocks as u64).saturating_mul(stat.f_frsize as u64),
     )
+}
+
+/// The most a FAT32 file can be: four gigabytes less a byte.
+const FAT32_MOST: u64 = 4 * 1024 * 1024 * 1024 - 1;
+
+/// The largest file the drive holding `dir` can take, where its file
+/// system limits one (FAT32); `None` for no limit dm knows of.
+#[cfg(target_os = "linux")]
+pub fn largest_file(dir: &Path) -> Option<u64> {
+    use std::os::unix::ffi::OsStrExt;
+    let path = std::ffi::CString::new(dir.as_os_str().as_bytes()).ok()?;
+    let mut stat = std::mem::MaybeUninit::<libc::statfs>::zeroed();
+    // SAFETY: `path` is NUL-terminated and outlives the call; `stat` is a
+    // statfs buffer read only when the call succeeded.
+    if unsafe { libc::statfs(path.as_ptr(), stat.as_mut_ptr()) } != 0 {
+        return None;
+    }
+    // SAFETY: statfs returned 0, so it filled the buffer.
+    let stat = unsafe { stat.assume_init() };
+    const MSDOS_SUPER_MAGIC: i64 = 0x4d44;
+    #[allow(clippy::unnecessary_cast)]
+    (stat.f_type as i64 == MSDOS_SUPER_MAGIC).then_some(FAT32_MOST)
+}
+
+/// The largest file the drive holding `dir` can take, where its file
+/// system limits one (FAT32, "msdos" to macOS); `None` for no limit.
+#[cfg(target_os = "macos")]
+pub fn largest_file(dir: &Path) -> Option<u64> {
+    use std::os::unix::ffi::OsStrExt;
+    let path = std::ffi::CString::new(dir.as_os_str().as_bytes()).ok()?;
+    let mut stat = std::mem::MaybeUninit::<libc::statfs>::zeroed();
+    // SAFETY: as for Linux above.
+    if unsafe { libc::statfs(path.as_ptr(), stat.as_mut_ptr()) } != 0 {
+        return None;
+    }
+    // SAFETY: statfs returned 0, so it filled the buffer.
+    let stat = unsafe { stat.assume_init() };
+    // SAFETY: f_fstypename is a NUL-terminated name the call wrote.
+    let kind = unsafe { std::ffi::CStr::from_ptr(stat.f_fstypename.as_ptr()) };
+    (kind.to_bytes() == b"msdos").then_some(FAT32_MOST)
+}
+
+/// The largest file the drive holding `dir` can take, where its file
+/// system limits one (FAT32 or FAT); `None` for no limit dm knows of.
+#[cfg(windows)]
+pub fn largest_file(dir: &Path) -> Option<u64> {
+    use std::os::windows::ffi::OsStrExt;
+    use windows_sys::Win32::Storage::FileSystem::{GetVolumeInformationW, GetVolumePathNameW};
+    let wide: Vec<u16> = dir.as_os_str().encode_wide().chain(Some(0)).collect();
+    let mut root = [0u16; 261];
+    // SAFETY: `wide` is NUL-terminated; `root` is a buffer of the length
+    // given.
+    if unsafe { GetVolumePathNameW(wide.as_ptr(), root.as_mut_ptr(), root.len() as u32) } == 0 {
+        return None;
+    }
+    let mut kind = [0u16; 32];
+    // SAFETY: `root` holds a NUL-terminated volume path; the out-buffers
+    // are the lengths given, and the rest may be null.
+    let done = unsafe {
+        GetVolumeInformationW(
+            root.as_ptr(),
+            std::ptr::null_mut(),
+            0,
+            std::ptr::null_mut(),
+            std::ptr::null_mut(),
+            std::ptr::null_mut(),
+            kind.as_mut_ptr(),
+            kind.len() as u32,
+        )
+    };
+    if done == 0 {
+        return None;
+    }
+    let end = kind.iter().position(|c| *c == 0).unwrap_or(kind.len());
+    let name = String::from_utf16_lossy(kind.get(..end).unwrap_or_default());
+    matches!(name.as_str(), "FAT32" | "FAT").then_some(FAT32_MOST)
+}
+
+#[cfg(not(any(target_os = "linux", target_os = "macos", windows)))]
+pub fn largest_file(_dir: &Path) -> Option<u64> {
+    None
 }
 
 /// The free space a file system reported, or unknown when it reported no

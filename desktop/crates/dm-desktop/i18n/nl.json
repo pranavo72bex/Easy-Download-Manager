@@ -564,5 +564,10 @@
  "dm could not get the video from this page": "dm kon de video niet van deze pagina halen",
  "Known once the video starts": "Bekend zodra de video begint",
  "That is not a link dm can download. Paste a web address, such as https://example.com/file.zip.": "Dat is geen link die dm kan downloaden. Plak een webadres, zoals https://example.com/file.zip.",
- "Dragging files out of dm is not available here: right-click › Open folder": "Bestanden uit dm slepen kan hier niet: rechtsklik › Map openen"
+ "Dragging files out of dm is not available here: right-click › Open folder": "Bestanden uit dm slepen kan hier niet: rechtsklik › Map openen",
+ "Download failed": "Download mislukt",
+ "Open {} with…": "{} openen met…",
+ "Don't show this window again": "Dit venster niet meer tonen",
+ "Download complete will not open again; turn it back on in Options › General.": "Download voltooid gaat niet meer open; zet het weer aan in Opties › Algemeen.",
+ "the file is too large for this drive, which holds no file over 4 GB (FAT32): choose a folder on another drive": "Het bestand is te groot voor deze schijf, die geen bestanden boven 4 GB kan bevatten (FAT32): kies een map op een andere schijf"
 }

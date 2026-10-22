@@ -228,6 +228,8 @@ struct Window {
     icon: Option<TrayMade>,
     /// The language the tray's words are in.
     tray_language: String,
+    /// What the tray's tooltip says now, so it is set only when it changes.
+    tray_tip: String,
     /// Where the window was when it went to the tray: it comes back there.
     /// A window manager places a window shown again as it likes, which was
     /// somewhere else each time.
@@ -406,6 +408,18 @@ impl Window {
                 }
                 limiter.set_text(limit);
                 let _ = icon.set_tooltip(Some(tooltip));
+            }
+        }
+        // The tray's tooltip: how many downloads and how fast, else what dm
+        // is doing there.
+        if let Some((icon, _, _)) = &self.icon {
+            let tip = self
+                .app
+                .tray_activity()
+                .unwrap_or_else(|| tray_words()[4].to_string());
+            if tip != self.tray_tip {
+                let _ = icon.set_tooltip(Some(&tip));
+                self.tray_tip = tip;
             }
         }
         // The tray's limiter item is ticked while a limit is in force.
@@ -1267,6 +1281,36 @@ fn attach_console() {
     }
 }
 
+/// What `dm-desktop --help` prints.
+const USAGE: &str = "\
+dm — a download manager
+
+Usage:
+  dm-desktop [options] [LINK ...]
+
+Each link (http, https, ftp, magnet, or a .torrent file) is downloaded by the
+dm already running, or by one started for it. Options apply to the link that
+follows them:
+  --save-to FOLDER   save the next link into FOLDER
+  --name NAME        save the next link as NAME
+  --later            add the next link to the queue without starting it
+  --start-queue      start the main queue
+
+Other commands:
+  --hidden           start in the tray, with no window
+  --headless         run with no window at all
+  --register [ID]    connect dm to the installed browsers (ID: an extension id)
+  --unregister       disconnect dm from the browsers and remove its login item
+  mcp                serve dm's commands to an AI client (Model Context Protocol)
+  --version          print dm's version
+  --help             print this
+
+Examples:
+  dm-desktop https://example.com/file.zip
+  dm-desktop --save-to ~/Videos --name talk.mp4 https://example.com/v.mp4
+  dm-desktop --later https://example.com/a.iso --later https://example.com/b.iso
+";
+
 fn main() {
     let args = shell::args();
 
@@ -1281,6 +1325,17 @@ fn main() {
     // opened the window (found checking an installed AppImage, 0.2.0).
     if matches!(args.first().map(String::as_str), Some("--version" | "-V")) {
         println!("dm {}", env!("CARGO_PKG_VERSION"));
+        return;
+    }
+
+    // `--help`: how to use dm from a command line, and nothing else. It
+    // opened the window (QA checklist OR-08, 2026-10-22).
+    if matches!(
+        args.first().map(String::as_str),
+        Some("--help" | "-h" | "/?")
+    ) {
+        attach_console();
+        print!("{USAGE}");
         return;
     }
 
@@ -1566,6 +1621,7 @@ fn main() {
             show_asked,
             icon,
             tray_language: language,
+            tray_tip: String::new(),
             hidden_at: None,
             hidden_maximized: false,
             browsers_said,

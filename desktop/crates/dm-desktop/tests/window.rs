@@ -5524,10 +5524,10 @@ fn a_refused_sign_in_says_where_to_give_one() {
     });
     let failed = harness.state().rows()[0].clone();
     let said = dm_desktop::app::status_of(&failed);
-    assert!(
-        said.contains("needs a sign-in: Properties › Login"),
-        "{said}"
-    );
+    // In plain words, saying where a sign-in goes, without the address or
+    // the server's page (QA checklist ER-02).
+    assert!(said.contains("Properties › Login"), "{said}");
+    assert!(!said.contains("http"), "{said}");
     select(&mut harness, "secret.zip");
     // Retry, not Resume, on the toolbar, in the File menu and the row menu.
     assert!(harness.query_by_label("Retry").is_some());
@@ -8699,4 +8699,65 @@ fn a_new_user_is_shown_how_to_add_dm_to_their_browser() {
     let offered = harness.query_by_label("Microsoft Edge").is_some();
     std::fs::remove_file(&seen).unwrap();
     assert!(!offered, "offered to someone whose browser has connected");
+}
+
+/// A failure is announced as a finish is, saying why in plain words; it was
+/// only a sound, if that was on (QA checklist UX-09).
+#[test]
+fn a_failed_download_is_announced_with_why() {
+    let world = world();
+    let mut harness = world.harness();
+    add_url(&mut harness, &world.url("secret.zip"), "Start now");
+    until(&mut harness, "the refusal", |app| {
+        app.rows()
+            .iter()
+            .any(|r| matches!(r.state, State::Failed(_)))
+    });
+    harness.run_steps(3);
+    let told = world.fake.notified.lock().unwrap().clone();
+    assert_eq!(told.len(), 1, "{told:?}");
+    assert!(told[0].starts_with("secret.zip — "), "{told:?}");
+    assert!(!told[0].contains("http"), "{told:?}");
+}
+
+/// Download complete can be turned off from itself, as IDM's "Don't show
+/// this dialog again", and offers Open with beside Open (QA checklist UX-07).
+#[test]
+fn download_complete_offers_open_with_and_not_again() {
+    let _file = settings_file();
+    let world = world();
+    let mut harness = world.harness();
+    harness.state_mut().applied.show_complete = true;
+    add_url(&mut harness, &world.url("file.zip"), "Start now");
+    until(&mut harness, "the download to complete", |app| {
+        app.rows().iter().any(|r| r.state == State::Completed)
+    });
+    harness.run_steps(3);
+    assert!(harness.query_by_label("Open with…").is_some());
+    click(&mut harness, "Don't show this window again");
+    harness.run_steps(2);
+    assert!(harness.query_by_label("Download complete").is_none());
+    assert!(
+        !harness.state().applied.show_complete,
+        "the setting stays on"
+    );
+    // Put back for the tests after.
+    let mut wanted = harness.state().applied.clone();
+    wanted.show_complete = true;
+    harness.state_mut().apply_settings(wanted).unwrap();
+}
+
+/// The tray says how many downloads run and how fast; nothing to say when
+/// none do (QA checklist UX-08).
+#[test]
+fn the_tray_says_how_many_downloads_run_and_how_fast() {
+    let world = world();
+    let mut harness = world.harness();
+    assert_eq!(harness.state().tray_activity(), None);
+    add_url(&mut harness, &world.url("stalled.bin"), "Start now");
+    until(&mut harness, "the download to run", |app| {
+        app.rows().iter().any(|r| r.state == State::Running)
+    });
+    let said = harness.state().tray_activity().unwrap_or_default();
+    assert!(said.starts_with("1 downloading at "), "{said}");
 }
