@@ -68,6 +68,15 @@ pub fn attach(window: raw_window_handle::RawWindowHandle) {
     let _ = window;
 }
 
+/// The floating drop target's window title, by which Windows finds it.
+pub const DROP_TARGET_TITLE: &str = "dm drop target";
+
+/// Puts dm's drop target on the floating drop target's window too.
+pub fn attach_floating() {
+    #[cfg(windows)]
+    win::install_titled(DROP_TARGET_TITLE);
+}
+
 /// Has the window take links dropped on it, where the window system offers
 /// them. Called every frame; does its work once a window exists.
 pub fn watch(ctx: &egui::Context) {
@@ -89,6 +98,9 @@ mod mac {
     use objc2_foundation::{NSArray, NSString};
 
     static INSTALLED: AtomicBool = AtomicBool::new(false);
+    /// How many windows have been registered for links: a window opened
+    /// since (the floating drop target) is registered too.
+    static REGISTERED: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsize::new(0);
     static ENTERED: OnceLock<Imp> = OnceLock::new();
     static PERFORM: OnceLock<Imp> = OnceLock::new();
 
@@ -188,9 +200,6 @@ mod mac {
     }
 
     pub(super) fn install() {
-        if INSTALLED.load(Ordering::Relaxed) {
-            return;
-        }
         let Some(mtm) = MainThreadMarker::new() else {
             return;
         };
@@ -198,6 +207,11 @@ mod mac {
         let windows: Retained<NSArray<AnyObject>> = unsafe { msg_send![&*app, windows] };
         if windows.count() == 0 {
             return; // a login launch: no window yet
+        }
+        if INSTALLED.load(Ordering::Relaxed)
+            && REGISTERED.load(Ordering::Relaxed) == windows.count()
+        {
+            return;
         }
         let types = NSArray::from_retained_slice(&[
             NSString::from_str("NSFilenamesPboardType"),
@@ -210,7 +224,8 @@ mod mac {
         } else {
             c"c@:@"
         };
-        let mut done = false;
+        let mut done = INSTALLED.load(Ordering::Relaxed);
+        REGISTERED.store(windows.count(), Ordering::Relaxed);
         for window in windows.iter() {
             let delegate: Option<Retained<AnyObject>> = unsafe { msg_send![&*window, delegate] };
             let Some(delegate) = delegate else {
@@ -312,7 +327,6 @@ mod win {
         drop,
     };
     pub(super) static TARGET: DropTarget = DropTarget { vtbl: &VTBL };
-    static INSTALLED: AtomicBool = AtomicBool::new(false);
     /// Whether what is being dragged over the window is something dm takes.
     static TAKES: AtomicBool = AtomicBool::new(false);
 
@@ -509,8 +523,13 @@ mod win {
         S_OK
     }
 
+    /// The windows dm's drop target is on: the main one, and the floating
+    /// drop target where it is shown.
+    static ON: std::sync::Mutex<Vec<isize>> = std::sync::Mutex::new(Vec::new());
+
     pub(super) fn install(hwnd: isize) {
-        if INSTALLED.swap(true, Ordering::Relaxed) {
+        let mut on = dm_core::lock(&ON);
+        if on.contains(&hwnd) {
             return;
         }
         let window = hwnd as HWND;
@@ -519,9 +538,20 @@ mod win {
         unsafe {
             RevokeDragDrop(window);
             let target = &TARGET as *const DropTarget as *mut c_void;
-            if RegisterDragDrop(window, target) != S_OK {
-                INSTALLED.store(false, Ordering::Relaxed);
+            if RegisterDragDrop(window, target) == S_OK {
+                on.push(hwnd);
             }
+        }
+    }
+
+    /// dm's drop target on the window with this title, where there is one.
+    pub(super) fn install_titled(title: &str) {
+        use windows_sys::Win32::UI::WindowsAndMessaging::FindWindowW;
+        let wide: Vec<u16> = title.encode_utf16().chain(Some(0)).collect();
+        // SAFETY: a NUL-terminated title, alive for the call.
+        let found = unsafe { FindWindowW(std::ptr::null(), wide.as_ptr()) };
+        if !found.is_null() {
+            install(found as isize);
         }
     }
 

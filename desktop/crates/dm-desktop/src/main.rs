@@ -351,6 +351,8 @@ impl eframe::App for Window {
         // Hidden in the tray, nothing is drawn: it was drawn on every wake,
         // a tenth of a core idle (life-cycle QA, gap 67).
         if self.hidden {
+            // The floating drop target stays, and takes what is dropped.
+            self.app.while_hidden(ui.ctx());
             return;
         }
         self.app.ui(ui);
@@ -395,6 +397,9 @@ impl Window {
         // Asked to show itself — dm opened again, or its Dock icon
         // clicked: a browser installed since dm started is registered now,
         // so "open dm once" works while dm runs (gap 131).
+        if std::mem::take(&mut self.app.show_asked) {
+            self.show(ctx);
+        }
         if self.show_asked.swap(false, Ordering::Relaxed) {
             if let Some(why) = dm_shell::register::worth_saying(
                 &mut self.browsers_said,

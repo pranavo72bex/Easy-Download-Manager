@@ -1064,6 +1064,31 @@ fn the_command_lines_when_done_is_taken_up() {
         .exists());
 }
 
+/// View › Drop target puts the floating drop target up, over every other
+/// window, and takes it away; the choice is kept in the settings.
+#[test]
+fn view_drop_target_shows_and_hides_the_floating_target() {
+    let _file = settings_file();
+    let world = world();
+    let mut harness = world.harness();
+    press(&mut harness, &["View", "Drop target"]);
+    harness.run_steps(4);
+    assert!(harness.state().applied.drop_target);
+    assert!(harness.state().backend().settings().drop_target, "not kept");
+    assert!(
+        harness
+            .query_by_label_contains("Drop a link here to download it with dm")
+            .is_some()
+            || harness
+                .query_by_label_contains(dm_desktop::drops::DROP_TARGET_TITLE)
+                .is_some(),
+        "no drop target drawn"
+    );
+    press(&mut harness, &["View", "Drop target"]);
+    harness.run_steps(4);
+    assert!(!harness.state().applied.drop_target);
+}
+
 /// The places' groups open and shut from their own row, as a navigation
 /// view's expandable items do.
 #[test]

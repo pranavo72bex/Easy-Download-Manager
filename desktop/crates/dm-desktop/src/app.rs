@@ -741,6 +741,9 @@ pub struct DmApp {
     /// The row fetching dm's own update, from About, until it is installed
     /// or put off: once whole and checked, the window offers to install it.
     pub update_row: Option<Id>,
+    /// The window was asked to come up from inside it (the floating drop
+    /// target's Show dm), for the program around it to do.
+    pub show_asked: bool,
 
     /// Commands asked for while drawing, run once the frame is drawn.
     pub queued: Vec<Command>,
@@ -937,6 +940,7 @@ impl DmApp {
             clipboard: Clipboard::default(),
             browser_hint: (None, false),
             update_row: None,
+            show_asked: false,
             update: Arc::new(Mutex::new(Update::NotAsked)),
             weekly_pending: false,
             said: Default::default(),
@@ -2445,6 +2449,13 @@ impl DmApp {
 
             Command::ToggleCategories => self.show_categories = !self.show_categories,
             Command::ToggleToolbar => self.show_toolbar = !self.show_toolbar,
+            Command::ToggleDropTarget => {
+                let mut wanted = self.applied.clone();
+                wanted.drop_target = !wanted.drop_target;
+                if let Err(e) = self.apply_settings(wanted) {
+                    self.said = e.into();
+                }
+            }
             Command::SortByName => self.sort_by(Column::Name),
             Command::SortBySize => self.sort_by(Column::Size),
             Command::SortByStatus => self.sort_by(Column::Status),
@@ -3023,6 +3034,7 @@ impl DmApp {
         );
         self.keys(&ctx);
         self.take_drops(&ctx);
+        self.drop_target(&ctx);
 
         let t = crate::theme::Tokens::get(&ctx);
         // The modern look: surfaces meet without lines; the classic look keeps them.
@@ -3436,6 +3448,110 @@ impl DmApp {
         }
     }
 
+    /// While the main window is hidden in the tray: the floating drop
+    /// target, and what is dropped on it, are still taken.
+    pub fn while_hidden(&mut self, ctx: &egui::Context) {
+        if self.applied.drop_target {
+            self.take_drops(ctx);
+            self.drop_target(ctx);
+        }
+    }
+
+    /// The floating drop target (View › Drop target): a small window over
+    /// every other, moved by dragging it, that takes a link or a file of
+    /// links dropped on it as the main window does. A right-click offers to
+    /// show dm or put the target away.
+    pub fn drop_target(&mut self, ctx: &egui::Context) {
+        if !self.applied.drop_target || self.headless {
+            return;
+        }
+        let id = egui::ViewportId::from_hash_of("dm-drop-target");
+        let builder = egui::ViewportBuilder::default()
+            .with_title(crate::drops::DROP_TARGET_TITLE)
+            .with_inner_size([64.0, 64.0])
+            .with_resizable(false)
+            .with_decorations(false)
+            .with_transparent(true)
+            .with_always_on_top()
+            .with_taskbar(false);
+        let mut links = Vec::new();
+        let mut dropped_any = false;
+        let mut action: Option<Command> = None;
+        let mut show = false;
+        let tokens = crate::theme::Tokens::get(ctx);
+        ctx.show_viewport_immediate(id, builder, |vui, _class| {
+            let ctx = vui.ctx().clone();
+            crate::drops::attach_floating();
+            // Its own window's drops; drawn inside the main window (where
+            // there are no separate windows) it shares the main window's,
+            // which the main window takes.
+            let dropped = if ctx.embed_viewports() {
+                Vec::new()
+            } else {
+                ctx.input(|i| i.raw.dropped_files.clone())
+            };
+            dropped_any = !dropped.is_empty();
+            for file in &dropped {
+                links.extend(dropped_links(file.as_ref()));
+            }
+            let over = ctx.input(|i| !i.raw.hovered_files.is_empty());
+            egui::CentralPanel::default()
+                .frame(egui::Frame::NONE)
+                .show(vui, |ui| {
+                    let (rect, response) =
+                        ui.allocate_exact_size(ui.available_size(), egui::Sense::click_and_drag());
+                    let fill = if over || response.hovered() {
+                        tokens.brand_hover
+                    } else {
+                        tokens.brand
+                    };
+                    let painter = ui.painter();
+                    painter.rect_filled(rect.shrink(2.0), 12.0, fill);
+                    painter.text(
+                        rect.center() - egui::vec2(0.0, 6.0),
+                        egui::Align2::CENTER_CENTER,
+                        "↓",
+                        egui::FontId::proportional(24.0),
+                        tokens.on_brand,
+                    );
+                    painter.text(
+                        rect.center() + egui::vec2(0.0, 16.0),
+                        egui::Align2::CENTER_CENTER,
+                        "dm",
+                        egui::FontId::proportional(11.0),
+                        tokens.on_brand,
+                    );
+                    if response.drag_started() {
+                        ctx.send_viewport_cmd(egui::ViewportCommand::StartDrag);
+                    }
+                    let response = response
+                        .on_hover_text(t("Drop a link here to download it with dm. Drag to move."));
+                    if response.double_clicked() {
+                        show = true;
+                    }
+                    response.context_menu(|ui| {
+                        if ui.button(t("Show dm")).clicked() {
+                            show = true;
+                            ui.close();
+                        }
+                        if ui.button(t("Hide the drop target")).clicked() {
+                            action = Some(Command::ToggleDropTarget);
+                            ui.close();
+                        }
+                    });
+                });
+        });
+        if !links.is_empty() {
+            let _ = self.add(&links, Default::default());
+        } else if dropped_any {
+            self.said = crate::i18n::Said::new(drop_hint(), &[]);
+        }
+        if let Some(command) = action {
+            self.queued.push(command);
+        }
+        self.show_asked |= show;
+    }
+
     fn take_drops(&mut self, ctx: &egui::Context) {
         crate::drops::watch(ctx);
         let dropped = ctx.input(|i| i.raw.dropped_files.clone());
@@ -3695,6 +3811,10 @@ impl DmApp {
                     }
                     if ticked_item(ui, t("Toolbar"), self.show_toolbar).clicked() {
                         self.queued.push(Command::ToggleToolbar);
+                        ui.close();
+                    }
+                    if ticked_item(ui, t("Drop target"), self.applied.drop_target).clicked() {
+                        self.queued.push(Command::ToggleDropTarget);
                         ui.close();
                     }
                     // "Columns": each column on or off; the file

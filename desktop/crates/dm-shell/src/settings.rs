@@ -204,6 +204,10 @@ pub struct Settings {
     /// Queues that run fewer files at once than `concurrency`.
     #[serde(default, deserialize_with = "lenient::queue_limits")]
     pub queue_limits: Vec<QueueLimit>,
+    /// The floating drop target: a small window over every other, which
+    /// takes a link dragged onto it. Off unless chosen (View › Drop target).
+    #[serde(default)]
+    pub drop_target: bool,
     /// Queues that start on their own each day at a time of their own.
     #[serde(default)]
     pub queue_starts: Vec<QueueStart>,
@@ -333,6 +337,7 @@ impl Default for Settings {
             site_searches: Vec::new(),
             queue_limits: Vec::new(),
             queue_starts: Vec::new(),
+            drop_target: false,
             remux_ts: true,
             parts_dir: String::new(),
             on_complete: String::new(),
