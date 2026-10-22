@@ -3,6 +3,21 @@
 Decisions that shape dm and are not obvious from the code, newest first. Each says what was decided and why, so a later change
 can see what it is undoing.
 
+## 2026-10-22: Arabic and Hebrew wait for bidirectional text in egui's layout
+
+egui 0.37 shapes Arabic (harfrust) but lays every line out left to right in
+stored order, and has no paragraph direction (epaint's `unicode.rs` still
+says "TODO: heed bidi characters"). dm reorders single-line names itself
+(`bidi.rs`). An interface in Arabic or Hebrew cannot be done the same way:
+a message that wraps must be reordered line by line after it is broken,
+which only the layout can do, and reordering strings before they reach
+egui would hand screen readers the words backwards. The way there is a
+vendored epaint, as winit is vendored: the Unicode bidirectional algorithm
+run per laid-out row (reorder its glyph runs by level), right-aligned rows
+for a right-to-left paragraph, then the window mirrored (the places on the
+right, the toolbar and columns from the right) and the two catalogs. Until
+then dm offers the eleven left-to-right languages it has.
+
 ## 2026-10-22: The title bar takes the window's colour; no Mica backdrop yet
 
 Fluent's windows read as one surface from title bar to content. On Windows
