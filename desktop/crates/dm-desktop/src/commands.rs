@@ -4,6 +4,12 @@
 //! keyboard and the control protocol all run a `Command`, so a command that
 //! exists is reachable from all of them.
 
+/// The speed presets, in KB/s: one click from the tray or Downloads ›
+/// Speed limiter, beside the exact limit Speed limiter settings keeps.
+pub const SPEED_LOW: u64 = 256;
+pub const SPEED_MEDIUM: u64 = 1024;
+pub const SPEED_HIGH: u64 = 4096;
+
 /// One action, as the menu, toolbar, keyboard or control protocol asks for it.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum Command {
@@ -44,6 +50,10 @@ pub enum Command {
     StopQueue,
     SpeedLimiterToggle,
     SpeedLimiterSettings,
+    SpeedLow,
+    SpeedMedium,
+    SpeedHigh,
+    SpeedUnlimited,
     WhenDoneNothing,
     WhenDoneQuit,
     WhenDoneSleep,
@@ -104,6 +114,10 @@ impl Command {
         Command::StopQueue,
         Command::SpeedLimiterToggle,
         Command::SpeedLimiterSettings,
+        Command::SpeedLow,
+        Command::SpeedMedium,
+        Command::SpeedHigh,
+        Command::SpeedUnlimited,
         Command::WhenDoneNothing,
         Command::WhenDoneQuit,
         Command::WhenDoneSleep,
@@ -162,6 +176,10 @@ impl Command {
             Command::StopQueue => "downloads.stop_queue",
             Command::SpeedLimiterToggle => "downloads.speed_limiter.toggle",
             Command::SpeedLimiterSettings => "downloads.speed_limiter.settings",
+            Command::SpeedLow => "downloads.speed.low",
+            Command::SpeedMedium => "downloads.speed.medium",
+            Command::SpeedHigh => "downloads.speed.high",
+            Command::SpeedUnlimited => "downloads.speed.unlimited",
             Command::WhenDoneNothing => "downloads.when_done.nothing",
             Command::WhenDoneQuit => "downloads.when_done.exit",
             Command::WhenDoneSleep => "downloads.when_done.sleep",
@@ -205,6 +223,17 @@ impl Command {
                 | Command::SpeedLimiterSettings
                 | Command::Options
         )
+    }
+
+    /// The speed, in KB/s, a preset holds downloads to (0 for none).
+    pub fn speed_preset(self) -> Option<u64> {
+        match self {
+            Command::SpeedLow => Some(SPEED_LOW),
+            Command::SpeedMedium => Some(SPEED_MEDIUM),
+            Command::SpeedHigh => Some(SPEED_HIGH),
+            Command::SpeedUnlimited => Some(0),
+            _ => None,
+        }
     }
 
     /// What a person reads on the menu item or button, in the language in
@@ -251,6 +280,10 @@ impl Command {
             Command::StopQueue => "Stop queue",
             Command::SpeedLimiterToggle => "Limit speed",
             Command::SpeedLimiterSettings => "Speed limiter settings",
+            Command::SpeedLow => "Low speed (256 KB/s)",
+            Command::SpeedMedium => "Medium speed (1 MB/s)",
+            Command::SpeedHigh => "High speed (4 MB/s)",
+            Command::SpeedUnlimited => "Full speed",
             Command::WhenDoneNothing => "Do nothing",
             Command::WhenDoneQuit => "Exit dm",
             Command::WhenDoneSleep => "Sleep",

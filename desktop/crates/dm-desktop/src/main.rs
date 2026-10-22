@@ -808,7 +808,7 @@ type TrayMade = (
 );
 
 fn tray(wake: egui::Context, send: mpsc::Sender<Tray>) -> Result<TrayMade, String> {
-    use tray_icon::menu::{CheckMenuItem, Menu, MenuEvent, MenuItem};
+    use tray_icon::menu::{CheckMenuItem, Menu, MenuEvent, MenuItem, Submenu};
     use tray_icon::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent};
 
     let image = image::load_from_memory(ICON)
@@ -824,11 +824,27 @@ fn tray(wake: egui::Context, send: mpsc::Sender<Tray>) -> Result<TrayMade, Strin
     let limiter = CheckMenuItem::new(limiter, true, false, None);
     let scheduler = MenuItem::new(scheduler, true, None);
     let quit = MenuItem::new(quit, true, None);
-    let items = vec![show.clone(), scheduler.clone(), quit.clone()];
+    // The speed presets, one click from the tray.
+    let presets: Vec<(Command, MenuItem)> = [
+        Command::SpeedLow,
+        Command::SpeedMedium,
+        Command::SpeedHigh,
+        Command::SpeedUnlimited,
+    ]
+    .into_iter()
+    .map(|c| (c, MenuItem::new(c.title(), true, None)))
+    .collect();
+    let speeds = Submenu::new(dm_desktop::i18n::t("Speed"), true);
+    for (_, item) in &presets {
+        let _ = speeds.append(item);
+    }
+    let mut items = vec![show.clone(), scheduler.clone(), quit.clone()];
+    items.extend(presets.iter().map(|(_, item)| item.clone()));
     let menu = Menu::with_items(&[
         &show,
         &PredefinedMenuItem::separator(),
         &limiter,
+        &speeds,
         &scheduler,
         &PredefinedMenuItem::separator(),
         &quit,
@@ -836,6 +852,10 @@ fn tray(wake: egui::Context, send: mpsc::Sender<Tray>) -> Result<TrayMade, Strin
     .map_err(|e| e.to_string())?;
     let (show_id, quit_id) = (show.id().clone(), quit.id().clone());
     let (limiter_id, scheduler_id) = (limiter.id().clone(), scheduler.id().clone());
+    let preset_ids: Vec<(tray_icon::menu::MenuId, Command)> = presets
+        .iter()
+        .map(|(c, item)| (item.id().clone(), *c))
+        .collect();
 
     let (to_menu, to_click) = (send.clone(), send);
     let (wake_menu, wake_click) = (wake.clone(), wake);
@@ -848,6 +868,8 @@ fn tray(wake: egui::Context, send: mpsc::Sender<Tray>) -> Result<TrayMade, Strin
             Tray::Run(Command::SpeedLimiterToggle, false)
         } else if event.id == scheduler_id {
             Tray::Run(Command::Scheduler, true)
+        } else if let Some((_, preset)) = preset_ids.iter().find(|(id, _)| *id == event.id) {
+            Tray::Run(*preset, false)
         } else {
             return;
         };

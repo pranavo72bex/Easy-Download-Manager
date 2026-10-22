@@ -7594,6 +7594,28 @@ fn the_pieces_bar_says_how_far_and_in_how_many_pieces() {
         .is_some());
 }
 
+/// The speed presets set the one limit every download shares, and Full
+/// speed lifts it; each is in Downloads › Speed limiter.
+#[test]
+fn the_speed_presets_set_and_lift_the_limit() {
+    let _file = settings_file();
+    let world = world();
+    let mut harness = world.harness();
+    for (item, kb) in [
+        ("Low speed (256 KB/s)", 256),
+        ("Medium speed (1 MB/s)", 1024),
+        ("High speed (4 MB/s)", 4096),
+        ("Full speed", 0),
+    ] {
+        press(&mut harness, &["Downloads", "Speed limiter", item]);
+        assert_eq!(harness.state().applied.speed_limit, kb, "{item}");
+        let in_force = world
+            .runtime
+            .block_on(harness.state().backend().queue.speed_limit());
+        assert_eq!(in_force, kb * 1024, "{item} not in force");
+    }
+}
+
 /// Gap 153: a failed row's status is a plain reason, in Properties held to
 /// its column; the engine's words are kept for hover.
 #[test]

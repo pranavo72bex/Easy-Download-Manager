@@ -2570,6 +2570,25 @@ impl DmApp {
                 }
             }
             Command::SpeedLimiterSettings => self.dialogs.open_limiter(&self.applied),
+            Command::SpeedLow
+            | Command::SpeedMedium
+            | Command::SpeedHigh
+            | Command::SpeedUnlimited => {
+                let kb = command.speed_preset().unwrap_or(0);
+                let mut wanted = self.applied.clone();
+                if wanted.speed_limit > 0 {
+                    self.last_limit = wanted.speed_limit;
+                    wanted.last_speed_limit = wanted.speed_limit;
+                }
+                wanted.speed_limit = kb;
+                match self.apply_settings(wanted) {
+                    Ok(()) if kb > 0 => {
+                        self.said = crate::i18n::Said::new("Speed limiter on: {} KB/s.", &[&kb])
+                    }
+                    Ok(()) => self.said = crate::i18n::Said::new("Speed limiter off.", &[]),
+                    Err(e) => self.said = e.into(),
+                }
+            }
             Command::WhenDoneNothing => self.when_done = crate::power::WhenDone::Nothing,
             Command::WhenDoneQuit => self.when_done = crate::power::WhenDone::Quit,
             Command::WhenDoneSleep => self.when_done = crate::power::WhenDone::Sleep,
@@ -3933,6 +3952,21 @@ impl DmApp {
                             self.queued.push(Command::SpeedLimiterToggle);
                             ui.close();
                         }
+                        ui.separator();
+                        // One click to a speed, as the tray offers too.
+                        for preset in [
+                            Command::SpeedLow,
+                            Command::SpeedMedium,
+                            Command::SpeedHigh,
+                            Command::SpeedUnlimited,
+                        ] {
+                            let now = preset.speed_preset() == Some(self.applied.speed_limit);
+                            if ticked_item(ui, preset.title(), now).clicked() {
+                                self.queued.push(preset);
+                                ui.close();
+                            }
+                        }
+                        ui.separator();
                         self.item(ui, Command::SpeedLimiterSettings);
                     });
                     submenu(ui, t("When done"), |ui| {
