@@ -4266,6 +4266,28 @@ fn five_hundred_rows_draw_inside_a_frame_budget() {
         per_frame < Duration::from_millis(100),
         "{per_frame:?} a frame"
     );
+    // With a filter typed, too: it lowercased every row's name, address
+    // and note on every frame, 36 ms a frame at 5,000 rows (release).
+    harness.state_mut().filter = "stalled-4".into();
+    let filtered = (0..5)
+        .map(|_| {
+            let started = Instant::now();
+            for _ in 0..10 {
+                harness.step();
+            }
+            started.elapsed() / 10
+        })
+        .min()
+        .unwrap_or_default();
+    println!("500 rows, filtered: {filtered:?} a frame");
+    assert!(
+        harness.state().visible().len() < 500,
+        "the filter did nothing"
+    );
+    assert!(
+        filtered < Duration::from_millis(100),
+        "{filtered:?} a frame"
+    );
 }
 
 /// The control protocol, over a real TCP connection, against the window:

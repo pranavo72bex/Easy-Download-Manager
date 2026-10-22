@@ -176,6 +176,16 @@ pub fn link_expired(row: &Entry) -> bool {
             .any(|code| why.contains(code))
 }
 
+/// What the filter looks in: a row's name, address and note, lowercased.
+fn haystack(row: &Entry) -> String {
+    haystack_named(&name_of(row), row)
+}
+
+/// [`haystack`] with the row's name already worked out.
+fn haystack_named(name: &str, row: &Entry) -> String {
+    format!("{name} {} {}", row.url, row.description).to_lowercase()
+}
+
 pub fn name_of(row: &Entry) -> String {
     if !row.filename.is_empty() {
         return row.filename.clone();
@@ -856,6 +866,12 @@ pub struct DmApp {
     pub sizes_told: HashMap<Id, u64>,
     /// See [`Self::place_rows`].
     placed: HashMap<Id, (Option<Category>, Option<String>)>,
+    /// Each row's name, address and note, lowercased once a refresh, for
+    /// the filter: lowercasing them for every row on every frame made a
+    /// frame with a filter typed take 36 ms at 5,000 rows.
+    haystacks: HashMap<Id, String>,
+    /// The filter's words, lowercased, and the filter they were made from.
+    filter_words: std::cell::RefCell<(String, Vec<String>)>,
     /// The language the places were last drawn in.
     rail_language: Option<String>,
     /// Columns were moved, shown or hidden since the list was drawn.
@@ -979,6 +995,8 @@ impl DmApp {
             said_about: None,
             sizes_told: HashMap::new(),
             placed: HashMap::new(),
+            haystacks: HashMap::new(),
+            filter_words: Default::default(),
             rail_language: None,
             columns_changed: false,
             recent_hands: Vec::new(),
@@ -1971,16 +1989,25 @@ impl DmApp {
     /// Whether every word typed over the list is in the row's name, its
     /// address or its note, whatever their case.
     fn matches_filter(&self, row: &Entry) -> bool {
-        let words: Vec<String> = self
-            .filter
-            .split_whitespace()
-            .map(str::to_lowercase)
-            .collect();
-        if words.is_empty() {
+        if self.filter.trim().is_empty() {
             return true;
         }
-        let said = format!("{} {} {}", name_of(row), row.url, row.description).to_lowercase();
-        words.iter().all(|w| said.contains(w.as_str()))
+        // The words made again only when the filter has changed.
+        if self.filter_words.borrow().0 != self.filter {
+            let words = self
+                .filter
+                .split_whitespace()
+                .map(str::to_lowercase)
+                .collect();
+            *self.filter_words.borrow_mut() = (self.filter.clone(), words);
+        }
+        let cached = self.filter_words.borrow();
+        let found = |said: &str| cached.1.iter().all(|w| said.contains(w.as_str()));
+        match self.haystacks.get(&row.id) {
+            Some(said) => found(said),
+            // A row the last refresh has not seen yet.
+            None => found(&haystack(row)),
+        }
     }
 
     /// Whether `row` belongs in `place`.
@@ -2023,16 +2050,28 @@ impl DmApp {
     /// frame, and 500 rows went past the frame budget (CI, 909e714).
     fn place_rows(&mut self) {
         let categories = self.applied.categories();
-        self.placed = self
-            .rows
-            .iter()
-            .map(|row| {
-                let custom = categories
-                    .custom_for(&name_of(row), &dm_core::category::host_of(&row.url))
-                    .map(|c| c.name.clone());
-                (row.id, (kind_of(row), custom))
-            })
-            .collect();
+        let mut placed = HashMap::with_capacity(self.rows.len());
+        let mut haystacks = HashMap::with_capacity(self.rows.len());
+        for row in &self.rows {
+            // Each row's name worked out once: from its address, for a row
+            // not yet named, it is a parse and a decode, and it was done
+            // three times a row (2.8 µs a row, 14 ms at 5,000 rows).
+            let name = name_of(row);
+            // The site only where a category of a person's own could ask:
+            // without one, every address was parsed again for nothing.
+            let custom = if categories.custom.is_empty() {
+                None
+            } else {
+                categories
+                    .custom_for(&name, &dm_core::category::host_of(&row.url))
+                    .map(|c| c.name.clone())
+            };
+            let kind = dm_core::category::by_name(&name).or(row.category);
+            haystacks.insert(row.id, haystack_named(&name, row));
+            placed.insert(row.id, (kind, custom));
+        }
+        self.placed = placed;
+        self.haystacks = haystacks;
     }
 
     /// A row's kind and own category, from [`Self::place_rows`] when it has
