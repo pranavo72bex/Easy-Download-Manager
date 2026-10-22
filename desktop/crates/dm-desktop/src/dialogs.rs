@@ -5739,6 +5739,12 @@ fn options(app: &mut DmApp, ctx: &egui::Context) {
                     &mut c.video_panel,
                     t("Show \"Download video\" over videos in the browser"),
                 );
+                check(
+                    ui,
+                    &mut c.sign_in_everywhere,
+                    t("Hand over the browser's sign-in with every download"),
+                );
+                ui.label(RichText::new(t("A file only a signed-in browser can fetch then comes to dm too. The cookies go with that download alone and are forgotten once it is done; without this, only the sites switched on in the extension's popup send them.")).small().weak());
                 ui.label(RichText::new(t("Read by the browser extension the next time it talks to dm: a download it catches, or its right-click menu. The right-click menu hands anything over regardless.")).small().weak());
             }
             Tab::SaveTo => {

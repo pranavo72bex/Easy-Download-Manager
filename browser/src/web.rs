@@ -339,13 +339,28 @@ async fn forced_for(found: &Catchable) -> bool {
 /// empty on any failure. `store` is the cookie store (Firefox's container)
 /// the download or tab belongs to, whose cookies are its sign-in.
 async fn cookies_for(url: &str, store: Option<&str>) -> String {
-    sign_in_for(url, store, false).await.0
+    listed_sign_in(url, store, false, false).await.0
+}
+
+/// [`listed_sign_in`] for one download: the app's "every site" switch
+/// counts.
+async fn sign_in_for(url: &str, store: Option<&str>, video: bool) -> (String, bool) {
+    let everywhere = remembered_rules()
+        .await
+        .is_some_and(|rules| rules.sign_in_everywhere);
+    listed_sign_in(url, store, video, everywhere).await
 }
 
 /// The cookies a hand-off of `url` carries (`decide::cookies_sent`), and
 /// whether they are for that download alone. A video page (`video`) sends
-/// its session whether or not the site is listed.
-async fn sign_in_for(url: &str, store: Option<&str>, video: bool) -> (String, bool) {
+/// its session whether or not the site is listed, and so does any site
+/// with the app's "every site" switch on (`everywhere`).
+async fn listed_sign_in(
+    url: &str,
+    store: Option<&str>,
+    video: bool,
+    everywhere: bool,
+) -> (String, bool) {
     let Ok(got) = call(
         "storage.local",
         "get",
@@ -358,7 +373,7 @@ async fn sign_in_for(url: &str, store: Option<&str>, video: bool) -> (String, bo
     let sites: Vec<String> =
         serde_json::from_value(from_js(&field(&got, decide::COOKIES_SITES_KEY)))
             .unwrap_or_default();
-    let Some(once) = decide::cookies_sent(&sites, url, video) else {
+    let Some(once) = decide::cookies_sent(&sites, url, video, everywhere) else {
         return (String::new(), false);
     };
     let query = to_js(&decide::cookie_query(url, store));
@@ -665,6 +680,9 @@ pub async fn on_download_created(item: JsValue) {
         }
     }
 
+    // The site's sign-in, where the popup has that on for the site, or
+    // the app's Options for every site.
+    let (cookies, cookies_once) = sign_in_for(&found.url, found.store.as_deref(), false).await;
     let start = Start {
         id: hand_id("b", found.id, now()),
         url: found.url.clone(),
@@ -673,8 +691,8 @@ pub async fn on_download_created(item: JsValue) {
         // and only an app that judges what it is served may take it.
         caught: true,
         held: true,
-        // The site's sign-in, where the popup has that on for the site.
-        cookies: cookies_for(&found.url, found.store.as_deref()).await,
+        cookies,
+        cookies_once,
         // What the browser is being sent, so the app can tell a sign-in
         // page served to it in the file's place, and refuse.
         mime: found.mime.clone(),

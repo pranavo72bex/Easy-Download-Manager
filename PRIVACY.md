@@ -95,6 +95,12 @@ sent to that site's server only, and are kept with the row in its queue file
 can ask that server again — until you delete the download from dm's list.
 Switching it off stops that for new downloads.
 
+If you would rather every download carry its site's sign-in, the app's
+Options › Browser has "Hand over the browser's sign-in with every download"
+(off unless you turn it on). Each download caught from the browser then
+takes its own site's cookies, sent to that site's server only, and they are
+dropped from the row once that download is done, as a video page's are.
+
 ## What dm never does
 
 - Send your downloads, addresses, browsing or settings to anyone.

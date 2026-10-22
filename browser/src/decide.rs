@@ -989,12 +989,14 @@ pub fn cookies_wanted(sites: &[String], url: &str) -> bool {
 /// is a site the person listed, whose sign-in the row keeps;
 /// `Some(true)` is a video page, whose session goes with every video —
 /// a video site lets yt-dlp in only with it ("confirm you're not a bot") —
-/// and is dropped once that download is done.
-pub fn cookies_sent(sites: &[String], url: &str, video: bool) -> Option<bool> {
+/// and is dropped once that download is done. With the app's "every site"
+/// switch on (`everywhere`), any site's sign-in goes, for that download
+/// alone, as a video page's does.
+pub fn cookies_sent(sites: &[String], url: &str, video: bool, everywhere: bool) -> Option<bool> {
     if cookies_wanted(sites, url) {
         Some(false)
     } else {
-        video.then_some(true)
+        (video || everywhere).then_some(true)
     }
 }
 
@@ -1564,17 +1566,27 @@ mod tests {
         // A video page's session goes with its video, for that one alone; a
         // listed site's is kept; anything else sends none.
         let video = "https://www.video.example/watch?v=1";
-        assert_eq!(cookies_sent(&[], video, true), Some(true));
+        assert_eq!(cookies_sent(&[], video, true, false), Some(true));
         assert_eq!(
-            cookies_sent(&[], "https://other.example/a.zip", false),
+            cookies_sent(&[], "https://other.example/a.zip", false, false),
             None
         );
         assert_eq!(
-            cookies_sent(&sites, "https://dl.files.example/a.zip", false),
+            cookies_sent(&sites, "https://dl.files.example/a.zip", false, false),
             Some(false)
         );
         assert_eq!(
-            cookies_sent(&sites, "https://files.example/watch", true),
+            cookies_sent(&sites, "https://files.example/watch", true, false),
+            Some(false)
+        );
+        // Every site, where the app says so: for that download alone; a
+        // listed site's is still kept.
+        assert_eq!(
+            cookies_sent(&[], "https://other.example/a.zip", false, true),
+            Some(true)
+        );
+        assert_eq!(
+            cookies_sent(&sites, "https://dl.files.example/a.zip", false, true),
             Some(false)
         );
         let header = cookie_header(&[

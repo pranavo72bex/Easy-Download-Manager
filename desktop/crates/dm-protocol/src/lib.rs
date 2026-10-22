@@ -481,6 +481,11 @@ pub struct CatchRules {
     /// sites it is kept off are the extension's own list.
     #[serde(alias = "video_panel")]
     pub video_panel: bool,
+    /// Every download caught from the browser carries the browser's cookies
+    /// for its site, for that download alone, not only the sites switched
+    /// on in the toolbar popup. Off unless chosen: a sign-in is the site's.
+    #[serde(alias = "sign_in_everywhere")]
+    pub sign_in_everywhere: bool,
 }
 
 /// Whether any of `urls` is served from a host on `list`, each entry
@@ -523,6 +528,7 @@ impl Default for CatchRules {
             take_key: "shift".into(),
             once_hosts: Vec::new(),
             video_panel: true,
+            sign_in_everywhere: false,
         }
     }
 }
@@ -901,10 +907,12 @@ mod tests {
                 take_key: String::new(),
                 once_hosts: Vec::new(),
                 video_panel: false,
+                sign_in_everywhere: true,
             },
         });
         let frame = reply.to_frame();
         assert_eq!(frame["catch"]["videoPanel"], false);
+        assert_eq!(frame["catch"]["signInEverywhere"], true);
         assert_eq!(frame["catch"]["minSizeKb"], 5);
         assert_eq!(frame["catch"]["keepKey"], "ctrl");
         assert_eq!(frame["catch"]["takeKey"], "");
@@ -920,6 +928,10 @@ mod tests {
         assert!(
             typed.video_panel,
             "rules from an older dm keep the panel showing"
+        );
+        assert!(
+            !typed.sign_in_everywhere,
+            "a sign-in goes only where chosen"
         );
         assert!(!typed.extensions.is_empty());
     }
