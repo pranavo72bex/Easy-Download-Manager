@@ -88,6 +88,10 @@ release has been cut (the owner's call).
 | 73 | The extension loaded its whole WebAssembly (478 KB, background and page code in one module) into every page and every frame, players or not | PARTIAL | 2026-10-20: `content.js` loads it only once the page shows media (a `<video>` or `<audio>` in the document as it changes, one inside a component under the pointer, or a play), so pages and frames with none never compile it. Checked in Chromium 155 in the Linux container (2026-10-20): `chrome-check.py` 57/57 and 22 hands-on cases pass, including a pointer that rests after one move, a player two shadow roots deep, one added after load and one that plays at once; on a page of 20 plain frames nothing is fetched and the renderer holds 26 MB less (private dirty 55.9 → 30.2 MB). Still one module for the background and the page: splitting off the page's part would make it smaller where it is loaded. Firefox's panel was checked once before the last fixes |
 | 38 | Chrome, Brave, Vivaldi and Opera load the extension unpacked, in developer mode: the hardest step for someone new | OPEN | Edge Add-ons and Firefox Add-ons list dm (the window's bar opens each in one click, 2026-10-21). The Chrome Web Store needs the owner's developer account (a one-time $5) and a submission; until then the bar's "Chrome and others" opens the README's steps |
 
+## Deferred ideas
+
+- Video speed (2026-10-22, deferred until needed): keep yt-dlp for reading a page's media addresses (it prints them without downloading) and fetch the picture and sound with dm's own multi-connection engine, which a per-connection limit cannot slow as it does one stream. Measure first (the same videos by yt-dlp alone and by dm's engine). Writing a page reader of dm's own in Rust was weighed and not taken: the speed gain is the 1 to 3 seconds yt-dlp takes to start, and keeping up with a site's player changes would become dm's weekly work.
+
 ## Testing without installing anything
 
 | Platform or browser | How                                                                                     |
