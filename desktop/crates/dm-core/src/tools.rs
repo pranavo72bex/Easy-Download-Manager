@@ -36,6 +36,22 @@ pub fn set_folder(folder: PathBuf) {
     let _ = FOLDER.set(folder);
 }
 
+/// Whether dm may fetch its video helper at all (Options › Downloads). Off,
+/// only a yt-dlp the person installed is used.
+static ALLOWED: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(true);
+
+/// Lets dm fetch its video helper, or not.
+pub fn allow_fetching(allowed: bool) {
+    ALLOWED.store(allowed, std::sync::atomic::Ordering::Relaxed);
+}
+
+fn fetching_allowed() -> bool {
+    ALLOWED.load(std::sync::atomic::Ordering::Relaxed)
+}
+
+/// What a video page is told where fetching is turned off.
+pub const NOT_FETCHED: &str = "dm's video helper is not fetched, as Options › Downloads says; install yt-dlp, or let dm fetch it there";
+
 /// The fetched tools' folder, if dm has one.
 pub fn folder() -> Option<&'static Path> {
     FOLDER.get().map(PathBuf::as_path)
@@ -379,6 +395,9 @@ pub async fn ensure(client: &reqwest::Client, tool: Tool) -> Result<PathBuf, Err
     if let Some(found) = find() {
         return Ok(found);
     }
+    if !fetching_allowed() {
+        return Err(Error::Internal(NOT_FETCHED.into()));
+    }
     let named = format!(
         "DM_{}",
         tool.program().replace('-', "").to_ascii_uppercase()
@@ -427,6 +446,7 @@ pub async fn for_video(client: &reqwest::Client) -> Result<(), String> {
 pub fn video_possible() -> bool {
     crate::ytdlp::available()
         || (folder().is_some()
+            && fetching_allowed()
             && std::env::var_os("DM_YTDLP").is_none()
             && ytdlp_asset(std::env::consts::OS, std::env::consts::ARCH).is_some())
 }
@@ -436,7 +456,7 @@ pub fn video_possible() -> bool {
 /// fails leaves the one there). One the person installed is theirs to
 /// update; sites change, and an old yt-dlp stops working on them.
 pub async fn freshen(client: reqwest::Client) {
-    let Some(folder) = folder() else {
+    let Some(folder) = folder().filter(|_| fetching_allowed()) else {
         return;
     };
     let Some(current) = fetched("yt-dlp") else {
@@ -466,6 +486,19 @@ pub async fn freshen(client: reqwest::Client) {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[tokio::test]
+    async fn with_fetching_off_nothing_is_fetched_and_it_says_so() {
+        allow_fetching(false);
+        if crate::ytdlp::binary().is_none() {
+            let said = ensure(&crate::client(), Tool::YtDlp)
+                .await
+                .unwrap_err()
+                .to_string();
+            assert!(said.contains("Options › Downloads"), "{said}");
+        }
+        allow_fetching(true);
+    }
 
     #[test]
     fn each_system_gets_its_own_builds() {

@@ -24,7 +24,8 @@ does the rest itself: joining picture and sound, subtitles, and live RTMP
 this way is fetched afresh once a week while it is in use. These requests,
 like any download, carry nothing about you; GitHub sees an address asking
 for a public file. A recent yt-dlp you installed yourself is used instead,
-and then it is not fetched.
+and then it is not fetched. Options › Downloads › "Fetch the video helper"
+turns the fetching off altogether; then only a yt-dlp you installed is used.
 
 ## What the extension handles
 

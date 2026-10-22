@@ -686,6 +686,7 @@ fn checked(
 /// Runs as the browser's native messaging host until the browser closes it.
 pub fn run(home: &Path) {
     dm_core::tools::set_folder(home.join("tools"));
+    dm_core::tools::allow_fetching(saved(home).fetch_tools);
     let mut input = std::io::stdin();
     let mut output = std::io::stdout();
     let mut here = Here {

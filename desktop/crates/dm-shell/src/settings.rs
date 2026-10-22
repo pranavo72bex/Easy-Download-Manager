@@ -208,6 +208,11 @@ pub struct Settings {
     /// takes a link dragged onto it. Off unless chosen (View › Drop target).
     #[serde(default)]
     pub drop_target: bool,
+    /// Fetch yt-dlp and QuickJS from their GitHub releases the first time a
+    /// video page needs them (and keep the fetched yt-dlp current). Off,
+    /// only a yt-dlp the person installed is used.
+    #[serde(default = "yes")]
+    pub fetch_tools: bool,
     /// Queues that start on their own each day at a time of their own.
     #[serde(default)]
     pub queue_starts: Vec<QueueStart>,
@@ -338,6 +343,7 @@ impl Default for Settings {
             queue_limits: Vec::new(),
             queue_starts: Vec::new(),
             drop_target: false,
+            fetch_tools: true,
             remux_ts: true,
             parts_dir: String::new(),
             on_complete: String::new(),

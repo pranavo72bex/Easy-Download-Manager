@@ -6007,6 +6007,13 @@ fn options(app: &mut DmApp, ctx: &egui::Context) {
                 ui.add_space(8.0);
                 ui.label(t("When a download finishes, run (a virus checker, a script); the file's path is added at the end:"));
                 field(ui, t("Command"), &mut s.on_complete, 320.0);
+                ui.add_space(8.0);
+                check(
+                    ui,
+                    &mut s.fetch_tools,
+                    t("Fetch the video helper (yt-dlp) when a video page needs it"),
+                );
+                ui.label(RichText::new(t("From its official GitHub release, checked against its published checksum, and kept current weekly. Off, only a yt-dlp installed on this computer is used.")).small().weak());
             }
             Tab::Connection => {
                 number_row(ui, t("Speed limit, KB/s (0 for none)"), |ui, name| {
@@ -6468,6 +6475,7 @@ fn welcome(app: &mut DmApp, ctx: &egui::Context) {
     let mut open = true;
     let mut later = false;
     let mut page: Option<&'static str> = None;
+    let mut at_login = app.applied.start_on_login;
     window(ctx, "Add dm to your browser")
         .open(&mut open)
         .show(ctx, |ui| {
@@ -6499,12 +6507,31 @@ fn welcome(app: &mut DmApp, ctx: &egui::Context) {
                     }
                 }
             }
+            // What dm changed on the computer, said where it can be undone:
+            // it starts with the computer, in the tray, so a download
+            // clicked in the browser always has dm to go to.
+            ui.add_space(8.0);
+            check(ui, &mut at_login, t("Start dm with the computer, in the tray"));
+            ui.label(
+                RichText::new(t(
+                    "So a download clicked in the browser always has dm to go to. Options › General changes it later.",
+                ))
+                .small()
+                .weak(),
+            );
             footer(ui, |ui| {
                 if ui.button(t("Later")).clicked() {
                     later = true;
                 }
             });
         });
+    if at_login != app.applied.start_on_login {
+        let mut wanted = app.applied.clone();
+        wanted.start_on_login = at_login;
+        if let Err(e) = app.apply_settings(wanted) {
+            app.said = e.into();
+        }
+    }
     if let Some(page) = page {
         app.open_file(page);
     }

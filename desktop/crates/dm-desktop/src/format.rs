@@ -287,7 +287,7 @@ pub fn titled(word: &str) -> String {
 /// one for what the network library says in its own terms ("error decoding
 /// response body" is a connection cut mid-file). The first that matches
 /// wins; anything else is shown as the engine said it.
-pub const REASONS: [(&[&str], &str); 30] = [
+pub const REASONS: [(&[&str], &str); 31] = [
     (
         &[
             "error decoding response body",
@@ -321,6 +321,10 @@ pub const REASONS: [(&[&str], &str); 30] = [
     (
         &["certificate"],
         "the server's security certificate could not be checked",
+    ),
+    (
+        &["video helper is not fetched"],
+        "a video page needs dm's video helper, which Options › Downloads says not to fetch: install yt-dlp, or let dm fetch it",
     ),
     (
         &["cannot be reached (was its drive"],
