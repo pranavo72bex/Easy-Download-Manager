@@ -1614,6 +1614,23 @@ fn main() {
     }
 
     let mut backend = Backend::new(runtime.handle().clone(), queue, saved, notices, platform);
+    // A sleeping computer woken for the schedule, where the Scheduler says.
+    {
+        let settings = backend.settings_handle();
+        dm_desktop::wake::watch(move || {
+            let now = dm_core::lock(&settings).clone();
+            if !now.schedule.wake {
+                return None;
+            }
+            let starts: Vec<u32> = now
+                .queue_start_list()
+                .into_iter()
+                .map(|(_, at)| at)
+                .collect();
+            let (weekday, minute) = dm_core::schedule::weekday_now();
+            dm_core::schedule::minutes_until_next_start(&now.schedule, &starts, weekday, minute)
+        });
+    }
     backend.handed = handed;
 
     // `--headless`: the queue, the browser hand-off and the control

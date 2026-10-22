@@ -280,6 +280,7 @@
  "The new installer is downloading; dm offers to install it once it is checked.": "Nowy instalator jest pobierany; dm zaproponuje instalację, gdy zostanie sprawdzony.",
  "The new link was taken from the browser; the download goes on.": "Nowy link pobrano z przeglądarki; pobieranie trwa dalej.",
  "This computer has no way to do that when the downloads are done.": "Ten komputer nie potrafi tego zrobić po zakończeniu pobierania.",
+ "Wake the computer from sleep to start": "Wybudź komputer z uśpienia, aby zacząć",
  "a video page needs dm's video helper, which Options › Downloads says not to fetch: install yt-dlp, or let dm fetch it": "strona z filmem potrzebuje pomocnika wideo dm, którego Opcje › Pobieranie każą nie pobierać: zainstaluj yt-dlp lub pozwól dm go pobrać",
  "its folder's drive cannot be reached; plug it back in, or choose another folder": "dysk jego folderu jest niedostępny; podłącz go ponownie lub wybierz inny folder",
  "the disk is full in {}": "dysk jest pełny w {}",

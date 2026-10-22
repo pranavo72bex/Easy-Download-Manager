@@ -872,6 +872,7 @@ fn closed_now() -> dm_core::Schedule {
         from: "00:00".into(),
         to: "00:01".into(),
         days: vec![],
+        wake: false,
     }
 }
 

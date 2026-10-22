@@ -280,6 +280,7 @@
  "The new installer is downloading; dm offers to install it once it is checked.": "Yeni yükleyici indiriliyor; doğrulandığında dm kurmayı önerecek.",
  "The new link was taken from the browser; the download goes on.": "Yeni bağlantı tarayıcıdan alındı; indirme devam ediyor.",
  "This computer has no way to do that when the downloads are done.": "Bu bilgisayar indirmeler bitince bunu yapamaz.",
+ "Wake the computer from sleep to start": "Başlamak için bilgisayarı uykudan uyandır",
  "a video page needs dm's video helper, which Options › Downloads says not to fetch: install yt-dlp, or let dm fetch it": "bir video sayfası dm'nin video yardımcısına ihtiyaç duyuyor, ancak Seçenekler › İndirmeler onu getirmemeyi söylüyor: yt-dlp kurun ya da dm'nin getirmesine izin verin",
  "its folder's drive cannot be reached; plug it back in, or choose another folder": "klasörünün sürücüsüne ulaşılamıyor; yeniden takın veya başka bir klasör seçin",
  "the disk is full in {}": "{} içindeki disk dolu",

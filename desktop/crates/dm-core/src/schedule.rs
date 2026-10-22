@@ -26,6 +26,9 @@ pub struct Schedule {
     /// listed means every day, which is what the Scheduler says under its
     /// day boxes: unticking them all is not a way to switch it off.
     pub days: Vec<u8>,
+    /// Wake a sleeping computer for the window's start (and a queue's
+    /// start time), where the system lets dm: Windows' wake timers.
+    pub wake: bool,
 }
 
 impl Default for Schedule {
@@ -35,6 +38,7 @@ impl Default for Schedule {
             from: "01:00".into(),
             to: "07:00".into(),
             days: (0..=6).collect(),
+            wake: false,
         }
     }
 }
@@ -44,6 +48,15 @@ impl Default for Schedule {
 /// then be quietly ignored.
 pub fn is_time(text: &str) -> bool {
     minutes(text).is_some()
+}
+
+/// Today's weekday (0 = Sunday) and the minute past local midnight.
+pub fn weekday_now() -> (u8, u32) {
+    let now = Local::now();
+    (
+        now.weekday().num_days_from_sunday() as u8,
+        now.time().hour() * 60 + now.time().minute(),
+    )
 }
 
 /// The local day (counted from the calendar's start) and the minute past
@@ -110,9 +123,78 @@ impl Schedule {
     }
 }
 
+/// Minutes from `minute_of_day` on `weekday` (0 = Sunday) until the next
+/// moment something is due to start: the schedule's window opening, where
+/// a schedule is on, or one of `starts` (minutes past midnight, every day).
+/// `None` where nothing will. For waking a sleeping computer for it.
+pub fn minutes_until_next_start(
+    schedule: &Schedule,
+    starts: &[u32],
+    weekday: u8,
+    minute_of_day: u32,
+) -> Option<u32> {
+    let window = (schedule.enabled)
+        .then(|| (minutes(&schedule.from), minutes(&schedule.to)))
+        .and_then(|times| match times {
+            (Some(from), Some(to)) if from != to => Some(from),
+            _ => None,
+        });
+    let on = |day: u8| schedule.days.is_empty() || schedule.days.contains(&day);
+    let mut soonest: Option<u32> = None;
+    // A week and a day ahead covers every weekday once and today again.
+    for ahead in 0..=7u32 {
+        let day = ((u32::from(weekday) + ahead) % 7) as u8;
+        let mut at: Vec<u32> = starts.iter().copied().filter(|m| *m < 24 * 60).collect();
+        if let Some(from) = window.filter(|_| on(day)) {
+            at.push(from);
+        }
+        for m in at {
+            let until = (ahead * 24 * 60 + m).checked_sub(minute_of_day);
+            if let Some(until) = until.filter(|u| *u > 0) {
+                soonest = Some(soonest.map_or(until, |s| s.min(until)));
+            }
+        }
+        if soonest.is_some_and(|s| s <= (ahead + 1) * 24 * 60) {
+            break;
+        }
+    }
+    soonest
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn the_next_start_is_the_window_or_a_queue_whichever_comes_first() {
+        let schedule = Schedule {
+            enabled: true,
+            from: "23:00".into(),
+            to: "07:00".into(),
+            days: vec![5], // Friday nights only
+            wake: false,
+        };
+        // Monday 08:00: Friday 23:00 is four days and fifteen hours away.
+        assert_eq!(
+            minutes_until_next_start(&schedule, &[], 1, 8 * 60),
+            Some(4 * 24 * 60 + 15 * 60)
+        );
+        // A queue starting daily at 02:00 comes first: tomorrow 02:00.
+        assert_eq!(
+            minutes_until_next_start(&schedule, &[120], 1, 8 * 60),
+            Some(18 * 60)
+        );
+        // Nothing scheduled at all: nothing to wake for.
+        assert_eq!(
+            minutes_until_next_start(&Schedule::default(), &[], 1, 0),
+            None
+        );
+        // Exactly at a start is not "next": the following one is.
+        assert_eq!(
+            minutes_until_next_start(&Schedule::default(), &[60], 2, 60),
+            Some(24 * 60)
+        );
+    }
 
     /// Overnight, and therefore wrapping — which is the case the arithmetic
     /// is for. The default window, 01:00 to 07:00, does not wrap at all.
@@ -122,6 +204,7 @@ mod tests {
             from: "23:00".into(),
             to: "07:00".into(),
             days: (0..=6).collect(),
+            wake: false,
         }
     }
 

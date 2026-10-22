@@ -169,7 +169,7 @@ proptest! {
         weekday in any::<u8>(),
         minute in any::<u32>(),
     ) {
-        let schedule = Schedule { enabled: true, from, to, days };
+        let schedule = Schedule { enabled: true, from, to, days, wake: false };
         let _ = schedule.open_at(weekday, minute);
         let _ = schedule.open();
     }

@@ -5426,6 +5426,14 @@ fn scheduler(app: &mut DmApp, ctx: &egui::Context) {
                     }
                 }
             });
+            // Where the system lets dm wake the computer for it.
+            if crate::wake::possible() {
+                check(
+                    ui,
+                    &mut schedule.wake,
+                    t("Wake the computer from sleep to start"),
+                );
+            }
             // The days are shown as they are kept, all ticked for every
             // day; the hint said no tick meant every day beside seven ticks.
             ui.label(

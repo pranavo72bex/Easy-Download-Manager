@@ -280,6 +280,7 @@
  "The new installer is downloading; dm offers to install it once it is checked.": "Het nieuwe installatieprogramma wordt gedownload; dm biedt aan het te installeren zodra het is gecontroleerd.",
  "The new link was taken from the browser; the download goes on.": "De nieuwe link is uit de browser gehaald; de download gaat verder.",
  "This computer has no way to do that when the downloads are done.": "Deze computer kan dat niet doen wanneer de downloads klaar zijn.",
+ "Wake the computer from sleep to start": "De computer uit de slaapstand wekken om te starten",
  "a video page needs dm's video helper, which Options › Downloads says not to fetch: install yt-dlp, or let dm fetch it": "een videopagina heeft de videohulp van dm nodig, die Opties › Downloads niet laat ophalen: installeer yt-dlp of laat dm hem ophalen",
  "its folder's drive cannot be reached; plug it back in, or choose another folder": "het station van de map is niet bereikbaar; sluit het weer aan of kies een andere map",
  "the disk is full in {}": "de schijf is vol in {}",

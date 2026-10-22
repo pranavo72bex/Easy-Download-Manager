@@ -280,6 +280,7 @@
  "The new installer is downloading; dm offers to install it once it is checked.": "Новый установщик загружается; dm предложит установить его после проверки.",
  "The new link was taken from the browser; the download goes on.": "Новая ссылка взята из браузера; загрузка продолжается.",
  "This computer has no way to do that when the downloads are done.": "Этот компьютер не умеет делать это по окончании загрузок.",
+ "Wake the computer from sleep to start": "Выводить компьютер из сна для запуска",
  "a video page needs dm's video helper, which Options › Downloads says not to fetch: install yt-dlp, or let dm fetch it": "странице с видео нужен помощник dm, загрузку которого запрещают Параметры › Загрузки: установите yt-dlp или разрешите dm его загрузить",
  "its folder's drive cannot be reached; plug it back in, or choose another folder": "диск его папки недоступен; подключите его снова или выберите другую папку",
  "the disk is full in {}": "диск заполнен в {}",

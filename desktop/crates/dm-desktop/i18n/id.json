@@ -280,6 +280,7 @@
  "The new installer is downloading; dm offers to install it once it is checked.": "Penginstal baru sedang diunduh; dm menawarkan untuk memasangnya setelah diperiksa.",
  "The new link was taken from the browser; the download goes on.": "Tautan baru diambil dari peramban; unduhan berlanjut.",
  "This computer has no way to do that when the downloads are done.": "Komputer ini tidak bisa melakukan itu saat unduhan selesai.",
+ "Wake the computer from sleep to start": "Bangunkan komputer dari tidur untuk memulai",
  "a video page needs dm's video helper, which Options › Downloads says not to fetch: install yt-dlp, or let dm fetch it": "halaman video membutuhkan pembantu video dm, yang menurut Opsi › Unduhan tidak diambil: pasang yt-dlp, atau izinkan dm mengambilnya",
  "its folder's drive cannot be reached; plug it back in, or choose another folder": "drive foldernya tidak bisa dijangkau; pasang kembali, atau pilih folder lain",
  "the disk is full in {}": "disk penuh di {}",

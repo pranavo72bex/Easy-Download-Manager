@@ -874,6 +874,7 @@ fn when_done_does_not_fire_on_a_stopped_or_schedule_held_queue() {
         .backend()
         .queue
         .set_schedule(dm_core::Schedule {
+            wake: false,
             enabled: true,
             from: "00:00".into(),
             to: "23:59".into(),
@@ -5699,6 +5700,7 @@ fn the_status_bar_says_the_schedule_holds_downloads_and_until_when() {
     let to = format!("{:02}:{:02}", (now.hour() + 3) % 24, now.minute());
     let mut wanted = harness.state().applied.clone();
     wanted.schedule = dm_core::Schedule {
+        wake: false,
         enabled: true,
         from: from.clone(),
         to,
@@ -6455,6 +6457,7 @@ fn resume_on_a_held_row_offers_to_start_it_outside_the_schedule() {
     let now = chrono::Local::now();
     let mut wanted = harness.state().applied.clone();
     wanted.schedule = dm_core::Schedule {
+        wake: false,
         enabled: true,
         from: format!("{:02}:{:02}", (now.hour() + 2) % 24, now.minute()),
         to: format!("{:02}:{:02}", (now.hour() + 3) % 24, now.minute()),
@@ -6864,6 +6867,7 @@ fn start_now_under_a_shut_schedule_offers_to_start_outside_it() {
     let now = chrono::Local::now();
     let mut wanted = harness.state().applied.clone();
     wanted.schedule = dm_core::Schedule {
+        wake: false,
         enabled: true,
         from: format!("{:02}:{:02}", (now.hour() + 2) % 24, now.minute()),
         to: format!("{:02}:{:02}", (now.hour() + 3) % 24, now.minute()),

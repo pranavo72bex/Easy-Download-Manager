@@ -250,6 +250,11 @@ impl Backend {
         dm_core::lock(&self.settings).clone()
     }
 
+    /// The settings as they change, for a thread of its own to read.
+    pub fn settings_handle(&self) -> Arc<Mutex<Settings>> {
+        Arc::clone(&self.settings)
+    }
+
     /// Applies a change and writes it down, returning what is now in force.
     ///
     /// Whole or not at all. What the change refuses (a relative folder, a

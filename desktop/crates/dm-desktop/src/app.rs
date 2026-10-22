@@ -5807,6 +5807,7 @@ mod status_tests {
             from: "01:00".into(),
             to: "07:00".into(),
             days: vec![1],
+            wake: false,
         };
         // Monday 00:30: later today. Monday 08:00: next Monday.
         assert_eq!(opens_after(&schedule, 1, 30), Some((0, 60)));
