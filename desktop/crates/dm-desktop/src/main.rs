@@ -1444,8 +1444,17 @@ fn main() {
     // The login item follows the saved setting, so a reinstall lands in the
     // state the person last chose. Said in the window, not fatal. One the
     // person turned off in Task Manager stays off, and so does the setting.
-    match dm_desktop::autostart::at_launch(saved.start_on_login, login_item_turned_off_outside()) {
-        dm_desktop::autostart::AtLaunch::TurnedOffOutside => {
+    // Not for a dm run on a home of its own (`DM_HOME`: a test, a script, a
+    // portable copy): starting at login is on for a new install, and every
+    // test's fresh home would otherwise put a login item on the computer
+    // running it. Turning the setting on in Options still registers one.
+    let own_home = std::env::var_os("DM_HOME").is_some_and(|h| !h.is_empty());
+    let at_launch = (!own_home).then(|| {
+        dm_desktop::autostart::at_launch(saved.start_on_login, login_item_turned_off_outside())
+    });
+    match at_launch {
+        None => {}
+        Some(dm_desktop::autostart::AtLaunch::TurnedOffOutside) => {
             saved.start_on_login = false;
             notices.push(match saved.save() {
                 Ok(()) => "start on login was turned off in Task Manager, so dm has turned it \
@@ -1457,7 +1466,7 @@ fn main() {
                 ),
             });
         }
-        dm_desktop::autostart::AtLaunch::Follow(wanted) => {
+        Some(dm_desktop::autostart::AtLaunch::Follow(wanted)) => {
             if let Err(why) = platform.set_login_item(wanted) {
                 notices.push(format!(
                     "could not change start-on-login: {why}; start on login is not in force"

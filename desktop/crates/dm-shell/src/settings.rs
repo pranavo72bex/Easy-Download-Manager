@@ -53,7 +53,7 @@ pub struct Settings {
     pub limit_mb: u64,
     pub limit_hours: u64,
 
-    /// Sort finished files into folders by kind.
+    /// Sort finished files into folders by kind. On for a new install.
     pub categorize: bool,
     /// What each of those folders is called, in `Category::ALL` order. An
     /// empty name leaves that kind unsorted.
@@ -82,9 +82,9 @@ pub struct Settings {
     #[serde(default)]
     pub watch_clipboard: bool,
 
-    /// Start with the computer, so a browser hand-off has an
-    /// app to land in without anyone opening it first. Off by default: a
-    /// program that adds itself to login items uninvited is one people remove.
+    /// Start with the computer, so a browser hand-off has an app to land in
+    /// without anyone opening it first. On for a new install, in the tray
+    /// with no window; Options › General turns it off.
     #[serde(default)]
     pub start_on_login: bool,
     /// Look for a newer dm about once a week. Off unless turned on: it asks GitHub, and dm otherwise
@@ -324,14 +324,14 @@ impl Default for Settings {
             recent_urls: Vec::new(),
             limit_mb: 0,
             limit_hours: 1,
-            categorize: false,
+            categorize: true,
             category_folders: default_folders(),
             custom_categories: Vec::new(),
             stream_quality: default_quality(),
             schedule: Schedule::default(),
             proxy: Proxy::default(),
             watch_clipboard: false,
-            start_on_login: false,
+            start_on_login: true,
             check_updates: false,
             language: String::new(),
             update_checked: 0,
@@ -1477,7 +1477,10 @@ mod tests {
         let settings: Settings = serde_json::from_str(old).unwrap();
         assert_eq!(settings.connections, 4);
         assert_eq!(settings.speed_limit, 0);
-        assert!(!settings.categorize);
+        assert!(
+            settings.categorize,
+            "sorting by kind is on unless turned off"
+        );
         assert!(!settings.schedule.enabled);
         assert!(!settings.proxy.enabled);
         assert_eq!(settings.quality(), Quality::Best);

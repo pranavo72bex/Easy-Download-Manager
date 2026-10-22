@@ -237,7 +237,7 @@ and is not carried over.
       `scripts/linux-wayland-drag-check.sh` drags both ways under sway with a
       virtual pointer (4 of 4 first time). Unchecked: a physical drag by
       hand on macOS and Windows, and a real browser under Wayland
-- [x] Start on login — an opt-in setting, off by default, registers dm as a
+- [x] Start on login — on for a new install (Options › General turns it off; an older install keeps its choice), registers dm as a
       login item so a browser hand-off always has an app to land in.
       Launched by the login item it stays in the tray (`--hidden`) rather
       than opening a window over the desktop. On Linux the entry is dm's own

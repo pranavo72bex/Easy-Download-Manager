@@ -283,6 +283,10 @@ impl World {
             // The tests find controls by their English names, whatever the
             // machine running them is set to.
             language: "en".into(),
+            // Files straight into the folder and no login item, as the tests
+            // were written; a new install has both on (`new_installs_sort_by_kind_and_start_at_login`).
+            categorize: false,
+            start_on_login: false,
             ..Settings::default()
         })
     }
@@ -8760,4 +8764,13 @@ fn the_tray_says_how_many_downloads_run_and_how_fast() {
     });
     let said = harness.state().tray_activity().unwrap_or_default();
     assert!(said.starts_with("1 downloading at "), "{said}");
+}
+
+/// A new install sorts finished files into folders by kind and starts with
+/// the computer, in the tray, so a browser's download has dm to land in.
+#[test]
+fn new_installs_sort_by_kind_and_start_at_login() {
+    let fresh = Settings::default();
+    assert!(fresh.categorize);
+    assert!(fresh.start_on_login);
 }
