@@ -383,6 +383,7 @@
  "Yes, from the pieces it already has": "Да, с уже полученных частей",
  "{} links on {}": "Ссылок: {} на {}",
  "{} of {} piece done||{} of {} pieces done": "Готово частей: {} из {}||Готово частей: {} из {}||Готово частей: {} из {}",
+ "{}% downloaded, in {} piece||{}% downloaded, in {} pieces": "Загружено {}%, {} часть||Загружено {}%, {} части||Загружено {}%, {} частей",
  "· download limit of {} MB reached, held for {}": "· достигнут лимит {} МБ, пауза: {}",
  "· limited to {} KB/s": "· ограничено {} КБ/с",
  "Jan": "янв.",

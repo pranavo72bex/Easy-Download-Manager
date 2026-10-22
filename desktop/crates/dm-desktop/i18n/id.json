@@ -383,6 +383,7 @@
  "Yes, from the pieces it already has": "Ya, dari bagian yang sudah dimiliki",
  "{} links on {}": "{} tautan di {}",
  "{} of {} piece done||{} of {} pieces done": "{} dari {} bagian selesai",
+ "{}% downloaded, in {} piece||{}% downloaded, in {} pieces": "{}% diunduh, dalam {} bagian",
  "· download limit of {} MB reached, held for {}": "· batas {} MB tercapai, ditahan {}",
  "· limited to {} KB/s": "· dibatasi {} KB/s",
  "Jan": "Jan",

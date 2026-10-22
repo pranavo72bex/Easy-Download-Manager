@@ -1476,6 +1476,49 @@ fn bar_beside(ui: &mut egui::Ui, fraction: f32, width: f32, words: &str, widest:
     });
 }
 
+/// One bar laid out as the file is: each piece at its place, filled as far
+/// as it has come, a thin gap where two pieces meet, so where every
+/// connection is working shows at a glance. `pieces` are (start, length,
+/// done) in bytes of a file `total` long.
+pub fn pieces_bar(ui: &mut egui::Ui, total: u64, pieces: &[(u64, u64, u64)], width: f32) {
+    let t = crate::theme::Tokens::get(ui.ctx());
+    let width = width.min(ui.available_width() - 8.0).max(60.0);
+    let (rect, response) = ui.allocate_exact_size(egui::vec2(width, 10.0), egui::Sense::hover());
+    let painter = ui.painter_at(rect.expand(1.0));
+    painter.rect_filled(rect, 3.0, t.border);
+    let total = total.max(1) as f32;
+    let at = |bytes: u64| rect.left() + width * (bytes as f32 / total).min(1.0);
+    for &(start, length, done) in pieces {
+        let (from, to) = (at(start), at(start.saturating_add(length)));
+        let filled = at(start.saturating_add(done.min(length)));
+        if filled > from {
+            painter.rect_filled(
+                egui::Rect::from_min_max(
+                    egui::pos2(from, rect.top()),
+                    egui::pos2(filled, rect.bottom()),
+                ),
+                0.0,
+                t.brand,
+            );
+        }
+        // Where this piece begins, unless it is the file's start.
+        if start > 0 && to > from {
+            painter.vline(from, rect.y_range(), egui::Stroke::new(1.0, t.dialog));
+        }
+    }
+    let downloaded: u64 = pieces
+        .iter()
+        .map(|&(_, length, done)| done.min(length))
+        .sum();
+    let percent = (downloaded as f32 / total * 100.0).round() as u32;
+    let said = crate::i18n::tn(
+        "{}% downloaded, in {} piece||{}% downloaded, in {} pieces",
+        pieces.len() as u64,
+        &[&percent, &pieces.len()],
+    );
+    response.widget_info(|| egui::WidgetInfo::labeled(egui::Role::ProgressIndicator, true, &said));
+}
+
 /// A dialog's buttons as WinUI's ContentDialog has them: on a band in the
 /// window's base colour under a hairline, across the whole dialog to its
 /// bottom edge, below the body; the buttons at the right, the default
@@ -3731,8 +3774,19 @@ fn progress(app: &mut DmApp, ctx: &egui::Context) {
                         });
                     let fraction = p.fraction().unwrap_or(0.0) as f32;
                     // No words of its own: Status above says the percentage
-                    // (UI round 9: it was said twice).
-                    bar(ui, fraction, 420.0, "");
+                    // (UI round 9: it was said twice). Laid out as the file
+                    // is, a piece for each connection, where the pieces are
+                    // known; a plain bar where they are not.
+                    match p.total.filter(|_| connections.len() > 1) {
+                        Some(total) => {
+                            let pieces: Vec<(u64, u64, u64)> = connections
+                                .iter()
+                                .map(|c| (c.start, (c.end - c.start).saturating_add(1), c.done))
+                                .collect();
+                            pieces_bar(ui, total, &pieces, 420.0);
+                        }
+                        None => bar(ui, fraction, 420.0, ""),
+                    }
                     // This download's own limit, beside the one for all.
                     if !row.state.settled() {
                         let typed = app.dialogs.own_limits.entry(id).or_insert(if row.speed_limit > 0 {

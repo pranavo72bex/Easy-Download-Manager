@@ -383,6 +383,7 @@
  "Yes, from the pieces it already has": "Ja, ab den Teilen, die er schon hat",
  "{} links on {}": "{} Links auf {}",
  "{} of {} piece done||{} of {} pieces done": "{} von {} Teil fertig||{} von {} Teilen fertig",
+ "{}% downloaded, in {} piece||{}% downloaded, in {} pieces": "{}% heruntergeladen, in {} Teil||{}% heruntergeladen, in {} Teilen",
  "· download limit of {} MB reached, held for {}": "· Grenze von {} MB erreicht, angehalten für {}",
  "· limited to {} KB/s": "· begrenzt auf {} KB/s",
  "Jan": "Jan.",

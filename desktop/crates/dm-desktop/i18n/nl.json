@@ -383,6 +383,7 @@
  "Yes, from the pieces it already has": "Ja, vanaf de delen die er al zijn",
  "{} links on {}": "{} links op {}",
  "{} of {} piece done||{} of {} pieces done": "{} van {} deel klaar||{} van {} delen klaar",
+ "{}% downloaded, in {} piece||{}% downloaded, in {} pieces": "{}% gedownload, in {} deel||{}% gedownload, in {} delen",
  "· download limit of {} MB reached, held for {}": "· downloadlimiet van {} MB bereikt, vastgehouden voor {}",
  "· limited to {} KB/s": "· beperkt tot {} KB/s",
  "Jan": "jan",

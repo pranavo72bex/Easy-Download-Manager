@@ -7576,6 +7576,24 @@ fn a_fresh_link_is_taken_from_the_browser() {
     assert_eq!(harness.state().rows()[0].url, world.url("renewed.bin"));
 }
 
+/// The progress window's bar is laid out as the file is, a piece for each
+/// connection, and says how far it has come and in how many pieces.
+#[test]
+fn the_pieces_bar_says_how_far_and_in_how_many_pieces() {
+    let mut harness = Harness::new_ui(|ui| {
+        dm_desktop::dialogs::pieces_bar(
+            ui,
+            1000,
+            &[(0, 400, 400), (400, 300, 100), (700, 300, 0)],
+            300.0,
+        );
+    });
+    harness.run();
+    assert!(harness
+        .query_by_label("50% downloaded, in 3 pieces")
+        .is_some());
+}
+
 /// Gap 153: a failed row's status is a plain reason, in Properties held to
 /// its column; the engine's words are kept for hover.
 #[test]

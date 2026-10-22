@@ -383,6 +383,7 @@
  "Yes, from the pieces it already has": "Evet, elindeki parçalardan devam eder",
  "{} links on {}": "{1} üzerinde {0} bağlantı",
  "{} of {} piece done||{} of {} pieces done": "{} / {} parça bitti",
+ "{}% downloaded, in {} piece||{}% downloaded, in {} pieces": "%{} indirildi, {} parça halinde",
  "· download limit of {} MB reached, held for {}": "· {} MB sınırına ulaşıldı, bekleme {}",
  "· limited to {} KB/s": "· {} KB/sn ile sınırlı",
  "Jan": "Oca",
