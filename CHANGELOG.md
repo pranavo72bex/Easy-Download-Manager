@@ -3,6 +3,73 @@
 What changed in each release, newest first. The app (`desktop-v*` tags) and
 the browser extension (`v*` tags) are versioned separately.
 
+## App 0.5.0 and extension 3.1.0
+
+Nothing else to install, a window that works the way a download manager
+should, and safer by default.
+
+**Nothing to install, and faster**
+- No ffmpeg, ever: picture, sound and subtitles are joined by dm on every
+  computer alike, and an installed ffmpeg is no longer used.
+- The first video page fetches about 36 MB (yt-dlp and QuickJS, each
+  checked against its checksum) instead of 120 MB. An installed yt-dlp
+  months out of date is passed over. Options › Downloads can turn the
+  fetching off.
+- A server that takes only a few connections at once no longer slows the
+  whole download: a connection it turns away steps aside at once (a mirror
+  that took 168 s now takes 15 s, close to curl's 13 s).
+
+**Downloads**
+- A full disk, a folder dm may not write to, or a drive taken out now
+  pauses the download with why, instead of failing it. "Choose another
+  folder…" moves what was fetched so far there and goes on.
+- A link that expires part-way asks for a fresh one, and goes on from where
+  it stopped.
+- A file of the same name in the folder: keep both (numbered) or replace it
+  once the new one is whole.
+- A speed limit of one download's own, in its progress window.
+- FTPS (FTP over TLS), implicit and explicit.
+- Each named queue can start by itself at a time of day.
+- `--when-done exit|sleep|hibernate|shutdown` on the command line.
+- A file over 4 GB bound for a FAT32 drive is refused before it starts.
+
+**The window**
+- A Filter over the list narrows it as you type.
+- Download details opens for downloads caught from the browser (new
+  installs), remembers the last folder for each kind of file, and the
+  numbered series lists every address before adding them.
+- New installs sort files into category folders and start with the
+  computer in the tray; the first window says so and offers the browser
+  extension for each browser it finds.
+- View › Drop target: a small window over every other that takes dropped
+  links, even while dm is in the tray.
+- Drag and drop works under Wayland too, both ways.
+- Clicking a finished download's notification opens the file (Windows,
+  Linux); failures are announced with why.
+- The update is checked against its release's SHA-256 and offered with
+  Install now.
+- The computer's accent colour, regional number and date formats, and its
+  "reduce motion" setting are followed; Windows 11 uses Segoe UI Variable
+  and the title bar takes the window's colours.
+- `--help` prints the command line; the tray says what is downloading.
+
+**Browser extension 3.1.0**
+- The "Download video" panel can be dragged, and Options › Browser turns it
+  off on every site at once.
+- A copy-protected (DRM) player shows "Protected video": dm does not
+  download protected video.
+- Download all links can list only the file types typed.
+- An opt-in switch hands the browser's sign-in over with every download,
+  for that download alone.
+- A page's script can no longer hand dm a magnet link; with no app, the
+  popup offers Get the dm app.
+
+**Security**
+- On Windows every finished file carries the "downloaded from the internet"
+  mark, so SmartScreen still warns on downloaded programs.
+- A secure address that redirects to plain http is stopped.
+- Rights-protected HLS streams are refused rather than half-fetched.
+
 ## App 0.4.0
 
 Video sites with nothing else to install, and drag and drop that takes a
