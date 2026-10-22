@@ -4084,10 +4084,14 @@ fn the_clipboard_watcher_offers_only_new_links_and_only_when_on() {
     );
 
     click(&mut harness, "Options");
-    click(
-        &mut harness,
-        "Watch the clipboard for links and offer to download them",
-    );
+    // Scrolled to first, as a person scrolls to it: where Windows 11 adds
+    // the Mica box above it, the box is below the tab's visible edge and a
+    // click at it reached nothing.
+    let watch = "Watch the clipboard for links and offer to download them";
+    harness.get_by_label(watch).scroll_to_me();
+    // The scroll is animated: clicked mid-way, the box had moved on.
+    harness.run();
+    click(&mut harness, watch);
     click(&mut harness, "OK");
     assert!(
         harness.state().backend().settings().watch_clipboard,
