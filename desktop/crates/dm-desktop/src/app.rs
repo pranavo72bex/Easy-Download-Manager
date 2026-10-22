@@ -758,6 +758,8 @@ pub struct DmApp {
     pub quit_asked: bool,
     /// The look last put in force, so a change in Options is applied once.
     theme_in_force: Option<crate::theme::Theme>,
+    /// The computer's accent last put in force (`accent.rs`).
+    accent_in_force: Option<Option<crate::accent::Palette>>,
     /// Whether the window's motion was last set to none (`motion.rs`).
     motion_in_force: Option<bool>,
     fonts_ready: bool,
@@ -913,6 +915,7 @@ impl DmApp {
             quit_asked: false,
             theme_in_force: None,
             motion_in_force: None,
+            accent_in_force: None,
             fonts_ready: false,
             when_done: Default::default(),
             failed_told: HashSet::new(),
@@ -2908,8 +2911,14 @@ impl DmApp {
         // they are set), so headings take Inter's semibold.
         let ready = crate::theme::fonts_ready(&ctx);
         self.dark = theme.tokens().dark;
-        if self.theme_in_force != Some(theme) || ready != self.fonts_ready {
-            crate::theme::apply(&ctx, theme);
+        // The computer's accent, for the modern looks' accent brushes.
+        let accent = crate::accent::system();
+        if self.theme_in_force != Some(theme)
+            || ready != self.fonts_ready
+            || self.accent_in_force != Some(accent)
+        {
+            crate::theme::apply_with_accent(&ctx, theme, accent);
+            self.accent_in_force = Some(accent);
             self.theme_in_force = Some(theme);
             self.fonts_ready = ready;
             self.motion_in_force = None;

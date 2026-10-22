@@ -14,6 +14,7 @@
     not(test),
     deny(clippy::unwrap_used, clippy::expect_used, clippy::panic)
 )]
+pub mod accent;
 pub mod app;
 pub mod autostart;
 pub mod backend;

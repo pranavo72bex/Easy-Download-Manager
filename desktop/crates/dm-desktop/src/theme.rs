@@ -719,8 +719,17 @@ fn semibold_family() -> FontFamily {
 /// Puts `theme` in force: egui's visuals and spacing from its tokens, the
 /// type sizes, and the tokens where widgets read them.
 pub fn apply(ctx: &Context, theme: Theme) {
+    apply_with_accent(ctx, theme, None);
+}
+
+/// [`apply`], the modern looks' accent brushes taken from `accent` (the
+/// computer's), where it reads well.
+pub fn apply_with_accent(ctx: &Context, theme: Theme, accent: Option<crate::accent::Palette>) {
     fonts(ctx);
-    let t = theme.tokens();
+    let t = match &accent {
+        Some(palette) => crate::accent::tokens(theme.tokens(), palette),
+        None => theme.tokens(),
+    };
     let mut v = if t.dark {
         Visuals::dark()
     } else {

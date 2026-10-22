@@ -68,8 +68,9 @@ drag = "2.1"
 # The Dock icon's click, which winit leaves to an application delegate.
 [target.'cfg(target_os = "macos")'.dependencies]
 objc2 = "0.6"
-# NSWorkspace and NSAccessibility: whether the system asks for less motion.
-objc2-app-kit = { version = "0.3", default-features = false, features = ["std", "NSApplication", "NSResponder", "NSWorkspace", "NSAccessibility"] }
+# NSWorkspace and NSAccessibility: whether the system asks for less motion;
+# NSColor and NSColorSpace: its accent colour (accent.rs).
+objc2-app-kit = { version = "0.3", default-features = false, features = ["std", "NSApplication", "NSResponder", "NSWorkspace", "NSAccessibility", "NSColor", "NSColorSpace", "objc2-core-foundation"] }
 # The pasteboard's strings, for a link dragged in from a browser (drops.rs).
 objc2-foundation = { version = "0.3", default-features = false, features = ["std", "NSString", "NSArray"] }
 
