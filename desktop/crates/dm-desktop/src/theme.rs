@@ -419,8 +419,14 @@ fn definitions(scripts: &[Script]) -> egui::FontDefinitions {
     );
     fonts.families.insert(semibold_family(), semibold);
     // Segoe UI's and Selawik's digits are each one width, so the window's
-    // face leads the numbers family as it does every other.
+    // face leads the numbers family as it does every other. Segoe UI
+    // Variable's are not (its tabular figures are an OpenType feature egui
+    // cannot ask for): there classic Segoe UI draws the numbers.
     let mut numbers = vec!["ui".to_string()];
+    if let Some(face) = windows_numbers() {
+        fonts.font_data.insert("ui-numbers".into(), face.into());
+        numbers.insert(0, "ui-numbers".to_string());
+    }
     numbers.extend(
         fonts
             .families
@@ -470,6 +476,19 @@ fn windows_segoe() -> Option<(egui::FontData, egui::FontData)> {
     let face =
         |name: &str| font_file(&dir.join(name)).map(|blob| egui::FontData::from_blob(blob, 0));
     Some((face("segoeui.ttf")?, face("seguisb.ttf")?))
+}
+
+/// Classic Segoe UI, for numbers, where the window's face is Segoe UI
+/// Variable, whose digits differ in width.
+fn windows_numbers() -> Option<egui::FontData> {
+    if !cfg!(windows) {
+        return None;
+    }
+    let dir = std::path::PathBuf::from(std::env::var_os("WINDIR")?).join("Fonts");
+    if !dir.join("SegUIVar.ttf").is_file() {
+        return None;
+    }
+    font_file(&dir.join("segoeui.ttf")).map(|blob| egui::FontData::from_blob(blob, 0))
 }
 
 /// One variable font as the regular and semibold faces: its weight axis
@@ -1149,11 +1168,18 @@ mod tests {
         for c in "023456789".chars() {
             assert_eq!(width(numbers_family(), c), ones, "{c} is not as wide as 1");
         }
-        // The window's face is first in both, so the two agree.
-        assert_eq!(
+        // The window's face is first in both, so the two agree, but where
+        // Segoe UI Variable is the face: its digits differ in width, and
+        // classic Segoe UI draws the numbers, a close match.
+        let (text, number) = (
             width(FontFamily::Proportional, '8'),
-            width(numbers_family(), '8')
+            width(numbers_family(), '8'),
         );
+        if windows_numbers().is_some() {
+            assert!((text - number).abs() <= 1.5, "{text} against {number}");
+        } else {
+            assert_eq!(text, number);
+        }
         // Letters and units are not lost: Cyrillic comes from Inter, behind
         // the window's face.
         assert!(ctx.fonts_mut(|f| f.has_glyphs(&FontId::new(14.0, numbers_family()), "MB/s ГБ")));
