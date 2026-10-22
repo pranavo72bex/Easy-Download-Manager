@@ -259,6 +259,7 @@
  "The dm update is downloaded and checked.": "dm güncellemesi indirildi ve doğrulandı.",
  "The new installer is downloading; dm offers to install it once it is checked.": "Yeni yükleyici indiriliyor; doğrulandığında dm kurmayı önerecek.",
  "This computer has no way to do that when the downloads are done.": "Bu bilgisayar indirmeler bitince bunu yapamaz.",
+ "the secure address sent dm on to an insecure one, where the file could be swapped on the way, so dm stopped": "güvenli adres dm'yi güvensiz bir adrese yönlendirdi, dosya yolda değiştirilebileceği için dm durdu",
  "this video is copy-protected (DRM); only the site's own player can play it, and dm does not download it": "bu video kopya korumalı (DRM); yalnızca sitenin kendi oynatıcısı oynatabilir ve dm onu indirmez",
  "zip pdf mp4": "zip pdf mp4",
  "{} shown||{} shown": "{} gösteriliyor",

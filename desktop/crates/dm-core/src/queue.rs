@@ -1687,6 +1687,8 @@ impl Queue {
                         slot.entry.filename = name.to_string_lossy().into_owned();
                     }
                     slot.entry.path = finished.path.to_string_lossy().into_owned();
+                    // From the internet, as a browser's download says.
+                    crate::motw::mark(&finished.path, &slot.entry.url, &slot.entry.referrer);
                     slot.entry.category = Some(finished.category);
                     slot.entry.verified = finished.verified;
                     slot.entry.mirrors = finished.mirrors;

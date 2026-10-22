@@ -259,6 +259,7 @@
  "The dm update is downloaded and checked.": "La mise à jour de dm est téléchargée et vérifiée.",
  "The new installer is downloading; dm offers to install it once it is checked.": "Le nouvel installateur se télécharge ; dm proposera de l'installer une fois vérifié.",
  "This computer has no way to do that when the downloads are done.": "Cet ordinateur ne peut pas faire cela à la fin des téléchargements.",
+ "the secure address sent dm on to an insecure one, where the file could be swapped on the way, so dm stopped": "l'adresse sécurisée a renvoyé dm vers une adresse non sécurisée, où le fichier pourrait être remplacé en chemin, donc dm s'est arrêté",
  "this video is copy-protected (DRM); only the site's own player can play it, and dm does not download it": "cette vidéo est protégée contre la copie (DRM) ; seul le lecteur du site peut la lire, et dm ne la télécharge pas",
  "zip pdf mp4": "zip pdf mp4",
  "{} shown||{} shown": "{} affichée||{} affichées",

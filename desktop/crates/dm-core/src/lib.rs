@@ -24,6 +24,7 @@ pub mod live;
 pub mod metalink;
 pub mod mkvmux;
 pub mod mms;
+pub mod motw;
 pub mod mp4mux;
 pub mod ntlm;
 pub mod plan;
@@ -478,6 +479,31 @@ pub fn builder() -> reqwest::ClientBuilder {
 /// short enough that a pause is honoured within it.
 pub const READ_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(30);
 
+/// What a redirect is let do: ten at most, and none from `https` to
+/// `http`. (reqwest itself drops a sign-in or cookies sent by dm on a
+/// redirect to another server.)
+pub fn redirect_policy() -> reqwest::redirect::Policy {
+    reqwest::redirect::Policy::custom(|attempt| {
+        let downgrade = attempt.url().scheme() == "http"
+            && attempt
+                .previous()
+                .iter()
+                .any(|before| before.scheme() == "https");
+        if downgrade {
+            let to = attempt.url().to_string();
+            attempt.error(format!("{INSECURE_REDIRECT} ({to})"))
+        } else if attempt.previous().len() >= 10 {
+            attempt.error("too many redirects")
+        } else {
+            attempt.follow()
+        }
+    })
+}
+
+/// What a refused downgrade says.
+pub const INSECURE_REDIRECT: &str =
+    "the secure address sent dm on to an insecure (http) one, where the file could be swapped on the way, so dm stopped";
+
 /// [`builder`], with the read timeout a setting: a server that takes a
 /// minute to start sending a large archive is not a dead connection to the
 /// person who knows it does that.
@@ -500,8 +526,10 @@ pub fn builder_with(
     };
     builder
         // Redirects are followed, but not indefinitely: a loop is a server
-        // problem that should not become a hang.
-        .redirect(reqwest::redirect::Policy::limited(10))
+        // problem that should not become a hang. And never from a secure
+        // address to a plain one, where anyone on the way could swap the
+        // file, as browsers block such a download too.
+        .redirect(redirect_policy())
         // HTTP/1.1, on purpose, and this is the whole point of the program.
         //
         // Splitting a file into several ranges only beats a per-connection
@@ -662,6 +690,72 @@ pub fn file_error(e: &std::io::Error) -> String {
                 None => said,
             }
         }
+    }
+}
+
+#[cfg(test)]
+mod redirect_tests {
+    use tokio::io::{AsyncReadExt, AsyncWriteExt};
+    use tokio_rustls::rustls;
+
+    /// A secure server that sends every request on to `to`.
+    async fn sending_on(to: String) -> (u16, Vec<u8>) {
+        let made = rcgen::generate_simple_self_signed(vec!["localhost".into()]).unwrap();
+        let cert = made.cert.der().to_vec();
+        let key =
+            rustls::pki_types::PrivateKeyDer::try_from(made.key_pair.serialize_der()).unwrap();
+        let config = rustls::ServerConfig::builder_with_provider(std::sync::Arc::new(
+            rustls::crypto::ring::default_provider(),
+        ))
+        .with_safe_default_protocol_versions()
+        .unwrap()
+        .with_no_client_auth()
+        .with_single_cert(vec![made.cert.der().clone()], key)
+        .unwrap();
+        let acceptor = tokio_rustls::TlsAcceptor::from(std::sync::Arc::new(config));
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let port = listener.local_addr().unwrap().port();
+        tokio::spawn(async move {
+            while let Ok((tcp, _)) = listener.accept().await {
+                let (acceptor, to) = (acceptor.clone(), to.clone());
+                tokio::spawn(async move {
+                    let Ok(mut tls) = acceptor.accept(tcp).await else {
+                        return;
+                    };
+                    let mut asked = [0u8; 2048];
+                    let _ = tls.read(&mut asked).await;
+                    let answer = format!(
+                        "HTTP/1.1 302 Found\r\nLocation: {to}\r\nContent-Length: 0\r\nConnection: close\r\n\r\n"
+                    );
+                    let _ = tls.write_all(answer.as_bytes()).await;
+                    let _ = tls.shutdown().await;
+                });
+            }
+        });
+        (port, cert)
+    }
+
+    #[tokio::test]
+    async fn a_secure_address_is_not_followed_to_a_plain_one() {
+        let plain = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let plain_port = plain.local_addr().unwrap().port();
+        let (port, cert) = sending_on(format!("http://127.0.0.1:{plain_port}/f.bin")).await;
+        let client = reqwest::Client::builder()
+            .redirect(super::redirect_policy())
+            .add_root_certificate(reqwest::Certificate::from_der(&cert).unwrap())
+            .build()
+            .unwrap();
+        let refused = client
+            .get(format!("https://localhost:{port}/f.bin"))
+            .send()
+            .await
+            .unwrap_err();
+        let said = format!("{refused:?}");
+        assert!(said.contains("insecure (http)"), "{said}");
+        // The plain server was never asked.
+        let asked =
+            tokio::time::timeout(std::time::Duration::from_millis(200), plain.accept()).await;
+        assert!(asked.is_err(), "the plain address was fetched");
     }
 }
 

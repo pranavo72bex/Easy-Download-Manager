@@ -259,6 +259,7 @@
  "The dm update is downloaded and checked.": "De dm-update is gedownload en gecontroleerd.",
  "The new installer is downloading; dm offers to install it once it is checked.": "Het nieuwe installatieprogramma wordt gedownload; dm biedt aan het te installeren zodra het is gecontroleerd.",
  "This computer has no way to do that when the downloads are done.": "Deze computer kan dat niet doen wanneer de downloads klaar zijn.",
+ "the secure address sent dm on to an insecure one, where the file could be swapped on the way, so dm stopped": "het beveiligde adres stuurde dm door naar een onbeveiligd adres, waar het bestand onderweg verwisseld kan worden, dus dm stopte",
  "this video is copy-protected (DRM); only the site's own player can play it, and dm does not download it": "deze video is kopieerbeveiligd (DRM); alleen de eigen speler van de site kan hem afspelen, en dm downloadt hem niet",
  "zip pdf mp4": "zip pdf mp4",
  "{} shown||{} shown": "{} getoond||{} getoond",
