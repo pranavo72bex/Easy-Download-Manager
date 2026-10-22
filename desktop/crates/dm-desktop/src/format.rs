@@ -287,7 +287,7 @@ pub fn titled(word: &str) -> String {
 /// one for what the network library says in its own terms ("error decoding
 /// response body" is a connection cut mid-file). The first that matches
 /// wins; anything else is shown as the engine said it.
-pub const REASONS: [(&[&str], &str); 31] = [
+pub const REASONS: [(&[&str], &str); 32] = [
     (
         &[
             "error decoding response body",
@@ -305,6 +305,10 @@ pub const REASONS: [(&[&str], &str); 31] = [
     (
         &["the server sent ", "bytes of a file it said was"],
         "the server sent less than the whole file",
+    ),
+    (
+        &["too many redirects"],
+        "the site sends the address round in a loop of redirects",
     ),
     (
         &["the server's name could not be found"],
@@ -447,6 +451,44 @@ pub const REASONS: [(&[&str], &str); 31] = [
         &["error sending request"],
         "the server could not be reached",
     ),
+];
+
+/// Why a download is being tried again, in two or three words that fit
+/// the Status column beside the attempt: the server's own trouble, its
+/// turning dm away briefly, and the network failures `REASONS` names.
+/// `None` for anything else, which is then not guessed at.
+pub fn retry_cause(raw: &str) -> Option<&'static str> {
+    let lower = raw.to_lowercase();
+    if ["500", "502", "503", "504"]
+        .iter()
+        .any(|code| lower.starts_with(&format!("the server answered {code}")))
+    {
+        return Some("Server error");
+    }
+    if lower.starts_with("the server answered 429") {
+        return Some("Too many requests");
+    }
+    match reason(raw)? {
+        "the server ended the connection before the file was complete" => {
+            Some("Connection dropped")
+        }
+        "the server's name could not be found (check the address)" => Some("Server not found"),
+        "the server refused the connection" => Some("Connection refused"),
+        "the server did not answer in time" => Some("No answer"),
+        "the server could not be reached" => Some("Server unreachable"),
+        _ => None,
+    }
+}
+
+/// Every word [`retry_cause`] can give, for the catalogs.
+pub const RETRY_CAUSES: [&str; 7] = [
+    "Server error",
+    "Too many requests",
+    "Connection dropped",
+    "Server not found",
+    "Connection refused",
+    "No answer",
+    "Server unreachable",
 ];
 
 /// A file error in the window's language, without the system's number.
@@ -794,6 +836,29 @@ mod tests {
         assert_eq!(
             reason("the connection ended after 10 of 20 bytes"),
             reason(cut)
+        );
+        assert_eq!(
+            retry_cause("the server answered 500 Internal Server Error for http://a/x"),
+            Some("Server error")
+        );
+        assert_eq!(
+            retry_cause("the connection ended after 10 of 20 bytes"),
+            Some("Connection dropped")
+        );
+        for raw in [
+            "the server answered 503 Service Unavailable for http://a/x",
+            "the server answered 429 Too Many Requests for http://a/x",
+            "the connection ended after 10 of 20 bytes",
+            "network: the server refused the connection",
+            "network: operation timed out",
+        ] {
+            let cause = retry_cause(raw).unwrap_or_else(|| panic!("{raw}"));
+            assert!(RETRY_CAUSES.contains(&cause), "{cause}");
+        }
+        assert_eq!(retry_cause("disk: No space left on device"), None);
+        assert_eq!(
+            reason("network: error following redirect for url (http://a/loop): too many redirects"),
+            Some("the site sends the address round in a loop of redirects")
         );
         assert_eq!(
             reason("disk: No space left on device (os error 28)"),

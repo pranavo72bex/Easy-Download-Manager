@@ -136,7 +136,7 @@ impl Backend {
 
     /// The rows being retried now, each with its attempt and how many
     /// there may be (0 for no end).
-    pub fn retrying(&self) -> std::collections::HashMap<Id, (u32, u32)> {
+    pub fn retrying(&self) -> std::collections::HashMap<Id, (u32, u32, String)> {
         self.block_on(self.queue.retrying())
     }
 

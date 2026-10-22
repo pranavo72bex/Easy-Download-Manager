@@ -1260,20 +1260,16 @@ mod tests {
         assert_eq!(name_width(&columns, 1200.0), 220.0);
         let narrow = name_width(&columns, 600.0);
         assert!((120.0..220.0).contains(&narrow), "{narrow}");
-        // The window's first size: Time left whole beside the name.
+        // The window's first size: Time left and Speed whole beside the
+        // name (gap 83: Speed was off to the right).
         let first = name_width(&columns, 730.0);
-        let through_time: f32 = [
-            Column::Queue,
-            Column::Size,
-            Column::Status,
-            Column::TimeLeft,
-        ]
-        .iter()
-        .map(|c| initial(*c) + 8.0)
-        .sum();
-        assert!(first >= 120.0 && first + through_time <= 730.0, "{first}");
-        // What it gave is what Queue, Size and Status need beside it.
-        let beside: f32 = [Column::Queue, Column::Size, Column::Status]
+        let through_speed: f32 = [Column::Size, Column::Status, Column::TimeLeft, Column::Rate]
+            .iter()
+            .map(|c| initial(*c) + 8.0)
+            .sum();
+        assert!(first >= 120.0 && first + through_speed <= 730.0, "{first}");
+        // What it gave is what Size and Status need beside it.
+        let beside: f32 = [Column::Size, Column::Status]
             .iter()
             .map(|c| initial(*c) + 8.0)
             .sum();

@@ -2138,7 +2138,7 @@ fn a_column_turned_off_is_gone_and_comes_back() {
     let saved = harness.state().backend().settings();
     assert_eq!(
         Column::ordered(&saved.column_order)[..4],
-        [Column::Name, Column::Queue, Column::Status, Column::Size]
+        [Column::Name, Column::Status, Column::Size, Column::TimeLeft]
     );
     // Put back for the other tests.
     let mut wanted = saved;
@@ -7763,7 +7763,7 @@ fn a_retry_says_its_attempt() {
     until(&mut harness, "the row to say it retries", |app| {
         app.rows()
             .first()
-            .is_some_and(|r| dm_desktop::app::status_of(r).starts_with("Retrying (attempt 2 of 5)"))
+            .is_some_and(|r| dm_desktop::app::status_of(r) == "Connection dropped (retry 2 of 5)")
     });
     // A new address is taken while it retries, and finishes it (UI round 8:
     // the field was greyed as for a running download).

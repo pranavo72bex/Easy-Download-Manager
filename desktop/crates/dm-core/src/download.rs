@@ -353,6 +353,8 @@ pub enum Update {
     Retrying {
         attempt: u32,
         of: u32,
+        /// What failed, in the engine's words, so the row can say why.
+        why: String,
     },
 }
 
@@ -413,9 +415,10 @@ async fn fetch_reporting(
     // The probe is as worth retrying as anything after it: a server that is
     // briefly busy should not fail a download before it has begun. Each
     // retry is said, as a range's is.
-    let retrying = |attempt, of| {
+    let retrying = |attempt, of, error: &Error| {
         if let Some(tx) = &report {
-            let _ = tx.try_send(Update::Retrying { attempt, of });
+            let why = error.to_string();
+            let _ = tx.try_send(Update::Retrying { attempt, of, why });
         }
     };
     let probed = retry::run_up_to_telling(&options.control, options.tries(), retrying, || {
@@ -1422,9 +1425,10 @@ async fn fetch_segment(
     // one that got further than the last is not progress toward the end.
     let on_disk = || if resumable { job.ledger(index) } else { 0 };
     // Said while it waits, so the row tells a retry from a stall.
-    let retrying = |attempt, of| {
+    let retrying = |attempt, of, error: &Error| {
         if let Some(tx) = &job.report {
-            let _ = tx.try_send(Update::Retrying { attempt, of });
+            let why = error.to_string();
+            let _ = tx.try_send(Update::Retrying { attempt, of, why });
         }
     };
     /* A server that takes only so many connections at once answers the

@@ -238,9 +238,9 @@ struct Slot {
     /// the schedule and the download limit leave this run alone.
     outside_schedule: bool,
     /// The attempt a range of this run is on after a failure, and how many
-    /// there may be (0 for no end), until bytes arrive again. Not saved: it
-    /// is about this run.
-    retrying: Option<(u32, u32)>,
+    /// there may be (0 for no end), and what failed, until bytes arrive
+    /// again. Not saved: it is about this run.
+    retrying: Option<(u32, u32, String)>,
     /// This row's own speed limit (`Entry::speed_limit`), chained to the
     /// shared one while it runs, so a change reaches it at once.
     own_limit: crate::limit::Limiter,
@@ -1023,15 +1023,16 @@ impl Queue {
 
     /// The rows a range is being retried for, now: each with the attempt
     /// it is on (the first try is 1) and how many there may be, 0 for no
-    /// end. Over once bytes arrive again.
-    pub async fn retrying(&self) -> HashMap<Id, (u32, u32)> {
+    /// end, and what failed, in the engine's words. Over once bytes arrive
+    /// again.
+    pub async fn retrying(&self) -> HashMap<Id, (u32, u32, String)> {
         self.inner
             .slots
             .lock()
             .await
             .iter()
             .filter(|(_, s)| s.entry.state == State::Running)
-            .filter_map(|(id, s)| s.retrying.map(|r| (*id, r)))
+            .filter_map(|(id, s)| s.retrying.clone().map(|r| (*id, r)))
             .collect()
     }
 
@@ -1590,10 +1591,10 @@ impl Queue {
                                 slot.entry.validator = Some(validator);
                             }
                             // The highest attempt of any range is the row's.
-                            crate::download::Update::Retrying { attempt, of } => {
-                                let now = slot.retrying.map_or(0, |(a, _)| a);
+                            crate::download::Update::Retrying { attempt, of, why } => {
+                                let now = slot.retrying.as_ref().map_or(0, |(a, _, _)| *a);
                                 if attempt >= now {
-                                    slot.retrying = Some((attempt, of));
+                                    slot.retrying = Some((attempt, of, why));
                                 }
                             }
                         }

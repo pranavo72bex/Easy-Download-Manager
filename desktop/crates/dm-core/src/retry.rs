@@ -102,7 +102,7 @@ where
     F: FnMut() -> Fut,
     Fut: Future<Output = Result<T, Error>>,
 {
-    run_making_progress_telling(control, attempts, progress, |_, _| {}, op).await
+    run_making_progress_telling(control, attempts, progress, |_, _, _| {}, op).await
 }
 
 /// As [`run_making_progress`], with `retrying` told of each attempt after a
@@ -113,7 +113,7 @@ pub async fn run_making_progress_telling<F, Fut, T>(
     control: &Control,
     tries: impl Into<Tries>,
     progress: impl Fn() -> u64,
-    retrying: impl Fn(u32, u32),
+    retrying: impl Fn(u32, u32, &Error),
     op: F,
 ) -> Result<T, Error>
 where
@@ -130,7 +130,7 @@ pub async fn run_making_progress_unless<F, Fut, T>(
     control: &Control,
     tries: impl Into<Tries>,
     progress: impl Fn() -> u64,
-    retrying: impl Fn(u32, u32),
+    retrying: impl Fn(u32, u32, &Error),
     give_up: impl Fn(&Error) -> bool,
     mut op: F,
 ) -> Result<T, Error>
@@ -157,7 +157,7 @@ where
                 if attempt >= limit || !transient(&error) || give_up(&error) {
                     return Err(error);
                 }
-                retrying(attempt.saturating_add(1), attempts);
+                retrying(attempt.saturating_add(1), attempts, &error);
                 wait(control, pause(attempt, error.retry_after(), every)).await?;
             }
         }
@@ -178,7 +178,7 @@ where
     F: FnMut() -> Fut,
     Fut: Future<Output = Result<T, Error>>,
 {
-    run_up_to_telling(control, attempts, |_, _| {}, op).await
+    run_up_to_telling(control, attempts, |_, _, _| {}, op).await
 }
 
 /// As [`run_up_to`], with `retrying` told of each attempt after a failed
@@ -186,7 +186,7 @@ where
 pub async fn run_up_to_telling<F, Fut, T>(
     control: &Control,
     tries: impl Into<Tries>,
-    retrying: impl Fn(u32, u32),
+    retrying: impl Fn(u32, u32, &Error),
     mut op: F,
 ) -> Result<T, Error>
 where
@@ -208,7 +208,7 @@ where
                 if attempt >= limit || !transient(&error) {
                     return Err(error);
                 }
-                retrying(attempt.saturating_add(1), attempts);
+                retrying(attempt.saturating_add(1), attempts, &error);
                 wait(control, pause(attempt, error.retry_after(), every)).await?;
             }
         }
@@ -414,7 +414,7 @@ mod tests {
             &control,
             3,
             || 0,
-            |attempt, of| heard.lock().unwrap().push((attempt, of)),
+            |attempt, of, _| heard.lock().unwrap().push((attempt, of)),
             || async {
                 tries.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
                 Err(Error::Incomplete {

@@ -70,13 +70,16 @@ pub enum Column {
 }
 
 impl Column {
+    /// In the order a new window shows them: Name, Size, Status, Time
+    /// left and Speed fit a 960-point window whole; Queue, empty for most
+    /// rows, comes after them (QA pass, gap 83: Speed was off to the right).
     pub const ALL: [Column; 10] = [
         Column::Name,
-        Column::Queue,
         Column::Size,
         Column::Status,
         Column::TimeLeft,
         Column::Rate,
+        Column::Queue,
         Column::LastTry,
         Column::Description,
         Column::Referrer,
@@ -238,12 +241,12 @@ thread_local! {
     /// The rows a range is being retried for, as the last refresh found
     /// them: the attempt and how many there may be (0 for no end). Kept
     /// beside the rows, which the engine hands over without it.
-    static RETRYING: std::cell::RefCell<HashMap<Id, (u32, u32)>> =
+    static RETRYING: std::cell::RefCell<HashMap<Id, (u32, u32, String)>> =
         std::cell::RefCell::new(HashMap::new());
 }
 
 /// What the engine now says about retries, for the statuses drawn next.
-pub fn set_retrying(now: HashMap<Id, (u32, u32)>) {
+pub fn set_retrying(now: HashMap<Id, (u32, u32, String)>) {
     RETRYING.with(|r| *r.borrow_mut() = now);
 }
 
@@ -258,8 +261,8 @@ pub fn set_limit_holds(now: bool) {
     LIMIT_HOLDS.with(|l| l.set(now));
 }
 
-pub(crate) fn retrying(id: Id) -> Option<(u32, u32)> {
-    RETRYING.with(|r| r.borrow().get(&id).copied())
+pub(crate) fn retrying(id: Id) -> Option<(u32, u32, String)> {
+    RETRYING.with(|r| r.borrow().get(&id).cloned())
 }
 
 /// What the engine said of a failure, word for word, where the status
@@ -320,11 +323,24 @@ fn status_in(row: &Entry, words: fn(&'static str) -> &'static str) -> String {
     match &row.state {
         // Said while a range waits to be tried again: the bar drops back
         // and climbs, which read as a fault (gap 155).
+        // With why, where dm can say it plainly: "Retrying (attempt 5 of
+        // 10)" alone read as dm stuck on nothing (QA pass, gap 81).
         State::Running if retrying(row.id).is_some() => match retrying(row.id) {
-            Some((attempt, of)) if of > 0 => {
-                crate::i18n::fill(words("Retrying (attempt {} of {})"), &[&attempt, &of])
+            Some((attempt, of, why)) => {
+                let cause = format::retry_cause(&why).map(words);
+                match (of > 0, cause) {
+                    (true, Some(cause)) => {
+                        crate::i18n::fill(words("{} (retry {} of {})"), &[&cause, &attempt, &of])
+                    }
+                    (true, None) => {
+                        crate::i18n::fill(words("Retrying (attempt {} of {})"), &[&attempt, &of])
+                    }
+                    (false, Some(cause)) => {
+                        crate::i18n::fill(words("{} (retry {})"), &[&cause, &attempt])
+                    }
+                    (false, None) => crate::i18n::fill(words("Retrying (attempt {})"), &[&attempt]),
+                }
             }
-            Some((attempt, _)) => crate::i18n::fill(words("Retrying (attempt {})"), &[&attempt]),
             None => String::new(),
         },
         State::Running => match row.progress.fraction() {
@@ -4965,6 +4981,7 @@ pub fn run_time_words() -> Vec<&'static str> {
     words.extend(crate::format::MONTHS);
     words.push(DROP_HINT);
     words.extend(format::REASONS.iter().map(|(_, plain)| *plain));
+    words.extend(format::RETRY_CAUSES);
     for place in [
         Place::All,
         Place::Unfinished,
