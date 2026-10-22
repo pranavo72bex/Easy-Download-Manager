@@ -9616,3 +9616,28 @@ fn new_installs_sort_by_kind_and_start_at_login() {
     assert!(fresh.categorize);
     assert!(fresh.start_on_login);
 }
+
+/// QA pass, gap 84: with a dialog open, a person's click on the menu bar
+/// opens nothing, so dialogs are not stacked by hand. (The control
+/// protocol runs commands directly and may open one over another; that is
+/// a script's doing.) Without the dialog, the same clicks open About.
+#[test]
+fn the_menus_do_not_open_dialogs_over_a_dialog() {
+    let world = world();
+    let mut harness = world.harness();
+    harness.state_mut().run(Command::AddSeries);
+    harness.run_steps(2);
+    click(&mut harness, "Help");
+    harness.run_steps(2);
+    assert!(harness.query_by_label_contains("About dm").is_none());
+    assert!(!harness.state().dialogs.about_open);
+    assert!(harness.state().dialogs.series.is_some());
+
+    harness.state_mut().dialogs.series = None;
+    harness.run_steps(2);
+    click(&mut harness, "Help");
+    harness.run_steps(2);
+    harness.get_by_label_contains("About dm").click();
+    harness.run_steps(3);
+    assert!(harness.state().dialogs.about_open);
+}
