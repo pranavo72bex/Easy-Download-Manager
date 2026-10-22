@@ -4266,8 +4266,10 @@ fn series(app: &mut DmApp, ctx: &egui::Context) {
             }
             let mut warn = d.says.clone();
             let mut count = String::new();
+            let mut listed = Vec::new();
             match dm_shell::lists::series(&d.template, &d.from, &d.to, d.width) {
                 Ok(urls) => {
+                    listed = urls.clone();
                     if let Some(first) = urls.first() {
                         count = crate::i18n::tn(
                             "{} address: {}||{} addresses, the first {}",
@@ -4284,6 +4286,30 @@ fn series(app: &mut DmApp, ctx: &egui::Context) {
             } else {
                 warning_line(ui, &warn);
             }
+            // Every address the series makes, so a wrong padding or end is
+            // seen before anything is fetched; its room is kept whether or
+            // not there is a list yet, and only the rows in view are drawn.
+            let row = ui.text_style_height(&egui::TextStyle::Small) + 2.0;
+            egui::Frame::group(ui.style()).show(ui, |ui| {
+                ui.set_min_width(ui.available_width());
+                if listed.is_empty() {
+                    ui.label(
+                        RichText::new(t("Each address the series makes is listed here."))
+                            .small()
+                            .weak(),
+                    );
+                }
+                egui::ScrollArea::vertical()
+                    .id_salt("series-addresses")
+                    .min_scrolled_height(row * 6.0)
+                    .max_height(row * 6.0)
+                    .auto_shrink([false, false])
+                    .show_rows(ui, row, listed.len(), |ui, rows| {
+                        for url in listed.get(rows).unwrap_or_default() {
+                            ui.label(RichText::new(url).small().monospace());
+                        }
+                    });
+            });
             footer(ui, |ui| {
                 if primary(ui, "Start now").clicked() || enter || enter_free(ui) {
                     add = Some(false);

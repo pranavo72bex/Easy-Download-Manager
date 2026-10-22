@@ -179,7 +179,7 @@ and is not carried over.
       Add links from clipboard, Site files (pages deep on one site,
       or an FTP server's folders read by MLSD or LIST; path filters, saved
       searches that run on a timer and can stop reading after so many minutes), Import/Export as dm's
-      `.dmlist` (plain lists of links import too), Find, Scheduler, Speed
+      `.dmlist` (plain lists of links import too), Find, a Filter over the list that narrows it as one types, Scheduler, Speed
       limiter, Options (General, Folders, Downloads, Browser, Network,
       Proxy, Sign-ins). Every action is a named command (`commands.rs`),
       and window tests click every menu item, toolbar button and row-menu

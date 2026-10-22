@@ -1729,6 +1729,13 @@ fn a_batch_adds_every_address_the_star_makes() {
     type_into(&mut harness, "From", "1");
     type_into(&mut harness, "To", "12");
     assert!(harness.query_by_label_contains("12 addresses").is_some());
+    // Each address is listed, not only the first.
+    for n in ["part1.bin", "part2.bin", "part5.bin"] {
+        assert!(
+            harness.query_by_label(&world.url(n)).is_some(),
+            "{n} is not in the preview"
+        );
+    }
     click(&mut harness, "Add for later");
     let urls: Vec<String> = harness
         .state()
@@ -1738,6 +1745,43 @@ fn a_batch_adds_every_address_the_star_makes() {
         .collect();
     assert_eq!(urls.len(), 12);
     assert!(urls[0].ends_with("/part1.bin") && urls[11].ends_with("/part12.bin"));
+}
+
+/// Typing over the list narrows it to the rows whose name, address or
+/// note hold every word, whatever their case; Clear shows them all again.
+#[test]
+fn the_list_narrows_as_a_filter_is_typed() {
+    let world = world();
+    let mut harness = world.harness();
+    harness.state_mut().run(Command::AddSeries);
+    harness.run_steps(2);
+    type_into(&mut harness, "Address with *", &world.url("part*.bin"));
+    type_into(&mut harness, "From", "1");
+    type_into(&mut harness, "To", "12");
+    click(&mut harness, "Add for later");
+    harness.run_steps(3);
+    assert_eq!(harness.state().visible().len(), 12);
+    type_role(&mut harness, "Filter", "PART1");
+    let shown: Vec<String> = harness
+        .state()
+        .visible()
+        .iter()
+        .map(|r| r.url.rsplit('/').next().unwrap_or_default().to_string())
+        .collect();
+    let mut shown = shown;
+    shown.sort();
+    assert_eq!(
+        shown,
+        ["part1.bin", "part10.bin", "part11.bin", "part12.bin"]
+    );
+    assert!(harness.query_by_label("4 shown").is_some());
+    type_role(&mut harness, "Filter", " nothing-like-it");
+    assert!(harness.state().visible().is_empty());
+    assert!(harness
+        .query_by_label("No download here matches the filter.")
+        .is_some());
+    click(&mut harness, "Clear");
+    assert_eq!(harness.state().visible().len(), 12);
 }
 
 /// Gap 165: the series' error is in the language in force, says nothing

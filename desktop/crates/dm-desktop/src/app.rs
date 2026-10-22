@@ -758,6 +758,9 @@ pub struct DmApp {
     fonts_ready: bool,
     /// What to do when the queue runs dry, for this session only.
     pub when_done: crate::power::WhenDone,
+    /// Words typed over the list: only rows whose name, address or note
+    /// holds them all are shown, in whatever place is chosen.
+    pub filter: String,
     /// Rows whose failure has been sounded, so one failure is one sound.
     failed_told: HashSet<Id>,
     /// What saved site searches found, by name, waiting to be added.
@@ -907,6 +910,7 @@ impl DmApp {
             when_done: Default::default(),
             failed_told: HashSet::new(),
             search_results: Arc::default(),
+            filter: String::new(),
             searches_running: 0,
             searches_checked: None,
             popup_was_open: false,
@@ -1850,7 +1854,22 @@ impl DmApp {
     /* ----------------------------------------------------------- places */
 
     pub fn shows(&self, row: &Entry) -> bool {
-        self.within(&self.place, row)
+        self.within(&self.place, row) && self.matches_filter(row)
+    }
+
+    /// Whether every word typed over the list is in the row's name, its
+    /// address or its note, whatever their case.
+    fn matches_filter(&self, row: &Entry) -> bool {
+        let words: Vec<String> = self
+            .filter
+            .split_whitespace()
+            .map(str::to_lowercase)
+            .collect();
+        if words.is_empty() {
+            return true;
+        }
+        let said = format!("{} {} {}", name_of(row), row.url, row.description).to_lowercase();
+        words.iter().all(|w| said.contains(w.as_str()))
     }
 
     /// Whether `row` belongs in `place`.
@@ -3025,6 +3044,7 @@ impl DmApp {
                     }
                     self.browser_bar(ui);
                     self.clipboard_bar(ui);
+                    self.filter_bar(ui);
                     crate::table::show(self, ui);
                 });
             });
@@ -3997,6 +4017,48 @@ impl DmApp {
             self.open_file(page);
         }
         ui.separator();
+    }
+
+    /// A field over the list that narrows it as one types. Shown once
+    /// there is a list to narrow; Escape in it, or ×, shows every row again.
+    fn filter_bar(&mut self, ui: &mut egui::Ui) {
+        if self.rows.is_empty() && self.filter.is_empty() {
+            return;
+        }
+        // Left out where the list itself has too little room, as at 300 %
+        // text in a short window, where it pushed the last row under the
+        // status bar; never while it holds words, which hide rows.
+        if self.filter.is_empty() && ui.available_height() < 200.0 {
+            return;
+        }
+        ui.horizontal(|ui| {
+            let name = ui.label(t("Filter"));
+            let field = ui
+                .add(
+                    egui::TextEdit::singleline(&mut self.filter)
+                        .hint_text(t("Name, address or note"))
+                        .desired_width(ui.available_width().min(320.0)),
+                )
+                .labelled_by(name.id);
+            if field.has_focus() && ui.input(|i| i.key_pressed(egui::Key::Escape)) {
+                self.filter.clear();
+            }
+            if !self.filter.is_empty() {
+                if ui.button(t("Clear")).clicked() {
+                    self.filter.clear();
+                }
+                let shown = self.rows.iter().filter(|r| self.shows(r)).count();
+                ui.label(
+                    egui::RichText::new(crate::i18n::tn(
+                        "{} shown||{} shown",
+                        shown as u64,
+                        &[&shown],
+                    ))
+                    .weak(),
+                );
+            }
+        });
+        ui.add_space(2.0);
     }
 
     fn clipboard_bar(&mut self, ui: &mut egui::Ui) {

@@ -39,6 +39,8 @@ pub fn show(app: &mut DmApp, ui: &mut egui::Ui) {
             ui.label(
                 RichText::new(if app.rows.is_empty() {
                     t("Add URL, paste a link, or send one from your browser.")
+                } else if !app.filter.trim().is_empty() {
+                    t("No download here matches the filter.")
                 } else {
                     // Done and In progress are places, not categories
                     // (UI round 9).
