@@ -97,6 +97,47 @@ impl Platform for Desktop {
         });
     }
 
+    /// As `notify`, and a click on it opens the file, where the system
+    /// says which was clicked: Linux's notification servers and Windows'
+    /// toasts do. macOS says so only to a sender that waits on it in step,
+    /// which can hold a thread for as long as the notification is kept, so
+    /// there a click brings dm forward, as the system does by itself.
+    fn notify_file(&self, title: &str, body: &str, path: &str) {
+        /// Notifications waited on at once: each holds a thread until it is
+        /// clicked or closed, and some servers keep them a long time.
+        static WAITING: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsize::new(0);
+        const MOST_WAITING: usize = 8;
+        let (title, body, path) = (title.to_string(), body.to_string(), path.to_string());
+        std::thread::spawn(move || {
+            let mut notification = notify_rust::Notification::new();
+            notification.appname("dm").summary(&title).body(&body);
+            #[cfg(all(unix, not(target_os = "macos")))]
+            if !path.is_empty() {
+                // The body's click, as the servers name it.
+                notification.action("default", "Open");
+            }
+            let Ok(handle) = notification.show() else {
+                return;
+            };
+            #[cfg(target_os = "macos")]
+            let _ = (handle, &path, &WAITING, MOST_WAITING);
+            #[cfg(not(target_os = "macos"))]
+            {
+                use std::sync::atomic::Ordering;
+                if path.is_empty() || WAITING.fetch_add(1, Ordering::AcqRel) >= MOST_WAITING {
+                    WAITING.fetch_sub(1, Ordering::AcqRel);
+                    return;
+                }
+                let _ = handle.wait_for_response(|response: &notify_rust::NotificationResponse| {
+                    if response.is_default_action() {
+                        let _ = shell::open_file(&path);
+                    }
+                });
+                WAITING.fetch_sub(1, Ordering::AcqRel);
+            }
+        });
+    }
+
     fn clipboard(&self) -> Option<String> {
         arboard::Clipboard::new().ok()?.get_text().ok()
     }

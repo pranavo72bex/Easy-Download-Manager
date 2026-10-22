@@ -18,6 +18,11 @@ pub trait Platform: Send + Sync {
     fn set_login_item(&self, wanted: bool) -> Result<(), String>;
     /// Announces a finished download.
     fn notify(&self, title: &str, body: &str);
+    /// Announces a finished file, which a click on the notification opens
+    /// where the system says it was clicked.
+    fn notify_file(&self, title: &str, body: &str, _path: &str) {
+        self.notify(title, body);
+    }
     /// The clipboard's text, for the opt-in link watcher.
     fn clipboard(&self) -> Option<String>;
     /// Shows a finished file in the file manager.

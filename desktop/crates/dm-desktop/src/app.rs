@@ -1187,7 +1187,7 @@ impl DmApp {
             if row.state == State::Completed && self.notified.insert(row.id) && self.notify_ready {
                 self.backend
                     .platform
-                    .notify(t("Download finished"), &name_of(row));
+                    .notify_file(t("Download finished"), &name_of(row), &row.path);
                 finished.push(row.id);
                 // The command a person set to run on each finished file.
                 let command = self.applied.on_complete.trim();
