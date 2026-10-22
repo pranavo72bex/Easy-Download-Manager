@@ -282,6 +282,7 @@
  "Stopped": "Остановлено",
  "Waiting for the schedule or the download limit; it starts by itself when allowed.": "Ожидает расписания или лимита загрузки; начнётся само, когда будет можно.",
  "Stopped {} download in {}.||Stopped {} downloads in {}.": "Остановлена {} загрузка в «{}».||Остановлено {} загрузки в «{}».||Остановлено {} загрузок в «{}».",
+ "Show \"Download video\" over videos in the browser": "Показывать «Скачать видео» над видео в браузере",
  "Sun": "Вс",
  "Take downloads of these types from the browser": "Перехватывать загрузки этих типов из браузера",
  "Take out of queue": "Убрать из очереди",

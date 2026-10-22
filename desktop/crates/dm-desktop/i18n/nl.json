@@ -282,6 +282,7 @@
  "Stopped": "Gestopt",
  "Waiting for the schedule or the download limit; it starts by itself when allowed.": "Wacht op het schema of de downloadlimiet; begint vanzelf zodra het mag.",
  "Stopped {} download in {}.||Stopped {} downloads in {}.": "{} download gestopt in {}.||{} downloads gestopt in {}.",
+ "Show \"Download video\" over videos in the browser": "\"Video downloaden\" boven video's in de browser tonen",
  "Sun": "Zo",
  "Take downloads of these types from the browser": "Neem downloads van deze typen over van de browser",
  "Take out of queue": "Uit de wachtrij halen",

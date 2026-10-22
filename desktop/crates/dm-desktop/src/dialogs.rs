@@ -5523,6 +5523,11 @@ fn options(app: &mut DmApp, ctx: &egui::Context) {
                 if !c.take_key.is_empty() && c.take_key == c.keep_key {
                     ui.colored_label(warn(ui), t("The two keys are the same; holding it leaves the download with the browser."));
                 }
+                check(
+                    ui,
+                    &mut c.video_panel,
+                    t("Show \"Download video\" over videos in the browser"),
+                );
                 ui.label(RichText::new(t("Read by the browser extension the next time it talks to dm: a download it catches, or its right-click menu. The right-click menu hands anything over regardless.")).small().weak());
             }
             Tab::SaveTo => {

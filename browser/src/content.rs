@@ -80,6 +80,10 @@ thread_local! {
     /// The person asked for no panel on this site (its × menu, or the
     /// toolbar popup).
     static OFF_HERE: std::cell::Cell<bool> = const { std::cell::Cell::new(false) };
+    // Off everywhere: the app's Options › Browser, through its catch rules.
+    static OFF_ALL: std::cell::Cell<bool> = const { std::cell::Cell::new(false) };
+    // Whether this page has asked for the rules to be made current.
+    static RULES_ASKED: std::cell::Cell<bool> = const { std::cell::Cell::new(false) };
 }
 
 /// The page a person sees: this one, or for a player in a frame, the page
@@ -128,6 +132,43 @@ fn local_storage() -> Option<JsValue> {
     Reflect::get(&storage, &"local".into())
         .ok()
         .filter(|l| l.is_object())
+}
+
+/// The app's catch rules as the background keeps them (`dm.catch`): the
+/// panel is off everywhere where they say so.
+const RULES_KEY: &str = "dm.catch";
+
+/// Whether the rules, as stored, turn the panel off everywhere; applied at
+/// once, and hidden where it shows.
+fn apply_rules(rules: &JsValue) {
+    let off = Reflect::get(rules, &"videoPanel".into())
+        .ok()
+        .and_then(|v| v.as_bool())
+        .is_some_and(|on| !on);
+    OFF_ALL.with(|c| c.set(off));
+    if off {
+        hide();
+    }
+}
+
+/// The app's catch rules as stored, for `apply_rules`.
+async fn stored_rules() -> JsValue {
+    let Some(local) = local_storage() else {
+        return JsValue::UNDEFINED;
+    };
+    let Ok(get) = Reflect::get(&local, &"get".into()).and_then(|g| g.dyn_into::<Function>()) else {
+        return JsValue::UNDEFINED;
+    };
+    let Ok(promise) = get
+        .call1(&local, &RULES_KEY.into())
+        .and_then(|p| p.dyn_into::<Promise>())
+    else {
+        return JsValue::UNDEFINED;
+    };
+    let Ok(got) = JsFuture::from(promise).await else {
+        return JsValue::UNDEFINED;
+    };
+    Reflect::get(&got, &RULES_KEY.into()).unwrap_or(JsValue::UNDEFINED)
 }
 
 /// The sites the panel is kept off, as stored.
@@ -415,7 +456,12 @@ fn media_of(element: &Element) -> Option<Media> {
 
 /// Raises the panel over `element`, if it is a player worth offering.
 fn show(element: &Element) -> bool {
-    if OFF_HERE.with(|c| c.get()) {
+    if !RULES_ASKED.with(|c| c.replace(true)) {
+        wasm_bindgen_futures::spawn_local(async {
+            let _ = send(message(decide::RULES_MESSAGE, "", "").into()).await;
+        });
+    }
+    if OFF_HERE.with(|c| c.get()) || OFF_ALL.with(|c| c.get()) {
         return false;
     }
     let Some(media) = media_of(element) else {
@@ -1369,10 +1415,19 @@ pub fn content_start(ext: JsValue) {
     // the toolbar popup turning it back on is in force without a reload.
     wasm_bindgen_futures::spawn_local(async {
         apply_off(&sites_off().await);
+        apply_rules(&stored_rules().await);
     });
     let changed = Closure::<dyn Fn(JsValue, JsValue)>::new(|changes: JsValue, area: JsValue| {
         if area.as_string().as_deref() != Some("local") {
             return;
+        }
+        // The app's Options › Browser, in force without a reload.
+        if let Ok(rules) = Reflect::get(&changes, &RULES_KEY.into()) {
+            if rules.is_object() {
+                apply_rules(
+                    &Reflect::get(&rules, &"newValue".into()).unwrap_or(JsValue::UNDEFINED),
+                );
+            }
         }
         let Ok(change) = Reflect::get(&changes, &decide::PANEL_OFF_KEY.into()) else {
             return;

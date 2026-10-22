@@ -809,6 +809,11 @@ pub fn human_size(bytes: u64) -> String {
 /// The message type a panel click is sent as.
 pub const PANEL_MESSAGE: &str = "dm.media";
 
+/// A page that found a player asking that the app's rules be current, so
+/// the panel switch in the app's Options reaches it within a minute of
+/// being changed rather than at the next download.
+pub const RULES_MESSAGE: &str = "dm.rules";
+
 /// Alt-click: a link clicked with Alt held is left to the browser.
 /// The page script says so before the browser starts the download.
 pub const SKIP_MESSAGE: &str = "dm.skip";

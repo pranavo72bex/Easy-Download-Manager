@@ -282,6 +282,7 @@
  "Stopped": "Gestoppt",
  "Waiting for the schedule or the download limit; it starts by itself when allowed.": "Wartet auf den Zeitplan oder das Download-Limit; startet von selbst, sobald es erlaubt ist.",
  "Stopped {} download in {}.||Stopped {} downloads in {}.": "{} Download in {} gestoppt.||{} Downloads in {} gestoppt.",
+ "Show \"Download video\" over videos in the browser": "„Video herunterladen“ über Videos im Browser zeigen",
  "Sun": "So",
  "Take downloads of these types from the browser": "Downloads dieser Typen vom Browser übernehmen",
  "Take out of queue": "Aus der Warteschlange nehmen",

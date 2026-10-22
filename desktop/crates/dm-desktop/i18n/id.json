@@ -282,6 +282,7 @@
  "Stopped": "Dihentikan",
  "Waiting for the schedule or the download limit; it starts by itself when allowed.": "Menunggu jadwal atau batas unduhan; akan mulai sendiri saat diizinkan.",
  "Stopped {} download in {}.||Stopped {} downloads in {}.": "{} unduhan dihentikan di {}.",
+ "Show \"Download video\" over videos in the browser": "Tampilkan \"Unduh video\" di atas video di peramban",
  "Sun": "Min",
  "Take downloads of these types from the browser": "Ambil unduhan dengan jenis ini dari peramban",
  "Take out of queue": "Keluarkan dari antrean",

@@ -282,6 +282,7 @@
  "Stopped": "Durduruldu",
  "Waiting for the schedule or the download limit; it starts by itself when allowed.": "Zamanlamayı veya indirme sınırını bekliyor; izin verildiğinde kendiliğinden başlar.",
  "Stopped {} download in {}.||Stopped {} downloads in {}.": "{1} içinde {0} indirme durduruldu.",
+ "Show \"Download video\" over videos in the browser": "Tarayıcıdaki videoların üzerinde \"Videoyu indir\" göster",
  "Sun": "Paz",
  "Take downloads of these types from the browser": "Bu türlerdeki indirmeleri tarayıcıdan al",
  "Take out of queue": "Kuyruktan çıkar",

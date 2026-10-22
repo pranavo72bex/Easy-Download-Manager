@@ -1104,6 +1104,12 @@ pub async fn on_page_message(message: JsValue, sender: JsValue) -> JsValue {
             Err(why) => answer(false, &why),
         };
     }
+    // Asked again only once the last answer is a minute old; a fresh one
+    // is kept where every page's script watches it.
+    if click.kind == decide::RULES_MESSAGE {
+        let _ = app().await;
+        return answer(true, "the rules are current");
+    }
     // Alt-click: the download about to start is the browser's.
     if click.kind == decide::SKIP_MESSAGE {
         return match decide::skip_url(&click) {

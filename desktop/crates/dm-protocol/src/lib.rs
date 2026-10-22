@@ -477,6 +477,10 @@ pub struct CatchRules {
     /// use it (gap 49). Each covers its subdomains.
     #[serde(alias = "once_hosts")]
     pub once_hosts: Vec<String>,
+    /// Whether the "Download video" panel shows over videos at all; the
+    /// sites it is kept off are the extension's own list.
+    #[serde(alias = "video_panel")]
+    pub video_panel: bool,
 }
 
 /// Whether any of `urls` is served from a host on `list`, each entry
@@ -518,6 +522,7 @@ impl Default for CatchRules {
             keep_key: "alt".into(),
             take_key: "shift".into(),
             once_hosts: Vec::new(),
+            video_panel: true,
         }
     }
 }
@@ -895,9 +900,11 @@ mod tests {
                 keep_key: "ctrl".into(),
                 take_key: String::new(),
                 once_hosts: Vec::new(),
+                video_panel: false,
             },
         });
         let frame = reply.to_frame();
+        assert_eq!(frame["catch"]["videoPanel"], false);
         assert_eq!(frame["catch"]["minSizeKb"], 5);
         assert_eq!(frame["catch"]["keepKey"], "ctrl");
         assert_eq!(frame["catch"]["takeKey"], "");
@@ -910,6 +917,10 @@ mod tests {
         assert_eq!(typed.min_size_kb, 3);
         assert_eq!(typed.skip_hosts, vec!["a.b".to_string()]);
         assert!(typed.enabled, "a missing field takes its default");
+        assert!(
+            typed.video_panel,
+            "rules from an older dm keep the panel showing"
+        );
         assert!(!typed.extensions.is_empty());
     }
 
