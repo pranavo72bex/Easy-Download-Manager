@@ -87,7 +87,16 @@ pub struct Orders {
     pub downloads: Vec<host::Request>,
     /// `--start-queue`: start the main queue.
     pub start_queue: bool,
+    /// `--when-done WHAT`: what the window does once the downloads are
+    /// done, one of [`WHEN_DONE`].
+    pub when_done: Option<String>,
 }
+
+/// The words `--when-done` takes.
+pub const WHEN_DONE: [&str; 5] = ["nothing", "exit", "sleep", "hibernate", "shutdown"];
+
+/// The file in the inbox that carries `--when-done` to the window.
+pub const WHEN_DONE_FILE: &str = "when-done";
 
 fn is_link(arg: &str) -> bool {
     arg.starts_with("http://")
@@ -148,6 +157,17 @@ pub fn orders(args: &[String]) -> Orders {
             }
             "--later" => next.later = true,
             "--start-queue" => orders.start_queue = true,
+            "--when-done" => {
+                let word = args.get(i + 1).map(|w| w.trim().to_ascii_lowercase());
+                match word {
+                    Some(w) if WHEN_DONE.contains(&w.as_str()) => orders.when_done = Some(w),
+                    _ => eprintln!(
+                        "dm: --when-done takes one of {}; nothing changed",
+                        WHEN_DONE.join(", ")
+                    ),
+                }
+                i += 1;
+            }
             _ if is_link(arg) => {
                 orders.downloads.push(host::Request {
                     url: arg.clone(),
@@ -200,7 +220,17 @@ pub fn hand_to_running(home: &Path, orders: &Orders) {
     if orders.start_queue {
         let _ = std::fs::write(host::inbox(home).join("start-queue"), b"");
     }
+    leave_when_done(home, orders);
     let _ = std::fs::write(host::inbox(home).join("show"), b"");
+}
+
+/// `--when-done`, left in the inbox for the window to take up: the one
+/// running, or the one this launch starts.
+pub fn leave_when_done(home: &Path, orders: &Orders) {
+    if let Some(word) = &orders.when_done {
+        let _ = std::fs::create_dir_all(host::inbox(home));
+        let _ = std::fs::write(host::inbox(home).join(WHEN_DONE_FILE), word);
+    }
 }
 
 /// A launch that finds dm already running: registers this copy with any
@@ -1304,6 +1334,19 @@ mod tests {
         .map(|r| r.url)
         .collect();
         assert_eq!(got, [address.clone(), address]);
+    }
+
+    #[test]
+    fn when_done_is_read_and_left_for_the_window() {
+        let got = orders(&argv(&["--start-queue", "--when-done", "Shutdown"]));
+        assert_eq!(got.when_done.as_deref(), Some("shutdown"));
+        assert!(orders(&argv(&["--when-done", "explode"]))
+            .when_done
+            .is_none());
+        let home = tempfile::tempdir().unwrap();
+        hand_to_running(home.path(), &got);
+        let left = std::fs::read_to_string(host::inbox(home.path()).join(WHEN_DONE_FILE));
+        assert_eq!(left.unwrap(), "shutdown");
     }
 
     #[test]

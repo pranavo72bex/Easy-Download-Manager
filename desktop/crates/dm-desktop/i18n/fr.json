@@ -251,6 +251,7 @@
  "Every piece is in; putting them together.": "Tous les morceaux sont là ; ils sont assemblés.",
  "The dm update is downloaded and checked.": "La mise à jour de dm est téléchargée et vérifiée.",
  "The new installer is downloading; dm offers to install it once it is checked.": "Le nouvel installateur se télécharge ; dm proposera de l'installer une fois vérifié.",
+ "This computer has no way to do that when the downloads are done.": "Cet ordinateur ne peut pas faire cela à la fin des téléchargements.",
  "zip pdf mp4": "zip pdf mp4",
  "{} shown||{} shown": "{} affichée||{} affichées",
  "{} so far": "{} jusqu'ici",

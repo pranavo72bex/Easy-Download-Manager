@@ -251,6 +251,7 @@
  "Every piece is in; putting them together.": "Tüm parçalar geldi; birleştiriliyor.",
  "The dm update is downloaded and checked.": "dm güncellemesi indirildi ve doğrulandı.",
  "The new installer is downloading; dm offers to install it once it is checked.": "Yeni yükleyici indiriliyor; doğrulandığında dm kurmayı önerecek.",
+ "This computer has no way to do that when the downloads are done.": "Bu bilgisayar indirmeler bitince bunu yapamaz.",
  "zip pdf mp4": "zip pdf mp4",
  "{} shown||{} shown": "{} gösteriliyor",
  "{} so far": "şu ana kadar {}",

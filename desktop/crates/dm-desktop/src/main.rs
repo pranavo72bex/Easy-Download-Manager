@@ -1336,6 +1336,8 @@ follows them:
   --name NAME        save the next link as NAME
   --later            add the next link to the queue without starting it
   --start-queue      start the main queue
+  --when-done WHAT   once the downloads are done: nothing, exit, sleep,
+                     hibernate or shutdown (for this session)
 
 Other commands:
   --hidden           start in the tray, with no window
@@ -1350,6 +1352,7 @@ Examples:
   dm-desktop https://example.com/file.zip
   dm-desktop --save-to ~/Videos --name talk.mp4 https://example.com/v.mp4
   dm-desktop --later https://example.com/a.iso --later https://example.com/b.iso
+  dm-desktop --start-queue --when-done shutdown
 ";
 
 fn main() {
@@ -1443,6 +1446,8 @@ fn main() {
             std::process::exit(1);
         }
     };
+    // `--when-done`, for the window this launch starts to take up.
+    shell::leave_when_done(&settings::home(), &handed);
 
     // Made before the signals are listened for, so one arriving during
     // startup still reaches the window once there is one.

@@ -1159,6 +1159,7 @@ impl DmApp {
     /// Reads the list back from the queue and does what follows from it:
     /// announcing what finished, collecting problems.
     pub fn refresh(&mut self) {
+        self.take_when_done();
         self.rows = self.backend.list();
         self.place_rows();
         set_retrying(self.backend.retrying());
@@ -1403,6 +1404,41 @@ impl DmApp {
             }
         } else {
             self.dialogs.open_handed(request);
+        }
+    }
+
+    /// `--when-done` from the command line, left in the inbox by this
+    /// launch or a later one.
+    fn take_when_done(&mut self) {
+        let file = dm_shell::host::inbox(&dm_shell::settings::home())
+            .join(dm_shell::shell::WHEN_DONE_FILE);
+        let Ok(word) = std::fs::read_to_string(&file) else {
+            return;
+        };
+        let _ = std::fs::remove_file(&file);
+        let command = match word.trim() {
+            "nothing" => Command::WhenDoneNothing,
+            "exit" => Command::WhenDoneQuit,
+            "sleep" => Command::WhenDoneSleep,
+            "hibernate" => Command::WhenDoneHibernate,
+            "shutdown" => Command::WhenDoneShutDown,
+            _ => return,
+        };
+        use crate::power::WhenDone;
+        let wanted = match command {
+            Command::WhenDoneSleep => WhenDone::Sleep,
+            Command::WhenDoneHibernate => WhenDone::Hibernate,
+            Command::WhenDoneShutDown => WhenDone::ShutDown,
+            _ => WhenDone::Nothing,
+        };
+        // As the menu greys them: only what this computer can do.
+        if wanted == WhenDone::Nothing || crate::power::available(wanted) {
+            self.run(command);
+        } else {
+            self.said = crate::i18n::Said::new(
+                "This computer has no way to do that when the downloads are done.",
+                &[],
+            );
         }
     }
 

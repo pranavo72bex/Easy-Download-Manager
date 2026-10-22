@@ -969,6 +969,24 @@ fn the_progress_window_limits_its_own_download() {
     assert_eq!(harness.state().rows()[0].speed_limit, 0);
 }
 
+/// `--when-done` from the command line, left in the inbox, sets When done
+/// for the session once the window next looks.
+#[test]
+fn the_command_lines_when_done_is_taken_up() {
+    use dm_desktop::power::WhenDone;
+    let world = world();
+    let mut harness = world.harness();
+    let home = dm_shell::settings::home();
+    let orders = dm_shell::shell::orders(&["--when-done".into(), "exit".into()]);
+    dm_shell::shell::leave_when_done(&home, &orders);
+    until(&mut harness, "When done to be set", |app| {
+        app.when_done == WhenDone::Quit
+    });
+    assert!(!dm_shell::host::inbox(&home)
+        .join(dm_shell::shell::WHEN_DONE_FILE)
+        .exists());
+}
+
 /// The places' groups open and shut from their own row, as a navigation
 /// view's expandable items do.
 #[test]
