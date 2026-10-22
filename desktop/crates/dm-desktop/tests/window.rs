@@ -7373,6 +7373,58 @@ fn a_link_that_runs_out_part_way_asks_for_a_fresh_one() {
     assert!(bytes.iter().all(|b| *b == 7));
 }
 
+/// A download whose folder cannot be reached (as when its drive is taken
+/// out) is paused with why, not failed; the bar over the list offers
+/// another folder, and there it finishes, its parts carried over.
+#[test]
+fn an_unreachable_folder_pauses_and_another_folder_finishes_it() {
+    let world = world();
+    let blocker = world.dir.path().join("not-a-drive");
+    std::fs::write(&blocker, b"a file where the folder should be").unwrap();
+    let mut harness = Harness::builder()
+        .with_size(egui::vec2(1100.0, 720.0))
+        .build_ui_state(
+            |ui, app: &mut DmApp| app.ui(ui),
+            world.app_with(Settings {
+                download_dir: blocker.join("out"),
+                show_progress: false,
+                show_complete: false,
+                language: "en".into(),
+                ..Settings::default()
+            }),
+        );
+    harness
+        .state()
+        .backend()
+        .add(&world.url("file.zip"))
+        .unwrap();
+    until(&mut harness, "the download to pause by itself", |app| {
+        app.rows()
+            .iter()
+            .any(|r| r.state == State::Paused && !r.stalled.is_empty())
+    });
+    let row = harness.state().rows()[0].clone();
+    assert!(
+        dm_desktop::app::status_of(&row).starts_with("Paused: "),
+        "{}",
+        dm_desktop::app::status_of(&row)
+    );
+    harness.run_steps(3);
+    let elsewhere = world.dir.path().join("elsewhere");
+    *world.fake.chosen.lock().unwrap() = Some(elsewhere.clone());
+    click(&mut harness, "Choose another folder…");
+    until(&mut harness, "the download to finish elsewhere", |app| {
+        app.rows().iter().any(|r| r.state == State::Completed)
+    });
+    let row = harness.state().rows()[0].clone();
+    assert!(
+        std::path::Path::new(&row.path).starts_with(&elsewhere),
+        "{}",
+        row.path
+    );
+    assert_eq!(std::fs::read(&row.path).unwrap(), payload());
+}
+
 /// Gap 153: a failed row's status is a plain reason, in Properties held to
 /// its column; the engine's words are kept for hover.
 #[test]

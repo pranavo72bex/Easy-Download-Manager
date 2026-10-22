@@ -266,7 +266,7 @@ pub fn titled(word: &str) -> String {
 /// one for what the network library says in its own terms ("error decoding
 /// response body" is a connection cut mid-file). The first that matches
 /// wins; anything else is shown as the engine said it.
-pub const REASONS: [(&[&str], &str); 29] = [
+pub const REASONS: [(&[&str], &str); 30] = [
     (
         &[
             "error decoding response body",
@@ -300,6 +300,10 @@ pub const REASONS: [(&[&str], &str); 29] = [
     (
         &["certificate"],
         "the server's security certificate could not be checked",
+    ),
+    (
+        &["cannot be reached (was its drive"],
+        "its folder's drive cannot be reached; plug it back in, or choose another folder",
     ),
     (
         &["insecure (http)"],

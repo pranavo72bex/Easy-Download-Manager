@@ -225,6 +225,16 @@ impl Backend {
         self.block_on(self.queue.clear_finished())
     }
 
+    /// A stopped download sent on to another folder, its unfinished parts
+    /// moved there, and started again.
+    pub fn relocate(&self, id: Id, dir: std::path::PathBuf) -> Result<(), String> {
+        self.block_on(async {
+            self.queue.relocate(id, dir).await?;
+            shell::wake(&self.queue);
+            Ok(())
+        })
+    }
+
     /// One download's own speed limit in KB/s, zero for none.
     pub fn set_own_limit(&self, id: Id, kb_per_second: u64) {
         self.block_on(self.queue.set_own_limit(id, kb_per_second));

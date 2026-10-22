@@ -1188,6 +1188,54 @@ async fn a_queue_starts_on_its_own_once_a_day_at_its_time() {
     assert_eq!(q.starts_due(day + 2, 120), ["Night"]);
 }
 
+/// A download into a folder whose disk has no room is paused with why,
+/// not failed; given another folder it goes on there and finishes, its
+/// staging folder there gone once it is whole.
+#[tokio::test]
+async fn a_full_disk_pauses_and_another_folder_finishes_it() {
+    let (addr, _) = serve().await;
+    let dir = tempdir();
+    let full = dir.path().join("full");
+    let roomy = dir.path().join("roomy");
+    let base = common::options(dir.path());
+    // The download folder and dm's own parts folder are on the full disk.
+    let (watched, parts) = (full.clone(), base.parts_dir.clone());
+    let q = Queue::new(
+        client(),
+        dm_core::Options {
+            connections: 1,
+            dest_dir: full.clone(),
+            room: dm_core::download::Room::with_free_space(move |at| {
+                (at.starts_with(&watched) || at.starts_with(&parts)).then_some(10)
+            }),
+            ..base
+        },
+        1,
+    );
+    let id = q.add(&format!("http://{addr}/f.bin")).await.unwrap();
+    q.run().await;
+    let row = q.get(id).await.unwrap();
+    assert_eq!(row.state, DownloadState::Paused, "{:?}", row.state);
+    assert!(
+        row.stalled.starts_with("not enough room"),
+        "{}",
+        row.stalled
+    );
+
+    q.relocate(id, roomy.clone()).await.unwrap();
+    assert!(q.get(id).await.unwrap().stalled.is_empty());
+    q.run().await;
+    let row = q.get(id).await.unwrap();
+    assert_eq!(row.state, DownloadState::Completed, "{:?}", row.state);
+    assert!(
+        std::path::Path::new(&row.path).starts_with(&roomy),
+        "{}",
+        row.path
+    );
+    assert_eq!(std::fs::read(&row.path).unwrap().len(), 1024);
+    assert!(!roomy.join(dm_core::queue::UNFINISHED).exists());
+}
+
 /* ------------------------------------------------------------- metalink */
 
 /// A server that hosts a mirror list and the mirrors it names.

@@ -207,6 +207,19 @@ fn at_inside(ctx: &egui::Context, rect: egui::Rect) -> bool {
 /// A site search's name and what it found, or why it could not.
 type SearchResult = (String, Result<dm_shell::lists::Crawled, String>);
 
+/// Why a row paused by itself, in plain words: a full disk names its
+/// folder, as a failed one does.
+pub fn stalled_said(row: &Entry) -> String {
+    let words = crate::i18n::t;
+    match format::reason(&row.stalled) {
+        Some("the disk is full") if !going_into(row).is_empty() => {
+            crate::i18n::fill(words("the disk is full in {}"), &[&going_into(row)])
+        }
+        Some(plain) => words(plain).to_string(),
+        None => row.stalled.clone(),
+    }
+}
+
 pub fn status_of(row: &Entry) -> String {
     status_in(row, t)
 }
@@ -359,6 +372,10 @@ fn status_in(row: &Entry, words: fn(&'static str) -> &'static str) -> String {
         }
         // Added for later: it waits for its queue to be started, and does
         // not start by itself, which "Queued" did not say (gap 167).
+        // Stopped by itself for want of room or of its folder's drive.
+        State::Paused if !row.stalled.is_empty() => {
+            crate::i18n::fill(words("Paused: {}"), &[&stalled_said(row)])
+        }
         State::Paused if waits_for_its_queue(row) => words("Waiting for Start queue").into(),
         // How far it got, so a stopped row is not mistaken for one that
         // never started.
@@ -3140,6 +3157,7 @@ impl DmApp {
                         self.place_picker(ui);
                     }
                     self.update_bar(ui);
+                    self.stalled_bar(ui);
                     self.browser_bar(ui);
                     self.clipboard_bar(ui);
                     self.filter_bar(ui);
@@ -4114,6 +4132,46 @@ impl DmApp {
         if let Some(page) = open {
             self.open_file(page);
         }
+        ui.separator();
+    }
+
+    /// A download that paused by itself for want of room or of its drive:
+    /// what happened, and the two ways on — another folder (its unfinished
+    /// parts moved there too), or Resume once there is room again.
+    fn stalled_bar(&mut self, ui: &mut egui::Ui) {
+        let Some(row) = self
+            .rows
+            .iter()
+            .find(|r| r.state == State::Paused && !r.stalled.is_empty())
+            .cloned()
+        else {
+            return;
+        };
+        let room = ui.available_height() / ui.text_style_height(&egui::TextStyle::Body);
+        if room < 12.0 {
+            return;
+        }
+        ui.horizontal_wrapped(|ui| {
+            ui.label(
+                egui::RichText::new(tf(
+                    "{} is paused: {}.",
+                    &[&crate::bidi::visual(&name_of(&row)), &stalled_said(&row)],
+                ))
+                .color(ui.visuals().warn_fg_color),
+            );
+            if crate::dialogs::primary(ui, "Choose another folder…").clicked() {
+                if let Some(dir) = self.backend.platform.choose_folder() {
+                    match self.backend.relocate(row.id, dir) {
+                        Ok(()) => self.refresh(),
+                        Err(e) => self.said = e.into(),
+                    }
+                }
+            }
+            if ui.button(t("Resume")).clicked() {
+                self.backend.resume(row.id);
+                self.refresh();
+            }
+        });
         ui.separator();
     }
 
@@ -5418,6 +5476,7 @@ mod status_tests {
             cookies_once: false,
             replaces: None,
             speed_limit: 0,
+            stalled: String::new(),
         }
     }
 

@@ -165,6 +165,11 @@ pub struct Entry {
     /// download shares; zero for none.
     #[serde(default, skip_serializing_if = "is_zero")]
     pub speed_limit: u64,
+    /// Why a paused row stopped by itself: its disk filled, or its folder's
+    /// drive went. Empty for any other pause. It goes on, from the parts it
+    /// has, once there is room, or from another folder (`relocate`).
+    #[serde(default, skip_serializing_if = "String::is_empty")]
+    pub stalled: String,
 }
 
 fn is_zero(n: &u64) -> bool {
@@ -270,6 +275,7 @@ impl Slot {
         self.entry.state = State::Queued;
         self.entry.finished_at = None;
         self.entry.paused_by_schedule = false;
+        self.entry.stalled.clear();
         self.outside_schedule = false;
     }
 }
@@ -515,6 +521,7 @@ impl Queue {
                 cookies_once: false,
                 replaces: None,
                 speed_limit: 0,
+                stalled: String::new(),
             },
             control: Control::new(),
             task: None,
@@ -927,6 +934,49 @@ impl Queue {
         };
         limiter.set_rate(kb_per_second.saturating_mul(1024)).await;
         self.save().await;
+    }
+
+    /// Points a stopped download at another folder, its unfinished parts
+    /// moved there too (they may be on the disk that filled), and puts it
+    /// back in line. Parts on a drive no longer there are left: it starts
+    /// afresh in the new folder.
+    pub async fn relocate(&self, id: Id, dir: PathBuf) -> Result<(), String> {
+        let old = {
+            let slots = self.inner.slots.lock().await;
+            let slot = slots.get(&id).ok_or("that download is no longer listed")?;
+            if matches!(slot.entry.state, State::Running | State::Queued) || slot.still_stopping() {
+                return Err("stop the download before giving it another folder".into());
+            }
+            if slot.entry.state.settled() {
+                return Err("a finished download is moved with Move/Rename".into());
+            }
+            PathBuf::from(&slot.entry.parts_dir)
+        };
+        tokio::fs::create_dir_all(&dir)
+            .await
+            .map_err(|e| format!("{} could not be made: {e}", dir.display()))?;
+        let parts = dir.join(UNFINISHED).join(id.to_string());
+        if !old.as_os_str().is_empty() && old.is_dir() && old != parts {
+            move_dir(&old, &parts).await.map_err(|e| {
+                format!(
+                    "the unfinished parts could not be moved to {}: {e}",
+                    dir.display()
+                )
+            })?;
+        }
+        {
+            let mut slots = self.inner.slots.lock().await;
+            let Some(slot) = slots.get_mut(&id) else {
+                return Err("that download is no longer listed".into());
+            };
+            let folder = dir.display().to_string();
+            slot.entry.parts_dir = parts.display().to_string();
+            slot.entry.save_dir = Some(folder.clone());
+            slot.entry.began_in = folder;
+            slot.requeue();
+        }
+        self.save().await;
+        Ok(())
     }
 
     pub async fn set_checksum(&self, id: Id, checksum: Option<Checksum>) {
@@ -1671,6 +1721,15 @@ impl Queue {
             // goes too, when nothing else is left in it.
             if outcome.is_ok() {
                 let _ = tokio::fs::remove_dir(&options.parts_dir).await;
+                // And the folder that held it in a place a person chose,
+                // once nothing else is staged there.
+                if let Some(holder) = options
+                    .parts_dir
+                    .parent()
+                    .filter(|p| p.file_name().is_some_and(|n| n == UNFINISHED))
+                {
+                    let _ = tokio::fs::remove_dir(holder).await;
+                }
             }
             let mut slots = inner.slots.lock().await;
             let Some(slot) = slots.get_mut(&id) else {
@@ -1678,6 +1737,22 @@ impl Queue {
             };
 
             slot.retrying = None;
+            slot.entry.stalled.clear();
+            // Out of room, or the folder's drive gone: paused, its parts
+            // kept, rather than failed, to go on once there is room or
+            // from another folder.
+            let outcome = match outcome {
+                Err(error) if replaces.is_none() => {
+                    match out_of_room(&error, [&options.parts_dir, &options.dest_dir]) {
+                        Some(why) => {
+                            slot.entry.stalled = why;
+                            Err(Error::Paused)
+                        }
+                        None => Err(error),
+                    }
+                }
+                other => other,
+            };
             slot.entry.state = match outcome {
                 Ok(finished) => {
                     // Usually the name the probe already reported, but
@@ -1724,6 +1799,82 @@ impl Queue {
             queue.save().await;
         })
     }
+}
+
+/// Why a download stopped for want of room or of its folder, where that is
+/// why: a full disk (as the system says it, or dm's own check before it
+/// started), a folder it may not write to, or one that can no longer be
+/// made, as when its drive is taken out. `None` for any other failure.
+fn out_of_room(error: &Error, dirs: [&std::path::Path; 2]) -> Option<String> {
+    let text = error.to_string();
+    let lower = text.to_ascii_lowercase();
+    let full = match error {
+        Error::Disk(io) => {
+            io.kind() == std::io::ErrorKind::StorageFull
+                // ENOSPC; Windows' ERROR_DISK_FULL and ERROR_HANDLE_DISK_FULL.
+                || matches!(io.raw_os_error(), Some(28 | 112 | 39))
+        }
+        _ => false,
+    } || [
+        "no space left",
+        "not enough room",
+        "disk full",
+        "disk is full",
+        // dm's own check of the download folder, before a byte is fetched.
+        "cannot be written to",
+    ]
+    .iter()
+    .any(|w| lower.contains(w));
+    if full {
+        return Some(text);
+    }
+    if !matches!(error, Error::Disk(_)) {
+        return None;
+    }
+    dirs.iter()
+        .find(|dir| !dir.as_os_str().is_empty() && std::fs::create_dir_all(dir).is_err())
+        .map(|dir| {
+            format!(
+                "the folder {} cannot be reached (was its drive taken out?)",
+                dir.display()
+            )
+        })
+}
+
+/// Where a row's unfinished parts go in a folder a person chose for it.
+pub const UNFINISHED: &str = ".dm-unfinished";
+
+/// Moves a folder, across disks if it has to: copied whole, then the
+/// original removed.
+async fn move_dir(from: &std::path::Path, to: &std::path::Path) -> std::io::Result<()> {
+    if let Some(parent) = to.parent() {
+        tokio::fs::create_dir_all(parent).await?;
+    }
+    if tokio::fs::rename(from, to).await.is_ok() {
+        return Ok(());
+    }
+    copy_dir(from, to).await?;
+    let _ = tokio::fs::remove_dir_all(from).await;
+    Ok(())
+}
+
+fn copy_dir<'a>(
+    from: &'a std::path::Path,
+    to: &'a std::path::Path,
+) -> std::pin::Pin<Box<dyn std::future::Future<Output = std::io::Result<()>> + Send + 'a>> {
+    Box::pin(async move {
+        tokio::fs::create_dir_all(to).await?;
+        let mut listing = tokio::fs::read_dir(from).await?;
+        while let Some(entry) = listing.next_entry().await? {
+            let target = to.join(entry.file_name());
+            if entry.file_type().await?.is_dir() {
+                copy_dir(&entry.path(), &target).await?;
+            } else {
+                tokio::fs::copy(entry.path(), &target).await?;
+            }
+        }
+        Ok(())
+    })
 }
 
 /// Moves `from` to `name` beside it, under a free name if that one is taken.
