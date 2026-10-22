@@ -7,13 +7,22 @@ use crate::i18n::{t, tf};
 
 /// A byte count in the unit a person reads it in.
 pub fn bytes(n: u64) -> String {
+    bytes_marked(n, crate::region::system().map(|r| r.decimal))
+}
+
+/// [`bytes`] with the computer's regional decimal mark, where it has one.
+pub fn bytes_marked(n: u64, regional: Option<char>) -> String {
     const K: f64 = 1024.0;
     let f = n as f64;
     // The units in the language in force: Russian's КБ and МБ, French's
     // Ko and Mo; the status bar said КБ/с beside a list saying KB/s. And
     // its decimal mark: "3,8 MB" in German and Russian, where "3.8" read
     // as a thousands mark (round 17).
-    let mark = unit(crate::i18n::t("unit:."));
+    // The computer's regional mark where it has one, as a person set it.
+    let regional = regional.map(|c| c.to_string());
+    let mark = regional
+        .as_deref()
+        .unwrap_or_else(|| unit(crate::i18n::t("unit:.")));
     let number = |value: f64, places: usize| format!("{value:.places$}").replace('.', mark);
     if n < 1024 {
         return format!("{n} {}", unit(crate::i18n::t("unit:B")));
@@ -197,8 +206,14 @@ pub fn when(seconds: Option<u64>) -> String {
         return String::new();
     };
     let today = Local::now().date_naive();
+    let region = crate::region::system();
     if at.date_naive() == today {
-        return at.format("%H:%M").to_string();
+        // On a 12-hour clock where the computer keeps one.
+        return if region.is_some_and(|r| r.hour12) {
+            at.format("%-I:%M %p").to_string()
+        } else {
+            at.format("%H:%M").to_string()
+        };
     }
     let month = MONTHS
         .get(at.month0() as usize)
@@ -207,10 +222,16 @@ pub fn when(seconds: Option<u64>) -> String {
         .unwrap_or_default();
     // The day and the month in the order, and with the marks, a language
     // writes them: "5. März" in German.
-    if at.year() == today.year() {
-        tf("{} {}", &[&at.day(), &month])
-    } else {
-        tf("{} {} {}", &[&at.day(), &month, &at.year()])
+    // In the order the computer writes dates, where it says one.
+    use crate::region::Order;
+    let this_year = at.year() == today.year();
+    match region.map(|r| r.order) {
+        Some(Order::MonthDayYear) if this_year => format!("{month} {}", at.day()),
+        Some(Order::MonthDayYear) => format!("{month} {}, {}", at.day(), at.year()),
+        Some(Order::YearMonthDay) if this_year => format!("{month} {}", at.day()),
+        Some(Order::YearMonthDay) => format!("{} {month} {}", at.year(), at.day()),
+        _ if this_year => tf("{} {}", &[&at.day(), &month]),
+        _ => tf("{} {} {}", &[&at.day(), &month, &at.year()]),
     }
 }
 
@@ -652,6 +673,7 @@ pub fn pieces_shown_open(pieces: &[(u64, u64)], open: &[bool], downloaded: u64) 
 mod tests {
     #[test]
     fn a_file_uri_escapes_what_an_address_cannot_hold() {
+        crate::region::pin(None);
         assert_eq!(
             super::file_uri("/home/a b/50%#ü.zip"),
             "file:///home/a%20b/50%25%23%C3%BC.zip"
@@ -664,6 +686,7 @@ mod tests {
     /// what "Downloaded" says, whichever of the two ran ahead.
     #[test]
     fn pieces_add_up_to_downloaded_and_stay_in_their_ranges() {
+        crate::region::pin(None);
         // As round 11 saw: one 1.4 MB piece holding 1.3 MB on disk while
         // 864 KB had been counted through the limit.
         assert_eq!(pieces_shown(&[(1_400_000, 1_300_000)], 864_000), [864_000]);
@@ -700,6 +723,7 @@ mod tests {
     /// pieces under way, not all to the first.
     #[test]
     fn a_count_ahead_of_the_parts_is_shared_by_the_pieces_under_way() {
+        crate::region::pin(None);
         let pieces = [(1000, 0); 4];
         let shown = pieces_shown_open(&pieces, &[true, true, true, false], 600);
         assert_eq!(shown, [200, 200, 200, 0]);
@@ -716,6 +740,7 @@ mod tests {
     /// Gap 158: a key with a symbol is shown by it.
     #[test]
     fn a_shortcut_shows_its_keys_symbol() {
+        crate::region::pin(None);
         let ctx = egui::Context::default();
         let mut out = ctx.run_ui(egui::RawInput::default(), |_| {});
         out.textures_delta.clear();
@@ -733,6 +758,7 @@ mod tests {
     /// Gap 168: a German menu says Strg, Umschalt and Entf.
     #[test]
     fn a_shortcut_names_its_keys_in_the_language_in_force() {
+        crate::region::pin(None);
         let ctx = egui::Context::default();
         ctx.set_os(egui::os::OperatingSystem::Nix);
         let both = egui::KeyboardShortcut::new(
@@ -751,6 +777,7 @@ mod tests {
     /// plainly; what dm does not know is left as it was.
     #[test]
     fn common_failures_have_plain_reasons() {
+        crate::region::pin(None);
         let cut = "network: error decoding response body: error reading a body from connection";
         assert_eq!(
             reason(cut),
@@ -832,6 +859,7 @@ mod tests {
 
     #[test]
     fn sizes_read_the_way_the_web_window_read_them() {
+        crate::region::pin(None);
         assert_eq!(bytes(512), "512 B");
         assert_eq!(bytes(1536), "1.5 KB");
         // Rounded up to the next unit, not "1024.0 KB" (UI round 5).
@@ -848,6 +876,7 @@ mod tests {
 
     #[test]
     fn time_left_is_said_only_when_there_is_some() {
+        crate::region::pin(None);
         assert_eq!(clock(None), "");
         assert_eq!(clock(Some(Duration::ZERO)), "");
         assert_eq!(clock(Some(Duration::from_secs(42))), "42s left");
@@ -864,6 +893,7 @@ mod tests {
 
     #[test]
     fn time_left_is_said_in_the_language_in_force() {
+        crate::region::pin(None);
         crate::i18n::set("de");
         let said = clock(Some(Duration::from_secs(90_000)));
         crate::i18n::set("en");
@@ -872,6 +902,7 @@ mod tests {
 
     #[test]
     fn a_date_of_another_year_says_the_year_and_the_month_is_translated() {
+        crate::region::pin(None);
         use chrono::{Datelike, Local, TimeZone};
         let year = Local::now().year();
         let then = Local.with_ymd_and_hms(year - 2, 3, 5, 12, 0, 0).unwrap();
@@ -887,6 +918,7 @@ mod tests {
 
     #[test]
     fn names_sort_with_their_numbers_by_value() {
+        crate::region::pin(None);
         use std::cmp::Ordering::*;
         assert_eq!(natural("part 2.zip", "part 10.zip"), Less);
         assert_eq!(natural("Part 10", "part 9"), Greater);
@@ -899,6 +931,7 @@ mod tests {
 
     #[test]
     fn a_password_in_an_address_is_never_shown() {
+        crate::region::pin(None);
         let shown = shown_url(concat!("https://me:", "secret", "@e.com/f.zip"));
         assert!(!shown.contains("secret"), "{shown}");
         assert!(shown.contains("me:"));
@@ -913,6 +946,7 @@ mod tests {
 
     #[test]
     fn a_row_is_named_before_the_server_names_it() {
+        crate::region::pin(None);
         assert_eq!(
             provisional("https://www.e.com/a/My%20File.zip?x=1"),
             "My File.zip"

@@ -29,6 +29,7 @@ pub mod icons;
 pub mod mcp;
 pub mod motion;
 pub mod power;
+pub mod region;
 pub mod system_theme;
 pub mod table;
 pub mod theme;

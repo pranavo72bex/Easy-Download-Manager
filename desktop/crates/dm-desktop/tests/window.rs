@@ -56,6 +56,8 @@ fn home() -> &'static std::path::Path {
         let dir = tempfile::tempdir().unwrap();
         // Set once, before any test reads it.
         unsafe { std::env::set_var("DM_HOME", dir.path()) };
+        // Sizes and dates as the language writes them, on any machine.
+        dm_desktop::region::pin(None);
         dir
     })
     .path()
