@@ -457,15 +457,32 @@ fn ui_faces() -> (egui::FontData, egui::FontData) {
     )
 }
 
-/// Segoe UI and its semibold from the computer's font folder, mapped.
+/// Segoe UI and its semibold from the computer's font folder, mapped:
+/// Segoe UI Variable, Windows 11's, where it is there, else Segoe UI.
 fn windows_segoe() -> Option<(egui::FontData, egui::FontData)> {
     if !cfg!(windows) {
         return None;
     }
     let dir = std::path::PathBuf::from(std::env::var_os("WINDIR")?).join("Fonts");
+    if let Some(blob) = font_file(&dir.join("SegUIVar.ttf")) {
+        return Some(variable_faces(blob));
+    }
     let face =
         |name: &str| font_file(&dir.join(name)).map(|blob| egui::FontData::from_blob(blob, 0));
     Some((face("segoeui.ttf")?, face("seguisb.ttf")?))
+}
+
+/// One variable font as the regular and semibold faces: its weight axis
+/// at 400 and 600, and its optical size at that of text (Segoe UI
+/// Variable's "Text", 10.5), which an axis the font lacks ignores.
+fn variable_faces(blob: egui::epaint::text::Blob) -> (egui::FontData, egui::FontData) {
+    let weighted = |weight: f32| {
+        let mut face = egui::FontData::from_blob(blob.clone(), 0);
+        face.tweak.coords =
+            egui::epaint::text::VariationCoords::new([(b"wght", weight), (b"opsz", 10.5)]);
+        face
+    };
+    (weighted(400.0), weighted(600.0))
 }
 
 /* ------------------------------------------- the computer's own fonts */
@@ -886,6 +903,53 @@ pub fn apply_with_accent(ctx: &Context, theme: Theme, accent: Option<crate::acce
         }
     });
     ctx.data_mut(|d| d.insert_temp(egui::Id::unique("dm-tokens"), t));
+}
+
+#[cfg(test)]
+mod variable_tests {
+    use super::*;
+
+    /// A variable font's two faces are drawn at two weights: wider at 600.
+    /// Run where the computer has one (macOS's system font); Segoe UI
+    /// Variable itself is only on Windows 11.
+    #[test]
+    fn a_variable_fonts_faces_are_drawn_at_their_weights() {
+        let Some(blob) = font_file(std::path::Path::new("/System/Library/Fonts/SFNS.ttf")) else {
+            return;
+        };
+        let (regular, semibold) = variable_faces(blob);
+        let width = |face: egui::FontData| {
+            let ctx = egui::Context::default();
+            let mut fonts = egui::FontDefinitions::empty();
+            fonts
+                .font_data
+                .insert("face".into(), std::sync::Arc::new(face));
+            fonts
+                .families
+                .insert(egui::FontFamily::Proportional, vec!["face".into()]);
+            ctx.set_fonts(fonts);
+            // The fonts are in force from the next frame; each frame's
+            // texture changes are let go, there being nothing to draw on.
+            let mut out = ctx.run_ui(Default::default(), |_| {});
+            out.textures_delta.clear();
+            let mut drawn = 0.0;
+            let mut out = ctx.run_ui(Default::default(), |ui| {
+                drawn = ui.fonts_mut(|f| {
+                    f.layout_no_wrap(
+                        "Download complete".into(),
+                        egui::FontId::proportional(14.0),
+                        Color32::WHITE,
+                    )
+                    .size()
+                    .x
+                });
+            });
+            out.textures_delta.clear();
+            drawn
+        };
+        let (thin, bold) = (width(regular), width(semibold));
+        assert!(bold > thin, "600 drew {bold}, 400 drew {thin}");
+    }
 }
 
 #[cfg(test)]
