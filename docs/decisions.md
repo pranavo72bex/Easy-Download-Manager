@@ -18,6 +18,20 @@ for a right-to-left paragraph, then the window mirrored (the places on the
 right, the toolbar and columns from the right) and the two catalogs. Until
 then dm offers the eleven left-to-right languages it has.
 
+## 2026-10-22: Mica is opt-in, off by default, from the next start
+
+Options › General offers "Mica" on Windows 11 22H2 and later (build
+22621, read from the registry) and nowhere else. Chosen, the next start
+makes the window see-through, clears its frame (`theme.rs` makes the
+`frame` token transparent; the list, dialogs and fields stay solid to be
+read on), asks DWM for the main-window backdrop and extends the frame over
+the client area (`chrome.rs`). Read once at start, since a window is made
+see-through only when it is created. Off by default for the reason below:
+an old GPU driver or a desktop with no compositor can draw the window
+black, and it has not been watched on a real Windows 11 desktop. Someone
+who sees black turns it off in Options; deleting `"mica": true` from the
+settings file does the same.
+
 ## 2026-10-22: The title bar takes the window's colour; no Mica backdrop yet
 
 Fluent's windows read as one surface from title bar to content. On Windows

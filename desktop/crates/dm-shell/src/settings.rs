@@ -208,6 +208,11 @@ pub struct Settings {
     /// takes a link dragged onto it. Off unless chosen (View › Drop target).
     #[serde(default)]
     pub drop_target: bool,
+    /// Windows 11's Mica behind the window's frame, from the next start.
+    /// Off unless chosen: it needs a see-through window, which an old GPU
+    /// driver can draw black.
+    #[serde(default)]
+    pub mica: bool,
     /// Fetch yt-dlp and QuickJS from their GitHub releases the first time a
     /// video page needs them (and keep the fetched yt-dlp current). Off,
     /// only a yt-dlp the person installed is used.
@@ -343,6 +348,7 @@ impl Default for Settings {
             queue_limits: Vec::new(),
             queue_starts: Vec::new(),
             drop_target: false,
+            mica: false,
             fetch_tools: true,
             remux_ts: true,
             parts_dir: String::new(),

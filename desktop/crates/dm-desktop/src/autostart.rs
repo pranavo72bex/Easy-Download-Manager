@@ -402,16 +402,17 @@ pub fn at_launch(wanted: bool, turned_off_outside: bool) -> AtLaunch {
 pub mod registry {
     use windows_sys::Win32::Foundation::{ERROR_MORE_DATA, ERROR_SUCCESS};
     use windows_sys::Win32::System::Registry::{
-        RegGetValueW, HKEY_CURRENT_USER, REG_ROUTINE_FLAGS, RRF_RT_REG_BINARY, RRF_RT_REG_SZ,
+        RegGetValueW, HKEY, HKEY_CURRENT_USER, HKEY_LOCAL_MACHINE, REG_ROUTINE_FLAGS,
+        RRF_RT_REG_BINARY, RRF_RT_REG_SZ,
     };
 
     fn wide(text: &str) -> Vec<u16> {
         text.encode_utf16().chain(Some(0)).collect()
     }
 
-    /// `name` under HKCU\`subkey`, of the type `flags` allows. `None` when
-    /// it is not there or cannot be read.
-    fn read(subkey: &str, name: &str, flags: REG_ROUTINE_FLAGS) -> Option<Vec<u8>> {
+    /// `name` under `root`\`subkey`, of the type `flags` allows. `None`
+    /// when it is not there or cannot be read.
+    fn read(root: HKEY, subkey: &str, name: &str, flags: REG_ROUTINE_FLAGS) -> Option<Vec<u8>> {
         let (subkey, name) = (wide(subkey), wide(name));
         let mut size: u32 = 0;
         // A value that grows between asking its size and reading it is
@@ -427,7 +428,7 @@ pub mod registry {
             // `data` is null (asking only the size) or `size` bytes we own.
             let status = unsafe {
                 RegGetValueW(
-                    HKEY_CURRENT_USER,
+                    root,
                     subkey.as_ptr(),
                     name.as_ptr(),
                     flags,
@@ -450,12 +451,18 @@ pub mod registry {
 
     /// A string value, decoded from UTF-16.
     pub fn string(subkey: &str, name: &str) -> Option<String> {
-        read(subkey, name, RRF_RT_REG_SZ).map(|bytes| super::utf16_value(&bytes))
+        read(HKEY_CURRENT_USER, subkey, name, RRF_RT_REG_SZ).map(|bytes| super::utf16_value(&bytes))
+    }
+
+    /// A string value of the computer's own (HKLM), decoded from UTF-16.
+    pub fn machine_string(subkey: &str, name: &str) -> Option<String> {
+        read(HKEY_LOCAL_MACHINE, subkey, name, RRF_RT_REG_SZ)
+            .map(|bytes| super::utf16_value(&bytes))
     }
 
     /// A binary value's bytes.
     pub fn binary(subkey: &str, name: &str) -> Option<Vec<u8>> {
-        read(subkey, name, RRF_RT_REG_BINARY)
+        read(HKEY_CURRENT_USER, subkey, name, RRF_RT_REG_BINARY)
     }
 }
 

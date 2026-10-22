@@ -762,10 +762,15 @@ pub fn apply(ctx: &Context, theme: Theme) {
 /// computer's), where it reads well.
 pub fn apply_with_accent(ctx: &Context, theme: Theme, accent: Option<crate::accent::Palette>) {
     fonts(ctx);
-    let t = match &accent {
+    let mut t = match &accent {
         Some(palette) => crate::accent::tokens(theme.tokens(), palette),
         None => theme.tokens(),
     };
+    // Under Mica the frame is clear and the backdrop is its colour; the
+    // list, dialogs and fields stay solid to be read on.
+    if crate::chrome::mica() {
+        t.frame = egui::Color32::TRANSPARENT;
+    }
     let mut v = if t.dark {
         Visuals::dark()
     } else {

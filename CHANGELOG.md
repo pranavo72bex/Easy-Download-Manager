@@ -15,6 +15,8 @@ the browser extension (`v*` tags) are versioned separately.
 - A live HLS stream is recorded as it goes, until Stop or the stream ends.
 - Preview while downloading: a video or song being fetched can be opened
   in its player from the row menu, from what is on disk so far.
+- Windows 11: an opt-in Mica backdrop (Options › General, from the next
+  start).
 - Portable: an empty file named `portable` beside the program keeps dm's
   settings and list in a `dm-data` folder beside it.
 

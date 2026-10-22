@@ -5661,6 +5661,14 @@ fn options(app: &mut DmApp, ctx: &egui::Context) {
                     &mut s.sound_on_failure,
                     t("Play a sound when a download fails"),
                 );
+                // Offered only where it can be drawn.
+                if crate::chrome::mica_possible() {
+                    check(
+                        ui,
+                        &mut s.mica,
+                        t("Mica: the desktop's colours behind the window (from dm's next start)"),
+                    );
+                }
                 section(ui, t("Adding and keeping files"));
                 check(
                     ui,

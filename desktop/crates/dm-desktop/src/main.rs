@@ -325,6 +325,16 @@ impl Window {
 }
 
 impl eframe::App for Window {
+    /// Clear under Mica, so the backdrop shows through the frame.
+    fn clear_color(&self, _visuals: &egui::Visuals) -> [f32; 4] {
+        if dm_desktop::chrome::mica() {
+            [0.0; 4]
+        } else {
+            // eframe's own, as before.
+            egui::Color32::from_rgba_unmultiplied(12, 12, 12, 180).to_normalized_gamma_f32()
+        }
+    }
+
     /// Runs while the window is hidden too, which is what lets the tray and
     /// a second launch bring it back.
     fn logic(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
@@ -1516,6 +1526,9 @@ fn main() {
         mut notices,
     } = runtime.block_on(shell::start(&handed));
     let hidden = shell::launched_at_login(&args);
+    // Read once: Mica is the window's from its making, so a change waits
+    // for the next start.
+    let mica = dm_desktop::chrome::use_mica(saved.mica);
     // `--control <port>`, or DM_CONTROL: the control protocol, for tests and
     // agents to drive the running window. Off unless asked for.
     let control: Option<u16> = args
@@ -1672,6 +1685,9 @@ fn main() {
         ]);
     if let Some(icon) = window_icon() {
         viewport = viewport.with_icon(icon);
+    }
+    if mica {
+        viewport = viewport.with_transparent(true);
     }
     let options = eframe::NativeOptions {
         viewport,
