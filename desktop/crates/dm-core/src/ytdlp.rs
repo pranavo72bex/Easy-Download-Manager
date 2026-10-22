@@ -105,19 +105,33 @@ fn released_on(version: &str) -> Option<i64> {
     Some(era * 146_097 + doe - 719_468)
 }
 
-/// The Deno yt-dlp can run a site's player challenges in, if any: one
-/// installed, or the one dm fetched.
+/// A Deno yt-dlp can run a site's player challenges in, if any: one the
+/// person installed (or one an earlier dm fetched).
 pub(crate) fn deno() -> Option<PathBuf> {
     which("deno")
 }
 
-/// Tells yt-dlp which JavaScript runtime to use: it looks for Deno only on
-/// the PATH, which a fetched one, or one a Dock launch cannot see, is not on.
+/// The QuickJS yt-dlp can run a site's player challenges in, if any: the
+/// one dm fetched, or one installed.
+pub(crate) fn quickjs() -> Option<PathBuf> {
+    which("qjs")
+}
+
+/// Tells yt-dlp which JavaScript engine to use, by its path: it looks only
+/// on the PATH, which the one dm fetched, or one a Dock launch cannot see,
+/// is not on. A Deno the person installed first, which reads a page a
+/// little faster; else QuickJS, with Deno's default turned off so the one
+/// given is the one used.
 fn js_runtime(command: &mut Command) {
     if let Some(deno) = deno() {
         command
             .arg("--js-runtimes")
             .arg(format!("deno:{}", deno.display()));
+    } else if let Some(quickjs) = quickjs() {
+        command
+            .arg("--no-js-runtimes")
+            .arg("--js-runtimes")
+            .arg(format!("quickjs:{}", quickjs.display()));
     }
 }
 

@@ -128,8 +128,9 @@ def main():
         listed = rows(home)
         tools = sorted(p.name for p in (home / "tools").iterdir()) if (home / "tools").exists() else []
         print(f"tools dm fetched for itself: {', '.join(tools) or 'none'}")
-        check("dm fetched yt-dlp and Deno, and no ffmpeg", any("yt-dlp" in t for t in tools)
-              and any(t.startswith("deno") for t in tools) and not any("ffmpeg" in t for t in tools), tools)
+        check("dm fetched yt-dlp and QuickJS, and nothing else", any("yt-dlp" in t for t in tools)
+              and any(t.startswith("qjs") for t in tools)
+              and not any("ffmpeg" in t or t.startswith("deno") for t in tools), tools)
         for n, (name, url, quality, (container, height)) in enumerate(CASES):
             print(name)
             row = listed[n] if n < len(listed) else None
@@ -158,7 +159,7 @@ def main():
                 if height == "best":
                     listed_formats = subprocess.run(
                         [str(next((home / "tools").glob("yt-dlp*/yt-dlp*"), None) or next((home / "tools").glob("yt-dlp*"))),
-                         "-J", "--no-warnings", "--js-runtimes", f"deno:{next((home / 'tools').glob('deno*'))}", "--", url],
+                         "-J", "--no-warnings", "--no-js-runtimes", "--js-runtimes", f"quickjs:{next((home / 'tools').glob('qjs*'))}", "--", url],
                         env=env, capture_output=True, text=True, timeout=300).stdout
                     formats = json.loads(listed_formats or "{}").get("formats", [])
                     tallest = max((f.get("height") or 0 for f in formats if f.get("vcodec") not in (None, "none")), default=0)

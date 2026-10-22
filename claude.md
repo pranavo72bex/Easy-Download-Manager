@@ -464,14 +464,14 @@ of them.
       launched from the Dock or by a browser's native host, whose minimal
       `PATH` hides `/opt/homebrew/bin` and `~/.local/bin` — the usual homes
       are searched and the tool is spawned by its resolved path. yt-dlp
-      (and Deno, its JavaScript runtime) are fetched by dm, an MP4 picture and M4A sound
+      (and QuickJS, its JavaScript engine) are fetched by dm, an MP4 picture and M4A sound
       are joined by dm itself (`mp4mux.rs`) and an HLS transport stream put
       into an MP4 by dm (`tsmux.rs`); a real 720p YouTube video arrived that
       way, decoded identical (2026-10-21). Proven under `PATH=/usr/bin:/bin`: a real watch URL completes
       as one merged file. Before this, that same launch quietly saved the
       page's HTML as a "completed" download named `watch`. Since 2026-10-21 nothing has to be installed:
       with no yt-dlp on the computer, dm fetches the official yt-dlp and
-      Deno builds from GitHub into its own folder the first time a video
+      QuickJS builds from GitHub into its own folder the first time a video
       page needs them, checked against their checksums, and fetches yt-dlp
       afresh weekly (`tools.rs`); the row says "Getting ready for videos
       (first time only)" meanwhile. Since 2026-10-22 dm uses no ffmpeg at

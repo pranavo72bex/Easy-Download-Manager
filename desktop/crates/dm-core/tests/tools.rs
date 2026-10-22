@@ -31,7 +31,8 @@ async fn releases(ytdlp: Vec<u8>, sums: String) -> String {
     let app = axum::Router::new()
         .route("/y/SHA2-256SUMS", get(move || async move { sums }))
         .route("/y/yt-dlp_linux", get(move || async move { ytdlp }))
-        .route("/y/yt-dlp.exe", get(move || async move { exe }));
+        .route("/y/yt-dlp.exe", get(move || async move { exe }))
+        .route("/q/qjs-linux-x86_64", get(|| async { &b"a quickjs"[..] }));
     format!("http://{}", common::serve(app).await)
 }
 
@@ -49,7 +50,11 @@ async fn fetched_tools_are_kept_only_when_they_match() {
     .await;
     let sources = Sources {
         ytdlp: format!("{base}/y"),
-        deno: format!("{base}/d"),
+        quickjs: format!("{base}/q"),
+        quickjs_digests: vec![(
+            "qjs-linux-x86_64".into(),
+            hex::encode(sha2::Sha256::digest(b"a quickjs")),
+        )],
     };
     let dir = common::tempdir();
     let client = dm_core::client();
@@ -89,6 +94,40 @@ async fn fetched_tools_are_kept_only_when_they_match() {
     .to_string();
     assert!(said.contains("does not match"), "{said}");
     assert!(std::fs::read_dir(other.path()).unwrap().next().is_none());
+    // QuickJS, kept when it is the build dm knows, refused when not.
+    let quickjs = fetch_into(
+        &client,
+        Tool::QuickJs,
+        dir.path(),
+        &sources,
+        "linux",
+        "x86_64",
+    )
+    .await
+    .expect("the matching QuickJS");
+    assert_eq!(std::fs::read(&quickjs).unwrap(), b"a quickjs");
+    let lying = Sources {
+        quickjs_digests: vec![("qjs-linux-x86_64".into(), "ab".repeat(32))],
+        ..sources.clone()
+    };
+    let elsewhere = common::tempdir();
+    let said = fetch_into(
+        &client,
+        Tool::QuickJs,
+        elsewhere.path(),
+        &lying,
+        "linux",
+        "x86_64",
+    )
+    .await
+    .unwrap_err()
+    .to_string();
+    assert!(said.contains("does not match"), "{said}");
+    assert!(std::fs::read_dir(elsewhere.path())
+        .unwrap()
+        .next()
+        .is_none());
+
     // A build the checksums do not list.
     let said = fetch_into(
         &client,
@@ -104,7 +143,7 @@ async fn fetched_tools_are_kept_only_when_they_match() {
     assert!(said.contains("no build"), "{said}");
 }
 
-/// The real thing, from GitHub: yt-dlp's and Deno's builds for this
+/// The real thing, from GitHub: yt-dlp's and QuickJS's builds for this
 /// computer, fetched, checked and run. Network, so only where asked
 /// (DM_NETWORK_TESTS=1).
 #[tokio::test]
@@ -116,7 +155,7 @@ async fn the_official_builds_are_fetched_and_run() {
     let dir = common::tempdir();
     let client = dm_core::client();
     let (os, arch) = (std::env::consts::OS, std::env::consts::ARCH);
-    for tool in [Tool::YtDlp, Tool::Deno] {
+    for tool in [Tool::YtDlp, Tool::QuickJs] {
         let path = fetch_into(
             &client,
             tool,

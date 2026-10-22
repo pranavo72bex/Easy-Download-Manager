@@ -14,10 +14,11 @@ for a public file, as it does for any download.
 ## Getting the tools for video sites
 
 A video site's page (YouTube and the like) is downloaded with yt-dlp, which
-needs a JavaScript runtime (Deno) for some sites; dm joins the picture and
-sound itself. If your computer has no yt-dlp, dm fetches it and Deno the
+needs a small JavaScript engine (QuickJS) for some sites; dm joins the picture
+and sound itself. If your computer has no yt-dlp, dm fetches it and QuickJS the
 first time such a page needs them, from their GitHub releases, each checked
-against its published checksum before it is kept in dm's own folder. dm
+against its published checksum (QuickJS, a pinned build, against the
+digest written into dm) before it is kept in dm's own folder. dm
 does the rest itself: joining picture and sound, subtitles, and live RTMP
 (RTMPS and RTMPT too), RTSP (RTSPS too) and MMS streams. A yt-dlp fetched
 this way is fetched afresh once a week while it is in use. These requests,
@@ -109,6 +110,6 @@ This is also checked, not only promised: `cargo xtask privacy` (in
 `desktop/`, and as a test in every build) fails if any crate that sends
 reports — analytics, crash reporting, telemetry — enters the build, or if
 shipped code names any address but GitHub's. dm reaches GitHub only when
-you check for updates or open Help, or to fetch yt-dlp and Deno when a
+you check for updates or open Help, or to fetch yt-dlp and QuickJS when a
 video needs them and your computer has none. The two extension stores are
 opened in your browser only when you click to add dm to it.

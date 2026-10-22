@@ -365,7 +365,7 @@ pub const REASONS: [(&[&str], &str); 26] = [
         &["the server answered 403"],
         "the site would not give dm the file: it may need you signed in (Properties › Login)",
     ),
-    // Video pages: yt-dlp and Deno are "dm's video helper" to a person,
+    // Video pages: yt-dlp and QuickJS are "dm's video helper" to a person,
     // who never installs them (dm fetches them).
     (
         &["video helper"],

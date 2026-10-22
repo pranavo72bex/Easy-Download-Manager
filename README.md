@@ -197,7 +197,7 @@ It appears in dm instead of in the browser, and downloads there.
 You do not need to install anything for video.
 
 - **The first video takes a little longer.** dm downloads the part of
-  itself that finds the video behind a site's player (about 80 MB, once,
+  itself that finds the video behind a site's player (about 35 MB, once,
   checked before it is kept) and keeps it up to date by itself, since
   video sites change often. The video's row says "Getting ready for videos
   (first time only)" while this happens. Every video after that starts

@@ -1315,3 +1315,20 @@ written, and could not behave as yt-dlp does across its sites. The
 person never installs it: dm fetches it, checked, and keeps it current.
 User-facing words call it dm's video helper; PRIVACY.md names it and Deno,
 since people are owed knowing what program dm downloads and from where.
+
+## QuickJS rather than Deno for yt-dlp's JavaScript (2026-10-22)
+
+yt-dlp answers YouTube's player challenges by running JavaScript, with
+Deno, Node, QuickJS or Bun. dm fetched Deno (85 MB) for it; it now fetches
+QuickJS-ng 0.17.0 (1–3 MB), pinned, each build checked against the digest
+written into dm since the release publishes no checksums file. Measured
+first on 2026-10-22: the same formats chosen at every quality, a 108 MB
+1080p stream in 9 s either way, a page read in about 6 s against Deno's 3.
+`scripts/out-of-box-check.py` passes every case on it. The first video
+now waits on about 36 MB instead of 120. A Deno the person installed is
+still used, as it reads a page a little faster.
+
+Not shipped in the installers: with 36 MB fetched once, bundling yt-dlp and
+QuickJS would add OS-specific programs to six installer formats (the Arch
+package builds from source), invite antivirus false alarms on Windows, and
+go stale between releases, for a few seconds saved once.

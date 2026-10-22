@@ -1,4 +1,4 @@
-//! yt-dlp (and Deno, which it runs a site's player checks with), fetched by
+//! yt-dlp (and QuickJS, which it runs a site's player checks with), fetched by
 //! dm itself where the computer has none, so a video site's page downloads
 //! with nothing installed by hand. ffmpeg is not fetched: dm joins picture
 //! and sound and records streams itself (`mp4mux`, `mkvmux`, `tsmux`,
@@ -9,7 +9,8 @@
 //! installed is used first, wherever it is (`ytdlp::which`); with none,
 //! the first video page that needs it has dm fetch yt-dlp's own standalone
 //! build from yt-dlp's GitHub releases, checked against the `SHA2-256SUMS`
-//! published beside it, and Deno's the same way. Both go into dm's own
+//! published beside it, and a pinned QuickJS build checked against the
+//! digests written into dm. Both go into dm's own
 //! `tools` folder, through dm's proxy like any download, and yt-dlp is
 //! kept current there with its own `-U`: sites change, and an old yt-dlp
 //! stops working on them.
@@ -41,7 +42,7 @@ pub fn folder() -> Option<&'static Path> {
 }
 
 /// One fetch of each tool at a time: two downloads needing yt-dlp at once
-/// wait for the one fetch; yt-dlp and Deno come down side by side.
+/// wait for the one fetch; yt-dlp and QuickJS come down side by side.
 static FETCHING: [tokio::sync::Mutex<()>; 2] = [
     tokio::sync::Mutex::const_new(()),
     tokio::sync::Mutex::const_new(()),
@@ -76,7 +77,7 @@ impl Drop for Preparing {
 fn lock_of(tool: Tool) -> &'static tokio::sync::Mutex<()> {
     match tool {
         Tool::YtDlp => &FETCHING[0],
-        Tool::Deno => &FETCHING[1],
+        Tool::QuickJs => &FETCHING[1],
     }
 }
 
@@ -84,16 +85,18 @@ fn lock_of(tool: Tool) -> &'static tokio::sync::Mutex<()> {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Tool {
     YtDlp,
-    /// The JavaScript runtime yt-dlp answers a site's player challenges
-    /// with; without one, YouTube gives it too little to download.
-    Deno,
+    /// The JavaScript engine yt-dlp answers a site's player challenges
+    /// with; without one, YouTube gives it too little to download. QuickJS:
+    /// 1–3 MB where Deno is 85, and the same formats at the same speed
+    /// (measured 2026-10-22).
+    QuickJs,
 }
 
 impl Tool {
     fn program(self) -> &'static str {
         match self {
             Tool::YtDlp => "yt-dlp",
-            Tool::Deno => "deno",
+            Tool::QuickJs => "qjs",
         }
     }
 
@@ -112,15 +115,43 @@ impl Tool {
 pub struct Sources {
     /// yt-dlp's newest release, its files under this address.
     pub ytdlp: String,
-    /// Deno's newest release, each zip with its `.sha256sum` beside it.
-    pub deno: String,
+    /// The pinned QuickJS release, its files under this address.
+    pub quickjs: String,
+    /// The pinned release's digest of each of its builds, by file name: it
+    /// publishes no checksums file, and these are GitHub's record of them.
+    pub quickjs_digests: Vec<(String, String)>,
 }
 
-/// yt-dlp's and Deno's own newest releases.
+/// yt-dlp's own newest release, and QuickJS-ng 0.17.0.
 pub fn official() -> Sources {
     Sources {
         ytdlp: "https://github.com/yt-dlp/yt-dlp/releases/latest/download".into(),
-        deno: "https://github.com/denoland/deno/releases/latest/download".into(),
+        quickjs: "https://github.com/quickjs-ng/quickjs/releases/download/v0.17.0".into(),
+        quickjs_digests: [
+            (
+                "qjs-darwin-arm64",
+                "8be3ddfe3397d2e692e4e1e8972ee9d032a0a580505d2f8b4ea528cf1b651c11",
+            ),
+            (
+                "qjs-darwin-x86_64",
+                "9e5e101b4fd13cda3204222ca9f8be35412c41dcdef3745829633b7a67245412",
+            ),
+            (
+                "qjs-linux-aarch64",
+                "3372133484edf50a69f3c67903af41206d22a061e930e3cfb63269272ef56d2e",
+            ),
+            (
+                "qjs-linux-x86_64",
+                "0bfc02511a9f549c28b53880d988fc7cd5d361e90c5e8afdfcd7dc6774ceace5",
+            ),
+            (
+                "qjs-windows-x86_64.exe",
+                "2aeabf0092c3262d6b2609824418f7dd7ed1f1df939f73b2b15645230cac0d77",
+            ),
+        ]
+        .iter()
+        .map(|(n, d)| ((*n).to_string(), (*d).to_string()))
+        .collect(),
     }
 }
 
@@ -139,86 +170,17 @@ pub fn ytdlp_asset(os: &str, arch: &str) -> Option<&'static str> {
     })
 }
 
-/// Deno's build for an OS and processor, by its release's file name.
-pub fn deno_asset(os: &str, arch: &str) -> Option<&'static str> {
+/// QuickJS's build for an OS and processor, by its release's file name.
+/// Windows on Arm runs the x86-64 build, as it runs any.
+pub fn quickjs_asset(os: &str, arch: &str) -> Option<&'static str> {
     Some(match (os, arch) {
-        ("macos", "aarch64") => "deno-aarch64-apple-darwin.zip",
-        ("macos", "x86_64") => "deno-x86_64-apple-darwin.zip",
-        ("linux", "x86_64") => "deno-x86_64-unknown-linux-gnu.zip",
-        ("linux", "aarch64") => "deno-aarch64-unknown-linux-gnu.zip",
-        ("windows", "x86_64") => "deno-x86_64-pc-windows-msvc.zip",
-        ("windows", "aarch64") => "deno-aarch64-pc-windows-msvc.zip",
+        ("macos", "aarch64") => "qjs-darwin-arm64",
+        ("macos", "x86_64") => "qjs-darwin-x86_64",
+        ("linux", "x86_64") => "qjs-linux-x86_64",
+        ("linux", "aarch64") => "qjs-linux-aarch64",
+        ("windows", _) => "qjs-windows-x86_64.exe",
         _ => return None,
     })
-}
-
-/// The one SHA-256 a checksum file holds, however it is written: `<hex>
-/// <name>` (macOS and Linux) or a PowerShell listing with `Hash : <HEX>`
-/// (Windows).
-pub fn only_digest(text: &str) -> Option<String> {
-    text.split(|c: char| !c.is_ascii_hexdigit())
-        .find(|word| word.len() == 64)
-        .map(str::to_ascii_lowercase)
-}
-
-fn u16_at(b: &[u8], at: usize) -> Option<usize> {
-    Some(usize::from(u16::from_le_bytes(
-        b.get(at..at + 2)?.try_into().ok()?,
-    )))
-}
-
-fn u32_at(b: &[u8], at: usize) -> Option<usize> {
-    usize::try_from(u32::from_le_bytes(b.get(at..at + 4)?.try_into().ok()?)).ok()
-}
-
-/// The file called `name` in a zip, inflated: from the central directory
-/// (its sizes are there whether or not the entry was streamed), stored or
-/// deflated. Enough for a release that zips one program.
-pub fn unzip_one(zip: &[u8], name: &str) -> Option<Vec<u8>> {
-    // The end-of-central-directory record, searched for from the end.
-    let end = (0..zip.len().saturating_sub(21))
-        .rev()
-        .take(65_557)
-        .find(|&at| zip.get(at..at + 4) == Some(&[0x50, 0x4b, 0x05, 0x06]))?;
-    let entries = u16_at(zip, end + 10)?;
-    let mut at = u32_at(zip, end + 16)?;
-    for _ in 0..entries {
-        if zip.get(at..at + 4)? != [0x50, 0x4b, 0x01, 0x02] {
-            return None;
-        }
-        let method = u16_at(zip, at + 10)?;
-        let packed = u32_at(zip, at + 20)?;
-        let size = u32_at(zip, at + 24)?;
-        let (name_len, extra, comment) = (
-            u16_at(zip, at + 28)?,
-            u16_at(zip, at + 30)?,
-            u16_at(zip, at + 32)?,
-        );
-        let local = u32_at(zip, at + 42)?;
-        let entry = zip.get(at + 46..at + 46 + name_len)?;
-        if entry == name.as_bytes() {
-            if zip.get(local..local + 4)? != [0x50, 0x4b, 0x03, 0x04] {
-                return None;
-            }
-            let start = local + 30 + u16_at(zip, local + 26)? + u16_at(zip, local + 28)?;
-            let data = zip.get(start..start.checked_add(packed)?)?;
-            return match method {
-                0 => Some(data.to_vec()),
-                8 => {
-                    use std::io::Read as _;
-                    let mut out = Vec::with_capacity(size.min(MOST));
-                    flate2::read::DeflateDecoder::new(data)
-                        .take(MOST as u64)
-                        .read_to_end(&mut out)
-                        .ok()?;
-                    (out.len() == size).then_some(out)
-                }
-                _ => None,
-            };
-        }
-        at += 46 + name_len + extra + comment;
-    }
-    None
 }
 
 /// The digest a `SHA2-256SUMS` file gives `name`: lines of a hex digest,
@@ -233,8 +195,8 @@ pub fn digest_in(sums: &str, name: &str) -> Option<String> {
     })
 }
 
-/// The most a fetched file may be: yt-dlp's builds are under 50 MB, Deno's
-/// zip under 50 MB and its program under 120 MB.
+/// The most a fetched file may be: yt-dlp's builds are under 50 MB,
+/// QuickJS's under 5.
 const MOST: usize = 160 * 1024 * 1024;
 
 /// `url`'s body, tried three times: a dropped connection or a server's
@@ -382,26 +344,24 @@ pub async fn fetch_into(
             }
             place(&path, &bytes).await?;
         }
-        Tool::Deno => {
-            let asset = deno_asset(os, arch).ok_or_else(|| {
-                Error::Internal(format!("Deno publishes no build for {os} on {arch}"))
+        Tool::QuickJs => {
+            let asset = quickjs_asset(os, arch).ok_or_else(|| {
+                Error::Internal(format!("QuickJS publishes no build for {os} on {arch}"))
             })?;
-            let sums = fetch(client, &format!("{}/{asset}.sha256sum", sources.deno)).await?;
-            let expected = only_digest(&String::from_utf8_lossy(&sums)).ok_or_else(|| {
-                Error::Internal(format!("Deno's checksum for {asset} could not be read"))
-            })?;
-            let packed = fetch(client, &format!("{}/{asset}", sources.deno)).await?;
-            if hex_of(&packed) != expected {
+            let expected = sources
+                .quickjs_digests
+                .iter()
+                .find(|(name, _)| name == asset)
+                .map(|(_, digest)| digest.clone())
+                .ok_or_else(|| Error::Internal(format!("no QuickJS digest for {asset}")))?;
+            let bytes = fetch(client, &format!("{}/{asset}", sources.quickjs)).await?;
+            if hex_of(&bytes) != expected {
                 return Err(Error::Internal(
-                    "the Deno fetched does not match its published checksum, so it was not kept"
+                    "the QuickJS fetched does not match the build dm knows, so it was not kept"
                         .into(),
                 ));
             }
-            let inside = if os == "windows" { "deno.exe" } else { "deno" };
-            let program = unzip_one(&packed, inside).ok_or_else(|| {
-                Error::Internal("Deno's zip held no program dm could read".into())
-            })?;
-            place(&path, &program).await?;
+            place(&path, &bytes).await?;
         }
     }
     Ok(path)
@@ -414,7 +374,7 @@ pub async fn fetch_into(
 pub async fn ensure(client: &reqwest::Client, tool: Tool) -> Result<PathBuf, Error> {
     let find = || match tool {
         Tool::YtDlp => crate::ytdlp::binary(),
-        Tool::Deno => crate::ytdlp::deno(),
+        Tool::QuickJs => crate::ytdlp::quickjs(),
     };
     if let Some(found) = find() {
         return Ok(found);
@@ -445,13 +405,19 @@ pub async fn ensure(client: &reqwest::Client, tool: Tool) -> Result<PathBuf, Err
     .await
 }
 
-/// yt-dlp for a video page: found or fetched, and with it, where it can be
-/// had, Deno (so yt-dlp can answer YouTube's player challenges; without one
-/// it gets little or nothing). They come down at once. Picture and sound
+/// yt-dlp for a video page: found or fetched, and with it a JavaScript
+/// engine (so yt-dlp can answer YouTube's player challenges; without one it
+/// gets little or nothing): a Deno the person installed, else QuickJS,
+/// found or fetched. They come down at once. Picture and sound
 /// dm joins itself (`mp4mux`, `mkvmux`). Says why not, where yt-dlp cannot
 /// be had.
 pub async fn for_video(client: &reqwest::Client) -> Result<(), String> {
-    let (ytdlp, _) = tokio::join!(ensure(client, Tool::YtDlp), ensure(client, Tool::Deno));
+    let engine = async {
+        if crate::ytdlp::deno().is_none() {
+            let _ = ensure(client, Tool::QuickJs).await;
+        }
+    };
+    let (ytdlp, ()) = tokio::join!(ensure(client, Tool::YtDlp), engine);
     ytdlp
         .map(|_| ())
         .map_err(|e| format!("dm's video helper could not be got ready ({e})"))
@@ -513,85 +479,31 @@ mod tests {
     }
 
     #[test]
-    fn deno_comes_for_each_system_and_its_checksum_is_read_either_way() {
+    fn quickjs_comes_for_each_system_with_its_digest_in_dm() {
+        assert_eq!(quickjs_asset("macos", "aarch64"), Some("qjs-darwin-arm64"));
+        assert_eq!(quickjs_asset("linux", "x86_64"), Some("qjs-linux-x86_64"));
         assert_eq!(
-            deno_asset("macos", "aarch64"),
-            Some("deno-aarch64-apple-darwin.zip")
+            quickjs_asset("windows", "aarch64"),
+            Some("qjs-windows-x86_64.exe")
         );
-        assert_eq!(
-            deno_asset("windows", "x86_64"),
-            Some("deno-x86_64-pc-windows-msvc.zip")
-        );
-        assert_eq!(deno_asset("freebsd", "x86_64"), None);
-        let unix = "5cd46d6268f6f78f5d88bdc7159d20bd44cdaa4b3303474839f87ec6fe7ae25c  deno-aarch64-apple-darwin.zip\n";
-        let windows = "\r\nAlgorithm : SHA256\r\nHash      : A0C3101B4158D1DFB7D6A78A7BF0F3DE80C96BB423C152BEEC8BEB22786F2238\r\nPath      : C:\\a\\deno-x86_64-pc-windows-msvc.zip\r\n";
-        assert_eq!(
-            only_digest(unix).as_deref(),
-            Some("5cd46d6268f6f78f5d88bdc7159d20bd44cdaa4b3303474839f87ec6fe7ae25c")
-        );
-        assert_eq!(
-            only_digest(windows).as_deref(),
-            Some("a0c3101b4158d1dfb7d6a78a7bf0f3de80c96bb423c152beec8beb22786f2238")
-        );
-        assert_eq!(only_digest("no digest here"), None);
-    }
-
-    /// A zip as a release makes one: a local header and its data, then the
-    /// central directory and its end. Built here, entry by entry.
-    fn zip_of(entries: &[(&str, &[u8], bool)]) -> Vec<u8> {
-        use std::io::Write as _;
-        let (mut out, mut central) = (Vec::new(), Vec::new());
-        for (name, data, deflate) in entries {
-            let packed = if *deflate {
-                let mut e =
-                    flate2::write::DeflateEncoder::new(Vec::new(), flate2::Compression::default());
-                e.write_all(data).unwrap();
-                e.finish().unwrap()
-            } else {
-                data.to_vec()
-            };
-            let method: u16 = if *deflate { 8 } else { 0 };
-            let offset = out.len() as u32;
-            out.extend_from_slice(&[0x50, 0x4b, 0x03, 0x04, 20, 0, 0, 0]);
-            out.extend_from_slice(&method.to_le_bytes());
-            out.extend_from_slice(&[0; 8]);
-            out.extend_from_slice(&(packed.len() as u32).to_le_bytes());
-            out.extend_from_slice(&(data.len() as u32).to_le_bytes());
-            out.extend_from_slice(&(name.len() as u16).to_le_bytes());
-            out.extend_from_slice(&[0, 0]);
-            out.extend_from_slice(name.as_bytes());
-            out.extend_from_slice(&packed);
-            central.extend_from_slice(&[0x50, 0x4b, 0x01, 0x02, 20, 0, 20, 0, 0, 0]);
-            central.extend_from_slice(&method.to_le_bytes());
-            central.extend_from_slice(&[0; 8]);
-            central.extend_from_slice(&(packed.len() as u32).to_le_bytes());
-            central.extend_from_slice(&(data.len() as u32).to_le_bytes());
-            central.extend_from_slice(&(name.len() as u16).to_le_bytes());
-            central.extend_from_slice(&[0; 12]);
-            central.extend_from_slice(&offset.to_le_bytes());
-            central.extend_from_slice(name.as_bytes());
+        assert_eq!(quickjs_asset("freebsd", "x86_64"), None);
+        let sources = official();
+        for (os, arch) in [
+            ("macos", "aarch64"),
+            ("macos", "x86_64"),
+            ("linux", "x86_64"),
+            ("linux", "aarch64"),
+            ("windows", "x86_64"),
+        ] {
+            let asset = quickjs_asset(os, arch).unwrap();
+            assert!(
+                sources
+                    .quickjs_digests
+                    .iter()
+                    .any(|(n, d)| n == asset && d.len() == 64),
+                "{asset}"
+            );
         }
-        let start = out.len() as u32;
-        out.extend_from_slice(&central);
-        out.extend_from_slice(&[0x50, 0x4b, 0x05, 0x06, 0, 0, 0, 0]);
-        out.extend_from_slice(&(entries.len() as u16).to_le_bytes());
-        out.extend_from_slice(&(entries.len() as u16).to_le_bytes());
-        out.extend_from_slice(&(central.len() as u32).to_le_bytes());
-        out.extend_from_slice(&start.to_le_bytes());
-        out.extend_from_slice(&[0, 0]);
-        out
-    }
-
-    #[test]
-    fn one_file_is_read_out_of_a_zip_stored_or_deflated() {
-        let program = b"a program, long enough to deflate well: ".repeat(40);
-        let zip = zip_of(&[("README", b"read me", false), ("deno", &program, true)]);
-        assert_eq!(unzip_one(&zip, "deno"), Some(program.clone()));
-        assert_eq!(unzip_one(&zip, "README").as_deref(), Some(&b"read me"[..]));
-        assert_eq!(unzip_one(&zip, "deno.exe"), None);
-        // Cut short or not a zip at all: nothing, and no panic.
-        assert_eq!(unzip_one(&zip[..zip.len() / 2], "deno"), None);
-        assert_eq!(unzip_one(b"not a zip", "deno"), None);
     }
 
     #[test]
