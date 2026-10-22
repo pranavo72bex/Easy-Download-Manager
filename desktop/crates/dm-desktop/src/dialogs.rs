@@ -73,6 +73,21 @@ pub struct FileInfo {
     /// The folder last used for this kind of file has been offered (once
     /// the name says the kind), so clearing it is not undone.
     pub folder_offered: bool,
+    /// A file of its name is in the folder already, and the person chose
+    /// to replace it once this one is whole rather than take a number.
+    pub replace: bool,
+}
+
+/// Where the name Download details shows is taken already.
+enum Clash {
+    /// By another download in the list: this one takes a number.
+    Listed,
+    /// By a file in the folder: this one takes `free`, or replaces `taken`
+    /// once it is whole.
+    OnDisk {
+        free: String,
+        taken: std::path::PathBuf,
+    },
 }
 
 /// What Download details learned by asking the server: the name the file
@@ -3120,7 +3135,7 @@ fn file_info(app: &mut DmApp, ctx: &egui::Context) {
     // The name it will really get where its folder has one of that name
     // already: Save as said `big.zip` and the file came as `big (1).zip`
     // (UI round 10).
-    let renamed = (d.urls.len() == 1 && !d.name.trim().is_empty())
+    let clash = (d.urls.len() == 1 && !d.name.trim().is_empty())
         .then(|| {
             let name = d.name.trim();
             let url = d.urls.first().map(String::as_str).unwrap_or_default();
@@ -3146,25 +3161,30 @@ fn file_info(app: &mut DmApp, ctx: &egui::Context) {
                     !r.state.settled()
                         && r.path.is_empty()
                         && name_of(r) == name
-                        && r.save_dir.as_deref().is_none_or(|s| {
-                            s.trim().is_empty() || std::path::Path::new(s) == dir
-                        })
+                        && r.save_dir
+                            .as_deref()
+                            .is_none_or(|s| s.trim().is_empty() || std::path::Path::new(s) == dir)
                 })
                 .count();
             let free = dm_core::download::nth_free_name(&dir, name, waiting);
+            let taken = dir.join(name);
             if free == name {
                 None
             } else if dm_core::download::free_name(&dir, name) == name {
                 // Free on disk: it is the list that has the name.
-                Some(t("Another download in the list has this name; this one will be given a number.").to_string())
+                Some(Clash::Listed)
+            } else if waiting == 0 && taken.is_file() {
+                Some(Clash::OnDisk { free, taken })
             } else {
-                Some(tf(
-                    "A file of that name is in the folder already; this one will be {}.",
-                    &[&crate::bidi::visual(&free)],
-                ))
+                Some(Clash::Listed)
             }
         })
         .flatten();
+    // Only a file of that name can be replaced: offered again for the
+    // next name, not carried to it.
+    if !matches!(clash, Some(Clash::OnDisk { .. })) {
+        d.replace = false;
+    }
     let mut open = true;
     let mut chosen: Option<bool> = None; // Some(later)
     let mut cancel = false;
@@ -3301,8 +3321,44 @@ fn file_info(app: &mut DmApp, ctx: &egui::Context) {
                     .wrap(),
                 );
             }
-            if let Some(said) = &renamed {
-                ui.add(egui::Label::new(RichText::new(said).color(warn(ui))).wrap());
+            match &clash {
+                Some(Clash::Listed) => {
+                    ui.add(
+                        egui::Label::new(
+                            RichText::new(t("Another download in the list has this name; this one will be given a number."))
+                                .color(warn(ui)),
+                        )
+                        .wrap(),
+                    );
+                }
+                Some(Clash::OnDisk { free, .. }) => {
+                    ui.add(
+                        egui::Label::new(
+                            RichText::new(t("A file of that name is in the folder already."))
+                                .color(warn(ui)),
+                        )
+                        .wrap(),
+                    );
+                    if radio_flag(
+                        ui,
+                        !d.replace,
+                        tf("Save this one as {}", &[&crate::bidi::visual(free)]),
+                    )
+                    .clicked()
+                    {
+                        d.replace = false;
+                    }
+                    if radio_flag(
+                        ui,
+                        d.replace,
+                        t("Replace that file once this one is whole"),
+                    )
+                    .clicked()
+                    {
+                        d.replace = true;
+                    }
+                }
+                None => {}
             }
             if let Some(why) = &problem {
                 let plain = format::reason(why).map(t).unwrap_or(why.as_str());
@@ -3378,6 +3434,12 @@ fn file_info(app: &mut DmApp, ctx: &egui::Context) {
         quality: d.quality.clone(),
         cookies: d.cookies.clone(),
         cookies_once: d.cookies_once,
+        replaces: match &clash {
+            Some(Clash::OnDisk { taken, .. }) if d.replace => {
+                Some(taken.to_string_lossy().into_owned())
+            }
+            _ => None,
+        },
     };
     let urls = d.urls.clone();
     // Where this kind of file was put, for next time; the kind's own folder

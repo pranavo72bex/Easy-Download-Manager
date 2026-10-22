@@ -7969,6 +7969,54 @@ fn windows_a_download_opens_keep_clear_of_the_toolbar_and_questions() {
     assert!(harness.query_by_label("Download complete").is_some());
 }
 
+/// A file of the name already in the folder: Download details offers to
+/// replace it, and it is replaced only once the new one is whole — a
+/// number is still the default.
+#[test]
+fn download_details_can_replace_a_file_of_the_same_name() {
+    let world = world();
+    let mut harness = world.harness();
+    add_url(&mut harness, &world.url("file.zip"), "Start now");
+    until(&mut harness, "the download to complete", |app| {
+        app.rows().iter().any(|r| r.state == State::Completed)
+    });
+    let first = std::path::PathBuf::from(&harness.state().rows()[0].path);
+    std::fs::write(&first, b"an older version").unwrap();
+    click(&mut harness, "Add URL");
+    type_into(&mut harness, "Address", &world.url("file.zip"));
+    click(&mut harness, "OK");
+    if harness.query_by_label("Already in the list").is_some() {
+        click(&mut harness, "Download again");
+    }
+    let replace = "Replace that file once this one is whole";
+    for _ in 0..50 {
+        if harness.query_by_label(replace).is_some() {
+            break;
+        }
+        std::thread::sleep(std::time::Duration::from_millis(40));
+        harness.run_steps(1);
+    }
+    assert!(harness
+        .query_by_label("Save this one as file (1).zip")
+        .is_some());
+    click(&mut harness, replace);
+    click(&mut harness, "Start now");
+    until(&mut harness, "the second download to complete", |app| {
+        app.rows().len() == 2 && app.rows().iter().all(|r| r.state == State::Completed)
+    });
+    assert_eq!(std::fs::read(&first).unwrap(), payload(), "not replaced");
+    let dir = first.parent().unwrap();
+    assert!(
+        !dir.join("file (1).zip").exists(),
+        "a numbered copy was left"
+    );
+    assert!(harness
+        .state()
+        .rows()
+        .iter()
+        .all(|r| std::path::Path::new(&r.path) == first));
+}
+
 /// UI round 10: Download details says the name a file will really get
 /// where its folder has one of that name already, and that the server has
 /// no file at an address, before Start now rather than after.
@@ -7986,7 +8034,7 @@ fn download_details_says_the_name_it_will_get_and_a_server_refusal() {
     if harness.query_by_label("Already in the list").is_some() {
         click(&mut harness, "Download again");
     }
-    let said = "A file of that name is in the folder already; this one will be file (1).zip.";
+    let said = "Save this one as file (1).zip";
     for _ in 0..50 {
         if harness.query_by_label(said).is_some() {
             break;

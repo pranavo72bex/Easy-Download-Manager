@@ -195,6 +195,10 @@ pub struct AddOptions {
     pub cookies: String,
     /// Those cookies are for this download alone, not kept once it is done.
     pub cookies_once: bool,
+    /// A file this download takes the place of once it is whole, as a
+    /// recheck's new version does: kept until then, so a failed download
+    /// leaves it.
+    pub replaces: Option<String>,
 }
 
 struct Slot {
@@ -1765,6 +1769,7 @@ impl Queue {
             slot.entry.quality = with.quality.filter(|q| !q.trim().is_empty());
             slot.entry.cookies = with.cookies.trim().to_string();
             slot.entry.cookies_once = with.cookies_once && !slot.entry.cookies.is_empty();
+            slot.entry.replaces = with.replaces.filter(|p| !p.trim().is_empty());
             if with.later {
                 slot.hold(false);
             }
