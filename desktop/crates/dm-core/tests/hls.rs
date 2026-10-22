@@ -450,6 +450,8 @@ fn make_stream(
         .is_ok_and(|s| s.success())
 }
 
+// Its sample stream is made by a helper that is Unix-only.
+#[cfg(unix)]
 #[tokio::test]
 async fn a_remux_that_fails_keeps_the_stream_whole_as_ts() {
     let _turn = FFMPEG_ENV.lock().await;
@@ -601,6 +603,9 @@ async fn a_transport_stream_is_saved_as_an_mp4_where_ffmpeg_can_and_as_ts_where_
     );
 }
 
+/// H.264 and AAC, as nearly every HLS stream is, put into an MP4 by dm.
+/// (An ffmpeg is needed here only to make the stream and judge the result.)
+#[cfg(unix)]
 #[tokio::test]
 async fn an_hls_stream_becomes_an_mp4_with_no_ffmpeg() {
     let _turn = FFMPEG_ENV.lock().await;
