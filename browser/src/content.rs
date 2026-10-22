@@ -84,6 +84,13 @@ thread_local! {
     static OFF_ALL: std::cell::Cell<bool> = const { std::cell::Cell::new(false) };
     // Whether this page has asked for the rules to be made current.
     static RULES_ASKED: std::cell::Cell<bool> = const { std::cell::Cell::new(false) };
+    // How far the person dragged the panel from its corner, for this page.
+    static NUDGE: std::cell::Cell<(f64, f64)> = const { std::cell::Cell::new((0.0, 0.0)) };
+    // Where the panel's corner is for the player it is shown over.
+    static SPOT: std::cell::Cell<(f64, f64)> = const { std::cell::Cell::new((0.0, 0.0)) };
+    // A drag under way: where the pointer went down, and the nudge then.
+    static DRAG: std::cell::Cell<Option<(f64, f64, f64, f64)>> =
+        const { std::cell::Cell::new(None) };
 }
 
 /// The page a person sees: this one, or for a player in a frame, the page
@@ -239,6 +246,15 @@ fn window() -> Option<Window> {
     web_sys::window()
 }
 
+/// The viewport's width and height.
+fn window_size() -> (f64, f64) {
+    let Some(window) = window() else {
+        return (0.0, 0.0);
+    };
+    let size = |v: Result<JsValue, JsValue>| v.ok().and_then(|v| v.as_f64()).unwrap_or(0.0);
+    (size(window.inner_width()), size(window.inner_height()))
+}
+
 fn document() -> Option<Document> {
     window()?.document()
 }
@@ -311,6 +327,7 @@ fn build(document: &Document) -> Option<Panel> {
     let live = root.query_selector(".live").ok()??;
     let body = root.query_selector(".panel").ok()??;
     let help = root.query_selector(".help").ok()??;
+    let grip = root.query_selector(".grip").ok()??;
     let close = root.query_selector(".close").ok()??;
     let parent: Element = document
         .body()
@@ -336,6 +353,45 @@ fn build(document: &Document) -> Option<Panel> {
         hide_soon(HIDE_AFTER_MS);
     });
     listen(&body, "keydown", on_key);
+    // Dragged by its grip, anywhere in the window.
+    listen(&grip, "mousedown", |event| {
+        let Some(mouse) = event.dyn_ref::<web_sys::MouseEvent>() else {
+            return;
+        };
+        event.prevent_default();
+        let (dx, dy) = NUDGE.with(|n| n.get());
+        DRAG.with(|d| {
+            d.set(Some((
+                f64::from(mouse.client_x()),
+                f64::from(mouse.client_y()),
+                dx,
+                dy,
+            )))
+        });
+    });
+    if let Some(window) = window() {
+        listen(&window, "mousemove", |event| {
+            let Some((sx, sy, dx, dy)) = DRAG.with(|d| d.get()) else {
+                return;
+            };
+            let Some(mouse) = event.dyn_ref::<web_sys::MouseEvent>() else {
+                return;
+            };
+            let by = (
+                dx + f64::from(mouse.client_x()) - sx,
+                dy + f64::from(mouse.client_y()) - sy,
+            );
+            NUDGE.with(|n| n.set(by));
+            let view = window_size();
+            let (x, y) = decide::dragged(SPOT.with(|s| s.get()), by, PANEL_SIZE, view);
+            with_panel(|p| {
+                let style = p.host.style();
+                let _ = style.set_property_with_priority("left", &format!("{x}px"), "important");
+                let _ = style.set_property_with_priority("top", &format!("{y}px"), "important");
+            });
+        });
+        listen(&window, "mouseup", |_| DRAG.with(|d| d.set(None)));
+    }
     // A button: Enter and Space click it already.
     listen(&go, "click", |event| {
         event.prevent_default();
@@ -498,11 +554,14 @@ fn show(element: &Element) -> bool {
             .unwrap_or(0.0),
     );
     let rect = element.get_bounding_client_rect();
-    let (x, y) = decide::panel_at(
+    let spot = decide::panel_at(
         (rect.left(), rect.top(), rect.width(), rect.height()),
         PANEL_SIZE,
         view,
     );
+    SPOT.with(|s| s.set(spot));
+    // Where the person dragged it to, kept for the page.
+    let (x, y) = decide::dragged(spot, NUDGE.with(|n| n.get()), PANEL_SIZE, view);
     with_panel(|p| {
         let same = p.current.as_ref() == Some(element);
         if !same {

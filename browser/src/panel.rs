@@ -36,6 +36,10 @@ pub const STYLE: &str = r#"
 .wrap.dead { border-color: var(--error); }
 button { font: inherit; color: inherit; background: none; border: 0; padding: 0; cursor: pointer; }
 button:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+.grip { width: 14px; flex: none; display: flex; align-items: center; justify-content: center;
+  color: var(--weak); font-size: 12px; letter-spacing: -4px; cursor: grab; border-right: 1px solid var(--line); }
+.grip:hover { background: var(--hover); color: var(--text); }
+.grip:active { cursor: grabbing; }
 .go { flex: 1; min-width: 0; display: flex; align-items: center; gap: 8px; padding: 0 8px; text-align: left; }
 .go:hover, .go:focus-visible { background: var(--hover); }
 .mark { width: 20px; height: 20px; flex: none; border-radius: 50%; background: var(--accent); color: var(--on-accent);
@@ -65,7 +69,7 @@ button:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
 /// with what it says; `.live` says each result aloud.
 pub const BODY: &str = r#"<div class="panel" role="group" aria-label="dm">
 <div class="wrap">
-<button class="go" type="button"><span class="mark" aria-hidden="true">&#8595;</span><span class="title"></span><span class="caret" aria-hidden="true" hidden>&#9662;</span></button>
+<span class="grip" aria-hidden="true" title="Drag to move">&#8942;&#8942;</span><button class="go" type="button"><span class="mark" aria-hidden="true">&#8595;</span><span class="title"></span><span class="caret" aria-hidden="true" hidden>&#9662;</span></button>
 <button class="help" type="button" aria-label="What is this?" title="What is this?">?</button>
 <button class="close" type="button" aria-label="Hide" aria-haspopup="menu" title="Hide">&#215;</button>
 </div>

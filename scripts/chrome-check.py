@@ -574,6 +574,10 @@ CLOSE_AT = """(() => { const b = document.querySelector('dm-panel').shadowRoot
   .querySelector('.close').getBoundingClientRect(); return [b.left + b.width / 2, b.top + b.height / 2]; })()"""
 
 
+GRIP_AT = """(() => { const b = document.querySelector('dm-panel').shadowRoot
+  .querySelector('.grip').getBoundingClientRect(); return [b.left + b.width / 2, b.top + b.height / 2]; })()"""
+
+
 def click_at(tab, x, y):
     mouse(tab, "mouseMoved", x, y)
     mouse(tab, "mousePressed", x, y)
@@ -602,6 +606,28 @@ def panel_checks(base, origin, engine_dl, engine_home, worker):
           f"panel {shown.get('x')},{shown.get('y')} {shown.get('w')}x{shown.get('h')}; video {video}")
     check("it says where the file comes from, on hover", shown.get("tip") == "127.0.0.1", shown.get("tip"))
     check("a file is one quality: no list arrow", not shown.get("caret"), str(shown))
+    # Dragged by its grip, as a person drags it: it goes where it is put,
+    # stays there for the page, and hands nothing over.
+    gx, gy = tab.evaluate(GRIP_AT)
+    mouse(tab, "mouseMoved", gx, gy)
+    mouse(tab, "mousePressed", gx, gy)
+    for step in range(1, 6):
+        mouse(tab, "mouseMoved", gx - 30 * step, gy + 16 * step)
+        time.sleep(0.05)
+    mouse(tab, "mouseReleased", gx - 150, gy + 80)
+    moved = panel(tab) or {}
+    check("its grip drags it where it is put",
+          abs(moved.get("x", 0) - (shown.get("x", 0) - 150)) <= 2
+          and abs(moved.get("y", 0) - (shown.get("y", 0) + 80)) <= 2,
+          f"from {shown.get('x')},{shown.get('y')} to {moved.get('x')},{moved.get('y')}")
+    mouse(tab, "mouseMoved", 5, 5)
+    wait_for(lambda: not (panel(tab) or {}).get("shown"), 8)
+    hover(tab, video)
+    again = wait_for(lambda: (panel(tab) or {}).get("shown") and panel(tab), 3) or {}
+    check("and it comes back where it was put, for the page",
+          abs(again.get("x", 0) - moved.get("x", -9)) <= 2 and abs(again.get("y", 0) - moved.get("y", -9)) <= 2,
+          f"{again.get('x')},{again.get('y')} against {moved.get('x')},{moved.get('y')}")
+    check("a drag hands nothing over", not (engine_dl / "clip.mp4").exists(), str(engine_dl))
     # The page's own script pressing the panel's button: not a person, so
     # nothing is handed over (the panel's root is open to the page).
     tab.evaluate("document.querySelector('dm-panel').shadowRoot.querySelector('.go').click()")

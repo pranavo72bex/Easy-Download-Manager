@@ -761,6 +761,29 @@ pub fn panel_at(
     )
 }
 
+/// Where the panel goes moved by `by` from `spot` (where `panel_at` puts
+/// it), kept whole inside the viewport.
+pub fn dragged(
+    spot: (f64, f64),
+    by: (f64, f64),
+    panel: (f64, f64),
+    viewport: (f64, f64),
+) -> (f64, f64) {
+    let margin = 8.0;
+    let clamp = |v: f64, size: f64, room: f64| {
+        let most = (room - size - margin).max(margin);
+        if v.is_finite() {
+            v.clamp(margin, most)
+        } else {
+            margin
+        }
+    };
+    (
+        clamp(spot.0 + by.0, panel.0, viewport.0),
+        clamp(spot.1 + by.1, panel.1, viewport.1),
+    )
+}
+
 /// What the page script sends when the panel is clicked.
 #[derive(Deserialize, Default, Debug, Clone)]
 #[serde(default, rename_all = "camelCase")]
@@ -2480,6 +2503,25 @@ mod tests {
             ..audio
         })
         .is_none());
+    }
+
+    #[test]
+    fn a_dragged_panel_goes_where_it_is_put_and_stays_on_screen() {
+        let view = (1200.0, 800.0);
+        let size = (240.0, 30.0);
+        assert_eq!(
+            dragged((500.0, 60.0), (-200.0, 300.0), size, view),
+            (300.0, 360.0)
+        );
+        // Not past an edge, however far it is pulled.
+        assert_eq!(
+            dragged((500.0, 60.0), (5000.0, -5000.0), size, view),
+            (952.0, 8.0)
+        );
+        assert_eq!(
+            dragged((500.0, 60.0), (f64::NAN, 0.0), size, view),
+            (8.0, 60.0)
+        );
     }
 
     #[test]
