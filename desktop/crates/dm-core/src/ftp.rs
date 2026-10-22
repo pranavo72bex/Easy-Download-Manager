@@ -1295,6 +1295,43 @@ mod tls_tests {
         }
     }
 
+    /// A real server, where one is named: `DM_FTPS_CHECK` its address,
+    /// `DM_FTPS_CA` its certificate (PEM) and `DM_FTPS_SHA256` the file's
+    /// digest. vsftpd with `require_ssl_reuse` refuses a data connection
+    /// that does not take up the control connection's TLS session, which an
+    /// in-test server cannot show. Nothing is checked where none is named.
+    #[tokio::test]
+    async fn a_real_ftps_server_when_one_is_named() {
+        use rustls::pki_types::{pem::PemObject, CertificateDer};
+        use sha2::Digest;
+        let (Ok(url), Ok(ca), Ok(sha256)) = (
+            std::env::var("DM_FTPS_CHECK"),
+            std::env::var("DM_FTPS_CA"),
+            std::env::var("DM_FTPS_SHA256"),
+        ) else {
+            return;
+        };
+        let mut roots = rustls::RootCertStore::empty();
+        roots
+            .add(CertificateDer::from_pem_file(ca).unwrap())
+            .unwrap();
+        let config = rustls::ClientConfig::builder_with_provider(Arc::new(
+            rustls::crypto::ring::default_provider(),
+        ))
+        .with_safe_default_protocol_versions()
+        .unwrap()
+        .with_root_certificates(roots)
+        .with_no_client_auth();
+        let mut target = Target::parse(&url).unwrap();
+        target.trust = Trust(Some(Arc::new(config)));
+        let size = describe(&target).await.unwrap().size.unwrap();
+        let whole = fetched(&target, 0).await;
+        assert_eq!(whole.len() as u64, size);
+        assert_eq!(hex::encode(sha2::Sha256::digest(&whole)), sha256);
+        let half = size / 2;
+        assert_eq!(fetched(&target, half).await, whole[half as usize..]);
+    }
+
     #[tokio::test]
     async fn a_certificate_that_is_not_trusted_is_refused() {
         let (port, _) = serve(true, vec![1, 2, 3]).await;
