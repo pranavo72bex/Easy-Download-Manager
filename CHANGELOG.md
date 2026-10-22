@@ -20,6 +20,8 @@ the browser extension (`v*` tags) are versioned separately.
 - Three more languages: Simplified Chinese, Japanese and Korean.
 - A download being retried says why: "Server error (retry 5 of 10)", "Connection dropped (retry 2 of 5)".
 - The Speed column fits in the window at its first size (Queue moved after it).
+- A download retrying a failing server no longer holds up the queue: the next one starts while it waits.
+- About dm links the source, licence, privacy statement and code signing policy.
 - Portable: an empty file named `portable` beside the program keeps dm's
   settings and list in a `dm-data` folder beside it.
 

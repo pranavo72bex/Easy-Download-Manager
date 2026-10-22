@@ -2585,3 +2585,60 @@ async fn a_download_goes_on_into_the_folder_it_began_in() {
         done.path
     );
 }
+
+/// QA pass, gap 81: with one download at a time, a row whose server keeps
+/// answering 500 lends its place while it waits between attempts, so the
+/// next row in line is fetched instead of waiting behind it — and the
+/// failing row is still trying when the other finishes.
+#[tokio::test]
+async fn a_row_retrying_a_failing_server_lets_the_next_one_run() {
+    let app = axum::Router::new()
+        .route(
+            "/broken.bin",
+            axum::routing::get(|| async {
+                Response::builder()
+                    .status(StatusCode::INTERNAL_SERVER_ERROR)
+                    .body(Body::from("down"))
+                    .unwrap()
+            }),
+        )
+        .route(
+            "/good.bin",
+            axum::routing::get(|| async { Response::new(Body::from(vec![7u8; 4096])) }),
+        );
+    let addr = common::serve(app).await;
+    let dir = tempdir();
+    let q = Queue::new(
+        client(),
+        dm_core::Options {
+            connections: 1,
+            attempts: 10,
+            ..common::options(dir.path())
+        },
+        1,
+    );
+    let broken = q.add(&format!("http://{addr}/broken.bin")).await.unwrap();
+    let good = q.add(&format!("http://{addr}/good.bin")).await.unwrap();
+    let runner = q.clone();
+    let running = tokio::spawn(async move { runner.run().await });
+
+    let deadline = tokio::time::Instant::now() + Duration::from_secs(20);
+    loop {
+        let state = q.get(good).await.map(|e| e.state);
+        if state == Some(DownloadState::Completed) {
+            break;
+        }
+        assert!(
+            tokio::time::Instant::now() < deadline,
+            "the good row never ran behind the failing one: {state:?}"
+        );
+        tokio::time::sleep(Duration::from_millis(100)).await;
+    }
+    assert_eq!(
+        q.get(broken).await.map(|e| e.state),
+        Some(DownloadState::Running),
+        "the failing row should still be trying"
+    );
+    q.cancel(broken).await;
+    let _ = tokio::time::timeout(Duration::from_secs(10), running).await;
+}

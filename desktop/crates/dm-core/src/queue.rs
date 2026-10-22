@@ -1360,11 +1360,20 @@ impl Queue {
                 .filter(|s| s.entry.state == State::Running || s.still_stopping())
                 .count()
                 + leaving.len();
-            let room = self
-                .inner
-                .concurrency
-                .load(Ordering::Relaxed)
-                .saturating_sub(running);
+            /* A row waiting out a failure between attempts lends its place
+             * to the next in line: a server answering 500 held one for all
+             * ten attempts while the queue stood still behind it (QA pass,
+             * gap 81). Lent, not given: with the retrying rows, no more than
+             * twice the setting run, so a dead server cannot pull the whole
+             * queue in behind it. */
+            let retrying = slots
+                .values()
+                .filter(|s| s.entry.state == State::Running && s.retrying.is_some())
+                .count();
+            let concurrency = self.inner.concurrency.load(Ordering::Relaxed);
+            let room = concurrency
+                .saturating_sub(running.saturating_sub(retrying))
+                .min(concurrency.saturating_mul(2).saturating_sub(running));
 
             // A named queue with a limit of its own fills only up to it,
             // counting what it already has running; the rest of the room
