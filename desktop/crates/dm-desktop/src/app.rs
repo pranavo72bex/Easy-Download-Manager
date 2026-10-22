@@ -3204,7 +3204,11 @@ impl DmApp {
             self.rows
                 .iter()
                 .flat_map(|r| [&r.filename, &r.path, &r.description])
-                .map(String::as_str),
+                .map(String::as_str)
+                // The window's own words in Chinese, Japanese or Korean, and
+                // each language's name in its own script before View ›
+                // Language first lists them.
+                .chain(crate::i18n::LANGUAGES.iter().map(|(_, name)| *name)),
         );
         self.keys(&ctx);
         self.take_drops(&ctx);

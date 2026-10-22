@@ -647,23 +647,41 @@ impl Script {
 /// whichever fontconfig says covers the language; elsewhere, and failing
 /// that, the first of the usual files that is there.
 pub fn system_font(script: Script) -> Option<(std::path::PathBuf, u32)> {
+    // A Japanese window draws its kanji in a Japanese face: a Chinese one
+    // shapes some of the same characters differently.
+    let japanese = script == Script::Cjk && crate::i18n::code() == "ja";
     #[cfg(target_os = "linux")]
-    if let Some(found) = fontconfig(script) {
+    if let Some(found) = fontconfig(script, japanese) {
         return Some(found);
     }
-    script
-        .known_files()
+    let first: &[&str] = if japanese { JAPANESE_FILES } else { &[] };
+    first
         .iter()
+        .chain(script.known_files())
         .map(std::path::PathBuf::from)
         .find(|p| p.is_file())
         .map(|p| (p, 0))
 }
 
+/// Japanese faces, tried first for a Japanese window's kanji and kana.
+#[cfg(target_os = "macos")]
+const JAPANESE_FILES: &[&str] = &[
+    "/System/Library/Fonts/ヒラギノ角ゴシック W3.ttc",
+    "/System/Library/Fonts/Hiragino Sans W3.ttc",
+];
+#[cfg(windows)]
+const JAPANESE_FILES: &[&str] = &[
+    "C:\\Windows\\Fonts\\YuGothM.ttc",
+    "C:\\Windows\\Fonts\\meiryo.ttc",
+];
+#[cfg(not(any(target_os = "macos", windows)))]
+const JAPANESE_FILES: &[&str] = &[];
+
 /// Asks fontconfig for a sans font that covers `script`'s language, and
 /// takes it only if it does: `fc-match` always answers with something.
 #[cfg(target_os = "linux")]
-fn fontconfig(script: Script) -> Option<(std::path::PathBuf, u32)> {
-    let language = script.language();
+fn fontconfig(script: Script, japanese: bool) -> Option<(std::path::PathBuf, u32)> {
+    let language = if japanese { "ja" } else { script.language() };
     let out = std::process::Command::new("fc-match")
         .arg("-f")
         .arg("%{file}\\n%{index}\\n%{lang}")

@@ -19,7 +19,7 @@ use std::sync::OnceLock;
 
 /// Each language offered: its code, as the settings keep it, and its name
 /// in itself, as a list of languages should show it.
-pub const LANGUAGES: [(&str, &str); 11] = [
+pub const LANGUAGES: [(&str, &str); 14] = [
     ("en", "English"),
     ("es", "Español"),
     ("pt-BR", "Português (Brasil)"),
@@ -31,10 +31,13 @@ pub const LANGUAGES: [(&str, &str); 11] = [
     ("ru", "Русский"),
     ("id", "Bahasa Indonesia"),
     ("tr", "Türkçe"),
+    ("zh-CN", "简体中文"),
+    ("ja", "日本語"),
+    ("ko", "한국어"),
 ];
 
 /// The catalogs, as written.
-pub const CATALOGS: [(&str, &str); 10] = [
+pub const CATALOGS: [(&str, &str); 13] = [
     ("es", include_str!("../i18n/es.json")),
     ("pt-BR", include_str!("../i18n/pt-BR.json")),
     ("fr", include_str!("../i18n/fr.json")),
@@ -45,6 +48,9 @@ pub const CATALOGS: [(&str, &str); 10] = [
     ("ru", include_str!("../i18n/ru.json")),
     ("id", include_str!("../i18n/id.json")),
     ("tr", include_str!("../i18n/tr.json")),
+    ("zh-CN", include_str!("../i18n/zh-CN.json")),
+    ("ja", include_str!("../i18n/ja.json")),
+    ("ko", include_str!("../i18n/ko.json")),
 ];
 
 /// English to translation. Held in a static, so what it holds is `'static`
@@ -108,6 +114,11 @@ pub fn set(code: &str) {
     CODE.with(|now| now.set(known));
 }
 
+/// The code of the language in force on this thread ("en" for English).
+pub fn code() -> &'static str {
+    CODE.with(Cell::get)
+}
+
 /// The code of a language dm offers, as `LANGUAGES` spells it.
 fn offered(code: &str) -> Option<&'static str> {
     LANGUAGES.iter().map(|(c, _)| *c).find(|c| *c == code)
@@ -122,6 +133,9 @@ pub fn chosen(setting: &str) -> &'static str {
 /// The languages to choose from, the one in force marked; the one picked,
 /// if any. View › Language and Options › General both offer it.
 pub fn pick(ui: &mut egui::Ui, now: &str) -> Option<&'static str> {
+    // Each language's name in its own script: 日本語 and 한국어 need the
+    // computer's fonts for them, found the first time the list is shown.
+    crate::theme::cover(ui.ctx(), LANGUAGES.iter().map(|(_, name)| *name));
     let mut picked = None;
     for (code, name) in LANGUAGES {
         if crate::dialogs::radio_flag(ui, now == code, name.to_string()).clicked() {
@@ -331,7 +345,7 @@ pub fn form(code: &str, n: u64) -> usize {
     let few = (2..=4).contains(&ten) && !(12..=14).contains(&hundred);
     match code {
         // One form whatever the number.
-        "id" | "tr" => 0,
+        "id" | "tr" | "zh-CN" | "ja" | "ko" => 0,
         // 0 and 1 are both singular.
         "fr" | "pt-BR" => usize::from(n > 1),
         "ru" => {
@@ -712,9 +726,12 @@ mod tests {
             // Nothing in the environment: the system's.
             (None, Some("id-ID"), "id"),
             (Some(""), Some("es-ES"), "es"),
+            // Chinese, Japanese and Korean, as macOS and Linux spell them.
+            (Some("ja_JP.UTF-8"), None, "ja"),
+            (Some("zh-Hans-CN"), None, "zh-CN"),
+            (None, Some("ko-KR"), "ko"),
             // Languages dm does not have.
-            (Some("ja_JP.UTF-8"), None, "en"),
-            (Some("zh-Hans-CN"), None, "en"),
+            (Some("ar_EG.UTF-8"), None, "en"),
             (None, None, "en"),
             (Some("@"), None, "en"),
             (Some("."), None, "en"),

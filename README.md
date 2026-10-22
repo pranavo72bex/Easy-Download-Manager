@@ -189,8 +189,9 @@ It appears in dm instead of in the browser, and downloads there.
 - **Drag a link** from the browser onto dm's window to download it.
 - **Change the language:** **View › Language** — English, Español,
   Português, Français, Deutsch, Italiano, Nederlands, Polski, Русский,
-  Bahasa Indonesia or Türkçe. dm starts in your computer's language when it
-  has it.
+  Bahasa Indonesia, Türkçe, 简体中文, 日本語 or 한국어. dm starts in your
+  computer's language when it has it. Chinese, Japanese and Korean are drawn
+  in your computer's own font for them.
 
 ### How video downloads work
 

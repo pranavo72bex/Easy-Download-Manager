@@ -17,6 +17,7 @@ the browser extension (`v*` tags) are versioned separately.
   in its player from the row menu, from what is on disk so far.
 - Windows 11: an opt-in Mica backdrop (Options › General, from the next
   start).
+- Three more languages: Simplified Chinese, Japanese and Korean.
 - Portable: an empty file named `portable` beside the program keeps dm's
   settings and list in a `dm-data` folder beside it.
 

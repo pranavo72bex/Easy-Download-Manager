@@ -102,7 +102,7 @@ fn every_translated_word_is_in_every_catalog() {
                 // As many forms as the language's grammar has.
                 let wanted = match code {
                     "ru" | "pl" => 3,
-                    "id" | "tr" => 1,
+                    "id" | "tr" | "zh-CN" | "ja" | "ko" => 1,
                     _ => 2,
                 };
                 assert_eq!(
@@ -156,6 +156,22 @@ fn every_translation_is_drawn_in_the_windows_fonts() {
         let mut out = ctx.run_ui(egui::RawInput::default(), |ui| {
             dm_desktop::theme::apply(ui.ctx(), dm_desktop::theme::Theme::Light);
         });
+        out.textures_delta.clear();
+    }
+    // Chinese, Japanese and Korean are drawn in the computer's own font for
+    // them, found as the window finds it: by covering what it shows.
+    dm_desktop::theme::cover(
+        &ctx,
+        CATALOGS
+            .iter()
+            .flat_map(|(_, text)| catalog(text).into_values())
+            .collect::<Vec<_>>()
+            .iter()
+            .map(String::as_str)
+            .chain(LANGUAGES.iter().map(|(_, name)| *name)),
+    );
+    for _ in 0..2 {
+        let mut out = ctx.run_ui(egui::RawInput::default(), |_| {});
         out.textures_delta.clear();
     }
     let mut boxes = Vec::new();
