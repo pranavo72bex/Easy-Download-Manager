@@ -113,7 +113,7 @@ fn ask() -> Option<bool> {
 }
 
 /// A program's output, if it ran and finished within a second.
-fn run(program: &str, args: &[&str]) -> Option<String> {
+pub(crate) fn run(program: &str, args: &[&str]) -> Option<String> {
     use std::process::{Command, Stdio};
     let mut child = Command::new(program)
         .args(args)

@@ -758,6 +758,8 @@ pub struct DmApp {
     pub quit_asked: bool,
     /// The look last put in force, so a change in Options is applied once.
     theme_in_force: Option<crate::theme::Theme>,
+    /// Whether the window's motion was last set to none (`motion.rs`).
+    motion_in_force: Option<bool>,
     fonts_ready: bool,
     /// What to do when the queue runs dry, for this session only.
     pub when_done: crate::power::WhenDone,
@@ -910,6 +912,7 @@ impl DmApp {
             dark: false,
             quit_asked: false,
             theme_in_force: None,
+            motion_in_force: None,
             fonts_ready: false,
             when_done: Default::default(),
             failed_told: HashSet::new(),
@@ -2909,6 +2912,13 @@ impl DmApp {
             crate::theme::apply(&ctx, theme);
             self.theme_in_force = Some(theme);
             self.fonts_ready = ready;
+            self.motion_in_force = None;
+        }
+        // Less motion where the computer asks for it.
+        let reduced = crate::motion::reduced();
+        if self.motion_in_force != Some(reduced) {
+            crate::motion::apply(&ctx, reduced);
+            self.motion_in_force = Some(reduced);
         }
         self.logic(&ctx);
         // A name in a script dm's own typeface lacks (Chinese, Korean,
