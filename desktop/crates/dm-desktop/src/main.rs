@@ -1389,9 +1389,16 @@ Examples:
   dm-desktop --save-to ~/Videos --name talk.mp4 https://example.com/v.mp4
   dm-desktop --later https://example.com/a.iso --later https://example.com/b.iso
   dm-desktop --start-queue --when-done shutdown
+
+Portable: an empty file named \"portable\" beside the program keeps dm's
+settings and list in a \"dm-data\" folder beside it, and leaves the
+browsers and the login items to an installed dm.
 ";
 
 fn main() {
+    // First, before any thread starts: a copy with a "portable" file beside
+    // it keeps its things beside it, for the host and the window alike.
+    settings::enter_portable();
     let args = shell::args();
 
     // Launched by a browser rather than a person: framed JSON on stdin and

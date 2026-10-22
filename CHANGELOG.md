@@ -3,6 +3,19 @@
 What changed in each release, newest first. The app (`desktop-v*` tags) and
 the browser extension (`v*` tags) are versioned separately.
 
+## Unreleased
+
+- An expired link can be refreshed from the browser: Properties › Get it
+  from the browser takes the next download the browser hands over as the
+  row's new address, and the download continues from where it stopped.
+- The progress window's bar shows each connection's share.
+- Speed presets (low, medium, high, unlimited) in Downloads › Speed limiter
+  and the tray.
+- On Windows the schedule can wake a sleeping computer to start.
+- A live HLS stream is recorded as it goes, until Stop or the stream ends.
+- Portable: an empty file named `portable` beside the program keeps dm's
+  settings and list in a `dm-data` folder beside it.
+
 ## App 0.5.0 and extension 3.1.0
 
 Nothing else to install, a window that works the way a download manager

@@ -1036,9 +1036,69 @@ pub fn home() -> PathBuf {
         .join("dm-engine")
 }
 
+/// The file that makes a copy of dm portable: put beside the program, it
+/// keeps dm's settings, list and window beside it too, in [`PORTABLE_DATA`],
+/// rather than in the computer's place for them.
+pub const PORTABLE_MARKER: &str = "portable";
+/// The folder a portable dm keeps what belongs to it in.
+pub const PORTABLE_DATA: &str = "dm-data";
+
+/// Where a portable copy of dm in `program_dir` keeps its things, or `None`
+/// where there is no [`PORTABLE_MARKER`] beside it. On macOS the program is
+/// inside `dm.app`, so the marker beside the app counts too.
+pub fn portable_home_in(program_dir: &std::path::Path) -> Option<PathBuf> {
+    let mut beside = vec![program_dir.to_path_buf()];
+    // dm.app/Contents/MacOS/dm-desktop: the folder holding dm.app.
+    if let Some(app) = program_dir
+        .ancestors()
+        .find(|a| a.extension().is_some_and(|e| e == "app"))
+    {
+        beside.extend(app.parent().map(std::path::Path::to_path_buf));
+    }
+    beside
+        .into_iter()
+        .find(|dir| dir.join(PORTABLE_MARKER).is_file())
+        .map(|dir| dir.join(PORTABLE_DATA))
+}
+
+/// Makes this run portable when a [`PORTABLE_MARKER`] is beside the
+/// program, by giving it its own home as `DM_HOME` does — so a portable
+/// copy, like a test's, leaves the browsers' registration and the login
+/// items to the installed one. To be called first thing, before any other
+/// thread starts. An explicit `DM_HOME` wins. Returns the home it chose.
+pub fn enter_portable() -> Option<PathBuf> {
+    if std::env::var_os("DM_HOME").is_some_and(|h| !h.is_empty()) {
+        return None;
+    }
+    let exe = std::env::current_exe().ok()?;
+    let home = portable_home_in(exe.parent()?)?;
+    std::env::set_var("DM_HOME", &home);
+    Some(home)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn a_marker_beside_the_program_or_its_app_makes_it_portable() {
+        let dir = tempfile::tempdir().unwrap();
+        let root = dir.path();
+        assert_eq!(portable_home_in(root), None, "no marker, not portable");
+        std::fs::create_dir(root.join(PORTABLE_MARKER)).unwrap();
+        assert_eq!(portable_home_in(root), None, "a folder is not the marker");
+        std::fs::remove_dir(root.join(PORTABLE_MARKER)).unwrap();
+        std::fs::write(root.join(PORTABLE_MARKER), "").unwrap();
+        assert_eq!(portable_home_in(root), Some(root.join(PORTABLE_DATA)));
+
+        let inside = root.join("dm.app/Contents/MacOS");
+        std::fs::create_dir_all(&inside).unwrap();
+        assert_eq!(
+            portable_home_in(&inside),
+            Some(root.join(PORTABLE_DATA)),
+            "the marker beside dm.app"
+        );
+    }
 
     #[test]
     fn a_site_login_goes_on_the_hosts_it_names_and_no_others() {
