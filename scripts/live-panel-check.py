@@ -96,7 +96,7 @@ def live(base, origin, engine_dl, engine_home, worker):
                                          if r.get("state", {}).get("kind") == "completed" and r.get("path")
                                          and (name and name in r.get("url", "") or r.get("url") == URL)), None), 180)
     played = cc.plays(finished["path"]) if finished else None
-    cc.check("the downloaded video plays (ffprobe)", bool(played and played[0] > 0),
+    cc.check("the downloaded video is whole (media_check)", bool(played and played[0] > 0),
              f"{pathlib.Path(finished['path']).name}: {played[0]}s, {played[1]}p" if played and finished
              else f"not finished or not playable: {finished and finished.get('state')}")
     errors = [e for e in tab.logged("error") if e.startswith("dm:") or "dm_catcher" in e]

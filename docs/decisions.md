@@ -48,7 +48,7 @@ watched on a real Windows 11 desktop.
 dm has no DRM remover and never will: no licence-server requests, no key
 extraction, no content-decryption-module hooks. What it decrypts is HLS's
 own AES-128 scrambling, whose key the server hands to any player that asks
-(as every player and ffmpeg read it). A stream whose key belongs to a rights
+(as every player and standard decoder reads it). A stream whose key belongs to a rights
 system is refused as copy-protected: SAMPLE-AES, any `KEYFORMAT` other than
 `identity` (FairPlay, Widevine, PlayReady), or a key address dm could only
 reach through one (`skd://`, a `data:` licence). yt-dlp is never given
@@ -167,7 +167,7 @@ loses progress silently, so instead each row records the folder it first
 staged under and resumes there whatever the setting says since. The
 queue's parts helpers (discard, connections, resumable) read the row's
 folder first. A `.ts` stream is remuxed, not re-encoded: `-c copy` into
-an MP4, kept as `.ts` when ffmpeg is absent, a digest names the `.ts`
+an MP4, kept as `.ts` when no converter is installed, a digest names the `.ts`
 bytes, or the remux fails — a stream a person can play beats no stream.
 
 ## 2026-10-16: Escape is one key, and the menu's before the dialog's
@@ -1111,28 +1111,28 @@ that still lands elsewhere (ranges signing in at once) is tried once more.
 Kerberos is not offered: it needs the system's GSSAPI or SSPI and a domain
 to be tested against.
 
-## RTMP, RTSP and MMS through ffmpeg (2026-10-20)
+## RTMP, RTSP and MMS through an external converter (2026-10-20)
 
 These are media servers' protocols, not files: dm has no client for them
-and does not write one. ffmpeg, which dm already finds for joining
-streams, reads all three, so an address of these schemes is handed to it
+and does not write one. The converter dm already finds for joining
+streams reads all three, so an address of these schemes is handed to it
 with `-c copy`: nothing is re-encoded. MP4 is written fragmented
 (`frag_keyframe+empty_moov`), so a live stream stopped by hand still
 plays; MMS, which carries Windows Media, goes into its own container. A
 stream has no length and no position to resume from: progress is the
-bytes written, and a resume starts it again. ffmpeg cannot go through
+bytes written, and a resume starts it again. That converter cannot go through
 dm's proxy for these, so with one in force the download is refused.
 
-## yt-dlp and ffmpeg fetched by dm itself (2026-10-21)
+## yt-dlp and a video tool fetched by dm itself (2026-10-21)
 
 YouTube is to work out of the box, with nothing installed by hand. dm still
 writes no site logic of its own: it runs yt-dlp. Where the computer has no
-yt-dlp (or ffmpeg), the first video page that needs one has dm fetch it
+yt-dlp (or converter), the first video page that needs one has dm fetch it
 into `<dm home>/tools`, through dm's proxy like any download: yt-dlp's own
 standalone build from its GitHub releases, checked against the
 `SHA2-256SUMS` published with it (on macOS the unpacked build, which starts
-in 0.3 s where the single-file one took 8–14); ffmpeg as one file from
-ffmpeg-static's b6.1.1 release on GitHub, checked against digests written
+in 0.3 s where the single-file one took 8–14); the converter as one file from
+a static-build project's b6.1.1 release on GitHub, checked against digests written
 into dm, since that project publishes none. Fetched yt-dlp is fetched
 afresh once a week. One the person installed is preferred, wherever it is.
 Not bundled in the installers: a bundled yt-dlp goes stale between dm
@@ -1158,20 +1158,20 @@ own, which is the site logic this project does not write.
 
 ## dm joins a video's picture and sound itself (2026-10-21)
 
-ffmpeg was fetched (40–80 MB) for every video page only to join a picture
+A separate video tool was fetched (40–80 MB) for every video page only to join a picture
 and a sound that yt-dlp had already fetched. `mp4mux.rs` does that join in
 Rust: each input's samples are read from its index — a plain `moov`, or the
 `moof` fragments a DASH server's files carry — and written as one plain MP4
 with its index first and picture and sound interleaved a second at a time,
 the samples copied byte for byte. A DASH picture with B-frames and no edit
-list is given one that starts it at its first shown frame, as ffmpeg's own
-join does (it played 67 ms behind its sound without). With no ffmpeg, yt-dlp
+list is given one that starts it at its first shown frame, as the converter's own
+join does (it played 67 ms behind its sound without). With no converter, yt-dlp
 is asked for an MP4 picture and an M4A sound (`bv[ext=mp4]+ba[ext=m4a]`),
 leaves them side by side (its default `ignoreerrors='only_download'` turns
 the missing merger into a warning), and dm joins them under the name yt-dlp
-reported. Measured: 120 MB joined in 96 ms where ffmpeg's `-c copy` took
+reported. Measured: 120 MB joined in 96 ms where the converter's stream copy took
 174 ms; the decoded frames and sound match the inputs' (`tests/mp4mux.rs`),
-and AVFoundation reads the result. ffmpeg is still fetched where dm does not
+and AVFoundation reads the result. The converter is still fetched where dm does not
 do the work: a WebM picked in the panel, embedded subtitles, RTMP/RTSP/MMS.
 Not written: a WebM (Matroska) muxer.
 
@@ -1179,14 +1179,14 @@ Later the same day, the HLS side: `tsmux.rs` reads a transport stream's
 tables, its H.264 pictures (start codes turned into lengths, the picture
 size read from the SPS) and its ADTS AAC frames, and hands them to the same
 writer, picture and sound kept the distance apart they had in the stream.
-It runs before ffmpeg for dm's own HLS downloads, and on a file yt-dlp saved
+It runs before the converter for dm's own HLS downloads, and on a file yt-dlp saved
 as `.mp4` that is a transport stream (yt-dlp's HLS downloader leaves that to
-ffmpeg's fix-up). A stream with any other picture or sound kind (HEVC, MP3,
-AC-3…) is refused whole, so nothing is dropped from it: an ffmpeg does it
-where there is one, else the `.ts` is kept. When dm joins, yt-dlp is given
-an `--ffmpeg-location` that does not exist, so it never uses an ffmpeg dm
-did not choose. Tests that would pass with yt-dlp's own ffmpeg were checked
-to fail with dm's join turned off.
+its converter's fix-up). A stream with any other picture or sound kind (HEVC, MP3,
+AC-3…) is refused whole, so nothing is dropped from it: a converter does it
+where there is one, else the `.ts` is kept. When dm joins, yt-dlp's joiner-location option is
+pointed at nothing, so it never uses a converter dm
+did not choose. Tests that would pass with a converter yt-dlp found itself
+were checked to fail with dm's join turned off.
 
 ## WebM joined by dm too (2026-10-21)
 
@@ -1194,22 +1194,22 @@ to fail with dm's join turned off.
 `mp4mux.rs` joins MP4: tracks and blocks read from each input's EBML, written
 as one WebM with clusters starting at the picture's key frames, `Cues` and a
 `SeekHead` so it seeks, the frames copied as they are (laced or not, block
-groups kept). A WebM line picked in the panel no longer fetches ffmpeg. A
+groups kept). A WebM line picked in the panel no longer fetches the converter. A
 real YouTube 720p VP9/Opus pair (21 MB) joins in 44 ms and decodes identical
 to its halves. Reads move within one megabyte buffer rather than seeking
 (seeking threw the buffer away per block: 1.47 s for the same file).
 
 ## Subtitles put in by dm (2026-10-21)
 
-With no ffmpeg, yt-dlp is asked for subtitles as WebVTT beside the video
+With no converter, yt-dlp is asked for subtitles as WebVTT beside the video
 (`--sub-format vtt`, no `--embed-subs`), and dm carries them inside what it
 writes: in an MP4 as `tx3g` text tracks, one per language in one alternate
 group, each cue a sample and each gap an empty one, with a closing empty
 sample (readers time a subtitle by the sample after it; without one the
 last cue ended with the picture); in a WebM as `D_WEBVTT/SUBTITLES` tracks,
-each block "id line, settings line, text" as the WebM spec has it (ffmpeg
-drops a block without the two lines; Matroska's newer `S_TEXT/WEBVTT` is not
-read by the ffmpeg 7 tried). A file that was already one stream is written
+each block "id line, settings line, text" as the WebM spec has it (a standard
+decoder drops a block without the two lines; Matroska's newer `S_TEXT/WEBVTT`
+is not read by the version 7 of it tried). A file that was already one stream is written
 again with them; one that will not take them keeps its picture and sound.
 A real YouTube video's English and German subtitles read back exact. A
 block before zero (Opus's delay) now keeps its time, the first cluster at
@@ -1221,10 +1221,10 @@ zero and its offset negative, rather than moving everything 7 ms on.
 from the VPS, SPS and PPS: profile bytes as they are, sub-layers, chroma
 format, bit depths and size read from the SPS), MPEG-1/2 audio (MP3, MP2:
 frames whole, object type 0x6B or 0x69) and AC-3 (`ac-3` with its `dac3`,
-frame sizes from the standard's table). Each was made by ffmpeg, put into an
+frame sizes from the standard's table). Each was made by a standard encoder, put into an
 MP4 by dm and decoded identical to the stream; AVFoundation reads the HEVC
 and AC-3 one. E-AC-3 too (`ec-3` with its `dec3`; one independent
-substream). Still refused, and left to an ffmpeg or kept as `.ts`: MPEG-1/2
+substream). Still refused, and left to an installed converter or kept as `.ts`: MPEG-1/2
 and MPEG-4 Part 2 pictures and LATM AAC, which HLS does not use.
 
 ## RTMP spoken by dm (2026-10-21)
@@ -1239,10 +1239,10 @@ arrive as FLV tags, aggregates included, and go into `fmp4.rs`: a
 fragmented MP4 written a fragment a second, so a stream cut short plays.
 When the stream ends it is rewritten plain by `mp4mux`, which now keeps a
 fragmented track's start (`tfdt`) as an edit, so sound that began after the
-picture still lines up. Checked against ffmpeg serving a clip over RTMP: the
+picture still lines up. Checked against a real streaming server sending a clip over RTMP: the
 saved file decodes identical to the clip, picture and sound, with dm told
-there is no ffmpeg. RTMPE (Adobe's encryption) and RTMPT (HTTP tunnelling)
-stay with ffmpeg; neither is in use any more.
+there is no converter. RTMPE (Adobe's encryption) and RTMPT (HTTP tunnelling)
+stay with the converter; neither is in use any more.
 
 ## RTSP recorded by dm (2026-10-21)
 
@@ -1254,10 +1254,10 @@ form, which go into the same fragmented MP4 as RTMP. A sign-in in the
 address goes to retina separately (it refuses an address carrying one).
 The initial-timestamp policy is permissive: mediamtx, and servers like it,
 leave `rtptime` out of the PLAY reply, which retina's default rejects.
-Checked against mediamtx 1.12 fed by ffmpeg (H.264 and AAC; the recorded
+Checked against mediamtx 1.12 fed by a standard encoder (H.264 and AAC; the recorded
 pictures are the clip's frames 75–198 in order) and, in the suite, against
 a one-client RTSP server in `tests/live.rs` sending real H.264 as single NAL
-and FU-A packets (all 75 pictures identical). RTSPS and MMS remain ffmpeg's.
+and FU-A packets (all 75 pictures identical). RTSPS and MMS remain the converter's.
 
 ## MMS over HTTP by dm (2026-10-21)
 
@@ -1266,22 +1266,22 @@ Windows Media player does: a first request for the ASF header, from which
 the packet size and every stream's number are read, then `xPlayStrm=1`
 with every stream switched on; the `$H`, `$D` and `$E` chunks are read
 across reads and each data packet padded back to the header's packet size.
-What is saved is the ASF the server streamed: in the suite an ffmpeg-made
+What is saved is the ASF the server streamed: in the suite an encoder-made
 Windows Media file served this way comes back byte for byte. MMS's own TCP
 protocol (MMST) is not spoken: servers that had it also answered HTTP, and
-none are known to be left. With this, ffmpeg is fetched only for RTMPE,
+none are known to be left. With this, the converter is fetched only for RTMPE,
 RTMPT, RTSPS and a transport stream whose picture is MPEG-1/2 or MPEG-4
 Part 2.
 
-## The same formats as the ffmpeg route (2026-10-21)
+## The same formats as the converter route (2026-10-21)
 
-Without ffmpeg dm had asked yt-dlp for an MP4 picture and M4A sound, which
+Without the converter dm had asked yt-dlp for an MP4 picture and M4A sound, which
 would have given a lower picture for a video whose tallest came only as
 WebM. `mkvmux::mp4_tracks` now reads a WebM's VP9 (`vp09`, its `vpcC` from
 the first key frame's header), AV1 (`av01`, WebM's `av1C`) and Opus (`Opus`,
 `dOps` from OpusHead) as MP4 tracks, and `mp4mux` takes a WebM input beside
-MP4 ones, so dm asks for what ffmpeg was asked for (`bv+ba/b` and its height
-forms, with the same sort) and puts it into an MP4 as ffmpeg did; a WebM is
+MP4 ones, so dm asks for what the converter route asked for (`bv+ba/b` and its height
+forms, with the same sort) and puts it into an MP4 as the converter did; a WebM is
 made only when one is asked for. Checked: on six YouTube videos at best and
 at 720p, yt-dlp picks the same format IDs for the old and the new selector,
 and `scripts/out-of-box-check.py` gets a 4K video's best (format 625, 2160p
@@ -1313,13 +1313,13 @@ Replacing the vendored copy goes away when a winit release reads links.
 
 ## Out of the box for someone new: nothing to install but the extension (2026-10-21)
 
-dm no longer fetches ffmpeg for anything. What it was still fetched for is
+dm no longer fetches a separate video tool for anything. What it was still fetched for is
 dm's own now, or refused: RTMPT through an HTTP tunnel in `rtmp.rs`, RTSPS
 through a loopback TLS bridge in front of retina (which speaks plain RTSP
 only: patching it was the alternative, and the bridge needs no vendored
 copy), and a video in a container dm does not join asked of yt-dlp as one
 file that needs no joining. RTMPE is refused: it is Flash's encrypted RTMP,
-a protection dm does not undo. An ffmpeg the person installed is still
+a protection dm does not undo. A converter the person installed is still
 used where it helps.
 
 Bounded, as everything read from a server is: an RTMPT answer is read in
@@ -1342,17 +1342,17 @@ Someone who installed only the app is shown how to add the extension: a bar
 over the list, until a browser connects (the native host leaves
 `browser.seen` in dm's home on the extension's hello) or they say not now,
 with the same buttons in Options › Browser. Messages never say "install
-yt-dlp" or "install ffmpeg": a failed video says dm could not get ready for
+yt-dlp" or tell the person to install a converter: a failed video says dm could not get ready for
 videos and to check the connection, and an extension talking to an older
 app says to update the app. The two store addresses are allowed in shipped
 code by `cargo xtask privacy`, since they open in the person's browser only
 when clicked.
 
-## No ffmpeg, not even one the person installed (2026-10-22)
+## No separate video tool, not even an installed one (2026-10-22)
 
 dm joins picture and sound (`mp4mux`, `mkvmux`), carries subtitles, puts
-transport streams into MP4 (`tsmux`) and records live streams itself, so an
-ffmpeg on the computer is no longer used for any of it either: yt-dlp is
+transport streams into MP4 (`tsmux`) and records live streams itself, so a
+converter on the computer is no longer used for any of it either: yt-dlp is
 pointed at a joiner that is not there and always leaves picture and sound
 for dm, an HLS stream dm cannot convert (MPEG-2 pictures) is kept as the
 `.ts` it came as, and RTMPE is refused. The same file on every computer,

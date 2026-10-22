@@ -1,137 +1,132 @@
-//! Streams from a media server: an RTMP address fetched by dm's own client
-//! and placed as a file, and the refusals where one cannot be — a scheme
-//! left to ffmpeg with no ffmpeg, or a proxy it would go around. The server
-//! is ffmpeg itself, which can serve one client over RTMP.
+//! Streams from a media server: an RTMP address (and RTMPT, the same
+//! through HTTP) fetched by dm's own client, an RTSP camera and an MMS
+//! server, each placed as a file; and the refusals where one cannot be — an
+//! encrypted scheme, or a proxy it would go around. Every server is the
+//! test's own, playing a small clip kept under `tests/fixtures/media/live`,
+//! and what dm saved is read back sample by sample and held to the clip.
 
 mod common;
+
+#[path = "common/mp4_samples.rs"]
+mod mp4_samples;
+#[path = "common/rtmp_server.rs"]
+mod rtmp_server;
 
 use dm_core::{client, download, Options};
 
 use common::{options, tempdir};
+use mp4_samples::{length_prefixed_units, tracks};
+use rtmp_server::{flv_tags, serve_rtmp, Tag};
 
-/// The tests that set `DM_FFMPEG` take turns: it is the process's.
-static FFMPEG_ENV: tokio::sync::Mutex<()> = tokio::sync::Mutex::const_new(());
-
-/// The ffmpeg dm would find, if any.
-fn ffmpeg() -> Option<std::path::PathBuf> {
-    let found = [
-        "/opt/homebrew/bin/ffmpeg",
-        "/usr/local/bin/ffmpeg",
-        "/usr/bin/ffmpeg",
-    ]
-    .iter()
-    .map(std::path::PathBuf::from)
-    .find(|p| p.is_file());
-    assert!(
-        found.is_some() || !(cfg!(target_os = "linux") && std::env::var_os("CI").is_some()),
-        "no ffmpeg in Linux CI: the stream tests would pass without running"
-    );
-    found
+/// A clip the test servers play.
+fn clip(name: &str) -> Vec<u8> {
+    let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("tests/fixtures/media/live")
+        .join(name);
+    std::fs::read(&path).unwrap_or_else(|e| panic!("{}: {e}", path.display()))
 }
 
-fn free_port() -> u16 {
-    std::net::TcpListener::bind("127.0.0.1:0")
-        .unwrap()
-        .local_addr()
-        .unwrap()
-        .port()
+/// Holds the MP4 dm recorded to the FLV clip's tags: the same picture and
+/// sound setup, every frame's bytes in order, each at its own time.
+fn assert_recorded_as_sent(recorded: &[u8], tags: &[Tag]) {
+    let i24 =
+        |b: &[u8]| ((i32::from(b[0]) << 16 | i32::from(b[1]) << 8 | i32::from(b[2])) << 8) >> 8;
+    let video: Vec<&Tag> = tags.iter().filter(|t| t.kind == 9).collect();
+    let audio: Vec<&Tag> = tags.iter().filter(|t| t.kind == 8).collect();
+    // FLV: H.264 is codec 7, packet 0 its avcC record, 1 a frame after a
+    // composition offset; AAC is format 10, packet 0 its setup.
+    let avcc = video.iter().find(|t| t.body[1] == 0).unwrap().body[5..].to_vec();
+    let frames: Vec<&Tag> = video.iter().copied().filter(|t| t.body[1] == 1).collect();
+    let asc = audio.iter().find(|t| t.body[1] == 0).unwrap().body[2..].to_vec();
+    let sounds: Vec<&Tag> = audio.iter().copied().filter(|t| t.body[1] == 1).collect();
+    assert!(
+        frames.len() >= 20 && sounds.len() >= 80,
+        "a clip too short to judge by"
+    );
+
+    let got = tracks(recorded);
+    assert_eq!(got.len(), 2, "a picture track and a sound track");
+    let picture = got
+        .iter()
+        .find(|t| &t.handler == b"vide")
+        .expect("pictures");
+    let sound = got.iter().find(|t| &t.handler == b"soun").expect("sound");
+
+    assert_eq!(&picture.codec, b"avc1");
+    assert_eq!(picture.config, avcc, "not the clip's H.264 setup");
+    assert_eq!((picture.width, picture.height), (160, 120));
+    assert_eq!(picture.timescale, 1000);
+    assert_eq!(
+        picture.samples.len(),
+        frames.len(),
+        "pictures lost or added"
+    );
+    let (first_ms, first_dts) = (frames[0].ms, picture.samples[0].dts);
+    for (n, (sample, tag)) in picture.samples.iter().zip(&frames).enumerate() {
+        assert!(sample.data == tag.body[5..], "picture {n} differs");
+        assert_eq!(
+            sample.dts - first_dts,
+            u64::from(tag.ms - first_ms),
+            "picture {n} decoded at another time"
+        );
+        assert_eq!(
+            sample.offset,
+            i64::from(i24(&tag.body[2..])),
+            "picture {n} shown at another time"
+        );
+        assert_eq!(sample.sync, tag.body[0] >> 4 == 1, "picture {n}'s key flag");
+    }
+
+    assert_eq!(&sound.codec, b"mp4a");
+    assert_eq!(sound.config, asc, "not the clip's AAC setup");
+    assert_eq!(sound.timescale, 44100);
+    assert_eq!(
+        sound.samples.len(),
+        sounds.len(),
+        "sound frames lost or added"
+    );
+    for (n, (sample, tag)) in sound.samples.iter().zip(&sounds).enumerate() {
+        assert!(sample.data == tag.body[2..], "sound frame {n} differs");
+        assert_eq!(sample.duration, 1024, "sound frame {n}'s length");
+    }
+    // About the clip's two seconds, both of them.
+    let seconds = |t: &mp4_samples::Track| {
+        t.samples.iter().map(|s| u64::from(s.duration)).sum::<u64>() as f64 / f64::from(t.timescale)
+    };
+    for track in [picture, sound] {
+        let s = seconds(track);
+        assert!(
+            (1.8..2.3).contains(&s),
+            "{s} s of {}",
+            String::from_utf8_lossy(&track.codec)
+        );
+    }
 }
 
 #[tokio::test]
-async fn an_rtmp_stream_is_fetched_by_dm_and_saved_as_a_file_that_decodes_the_same() {
-    let _turn = FFMPEG_ENV.lock().await;
-    let Some(real) = ffmpeg() else {
-        eprintln!("no ffmpeg installed — skipping");
-        return;
-    };
-    let site = tempdir();
-    let clip = site.path().join("clip.flv");
-    let made = std::process::Command::new(&real)
-        .args(["-y", "-loglevel", "error", "-f", "lavfi", "-i"])
-        .arg("testsrc=duration=3:size=160x120:rate=10")
-        .args(["-f", "lavfi", "-i", "sine=duration=3"])
-        .args([
-            "-c:v",
-            "libx264",
-            "-pix_fmt",
-            "yuv420p",
-            "-c:a",
-            "aac",
-            "-shortest",
-        ])
-        .arg(&clip)
-        .status();
-    if !made.is_ok_and(|s| s.success()) {
-        eprintln!("this ffmpeg cannot make an H.264 clip — skipping");
-        return;
-    }
-    let port = free_port();
-    let address = format!("rtmp://127.0.0.1:{port}/live/show");
-    // The server: ffmpeg playing the clip to the one client that comes.
-    let mut server = tokio::process::Command::new(&real)
-        .args(["-loglevel", "error", "-re", "-i"])
-        .arg(&clip)
-        .args(["-c", "copy", "-f", "flv", "-listen", "1"])
-        .arg(&address)
-        .kill_on_drop(true)
-        .spawn()
-        .unwrap();
-    // Given a moment to listen: knocking on its port would be the one
-    // client it serves.
-    tokio::time::sleep(std::time::Duration::from_millis(1500)).await;
+async fn an_rtmp_stream_is_fetched_by_dm_and_saved_with_every_frame_as_sent() {
+    let tags = flv_tags(&clip("clip.flv"));
+    let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let port = listener.local_addr().unwrap().port();
+    let server = tokio::spawn(serve_rtmp(listener, tags.clone()));
 
-    // dm is told there is no ffmpeg: the stream is its own client's.
     let dir = tempdir();
-    let done = download(&client(), &address, &options(dir.path())).await;
+    let done = download(
+        &client(),
+        &format!("rtmp://127.0.0.1:{port}/live/show"),
+        &options(dir.path()),
+    )
+    .await;
     let done = done.expect("the RTMP stream");
-    let _ = server.kill().await;
+    assert_eq!(
+        server.await.unwrap(),
+        "show",
+        "asked to play another stream"
+    );
     assert_eq!(done.path.file_name().unwrap(), "show.mp4");
-    assert!(done.bytes > 10_000, "{} bytes", done.bytes);
-    // A file that plays: ffprobe reads a duration near the clip's.
-    let probed = std::process::Command::new(real.with_file_name("ffprobe"))
-        .args([
-            "-v",
-            "error",
-            "-show_entries",
-            "format=duration",
-            "-of",
-            "csv=p=0",
-        ])
-        .arg(&done.path)
-        .output();
-    if let Ok(out) = probed {
-        let seconds: f64 = String::from_utf8_lossy(&out.stdout)
-            .trim()
-            .parse()
-            .unwrap_or(0.0);
-        assert!(seconds > 2.5, "{seconds} s of stream saved");
-    }
-    // Every picture and sound the server sent, as they were.
-    let md5 = |file: &std::path::Path, stream: &str| {
-        let out = std::process::Command::new(&real)
-            .args(["-v", "error", "-i"])
-            .arg(file)
-            .args(["-map", stream, "-fps_mode", "passthrough", "-f", "md5", "-"])
-            .output()
-            .unwrap();
-        String::from_utf8_lossy(&out.stdout).into_owned()
-    };
-    assert_eq!(
-        md5(&done.path, "0:v"),
-        md5(&clip, "0:v"),
-        "the pictures differ"
-    );
-    assert_eq!(
-        md5(&done.path, "0:a"),
-        md5(&clip, "0:a"),
-        "the sound differs"
-    );
-    let kinds = std::fs::read(&done.path).unwrap();
-    assert_eq!(kinds.get(4..8), Some(&b"ftyp"[..]));
-    assert!(
-        !kinds.windows(4).any(|w| w == b"moof"),
-        "left fragmented, not rewritten plain"
-    );
+    let recorded = std::fs::read(&done.path).unwrap();
+    assert_eq!(done.bytes, recorded.len() as u64);
+    assert_recorded_as_sent(&recorded, &tags);
 }
 
 /// An RTMPT server in front of an RTMP one, as a web-only network's
@@ -206,33 +201,10 @@ async fn relay_rtmpt(listener: tokio::net::TcpListener, rtmp_port: u16) {
 
 #[tokio::test]
 async fn an_rtmpt_stream_is_fetched_by_dm_through_http() {
-    let _turn = FFMPEG_ENV.lock().await;
-    let Some(real) = ffmpeg() else {
-        eprintln!("no ffmpeg installed — skipping");
-        return;
-    };
-    let site = tempdir();
-    let clip = site.path().join("clip.flv");
-    let made = std::process::Command::new(&real)
-        .args(["-y", "-loglevel", "error", "-f", "lavfi", "-i"])
-        .arg("testsrc=duration=3:size=160x120:rate=10")
-        .args(["-c:v", "libx264", "-pix_fmt", "yuv420p"])
-        .arg(&clip)
-        .status();
-    if !made.is_ok_and(|s| s.success()) {
-        eprintln!("this ffmpeg cannot make an H.264 clip — skipping");
-        return;
-    }
-    let rtmp_port = free_port();
-    let mut server = tokio::process::Command::new(&real)
-        .args(["-loglevel", "error", "-re", "-i"])
-        .arg(&clip)
-        .args(["-c", "copy", "-f", "flv", "-listen", "1"])
-        .arg(format!("rtmp://127.0.0.1:{rtmp_port}/live/show"))
-        .kill_on_drop(true)
-        .spawn()
-        .unwrap();
-    tokio::time::sleep(std::time::Duration::from_millis(1500)).await;
+    let tags = flv_tags(&clip("clip.flv"));
+    let rtmp = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let rtmp_port = rtmp.local_addr().unwrap().port();
+    let server = tokio::spawn(serve_rtmp(rtmp, tags.clone()));
     let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
     let http_port = listener.local_addr().unwrap().port();
     let relay = tokio::spawn(relay_rtmpt(listener, rtmp_port));
@@ -245,26 +217,20 @@ async fn an_rtmpt_stream_is_fetched_by_dm_through_http() {
     )
     .await;
     relay.abort();
-    let _ = server.kill().await;
     let done = done.expect("the RTMPT stream");
+    assert_eq!(
+        server.await.unwrap(),
+        "show",
+        "asked to play another stream"
+    );
     assert_eq!(done.path.file_name().unwrap(), "show.mp4");
-    let md5 = |file: &std::path::Path| {
-        let out = std::process::Command::new(&real)
-            .args(["-v", "error", "-i"])
-            .arg(file)
-            .args(["-map", "0:v", "-fps_mode", "passthrough", "-f", "md5", "-"])
-            .output()
-            .unwrap();
-        String::from_utf8_lossy(&out.stdout).into_owned()
-    };
-    assert_eq!(md5(&done.path), md5(&clip), "the pictures differ");
+    assert_recorded_as_sent(&std::fs::read(&done.path).unwrap(), &tags);
 }
 
 #[tokio::test]
-async fn without_ffmpeg_a_stream_is_refused_plainly() {
-    let _turn = FFMPEG_ENV.lock().await;
+async fn an_encrypted_rtmp_stream_is_refused_plainly() {
     let dir = tempdir();
-    // RTMPE (Flash's encrypted RTMP) is the one dm leaves to an ffmpeg.
+    // RTMPE (Flash's encrypted RTMP) is one dm does not speak.
     let outcome = download(
         &client(),
         "rtmpe://127.0.0.1:1/live/x",
@@ -418,31 +384,26 @@ async fn serve_rtsp(listener: tokio::net::TcpListener, units: Vec<Vec<u8>>) {
 
 #[tokio::test]
 async fn an_rtsp_stream_is_recorded_by_dm_picture_for_picture() {
-    let _turn = FFMPEG_ENV.lock().await;
-    let Some(real) = ffmpeg() else {
-        eprintln!("no ffmpeg installed — skipping");
-        return;
-    };
-    let site = tempdir();
-    let stream = site.path().join("clip.h264");
-    let made = std::process::Command::new(&real)
-        .args(["-y", "-loglevel", "error", "-f", "lavfi", "-i"])
-        .arg("testsrc2=duration=3:size=320x180:rate=25")
-        .args([
-            "-c:v", "libx264", "-bf", "0", "-g", "25", "-pix_fmt", "yuv420p",
-        ])
-        .args(["-x264-params", "aud=1", "-f", "h264"])
-        .arg(&stream)
-        .status();
-    if !made.is_ok_and(|s| s.success()) {
-        eprintln!("this ffmpeg cannot make an H.264 stream — skipping");
-        return;
-    }
-    let data = std::fs::read(&stream).unwrap();
+    // Two seconds of H.264 at 25 pictures a second, each picture led by an
+    // access unit delimiter, no B-frames.
+    let data = clip("clip.h264");
     let units: Vec<Vec<u8>> = nal_units(&data).into_iter().map(<[u8]>::to_vec).collect();
+    let kind = |u: &[u8]| u[0] & 0x1f;
+    let sps = units.iter().find(|u| kind(u) == 7).unwrap().clone();
+    let pps = units.iter().find(|u| kind(u) == 8).unwrap().clone();
+    // The pictures as sent: each one's slices.
+    let mut sent: Vec<Vec<Vec<u8>>> = Vec::new();
+    for unit in &units {
+        if kind(unit) == 9 {
+            sent.push(Vec::new());
+        } else if matches!(kind(unit), 1 | 5) {
+            sent.last_mut().unwrap().push(unit.clone());
+        }
+    }
+    assert_eq!(sent.len(), 50);
     let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
     let port = listener.local_addr().unwrap().port();
-    let server = tokio::spawn(serve_rtsp(listener, units));
+    let server = tokio::spawn(serve_rtsp(listener, units.clone()));
 
     let dir = tempdir();
     let done = download(
@@ -454,23 +415,52 @@ async fn an_rtsp_stream_is_recorded_by_dm_picture_for_picture() {
     let done = done.expect("the RTSP stream");
     let _ = server.await;
     assert_eq!(done.path.file_name().unwrap(), "show.mp4");
-    let hashes = |file: &std::path::Path| -> Vec<String> {
-        let out = std::process::Command::new(&real)
-            .args(["-v", "error", "-i"])
-            .arg(file)
-            .args(["-map", "0:v", "-f", "framemd5", "-"])
-            .output()
-            .unwrap();
-        String::from_utf8_lossy(&out.stdout)
-            .lines()
-            .filter(|l| !l.starts_with('#'))
-            .filter_map(|l| l.rsplit(',').next().map(|h| h.trim().to_string()))
-            .collect()
-    };
-    let sent = hashes(&stream);
-    let got = hashes(&done.path);
-    assert_eq!(sent.len(), 75);
-    assert_eq!(got, sent, "the recorded pictures are not the ones sent");
+    let got = tracks(&std::fs::read(&done.path).unwrap());
+    assert_eq!(got.len(), 1, "one picture track");
+    let picture = &got[0];
+    assert_eq!(&picture.codec, b"avc1");
+    assert_eq!((picture.width, picture.height), (320, 180));
+    // avcC: its length size, then the SPS and PPS the camera described.
+    let avcc = &picture.config;
+    let length_size = usize::from(avcc[4] & 3) + 1;
+    let sps_len = usize::from(u16::from_be_bytes([avcc[6], avcc[7]]));
+    assert_eq!(avcc[8..8 + sps_len], sps[..], "not the camera's SPS");
+    let pps_at = 8 + sps_len + 1;
+    let pps_len = usize::from(u16::from_be_bytes([avcc[pps_at], avcc[pps_at + 1]]));
+    assert_eq!(
+        avcc[pps_at + 2..pps_at + 2 + pps_len],
+        pps[..],
+        "not the camera's PPS"
+    );
+
+    let recorded: Vec<Vec<Vec<u8>>> = picture
+        .samples
+        .iter()
+        .map(|s| {
+            length_prefixed_units(&s.data, length_size)
+                .into_iter()
+                .filter(|u| matches!(kind(u), 1 | 5))
+                .map(<[u8]>::to_vec)
+                .collect()
+        })
+        .collect();
+    assert_eq!(recorded.len(), sent.len(), "pictures lost or added");
+    for (n, (got, sent)) in recorded.iter().zip(&sent).enumerate() {
+        assert!(got == sent, "picture {n} is not the one sent");
+    }
+    for (n, sample) in picture.samples.iter().enumerate() {
+        assert_eq!(
+            sample.sync,
+            kind(&sent[n][0]) == 5,
+            "picture {n}'s key flag"
+        );
+        if n + 1 < picture.samples.len() {
+            // 3600 of RTP's 90 kHz apart: 40 ms.
+            let gap =
+                (picture.samples[n + 1].dts - sample.dts) as f64 / f64::from(picture.timescale);
+            assert!((gap - 0.04).abs() < 0.002, "picture {n} lasts {gap} s");
+        }
+    }
 }
 
 /// An MMS stream asked for over HTTP, as a Windows Media server serves one:
@@ -478,25 +468,15 @@ async fn an_rtsp_stream_is_recorded_by_dm_picture_for_picture() {
 /// each framed, padding trimmed. Saved, it is the file the server streamed.
 #[tokio::test]
 async fn an_mms_stream_is_fetched_over_http_by_dm_byte_for_byte() {
-    let _turn = FFMPEG_ENV.lock().await;
-    let Some(real) = ffmpeg() else {
-        eprintln!("no ffmpeg installed — skipping");
-        return;
-    };
-    let site = tempdir();
-    let clip = site.path().join("clip.wmv");
-    let made = std::process::Command::new(&real)
-        .args(["-y", "-loglevel", "error", "-f", "lavfi", "-i"])
-        .arg("testsrc=duration=3:size=160x120:rate=10")
-        .args(["-f", "lavfi", "-i", "sine=duration=3"])
-        .args(["-c:v", "wmv2", "-c:a", "wmav2", "-f", "asf"])
-        .arg(&clip)
-        .status();
-    if !made.is_ok_and(|s| s.success()) {
-        eprintln!("this ffmpeg cannot make Windows Media — skipping");
-        return;
-    }
-    let file = std::fs::read(&clip).unwrap();
+    let file = clip("clip.wmv");
+    // Windows Media: an ASF header object, then the data object.
+    assert_eq!(
+        file[..16],
+        [
+            0x30, 0x26, 0xb2, 0x75, 0x8e, 0x66, 0xcf, 0x11, 0xa6, 0xd9, 0x00, 0xaa, 0x00, 0x62,
+            0xce, 0x6c
+        ]
+    );
     let header_len = u64::from_le_bytes(file[16..24].try_into().unwrap()) as usize;
     let data_len =
         u64::from_le_bytes(file[header_len + 16..header_len + 24].try_into().unwrap()) as usize;
@@ -568,16 +548,5 @@ async fn an_mms_stream_is_fetched_over_http_by_dm_byte_for_byte() {
     assert!(
         std::fs::read(&done.path).unwrap() == streamed,
         "not the stream the server sent"
-    );
-    let decoded = std::process::Command::new(&real)
-        .args(["-v", "error", "-i"])
-        .arg(&done.path)
-        .args(["-f", "null", "-"])
-        .output()
-        .unwrap();
-    assert!(
-        decoded.status.success() && decoded.stderr.is_empty(),
-        "{}",
-        String::from_utf8_lossy(&decoded.stderr)
     );
 }

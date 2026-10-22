@@ -4,7 +4,7 @@
 # uses. dm is built in the Debian image and copied in. Installed: Chromium
 # from Arch's repositories, what the PKGBUILD depends on, Mesa for GL under
 # Xvfb, and the test's own X server, window manager, xdotool, the
-# accessibility bus and ffmpeg for screenshots.
+# accessibility bus and ImageMagick for screenshots.
 ARG BASE=archlinux:base-devel
 FROM $BASE
 ARG BROWSER=chromium
@@ -15,7 +15,7 @@ RUN set -e; \
     grep -q '^DisableSandbox$' /etc/pacman.conf || sed -i '0,/^\[options\]/s//[options]\nDisableSandbox/' /etc/pacman.conf; \
     sed -i 's/^DownloadUser/#DownloadUser/' /etc/pacman.conf; \
     pacman -Syu --noconfirm --needed \
-      xorg-server-xvfb openbox xdotool python dbus glib2 ffmpeg ttf-dejavu \
+      xorg-server-xvfb openbox xdotool python dbus glib2 imagemagick ttf-dejavu \
       hicolor-icon-theme libx11 libxcursor libxi libxkbcommon-x11 wayland libglvnd mesa \
       chromium at-spi2-core python-atspi; \
     pacman -Scc --noconfirm

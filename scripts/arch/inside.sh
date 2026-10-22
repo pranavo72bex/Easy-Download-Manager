@@ -8,7 +8,7 @@ grep -q '^DisableSandbox$' /etc/pacman.conf || sed -i '0,/^\[options\]/s//[optio
 sed -i 's/^DownloadUser/#DownloadUser/' /etc/pacman.conf
 pacman -Syu --noconfirm >/dev/null
 pacman -S --noconfirm --needed rust pkgconf git gtk3 xdotool libayatana-appindicator \
-  libxkbcommon-x11 libglvnd hicolor-icon-theme ffmpeg >/dev/null
+  libxkbcommon-x11 libglvnd hicolor-icon-theme >/dev/null
 id builder >/dev/null 2>&1 || useradd -m builder
 mkdir -p /home/builder/.cargo && chown -R builder:builder /home/builder
 

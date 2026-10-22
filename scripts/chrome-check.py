@@ -820,21 +820,16 @@ def panel_checks(base, origin, engine_dl, engine_home, worker):
 
 
 def plays(path):
-    """What ffprobe reads of a downloaded video: (seconds, height), or None
-    when it is not a playable video (or there is no ffprobe to ask)."""
-    probe_tool = shutil.which("ffprobe") or next(
-        (p for p in ("/opt/homebrew/bin/ffprobe", "/usr/local/bin/ffprobe", "/usr/bin/ffprobe")
-         if os.path.exists(p)), None)
-    if not probe_tool:
+    """What a downloaded video holds, read from its own structure
+    (`media_check.py`): (seconds, height), or None when it is not a whole
+    video."""
+    sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
+    import media_check
+    info = media_check.inspect(str(path))
+    if info["problems"] or not info["duration"]:
         return None
-    out = subprocess.run([probe_tool, "-v", "error", "-show_entries", "format=duration:stream=codec_type,height",
-                          "-of", "json", str(path)], capture_output=True, text=True)
-    try:
-        info = json.loads(out.stdout)
-        heights = [s.get("height") for s in info.get("streams", []) if s.get("codec_type") == "video"]
-        return round(float(info["format"]["duration"]), 1), (heights[0] if heights else None)
-    except (ValueError, KeyError):
-        return None
+    heights = [t.get("height") for t in info["tracks"] if t.get("kind") == "video"]
+    return round(float(info["duration"]), 1), (heights[0] if heights else None)
 
 
 def queue_rows(home):

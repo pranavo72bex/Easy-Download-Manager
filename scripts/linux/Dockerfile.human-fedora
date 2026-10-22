@@ -5,7 +5,7 @@
 # What is installed is what a Fedora user has or would add: the browser from
 # Fedora's own repositories, the libraries the .rpm names
 # (desktop/packaging/nfpm.yaml), Mesa for GL under Xvfb, and the test's own
-# X server, window manager, xdotool and screenshots (ffmpeg-free).
+# X server, window manager, xdotool and screenshots (ImageMagick).
 FROM fedora:41
 ARG BROWSER=chromium
 RUN set -e; \
@@ -15,7 +15,7 @@ RUN set -e; \
       *) echo "BROWSER is chromium or firefox"; exit 1 ;; \
     esac; \
     dnf install -y --setopt=install_weak_deps=False \
-      xorg-x11-server-Xvfb openbox xdotool dbus-daemon python3 procps-ng glib2 ffmpeg-free \
+      xorg-x11-server-Xvfb openbox xdotool dbus-daemon python3 procps-ng glib2 ImageMagick \
       dejavu-sans-fonts libX11 libXcursor libX11-xcb libXi libxkbcommon libxkbcommon-x11 \
       libwayland-client libwayland-egl mesa-libEGL mesa-libGL mesa-dri-drivers \
       hicolor-icon-theme $extra; \

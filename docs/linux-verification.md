@@ -122,11 +122,11 @@ Still not physical input: these runs drive the browsers through automation
 
 Rebuilt the extension with `sh scripts/package.sh` and tested the updated client and panel flows:
 
-- **Live YouTube panel in Linux Chromium: PASS, 35/35.** Play was pressed, the panel appeared and remained visible, three qualities were listed, the selected MP4 landed in dm, and `ffprobe` confirmed it plays for 19.1 seconds at 240p.
+- **Live YouTube panel in Linux Chromium: PASS, 35/35.** Play was pressed, the panel appeared and remained visible, three qualities were listed, the selected MP4 landed in dm, and a standard decoder confirmed it plays for 19.1 seconds at 240p.
 - **Live Wikimedia panel in Linux Chromium: PASS, 32/32.** The extension found the actual embedded player, listed five qualities, selected the smallest, and dm saved a playable 634.6-second 240p WebM.
 - **Live Wikimedia panel in Firefox 158: PASS.** The real Firefox page showed the panel and five qualities; the selected video landed in dm. Navigation capture, link-menu handler, local panel, and HLS stream detection also passed.
 - **W3Schools panel behavior: panel appears and handoff is sent, but download FAILS.** Chromium's live-panel check reported 29/31: dm's row failed with HTTP 403 for `mov_bbb.mp4`, so no file was available to play. Firefox's live-page check likewise showed the panel and sent the MP4 URL, but no video landed. The direct-client `SITES=w3schools` check also failed with HTTP 403. The earlier agent fallback did not overcome the current live server denial; do not consider this site-specific finding resolved on this network.
-- **Direct client live sites: PASS, 6/6.** YouTube, Internet Archive, GitHub, Wikimedia image, HLS, and BitTorrent all produced the expected result; playable streams were checked with `ffprobe`, and direct files were compared with curl. All 213 MB of test output was removed.
+- **Direct client live sites: PASS, 6/6.** YouTube, Internet Archive, GitHub, Wikimedia image, HLS, and BitTorrent all produced the expected result; playable streams were checked with a standard decoder, and direct files were compared with curl. All 213 MB of test output was removed.
 - **YouTube 429 user-facing wording: unit test PASS.** `cd desktop && cargo test -p dm-core a_sites_refusal_is_said_in_words_a_person_can_act_on` passed (1 test). This tests the refusal translation; the successful live YouTube panel run did not encounter a 429.
 
 The previous 429 observation was a transient Google rate-limit response and did not reproduce in the latest live panel run. A current 403 from W3Schools does reproduce through both browsers and the direct client. This report therefore has one remaining live-site limitation rather than all findings being resolved.
@@ -143,7 +143,7 @@ These runs use automated browser input, not physical mouse/keyboard input. Firef
 - `DM_BINARY=/usr/bin/dm python3 scripts/app-check.py`: all reported functional checks passed, including direct download, browser hand-off, HLS, yt-dlp, proxy refusal, speed limit, schedule, CLI, control protocol and MCP. The normal/hidden window-count checks were explicitly not checked in this Wayland session.
 - `cd desktop && cargo test -p dm-desktop --test window`: **48 passed, 0 failed**. `cd browser && cargo test --locked`: **32 passed, 0 failed**. Chromium integration: **51/51 passed**.
 - Live Chromium panel workflows passed on YouTube (**35/35**, selected MP4 played for 19.1 seconds), W3Schools (**30/31**, with the live video handed to dm and played for 10 seconds; one unrelated fixture assertion about restoring the catch toggle failed), and Wikimedia Commons (**32/32**, selected WebM played for 634.6 seconds). A subsequent Chromium fixture run passed its full **51/51** suite, including the toggle assertion.
-- `SITES=archive,github,ftp,ovh,w3schools,wikimedia,hls,torrent python3 scripts/real-sites.py`: **7/8** initially; Wikimedia's server stopped serving ranges. `SITES=wikimedia python3 scripts/real-sites.py` then passed alone. Internet Archive, GitHub, GNU FTP, OVH and W3Schools direct files matched curl byte-for-byte; HLS and BitTorrent media passed `ffprobe`. Temporary data was removed.
+- `SITES=archive,github,ftp,ovh,w3schools,wikimedia,hls,torrent python3 scripts/real-sites.py`: **7/8** initially; Wikimedia's server stopped serving ranges. `SITES=wikimedia python3 scripts/real-sites.py` then passed alone. Internet Archive, GitHub, GNU FTP, OVH and W3Schools direct files matched curl byte-for-byte; HLS and BitTorrent media was checked whole with a standard decoder. Temporary data was removed.
 - `FIREFOX="$HOME/.local/opt/firefox/firefox" DM_BINARY=/usr/bin/dm python3 scripts/firefox-check.py native`: Firefox installed the temporary extension without warnings; Wasm handlers loaded; download and menu hand-offs reached dm; HLS stream detection/handoff passed. Live Firefox panel hover was not checked because this run did not use real input.
 
 ### Remaining Linux release risks
@@ -156,7 +156,7 @@ These runs use automated browser input, not physical mouse/keyboard input. Firef
 
 ### Site-specific status
 
-The former W3Schools 403 issue is **not reproduced on this network**: the latest direct download matched curl, and the live Chromium player's MP4 completed in dm and passed `ffprobe`. This does not guarantee the site will serve every network; a server-side 403 remains outside dm's control. The Wikimedia range failure occurred once in the batch and passed on isolated retry, so it is recorded as intermittent rather than a reproducible dm defect.
+The former W3Schools 403 issue is **not reproduced on this network**: the latest direct download matched curl, and the live Chromium player's MP4 completed in dm and was checked whole with a standard decoder. This does not guarantee the site will serve every network; a server-side 403 remains outside dm's control. The Wikimedia range failure occurred once in the batch and passed on isolated retry, so it is recorded as intermittent rather than a reproducible dm defect.
 
 ### Tray follow-up (2026-10-15)
 

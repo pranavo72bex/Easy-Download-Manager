@@ -4,8 +4,8 @@
 # a container: Firefox is Mozilla's tarball, which firefox-check.py fetches
 # into the dm-firefox-cache volume, with the libraries Mozilla says it
 # needs. dm is built in the Debian image and copied in; its libraries are
-# the .deb's. Plus the test's X server, window manager, xdotool and ffmpeg
-# for screenshots.
+# the .deb's. Plus the test's X server, window manager, xdotool and
+# ImageMagick for screenshots.
 FROM ubuntu:22.04
 ARG BROWSER=firefox
 ENV DEBIAN_FRONTEND=noninteractive
@@ -14,7 +14,7 @@ RUN set -e; \
     apt-get update; \
     apt-get install -y --no-install-recommends \
       xvfb xauth openbox xdotool dbus python3 procps curl ca-certificates xz-utils bzip2 \
-      ffmpeg fonts-dejavu-core \
+      imagemagick fonts-dejavu-core \
       libgtk-3-0 libasound2 libdbus-glib-1-2 libx11-xcb1 libpci3 \
       libxkbcommon-x11-0 libegl1 libgl1 libgl1-mesa-dri \
       libx11-6 libxcursor1 libxi6 libxkbcommon0 libwayland-client0 libwayland-egl1; \

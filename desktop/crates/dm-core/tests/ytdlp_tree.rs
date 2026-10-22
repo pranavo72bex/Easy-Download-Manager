@@ -17,7 +17,7 @@ use common::{options, tempdir};
 static ONE_AT_A_TIME: tokio::sync::Mutex<()> = tokio::sync::Mutex::const_new(());
 
 /// Reports picture then sound, each counting from zero as yt-dlp does, then
-/// starts a long child — the ffmpeg of a merge — and waits on it.
+/// starts a long-running child, such as a merge, and waits on it.
 fn stand_in(dir: &Path) -> PathBuf {
     let script = dir.join("yt-dlp");
     std::fs::write(

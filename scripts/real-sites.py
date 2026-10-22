@@ -7,16 +7,20 @@ Starts the real binary headless on a throwaway home, download folder and
 cache (yt-dlp's included), hands it one link per site through the control
 protocol, waits for each row to settle, checks what landed, then stops dm
 and deletes all of it. A file served directly is compared byte for byte
-with curl's copy, a video is opened with ffprobe, and a site that needs a
+with curl's copy, a video's structure is read by media_check.py (its
+tracks, length, and that nothing is cut short), and a site that needs a
 sign-in or blocks anonymous visitors must be refused with a reason rather
 than saved as a "completed" page.
 
 Not in CI: it fetches about 220 MB from real sites, which change. Run by
-hand before a release (needs yt-dlp, ffmpeg and curl). First run, 2026-10-13,
+hand before a release (needs yt-dlp and curl). First run, 2026-10-13,
 found Wikimedia refusing dm's user agent and then serving several ranges at
 once as the whole file; both are fixed and pinned by tests.
 """
 import hashlib, json, os, pathlib, shutil, socket, subprocess, sys, tempfile, time
+
+sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
+import media_check  # noqa: E402
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 # dm's agent, as dm-core says it (USER_AGENT), for curl's second opinion.
@@ -157,21 +161,13 @@ def verify(expect, how, url, kind, path, downloads, root):
     if how == "mp4" and target.suffix != ".mp4":
         return f"{target.name} is not an MP4"
     if how in ("video", "mp4"):
-        ffprobe = shutil.which("ffprobe") or next(
-            (p for p in ("/opt/homebrew/bin/ffprobe", "/usr/local/bin/ffprobe", "/usr/bin/ffprobe")
-             if os.path.exists(p)), None)
-        if not ffprobe:
-            return f"ok: {target.name}, {size / 1e6:.1f} MB (not played: no ffprobe here)"
-        probe = subprocess.run([ffprobe, "-v", "error", "-show_entries", "format=duration:stream=codec_type,codec_name,height",
-                                "-of", "json", str(target)], capture_output=True, text=True)
-        try:
-            info = json.loads(probe.stdout)
-            seconds = float(info["format"]["duration"])
-            heights = [s.get("height") for s in info["streams"] if s.get("codec_type") == "video"]
-            codecs = "+".join(s.get("codec_name", "?") for s in info["streams"])
-            return f"ok: {target.name}, {size / 1e6:.1f} MB, plays {seconds:.0f}s, {heights[0] if heights else '?'}p, {codecs}"
-        except Exception:
-            return f"{target.name} is not a playable video ({kind_of})"
+        info = media_check.inspect(target)
+        if info["problems"]:
+            return f"{target.name} is not a whole video ({'; '.join(info['problems'])}; {kind_of})"
+        heights = [t["height"] for t in info["tracks"] if t["kind"] == "video"]
+        codecs = "+".join(t["codec"] or "?" for t in info["tracks"])
+        seconds = info["duration"] or 0
+        return f"ok: {target.name}, {size / 1e6:.1f} MB, whole, {seconds:.0f}s, {heights[0] if heights else '?'}p, {codecs}"
     if how == "image":
         return (f"ok: {path.name}, {size / 1e6:.1f} MB, {kind_of}" if "image" in kind_of
                 else f"{path.name} is not an image: {kind_of}")

@@ -83,13 +83,11 @@ jobs:
         with:
           tool: cargo-nextest
 
-      # The stream tests put a real .ts stream into an MP4, and fail rather
-      # than skip in CI when there is no ffmpeg to do it with. The Chinese,
-      # Japanese and Korean catalogs are drawn in the computer's CJK font,
-      # which a desktop has and this runner does not.
-      - name: Install ffmpeg and a CJK font
+      # The Chinese, Japanese and Korean catalogs are drawn in the computer's
+      # CJK font, which a desktop has and this runner does not.
+      - name: Install a CJK font
         if: runner.os == 'Linux'
-        run: sudo apt-get update && sudo apt-get install -y --no-install-recommends ffmpeg fonts-noto-cjk
+        run: sudo apt-get update && sudo apt-get install -y --no-install-recommends fonts-noto-cjk
 
       - name: Test the engine, the shell and the window
         run: cargo nextest run --workspace --locked --profile ci

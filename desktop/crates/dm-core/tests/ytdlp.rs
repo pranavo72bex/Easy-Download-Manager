@@ -72,10 +72,10 @@ async fn a_page_is_handed_to_ytdlp_and_the_file_is_placed() {
 }
 
 /// A DASH manifest whose picture and sound are separate, as a video site
-/// serves its better qualities, fetched by the real yt-dlp with no ffmpeg
-/// anywhere: dm joins the two halves itself into one MP4.
+/// serves its better qualities, fetched by the real yt-dlp, which is given
+/// no joiner: dm joins the two halves itself into one MP4.
 #[tokio::test(flavor = "multi_thread")]
-async fn a_picture_and_sound_served_apart_arrive_as_one_mp4_with_no_ffmpeg() {
+async fn a_picture_and_sound_served_apart_arrive_as_one_mp4() {
     if !ytdlp::available() {
         eprintln!("no yt-dlp installed — skipping the yt-dlp end-to-end test");
         return;
@@ -136,51 +136,17 @@ async fn a_picture_and_sound_served_apart_arrive_as_one_mp4_with_no_ffmpeg() {
     assert_eq!(left.len(), 1, "{left:?}");
 }
 
-/// An HLS stream fetched by the real yt-dlp with no ffmpeg: yt-dlp saves the
-/// transport stream under an `.mp4` name, and dm makes it the MP4 it says
-/// it is. (An ffmpeg makes the stream; dm is told there is none.)
-#[cfg(unix)]
+/// An HLS stream fetched by the real yt-dlp, which is given no joiner:
+/// yt-dlp saves the transport stream under an `.mp4` name, and dm makes it
+/// the MP4 it says it is. The stream is the one kept beside the tests.
 #[tokio::test(flavor = "multi_thread")]
 async fn an_hls_stream_yt_dlp_saved_as_ts_is_made_a_real_mp4() {
     if !ytdlp::available() {
         eprintln!("no yt-dlp installed — skipping the yt-dlp end-to-end test");
         return;
     }
-    let made = tempdir();
-    let ok = std::process::Command::new("ffmpeg")
-        .args([
-            "-v",
-            "error",
-            "-y",
-            "-f",
-            "lavfi",
-            "-i",
-            "testsrc=duration=3:size=128x72:rate=10",
-            "-f",
-            "lavfi",
-            "-i",
-            "sine=duration=3",
-            "-c:v",
-            "libx264",
-            "-pix_fmt",
-            "yuv420p",
-            "-c:a",
-            "aac",
-            "-f",
-            "hls",
-            "-hls_time",
-            "1",
-            "-hls_list_size",
-            "0",
-        ])
-        .arg(made.path().join("show.m3u8"))
-        .status()
-        .is_ok_and(|s| s.success());
-    if !ok {
-        eprintln!("no ffmpeg here to make a stream with; skipped");
-        return;
-    }
-    let folder = made.path().to_path_buf();
+    let folder =
+        std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/media/hls/h264");
     let app = Router::new().fallback(move |uri: axum::http::Uri| {
         let folder = folder.clone();
         async move {
@@ -211,4 +177,7 @@ async fn an_hls_stream_yt_dlp_saved_as_ts_is_made_a_real_mp4() {
     let saved = std::fs::read(&finished.path).unwrap();
     assert_eq!(saved.get(4..8), Some(&b"ftyp"[..]), "{:?}", finished.path);
     assert_eq!(finished.bytes, saved.len() as u64);
+    let has = |kind: &[u8]| saved.windows(4).filter(|w| *w == kind).count();
+    assert_eq!(has(b"trak"), 2, "picture and sound are both in it");
+    assert!(has(b"avc1") >= 1 && has(b"mp4a") >= 1);
 }

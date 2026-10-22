@@ -51,7 +51,7 @@ status=0
         rm -rf /shots/*
         apt-get update >/dev/null
         apt-get install -y --no-install-recommends chromium openbox xdotool dbus-x11 \
-          at-spi2-core python3-pyatspi libglib2.0-bin ffmpeg >/dev/null 2>&1
+          at-spi2-core python3-pyatspi libglib2.0-bin imagemagick >/dev/null 2>&1
         cd desktop && cargo build -q -p dm-desktop && cd ..
         export DISPLAY=:79 DM_BINARY=/target/debug/dm-desktop DM_SHOTS=/shots
         Xvfb :79 -screen 0 2400x1200x24 >/dev/null 2>&1 &

@@ -347,8 +347,19 @@ async fn a_stream_resumes_from_the_segments_it_already_has() {
     );
 }
 
-/// A real transport stream, made by the ffmpeg on this machine, served from
-/// a folder: what a site's HLS looks like, down to the bytes.
+/// A real HLS stream kept beside the tests, one folder per stream: three
+/// seconds of a 128x72 test pattern at ten pictures a second with a 440 Hz
+/// tone, cut into one-second transport stream segments, made once and kept
+/// here so no tool is needed to run the tests. `h264` is H.264 (a keyframe
+/// each second) and AAC, which dm puts into an MP4 itself; `mpeg2` is MPEG-2
+/// pictures, which it does not.
+fn stream(name: &str) -> std::path::PathBuf {
+    std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("tests/fixtures/media/hls")
+        .join(name)
+}
+
+/// A folder served as a site serves its HLS, down to the bytes.
 async fn serve_folder(dir: std::path::PathBuf) -> SocketAddr {
     async fn handler(State(dir): State<Arc<std::path::PathBuf>>, uri: Uri) -> Response {
         let name = uri.path().trim_start_matches('/').to_string();
@@ -378,92 +389,282 @@ async fn serve_folder(dir: std::path::PathBuf) -> SocketAddr {
     .await
 }
 
-/// The ffmpeg dm would find, if any: the same homes the engine searches.
-fn ffmpeg() -> Option<std::path::PathBuf> {
-    if let Some(named) = std::env::var_os("DM_FFMPEG") {
-        return (!named.is_empty()).then(|| named.into());
+/// The segments a folder's `show.m3u8` names, joined in its order.
+fn served(site: &std::path::Path) -> Vec<u8> {
+    let playlist = std::fs::read_to_string(site.join("show.m3u8")).unwrap();
+    playlist
+        .lines()
+        .filter(|l| !l.starts_with('#') && !l.trim().is_empty())
+        .flat_map(|name| std::fs::read(site.join(name.trim())).unwrap())
+        .collect()
+}
+
+/// `DM_YTDLP` is process-wide: the tests that set it, or could be routed by
+/// it, take turns.
+static ENV: tokio::sync::Mutex<()> = tokio::sync::Mutex::const_new(());
+
+/// An MP4 read box by box, apart from dm's own reader: the tracks a player
+/// finds, and where each sample's bytes are.
+mod mp4 {
+    pub struct Track {
+        pub codec: [u8; 4],
+        pub timescale: u32,
+        /// Each sample's length, offset in the file and duration.
+        pub sizes: Vec<u32>,
+        pub offsets: Vec<u64>,
+        pub durations: Vec<u32>,
+        /// The first sample's composition offset, from `ctts`.
+        pub first_offset: i64,
+        /// The edit list: (duration in the movie's timescale, media time).
+        pub edits: Vec<(u64, i64)>,
     }
-    let found = [
-        "/opt/homebrew/bin/ffmpeg",
-        "/usr/local/bin/ffmpeg",
-        "/usr/bin/ffmpeg",
-    ]
-    .iter()
-    .map(std::path::PathBuf::from)
-    .find(|p| p.is_file());
-    // CI installs it on Linux: there, a missing ffmpeg is a broken job, not
-    // a reason for the remux tests to pass without running.
-    assert!(
-        found.is_some() || !(cfg!(target_os = "linux") && std::env::var_os("CI").is_some()),
-        "no ffmpeg in Linux CI: the remux tests would pass without running"
+
+    pub struct Movie {
+        pub timescale: u32,
+        pub tracks: Vec<Track>,
+    }
+
+    fn u32_at(b: &[u8], at: usize) -> u32 {
+        u32::from_be_bytes(b[at..at + 4].try_into().unwrap())
+    }
+
+    fn u64_at(b: &[u8], at: usize) -> u64 {
+        u64::from_be_bytes(b[at..at + 8].try_into().unwrap())
+    }
+
+    /// The boxes directly inside `b`, as (kind, body).
+    fn boxes(b: &[u8]) -> Vec<([u8; 4], &[u8])> {
+        let mut out = Vec::new();
+        let mut at = 0;
+        while at + 8 <= b.len() {
+            let mut size = u32_at(b, at) as usize;
+            let kind: [u8; 4] = b[at + 4..at + 8].try_into().unwrap();
+            let mut head = 8;
+            if size == 1 {
+                size = u64_at(b, at + 8) as usize;
+                head = 16;
+            } else if size == 0 {
+                size = b.len() - at;
+            }
+            assert!(size >= head && at + size <= b.len(), "a box overruns");
+            out.push((kind, &b[at + head..at + size]));
+            at += size;
+        }
+        assert_eq!(at, b.len(), "bytes after the last box");
+        out
+    }
+
+    fn one<'a>(b: &'a [u8], kind: &[u8; 4]) -> &'a [u8] {
+        let found: Vec<_> = boxes(b).into_iter().filter(|(k, _)| k == kind).collect();
+        assert_eq!(found.len(), 1, "{} {kind:?} boxes", found.len());
+        found[0].1
+    }
+
+    fn maybe<'a>(b: &'a [u8], kind: &[u8; 4]) -> Option<&'a [u8]> {
+        boxes(b)
+            .into_iter()
+            .find(|(k, _)| k == kind)
+            .map(|(_, v)| v)
+    }
+
+    /// The count after a full box's version and flags, then the entries.
+    fn entries(b: &[u8], width: usize) -> impl Iterator<Item = &[u8]> {
+        let count = u32_at(b, 4) as usize;
+        assert!(8 + count * width <= b.len(), "a table overruns its box");
+        (0..count).map(move |i| &b[8 + i * width..8 + (i + 1) * width])
+    }
+
+    pub fn read(file: &[u8]) -> Movie {
+        let moov = one(file, b"moov");
+        let mvhd = one(moov, b"mvhd");
+        let timescale = if mvhd[0] == 1 {
+            u32_at(mvhd, 20)
+        } else {
+            u32_at(mvhd, 12)
+        };
+        let tracks = boxes(moov)
+            .into_iter()
+            .filter(|(k, _)| k == b"trak")
+            .map(|(_, trak)| track(trak))
+            .collect();
+        Movie { timescale, tracks }
+    }
+
+    fn track(trak: &[u8]) -> Track {
+        let edits = maybe(trak, b"edts")
+            .map(|edts| {
+                let elst = one(edts, b"elst");
+                let wide = elst[0] == 1;
+                entries(elst, if wide { 20 } else { 12 })
+                    .map(|e| {
+                        if wide {
+                            (u64_at(e, 0), u64_at(e, 8) as i64)
+                        } else {
+                            (u64::from(u32_at(e, 0)), i64::from(u32_at(e, 4) as i32))
+                        }
+                    })
+                    .collect()
+            })
+            .unwrap_or_default();
+        let mdia = one(trak, b"mdia");
+        let mdhd = one(mdia, b"mdhd");
+        let timescale = if mdhd[0] == 1 {
+            u32_at(mdhd, 20)
+        } else {
+            u32_at(mdhd, 12)
+        };
+        let stbl = one(one(mdia, b"minf"), b"stbl");
+        let stsd = one(stbl, b"stsd");
+        assert_eq!(u32_at(stsd, 4), 1, "one sample description");
+        let codec: [u8; 4] = stsd[12..16].try_into().unwrap();
+
+        let stsz = one(stbl, b"stsz");
+        let fixed = u32_at(stsz, 4);
+        let count = u32_at(stsz, 8) as usize;
+        let sizes: Vec<u32> = if fixed != 0 {
+            vec![fixed; count]
+        } else {
+            (0..count).map(|i| u32_at(stsz, 12 + i * 4)).collect()
+        };
+
+        let chunks: Vec<u64> = match maybe(stbl, b"co64") {
+            Some(co64) => entries(co64, 8).map(|e| u64_at(e, 0)).collect(),
+            None => entries(one(stbl, b"stco"), 4)
+                .map(|e| u64::from(u32_at(e, 0)))
+                .collect(),
+        };
+        // Samples per chunk, as runs from a first chunk (counted from one).
+        let runs: Vec<(usize, usize)> = entries(one(stbl, b"stsc"), 12)
+            .map(|e| (u32_at(e, 0) as usize, u32_at(e, 4) as usize))
+            .collect();
+        let mut offsets = Vec::with_capacity(count);
+        for (n, &chunk) in chunks.iter().enumerate() {
+            let per = runs
+                .iter()
+                .rev()
+                .find(|(first, _)| *first <= n + 1)
+                .map(|(_, per)| *per)
+                .unwrap();
+            let mut at = chunk;
+            for _ in 0..per {
+                let size = sizes[offsets.len()];
+                offsets.push(at);
+                at += u64::from(size);
+            }
+        }
+        assert_eq!(offsets.len(), count, "the chunks do not hold every sample");
+
+        let durations: Vec<u32> = entries(one(stbl, b"stts"), 8)
+            .flat_map(|e| std::iter::repeat_n(u32_at(e, 4), u32_at(e, 0) as usize))
+            .collect();
+        assert_eq!(durations.len(), count, "stts does not time every sample");
+        let first_offset = maybe(stbl, b"ctts")
+            .map(|ctts| {
+                let e = entries(ctts, 8).next().unwrap();
+                i64::from(u32_at(e, 4) as i32)
+            })
+            .unwrap_or(0);
+
+        Track {
+            codec,
+            timescale,
+            sizes,
+            offsets,
+            durations,
+            first_offset,
+            edits,
+        }
+    }
+
+    impl Track {
+        /// Every sample's bytes, in order.
+        pub fn samples(&self, file: &[u8]) -> Vec<u8> {
+            self.offsets
+                .iter()
+                .zip(&self.sizes)
+                .flat_map(|(&at, &size)| file[at as usize..at as usize + size as usize].to_vec())
+                .collect()
+        }
+
+        /// How long its samples last, in seconds.
+        pub fn seconds(&self) -> f64 {
+            self.durations.iter().map(|&d| f64::from(d)).sum::<f64>() / f64::from(self.timescale)
+        }
+
+        /// When its first picture or sound is shown, in seconds from the
+        /// movie's start: after any empty edit, from the media time the
+        /// edit starts at.
+        pub fn starts(&self, movie_timescale: u32) -> f64 {
+            let mut lead = 0.0;
+            for &(duration, media_time) in &self.edits {
+                if media_time == -1 {
+                    lead += duration as f64 / f64::from(movie_timescale);
+                } else {
+                    return lead
+                        + (self.first_offset - media_time) as f64 / f64::from(self.timescale);
+                }
+            }
+            lead + self.first_offset as f64 / f64::from(self.timescale)
+        }
+    }
+}
+
+fn sha256(bytes: &[u8]) -> String {
+    use sha2::Digest;
+    hex::encode(sha2::Sha256::digest(bytes))
+}
+
+/// The MP4 dm makes of the `h264` stream, judged as a player would find it:
+/// a picture track and a sound track, every picture and sound frame of the
+/// stream in it, three seconds of each starting together, and the frames'
+/// bytes exactly those of an MP4 a decoder played through to the end.
+fn assert_the_h264_stream_as_mp4(path: &std::path::Path) {
+    let file = std::fs::read(path).unwrap();
+    assert_eq!(file.get(4..8), Some(&b"ftyp"[..]), "not an MP4");
+    let movie = mp4::read(&file);
+    assert_eq!(movie.tracks.len(), 2, "a picture and a sound track");
+    let picture = movie.tracks.iter().find(|t| &t.codec == b"avc1");
+    let sound = movie.tracks.iter().find(|t| &t.codec == b"mp4a");
+    let (Some(picture), Some(sound)) = (picture, sound) else {
+        panic!("not H.264 and AAC");
+    };
+    // Ten pictures a second for three seconds; AAC frames of 1024 samples
+    // at 44.1 kHz, the encoder's first one included.
+    assert_eq!(picture.sizes.len(), 30, "pictures");
+    assert_eq!(sound.sizes.len(), GOLDEN_SOUND_FRAMES, "sound frames");
+    for (what, track) in [("picture", picture), ("sound", sound)] {
+        let seconds = track.seconds();
+        assert!(
+            (seconds - 3.0).abs() < 0.1,
+            "the {what} lasts {seconds} s, not three"
+        );
+    }
+    let (p, s) = (
+        picture.starts(movie.timescale),
+        sound.starts(movie.timescale),
     );
-    found
+    // Together as the stream had them: its first picture is shown 23 ms
+    // after its first sound.
+    assert!(
+        (p - s - 0.023).abs() < 0.002,
+        "the picture starts at {p} s and the sound at {s} s"
+    );
+    assert_eq!(sha256(&picture.samples(&file)), GOLDEN_PICTURE, "pictures");
+    assert_eq!(sha256(&sound.samples(&file)), GOLDEN_SOUND, "sound");
 }
 
-/// The remux tests set `DM_FFMPEG`, which is process-wide: they take turns.
-static FFMPEG_ENV: tokio::sync::Mutex<()> = tokio::sync::Mutex::const_new(());
+/// Read off dm's MP4 of the `h264` stream once a separate decoder had
+/// played it through without a word; that decoder's own copy of each
+/// track's frames hashed the same.
+const GOLDEN_SOUND_FRAMES: usize = 131;
+const GOLDEN_PICTURE: &str = "822e4024f0dc32da59eee0eec30f3244861cd78afc1f50ebff5664303cd847c8";
+const GOLDEN_SOUND: &str = "e097c5875f8540a974afc0d30c0e14270269722717bca6a06d279cbfb0354087";
 
-/// A real HLS stream of `seconds`, made by ffmpeg into `site`: pictures by
-/// `picture` (an ffmpeg encoder: `libx264`, which dm puts into an MP4
-/// itself, or `mpeg2video`, which it leaves to an ffmpeg) and AAC sound.
-/// False where this ffmpeg cannot make one.
-#[cfg(unix)]
-fn make_stream(
-    ffmpeg: &std::path::Path,
-    site: &std::path::Path,
-    seconds: u32,
-    picture: &str,
-) -> bool {
-    std::process::Command::new(ffmpeg)
-        .args([
-            "-y",
-            "-nostdin",
-            "-loglevel",
-            "error",
-            "-f",
-            "lavfi",
-            "-i",
-            &format!("testsrc=duration={seconds}:size=128x72:rate=10"),
-            "-f",
-            "lavfi",
-            "-i",
-            &format!("sine=frequency=440:duration={seconds}"),
-            "-c:v",
-            picture,
-            "-preset",
-            "ultrafast",
-            "-pix_fmt",
-            "yuv420p",
-            "-c:a",
-            "aac",
-            "-f",
-            "hls",
-            "-hls_time",
-            "1",
-            "-hls_list_size",
-            "0",
-            "-hls_segment_filename",
-        ])
-        .arg(site.join("seg%d.ts"))
-        .arg(site.join("show.m3u8"))
-        .status()
-        .is_ok_and(|s| s.success())
-}
-
-// Its sample stream is made by a helper that is Unix-only.
-#[cfg(unix)]
 #[tokio::test]
 async fn a_remux_that_fails_keeps_the_stream_whole_as_ts() {
-    let _turn = FFMPEG_ENV.lock().await;
-    let Some(real) = ffmpeg() else {
-        eprintln!("no ffmpeg installed — skipping");
-        return;
-    };
-    let site = tempdir();
-    if !make_stream(&real, site.path(), 3, "mpeg2video") {
-        return;
-    }
-    let addr = serve_folder(site.path().to_path_buf()).await;
+    let _turn = ENV.lock().await;
+    let site = stream("mpeg2");
+    let addr = serve_folder(site.clone()).await;
     // MPEG-2 pictures, which dm does not put into an MP4: the segments,
     // already gathered into one stream, are saved as that stream.
     let dir = tempdir();
@@ -478,15 +679,9 @@ async fn a_remux_that_fails_keeps_the_stream_whole_as_ts() {
         done.path.file_name().and_then(|n| n.to_str()),
         Some("show.ts")
     );
-    let playlist = std::fs::read_to_string(site.path().join("show.m3u8")).unwrap();
-    let served: Vec<u8> = playlist
-        .lines()
-        .filter(|l| !l.starts_with('#') && !l.trim().is_empty())
-        .flat_map(|name| std::fs::read(site.path().join(name.trim())).unwrap())
-        .collect();
     assert_eq!(
         std::fs::read(&done.path).unwrap(),
-        served,
+        served(&site),
         "not the stream, whole and in order"
     );
     let left = std::fs::read_dir(dir.path().join("parts"))
@@ -496,52 +691,10 @@ async fn a_remux_that_fails_keeps_the_stream_whole_as_ts() {
 }
 
 #[tokio::test]
-async fn a_transport_stream_is_saved_as_an_mp4_where_ffmpeg_can_and_as_ts_where_not_asked() {
-    let _turn = FFMPEG_ENV.lock().await;
-    let Some(ffmpeg) = ffmpeg() else {
-        eprintln!("no ffmpeg installed — skipping the remux test");
-        return;
-    };
-    let site = tempdir();
-    // Three seconds of a test pattern with a tone, as one-second segments.
-    let made = std::process::Command::new(&ffmpeg)
-        .args([
-            "-y",
-            "-nostdin",
-            "-loglevel",
-            "error",
-            "-f",
-            "lavfi",
-            "-i",
-            "testsrc=duration=3:size=128x72:rate=10",
-            "-f",
-            "lavfi",
-            "-i",
-            "sine=frequency=440:duration=3",
-            "-c:v",
-            "libx264",
-            "-preset",
-            "ultrafast",
-            "-pix_fmt",
-            "yuv420p",
-            "-c:a",
-            "aac",
-            "-f",
-            "hls",
-            "-hls_time",
-            "1",
-            "-hls_list_size",
-            "0",
-            "-hls_segment_filename",
-        ])
-        .arg(site.path().join("seg%d.ts"))
-        .arg(site.path().join("show.m3u8"))
-        .status();
-    if !made.is_ok_and(|s| s.success()) {
-        eprintln!("this ffmpeg could not make an HLS stream — skipping the remux test");
-        return;
-    }
-    let addr = serve_folder(site.path().to_path_buf()).await;
+async fn a_transport_stream_is_saved_as_an_mp4_when_asked_and_as_ts_when_not() {
+    let _turn = ENV.lock().await;
+    let site = stream("h264");
+    let addr = serve_folder(site.clone()).await;
     let url = format!("http://{addr}/show.m3u8");
 
     let dir = tempdir();
@@ -554,27 +707,10 @@ async fn a_transport_stream_is_saved_as_an_mp4_where_ffmpeg_can_and_as_ts_where_
         .await
         .expect("the stream");
     assert_eq!(
-        done.path.extension().and_then(|e| e.to_str()),
-        Some("mp4"),
-        "{:?}",
-        done.path
-    );
-    assert_eq!(
         done.path.file_name().and_then(|n| n.to_str()),
         Some("show.mp4")
     );
-    // Whole and playable: ffmpeg decodes it to the end without a word.
-    let decoded = std::process::Command::new(&ffmpeg)
-        .args(["-nostdin", "-v", "error", "-i"])
-        .arg(&done.path)
-        .args(["-f", "null", "-"])
-        .output()
-        .unwrap();
-    assert!(
-        decoded.status.success(),
-        "{}",
-        String::from_utf8_lossy(&decoded.stderr)
-    );
+    assert_the_h264_stream_as_mp4(&done.path);
     let parts_left = std::fs::read_dir(dir.path().join("parts"))
         .map(|d| d.count())
         .unwrap_or(0);
@@ -588,77 +724,62 @@ async fn a_transport_stream_is_saved_as_an_mp4_where_ffmpeg_can_and_as_ts_where_
         kept.path.file_name().and_then(|n| n.to_str()),
         Some("show.ts")
     );
-    // The segments the playlist names, in its order: how many ffmpeg cut
-    // is its business (a keyframe every second is a wish, not a promise).
-    let playlist = std::fs::read_to_string(site.path().join("show.m3u8")).unwrap();
-    let served: Vec<u8> = playlist
-        .lines()
-        .filter(|l| !l.starts_with('#') && !l.trim().is_empty())
-        .flat_map(|name| std::fs::read(site.path().join(name.trim())).unwrap())
-        .collect();
+    // The segments the playlist names, in its order.
     assert_eq!(
         std::fs::read(&kept.path).unwrap(),
-        served,
+        served(&site),
         "not the segments, in order"
     );
 }
 
-/// H.264 and AAC, as nearly every HLS stream is, put into an MP4 by dm.
-/// (An ffmpeg is needed here only to make the stream and judge the result.)
-#[cfg(unix)]
+/// H.264 and AAC, as nearly every HLS stream is, put into an MP4 by dm,
+/// with no tool of the computer's: offered as a master playlist's only
+/// rendition, the way a site serves it.
 #[tokio::test]
-async fn an_hls_stream_becomes_an_mp4_with_no_ffmpeg() {
-    let _turn = FFMPEG_ENV.lock().await;
-    let Some(real) = ffmpeg() else {
-        eprintln!("no ffmpeg installed — skipping");
-        return;
-    };
-    let site = tempdir();
-    if !make_stream(&real, site.path(), 3, "libx264") {
-        return;
-    }
-    let addr = serve_folder(site.path().to_path_buf()).await;
+async fn an_hls_stream_becomes_an_mp4_dm_makes_itself() {
+    let _turn = ENV.lock().await;
+    let site = stream("h264");
+    let addr = serve_folder(site).await;
+    let master = format!(
+        "#EXTM3U\n#EXT-X-STREAM-INF:BANDWIDTH=200000,RESOLUTION=128x72\n\
+         http://{addr}/show.m3u8\n"
+    );
+    let app = axum::Router::new().route(
+        "/clip/master.m3u8",
+        axum::routing::get(move || async move {
+            ([("content-type", "application/vnd.apple.mpegurl")], master)
+        }),
+    );
+    let front = common::serve(app).await;
     let dir = tempdir();
     let asked = Options {
         room: Default::default(),
         remux: true,
         ..options(dir.path(), dm_core::stream::Quality::Best)
     };
-    let done = download(&client(), &format!("http://{addr}/show.m3u8"), &asked).await;
+    let done = download(
+        &client(),
+        &format!("http://{front}/clip/master.m3u8"),
+        &asked,
+    )
+    .await;
     let done = done.expect("the stream");
     assert_eq!(
         done.path.file_name().and_then(|n| n.to_str()),
-        Some("show.mp4")
+        Some("clip.mp4")
     );
-    let probed = std::process::Command::new(&real)
-        .args(["-nostdin", "-v", "error", "-i"])
-        .arg(&done.path)
-        .args(["-f", "null", "-"])
-        .output()
-        .unwrap();
-    assert!(
-        probed.status.success() && probed.stderr.is_empty(),
-        "{}",
-        String::from_utf8_lossy(&probed.stderr)
-    );
+    assert_the_h264_stream_as_mp4(&done.path);
     let left = std::fs::read_dir(dir.path().join("parts"))
         .map(|d| d.count())
         .unwrap_or(0);
     assert_eq!(left, 0, "parts were left behind");
 }
 
-#[cfg(unix)]
 #[tokio::test]
 async fn an_mp4_left_from_an_earlier_run_is_not_placed_when_the_remux_is_off() {
-    let _turn = FFMPEG_ENV.lock().await;
-    let Some(real) = ffmpeg() else {
-        return;
-    };
-    let site = tempdir();
-    if !make_stream(&real, site.path(), 3, "libx264") {
-        return;
-    }
-    let addr = serve_folder(site.path().to_path_buf()).await;
+    let _turn = ENV.lock().await;
+    let site = stream("h264");
+    let addr = serve_folder(site.clone()).await;
     let dir = tempdir();
     let off = options(dir.path(), dm_core::stream::Quality::Best);
     // What a pause after an earlier, remuxing run left behind.
@@ -671,13 +792,7 @@ async fn an_mp4_left_from_an_earlier_run_is_not_placed_when_the_remux_is_off() {
         done.path.file_name().and_then(|n| n.to_str()),
         Some("show.ts")
     );
-    let playlist = std::fs::read_to_string(site.path().join("show.m3u8")).unwrap();
-    let served: Vec<u8> = playlist
-        .lines()
-        .filter(|l| !l.starts_with('#') && !l.trim().is_empty())
-        .flat_map(|name| std::fs::read(site.path().join(name.trim())).unwrap())
-        .collect();
-    assert_eq!(std::fs::read(&done.path).unwrap(), served);
+    assert_eq!(std::fs::read(&done.path).unwrap(), served(&site));
     assert!(
         !off.parts_dir.join("joined.mp4").exists(),
         "the stale MP4 was left"
@@ -707,7 +822,7 @@ async fn a_gather_cut_short_by_a_crash_is_cleared_when_the_stream_is_placed() {
 async fn a_stream_cut_by_byte_ranges_is_refused_without_yt_dlp_not_saved_wrong() {
     // Saved as segments joined, it was the whole source repeated and called
     // done. Without yt-dlp to read it, it is refused with what fixes it.
-    let _turn = FFMPEG_ENV.lock().await;
+    let _turn = ENV.lock().await;
     let site = tempdir();
     std::fs::write(site.path().join("main.ts"), vec![7u8; 4096]).unwrap();
     std::fs::write(
@@ -793,7 +908,7 @@ async fn packed_audio_from_tokenised_addresses_is_saved_as_aac() {
      * from addresses that are tokens it was called a transport stream and
      * handed to the remux. The first segment's first bytes say what it is:
      * here ADTS, behind the ID3 tag that carries its timestamp. */
-    let _turn = FFMPEG_ENV.lock().await;
+    let _turn = ENV.lock().await;
     fn frames(index: u8) -> Vec<u8> {
         let mut out = b"ID3\x04\0\0\0\0\0\x03".to_vec();
         out.extend([0, 0, index]);

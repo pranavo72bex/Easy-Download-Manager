@@ -92,7 +92,7 @@ def youtube(base, origin, engine_dl, engine_home, worker):
                                if p.is_file() and p.suffix in (".mp4", ".webm", ".mkv")], 240)
     cc.check("YouTube: the video lands in dm's folder, fetched by yt-dlp", bool(got), str(got))
     played = cc.plays(got[0]) if got else None
-    cc.check("YouTube: the downloaded video plays (ffprobe)", bool(played and played[0] > 0 and played[1]),
+    cc.check("YouTube: the downloaded video is whole (media_check)", bool(played and played[0] > 0 and played[1]),
              f"{played[0]}s, {played[1]}p" if played else "not a playable video")
     picked = (listed.get("lines") or [""])[0].split(" ")[0].lower()
     cc.check("YouTube: in the container its line named", bool(got) and got[0].suffix == f".{picked}",

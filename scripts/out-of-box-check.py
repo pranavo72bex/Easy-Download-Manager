@@ -3,16 +3,18 @@
 
 The real dm-desktop binary, headless, with a dm home of its own made for
 this run (no tools fetched before), told to see only the tools it fetches
-itself (DM_ONLY_FETCHED_TOOLS, so an installed yt-dlp, ffmpeg or Deno is
-not used) and given the PATH a browser or the Dock gives an app. Real
+itself (DM_ONLY_FETCHED_TOOLS, so nothing installed on this computer is
+used) and given the PATH a browser or the Dock gives an app. Real
 YouTube videos are handed to it through its inbox, as the browser's
 "Download video" panel hands them, at each kind of quality the panel
 offers. Each must finish as one file holding picture and sound at the
 quality asked for (the tallest picture yt-dlp lists, for "best"), which
-plays from end to end.
+is whole from end to end.
 
-ffprobe/ffmpeg from this computer only judge the results; dm never sees
-them. Needs the network; not run in CI.
+The results are judged by media_check.py beside this script, which reads
+each file's own structure (its tracks, the picture's height, the length,
+and that every sample the file points at is in it); it needs nothing
+installed. Needs the network; not run in CI.
 
     python3 scripts/out-of-box-check.py            # builds dm if needed
     DM_BINARY=path/to/dm-desktop python3 scripts/out-of-box-check.py
@@ -26,6 +28,9 @@ import subprocess
 import sys
 import tempfile
 import time
+
+sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
+import media_check  # noqa: E402
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 BINARY = pathlib.Path(os.environ.get("DM_BINARY", ROOT / "desktop/target/release/dm-desktop"))
@@ -47,32 +52,6 @@ def check(name, ok, detail=""):
     print(f"  {'ok  ' if ok else 'FAIL'}  {name}" + ("" if ok else f"  ({detail})"))
     if not ok:
         failures.append(name)
-
-
-def tool(name):
-    found = shutil.which(name) or shutil.which(name, path="/opt/homebrew/bin:/usr/local/bin")
-    if not found:
-        sys.exit(f"{name} is needed here to judge the results (dm itself does not use it)")
-    return found
-
-
-FFPROBE, FFMPEG = tool("ffprobe"), tool("ffmpeg")
-
-
-def probe(path):
-    out = subprocess.run(
-        [FFPROBE, "-v", "error", "-show_entries",
-         "stream=codec_type,codec_name,width,height:format=format_name,duration",
-         "-of", "json", str(path)],
-        capture_output=True, text=True,
-    ).stdout
-    return json.loads(out or "{}")
-
-
-def plays(path):
-    done = subprocess.run([FFMPEG, "-v", "error", "-i", str(path), "-f", "null", "-"],
-                          capture_output=True, text=True)
-    return done.returncode == 0 and not done.stderr.strip(), done.stderr.strip()[-300:]
 
 
 def rows(home):
@@ -128,9 +107,11 @@ def main():
         listed = rows(home)
         tools = sorted(p.name for p in (home / "tools").iterdir()) if (home / "tools").exists() else []
         print(f"tools dm fetched for itself: {', '.join(tools) or 'none'}")
-        check("dm fetched yt-dlp and QuickJS, and nothing else", any("yt-dlp" in t for t in tools)
+        # dm's tools folder (dm-core's tools.rs) holds yt-dlp (or, on macOS,
+        # its unpacked yt-dlp-macos folder) and qjs, and nothing else.
+        check("dm fetched yt-dlp and QuickJS, and nothing else", any(t.startswith("yt-dlp") for t in tools)
               and any(t.startswith("qjs") for t in tools)
-              and not any("ffmpeg" in t or t.startswith("deno") for t in tools), tools)
+              and all(t.startswith(("yt-dlp", "qjs")) for t in tools), tools)
         for n, (name, url, quality, (container, height)) in enumerate(CASES):
             print(name)
             row = listed[n] if n < len(listed) else None
@@ -144,18 +125,16 @@ def main():
                 # included.
                 print(f"        done {row['finished_at'] - handed:.0f} s after it was handed over")
             check(f"as a .{container}", path.suffix == f".{container}", path.name)
-            info = probe(path)
-            streams = info.get("streams", [])
-            video = [s for s in streams if s.get("codec_type") == "video"]
-            audio = [s for s in streams if s.get("codec_type") == "audio"]
-            codecs = ", ".join(f"{s.get('codec_name')} {s.get('width', '')}x{s.get('height', '')}".strip()
-                               for s in streams)
-            print(f"        {path.name}: {codecs}, {float(info.get('format', {}).get('duration', 0)):.1f} s")
+            info = media_check.inspect(path)
+            video = [t for t in info["tracks"] if t["kind"] == "video"]
+            audio = [t for t in info["tracks"] if t["kind"] == "audio"]
+            codecs = media_check.summary(info)
+            print(f"        {path.name}: {codecs}")
             if height == "audio":
                 check("holds the sound and no picture", audio and not video, codecs)
             else:
                 check("holds picture and sound", len(video) == 1 and len(audio) == 1, codecs)
-                got = video[0].get("height", 0) if video else 0
+                got = (video[0]["height"] or 0) if video else 0
                 if height == "best":
                     listed_formats = subprocess.run(
                         [str(next((home / "tools").glob("yt-dlp*/yt-dlp*"), None) or next((home / "tools").glob("yt-dlp*"))),
@@ -166,8 +145,7 @@ def main():
                     check(f"at the tallest picture on offer ({tallest}p)", got == tallest, f"{got}p")
                 else:
                     check(f"at {height}p", got == height, f"{got}p")
-            ok, said = plays(path)
-            check("plays from end to end", ok, said)
+            check("whole from end to end", not info["problems"], "; ".join(info["problems"]))
     finally:
         app.terminate()
         try:

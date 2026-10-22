@@ -425,8 +425,8 @@ def shoot(label, tab=None):
     protocol), each into DM_SHOTS."""
     SHOT_N[0] += 1
     stem = f"{SHOT_N[0]:02d}-{label}"
-    x("ffmpeg", "-loglevel", "error", "-y", "-f", "x11grab", "-video_size", "2400x1200",
-      "-i", os.environ.get("DISPLAY", ":0"), "-frames:v", "1", SHOTS / f"{stem}-screen.png")
+    # ImageMagick's import, of the X server's root window (DISPLAY).
+    x("import", "-window", "root", SHOTS / f"{stem}-screen.png")
     if tab is not None:
         try:
             data = tab.call("Page.captureScreenshot", format="png")["data"]
@@ -455,11 +455,11 @@ def whole(folder, name):
 
 
 def make_video(work):
-    """A real, playable video for the player: ten seconds of test card."""
-    out = work / "clip.webm"
-    x("ffmpeg", "-loglevel", "error", "-f", "lavfi", "-i", "testsrc=size=640x360:rate=25", "-t", "10",
-      "-c:v", "libvpx", "-b:v", "300k", out, timeout=120)
-    VIDEO["bytes"] = out.read_bytes() if out.exists() else common.body("clip.webm")
+    """A real, playable video for the player: ten seconds of test card,
+    640x360 at 25 frames a second, VP8 in WebM, committed beside this
+    script (scripts/fixtures/clip.webm) so nothing has to make it."""
+    clip = ROOT / "scripts" / "fixtures" / "clip.webm"
+    VIDEO["bytes"] = clip.read_bytes() if clip.exists() else common.body("clip.webm")
 
 
 def main():

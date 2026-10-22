@@ -6,7 +6,7 @@
 # Microsoft tells a Debian user to add it. dm is built in the Debian image
 # (amd64) and copied in. Plus what Dockerfile.human-fedora installs: dm's
 # libraries, Mesa for GL under Xvfb, and the test's X server, window
-# manager, xdotool, the accessibility bus and ffmpeg for screenshots; and
+# manager, xdotool, the accessibility bus and ImageMagick for screenshots; and
 # yt-dlp, which chrome-check.py's stand-in hands everything but its own two
 # pages to.
 FROM debian:12
@@ -23,7 +23,7 @@ RUN set -e; \
     apt-get update; \
     apt-get install -y --no-install-recommends microsoft-edge-stable \
       xvfb xauth openbox xdotool dbus dbus-x11 python3 procps \
-      at-spi2-core python3-pyatspi libglib2.0-bin ffmpeg yt-dlp fonts-dejavu-core \
+      at-spi2-core python3-pyatspi libglib2.0-bin imagemagick yt-dlp fonts-dejavu-core \
       libxkbcommon-x11-0 libegl1 libgl1 libgl1-mesa-dri \
       libx11-6 libxcursor1 libx11-xcb1 libxi6 libxkbcommon0 libwayland-client0 libwayland-egl1; \
     rm -rf /var/lib/apt/lists/*

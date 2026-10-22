@@ -27,8 +27,8 @@ Nothing else to install, a window that works the way a download manager
 should, and safer by default.
 
 **Nothing to install, and faster**
-- No ffmpeg, ever: picture, sound and subtitles are joined by dm on every
-  computer alike, and an installed ffmpeg is no longer used.
+- No separate video tool, ever: picture, sound and subtitles are joined by
+  dm on every computer alike, and an installed converter is no longer used.
 - The first video page fetches about 36 MB (yt-dlp and QuickJS, each
   checked against its checksum) instead of 120 MB. An installed yt-dlp
   months out of date is passed over. Options › Downloads can turn the
@@ -98,16 +98,16 @@ browser's links.
   own folder, checked against their published checksums, and keeps yt-dlp
   current weekly. Picture and sound are joined by dm itself, MP4 and WebM
   alike (VP9, AV1, Opus), at the same qualities as before, 4K included.
-- Streams without ffmpeg: HLS and other transport streams become MP4s
+- Streams with no other tool: HLS and other transport streams become MP4s
   (H.264, HEVC, AAC, MP3, AC-3, E-AC-3); `rtmp://`, `rtsp://` and `mms://`
   are recorded by dm, into a file that plays even if cut short. Subtitles
-  go inside the video. Only RTMPE, RTMPT and RTSPS still fetch an ffmpeg.
+  go inside the video. Only RTMPE, RTMPT and RTSPS still fetch a separate video tool.
 - Drag and drop: a link dragged from a browser onto the window is queued
   on macOS, Windows and Linux (X11), and a finished file can be dragged out
   of the list on Linux (X11) as on macOS and Windows. Under Wayland neither
   works yet; the window says what to do instead.
-- Windows finds a yt-dlp and ffmpeg installed by winget, pip, Scoop or
-  Chocolatey, and the dm a browser starts no longer holds the browser's
+- Windows finds a yt-dlp, and the video tool dm then used, installed by
+  winget, pip, Scoop or Chocolatey, and the dm a browser starts no longer holds the browser's
   pipes open.
 - Clearer: "Site files" is the one name for the finder, with Find files
   right after its fields; the numbered series shows where `*` goes; a
@@ -140,7 +140,7 @@ sign-ins, streams and FTP folders.
 - Sign-ins: NTLM, under NTLM or Negotiate, for Windows servers and company
   intranets (`DOMAIN\user` in Options › Sign-ins or the address).
 - Streams: `rtmp://`, `rtsp://` and `mms://` addresses, fetched through an
-  installed ffmpeg and saved as playable files.
+  installed converter and saved as playable files.
 - Files on a site: reads an FTP server's folders too, and a saved search
   can stop reading pages after so many minutes.
 - Clearer: a failed row says why in the list itself; a full disk says
@@ -181,7 +181,7 @@ Nine rounds of hands-on testing, each fixed (docs/gaps.md, gaps 169–243).
   part against the server before trusting it.
 - A queue with pause, resume, retry, named queues with their own limits, a
   scheduler and a speed limiter.
-- Video and audio: HLS streams (with conversion to MP4 where ffmpeg is
+- Video and audio: HLS streams (with conversion to MP4 where a converter is
   installed), and video sites through an installed yt-dlp.
 - BitTorrent (magnet links and `.torrent` files) and Metalink with mirrors.
 - Sign-ins (Basic and Digest), a `cookies.txt` file, and proxies (HTTP,

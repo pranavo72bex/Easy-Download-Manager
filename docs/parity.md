@@ -230,7 +230,7 @@ the host and the extension.
 
 | Behaviour | Status | Evidence |
 |---|---|---|
-| A stream that arrives as a transport stream is saved as an MP4 where dm can put it into one (`tsmux.rs`) (Options › Downloads, on by default); the `.ts` where not asked or not possible | PASS | `hls.rs` `a_transport_stream_is_saved_as_an_mp4_where_ffmpeg_can_and_as_ts_where_not_asked`: a real stream made by ffmpeg lands as `show.mp4` that ffmpeg decodes to the end, nothing left staged; off, the segments in order as `show.ts` |
+| A stream that arrives as a transport stream is saved as an MP4 where dm can put it into one (`tsmux.rs`) (Options › Downloads, on by default); the `.ts` where not asked or not possible | PASS | `hls.rs` `a_transport_stream_is_saved_as_an_mp4_when_asked_and_as_ts_when_not`: a committed H.264 and AAC stream lands as `show.mp4` holding every picture and sound frame, read back by the test's own MP4 reader and matching, sample for sample, what a standard decoder played to the end, nothing left staged; off, the segments in order as `show.ts` |
 | Subtitles carried inside the video when asked (Options › Downloads): fetched as WebVTT and put in by dm (MP4 `tx3g`, WebM WebVTT tracks) | PASS | `subtitles_are_fetched_and_carried_in_the_video_by_dm` |
 | Direct media files | PASS | ordinary downloads |
 | HLS, including AES-128 and resume | PASS | `hls.rs`; `app-check.py` |

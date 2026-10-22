@@ -17,10 +17,6 @@ license=('MIT')
 # xkbcommon and GL.
 depends=('hicolor-icon-theme' 'libx11' 'libxcursor' 'libxi' 'libxkbcommon-x11' 'wayland' 'libglvnd' 'xdg-utils')
 makedepends=('rust' 'cargo' 'pkgconf' 'git')
-# check() makes real test streams with ffmpeg and judges what dm made of
-# them; dm itself never runs it. In CI a missing one fails the stream tests
-# rather than skipping them.
-checkdepends=('ffmpeg')
 optdepends=('yt-dlp: downloads from sites that serve video through a player'
             'noto-fonts-cjk: names in Chinese, Japanese and Korean')
 
