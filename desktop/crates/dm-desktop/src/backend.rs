@@ -220,6 +220,11 @@ impl Backend {
         self.block_on(self.queue.clear_finished())
     }
 
+    /// One download's own speed limit in KB/s, zero for none.
+    pub fn set_own_limit(&self, id: Id, kb_per_second: u64) {
+        self.block_on(self.queue.set_own_limit(id, kb_per_second));
+    }
+
     pub fn set_checksum(&self, id: Id, text: &str) -> Result<(), String> {
         let checksum = shell::checksum(text)?;
         self.block_on(self.queue.set_checksum(id, checksum));

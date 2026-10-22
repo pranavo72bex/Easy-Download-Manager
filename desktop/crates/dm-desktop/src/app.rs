@@ -5334,6 +5334,7 @@ mod status_tests {
             cookies: String::new(),
             cookies_once: false,
             replaces: None,
+            speed_limit: 0,
         }
     }
 

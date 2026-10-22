@@ -41,6 +41,7 @@ fn entry(state: State) -> Entry {
         cookies: String::new(),
         cookies_once: false,
         replaces: None,
+        speed_limit: 0,
     }
 }
 

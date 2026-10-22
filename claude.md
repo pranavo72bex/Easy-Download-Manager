@@ -387,7 +387,8 @@ of them.
 - [x] Categories (Videos, Audio, Documents, Apps, Archives, Pictures, Other
       folders) — client, configurable
 - [x] Speed limiting — client. One ceiling shared by every connection of
-      every download dm fetches itself, which is the only kind worth having.
+      every download dm fetches itself, and a limit of a download's own,
+      set in its progress window and kept with its row, held beside it.
       A torrent or yt-dlp run, which dm cannot meter chunk by chunk, holds a
       share while it runs: with n of them the ceiling is split n+1 ways, one
       part for dm's own downloads (`limit.rs` tests). A torrent re-reads its

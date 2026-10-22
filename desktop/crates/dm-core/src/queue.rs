@@ -161,6 +161,14 @@ pub struct Entry {
     /// the new version left a person with neither.
     #[serde(default)]
     pub replaces: Option<String>,
+    /// This download's own speed limit in KB/s, beside the one every
+    /// download shares; zero for none.
+    #[serde(default, skip_serializing_if = "is_zero")]
+    pub speed_limit: u64,
+}
+
+fn is_zero(n: &u64) -> bool {
+    *n == 0
 }
 
 /// How one connection of a download is getting on: its range of the file
@@ -220,6 +228,9 @@ struct Slot {
     /// there may be (0 for no end), until bytes arrive again. Not saved: it
     /// is about this run.
     retrying: Option<(u32, u32)>,
+    /// This row's own speed limit (`Entry::speed_limit`), chained to the
+    /// shared one while it runs, so a change reaches it at once.
+    own_limit: crate::limit::Limiter,
 }
 
 impl Slot {
@@ -491,11 +502,13 @@ impl Queue {
                 cookies: String::new(),
                 cookies_once: false,
                 replaces: None,
+                speed_limit: 0,
             },
             control: Control::new(),
             task: None,
             outside_schedule: false,
             retrying: None,
+            own_limit: crate::limit::Limiter::unlimited(),
         };
 
         self.inner.slots.lock().await.insert(id, slot);
@@ -604,6 +617,7 @@ impl Queue {
                 }
             }
             order.push(entry.id);
+            let own_limit = crate::limit::Limiter::new(entry.speed_limit.saturating_mul(1024));
             slots.insert(
                 entry.id,
                 Slot {
@@ -612,6 +626,7 @@ impl Queue {
                     task: None,
                     outside_schedule: false,
                     retrying: None,
+                    own_limit,
                 },
             );
         }
@@ -859,6 +874,21 @@ impl Queue {
     }
 
     /// Attaches a digest for a download to be checked against.
+    /// One download's own speed limit, in KB/s (zero for none), in force at
+    /// once if it is running.
+    pub async fn set_own_limit(&self, id: Id, kb_per_second: u64) {
+        let limiter = {
+            let mut slots = self.inner.slots.lock().await;
+            let Some(slot) = slots.get_mut(&id) else {
+                return;
+            };
+            slot.entry.speed_limit = kb_per_second;
+            slot.own_limit.clone()
+        };
+        limiter.set_rate(kb_per_second.saturating_mul(1024)).await;
+        self.save().await;
+    }
+
     pub async fn set_checksum(&self, id: Id, checksum: Option<Checksum>) {
         if let Some(slot) = self.inner.slots.lock().await.get_mut(&id) {
             slot.entry.checksum = checksum;
@@ -1401,6 +1431,8 @@ impl Queue {
                         crate::cookies::SignIn::new(&slot.entry.url, &slot.entry.cookies);
                     options.checksum = slot.entry.checksum.clone();
                     options.save_name = slot.entry.save_name.clone();
+                    // Its own limit as well as the one every download shares.
+                    options.limiter = options.limiter.chained(&slot.own_limit);
                     // Sent as Referer where the row carries one, which is the
                     // downloads a browser handed over.
                     options.referrer =

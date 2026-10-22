@@ -949,6 +949,26 @@ fn a_caught_download_asks_where_to_save_by_its_own_setting() {
     assert_eq!(harness.state().rows().len(), 2, "not started at once");
 }
 
+/// A download's progress window limits that download alone: ticked, it
+/// takes the KB/s shown; unticked, the limit goes.
+#[test]
+fn the_progress_window_limits_its_own_download() {
+    let world = world();
+    let mut harness = world.harness();
+    add_url(&mut harness, &world.url("stalled.bin"), "Start now");
+    harness.state_mut().refresh();
+    let id = harness.state().rows()[0].id;
+    harness.state_mut().dialogs.progress.insert(id);
+    harness.run_steps(3);
+    click(&mut harness, "Limit this download to");
+    harness.state_mut().refresh();
+    assert_eq!(harness.state().rows()[0].speed_limit, 500);
+    harness.run_steps(2);
+    click(&mut harness, "Limit this download to");
+    harness.state_mut().refresh();
+    assert_eq!(harness.state().rows()[0].speed_limit, 0);
+}
+
 /// The places' groups open and shut from their own row, as a navigation
 /// view's expandable items do.
 #[test]
@@ -8734,8 +8754,10 @@ fn the_progress_window_is_as_tall_as_what_it_holds() {
         .next()
         .expect("no progress window");
     let screen = harness.ctx.content_rect();
+    // Half the window's height, and the row of the download's own speed
+    // limit added since: still far from the 84% it once filled.
     assert!(
-        window.height() < screen.height() * 0.5,
+        window.height() < screen.height() * 0.55,
         "{window:?} is {:.0}% of the window's height",
         100.0 * window.height() / screen.height()
     );

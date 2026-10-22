@@ -55,6 +55,9 @@ pub struct Limiter {
     own_seen: Arc<AtomicU64>,
     born: Instant,
     inner: Arc<Mutex<Bucket>>,
+    /// A second ceiling held to as well: one download's own limit, chained
+    /// to the one every download shares (`chained`).
+    also: Option<Arc<Limiter>>,
 }
 
 /// How long after its last bytes one of dm's own downloads still counts as
@@ -110,7 +113,20 @@ impl Limiter {
                 next: Instant::now(),
                 generation: 0,
             })),
+            also: None,
         }
+    }
+
+    /// This ceiling and `own` together: bytes wait for both. For one
+    /// download's limit of its own beside the one every download shares;
+    /// changing either's rate reaches the download at once.
+    pub fn chained(&self, own: &Limiter) -> Limiter {
+        let mut both = self.clone();
+        both.also = Some(Arc::new(Limiter {
+            also: None,
+            ..own.clone()
+        }));
+        both
     }
 
     pub async fn rate(&self) -> u64 {
@@ -132,12 +148,17 @@ impl Limiter {
     pub async fn part(&self) -> u64 {
         let rate = self.rate().await;
         let outside = self.outside.load(Ordering::Acquire);
-        if self.own_running() {
+        let part = if self.own_running() {
             split(rate, outside)
         } else if rate == 0 {
             0
         } else {
             (rate / outside.max(1)).max(1)
+        };
+        // Never more than the download's own limit, where it has one.
+        match self.also.as_ref().map(|a| a.rate.load(Ordering::Acquire)) {
+            Some(own) if own > 0 && (part == 0 || own < part) => own,
+            _ => part,
         }
     }
 
@@ -174,6 +195,14 @@ impl Limiter {
     /// it is what keeps the total right — every caller sleeping for its own
     /// share independently would let n connections run at n times the cap.
     pub async fn take(&self, bytes: u64) {
+        if let Some(own) = &self.also {
+            own.take_here(bytes).await;
+        }
+        self.take_here(bytes).await;
+    }
+
+    /// `take` for this ceiling alone, not the one chained to it.
+    async fn take_here(&self, bytes: u64) {
         // The overwhelmingly common case, and the reason this is not a lock.
         if self.rate.load(Ordering::Acquire) == 0 {
             return;
@@ -225,7 +254,11 @@ impl Limiter {
     /// much of `bytes` was counted, for a caller whose wait was cut short by
     /// a pause or a cancel and who must count the rest itself.
     pub async fn take_counting(&self, bytes: u64, counted: &AtomicU64, through: &mut u64) {
-        if self.rate.load(Ordering::Acquire) == 0 {
+        let own = self
+            .also
+            .as_ref()
+            .map_or(0, |a| a.rate.load(Ordering::Acquire));
+        if self.rate.load(Ordering::Acquire) == 0 && own == 0 {
             counted.fetch_add(bytes, Ordering::Relaxed);
             *through = bytes;
             return;
@@ -255,6 +288,30 @@ impl Default for Limiter {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[tokio::test]
+    async fn a_downloads_own_limit_holds_beside_the_shared_one() {
+        let shared = Limiter::unlimited();
+        let own = Limiter::new(100_000);
+        let both = shared.chained(&own);
+        // The own limit holds where nothing is shared.
+        let started = Instant::now();
+        for _ in 0..4 {
+            both.take(25_000).await;
+        }
+        let took = started.elapsed();
+        assert!(took >= Duration::from_millis(700), "{took:?}");
+        assert_eq!(both.part().await, 100_000);
+        // The shared one, lower, wins; lifted, the own one is the part.
+        shared.set_rate(40_000).await;
+        assert_eq!(both.part().await, 40_000);
+        shared.set_rate(0).await;
+        own.set_rate(0).await;
+        let started = Instant::now();
+        both.take(10_000_000).await;
+        assert!(started.elapsed() < Duration::from_millis(50));
+        assert_eq!(both.part().await, 0);
+    }
 
     #[tokio::test]
     async fn an_unlimited_limiter_never_waits() {

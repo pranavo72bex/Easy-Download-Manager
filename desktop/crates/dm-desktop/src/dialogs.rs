@@ -397,6 +397,9 @@ pub struct Dialogs {
     pub complete: BTreeSet<Id>,
     /// Whether each download could resume, as last read while it ran.
     pub resumable_seen: std::collections::HashMap<Id, bool>,
+    /// The KB/s typed for a download's own limit in its progress window,
+    /// kept while the limit is off so ticking it again brings it back.
+    pub own_limits: std::collections::HashMap<Id, u64>,
     pub properties: BTreeMap<Id, Properties>,
     pub series: Option<Series>,
     pub clip_links: Option<Vec<(String, bool)>>,
@@ -3685,6 +3688,25 @@ fn progress(app: &mut DmApp, ctx: &egui::Context) {
                     // No words of its own: Status above says the percentage
                     // (UI round 9: it was said twice).
                     bar(ui, fraction, 420.0, "");
+                    // This download's own limit, beside the one for all.
+                    if !row.state.settled() {
+                        let typed = app.dialogs.own_limits.entry(id).or_insert(if row.speed_limit > 0 {
+                            row.speed_limit
+                        } else {
+                            500
+                        });
+                        let mut on = row.speed_limit > 0;
+                        ui.horizontal(|ui| {
+                            let ticked = check(ui, &mut on, t("Limit this download to")).changed();
+                            let typed_now = ui
+                                .add_enabled(on, number_box(typed).range(1..=10_000_000u64))
+                                .changed();
+                            ui.label(t("KB/s"));
+                            if ticked || (on && typed_now) {
+                                app.backend.set_own_limit(id, if on { *typed } else { 0 });
+                            }
+                        });
+                    }
                     // A torrent's pieces come from its peers, not from
                     // connections dm plans: the section said "Nothing fetched
                     // yet." while megabytes arrived (torrent check).

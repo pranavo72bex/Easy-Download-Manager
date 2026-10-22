@@ -1120,6 +1120,53 @@ async fn lifting_the_limit_takes_effect_on_what_is_already_running() {
         .unwrap();
 }
 
+#[tokio::test]
+async fn a_downloads_own_limit_slows_it_alone_and_is_kept() {
+    // 16 KB in four pieces, so the limit has pieces to space out.
+    let pieces = || async {
+        use futures_util::StreamExt;
+        // Apart, so each arrives as a read of its own.
+        let parts = futures_util::stream::iter(0..4).then(|_| async {
+            tokio::time::sleep(Duration::from_millis(20)).await;
+            Ok::<_, std::io::Error>(bytes::Bytes::from(vec![9u8; 4096]))
+        });
+        Response::builder()
+            .header("content-length", 16 * 1024)
+            .body(Body::from_stream(parts))
+            .unwrap()
+    };
+    let addr = common::serve(axum::Router::new().fallback(pieces)).await;
+    let dir = tempdir();
+    let q = queue(dir.path(), 2);
+    let slow = q.add(&format!("http://{addr}/slow.bin")).await.unwrap();
+    let free = q.add(&format!("http://{addr}/free.bin")).await.unwrap();
+    q.pause(slow).await;
+    q.pause(free).await;
+    q.set_own_limit(slow, 8).await;
+    assert_eq!(q.get(slow).await.unwrap().speed_limit, 8);
+
+    let timed = |id| {
+        let q = q.clone();
+        async move {
+            let started = std::time::Instant::now();
+            q.resume(id).await;
+            q.run().await;
+            started.elapsed()
+        }
+    };
+    let unlimited = timed(free).await;
+    let limited = timed(slow).await;
+    // Three pieces wait half a second each at 8 KB/s.
+    assert!(
+        limited >= Duration::from_millis(1200) && unlimited < Duration::from_millis(1000),
+        "own limit {limited:?}, none {unlimited:?}"
+    );
+    // Kept with the row, as the queue is saved.
+    assert_eq!(q.get(slow).await.unwrap().speed_limit, 8);
+    q.set_own_limit(slow, 0).await;
+    assert_eq!(q.get(slow).await.unwrap().speed_limit, 0);
+}
+
 /* ------------------------------------------------------------- metalink */
 
 /// A server that hosts a mirror list and the mirrors it names.
