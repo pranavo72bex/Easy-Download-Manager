@@ -1089,6 +1089,37 @@ fn view_drop_target_shows_and_hides_the_floating_target() {
     assert!(!harness.state().applied.drop_target);
 }
 
+/// A new install's welcome offers the extension for each browser found
+/// (each one's page where none is), opens the page asked for, and goes with
+/// Later.
+#[test]
+fn the_welcome_offers_the_extension_for_each_browser() {
+    let world = world();
+    let mut harness = world.harness();
+    harness.state_mut().welcome();
+    harness.run_steps(3);
+    assert!(harness.query_by_label("Add dm to your browser").is_some());
+    let offered = harness
+        .query_all_by_label_contains("Add to ")
+        .next()
+        .map(|n| n.accesskit_node().label().unwrap_or_default())
+        .unwrap_or_else(|| "Microsoft Edge".to_string());
+    click(&mut harness, &offered);
+    harness.run_steps(3);
+    let opened = world.fake.opened.lock().unwrap().clone();
+    assert!(
+        opened.iter().any(|page| [
+            dm_desktop::app::EXTENSION_EDGE,
+            dm_desktop::app::EXTENSION_FIREFOX,
+            dm_desktop::app::EXTENSION_CHROME
+        ]
+        .contains(&page.as_str())),
+        "{opened:?}"
+    );
+    click(&mut harness, "Later");
+    assert!(harness.state().dialogs.welcome.is_none());
+}
+
 /// The places' groups open and shut from their own row, as a navigation
 /// view's expandable items do.
 #[test]

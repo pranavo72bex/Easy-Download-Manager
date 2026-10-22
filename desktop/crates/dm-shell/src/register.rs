@@ -138,6 +138,115 @@ impl Place {
     }
 }
 
+/// Where a browser's extension comes from.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Store {
+    Edge,
+    Firefox,
+    /// The Chrome Web Store, which Brave, Vivaldi, Opera and Chromium use.
+    Chrome,
+}
+
+/// A browser found on this computer, to offer it dm's extension.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct Installed {
+    pub name: &'static str,
+    pub store: Store,
+}
+
+/// Each browser dm offers its extension to, its store, and where it is
+/// found: its app bundle on macOS, its program on Linux's `PATH`, its
+/// program under the program folders on Windows.
+const BROWSERS: [(&str, Store, &str, &[&str], &str); 7] = [
+    (
+        "Microsoft Edge",
+        Store::Edge,
+        "Microsoft Edge.app",
+        &["microsoft-edge", "microsoft-edge-stable"],
+        r"Microsoft\Edge\Application\msedge.exe",
+    ),
+    (
+        "Firefox",
+        Store::Firefox,
+        "Firefox.app",
+        &["firefox"],
+        r"Mozilla Firefox\firefox.exe",
+    ),
+    (
+        "Google Chrome",
+        Store::Chrome,
+        "Google Chrome.app",
+        &["google-chrome", "google-chrome-stable"],
+        r"Google\Chrome\Application\chrome.exe",
+    ),
+    (
+        "Brave",
+        Store::Chrome,
+        "Brave Browser.app",
+        &["brave-browser", "brave"],
+        r"BraveSoftware\Brave-Browser\Application\brave.exe",
+    ),
+    (
+        "Vivaldi",
+        Store::Chrome,
+        "Vivaldi.app",
+        &["vivaldi", "vivaldi-stable"],
+        r"Vivaldi\Application\vivaldi.exe",
+    ),
+    (
+        "Opera",
+        Store::Chrome,
+        "Opera.app",
+        &["opera"],
+        r"Programs\Opera\opera.exe",
+    ),
+    (
+        "Chromium",
+        Store::Chrome,
+        "Chromium.app",
+        &["chromium", "chromium-browser"],
+        r"Chromium\Application\chrome.exe",
+    ),
+];
+
+/// The browsers installed on this computer, in the order they are offered.
+pub fn installed_browsers(home: &Path) -> Vec<Installed> {
+    let programs = Programs::here(home);
+    let windows_bases: Vec<PathBuf> = ["ProgramFiles", "ProgramFiles(x86)", "LOCALAPPDATA"]
+        .iter()
+        .filter_map(std::env::var_os)
+        .map(PathBuf::from)
+        .collect();
+    installed_where(|bundle, on_path, under| {
+        if cfg!(target_os = "macos") {
+            programs
+                .applications
+                .iter()
+                .any(|dir| dir.join(bundle).is_dir())
+        } else if cfg!(windows) {
+            windows_bases.iter().any(|base| base.join(under).is_file())
+        } else {
+            programs
+                .path
+                .iter()
+                .any(|dir| on_path.iter().any(|p| dir.join(p).is_file()))
+        }
+    })
+}
+
+/// The browsers `found` says are there, asked with each one's bundle, its
+/// programs and its path under a program folder.
+pub fn installed_where(found: impl Fn(&str, &[&str], &str) -> bool) -> Vec<Installed> {
+    BROWSERS
+        .iter()
+        .filter(|(_, _, bundle, on_path, under)| found(bundle, on_path, under))
+        .map(|(name, store, ..)| Installed {
+            name,
+            store: *store,
+        })
+        .collect()
+}
+
 /// Every directory a browser on this system reads host manifests from, under
 /// the home directory `home`. A manifest is written to each one whose
 /// browser is installed, because someone with Chrome and Brave means both.
@@ -784,6 +893,35 @@ pub fn from_args(args: &[String]) -> Option<i32> {
             }
         }
         _ => None,
+    }
+}
+
+#[cfg(test)]
+mod installed_tests {
+    use super::*;
+
+    #[test]
+    fn the_browsers_found_are_offered_with_their_stores() {
+        let found = installed_where(|bundle, on_path, _| {
+            bundle == "Firefox.app" || on_path.contains(&"brave-browser")
+        });
+        assert_eq!(
+            found,
+            [
+                Installed {
+                    name: "Firefox",
+                    store: Store::Firefox
+                },
+                Installed {
+                    name: "Brave",
+                    store: Store::Chrome
+                },
+            ]
+        );
+        assert!(installed_where(|_, _, _| false).is_empty());
+        // Windows paths are written with single separators.
+        let edge = installed_where(|_, _, under| under == r"Microsoft\Edge\Application\msedge.exe");
+        assert_eq!(edge.first().map(|b| b.store), Some(Store::Edge));
     }
 }
 

@@ -679,6 +679,9 @@ pub const EXTENSION_CHROME: &str =
 /// the extension again.
 const BROWSER_HINT_HIDDEN: &str = "browser-hint.hidden";
 
+/// Written once the welcome's "Add dm to your browser" has been shown.
+const WELCOMED: &str = "welcomed";
+
 /// What a drop with no link in it is answered with, and what the empty list
 /// says. A link dragged from a browser is taken everywhere: on macOS and
 /// Windows by `drops`, on X11 and Wayland by winit as dm builds it.
@@ -744,6 +747,8 @@ pub struct DmApp {
     /// The window was asked to come up from inside it (the floating drop
     /// target's Show dm), for the program around it to do.
     pub show_asked: bool,
+    /// Whether a new install's welcome has been looked into this run.
+    welcome_checked: bool,
 
     /// Commands asked for while drawing, run once the frame is drawn.
     pub queued: Vec<Command>,
@@ -941,6 +946,7 @@ impl DmApp {
             browser_hint: (None, false),
             update_row: None,
             show_asked: false,
+            welcome_checked: false,
             update: Arc::new(Mutex::new(Update::NotAsked)),
             weekly_pending: false,
             said: Default::default(),
@@ -2959,6 +2965,10 @@ impl DmApp {
     /// The window, drawn once.
     pub fn ui(&mut self, ui: &mut egui::Ui) {
         let ctx = ui.ctx().clone();
+        if !self.welcome_checked {
+            self.welcome_checked = true;
+            self.welcome_if_new();
+        }
         // Copy link's addresses, onto the system's clipboard.
         if let Some(text) = self.copied.take() {
             ctx.copy_text(text);
@@ -3446,6 +3456,37 @@ impl DmApp {
         } else if away {
             self.field_menu = None;
         }
+    }
+
+    /// A new install's first window: "Add dm to your browser", with a
+    /// button for each browser on the computer, as the installer's last
+    /// step (which starts dm) leads into. Once, and only while no browser
+    /// has spoken to dm; not for a dm run on a home of its own (tests and
+    /// checks set `DM_HOME`), which opens it with [`Self::welcome`].
+    fn welcome_if_new(&mut self) {
+        let own_home = std::env::var_os("DM_HOME").is_some_and(|h| !h.is_empty());
+        let home = dm_shell::settings::home();
+        if self.headless
+            || own_home
+            || dm_shell::host::browser_seen(&home)
+            || home.join(WELCOMED).exists()
+            || home.join(BROWSER_HINT_HIDDEN).exists()
+        {
+            return;
+        }
+        self.welcome();
+    }
+
+    /// Opens the welcome with the browsers found on this computer.
+    pub fn welcome(&mut self) {
+        let home = std::env::var_os("HOME")
+            .or_else(|| std::env::var_os("USERPROFILE"))
+            .map(std::path::PathBuf::from)
+            .unwrap_or_default();
+        self.dialogs.welcome = Some(dm_shell::register::installed_browsers(&home));
+        let dm_home = dm_shell::settings::home();
+        let _ = std::fs::create_dir_all(&dm_home);
+        let _ = std::fs::write(dm_home.join(WELCOMED), b"");
     }
 
     /// While the main window is hidden in the tray: the floating drop

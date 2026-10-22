@@ -453,6 +453,8 @@ pub struct Dialogs {
     pub limiter: Option<(u64, String, u64, u64)>,
     pub options: Option<OptionsDialog>,
     pub about_open: bool,
+    /// A new install's "Add dm to your browser", with the browsers found.
+    pub welcome: Option<Vec<dm_shell::register::Installed>>,
     /// Check for updates as soon as About is drawn.
     pub check_update: bool,
     /// Rows Delete was pressed on that are not finished: asked about first.
@@ -766,6 +768,7 @@ impl Dialogs {
             (self.limiter.is_some(), "Speed limiter"),
             (self.options.is_some(), "Options"),
             (self.about_open, "About dm"),
+            (self.welcome.is_some(), "Add dm to your browser"),
         ]
         .into_iter()
         .filter(|(open, _)| *open)
@@ -879,6 +882,7 @@ impl Dialogs {
         say(self.limiter.is_some(), "Speed limiter");
         say(self.options.is_some(), "Options");
         say(self.about_open, "About dm");
+        say(self.welcome.is_some(), "Add dm to your browser");
         open
     }
 
@@ -925,6 +929,7 @@ impl Dialogs {
             FileInfo,
             Options,
             About,
+            Welcome,
             Properties(Id),
             Complete,
             Progress(Id),
@@ -961,6 +966,11 @@ impl Dialogs {
             (self.file_info.is_some(), "Download details", Shut::FileInfo),
             (self.options.is_some(), "Options", Shut::Options),
             (self.about_open, "About dm", Shut::About),
+            (
+                self.welcome.is_some(),
+                "Add dm to your browser",
+                Shut::Welcome,
+            ),
         ]
         .into_iter()
         .filter(|(on, _, _)| *on)
@@ -1000,6 +1010,7 @@ impl Dialogs {
             Shut::FileInfo => self.file_info = None,
             Shut::Options => self.options = None,
             Shut::About => self.about_open = false,
+            Shut::Welcome => self.welcome = None,
             Shut::Properties(id) => {
                 self.properties.remove(&id);
             }
@@ -2244,6 +2255,7 @@ pub fn show(app: &mut DmApp, ctx: &egui::Context) {
     limiter(app, ctx);
     options(app, ctx);
     about(app, ctx);
+    welcome(app, ctx);
     /* Escape closes the dialog in front — unless a menu, combo box or
      * right-click menu was open: that Escape was theirs, and they have
      * already closed on it by the time this runs (menus and the table draw
@@ -6445,6 +6457,60 @@ fn countdown(app: &mut DmApp, ctx: &egui::Context) {
         app.countdown_tick();
     }
     ctx.request_repaint_after(std::time::Duration::from_millis(500));
+}
+
+/// A new install's welcome: what the extension does, and a button for each
+/// browser on the computer that opens its extension page there.
+fn welcome(app: &mut DmApp, ctx: &egui::Context) {
+    let Some(found) = app.dialogs.welcome.clone() else {
+        return;
+    };
+    let mut open = true;
+    let mut later = false;
+    let mut page: Option<&'static str> = None;
+    window(ctx, "Add dm to your browser")
+        .open(&mut open)
+        .show(ctx, |ui| {
+            ui.label(t(
+                "Downloads you click in your browser come to dm once its extension is added. It takes a minute, once.",
+            ));
+            ui.add_space(8.0);
+            use dm_shell::register::Store;
+            let link = |store: Store| match store {
+                Store::Edge => crate::app::EXTENSION_EDGE,
+                Store::Firefox => crate::app::EXTENSION_FIREFOX,
+                Store::Chrome => crate::app::EXTENSION_CHROME,
+            };
+            if found.is_empty() {
+                ui.label(RichText::new(t("No browser was found; each one's page is here:")).weak());
+                for (name, store) in [
+                    ("Microsoft Edge", Store::Edge),
+                    ("Firefox", Store::Firefox),
+                    (t("Chrome and others"), Store::Chrome),
+                ] {
+                    if ui.button(name).clicked() {
+                        page = Some(link(store));
+                    }
+                }
+            } else {
+                for browser in &found {
+                    if ui.button(tf("Add to {}", &[&browser.name])).clicked() {
+                        page = Some(link(browser.store));
+                    }
+                }
+            }
+            footer(ui, |ui| {
+                if ui.button(t("Later")).clicked() {
+                    later = true;
+                }
+            });
+        });
+    if let Some(page) = page {
+        app.open_file(page);
+    }
+    if !open || later {
+        app.dialogs.welcome = None;
+    }
 }
 
 fn about(app: &mut DmApp, ctx: &egui::Context) {
