@@ -66,6 +66,10 @@ installer, a `.deb` and an `.AppImage`, writes `latest.json`, and opens a
 deliberately draft, so a broken build is not something anybody downloads before
 you have looked at it.
 
+The draft's text starts with a link to the README's **Code signing policy**,
+which SignPath Foundation asks every release page to carry. When writing the
+release notes, keep that line (put the notes under it).
+
 To build installers without releasing anything, run the workflow by hand
 (`workflow_dispatch`); the artefacts are attached to the run instead.
 

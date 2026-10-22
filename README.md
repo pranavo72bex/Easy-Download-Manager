@@ -38,6 +38,8 @@ computer, and the extension for your browser:
 
 Not built yet: Macs with an Intel chip.
 
+How the Windows installer is signed: see the [Code signing policy](#code-signing-policy).
+
 ## Step 2 — Install the app
 
 dm is not signed with a paid certificate yet, so your computer will warn
@@ -291,6 +293,29 @@ let you download, dm does not either.
 dm is free and open source under the [MIT licence](LICENSE). It has no
 ads, no accounts and no analytics, and it sends nothing about you anywhere
 (see [PRIVACY.md](PRIVACY.md)).
+
+## Code signing policy
+
+Free code signing provided by [SignPath.io](https://signpath.io), certificate
+by [SignPath Foundation](https://signpath.org).
+
+- Only what this repository builds is signed: the Windows installer and the
+  program inside it, built from this source by GitHub Actions
+  ([desktop.yml](.github/workflows/desktop.yml)). Nothing made elsewhere is
+  signed with dm's certificate.
+- Committers and reviewers:
+  [pranavo72bex](https://github.com/pranavo72bex) (the project's members are
+  listed under [Contributors](https://github.com/pranavo72bex/Easy-Download-Manager/graphs/contributors)).
+  A change from anyone else is reviewed by a committer before it is merged.
+- Approvers: [pranavo72bex](https://github.com/pranavo72bex), the
+  repository's owner. Every signing request is approved by hand.
+- Everyone above signs in to GitHub and SignPath with two-factor
+  authentication.
+
+Privacy: dm sends nothing about you anywhere. It reaches other computers
+only to fetch what you ask it to download, and, each with its own switch
+to turn it off, to check GitHub for a new version and to fetch the video
+helper from GitHub. See [PRIVACY.md](PRIVACY.md).
 
 ## For developers
 

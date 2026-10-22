@@ -403,6 +403,9 @@ jobs:
         with:
           draft: true
           name: dm ${{ github.ref_name }}
+          # SignPath Foundation asks that every release page link the policy.
+          body: |
+            [Code signing policy](https://github.com/${{ github.repository }}#code-signing-policy)
           files: installers/*
 
   arch:
