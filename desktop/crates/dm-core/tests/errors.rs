@@ -104,7 +104,7 @@ async fn a_file_larger_than_the_disk_is_refused_before_it_is_fetched() {
     assert_eq!(fetched.load(Ordering::SeqCst), 0, "ranges were fetched");
 }
 
-/// QA checklist EN-09: a file over 4 GB bound for a FAT32 drive is refused
+/// QA pass, 2026-10-22: a file over 4 GB bound for a FAT32 drive is refused
 /// before a byte is fetched, naming why and what to do, where it used to
 /// run to 4 GB and fail there. A test's drive holds nothing over 1,000
 /// bytes.

@@ -1329,7 +1329,7 @@ fn main() {
     }
 
     // `--help`: how to use dm from a command line, and nothing else. It
-    // opened the window (QA checklist OR-08, 2026-10-22).
+    // opened the window (QA pass, 2026-10-22).
     if matches!(
         args.first().map(String::as_str),
         Some("--help" | "-h" | "/?")

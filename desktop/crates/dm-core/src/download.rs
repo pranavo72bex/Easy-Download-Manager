@@ -2843,7 +2843,7 @@ fn room_for(size: u64, done: &Arc<AtomicU64>, options: &Options) -> Result<Claim
     }
     // A drive whose file system cannot hold a file this big (FAT32's 4 GB)
     // is said before a byte is fetched: the download ran to 4 GB and failed
-    // there (QA checklist EN-09).
+    // there (QA pass, 2026-10-22).
     for (dir, _) in &needs {
         if let Some(most) = room.largest_file(dir) {
             if size > most {

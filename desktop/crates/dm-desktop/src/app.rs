@@ -362,7 +362,7 @@ fn status_in(row: &Entry, words: fn(&'static str) -> &'static str) -> String {
         // sentences for 401 and 403 do (`format::REASONS`); anything else
         // with that status is said as the engine said it, with where. The
         // address and the server's own page were shown in the row
-        // (QA checklist ER-02, 2026-10-22).
+        // (QA pass, 2026-10-22).
         State::Failed(reason) if needs_sign_in(reason) && format::reason(reason).is_none() => {
             format!(
                 "{} — {}",
@@ -1170,7 +1170,7 @@ impl DmApp {
             {
                 failed.push(row.id);
                 // Told as a finish is, with why in plain words: a failure
-                // was only a sound, if that was on (QA checklist UX-09).
+                // was only a sound, if that was on (QA pass, 2026-10-22).
                 self.backend.platform.notify(
                     t("Download failed"),
                     &format!("{} — {}", name_of(row), status_of(row)),
@@ -4050,7 +4050,7 @@ impl DmApp {
 
     /// What the tray's tooltip says while downloads run: how many and how
     /// fast, as the status bar says it; `None` when nothing is downloading.
-    /// It said only "downloads keep running here" (QA checklist UX-08).
+    /// It said only "downloads keep running here" (QA pass, 2026-10-22).
     pub fn tray_activity(&self) -> Option<String> {
         let running: Vec<&Entry> = self
             .rows

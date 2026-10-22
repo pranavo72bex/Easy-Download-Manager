@@ -5525,7 +5525,7 @@ fn a_refused_sign_in_says_where_to_give_one() {
     let failed = harness.state().rows()[0].clone();
     let said = dm_desktop::app::status_of(&failed);
     // In plain words, saying where a sign-in goes, without the address or
-    // the server's page (QA checklist ER-02).
+    // the server's page (QA pass, 2026-10-22).
     assert!(said.contains("Properties › Login"), "{said}");
     assert!(!said.contains("http"), "{said}");
     select(&mut harness, "secret.zip");
@@ -8702,7 +8702,7 @@ fn a_new_user_is_shown_how_to_add_dm_to_their_browser() {
 }
 
 /// A failure is announced as a finish is, saying why in plain words; it was
-/// only a sound, if that was on (QA checklist UX-09).
+/// only a sound, if that was on (QA pass, 2026-10-22).
 #[test]
 fn a_failed_download_is_announced_with_why() {
     let world = world();
@@ -8720,8 +8720,8 @@ fn a_failed_download_is_announced_with_why() {
     assert!(!told[0].contains("http"), "{told:?}");
 }
 
-/// Download complete can be turned off from itself, as IDM's "Don't show
-/// this dialog again", and offers Open with beside Open (QA checklist UX-07).
+/// Download complete can be turned off from itself ("Don't show this
+/// window again"), and offers Open with beside Open (QA pass, 2026-10-22).
 #[test]
 fn download_complete_offers_open_with_and_not_again() {
     let _file = settings_file();
@@ -8748,7 +8748,7 @@ fn download_complete_offers_open_with_and_not_again() {
 }
 
 /// The tray says how many downloads run and how fast; nothing to say when
-/// none do (QA checklist UX-08).
+/// none do (QA pass, 2026-10-22).
 #[test]
 fn the_tray_says_how_many_downloads_run_and_how_fast() {
     let world = world();

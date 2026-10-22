@@ -3930,8 +3930,8 @@ fn complete(app: &mut DmApp, ctx: &egui::Context) {
                 });
             footer(ui, |ui| {
                 close = ui.button(t("Close")).clicked();
-                // As the window's own choice, not only Options': IDM's
-                // "Don't show this dialog again" (QA checklist UX-07).
+                // As the window's own choice, not only Options': a
+                // "Don't show this dialog again" (QA pass, 2026-10-22).
                 ui.checkbox(&mut never_again, t("Don't show this window again"));
             });
         });
