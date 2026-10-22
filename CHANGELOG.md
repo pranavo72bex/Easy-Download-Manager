@@ -13,6 +13,8 @@ the browser extension (`v*` tags) are versioned separately.
   and the tray.
 - On Windows the schedule can wake a sleeping computer to start.
 - A live HLS stream is recorded as it goes, until Stop or the stream ends.
+- Preview while downloading: a video or song being fetched can be opened
+  in its player from the row menu, from what is on disk so far.
 - Portable: an empty file named `portable` beside the program keeps dm's
   settings and list in a `dm-data` folder beside it.
 

@@ -1921,7 +1921,11 @@ async fn discard_staged(dir: &Path) {
     if let Ok(mut listing) = fs::read_dir(dir).await {
         while let Ok(Some(entry)) = listing.next_entry().await {
             let name = entry.file_name().to_string_lossy().into_owned();
-            if name.starts_with("part-") || name.starts_with("done-") || name == STAGED {
+            if name.starts_with("part-")
+                || name.starts_with("done-")
+                || name == STAGED
+                || name.starts_with(crate::queue::PREVIEW)
+            {
                 let _ = fs::remove_file(entry.path()).await;
             }
         }

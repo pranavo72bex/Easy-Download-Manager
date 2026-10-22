@@ -1795,7 +1795,10 @@ impl DmApp {
                 // Opening a downloaded file runs it, on Windows, if it is a
                 // program: a person's click in the window, never a script's
                 // or an AI client's that a web page may have talked into it.
-                if matches!(command, Command::OpenFile | Command::OpenWith) {
+                if matches!(
+                    command,
+                    Command::OpenFile | Command::OpenWith | Command::Preview
+                ) {
                     return Err(format!(
                         "{id} is done in the window by a person, not over this connection"
                     ));
@@ -2271,6 +2274,16 @@ impl DmApp {
                     && targets[0].state == State::Completed
                     && !targets[0].path.is_empty()
             }
+            // Something a player can show, with some of it fetched.
+            Command::Preview => {
+                targets.len() == 1
+                    && targets[0].state != State::Completed
+                    && targets[0].progress.downloaded > 0
+                    && matches!(
+                        kind_of(targets[0]),
+                        Some(Category::Videos | Category::Audio)
+                    )
+            }
             Command::OpenFile | Command::OpenWith => {
                 targets.len() == 1
                     && targets[0].state == State::Completed
@@ -2463,6 +2476,14 @@ impl DmApp {
             Command::OpenFile => {
                 self.open_file(&targets[0].path);
             }
+            Command::Preview => match self.backend.preview(targets[0].id) {
+                Ok(path) => self.open_file(&path.to_string_lossy()),
+                // Nothing on disk yet is the usual answer, and one to word.
+                Err(e) if e.starts_with("nothing") => {
+                    self.said = crate::i18n::t("Nothing of it is on disk to preview yet.").into()
+                }
+                Err(e) => self.said = e.into(),
+            },
             Command::OpenWith => {
                 let path = targets[0].path.clone();
                 self.open_with_chosen(&path);
@@ -3909,6 +3930,7 @@ impl DmApp {
                     for c in [
                         Command::OpenFile,
                         Command::OpenWith,
+                        Command::Preview,
                         Command::OpenFolder,
                         Command::Properties,
                     ] {

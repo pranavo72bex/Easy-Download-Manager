@@ -500,6 +500,11 @@ impl Backend {
         self.block_on(self.queue.move_to(id, dir))
     }
 
+    /// A playable file of what a download has fetched so far.
+    pub fn preview(&self, id: Id) -> Result<std::path::PathBuf, String> {
+        self.block_on(self.queue.preview(id))
+    }
+
     pub fn connections(&self, id: Id) -> Vec<Connection> {
         self.block_on(self.queue.connections(id))
     }

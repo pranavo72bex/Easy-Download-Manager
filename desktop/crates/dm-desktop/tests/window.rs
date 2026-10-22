@@ -241,6 +241,22 @@ fn world() -> World {
                         .unwrap()
                 }),
             );
+        // A video that sends its first 64 KiB and then nothing.
+        let app = app.route(
+            "/half.mp4",
+            axum::routing::get(|| async {
+                let first = futures_util::stream::iter([Ok::<Vec<u8>, std::io::Error>(
+                    vec![9u8; 64 * 1024],
+                )]);
+                let never = futures_util::stream::pending();
+                Response::builder()
+                    .header("content-length", "1000000")
+                    .body(Body::from_stream(futures_util::StreamExt::chain(
+                        first, never,
+                    )))
+                    .unwrap()
+            }),
+        );
         // A connection that ends after a thousand bytes of a million, every
         // time, with no ranges to resume from: retried, then failed.
         let app = app.route(
@@ -894,6 +910,59 @@ fn when_done_does_not_fire_on_a_stopped_or_schedule_held_queue() {
         "counted down to sleep with a download the schedule holds"
     );
     assert_eq!(harness.state().when_done, WhenDone::Sleep);
+}
+
+#[test]
+fn a_video_half_fetched_is_previewed_from_what_is_on_disk() {
+    let world = world();
+    let mut harness = world.harness();
+    add_url(&mut harness, &world.url("half.mp4"), "Start now");
+    until(&mut harness, "the first bytes to arrive", |app| {
+        app.rows()
+            .iter()
+            .any(|r| r.progress.downloaded >= 64 * 1024)
+    });
+    select(&mut harness, "half.mp4");
+    assert!(!harness.state().enabled(Command::OpenFile), "not finished");
+    assert!(harness.state().enabled(Command::Preview));
+    harness.state_mut().run(Command::Preview);
+    let opened = || {
+        world
+            .fake
+            .opened
+            .lock()
+            .unwrap()
+            .iter()
+            .find(|p| p.ends_with("preview.mp4"))
+            .cloned()
+    };
+    until(&mut harness, "the preview to be opened", |_| {
+        opened().is_some()
+    });
+    let preview = opened().unwrap();
+    let bytes = std::fs::read(&preview).unwrap();
+    // From the start, all of it but what is still in the engine's write
+    // buffer (the staged file is as long as the whole, zeros past that).
+    assert!(bytes.len() >= 32 * 1024, "{} bytes", bytes.len());
+    assert!(bytes[..32 * 1024].iter().all(|b| *b == 9));
+
+    // A file no player shows is not offered.
+    add_url(&mut harness, &world.url("stalled.bin"), "Start now");
+    select(&mut harness, "stalled.bin");
+    assert!(!harness.state().enabled(Command::Preview));
+
+    // Removing the row takes the preview with its parts.
+    let row = harness
+        .state()
+        .rows()
+        .iter()
+        .find(|r| r.url.ends_with("half.mp4"))
+        .unwrap()
+        .id;
+    harness.state().backend().remove(row);
+    until(&mut harness, "the preview to go with its row", |_| {
+        !std::path::Path::new(&preview).exists()
+    });
 }
 
 #[test]

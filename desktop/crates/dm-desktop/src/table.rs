@@ -911,6 +911,7 @@ fn row_menu(app: &mut DmApp, ui: &mut egui::Ui) {
     for command in [
         Command::OpenFile,
         Command::OpenWith,
+        Command::Preview,
         Command::OpenFolder,
         Command::MoveRename,
         Command::Redownload,

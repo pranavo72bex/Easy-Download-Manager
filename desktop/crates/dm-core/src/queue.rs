@@ -2451,6 +2451,23 @@ impl Queue {
         .unwrap_or_default()
     }
 
+    /// What a download has fetched so far, as a file a player can open
+    /// while it goes on: `preview.<its extension>` beside its parts, a hard
+    /// link to the staged file where the disk allows one (so it grows as the
+    /// download does), a copy otherwise. A player plays from the start for
+    /// as far as the bytes are there; a file whose index is at its end will
+    /// not play until it is. Replaced at each call; removed with the parts.
+    pub async fn preview(&self, id: Id) -> Result<PathBuf, String> {
+        let entry = self.get(id).await.ok_or("there is no such download")?;
+        if entry.state == State::Completed {
+            return Err("it has finished: open it instead".into());
+        }
+        let parts = self.parts_dir_of(id).await;
+        tokio::task::spawn_blocking(move || preview_of(&parts, &entry.filename))
+            .await
+            .map_err(|e| e.to_string())?
+    }
+
     /// Whether the server said it serves ranges — "Can resume".
     /// `None` until the download has been planned.
     pub async fn resumable(&self, id: Id) -> Option<bool> {
@@ -2502,12 +2519,44 @@ async fn staged_bytes(dir: &std::path::Path) -> Option<u64> {
             if let Ok(index) = done.parse::<usize>() {
                 total += crate::download::read_ledger(dir, index).unwrap_or(0);
             }
-        } else if name != "plan.json" && name != crate::download::STAGED {
+        } else if name != "plan.json"
+            && name != crate::download::STAGED
+            && !name.starts_with(PREVIEW)
+        {
             others += 1;
         }
     }
     (parts > 0 || others == 0).then_some(total)
 }
+
+/// The file a player is given for [`Queue::preview`]: what is fetched of
+/// `filename` under `parts`, under a name that ends as `filename` does.
+fn preview_of(parts: &std::path::Path, filename: &str) -> Result<PathBuf, String> {
+    // The staged file of a ranged download, a stream's recording, or the
+    // one part of a download over one connection.
+    let source = [crate::download::STAGED, "live.recording", "part-0000"]
+        .iter()
+        .map(|name| parts.join(name))
+        .find(|p| std::fs::metadata(p).is_ok_and(|m| m.len() > 0))
+        .ok_or("nothing of it is on disk to preview yet")?;
+    let extension = std::path::Path::new(filename)
+        .extension()
+        .map(|e| e.to_string_lossy().into_owned())
+        .unwrap_or_default();
+    let to = parts.join(if extension.is_empty() {
+        "preview".to_string()
+    } else {
+        format!("{PREVIEW}.{extension}")
+    });
+    let _ = std::fs::remove_file(&to);
+    if std::fs::hard_link(&source, &to).is_err() {
+        std::fs::copy(&source, &to).map_err(|e| format!("could not make a preview: {e}"))?;
+    }
+    Ok(to)
+}
+
+/// What a preview's file is called, before its extension.
+pub(crate) const PREVIEW: &str = "preview";
 
 /// The queue dm keeps finished files in to check them again for changes on
 /// their servers.
@@ -2515,3 +2564,25 @@ pub const RECHECK_QUEUE: &str = "Recheck queue";
 
 /// The queue dm has from the start, and that "Add for later" puts rows in.
 pub const MAIN_QUEUE: &str = "Main queue";
+
+#[cfg(test)]
+mod preview_tests {
+    use super::*;
+
+    #[test]
+    fn a_preview_is_what_is_fetched_under_the_files_own_ending() {
+        let dir = tempfile::tempdir().unwrap();
+        let parts = dir.path();
+        assert!(preview_of(parts, "talk.mp4").is_err(), "nothing yet");
+
+        std::fs::write(parts.join(crate::download::STAGED), b"first bytes").unwrap();
+        let preview = preview_of(parts, "talk.mp4").unwrap();
+        assert_eq!(preview, parts.join("preview.mp4"));
+        assert_eq!(std::fs::read(&preview).unwrap(), b"first bytes");
+
+        // A link grows with the download; asked again, it is made afresh.
+        std::fs::write(parts.join(crate::download::STAGED), b"first bytes, more").unwrap();
+        let again = preview_of(parts, "talk.mp4").unwrap();
+        assert_eq!(std::fs::read(again).unwrap(), b"first bytes, more");
+    }
+}
