@@ -423,7 +423,7 @@ fn joined_by_dm(container: &str) -> bool {
     container.is_empty() || ["mp4", "m4a", "webm"].contains(&container)
 }
 
-/// What yt-dlp leaves, pointed at no joiner of its own: the picture and
+/// What yt-dlp leaves where it does not join them itself: the picture and
 /// the sound beside the name it would have joined them under,
 /// `name.f137.mp4` and `name.f140.m4a`, picture first.
 async fn parts_of(joined: &Path) -> Vec<PathBuf> {
@@ -705,12 +705,6 @@ pub async fn download_ytdlp(
     command.process_group(0);
 
     js_runtime(&mut command);
-    /* dm joins picture and sound, and carries subtitles, itself: yt-dlp is
-     * pointed at a joiner that is not there, so one installed on the
-     * computer is never used and every computer gets the same file. */
-    command
-        .arg("--ffmpeg-location")
-        .arg(staging.join("no-joiner"));
     if options.subtitles {
         // Fetched as WebVTT beside the video, and put into it by dm.
         command.args(["--write-subs", "--sub-langs", "all", "--sub-format", "vtt"]);

@@ -72,8 +72,8 @@ async fn a_page_is_handed_to_ytdlp_and_the_file_is_placed() {
 }
 
 /// A DASH manifest whose picture and sound are separate, as a video site
-/// serves its better qualities, fetched by the real yt-dlp, which is given
-/// no joiner: dm joins the two halves itself into one MP4.
+/// serves its better qualities, fetched by the real yt-dlp: one MP4
+/// arrives, joined by dm where yt-dlp leaves the two halves apart.
 #[tokio::test(flavor = "multi_thread")]
 async fn a_picture_and_sound_served_apart_arrive_as_one_mp4() {
     if !ytdlp::available() {
@@ -136,9 +136,9 @@ async fn a_picture_and_sound_served_apart_arrive_as_one_mp4() {
     assert_eq!(left.len(), 1, "{left:?}");
 }
 
-/// An HLS stream fetched by the real yt-dlp, which is given no joiner:
-/// yt-dlp saves the transport stream under an `.mp4` name, and dm makes it
-/// the MP4 it says it is. The stream is the one kept beside the tests.
+/// An HLS stream fetched by the real yt-dlp: where yt-dlp saves the
+/// transport stream under an `.mp4` name, dm makes it the MP4 it says it
+/// is. The stream is the one kept beside the tests.
 #[tokio::test(flavor = "multi_thread")]
 async fn an_hls_stream_yt_dlp_saved_as_ts_is_made_a_real_mp4() {
     if !ytdlp::available() {

@@ -365,15 +365,13 @@ async fn a_webm_asked_for_is_joined_by_dm_into_one_webm() {
 }
 
 /// Subtitles are fetched as WebVTT and dm puts them inside the video it
-/// joins, the same on every computer: yt-dlp is never told to embed them,
-/// and is pointed at a joiner that is not there, so no joiner installed on
-/// the computer is used.
+/// joins: yt-dlp is never told to embed them.
 #[tokio::test]
 async fn subtitles_are_fetched_and_carried_in_the_video_by_dm() {
     let _turn = ENV.lock().await;
     let url = serve_page().await;
-    // With no joiner of yt-dlp's they are fetched as WebVTT and dm puts them
-    // inside the video it joins; no subtitle file is left beside it.
+    // They are fetched as WebVTT and dm puts them inside the video it
+    // joins; no subtitle file is left beside it.
     let dir = tempdir();
     let record = dir.path().join("argv");
     std::env::set_var("DM_YTDLP", fake_ytdlp(dir.path()));
@@ -394,15 +392,6 @@ async fn subtitles_are_fetched_and_carried_in_the_video_by_dm() {
     let args = recorded(&record);
     assert!(!args.iter().any(|a| a == "--embed-subs"), "{args:?}");
     assert!(args.iter().any(|a| a == "--write-subs"), "{args:?}");
-    // The joiner's location option, naming a path that is not there.
-    let missing = args.iter().position(|a| a.ends_with("no-joiner"));
-    assert!(
-        missing
-            .and_then(|at| at.checked_sub(1))
-            .and_then(|at| args.get(at))
-            .is_some_and(|a| a.starts_with("--") && a.ends_with("-location")),
-        "{args:?}"
-    );
     let joined = std::fs::read(&done.path).unwrap();
     let has = |kind: &[u8]| joined.windows(kind.len()).filter(|w| *w == kind).count();
     assert_eq!(has(b"tx3g"), 1, "no subtitle track");

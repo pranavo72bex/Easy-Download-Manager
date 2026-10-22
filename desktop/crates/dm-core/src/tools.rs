@@ -2,9 +2,7 @@
 //! dm itself where the computer has none, so a video site's page downloads
 //! with nothing installed by hand. Nothing else is fetched: dm joins
 //! picture and sound and records streams itself (`mp4mux`, `mkvmux`,
-//! `tsmux`, `rtmp`, `rtsp`, `mms`), and yt-dlp is kept from any joiner
-//! installed on the computer (`ytdlp.rs`), so every computer gets the
-//! same file.
+//! `tsmux`, `rtmp`, `rtsp`, `mms`).
 //!
 //! dm still writes no site logic of its own: it runs yt-dlp, as it always
 //! has. What changes is where that yt-dlp comes from. One the person

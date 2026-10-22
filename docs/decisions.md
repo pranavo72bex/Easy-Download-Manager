@@ -1348,6 +1348,18 @@ app says to update the app. The two store addresses are allowed in shipped
 code by `cargo xtask privacy`, since they open in the person's browser only
 when clicked.
 
+## yt-dlp may use a joiner the person installed (2026-10-22, later)
+
+The option that pointed yt-dlp at a joiner that is not there was removed:
+it was the last place dm named a tool it does not use, and the owner chose
+to drop it. On a computer with no joiner of its own nothing changes: yt-dlp
+leaves picture and sound apart and dm joins them. Where one is installed,
+yt-dlp may join them itself and dm takes the one file as it is (putting
+subtitles inside where it can, as it does for any single file). The cost:
+the file can differ from computer to computer, and that route is tested
+only where the test machine has such a joiner. dm still fetches nothing
+of the kind and runs nothing of the kind itself.
+
 ## No separate video tool, not even an installed one (2026-10-22)
 
 dm joins picture and sound (`mp4mux`, `mkvmux`), carries subtitles, puts
