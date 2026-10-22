@@ -7505,6 +7505,77 @@ fn an_unreachable_folder_pauses_and_another_folder_finishes_it() {
     assert_eq!(std::fs::read(&row.path).unwrap(), payload());
 }
 
+/// A fresh link can be got from the browser: its page opens there, and
+/// the next download caught becomes the row's link, with no row of its own.
+#[test]
+fn a_fresh_link_is_taken_from_the_browser() {
+    let world = world();
+    let mut harness = Harness::builder()
+        .with_size(egui::vec2(1100.0, 720.0))
+        .build_ui_state(
+            |ui, app: &mut DmApp| app.ui(ui),
+            world.app_with(Settings {
+                download_dir: world.dir.path().join("out"),
+                connections: 1,
+                attempts: 3,
+                retry_wait: 0,
+                show_progress: false,
+                show_complete: false,
+                language: "en".into(),
+                ..Settings::default()
+            }),
+        );
+    harness
+        .state()
+        .backend()
+        .add_with(
+            &world.url("expires.bin"),
+            dm_core::AddOptions {
+                referrer: world.url("page.html"),
+                ..Default::default()
+            },
+        )
+        .unwrap();
+    until(&mut harness, "the expired link to fail", |app| {
+        app.rows()
+            .iter()
+            .any(|r| matches!(r.state, State::Failed(_)))
+    });
+    harness.run_steps(3);
+    click(&mut harness, "Get it from the browser");
+    assert!(world
+        .fake
+        .opened
+        .lock()
+        .unwrap()
+        .contains(&world.url("page.html")));
+    assert!(harness.state().awaiting_link.is_some());
+    // The person clicks the download on the page; the browser hands it over.
+    harness
+        .state()
+        .backend()
+        .handed
+        .lock()
+        .unwrap()
+        .push_back(dm_shell::host::Request {
+            url: world.url("renewed.bin"),
+            referrer: world.url("page.html"),
+            caught: true,
+            ..Default::default()
+        });
+    harness.state_mut().take_handed();
+    assert!(harness.state().awaiting_link.is_none());
+    until(&mut harness, "the download to finish", |app| {
+        app.rows().iter().any(|r| r.state == State::Completed)
+    });
+    assert_eq!(
+        harness.state().rows().len(),
+        1,
+        "a row of its own was added"
+    );
+    assert_eq!(harness.state().rows()[0].url, world.url("renewed.bin"));
+}
+
 /// Gap 153: a failed row's status is a plain reason, in Properties held to
 /// its column; the engine's words are kept for hover.
 #[test]

@@ -5080,6 +5080,7 @@ fn update_link(app: &mut DmApp, ctx: &egui::Context) {
     let mut open = true;
     let mut ok = false;
     let mut cancel = false;
+    let mut from_browser = false;
     window(ctx, "Update download link")
         .open(&mut open)
         .show(ctx, |ui| {
@@ -5091,6 +5092,16 @@ fn update_link(app: &mut DmApp, ctx: &egui::Context) {
             .on_hover_text(format::shown_url(&row.url));
             ui.label(t("The download's link has expired? Paste a fresh one:"));
             ok = entered(&focused(field(ui, t("New address"), address, 420.0), focus));
+            // Or the page it came from opened again in the browser, and the
+            // next download clicked there taken as the link.
+            if !row.referrer.is_empty() {
+                ui.horizontal_wrapped(|ui| {
+                    ui.label(RichText::new(t("Or:")).weak());
+                    if ui.button(t("Get it from the browser")).clicked() {
+                        from_browser = true;
+                    }
+                });
+            }
             if !says.is_empty() {
                 ui.colored_label(warn(ui), says.as_str());
             }
@@ -5103,6 +5114,13 @@ fn update_link(app: &mut DmApp, ctx: &egui::Context) {
             });
         });
     open &= !cancel;
+    if from_browser {
+        let row_id = *id;
+        app.dialogs.update_link = None;
+        app.open_file(&row.referrer);
+        app.await_link(row_id);
+        return;
+    }
     if ok && open {
         match app.backend.set_url(*id, address) {
             Ok(()) => {

@@ -95,6 +95,20 @@ pub struct Orders {
 /// The words `--when-done` takes.
 pub const WHEN_DONE: [&str; 5] = ["nothing", "exit", "sleep", "hibernate", "shutdown"];
 
+/// While the window waits for a fresh link from the browser, every hand-off
+/// goes to it rather than straight into the queue.
+static TO_WINDOW: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
+
+/// Sends every hand-off to the window (`on`), or lets the queue take them
+/// as usual.
+pub fn route_to_window(on: bool) {
+    TO_WINDOW.store(on, std::sync::atomic::Ordering::Relaxed);
+}
+
+fn routed_to_window() -> bool {
+    TO_WINDOW.load(std::sync::atomic::Ordering::Relaxed)
+}
+
 /// The file in the inbox that carries `--when-done` to the window.
 pub const WHEN_DONE_FILE: &str = "when-done";
 
@@ -919,7 +933,7 @@ pub async fn watch_inbox(
                 // or a hotlink-protected file 403s in the app where the
                 // browser's own download would have worked.
                 // A video from the browser's panel: the window asks first.
-                Ok(request) if request.ask => ask(request),
+                Ok(request) if request.ask || routed_to_window() => ask(request),
                 Ok(request) => {
                     let url = host::saved(&settings::home()).with_login(&request.url);
                     queue.add_with(&url, add_options(&request)).await;

@@ -689,6 +689,9 @@ pub const EXTENSION_CHROME: &str =
 /// the extension again.
 const BROWSER_HINT_HIDDEN: &str = "browser-hint.hidden";
 
+/// How long a fresh link is waited for from the browser.
+const AWAIT_LINK_FOR: Duration = Duration::from_secs(10 * 60);
+
 /// Written once the welcome's "Add dm to your browser" has been shown.
 const WELCOMED: &str = "welcomed";
 
@@ -757,6 +760,9 @@ pub struct DmApp {
     /// The window was asked to come up from inside it (the floating drop
     /// target's Show dm), for the program around it to do.
     pub show_asked: bool,
+    /// A row waiting for its fresh link from the browser, and since when:
+    /// the next download caught there becomes its link.
+    pub awaiting_link: Option<(Id, Instant)>,
     /// Whether a new install's welcome has been looked into this run.
     welcome_checked: bool,
 
@@ -962,6 +968,7 @@ impl DmApp {
             browser_hint: (None, false),
             update_row: None,
             show_asked: false,
+            awaiting_link: None,
             welcome_checked: false,
             update: Arc::new(Mutex::new(Update::NotAsked)),
             weekly_pending: false,
@@ -1439,6 +1446,24 @@ impl DmApp {
         if ask && (self.dialogs.file_info.is_some() || self.dialogs.links.is_some()) {
             return;
         }
+        // A row waiting for a fresh link takes the next download caught in
+        // the browser as it, rather than a row of its own.
+        if let Some((id, since)) = self.awaiting_link {
+            if since.elapsed() > AWAIT_LINK_FOR {
+                self.stop_awaiting_link();
+            } else {
+                let next = dm_core::lock(&self.backend.handed)
+                    .front()
+                    .is_some_and(|r| r.links.is_empty());
+                if next {
+                    let request = dm_core::lock(&self.backend.handed).pop_front();
+                    if let Some(request) = request {
+                        self.take_fresh_link(id, &request.url);
+                    }
+                    return;
+                }
+            }
+        }
         let Some(request) = dm_core::lock(&self.backend.handed).pop_front() else {
             return;
         };
@@ -1513,6 +1538,66 @@ impl DmApp {
                 &[],
             );
         }
+    }
+
+    /// Starts waiting for a fresh link for row `id`, from its page opened in
+    /// the browser.
+    pub fn await_link(&mut self, id: Id) {
+        self.awaiting_link = Some((id, Instant::now()));
+        dm_shell::shell::route_to_window(true);
+    }
+
+    /// Stops waiting for a fresh link.
+    pub fn stop_awaiting_link(&mut self) {
+        self.awaiting_link = None;
+        dm_shell::shell::route_to_window(false);
+    }
+
+    /// The download caught in the browser becomes row `id`'s link, and the
+    /// row goes on from where it stopped.
+    fn take_fresh_link(&mut self, id: Id, url: &str) {
+        self.stop_awaiting_link();
+        let failed = self
+            .rows
+            .iter()
+            .find(|r| r.id == id)
+            .is_some_and(|r| matches!(r.state, State::Failed(_)));
+        match self.backend.set_url(id, url) {
+            Ok(()) => {
+                if failed {
+                    self.backend.retry(id);
+                }
+                self.said = crate::i18n::Said::new(
+                    "The new link was taken from the browser; the download goes on.",
+                    &[],
+                );
+            }
+            Err(e) => self.said = e.into(),
+        }
+        self.refresh();
+    }
+
+    /// While a fresh link is awaited: what to do, and a way out.
+    fn awaiting_bar(&mut self, ui: &mut egui::Ui) {
+        let Some((id, _)) = self.awaiting_link else {
+            return;
+        };
+        let name = self
+            .rows
+            .iter()
+            .find(|r| r.id == id)
+            .map(name_of)
+            .unwrap_or_default();
+        ui.horizontal_wrapped(|ui| {
+            ui.label(tf(
+                "Click the download again on the page in your browser: dm takes it as the new link for {}.",
+                &[&crate::bidi::visual(&name)],
+            ));
+            if ui.button(t("Cancel")).clicked() {
+                self.stop_awaiting_link();
+            }
+        });
+        ui.separator();
     }
 
     /// A download the browser handed over was added: one handed over again
@@ -3217,6 +3302,7 @@ impl DmApp {
                     if rail_gone {
                         self.place_picker(ui);
                     }
+                    self.awaiting_bar(ui);
                     self.update_bar(ui);
                     self.stalled_bar(ui);
                     self.browser_bar(ui);
