@@ -1649,14 +1649,7 @@ async fn what_is_not_a_url_is_refused_at_the_one_door() {
     let dir = tempdir();
     let q = queue(dir.path(), 1);
 
-    for refused in [
-        "",
-        "   ",
-        "not a url",
-        "ftps://e.com/f",
-        "file:///etc/passwd",
-        "javascript:x",
-    ] {
+    for refused in ["", "   ", "not a url", "file:///etc/passwd", "javascript:x"] {
         assert!(q.add(refused).await.is_none(), "accepted {refused:?}");
     }
     assert!(
@@ -1664,12 +1657,13 @@ async fn what_is_not_a_url_is_refused_at_the_one_door() {
         "surrounding space"
     );
     assert!(q.add("http://e.com/f.bin").await.is_some());
-    // FTP is fetched too.
+    // FTP is fetched too, and FTP over TLS.
     assert!(q.add("ftp://e.com/f.bin").await.is_some());
+    assert!(q.add("ftps://e.com/f.bin").await.is_some());
     assert_eq!(
         q.list().await.len(),
-        3,
-        "only the three real URLs became rows"
+        4,
+        "only the four real URLs became rows"
     );
 }
 

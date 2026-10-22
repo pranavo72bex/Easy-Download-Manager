@@ -179,7 +179,7 @@ and is not carried over.
       a progress window per download with each connection, Download
       complete, Properties with Update download link, Add numbered series,
       Add links from clipboard, Site files (pages deep on one site,
-      or an FTP server's folders read by MLSD or LIST; path filters, saved
+      or an FTP server's folders read by MLSD or LIST, FTP over TLS included; path filters, saved
       searches that run on a timer and can stop reading after so many minutes), Import/Export as dm's
       `.dmlist` (plain lists of links import too), Find, a Filter over the list that narrows it as one types, Scheduler, Speed
       limiter, Options (General, Folders, Downloads, Browser, Network,

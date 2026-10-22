@@ -741,11 +741,12 @@ mod tests {
         for refused in [
             "javascript:alert(1)",
             "file:///etc/passwd",
-            "ftps://e.com/f",
+            "data:text/plain,x",
         ] {
             assert!(!dm_core::queue::accepted(refused), "{refused}");
         }
         assert!(dm_core::queue::accepted("https://e.com/f.bin"));
+        assert!(dm_core::queue::accepted("ftps://e.com/f.bin"));
     }
 
     #[test]
