@@ -264,6 +264,8 @@ struct Window {
     /// Set by a second launch through the inbox, or a click on the Dock
     /// icon, asking for the window back.
     show_asked: Arc<AtomicBool>,
+    /// The look last told to the window's title bar (Windows).
+    title_bar_in_force: Option<(bool, egui::Color32, egui::Color32)>,
     /// Kept alive for as long as the window: dropping the icon removes it.
     /// With its menu's items, relabelled when the language changes.
     icon: Option<TrayMade>,
@@ -361,6 +363,13 @@ impl eframe::App for Window {
             use raw_window_handle::HasWindowHandle;
             if let Ok(handle) = frame.window_handle() {
                 dm_desktop::drops::attach(handle.as_raw());
+                // The title bar in the look's colours, when the look changes.
+                let t = dm_desktop::theme::Tokens::get(ui.ctx());
+                let look = (t.dark, t.frame, t.text);
+                if self.title_bar_in_force != Some(look) {
+                    self.title_bar_in_force = Some(look);
+                    dm_desktop::chrome::title_bar(handle.as_raw(), t.dark, t.frame, t.text);
+                }
             }
         }
         let files = std::mem::take(&mut self.app.drag_out);
@@ -1679,6 +1688,7 @@ fn main() {
                 .then(|| std::time::Instant::now() + std::time::Duration::from_secs(10)),
             quitting: false,
             show_asked,
+            title_bar_in_force: None,
             icon,
             tray_language: language,
             tray_tip: String::new(),

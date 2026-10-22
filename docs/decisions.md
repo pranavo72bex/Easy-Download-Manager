@@ -3,6 +3,17 @@
 Decisions that shape dm and are not obvious from the code, newest first. Each says what was decided and why, so a later change
 can see what it is undoing.
 
+## 2026-10-22: The title bar takes the window's colour; no Mica backdrop yet
+
+Fluent's windows read as one surface from title bar to content. On Windows
+dm tells the window's frame its look through DWM: dark mode where the look
+is dark, and the caption in the window's own background colour, its words
+in the text colour (`chrome.rs`). Mica itself (`DWMWA_SYSTEMBACKDROP_TYPE`)
+shows only through a see-through window, which means drawing egui's
+panels with a transparent clear colour; where the compositor or an old GPU
+driver cannot, the window comes out black. That stays off until it can be
+watched on a real Windows 11 desktop.
+
 ## 2026-10-22: dm does not get around copy protection
 
 dm has no DRM remover and never will: no licence-server requests, no key

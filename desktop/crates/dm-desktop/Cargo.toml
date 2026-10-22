@@ -81,6 +81,8 @@ objc2-foundation = { version = "0.3", default-features = false, features = ["std
 [target.'cfg(windows)'.dependencies]
 windows-sys = { version = "0.61", features = [
   "Win32_Foundation",
+  # The title bar dark, and in the window's colour (chrome.rs).
+  "Win32_Graphics_Dwm",
   "Win32_System_Console",
   "Win32_System_Diagnostics_Debug",
   "Win32_System_Power",
