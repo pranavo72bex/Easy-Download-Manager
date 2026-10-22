@@ -598,6 +598,38 @@ fn a_newer_release_offers_its_installer_as_a_download_in_dm() {
             .iter()
             .any(|r| r.url == installer && r.state == State::Completed && r.verified)
     });
+    // Whole and checked: offered for installing, dm closing for it.
+    harness.state_mut().dialogs.about_open = false;
+    harness.state_mut().refresh();
+    harness.run_steps(3);
+    assert!(harness
+        .query_by_label("The dm update is downloaded and checked.")
+        .is_some());
+    let path = harness
+        .state()
+        .rows()
+        .iter()
+        .find(|r| r.url == installer)
+        .unwrap()
+        .path
+        .clone();
+    if cfg!(target_os = "linux") {
+        harness
+            .get_by_role_and_label(egui::accesskit::Role::Button, "Open folder")
+            .click();
+        harness.run_steps(3);
+    } else {
+        click(&mut harness, "Install now");
+        until(&mut harness, "the installer to be opened", |_| {
+            world.fake.opened.lock().unwrap().contains(&path)
+        });
+        assert!(
+            harness.state().quit_asked,
+            "dm stayed open over its installer"
+        );
+    }
+    assert!(harness.state().update_row.is_none());
+    harness.state_mut().quit_asked = false;
     // One that does not match what the release published is not kept.
     let other = world.url("other.pdf");
     offer(&mut harness, other.clone(), "0".repeat(64));

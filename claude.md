@@ -373,8 +373,9 @@ and is not carried over.
 - [ ] Auto-update — About › Check for updates reads the release's own
       latest.json, which now lists every installer. When a newer version is
       out, "Download the update" queues the installer for this OS and
-      processor as an ordinary dm download, and the person opens it. Nothing
-      installs itself. The release lists each installer's SHA-256 and the
+      processor as an ordinary dm download; once it is whole and checked a
+      bar over the list offers Install now, which opens it and closes dm
+      (an AppImage's folder is shown instead). Nothing installs unasked. The release lists each installer's SHA-256 and the
       download is checked against it: one that does not match is removed,
       and one with no digest listed is not offered. The picker is unit-tested and the button is driven in
       `window.rs`. Never run against a real release: none has been published

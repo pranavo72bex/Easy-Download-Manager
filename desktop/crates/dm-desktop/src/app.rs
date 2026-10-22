@@ -708,6 +708,9 @@ pub struct DmApp {
     /// the person said not now: looked up every few seconds, since the
     /// browser's side writes it (`host::browser_seen`).
     pub browser_hint: (Option<Instant>, bool),
+    /// The row fetching dm's own update, from About, until it is installed
+    /// or put off: once whole and checked, the window offers to install it.
+    pub update_row: Option<Id>,
 
     /// Commands asked for while drawing, run once the frame is drawn.
     pub queued: Vec<Command>,
@@ -899,6 +902,7 @@ impl DmApp {
             applied: settings,
             clipboard: Clipboard::default(),
             browser_hint: (None, false),
+            update_row: None,
             update: Arc::new(Mutex::new(Update::NotAsked)),
             weekly_pending: false,
             said: Default::default(),
@@ -3052,6 +3056,7 @@ impl DmApp {
                     if rail_gone {
                         self.place_picker(ui);
                     }
+                    self.update_bar(ui);
                     self.browser_bar(ui);
                     self.clipboard_bar(ui);
                     self.filter_bar(ui);
@@ -4026,6 +4031,48 @@ impl DmApp {
         if let Some(page) = open {
             self.open_file(page);
         }
+        ui.separator();
+    }
+
+    /// dm's update, downloaded and checked against its release's digest:
+    /// installed from here, dm closing so the installer can replace it. An
+    /// AppImage is not installed but put in place of this one by the person,
+    /// so its folder is shown instead.
+    fn update_bar(&mut self, ui: &mut egui::Ui) {
+        let Some(id) = self.update_row else {
+            return;
+        };
+        // Not in the list yet, the moment it is added: waited for.
+        let Some(row) = self.rows.iter().find(|r| r.id == id) else {
+            return;
+        };
+        match row.state {
+            State::Completed if row.verified && !row.path.is_empty() => {}
+            // Its own row says why it failed; nothing to offer.
+            State::Failed(_) | State::Cancelled => {
+                self.update_row = None;
+                return;
+            }
+            _ => return,
+        }
+        let path = row.path.clone();
+        let appimage = cfg!(target_os = "linux");
+        ui.horizontal_wrapped(|ui| {
+            ui.label(t("The dm update is downloaded and checked."));
+            if appimage {
+                if crate::dialogs::primary(ui, "Open folder").clicked() {
+                    self.reveal_file(&path);
+                    self.update_row = None;
+                }
+            } else if crate::dialogs::primary(ui, "Install now").clicked() {
+                self.open_file(&path);
+                self.update_row = None;
+                self.ask_quit();
+            }
+            if ui.button(t("Later")).clicked() {
+                self.update_row = None;
+            }
+        });
         ui.separator();
     }
 

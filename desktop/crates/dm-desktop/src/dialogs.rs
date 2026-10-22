@@ -6361,10 +6361,13 @@ fn about(app: &mut DmApp, ctx: &egui::Context) {
                     ..AddOptions::default()
                 };
                 app.said = match app.backend.add_with(&installer.url, with) {
-                    Ok(_) => crate::i18n::Said::new(
-                        "The new installer is downloading. Open it when it has finished.",
-                        &[],
-                    ),
+                    Ok(id) => {
+                        app.update_row = Some(id);
+                        crate::i18n::Said::new(
+                            "The new installer is downloading; dm offers to install it once it is checked.",
+                            &[],
+                        )
+                    }
                     Err(e) => e.into(),
                 };
             }
