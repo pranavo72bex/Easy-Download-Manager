@@ -193,7 +193,7 @@ pub struct Settings {
     /// Queues that run fewer files at once than `concurrency`.
     #[serde(default, deserialize_with = "lenient::queue_limits")]
     pub queue_limits: Vec<QueueLimit>,
-    /// Put a `.ts` stream into an MP4 (dm's own remux, else an ffmpeg's).
+    /// Put a `.ts` stream into an MP4 (dm's own remux).
     #[serde(default = "yes")]
     pub remux_ts: bool,
     /// Where unfinished downloads are staged; empty for dm's own folder.

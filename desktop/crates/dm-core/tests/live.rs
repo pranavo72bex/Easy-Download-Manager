@@ -81,10 +81,8 @@ async fn an_rtmp_stream_is_fetched_by_dm_and_saved_as_a_file_that_decodes_the_sa
     tokio::time::sleep(std::time::Duration::from_millis(1500)).await;
 
     // dm is told there is no ffmpeg: the stream is its own client's.
-    std::env::set_var("DM_FFMPEG", "");
     let dir = tempdir();
     let done = download(&client(), &address, &options(dir.path())).await;
-    std::env::remove_var("DM_FFMPEG");
     let done = done.expect("the RTMP stream");
     let _ = server.kill().await;
     assert_eq!(done.path.file_name().unwrap(), "show.mp4");
@@ -239,7 +237,6 @@ async fn an_rtmpt_stream_is_fetched_by_dm_through_http() {
     let http_port = listener.local_addr().unwrap().port();
     let relay = tokio::spawn(relay_rtmpt(listener, rtmp_port));
 
-    std::env::set_var("DM_FFMPEG", "");
     let dir = tempdir();
     let done = download(
         &client(),
@@ -247,7 +244,6 @@ async fn an_rtmpt_stream_is_fetched_by_dm_through_http() {
         &options(dir.path()),
     )
     .await;
-    std::env::remove_var("DM_FFMPEG");
     relay.abort();
     let _ = server.kill().await;
     let done = done.expect("the RTMPT stream");
@@ -267,7 +263,6 @@ async fn an_rtmpt_stream_is_fetched_by_dm_through_http() {
 #[tokio::test]
 async fn without_ffmpeg_a_stream_is_refused_plainly() {
     let _turn = FFMPEG_ENV.lock().await;
-    std::env::set_var("DM_FFMPEG", "");
     let dir = tempdir();
     // RTMPE (Flash's encrypted RTMP) is the one dm leaves to an ffmpeg.
     let outcome = download(
@@ -276,7 +271,6 @@ async fn without_ffmpeg_a_stream_is_refused_plainly() {
         &options(dir.path()),
     )
     .await;
-    std::env::remove_var("DM_FFMPEG");
     let said = outcome.unwrap_err().to_string();
     assert!(said.contains("encrypted stream dm cannot record"), "{said}");
 }
@@ -450,7 +444,6 @@ async fn an_rtsp_stream_is_recorded_by_dm_picture_for_picture() {
     let port = listener.local_addr().unwrap().port();
     let server = tokio::spawn(serve_rtsp(listener, units));
 
-    std::env::set_var("DM_FFMPEG", "");
     let dir = tempdir();
     let done = download(
         &client(),
@@ -458,7 +451,6 @@ async fn an_rtsp_stream_is_recorded_by_dm_picture_for_picture() {
         &options(dir.path()),
     )
     .await;
-    std::env::remove_var("DM_FFMPEG");
     let done = done.expect("the RTSP stream");
     let _ = server.await;
     assert_eq!(done.path.file_name().unwrap(), "show.mp4");
@@ -564,7 +556,6 @@ async fn an_mms_stream_is_fetched_over_http_by_dm_byte_for_byte() {
         }),
     );
     let addr = common::serve(app).await;
-    std::env::set_var("DM_FFMPEG", "");
     let dir = tempdir();
     let done = download(
         &client(),
@@ -572,7 +563,6 @@ async fn an_mms_stream_is_fetched_over_http_by_dm_byte_for_byte() {
         &options(dir.path()),
     )
     .await;
-    std::env::remove_var("DM_FFMPEG");
     let done = done.expect("the MMS stream");
     assert_eq!(done.path.file_name().unwrap(), "clip.wmv");
     assert!(

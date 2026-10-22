@@ -450,8 +450,6 @@ fn make_stream(
         .is_ok_and(|s| s.success())
 }
 
-// Its stand-in tools are a shell script and /usr/bin/false.
-#[cfg(unix)]
 #[tokio::test]
 async fn a_remux_that_fails_keeps_the_stream_whole_as_ts() {
     let _turn = FFMPEG_ENV.lock().await;
@@ -464,9 +462,8 @@ async fn a_remux_that_fails_keeps_the_stream_whole_as_ts() {
         return;
     }
     let addr = serve_folder(site.path().to_path_buf()).await;
-    // An "ffmpeg" that fails every time: the segments are already gathered
-    // into one stream by then, and that stream is what is saved.
-    std::env::set_var("DM_FFMPEG", "/usr/bin/false");
+    // MPEG-2 pictures, which dm does not put into an MP4: the segments,
+    // already gathered into one stream, are saved as that stream.
     let dir = tempdir();
     let asked = Options {
         room: Default::default(),
@@ -474,7 +471,6 @@ async fn a_remux_that_fails_keeps_the_stream_whole_as_ts() {
         ..options(dir.path(), dm_core::stream::Quality::Best)
     };
     let done = download(&client(), &format!("http://{addr}/show.m3u8"), &asked).await;
-    std::env::remove_var("DM_FFMPEG");
     let done = done.expect("a failed remux failed the download");
     assert_eq!(
         done.path.file_name().and_then(|n| n.to_str()),
@@ -605,120 +601,6 @@ async fn a_transport_stream_is_saved_as_an_mp4_where_ffmpeg_can_and_as_ts_where_
     );
 }
 
-// Its stand-in tools are a shell script and /usr/bin/false.
-#[cfg(unix)]
-#[tokio::test]
-async fn a_pause_during_the_remux_keeps_the_stream_and_a_resume_fetches_nothing_again() {
-    use std::sync::atomic::{AtomicUsize, Ordering};
-    let _turn = FFMPEG_ENV.lock().await;
-    let Some(real) = ffmpeg() else {
-        eprintln!("no ffmpeg installed — skipping");
-        return;
-    };
-    let site = tempdir();
-    if !make_stream(&real, site.path(), 3, "mpeg2video") {
-        return;
-    }
-    // Segments served and counted.
-    let asked = Arc::new(AtomicUsize::new(0));
-    let (dir_served, counted) = (Arc::new(site.path().to_path_buf()), Arc::clone(&asked));
-    let app = axum::Router::new().fallback(move |uri: Uri| {
-        let (dir, counted) = (Arc::clone(&dir_served), Arc::clone(&counted));
-        async move {
-            let name = uri.path().trim_start_matches('/').to_string();
-            if name.ends_with(".ts") {
-                counted.fetch_add(1, Ordering::SeqCst);
-            }
-            match std::fs::read(dir.join(&name)) {
-                Ok(bytes) => Response::new(Body::from(bytes)),
-                Err(_) => Response::builder().status(404).body(Body::empty()).unwrap(),
-            }
-        }
-    });
-    let addr = common::serve(app).await;
-    let url = format!("http://{addr}/show.m3u8");
-
-    // An ffmpeg slow enough to pause under.
-    let tools = tempdir();
-    let slow = tools.path().join("ffmpeg");
-    std::fs::write(
-        &slow,
-        format!("#!/bin/sh\nsleep 2\nexec '{}' \"$@\"\n", real.display()),
-    )
-    .unwrap();
-    {
-        use std::os::unix::fs::PermissionsExt;
-        std::fs::set_permissions(&slow, std::fs::Permissions::from_mode(0o755)).unwrap();
-    }
-    std::env::set_var("DM_FFMPEG", &slow);
-
-    let dir = tempdir();
-    let first = Options {
-        room: Default::default(),
-        remux: true,
-        ..options(dir.path(), dm_core::stream::Quality::Best)
-    };
-    let control = first.control.clone();
-    let running = {
-        let (url, first) = (url.clone(), first.clone());
-        tokio::spawn(async move { download(&client(), &url, &first).await })
-    };
-    // Every segment in, gathered, and the remux under way: then paused.
-    let gathered = dir.path().join("parts").join("joined.ts");
-    let deadline = std::time::Instant::now() + std::time::Duration::from_secs(20);
-    while !gathered.exists() {
-        assert!(
-            std::time::Instant::now() < deadline,
-            "the stream was never gathered"
-        );
-        tokio::time::sleep(std::time::Duration::from_millis(20)).await;
-    }
-    let asked_at = std::time::Instant::now();
-    control.pause();
-    let paused = running.await.unwrap();
-    assert!(matches!(paused, Err(dm_core::Error::Paused)), "{paused:?}");
-    // Stopped now, not when the slow ffmpeg would have finished.
-    assert!(
-        asked_at.elapsed() < std::time::Duration::from_millis(1500),
-        "the pause waited for ffmpeg: {:?}",
-        asked_at.elapsed()
-    );
-    let fetched = asked.load(Ordering::SeqCst);
-
-    // Resumed: placed from what was kept, nothing asked for again.
-    let again = Options {
-        control: dm_core::Control::new(),
-        ..first
-    };
-    let done = download(&client(), &url, &again).await;
-    std::env::remove_var("DM_FFMPEG");
-    let done = done.expect("the resume");
-    assert_eq!(
-        asked.load(Ordering::SeqCst),
-        fetched,
-        "segments were fetched again"
-    );
-    assert_eq!(
-        done.path.file_name().and_then(|n| n.to_str()),
-        Some("show.mp4")
-    );
-    let decoded = std::process::Command::new(&real)
-        .args(["-nostdin", "-v", "error", "-i"])
-        .arg(&done.path)
-        .args(["-f", "null", "-"])
-        .output()
-        .unwrap();
-    assert!(
-        decoded.status.success(),
-        "{}",
-        String::from_utf8_lossy(&decoded.stderr)
-    );
-}
-
-/// H.264 and AAC, as nearly every HLS stream is, put into an MP4 by dm with
-/// no ffmpeg on the computer at all. (One is needed here only to make the
-/// stream and judge the result.)
-#[cfg(unix)]
 #[tokio::test]
 async fn an_hls_stream_becomes_an_mp4_with_no_ffmpeg() {
     let _turn = FFMPEG_ENV.lock().await;
@@ -731,7 +613,6 @@ async fn an_hls_stream_becomes_an_mp4_with_no_ffmpeg() {
         return;
     }
     let addr = serve_folder(site.path().to_path_buf()).await;
-    std::env::set_var("DM_FFMPEG", "");
     let dir = tempdir();
     let asked = Options {
         room: Default::default(),
@@ -739,7 +620,6 @@ async fn an_hls_stream_becomes_an_mp4_with_no_ffmpeg() {
         ..options(dir.path(), dm_core::stream::Quality::Best)
     };
     let done = download(&client(), &format!("http://{addr}/show.m3u8"), &asked).await;
-    std::env::remove_var("DM_FFMPEG");
     let done = done.expect("the stream");
     assert_eq!(
         done.path.file_name().and_then(|n| n.to_str()),
@@ -909,7 +789,6 @@ async fn packed_audio_from_tokenised_addresses_is_saved_as_aac() {
      * handed to the remux. The first segment's first bytes say what it is:
      * here ADTS, behind the ID3 tag that carries its timestamp. */
     let _turn = FFMPEG_ENV.lock().await;
-    std::env::set_var("DM_FFMPEG", "");
     fn frames(index: u8) -> Vec<u8> {
         let mut out = b"ID3\x04\0\0\0\0\0\x03".to_vec();
         out.extend([0, 0, index]);

@@ -1293,3 +1293,25 @@ videos and to check the connection, and an extension talking to an older
 app says to update the app. The two store addresses are allowed in shipped
 code by `cargo xtask privacy`, since they open in the person's browser only
 when clicked.
+
+## No ffmpeg, not even one the person installed (2026-10-22)
+
+dm joins picture and sound (`mp4mux`, `mkvmux`), carries subtitles, puts
+transport streams into MP4 (`tsmux`) and records live streams itself, so an
+ffmpeg on the computer is no longer used for any of it either: yt-dlp is
+pointed at a joiner that is not there and always leaves picture and sound
+for dm, an HLS stream dm cannot convert (MPEG-2 pictures) is kept as the
+`.ts` it came as, and RTMPE is refused. The same file on every computer,
+whatever is installed, and one route to test instead of two.
+
+yt-dlp stays, and is not rewritten inside dm. It is what reads a video
+site's page: YouTube's player answers with signatures and throttling codes
+that change week to week and are worked out by running the player's own
+JavaScript (which is why yt-dlp needs Deno), and yt-dlp covers well over a
+thousand sites, kept working by the many people who maintain it. dm's own
+version would be site logic this project does not write (see "Player
+pages go to the user's yt-dlp"), would break within weeks of being
+written, and could not behave as yt-dlp does across its sites. The
+person never installs it: dm fetches it, checked, and keeps it current.
+User-facing words call it dm's video helper; PRIVACY.md names it and Deno,
+since people are owed knowing what program dm downloads and from where.

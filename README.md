@@ -194,24 +194,18 @@ It appears in dm instead of in the browser, and downloads there.
 
 ### How video downloads work
 
-You do not need to install anything for video. Two things happen behind the
-scenes:
+You do not need to install anything for video.
 
-- **Finding the video in a page.** Video sites hide the real video behind
-  their player. dm uses [yt-dlp](https://github.com/yt-dlp/yt-dlp), the
-  free tool made for exactly this, which hundreds of people keep working as
-  sites change. The first time you download a video, dm fetches the official
-  yt-dlp (and Deno, which yt-dlp needs for YouTube) from their GitHub
-  releases, checks them against their published checksums, and keeps them
-  in its own folder. It updates yt-dlp once a week, because an old one
-  stops working on sites that change. If you already have yt-dlp installed,
-  dm uses yours.
-- **Putting the video together.** Sites send picture and sound separately.
-  dm joins them into one file itself, in MP4 or WebM, at the quality you
-  picked, 4K included. Live streams (`rtmp://`, `rtmpt://`, `rtsp://`,
+- **The first video takes a little longer.** dm downloads the part of
+  itself that finds the video behind a site's player (about 80 MB, once,
+  checked before it is kept) and keeps it up to date by itself, since
+  video sites change often. The video's row says "Getting ready for videos
+  (first time only)" while this happens. Every video after that starts
+  straight away.
+- **Picture and sound in one file.** Sites send picture and sound
+  separately. dm joins them into one file, in MP4 or WebM, at the quality
+  you picked, 4K included. Live streams (`rtmp://`, `rtmpt://`, `rtsp://`,
   `rtsps://`, `mms://`), HLS playlists and subtitles are handled by dm too.
-  dm does not need ffmpeg; one you installed yourself is used for the rare
-  encrypted Flash stream (`rtmpe://`), which dm does not record.
 
 The extension sends the page's sign-in along with the video, so a site that
 checks you are not a bot lets the download through.

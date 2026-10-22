@@ -2274,51 +2274,10 @@ async fn remux_ts(name: &str, parts: &[PathBuf], options: &Options) -> Option<(P
         let _ = fs::remove_file(&joined).await;
         return Some((mp4, format!("{}.mp4", ts_stem(name))));
     }
+    // A stream dm cannot put into an MP4 (an MPEG-2 picture) is kept as
+    // the transport stream it came as, which plays as it is.
     let _ = fs::remove_file(&mp4).await;
-    let Some(ffmpeg) = crate::ytdlp::ffmpeg() else {
-        return keep_ts().await;
-    };
-    if options.control.check().is_err() {
-        return keep_ts().await;
-    }
-    let child = crate::no_window_async(&mut tokio::process::Command::new(&ffmpeg))
-        .args(["-y", "-nostdin", "-loglevel", "error", "-i"])
-        .arg(&joined)
-        .args(["-c", "copy", "-movflags", "+faststart"])
-        .arg(&mp4)
-        .stdin(std::process::Stdio::null())
-        .stdout(std::process::Stdio::null())
-        .stderr(std::process::Stdio::null())
-        .kill_on_drop(true)
-        .spawn();
-    // Raced against the control: a pause or a cancel during a long remux
-    // ends ffmpeg now (dropping the child kills it), and the gathered
-    // stream stays for the resume to remux again.
-    let ran = match child {
-        Ok(mut child) => {
-            let waited = or_stop(&options.control, async {
-                child.wait().await.map_err(Error::Disk)
-            })
-            .await;
-            match waited {
-                Ok(status) => Ok(status),
-                Err(_) => {
-                    drop(child);
-                    let _ = fs::remove_file(&mp4).await;
-                    return keep_ts().await;
-                }
-            }
-        }
-        Err(e) => Err(e),
-    };
-    let made =
-        ran.is_ok_and(|s| s.success()) && fs::metadata(&mp4).await.is_ok_and(|m| m.len() > 0);
-    if !made {
-        let _ = fs::remove_file(&mp4).await;
-        return keep_ts().await;
-    }
-    let _ = fs::remove_file(&joined).await;
-    Some((mp4, format!("{}.mp4", ts_stem(name))))
+    keep_ts().await
 }
 
 /// Whether a stream of this name is put into an MP4: asked for, a `.ts`,

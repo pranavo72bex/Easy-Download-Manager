@@ -68,7 +68,6 @@ async fn started(
     String,
 ) {
     std::env::set_var("DM_YTDLP", stand_in(dir));
-    std::env::set_var("DM_FFMPEG", "");
     std::env::set_var("DM_FAKE_OUT", dir);
     let options = options(dir);
     let control = options.control.clone();

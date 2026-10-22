@@ -407,31 +407,28 @@ of them.
       every mirror, drops any that disagree about the length, and gives each
       range its own mirror so all of them are in use at once
 - [x] HLS / DASH — HLS is done in the client (and a stream that arrives
-      as `.ts` is put into an MP4 where ffmpeg can, `hls.rs`): master and media playlists, rendition
+      as `.ts` is put into an MP4 by dm, `tsmux.rs`): master and media playlists, rendition
       choice, AES-128 with per-segment vectors, fMP4 initialisation segments,
       and resume from the segments already fetched — of the same rendition:
       the one chosen is written beside the parts, and segments of another
       are discarded rather than spliced in after a quality change. The page's
       referrer goes on every request of the stream, not only the probe; a
       test serves a stream only to its page and gets it. DASH in the client goes to
-      yt-dlp, which reads MPDs natively and joins picture and sound with
-      ffmpeg — the muxer the client itself does not have. Without yt-dlp a
-      DASH manifest is refused with "install yt-dlp" rather than the video
+      yt-dlp, which reads MPDs natively, and dm joins its picture and sound.
+      Without the video helper a DASH manifest is refused rather than the video
       half fetched alone and called a success. Decided once, from the URL
       and the content type together, so a manifest served as `dash+xml` from
       a URL without `.mpd` takes the same route. Each route is pinned by
       `DM_YTDLP` — empty for the refusal, a stand-in that records its
       arguments for the hand-off — so neither can be deleted unnoticed
-- [x] RTMP, RTSP and MMS streams — client (`live.rs`), no ffmpeg since
-      2026-10-21: RTMP and RTMPS by dm's own client (`rtmp.rs`), RTSP
+- [x] RTMP, RTSP and MMS streams — client (`live.rs`): RTMP and RTMPS by dm's own client (`rtmp.rs`), RTSP
       through `retina` (`rtsp.rs`), both recorded into a fragmented MP4 that
       plays if cut short (`fmp4.rs`) and rewritten plain at the end; MMS over
       HTTP (`mms.rs`), kept as the Windows Media it is. RTMPT through dm's
       own HTTP tunnel (2026-10-21, `tests/live.rs` through an RTMPT relay,
       every picture identical) and RTSPS through a loopback TLS bridge in
       front of retina (unit-tested against a TLS server; no real camera
-      yet). RTMPE, Flash's encrypted RTMP, is refused unless the person has
-      an ffmpeg: dm fetches none. A proxy in force is a refusal,
+      yet). RTMPE, Flash's encrypted RTMP, is refused. A proxy in force is a refusal,
       never a route around it. `tests/live.rs`: RTMP from ffmpeg's server
       decodes identical to the clip; RTSP from an in-test server, every
       picture identical; MMS from an in-test server, byte for byte; mediamtx
@@ -466,10 +463,8 @@ of them.
       optional dependency; now the client actually uses it. Found even when
       launched from the Dock or by a browser's native host, whose minimal
       `PATH` hides `/opt/homebrew/bin` and `~/.local/bin` — the usual homes
-      are searched and the tool is spawned by its resolved path, and ffmpeg,
-      which joins a separate picture and sound, is resolved and handed over
-      the same way. With no ffmpeg dm needs none: yt-dlp (and Deno, its
-      JavaScript runtime) are fetched by dm, an MP4 picture and M4A sound
+      are searched and the tool is spawned by its resolved path. yt-dlp
+      (and Deno, its JavaScript runtime) are fetched by dm, an MP4 picture and M4A sound
       are joined by dm itself (`mp4mux.rs`) and an HLS transport stream put
       into an MP4 by dm (`tsmux.rs`); a real 720p YouTube video arrived that
       way, decoded identical (2026-10-21). Proven under `PATH=/usr/bin:/bin`: a real watch URL completes
@@ -479,8 +474,9 @@ of them.
       Deno builds from GitHub into its own folder the first time a video
       page needs them, checked against their checksums, and fetches yt-dlp
       afresh weekly (`tools.rs`); the row says "Getting ready for videos
-      (first time only)" meanwhile. ffmpeg is not fetched at all since
-      2026-10-21; a page
+      (first time only)" meanwhile. Since 2026-10-22 dm uses no ffmpeg at
+      all, an installed one included: picture, sound and subtitles are
+      joined by dm on every computer alike; a page
       refused to dm's own request (a 429 bot check) is yt-dlp's to try
 
 # Autonomous Development Rules

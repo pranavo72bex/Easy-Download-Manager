@@ -156,7 +156,6 @@ async fn with_ytdlp_a_dash_manifest_is_handed_over_with_the_proxy_and_the_page()
     let dir = tempdir();
     let record = dir.path().join("argv");
     std::env::set_var("DM_YTDLP", fake_ytdlp(dir.path()));
-    std::env::set_var("DM_FFMPEG", "");
     std::env::set_var("DM_FAKE_RECORD", &record);
     std::env::remove_var("DM_FAKE_FAIL");
 
@@ -238,7 +237,6 @@ async fn with_ytdlp_a_web_page_is_handed_over() {
     let dir = tempdir();
     let record = dir.path().join("argv");
     std::env::set_var("DM_YTDLP", fake_ytdlp(dir.path()));
-    std::env::set_var("DM_FFMPEG", "");
     std::env::set_var("DM_FAKE_RECORD", &record);
     std::env::remove_var("DM_FAKE_FAIL");
 
@@ -257,7 +255,6 @@ async fn a_digest_that_does_not_match_fails_the_hand_off_and_keeps_nothing() {
     let _turn = ENV.lock().await;
     let dir = tempdir();
     std::env::set_var("DM_YTDLP", fake_ytdlp(dir.path()));
-    std::env::set_var("DM_FFMPEG", "");
     std::env::set_var("DM_FAKE_RECORD", dir.path().join("argv"));
     std::env::remove_var("DM_FAKE_FAIL");
 
@@ -282,7 +279,6 @@ async fn without_ffmpeg_dm_joins_the_picture_and_sound_yt_dlp_left() {
     let _turn = ENV.lock().await;
     let dir = tempdir();
     std::env::set_var("DM_YTDLP", fake_ytdlp(dir.path()));
-    std::env::set_var("DM_FFMPEG", "");
     std::env::set_var("DM_FAKE_RECORD", dir.path().join("argv"));
     std::env::remove_var("DM_FAKE_FAIL");
     let fixtures = Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/mp4");
@@ -320,7 +316,6 @@ async fn a_webm_asked_for_is_joined_by_dm_into_one_webm() {
     let dir = tempdir();
     let record = dir.path().join("argv");
     std::env::set_var("DM_YTDLP", fake_ytdlp(dir.path()));
-    std::env::set_var("DM_FFMPEG", "");
     std::env::set_var("DM_FAKE_RECORD", &record);
     std::env::remove_var("DM_FAKE_FAIL");
     let fixtures = Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/webm");
@@ -369,40 +364,19 @@ async fn a_webm_asked_for_is_joined_by_dm_into_one_webm() {
     );
 }
 
+/// Subtitles are fetched as WebVTT and dm puts them inside the video it
+/// joins, the same on every computer: yt-dlp is never told to embed them,
+/// and is pointed at a joiner that is not there, so an ffmpeg installed on
+/// the computer is not used.
 #[tokio::test]
-async fn subtitles_are_fetched_and_carried_in_the_video_with_or_without_ffmpeg() {
+async fn subtitles_are_fetched_and_carried_in_the_video_by_dm() {
     let _turn = ENV.lock().await;
-    let dir = tempdir();
-    let record = dir.path().join("argv");
-    let tool = fake_ytdlp(dir.path());
-    std::env::set_var("DM_YTDLP", &tool);
-    // The stand-in is a file, which is all `which` asks of an ffmpeg.
-    std::env::set_var("DM_FFMPEG", &tool);
-    std::env::set_var("DM_FAKE_RECORD", &record);
-    std::env::remove_var("DM_FAKE_FAIL");
-
     let url = serve_page().await;
-    let with = Options {
-        subtitles: true,
-        ..options(dir.path())
-    };
-    download(&client(), &url, &with)
-        .await
-        .expect("the hand-off failed");
-    let args = recorded(&record);
-    for wanted in ["--write-subs", "--embed-subs", "--sub-langs"] {
-        assert!(
-            args.iter().any(|a| a == wanted),
-            "{wanted} missing: {args:?}"
-        );
-    }
-
     // Without an ffmpeg they are fetched as WebVTT and dm puts them inside
     // the video it joins; no subtitle file is left beside it.
     let dir = tempdir();
     let record = dir.path().join("argv");
     std::env::set_var("DM_YTDLP", fake_ytdlp(dir.path()));
-    std::env::set_var("DM_FFMPEG", "");
     std::env::set_var("DM_FAKE_RECORD", &record);
     std::env::set_var(
         "DM_FAKE_HALVES",
@@ -420,6 +394,13 @@ async fn subtitles_are_fetched_and_carried_in_the_video_with_or_without_ffmpeg()
     let args = recorded(&record);
     assert!(!args.iter().any(|a| a == "--embed-subs"), "{args:?}");
     assert!(args.iter().any(|a| a == "--write-subs"), "{args:?}");
+    let joiner = args.iter().position(|a| a == "--ffmpeg-location");
+    assert!(
+        joiner
+            .and_then(|at| args.get(at + 1))
+            .is_some_and(|a| a.ends_with("no-joiner")),
+        "{args:?}"
+    );
     let joined = std::fs::read(&done.path).unwrap();
     let has = |kind: &[u8]| joined.windows(kind.len()).filter(|w| *w == kind).count();
     assert_eq!(has(b"tx3g"), 1, "no subtitle track");
@@ -434,7 +415,6 @@ async fn subtitles_are_fetched_and_carried_in_the_video_with_or_without_ffmpeg()
     let record = dir.path().join("argv");
     let tool = fake_ytdlp(dir.path());
     std::env::set_var("DM_YTDLP", &tool);
-    std::env::set_var("DM_FFMPEG", &tool);
     std::env::set_var("DM_FAKE_RECORD", &record);
     download(&client(), &url, &options(dir.path()))
         .await
@@ -451,7 +431,6 @@ async fn a_page_refused_to_dm_is_handed_to_ytdlp() {
     let dir = tempdir();
     let record = dir.path().join("argv");
     std::env::set_var("DM_YTDLP", fake_ytdlp(dir.path()));
-    std::env::set_var("DM_FFMPEG", "");
     std::env::set_var("DM_FAKE_RECORD", &record);
     std::env::remove_var("DM_FAKE_FAIL");
     let refuse = |status: u16| {
@@ -498,5 +477,4 @@ async fn a_page_refused_to_dm_is_handed_to_ytdlp() {
     }
     assert!(!record.exists(), "a refused file was handed to yt-dlp");
     std::env::remove_var("DM_YTDLP");
-    std::env::remove_var("DM_FFMPEG");
 }

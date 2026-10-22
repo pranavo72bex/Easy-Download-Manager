@@ -19,12 +19,11 @@ sound itself. If your computer has no yt-dlp, dm fetches it and Deno the
 first time such a page needs them, from their GitHub releases, each checked
 against its published checksum before it is kept in dm's own folder. dm
 does the rest itself: joining picture and sound, subtitles, and live RTMP
-(RTMPS and RTMPT too), RTSP (RTSPS too) and MMS streams. dm never fetches
-ffmpeg. A yt-dlp
-fetched this way is fetched afresh once a week while it is in use. These
-requests, like any download, carry nothing about you; GitHub sees an address
-asking for a public file. A yt-dlp or ffmpeg you installed yourself is used
-instead, and then it is not fetched.
+(RTMPS and RTMPT too), RTSP (RTSPS too) and MMS streams. A yt-dlp fetched
+this way is fetched afresh once a week while it is in use. These requests,
+like any download, carry nothing about you; GitHub sees an address asking
+for a public file. A recent yt-dlp you installed yourself is used instead,
+and then it is not fetched.
 
 ## What the extension handles
 

@@ -14,7 +14,7 @@
 //! a proxy in force the download is refused rather than sent around it.
 
 use std::path::PathBuf;
-use std::sync::atomic::{AtomicU64, Ordering};
+use std::sync::atomic::AtomicU64;
 use std::sync::Arc;
 
 use tokio::fs;
@@ -22,7 +22,7 @@ use tokio::fs;
 use crate::download::{Finished, Options, Update};
 use crate::Error;
 
-/// The schemes handed to ffmpeg, and the container their streams go into:
+/// The stream schemes dm knows, and the container their streams go into:
 /// MMS carries Windows Media, which only its own container takes as it is.
 const SCHEMES: [(&str, &str); 9] = [
     ("rtmp", "mp4"),
@@ -46,7 +46,7 @@ pub fn is_live(url: &str) -> bool {
     scheme_of(url).is_some()
 }
 
-/// Whether dm fetches such a stream itself, without ffmpeg.
+/// Whether dm records such a stream: every one but RTMPE.
 fn own(url: &str) -> bool {
     scheme_of(url).is_some_and(|(s, _)| {
         [
@@ -54,12 +54,6 @@ fn own(url: &str) -> bool {
         ]
         .contains(s)
     })
-}
-
-/// Whether a stream address needs an ffmpeg on the computer: RTMPE, the
-/// one dm does not record itself.
-pub fn needs_ffmpeg(url: &str) -> bool {
-    is_live(url) && !own(url)
 }
 
 /// The name a stream is saved under: the address's last part, in the
@@ -87,26 +81,6 @@ pub fn name_for(url: &str) -> String {
     format!("{stem}.{ext}")
 }
 
-/// What ffmpeg is told: the stream, copied, into a file that plays even
-/// when it is cut short (an MP4 fragmented as it is written).
-fn arguments(url: &str, out: &std::path::Path) -> Vec<std::ffi::OsString> {
-    let mut args: Vec<std::ffi::OsString> = ["-y", "-nostdin", "-loglevel", "error", "-i"]
-        .iter()
-        .map(Into::into)
-        .collect();
-    args.push(url.into());
-    args.extend(["-c", "copy"].iter().map(Into::into));
-    if out.extension().is_some_and(|e| e == "mp4") {
-        args.extend(
-            ["-movflags", "+frag_keyframe+empty_moov"]
-                .iter()
-                .map(Into::into),
-        );
-    }
-    args.push(out.as_os_str().to_owned());
-    args
-}
-
 pub async fn download_live(
     url: &str,
     options: &Options,
@@ -121,10 +95,9 @@ pub async fn download_live(
              turn the proxy off for this site (Options › Proxy) to fetch it"
         )));
     }
-    // RTMPE alone is not dm's: Flash's encrypted RTMP, a protection dm
-    // does not undo. An ffmpeg the person installed may record it.
-    let ffmpeg = crate::ytdlp::ffmpeg();
-    if ffmpeg.is_none() && !own(url) {
+    // RTMPE is not dm's: Flash's encrypted RTMP, a protection dm does not
+    // undo.
+    if !own(url) {
         return Err(Error::Internal(format!(
             "{scheme}:// is an encrypted stream dm cannot record"
         )));
@@ -149,113 +122,32 @@ pub async fn download_live(
     let downloaded = Arc::new(AtomicU64::new(0));
     let reporter = report.map(|tx| crate::download::watch(Arc::clone(&downloaded), None, tx));
 
-    let ffmpeg = match ffmpeg {
-        Some(ffmpeg) if !own(url) => ffmpeg,
-        _ => {
-            let recorded = if scheme.starts_with("rtsp") {
-                crate::rtsp::record(url, &part, &options.control, &downloaded).await
-            } else if scheme.starts_with("mms") {
-                crate::mms::record(url, &part, &options.control, &downloaded).await
-            } else {
-                crate::rtmp::record(url, &part, &options.control, &downloaded).await
-            };
-            stop_reporting(reporter).await;
-            if let Err(stopped) = recorded {
-                if !matches!(stopped, Error::Paused) {
-                    let _ = fs::remove_file(&part).await;
-                }
-                return Err(stopped);
-            }
-            // Rewritten plain, its index first so it seeks; kept fragmented
-            // (it plays) where that fails. An MMS stream is Windows Media,
-            // kept as the server sent it.
-            let plain = part.with_extension("plain.mp4");
-            if !scheme.starts_with("mms")
-                && crate::mp4mux::join_async(vec![part.clone()], plain.clone())
-                    .await
-                    .is_ok()
-            {
-                fs::rename(&plain, &part).await?;
-            } else {
-                let _ = fs::remove_file(&plain).await;
-            }
-            return placed(&name, &part, options).await;
-        }
+    let recorded = if scheme.starts_with("rtsp") {
+        crate::rtsp::record(url, &part, &options.control, &downloaded).await
+    } else if scheme.starts_with("mms") {
+        crate::mms::record(url, &part, &options.control, &downloaded).await
+    } else {
+        crate::rtmp::record(url, &part, &options.control, &downloaded).await
     };
-
-    let mut command = tokio::process::Command::new(&ffmpeg);
-    let child = crate::no_window_async(&mut command)
-        .args(arguments(url, &part))
-        .stdin(std::process::Stdio::null())
-        .stdout(std::process::Stdio::null())
-        .stderr(std::process::Stdio::piped())
-        .kill_on_drop(true)
-        .spawn();
-    let mut child = match child {
-        Ok(child) => child,
-        Err(e) => {
-            stop_reporting(reporter).await;
-            return Err(Error::Internal(format!("ffmpeg could not be started: {e}")));
-        }
-    };
-    let stderr = child.stderr.take();
-    let said = tokio::spawn(async move {
-        let mut text = String::new();
-        if let Some(mut err) = stderr {
-            use tokio::io::AsyncReadExt as _;
-            let mut buf = Vec::new();
-            let _ = (&mut err).take(64 * 1024).read_to_end(&mut buf).await;
-            text = String::from_utf8_lossy(&buf).into_owned();
-        }
-        text
-    });
-
-    // The bytes so far, from the file ffmpeg writes, for the row's
-    // progress; and the control, which ends ffmpeg on a pause or a cancel.
-    let watched = {
-        let (part, downloaded) = (part.clone(), Arc::clone(&downloaded));
-        tokio::spawn(async move {
-            loop {
-                if let Ok(meta) = fs::metadata(&part).await {
-                    downloaded.store(meta.len(), Ordering::Relaxed);
-                }
-                tokio::time::sleep(std::time::Duration::from_millis(500)).await;
-            }
-        })
-    };
-    let waited = crate::download::or_stop(&options.control, async {
-        child.wait().await.map_err(Error::Disk)
-    })
-    .await;
-    watched.abort();
     stop_reporting(reporter).await;
-    let status = match waited {
-        Ok(status) => status,
-        Err(stopped) => {
-            drop(child);
-            if matches!(stopped, Error::Cancelled) {
-                let _ = fs::remove_file(&part).await;
-            }
-            return Err(stopped);
+    if let Err(stopped) = recorded {
+        if !matches!(stopped, Error::Paused) {
+            let _ = fs::remove_file(&part).await;
         }
-    };
-    let got = fs::metadata(&part).await.map(|m| m.len()).unwrap_or(0);
-    if !status.success() || got == 0 {
-        let why = said.await.unwrap_or_default();
-        let why = why
-            .lines()
-            .rev()
-            .find(|l| !l.trim().is_empty())
-            .unwrap_or("");
-        let _ = fs::remove_file(&part).await;
-        return Err(Error::Internal(if why.is_empty() {
-            format!("ffmpeg could not fetch the {scheme}:// stream")
-        } else {
-            format!(
-                "ffmpeg could not fetch the {scheme}:// stream: {}",
-                why.trim()
-            )
-        }));
+        return Err(stopped);
+    }
+    // Rewritten plain, its index first so it seeks; kept fragmented (it
+    // plays) where that fails. An MMS stream is Windows Media, kept as the
+    // server sent it.
+    let plain = part.with_extension("plain.mp4");
+    if !scheme.starts_with("mms")
+        && crate::mp4mux::join_async(vec![part.clone()], plain.clone())
+            .await
+            .is_ok()
+    {
+        fs::rename(&plain, &part).await?;
+    } else {
+        let _ = fs::remove_file(&plain).await;
     }
     placed(&name, &part, options).await
 }

@@ -105,7 +105,6 @@ async fn a_cookies_file_signs_dms_requests_and_yt_dlps_in() {
     // And yt-dlp is handed the same file.
     let record = dir.path().join("argv");
     std::env::set_var("DM_YTDLP", fake_ytdlp(dir.path(), &record));
-    std::env::set_var("DM_FFMPEG", "");
     download(
         &client(),
         &format!("http://{addr}/manifest.mpd"),
@@ -219,7 +218,6 @@ async fn a_handed_over_sign_in_is_its_downloads_alone_and_for_its_server_alone()
     // command line, and the file is gone when the run ends.
     let record = dir.path().join("argv2");
     std::env::set_var("DM_YTDLP", fake_ytdlp(dir.path(), &record));
-    std::env::set_var("DM_FFMPEG", "");
     let page = format!("http://{addr}/manifest.mpd");
     download(
         &client(),

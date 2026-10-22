@@ -80,7 +80,6 @@ async fn a_picture_and_sound_served_apart_arrive_as_one_mp4_with_no_ffmpeg() {
         eprintln!("no yt-dlp installed — skipping the yt-dlp end-to-end test");
         return;
     }
-    std::env::set_var("DM_FFMPEG", "");
     let fixtures = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/mp4");
     let picture = std::fs::read(fixtures.join("picture.f137.mp4")).unwrap();
     let sound = std::fs::read(fixtures.join("sound.f140.m4a")).unwrap();
@@ -118,7 +117,6 @@ async fn a_picture_and_sound_served_apart_arrive_as_one_mp4_with_no_ffmpeg() {
 
     let dir = tempdir();
     let finished = ytdlp::download_ytdlp(&url, &options(dir.path()), None).await;
-    std::env::remove_var("DM_FFMPEG");
     let finished = finished.expect("yt-dlp and dm's join failed");
 
     assert_eq!(
@@ -202,7 +200,6 @@ async fn an_hls_stream_yt_dlp_saved_as_ts_is_made_a_real_mp4() {
         }
     });
     let addr = serve(app).await;
-    std::env::set_var("DM_FFMPEG", "");
     let dir = tempdir();
     let finished = ytdlp::download_ytdlp(
         &format!("http://{addr}/show.m3u8"),
@@ -210,7 +207,6 @@ async fn an_hls_stream_yt_dlp_saved_as_ts_is_made_a_real_mp4() {
         None,
     )
     .await;
-    std::env::remove_var("DM_FFMPEG");
     let finished = finished.expect("yt-dlp failed");
     let saved = std::fs::read(&finished.path).unwrap();
     assert_eq!(saved.get(4..8), Some(&b"ftyp"[..]), "{:?}", finished.path);

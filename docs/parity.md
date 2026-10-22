@@ -80,7 +80,7 @@ Rust compiled to WebAssembly. Test paths are under
 | Parts with no plan beside them | PASS | `parts_staged_under_no_known_plan_are_not_trusted` |
 | A power cut that lost more than the end checked at resume | PASS | `download.rs` `a_power_cut_that_lost_more_than_the_checked_end_is_repaired_whole` (256 KiB of zeros: byte-exact, not fetched from the start); a repair steps back at most 4 MiB at a time without spending a retry, so a file's own zeros before a torn end are not all fetched again: `a_torn_end_after_a_files_own_zeros_is_not_followed_back_through_them` |
 | Pause or cancel of a magnet whose metadata never comes | PASS | `torrent.rs` `a_magnet_with_no_peers_stops_when_paused` |
-| Pause of yt-dlp ends what it started (its ffmpeg) | PASS (unix) | `ytdlp_tree.rs` `a_pause_ends_what_yt_dlp_started_not_only_yt_dlp`, `a_pause_ends_the_tree_under_a_path_with_no_kill_on_it` (`killpg`, no `kill` program); Windows uses `taskkill /T`, started and not waited for, not run |
+| Pause of yt-dlp ends what it started (its JavaScript runtime) | PASS (unix) | `ytdlp_tree.rs` `a_pause_ends_what_yt_dlp_started_not_only_yt_dlp`, `a_pause_ends_the_tree_under_a_path_with_no_kill_on_it` (`killpg`, no `kill` program); Windows uses `taskkill /T`, started and not waited for, not run |
 
 ## D. Multiple connections
 
@@ -230,8 +230,8 @@ the host and the extension.
 
 | Behaviour | Status | Evidence |
 |---|---|---|
-| A stream that arrives as a transport stream is saved as an MP4 where an ffmpeg can remux it (Options › Downloads, on by default); the `.ts` where not asked or not possible | PASS | `hls.rs` `a_transport_stream_is_saved_as_an_mp4_where_ffmpeg_can_and_as_ts_where_not_asked`: a real stream made by ffmpeg lands as `show.mp4` that ffmpeg decodes to the end, nothing left staged; off, the segments in order as `show.ts` |
-| Subtitles carried inside the video when asked (Options › Downloads): embedded by yt-dlp's ffmpeg where there is one, else fetched as WebVTT and put in by dm (MP4 `tx3g`, WebM WebVTT tracks, one per language) | PASS | `dash.rs` `subtitles_are_fetched_and_carried_in_the_video_with_or_without_ffmpeg`; `tests/mp4mux.rs` `subtitles_are_carried_in_the_mp4_and_the_webm_dm_joins`; a real YouTube video's English and German subtitles read back exact (2026-10-21) |
+| A stream that arrives as a transport stream is saved as an MP4 where dm can put it into one (`tsmux.rs`) (Options › Downloads, on by default); the `.ts` where not asked or not possible | PASS | `hls.rs` `a_transport_stream_is_saved_as_an_mp4_where_ffmpeg_can_and_as_ts_where_not_asked`: a real stream made by ffmpeg lands as `show.mp4` that ffmpeg decodes to the end, nothing left staged; off, the segments in order as `show.ts` |
+| Subtitles carried inside the video when asked (Options › Downloads): fetched as WebVTT and put in by dm (MP4 `tx3g`, WebM WebVTT tracks) | PASS | `subtitles_are_fetched_and_carried_in_the_video_by_dm` |
 | Direct media files | PASS | ordinary downloads |
 | HLS, including AES-128 and resume | PASS | `hls.rs`; `app-check.py` |
 | HLS behind redirects: entries joined against where each playlist landed | PASS | `hls.rs` `relative_entries_are_joined_against_where_a_redirect_landed` |

@@ -105,12 +105,6 @@ fn released_on(version: &str) -> Option<i64> {
     Some(era * 146_097 + doe - 719_468)
 }
 
-/// The ffmpeg dm can run, if any: for joining picture and sound, and for
-/// putting a transport stream into an MP4.
-pub(crate) fn ffmpeg() -> Option<PathBuf> {
-    which("ffmpeg")
-}
-
 /// The Deno yt-dlp can run a site's player challenges in, if any: one
 /// installed, or the one dm fetched.
 pub(crate) fn deno() -> Option<PathBuf> {
@@ -138,7 +132,7 @@ fn js_runtime(command: &mut Command) {
 /// are searched after `PATH`, so the tool a person installed is the tool the
 /// app finds.
 ///
-/// `DM_YTDLP` (and `DM_FFMPEG`) name the binary outright, for an install in
+/// `DM_YTDLP` (and `DM_DENO`) name the binary outright, for an install in
 /// none of those places; set to nothing, they say there is no such tool,
 /// which is how a test pins down what dm does without one on a machine that
 /// has one.
@@ -286,12 +280,10 @@ fn windows_homes(h: &Homes) -> Vec<PathBuf> {
         dirs.push(data.join("chocolatey").join("bin"));
     }
     if let Some(files) = &h.program_files {
-        dirs.push(files.join("ffmpeg").join("bin"));
         dirs.push(files.join("yt-dlp"));
     }
     if let Some(drive) = &h.system_drive {
         let root = PathBuf::from(format!("{}\\", drive.display()));
-        dirs.push(root.join("ffmpeg").join("bin"));
         dirs.push(root.join("yt-dlp"));
     }
     dirs
@@ -384,68 +376,37 @@ pub fn is_page(content_type: Option<&str>) -> bool {
     crate::probe::mime_essence(content_type) == "text/html"
 }
 
-/// Who joins a separate picture and sound.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-enum Joiner {
-    /// yt-dlp, through an ffmpeg on this computer: any container.
-    Ffmpeg,
-    /// dm itself, after yt-dlp has fetched the two (`mp4mux`): MP4
-    /// picture and M4A sound.
-    Dm,
-}
-
 /// The `-f` selector for a wanted quality, in yt-dlp's language.
 ///
-/// The best picture and the best sound are usually separate streams. With
-/// ffmpeg, yt-dlp joins them in whatever container; without one, dm joins
-/// them, so the pair asked for is the MP4 picture and the M4A sound, and a
-/// single stream carrying both where a site has no such pair.
-fn format_for(quality: Quality, joiner: Joiner, container: Option<&str>) -> String {
+/// The best picture and the best sound are usually separate streams, which
+/// dm joins itself (`mp4mux` into an MP4, `mkvmux` into a WebM): the
+/// tallest picture, MP4 preferred at a height, whatever its container, and
+/// a WebM picture and sound where WebM is asked for. A picture-only stream
+/// (`bv`), so one that carries its own sound is not joined with a second.
+fn format_for(quality: Quality, container: Option<&str>) -> String {
     let webm = container == Some("webm");
-    let chosen = format_for_known(quality, joiner, webm);
+    let chosen = match quality {
+        Quality::Best if webm => "bv[ext=webm]+ba[ext=webm]/b[ext=webm]/b".to_string(),
+        Quality::UpTo(height) if webm => format!(
+            "bv[ext=webm][height<={height}]+ba[ext=webm]/b[ext=webm][height<={height}]/b[height<={height}]/b"
+        ),
+        Quality::Best => "bv+ba/b".to_string(),
+        Quality::UpTo(height) => format!("bv[height<={height}]+ba/b[height<={height}]/b"),
+        // The best audio-only stream — what "audio" means for a video site.
+        Quality::Audio => return "ba/b".to_string(),
+    };
     /* Another container (a site's FLV, 3GP, MOV) is one dm does not join
      * into: asked for whole, picture and sound in the one file, which
-     * needs no joining; else what dm joins. ffmpeg is not fetched for it. */
+     * needs no joining; else what dm joins. */
     match container {
-        Some(c) if joiner == Joiner::Dm && needs_ffmpeg(Some(c)) && quality != Quality::Audio => {
-            format!("b[ext={c}]/{chosen}")
-        }
+        Some(c) if !joined_by_dm(c) => format!("b[ext={c}]/{chosen}"),
         _ => chosen,
     }
 }
 
-fn format_for_known(quality: Quality, joiner: Joiner, webm: bool) -> String {
-    match (quality, joiner) {
-        (Quality::Best, Joiner::Ffmpeg) => "bv*+ba/b".to_string(),
-        (Quality::UpTo(height), Joiner::Ffmpeg) => {
-            format!("bv*[height<={height}]+ba/b[height<={height}]/b")
-        }
-        /* A WebM asked for is WebM picture and sound, which dm joins into a
-         * WebM. Anything else is what ffmpeg was asked for — the tallest
-         * picture, MP4 preferred at a height, whatever its container — and
-         * dm puts it into an MP4, a WebM picture included, as ffmpeg did.
-         * A picture-only stream (`bv`), so one that carries its own sound
-         * is not joined with a second. */
-        (Quality::Best, Joiner::Dm) if webm => {
-            "bv[ext=webm]+ba[ext=webm]/b[ext=webm]/b".to_string()
-        }
-        (Quality::UpTo(height), Joiner::Dm) if webm => format!(
-            "bv[ext=webm][height<={height}]+ba[ext=webm]/b[ext=webm][height<={height}]/b[height<={height}]/b"
-        ),
-        (Quality::Best, Joiner::Dm) => "bv+ba/b".to_string(),
-        (Quality::UpTo(height), Joiner::Dm) => {
-            format!("bv[height<={height}]+ba/b[height<={height}]/b")
-        }
-        // The best audio-only stream — what "audio" means for a video site.
-        (Quality::Audio, _) => "ba/b".to_string(),
-    }
-}
-
-/// Whether a download needs ffmpeg even though dm joins picture and sound
-/// itself (MP4 with `mp4mux`, WebM with `mkvmux`, subtitles carried in
-/// either): a container other than those.
-pub(crate) fn needs_ffmpeg(container: Option<&str>) -> bool {
-    container.is_some_and(|c| !c.is_empty() && !["mp4", "m4a", "webm"].contains(&c))
+/// Whether dm joins picture and sound into this container itself.
+fn joined_by_dm(container: &str) -> bool {
+    container.is_empty() || ["mp4", "m4a", "webm"].contains(&container)
 }
 
 /// What yt-dlp left when it had no ffmpeg to join with: the picture and
@@ -690,16 +651,6 @@ pub async fn download_ytdlp(
     // the same bug one step later.
     let binary = binary()
         .ok_or_else(|| Error::Internal("dm's video helper is not available here".into()))?;
-    // ffmpeg is what joins a separate picture and sound, and yt-dlp finds it
-    // on the same minimal PATH that hid yt-dlp itself — so it is resolved the
-    // same way and handed over explicitly. Without one, the format asks for a
-    // single stream that needs no joining.
-    let ffmpeg = which("ffmpeg");
-    let joiner = if ffmpeg.is_some() {
-        Joiner::Ffmpeg
-    } else {
-        Joiner::Dm
-    };
     let mut command = Command::new(binary);
     crate::no_window_async(&mut command);
     command
@@ -712,11 +663,7 @@ pub async fn download_ytdlp(
         .arg("-o")
         .arg(staging.join("%(title).200B [%(id)s].%(ext)s"))
         .arg("-f")
-        .arg(format_for(
-            options.quality,
-            joiner,
-            options.container.as_deref(),
-        ))
+        .arg(format_for(options.quality, options.container.as_deref()))
         .args(container_sort(options.container.as_deref()))
         .arg("--progress-template")
         .arg(format!(
@@ -737,29 +684,20 @@ pub async fn download_ytdlp(
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())
         .kill_on_drop(true);
-    /* A process group of its own, so a pause reaches what yt-dlp started as
-     * well as yt-dlp: killed alone, the ffmpeg joining picture and sound
-     * ran on, writing into the parts a resume was about to use. */
+    /* A process group of its own, so a pause reaches what yt-dlp started
+     * (the JavaScript runtime it answers a site's checks with) as well as
+     * yt-dlp itself. */
     #[cfg(unix)]
     command.process_group(0);
 
     js_runtime(&mut command);
-    if ffmpeg.is_none() {
-        /* dm joins, so yt-dlp is told it has no ffmpeg (a location that is
-         * not there) rather than left to find one dm was told not to use,
-         * or one dm's lookup does not trust. */
-        command
-            .arg("--ffmpeg-location")
-            .arg(staging.join("no-ffmpeg"));
-    }
-    if let Some(ffmpeg) = &ffmpeg {
-        command.arg("--ffmpeg-location").arg(ffmpeg);
-        // Subtitles ride inside the file, which is ffmpeg's work; without
-        // one they would land beside it as files dm does not place.
-        if options.subtitles {
-            command.args(["--write-subs", "--sub-langs", "all", "--embed-subs"]);
-        }
-    } else if options.subtitles {
+    /* dm joins picture and sound, and carries subtitles, itself: yt-dlp is
+     * pointed at a joiner that is not there, so one installed on the
+     * computer is never used and every computer gets the same file. */
+    command
+        .arg("--ffmpeg-location")
+        .arg(staging.join("no-joiner"));
+    if options.subtitles {
         // Fetched as WebVTT beside the video, and put into it by dm.
         command.args(["--write-subs", "--sub-langs", "all", "--sub-format", "vtt"]);
     }
@@ -902,10 +840,8 @@ pub async fn download_ytdlp(
             .rev()
             .find(|l| !l.trim().is_empty())
             .unwrap_or("");
-        /* With no ffmpeg the format asks for one stream carrying both
-         * picture and sound, and a stream that only comes as two has none:
-         * yt-dlp says "Requested format is not available", which names
-         * neither the cause nor the fix. */
+        /* yt-dlp's own words for a refusal ("Requested format is not
+         * available", a sign-in) name neither the cause nor the fix. */
         if let Some(said) = refusal(&stderr) {
             return Err(Error::Internal(said));
         }
@@ -926,33 +862,28 @@ pub async fn download_ytdlp(
         .filter(|p| !p.as_os_str().is_empty())
         .ok_or_else(|| Error::Internal("yt-dlp reported no output file".into()))?;
 
-    /* No ffmpeg: yt-dlp left the picture and the sound side by side under
-     * the name it would have joined them as, and dm joins them into it. */
-    let found = if joiner == Joiner::Dm {
-        crate::subtitles::beside(&produced)
-    } else {
-        Vec::new()
-    };
+    /* yt-dlp left the picture and the sound side by side under the name it
+     * would have joined them as, and dm joins them into it. */
+    let found = crate::subtitles::beside(&produced);
     let (vtt_files, texts): (Vec<PathBuf>, Vec<crate::subtitles::Subtitle>) =
         found.into_iter().unzip();
-    let outcome = finish_dm(&produced, joiner, texts, options).await;
+    let outcome = finish_dm(&produced, texts, options).await;
     for file in vtt_files {
         let _ = tokio::fs::remove_file(file).await;
     }
     outcome
 }
 
-/// What dm does with yt-dlp's output when it has no ffmpeg: joins the
-/// picture and sound it left apart, puts a transport stream into an MP4,
-/// carries the subtitles inside, and places the result.
+/// What dm does with yt-dlp's output: joins the picture and sound it left
+/// apart, puts a transport stream into an MP4, carries the subtitles
+/// inside, and places the result.
 async fn finish_dm(
     produced: &Path,
-    joiner: Joiner,
     texts: Vec<crate::subtitles::Subtitle>,
     options: &Options,
 ) -> Result<Finished, Error> {
     let produced = produced.to_path_buf();
-    if !produced.is_file() && joiner == Joiner::Dm {
+    if !produced.is_file() {
         let parts = parts_of(&produced).await;
         if !parts.is_empty() {
             // A WebM where one was asked for; else an MP4, which takes a
@@ -978,9 +909,8 @@ async fn finish_dm(
         }
     }
     /* An HLS site's video, fetched by yt-dlp's own downloader, is the
-     * stream's transport stream under an `.mp4` name, which yt-dlp leaves
-     * to ffmpeg to put right. With none, dm does. */
-    if joiner == Joiner::Dm && is_transport_stream(&produced).await {
+     * stream's transport stream under an `.mp4` name: dm puts it right. */
+    if is_transport_stream(&produced).await {
         let fixed = produced.with_extension("dm-remux.mp4");
         if crate::tsmux::to_mp4_async(produced.clone(), fixed.clone())
             .await
@@ -1459,31 +1389,24 @@ mod tests {
     }
 
     #[test]
-    fn a_quality_becomes_a_format_selector() {
-        assert_eq!(format_for(Quality::Best, Joiner::Ffmpeg, None), "bv*+ba/b");
-        assert_eq!(format_for(Quality::Audio, Joiner::Ffmpeg, None), "ba/b");
-        assert!(format_for(Quality::UpTo(720), Joiner::Ffmpeg, None).contains("height<=720"));
-    }
-
-    #[test]
-    fn without_ffmpeg_dm_asks_for_what_ffmpeg_was_asked_for() {
-        // The same choice as the ffmpeg route, so the same quality arrives;
-        // a picture-only stream (`bv`, never `bv*`), since one that carries
+    fn a_quality_becomes_a_format_selector_dm_joins() {
+        // The tallest picture and the best sound, joined by dm; a
+        // picture-only stream (`bv`, never `bv*`), since one that carries
         // sound too would be joined with a second sound.
-        assert_eq!(format_for(Quality::Best, Joiner::Dm, None), "bv+ba/b");
+        assert_eq!(format_for(Quality::Best, None), "bv+ba/b");
         assert_eq!(
-            format_for(Quality::UpTo(480), Joiner::Dm, None),
+            format_for(Quality::UpTo(480), None),
             "bv[height<=480]+ba/b[height<=480]/b"
         );
-        assert_eq!(format_for(Quality::Audio, Joiner::Dm, None), "ba/b");
-        assert!(!needs_ffmpeg(None));
-        assert!(!needs_ffmpeg(Some("mp4")));
+        assert_eq!(format_for(Quality::Audio, None), "ba/b");
         assert_eq!(
-            format_for(Quality::Best, Joiner::Dm, Some("webm")),
+            format_for(Quality::Best, Some("webm")),
             "bv[ext=webm]+ba[ext=webm]/b[ext=webm]/b"
         );
-        assert!(!needs_ffmpeg(Some("webm")));
-        assert!(needs_ffmpeg(Some("mkv")));
+        // A container dm does not join into: one whole file of it first.
+        assert_eq!(format_for(Quality::Best, Some("flv")), "b[ext=flv]/bv+ba/b");
+        assert!(joined_by_dm("mp4") && joined_by_dm("webm") && joined_by_dm(""));
+        assert!(!joined_by_dm("mkv"));
     }
 
     #[test]
@@ -1596,19 +1519,6 @@ mod windows_homes_tests {
         let choco = put(data.join("chocolatey").join("bin"), "yt-dlp.exe");
         assert_eq!(find(&homes), Some(choco));
 
-        // A winget ffmpeg build keeps it in a bin folder one level down.
-        let ffmpeg = put(
-            winget
-                .join("Packages")
-                .join("Gyan.FFmpeg_8wekyb3d8bbwe")
-                .join("ffmpeg-7.1-full_build")
-                .join("bin"),
-            "ffmpeg.exe",
-        );
-        assert_eq!(
-            find_in(windows_homes(&homes).into_iter(), &names("ffmpeg", true)),
-            Some(ffmpeg)
-        );
         // Elsewhere the bare name, as before.
         assert_eq!(names("yt-dlp", false), ["yt-dlp"]);
         let _ = std::fs::remove_dir_all(&root);

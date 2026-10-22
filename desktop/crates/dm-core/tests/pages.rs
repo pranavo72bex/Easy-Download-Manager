@@ -71,7 +71,6 @@ async fn a_page_named_as_a_document_is_saved_when_yt_dlp_does_not_know_the_site(
     .unwrap();
     std::fs::set_permissions(&script, std::fs::Permissions::from_mode(0o755)).unwrap();
     std::env::set_var("DM_YTDLP", &script);
-    std::env::set_var("DM_FFMPEG", "");
     let addr = site().await;
 
     let done = dm_core::download(
@@ -132,7 +131,6 @@ async fn a_page_named_as_a_document_is_fetched_by_dm_when_yt_dlp_is_refused() {
     .unwrap();
     std::fs::set_permissions(&script, std::fs::Permissions::from_mode(0o755)).unwrap();
     std::env::set_var("DM_YTDLP", &script);
-    std::env::set_var("DM_FFMPEG", "");
     const PAGE_URL: &str = "http://example.test/reports";
     let gated = |headers: HeaderMap| async move {
         if headers.get("referer").and_then(|r| r.to_str().ok()) != Some(PAGE_URL) {
