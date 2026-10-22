@@ -17,3 +17,14 @@ UTF-8 text but not as `text/uri-list`, was refused at once. Now the drag is
 asked for `text/uri-list` where it is offered, else `_NETSCAPE_URL`, else
 UTF-8 text, and a link's address is passed on. Files are as before. Search
 the files for `dm:`. Checked with real input: `scripts/linux-drag-check.sh`.
+
+Wayland drag and drop (`src/platform_impl/linux/wayland/dnd.rs`, and `dm:`
+lines in `state.rs`, `seat/mod.rs`, `event_loop/mod.rs`, `mod.rs`,
+`src/platform/wayland.rs`): upstream winit 0.30 has none on Wayland. A drop
+is read as `text/uri-list`, Firefox's `text/x-moz-url` or text, and each
+item handed over as a dropped "path" as on X11. A drag out
+(`platform::wayland::dm_request_drag_out`) is started on winit's own
+connection from the window under the pointer, with the press's serial,
+which only that connection holds, and hands the target `text/uri-list`;
+`dm_take_drag_ended` tells dm the button is up. Checked with a real
+Wayland drag both ways: `scripts/linux-wayland-drag-check.sh`.

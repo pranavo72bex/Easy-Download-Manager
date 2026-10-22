@@ -515,7 +515,6 @@
  "Remove it": "Quitarla",
  "Remove them": "Quitarlas",
  "Drop a link from a browser, a .torrent, a .url or .webloc file, or a text file of links, here.": "Suelta aquí un enlace del navegador, un archivo .torrent, .url o .webloc, o un archivo de texto con enlaces.",
- "Drop a .torrent, a .url or .webloc file, or a text file of links, here. On Wayland a link dragged straight from a browser cannot be dropped: use Add URL or the browser's right-click menu.": "Suelta aquí un archivo .torrent, .url o .webloc, o un archivo de texto con enlaces. En Wayland no se puede soltar un enlace arrastrado desde el navegador: usa Añadir URL o el menú contextual del navegador.",
  "None": "Ninguna",
  "unit:.": ",",
  "Cancel this download?": "¿Cancelar esta descarga?",
@@ -528,7 +527,6 @@
  "Read by the browser extension the next time it talks to dm: a download it catches, or its right-click menu. The right-click menu hands anything over regardless.": "La extensión del navegador lo lee la próxima vez que habla con dm: una descarga que captura o su menú contextual. El menú contextual lo entrega todo igualmente.",
  "Progress": "Progreso",
  "There are no links on the clipboard.": "No hay enlaces en el portapapeles.",
- "Dragging files out of dm is not available on Wayland: right-click › Open folder": "Arrastrar archivos fuera de dm no está disponible en Wayland: clic derecho › Abrir carpeta",
  "The list is sorted by a column: click its heading until the arrow goes, then drag to reorder.": "La lista está ordenada por una columna: haga clic en su encabezado hasta que desaparezca la flecha y luego arrastre para reordenar.",
  "Sites whose links work only once": "Sitios cuyos enlaces solo funcionan una vez",
  "dm takes their downloads without first asking the server whether it can fetch them, which would use the link up. A link that needs the browser's sign-in then fails in dm rather than finishing in the browser.": "dm toma sus descargas sin preguntar antes al servidor si puede obtenerlas, lo que gastaría el enlace. Un enlace que necesite la sesión del navegador fallará entonces en dm en vez de terminar en el navegador.",
@@ -565,5 +563,6 @@
  "this video is not available: it may be private, removed or not shown in your country": "Este vídeo no está disponible: puede ser privado, haberse eliminado o no mostrarse en tu país",
  "dm could not get the video from this page": "dm no pudo obtener el vídeo de esta página",
  "Known once the video starts": "Se sabrá cuando empiece el vídeo",
- "That is not a link dm can download. Paste a web address, such as https://example.com/file.zip.": "Eso no es un enlace que dm pueda descargar. Pega una dirección web, como https://example.com/file.zip."
+ "That is not a link dm can download. Paste a web address, such as https://example.com/file.zip.": "Eso no es un enlace que dm pueda descargar. Pega una dirección web, como https://example.com/file.zip.",
+ "Dragging files out of dm is not available here: right-click › Open folder": "Aquí no se pueden arrastrar archivos fuera de dm: clic derecho › Abrir carpeta"
 }

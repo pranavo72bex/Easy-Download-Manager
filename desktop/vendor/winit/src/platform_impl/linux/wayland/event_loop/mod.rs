@@ -155,7 +155,11 @@ impl<T: 'static> EventLoop<T> {
         let window_target = ActiveEventLoop {
             connection: connection.clone(),
             wayland_dispatcher: wayland_dispatcher.clone(),
-            event_loop_awakener,
+            event_loop_awakener: {
+                // dm: a drag out asked for wakes the loop to start it.
+                crate::platform_impl::wayland::dnd::set_waker(event_loop_awakener.clone());
+                event_loop_awakener
+            },
             queue_handle,
             control_flow: Cell::new(ControlFlow::default()),
             exit: Cell::new(None),
@@ -513,6 +517,12 @@ impl<T: 'static> EventLoop<T> {
 
         // This is always the last event we dispatch before poll again
         callback(Event::AboutToWait, &self.window_target);
+
+        // dm: a drag out the application asked for while drawing.
+        if let PlatformActiveEventLoop::Wayland(target) = &self.window_target.p {
+            let queue_handle = target.queue_handle.clone();
+            self.with_state(|state| state.start_drag_out(&queue_handle));
+        }
 
         // Update the window frames and schedule redraws.
         let mut wake_up = false;

@@ -1332,3 +1332,17 @@ Not shipped in the installers: with 36 MB fetched once, bundling yt-dlp and
 QuickJS would add OS-specific programs to six installer formats (the Arch
 package builds from source), invite antivirus false alarms on Windows, and
 go stale between releases, for a few seconds saved once.
+
+## Drag and drop on Wayland, in the vendored winit (2026-10-22)
+
+winit 0.30 has no Wayland drag and drop, and a Wayland drag can only be
+started on the connection that owns the window, with the serial of the
+press that began it, so dm cannot do it from a connection of its own as it
+does on X11 (`xdnd.rs`). Both directions are added to the vendored winit
+with sctk's data-device support, which winit already depends on: a drop is
+read through a pipe on winit's event loop; a drag out is asked for by dm,
+and winit starts it on its next turn, woken at once so the press is still
+held. Tested under sway (headless) with a virtual pointer written for the
+test (`scripts/linux/vpointer.c`, wlroots' virtual-pointer protocol), since
+a headless compositor has no pointer of its own and `swaymsg seat … cursor`
+reaches no client without one.

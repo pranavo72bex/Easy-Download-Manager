@@ -515,7 +515,6 @@
  "Remove it": "Убрать",
  "Remove them": "Убрать",
  "Drop a link from a browser, a .torrent, a .url or .webloc file, or a text file of links, here.": "Перетащите сюда ссылку из браузера, файл .torrent, .url или .webloc либо текстовый файл со ссылками.",
- "Drop a .torrent, a .url or .webloc file, or a text file of links, here. On Wayland a link dragged straight from a browser cannot be dropped: use Add URL or the browser's right-click menu.": "Перетащите сюда файл .torrent, .url или .webloc либо текстовый файл со ссылками. В Wayland ссылку, перетащенную прямо из браузера, бросить нельзя: используйте «Добавить URL» или контекстное меню браузера.",
  "None": "Нет",
  "unit:.": ",",
  "Cancel this download?": "Отменить эту загрузку?",
@@ -528,7 +527,6 @@
  "Read by the browser extension the next time it talks to dm: a download it catches, or its right-click menu. The right-click menu hands anything over regardless.": "Расширение браузера прочтёт это, когда в следующий раз обратится к dm: при перехваченной загрузке или через контекстное меню. Контекстное меню передаёт всё в любом случае.",
  "Progress": "Прогресс",
  "There are no links on the clipboard.": "В буфере обмена нет ссылок.",
- "Dragging files out of dm is not available on Wayland: right-click › Open folder": "Перетаскивать файлы из dm в Wayland нельзя: правый щелчок › Открыть папку",
  "The list is sorted by a column: click its heading until the arrow goes, then drag to reorder.": "Список отсортирован по столбцу: щёлкайте по его заголовку, пока не исчезнет стрелка, затем перетаскивайте, чтобы изменить порядок.",
  "Sites whose links work only once": "Сайты, ссылки которых работают один раз",
  "dm takes their downloads without first asking the server whether it can fetch them, which would use the link up. A link that needs the browser's sign-in then fails in dm rather than finishing in the browser.": "dm забирает их загрузки, не спрашивая сначала сервер, может ли он их получить: это израсходовало бы ссылку. Ссылка, которой нужен вход в браузере, тогда завершится ошибкой в dm, а не скачается в браузере.",
@@ -565,5 +563,6 @@
  "this video is not available: it may be private, removed or not shown in your country": "Это видео недоступно: возможно, оно закрыто, удалено или не показывается в вашей стране",
  "dm could not get the video from this page": "dm не смог получить видео с этой страницы",
  "Known once the video starts": "Станет известен, когда начнётся видео",
- "That is not a link dm can download. Paste a web address, such as https://example.com/file.zip.": "Это не ссылка, которую dm может загрузить. Вставьте веб-адрес, например https://example.com/file.zip."
+ "That is not a link dm can download. Paste a web address, such as https://example.com/file.zip.": "Это не ссылка, которую dm может загрузить. Вставьте веб-адрес, например https://example.com/file.zip.",
+ "Dragging files out of dm is not available here: right-click › Open folder": "Перетаскивать файлы из dm здесь нельзя: правый щелчок › Открыть папку"
 }

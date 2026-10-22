@@ -230,9 +230,13 @@ and is not carried over.
       `scripts/linux-drag-check.sh` drags a link from real Firefox with
       xdotool and sees it queued. Finished files drag out on macOS and
       Windows (`drag` crate) and on X11 by dm's own XDND source (`xdnd.rs`),
-      watched landing in Firefox by the same script. Wayland does neither:
-      winit 0.30 has no drag and drop there, and the hint says so. Unchecked:
-      a physical drag by hand on macOS and Windows
+      watched landing in Firefox by the same script. Wayland since
+      2026-10-22, in the same vendored winit (`wayland/dnd.rs`): drops read
+      as `text/uri-list`, `text/x-moz-url` or text, and a drag out started on
+      winit's own connection with the press's serial —
+      `scripts/linux-wayland-drag-check.sh` drags both ways under sway with a
+      virtual pointer (4 of 4 first time). Unchecked: a physical drag by
+      hand on macOS and Windows, and a real browser under Wayland
 - [x] Start on login — an opt-in setting, off by default, registers dm as a
       login item so a browser hand-off always has an app to land in.
       Launched by the login item it stays in the tray (`--hidden`) rather

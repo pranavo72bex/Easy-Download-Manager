@@ -12,6 +12,7 @@ use sctk::reexports::client::protocol::wl_surface::WlSurface;
 use sctk::reexports::client::{Connection, Proxy, QueueHandle};
 
 use sctk::compositor::{CompositorHandler, CompositorState};
+use sctk::data_device_manager::DataDeviceManagerState;
 use sctk::output::{OutputHandler, OutputState};
 use sctk::registry::{ProvidesRegistryState, RegistryState};
 use sctk::seat::pointer::ThemedPointer;
@@ -78,6 +79,12 @@ pub struct WinitState {
     /// Currently handled seats.
     pub seats: AHashMap<ObjectId, WinitSeatState>,
 
+    /// dm: what drags and drops come through, where the compositor has it.
+    pub data_device_manager: Option<DataDeviceManagerState>,
+
+    /// dm: the drag out under way, and the files it hands over.
+    pub drag_out: Option<(sctk::data_device_manager::data_source::DragSource, String)>,
+
     /// Currently present cursor surfaces.
     pub pointer_surfaces: AHashMap<ObjectId, Arc<ThemedPointer<WinitPointerData>>>,
 
@@ -143,9 +150,13 @@ impl WinitState {
 
         let seat_state = SeatState::new(globals, queue_handle);
 
+        let data_device_manager = DataDeviceManagerState::bind(globals, queue_handle).ok();
         let mut seats = AHashMap::default();
         for seat in seat_state.seats() {
-            seats.insert(seat.id(), WinitSeatState::new());
+            let mut state = WinitSeatState::new();
+            state.data_device =
+                data_device_manager.as_ref().map(|m| m.get_data_device(queue_handle, &seat));
+            seats.insert(seat.id(), state);
         }
 
         let (viewporter_state, fractional_scaling_manager) =
@@ -179,6 +190,8 @@ impl WinitState {
             kwin_blur_manager: KWinBlurManager::new(globals, queue_handle).ok(),
 
             seats,
+            data_device_manager,
+            drag_out: None,
             text_input_state: TextInputState::new(globals, queue_handle).ok(),
 
             relative_pointer: RelativePointerState::new(globals, queue_handle).ok(),

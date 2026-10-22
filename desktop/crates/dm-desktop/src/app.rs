@@ -631,10 +631,6 @@ pub fn links_in_file(kind: Option<&str>, text: &str) -> Vec<String> {
     links_in(text)
 }
 
-/// What a drop with no link in it is answered with, and what the empty list
-/// says. A link dragged from a browser is taken on macOS, Windows and X11
-/// (`drops`, and winit's X11 drops as dm builds it); on Wayland the window
-/// system hands dm files only, which `DROP_HINT_WAYLAND` says.
 /// Where each browser gets dm's extension: its store's page where it is
 /// listed, otherwise the README's steps for loading it.
 pub const EXTENSION_EDGE: &str =
@@ -647,18 +643,16 @@ pub const EXTENSION_CHROME: &str =
 /// the extension again.
 const BROWSER_HINT_HIDDEN: &str = "browser-hint.hidden";
 
+/// What a drop with no link in it is answered with, and what the empty list
+/// says. A link dragged from a browser is taken everywhere: on macOS and
+/// Windows by `drops`, on X11 and Wayland by winit as dm builds it.
 pub const DROP_HINT: &str =
     "Drop a link from a browser, a .torrent, a .url or .webloc file, or a text file of links, here.";
-pub const DROP_HINT_WAYLAND: &str =
-    "Drop a .torrent, a .url or .webloc file, or a text file of links, here. On Wayland a link dragged straight from a browser cannot be dropped: use Add URL or the browser's right-click menu.";
 
-/// The drop hint for the session dm runs in.
+/// The drop hint: the same everywhere, Wayland included since dm's winit
+/// takes a browser's link there too (2026-10-22).
 pub fn drop_hint() -> &'static str {
-    if cfg!(target_os = "linux") && std::env::var_os("WAYLAND_DISPLAY").is_some() {
-        DROP_HINT_WAYLAND
-    } else {
-        DROP_HINT
-    }
+    DROP_HINT
 }
 
 /// The clipboard watcher's memory: offered once, never again once dismissed,
@@ -4325,7 +4319,6 @@ pub fn run_time_words() -> Vec<&'static str> {
     words.extend(crate::i18n::BUILT_IN_NAMES);
     words.extend(crate::format::MONTHS);
     words.push(DROP_HINT);
-    words.push(DROP_HINT_WAYLAND);
     words.extend(format::REASONS.iter().map(|(_, plain)| *plain));
     for place in [
         Place::All,

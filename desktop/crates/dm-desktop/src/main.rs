@@ -291,7 +291,9 @@ impl eframe::App for Window {
     /// would go on thinking the button held (`xdnd`).
     #[cfg(target_os = "linux")]
     fn raw_input_hook(&mut self, ctx: &egui::Context, raw_input: &mut egui::RawInput) {
-        if dm_desktop::xdnd::ENDED.swap(false, std::sync::atomic::Ordering::Relaxed) {
+        let ended = dm_desktop::xdnd::ENDED.swap(false, std::sync::atomic::Ordering::Relaxed)
+            | winit::platform::wayland::dm_take_drag_ended();
+        if ended {
             let pos = ctx.input(|i| i.pointer.latest_pos()).unwrap_or_default();
             raw_input.events.push(egui::Event::PointerButton {
                 pos,
@@ -673,21 +675,29 @@ fn drag_out(frame: &eframe::Frame, files: Vec<std::path::PathBuf>) -> Result<(),
 }
 
 /// On Linux the drag library needs a GTK window, and dm's is not one: on
-/// X11 dm speaks the drag protocol itself (`xdnd`); on Wayland there is no
-/// route outside winit, and that is said rather than nothing happening.
+/// X11 dm speaks the drag protocol itself (`xdnd`); on Wayland the drag has
+/// to begin on winit's own connection, with the press's serial, so dm's
+/// patched winit starts it (`dm_request_drag_out`).
 #[cfg(not(any(target_os = "macos", target_os = "windows")))]
 fn drag_out(frame: &eframe::Frame, files: Vec<std::path::PathBuf>) -> Result<(), String> {
     use raw_window_handle::{HasDisplayHandle, RawDisplayHandle};
     #[cfg(target_os = "linux")]
     if let Ok(handle) = frame.display_handle() {
-        if let RawDisplayHandle::Xlib(xlib) = handle.as_raw() {
-            let display = xlib.display.map_or(std::ptr::null_mut(), |d| d.as_ptr());
-            return dm_desktop::xdnd::start(display, files);
+        match handle.as_raw() {
+            RawDisplayHandle::Xlib(xlib) => {
+                let display = xlib.display.map_or(std::ptr::null_mut(), |d| d.as_ptr());
+                return dm_desktop::xdnd::start(display, files);
+            }
+            RawDisplayHandle::Wayland(_) => {
+                winit::platform::wayland::dm_request_drag_out(dm_desktop::xdnd::uri_list(&files));
+                return Ok(());
+            }
+            _ => {}
         }
     }
     let _ = (frame, files);
     Err(dm_desktop::i18n::t(
-        "Dragging files out of dm is not available on Wayland: right-click › Open folder",
+        "Dragging files out of dm is not available here: right-click › Open folder",
     )
     .into())
 }

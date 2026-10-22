@@ -39,7 +39,7 @@ Rust compiled to WebAssembly. Test paths are under
 | Unsupported schemes fail clearly | PASS | queue refuses; host replies FAILED with the reason |
 | Browser catches downloads, not other links | PASS | the app's catch rules (`dm-protocol` tests); `scripts/chrome-check.py`: a listed type caught, an unlisted one and one the app's settings leave out finished in the browser |
 | Clipboard watching, opt-in | PASS | `window.rs`: nothing offered when off or for what was copied before turning it on; text and queued links ignored; a new link offered and queued; a dismissed one not offered again |
-| Drag and drop | PARTIAL | dropped `.webloc`/`.url`/`.torrent`/text files are read for links; links dragged from a browser taken on macOS, Windows and X11 (`linux-drag-check.sh` with real Firefox); not on Wayland |
+| Drag and drop | PARTIAL | dropped `.webloc`/`.url`/`.torrent`/text files are read for links; links dragged from a browser taken on macOS, Windows, X11 (`linux-drag-check.sh`, real Firefox) and Wayland (`linux-wayland-drag-check.sh`); no physical drag yet on macOS or Windows |
 
 ## B. Correctness and integrity
 
@@ -301,8 +301,8 @@ Evidence is `dm-desktop/tests/window.rs` unless it says otherwise.
 | `--hidden` opens no window | PASS | counted under Xvfb in `linux-check.sh`; no window is made until one is asked for, so none flashes (`app-check.py`, `linux-gui-check.sh`) |
 | Tray: Show, Quit, close hides into it | PASS (Linux) | `scripts/linux-gui-check.sh` drives the StatusNotifierItem as a panel does: the item registers with a watcher, closing hides into it, Show dm, a left click (Activate), Speed limiter and Quit act; a watcher that is missing, late or restarted is handled. Physical clicks on a real panel, and macOS and Windows, not driven |
 | Dock click brings a hidden window back (macOS) | NOT VERIFIED | wired through winit's own delegate class; not clicked |
-| Dragging a link from a browser onto the window | PARTIAL | macOS (`a_link_dragged_from_a_browser_is_taken_and_a_file_is_left_to_winit`), Windows (`a_link_dragged_from_a_browser_is_taken_and_words_are_not`), X11 (`scripts/linux-drag-check.sh`, real Firefox); Wayland: not possible with winit 0.30 |
-| Dragging finished files out of the window | PARTIAL | macOS and Windows through the `drag` crate, driven in `window.rs`, never watched landing; X11 by dm's XDND source, watched landing in Firefox (`scripts/linux-drag-check.sh`); Wayland: not available, said in the README |
+| Dragging a link from a browser onto the window | PARTIAL | macOS (`a_link_dragged_from_a_browser_is_taken_and_a_file_is_left_to_winit`), Windows (`a_link_dragged_from_a_browser_is_taken_and_words_are_not`), X11 (`scripts/linux-drag-check.sh`, real Firefox), Wayland (`scripts/linux-wayland-drag-check.sh`) |
+| Dragging finished files out of the window | PARTIAL | macOS and Windows through the `drag` crate, driven in `window.rs`, never watched landing; X11 and Wayland watched landing (`scripts/linux-drag-check.sh`, `scripts/linux-wayland-drag-check.sh`) |
 | Start on login (Linux) | PASS | `scripts/linux-gui-check.sh`: the setting writes an XDG autostart entry, `dex` starts it as a session does, dm waits in the tray with no window, and turning it off removes the entry |
 | The login item follows a program that is gone, but not another copy that is still there; `--unregister` removes only this copy's (or a dead one) | PASS | `an_entry_for_a_program_that_is_gone_is_rewritten_when_this_copy_may_claim_it`, `another_copy_is_taken_over_only_when_it_is_gone`, `unregister_removes_only_this_copys_entry_or_a_dead_one`, `the_other_systems_login_items_are_read_for_the_program_they_start`; on macOS and Windows not seen at a real login |
 | Dark theme | PASS | rendered both ways for the README |
@@ -337,7 +337,7 @@ Evidence is `dm-desktop/tests/window.rs` unless it says otherwise.
 | A password in an address is shown as `user:•••@host` | PASS | `format.rs` `a_password_in_an_address_is_never_shown` (gap 146, 2026-10-18) |
 | Page Up/Down move a screenful; End shows the last row whole; the focus ring stays inside the list; scroll bars are seen without hovering | PASS | `page_keys_move_a_page_and_end_shows_the_last_row_whole`; `theme.rs` `scroll_bars_are_seen_without_the_pointer_and_take_their_own_room` (gaps 147, 148, 2026-10-18) |
 | The Remove dialog's buttons say what its sentence asks; Enter keeps; the next row is selected after a removal | PASS | `remove_says_one_thing_enter_keeps_and_the_next_row_is_selected` (gap 149, 2026-10-18) |
-| A drop with no link in it, and the empty list, say how to add a link | PASS | `a_drop_with_no_link_says_how_to_add_one` (gap 150, 2026-10-18); under Wayland the hint says a browser's link cannot be dropped (`drop_hint`) |
+| A drop with no link in it, and the empty list, say how to add a link | PASS | `a_drop_with_no_link_says_how_to_add_one` (gap 150, 2026-10-18) |
 | The list's up-and-down bar stays at its visible right edge when columns overflow, and drags the list | PASS | `the_lists_bar_stays_in_view_when_the_columns_run_past_it` (gap 152, 2026-10-18) |
 | A failed row says why in plain words, the engine's own on hover | PASS | `a_cut_connection_is_said_plainly`, `common_failures_have_plain_reasons` (gap 153, 2026-10-18) |
 | Enter answers "Already in the list" with Show it, which changes nothing | PASS | `enter_shows_the_row_when_already_listed` (gap 154, 2026-10-18) |

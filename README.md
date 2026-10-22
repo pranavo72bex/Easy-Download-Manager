@@ -210,15 +210,6 @@ You do not need to install anything for video.
 The extension sends the page's sign-in along with the video, so a site that
 checks you are not a bot lets the download through.
 
-## What dm cannot do (yet)
-
-- **On Linux under Wayland, links cannot be dragged onto dm's window and
-  finished files cannot be dragged out of it.** Right-click a link and pick
-  **Download link with dm**, or use **Add URL**; for a finished file use
-  **Open folder** on the row. Dropping a saved link file (`.torrent`, `.url`,
-  `.webloc` or a text file of links) works there too. On Mac, Windows and
-  Linux under X11, both kinds of drag work.
-
 ## If something is not working
 
 - **Downloads still go to the browser.** Click the dm icon in the browser's

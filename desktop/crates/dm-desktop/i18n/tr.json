@@ -515,7 +515,6 @@
  "Remove it": "Kaldır",
  "Remove them": "Kaldır",
  "Drop a link from a browser, a .torrent, a .url or .webloc file, or a text file of links, here.": "Buraya tarayıcıdan bir bağlantı, bir .torrent, .url ya da .webloc dosyası veya bağlantı listesi içeren bir metin dosyası bırakın.",
- "Drop a .torrent, a .url or .webloc file, or a text file of links, here. On Wayland a link dragged straight from a browser cannot be dropped: use Add URL or the browser's right-click menu.": "Buraya bir .torrent, .url ya da .webloc dosyası veya bağlantı listesi içeren bir metin dosyası bırakın. Wayland'de tarayıcıdan doğrudan sürüklenen bağlantı bırakılamaz: URL Ekle'yi ya da tarayıcının sağ tık menüsünü kullanın.",
  "None": "Yok",
  "unit:.": ",",
  "Cancel this download?": "Bu indirme iptal edilsin mi?",
@@ -528,7 +527,6 @@
  "Read by the browser extension the next time it talks to dm: a download it catches, or its right-click menu. The right-click menu hands anything over regardless.": "Tarayıcı eklentisi bunu dm ile bir sonraki konuşmasında okur: yakaladığı bir indirme ya da sağ tık menüsü. Sağ tık menüsü her şeyi yine de iletir.",
  "Progress": "İlerleme",
  "There are no links on the clipboard.": "Panoda bağlantı yok.",
- "Dragging files out of dm is not available on Wayland: right-click › Open folder": "Wayland'de dosyalar dm'den sürüklenemez: sağ tık › Klasörü aç",
  "The list is sorted by a column: click its heading until the arrow goes, then drag to reorder.": "Liste bir sütuna göre sıralı: ok kaybolana kadar başlığına tıklayın, sonra sırayı değiştirmek için sürükleyin.",
  "Sites whose links work only once": "Bağlantıları yalnızca bir kez çalışan siteler",
  "dm takes their downloads without first asking the server whether it can fetch them, which would use the link up. A link that needs the browser's sign-in then fails in dm rather than finishing in the browser.": "dm, bağlantıyı tüketeceği için önce sunucuya indirip indiremeyeceğini sormadan bu sitelerin indirmelerini alır. Tarayıcının oturumunu gerektiren bir bağlantı o zaman tarayıcıda bitmek yerine dm'de başarısız olur.",
@@ -565,5 +563,6 @@
  "this video is not available: it may be private, removed or not shown in your country": "Bu video kullanılamıyor: özel, kaldırılmış ya da ülkenizde gösterilmiyor olabilir",
  "dm could not get the video from this page": "dm bu sayfadaki videoyu alamadı",
  "Known once the video starts": "Video başladığında bilinir",
- "That is not a link dm can download. Paste a web address, such as https://example.com/file.zip.": "Bu, dm'nin indirebileceği bir bağlantı değil. https://example.com/file.zip gibi bir web adresi yapıştırın."
+ "That is not a link dm can download. Paste a web address, such as https://example.com/file.zip.": "Bu, dm'nin indirebileceği bir bağlantı değil. https://example.com/file.zip gibi bir web adresi yapıştırın.",
+ "Dragging files out of dm is not available here: right-click › Open folder": "Dosyaları dm'den sürüklemek burada kullanılamıyor: sağ tık › Klasörü aç"
 }

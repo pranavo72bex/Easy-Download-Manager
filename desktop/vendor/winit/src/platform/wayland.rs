@@ -129,3 +129,16 @@ impl MonitorHandleExtWayland for MonitorHandle {
         self.inner.native_identifier()
     }
 }
+
+/// dm: asks for files, given as a `text/uri-list`, to be dragged out of the
+/// window under the pointer; called while the press that began the drag is
+/// still held. The drag starts on the event loop's next turn.
+pub fn dm_request_drag_out(uri_list: String) {
+    crate::platform_impl::wayland::request_drag_out(uri_list)
+}
+
+/// dm: whether a drag out has ended since this was last asked. The window
+/// does not see the button let go, which the drop target has.
+pub fn dm_take_drag_ended() -> bool {
+    crate::platform_impl::wayland::take_drag_ended()
+}
