@@ -1,10 +1,10 @@
-//! Joins a video's picture and sound into one MP4, without ffmpeg.
+//! Joins a video's picture and sound into one MP4, by dm itself.
 //!
 //! A video site serves its better qualities as two files, the picture alone
 //! and the sound alone, each an MP4 — fragmented, as DASH serves them, or
-//! plain. yt-dlp fetches both and leaves the joining to ffmpeg, which a
-//! person would have to install (or dm fetch, 40–80 MB). This does the one
-//! thing dm needs of it: each input's samples are read from its own index
+//! plain. yt-dlp fetches both and leaves the joining to a separate tool,
+//! which a person would have to install (or dm fetch, 40–80 MB). This
+//! does the joining itself: each input's samples are read from its own index
 //! (the `moov` sample tables, or the `moof` fragments after an empty one),
 //! and written as one plain MP4, the index first so it plays while it is
 //! still being read, and picture and sound interleaved half a second at a
@@ -98,8 +98,9 @@ pub fn join_with_text(
             .metadata()
             .map_err(|e| format!("{} could not be read: {e}", path.display()))?
             .len();
-        // A WebM picture or sound (VP9, AV1, Opus) goes into the MP4 as
-        // ffmpeg put it: a video's tallest picture can come only as WebM.
+        // A WebM picture or sound (VP9, AV1, Opus) goes into the MP4 as is,
+        // the way players expect: a video's tallest picture can come only
+        // as WebM.
         let read = if crate::mkvmux::is_webm(path) {
             crate::mkvmux::mp4_tracks(path, index)
         } else {
@@ -830,7 +831,7 @@ fn edit_list(track: &Track, lead_ms: u64) -> Option<Vec<u8>> {
             scale(edit.duration, track.edits_timescale, MOVIE_TIMESCALE)
         } else if edit.duration == 0 {
             // Rounded up: to the end means every sample, and 6.037188 s
-            // written as 6.037 had a player cut the last eight (ffmpeg 9).
+            // written as 6.037 had a player cut the last eight.
             scale_up(
                 u64::try_from(last.saturating_sub(edit.media_time)).unwrap_or(0),
                 track.timescale,

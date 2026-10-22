@@ -1,7 +1,7 @@
 //! Subtitles read from WebVTT, for dm to put into a video itself.
 //!
 //! yt-dlp fetches a video's subtitles as WebVTT files beside it,
-//! `name.en.vtt`, and left putting them into the video to ffmpeg. dm reads
+//! `name.en.vtt`, and leaves putting them into the video to dm. dm reads
 //! their cues here and the MP4 and WebM writers carry them as text tracks
 //! (`mp4mux`, `mkvmux`), one per language, so a player offers them.
 //!

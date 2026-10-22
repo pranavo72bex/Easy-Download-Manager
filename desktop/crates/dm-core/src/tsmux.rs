@@ -1,5 +1,5 @@
-//! Puts an HLS stream's MPEG transport stream (`.ts`) into an MP4, without
-//! ffmpeg.
+//! Puts an HLS stream's MPEG transport stream (`.ts`) into an MP4, by dm
+//! itself.
 //!
 //! Players open an MP4; few open a `.ts`. An HLS stream's segments are a
 //! transport stream: 188-byte packets carrying H.264 or HEVC pictures and

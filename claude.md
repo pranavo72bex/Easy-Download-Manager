@@ -442,7 +442,7 @@ of them.
       every picture identical) and RTSPS through a loopback TLS bridge in
       front of retina (unit-tested against a TLS server; no real camera
       yet). RTMPE, Flash's encrypted RTMP, is refused. A proxy in force is a refusal,
-      never a route around it. `tests/live.rs`: RTMP from ffmpeg's server
+      never a route around it. `tests/live.rs`: RTMP from a real streaming server
       decodes identical to the clip; RTSP from an in-test server, every
       picture identical; MMS from an in-test server, byte for byte; mediamtx
       checked by hand
@@ -487,9 +487,9 @@ of them.
       QuickJS builds from GitHub into its own folder the first time a video
       page needs them, checked against their checksums, and fetches yt-dlp
       afresh weekly (`tools.rs`); the row says "Getting ready for videos
-      (first time only)" meanwhile. Since 2026-10-22 dm uses no ffmpeg at
-      all, an installed one included: picture, sound and subtitles are
-      joined by dm on every computer alike; a page
+      (first time only)" meanwhile. Since 2026-10-22 picture, sound and
+      subtitles are joined by dm itself on every computer alike, with no
+      other tool, an installed one included; a page
       refused to dm's own request (a 429 bot check) is yt-dlp's to try
 
 # Autonomous Development Rules

@@ -1,4 +1,4 @@
-//! Joins a WebM video's picture and sound into one file, without ffmpeg.
+//! Joins a WebM video's picture and sound into one file, by dm itself.
 //!
 //! A video site's WebM qualities (VP9 or AV1 picture, Opus sound) come as
 //! two WebM files, as its MP4 ones do (`mp4mux`). This reads each input's
@@ -927,8 +927,8 @@ fn opus_samples(packet: &[u8]) -> u32 {
 /// The tracks of the WebM at `path` as MP4 tracks whose samples are its
 /// frames, where they are: VP9 (`vp09` with `vpcC`), AV1 (`av01` with the
 /// `av1C` WebM keeps as its private data) and Opus (`Opus` with `dOps`).
-/// What ffmpeg did when a video's tallest picture came only as WebM and was
-/// joined into an MP4. Another codec, or frames laced together, is refused.
+/// For a video whose tallest picture comes only as WebM, joined into an
+/// MP4. Another codec, or frames laced together, is refused.
 pub(crate) fn mp4_tracks(path: &Path, input: usize) -> Result<Vec<crate::mp4mux::Track>, String> {
     use crate::mp4mux::{full, Sample, Track};
     let read = read_input(path, input)?;

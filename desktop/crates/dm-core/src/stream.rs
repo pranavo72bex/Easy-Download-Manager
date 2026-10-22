@@ -419,7 +419,7 @@ pub fn media_playlist(
                 Error::Internal("the stream is encrypted but names no key".into())
             })?;
             /* Plain AES-128 is HLS's own scrambling, its key handed to any
-             * player that asks, as every player and ffmpeg read it. A key
+             * player that asks, as every player reads it. A key
              * kept by a rights system (FairPlay's skd://, Widevine's or
              * PlayReady's key formats) is copy protection, and dm does not
              * get around copy protection: the stream is refused. */

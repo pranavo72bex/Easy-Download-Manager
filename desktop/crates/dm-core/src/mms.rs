@@ -1,5 +1,4 @@
-//! MMS streams (`mms://`, `mmsh://`), fetched by dm over HTTP, without
-//! ffmpeg.
+//! MMS streams (`mms://`, `mmsh://`), fetched by dm itself over HTTP.
 //!
 //! Windows Media servers that speak MMS speak it over HTTP too (MMSH), and
 //! that is what a player tries for an `mms://` address it cannot reach

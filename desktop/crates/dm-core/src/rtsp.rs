@@ -1,4 +1,4 @@
-//! RTSP streams (`rtsp://`), recorded by dm without ffmpeg.
+//! RTSP streams (`rtsp://`), recorded by dm itself.
 //!
 //! RTSP is what IP cameras and media servers speak. The session — DESCRIBE,
 //! SETUP over the RTSP connection itself (RTP interleaved on TCP, which

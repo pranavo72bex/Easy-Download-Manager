@@ -1,9 +1,10 @@
 //! yt-dlp (and QuickJS, which it runs a site's player checks with), fetched by
 //! dm itself where the computer has none, so a video site's page downloads
-//! with nothing installed by hand. ffmpeg is not fetched: dm joins picture
-//! and sound and records streams itself (`mp4mux`, `mkvmux`, `tsmux`,
-//! `rtmp`, `rtsp`, `mms`), and one the person installed is not used: yt-dlp
-//! is pointed past it (`ytdlp.rs`), so every computer gets the same file.
+//! with nothing installed by hand. Nothing else is fetched: dm joins
+//! picture and sound and records streams itself (`mp4mux`, `mkvmux`,
+//! `tsmux`, `rtmp`, `rtsp`, `mms`), and yt-dlp is kept from any joiner
+//! installed on the computer (`ytdlp.rs`), so every computer gets the
+//! same file.
 //!
 //! dm still writes no site logic of its own: it runs yt-dlp, as it always
 //! has. What changes is where that yt-dlp comes from. One the person
