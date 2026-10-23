@@ -645,5 +645,17 @@
  "Extracting…": "압축을 푸는 중…",
  "Extract to…": "압축 풀 위치…",
  "There is no folder chooser here: use Extract here": "여기에는 폴더 선택기가 없습니다. “여기에 압축 풀기”를 사용하세요",
- "Stop recording a live stream after, minutes (0 records until it ends)": "라이브 스트림 녹화를 멈출 시간(분, 0은 끝날 때까지 녹화)"
+ "Stop recording a live stream after, minutes (0 records until it ends)": "라이브 스트림 녹화를 멈출 시간(분, 0은 끝날 때까지 녹화)",
+ "Let the command line list and steer downloads (dm-desktop list, pause, resume, cancel); from dm's next start": "명령줄에서 다운로드를 나열하고 제어하도록 허용(dm-desktop list, pause, resume, cancel). dm 다음 시작부터",
+ "Watch a folder for links: a .url, .webloc or text file of links, or a .torrent saved there is added and moved to its \"done\" folder (empty is off)": "링크를 감시할 폴더: 거기에 저장한 .url, .webloc, 링크가 든 텍스트 파일 또는 .torrent를 추가하고 안의 “done” 폴더로 옮깁니다(비워 두면 꺼짐)",
+ "Working it out…": "계산 중…",
+ "Check against": "대조할 값",
+ "A digest you were given": "받은 다이제스트",
+ "It matches.": "일치합니다.",
+ "It does not match.": "일치하지 않습니다.",
+ "Name pattern": "이름 패턴",
+ "Empty keeps the names. {n} counts from 1, {name} is the old name": "비워 두면 이름을 유지합니다. {n}은 1부터 세고 {name}은 이전 이름입니다",
+ "Sites whose downloads go to a folder of their own, at a speed of their own:": "자체 폴더와 자체 속도로 받는 사이트:",
+ "Delete site rule": "사이트 규칙 삭제",
+ "Add a site rule": "사이트 규칙 추가"
 }

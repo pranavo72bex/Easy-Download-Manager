@@ -75,7 +75,7 @@ fn no_tracker_behind_proxy() -> Error {
 
 /// A magnet with only the trackers a proxy carries: behind one, the DHT is
 /// off and a `udp://` tracker would be asked directly with the info-hash
-/// and the real address (torrent check, 2026-10-19).
+/// and the real address.
 fn tcp_trackers_of_magnet(magnet: &str) -> Result<String, Error> {
     let (head, query) = magnet.split_once('?').unwrap_or((magnet, ""));
     let mut trackers = 0;
@@ -193,8 +193,8 @@ pub async fn download_torrent(
             // DHT". Each session finds peers afresh on a port of its own.
             // Off behind a proxy, and local discovery with it: both are UDP,
             // which a SOCKS5 connection cannot carry, so they went out
-            // directly with the info-hash and the real address (torrent
-            // check, 2026-10-19). A magnet then needs a tracker.
+            // directly with the info-hash and the real address.
+            // A magnet then needs a tracker.
             dht: (!proxied).then(|| librqbit::DhtSessionConfig {
                 persistence: None,
                 ..Default::default()
@@ -294,8 +294,7 @@ pub async fn download_torrent(
         .ok_or_else(|| Error::Internal("the torrent produced no handle".into()))?;
 
     // A digest is for one file: refused as soon as the metadata shows more,
-    // rather than after the whole tree was fetched for nothing (torrent
-    // check, 2026-10-19).
+    // rather than after the whole tree was fetched for nothing.
     let several = handle
         .with_metadata(|metadata| metadata.file_infos.len() > 1)
         .unwrap_or(false);
@@ -335,7 +334,7 @@ pub async fn download_torrent(
         // together" would hold only at the moment it started.
         // Only when it changed: each call makes a fresh limiter with a full
         // second's allowance, and set twice a second it let a torrent run at
-        // three times its share (torrent check, 2026-10-19).
+        // three times its share.
         let cap = download_cap(options).await;
         if session.ratelimits.get_download_bps() != cap {
             session.ratelimits.set_download_bps(cap);
@@ -364,7 +363,7 @@ pub async fn download_torrent(
             let now = Instant::now();
             let dt = (now - last).as_secs_f64();
             let total = (stats.total_bytes > 0).then_some(stats.total_bytes);
-            /* Never less than already reported (gap 71). librqbit's count
+            /* Never less than already reported. librqbit's count
              * drops when a piece fails its hash and is fetched again, and
              * while it checks what is on disk; a row whose bar went back
              * read as a download losing data. The high-water mark, held to
@@ -530,7 +529,7 @@ async fn move_tree(from: &Path, to: &Path) -> Result<Option<String>, Error> {
         .map_err(Error::Disk)
 }
 
-/// A move between disks (gap 61). Copied straight into `to`, a copy that
+/// A move between disks. Copied straight into `to`, a copy that
 /// failed midway left half a tree in the download folder looking finished;
 /// and a copy that succeeded but whose source could not be removed failed
 /// the row beside a whole copy, so Retry fetched it again as "name (1)".
@@ -713,7 +712,7 @@ mod tests {
 
     use super::*;
 
-    /// Gap 71: librqbit's count dropped (a piece failing its hash, a
+    /// Librqbit's count dropped (a piece failing its hash, a
     /// check of the files) and the row's progress went back.
     #[test]
     fn reported_progress_never_goes_back() {
@@ -727,7 +726,7 @@ mod tests {
         assert_eq!(seen, [0, 400, 900, 900, 900, 1200, 1200, 2048, 2048]);
     }
 
-    /// Gap 61: a move across disks copied straight into the download
+    /// A move across disks copied straight into the download
     /// folder, so a copy that failed midway left half a tree there looking
     /// finished; and one whose source could not be removed failed the row
     /// beside a whole copy.

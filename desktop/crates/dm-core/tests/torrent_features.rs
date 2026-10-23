@@ -28,7 +28,7 @@ fn free_port() -> u16 {
 
 /// The one test that times a download runs alone: eight swarms starting
 /// beside it took half the machine, and 4 MB at 512 KB/s came in past its
-/// bound one run in two (2026-10-21). The others share.
+/// bound one run in two. The others share.
 static TIMING: tokio::sync::RwLock<()> = tokio::sync::RwLock::const_new(());
 
 async fn tracker_returning(peer: SocketAddr) -> SocketAddr {
@@ -301,7 +301,7 @@ async fn a_checksum_on_several_files_fails_rather_than_going_unchecked() {
         .await
         .expect_err("unchecked");
     // Refused before the tree was fetched, and nothing of it left staged
-    // for a Retry that could only fail again (torrent check, 2026-10-19).
+    // for a Retry that could only fail again.
     fn fetched(dir: &std::path::Path) -> u64 {
         std::fs::read_dir(dir)
             .map(|entries| {
@@ -360,7 +360,7 @@ async fn progress_is_reported_and_the_speed_limit_holds() {
     assert!(samples >= 3, "only {samples} progress samples");
     // About seven seconds, a first second's allowance aside. Set afresh
     // twice a second, the engine's limit ran at three times its share and
-    // this took under three (torrent check, 2026-10-19); held to half the
+    // this took under three; held to half the
     // ceiling with nothing else downloading, it took about fifteen.
     assert!(
         took >= Duration::from_secs(6),

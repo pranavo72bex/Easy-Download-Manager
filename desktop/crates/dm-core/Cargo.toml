@@ -52,7 +52,7 @@ cbc = { version = "0.2.1", features = ["block-padding", "alloc"] }
 librqbit = { version = "9.0.1", default-features = false, features = ["rust-tls"] }
 tokio-util = "0.7"
 dirs = "7.0.0"
-zip = { version = "8", default-features = false, features = ["deflate"] }
+zip = { version = "9", default-features = false, features = ["deflate"] }
 
 # `killpg`, to end yt-dlp's process group without running a `kill` program
 # that a minimal `PATH` may not find. Already in the tree through tokio.
@@ -60,7 +60,7 @@ zip = { version = "8", default-features = false, features = ["deflate"] }
 libc = "0.2"
 
 # The free space on a disk, so a file too large for it is refused at the
-# start (gap 60). Already in the tree through tokio and others; only its
+# start. Already in the tree through tokio and others; only its
 # file-system module is named.
 [target.'cfg(windows)'.dependencies]
 windows-sys = { version = "0.61", features = ["Win32_Storage_FileSystem"] }

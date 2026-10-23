@@ -65,7 +65,7 @@ async fn a_refusal_whose_body_never_ends_is_answered_promptly() {
     assert!(said.contains("500"), "{said}");
 }
 
-/// Gap 60: a stated 100 TB was fetched until the disk was full. It is
+/// A stated 100 TB was fetched until the disk was full. It is
 /// refused before a byte is fetched, saying how much it needs.
 #[tokio::test]
 async fn a_file_larger_than_the_disk_is_refused_before_it_is_fetched() {
@@ -104,7 +104,7 @@ async fn a_file_larger_than_the_disk_is_refused_before_it_is_fetched() {
     assert_eq!(fetched.load(Ordering::SeqCst), 0, "ranges were fetched");
 }
 
-/// QA pass, 2026-10-22: a file over 4 GB bound for a FAT32 drive is refused
+/// A file over 4 GB bound for a FAT32 drive is refused
 /// before a byte is fetched, naming why and what to do, where it used to
 /// run to 4 GB and fail there. A test's drive holds nothing over 1,000
 /// bytes.
@@ -148,7 +148,7 @@ async fn a_file_too_large_for_the_drive_is_refused_before_it_is_fetched() {
     assert_eq!(fetched.load(Ordering::SeqCst), 0, "ranges were fetched");
 }
 
-/// Gap 94: two downloads started together each checked the free space
+/// Two downloads started together each checked the free space
 /// alone, so together they could still fill the disk. The second is
 /// checked against what the first still needs, and passes once the first
 /// has ended.

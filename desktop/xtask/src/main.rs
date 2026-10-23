@@ -121,7 +121,7 @@ const BUDGETS: &[(&str, &str, &str)] = &[
     ),
     (
         "500 rows draw within a 100 ms frame",
-        "desktop/crates/dm-desktop/tests/window.rs",
+        "desktop/crates/dm-desktop/tests/window/layout.rs",
         "five_hundred_rows_draw_inside_a_frame_budget",
     ),
     (
@@ -311,12 +311,40 @@ fn layers() -> Result<(), String> {
             }
         }
     }
+    // A file that grows into a monolith is split before it is changed again:
+    // `dialogs/`, `app/`, `download/` and `queue/` were each one file of
+    // thousands of lines. Tests live in `tests.rs` or under `tests/`, and are
+    // not counted.
+    for dir in [
+        "desktop/crates/dm-protocol/src",
+        "desktop/crates/dm-core/src",
+        "desktop/crates/dm-shell/src",
+        "desktop/crates/dm-desktop/src",
+        "browser/src",
+    ] {
+        for file in walk(&root.join(dir)) {
+            if file.file_name().is_some_and(|n| n == "tests.rs") {
+                continue;
+            }
+            let lines = std::fs::read_to_string(&file).map_or(0, |t| t.lines().count());
+            if lines > MAX_SOURCE_LINES {
+                let shown = file.strip_prefix(&root).unwrap_or(&file).display();
+                wrong.push(format!(
+                    "{shown} is {lines} lines: split it into modules (the limit is {MAX_SOURCE_LINES})"
+                ));
+            }
+        }
+    }
     if wrong.is_empty() {
         Ok(())
     } else {
         Err(wrong.join("\n"))
     }
 }
+
+/// The most lines a source file may have before `cargo xtask layers` asks for
+/// it to be split.
+const MAX_SOURCE_LINES: usize = 2500;
 
 /* --------------------------------------------------------------- privacy */
 
@@ -376,10 +404,14 @@ fn privacy() -> Result<(), String> {
         "extension",
     ] {
         for file in walk(&root.join(dir)) {
+            // A module's tests live in its `tests.rs`, or start at #[cfg(test)].
+            if file.file_name().is_some_and(|n| n == "tests.rs") {
+                continue;
+            }
             let Ok(text) = std::fs::read_to_string(&file) else {
                 continue;
             };
-            // Shipped code only: a module's tests start at #[cfg(test)].
+            // Shipped code only.
             let shipped = text.split("#[cfg(test)]").next().unwrap_or("");
             for host in hosts_in(shipped) {
                 let allowed = ALLOWED_HOSTS

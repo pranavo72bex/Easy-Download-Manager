@@ -54,7 +54,7 @@ site, Scheduler, Speed limiter, Options. It is held together like this:
   menus, the toolbar, the row menu, the keyboard and the control protocol
   all run the same named commands.
 - **Window tests that click every control by its name**
-  (`desktop/crates/dm-desktop/tests/window.rs`): every menu item, toolbar
+  (`desktop/crates/dm-desktop/tests/window.rs` and `tests/window/`): every menu item, toolbar
   button and row-menu item is clicked through the accessibility tree and
   checked for what it does (`every_menu_item_clicked_does_what_it_says`,
   `every_toolbar_button_clicked_does_what_it_says`,
@@ -202,6 +202,9 @@ failure is silent. Install to `/Applications` and register that;
 | **Archives** | A finished `.zip` is extracted from its row menu: **Extract here** (a new folder beside it) or **Extract to…** (a new folder inside one the person picks). `dm-core`'s `extract.rs` judges every entry before it writes any: a path that leaves the folder (`..`, absolute, drive, backslash), a symlink or device file, a password, a repeated name (also in another case) or totals of entries, bytes and compression ratio past its limits fail the whole archive; the bytes actually written are counted against the sizes the header claims; the folder is always new, so nothing is replaced; the archive is kept and nothing extracted is opened or run. Only Deflate and Stored entries — the `zip` crate is built without its C-backed codecs |
 | **Live streams** | RTMP, RTSP and MMS are recorded as they come (`live.rs`). Options › Downloads › *Stop recording a live stream after, minutes* ends a recording the way Stop does — the file closed first — and keeps and places what was recorded; 0 records until the stream ends or Stop |
 | **Command line** | `dm-desktop list`, `status ID`, `pause`, `resume`, `cancel ID…`, `--json` (`cli.rs`): another client of the control protocol, so there is one engine and nothing new listens. dm must run with `--control`; exit codes are 0 done, 1 refused, 2 misuse, 3 no dm |
+| **Watched folder** | `app/watch.rs`: every five seconds a folder named in Options is read for links saved as `.url`, `.webloc`, text or `.torrent`, read as a drop is read; handled files move to its `done` folder |
+| **Site rules** | `Settings::with_site_rule` gives a site's downloads a folder and a speed of their own at the moment a row is added, whatever the way in; what a person chose for one download stands |
+| **Checking and naming** | Properties shows a finished file's SHA-256 (hashed on the app's runtime) and checks a pasted digest; Move/Rename of several files takes a `{n}`/`{name}` pattern |
 | **Closing the window** | With a tray, closing hides the window and the queue keeps going. On Wayland a program cannot hide or unminimize its own window (winit's `set_visible` does nothing there), so dm minimizes it and keeps drawing; the task manager restores it |
 
 Down the left is a rail of places, and each is a filter over the one list
@@ -329,8 +332,7 @@ second time. A download the extension itself started is never caught.
 - **The catch rules are Options › Browser**, kept in `settings.json`.
 - **A browser's context menu is clicked with real input only in Firefox on
   Linux** (`linux-firefox-check.sh`); elsewhere the checks call the handler
-  the menu calls, from the worker (gap 7 in [gaps.md](gaps.md) says what is
-  still open for Chrome).
+  the menu calls, from the worker.
 
 ## Development
 
@@ -376,8 +378,12 @@ extension/
   pkg/                    built by scripts/package.sh (not in git)
 desktop/
   crates/dm-core/
-    download.rs           splitting, fetching, resuming, assembling
-    queue.rs              several downloads, a limit, and the states between
+    download/             one download: mod.rs (options, the entry points), ranged.rs (the
+                          range workers, resume), http.rs, mirrors.rs, hls.rs (playlists and
+                          live), assemble.rs, space.rs (free-disk accounting), files.rs (parts, names)
+    queue/                several downloads, a limit, and the states between: mod.rs (the state),
+                          runner.rs (what starts and when), actions.rs (pause, resume, cancel,
+                          remove), settings.rs, persist.rs, edit.rs, recheck.rs, queues.rs
     plan.rs               how a file is cut into ranges
     probe.rs              size, name, and whether it can be resumed
     progress.rs           smoothed rate and time remaining
@@ -398,9 +404,16 @@ desktop/
   crates/dm-protocol/     what the extension and the host say, and the catch rule
   crates/dm-shell/        settings, the browser host, --register, one-instance lock, startup
   crates/dm-desktop/      the window, in egui; the tray, login item, notifications
+    src/main.rs           startup; platform.rs, tray.rs, window.rs, hidden.rs, signals.rs, login.rs are its parts
+    src/app/              the window's state (mod.rs) and what it does, one concern per file:
+                          sync.rs (queue ↔ rows), commands.rs (enabled/run), control.rs (the control protocol),
+                          places.rs, ui.rs, menus.rs, tree.rs, bars.rs, drops.rs, search.rs, lists.rs, files.rs…
+    src/dialogs/          one file per dialog (add.rs, options.rs, file_info.rs…); frame.rs and
+                          controls.rs are the toolkit they share; state.rs holds the open dialogs
     src/commands.rs       the command registry every menu, key and script runs
     src/cli.rs, mcp.rs, control.rs   the command line, the MCP server, the control protocol
-    tests/window.rs       drives every control and checks what it did
+    tests/window.rs       indexes tests/window/*.rs, grouped by what they check (options, dialogs,
+                          keyboard, layout, lists, commands, control…); support.rs is the shared harness
   xtask/                  cargo xtask scorecard | layers | privacy | secrets
   packaging/PKGBUILD      the Arch package
 shared/naming-cases.json  filename cases the engine's naming is held to

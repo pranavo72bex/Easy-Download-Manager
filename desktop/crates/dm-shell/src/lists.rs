@@ -7,7 +7,7 @@
 // a file could cause, so every access is checked.
 #![cfg_attr(not(test), deny(clippy::indexing_slicing))]
 /// Why a numbered series cannot be made: a kind, so the window can say
-/// it in the language in force (gap 165). `Display` is the English.
+/// it in the language in force. `Display` is the English.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum SeriesError {
     /// The address has no `*`, or more than one.
@@ -64,7 +64,7 @@ pub fn series(
             return Err(SeriesError::TooMany);
         }
         // A From typed with its zeros ("09") is padded as typed: the zero
-        // was dropped and "file9" made (UI round 15).
+        // was dropped and "file9" made.
         let width = if from.len() > 1 && from.starts_with('0') {
             width.max(from.len())
         } else {
@@ -83,7 +83,7 @@ pub fn series(
     match (letter(from), letter(to)) {
         (Some(a), Some(b)) if a.is_ascii_lowercase() == b.is_ascii_lowercase() => {
             // z to a runs backwards, as 9 to 1 does: it was said to be
-            // neither numbers nor letters (UI round 15).
+            // neither numbers nor letters.
             if a > b {
                 return Err(SeriesError::Backwards);
             }
@@ -685,7 +685,7 @@ mod tests {
         assert_eq!(found.pages, 2);
     }
 
-    /// Gaps 59 and 70: a last run in the future (a clock once set ahead)
+    /// A last run in the future (a clock once set ahead)
     /// held the search until that date; an interval read from a hand-edited
     /// file overflowed when turned into seconds.
     #[test]
@@ -736,7 +736,7 @@ mod tests {
         assert_eq!(series("https://e.com/*/*", "1", "2", 0), Err(Star));
         assert_eq!(series("https://e.com/*", "5", "1", 0), Err(Backwards));
         assert_eq!(series("https://e.com/*", "a", "Z", 0), Err(Ends));
-        // UI round 15: letters backwards say so, and a typed zero pads.
+        // Letters backwards say so, and a typed zero pads.
         assert_eq!(series("https://e.com/*", "z", "a", 0), Err(Backwards));
         assert_eq!(
             series("https://e.com/f*", "09", "11", 0).unwrap(),

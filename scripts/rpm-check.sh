@@ -45,7 +45,7 @@ for distro in ${DM_RPM_DISTROS:-fedora:41 opensuse/leap:15.6}; do
     $install >/dev/null
     rpm -q dm
     # A font for names in Chinese, Japanese and Korean, recommended rather
-    # than required (gap 45).
+    # than required.
     if rpm -q --recommends dm | grep -q cjk; then echo 'ok    recommends a CJK font'; else echo 'FAIL  recommends no CJK font'; exit 1; fi
     # 24-bit: openSUSE's xvfb-run defaults to an 8-bit screen, which has no
     # GL config a window can use.

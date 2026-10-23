@@ -645,5 +645,17 @@
  "Extracting…": "Çıkarılıyor…",
  "Extract to…": "Şuraya çıkar…",
  "There is no folder chooser here: use Extract here": "Burada klasör seçici yok: “Buraya çıkar” kullanın",
- "Stop recording a live stream after, minutes (0 records until it ends)": "Canlı yayın kaydını şu kadar dakika sonra durdur (0 yayın bitene kadar kaydeder)"
+ "Stop recording a live stream after, minutes (0 records until it ends)": "Canlı yayın kaydını şu kadar dakika sonra durdur (0 yayın bitene kadar kaydeder)",
+ "Let the command line list and steer downloads (dm-desktop list, pause, resume, cancel); from dm's next start": "Komut satırının indirmeleri listelemesine ve yönetmesine izin ver (dm-desktop list, pause, resume, cancel); dm’nin bir sonraki açılışından itibaren",
+ "Watch a folder for links: a .url, .webloc or text file of links, or a .torrent saved there is added and moved to its \"done\" folder (empty is off)": "Bir klasörü bağlantılar için izle: oraya kaydedilen .url, .webloc ya da bağlantı içeren metin dosyası veya .torrent eklenir ve “done” klasörüne taşınır (boş: kapalı)",
+ "Working it out…": "Hesaplanıyor…",
+ "Check against": "Şununla karşılaştır",
+ "A digest you were given": "Size verilen özet",
+ "It matches.": "Eşleşiyor.",
+ "It does not match.": "Eşleşmiyor.",
+ "Name pattern": "Ad deseni",
+ "Empty keeps the names. {n} counts from 1, {name} is the old name": "Boş bırakılırsa adlar korunur. {n} 1’den sayar, {name} eski addır",
+ "Sites whose downloads go to a folder of their own, at a speed of their own:": "İndirmeleri kendi klasörüne ve kendi hızıyla giden siteler:",
+ "Delete site rule": "Site kuralını sil",
+ "Add a site rule": "Site kuralı ekle"
 }

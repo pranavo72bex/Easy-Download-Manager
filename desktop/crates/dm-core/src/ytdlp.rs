@@ -546,7 +546,7 @@ pub fn choices(described: &str) -> Vec<Choice> {
         };
         // A picture where it has a height, unless yt-dlp says it has none:
         // an HLS master's renditions list no codecs, and come as
-        // `vcodec: null`, which left a stream with no list (UI round 7).
+        // `vcodec: null`, which left a stream with no list.
         let no_picture = f.get("vcodec").and_then(|v| v.as_str()) == Some("none");
         if height == 0 || no_picture {
             continue;
@@ -821,7 +821,7 @@ pub async fn download_ytdlp(
                     // The tree first, and waited for, off the runtime: on
                     // Windows `taskkill /T` finds yt-dlp's workers through
                     // yt-dlp, and a launcher killed first left them
-                    // running (gap 98).
+                    // running.
                     if let Some(pid) = tree.take() {
                         let _ = tokio::task::spawn_blocking(move || end_tree(pid)).await;
                     }
@@ -1003,12 +1003,10 @@ async fn place(produced: &Path, options: &Options) -> Result<Finished, Error> {
 }
 
 /// yt-dlp and everything it started, ended together.
-///
 /// On unix yt-dlp leads a process group of its own and the group is sent
 /// SIGKILL by `killpg`; on Windows `taskkill /T` ends the tree under it.
 /// `None` once the run has been reaped, when the number may belong to
 /// someone else.
-///
 /// No `kill` program on unix: looked up on `PATH`, it was not found under
 /// the minimal one a browser's native host or the Dock starts dm with, the
 /// error went unread, and the worker under yt-dlp ran on. On unix nothing
@@ -1016,8 +1014,8 @@ async fn place(produced: &Path, options: &Options) -> Result<Finished, Error> {
 /// [`TREE_KILL_WAIT`], before yt-dlp itself is killed: the one-file yt-dlp
 /// is a launcher with the real yt-dlp as its child, and `/T` finds that
 /// child through the launcher, so a launcher killed first (dm used to start
-/// taskkill and kill yt-dlp at once) left the worker running
-/// (gap 98). The async path waits off the runtime; `Drop`, the rare path of
+/// taskkill and kill yt-dlp at once) left the worker running.
+/// The async path waits off the runtime; `Drop`, the rare path of
 /// a run abandoned mid-way, waits where it is.
 struct Tree(Option<u32>);
 
@@ -1226,8 +1224,7 @@ pub fn refusal(stderr: &str) -> Option<String> {
     }
     // A stream encrypted for the site's own player alone. Neither yt-dlp
     // nor dm takes protection off, and yt-dlp's advice to pick another
-    // format leads nowhere when every format is protected (Vimeo's, seen
-    // 2026-10-16 through the panel).
+    // format leads nowhere when every format is protected (Vimeo's).
     if has("drm protected") || has("drm-protected") {
         return Some(
             "that video is copy-protected (DRM), so only the site's own player can play it; \
@@ -1243,7 +1240,7 @@ mod tests {
     use super::refusal;
 
     #[cfg(unix)]
-    /// UI round 7: a stream whose renditions name no codecs, as yt-dlp
+    /// A stream whose renditions name no codecs, as yt-dlp
     /// reads an HLS master playlist without CODECS, still lists its heights.
     #[test]
     fn renditions_without_codecs_are_listed_by_height() {
@@ -1257,7 +1254,7 @@ mod tests {
         assert_eq!(heights, ["720/mp4", "360/mp4", "audio/m4a"]);
     }
 
-    /// Gap 98: the tree's killer is waited for, but never for ever.
+    /// The tree's killer is waited for, but never for ever.
     #[test]
     fn the_trees_killer_is_waited_for_but_not_for_ever() {
         use std::time::{Duration, Instant};
@@ -1474,7 +1471,7 @@ mod windows_homes_tests {
     use super::{find_in, names, windows_homes, Homes};
     use std::path::PathBuf;
 
-    /// Issue 10: on Windows the program is `yt-dlp.exe`, installed where
+    /// On Windows the program is `yt-dlp.exe`, installed where
     /// pip, winget, Scoop or Chocolatey put it, none of them on the `PATH`
     /// a dm started by a browser has. Each is found there, laid out as a
     /// Windows profile is under a folder of this test's.

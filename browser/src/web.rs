@@ -39,7 +39,7 @@ thread_local! {
     /// Whether "update the dm app" has been said in this worker's life: once
     /// is a notice, every caught download would be nagging.
     static TOLD_OLD: std::cell::Cell<bool> = const { std::cell::Cell::new(false) };
-    /// Chrome's file name questions, held while dm decides (gap 122).
+    /// Chrome's file name questions, held while dm decides.
     static HOLDS: RefCell<decide::Holds<Function>> = RefCell::new(decide::Holds::default());
 }
 
@@ -597,7 +597,7 @@ pub fn started() {
 pub async fn on_download_created(item: JsValue) {
     let item: DownloadItem = serde_json::from_value(from_js(&item)).unwrap_or_default();
     // However this ends, Chrome's question about the file's name is
-    // answered, or dropped with the download dm took (gap 122).
+    // answered, or dropped with the download dm took.
     let mut decided = Decided {
         id: item.id.map(|n| n as i64),
         taken: false,
@@ -673,7 +673,7 @@ pub async fn on_download_created(item: JsValue) {
         paused = pause().await;
     }
     // Not held: it may have finished already (a small file served fast, a
-    // PDF in Chromium above all); that still goes, by its address (gap 103).
+    // PDF in Chromium above all); that still goes, by its address.
     if !paused {
         if let Err(why) = decide::unheld(state_of(found.id).await.as_deref()) {
             return log("debug", &format!("left with the browser: {why}"));
@@ -702,7 +702,7 @@ pub async fn on_download_created(item: JsValue) {
         Ok(()) => {
             log("info", &format!("handed {} to the dm app", found.url));
             // Said in the browser, where the download just vanished; dm's
-            // own window may be behind it (UI round 13).
+            // own window may be behind it.
             notify(
                 "dm is downloading it",
                 &decide::taken_name(&found.filename, &found.url),
@@ -716,7 +716,7 @@ pub async fn on_download_created(item: JsValue) {
             let mut done = call("downloads", what, std::slice::from_ref(&id)).await;
             // Finished between the look and the cancel: a fast file (a
             // 300 KB PDF) stayed whole in the browser's folder beside dm's,
-            // its list entry erased below (Linux QA, 2026-10-19). Chromium's
+            // its list entry erased below. Chromium's
             // cancel of a finished download succeeds and does nothing, so
             // the state is looked at after every cancel, and a finished copy
             // removed.
@@ -764,7 +764,7 @@ pub async fn on_download_created(item: JsValue) {
 /// event). Held until `on_download_created` has decided, so a download dm
 /// takes is gone before Chrome would open its Save dialog for it: it asks
 /// when the name is too long for the disk, or when "Ask where to save each
-/// file" is on, and a dialog opened before the cancel stayed open (gap 122).
+/// file" is on, and a dialog opened before the cancel stayed open.
 /// The loader returns `true` for it, which tells Chrome the answer comes later.
 #[wasm_bindgen]
 pub fn on_determining_filename(item: JsValue, suggest: JsValue) {
@@ -866,8 +866,8 @@ async fn give_back(id: &JsValue, url: &str) {
 /// yt-dlp) has nothing the browser could save, so its reason stands.
 async fn in_browser_instead(target: &Target, why: &str) -> Result<String, String> {
     // Only what the browser downloads: a magnet given to its downloader was
-    // accepted and failed, said as taken, and nothing was opened (torrent
-    // check, 2026-10-19). The caller gives a magnet back to the page.
+    // accepted and failed, said as taken, and nothing was opened.
+    // The caller gives a magnet back to the page.
     let web = ["http://", "https://", "ftp://"]
         .iter()
         .any(|s| target.url.to_ascii_lowercase().starts_with(s));
@@ -927,7 +927,7 @@ async fn hand_chosen(
         caught: !target.page,
         // A page is handed over for its media, picked or not: with a
         // quality the app never saves the page itself in the video's place
-        // when yt-dlp cannot read it (UI round 9).
+        // when yt-dlp cannot read it.
         quality: quality.or_else(|| target.page.then(|| "best".to_string())),
         label,
         ask,
@@ -1007,10 +1007,10 @@ async fn hand_asked(target: Target, store: Option<String>) {
     match hand_target(target, store).await {
         Ok(said) if said == decide::NO_YTDLP => notify("dm", &said),
         // Left to the browser, which is downloading it: said so, not as
-        // dm's (torrent check, 2026-10-19).
+        // dm's.
         Ok(said) if said.starts_with("the browser is downloading it") => notify("dm", &said),
         // Said, as a caught download is: nothing in the browser showed it
-        // had been taken (UI round 13).
+        // had been taken.
         Ok(_) => notify("dm is downloading it", &name),
         Err(why) => notify("dm could not take that", &why),
     }
@@ -1073,7 +1073,7 @@ pub async fn on_page_message(message: JsValue, sender: JsValue) -> JsValue {
             page: false,
         };
         // The popup's "Catch downloads" switch off: the browser's, as a
-        // clicked file would be (torrent check, 2026-10-19).
+        // clicked file would be.
         let refused = if private {
             Some("dm takes nothing from a private window".to_string())
         } else if !catching().await {
@@ -1099,7 +1099,7 @@ pub async fn on_page_message(message: JsValue, sender: JsValue) -> JsValue {
     // A click with the take key held: the download about to start is the
     // app's, whatever the types and size floor say.
     // Handed over as "Download link with dm" is: a link that is not itself
-    // a download (Shift opened it in a new window, round 17) reaches the
+    // a download (Shift opened it in a new window) reaches the
     // app all the same. The page script kept the browser from acting on it.
     if click.kind == decide::TAKE_MESSAGE {
         return match decide::take_url(&click) {
@@ -1135,7 +1135,7 @@ pub async fn on_page_message(message: JsValue, sender: JsValue) -> JsValue {
                 RELEASED.with(|r| r.borrow_mut().remember(&url, now()));
                 // Firefox does not download on Alt-click as Chromium does;
                 // asked to, it downloads it itself, and dm leaves it be
-                // (it did nothing at all, round 17).
+                // (it did nothing at all).
                 if is_firefox() {
                     let wanted = to_js(&serde_json::json!({ "url": url }));
                     if let Err(why) = call("downloads", "download", &[wanted]).await {
@@ -1222,7 +1222,7 @@ async fn page_links(
         // No page script answered: a tab open before dm was installed or
         // updated (Chromium puts content scripts only into pages loaded
         // since). It is given one now, where the browser allows, and asked
-        // again (gap 122).
+        // again.
         Err(first) => {
             if !decide::injectable(page) {
                 return Err(decide::NO_LINKS_HERE.into());
@@ -1238,8 +1238,7 @@ async fn page_links(
                 return Err(decide::NO_LINKS_HERE.into());
             }
             // Asked a few times: a reader just put in can take a moment to
-            // be listening on a page still arriving (Linux QA, 2026-10-19:
-            // 0 of 3 links on one machine, not seen elsewhere).
+            // be listening on a page still arriving (0 of 3 links on one machine, not seen elsewhere).
             let mut answer = ask().await;
             for _ in 0..3 {
                 if answer.is_ok() {
@@ -1279,7 +1278,7 @@ async fn page_links(
     let count = urls.len();
     // The site's sign-in where the popup hands it over, as for one link:
     // "Download selected links" fetched a signed-in file without it and got
-    // a 403 (round 13).
+    // a 403.
     let cookies = cookies_for(page, tab_store(tab, "").as_deref()).await;
     port.send(&Request::Batch(dm_protocol::Batch {
         id: id.clone(),

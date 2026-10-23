@@ -116,7 +116,7 @@ pub fn said_as(response: &egui::Response, stored: &str) {
 mod tests {
     use super::*;
 
-    /// Gap 130: the words of an Arabic or Hebrew name are drawn in the
+    /// The words of an Arabic or Hebrew name are drawn in the
     /// order they are read; each word stays as stored, which egui's shaper
     /// turns round itself.
     #[test]

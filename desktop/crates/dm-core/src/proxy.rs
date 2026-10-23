@@ -192,7 +192,7 @@ pub fn client_with_timeout(
     let system = proxy.enabled && proxy.kind == Kind::System;
     // Turned on with no host or port is a proxy asked for and not usable:
     // building a client without one sent every download out directly, and
-    // a saved one like it went direct at every launch, unsaid (gap 141).
+    // a saved one like it went direct at every launch, unsaid.
     if proxy.enabled && !system && proxy.url().is_none() {
         return Err(if proxy.host.trim().is_empty() {
             "the proxy has no host".into()

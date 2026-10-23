@@ -33,7 +33,7 @@ SHOTS="${DM_SHOTS:-$PWD/human-shots/$browser-$distro}"
 # linux-check.sh), and everything runs under emulation on an arm64 machine.
 # Emulation is slow: DM_SLOW multiplies the checks' waits (chrome-check.py's
 # wait_for), 1 elsewhere. On an arm64 Mac it needs Docker's Rosetta
-# emulation: under its QEMU (Docker 20.10.14 here, 2026-10-17) Edge 155
+# emulation: under its QEMU (Docker 20.10.14 here) Edge 155
 # segfaults a second after starting, on about:blank with no extension,
 # and QEMU itself then fails an assertion (rcu_read_unlock) — the checks
 # stop at "never opened its DevTools port". Same-version Chromium survives

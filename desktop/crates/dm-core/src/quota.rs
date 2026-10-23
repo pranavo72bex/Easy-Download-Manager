@@ -45,8 +45,7 @@ impl Meter {
     /// after now, which is a clock that was once set ahead: counted as not
     /// yet begun, a spent allowance held downloads until that date came
     /// round, decades away for a clock set to 2070. A small step back (a
-    /// time-server correction) keeps the period and what it has used
-    /// (gap 79).
+    /// time-server correction) keeps the period and what it has used.
     fn roll(&mut self, now: SystemTime) {
         if let Some(began) = self.began {
             let over = match now.duration_since(began) {
@@ -178,7 +177,7 @@ mod tests {
         assert_eq!(again.used(), 0, "rolled over");
     }
 
-    /// Gaps 59 and 70: a period that began in the future (the clock was
+    /// A period that began in the future (the clock was
     /// once set ahead) held a spent allowance until that date; a corrupt
     /// huge start must not panic.
     #[test]
@@ -202,7 +201,7 @@ mod tests {
         assert_eq!(corrupt.spent(now), None, "a fresh period, not spent");
     }
 
-    /// Gap 79: a clock stepped back a few seconds (a time-server
+    /// A clock stepped back a few seconds (a time-server
     /// correction) handed the whole allowance back.
     #[test]
     fn a_small_step_back_of_the_clock_keeps_the_period() {

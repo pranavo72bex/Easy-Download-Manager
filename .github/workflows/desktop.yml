@@ -92,7 +92,7 @@ jobs:
       - name: Test the engine, the shell and the window
         run: cargo nextest run --workspace --locked --profile ci
 
-      # Issue 10: a yt-dlp the person installed is found (and used rather
+      # A yt-dlp the person installed is found (and used rather
       # than one dm fetches) though pip's Scripts folder is off the PATH, as
       # for a dm started by a browser or the Start menu.
       - name: yt-dlp where a Windows install puts it

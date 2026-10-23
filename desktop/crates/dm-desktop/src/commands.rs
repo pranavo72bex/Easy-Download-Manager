@@ -212,7 +212,7 @@ impl Command {
     }
 
     /// Whether the command opens a dialog that asks for more before
-    /// anything is done, which a menu marks with "…" (UI round 10: only
+    /// anything is done, which a menu marks with "…" (only
     /// Open with… had it).
     pub fn asks_more(self) -> bool {
         matches!(

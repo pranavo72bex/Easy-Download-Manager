@@ -1,7 +1,8 @@
 #!/bin/sh
 # KWin as a Wayland compositor on a virtual output, then the check, under one
 # session bus. Run as an ordinary user.
-export XDG_RUNTIME_DIR="/tmp/xdg-$(id -u)"
+XDG_RUNTIME_DIR="/tmp/xdg-$(id -u)"
+export XDG_RUNTIME_DIR
 mkdir -p "$XDG_RUNTIME_DIR" && chmod 700 "$XDG_RUNTIME_DIR"
 export QT_QPA_PLATFORM=offscreen KWIN_COMPOSE=Q LIBGL_ALWAYS_SOFTWARE=1 XDG_SESSION_TYPE=wayland
 kwin_wayland --virtual --no-lockscreen --no-global-shortcuts --socket wayland-0 --width 1280 --height 800 >/shots/kwin.log 2>&1 &

@@ -322,7 +322,7 @@ pub fn semibold() -> FontFamily {
 }
 
 /// Digits of one width, for the list's sizes, speeds and times, so a
-/// column of them lines up and a changing speed does not jitter (gap 48).
+/// column of them lines up and a changing speed does not jitter.
 /// Letters and units fall through to Inter.
 pub fn numbers_family() -> FontFamily {
     FontFamily::Name("numbers".into())
@@ -718,7 +718,7 @@ fn system_font_data(script: Script) -> Option<egui::FontData> {
 /// A font file of the computer's, mapped into memory rather than read
 /// into it: a CJK collection is about 20 MB, all of it held for a few
 /// glyphs, where mapped only the pages read are in memory and the system
-/// can drop them again (Linux QA, 2026-10-20: +19 MB for one Japanese
+/// can drop them again (+19 MB for one Japanese
 /// name). Read whole where it cannot be mapped.
 fn font_file(path: &std::path::Path) -> Option<egui::epaint::text::Blob> {
     let file = std::fs::File::open(path).ok()?;
@@ -895,7 +895,7 @@ pub fn apply_with_accent(ctx: &Context, theme: Theme, accent: Option<crate::acce
     ctx.style_mut_of(which, |style| {
         // Labels are words to read, not text to select: the status bar,
         // a folder's path and a field's name showed the text cursor and
-        // could be dragged over (UI round 1). Fields keep theirs.
+        // could be dragged over. Fields keep theirs.
         style.interaction.selectable_labels = false;
         // The type ramp: Body 14, Caption 12, and Subtitle (20
         // semibold) for a dialog's title.
@@ -921,9 +921,8 @@ pub fn apply_with_accent(ctx: &Context, theme: Theme, accent: Option<crate::acce
         style.spacing = egui::style::Spacing::default();
         // Every scroll area's bar seen without the pointer, with its own
         // room: Properties at 200% and the progress window at the smallest
-        // size cut their last fields off with no sign of more (UI round 4).
-        // Set after the line above, which put egui's own back over it
-        // (UI round 5).
+        // size cut their last fields off with no sign of more.
+        // Set after the line above, which put egui's own back over it.
         style.spacing.scroll = steady_scroll();
         if t.modern {
             // WinUI's compact density, which it offers for information-
@@ -936,8 +935,7 @@ pub fn apply_with_accent(ctx: &Context, theme: Theme, accent: Option<crate::acce
             style.spacing.menu_margin = egui::Margin::same(4);
             style.spacing.window_margin = egui::Margin::same(24);
             // A drop-down's chevron takes a square this wide: at 20, a
-            // drop-down stood 30 tall beside 27 for a button (Fluent QA,
-            // gap 71). The check box's 20 is set where one is drawn
+            // drop-down stood 30 tall beside 27 for a button. The check box's 20 is set where one is drawn
             // (`dialogs::check`).
             style.spacing.icon_width = 16.0;
             style.spacing.icon_width_inner = 10.0;
@@ -1047,8 +1045,7 @@ mod tests {
         );
     }
 
-    /// The focus ring and the selection can be seen in every look (gap
-    /// 132: the ring was the accent drawn on an accent button, and the
+    /// The focus ring and the selection can be seen in every look (the ring was the accent drawn on an accent button, and the
     /// selection 235 on 255). The ring is two lines, one of which shows on
     /// anything; a selected row or place carries the accent indicator at
     /// 3:1, its words at 4.5:1 on its fill.
@@ -1155,7 +1152,7 @@ mod tests {
         assert_eq!(now.interact_size, fresh.interact_size);
         assert_eq!(now.window_margin, fresh.window_margin);
         // Every look keeps dm's scroll bars, which egui's own spacing does
-        // not have (UI round 5: they were set, then reset).
+        // not have (they were set, then reset).
         for theme in [Theme::Light, Theme::Dark, Theme::Classic] {
             apply(&ctx, theme);
             let scroll = ctx.global_style().spacing.scroll;
@@ -1172,7 +1169,7 @@ mod tests {
         }
     }
 
-    /// Gap 48: sizes, speeds and times are drawn with digits of one width,
+    /// Sizes, speeds and times are drawn with digits of one width,
     /// so they line up down a column; the text around them is still Inter's.
     #[test]
     fn numbers_are_drawn_with_digits_of_one_width() {
@@ -1212,7 +1209,7 @@ mod tests {
         );
     }
 
-    /// Gap 47: a Russian dialog's title is bold like an English one; the
+    /// A Russian dialog's title is bold like an English one; the
     /// earlier face had no Cyrillic, so its titles fell back to a regular one.
     #[test]
     fn titles_in_cyrillic_and_greek_are_bold() {
@@ -1236,7 +1233,7 @@ mod tests {
         }
     }
 
-    /// Gap 116: a name in Chinese and Japanese is drawn with the computer's
+    /// A name in Chinese and Japanese is drawn with the computer's
     /// own font, read once a name needs it; before, its letters were blanks.
     #[test]
     fn a_name_in_chinese_or_japanese_has_letters_to_draw() {
@@ -1272,14 +1269,12 @@ mod tests {
 /// Scroll bars that take their own room and can be seen whether or not
 /// the pointer is over them, in the text colour: egui's own showed their
 /// handle only under the pointer, in a button's fill, which the looks keep
-/// clear, so a list or a tab with more below gave no sign of it (gaps 147,
-/// 148).
+/// clear, so a list or a tab with more below gave no sign of it.
 pub fn steady_scroll() -> egui::style::ScrollStyle {
     let solid = egui::style::ScrollStyle::solid();
     egui::style::ScrollStyle {
         // Floating, so the opacities below take effect (egui draws a solid
-        // bar at full strength, which read as a black or white slab, UI
-        // round 3) — but with its own room set aside, so it never lies
+        // bar at full strength, which read as a black or white slab) — but with its own room set aside, so it never lies
         // over the last row or column.
         floating: true,
         floating_width: solid.bar_width,

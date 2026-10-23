@@ -15,7 +15,7 @@ use crate::i18n::{t, tf};
 pub const HELP: &str = "https://github.com/pranavo72bex/Easy-Download-Manager#readme";
 
 /// The project's source, licence, privacy statement and code signing
-/// policy, as About dm links them (QA pass, gap 87).
+/// policy, as About dm links them.
 pub const SOURCE: &str = "https://github.com/pranavo72bex/Easy-Download-Manager";
 pub const LICENCE: &str = "https://github.com/pranavo72bex/Easy-Download-Manager/blob/main/LICENSE";
 pub const PRIVACY: &str =
@@ -54,7 +54,7 @@ pub enum Update {
     /// release lists one with its digest.
     Newer(String, Option<Installer>),
     /// The update server answered that it has no release at all: nothing
-    /// to update to, which is not a failure to reach it (round 13).
+    /// to update to, which is not a failure to reach it.
     NoRelease,
     Failed(String),
 }
@@ -79,7 +79,7 @@ impl Update {
                 "No release of dm has been published yet, so there is nothing to update to (this is {}).",
                 &[&running],
             ),
-            // In plain words where dm knows them (UI round 14: the raw
+            // In plain words where dm knows them (the raw
             // "error sending request for url (…)" offline).
             Update::Failed(why) => tf(
                 "Could not reach the update server: {}",

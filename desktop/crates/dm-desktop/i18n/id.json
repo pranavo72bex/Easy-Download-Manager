@@ -645,5 +645,17 @@
  "Extracting…": "Mengekstrak…",
  "Extract to…": "Ekstrak ke…",
  "There is no folder chooser here: use Extract here": "Tidak ada pemilih folder di sini: gunakan “Ekstrak di sini”",
- "Stop recording a live stream after, minutes (0 records until it ends)": "Hentikan perekaman siaran langsung setelah, menit (0 merekam sampai selesai)"
+ "Stop recording a live stream after, minutes (0 records until it ends)": "Hentikan perekaman siaran langsung setelah, menit (0 merekam sampai selesai)",
+ "Let the command line list and steer downloads (dm-desktop list, pause, resume, cancel); from dm's next start": "Izinkan baris perintah mendaftar dan mengendalikan unduhan (dm-desktop list, pause, resume, cancel); mulai dm berikutnya",
+ "Watch a folder for links: a .url, .webloc or text file of links, or a .torrent saved there is added and moved to its \"done\" folder (empty is off)": "Pantau folder untuk tautan: berkas .url, .webloc atau teks berisi tautan, atau .torrent yang disimpan di sana ditambahkan lalu dipindah ke folder “done” (kosong berarti mati)",
+ "Working it out…": "Sedang dihitung…",
+ "Check against": "Cocokkan dengan",
+ "A digest you were given": "Digest yang Anda terima",
+ "It matches.": "Cocok.",
+ "It does not match.": "Tidak cocok.",
+ "Name pattern": "Pola nama",
+ "Empty keeps the names. {n} counts from 1, {name} is the old name": "Kosong mempertahankan nama. {n} menghitung dari 1, {name} adalah nama lama",
+ "Sites whose downloads go to a folder of their own, at a speed of their own:": "Situs yang unduhannya masuk ke folder sendiri, dengan kecepatan sendiri:",
+ "Delete site rule": "Hapus aturan situs",
+ "Add a site rule": "Tambah aturan situs"
 }

@@ -144,7 +144,7 @@ pub fn classify(filename: &str, content_type: Option<&str>) -> Category {
     // A `.bin` is as often firmware, a disc image or a model's weights as a
     // program, and dm cannot tell which from the name: Other, the honest
     // place, unless the server typed it or the name says it installs
-    // something (gap 168). `uninstall` and `reinstall` do not say so.
+    // something. `uninstall` and `reinstall` do not say so.
     if extension_of(filename) == "bin"
         && filename
             .split(|c: char| !c.is_ascii_alphanumeric())
@@ -236,7 +236,7 @@ pub fn one_folder(name: &str) -> bool {
 /// Whether a folder name can be made on every computer dm runs on, and if
 /// not, why. For a name being made or renamed: settings travel, and "Docs:
 /// work" or "CON" accepted on a Mac failed every download into it on
-/// Windows, after the whole file had arrived (gap 64). A name already saved
+/// Windows, after the whole file had arrived. A name already saved
 /// that works here is kept ([`one_folder`]); this is not applied to it.
 pub fn portable_folder(name: &str) -> Result<(), &'static str> {
     let name = name.trim();
@@ -338,7 +338,7 @@ impl Categories {
 
 #[cfg(test)]
 mod tests {
-    /// Gap 168: a `.bin` is not taken for a program by its extension.
+    /// A `.bin` is not taken for a program by its extension.
     #[test]
     fn a_bin_file_is_other_unless_its_name_says_it_installs() {
         use super::{classify, Category};
@@ -371,7 +371,7 @@ mod tests {
         assert!(super::one_folder(" Books "));
     }
 
-    /// Gap 64: a new name Windows cannot make is refused on every system.
+    /// A new name Windows cannot make is refused on every system.
     #[test]
     fn a_folder_name_windows_cannot_make_is_refused_everywhere() {
         for bad in [
@@ -388,7 +388,7 @@ mod tests {
             "tab\there",
         ] {
             assert!(super::portable_folder(bad).is_err(), "{bad:?} was taken");
-            // Gap 77: a saved name that works here is still used here.
+            // A saved name that works here is still used here.
             assert_eq!(super::one_folder(bad), !cfg!(windows), "{bad:?} here");
         }
         assert!(super::portable_folder("Console games").is_ok());

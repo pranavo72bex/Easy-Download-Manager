@@ -6,14 +6,34 @@ use std::collections::{BTreeSet, HashMap};
 
 use dm_desktop::i18n::{CATALOGS, LANGUAGES};
 
+/// Every `.rs` file under `dir`, in folders too: the window's dialogs are a
+/// module of their own, and a scan of the top folder alone would silently
+/// stop checking their words. A module's `tests.rs` is its tests, whose
+/// made-up strings are not the window's.
+fn rust_files(dir: &std::path::Path) -> Vec<std::path::PathBuf> {
+    let mut found = Vec::new();
+    for entry in std::fs::read_dir(dir).unwrap().flatten() {
+        let path = entry.path();
+        if path.is_dir() {
+            found.extend(rust_files(&path));
+        } else if path.extension().is_some_and(|e| e == "rs")
+            && path.file_name().is_some_and(|n| n != "tests.rs")
+        {
+            found.push(path);
+        }
+    }
+    found.sort();
+    found
+}
+
 /// Every English string the window passes through `t`, `tf` and the
 /// helpers that call them, read from its source, and the words it chooses
 /// at run time, as the window itself lists them.
 fn wanted() -> BTreeSet<String> {
     let mut keys = BTreeSet::new();
     let src = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("src");
-    for entry in std::fs::read_dir(src).unwrap() {
-        let text = std::fs::read_to_string(entry.unwrap().path()).unwrap();
+    for file in rust_files(&src) {
+        let text = std::fs::read_to_string(file).unwrap();
         // The window's source, not its tests' made-up strings.
         let text = text.split("#[cfg(test)]").next().unwrap_or_default();
         // `words` words a status; `window` titles a dialog; `Said::new` is a

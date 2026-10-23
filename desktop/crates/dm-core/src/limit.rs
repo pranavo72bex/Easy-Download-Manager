@@ -143,8 +143,7 @@ impl Limiter {
 
     /// The rate one outside engine may use now: its part of the ceiling.
     /// With none of dm's own downloads running, the outside engines share
-    /// all of it: a torrent alone was held to half the limit a person set
-    /// (torrent check, 2026-10-19).
+    /// all of it: a torrent alone was held to half the limit a person set.
     pub async fn part(&self) -> u64 {
         let rate = self.rate().await;
         let outside = self.outside.load(Ordering::Acquire);
@@ -247,10 +246,9 @@ impl Limiter {
 impl Limiter {
     /// Waits until `bytes` are within the ceiling, adding them to `counted`
     /// a piece at a time as the ceiling lets each through.
-    ///
     /// For a byte count that is shown as progress: the count then rises at
     /// the rate the ceiling allows, which is the rate people are told, not
-    /// at the rate the socket happened to fill (gap 112). `through` says how
+    /// at the rate the socket happened to fill. `through` says how
     /// much of `bytes` was counted, for a caller whose wait was cut short by
     /// a pause or a cancel and who must count the rest itself.
     pub async fn take_counting(&self, bytes: u64, counted: &AtomicU64, through: &mut u64) {

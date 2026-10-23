@@ -5,6 +5,17 @@ the browser extension (`v*` tags) are versioned separately.
 
 ## Unreleased
 
+- A folder dm watches (Options › Downloads): a `.url`, `.webloc`, text file of
+  links or `.torrent` saved there is added, then moved to its `done` folder.
+- Site rules (Options › Network): a folder and a speed limit for a site's
+  downloads, applied however the download arrives.
+- Properties shows a finished file's SHA-256 and checks it against a digest
+  you paste; Move/Rename of several files takes a name pattern (`{n}`,
+  `{name}`).
+- Options › General › Let the command line list and steer downloads: the
+  command line finds a dm started in the ordinary way (off by default).
+- FTP: a part a power cut tore is repaired when a download resumes, as HTTP's
+  is.
 - Extract a finished ZIP: **Extract here** or **Extract to…** in the row
   menu, into a new folder. An archive with an entry that would leave the
   folder, a link, a password or an oversized total is refused whole, and
@@ -167,7 +178,7 @@ sign-ins, streams and FTP folders.
 
 ## App 0.2.0
 
-Nine rounds of hands-on testing, each fixed (docs/gaps.md, gaps 169–243).
+Nine rounds of hands-on testing, each fixed.
 
 - Fits at large text: every dialog stays inside the window at 150%, 200%
   and 300% text, scrolling where it must; Options never draws over itself.

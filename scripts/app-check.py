@@ -571,6 +571,43 @@ def main():
         gone = cli("list")
         check("with no dm running the command line exits 3", gone.returncode, 3)
 
+        # The setting that lets it find a dm started in the ordinary way.
+        print("the command line, found by the setting and not by --control")
+        (home / "control.port").unlink(missing_ok=True)
+        settings_now = json.loads((home / "settings.json").read_text())
+        (home / "settings.json").write_text(json.dumps({**settings_now, "allow_command_line": True}))
+        app = launch(env, "--headless")
+        wait_for("the port the setting opens", lambda: (home / "control.port").exists(), 30)
+        found = cli("list")
+        check("with allow_command_line on, a dm started with no --control is listed", found.returncode, 0)
+        stop(app, home)
+        (home / "control.port").unlink(missing_ok=True)
+        (home / "settings.json").write_text(json.dumps({**settings_now, "allow_command_line": False}))
+        app = launch(env, "--headless")
+        time.sleep(3)
+        check("with it off, there is no port to find", (home / "control.port").exists(), False)
+        check("and the command line says to start dm with the setting or --control", b"--control" in cli("list").stderr, True)
+        stop(app, home)
+
+        # A link saved in the watched folder is added, and its file put aside.
+        print("the watched folder")
+        watched = home / "watched"
+        watched.mkdir(exist_ok=True)
+        (home / "settings.json").write_text(json.dumps({**settings_now, "watch_folder": str(watched)}))
+        app = launch(env, "--headless")
+        time.sleep(2)
+        shortcut = watched / "saved.url"
+        shortcut.write_text("[InternetShortcut]\nURL=" + url("watched.zip") + "\n")
+        old_time = time.time() - 60
+        os.utime(shortcut, (old_time, old_time))
+        done = wait_for("the watched link never finished",
+                        lambda: [r for r in rows(home) if r["url"].endswith("/watched.zip") and r["state"]["kind"] == "completed"], 40)
+        check("a .url saved in the watched folder is downloaded", pathlib.Path(done[0]["path"]).read_bytes() == PAYLOAD)
+        check("and its file is put aside in done, not deleted",
+              (watched / "done" / "saved.url").exists() and not shortcut.exists())
+        stop(app, home)
+        (home / "settings.json").write_text(json.dumps(settings_now))
+
     finally:
         server.shutdown()
         if WINDOWS:

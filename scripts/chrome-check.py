@@ -239,7 +239,7 @@ class Target:
 SIZE = 1024 * 1024
 requests = []
 # A name too long for the disk once Chromium adds ".crdownload": Chromium
-# asks where to save it rather than shorten it (gap 122).
+# asks where to save it rather than shorten it.
 LONG = "very" + "long" * 61 + ".bin"
 ARRIVING = ("early1.bin", "early2.bin", "early3.bin")
 
@@ -876,7 +876,7 @@ def main():
     # for it to read, is said to come in two qualities.
     # Found where it is usually installed, on any system: a Linux run fell
     # back to the Mac's /opt/homebrew/bin and the player-page check failed
-    # though yt-dlp was in ~/.local/bin (Linux QA, 2026-10-19).
+    # though yt-dlp was in ~/.local/bin.
     real_ytdlp = shutil.which(
         "yt-dlp",
         path=os.pathsep.join([os.environ.get("PATH", ""), str(pathlib.Path.home() / ".local/bin"),
@@ -983,8 +983,8 @@ def main():
         except RuntimeError as e:
             check("the WebAssembly loads and its handlers are there", False, str(e))
             return
-        # Each named, not counted: a run reading "6 of 7" could not say which
-        # (Linux QA, 2026-10-19). An event the browser lacks counts as missing.
+        # Each named, not counted: a run reading "6 of 7" could not say which.
+        # An event the browser lacks counts as missing.
         names = ["downloads.onCreated", "downloads.onDeterminingFilename", "contextMenus.onClicked",
                  "action.onClicked", "runtime.onInstalled", "runtime.onStartup",
                  "webRequest.onResponseStarted"]
@@ -1032,7 +1032,7 @@ def main():
         # A PDF Chromium finishes before it can be held: served fast, it is
         # complete by the time the extension asks (or completes despite the
         # pause), where a .bin waits for its danger check. It goes to dm all
-        # the same, and the browser's whole copy is removed (gap 103).
+        # the same, and the browser's whole copy is removed.
         # Clicked three times, since the race does not always go one way.
         pdfs = lambda folder: sorted(p.name for p in folder.iterdir() if p.name.startswith("small") and p.name.endswith(".pdf"))
         for _ in range(3):

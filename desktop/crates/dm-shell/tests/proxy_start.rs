@@ -1,6 +1,6 @@
 //! A saved proxy that is turned on with no host is not gone around in
 //! silence at launch: it is turned off for every route, and the window is
-//! told why (gap 141).
+//! told why.
 
 use dm_shell::settings::Settings;
 

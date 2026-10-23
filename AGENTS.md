@@ -33,6 +33,9 @@ extension that hands it the browser's downloads.
   with egui, no web view, plus the
   tray, login item and notifications. `cargo packager` there builds the
   installers. The Tauri web-view window it replaced is in git history.
+  Inside `dm-desktop`, `src/app/` is the window's state and behaviour,
+  `src/dialogs/` is one file per dialog, and `main.rs` is split into
+  `platform`, `tray`, `window`, `hidden`, `signals` and `login`.
   `crates/dm-protocol` is what the extension and the native host say to
   each other, and the rule for which downloads are caught — one crate used
   by both sides.
@@ -54,7 +57,7 @@ extension that hands it the browser's downloads.
 | File | What it says |
 |---|---|
 | `docs/parity.md` | Every behaviour, its status, and the test or run that proves it |
-| `crates/dm-desktop/tests/window.rs` | Every menu item, toolbar button and row-menu item clicked by its name and checked for what it does |
+| `crates/dm-desktop/tests/window.rs` (indexing `tests/window/`) | Every menu item, toolbar button and row-menu item clicked by its name and checked for what it does |
 | `docs/zoo.md` | Thirty-one server behaviours and what dm does with each (generated; floor only rises) |
 | `docs/scorecard.md` | The counts of all of the above, by area (generated) |
 | `docs/how-it-works.md` | How the app and the extension fit together, and how to build them |
@@ -111,5 +114,10 @@ There is no Node, npm or JavaScript test suite; do not add one.
    telemetry. `cargo xtask privacy` enforces it; do not weaken it.
 7. Shipped code does not `unwrap`, `expect` or `panic`; a new reader of
    outside input gets a property test in its crate's `tests/fuzz.rs`.
-8. Update `docs/parity.md` and `docs/gaps.md` with the exact
+8. Keep modules small and by concern: a source file over 2500 lines fails
+   `cargo xtask layers`. A module's tests go in `tests.rs` beside it
+   (`foo.rs` with `foo/tests.rs`), which the privacy and translation scans
+   skip by name, so a test's made-up address or string is not taken for
+   shipped code.
+9. Update `docs/parity.md` and `docs/gaps.md` with the exact
    command and result. Never record a run that did not happen.

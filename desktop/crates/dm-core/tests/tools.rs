@@ -6,7 +6,7 @@ mod common;
 use dm_core::tools::{fetch_into, Sources, Tool};
 use sha2::Digest as _;
 
-/// Issue 10: an installed yt-dlp was reported missing on Windows. Run by
+/// An installed yt-dlp was reported missing on Windows. Run by
 /// CI after it installs yt-dlp as a person would (on Windows, `pip install
 /// --user`, whose Scripts folder is not on the PATH a dm started by a
 /// browser or the Start menu has); skipped everywhere else.

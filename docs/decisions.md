@@ -3,6 +3,182 @@
 Decisions that shape dm and are not obvious from the code, newest first. Each says what was decided and why, so a later change
 can see what it is undoing.
 
+## 2026-10-24: The work list is empty: what was built, and what was dropped and why
+
+`docs/gaps.md` held 58 open rows. Each is now either built (below) or dropped
+here with its reason, so nothing is left half-listed. The rule for building
+was the project's own: free, legal, nothing that needs a server of ours, and
+nothing on by default that listens or sends. A dropped row is not rejected
+for ever; it names what is missing — a person, an account, money, a security
+design — so it can be picked up when that exists.
+
+**Built** (each has its own entry below or above): ZIP extraction, a command
+line with an opt-in setting to find a running dm, a watched folder, per-site
+rules, batch rename and a file's SHA-256 in Properties, a recording time
+limit, the FTP torn-part repair, and the Wayland close fix, checked under
+sway and KWin in Docker.
+
+**Dropped because it needs a person's own machine, account or release**, which
+no automated run can stand in for: dm on a real Windows desktop with a GPU
+driver, tray and SmartScreen (`windows-checklist.md` lists the 17 checks); a
+real login on any system; VoiceOver and NVDA; a drag by hand on macOS or
+Windows; Brave's fresh-profile automation; a Chrome context menu clicked with
+real input; the updater against a published release; the x86_64 AppImage and
+each installer on a person's desktop; the two CI jobs only a release tag starts;
+the Firefox store listing, which waits in Mozilla's review; waking a sleeping
+computer on macOS and Linux, which `pmset` and `rtcwake` do only for an
+administrator.
+
+**Dropped because it costs money**, and dm is free and stays free: Apple's
+notarisation ($99 a year, no free route); Chrome Web Store's one-time fee, so
+Chrome-family browsers load the extension unpacked or from Edge Add-ons. A
+free Windows signing certificate exists (SignPath Foundation, for open
+source) but is applied for by the owner, not by code; until then the README
+says how to open an unsigned installer.
+
+**Dropped for law, terms or privacy.** Debrid providers and Gofile: their API
+terms could not be read, and the reference project the owner named uses keys
+from each person's own accounts, one of them possibly paid; dm will not claim
+a provider it has not tested under terms it has read. Cutting advertising or
+sponsor segments out of a video: it touches a service's terms and
+technical protections, detection from the video alone is unreliable, and a
+lossless MP4 cutter is a project of its own. Catching downloads other programs
+start would need a system-wide hook, which is invasive and not free of
+privacy cost.
+
+**Dropped because it needs a server or a new security design.** Sending a link
+from a phone: only a LAN listener fits (a relay for a phone off the network
+would be a hosted server). It would add an address and nothing else —
+no queue control, files or credentials — with explicit pairing, a per-device
+token that can be revoked, TLS or a pinned key before any token crosses the
+network, a rate limit and a confirmation in the window. That design is
+written down here so it is not reinvented, and not built.
+
+**Dropped as technically not worth it, or not possible.** Kerberos (needs the
+operating system's GSSAPI; Basic, Digest and NTLM are done); Arabic and
+Hebrew layouts (egui lays text out left to right only, so it needs
+bidirectional ordering inside its layout and a mirrored window); the "Download
+video" panel on a site whose security policy forbids WebAssembly (inherent:
+the menu still works); telling an advertisement from the programme on a
+player (needs a site's own knowledge, which dm does not keep); rewriting
+yt-dlp's site extractors and QuickJS (site logic is not dm's to write); a
+browser that fetches a file again when it keeps a download dm refused
+(Firefox's pause drops the connection); the one-name-for-every-package
+command (`dm-desktop` in the .deb, `dm` elsewhere; the README says which).
+
+**Left for later though free and possible**, because nothing needs them yet:
+a schedule, retry count and When done for each queue (one for all today); a
+button over a selection of links in the page; a stop time or start time for
+one recording and a readout of its elapsed time and size; the hundred small
+polish findings of the internal QA rounds (a column's arrow, a tooltip, a
+window's size at 300% text), none of which loses a download or hides a
+control. A defect found again is a new row.
+
+## 2026-10-24: The command line finds a running dm by an opt-in setting
+
+`dm-desktop list|status|pause|resume|cancel` reach the running dm over the
+loopback control port. That port used to exist only under `--control`. Options ›
+General now has "Let the command line list and steer downloads", off by
+default, which opens the same port, with the same token only the account can
+read, at every start. Off, dm listens on nothing, as before, and the command
+says to start dm with the setting or `--control`.
+
+## 2026-10-24: A watched folder
+
+Options › Downloads names a folder dm reads every five seconds (even in the
+tray or headless). A `.url`, `.webloc`, text file of links, or `.torrent` saved
+there is read exactly as a drop is read (the first 64 KB of a text kind; a
+torrent by its path), its links are added, and the file is moved into a `done`
+folder inside it, so nothing is added twice and nothing is deleted. A link
+already in the list is put aside without being added again. A file less than
+two seconds old is left for the next look; symbolic links, hidden files and
+other kinds are never read; a file with no link in it, or one that cannot be
+moved, is said once and then left alone until dm restarts. Empty is off.
+
+## 2026-10-24: Site rules apply when a row is added
+
+Options › Network lets a host (and its subdomains, the most specific winning)
+have its downloads saved to a folder and held to a speed of their own. The rule
+is applied at the doors every row comes through (typed, clipboard, drop,
+browser hand-off, the command line, the launch-time inbox) by one function,
+`Settings::with_site_rule`, and a folder or speed a person chose for that one
+download stands over the rule. The speed is the row's own limit (`speed_limit`
+on `AddOptions`), so it is kept with the row and shown where a row's own limit
+already is. A relative folder in a rule is ignored.
+
+## 2026-10-24: Batch rename by a pattern, and the SHA-256 in Properties
+
+Move/Rename of several finished files takes a name pattern: `{n}` counts from 1
+in the order listed, `{name}` is the old name, the ending (and `.tar.gz`) is
+kept, and empty keeps the names. Properties of a finished file shows its
+SHA-256, worked out on the app's runtime so the window never waits, and a box
+that checks it against a digest the person was given (MD5, SHA-256 or SHA-512,
+told by its length, in any case).
+
+## 2026-10-24: FTP parts are checked at their ends when a download resumes
+
+HTTP re-reads a part's last 64 KiB on resume and cuts the part back to the last
+byte that agrees; FTP trusted the part's length, so a part torn by a power cut
+(zeros at its end) was kept and the file came out the right size and wrong in
+the middle. FTP now does the same once per range per run, over a short extra
+session (`REST` to 64 KiB before the end), and not at each retry of its own
+writing. A server that cannot be asked is left to the fetch to report.
+
+## 2026-10-24: The ZIP crate is 9, and the advisory check gates it
+
+`zip` 8.6 carried three advisories about `ZipArchive::extract`, which dm does
+not call (it reads and judges each entry itself), but `cargo audit
+--deny warnings` fails the Audit workflow on any. It is `zip` 9, whose entry
+names are fallible: a name that is not text refuses the archive. The same run
+brought `tokio` and `clipboard-win` past a new advisory and a yanked version.
+
+## 2026-10-23: ZIP extraction refuses whole archives and never replaces
+
+Every entry is judged before any is written: a path that leaves the folder
+(`..`, absolute, drive, backslash, a `:`), a link or device file, a password, a
+repeated name in any case, a file that is also a folder, and totals of
+entries, bytes and compression ratio past the limits fail the archive. The
+bytes actually written are counted against the sizes the header claims. The
+folder is always new beside the archive (or inside a folder the person picks),
+so there is no overwrite question to ask; the archive is kept and nothing
+extracted is opened or run; a failure or a cancel removes what was made. Only
+Deflate and Stored entries: the crate is built without its C-backed codecs.
+
+## 2026-10-23: Closing the window on Wayland minimizes it
+
+A program cannot hide or unminimize its own window on Wayland (winit's
+`set_visible` does nothing there), so close-to-tray cannot hide it. Marking the
+window hidden anyway stopped dm drawing a window the compositor still showed
+(a frozen ghost, KDE Plasma). dm minimizes on a Wayland display and keeps
+drawing; the task manager restores it, which the tray's Show cannot. Checked
+under sway and under KWin 6.8.1 in Docker (`linux-kde-close-check.sh`), where
+the check fails on the original code.
+
+## 2026-10-23: A recording's time limit is one setting
+
+Not a field of each row: that would be a new column of the saved queue and a
+migration, which one number in Options does not need. It stops the recorder
+through its own control so the file is closed, instead of dropping the task
+mid-write.
+
+## 2026-10-23: Source is split by concern, and a file has a size limit
+
+`app.rs`, `dialogs.rs`, `download.rs`, `queue.rs`, `main.rs` and the window
+tests were each one file of thousands of lines, found by reading the code
+rather than by any rule. They are now directories of files by concern
+(`src/app/`, `src/dialogs/`, `dm-core/src/download/`, `queue/`, the window
+tests under `tests/window/`), moved verbatim: the only edits are `pub(super)`
+on what now crosses a file, and rustfmt's rewrapping of the longer lines.
+Behaviour, the window, and the tests' names are unchanged.
+
+Two rules keep it that way. A source file over 2500 lines fails `cargo xtask
+layers`. A module's tests go in `tests.rs` beside it, not inline, and the
+privacy and translation scans skip a file by that name (before, they stopped
+reading at `#[cfg(test)]`); a scan that read a moved test file as shipped code
+would have taken its made-up addresses and strings for the product's. Struct
+definitions stay in the parent module, so the fields their children use need
+no widening.
+
 ## 2026-10-22: Arabic and Hebrew wait for bidirectional text in egui's layout
 
 egui 0.37 shapes Arabic (harfrust) but lays every line out left to right in
@@ -527,7 +703,7 @@ an input event. 0.37's test harness panics on a glyph no font has, which
 found the table's sort arrows (↑ ↓) drawn as boxes all along: Hack, already
 bundled, is now the last fallback for the proportional families.
 
-## Free space is checked once, at the start (2026-10-17, gap 60)
+## Free space is checked once, at the start (2026-10-17)
 
 A download whose stated length exceeds the free space is refused before a
 range is fetched: the parts' disk must hold what is not yet staged, and the
@@ -540,7 +716,7 @@ named; a crate of its own for one call was not worth it. Where the space
 cannot be read nothing is refused. Space taken by other programs during the
 download is not watched: a disk that fills midway fails the write as before.
 
-## A refusal's body is said only when it says something (2026-10-17, gap 69)
+## A refusal's body is said only when it says something (2026-10-17)
 
 "the server answered 404 Not Found" carries the canonical reason. The body
 is read down to its text as before, and then dropped when, without the
@@ -549,9 +725,9 @@ left — the boilerplate pages of Python's http.server, nginx and Go. A body
 with words of its own (a rate-limit sentence) is kept.
 
 A file system that reports no total size (some FUSE and SMB mounts answer
-0 free of 0) is taken as unknown and not checked (gap 78).
+0 free of 0) is taken as unknown and not checked.
 
-## A folder name: usable here to load, portable to make (2026-10-17, gap 77)
+## A folder name: usable here to load, portable to make (2026-10-17)
 
 `one_folder` decides whether a saved category or kind's folder is loaded
 and used: one folder, not `.` or `..`, and on Windows a name Windows can
@@ -561,7 +737,7 @@ being made or renamed. Holding saved names to it dropped "Live: 2024" made
 on a Mac at the next launch, and the next save deleted it with its types
 and sites.
 
-## When done: what counts as done (2026-10-17, gap 83)
+## When done: what counts as done (2026-10-17)
 
 "When done" fires when nothing is left that dm will finish by itself. That
 means nothing Running or Queued and nothing the schedule or download limit
@@ -573,7 +749,7 @@ not done, and the choice stays armed for the next stretch. Failed rows are
 settled, because nothing retries them without a person and their parts stay
 for Retry.
 
-## Login item and host manifests follow the installed copy (2026-10-17, gaps 84-85, 88-93)
+## Login item and host manifests follow the installed copy (2026-10-17)
 
 On launch an installed release dm (no `DM_HOME`) rewrites the host
 manifests when they name another copy or do not allow this version's
@@ -595,9 +771,9 @@ is an install like any other. A transient copy, or one in Downloads,
 Desktop or Documents, is never registered with the browsers or as the
 login item.
 
-## Free space is shared between downloads under way (2026-10-17, gap 94)
+## Free space is shared between downloads under way (2026-10-17)
 
-The free-space check (gap 60) is made against a ledger shared through
+The free-space check is made against a ledger shared through
 `Options::room`, not by each download alone. Each download that passes
 claims what it still needs. A part's claim falls as its bytes arrive,
 because the file system's free space then counts those bytes. A finished
@@ -606,7 +782,7 @@ check and the claim happen under one lock, so two downloads starting
 together cannot both pass against the same space.
 
 
-## The shown byte count follows the speed limit (2026-10-17, gap 112)
+## The shown byte count follows the speed limit (2026-10-17)
 
 Under a limit, a chunk is counted as the limiter lets it through, 16 KiB
 at a time (`Limiter::take_counting`), not as it arrives. A connection
@@ -618,7 +794,7 @@ pause or cancel counts the rest of its chunk. Smoothing the meter over a
 longer window was not chosen: it would hide the error, not remove it, and
 slow the number's response to a real change.
 
-## Linux openers are waited for (2026-10-17, gap 106)
+## Linux openers are waited for (2026-10-17)
 
 `xdg-open` exits 3 or 4 at once when it has nothing to hand a file to; a
 spawn that succeeded was taken as opened. Each opener is now waited for up
@@ -628,7 +804,7 @@ opening the file and reaped on a thread. Its stderr goes to a temporary
 file rather than a pipe, so a program it runs in the foreground is not
 killed writing to a closed pipe.
 
-## A browser is registered when its program is installed (2026-10-17, gap 113)
+## A browser is registered when its program is installed (2026-10-17)
 
 Besides a browser whose profile folder exists, `register` and `ensure`
 take one whose program is installed (Linux: on `PATH`; macOS: a bundle in
@@ -636,7 +812,7 @@ take one whose program is installed (Linux: on `PATH`; macOS: a bundle in
 folder. A browser with neither gets no folder. Windows writes every
 browser's key regardless, as before.
 
-## The toolbar keeps every name (2026-10-18, gap 115)
+## The toolbar keeps every name (2026-10-18)
 
 The modern toolbar used to keep one row by dropping names from the right,
 leaving pictures to guess at a narrow window or in German. Now each button
@@ -644,7 +820,7 @@ keeps its name: beside its picture where one row has room, under it in
 smaller type where it has not, and on a second row only when even that does
 not fit. The classic looks wrap the same way.
 
-## Progress windows for downloads the window did not start (2026-10-18, gap 109)
+## Progress windows for downloads the window did not start (2026-10-18)
 
 A row first seen running or queued that the window did not add itself (a
 browser hand-off through the inbox, a second launch's link) opens its
@@ -652,13 +828,13 @@ progress window when "Show a progress window" is on. Rows the window adds
 (Add URL, series, lists, imports) are marked as its own and follow the old
 rule: one window for a single Start now, none for a batch.
 
-## Exit asks; scripts do not (2026-10-18, gap 111)
+## Exit asks; scripts do not (2026-10-18)
 
 Exit, Cmd+Q and the tray's Quit ask while anything is Running or Queued;
 the downloads resume at the next launch either way. `program.exit` over the
 control protocol quits without asking, since nothing there can answer.
 
-## A download the browser has already finished is still caught (2026-10-18, gap 103)
+## A download the browser has already finished is still caught (2026-10-18)
 
 `first_look` used to leave a download whose state was `complete` with the
 browser ("already finished, usually from the cache"), and one that could
@@ -682,7 +858,7 @@ every fast PDF, which is what the hold-then-complete race already did);
 keeping the rule and lowering latency (the race is lost before
 `onCreated` runs).
 
-## Chrome's file name answer is held while dm decides; `scripting` added (2026-10-18, gap 122)
+## Chrome's file name answer is held while dm decides; `scripting` added (2026-10-18)
 
 Chrome asks where to save a download (its Save dialog) when the name is too
 long for the disk, or when "Ask where to save each file" is on, and it asks
@@ -709,7 +885,7 @@ install warning in Chrome, but the Firefox listing needs a new version.
 deferring to it. Pages no extension may enter (the browser's own, stores)
 get a message saying so.
 
-## Dialogs in front are modal; Remove always asks (2026-10-18, gaps 119, 128)
+## Dialogs in front are modal; Remove always asks (2026-10-18)
 
 The dialogs that stand in front of the list (every one but Find, the
 progress windows and Download complete) are egui's modal layer: Tab goes
@@ -723,7 +899,7 @@ them off at once while the toolbar asked — except headless, where nobody
 can answer. Considered: asking only from the key (two behaviours for one
 command).
 
-## Non-Latin names use the computer's fonts, read on demand (2026-10-18, gap 116)
+## Non-Latin names use the computer's fonts, read on demand (2026-10-18)
 
 Inter and egui's fonts have no Chinese, Japanese, Korean, Arabic, Hebrew,
 Thai or Devanagari. Bundling Noto CJK would add tens of megabytes to a
@@ -733,7 +909,7 @@ Linux, the usual files on macOS and Windows) and appended after dm's fonts.
 A computer without one draws what it can, as before. The files are read
 into memory (no memory-mapping crate in the window), once a process.
 
-## Starting one row outside the schedule (2026-10-18, gap 126)
+## Starting one row outside the schedule (2026-10-18)
 
 `Queue::start_outside_schedule` starts the row at once and marks its slot so
 the schedule and the download limit do not put it down; a pause, a cancel
@@ -741,13 +917,13 @@ or the row going back in line clears the mark. The mark is not saved: after
 a restart the row is the schedule's again. Considered: turning the schedule
 off for a while (holds every other row's start too).
 
-## In progress is what is under way (2026-10-18, gap 124)
+## In progress is what is under way (2026-10-18)
 
 "In progress" lists running, queued and schedule-held rows only, matching
 the status bar's count. Failed and stopped rows are under All and their
 kind, not here.
 
-## Every opening of dm registers with the browsers (2026-10-18, gap 131)
+## Every opening of dm registers with the browsers (2026-10-18)
 
 Registration ran only in the copy that opened the window, so opening dm
 again while it ran (what the README says to do after installing a browser)
@@ -758,7 +934,7 @@ so it costs nothing when nothing changed. A failure is said in the window
 once until it changes. The extension with no host cannot know whether dm
 runs, so its words cover both: open dm, again if it is open.
 
-## Firefox's downloads panel is left to Firefox (2026-10-18, gap 137)
+## Firefox's downloads panel is left to Firefox (2026-10-18)
 
 Firefox opens its panel for every download it starts. Measured: cancelling
 and erasing inside `onCreated`, before asking anything, keeps it shut, but
@@ -772,7 +948,7 @@ download leaves the list the extension's pause, cancel and resume act on,
 so it could not be given back; reasoned from Firefox's code, not run). The README says the panel may show and dm has the download.
 
 
-## Right-to-left names reordered before egui draws them (2026-10-18, gap 130)
+## Right-to-left names reordered before egui draws them (2026-10-18)
 
 egui 0.37 has no bidirectional layout: a line is laid out in stored order,
 and its shaper (harfrust, guessing each font run's direction) turns each
@@ -787,7 +963,7 @@ screen reader is given the stored name. The one case it gets wrong is an
 Arabic-Indic number touching an Arabic word in the same font, which egui
 shapes as one run; a name with one is rare.
 
-## A selected row is filled with the accent, its words white (2026-10-18, gap 132)
+## A selected row is filled with the accent, its words white (2026-10-18)
 
 The light grey selection (235 on 255) was invisible on many screens. The
 list's selection is now a 3:1 fill with 4.5:1 words, the way desktop file
@@ -797,7 +973,7 @@ selection in fields keeps the soft tint. The focus ring gained a white inner
 line, which is what shows on a primary button or a selected row, both in the
 accent colour; the colours are tested as numbers in `theme.rs`.
 
-## Scroll bars that take their room and can be seen (2026-10-18, gaps 147, 148)
+## Scroll bars that take their room and can be seen (2026-10-18)
 
 egui's default scroll bars float over the content and, in dm's looks, are
 invisible until the pointer is over them: their handle is drawn in a
@@ -809,7 +985,7 @@ room, the handle in the text colour at a low opacity even when the pointer
 is elsewhere. Other scroll areas (small dialogs that rarely scroll) keep
 egui's.
 
-## An enabled proxy with no host is a refusal, in the engine too (2026-10-18, gap 141)
+## An enabled proxy with no host is a refusal, in the engine too (2026-10-18)
 
 `Proxy::url` is `None` for a proxy turned on with no host or port, and
 `client_with` used to build a direct client from that: every download went
@@ -822,7 +998,7 @@ direct client when its proxy cannot be built; it only asks the server
 whether a caught download can be fetched, but it is a direct request, and
 is left for a change of its own.
 
-## Link drags from a browser: a hint, not a fix (2026-10-18, gap 150)
+## Link drags from a browser: a hint, not a fix (2026-10-18)
 
 winit delivers dropped files only, and reports nothing while a link is
 dragged over the window, so dm cannot tell that a link was dropped on it.
@@ -830,7 +1006,7 @@ What it can do: a drop holding no link says how to add one (Add URL, the
 browser's right-click menu, or a dropped `.url`/`.webloc` file), and the
 empty list says the same.
 
-## A hand-off of a listed address is said, not asked (2026-10-18, gap 159)
+## A hand-off of a listed address is said, not asked (2026-10-18)
 
 Add URL asks before adding an address already in the list. A browser's
 hand-off cannot be asked about the same way: the native host files it in the
@@ -841,7 +1017,7 @@ window in the tray would hold it unanswered. So the window says it in the
 status line — "Added file.zip again: that address was already in the list."
 — where a person who did not mean it can remove the second row.
 
-## Plurals: forms divided by `||` (2026-10-18, gap 157)
+## Plurals: forms divided by `||` (2026-10-18)
 
 A sentence about a count holds its forms in one catalog key, divided by
 `||` ("Added {} download.||Added {} downloads."); the translation holds its
@@ -852,7 +1028,7 @@ Indonesian and Turkish one. Separate keys per form would not have served
 Polish and Russian. `tests/i18n.rs` holds every form to the English's
 placeholders and every language to its number of forms.
 
-## The list draws its own up-and-down bar (2026-10-18, gap 152)
+## The list draws its own up-and-down bar (2026-10-18)
 
 egui_extras' table has no sideways scrolling, so the list sits in a sideways
 scroll area, and the table's up-and-down bar was at the columns' far edge,
@@ -862,7 +1038,7 @@ follows the table's offset, and a drag or a wheel on it is handed to the
 table on the next frame. The sideways offset egui keeps across launches is
 reset to the left edge on the first frame.
 
-## Only Exit quits (2026-10-18, gap 163)
+## Only Exit quits (2026-10-18)
 
 The Exit question used to close dm by itself once nothing was running,
 reasoning that there was nothing left to ask about. A person reading the
@@ -873,7 +1049,7 @@ downloading any more. Exit dm?" with Exit and Stay. The question keeps one
 width and the room of three lines, because a dialog anchored by its middle
 that shrinks moves its buttons, and Exit had slid under the pointer.
 
-## A `.bin` is Other (2026-10-18, gap 168)
+## A `.bin` is Other (2026-10-18)
 
 `.bin` was sorted under Apps. It is as often firmware, a disc image, a
 model's weights or a raw dump as a program, and the extension cannot say
@@ -881,7 +1057,7 @@ which; the server's type (`application/octet-stream`) cannot either. Other
 is the honest place. A name with "setup" or "install" in it says it is an
 installer, and goes to Apps. The browser's catch list still catches `.bin`.
 
-## Key names are catalog words with a `key:` prefix (2026-10-18, gap 168)
+## Key names are catalog words with a `key:` prefix (2026-10-18)
 
 German keyboards say Strg, Umschalt and Entf. The shortcut text is built by
 dm rather than egui on every system without the Mac's symbols, from
@@ -952,7 +1128,7 @@ person drags one. Queue started at 96 points in a list where no row had a
 queue and at 140 in one where some did, so the columns after it moved
 between launches and "Time left" was cut to "T" (UI round 11). It now
 starts at 116 either way. An empty Queue column no longer gives its room to
-the name (gap 140): a list that stays where it was is worth more than 24
+the name: a list that stays where it was is worth more than 24
 points of name. Widths a person dragged are kept until the text size
 changes, when the list fits itself again: kept at 140% text, Status and
 every column after it were out of view.
@@ -992,7 +1168,7 @@ What was taken, and where it was bent:
   now asks only that hover changes something, since WinUI's subtle fill is
   about 1.1:1 by design; the selection is told apart by the accent pill.
 - A selected row is the subtle fill with the accent pill, not the solid
-  accent of gap 132: the pill is 3:1 on the list and the words keep their
+  accent of the selected row: the pill is 3:1 on the list and the words keep their
   colours. Selected words in a field stay on the accent (#0078d4), white.
 - Density: WinUI's compact sizes (24 px fields and drop-downs, 32 px list
   rows and places), which WinUI offers for information-dense apps; the
@@ -1037,7 +1213,7 @@ the open stand-in Microsoft made to Segoe UI's measure for other systems
 has Latin only, so Inter stays behind it for Greek and Cyrillic (Russian,
 in the translations); its digits are one width, like Segoe UI's. The
 static Segoe UI is used rather than the variable one, whose weights egui
-cannot pick. Not yet seen on Windows (gap 2).
+cannot pick. Not yet seen on Windows.
 
 ## Fluent UI System Icons for the window's pictures (2026-10-20)
 
@@ -1395,47 +1571,3 @@ held. Tested under sway (headless) with a virtual pointer written for the
 test (`scripts/linux/vpointer.c`, wlroots' virtual-pointer protocol), since
 a headless compositor has no pointer of its own and `swaymsg seat … cursor`
 reaches no client without one.
-
-## 2026-10-23: Roadmap features not built, and what they must not do
-
-Gaps 261, 262, 264 and 266 hold the work; this is what it is bound by, the
-project's own rule first: free, no server of ours, nothing on by default,
-and nothing that leaves a file or a credential somewhere it was not.
-
-- **Phone hand-off (261).** Waits for a written pairing design. A listener on
-  the local network that the user turns on, not a service: no relay, so one
-  network only. It adds an http, https, ftp or magnet address and nothing
-  else (no queue control, no files, no credentials, no local paths), each one
-  confirmed in the window unless the device is trusted. Explicit pairing, a
-  per-device token that can be revoked, rate-limited, TLS or a pinned key
-  before any token crosses the network.
-- **A debrid provider and Gofile (262, 266).** Not started: terms and API
-  unread, and a place to keep a token (the OS keychain, a dependency dm lacks)
-  does not exist. When built, the token never reaches logs or the settings
-  file, and the user's own request headers and cookies are never sent to a
-  third party.
-- **Cutting ad or sponsor segments from a video (264).** Design only: manual
-  start and end, the original kept, no detection promised, no DRM or
-  protection touched.
-
-## 2026-10-23: The command line needs a dm started with `--control`
-
-`dm-desktop list|status|pause|resume|cancel` reach the running dm over the
-loopback control port, which exists only when dm was started with `--control`.
-Making dm always listen on loopback so they work by default changes what every
-install exposes, so it is the owner's decision (gap 260), not a default.
-
-## 2026-10-23: Closing the window on Wayland minimizes it
-
-A program cannot hide or unminimize its own window on Wayland (winit's
-`set_visible` does nothing there), so close-to-tray cannot hide it. Marking the
-window hidden anyway stopped dm drawing a window the compositor still showed
-(a frozen ghost, KDE Plasma). dm minimizes on a Wayland display and keeps
-drawing; the task manager restores it, which the tray's Show cannot.
-
-## 2026-10-23: A recording's time limit is one setting
-
-Not a field of each row: that would be a new column of the saved queue and a
-migration, which one number in Options does not need. It stops the recorder
-through its own control so the file is closed, instead of dropping the task
-mid-write.

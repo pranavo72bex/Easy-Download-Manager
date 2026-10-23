@@ -148,7 +148,7 @@ pub async fn probe(
 /// Kept out on every platform: a download folder is copied between machines,
 /// and a file called `con.txt` is one that cannot be written on the other end.
 // COM0/LPT0, the superscript digits Windows also takes as ports, and the
-// console's CONIN$/CONOUT$ were missing (gap 63).
+// console's CONIN$/CONOUT$ were missing.
 const RESERVED: &[&str] = &[
     "con",
     "prn",
@@ -378,7 +378,7 @@ pub fn sanitize(name: &str) -> String {
             String::new()
         };
         // A compressed tar keeps both halves: `.tar.gz` cut to `.gz` was a
-        // file nothing offered to unpack as an archive of files (UI round 14).
+        // file nothing offered to unpack as an archive of files.
         let stem = out.get(..out.len() - tail.len()).unwrap_or("");
         if !tail.is_empty()
             && stem
@@ -573,7 +573,7 @@ mod tests {
         assert_eq!(sanitize(&long).chars().count(), 200);
     }
 
-    /// Gap 63: the reserved list lacked COM0, LPT0, the superscript ports
+    /// The reserved list lacked COM0, LPT0, the superscript ports
     /// and the console's names; and a cut could end on a space or a dot.
     #[test]
     fn every_windows_device_name_is_kept_off_and_a_cut_ends_cleanly() {

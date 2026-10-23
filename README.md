@@ -194,6 +194,17 @@ It appears in dm instead of in the browser, and downloads there.
   inside one you pick). Nothing is replaced, the zip is kept, and a zip
   with an entry that would land outside the folder, a link, or a password
   is refused whole before anything is written.
+- **Save links in a folder:** in **Options › Downloads**, name a folder to
+  watch. A `.url`, `.webloc` or text file of links, or a `.torrent`, saved
+  there is added to dm and moved into a `done` folder inside it (nothing is
+  deleted). Leave it empty to turn it off.
+- **Give a site its own folder and speed:** **Options › Network › Sites
+  whose downloads go to a folder of their own** (the site's subdomains are
+  covered). A folder or speed you pick for one download still wins.
+- **Check a finished file:** **Properties** shows its SHA-256 and a box to
+  check it against a digest you were given (MD5, SHA-256 or SHA-512).
+  **Move/Rename** of several files takes a name pattern, such as
+  `Trip {n} ({name})`; the endings are kept.
 - **Change the language:** **View › Language** — English, Español,
   Português, Français, Deutsch, Italiano, Nederlands, Polski, Русский,
   Bahasa Indonesia, Türkçe, 简体中文, 日本語 or 한국어. dm starts in your
@@ -202,8 +213,10 @@ It appears in dm instead of in the browser, and downloads there.
 
 ### From a terminal
 
-With dm running (started with `--control 0`, or `--headless --control 0`
-for no window), another terminal can see and steer its downloads:
+Turn on **Options › General › Let the command line list and steer
+downloads** (off until you do), or start dm with `--control 0` (also
+`--headless --control 0` for no window), and another terminal can see and
+steer its downloads:
 
 ```sh
 dm-desktop list                # what is downloading, one line each  (--json too)

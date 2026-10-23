@@ -955,6 +955,17 @@ pub async fn download_ftp(
                         0
                     }
                 };
+                // A part a power cut tore can end in bytes the disk never
+                // got: its length is not the ledger. Checked once per range
+                // and run, not at each retry of this run's own writing; a
+                // server that cannot be asked is left to the fetch to say.
+                if resumable {
+                    if let Err(stopped @ (Error::Paused | Error::Cancelled)) =
+                        repair_torn_part(&target, segment, part, &options, &downloaded).await
+                    {
+                        return Err(stopped);
+                    }
+                }
                 retry::run_making_progress(&options.control, options.tries(), on_disk, || {
                     fetch_range(&target, segment, part, resumable, &options, &downloaded)
                 })
@@ -1034,6 +1045,69 @@ async fn planned(described: &Described, options: &Options) -> Result<Vec<Segment
 
 fn part_path(parts_dir: &Path, index: usize) -> PathBuf {
     parts_dir.join(format!("part-{index:04}"))
+}
+
+/// Cuts a part back to the last byte the server agrees with, where its last
+/// block is not what the server has (a power cut, a block never written).
+async fn repair_torn_part(
+    target: &Target,
+    segment: &Segment,
+    part: &Path,
+    options: &Options,
+    downloaded: &AtomicU64,
+) -> Result<(), Error> {
+    let already = fs::metadata(part)
+        .await
+        .map(|m| m.len())
+        .unwrap_or(0)
+        .min(segment.span());
+    if already == 0 {
+        return Ok(());
+    }
+    let agreed = agreed_end(target, segment, part, already, options).await?;
+    if agreed < already {
+        let file = fs::OpenOptions::new().write(true).open(part).await?;
+        file.set_len(agreed).await?;
+        downloaded.fetch_sub(already - agreed, Ordering::Relaxed);
+    }
+    Ok(())
+}
+
+/// How much of the last 64 KiB of a part the server agrees with: the part's
+/// last block is read from the server again, and what is on disk is believed
+/// up to the first byte that differs (or past what the server gives).
+async fn agreed_end(
+    target: &Target,
+    segment: &Segment,
+    part: &Path,
+    already: u64,
+    options: &Options,
+) -> Result<u64, Error> {
+    const TAIL: u64 = 64 * 1024;
+    let tail = already.min(TAIL);
+    let from = already - tail;
+    let mut ours = vec![0u8; tail as usize];
+    let mut file = fs::File::open(part).await?;
+    file.seek(std::io::SeekFrom::Start(from)).await?;
+    file.read_exact(&mut ours).await?;
+    let (_session, mut data) = or_stop(&options.control, async {
+        let mut session = Session::open(target).await?;
+        let data = session.retrieve(&target.path, segment.start + from).await?;
+        Ok((session, data))
+    })
+    .await?;
+    let mut theirs = Vec::with_capacity(ours.len());
+    let mut buffer = vec![0u8; 16 * 1024];
+    while theirs.len() < ours.len() {
+        let read = or_stop(&options.control, timed(data.read(&mut buffer))).await?;
+        if read == 0 {
+            break;
+        }
+        let room = ours.len() - theirs.len();
+        theirs.extend_from_slice(buffer.get(..read.min(room)).unwrap_or_default());
+    }
+    let same = ours.iter().zip(&theirs).take_while(|(a, b)| a == b).count();
+    Ok(from + same as u64)
 }
 
 /// One attempt at one range, from where its part file ends.

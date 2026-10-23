@@ -59,7 +59,7 @@ pub fn backoff(attempt: u32, retry_after: Option<Duration>) -> Duration {
     // Quick at first, for a dropped connection; then half a minute apart,
     // so the attempts a person allows outlast a router restarting or Wi-Fi
     // coming back: five quick ones were spent in twenty seconds and the
-    // download failed for good (round 15).
+    // download failed for good.
     let capped = base.min(Duration::from_secs(if attempt < 5 { 8 } else { 30 }));
 
     // Deterministic jitter from the attempt number: no RNG dependency, and
@@ -402,7 +402,7 @@ mod tests {
         );
     }
 
-    /// Gap 155: each attempt after a failed one is told, numbered from the
+    /// Each attempt after a failed one is told, numbered from the
     /// first try, with the number there may be.
     #[tokio::test]
     async fn each_retry_is_told_with_its_number() {

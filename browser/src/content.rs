@@ -783,10 +783,10 @@ fn on_move(_: Event) {
 /// The line under the bar: what happened, or what ? says. Empty hides it.
 fn say(p: &Panel, text: &str) {
     // A line of its own starts with a capital: "the dm app has it" read
-    // as half a sentence (UI round 16). The words are the background's,
+    // as half a sentence. The words are the background's,
     // shared with its notifications, where they follow a title.
     // But dm's own name stays as it is written everywhere, lowercase
-    // ("Dm downloads this video…", UI round 17).
+    // ("Dm downloads this video…").
     let mut chars = text.chars();
     let text = match chars.next() {
         _ if text.starts_with("dm ") => text.to_string(),
@@ -1331,7 +1331,7 @@ fn clicked() {
     with_panel(|p| {
         p.settled = true;
         // Short enough for the bar's title, which cut the longer one to
-        // "Reading the vi…" (UI round 7).
+        // "Reading the vi…".
         set_title(p, "Reading qualities…");
         close_list(p);
         say(p, "");

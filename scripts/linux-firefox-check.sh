@@ -25,7 +25,7 @@ case "${DM_DISTRO:-debian}" in
 esac
 [ -f dist/firefox/pkg/dm_catcher_bg.wasm ] || { echo "no dist/firefox — run: sh scripts/package.sh"; exit 1; }
 docker build -t dm-linux-check scripts/linux
-# Screenshots (Firefox's downloads panel, gap 137) come back through a
+# Screenshots (Firefox's downloads panel) come back through a
 # volume of this check's own into DM_SHOTS, or ./human-shots/firefox-panel.
 SHOTS="${DM_SHOTS:-$PWD/human-shots/firefox-panel}"
 docker volume rm dm-firefox-shots >/dev/null 2>&1 || true

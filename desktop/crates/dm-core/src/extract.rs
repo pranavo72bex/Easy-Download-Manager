@@ -187,7 +187,14 @@ pub fn extract_into(
         let entry = zip
             .by_index_raw(i)
             .map_err(|e| Error::Unreadable(e.to_string()))?;
-        let raw = entry.name().to_string();
+        // An entry whose name is not text cannot be placed, so the archive is
+        // refused rather than guessed at.
+        let raw = entry
+            .name()
+            .map_err(|e| {
+                Error::Unreadable(format!("an entry has a name that cannot be read: {e}"))
+            })?
+            .to_string();
         let shown = raw.chars().take(120).collect::<String>();
         let Some(path) = safe_path(&raw) else {
             return Err(Error::Escapes(shown));

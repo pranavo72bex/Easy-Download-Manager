@@ -645,5 +645,17 @@
  "Extracting…": "Extraindo…",
  "Extract to…": "Extrair para…",
  "There is no folder chooser here: use Extract here": "Não há seletor de pastas aqui: use «Extrair aqui»",
- "Stop recording a live stream after, minutes (0 records until it ends)": "Parar a gravação de uma transmissão ao vivo após, minutos (0 grava até terminar)"
+ "Stop recording a live stream after, minutes (0 records until it ends)": "Parar a gravação de uma transmissão ao vivo após, minutos (0 grava até terminar)",
+ "Let the command line list and steer downloads (dm-desktop list, pause, resume, cancel); from dm's next start": "Permitir que a linha de comando liste e controle os downloads (dm-desktop list, pause, resume, cancel); a partir da próxima abertura do dm",
+ "Watch a folder for links: a .url, .webloc or text file of links, or a .torrent saved there is added and moved to its \"done\" folder (empty is off)": "Observar uma pasta em busca de links: um .url, .webloc ou arquivo de texto com links, ou um .torrent salvo ali é adicionado e movido para a pasta “done” (vazio é desligado)",
+ "Working it out…": "Calculando…",
+ "Check against": "Conferir com",
+ "A digest you were given": "Um resumo que você recebeu",
+ "It matches.": "Confere.",
+ "It does not match.": "Não confere.",
+ "Name pattern": "Padrão de nome",
+ "Empty keeps the names. {n} counts from 1, {name} is the old name": "Vazio mantém os nomes. {n} conta a partir de 1, {name} é o nome antigo",
+ "Sites whose downloads go to a folder of their own, at a speed of their own:": "Sites cujos downloads vão para uma pasta própria, com velocidade própria:",
+ "Delete site rule": "Excluir regra do site",
+ "Add a site rule": "Adicionar regra de site"
 }

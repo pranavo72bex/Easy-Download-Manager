@@ -201,16 +201,21 @@ def click(role, name, seconds=10, contains=False):
 
 
 def win_geo():
+    """Where dm's window really is on screen: its client area's absolute
+    corner and size, from the X server. `xdotool getwindowgeometry` gives the
+    frame's corner under some window managers, one title bar too high, which
+    sent every click computed from a row's rectangle one row low."""
     w = dm_windows()
     if not w:
         return None
+    out = x("xwininfo", "-id", w[0]).stdout
     g = {}
-    for line in x("xdotool", "getwindowgeometry", "--shell", w[0]).stdout.split():
-        if "=" in line:
-            k, _, v = line.partition("=")
-            if k in ("X", "Y", "WIDTH", "HEIGHT"):
-                g[k] = int(v)
-    return g if {"X", "Y"} <= g.keys() else None
+    for label, field in (("Absolute upper-left X:", "X"), ("Absolute upper-left Y:", "Y"),
+                         ("Width:", "WIDTH"), ("Height:", "HEIGHT")):
+        m = re.search(re.escape(label) + r"\s+(-?\d+)", out)
+        if m:
+            g[field] = int(m.group(1))
+    return g if {"X", "Y", "WIDTH", "HEIGHT"} <= g.keys() else None
 
 
 def row_point(match):
@@ -419,8 +424,8 @@ def key(*keys):
         time.sleep(0.3)
 
 
-def type_text(text):
-    x("xdotool", "type", "--delay", "15", text)
+def type_text(text, delay=15):
+    x("xdotool", "type", "--delay", str(delay), text)
 
 
 def field_at(name):
@@ -498,6 +503,80 @@ def settings_of(home):
         return {}
 
 
+def finished_files_by_hand(home, base, site, good, evil):
+    """What else a person does with finished downloads: the file's SHA-256 and
+    a digest checked in Properties, several files named by a pattern, and a
+    folder dm watches for links."""
+    import hashlib
+
+    print("\nthe digest, a pattern, and a watched folder")
+    path = pathlib.Path((row_of(home, good) or {}).get("path", "/nonexistent"))
+    expected = hashlib.sha256(path.read_bytes()).hexdigest()
+    good_id = (row_of(home, good) or {}).get("id")
+    check("the zip's row is selected by clicking it", click_row("good.zip")
+          and bool(wait_for(lambda: (ORACLE("ui.inspect") or {}).get("selected") == [good_id], 5)),
+          str((ORACLE("ui.inspect") or {}).get("selected")))
+    check("right-clicking it offers Properties", click_row("good.zip", button="3") and bool(wait_for(lambda: where("*", "Properties"), 5)))
+    click("*", "Properties", seconds=5)
+    check("File properties shows its SHA-256, worked out beside the window",
+          bool(wait_for(lambda: where("*", expected), 15)), expected[:16])
+    check("and a box to check it against a digest", click_field("Check against"))
+    type_text(expected.upper(), delay=5)
+    check("a digest it has, in capitals, matches", bool(wait_for(lambda: where("*", "It matches."), 8)))
+    key("ctrl+a")
+    type_text("0" * 64, delay=5)
+    check("a digest it does not have is said not to match", bool(wait_for(lambda: where("*", "It does not match."), 8)))
+    key("Escape")
+    time.sleep(0.5)
+
+    # Two rows selected, named by a pattern.
+    check("the first zip is selected", click_row("good.zip"))
+    at = wait_for(lambda: row_point("evil.zip"), 5)
+    x("xdotool", "mousemove", "--sync", str(at[0]), str(at[1]))
+    x("xdotool", "keydown", "ctrl")
+    time.sleep(0.2)
+    x("xdotool", "click", "1")
+    time.sleep(0.2)
+    x("xdotool", "keyup", "ctrl")
+    time.sleep(0.5)
+    check("and a second added with Ctrl-click", len((ORACLE("ui.inspect") or {}).get("selected", [])) == 2,
+          str((ORACLE("ui.inspect") or {}).get("selected")))
+    click_row("evil.zip", button="3")
+    check("Move/Rename is in the row menu", click("*", "Move/Rename", seconds=5))
+    check("for several files it asks for a name pattern", click_field("Name pattern"))
+    type_text("Archive {n} ({name})", delay=40)
+    click("push button", "OK")
+    check("OK names them in order and keeps their endings",
+          wait_for(lambda: ((row_of(home, good) or {}).get("filename"), (row_of(home, evil) or {}).get("filename"))
+                   == ("Archive 1 (good).zip", "Archive 2 (evil).zip"), 15),
+          str(((row_of(home, good) or {}).get("filename"), (row_of(home, evil) or {}).get("filename"))))
+    renamed = pathlib.Path((row_of(home, good) or {}).get("path", "/nonexistent"))
+    check("and the files on disk are renamed with them", renamed.name == "Archive 1 (good).zip" and renamed.exists(), str(renamed))
+
+    # A folder to watch, set in Options and used at once.
+    watched = home / "watched-by-hand"
+    watched.mkdir(exist_ok=True)
+    label = 'Watch a folder for links: a .url, .webloc or text file of links, or a .torrent saved there is added and moved to its "done" folder (empty is off)'
+    key("ctrl+comma")
+    wait_for(lambda: where("*", "General"), 10)
+    check("Options › Downloads has the watched folder's field",
+          open_options_tab("Downloads", label) and (scroll_dialog() or True) and click_field(label))
+    type_text(str(watched), delay=20)
+    key("Tab")
+    click("push button", "OK")
+    check("OK saves the folder", wait_for(lambda: settings_of(home).get("watch_folder") == str(watched), 10),
+          str(settings_of(home).get("watch_folder")))
+    link = f"{base}/from-folder.zip"
+    saved = watched / "saved-link.url"
+    saved.write_text(f"[InternetShortcut]\nURL={link}\n")
+    old = time.time() - 60
+    os.utime(saved, (old, old))
+    check("a link saved there appears in dm's list and downloads", wait_for(lambda: state_of(home, link) == "completed", 60),
+          str(state_of(home, link)))
+    check("and its file is put aside in done", (watched / "done" / "saved-link.url").exists() and not saved.exists())
+    settle()
+
+
 def extract_and_command_line(home, env):
     """Extract here, clicked on a real zip's row with the real pointer, and
     the command line against this same dm: what a tester would do after
@@ -511,6 +590,7 @@ def extract_and_command_line(home, env):
     with zipfile.ZipFile(site / "good.zip", "w") as z:
         z.writestr("readme.txt", "hello from the archive")
         z.writestr("docs/deep/note.txt", "nested")
+    (site / "from-folder.zip").write_bytes(b"saved in a watched folder " * 400)
     with zipfile.ZipFile(site / "evil.zip", "w") as z:
         z.writestr("fine.txt", "fine")
         z.writestr("../escaped.txt", "must never land outside")
@@ -576,8 +656,63 @@ def extract_and_command_line(home, env):
               refused.returncode == 1 and "not running" in refused.stderr, refused.stderr)
         check("a number that is not there exits 1", cli("status", "999999").returncode == 1)
         check("a wrong command exits 2", cli("pause").returncode == 2)
+        finished_files_by_hand(home, base, site, good, evil)
     finally:
         server.shutdown()
+
+
+def open_options_tab(label, expect):
+    """A tab of the open Options dialog, clicked by its name. The same word may
+    also be a menu behind the dialog, which takes no clicks, so what the tab
+    might be is tried until `expect`, a control of that tab, shows."""
+    for role in ("page tab", "radio button", "toggle button", "push button", "*"):
+        if click(role, label, seconds=2) and wait_for(lambda: where("*", expect), 3):
+            return True
+    return False
+
+
+def scroll_dialog():
+    """The wheel over the dialog, as a person scrolls a long tab."""
+    geo = win_geo()
+    if geo:
+        x("xdotool", "mousemove", "--sync", str(geo["X"] + geo["WIDTH"] // 2), str(geo["Y"] + geo["HEIGHT"] // 2))
+        x("xdotool", "click", "--repeat", "12", "--delay", "40", "5")
+        time.sleep(0.5)
+
+
+def options_by_hand(home):
+    """Options, as a person goes through it: every tab opened by clicking its
+    name, a control of that tab found, then one value set, saved with OK and
+    read back from the settings file."""
+    print("\nOptions, tab by tab, with the real pointer")
+    recording = "Stop recording a live stream after, minutes (0 records until it ends)"
+    tabs = [("General", "Language"), ("Browser", "File types"), ("Folders", "Download folder"),
+            ("Downloads", recording), ("Network", "Speed limit, KB/s (0 for none)"),
+            ("Proxy", "Proxy type"), ("Sign-ins", "Add a login")]
+    key("ctrl+comma")
+    check("Ctrl+, opens Options", bool(wait_for(lambda: where("*", "General"), 10)))
+
+    for label, expect in tabs:
+        check(f"the {label} tab, clicked, shows its settings", open_options_tab(label, expect), expect)
+
+    check("on Downloads, the recording limit's box is scrolled to and clicked", open_options_tab("Downloads", recording)
+          and (scroll_dialog() or True) and click_field(recording))
+    type_text("45", delay=120)
+    key("Tab")
+    click("push button", "OK")
+    check("OK saves it: the settings file holds 45 minutes",
+          wait_for(lambda: settings_of(home).get("record_minutes") == 45, 10), str(settings_of(home).get("record_minutes")))
+
+    key("ctrl+comma")
+    wait_for(lambda: where("*", "General"), 10)
+    check("opened again, the value is still there",
+          open_options_tab("Downloads", recording) and (scroll_dialog() or True) and bool(field_at(recording)))
+    click_field(recording)
+    type_text("0", delay=120)
+    key("Return")
+    click("push button", "OK")
+    check("and set back to none, saved",
+          wait_for(lambda: settings_of(home).get("record_minutes") == 0, 10), str(settings_of(home).get("record_minutes")))
 
 
 def human_session(home, env, app):
@@ -614,6 +749,8 @@ def human_session(home, env, app):
               f"{state_of(home, url)} at {path}")
 
         extract_and_command_line(home, env)
+        settle()
+        options_by_hand(home)
         settle()
 
         print("\nthe progress window and the completion dialog (turned on in Options)")
@@ -978,7 +1115,7 @@ def main():
         # Asked of openbox the way its close button asks (_NET_CLOSE_WINDOW),
         # not with a synthetic Alt+F4: after that chord openbox now and then
         # kept the keyboard grabbed, and a tray menu cannot open under
-        # another client's grab (gap 21).
+        # another client's grab.
         closed = x("wmctrl", "-i", "-c", window)
         gone = closed.returncode == 0 and wait_for(lambda: not dm_windows(), 10)
         check("closing the window hides it into the tray, and dm keeps running",

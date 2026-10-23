@@ -25,7 +25,9 @@ cd ../browser && cargo test                     # the extension's decisions, on 
 
 - The engine's tests run against a real HTTP server on loopback and a real
   queue, and a loopback BitTorrent swarm. The window's tests click every
-  control through its accessibility tree (`crates/dm-desktop/tests/window.rs`).
+  control through its accessibility tree (`crates/dm-desktop/tests/window.rs`,
+  which indexes `tests/window/`: `support.rs` is the fake system and shared helpers,
+  the rest are grouped by what they check).
 - Every reader of outside input (names, headers, playlists, archives, the
   control protocol) has a property test in `tests/fuzz.rs`; `PROPTEST_CASES=200000
   cargo test --release -p dm-core --test fuzz` hunts deeper.
@@ -62,9 +64,9 @@ named volume (`dm-linux-target`); later runs take minutes.
 | Script | What it proves |
 |---|---|
 | `sh scripts/linux-check.sh` | `app-check.py` against the Linux binary under Xvfb |
-| `sh scripts/linux-gui-check.sh` | Real mouse and keys on dm's window and tray (xdotool, openbox, a StatusNotifier watcher and host): Add URL, Stop and Resume, Options, closing into the tray and bringing it back, Start on login started by `dex` as a session does, extracting a downloaded zip from its row menu, and the command line against the live window. `DM_ORCA=1` adds Orca, a real screen reader |
+| `sh scripts/linux-gui-check.sh` | Real mouse and keys on dm's window and tray (xdotool, openbox, a StatusNotifier watcher and host): Add URL, Stop and Resume, Options, closing into the tray and bringing it back, Start on login started by `dex` as a session does, extracting a downloaded zip from its row menu, the command line against the live window, every tab of Options clicked and a value set and saved, a finished file's SHA-256 and a pasted digest checked in Properties, several files renamed by a pattern after a Ctrl-click, and a watched folder set in Options that picks up a saved link. Window positions come from `xwininfo`, not `xdotool`, which is one title bar out under some window managers. `DM_ORCA=1` adds Orca, a real screen reader |
 | `sh scripts/linux-wayland-close-check.sh` | Closing the window under sway (headless Wayland) with a tray present: dm stays up, answers and is not marked hidden |
-| `sh scripts/linux-kde-close-check.sh` | The same under **KWin 6** (KDE's compositor, Arch image `scripts/linux/Dockerfile.kde`): closing minimizes the window, a download started meanwhile completes, and restoring it shows it again. This is gap 265's reported bug |
+| `sh scripts/linux-kde-close-check.sh` | The same under **KWin 6** (KDE's compositor, Arch image `scripts/linux/Dockerfile.kde`): closing minimizes the window, a download started meanwhile completes, and restoring it shows it again. This is the reported ghost-window bug |
 | `sh scripts/linux-wayland-drag-check.sh`, `linux-drag-check.sh` | A link dragged onto the window under Wayland (sway) and X11 (real Firefox), and a finished file dragged out |
 | `sh scripts/linux-firefox-check.sh`, `linux-chromium-human.sh`, `linux-newcomer-check.sh` | A browser and dm used as a person uses them, on Debian, Ubuntu, Fedora or Arch (`DM_DISTRO=`) |
 | `sh scripts/linux-package.sh`, `rpm-check.sh`, `arch-check.sh` | The `.deb` and AppImage, the `.rpm` (Fedora, openSUSE) and the Arch package built, installed and driven |
@@ -98,8 +100,13 @@ differs from a developer's machine in ways that are not dm's:
   the bus go.
 - `kwin_wayland` carries a file capability a container refuses; the KDE check
   removes it (`setcap -r`) in its throwaway container.
-- Docker Desktop's disk fills: the images and volumes here are caches that
-  can be rebuilt, but nothing in these scripts deletes them.
+- Docker Desktop's disk fills, and dm then refuses to start a download for want
+  of room: a GUI check shows a row "Paused: not enough room", which is dm
+  telling the truth. The build volume `dm-linux-target` gathers a stale copy of
+  the workspace crates' artifacts with every source change (17 GB after a day's
+  work); `cd desktop && cargo clean -p dm-core -p dm-protocol -p dm-shell
+  -p dm-desktop -p xtask` inside a container on that volume frees them and
+  keeps the third-party builds. Nothing in these scripts deletes anything.
 
 ## On a real desktop
 

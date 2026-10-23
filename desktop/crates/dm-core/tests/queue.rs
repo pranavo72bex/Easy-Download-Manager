@@ -289,7 +289,7 @@ async fn pausing_everything_leaves_nothing_running_and_starting_it_puts_it_back(
     );
 
     // One added for later, waiting for its queue to be started, is not
-    // something Resume all starts (UI round 16).
+    // something Resume all starts.
     let later = q
         .add_with(
             &format!("http://{addr}/later.bin"),
@@ -831,7 +831,7 @@ async fn clearing_the_history_keeps_what_has_not_finished() {
 #[tokio::test]
 async fn clearing_the_history_keeps_a_failed_row_and_its_parts() {
     /* "Clear finished" took Failed rows too, and deleted their staged parts
-     * with no question: what Retry would have resumed from (gap 104). */
+     * with no question: what Retry would have resumed from. */
     let (addr, _) = serve().await;
     let dir = tempdir();
     let q = queue(dir.path(), 1);
@@ -894,7 +894,7 @@ async fn nothing_starts_while_the_schedule_is_closed() {
     assert!(!dir.path().join("out/f.bin").exists());
 }
 
-/// Gap 126: one row a person starts now runs to the end with the schedule
+/// One row a person starts now runs to the end with the schedule
 /// still closed, and the schedule holds the rest as before.
 #[tokio::test]
 async fn one_row_started_outside_the_schedule_runs_while_the_rest_wait() {
@@ -2154,7 +2154,7 @@ async fn the_recheck_queue_remembers_when_it_last_ran_across_a_restart() {
     assert!(again.recheck_if_due().await.is_none());
 }
 
-/// Gap 59: a last run written while the clock was set decades ahead held
+/// A last run written while the clock was set decades ahead held
 /// the recheck until that date. It is stale: the count starts from now.
 #[tokio::test]
 async fn a_recheck_time_in_the_future_is_stale_not_waited_out() {
@@ -2556,7 +2556,7 @@ async fn a_recheck_leaves_alone_a_row_made_from_a_web_page() {
     assert!(video.exists());
 }
 
-/// UI round 18: a download begun goes on into the folder it began in, when
+/// A download begun goes on into the folder it began in, when
 /// the download folder is changed before it runs again.
 #[tokio::test]
 async fn a_download_goes_on_into_the_folder_it_began_in() {
@@ -2586,7 +2586,7 @@ async fn a_download_goes_on_into_the_folder_it_began_in() {
     );
 }
 
-/// QA pass, gap 81: with one download at a time, a row whose server keeps
+/// With one download at a time, a row whose server keeps
 /// answering 500 lends its place while it waits between attempts, so the
 /// next row in line is fetched instead of waiting behind it — and the
 /// failing row is still trying when the other finishes.

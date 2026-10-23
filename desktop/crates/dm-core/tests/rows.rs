@@ -290,7 +290,7 @@ async fn a_login_in_the_address_is_sent_as_basic_auth() {
     assert_eq!(std::fs::read(&row.path).unwrap(), BODY);
 }
 
-/// Gap 58: removing a selection wrote the whole queue file once per row —
+/// Removing a selection wrote the whole queue file once per row —
 /// 10,000 rows of a 6.5 MB file at 32 ms a save. A batch is one save.
 #[tokio::test]
 async fn removing_many_rows_writes_the_queue_once() {
@@ -326,7 +326,7 @@ async fn removing_many_rows_writes_the_queue_once() {
     );
 }
 
-/// Gap 62: changing only the case of a name on a case-insensitive disk
+/// Changing only the case of a name on a case-insensitive disk
 /// (macOS's and Windows' default) found the name "taken" by the file itself
 /// and gave "report (1).pdf".
 #[tokio::test]
@@ -361,7 +361,7 @@ fn basic_header(user: &str, password: &str) -> String {
     )
 }
 
-/// QA loop 2: a file downloaded twice at once, the second time under a
+/// A file downloaded twice at once, the second time under a
 /// chosen name. That one was placed under the server's name and renamed
 /// after, so for a moment it held the name and pushed the first to
 /// "same (1).bin".
@@ -419,4 +419,39 @@ async fn a_chosen_name_cannot_leave_its_folder() {
     let path = std::path::Path::new(&row.path);
     assert_eq!(path.parent().unwrap(), chosen, "{}", row.path);
     assert!(!dir.path().join("escaped.bin").exists());
+}
+
+#[tokio::test]
+async fn a_speed_limit_given_when_a_row_is_added_is_the_rows_own_and_is_kept() {
+    let addr = serve().await;
+    let dir = tempdir();
+    let q = queue(dir.path());
+    let url = format!("http://{addr}/limited.bin");
+    let held = q
+        .add_with(
+            &url,
+            AddOptions {
+                later: true,
+                speed_limit: 300,
+                ..Default::default()
+            },
+        )
+        .await
+        .unwrap();
+    let free = q
+        .add_with(
+            &format!("http://{addr}/free.bin"),
+            AddOptions {
+                later: true,
+                ..Default::default()
+            },
+        )
+        .await
+        .unwrap();
+    assert_eq!(q.get(held).await.unwrap().speed_limit, 300);
+    assert_eq!(
+        q.get(free).await.unwrap().speed_limit,
+        0,
+        "no limit unless given"
+    );
 }

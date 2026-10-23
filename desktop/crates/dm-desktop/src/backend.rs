@@ -30,8 +30,8 @@ pub trait Platform: Send + Sync {
     /// Opens a finished file with whatever the system opens it with.
     fn open(&self, path: &str) -> Result<(), String>;
     /// [`Platform::open`] without waiting on it: an opener's verdict takes
-    /// up to a second and a half on Linux, and the window froze for it (UI
-    /// round 10). A failure goes to `report`.
+    /// up to a second and a half on Linux, and the window froze for it.
+    /// A failure goes to `report`.
     fn open_later(&self, path: &str, report: crate::power::Report) {
         if let Err(e) = self.open(path) {
             report(e);
@@ -78,7 +78,7 @@ pub trait Platform: Send + Sync {
     }
     /// Whether this desktop has a file chooser to ask with, for Import and
     /// Export. Where it has none, they ask for the file's path instead of
-    /// doing nothing (gap 144).
+    /// doing nothing.
     fn can_choose_file(&self) -> bool {
         self.can_choose_folder()
     }
@@ -150,7 +150,7 @@ impl Backend {
 
     /// Puts a sign-in saved in Options since the row was added on its
     /// address: Retry of a 401 asked again without it, while a fresh copy
-    /// of the address worked (UI round 14).
+    /// of the address worked.
     fn login_now(&self, id: Id) {
         let Some(row) = self.block_on(self.queue.get(id)) else {
             return;
@@ -200,7 +200,7 @@ impl Backend {
         self.block_on(self.queue.remove(id));
     }
 
-    /// Several rows taken out with one save of the queue (gap 58).
+    /// Several rows taken out with one save of the queue.
     pub fn remove_many(&self, ids: &[Id]) {
         self.block_on(self.queue.remove_many(ids));
     }
@@ -369,8 +369,9 @@ impl Backend {
     /// Adds with what the "Download details" dialog chose. Site logins
     /// are put on the address here, so every way in gets them.
     pub fn add_with(&self, url: &str, with: AddOptions) -> Result<Id, String> {
-        let with = admit(url, with)?;
-        let url = self.settings().with_login(url.trim());
+        let settings = self.settings();
+        let with = settings.with_site_rule(url, admit(url, with)?);
+        let url = settings.with_login(url.trim());
         let later = with.later;
         let id = self
             .block_on(self.queue.add_with(&url, with))
@@ -390,7 +391,7 @@ impl Backend {
         let admitted: Vec<Result<(String, AddOptions), String>> = items
             .into_iter()
             .map(|(url, with)| {
-                let with = admit(&url, with)?;
+                let with = settings.with_site_rule(&url, admit(&url, with)?);
                 Ok((settings.with_login(url.trim()), with))
             })
             .collect();
@@ -434,7 +435,7 @@ impl Backend {
             return Err("it must be a link dm can download".into());
         }
         // A download retrying between attempts is the one most likely to
-        // need a new address (UI round 8): stopped, given it, and started
+        // need a new address: stopped, given it, and started
         // again, rather than refused as running.
         let was_running = self
             .block_on(self.queue.get(id))
@@ -760,7 +761,7 @@ mod export_tests {
 
 #[cfg(test)]
 mod chooser_tests {
-    /// Gap 121: with no portal and no zenity there is no chooser, and
+    /// With no portal and no zenity there is no chooser, and
     /// Browse… says so rather than doing nothing.
     #[test]
     fn a_chooser_is_the_portal_or_zenity_on_the_path() {

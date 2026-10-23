@@ -75,9 +75,9 @@ objc2-app-kit = { version = "0.3", default-features = false, features = ["std", 
 objc2-foundation = { version = "0.3", default-features = false, features = ["std", "NSString", "NSArray"] }
 
 # AttachConsole, so `--register` and `--unregister` print to the terminal
-# that ran them (gap 90); SetSuspendState for Sleep (gap 42); RegGetValueW
-# for the login item, read as UTF-16 (gaps 96, 99); MessageBeep for the
-# sounds (gap 100). Already in the tree through dm-core.
+# that ran them; SetSuspendState for Sleep; RegGetValueW
+# for the login item, read as UTF-16; MessageBeep for the
+# sounds. Already in the tree through dm-core.
 [target.'cfg(windows)'.dependencies]
 windows-sys = { version = "0.61", features = [
   "Win32_Foundation",
@@ -91,6 +91,9 @@ windows-sys = { version = "0.61", features = [
   "Win32_System_Registry",
   "Win32_UI_WindowsAndMessaging",
   # dm's own drop target, for a link dragged from a browser (drops.rs).
+  # STGMEDIUM is behind Gdi as well as StructuredStorage: named here rather
+  # than left to another crate in the tree to switch on.
+  "Win32_Graphics_Gdi",
   "Win32_System_Com",
   "Win32_System_Com_StructuredStorage",
   "Win32_System_DataExchange",
@@ -121,8 +124,11 @@ dm-protocol = { path = "../dm-protocol" }
 # tree, and rendered offscreen for a picture of what it draws.
 egui_kittest = { version = "0.37", features = ["wgpu", "snapshot"] }
 tempfile = "3"
+# The digest a test works out for itself, to hold the window's to.
+sha2 = "0.11.0"
+hex = "0.4.3"
 # A real archive for the extraction test.
-zip = { version = "8", default-features = false, features = ["deflate"] }
+zip = { version = "9", default-features = false, features = ["deflate"] }
 # The window's memory written out as eframe writes it, for a relaunch.
 ron = "0.12"
 axum = "0.7"

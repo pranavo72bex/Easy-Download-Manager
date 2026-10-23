@@ -645,5 +645,17 @@
  "Extracting…": "Wird entpackt…",
  "Extract to…": "Entpacken nach…",
  "There is no folder chooser here: use Extract here": "Es gibt hier keine Ordnerauswahl: „Hier entpacken“ verwenden",
- "Stop recording a live stream after, minutes (0 records until it ends)": "Aufnahme eines Livestreams beenden nach, Minuten (0 nimmt bis zum Ende auf)"
+ "Stop recording a live stream after, minutes (0 records until it ends)": "Aufnahme eines Livestreams beenden nach, Minuten (0 nimmt bis zum Ende auf)",
+ "Let the command line list and steer downloads (dm-desktop list, pause, resume, cancel); from dm's next start": "Die Befehlszeile darf Downloads auflisten und steuern (dm-desktop list, pause, resume, cancel); ab dem nächsten Start von dm",
+ "Watch a folder for links: a .url, .webloc or text file of links, or a .torrent saved there is added and moved to its \"done\" folder (empty is off)": "Einen Ordner auf Links überwachen: eine dort gespeicherte .url, .webloc oder Textdatei mit Links oder eine .torrent wird hinzugefügt und in seinen Ordner „done“ verschoben (leer ist aus)",
+ "Working it out…": "Wird berechnet…",
+ "Check against": "Prüfen gegen",
+ "A digest you were given": "Ein Ihnen genannter Prüfwert",
+ "It matches.": "Stimmt überein.",
+ "It does not match.": "Stimmt nicht überein.",
+ "Name pattern": "Namensmuster",
+ "Empty keeps the names. {n} counts from 1, {name} is the old name": "Leer behält die Namen. {n} zählt ab 1, {name} ist der alte Name",
+ "Sites whose downloads go to a folder of their own, at a speed of their own:": "Websites, deren Downloads in einen eigenen Ordner gehen, mit eigener Geschwindigkeit:",
+ "Delete site rule": "Websiteregel löschen",
+ "Add a site rule": "Websiteregel hinzufügen"
 }

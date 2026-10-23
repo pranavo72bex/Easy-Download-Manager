@@ -287,7 +287,7 @@ async fn a_server_that_refuses_extra_connections_still_gets_the_file_whole() {
 }
 
 /// Under a speed limit the shown speed is the limit, from the first second
-/// on (gap 112). A person watching a 500 KB/s ceiling saw about 1 MB/s for
+/// on. A person watching a 500 KB/s ceiling saw about 1 MB/s for
 /// the first ten to twenty seconds of a start or a resume, and an ETA half
 /// what it was, while the file grew at 500 KB/s.
 #[tokio::test(flavor = "multi_thread", worker_threads = 4)]

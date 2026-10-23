@@ -645,5 +645,17 @@
  "Extracting…": "正在解压…",
  "Extract to…": "解压到…",
  "There is no folder chooser here: use Extract here": "此处没有文件夹选择器：请使用“解压到此处”",
- "Stop recording a live stream after, minutes (0 records until it ends)": "直播录制多少分钟后停止（0 为录到结束）"
+ "Stop recording a live stream after, minutes (0 records until it ends)": "直播录制多少分钟后停止（0 为录到结束）",
+ "Let the command line list and steer downloads (dm-desktop list, pause, resume, cancel); from dm's next start": "允许命令行列出并控制下载（dm-desktop list、pause、resume、cancel）；下次启动 dm 时生效",
+ "Watch a folder for links: a .url, .webloc or text file of links, or a .torrent saved there is added and moved to its \"done\" folder (empty is off)": "监视文件夹中的链接：保存在其中的 .url、.webloc、含链接的文本文件或 .torrent 会被添加，并移入其中的“done”文件夹（留空为关闭）",
+ "Working it out…": "正在计算…",
+ "Check against": "核对",
+ "A digest you were given": "别人给你的摘要值",
+ "It matches.": "一致。",
+ "It does not match.": "不一致。",
+ "Name pattern": "名称模式",
+ "Empty keeps the names. {n} counts from 1, {name} is the old name": "留空则保留名称。{n} 从 1 起计数，{name} 为原名称",
+ "Sites whose downloads go to a folder of their own, at a speed of their own:": "下载进入专属文件夹并使用专属速度的网站：",
+ "Delete site rule": "删除网站规则",
+ "Add a site rule": "添加网站规则"
 }

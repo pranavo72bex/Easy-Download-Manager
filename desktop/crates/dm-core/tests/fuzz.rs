@@ -121,7 +121,7 @@ proptest! {
         prop_assert_eq!(probe::sanitize(&once), once.clone());
     }
 
-    /// Gap 63: a long name cut to length could end on a space or a dot,
+    /// A long name cut to length could end on a space or a dot,
     /// which Windows drops and a second clean trimmed: not settled.
     #[test]
     fn a_long_name_cut_to_length_settles(

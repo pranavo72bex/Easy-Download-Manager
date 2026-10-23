@@ -282,6 +282,56 @@ async fn a_paused_ftp_download_resumes_from_its_parts() {
     );
 }
 
+/// A power cut leaves a part of the right length whose last block never
+/// reached the disk (zeros): resuming trusted the length, and the file came
+/// out the right size and wrong in the middle.
+#[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+async fn a_part_torn_by_a_power_cut_is_repaired_when_an_ftp_download_resumes() {
+    let data = body(4 * 1024 * 1024);
+    let quirks = Quirks {
+        rate: Some(1024 * 1024),
+        ..Quirks::default()
+    };
+    let (addr, _server) = serve(data.clone(), quirks).await;
+    let dir = tempdir();
+    let opts = options(dir.path());
+    let url = format!("ftp://{addr}/f.bin");
+    let running = {
+        let (url, opts) = (url.clone(), opts.clone());
+        tokio::spawn(async move { download(&client(), &url, &opts).await })
+    };
+    tokio::time::sleep(Duration::from_millis(700)).await;
+    opts.control.pause();
+    assert!(matches!(running.await.unwrap(), Err(Error::Paused)));
+    // The longest part has the end of what it holds torn away.
+    let part = std::fs::read_dir(&opts.parts_dir)
+        .unwrap()
+        .flatten()
+        .filter(|e| e.file_name().to_string_lossy().starts_with("part-"))
+        .max_by_key(|e| e.metadata().unwrap().len())
+        .unwrap()
+        .path();
+    let held = std::fs::metadata(&part).unwrap().len();
+    assert!(held > 100 * 1024, "too little staged to tear: {held}");
+    {
+        use std::io::{Seek, Write};
+        let mut file = std::fs::OpenOptions::new().write(true).open(&part).unwrap();
+        file.seek(std::io::SeekFrom::Start(held - 40_000)).unwrap();
+        file.write_all(&[0u8; 40_000]).unwrap();
+    }
+    let again = dm_core::Options {
+        control: dm_core::Control::new(),
+        ..opts
+    };
+    let done = download(&client(), &url, &again)
+        .await
+        .expect("the resume failed");
+    assert!(
+        std::fs::read(&done.path).unwrap() == data,
+        "the torn end of a part was kept"
+    );
+}
+
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn a_dropped_ftp_transfer_is_tried_again_from_where_it_stopped() {
     let data = body(3 * 1024 * 1024);

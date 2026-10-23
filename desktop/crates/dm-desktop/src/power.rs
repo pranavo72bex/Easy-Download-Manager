@@ -52,7 +52,7 @@ pub enum Way {
     /// argument. Through `rundll32 powrprof.dll,SetSuspendState 0,1,0` it
     /// was not: rundll32 hands the function its window handle where the
     /// first argument goes, never zero, so Sleep hibernated wherever
-    /// hibernation was on (gap 42).
+    /// hibernation was on.
     Suspend { hibernate: bool },
 }
 
@@ -77,7 +77,7 @@ pub fn way(action: WhenDone, os: &str) -> Option<Way> {
 
 /// Whether `action` can be done here: this system has a way, and where the
 /// way is a program, the program is there. Sleep was offered without
-/// `systemctl`, and failed when the countdown ran out (UI round 13).
+/// `systemctl`, and failed when the countdown ran out.
 pub fn available(action: WhenDone) -> bool {
     match way(action, std::env::consts::OS) {
         Some(Way::Run(program, _)) => installed(program),
@@ -197,7 +197,7 @@ pub enum Sound {
 /// The program that plays `sound` on `os`. `None` on Windows, where
 /// `MessageBeep` plays it in this process: PowerShell's
 /// `[SystemSounds]::X.Play()` took about a second to start and played
-/// asynchronously, so its own exit could cut the sound off (gap 100).
+/// asynchronously, so its own exit could cut the sound off.
 pub fn sound_program(sound: Sound, os: &str) -> Option<(&'static str, Vec<&'static str>)> {
     match (os, sound) {
         ("windows", _) => None,
@@ -310,7 +310,7 @@ mod tests {
         assert_eq!(way(WhenDone::Sleep, "freebsd"), None);
     }
 
-    /// Gap 42: Sleep on Windows is `SetSuspendState(FALSE, …)`, not rundll32,
+    /// Sleep on Windows is `SetSuspendState(FALSE, …)`, not rundll32,
     /// which passed its window handle as "hibernate".
     #[test]
     fn windows_sleeps_and_hibernates_by_its_own_call_not_rundll32() {
@@ -331,7 +331,7 @@ mod tests {
         }
     }
 
-    /// Gap 100: no PowerShell for a sound on Windows; two different sounds
+    /// No PowerShell for a sound on Windows; two different sounds
     /// elsewhere.
     #[test]
     fn windows_plays_its_sounds_without_a_program_and_others_tell_them_apart() {

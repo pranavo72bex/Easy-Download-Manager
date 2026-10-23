@@ -645,5 +645,17 @@
  "Extracting…": "Uitpakken…",
  "Extract to…": "Uitpakken naar…",
  "There is no folder chooser here: use Extract here": "Hier is geen mapkiezer: gebruik “Hier uitpakken”",
- "Stop recording a live stream after, minutes (0 records until it ends)": "Opname van een livestream stoppen na, minuten (0 neemt op tot het einde)"
+ "Stop recording a live stream after, minutes (0 records until it ends)": "Opname van een livestream stoppen na, minuten (0 neemt op tot het einde)",
+ "Let the command line list and steer downloads (dm-desktop list, pause, resume, cancel); from dm's next start": "De opdrachtregel mag downloads tonen en aansturen (dm-desktop list, pause, resume, cancel); vanaf de volgende start van dm",
+ "Watch a folder for links: a .url, .webloc or text file of links, or a .torrent saved there is added and moved to its \"done\" folder (empty is off)": "Een map op links bewaken: een daar opgeslagen .url, .webloc of tekstbestand met links, of een .torrent wordt toegevoegd en naar de map “done” verplaatst (leeg is uit)",
+ "Working it out…": "Wordt berekend…",
+ "Check against": "Controleren tegen",
+ "A digest you were given": "Een digest die u kreeg",
+ "It matches.": "Komt overeen.",
+ "It does not match.": "Komt niet overeen.",
+ "Name pattern": "Naampatroon",
+ "Empty keeps the names. {n} counts from 1, {name} is the old name": "Leeg behoudt de namen. {n} telt vanaf 1, {name} is de oude naam",
+ "Sites whose downloads go to a folder of their own, at a speed of their own:": "Sites waarvan de downloads naar een eigen map gaan, met een eigen snelheid:",
+ "Delete site rule": "Siteregel verwijderen",
+ "Add a site rule": "Siteregel toevoegen"
 }

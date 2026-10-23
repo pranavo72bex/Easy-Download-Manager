@@ -645,5 +645,17 @@
  "Extracting…": "Estrazione in corso…",
  "Extract to…": "Estrai in…",
  "There is no folder chooser here: use Extract here": "Qui non c’è un selettore di cartelle: usa «Estrai qui»",
- "Stop recording a live stream after, minutes (0 records until it ends)": "Interrompi la registrazione di una diretta dopo, minuti (0 registra fino alla fine)"
+ "Stop recording a live stream after, minutes (0 records until it ends)": "Interrompi la registrazione di una diretta dopo, minuti (0 registra fino alla fine)",
+ "Let the command line list and steer downloads (dm-desktop list, pause, resume, cancel); from dm's next start": "Consenti alla riga di comando di elencare e gestire i download (dm-desktop list, pause, resume, cancel); dal prossimo avvio di dm",
+ "Watch a folder for links: a .url, .webloc or text file of links, or a .torrent saved there is added and moved to its \"done\" folder (empty is off)": "Controlla una cartella per i link: un .url, .webloc o file di testo con link, o un .torrent salvato lì viene aggiunto e spostato nella sua cartella «done» (vuoto è disattivato)",
+ "Working it out…": "Calcolo in corso…",
+ "Check against": "Verifica con",
+ "A digest you were given": "Un digest che le è stato dato",
+ "It matches.": "Corrisponde.",
+ "It does not match.": "Non corrisponde.",
+ "Name pattern": "Modello del nome",
+ "Empty keeps the names. {n} counts from 1, {name} is the old name": "Vuoto mantiene i nomi. {n} conta da 1, {name} è il nome precedente",
+ "Sites whose downloads go to a folder of their own, at a speed of their own:": "Siti i cui download vanno in una cartella propria, a una velocità propria:",
+ "Delete site rule": "Elimina regola del sito",
+ "Add a site rule": "Aggiungi regola del sito"
 }

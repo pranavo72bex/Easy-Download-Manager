@@ -243,7 +243,7 @@ fn status_line(status: u16) -> String {
 fn worth_saying(body: &str, status: u16) -> String {
     // Python's http.server: boilerplate around a message, which is its own
     // ("Token expired") or a restatement ("File not found"). Only the
-    // message is judged, and said (gap 81).
+    // message is judged, and said.
     let body = match body.strip_prefix("Error response Error code:") {
         Some(rest) => {
             let message = rest.split_once("Message:").map_or("", |(_, m)| m);
@@ -676,7 +676,7 @@ pub fn client() -> reqwest::Client {
 }
 
 /// What a file error means, in words a person reads: "No such file or
-/// directory (os error 2)" said nothing a person could act on (UI round 14).
+/// directory (os error 2)" said nothing a person could act on.
 pub fn file_error(e: &std::io::Error) -> String {
     match e.kind() {
         std::io::ErrorKind::NotFound => "it is not there".into(),
@@ -817,7 +817,7 @@ mod tests {
         assert!(cut.ends_with('…') && cut.chars().count() <= 201, "{cut}");
     }
 
-    /// Gap 69: a failed row carried the server's error page —
+    /// A failed row carried the server's error page —
     /// "Error response Error code: 404 Message: File not found. …" — where
     /// "404 Not Found" says it all. A body with a sentence of its own stays.
     #[test]
@@ -827,7 +827,7 @@ mod tests {
             <p>Error code: 404</p><p>Message: File not found.</p>\
             <p>Error code explanation: 404 - Nothing matches the given URI.</p></body></html>";
         assert_eq!(super::worth_saying(&readable(python), 404), "");
-        // Gap 81: a message of its own in the same page is kept.
+        // A message of its own in the same page is kept.
         let own = python
             .replace("404", "401")
             .replace("File not found", "Token expired");

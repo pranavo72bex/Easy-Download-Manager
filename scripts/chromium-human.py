@@ -144,7 +144,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
         # slow.zip arrives slowly for everyone, dm too, so it is still
         # running when Stop is reached for; the rest only for the browser,
         # as chrome-check serves them. report.pdf arrives at full speed, which
-        # Chromium finishes before the extension can hold it (gap 103).
+        # Chromium finishes before the extension can hold it.
         slow = name == "slow.zip" or not (self.headers.get("User-Agent", "").startswith("dm/")
                                           or name == "report.pdf")
         pause = 0.25 if name == "slow.zip" else 0.05

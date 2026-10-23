@@ -42,8 +42,7 @@ pub fn show(app: &mut DmApp, ui: &mut egui::Ui) {
                 } else if !app.filter.trim().is_empty() {
                     t("No download here matches the filter.")
                 } else {
-                    // Done and In progress are places, not categories
-                    // (UI round 9).
+                    // Done and In progress are places, not categories.
                     t("Nothing here yet.")
                 })
                 .weak(),
@@ -85,7 +84,7 @@ pub fn show(app: &mut DmApp, ui: &mut egui::Ui) {
     // 120 points, so Status is still in view beside it: the name took its
     // 220 and pushed Status off the edge.
     // A selected row in a fill that stands out from the list, its words in
-    // the colour that reads on it (gap 132: it was 235 on 255).
+    // the colour that reads on it (it was 235 on 255).
     // In the modern look, a list view's: the subtle fill, for a hovered row
     // as for a selected one, which also carries the accent indicator; and
     // no column lines down the rows, only between the headings (a column's
@@ -99,17 +98,17 @@ pub fn show(app: &mut DmApp, ui: &mut egui::Ui) {
     }
     let paint_on = (ui.ctx().clone(), ui.layer_id(), ui.clip_rect());
     // A Queue column with nothing in it gives its room to the name: at
-    // 720 px it stood wider than the name, empty (gap 140).
+    // 720 px it stood wider than the name, empty.
     let name_width = name_width(&columns, ui.available_width());
     // Wider than the window, the columns scroll sideways rather than
     // running off its edge: at the default size the Note, Referrer and
     // Folder columns were past it with no way to reach them.
     // Scroll bars that take their own room, always drawn where needed:
     // floating over the list, the sideways one covered its last row, which
-    // End and Down could not bring clear of it (gap 147).
+    // End and Down could not bring clear of it.
     ui.spacing_mut().scroll = crate::theme::steady_scroll();
     // Rows that meet, each its 32 points, as a list view's: the window's 8
-    // between them made each row and its fill 40 tall (Fluent QA).
+    // between them made each row and its fill 40 tall.
     if t.modern {
         ui.spacing_mut().item_spacing.y = 0.0;
     }
@@ -117,7 +116,7 @@ pub fn show(app: &mut DmApp, ui: &mut egui::Ui) {
     /* The up-and-down bar is the list's own, drawn in a strip at the
      * visible right edge. The table's would sit at its right edge, inside
      * the sideways scroll area, so it was out of sight whenever the columns
-     * ran past the window (gap 152): the table's is hidden and this one
+     * ran past the window: the table's is hidden and this one
      * follows it, or moves it when dragged or wheeled. */
     // The sideways bar's whole thickness: a floating one is drawn over the
     // content, and the room it allocates is less than it covers.
@@ -127,8 +126,7 @@ pub fn show(app: &mut DmApp, ui: &mut egui::Ui) {
         .max(scroll.bar_width + scroll.bar_inner_margin + scroll.bar_outer_margin);
     // Only what can be seen: with the Place drop-down or the clipboard's
     // bar above the list, the room left ran past the card's visible edge,
-    // and at large text the last rows could never be scrolled to (UI
-    // round 15).
+    // and at large text the last rows could never be scrolled to.
     let whole = ui.available_rect_before_wrap().intersect(ui.clip_rect());
     let list_rect = egui::Rect::from_min_max(
         whole.min,
@@ -149,15 +147,14 @@ pub fn show(app: &mut DmApp, ui: &mut egui::Ui) {
         sideways.show(ui, |ui| {
             // The header's height as drawn last frame, not a guess: at 300%
             // it took more than the 22 points allowed, the body was sized a
-            // row too tall and the last row stayed under the sideways bar
-            // (UI round 16).
+            // row too tall and the last row stayed under the sideways bar.
             let head_id = egui::Id::unique("dm-list-head");
             let head = ui
                 .data(|d| d.get_temp::<f32>(head_id))
                 .unwrap_or(22.0 + ui.spacing().item_spacing.y);
             // And what the body ran past the visible list by, measured last
             // frame, until the list's height changes: with the clipboard's
-            // bar above it at 300% the last row was still cut (UI round 17).
+            // bar above it at 300% the last row was still cut.
             let over_id = egui::Id::unique("dm-list-over");
             let over = ui
                 .data(|d| d.get_temp::<(f32, f32)>(over_id))
@@ -170,7 +167,7 @@ pub fn show(app: &mut DmApp, ui: &mut egui::Ui) {
             // theirs are kept. Kept from the first draw whatever happened to
             // the window after, a list opened narrow and widened left the
             // name 120 points beside a band of nothing, and one shrunk cut
-            // Status to "Co…" (UI round 7).
+            // Status to "Co…".
             let state_id = ui.scope_id().with(egui::IdSalt::new("list"));
             // Where a column's resize handle is: half the spacing past its
             // cell, and how near it a press grabs it.
@@ -180,7 +177,7 @@ pub fn show(app: &mut DmApp, ui: &mut egui::Ui) {
             let width_id = egui::Id::unique("dm-list-width");
             // A person's widths are for the text size they were dragged at:
             // kept at another, Status and all after it were out of view at
-            // 140% (UI round 11), so the list fits itself again.
+            // 140%, so the list fits itself again.
             let zoom_id = egui::Id::unique("dm-columns-zoom");
             let zoom = ui.ctx().zoom_factor();
             let zoom_before = ui.data_mut(|d| d.get_persisted::<f32>(zoom_id));
@@ -204,16 +201,15 @@ pub fn show(app: &mut DmApp, ui: &mut egui::Ui) {
                 .scroll_bar_visibility(egui::scroll_area::ScrollBarVisibility::AlwaysHidden)
                 // One memory of the widths, whatever the window's width or
                 // whether a row has a queue: one per case lost a width a
-                // person dragged as soon as either changed (round 16).
+                // person dragged as soon as either changed.
                 .id_salt("list")
                 // Clear of the sideways bar along the list's foot: the last
-                // row seen, its bar and the focus ring lay under it (UI
-                // round 6).
+                // row seen, its bar and the focus ring lay under it.
                 .max_scroll_height(body_room)
                 // Never taller than the room, either: the table's own least
                 // height is 200 points, and in less (large text, the Place
                 // drop-down above) its last rows ran under the status bar
-                // and could never be scrolled to (UI round 15).
+                // and could never be scrolled to.
                 .min_scrolled_height(body_room.min(200.0))
                 .striped(striped)
                 .resizable(true)
@@ -224,7 +220,7 @@ pub fn show(app: &mut DmApp, ui: &mut egui::Ui) {
             for (n, column) in columns.iter().enumerate() {
                 // The last takes what is left, but never less than its own
                 // width: Folder was left 80 px and read "/home/p/d…" in a
-                // maximized window (round 13); the list scrolls sideways.
+                // maximized window; the list scrolls sideways.
                 table = table.column(if n + 1 == columns.len() {
                     Width::remainder().at_least(initial(*column)).clip(true)
                 } else if *column == Column::Name {
@@ -275,7 +271,7 @@ pub fn show(app: &mut DmApp, ui: &mut egui::Ui) {
                 })
                 .body(|mut body| {
                     // What of the list can be seen: the focus ring is kept
-                    // inside it, and Page Up and Down move by it (gaps 147, 148).
+                    // inside it, and Page Up and Down move by it.
                     let seen = body.ui_mut().clip_rect();
                     list_clip = Some(seen);
                     body.rows(row_height, rows.len(), |mut row| {
@@ -324,8 +320,7 @@ pub fn show(app: &mut DmApp, ui: &mut egui::Ui) {
                         }
                         // While a question waits, the list behind it takes
                         // no clicks: a row selected or opened under the
-                        // Remove question was not the one it removed
-                        // (round 15).
+                        // Remove question was not the one it removed.
                         if asking {
                             return;
                         }
@@ -339,8 +334,7 @@ pub fn show(app: &mut DmApp, ui: &mut egui::Ui) {
                             menu = Some(i);
                         }
                         // Not where a column's edge is: a quick press and
-                        // drag there to resize took the row along (UI
-                        // round 11).
+                        // drag there to resize took the row along.
                         let on_edge = response
                             .ctx
                             .input(|i| i.pointer.press_origin())
@@ -359,7 +353,7 @@ pub fn show(app: &mut DmApp, ui: &mut egui::Ui) {
                             .id(response.id.with("key-menu"))
                             // Under the part of the row that can be seen:
                             // under the whole row, which runs past the
-                            // window, it opened over the places (UI round 5).
+                            // window, it opened over the places.
                             .anchor(egui::PopupAnchor::ParentRect(response.rect.intersect(seen)))
                             // Below the row, else above it: where neither
                             // fitted, egui put it at the row's left, over
@@ -372,7 +366,7 @@ pub fn show(app: &mut DmApp, ui: &mut egui::Ui) {
                     });
                 });
             // Each column's edge named for a screen reader, which found nine
-            // handles with no name (UI round 9).
+            // handles with no name.
             for (i, column) in columns.iter().enumerate() {
                 let said = crate::i18n::tf("Width of the {} column", &[&column.title()]);
                 ui.ctx()
@@ -456,11 +450,11 @@ pub fn show(app: &mut DmApp, ui: &mut egui::Ui) {
         let files = files_to_drag(app, &rows, i);
         // A row with no file to carry is dragged to another place in the
         // queue instead, where the list is in the queue's order: sorted by
-        // a column, a place in it means nothing (gap 50).
+        // a column, a place in it means nothing.
         if files.is_empty() && app.sort.is_none() {
             app.reordering = rows.get(i).map(|r| r.id);
         } else if files.is_empty() {
-            // Said, rather than the drag doing nothing (UI round 6).
+            // Said, rather than the drag doing nothing.
             app.said = crate::i18n::Said::new(
                 "The list is sorted by a column: click its heading until the arrow goes, then drag to reorder.",
                 &[],
@@ -475,7 +469,7 @@ pub fn show(app: &mut DmApp, ui: &mut egui::Ui) {
             app.selected = BTreeSet::from([id]);
         }
         // The keys go on from the row clicked, as after any click: the
-        // ring stayed on the row the arrows had last reached (gap 134).
+        // ring stayed on the row the arrows had last reached.
         app.cursor = Some(id);
         app.anchor = Some(id);
     }
@@ -507,7 +501,7 @@ fn reorder(app: &mut DmApp, ui: &egui::Ui, clip: Option<egui::Rect>) {
         return;
     };
     let (at, down) = ui.input(|i| (i.pointer.interact_pos(), i.pointer.primary_down()));
-    // Escape lets go without moving it, as with any drag (UI round 7).
+    // Escape lets go without moving it, as with any drag.
     if ui.input_mut(|i| i.consume_key(egui::Modifiers::NONE, egui::Key::Escape)) {
         app.reordering = None;
         return;
@@ -538,7 +532,7 @@ fn reorder(app: &mut DmApp, ui: &egui::Ui, clip: Option<egui::Rect>) {
                     egui::Id::unique("dm-reorder"),
                 ))
                 .with_clip_rect(clip.unwrap_or(rect));
-            // Thick enough to be seen as the place it goes (UI round 6).
+            // Thick enough to be seen as the place it goes.
             painter.hline(rect.x_range(), y, egui::Stroke::new(3.0, tokens.progress()));
         }
         return;
@@ -575,8 +569,7 @@ fn files_to_drag(app: &DmApp, rows: &[Entry], i: usize) -> Vec<std::path::PathBu
 /// How wide the file name starts in `room`: its 220 points where the
 /// columns up to Speed fit beside it, else up to Time left, else up to
 /// Status, giving way for the first of these that leaves it 120. At the
-/// window's first size Time left read "Time le" and its numbers one digit
-/// (QA loop 1, bug 3).
+/// window's first size Time left read "Time le" and its numbers one digit.
 pub fn name_width(columns: &[Column], room: f32) -> f32 {
     let beside = |through: Column| -> Option<f32> {
         let last = columns.iter().position(|c| *c == through)?;
@@ -603,13 +596,13 @@ pub fn name_width(columns: &[Column], room: f32) -> f32 {
 fn initial(column: Column) -> f32 {
     match column {
         Column::Name => 220.0,
-        // Room for "Main queue" (60 read "Main q…", UI round 6), and one
+        // Room for "Main queue" (60 read "Main q…"), and one
         // width whether or not a row has a queue yet: it started at 96 in
         // an empty list and 140 in one with a queue, so a relaunch moved
-        // every column after it and cut "Time left" (UI round 11).
+        // every column after it and cut "Time left".
         Column::Queue => 116.0,
         Column::Size => 76.0,
-        // "Waiting for Start queue" whole, with its shape (UI round 6).
+        // "Waiting for Start queue" whole, with its shape.
         Column::Status => 196.0,
         Column::TimeLeft => 88.0,
         Column::Rate => 92.0,
@@ -704,7 +697,7 @@ fn cell(
             }
             if !folder.is_empty() {
                 // A cell cut short shows its whole text on hover by itself;
-                // a tooltip of our own drew the path twice (round 13).
+                // a tooltip of our own drew the path twice.
                 let drawn = ui.label(&*crate::bidi::visual(&folder));
                 crate::bidi::said_as(&drawn, &folder);
             }
@@ -726,14 +719,13 @@ fn header_only(app: &mut DmApp, ui: &mut egui::Ui) {
     egui::ScrollArea::horizontal()
         .id_salt("headings-sideways")
         // With no rows, a bar right under the headings looked like a
-        // stray line (UI round 7); there is nothing to scroll to.
+        // stray line; there is nothing to scroll to.
         .scroll_bar_visibility(egui::scroll_area::ScrollBarVisibility::AlwaysHidden)
         .show(ui, |ui| {
             ui.horizontal(|ui| {
                 // Each heading in its column's own width, as over a list
                 // with rows: laid end to end, a number heading's right
-                // alignment took all the room left and the rest vanished
-                // (UI round 2).
+                // alignment took all the room left and the rest vanished.
                 let tall = ui.spacing().interact_size.y;
                 for column in app.column_order.clone() {
                     if !app.hidden_columns.contains(&column) {
@@ -775,12 +767,12 @@ fn heading(app: &mut DmApp, ui: &mut egui::Ui, column: Column) {
     } else {
         text.strong()
     };
-    // Over the right edge where the numbers under it are (UI round 1).
+    // Over the right edge where the numbers under it are.
     let numbers = matches!(column, Column::Size | Column::TimeLeft | Column::Rate);
     let response = if numbers {
         ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-            // Clear of the next column's heading, which it ran into (UI
-            // round 5); the numbers under it keep the same gap.
+            // Clear of the next column's heading, which it ran into;
+            // the numbers under it keep the same gap.
             ui.add_space(NUMBER_GAP);
             ui.add(egui::Button::new(text).frame(false))
         })
@@ -940,7 +932,7 @@ fn row_menu(app: &mut DmApp, ui: &mut egui::Ui) {
         Command::RemoveFromQueue.title(),
     );
     // Its place in the queue, from the row itself: only the File menu had
-    // them (UI round 12).
+    // them.
     menu_item(app, ui, Command::MoveUp, Command::MoveUp.title());
     menu_item(app, ui, Command::MoveDown, Command::MoveDown.title());
     ui.separator();
@@ -948,7 +940,7 @@ fn row_menu(app: &mut DmApp, ui: &mut egui::Ui) {
 }
 
 fn menu_item(app: &mut DmApp, ui: &mut egui::Ui, command: Command, label: &str) {
-    // "…" where it opens a dialog, as in the menu bar (UI round 11), said
+    // "…" where it opens a dialog, as in the menu bar, said
     // by its name alone.
     let shown = if command.asks_more() && !label.ends_with('…') {
         format!("{label}…")
@@ -988,7 +980,7 @@ thread_local! {
     /// Finished rows whose path a row finished since also wrote: the
     /// file there is that one's. A row whose file was deleted turned
     /// "Complete" again when the same address was downloaded anew under
-    /// its old name (QA loop 2).
+    /// its old name.
     static SUPERSEDED: std::cell::RefCell<std::collections::HashSet<dm_core::Id>> =
         std::cell::RefCell::new(std::collections::HashSet::new());
 }
@@ -1022,7 +1014,7 @@ pub fn set_superseded(rows: &[Entry]) {
 
 /// Lays `add` out against the cell's right edge.
 /// Text with digits of one width, so numbers line up down a column and
-/// do not jitter as they change (gap 48).
+/// do not jitter as they change.
 pub fn digits(ui: &egui::Ui, text: impl Into<String>) -> egui::RichText {
     egui::RichText::new(text).family(crate::theme::numbers(ui.ctx()))
 }
@@ -1053,13 +1045,13 @@ fn glyph_of(entry: &Entry) -> Glyph {
     match &entry.state {
         State::Running => Glyph::Running,
         State::Failed(_) => Glyph::Failed,
-        // A tick beside "File missing" said all was well (UI round 9).
+        // A tick beside "File missing" said all was well.
         State::Completed if gone(entry) => Glyph::Cancelled,
         State::Completed => Glyph::Done,
         State::Cancelled => Glyph::Cancelled,
         State::Queued => Glyph::Waiting,
         // Waiting for the schedule, or added for later and waiting for its
-        // queue: a clock, not the pause of one a person stopped (round 16).
+        // queue: a clock, not the pause of one a person stopped.
         State::Paused if entry.paused_by_schedule || crate::app::waits_for_its_queue(entry) => {
             Glyph::Waiting
         }
@@ -1105,7 +1097,7 @@ fn draw_glyph(ui: &mut egui::Ui, glyph: Glyph, colour: egui::Color32) {
             p.line_segment([c + egui::vec2(2.0, -2.0), c + egui::vec2(-2.0, 2.0)], line);
         }
         // A circle struck through: stopped for good, not paused (it drew
-        // the pause shape, UI round 3).
+        // the pause shape).
         Glyph::Cancelled => {
             p.circle_stroke(c, 5.0, line);
             p.line_segment([c + egui::vec2(-3.5, 3.5), c + egui::vec2(3.5, -3.5)], line);
@@ -1161,7 +1153,7 @@ fn status_cell(ui: &mut egui::Ui, entry: &Entry, held: Option<&str>, selected: b
         ui.with_layout(layout, |ui| {
             // Words and bar inside the 32 px row: with the window's 8 px
             // between them and 4 above, the bar fell past the row's edge
-            // and was never drawn (Fluent QA, 2026-10-20).
+            // and was never drawn.
             if bar {
                 ui.spacing_mut().item_spacing.y = 3.0;
                 ui.add_space(1.0);
@@ -1173,14 +1165,13 @@ fn status_cell(ui: &mut egui::Ui, entry: &Entry, held: Option<&str>, selected: b
                     // what the engine said.
                     // The engine's words named as such, under the plain
                     // ones: two lines saying the same, one in lowercase,
-                    // read as a mistake (UI round 17).
+                    // read as a mistake.
                     // The reason in the row itself, as far as the column
                     // shows it: "Error" alone sent a person hovering to
-                    // learn that the disk was full (QA loop 1, bug 2).
+                    // learn that the disk was full.
                     // Without "Error: ", which the red mark before it says:
                     // the reason's own words reach the column's edge first
-                    // ("Error: the server has no file …" lost the 404, QA
-                    // loop 2). The whole of it, "Error:" too, on hover.
+                    // ("Error: the server has no file …" lost the 404). The whole of it, "Error:" too, on hover.
                     let lead = crate::i18n::fill(t("Error: {}"), &[&""]);
                     let short = text.strip_prefix(lead.as_str()).unwrap_or(&text);
                     let short = crate::format::titled(short);
@@ -1190,7 +1181,7 @@ fn status_cell(ui: &mut egui::Ui, entry: &Entry, held: Option<&str>, selected: b
                         None => text.clone(),
                     };
                     // One tooltip: egui's own for cut words stood over this
-                    // one, saying the same (QA loop 2).
+                    // one, saying the same.
                     ui.add(
                         egui::Label::new(words)
                             .truncate()
@@ -1218,7 +1209,7 @@ fn status_cell(ui: &mut egui::Ui, entry: &Entry, held: Option<&str>, selected: b
                         .on_hover_text(format!("{} is no longer there", entry.path));
                 }
                 // Cut with "…" where the column is narrow, the whole on hover:
-                // clipped, "Waiting for Sta" ended mid-word (UI round 1).
+                // clipped, "Waiting for Sta" ended mid-word.
                 _ => {
                     ui.add(egui::Label::new(digits(ui, text)).truncate());
                 }
@@ -1228,7 +1219,7 @@ fn status_cell(ui: &mut egui::Ui, entry: &Entry, held: Option<&str>, selected: b
                 let (track, response) =
                     ui.allocate_exact_size(egui::vec2(width, 3.0), egui::Sense::hover());
                 // A bar a screen reader reads too, with how far it has come
-                // (it was paint alone, gap 48); the row around it names the
+                // (it was paint alone); the row around it names the
                 // file.
                 response.widget_info(|| {
                     let mut info = egui::WidgetInfo::labeled(
@@ -1255,7 +1246,7 @@ fn status_cell(ui: &mut egui::Ui, entry: &Entry, held: Option<&str>, selected: b
 mod tests {
     use super::*;
 
-    /// Gap 125: in a narrow window the name gives way so Status fits.
+    /// In a narrow window the name gives way so Status fits.
     #[test]
     fn the_name_gives_way_first_in_a_narrow_window() {
         let columns = Column::ALL.to_vec();
@@ -1263,7 +1254,7 @@ mod tests {
         let narrow = name_width(&columns, 600.0);
         assert!((120.0..220.0).contains(&narrow), "{narrow}");
         // The window's first size: Time left and Speed whole beside the
-        // name (gap 83: Speed was off to the right).
+        // name (Speed was off to the right).
         let first = name_width(&columns, 730.0);
         let through_speed: f32 = [Column::Size, Column::Status, Column::TimeLeft, Column::Rate]
             .iter()
@@ -1279,7 +1270,7 @@ mod tests {
         assert_eq!(name_width(&columns, 200.0), 120.0, "never under 120");
     }
 
-    /// Gap 117: the arrow keys, Home and End move the selection, and Shift
+    /// The arrow keys, Home and End move the selection, and Shift
     /// extends it from where it started.
     #[test]
     fn the_arrow_keys_move_the_selection_and_shift_extends_it() {

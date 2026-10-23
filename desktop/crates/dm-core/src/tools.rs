@@ -103,8 +103,7 @@ pub enum Tool {
     YtDlp,
     /// The JavaScript engine yt-dlp answers a site's player challenges
     /// with; without one, YouTube gives it too little to download. QuickJS:
-    /// 1–3 MB where Deno is 85, and the same formats at the same speed
-    /// (measured 2026-10-22).
+    /// 1–3 MB where Deno is 85, and the same formats at the same speed.
     QuickJs,
 }
 

@@ -255,7 +255,7 @@ proptest! {
         std::env::var("PROPTEST_CASES").ok().and_then(|c| c.parse().ok()).unwrap_or(256)
     ))]
 
-    /// Gap 162: an address comes out of plain text, a `.url` file, a
+    /// An address comes out of plain text, a `.url` file, a
     /// `.webloc` plist and a page's `<a href>` exactly as it went in —
     /// its query string, `=` and `&` and all.
     #[test]

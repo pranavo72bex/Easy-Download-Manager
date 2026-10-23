@@ -50,7 +50,7 @@ pub fn entry(program: &Path) -> String {
 /// The name dm's icon is installed under: `dm` by the .rpm and Arch
 /// packages, `dm-desktop` (the binary's name) by the .deb. The entry named
 /// `dm` on every system, and a startup-applications list showed the .deb's
-/// without an icon (round 12). `dm` where neither is found (an AppImage).
+/// without an icon. `dm` where neither is found (an AppImage).
 pub fn icon_in(data_dirs: &[PathBuf]) -> &'static str {
     let has = |name: &str| {
         data_dirs.iter().any(|dir| {
@@ -157,7 +157,7 @@ pub fn may_claim() -> bool {
 
 /// Why `exe` may not be the login item's program, if it may not: on macOS a
 /// copy in a folder browsers and launchd are kept out of (Downloads,
-/// Desktop, Documents: the same rule as the browsers' manifests, gap 89), a
+/// Desktop, Documents: the same rule as the browsers' manifests), a
 /// disk image or an AppTranslocation copy, gone by the next login.
 pub fn refused_at_login(
     exe: &Path,
@@ -186,8 +186,7 @@ pub fn refused_at_login(
 /// `this` instead. Only when this copy may claim it and the program it
 /// starts is gone — the app moved, or was removed and installed elsewhere.
 /// Not merely because it differs: two installed copies (a .deb and an
-/// AppImage) would otherwise take it from each other at every launch
-/// (gap 93).
+/// AppImage) would otherwise take it from each other at every launch.
 pub fn takes_over(
     found: &Path,
     this: &Path,
@@ -200,7 +199,7 @@ pub fn takes_over(
 /// Whether `--unregister` of `this` copy removes a login item found
 /// starting `found` (`None`: its program could not be read). Its own, one
 /// whose program is gone, or one it cannot read; not another copy's that is
-/// still there, which uninstalling this one should not take away (gap 91).
+/// still there, which uninstalling this one should not take away.
 pub fn removes(found: Option<&Path>, this: &Path, exists: impl FnOnce(&Path) -> bool) -> bool {
     match found {
         None => true,
@@ -356,7 +355,7 @@ pub fn run_value_program(value: &str) -> Option<PathBuf> {
 /// A registry string as the registry API hands it over: UTF-16, little
 /// endian, usually ending in a NUL. Read this way rather than from
 /// `reg query`'s text, which comes in the console's code page and garbled
-/// a user name outside it (gap 99).
+/// a user name outside it.
 pub fn utf16_value(bytes: &[u8]) -> String {
     let units: Vec<u16> = bytes
         .as_chunks::<2>()
@@ -383,7 +382,7 @@ pub enum AtLaunch {
     /// The setting is on, but the person turned the item off outside dm
     /// (Task Manager): left off, and the setting turned off to say so.
     /// `auto-launch` reads such an item as not enabled, and dm used to
-    /// enable it again at every launch, over the person's choice (gap 96).
+    /// enable it again at every launch, over the person's choice.
     TurnedOffOutside,
 }
 
@@ -397,7 +396,7 @@ pub fn at_launch(wanted: bool, turned_off_outside: bool) -> AtLaunch {
     }
 }
 
-/// The current user's registry, read through its own API (gaps 96, 99).
+/// The current user's registry, read through its own API.
 #[cfg(windows)]
 pub mod registry {
     use windows_sys::Win32::Foundation::{ERROR_MORE_DATA, ERROR_SUCCESS};
@@ -523,7 +522,7 @@ mod tests {
         assert!(!set_at(&path, true, new, false, gone).unwrap());
         assert_eq!(std::fs::read_to_string(&path).unwrap(), entry(old));
 
-        // Gap 93: another installed copy that is still there keeps it, so
+        // Another installed copy that is still there keeps it, so
         // two copies do not take it from each other at every launch.
         assert!(!set_at(&path, true, new, true, |_| true).unwrap());
         assert_eq!(std::fs::read_to_string(&path).unwrap(), entry(old));
@@ -542,7 +541,7 @@ mod tests {
         assert!(!set_at(&path, false, Path::new(""), true, gone).unwrap());
     }
 
-    /// Gap 91: uninstalling one copy leaves another copy's login item.
+    /// Uninstalling one copy leaves another copy's login item.
     #[test]
     fn unregister_removes_only_this_copys_entry_or_a_dead_one() {
         let dir = tempfile::tempdir().unwrap();
@@ -609,7 +608,7 @@ mod tests {
         assert_eq!(run_value_program("  "), None);
     }
 
-    /// Gap 99: the Run value is read as UTF-16, so a user name outside the
+    /// The Run value is read as UTF-16, so a user name outside the
     /// console's code page comes back whole.
     #[test]
     fn a_registry_string_is_decoded_from_utf16_whatever_the_user_is_called() {
@@ -628,7 +627,7 @@ mod tests {
         assert_eq!(utf16_value(&[0x61]), "", "an odd byte is not half a letter");
     }
 
-    /// Gap 96: an item Task Manager turned off is left off, and the setting
+    /// An item Task Manager turned off is left off, and the setting
     /// follows it; one turned on, or never touched there, follows the
     /// setting.
     #[test]
@@ -659,7 +658,7 @@ mod tests {
         assert!(takes_over(other, this, true, |_| false));
     }
 
-    /// Gap 89: a copy run from ~/Downloads (not quarantined, so not
+    /// A copy run from ~/Downloads (not quarantined, so not
     /// translocated) may not become the login item's program.
     #[test]
     fn a_copy_in_a_protected_folder_or_a_disk_image_is_refused_at_login_on_macos() {

@@ -83,7 +83,7 @@ async fn a_page_named_as_a_document_is_saved_when_yt_dlp_does_not_know_the_site(
     assert_eq!(std::fs::read(&done.path).unwrap(), PAGE.as_bytes());
 
     // Asked for as media (the browser's panel or media menu), the page is
-    // not saved as its HTML in place of the video (UI round 9).
+    // not saved as its HTML in place of the video.
     let media = dm_core::Options {
         media: true,
         ..options(&dir.path().join("media"))

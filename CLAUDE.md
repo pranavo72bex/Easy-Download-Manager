@@ -256,7 +256,7 @@ and is not carried over.
       back or ends it, a left click on the icon shows it, and on
       macOS the Dock icon reopens it. Cmd+Q still quits. On Wayland a program
       cannot hide its own window, so closing minimizes it and the task
-      manager restores it, not the tray's Show (gap 265): checked under sway
+      manager restores it, not the tray's Show: checked under sway
       and under KWin 6.8.1 in Docker, not on a real KDE session. One dm at a time: a
       lock under dm's home says it is running, so a browser hand-off no
       longer starts a second copy beside the first, and a second launch by
@@ -325,8 +325,8 @@ and is not carried over.
       against the real binary in `app-check.py`
 - [x] Command line — `dm-desktop list|status|pause|resume|cancel [--json]`
       against a running dm (`--control`), another client of the same control
-      protocol; exit codes 0, 1, 2 and 3; nothing private printed. Not yet:
-      finding a dm that was started without `--control` (gap 260)
+      protocol; exit codes 0, 1, 2 and 3; nothing private printed. Found by
+      `--control` or by Options › General › Let the command line…
 - [x] Network failure tests
 - [x] Resume tests
 - [x] Concurrent download tests
@@ -448,6 +448,12 @@ of them.
       leave the folder, links, devices, passwords, repeated names, size and
       ratio limits), always a new folder, the archive kept, nothing run.
       Deflate and Stored only
+- [x] Watched folder — Options › Downloads: links saved there (`.url`,
+      `.webloc`, text, `.torrent`) are added and the file moved to `done`
+      (`app/watch.rs`)
+- [x] Site rules — a folder and a speed limit per site, applied when a row is
+      added by any way in (`Settings::with_site_rule`)
+- [x] Properties: SHA-256 and a digest check; Move/Rename by a pattern
 - [x] Recording time limit — Options › Downloads stops a live recording after
       a set number of minutes and keeps what it has (`Options::record_limit`)
 - [x] RTMP, RTSP and MMS streams — client (`live.rs`): RTMP and RTMPS by dm's own client (`rtmp.rs`), RTSP
