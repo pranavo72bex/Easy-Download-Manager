@@ -640,5 +640,10 @@
  "Open {} with…": "Открыть {} с помощью…",
  "Don't show this window again": "Больше не показывать это окно",
  "Download complete will not open again; turn it back on in Options › General.": "Окно «Загрузка завершена» больше не откроется; включить снова можно в Параметры › Общие.",
- "the file is too large for this drive, which holds no file over 4 GB (FAT32): choose a folder on another drive": "Файл слишком велик для этого диска, который не вмещает файлы больше 4 ГБ (FAT32): выберите папку на другом диске"
+ "the file is too large for this drive, which holds no file over 4 GB (FAT32): choose a folder on another drive": "Файл слишком велик для этого диска, который не вмещает файлы больше 4 ГБ (FAT32): выберите папку на другом диске",
+ "Extract here": "Извлечь сюда",
+ "Extracting…": "Извлечение…",
+ "Extract to…": "Извлечь в…",
+ "There is no folder chooser here: use Extract here": "Здесь нет выбора папки: используйте «Извлечь сюда»",
+ "Stop recording a live stream after, minutes (0 records until it ends)": "Остановить запись прямой трансляции через, минут (0 — писать до конца)"
 }

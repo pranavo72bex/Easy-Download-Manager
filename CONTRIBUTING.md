@@ -36,7 +36,8 @@ cd .. && sh scripts/package.sh     # builds dist/chrome and dist/firefox
 ```
 
 `docs/how-it-works.md` explains how the app and the extension fit together
-and how to load the extension unpacked.
+and how to load the extension unpacked. `docs/testing.md` lists every check
+and how to run it, including on Linux in Docker.
 
 ### Logins and secrets in tests
 
@@ -58,7 +59,7 @@ Actions secrets only (docs/RELEASING.md).
   `panic!` in shipped code. Anything that reads a server's reply, a file or
   a message returns an error instead.
 - **The docs it touches.** If you change what dm does, update the line in
-  `docs/parity.md` (and `CLAUDE.md`'s checklist) that describes it.
+  `docs/parity.md` (and the checklist in `CLAUDE.md`) that describes it.
 - **Your own work.** Do not copy code, text, artwork or layouts from other
   download managers or other products. dm is written from scratch.
 - **Privacy.** dm sends nothing anywhere except the downloads a person asks

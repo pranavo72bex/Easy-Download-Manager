@@ -7,9 +7,10 @@
 //!
 //! Each range is its own session: `REST` sets where `RETR` starts, and a
 //! range that ends before the file does is cut off by closing both
-//! connections, which is how FTP stops a transfer early. The part files and
-//! the plan beside them work as they do for HTTP, so a pause resumes and a
-//! resume keeps the plan it started with.
+//! connections, which is how FTP stops a transfer early. Each range has a
+//! part file of its own, and the plan is written beside them as an HTTP
+//! download's is, so a pause resumes and a resume keeps the plan it started
+//! with.
 //!
 //! `ftps://` is FTP over TLS: on port 990, as such an address means unless
 //! it names another, the connection is TLS from its first byte; on any
@@ -147,7 +148,8 @@ struct Target {
     trust: Trust,
 }
 
-/// A proxy, as the settings hand it to tools: `socks5://`, the user and password, `@`, then host and port.
+/// A proxy, as the settings hand it to tools: its scheme (`socks5h://`,
+/// `http://` …), the user and password, `@`, then host and port.
 #[derive(Debug, Clone, PartialEq, Eq)]
 struct Route {
     kind: crate::proxy::Kind,

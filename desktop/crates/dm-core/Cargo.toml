@@ -52,6 +52,7 @@ cbc = { version = "0.2.1", features = ["block-padding", "alloc"] }
 librqbit = { version = "9.0.1", default-features = false, features = ["rust-tls"] }
 tokio-util = "0.7"
 dirs = "7.0.0"
+zip = { version = "8", default-features = false, features = ["deflate"] }
 
 # `killpg`, to end yt-dlp's process group without running a `kill` program
 # that a minimal `PATH` may not find. Already in the tree through tokio.

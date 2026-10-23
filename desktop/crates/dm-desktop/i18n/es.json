@@ -640,5 +640,10 @@
  "Open {} with…": "Abrir {} con…",
  "Don't show this window again": "No volver a mostrar esta ventana",
  "Download complete will not open again; turn it back on in Options › General.": "«Descarga completada» no volverá a abrirse; vuelve a activarla en Opciones › General.",
- "the file is too large for this drive, which holds no file over 4 GB (FAT32): choose a folder on another drive": "El archivo es demasiado grande para esta unidad, que no admite archivos de más de 4 GB (FAT32): elige una carpeta en otra unidad"
+ "the file is too large for this drive, which holds no file over 4 GB (FAT32): choose a folder on another drive": "El archivo es demasiado grande para esta unidad, que no admite archivos de más de 4 GB (FAT32): elige una carpeta en otra unidad",
+ "Extract here": "Extraer aquí",
+ "Extracting…": "Extrayendo…",
+ "Extract to…": "Extraer en…",
+ "There is no folder chooser here: use Extract here": "Aquí no hay selector de carpetas: use «Extraer aquí»",
+ "Stop recording a live stream after, minutes (0 records until it ends)": "Detener la grabación de una transmisión en vivo tras, minutos (0 graba hasta que termine)"
 }

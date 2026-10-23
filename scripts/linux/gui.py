@@ -498,6 +498,88 @@ def settings_of(home):
         return {}
 
 
+def extract_and_command_line(home, env):
+    """Extract here, clicked on a real zip's row with the real pointer, and
+    the command line against this same dm: what a tester would do after
+    downloading an archive."""
+    import http.server
+    import threading
+    import zipfile
+
+    print("\nextracting a downloaded zip, and the command line")
+    site = pathlib.Path(tempfile.mkdtemp(prefix="dm-zips-"))
+    with zipfile.ZipFile(site / "good.zip", "w") as z:
+        z.writestr("readme.txt", "hello from the archive")
+        z.writestr("docs/deep/note.txt", "nested")
+    with zipfile.ZipFile(site / "evil.zip", "w") as z:
+        z.writestr("fine.txt", "fine")
+        z.writestr("../escaped.txt", "must never land outside")
+    handler = lambda *a, **k: http.server.SimpleHTTPRequestHandler(*a, directory=str(site), **k)
+    server = http.server.ThreadingHTTPServer(("127.0.0.1", 0), handler)
+    threading.Thread(target=server.serve_forever, daemon=True).start()
+    base = f"http://127.0.0.1:{server.server_address[1]}"
+    try:
+        good = f"{base}/good.zip"
+        check("a zip is downloaded through the window", add_url_by_hand(good) and finished(home, good, 60))
+        path = pathlib.Path((row_of(home, good) or {}).get("path", "/nonexistent"))
+        check("and is on disk", path.exists(), str(path))
+
+        check("right-clicking its row opens the row menu", click_row("good.zip", button="3", seconds=10))
+        check("the menu offers Extract here", bool(wait_for(lambda: where("*", "Extract here"), 5)))
+        check("and Extract to…", bool(where("*", "Extract to…")))
+        check("Extract here, clicked, is picked", click("*", "Extract here", seconds=5))
+        folder = path.with_suffix("")
+        check("the files land in a folder beside the archive",
+              wait_for(lambda: (folder / "docs" / "deep" / "note.txt").exists(), 15), str(folder))
+        check("with their contents", (folder / "readme.txt").read_text() == "hello from the archive"
+              if (folder / "readme.txt").exists() else False)
+        check("the archive is still there", path.exists())
+        said = (ORACLE("ui.inspect") or {}).get("said", "")
+        check("the status line says what was done", said.startswith("Extracted 2 files"), said)
+
+        # Again: a second folder beside the first, nothing replaced.
+        click_row("good.zip", button="3")
+        click("*", "Extract here", seconds=5)
+        check("extracting again makes a second folder and replaces nothing",
+              wait_for(lambda: (path.parent / (folder.name + " (1)") / "readme.txt").exists(), 15))
+
+        # A hostile archive: refused whole, nothing written anywhere.
+        evil = f"{base}/evil.zip"
+        add_url_by_hand(evil)
+        finished(home, evil, 60)
+        epath = pathlib.Path((row_of(home, evil) or {}).get("path", "/nonexistent"))
+        click_row("evil.zip", button="3")
+        click("*", "Extract here", seconds=5)
+        said = wait_for(lambda: (ORACLE("ui.inspect") or {}).get("said", "").startswith("Not extracted") and
+                        (ORACLE("ui.inspect") or {}).get("said"), 15)
+        check("a zip with an entry that leaves its folder is refused, and says so",
+              bool(said) and "leave its folder" in said, str(said))
+        check("no folder is made for it and nothing escaped",
+              not epath.with_suffix("").exists() and not list(home.rglob("escaped.txt"))
+              and not list(pathlib.Path(tempfile.gettempdir()).glob("escaped.txt")))
+
+        # The command line, against this dm (started with --control 0).
+        def cli(*args):
+            return subprocess.run([str(BINARY), *args], env=env, capture_output=True, text=True, timeout=30)
+        listed = cli("list")
+        check("`dm-desktop list` shows the downloads, one a line",
+              listed.returncode == 0 and "good.zip" in listed.stdout and "completed" in listed.stdout,
+              listed.stdout + listed.stderr)
+        table = json.loads(cli("list", "--json").stdout or "[]")
+        row = next((r for r in table if r["name"] == "good.zip"), {})
+        check("`list --json` has the id, state and size", row.get("state") == "completed" and row.get("total"), str(row))
+        check("and nothing private: no cookies, referrer or note",
+              not {"cookies", "referrer", "description"} & set(row))
+        check("`status` says the same for one", json.loads(cli("status", str(row.get("id")), "--json").stdout or "[{}]")[0].get("name") == "good.zip")
+        refused = cli("pause", str(row.get("id")))
+        check("pausing a finished download exits 1 and says why",
+              refused.returncode == 1 and "not running" in refused.stderr, refused.stderr)
+        check("a number that is not there exits 1", cli("status", "999999").returncode == 1)
+        check("a wrong command exits 2", cli("pause").returncode == 2)
+    finally:
+        server.shutdown()
+
+
 def human_session(home, env, app):
     global ORACLE
     """A tester's session, with the real pointer and keyboard: every control
@@ -530,6 +612,9 @@ def human_session(home, env, app):
         path = pathlib.Path((row_of(home, url) or {}).get("path", "/nonexistent"))
         check("and the file lands whole and byte-exact", done and path.exists() and path.read_bytes() == files.body,
               f"{state_of(home, url)} at {path}")
+
+        extract_and_command_line(home, env)
+        settle()
 
         print("\nthe progress window and the completion dialog (turned on in Options)")
         key("ctrl+comma")
@@ -794,9 +879,17 @@ def start_on_login(home, env):
     started, for the caller to end."""
     print("\nstart on login")
     config = home / "config"
-    env = dict(env, XDG_CONFIG_HOME=str(config), XDG_CONFIG_DIRS=str(home / "no-system-autostart"))
-    settings = home / "settings.json"
-    saved = json.loads(settings.read_text())
+    # Without DM_HOME: a dm on a home of its own (a test's, a script's) leaves
+    # the login item alone by design, so that every test's fresh home does not
+    # register one on the computer running it. A real login launch has no
+    # DM_HOME, and keeps its home under XDG_DATA_HOME.
+    saved = json.loads((home / "settings.json").read_text())
+    env = {k: v for k, v in env.items() if k != "DM_HOME"}
+    env = dict(env, XDG_CONFIG_HOME=str(config), XDG_CONFIG_DIRS=str(home / "no-system-autostart"),
+               XDG_DATA_HOME=str(home / "xdg-data"))
+    own = home / "xdg-data" / "dm-engine"
+    own.mkdir(parents=True, exist_ok=True)
+    settings = own / "settings.json"
     settings.write_text(json.dumps(dict(saved, start_on_login=True)))
     entry = config / "autostart" / "dm.desktop"
 

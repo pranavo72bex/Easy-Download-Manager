@@ -243,8 +243,8 @@ async fn a_server_without_ranges_is_fetched_again_from_the_start() {
                 // The first fetch after the probe dies a quarter of the way in.
                 if n == 1 {
                     let first = bytes::Bytes::copy_from_slice(&d[..50_000]);
-                    // Spaced out, so the first half reaches the disk before
-                    // the connection dies rather than being lost with it.
+                    // Spaced out, so that quarter reaches the disk before the
+                    // connection dies rather than being lost with it.
                     let s = futures_util::stream::iter(vec![
                         Ok::<_, std::io::Error>(first),
                         Err(std::io::Error::other("dropped")),

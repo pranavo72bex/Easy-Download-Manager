@@ -20,6 +20,7 @@ pub mod autostart;
 pub mod backend;
 pub mod bidi;
 pub mod chrome;
+pub mod cli;
 pub mod commands;
 pub mod control;
 pub mod dialogs;

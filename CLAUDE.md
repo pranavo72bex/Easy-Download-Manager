@@ -1,6 +1,6 @@
 # dm - Development Tasks
 
-Checked against the code on 2026-09-05, not against memory. `[x]` means done
+Checked against the code on 2026-10-23, not against memory. `[x]` means done
 and tested; an unticked box says what is missing rather than nothing.
 
 `desktop/` is the product and does the
@@ -254,7 +254,10 @@ and is not carried over.
 - [x] Lives in the tray — closing the window hides it and the queue keeps
       downloading; a tray icon with Show and Quit brings it
       back or ends it, a left click on the icon shows it, and on
-      macOS the Dock icon reopens it. Cmd+Q still quits. One dm at a time: a
+      macOS the Dock icon reopens it. Cmd+Q still quits. On Wayland a program
+      cannot hide its own window, so closing minimizes it and the task
+      manager restores it, not the tray's Show (gap 265): checked under sway
+      and under KWin 6.8.1 in Docker, not on a real KDE session. One dm at a time: a
       lock under dm's home says it is running, so a browser hand-off no
       longer starts a second copy beside the first, and a second launch by
       hand — or a `.desktop` entry opening a link — hands its links to the
@@ -277,8 +280,10 @@ and is not carried over.
       finished, persisted, filterable and clearable
 
 ## Reliability
-- [x] Unit tests — all Rust: 155 in the desktop workspace and the
-      extension's 24 host tests. There is no JavaScript suite
+- [x] Unit tests — all Rust: the desktop workspace and the extension's host
+      tests (`cargo test --workspace`, `cd browser && cargo test`); there is no
+      JavaScript suite. Counts are not kept here: `docs/scorecard.md`
+      is generated and `docs/testing.md` says how each check is run
 - [x] Integration tests — Rust against a real HTTP server; the extension in
       Chrome for Testing against a real dm (`chrome-check.py`).
       `integrity.rs` holds the cases a 2026-10-11 integrity audit
@@ -318,6 +323,10 @@ and is not carried over.
 - [x] Headless and MCP — `--headless --control 0` runs dm with no window;
       `dm-desktop mcp` gives an AI client dm's commands as tools; both driven
       against the real binary in `app-check.py`
+- [x] Command line — `dm-desktop list|status|pause|resume|cancel [--json]`
+      against a running dm (`--control`), another client of the same control
+      protocol; exit codes 0, 1, 2 and 3; nothing private printed. Not yet:
+      finding a dm that was started without `--control` (gap 260)
 - [x] Network failure tests
 - [x] Resume tests
 - [x] Concurrent download tests
@@ -434,6 +443,13 @@ of them.
       a URL without `.mpd` takes the same route. Each route is pinned by
       `DM_YTDLP` — empty for the refusal, a stand-in that records its
       arguments for the hand-off — so neither can be deleted unnoticed
+- [x] Extract a finished ZIP — Extract here / Extract to… in the row menu
+      (`extract.rs`): every entry judged before any is written (paths that
+      leave the folder, links, devices, passwords, repeated names, size and
+      ratio limits), always a new folder, the archive kept, nothing run.
+      Deflate and Stored only
+- [x] Recording time limit — Options › Downloads stops a live recording after
+      a set number of minutes and keeps what it has (`Options::record_limit`)
 - [x] RTMP, RTSP and MMS streams — client (`live.rs`): RTMP and RTMPS by dm's own client (`rtmp.rs`), RTSP
       through `retina` (`rtsp.rs`), both recorded into a fragmented MP4 that
       plays if cut short (`fmp4.rs`) and rewritten plain at the end; MMS over
@@ -585,7 +601,8 @@ Only stop if the problem genuinely requires information or credentials that you 
 No separate progress log. Keep these current instead:
 
 * Architecture: docs/how-it-works.md and AGENTS.md
-* Completed work: the checklist above, and the Closed table in docs/gaps.md
+* Completed work: the checklist above, CHANGELOG.md and docs/parity.md (a
+  closed gap's row is deleted from docs/gaps.md; git keeps its history)
 * Current task, known bugs and next tasks: docs/gaps.md
 * Important technical decisions, and approaches tried and dropped: docs/decisions.md
 

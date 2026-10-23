@@ -22,8 +22,9 @@ release, and dm says when one is out (About › Check for updates).
 
 dm reads a great deal of input it does not control, so these matter most:
 
-- a server's reply, a playlist, a Metalink or a `.torrent` that writes
-  outside the download folder, or crashes or hangs dm;
+- a server's reply, a playlist, a Metalink, a `.torrent` or a ZIP that writes
+  outside the download folder (or outside the folder dm extracts it into),
+  or crashes or hangs dm;
 - a web page that gets the extension to hand dm something the person did
   not ask for, or to send the browser's cookies where they were not allowed;
 - anything that reaches the native host or the control port (`--control`)

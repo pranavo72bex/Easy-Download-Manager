@@ -1,9 +1,9 @@
 //! The muxers against real encoder output: H.264 with B-frames and AAC,
 //! fragmented as DASH serves them and plain; transport streams of H.264 or
 //! HEVC with AAC, MP3, MP2, AC-3 or E-AC-3; VP9, AV1 and Opus in WebM. The
-//! inputs are small files in `tests/fixtures/media/mp4mux`, made once with
-//! a standard encoder and kept, so every computer runs every case with
-//! nothing installed.
+//! inputs are small files under `tests/fixtures`, made once with a standard
+//! encoder and kept, so every computer runs every case with nothing
+//! installed.
 //!
 //! dm copies samples and never re-encodes them, so a join is judged by
 //! reading its output back with the readers in this file — written for the

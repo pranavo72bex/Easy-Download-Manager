@@ -1,7 +1,7 @@
 //! When to try again, and how long to wait first.
 //!
 //! Retrying is cheap here in a way it is not for most clients: a segment that
-//! fails resumes from the length of its part file, so a second attempt asks
+//! fails resumes from what it already has on disk, so a second attempt asks
 //! only for the bytes the first one did not get. That makes the interesting
 //! question not "can we afford to retry" but "is this worth retrying at all"
 //! — a 404 answered instantly forever is not a download in progress.
@@ -18,8 +18,7 @@ pub const MAX_ATTEMPTS: u32 = 5;
 
 /// Whether trying the same thing again could plausibly work.
 ///
-/// The same rule the JS engine settled on: every 5xx except 501, plus the
-/// three 4xx that mean "later". A shorter hand-written list drops 425, 507,
+/// Every 5xx except 501, plus the three 4xx that mean "later". A shorter hand-written list drops 425, 507,
 /// 509 and Cloudflare's 52x, and a server having a bad day is not an answer.
 pub fn transient(error: &Error) -> bool {
     match error {
@@ -88,7 +87,7 @@ where
 }
 
 /// As [`run_up_to`], with the count started again by any attempt that made
-/// progress, as `progress` measures it (a part file's length). The budget
+/// progress, as `progress` measures it (the bytes on disk). The budget
 /// is for failing to get anywhere: a link that drops every few megabytes,
 /// each drop resumed from where it got to, is a download going well, and
 /// five such drops used to fail a large file part-way.
@@ -167,8 +166,8 @@ where
 /// As [`run`], with the number of attempts a setting rather than a
 /// constant: a person on a link that drops for minutes at a time wants
 /// more than five, and one who asked for "keep trying" (zero) wants no
-/// end but a pause or a cancel. The backoff stops growing at eight
-/// seconds, so an endless retry asks about seven times a minute.
+/// end but a pause or a cancel. The backoff stops growing at half a
+/// minute, so an endless retry asks about twice a minute.
 pub async fn run_up_to<F, Fut, T>(
     control: &Control,
     attempts: impl Into<Tries>,

@@ -24,8 +24,8 @@ use common::{options, serve, tempdir};
 
 #[tokio::test(flavor = "multi_thread")]
 async fn a_page_is_handed_to_ytdlp_and_the_file_is_placed() {
-    if !ytdlp::available() {
-        eprintln!("no yt-dlp installed — skipping the yt-dlp end-to-end test");
+    if !ytdlp::usable() {
+        eprintln!("no usable yt-dlp installed — skipping the yt-dlp end-to-end test");
         return;
     }
 
@@ -76,8 +76,8 @@ async fn a_page_is_handed_to_ytdlp_and_the_file_is_placed() {
 /// arrives, joined by dm where yt-dlp leaves the two halves apart.
 #[tokio::test(flavor = "multi_thread")]
 async fn a_picture_and_sound_served_apart_arrive_as_one_mp4() {
-    if !ytdlp::available() {
-        eprintln!("no yt-dlp installed — skipping the yt-dlp end-to-end test");
+    if !ytdlp::usable() {
+        eprintln!("no usable yt-dlp installed — skipping the yt-dlp end-to-end test");
         return;
     }
     let fixtures = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/mp4");
@@ -141,8 +141,8 @@ async fn a_picture_and_sound_served_apart_arrive_as_one_mp4() {
 /// is. The stream is the one kept beside the tests.
 #[tokio::test(flavor = "multi_thread")]
 async fn an_hls_stream_yt_dlp_saved_as_ts_is_made_a_real_mp4() {
-    if !ytdlp::available() {
-        eprintln!("no yt-dlp installed — skipping the yt-dlp end-to-end test");
+    if !ytdlp::usable() {
+        eprintln!("no usable yt-dlp installed — skipping the yt-dlp end-to-end test");
         return;
     }
     let folder =

@@ -1,9 +1,8 @@
 //! What the app does around its window: how it starts, how it takes a
 //! browser's hand-off, how a settings change is put into force.
 //!
-//! Each of these was a function in the Tauri shell's `main.rs`, and each is
-//! as true of any other window. Moved here so the egui window and the Tauri
-//! one cannot disagree about any of it.
+//! None of it depends on how the window is drawn, so it lives here rather
+//! than in the egui window's crate, and a test can drive it with no window.
 
 use std::path::{Path, PathBuf};
 
@@ -855,9 +854,6 @@ pub fn open_with(path: &str, app: &Path) -> Result<(), String> {
         .map_err(|e| format!("{} could not be started: {e}", app.display()))
 }
 
-/// Takes downloads the browser left for us, and a second launch's request
-/// to be shown, for as long as the app runs.
-///
 /// The inbox file that asks a running dm to end.
 pub const QUIT: &str = "quit";
 
@@ -873,6 +869,9 @@ pub fn ask_running_to_quit(home: &Path) -> std::io::Result<bool> {
     Ok(true)
 }
 
+/// Takes downloads the browser left for us, and a second launch's request
+/// to be shown, for as long as the app runs.
+///
 /// Polled rather than watched: a filesystem notifier is another dependency
 /// and another set of platform differences, for a directory that sees a
 /// handful of files a day.
@@ -896,8 +895,8 @@ pub async fn watch_inbox(
         if std::fs::remove_file(dir.join(QUIT)).is_ok() {
             quit();
         }
-        // A second dm, launched by hand while this one was in the tray,
-        // leaves this instead of opening a second window.
+        // Left by a second launch instead of opening a second window, and
+        // by the browser's toolbar button.
         if std::fs::remove_file(dir.join("show")).is_ok() {
             show();
         }
@@ -929,11 +928,12 @@ pub async fn watch_inbox(
             }
 
             match serde_json::from_str::<host::Request>(&text) {
-                // add_from, not add: the engine needs the page as Referer
-                // or a hotlink-protected file 403s in the app where the
-                // browser's own download would have worked.
-                // A video from the browser's panel: the window asks first.
+                // A video from the browser's panel, or any hand-off while the
+                // window waits for one: the window asks first.
                 Ok(request) if request.ask || routed_to_window() => ask(request),
+                // With the page as Referer (`add_options`): without it a
+                // hotlink-protected file 403s in the app where the browser's
+                // own download would have worked.
                 Ok(request) => {
                     let url = host::saved(&settings::home()).with_login(&request.url);
                     queue.add_with(&url, add_options(&request)).await;

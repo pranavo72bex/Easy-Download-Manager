@@ -913,6 +913,8 @@ fn row_menu(app: &mut DmApp, ui: &mut egui::Ui) {
         Command::OpenWith,
         Command::Preview,
         Command::OpenFolder,
+        Command::ExtractHere,
+        Command::ExtractTo,
         Command::MoveRename,
         Command::Redownload,
     ] {

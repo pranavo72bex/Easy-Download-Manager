@@ -640,5 +640,10 @@
  "Open {} with…": "用其他方式打开 {}…",
  "Don't show this window again": "不再显示此窗口",
  "Download complete will not open again; turn it back on in Options › General.": "“下载完成”窗口将不再打开；可在 选项 › 常规 中重新开启。",
- "the file is too large for this drive, which holds no file over 4 GB (FAT32): choose a folder on another drive": "文件太大，此驱动器（FAT32）无法存放超过 4 GB 的文件：请选择另一个驱动器上的文件夹"
+ "the file is too large for this drive, which holds no file over 4 GB (FAT32): choose a folder on another drive": "文件太大，此驱动器（FAT32）无法存放超过 4 GB 的文件：请选择另一个驱动器上的文件夹",
+ "Extract here": "解压到此处",
+ "Extracting…": "正在解压…",
+ "Extract to…": "解压到…",
+ "There is no folder chooser here: use Extract here": "此处没有文件夹选择器：请使用“解压到此处”",
+ "Stop recording a live stream after, minutes (0 records until it ends)": "直播录制多少分钟后停止（0 为录到结束）"
 }

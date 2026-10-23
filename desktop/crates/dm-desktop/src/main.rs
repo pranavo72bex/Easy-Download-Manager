@@ -261,6 +261,10 @@ struct Window {
     /// The window is in the tray: nothing is drawn, and dm wakes only as
     /// often as its timers need.
     hidden: bool,
+    /// The window is on a Wayland display, where a window cannot be hidden
+    /// or unminimized by its own program (winit's `set_visible` does
+    /// nothing there). Learnt from the first frame's display handle.
+    wayland: bool,
     /// Set by a second launch through the inbox, or a click on the Dock
     /// icon, asking for the window back.
     show_asked: Arc<AtomicBool>,
@@ -319,6 +323,15 @@ impl Window {
             self.hidden_at = Some(rect.min);
         }
         self.hidden_maximized = ctx.input(|i| i.viewport().maximized.unwrap_or(false));
+        if self.wayland {
+            // `Visible(false)` does nothing on Wayland, and marking the
+            // window hidden stopped it drawing while the compositor still
+            // showed it: a frozen ghost that could only be killed (KDE
+            // Plasma 6, AppImage). The compositor hides a minimized window
+            // itself and the task manager brings it back; dm keeps drawing.
+            ctx.send_viewport_cmd(egui::ViewportCommand::Minimized(true));
+            return;
+        }
         ctx.send_viewport_cmd(egui::ViewportCommand::Visible(false));
         self.hidden = true;
     }
@@ -337,7 +350,16 @@ impl eframe::App for Window {
 
     /// Runs while the window is hidden too, which is what lets the tray and
     /// a second launch bring it back.
-    fn logic(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
+    fn logic(&mut self, ctx: &egui::Context, frame: &mut eframe::Frame) {
+        #[cfg(target_os = "linux")]
+        {
+            use raw_window_handle::{HasDisplayHandle, RawDisplayHandle};
+            self.wayland = frame
+                .display_handle()
+                .is_ok_and(|h| matches!(h.as_raw(), RawDisplayHandle::Wayland(_)));
+        }
+        #[cfg(not(target_os = "linux"))]
+        let _ = frame;
         self.tick(ctx);
     }
 
@@ -1391,6 +1413,9 @@ Other commands:
   --register [ID]    connect dm to the installed browsers (ID: an extension id)
   --unregister       disconnect dm from the browsers and remove its login item
   mcp                serve dm's commands to an AI client (Model Context Protocol)
+  list [--json]      what dm is downloading (dm must run with --control 0)
+  status ID          one download
+  pause|resume|cancel ID…   act on downloads by their numbers from `list`
   --version          print dm's version
   --help             print this
 
@@ -1434,6 +1459,13 @@ fn main() {
         attach_console();
         print!("{USAGE}");
         return;
+    }
+
+    // `list`, `status`, `pause`, `resume`, `cancel`: a client of the running
+    // dm's control protocol, like `mcp`. Takes no lock.
+    if args.first().is_some_and(|a| dm_desktop::cli::is_command(a)) {
+        attach_console();
+        std::process::exit(dm_desktop::cli::main(&args, &settings::home()));
     }
 
     // `mcp`: a Model Context Protocol server on stdin and stdout, relaying
@@ -1746,6 +1778,7 @@ fn main() {
             tray: receive,
             has_tray,
             hidden,
+            wayland: false,
             hidden_until: hidden
                 .then(|| std::time::Instant::now() + std::time::Duration::from_secs(10)),
             quitting: false,

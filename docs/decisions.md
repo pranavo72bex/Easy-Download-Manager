@@ -527,23 +527,6 @@ an input event. 0.37's test harness panics on a glyph no font has, which
 found the table's sort arrows (↑ ↓) drawn as boxes all along: Hack, already
 bundled, is now the last fallback for the proportional families.
 
-## Tried and dropped
-
-- **A JSON-RPC server speaking another download tool's protocol** — built,
-  then removed: dm's own control protocol and MCP server cover scripts and
-  agents, and dm names and mirrors no other program.
-- **`chrome.power` / lifecycle work** — built, then removed: it cost a permission for a benefit resume already provided.
-- **HTTP Basic site logins** — built, removed as out of scope, and back as
-  Options › Sign-ins (Basic, and Digest since 2026-10-16) once the engine
-  was the one fetching protected files.
-- **A CORS proxy for player-served media** — does not work even in principle;
-  such URLs are bound to the session and address that minted them.
-- **"Chrome for Testing will not read a host manifest from a scratch
-  profile"** — wrong, as it turned out: Chrome's user-level host directory
-  is derived from the user data directory, and `chrome-check.py` registers
-  the host in `<profile>/NativeMessagingHosts` only and it is found. What
-  had hung was a host binary under `~/Downloads`.
-
 ## Free space is checked once, at the start (2026-10-17, gap 60)
 
 A download whose stated length exceeds the free space is refused before a
@@ -1412,3 +1395,47 @@ held. Tested under sway (headless) with a virtual pointer written for the
 test (`scripts/linux/vpointer.c`, wlroots' virtual-pointer protocol), since
 a headless compositor has no pointer of its own and `swaymsg seat … cursor`
 reaches no client without one.
+
+## 2026-10-23: Roadmap features not built, and what they must not do
+
+Gaps 261, 262, 264 and 266 hold the work; this is what it is bound by, the
+project's own rule first: free, no server of ours, nothing on by default,
+and nothing that leaves a file or a credential somewhere it was not.
+
+- **Phone hand-off (261).** Waits for a written pairing design. A listener on
+  the local network that the user turns on, not a service: no relay, so one
+  network only. It adds an http, https, ftp or magnet address and nothing
+  else (no queue control, no files, no credentials, no local paths), each one
+  confirmed in the window unless the device is trusted. Explicit pairing, a
+  per-device token that can be revoked, rate-limited, TLS or a pinned key
+  before any token crosses the network.
+- **A debrid provider and Gofile (262, 266).** Not started: terms and API
+  unread, and a place to keep a token (the OS keychain, a dependency dm lacks)
+  does not exist. When built, the token never reaches logs or the settings
+  file, and the user's own request headers and cookies are never sent to a
+  third party.
+- **Cutting ad or sponsor segments from a video (264).** Design only: manual
+  start and end, the original kept, no detection promised, no DRM or
+  protection touched.
+
+## 2026-10-23: The command line needs a dm started with `--control`
+
+`dm-desktop list|status|pause|resume|cancel` reach the running dm over the
+loopback control port, which exists only when dm was started with `--control`.
+Making dm always listen on loopback so they work by default changes what every
+install exposes, so it is the owner's decision (gap 260), not a default.
+
+## 2026-10-23: Closing the window on Wayland minimizes it
+
+A program cannot hide or unminimize its own window on Wayland (winit's
+`set_visible` does nothing there), so close-to-tray cannot hide it. Marking the
+window hidden anyway stopped dm drawing a window the compositor still showed
+(a frozen ghost, KDE Plasma). dm minimizes on a Wayland display and keeps
+drawing; the task manager restores it, which the tray's Show cannot.
+
+## 2026-10-23: A recording's time limit is one setting
+
+Not a field of each row: that would be a new column of the saved queue and a
+migration, which one number in Options does not need. It stops the recorder
+through its own control so the file is closed, instead of dropping the task
+mid-write.

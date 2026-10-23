@@ -182,6 +182,7 @@ async fn a_torrent_is_fetched_from_a_real_swarm() {
         remux: false,
         server_dates: false,
         retry_wait: 0,
+        record_limit: None,
         sign_in: None,
         save_name: None,
         system_proxy: false,

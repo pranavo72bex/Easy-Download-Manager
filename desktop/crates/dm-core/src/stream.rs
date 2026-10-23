@@ -5,10 +5,6 @@
 //! is an ordered list of small files that concatenate into a playable one. So
 //! it gets its own path, and reuses only the parts that still apply: the
 //! retry policy, the speed ceiling, and being able to stop.
-//!
-//! The rules follow `extension/src/stream.js`, for the same reason the naming
-//! and category rules do: the two halves of the product should not disagree
-//! about which rendition to fetch.
 
 // Reads outside input: an index out of range here is a crash a server or
 // a file could cause, so every access is checked.
@@ -192,7 +188,6 @@ fn lines(text: &str) -> Vec<&str> {
         .collect()
 }
 
-/// Every rendition a master playlist lists, in the order it lists them.
 /// Why dm should not assemble this stream itself, where it should not: a
 /// shape whose segments, joined in order, are not the file. Each of these
 /// was saved as the wrong file and reported Completed — the whole source
@@ -280,6 +275,7 @@ pub fn beyond_dm(
     None
 }
 
+/// Every rendition a master playlist lists, in the order it lists them.
 pub fn variants(text: &str, base: &str) -> Vec<Variant> {
     let rows = lines(text);
     let mut out = Vec::new();
@@ -655,7 +651,7 @@ fn protected_key(format: &str, uri: &str) -> bool {
         || !(uri.starts_with("http://") || uri.starts_with("https://") || !uri.contains(':'))
 }
 
-/// Decrypts one segment in place, AES-128-CBC with PKCS#7 padding.
+/// Decrypts one segment, AES-128-CBC with PKCS#7 padding.
 pub fn decrypt(key: &[u8], iv: &[u8; 16], data: &[u8]) -> Result<Vec<u8>, Error> {
     use cbc::cipher::{block_padding::Pkcs7, BlockModeDecrypt, InnerIvInit, KeyInit};
 

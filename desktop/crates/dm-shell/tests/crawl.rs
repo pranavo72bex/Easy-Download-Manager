@@ -1,4 +1,4 @@
-//! "Files on a site" past the first page: how deep it reads, what it keeps
+//! "Site files" past the first page: how deep it reads, what it keeps
 //! and skips, and where it stops.
 
 use axum::response::Html;

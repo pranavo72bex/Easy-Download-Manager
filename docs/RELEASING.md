@@ -14,7 +14,7 @@ bought, and no amount of code substitutes for one.
 | Installers build | Verified — a `.dmg` and a `.app` were produced on macOS, and the Arch package was built in Arch's own container |
 | Update check | `latest.json` is written by the release job, with each installer's SHA-256; dm reads it and says when a newer version is out, and checks the installer it downloads against that digest. It does not install anything, so nothing is signed |
 | macOS is notarised | Needs an Apple Developer ID — $99/year |
-| Windows is signed | Needs an Authenticode certificate |
+| Windows is signed | Not yet. A paid Authenticode certificate would do it; the free route is SignPath Foundation's (gap 5 in [gaps.md](gaps.md); the README's Code signing policy is what it asks release pages to carry), and until then SmartScreen warns on first launch |
 | Firefox add-on is installable permanently | Signed by Mozilla (unlisted) in `release.yml` when `AMO_JWT_ISSUER` and `AMO_JWT_SECRET` are set; 3.0.0 was signed by hand |
 
 ## One-time setup

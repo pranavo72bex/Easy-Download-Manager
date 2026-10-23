@@ -274,7 +274,6 @@ impl Limiter {
 
 impl std::fmt::Debug for Limiter {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        // Reading the rate needs the lock, and Debug cannot await.
         f.write_str("Limiter")
     }
 }
@@ -423,8 +422,8 @@ mod tests {
     #[tokio::test]
     async fn dms_own_downloads_slow_to_their_part_while_an_engine_runs() {
         /* With a torrent holding half of 1000/s, dm's own get the other
-         * half: 1000 bytes beyond the free first chunk take two seconds,
-         * not one, so the two together stay under the ceiling. */
+         * half: the 500 bytes after the free first chunk take a second,
+         * not half of one, so the two together stay under the ceiling. */
         let limiter = Limiter::new(1000);
         let _torrent = limiter.share();
         let started = Instant::now();

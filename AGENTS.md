@@ -14,6 +14,7 @@ then `docs/parity.md`, then `docs/decisions.md`.
 | `docs/video-panel.md` | The browser's "Download video" panel, line by line with its tests |
 | `docs/decisions.md` | Decisions not obvious from the code, and why |
 | `docs/scorecard.md` | Generated counts: behaviours, zoo, fuzzing, budgets |
+| `docs/testing.md` | Every check, what it proves and how to run it, in Docker too |
 
 The loop: write down what dm should do; build it so that it runs through a
 registry command; test it in the window, in the real binary, or in a real
@@ -44,6 +45,8 @@ extension that hands it the browser's downloads.
   `content.js`, which loads the page script and itself answers Alt-click
   and "Download all links", so a page that forbids WebAssembly keeps them. `scripts/package.sh` builds it into
   `extension/pkg`, `dist/chrome` and `dist/firefox`.
+- `scripts/` holds the checks that drive the built program, a browser or a
+  container; `docs/testing.md` lists them.
 - `shared/naming-cases.json` holds the filename cases the engine is held to.
 
 ## Where status lives
@@ -55,7 +58,7 @@ extension that hands it the browser's downloads.
 | `docs/zoo.md` | Thirty-one server behaviours and what dm does with each (generated; floor only rises) |
 | `docs/scorecard.md` | The counts of all of the above, by area (generated) |
 | `docs/how-it-works.md` | How the app and the extension fit together, and how to build them |
-| `CLAUDE.md` | The task list and the working rules |
+| `CLAUDE.md` | The feature checklist and the working rules for a coding agent |
 
 **Wired is not working.** A control that calls a command proves the call,
 not the download. A row is `PASS` in the parity file only when a test or a
@@ -78,11 +81,14 @@ DM_SHOTS=docs cargo test -p dm-desktop --test window shots   # the README's pict
 ./target/debug/dm-desktop --control 0      # drive the running window: see control.rs
 ./target/debug/dm-desktop --headless --control 0   # no window, for scripts and agents
 ./target/debug/dm-desktop mcp              # MCP tools for an AI client, relayed to a running dm
+./target/debug/dm-desktop list | status N | pause N | resume N | cancel N   # the command line, against a running dm
 cargo xtask scorecard | layers | privacy   # the scorecard, the crates' layers, nothing phones home
 cargo test -p dm-core --test zoo -- --nocapture   # the server zoo; DM_RAISE_FLOOR=1 after a fix
 PROPTEST_CASES=200000 cargo test --release -p dm-core --test fuzz   # a deep fuzz hunt
 sh scripts/linux-package.sh                # .deb and AppImage built, the .deb installed and driven
-sh scripts/linux-check.sh                  # the same, in a Debian container
+sh scripts/linux-check.sh                  # app-check.py against the Linux binary, in a Debian container
+sh scripts/linux-gui-check.sh              # real mouse and keys on the window and tray, in a container
+sh scripts/linux-kde-close-check.sh        # closing the window under KDE's compositor (KWin), in a container
 python3 scripts/chrome-check.py            # Chrome for Testing, handing off to a real dm
 python3 scripts/firefox-check.py native    # a real Firefox, when one is installed
 ```
@@ -105,5 +111,5 @@ There is no Node, npm or JavaScript test suite; do not add one.
    telemetry. `cargo xtask privacy` enforces it; do not weaken it.
 7. Shipped code does not `unwrap`, `expect` or `panic`; a new reader of
    outside input gets a property test in its crate's `tests/fuzz.rs`.
-6. Update `docs/parity.md` and `docs/gaps.md` with the exact
+8. Update `docs/parity.md` and `docs/gaps.md` with the exact
    command and result. Never record a run that did not happen.

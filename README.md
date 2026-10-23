@@ -189,11 +189,34 @@ It appears in dm instead of in the browser, and downloads there.
 - **Add a link by hand:** in dm, click **Add URL** and paste it. Web
   (`https://`), FTP (`ftp://`) and magnet links all work.
 - **Drag a link** from the browser onto dm's window to download it.
+- **Unzip a finished download:** right-click a `.zip` in dm's list and choose
+  **Extract here** (a new folder beside it) or **Extract to…** (a new folder
+  inside one you pick). Nothing is replaced, the zip is kept, and a zip
+  with an entry that would land outside the folder, a link, or a password
+  is refused whole before anything is written.
 - **Change the language:** **View › Language** — English, Español,
   Português, Français, Deutsch, Italiano, Nederlands, Polski, Русский,
   Bahasa Indonesia, Türkçe, 简体中文, 日本語 or 한국어. dm starts in your
   computer's language when it has it. Chinese, Japanese and Korean are drawn
   in your computer's own font for them.
+
+### From a terminal
+
+With dm running (started with `--control 0`, or `--headless --control 0`
+for no window), another terminal can see and steer its downloads:
+
+```sh
+dm-desktop list                # what is downloading, one line each  (--json too)
+dm-desktop status 3            # one download, by the number `list` gives
+dm-desktop pause 3 4           # or: resume, cancel
+dm-desktop --later https://example.com/a.iso     # add a link (starts dm if needed)
+```
+
+It exits 0 when done, 1 when dm refused or a number was not acted on, 2 for
+a wrong command and 3 when no dm is running. It talks only to your own dm
+over the loopback address with a token only your account can read, and
+prints no cookies or sign-ins. (`dm` rather than `dm-desktop` on the
+Fedora, openSUSE, Arch and AppImage installs.)
 
 ### How video downloads work
 
@@ -230,6 +253,10 @@ checks you are not a bot lets the download through.
   dm draws them with a font your computer has, and this one has none for
   them. On Ubuntu or Debian run `sudo apt install fonts-noto-cjk`; the
   Fedora, openSUSE and Arch packages suggest one when dm is installed.
+- **Closing the window on KDE Plasma (or another Wayland desktop) minimizes
+  it.** A program cannot hide its own window on Wayland, so dm minimizes it
+  and keeps downloading; bring it back from the task manager, or open dm
+  again. (Quit from the tray's menu or **Program › Exit**.)
 - **No tray icon on Linux.** dm's icon shows in any panel that shows
   "StatusNotifier" icons: KDE, Ubuntu's GNOME, Cinnamon, Xfce, LXQt, and
   waybar on niri, Sway or Hyprland. On other GNOME (Fedora, Debian) turn on
@@ -296,8 +323,10 @@ ads, no accounts and no analytics, and it sends nothing about you anywhere
 
 ## Code signing policy
 
-Free code signing provided by [SignPath.io](https://signpath.io), certificate
-by [SignPath Foundation](https://signpath.org).
+dm is applying to [SignPath Foundation](https://signpath.org) for free code
+signing of the Windows installer, through [SignPath.io](https://signpath.io).
+Until a certificate is issued the installer is **not signed** (Step 2 says
+how to open it). Once it is, this is the policy:
 
 - Only what this repository builds is signed: the Windows installer and the
   program inside it, built from this source by GitHub Actions
@@ -313,12 +342,14 @@ by [SignPath Foundation](https://signpath.org).
   authentication.
 
 Privacy: dm sends nothing about you anywhere. It reaches other computers
-only to fetch what you ask it to download, and, each with its own switch
-to turn it off, to check GitHub for a new version and to fetch the video
-helper from GitHub. See [PRIVACY.md](PRIVACY.md).
+only to fetch what you ask it to download, and, each with its own switch,
+to check GitHub for a new version (off until you turn it on) and to fetch
+the video helper from GitHub (on, and Options › Downloads turns it off).
+See [PRIVACY.md](PRIVACY.md).
 
 ## For developers
 
-How dm is built, tested and measured: [docs/how-it-works.md](docs/how-it-works.md).
+How dm is built and measured: [docs/how-it-works.md](docs/how-it-works.md).
+How it is tested, including in Docker: [docs/testing.md](docs/testing.md).
 Where to start changing it: [AGENTS.md](AGENTS.md). The open work list:
 [docs/gaps.md](docs/gaps.md).

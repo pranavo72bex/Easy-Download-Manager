@@ -36,7 +36,7 @@ pub struct Settings {
     /// Kilobytes a second across everything. Zero is no limit.
     ///
     /// Kilobytes rather than bytes because that is the unit people think in
-    /// for a link, and it is what the extension's setting has always used.
+    /// for a link.
     pub speed_limit: u64,
     /// The limit the speed limiter last had on, in KB/s, so turning it back
     /// on — in this run or the next — restores it. Zero for never set.
@@ -71,8 +71,7 @@ pub struct Settings {
     pub custom_categories: Vec<dm_core::Custom>,
 
     /// Which rendition to take from an adaptive stream: `best`, `audio`, or
-    /// a height. Kept as the extension's vocabulary so the two settings pages
-    /// offer the same choices.
+    /// a height.
     pub stream_quality: String,
 
     /// When the queue may run.
@@ -93,13 +92,13 @@ pub struct Settings {
     /// with no window; Options › General turns it off.
     #[serde(default)]
     pub start_on_login: bool,
-    /// Look for a newer dm about once a week. Off unless turned on: it asks GitHub, and dm otherwise
-    /// contacts nothing but what is downloaded.
+    /// Look for a newer dm about once a week. Off unless turned on: it asks
+    /// GitHub, and dm otherwise contacts nothing but what is downloaded.
     pub check_updates: bool,
     /// The window's language, by code ("es", "pt-BR"); empty follows the
     /// system's where dm has it.
     pub language: String,
-    /// When that was last done, in seconds since 1970.
+    /// When dm last looked for a newer version, in seconds since 1970.
     pub update_checked: u64,
 
     /// Open a progress window for a download as it starts.
@@ -111,15 +110,16 @@ pub struct Settings {
     pub show_complete: bool,
     /// Play the system's short sound when a download finishes.
     pub sound_on_complete: bool,
-    /// A video from the browser's panel: "Download details" opens for it, to name it and choose where it goes, before it starts.
+    /// A video from the browser's panel: "Download details" opens for it,
+    /// to name it and choose where it goes, before it starts.
     pub ask_panel_downloads: bool,
     /// A download caught from the browser: "Download details" opens for it
     /// too, rather than it starting at once. On for a new install; a
     /// settings file written before it existed keeps downloads starting.
     #[serde(default)]
     pub ask_caught_downloads: bool,
-    /// The window's look: "system" (the modern look, light or dark as the computer
-    /// is), "light", "dark", or "classic" (a classic Windows look).
+    /// The window's look: "system" (the modern look, light or dark as the
+    /// computer is), "light", "dark", or "classic" (a classic Windows look).
     pub theme: String,
     /// What a double-click on a row does: "properties", "open" (a finished
     /// file; Properties for one not finished) or "folder" (its folder).
@@ -130,6 +130,10 @@ pub struct Settings {
     /// Seconds to wait between attempts after a failure; 0 lets dm choose
     /// (quick at first, then half a minute apart).
     pub retry_wait: u64,
+    /// Minutes a live stream is recorded for before dm ends it and keeps
+    /// what it has; 0 records until the stream ends or Stop.
+    #[serde(default)]
+    pub record_minutes: u64,
     /// The toolbar styles: "both" (icons and text), "icons" (small, icons
     /// only) or "text" (text only). Anything else is "both".
     pub toolbar_style: String,
@@ -154,7 +158,7 @@ pub struct Settings {
     pub site_logins: Vec<SiteLogin>,
 
     /// Which downloads the browser extension takes from the browser —
-    /// Options › File types. Kept here, in the app, and sent to the extension
+    /// Options › Browser. Kept here, in the app, and sent to the extension
     /// when it asks (`settings.get`), so there is one list and it is the
     /// app's. Spelled as the protocol spells it: `minSizeKb`, `skipHosts`.
     #[serde(default)]
@@ -198,7 +202,7 @@ pub struct Settings {
     /// Have yt-dlp fetch a video's subtitles, carried inside the video.
     #[serde(default)]
     pub subtitles: bool,
-    /// "Files on a site" searches saved to run again, by hand or on a timer.
+    /// "Site files" searches saved to run again, by hand or on a timer.
     #[serde(default)]
     pub site_searches: Vec<crate::lists::Search>,
     /// Queues that run fewer files at once than `concurrency`.
@@ -247,11 +251,11 @@ pub struct QueueLimit {
     pub files: usize,
 }
 
-/// Ten: the last five half a minute apart, so a download rides out a
-/// couple of minutes without a network (`retry::backoff`).
 /// How many addresses Add URL remembers.
 pub const RECENT_URLS: usize = 20;
 
+/// Ten: the last five half a minute apart, so a download rides out a
+/// couple of minutes without a network (`retry::backoff`).
 fn default_attempts() -> u32 {
     10
 }
@@ -356,9 +360,9 @@ impl Default for Settings {
             cookies_file: String::new(),
             connections: 8,
             concurrency: 3,
-            // The directory the operating system already nominates. A
-            // download manager that invents its own is one people have to go
-            // looking in.
+            // A `dm` folder inside the one the operating system already
+            // nominates. A download manager that puts files anywhere else is
+            // one people have to go looking in.
             download_dir: dirs::download_dir()
                 .unwrap_or_else(|| dirs::home_dir().unwrap_or_default())
                 .join("dm"),
@@ -388,6 +392,7 @@ impl Default for Settings {
             double_click: "properties".into(),
             server_dates: false,
             retry_wait: 0,
+            record_minutes: 0,
             toolbar_style: "both".into(),
             toolbar_order: Vec::new(),
             column_order: Vec::new(),
@@ -413,6 +418,8 @@ impl Settings {
         self.speed_limit = self.speed_limit.clamp(SPEED_LIMIT_KB.0, SPEED_LIMIT_KB.1);
         self.recent_urls.truncate(RECENT_URLS);
         self.retry_wait = self.retry_wait.min(3600);
+        // A day at most: a stream meant to run longer is stopped by hand.
+        self.record_minutes = self.record_minutes.min(24 * 60);
         if !["properties", "open", "folder"].contains(&self.double_click.as_str()) {
             self.double_click = "properties".into();
         }
@@ -436,14 +443,14 @@ impl Settings {
         self.read_timeout = self
             .read_timeout
             .clamp(READ_TIMEOUT_SECS.0, READ_TIMEOUT_SECS.1);
-        // A limit names a site, or it limits nothing; and it is a number of
-        // connections the engine will open.
         // A folder for unfinished downloads is a full path: `~` is the home
         // folder, and a relative one is no folder — a Dock launch starts in
         // `/`, where nothing can be written, and every download would fail.
         self.parts_dir = full_path(&self.parts_dir)
             .map(|path| path.display().to_string())
             .unwrap_or_default();
+        // A limit names a queue or a site, or it limits nothing; and it is a
+        // number the engine will take.
         self.queue_limits
             .retain(|limit| !limit.queue.trim().is_empty());
         for limit in &mut self.queue_limits {
@@ -456,7 +463,7 @@ impl Settings {
             limit.host = limit.host.trim().to_ascii_lowercase();
             limit.connections = limit.connections.clamp(CONNECTIONS.0, CONNECTIONS.1);
         }
-        // The download folder is held to the same rule. Options refuses a
+        // The download folder is held to the parts folder's rule. Options refuses a
         // relative one as it is typed (`refusal`); one in a file edited by
         // hand falls back to the default rather than to wherever dm was
         // started from.
@@ -586,6 +593,8 @@ impl Settings {
             remux: self.remux_ts,
             server_dates: self.server_dates,
             retry_wait: self.retry_wait,
+            record_limit: (self.record_minutes > 0)
+                .then(|| std::time::Duration::from_secs(self.record_minutes * 60)),
             sign_in: None,
             save_name: None,
             system_proxy: self.proxy.enabled && self.proxy.kind == dm_core::proxy::Kind::System,
@@ -612,7 +621,6 @@ impl Settings {
         }
     }
 
-    /// The per-queue limits as the engine takes them.
     /// The start times that are times, for the queue.
     pub fn queue_start_list(&self) -> Vec<(String, u32)> {
         self.queue_starts
@@ -621,6 +629,7 @@ impl Settings {
             .collect()
     }
 
+    /// The per-queue limits as the engine takes them.
     pub fn queue_limit_map(&self) -> std::collections::HashMap<String, usize> {
         self.queue_limits
             .iter()
@@ -643,7 +652,6 @@ impl Settings {
         }
     }
 
-    /// The speed ceiling in bytes a second, which is what the engine counts.
     /// The download limit, in the engine's units.
     pub fn allowance(&self) -> dm_core::quota::Allowance {
         dm_core::quota::Allowance {
@@ -652,6 +660,7 @@ impl Settings {
         }
     }
 
+    /// The speed ceiling in bytes a second, which is what the engine counts.
     pub fn speed_limit_bytes(&self) -> u64 {
         self.speed_limit.saturating_mul(1024)
     }
@@ -1515,6 +1524,23 @@ mod tests {
         // A command to run is never taken from a file.
         assert_eq!(read.on_complete, elsewhere.on_complete);
         assert!(elsewhere.imported("not settings").is_err());
+    }
+
+    #[test]
+    fn a_recording_limit_is_minutes_held_to_a_day_and_none_when_zero() {
+        let s = Settings {
+            record_minutes: 99_999,
+            ..Default::default()
+        }
+        .clamped();
+        assert_eq!(s.record_minutes, 1440);
+        let options =
+            |s: &Settings| s.options(std::path::PathBuf::from("/tmp/x"), Limiter::unlimited());
+        assert_eq!(
+            options(&s).record_limit,
+            Some(std::time::Duration::from_secs(1440 * 60))
+        );
+        assert_eq!(options(&Settings::default()).record_limit, None);
     }
 
     #[test]

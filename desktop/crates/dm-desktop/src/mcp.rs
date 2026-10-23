@@ -91,7 +91,7 @@ fn method_of(tool: &str) -> Option<&'static str> {
 
 /// Where the running dm listens and the token it wants, read afresh each
 /// time a connection is made.
-type Finder = Box<dyn Fn() -> Result<(u16, String), String> + Send>;
+pub type Finder = Box<dyn Fn() -> Result<(u16, String), String> + Send>;
 
 /// A connection to the running dm's control protocol, made again when dm
 /// has gone and come back.
@@ -261,17 +261,11 @@ pub fn serve(
     Ok(())
 }
 
-/// `dm-desktop mcp`: the exit code.
-pub fn main(args: &[String], home: &Path) -> i32 {
-    let value = |flag: &str| {
-        args.iter()
-            .position(|a| a == flag)
-            .and_then(|i| args.get(i + 1))
-            .cloned()
-    };
-    let (port, token_file) = (value("--port"), value("--token-file"));
+/// Where the running dm's control port and token are: the options, else
+/// the files dm keeps in its home. Read again on each reconnection.
+pub fn finder(home: &Path, port: Option<String>, token_file: Option<String>) -> Finder {
     let home = home.to_path_buf();
-    let find = move || {
+    Box::new(move || {
         let port = port
             .clone()
             .or_else(|| std::fs::read_to_string(home.join("control.port")).ok())
@@ -284,8 +278,19 @@ pub fn main(args: &[String], home: &Path) -> i32 {
             (Some(port), Ok(token)) => Ok((port, token.trim().to_string())),
             _ => Err("no running dm to talk to — start dm with --control 0 first".to_string()),
         }
+    })
+}
+
+/// `dm-desktop mcp`: the exit code.
+pub fn main(args: &[String], home: &Path) -> i32 {
+    let value = |flag: &str| {
+        args.iter()
+            .position(|a| a == flag)
+            .and_then(|i| args.get(i + 1))
+            .cloned()
     };
-    let mut control = match Control::with(Box::new(find)) {
+    let find = finder(home, value("--port"), value("--token-file"));
+    let mut control = match Control::with(find) {
         Ok(control) => control,
         Err(why) => {
             eprintln!("dm mcp: {why}");

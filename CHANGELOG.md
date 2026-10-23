@@ -5,6 +5,16 @@ the browser extension (`v*` tags) are versioned separately.
 
 ## Unreleased
 
+- Extract a finished ZIP: **Extract here** or **Extract to…** in the row
+  menu, into a new folder. An archive with an entry that would leave the
+  folder, a link, a password or an oversized total is refused whole, and
+  nothing is replaced.
+- A command line for a running dm: `dm-desktop list`, `status`, `pause`,
+  `resume` and `cancel`, with `--json` and exit codes.
+- A live stream's recording can be set to stop after a number of minutes
+  (Options › Downloads); what was recorded is kept.
+- Closing the window on KDE Plasma and other Wayland desktops no longer
+  leaves a frozen window on the screen: dm minimizes it and keeps going.
 - An expired link can be refreshed from the browser: Properties › Get it
   from the browser takes the next download the browser hands over as the
   row's new address, and the download continues from where it stopped.

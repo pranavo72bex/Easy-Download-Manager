@@ -531,7 +531,7 @@ def main():
             return json.loads(replies.readline())
         call("auth", token=token)
         added = call("downloads.add", urls=[url("headless.zip")])
-        check("a download added headless", added.get("result"), {"added": 1})
+        check("a download added headless", added.get("result"), {"added": 1, "already_listed": []})
         done = wait_for("the headless download never finished",
                         lambda: [r for r in rows(home) if r["url"].endswith("/headless.zip") and r["state"]["kind"] == "completed"], 30)
         check("and it holds the bytes served", pathlib.Path(done[0]["path"]).read_bytes() == PAYLOAD)
@@ -550,7 +550,26 @@ def main():
         wait_for("the agent's download never finished",
                  lambda: [r for r in rows(home) if r["url"].endswith("/agent.zip") and r["state"]["kind"] == "completed"], 30)
         check("which completes", True)
+
+        # The command line's verbs, as another client of the same port.
+        def cli(*args):
+            return subprocess.run([BINARY, *args], env=env, capture_output=True, timeout=30)
+        listed = cli("list", "--json")
+        table = json.loads(listed.stdout.decode() or "[]")
+        check("`list --json` shows the finished downloads", (listed.returncode, len(table) >= 2), (0, True))
+        first = table[0]["id"] if table else 0
+        check("and a row carries no cookie, referrer or note",
+              [k for k in table[0] if k in ("cookies", "referrer", "description")] if table else None, [])
+        check("`status` of a finished row says completed",
+              json.loads(cli("status", str(first), "--json").stdout.decode() or "[{}]")[0].get("state"), "completed")
+        paused = cli("pause", str(first))
+        check("pausing a settled row exits 1 and says why",
+              (paused.returncode, b"not running" in paused.stderr), (1, True))
+        check("a number that is not there exits 1", cli("status", "999999").returncode, 1)
+        check("misuse exits 2", cli("pause").returncode, 2)
         stop(app, home)
+        gone = cli("list")
+        check("with no dm running the command line exits 3", gone.returncode, 3)
 
     finally:
         server.shutdown()

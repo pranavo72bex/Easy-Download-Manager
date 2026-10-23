@@ -59,7 +59,7 @@ pub fn file_url(path: &std::path::Path) -> Option<String> {
 }
 
 /// Whether a tracker's address is one a proxy carries: HTTP or HTTPS.
-/// A `udp://` tracker is asked directly, around any proxy.
+/// A `udp://` tracker would be asked directly, around any proxy.
 fn tcp_tracker(address: &str) -> bool {
     let lower = address.trim().to_ascii_lowercase();
     lower.starts_with("http://") || lower.starts_with("https://")
@@ -713,10 +713,6 @@ mod tests {
 
     use super::*;
 
-    /// Gap 61: a move across disks copied straight into the download
-    /// folder, so a copy that failed midway left half a tree there looking
-    /// finished; and one whose source could not be removed failed the row
-    /// beside a whole copy.
     /// Gap 71: librqbit's count dropped (a piece failing its hash, a
     /// check of the files) and the row's progress went back.
     #[test]
@@ -731,6 +727,10 @@ mod tests {
         assert_eq!(seen, [0, 400, 900, 900, 900, 1200, 1200, 2048, 2048]);
     }
 
+    /// Gap 61: a move across disks copied straight into the download
+    /// folder, so a copy that failed midway left half a tree there looking
+    /// finished; and one whose source could not be removed failed the row
+    /// beside a whole copy.
     #[cfg(unix)]
     #[test]
     fn a_move_across_disks_is_whole_or_absent_and_a_leftover_is_only_noted() {

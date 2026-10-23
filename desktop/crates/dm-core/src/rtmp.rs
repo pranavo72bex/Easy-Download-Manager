@@ -1,4 +1,5 @@
-//! An RTMP client of dm's own, for `rtmp://` and `rtmps://` streams.
+//! An RTMP client of dm's own, for `rtmp://`, `rtmps://` and `rtmpt://`
+//! streams.
 //!
 //! What a player does to watch one: the handshake, then `connect` to the
 //! application, `createStream` and `play` the stream's name, in AMF0
@@ -6,8 +7,8 @@
 //! pings answered as it asks. Pictures (H.264, and HEVC as either RTMP
 //! extension carries it) and sound (AAC, MP3) arrive as FLV tags and are
 //! written as they come into a fragmented MP4 (`fmp4`), which plays however
-//! far it got. RTMPE (Adobe's encryption) and RTMPT (HTTP tunnelling) are
-//! not spoken here.
+//! far it got. RTMPT carries the same conversation in HTTP requests
+//! (`tunnel`). RTMPE (Flash's encryption) is not spoken here.
 //!
 //! Everything read comes from a server: nothing here indexes past what it
 //! checked.

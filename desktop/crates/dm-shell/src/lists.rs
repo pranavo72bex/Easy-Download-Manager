@@ -1,7 +1,7 @@
 //! Lists of downloads, the ways dm takes them in and gives them out: a
 //! numbered series made from one address with a wildcard, dm's own
 //! `.dmlist` file for export and import, and the links on a page for
-//! "Find files on a site".
+//! "Site files".
 
 // Reads outside input: an index out of range here is a crash a server or
 // a file could cause, so every access is checked.
@@ -186,9 +186,9 @@ fn link_in(word: &str) -> &str {
     }
 }
 
-/// Every link and embedded file on a page, resolved against its address:
-/// `href` and `src`. Each once, in page
-/// order, and only what dm can fetch.
+/// Every link and embedded file on a page, resolved against its address,
+/// each once, every `href` in page order and then every `src`, and only
+/// what dm can fetch.
 pub fn links_on_page(base: &str, html: &str) -> Vec<String> {
     let Ok(base) = url::Url::parse(base) else {
         return Vec::new();
@@ -246,7 +246,7 @@ pub fn has_extension(link: &str, extensions: &[String]) -> bool {
         .any(|want| want.trim_start_matches('.').eq_ignore_ascii_case(&ext))
 }
 
-/// "Find files on a site", one page deep: the page fetched, and the links on it
+/// "Site files", one page deep: the page fetched, and the links on it
 /// with the wanted extensions.
 pub async fn grab(page: &str, extensions: &[String]) -> Result<Vec<String>, String> {
     let search = Search {
@@ -258,7 +258,7 @@ pub async fn grab(page: &str, extensions: &[String]) -> Result<Vec<String>, Stri
     crawl(&dm_core::client(), &search).await.map(|c| c.files)
 }
 
-/// What "Find files on a site" looks for, and how far. Saved under a name,
+/// What "Site files" looks for, and how far. Saved under a name,
 /// it is run again by hand or every so many hours, and what it finds that
 /// is not already in the list is added for later.
 #[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]

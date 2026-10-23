@@ -58,6 +58,7 @@ async fn main() {
             remux: false,
             server_dates: false,
             retry_wait: 0,
+            record_limit: None,
             sign_in: None,
             save_name: None,
             system_proxy: false,

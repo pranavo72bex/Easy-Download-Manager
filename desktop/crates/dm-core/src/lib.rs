@@ -17,6 +17,7 @@ pub mod checksum;
 pub mod control;
 pub mod cookies;
 pub mod download;
+pub mod extract;
 pub mod fmp4;
 pub mod ftp;
 pub mod limit;
@@ -404,10 +405,9 @@ pub fn readable(body: &str) -> String {
 
 /// Writes a file whole, or not at all.
 ///
-/// Written to a sibling and moved, because every one of the three files dm
-/// keeps — the queue, the settings, and a request handed over by a browser —
-/// is read back by something that must never see half of one. All three had
-/// their own copy of this, each with its own comment explaining why.
+/// Written to a sibling and moved, because the files dm keeps — the queue,
+/// the settings, a request handed over by a browser and the rest — are read
+/// back by something that must never see half of one.
 pub fn write_atomic(path: &std::path::Path, bytes: &[u8]) -> std::io::Result<()> {
     replace(path, bytes, true)
 }

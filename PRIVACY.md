@@ -102,6 +102,15 @@ Options › Browser has "Hand over the browser's sign-in with every download"
 takes its own site's cookies, sent to that site's server only, and they are
 dropped from the row once that download is done, as a video page's are.
 
+**On this computer only.** dm listens on no network address by default. Started
+with `--control` (or `--headless --control`), it opens a port on the loopback
+address (`127.0.0.1`), which only programs on this computer can reach, and only
+one that presents a token kept in a file your account alone can read; the
+command line (`dm-desktop list`, `pause`…) and the AI-client server
+(`dm-desktop mcp`) use it. What they print and return carries no cookies,
+referrers, notes or sign-ins. Extracting a ZIP reads the file and writes a
+new folder; it contacts nothing and runs nothing it extracts.
+
 ## What dm never does
 
 - Send your downloads, addresses, browsing or settings to anyone.

@@ -954,7 +954,7 @@ async fn packed_audio_from_tokenised_addresses_is_saved_as_aac() {
 
 /// A live stream: its playlist keeps a window of the latest three segments
 /// and adds one each time it is asked for, until it says the stream ended
-/// after six. Recorded as it goes, each segment once, in order.
+/// after `segments`. Recorded as it goes, each segment once, in order.
 async fn serve_live(segments: usize) -> SocketAddr {
     use std::sync::atomic::{AtomicUsize, Ordering};
     let asked = Arc::new(AtomicUsize::new(0));

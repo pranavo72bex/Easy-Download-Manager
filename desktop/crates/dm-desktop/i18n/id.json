@@ -640,5 +640,10 @@
  "Open {} with…": "Buka {} dengan…",
  "Don't show this window again": "Jangan tampilkan jendela ini lagi",
  "Download complete will not open again; turn it back on in Options › General.": "Unduhan selesai tidak akan terbuka lagi; nyalakan kembali di Opsi › Umum.",
- "the file is too large for this drive, which holds no file over 4 GB (FAT32): choose a folder on another drive": "Berkas terlalu besar untuk drive ini, yang tidak menampung berkas di atas 4 GB (FAT32): pilih folder di drive lain"
+ "the file is too large for this drive, which holds no file over 4 GB (FAT32): choose a folder on another drive": "Berkas terlalu besar untuk drive ini, yang tidak menampung berkas di atas 4 GB (FAT32): pilih folder di drive lain",
+ "Extract here": "Ekstrak di sini",
+ "Extracting…": "Mengekstrak…",
+ "Extract to…": "Ekstrak ke…",
+ "There is no folder chooser here: use Extract here": "Tidak ada pemilih folder di sini: gunakan “Ekstrak di sini”",
+ "Stop recording a live stream after, minutes (0 records until it ends)": "Hentikan perekaman siaran langsung setelah, menit (0 merekam sampai selesai)"
 }

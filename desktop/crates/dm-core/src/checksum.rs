@@ -98,8 +98,8 @@ pub async fn digest(path: &Path, algorithm: Algorithm) -> Result<String, Error> 
     let mut file = tokio::fs::File::open(path).await?;
     let mut buffer = vec![0u8; 256 * 1024];
 
-    // One macro-free branch per algorithm: the three hashers are different
-    // types, and boxing them to share one loop buys nothing here.
+    // One expansion per algorithm: the three hashers are different types,
+    // and boxing them to share one loop buys nothing here.
     macro_rules! run {
         ($hasher:expr) => {{
             let mut hasher = $hasher;

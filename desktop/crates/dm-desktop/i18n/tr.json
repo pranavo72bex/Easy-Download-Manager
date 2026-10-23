@@ -640,5 +640,10 @@
  "Open {} with…": "{} ile birlikte aç…",
  "Don't show this window again": "Bu pencereyi bir daha gösterme",
  "Download complete will not open again; turn it back on in Options › General.": "İndirme tamamlandı penceresi bir daha açılmayacak; Seçenekler › Genel'den yeniden açın.",
- "the file is too large for this drive, which holds no file over 4 GB (FAT32): choose a folder on another drive": "Dosya bu sürücü için çok büyük; bu sürücü 4 GB'tan büyük dosya tutamaz (FAT32): başka bir sürücüde bir klasör seçin"
+ "the file is too large for this drive, which holds no file over 4 GB (FAT32): choose a folder on another drive": "Dosya bu sürücü için çok büyük; bu sürücü 4 GB'tan büyük dosya tutamaz (FAT32): başka bir sürücüde bir klasör seçin",
+ "Extract here": "Buraya çıkar",
+ "Extracting…": "Çıkarılıyor…",
+ "Extract to…": "Şuraya çıkar…",
+ "There is no folder chooser here: use Extract here": "Burada klasör seçici yok: “Buraya çıkar” kullanın",
+ "Stop recording a live stream after, minutes (0 records until it ends)": "Canlı yayın kaydını şu kadar dakika sonra durdur (0 yayın bitene kadar kaydeder)"
 }

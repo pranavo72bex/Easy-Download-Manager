@@ -6,14 +6,14 @@
 //!
 //! dm still writes no site logic of its own: it runs yt-dlp, as it always
 //! has. What changes is where that yt-dlp comes from. One the person
-//! installed is used first, wherever it is (`ytdlp::which`); with none,
-//! the first video page that needs it has dm fetch yt-dlp's own standalone
-//! build from yt-dlp's GitHub releases, checked against the `SHA2-256SUMS`
-//! published beside it, and a pinned QuickJS build checked against the
-//! digests written into dm. Both go into dm's own
-//! `tools` folder, through dm's proxy like any download, and yt-dlp is
-//! kept current there with its own `-U`: sites change, and an old yt-dlp
-//! stops working on them.
+//! installed is used first, wherever it is (`ytdlp::which`), unless it is
+//! months old (`ytdlp::binary`); with none, the first video page that
+//! needs it has dm fetch yt-dlp's own standalone build from yt-dlp's
+//! GitHub releases, checked against the `SHA2-256SUMS` published beside
+//! it, and a pinned QuickJS build checked against the digests written into
+//! dm. Both go into dm's own `tools` folder, through dm's proxy like any
+//! download, and yt-dlp is fetched afresh there once a week (`freshen`):
+//! sites change, and an old yt-dlp stops working on them.
 
 // Reads outside input (a checksums file): every access is checked.
 #![cfg_attr(not(test), deny(clippy::indexing_slicing))]
@@ -385,7 +385,7 @@ pub async fn fetch_into(
 
 /// `tool`, found or fetched. Found first (one the person installed, or one
 /// dm fetched before); fetched only where dm has a tools folder and no
-/// test or person has named the program outright (`DM_YTDLP`, `DM_DENO`,
+/// test or person has named the program outright (`DM_YTDLP`, `DM_QJS`,
 /// which is how a test pins down what dm does without one).
 pub async fn ensure(client: &reqwest::Client, tool: Tool) -> Result<PathBuf, Error> {
     let find = || match tool {

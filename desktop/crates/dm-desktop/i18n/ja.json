@@ -640,5 +640,10 @@
  "Open {} with…": "{} をプログラムから開く…",
  "Don't show this window again": "今後このウィンドウを表示しない",
  "Download complete will not open again; turn it back on in Options › General.": "「ダウンロード完了」は今後表示されません。オプション › 全般で再びオンにできます。",
- "the file is too large for this drive, which holds no file over 4 GB (FAT32): choose a folder on another drive": "このドライブには 4 GB を超えるファイルを保存できないため（FAT32）、ファイルが大きすぎます。別のドライブのフォルダーを選んでください"
+ "the file is too large for this drive, which holds no file over 4 GB (FAT32): choose a folder on another drive": "このドライブには 4 GB を超えるファイルを保存できないため（FAT32）、ファイルが大きすぎます。別のドライブのフォルダーを選んでください",
+ "Extract here": "ここに展開",
+ "Extracting…": "展開中…",
+ "Extract to…": "展開先を選択…",
+ "There is no folder chooser here: use Extract here": "ここにはフォルダー選択がありません。「ここに展開」を使ってください",
+ "Stop recording a live stream after, minutes (0 records until it ends)": "ライブ配信の録画を止めるまでの時間（分、0 は終了まで録画）"
 }

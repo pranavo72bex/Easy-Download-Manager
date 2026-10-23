@@ -1,10 +1,10 @@
-//! The shape the window actually reads.
+//! The shape a row takes in `queue.json` and over the control protocol's
+//! `queue.list`.
 //!
-//! The UI is plain JavaScript reaching into these structures by name —
-//! `state.kind`, `state.reason`, `progress.eta.secs`. Nothing checks those
-//! spellings at compile time, and getting one wrong renders an empty window
-//! with no error anywhere. So the wire format is pinned here, where changing
-//! it fails a test instead of quietly emptying the screen.
+//! The check scripts and anything driving dm from outside read these by name
+//! — `state.kind`, `state.reason`, `progress.eta.secs`. Nothing checks those
+//! spellings at compile time, so the format is pinned here, where changing it
+//! fails a test instead of quietly breaking whatever reads it.
 
 use std::time::Duration;
 
@@ -59,8 +59,8 @@ fn a_row_carries_the_names_the_window_reads() {
 
 #[test]
 fn a_state_is_a_tagged_object_not_a_bare_string() {
-    // The UI switches on `state.kind`; a bare string would make every
-    // comparison fail silently and every row render as "undefined".
+    // Readers switch on `state.kind`; a bare string would make every such
+    // comparison fail silently.
     let json = serde_json::to_value(entry(State::Running)).unwrap();
     assert_eq!(json["state"]["kind"], "running");
 }
@@ -76,7 +76,7 @@ fn a_failure_carries_its_reason_where_the_window_looks() {
 
 #[test]
 fn every_state_spells_its_kind_in_lower_case() {
-    // The UI compares against lower-case literals.
+    // Readers compare against lower-case literals.
     for (state, expected) in [
         (State::Queued, "queued"),
         (State::Running, "running"),
@@ -91,15 +91,15 @@ fn every_state_spells_its_kind_in_lower_case() {
 
 #[test]
 fn an_eta_arrives_as_seconds_the_window_can_read() {
-    // serde renders a Duration as { secs, nanos }; the UI reads `.secs`.
+    // serde renders a Duration as { secs, nanos }; readers take `.secs`.
     let json = serde_json::to_value(entry(State::Running)).unwrap();
     assert_eq!(json["progress"]["eta"]["secs"], 90);
 }
 
 #[test]
 fn an_unknown_total_or_eta_is_null_rather_than_zero() {
-    /* The difference matters: the UI hides a progress bar when the total is
-     * unknown, and zero would draw an empty bar claiming to know. */
+    /* The difference matters: zero would claim to know a total of nothing
+     * where the total is not known at all. */
     let mut row = entry(State::Running);
     row.progress.total = None;
     row.progress.eta = None;

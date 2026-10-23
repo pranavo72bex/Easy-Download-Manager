@@ -18,8 +18,8 @@ use egui::{Color32, RichText};
 use crate::app::{category_word, name_of, status_of, DmApp};
 use crate::format;
 
-/// The warning colour of the look in force: a fixed orange read at
-/// 2.9:1 on the light list.
+/// The warning colour of the look in force, which the looks' tests hold to
+/// 4.5:1 on every surface.
 fn warn(ui: &egui::Ui) -> Color32 {
     crate::theme::Tokens::get(ui.ctx()).warn
 }
@@ -272,9 +272,8 @@ pub enum Grab {
     #[default]
     Idle,
     Looking,
-    /// The files found, each with whether it is ticked, and how many pages
-    /// were read.
-    /// The links, the pages read, and whether the run's time ran out.
+    /// The links found, each with whether it is ticked; how many pages were
+    /// read; and whether the run's time ran out.
     Found(Vec<(String, bool)>, usize, bool),
     Failed(String),
 }
@@ -435,7 +434,7 @@ pub struct Dialogs {
     pub properties: BTreeMap<Id, Properties>,
     pub series: Option<Series>,
     pub clip_links: Option<Vec<(String, bool)>>,
-    /// The "Download all links" import dialog, for a page's links.
+    /// The "Download links" import dialog, for a page's links.
     pub links: Option<LinksImport>,
     pub site_files: Option<SiteFiles>,
     pub update_link: Option<(Id, String, String)>,
@@ -449,7 +448,7 @@ pub struct Dialogs {
     pub find_open: bool,
     pub find_text: String,
     pub scheduler: Option<(Schedule, String)>,
-    /// The speed limit, the download limit (MB, hours), and what went wrong.
+    /// The speed limit, what went wrong, and the download limit (MB, hours).
     pub limiter: Option<(u64, String, u64, u64)>,
     pub options: Option<OptionsDialog>,
     pub about_open: bool,
@@ -457,7 +456,7 @@ pub struct Dialogs {
     pub welcome: Option<Vec<dm_shell::register::Installed>>,
     /// Check for updates as soon as About is drawn.
     pub check_update: bool,
-    /// Rows Delete was pressed on that are not finished: asked about first.
+    /// Rows Remove was asked for, by any of its ways: asked about first.
     pub confirm_remove: Option<Vec<Id>>,
     /// The Remove question's "Also delete the file": off each time it asks.
     pub remove_files: bool,
@@ -550,8 +549,8 @@ impl Dialogs {
         });
     }
 
-    /// "Download all links": every link checked, and each one's
-    /// server asked, six at a time, for its name, kind and size.
+    /// "Download links": every link not already listed checked, and each
+    /// one's server asked, six at a time, for its name, kind and size.
     pub fn open_links(
         &mut self,
         request: dm_shell::host::Request,
@@ -682,11 +681,9 @@ impl Dialogs {
         }
     }
 
-    /// Whether a dialog is in front of the list, which then keeps its
-    /// keys from the list. The windows a download opens on its own (its
-    /// progress, its completion) are not counted.
     /// Whether a question waits for its answer: Remove, Exit, Start
-    /// outside the schedule, already listed, leave a site to the browser.
+    /// outside the schedule, Cancel this download, already listed, leave a
+    /// site to the browser.
     /// Nothing else opens over one, or it is lost behind the new window
     /// and answered later by an Enter meant for something else (round 14).
     pub fn asking(&self) -> bool {
@@ -719,10 +716,18 @@ impl Dialogs {
         .collect()
     }
 
+    /// Whether a dialog is in front of the list, which then keeps its
+    /// keys from the list. The windows a download opens on its own (its
+    /// progress, its completion) are not counted.
     pub fn in_front(&self) -> bool {
         self.open_names()
             .iter()
             .any(|n| n != "Download progress" && n != "Download complete")
+    }
+
+    /// Whether a dialog that keeps the clicks to itself is open.
+    pub fn modal(&self) -> bool {
+        !self.modal_layers().is_empty()
     }
 
     /// The windows of the dialogs in front that keep the keyboard to
@@ -730,11 +735,6 @@ impl Dialogs {
     /// bar or the list behind, which take no clicks while one is open.
     /// Find is left out: it finds rows in the list, which stays usable
     /// beside it.
-    /// Whether a dialog that keeps the clicks to itself is open.
-    pub fn modal(&self) -> bool {
-        !self.modal_layers().is_empty()
-    }
-
     fn modal_layers(&self) -> Vec<egui::LayerId> {
         let mut ids: Vec<egui::Id> = [
             (self.confirm_exit, "Exit dm?"),
@@ -886,13 +886,8 @@ impl Dialogs {
         open
     }
 
-    /// Closes the dialog in front, as Escape does. Nothing records which
-    /// was opened last, so the order is the one a person would mean: a
-    /// question being asked first, then the small dialogs that open over
-    /// the large ones (Find over Download details, the Speed limiter over
-    /// Options), then the large ones, then the windows per download. True
-    /// if one closed.
-    /// Closes the dialog in front. `back_to_front` is the windows' order
+    /// Closes the dialog in front, as Escape does; true if one closed. A
+    /// question being asked goes first. `back_to_front` is the windows' order
     /// on screen, which decides among the ones that stay open beside each
     /// other (Find, Download complete, the progress windows): Escape closed
     /// one behind the window in front (Fluent QA, gap 71).
@@ -1035,15 +1030,15 @@ impl Dialogs {
     }
 }
 
-/// A dialog window: titled, not collapsible, placed in the middle.
-/// A dialog, titled in the language in force but known by its English
-/// title: its place and size survive a change of language, and two titles
-/// that translate alike stay two windows.
 /// Where the window keeps the menu bar's foot, for the dialogs.
 pub fn menu_bottom_id() -> egui::Id {
     egui::Id::unique("dm-menu-bottom")
 }
 
+/// A dialog window: not collapsible, placed in the middle, titled in the
+/// language in force but known by its English title: its place and size
+/// survive a change of language, and two titles that translate alike stay
+/// two windows.
 fn window(ctx: &egui::Context, title: &'static str) -> Dialog<'static> {
     // Below the menu bar: Options and Properties opened over it, while the
     // per-download windows kept clear of it (UI round 5).
@@ -1651,8 +1646,6 @@ fn row_on_band<R>(
     shown
 }
 
-/// A dialog's main action: the primary button, filled with the brand
-/// colour (the classic look draws it like any other).
 /// A number typed into a box, as a desktop's number fields are: not
 /// changed by dragging across it, with the text cursor over it. The drag
 /// to change, and the resize arrow that announced it, surprised people
@@ -1767,6 +1760,8 @@ fn section(ui: &mut egui::Ui, words: &str) {
     ui.add_space(4.0);
 }
 
+/// A dialog's main action: the primary button, filled with the brand
+/// colour (the classic look draws it like any other).
 pub(crate) fn primary(ui: &mut egui::Ui, text: &'static str) -> egui::Response {
     // The button's words in the language in force.
     primary_worded(ui, crate::i18n::t(text))
@@ -2557,9 +2552,9 @@ fn confirm_cancel(app: &mut DmApp, ctx: &egui::Context) {
     }
 }
 
-/// Asked when Resume is pressed on a download the schedule or the
-/// download limit holds: start it now anyway, for this one only, or let it
-/// wait.
+/// Asked when a download the schedule or the download limit holds is
+/// started (Resume, Start now): start it now anyway, for this one only, or
+/// let it wait.
 fn confirm_outside(app: &mut DmApp, ctx: &egui::Context) {
     let Some(ids) = app.dialogs.confirm_outside.clone() else {
         return;
@@ -4643,7 +4638,7 @@ fn pick_list(
         });
 }
 
-/// The "Download all links" dialog.
+/// The "Download links" dialog.
 fn links(app: &mut DmApp, ctx: &egui::Context) {
     let Some(d) = app.dialogs.links.as_mut() else {
         return;
@@ -6101,6 +6096,14 @@ fn options(app: &mut DmApp, ctx: &egui::Context) {
                         at: "02:00".into(),
                     });
                 }
+                number_row(
+                    ui,
+                    t("Stop recording a live stream after, minutes (0 records until it ends)"),
+                    |ui, name| {
+                        ui.add(number_box(&mut s.record_minutes).range(0..=1440))
+                            .labelled_by(name);
+                    },
+                );
                 number_row(ui, t("Ask the Recheck queue's servers for changes every, hours (0 only when asked)"), |ui, name| {
                     ui.add(number_box(&mut s.recheck_hours).range(0..=24 * 31)).labelled_by(name);
                 });

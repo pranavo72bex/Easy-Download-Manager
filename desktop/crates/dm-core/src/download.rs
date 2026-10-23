@@ -1,10 +1,10 @@
 //! Fetching a file over several connections at once, and putting it back
 //! together.
 //!
-//! Each range streams into its own part file. The length of that file *is*
-//! the resume position, so there is no separate ledger to fall out of step
-//! with what is actually on disk — a crash costs the bytes that were in
-//! flight and nothing else.
+//! Every range is written at its own offset in one staged file, renamed into
+//! place when whole. Each range's ledger records how much of it is on disk,
+//! written only after those bytes are flushed, so it is never ahead of them
+//! — a crash costs the bytes that were in flight and nothing else.
 
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicU64, AtomicUsize, Ordering};
@@ -109,6 +109,10 @@ pub struct Options {
     pub server_dates: bool,
     /// Seconds between attempts after a failure; 0 for dm's own pace.
     pub retry_wait: u64,
+    /// How long a live stream (RTMP, RTSP, MMS) is recorded before dm ends
+    /// it and keeps what it has, as it does when the server ends the stream;
+    /// `None` records until the server ends it or the person stops it.
+    pub record_limit: Option<std::time::Duration>,
 }
 
 /// Fewer connections for one site: its host, or a suffix of it
@@ -323,10 +327,6 @@ pub async fn download(
     download_reporting(client, url, options, None).await
 }
 
-/// The same, with somewhere to send progress.
-///
-/// A separate entry point rather than a field on `Options`: a channel is not
-/// configuration, and `Options` stays something a caller can clone and debug.
 /// What the engine tells a caller while a download is in flight.
 ///
 /// The name is sent as well as the byte counts because it is learned by the
@@ -358,6 +358,10 @@ pub enum Update {
     },
 }
 
+/// `download`, with somewhere to send progress.
+///
+/// A separate entry point rather than a field on `Options`: a channel is not
+/// configuration, and `Options` stays something a caller can clone and debug.
 pub async fn download_reporting(
     client: &reqwest::Client,
     url: &str,
@@ -496,8 +500,9 @@ async fn fetch_reporting(
 
     /* A web page, not a file — a video site's watch URL, say. There is no
      * body to fetch: the media's address is minted by the site's own player.
-     * Where a yt-dlp is installed to make sense of that, the page is handed
-     * to it rather than saved as its own HTML, which is never the download
+     * Where yt-dlp is there to make sense of that (installed, or fetched by
+     * dm), the page is handed to it rather than saved as its own HTML, which
+     * is never the download
      * anyone meant. */
     /* Unless the address names a file. A `.zip` link answered as text/html
      * is either the zip with a careless type, which is fetched as the file
@@ -675,7 +680,6 @@ async fn fetch_reporting(
         checksum,
         ..options.clone()
     };
-    // copy reports what it moved, so the finished size needs no extra stat.
     let (path, bytes, category) = assemble(&job, &info, options).await?;
     // The server's date on the file, where asked: a file a person sorts by
     // date then sorts by when it was made, not when it was fetched.
@@ -712,13 +716,6 @@ pub(crate) fn http_date(text: &str) -> Option<std::time::SystemTime> {
 /// A playlist is text and small; anything claiming otherwise is not one.
 const MANIFEST_CAP: usize = 8 * 1024 * 1024;
 
-/// A request the way every request of this download is made.
-///
-/// One place for the `Referer`, because it was on the probe and the ranges
-/// and on nothing else: a stream's playlists, key and segments, a Metalink's
-/// body and a `.torrent` file all went out bare, so a download the browser
-/// had just made with its page named failed in the app with a 403 one
-/// request after the probe had passed.
 /// Whether the address's last path segment names a file by a type dm knows
 /// as one — an archive, a program, a document, media. Not any dotted name:
 /// `/details/night.of.the.living.dead` and `/@some.handle` are pages.
@@ -813,6 +810,13 @@ fn looks_like_html(head: &[u8]) -> bool {
 /// the bytes of the file, which a probe's length and a digest are of.
 pub(crate) const IDENTITY: &str = "identity";
 
+/// A request the way every request of this download is made.
+///
+/// One place for the `Referer`, because it was on the probe and the ranges
+/// and on nothing else: a stream's playlists, key and segments, a Metalink's
+/// body and a `.torrent` file all went out bare, so a download the browser
+/// had just made with its page named failed in the app with a 403 one
+/// request after the probe had passed.
 pub(crate) fn get(
     client: &reqwest::Client,
     url: &str,
@@ -1401,7 +1405,8 @@ async fn split_largest(job: &Job) -> Option<usize> {
     Some(index)
 }
 
-/// Fetches one range into its part file, retrying what is worth retrying.
+/// Fetches one range into its place in the staged file, retrying what is
+/// worth retrying.
 async fn fetch_segment(
     client: &reqwest::Client,
     job: &Job,
@@ -1512,7 +1517,7 @@ async fn attempt_segment(
     // its front: the last byte of the range before, checked at assembly.
     let lead = resumable && index > 0 && already == 0 && start > 0;
     /* What a part already holds is asked for again at its end, and compared.
-     * Its length is the resume ledger, and after a power cut the length can
+     * Its ledger says how much is there, and after a power cut the ledger can
      * be on disk while the last bytes are not — zeros, on NTFS, exFAT and
      * others — which a resume would have kept and built on, and called the
      * file finished. Where the two differ the part is cut back to the last
@@ -1620,10 +1625,9 @@ async fn attempt_segment(
 
     /* Buffered, because chunks arrive far smaller than a useful write.
      *
-     * Safe against the part-length-as-ledger design precisely because `done`
-     * is never persisted: a retry re-derives it from whatever actually
-     * reached the disk, so a buffer lost to a crash costs the bytes it held
-     * and nothing else. */
+     * Safe because the ledger is written down only after the buffer is
+     * flushed: a retry starts from what the ledger says reached the disk, so
+     * a buffer lost to a crash costs the bytes it held and nothing else. */
     let mut stream = res.bytes_stream();
     // The part of a chunk past the bytes compared, still to be written.
     let mut carry = None;
@@ -1770,9 +1774,8 @@ async fn attempt_segment(
             want_lead = false;
         }
 
-        /* Checked between chunks rather than mid-write: a partial chunk on
-         * disk would still be consistent — the part length is the ledger —
-         * but stopping on a boundary keeps the two obviously in step. */
+        /* Checked between chunks rather than mid-write, so what is flushed
+         * and what the ledger records stay obviously in step. */
         if let Err(stopped) = job.control.check() {
             // Flushed first either way: the bytes already written are what a
             // resume picks up from, and a pause also records where it got to.
@@ -1849,7 +1852,7 @@ async fn attempt_segment(
         .await;
         if let Err(stopped) = stopping {
             // It is on disk: the count is a ledger of what is, and a retry
-            // of this range starts from the part's length.
+            // of this range starts from what its ledger records.
             job.downloaded
                 .fetch_add(chunk.len() as u64 - through, Ordering::Relaxed);
             file.flush().await?;
@@ -2391,10 +2394,11 @@ const REMUXED: &str = "joined.mp4";
 
 /// Puts the segments of a `.ts` stream into one MP4, copying the picture
 /// and sound as they are, by dm itself (`tsmux`, H.264 and AAC). `None`
-/// where that is not asked for or not
-/// possible (a digest that names the `.ts` bytes, another container), in
-/// which case the parts are left for the ordinary join; the gathered `.ts`
-/// where neither could: a stream a person can play as `.ts` beats no stream.
+/// where that is not asked for (a digest that names the `.ts` bytes, a name
+/// that is not a `.ts`) or the segments could not be gathered, in which case
+/// the parts are left for the ordinary join; the gathered `.ts` where dm
+/// could not make an MP4 of it: a stream a person can play as `.ts` beats no
+/// stream.
 async fn remux_ts(name: &str, parts: &[PathBuf], options: &Options) -> Option<(PathBuf, String)> {
     if !remux_wanted(name, options) {
         return None;
@@ -2429,8 +2433,7 @@ async fn remux_ts(name: &str, parts: &[PathBuf], options: &Options) -> Option<(P
     if options.control.check().is_err() {
         return keep_ts().await;
     }
-    /* dm's own first. Not raced against a pause: it runs at the disk's
-     * speed, and a blocking task cut loose would go on writing the file a
+    /* Not raced against a pause: it runs at the disk's speed, and a blocking task cut loose would go on writing the file a
      * resume makes afresh. */
     let ours = crate::tsmux::to_mp4_async(joined.clone(), mp4.clone()).await;
     if ours.is_ok() && fs::metadata(&mp4).await.is_ok_and(|m| m.len() > 0) {
@@ -2458,10 +2461,6 @@ fn ts_stem(name: &str) -> &str {
     }
 }
 
-/// Reads the manifest, following a master playlist to the rendition wanted.
-///
-/// Returns the media playlist's URL alongside, which is what names the
-/// rendition the segments belong to.
 /// A stream as resolved: dm's to assemble, or a shape it hands on.
 enum Resolved {
     Own(stream::Stream, String),
@@ -2471,6 +2470,10 @@ enum Resolved {
     Beyond(&'static str),
 }
 
+/// Reads the manifest, following a master playlist to the rendition wanted.
+///
+/// A stream dm assembles comes with its media playlist's URL, which is what
+/// names the rendition the segments belong to.
 async fn resolve_stream(
     client: &reqwest::Client,
     url: &str,
@@ -2661,9 +2664,8 @@ async fn fetch_segment_body(
 async fn join_parts(parts: &[PathBuf], into: &Path) -> Result<u64, Error> {
     /* One part is not concatenated — it is moved.
      *
-     * A single-connection download (a server that will not range, a file
-     * under one segment, a stream joined into one part) has nothing to join:
-     * the one part IS the file. Copying it doubled both the time and the peak
+     * A ranged download's staged file, a stream gathered into one part: there
+     * is nothing to join, the one part IS the file. Copying it doubled both the time and the peak
      * disk — the part and the growing copy both existed in full for the
      * length of the copy — for a rename that costs neither, when the two are
      * on one filesystem. Across filesystems a rename cannot move bytes, so it
@@ -2701,9 +2703,9 @@ async fn copy_parts(parts: &[PathBuf], into: &Path) -> Result<u64, Error> {
 
 fn copy_parts_blocking(parts: &[PathBuf], into: &Path) -> Result<u64, Error> {
     use std::io::Write;
-    /* Every planned part exists by the time this runs — each range creates
-     * its file before its first byte — so one that does not is one that was
-     * taken away, which is what a cancel does. Skipping it wrote the rest as
+    /* Every part exists by the time this runs — a stream's segment is named
+     * only once whole, a ranged download's staged file is made before its
+     * first byte — so one that does not is one that was taken away, which is what a cancel does. Skipping it wrote the rest as
      * a shorter file and reported it Completed. */
     let missing =
         || Error::Internal("a staged part went missing while the file was being joined".into());
@@ -2746,7 +2748,8 @@ async fn byte_at(path: &Path, at: u64) -> Option<u8> {
     Some(byte[0])
 }
 
-/// Joins the parts into the finished file.
+/// Checks the ranges against each other and places the staged file as the
+/// finished one.
 async fn assemble(
     job: &Job,
     info: &Probe,
@@ -2820,8 +2823,9 @@ async fn assemble(
 
 /// Everything that happens once the bytes are all on disk.
 ///
-/// Shared by ranged downloads, streams and a torrent of one file. The first
-/// two used to carry their own copy of this, including the checksum block —
+/// Shared by every route that ends in a file: ranged downloads, streams, FTP,
+/// live recordings, yt-dlp's output and a torrent of one file. Ranged
+/// downloads and streams used to carry their own copy of this, including the checksum block —
 /// directly under a comment claiming there was one place that decided
 /// whether a file is the file.
 pub(crate) async fn finish(
@@ -3000,8 +3004,8 @@ impl Drop for Claimed {
 /// (gap 60). Without it a stated 100 TB ran until the disk was full,
 /// taking every other program's room with it. The parts need what is not
 /// yet staged; the finished file needs its whole length where it lands,
-/// when that is another disk (on the same one, assembly frees each part as
-/// it goes). What other downloads under way still need on the same disk is
+/// when that is another disk (on the same one, the staged file is renamed
+/// into place). What other downloads under way still need on the same disk is
 /// taken from the free space first (`Room`). Where the free space cannot be
 /// read, nothing is refused. The claim lasts as long as what is returned.
 fn room_for(size: u64, done: &Arc<AtomicU64>, options: &Options) -> Result<Claimed, Error> {
@@ -3271,7 +3275,8 @@ pub fn free_space(_dir: &Path) -> Option<u64> {
     None
 }
 
-/// Where one range of a download is staged.
+/// Where one segment of a stream is staged, and where an earlier dm staged
+/// one range of a download (`adopt_part`).
 ///
 /// The name is a contract across runs — a part file the next run cannot find
 /// is a range silently fetched again — so it is derived in one place rather
@@ -3559,6 +3564,7 @@ mod tests {
             remux: false,
             server_dates: false,
             retry_wait: 0,
+            record_limit: None,
             sign_in: None,
             save_name: None,
             system_proxy: false,

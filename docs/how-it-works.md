@@ -27,8 +27,8 @@ things a download manager is used for.
         └── join, sort into its folder, show it in the queue
 ```
 
-Works with Chrome, Edge, Brave, Vivaldi and Firefox, on macOS and Linux.
-With no app installed the extension does nothing a browser would notice:
+Works with Chrome, Edge, Brave, Vivaldi, Opera and Firefox, on Windows, macOS
+and Linux. With no app installed the extension does nothing a browser would notice:
 every download stays with the browser.
 
 <picture>
@@ -173,16 +173,16 @@ no web view, no Electron, no WebKit.
 ```sh
 cd desktop
 cargo run -p dm-desktop       # the window
-cargo test --workspace        # 241 tests: the engine against a real HTTP server, a loopback
-                              # BitTorrent swarm, and the window driven through its accessibility tree
+cargo test --workspace        # the engine against a real HTTP server, a loopback BitTorrent
+                              # swarm, and the window driven through its accessibility tree
 cd crates/dm-desktop && cargo packager --release   # a .dmg, .deb, AppImage or installer for this machine
 ```
 
-Nothing is signed yet, so the first launch needs a nudge: on macOS,
-right-click the app and choose Open rather than double-clicking, and on
-Windows tell SmartScreen to run it anyway. That is Gatekeeper working as
-designed — see [docs/RELEASING.md](RELEASING.md) for what a certificate
-would cost and change.
+The installers are not signed with a paid certificate, so the first launch
+needs a nudge: on macOS, right-click the app and choose Open rather than
+double-clicking, and on Windows tell SmartScreen to run it anyway. That is
+Gatekeeper working as designed — see [RELEASING.md](RELEASING.md) for what
+is signed and what a certificate would change.
 
 To have the browser hand downloads to it:
 
@@ -194,6 +194,15 @@ On macOS the binary must not live in `~/Downloads`, `~/Desktop` or
 `~/Documents` — a browser is not allowed to run a program from those, and the
 failure is silent. Install to `/Applications` and register that;
 `--register` refuses a binary in one of them and says why.
+
+### What else the client does
+
+| | |
+|---|---|
+| **Archives** | A finished `.zip` is extracted from its row menu: **Extract here** (a new folder beside it) or **Extract to…** (a new folder inside one the person picks). `dm-core`'s `extract.rs` judges every entry before it writes any: a path that leaves the folder (`..`, absolute, drive, backslash), a symlink or device file, a password, a repeated name (also in another case) or totals of entries, bytes and compression ratio past its limits fail the whole archive; the bytes actually written are counted against the sizes the header claims; the folder is always new, so nothing is replaced; the archive is kept and nothing extracted is opened or run. Only Deflate and Stored entries — the `zip` crate is built without its C-backed codecs |
+| **Live streams** | RTMP, RTSP and MMS are recorded as they come (`live.rs`). Options › Downloads › *Stop recording a live stream after, minutes* ends a recording the way Stop does — the file closed first — and keeps and places what was recorded; 0 records until the stream ends or Stop |
+| **Command line** | `dm-desktop list`, `status ID`, `pause`, `resume`, `cancel ID…`, `--json` (`cli.rs`): another client of the control protocol, so there is one engine and nothing new listens. dm must run with `--control`; exit codes are 0 done, 1 refused, 2 misuse, 3 no dm |
+| **Closing the window** | With a tray, closing hides the window and the queue keeps going. On Wayland a program cannot hide or unminimize its own window (winit's `set_visible` does nothing there), so dm minimizes it and keeps drawing; the task manager restores it |
 
 Down the left is a rail of places, and each is a filter over the one list
 rather than a list of its own — by state, or by the kind of file, with a count
@@ -311,14 +320,23 @@ second time. A download the extension itself started is never caught.
   the row keeps them so a resume is signed in too.
 - **Without the app it does nothing.** There is no longer a downloader in the
   browser: with no app, downloads are the browser's own.
-- **Windows registration is written, never run.** Windows reads host
-  manifests through the registry; `--register` writes the keys through
-  `reg.exe` (unit-tested on every OS), but dm has not run on Windows.
+- **Windows has run only on CI's machines.** Windows reads host manifests
+  through the registry; `--register` writes the keys through `reg.exe`
+  (unit-tested on every OS), and CI installs the NSIS installer, runs
+  `smoke.py` and the whole of `app-check.py` against it. A person's Windows
+  desktop (a GPU driver, the tray, SmartScreen, a login item) is checked by
+  hand from [windows-checklist.md](windows-checklist.md).
 - **The catch rules are Options › Browser**, kept in `settings.json`.
-- **A context menu cannot be clicked by a test.** The check below calls the
-  handler the menu calls, from the worker.
+- **A browser's context menu is clicked with real input only in Firefox on
+  Linux** (`linux-firefox-check.sh`); elsewhere the checks call the handler
+  the menu calls, from the worker (gap 7 in [gaps.md](gaps.md) says what is
+  still open for Chrome).
 
 ## Development
+
+Every check, what it proves and how to run it (including in Docker, on
+Linux, under Wayland and KDE's compositor) is in [testing.md](testing.md).
+The common ones:
 
 ```sh
 cd browser && cargo test                       # the extension's decisions, on the host
@@ -371,10 +389,19 @@ desktop/
     checksum.rs           verifying a finished file against a published hash
     metalink.rs           reading a list of mirrors for one file
     torrent.rs            magnets and .torrent files, via librqbit
+    stream.rs, tsmux.rs   HLS playlists, and transport streams put into MP4
+    mp4mux.rs, mkvmux.rs  picture and sound joined into one MP4 or WebM
+    live.rs, rtmp.rs, rtsp.rs, mms.rs   live streams recorded as they come
+    ytdlp.rs, tools.rs    pages handed to yt-dlp, and the tools dm fetches and checks
+    extract.rs            a ZIP extracted into a folder of its own, refusing hostile entries
+    control.rs, cookies.rs, auth.rs, ftp.rs   the stop flag, sign-ins, FTP
   crates/dm-protocol/     what the extension and the host say, and the catch rule
   crates/dm-shell/        settings, the browser host, --register, one-instance lock, startup
   crates/dm-desktop/      the window, in egui; the tray, login item, notifications
+    src/commands.rs       the command registry every menu, key and script runs
+    src/cli.rs, mcp.rs, control.rs   the command line, the MCP server, the control protocol
     tests/window.rs       drives every control and checks what it did
+  xtask/                  cargo xtask scorecard | layers | privacy | secrets
   packaging/PKGBUILD      the Arch package
 shared/naming-cases.json  filename cases the engine's naming is held to
 scripts/package.sh        builds the extension and the store zips

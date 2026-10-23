@@ -640,5 +640,10 @@
  "Open {} with…": "{} openen met…",
  "Don't show this window again": "Dit venster niet meer tonen",
  "Download complete will not open again; turn it back on in Options › General.": "Download voltooid gaat niet meer open; zet het weer aan in Opties › Algemeen.",
- "the file is too large for this drive, which holds no file over 4 GB (FAT32): choose a folder on another drive": "Het bestand is te groot voor deze schijf, die geen bestanden boven 4 GB kan bevatten (FAT32): kies een map op een andere schijf"
+ "the file is too large for this drive, which holds no file over 4 GB (FAT32): choose a folder on another drive": "Het bestand is te groot voor deze schijf, die geen bestanden boven 4 GB kan bevatten (FAT32): kies een map op een andere schijf",
+ "Extract here": "Hier uitpakken",
+ "Extracting…": "Uitpakken…",
+ "Extract to…": "Uitpakken naar…",
+ "There is no folder chooser here: use Extract here": "Hier is geen mapkiezer: gebruik “Hier uitpakken”",
+ "Stop recording a live stream after, minutes (0 records until it ends)": "Opname van een livestream stoppen na, minuten (0 neemt op tot het einde)"
 }

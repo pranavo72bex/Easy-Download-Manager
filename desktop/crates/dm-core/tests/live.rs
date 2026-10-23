@@ -13,6 +13,7 @@ mod mp4_samples;
 mod rtmp_server;
 
 use dm_core::{client, download, Options};
+use futures_util::StreamExt;
 
 use common::{options, tempdir};
 use mp4_samples::{length_prefixed_units, tracks};
@@ -549,4 +550,84 @@ async fn an_mms_stream_is_fetched_over_http_by_dm_byte_for_byte() {
         std::fs::read(&done.path).unwrap() == streamed,
         "not the stream the server sent"
     );
+}
+
+#[tokio::test]
+async fn a_recording_limit_ends_an_endless_stream_and_keeps_what_was_recorded() {
+    let file = clip("clip.wmv");
+    let header_len = u64::from_le_bytes(file[16..24].try_into().unwrap()) as usize;
+    let data_len =
+        u64::from_le_bytes(file[header_len + 16..header_len + 24].try_into().unwrap()) as usize;
+    let head = file[..header_len + 50].to_vec();
+    let packets: Vec<Vec<u8>> = file[header_len + 50..header_len + data_len]
+        .chunks(3200)
+        .map(|p| {
+            let mut p = p.to_vec();
+            while p.last() == Some(&0) {
+                p.pop();
+            }
+            p
+        })
+        .collect();
+    let streamed = file[..header_len + data_len].to_vec();
+    let frame = |kind: u8, body: &[u8]| {
+        let mut out = vec![b'$', kind];
+        let extra = if kind == b'E' { 0 } else { 8 };
+        out.extend_from_slice(&((body.len() + extra) as u16).to_le_bytes());
+        if extra > 0 {
+            out.extend_from_slice(&[0, 0, 0, 0, 0, 0x0c]);
+            out.extend_from_slice(&((body.len() + 8) as u16).to_le_bytes());
+        }
+        out.extend_from_slice(body);
+        out
+    };
+    let app = axum::Router::new().route(
+        "/live/endless.asf",
+        axum::routing::get(move |headers: axum::http::HeaderMap| {
+            let (head, packets) = (head.clone(), packets.clone());
+            async move {
+                let playing = headers
+                    .get_all("pragma")
+                    .iter()
+                    .any(|p| p.to_str().is_ok_and(|p| p.contains("xPlayStrm=1")));
+                let mut first = frame(b'H', &head);
+                if playing {
+                    for p in &packets {
+                        first.extend(frame(b'D', p));
+                    }
+                }
+                // What there is, then no more and no end: a live stream.
+                let once = futures_util::stream::once(async move {
+                    Ok::<_, std::io::Error>(bytes::Bytes::from(first))
+                });
+                // The description request ends; the playing one does not.
+                let body = if playing {
+                    once.chain(futures_util::stream::pending()).boxed()
+                } else {
+                    once.boxed()
+                };
+                axum::response::Response::builder()
+                    .header("content-type", "application/vnd.ms.wms-hdr.asfv1")
+                    .body(axum::body::Body::from_stream(body))
+                    .unwrap()
+            }
+        }),
+    );
+    let addr = common::serve(app).await;
+    let dir = tempdir();
+    let mut opts = options(dir.path());
+    opts.record_limit = Some(std::time::Duration::from_secs(3));
+    let started = std::time::Instant::now();
+    let done = download(&client(), &format!("mms://{addr}/live/endless.asf"), &opts)
+        .await
+        .expect("the stream, ended by its limit");
+    assert!(
+        started.elapsed() < std::time::Duration::from_secs(30),
+        "it did not end"
+    );
+    assert!(
+        started.elapsed() >= std::time::Duration::from_secs(3),
+        "it ended early"
+    );
+    assert_eq!(std::fs::read(&done.path).unwrap(), streamed);
 }

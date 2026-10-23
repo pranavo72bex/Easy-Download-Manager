@@ -27,7 +27,6 @@ const REFRESH: Duration = Duration::from_millis(250);
 /// The smallest the window may be, on screen at 100% text.
 pub const MIN_WINDOW: (f32, f32) = (720.0, 460.0);
 
-/// How often it is read back while nothing downloads.
 /// How often a window with nothing moving wakes of its own accord: a change
 /// to the queue wakes it at once (`Queue::on_change`), so this is only for
 /// what changes with no one telling (a saved search's timer, a date).
@@ -164,8 +163,6 @@ pub fn category_word(c: Category) -> String {
         .unwrap_or_default()
 }
 
-/// The name a row is shown by: the file's, or a guess at it until the
-/// server says.
 /// Whether `row` failed as a link that has run out does: refused (403,
 /// 404 or 410) by its server after part of it had arrived, where the same
 /// address worked a moment before.
@@ -189,6 +186,8 @@ fn haystack_named(name: &str, row: &Entry) -> String {
     format!("{name} {} {}", row.url, row.description).to_lowercase()
 }
 
+/// The name a row is shown by: the file's, or a guess at it until the
+/// server says.
 pub fn name_of(row: &Entry) -> String {
     if !row.filename.is_empty() {
         return row.filename.clone();
@@ -216,7 +215,6 @@ fn at_inside(ctx: &egui::Context, rect: egui::Rect) -> bool {
         .is_some_and(|at| rect.contains(at))
 }
 
-/// What the Status column says.
 /// A site search's name and what it found, or why it could not.
 type SearchResult = (String, Result<dm_shell::lists::Crawled, String>);
 
@@ -233,6 +231,7 @@ pub fn stalled_said(row: &Entry) -> String {
     }
 }
 
+/// What the Status column says.
 pub fn status_of(row: &Entry) -> String {
     status_in(row, t)
 }
@@ -312,7 +311,7 @@ pub fn folder_of(row: &Entry) -> String {
     row.save_dir.clone().unwrap_or_default()
 }
 
-/// The same in English, whatever the window's language: what the control
+/// What the Status column says, in English whatever the window's language: what the control
 /// protocol and MCP report, so a script or an agent reads the same words on
 /// every machine.
 pub fn status_in_english(row: &Entry) -> String {
@@ -603,9 +602,10 @@ fn address_in(word: &str) -> &str {
 const DROP_LOOK: u64 = 64 * 1024;
 
 /// The kinds of file a drop is read for links: a browser's link file, a
-/// list, a page (a `.torrent` is taken whole, as the download itself). Anything else — a PDF, an ISO, a photo — is not a list of
-/// links, and the addresses that happen to be inside one are not what the
-/// person dropping it wanted queued.
+/// list, a page (a `.torrent` is taken whole, as the download itself).
+/// Anything else — a PDF, an ISO, a photo — is not a list of links, and
+/// the addresses that happen to be inside one are not what the person
+/// dropping it wanted queued.
 const DROP_KINDS: [&str; 6] = ["webloc", "url", "txt", "text", "html", "htm"];
 
 /// Links in a dropped browser item: the address itself where a drag source
@@ -1907,6 +1907,9 @@ impl DmApp {
                     "categories": self.show_categories,
                     "toolbar": self.show_toolbar,
                     "dark": self.dark,
+                    // Whether the window is parked in the tray and not
+                    // drawing; false for a window the compositor shows.
+                    "hidden": self.hidden,
                     "said": self.said.english(),
                     "problems": self.problems,
                     "dialogs": self.dialogs.open_names(),
@@ -1930,6 +1933,58 @@ impl DmApp {
                     value
                 })
                 .collect::<Vec<_>>())),
+            // By id and not by selection, so a script or the command line
+            // leaves the person's selection in the window alone.
+            "downloads.pause" | "downloads.resume" | "downloads.cancel" => {
+                let ids: Vec<Id> = params
+                    .get("ids")
+                    .and_then(|v| v.as_array())
+                    .map(|a| a.iter().filter_map(|v| v.as_u64()).collect())
+                    .unwrap_or_default();
+                if ids.is_empty() {
+                    return Err("give `ids`: the downloads to act on".into());
+                }
+                let (mut done, mut skipped) = (Vec::new(), Vec::new());
+                for id in ids {
+                    let Some(state) = self
+                        .row(id)
+                        .map(|r| (r.state.clone(), r.paused_by_schedule))
+                    else {
+                        skipped.push(json!({ "id": id, "why": "no such download" }));
+                        continue;
+                    };
+                    let (state, held) = state;
+                    let why = match (method, &state) {
+                        ("downloads.pause", State::Running | State::Queued) => {
+                            self.backend.pause(id);
+                            None
+                        }
+                        ("downloads.pause", _) => Some("it is not running"),
+                        ("downloads.resume", State::Paused) if held => {
+                            Some("the schedule or the download limit holds it")
+                        }
+                        ("downloads.resume", State::Paused) => {
+                            self.backend.resume(id);
+                            None
+                        }
+                        ("downloads.resume", State::Failed(_)) => {
+                            self.backend.retry(id);
+                            None
+                        }
+                        ("downloads.resume", _) => Some("it is not paused or failed"),
+                        (_, State::Completed | State::Cancelled) => Some("it is already settled"),
+                        _ => {
+                            self.backend.cancel(id);
+                            None
+                        }
+                    };
+                    match why {
+                        None => done.push(id),
+                        Some(why) => skipped.push(json!({ "id": id, "why": why })),
+                    }
+                }
+                Ok(json!({ "done": done, "skipped": skipped }))
+            }
             "downloads.add" => {
                 let urls: Vec<String> = match params.get("urls").or_else(|| params.get("url")) {
                     Some(serde_json::Value::String(one)) => vec![one.clone()],
@@ -2268,7 +2323,7 @@ impl DmApp {
         match command {
             Command::DownloadNow => any(|r| matches!(r.state, State::Paused | State::Failed(_))),
             Command::StopDownload => any(|r| matches!(r.state, State::Running | State::Queued)),
-            // Enabled only for finished or paused downloads —
+            // Enabled only for downloads neither running nor in line —
             // a running one is stopped first, so nothing is removed from
             // under its own writer by a slip of the Delete key.
             Command::Remove => {
@@ -2315,6 +2370,13 @@ impl DmApp {
                         kind_of(targets[0]),
                         Some(Category::Videos | Category::Audio)
                     )
+            }
+            // A finished ZIP that is still on disk.
+            Command::ExtractHere | Command::ExtractTo => {
+                targets.len() == 1
+                    && targets[0].state == State::Completed
+                    && dm_core::extract::is_zip(&targets[0].path)
+                    && !crate::table::gone(targets[0])
             }
             Command::OpenFile | Command::OpenWith => {
                 targets.len() == 1
@@ -2523,6 +2585,17 @@ impl DmApp {
             Command::OpenFolder => {
                 self.reveal_file(&targets[0].path);
             }
+            Command::ExtractHere => {
+                self.extract_zip(&targets[0].path, &targets[0].url, None);
+            }
+            Command::ExtractTo => {
+                if !self.backend.platform.can_choose_folder() {
+                    self.said =
+                        crate::i18n::t("There is no folder chooser here: use Extract here").into();
+                } else if let Some(folder) = self.backend.platform.choose_folder() {
+                    self.extract_zip(&targets[0].path, &targets[0].url, Some(folder));
+                }
+            }
             Command::MoveRename => {
                 self.dialogs.focus_on("Move/Rename");
                 self.dialogs.rename = Some(crate::dialogs::MoveRename {
@@ -2682,7 +2755,6 @@ impl DmApp {
 
     /// Imports the list in the file at `path`. Addresses already in the
     /// list are asked about first, as Add URL asks (gap 143).
-    /// Reads a list into the queue; why it could not, as said, if not.
     pub fn import_from(&mut self, path: &std::path::Path) -> Result<(), String> {
         // A .torrent is a download, not a list of them: read as text it was
         // "not valid UTF-8" (UI round 17).
@@ -2771,7 +2843,6 @@ impl DmApp {
     }
 
     /// Writes the list to `path`, and says where or why not.
-    /// Writes the list to `path`; why it could not, as said, if not.
     pub fn export_to(&mut self, path: &std::path::Path) -> Result<(), String> {
         match std::fs::write(path, self.backend.export()) {
             Ok(()) => {
@@ -3206,7 +3277,7 @@ impl DmApp {
             .unwrap_or(false);
         let theme = crate::theme::Theme::resolve(&self.applied.theme, system_dark);
         // Applied again once the embedded fonts are in force (a frame after
-        // they are set), so headings take Inter's semibold.
+        // they are set), so headings take the semibold face.
         let ready = crate::theme::fonts_ready(&ctx);
         self.dark = theme.tokens().dark;
         // The computer's accent, for the modern looks' accent brushes.
@@ -3335,9 +3406,8 @@ impl DmApp {
                         });
                 });
         }
-        // The list on its own surface: in the modern look, a card with rounded
-        // corners and a hairline edge on the window's background.
-        // In the modern look, as a navigation view's content: the list on
+        // The list on its own surface: in the classic look, a card rounded at
+        // every corner. In the modern look, as a navigation view's content: the list on
         // the layer, reaching the window's right edge, its top-left corner
         // alone rounded, a hairline where it meets the pane and the bars.
         let card = egui::Frame::new()
@@ -3968,6 +4038,8 @@ impl DmApp {
                         Command::OpenWith,
                         Command::Preview,
                         Command::OpenFolder,
+                        Command::ExtractHere,
+                        Command::ExtractTo,
                         Command::Properties,
                     ] {
                         self.item(ui, c);
@@ -4198,15 +4270,13 @@ impl DmApp {
         };
         let modern = t.modern && chosen == ToolStyle::Both;
         let stacked = modern && width(false) > room;
-        // Wrapped where even that does not fit, or where the classic
-        // looks' fixed buttons do not.
         // Where even stacked words do not fit on one row, icons alone, their
         // names on hover: wrapped to three rows at 150% text in a small
         // window, the toolbar left one row of the list (UI round 3).
         let icons_only = stacked && width(true) > room;
         // And icons alone go on to a second row where even they do not fit:
         // at 200% text in the smallest window they ran past the right edge
-        // (UI round 5).
+        // (UI round 5). The classic look's buttons always wrap.
         let wrap = !modern || icons_only;
         let in_front = self.dialogs.in_front();
         let mut draw = |ui: &mut egui::Ui| {
@@ -4869,6 +4939,42 @@ impl DmApp {
     }
 
     /// Shows `path` in the file manager, off the window's thread.
+    /// Extracts a finished ZIP into a new folder beside it, off the
+    /// window's thread; the answer arrives in the status line the way an
+    /// opener's does. Nothing in it is opened or run.
+    pub fn extract_zip(&mut self, path: &str, url: &str, into: Option<std::path::PathBuf>) {
+        let said = Arc::clone(&self.opener_said);
+        let (path, url) = (std::path::PathBuf::from(path), url.to_string());
+        self.said = crate::i18n::t("Extracting…").into();
+        let spawned = std::thread::Builder::new()
+            .name("dm-extract".into())
+            .spawn(move || {
+                let cancel = std::sync::atomic::AtomicBool::new(false);
+                let origin = (!url.is_empty()).then_some(url.as_str());
+                let limits = dm_core::extract::Limits::default();
+                let answer = match dm_core::extract::extract_in(
+                    &path,
+                    into.as_deref(),
+                    &limits,
+                    &cancel,
+                    origin,
+                    &|_, _| {},
+                ) {
+                    Ok(done) => format!(
+                        "Extracted {} {} to {}",
+                        done.files,
+                        if done.files == 1 { "file" } else { "files" },
+                        done.folder.display()
+                    ),
+                    Err(e) => format!("Not extracted: {e}"),
+                };
+                *dm_core::lock(&said) = Some(answer);
+            });
+        if let Err(e) = spawned {
+            self.said = format!("Not extracted: {e}").into();
+        }
+    }
+
     pub fn reveal_file(&self, path: &str) {
         let said = Arc::clone(&self.opener_said);
         let report: crate::power::Report = Box::new(move |why| *dm_core::lock(&said) = Some(why));
@@ -4935,7 +5041,7 @@ pub fn as_shown(problem: &str) -> String {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum TreeAction {
     Run(Command),
-    /// Options › Save to, where categories are added, edited and deleted.
+    /// Options › Folders, where categories are added, edited and deleted.
     EditCategories,
     /// The folder a category's files go to.
     OpenFolder,
@@ -5177,9 +5283,6 @@ fn modern_tool(
     response
 }
 
-/// A menu inside a menu. In the modern look its arrow is a thin chevron
-/// in the secondary colour, as a menu flyout's sub-item has; egui draws a
-/// filled triangle, which the classic look keeps.
 /// A menu's look: egui's, with room at an item's sides. Its two points
 /// left a shortcut flush with the menu's right edge ("Ctrl+," touched it,
 /// UI round 11) while the names began a few points in.
@@ -5188,6 +5291,9 @@ fn menu_style(style: &mut egui::Style) {
     style.spacing.button_padding.x = 8.0;
 }
 
+/// A menu inside a menu. In the modern look its arrow is a thin chevron
+/// in the secondary colour, as a menu flyout's sub-item has; egui draws a
+/// filled triangle, which the classic look keeps.
 fn submenu<R>(
     ui: &mut egui::Ui,
     label: &str,

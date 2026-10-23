@@ -913,6 +913,136 @@ fn when_done_does_not_fire_on_a_stopped_or_schedule_held_queue() {
 }
 
 #[test]
+fn a_finished_zip_is_extracted_beside_itself_and_a_hostile_one_is_refused() {
+    use std::io::Write;
+    let world = world();
+    let mut harness = world.harness();
+    add_url(&mut harness, &world.url("file.zip"), "Start now");
+    until(&mut harness, "file.zip to finish", |app| {
+        app.rows().iter().any(|r| r.state == State::Completed)
+    });
+    select(&mut harness, "file.zip");
+    let path = std::path::PathBuf::from(row(&harness, "file.zip").path);
+    assert!(harness.state().enabled(Command::ExtractHere));
+
+    // The served bytes are not a ZIP: said so, and nothing is made.
+    harness.state_mut().run(Command::ExtractHere);
+    until(&mut harness, "the refusal", |app| {
+        app.said.english().starts_with("Not extracted")
+    });
+
+    let write = |names: &[&str]| {
+        let mut w = zip::ZipWriter::new(std::fs::File::create(&path).unwrap());
+        for name in names {
+            w.start_file(*name, zip::write::SimpleFileOptions::default())
+                .unwrap();
+            w.write_all(b"inside").unwrap();
+        }
+        w.finish().unwrap();
+    };
+    write(&["a.txt", "../escape.txt"]);
+    harness.state_mut().run(Command::ExtractHere);
+    until(&mut harness, "the hostile archive's refusal", |app| {
+        app.said.english().contains("leave its folder")
+    });
+    let folder = path.with_extension("");
+    assert!(!folder.exists(), "a refused archive leaves no folder");
+    assert!(!path.parent().unwrap().join("escape.txt").exists());
+
+    write(&["a.txt", "sub/b.txt"]);
+    harness.state_mut().run(Command::ExtractHere);
+    until(&mut harness, "the extraction", |app| {
+        app.said.english().starts_with("Extracted 2 files")
+    });
+    assert_eq!(std::fs::read(folder.join("sub/b.txt")).unwrap(), b"inside");
+    assert!(path.exists(), "the archive is kept");
+
+    // Extract to…: into the folder the person picks, a new folder inside it.
+    let elsewhere = tempfile::tempdir().unwrap();
+    *world.fake.chosen.lock().unwrap() = Some(elsewhere.path().to_path_buf());
+    assert!(harness.state().enabled(Command::ExtractTo));
+    harness.state_mut().run(Command::ExtractTo);
+    until(&mut harness, "the extraction elsewhere", |app| {
+        app.said.english().starts_with("Extracted 2 files")
+    });
+    let name = path.file_stem().unwrap();
+    assert_eq!(
+        std::fs::read(elsewhere.path().join(name).join("a.txt")).unwrap(),
+        b"inside"
+    );
+    // Cancelling the chooser extracts nothing.
+    *world.fake.chosen.lock().unwrap() = None;
+    harness.state_mut().said = "".into();
+    harness.state_mut().run(Command::ExtractTo);
+    harness.run_steps(3);
+    assert!(!harness.state().said.english().starts_with("Extract"));
+}
+
+#[test]
+fn the_command_line_pauses_resumes_and_cancels_by_number_and_leaves_the_selection_alone() {
+    let world = world();
+    let mut harness = world.harness();
+    add_url(&mut harness, &world.url("stalled.bin"), "Start now");
+    until(&mut harness, "stalled.bin to run", |app| {
+        app.rows().iter().any(|r| r.state == State::Running)
+    });
+    let id = row(&harness, "stalled.bin").id;
+    let ids = serde_json::json!({ "ids": [id, 99999] });
+    let call = |h: &mut Harness<'_, DmApp>, method: &str| {
+        h.state_mut().control_call(method, &ids).unwrap()
+    };
+    let state = |h: &Harness<'_, DmApp>| {
+        h.state()
+            .rows()
+            .iter()
+            .find(|r| r.id == id)
+            .map(|r| r.state.clone())
+    };
+
+    let said = call(&mut harness, "downloads.pause");
+    assert_eq!(said["done"], serde_json::json!([id]));
+    assert_eq!(said["skipped"][0]["why"], "no such download");
+    until(&mut harness, "the pause", |app| {
+        app.rows()
+            .iter()
+            .any(|r| r.id == id && r.state == State::Paused)
+    });
+    assert!(
+        harness.state().selected.is_empty(),
+        "the selection is the person's"
+    );
+    // Pausing a paused row is said, not done.
+    assert_eq!(
+        call(&mut harness, "downloads.pause")["done"],
+        serde_json::json!([])
+    );
+
+    assert_eq!(
+        call(&mut harness, "downloads.resume")["done"],
+        serde_json::json!([id])
+    );
+    until(&mut harness, "the resume", |app| {
+        app.rows()
+            .iter()
+            .any(|r| r.id == id && r.state == State::Running)
+    });
+    assert_eq!(
+        call(&mut harness, "downloads.cancel")["done"],
+        serde_json::json!([id])
+    );
+    until(&mut harness, "the cancel", |app| {
+        app.rows()
+            .iter()
+            .any(|r| r.id == id && r.state == State::Cancelled)
+    });
+    assert_eq!(state(&harness), Some(State::Cancelled));
+    assert!(harness
+        .state_mut()
+        .control_call("downloads.pause", &serde_json::json!({}))
+        .is_err());
+}
+
+#[test]
 fn a_video_half_fetched_is_previewed_from_what_is_on_disk() {
     let world = world();
     let mut harness = world.harness();
@@ -1174,7 +1304,13 @@ fn the_welcome_offers_the_extension_for_each_browser() {
         .next()
         .map(|n| n.accesskit_node().label().unwrap_or_default())
         .unwrap_or_else(|| "Microsoft Edge".to_string());
-    click(&mut harness, &offered);
+    // With no browser found the offer is the fallback's name, which the
+    // hint bar behind the dialog shows too: the dialog's is the last.
+    harness
+        .query_all_by_label(&offered)
+        .last()
+        .expect("the offer")
+        .click();
     harness.run_steps(3);
     let opened = world.fake.opened.lock().unwrap().clone();
     assert!(
@@ -2824,6 +2960,38 @@ fn site_limits_attempts_and_the_timeout_are_set_in_options_and_reach_the_queue()
     click(&mut harness, "Delete site limit");
     click(&mut harness, "OK");
     assert!(harness.state().backend().settings().host_limits.is_empty());
+}
+
+#[test]
+fn the_recording_limit_is_set_in_options_and_reaches_the_queue() {
+    let _file = settings_file();
+    let world = world();
+    let mut harness = world.harness();
+    click(&mut harness, "Options");
+    if let Some(d) = harness.state_mut().dialogs.options.as_mut() {
+        d.tab = dm_desktop::dialogs::Tab::Downloads;
+    }
+    harness.run_steps(2);
+    assert!(harness
+        .query_by_label("Stop recording a live stream after, minutes (0 records until it ends)")
+        .is_some());
+    if let Some(d) = harness.state_mut().dialogs.options.as_mut() {
+        d.draft.record_minutes = 90;
+    }
+    harness.run_steps(2);
+    click(&mut harness, "OK");
+    assert_eq!(harness.state().backend().settings().record_minutes, 90);
+    let options = world
+        .runtime
+        .block_on(harness.state().backend().queue.options());
+    assert_eq!(
+        options.record_limit,
+        Some(std::time::Duration::from_secs(90 * 60)),
+        "in force on the queue, not only written down"
+    );
+    let saved: serde_json::Value =
+        serde_json::from_str(&std::fs::read_to_string(Settings::path()).unwrap()).unwrap();
+    assert_eq!(saved["record_minutes"], 90);
 }
 
 #[test]
@@ -5080,12 +5248,15 @@ fn every_menu_item_clicked_does_what_it_says() {
         ("Turn off computer", dm_desktop::power::WhenDone::ShutDown),
         ("Do nothing", dm_desktop::power::WhenDone::Nothing),
     ];
-    // Greyed where the computer has no such command (macOS).
-    if dm_desktop::power::way(dm_desktop::power::WhenDone::Hibernate, std::env::consts::OS)
-        .is_some()
-    {
-        when_done.insert(2, ("Hibernate", dm_desktop::power::WhenDone::Hibernate));
-    }
+    when_done.insert(2, ("Hibernate", dm_desktop::power::WhenDone::Hibernate));
+    // Greyed where the computer has no such command (macOS has no
+    // hibernate; a Linux with no `systemctl` has none of the three).
+    when_done.retain(|(_, wanted)| {
+        matches!(
+            wanted,
+            dm_desktop::power::WhenDone::Quit | dm_desktop::power::WhenDone::Nothing
+        ) || dm_desktop::power::available(*wanted)
+    });
     for (item, wanted) in when_done {
         press(&mut h, &["Downloads", "When done", item]);
         assert_eq!(
@@ -7534,6 +7705,7 @@ fn a_link_that_runs_out_part_way_asks_for_a_fresh_one() {
                 connections: 1,
                 attempts: 3,
                 retry_wait: 0,
+                record_minutes: 0,
                 show_progress: false,
                 show_complete: false,
                 language: "en".into(),
@@ -7636,6 +7808,7 @@ fn a_fresh_link_is_taken_from_the_browser() {
                 connections: 1,
                 attempts: 3,
                 retry_wait: 0,
+                record_minutes: 0,
                 show_progress: false,
                 show_complete: false,
                 language: "en".into(),

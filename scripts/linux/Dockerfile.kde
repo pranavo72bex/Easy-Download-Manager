@@ -1,0 +1,19 @@
+# KDE Plasma 6 as a person has it on Arch (CachyOS is Arch-based): KWin as a
+# Wayland compositor on a virtual output (the tray's watcher and host are the
+# check's own, scripts/linux/tray_watcher.py, where Plasma's shell would be). dm is built in the Debian image and copied in.
+# On arm64 BASE is Arch Linux ARM, as in Dockerfile.human-arch.
+ARG BASE=menci/archlinuxarm:base-devel
+FROM $BASE
+RUN set -e; \
+    grep -q '^DisableSandbox$' /etc/pacman.conf || sed -i '0,/^\[options\]/s//[options]\nDisableSandbox/' /etc/pacman.conf; \
+    sed -i 's/^DownloadUser/#DownloadUser/' /etc/pacman.conf; \
+    # A mirror that times out is tried again: the layer is one transaction.
+    for try in 1 2 3 4 5 6; do \
+      pacman -Syu --noconfirm --needed \
+        kwin dbus glib2 python python-gobject \
+        mesa libglvnd wayland libxkbcommon libx11 libxcursor libxi libxkbcommon-x11 \
+        ttf-dejavu hicolor-icon-theme && break; \
+      [ $try = 6 ] && exit 1; sleep 5; \
+    done; \
+    pacman -Scc --noconfirm
+WORKDIR /work

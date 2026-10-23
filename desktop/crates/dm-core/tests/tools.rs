@@ -23,8 +23,9 @@ fn an_installed_yt_dlp_is_found() {
     );
 }
 
-/// A server standing in for yt-dlp's releases: its Linux and Windows
-/// builds, the same bytes, and the checksums given.
+/// A server standing in for yt-dlp's and QuickJS's releases: yt-dlp's Linux
+/// and Windows builds, the same bytes, the checksums given, and one QuickJS
+/// build.
 async fn releases(ytdlp: Vec<u8>, sums: String) -> String {
     use axum::routing::get;
     let exe = ytdlp.clone();

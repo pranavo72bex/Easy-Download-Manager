@@ -152,7 +152,7 @@ pub fn pieces(size: Option<u64>, connections: usize, resumable: bool) -> Vec<Seg
 
 /// The plan a set of staged parts was fetched under.
 ///
-/// Part files are matched to ranges by index, and an index says nothing
+/// Part files and ledgers are matched to ranges by index, and an index says nothing
 /// about the offset it was written at: the same `part-0001` is bytes
 /// 512M–1G under an eight-way plan and 256M–512M under a sixteen-way one.
 /// Every start used to re-plan from the connection setting of the moment,

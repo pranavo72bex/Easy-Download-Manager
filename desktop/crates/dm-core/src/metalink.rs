@@ -10,8 +10,7 @@
 //! puts urls directly under the file and ranks them by `priority`, where lower
 //! is better. Version 3 nests them under `<resources>` and ranks by
 //! `preference`, where higher is better. Both are read here, and both come out
-//! as one list, best first — matching `extension/src/metalink.js`, because the
-//! two implementations should not disagree about which mirror to try.
+//! as one list, best first.
 
 // Reads outside input: an index out of range here is a crash a server or
 // a file could cause, so every access is checked.
@@ -156,8 +155,8 @@ pub fn parse(xml: &str) -> Option<Metalink> {
                                 hashes.push(parsed);
                             }
                         }
-                        // dm speaks HTTP and nothing else, so an FTP mirror is
-                        // not a mirror.
+                        // Mirrors are probed and fetched in HTTP ranges, so
+                        // an FTP mirror is not one dm can use.
                         Collecting::Url(rank) => {
                             let lower = body.to_ascii_lowercase();
                             if lower.starts_with("http://") || lower.starts_with("https://") {

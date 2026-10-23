@@ -4,14 +4,14 @@
 //! video site's watch URL into a file, because the address of the media is
 //! not in the page — it is minted by the site's own player at play time.
 //! `yt-dlp` is the tool that knows how, for a thousand sites, and it is the
-//! one dm hands those to. dm does not reimplement any of that: it runs the
-//! yt-dlp the user installed, the way a person would at a shell, and places
-//! what it produces like any other download.
+//! one dm hands those to. dm does not reimplement any of that: it runs
+//! yt-dlp — the one the user installed, or the official build dm fetches
+//! (`tools`) — the way a person would at a shell, and places what it
+//! produces like any other download.
 //!
 //! So this is deliberately a thin wrapper around a child process — no site
 //! logic, no token minting, no signature work of dm's own — and it is used
-//! only when the URL turned out to be a web page rather than a file and a
-//! yt-dlp is actually on the machine.
+//! only when the URL turned out to be a web page rather than a file.
 
 use std::path::{Path, PathBuf};
 use std::process::Stdio;
@@ -34,6 +34,14 @@ const MARK: &str = "@dm@";
 /// that is not there.
 pub fn available() -> bool {
     which("yt-dlp").is_some()
+}
+
+/// Whether a yt-dlp dm would run is there: `available`, and not one too old
+/// to be passed over (Debian's own package, say) with nothing fetched to
+/// replace it. What a test that needs a real yt-dlp asks, to skip rather
+/// than fail on a machine with only a stale one.
+pub fn usable() -> bool {
+    binary().is_some()
 }
 
 /// Where yt-dlp actually is, resolved the same way `available` decides.
@@ -146,8 +154,9 @@ fn js_runtime(command: &mut Command) {
 /// are searched after `PATH`, so the tool a person installed is the tool the
 /// app finds.
 ///
-/// `DM_YTDLP` (and `DM_DENO`) name the binary outright, for an install in
-/// none of those places; set to nothing, they say there is no such tool,
+/// `DM_` and the program's name (`DM_YTDLP`, `DM_DENO`, `DM_QJS`) name the
+/// binary outright, for an install in none of those places; set to nothing,
+/// they say there is no such tool,
 /// which is how a test pins down what dm does without one on a machine that
 /// has one.
 fn which(program: &str) -> Option<PathBuf> {
@@ -723,12 +732,7 @@ pub async fn download_ytdlp(
     if let Some(referrer) = &options.referrer {
         command.arg("--referer").arg(referrer);
     }
-    /* The site's sign-in goes in a cookies file of this run's own, readable
-     * by this account alone and removed when the run ends — never on the
-     * command line, where any local user's `ps` reads it — and scoped to the
-     * site's own domain, so yt-dlp sends it there and nowhere else. A
-     * cookies file a person chose is copied in beside it, since yt-dlp
-     * takes one. */
+    // The site's sign-in, in a private file of this run's (`cookies_by_file`).
     let _signed = cookies_by_file(
         &mut command,
         &staging.join("sign-in.cookies.txt"),
@@ -870,8 +874,8 @@ pub async fn download_ytdlp(
         .filter(|p| !p.as_os_str().is_empty())
         .ok_or_else(|| Error::Internal("yt-dlp reported no output file".into()))?;
 
-    /* yt-dlp left the picture and the sound side by side under the name it
-     * would have joined them as, and dm joins them into it. */
+    /* Subtitles yt-dlp wrote beside the video, for `finish_dm` to carry
+     * inside it; their own files are removed whatever it does. */
     let found = crate::subtitles::beside(&produced);
     let (vtt_files, texts): (Vec<PathBuf>, Vec<crate::subtitles::Subtitle>) =
         found.into_iter().unzip();
@@ -1238,7 +1242,6 @@ pub fn refusal(stderr: &str) -> Option<String> {
 mod tests {
     use super::refusal;
 
-    /// Gap 98: the tree's killer is waited for, but never for ever.
     #[cfg(unix)]
     /// UI round 7: a stream whose renditions name no codecs, as yt-dlp
     /// reads an HLS master playlist without CODECS, still lists its heights.
@@ -1254,6 +1257,7 @@ mod tests {
         assert_eq!(heights, ["720/mp4", "360/mp4", "audio/m4a"]);
     }
 
+    /// Gap 98: the tree's killer is waited for, but never for ever.
     #[test]
     fn the_trees_killer_is_waited_for_but_not_for_ever() {
         use std::time::{Duration, Instant};

@@ -26,7 +26,8 @@ consulted for sites that serve video through their own player.
 
 ## Anything else (AppImage)
 
-The tagged release carries an AppImage, which needs nothing installed:
+The tagged release carries an AppImage, which needs nothing installed (on
+Ubuntu 22.04 and newer, `sudo apt install libfuse2` first):
 
 ```sh
 chmod +x dm_*.AppImage && ./dm_*.AppImage
@@ -41,8 +42,9 @@ produces the most portable binary.
 ```sh
 cd desktop
 cargo build --release -p dm-desktop      # ~8 MB binary in target/release
-cargo test                               # the workspace's tests, no display needed
+cargo test --workspace                   # the workspace's tests; no display needed
 ```
 
 The engine (`crates/dm-core`) has no idea a window exists and is tested
-without one, which is why the test suite runs headless in a chroot.
+without one, and the window's tests render offscreen, so the whole suite runs
+with no display.

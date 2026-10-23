@@ -1,10 +1,11 @@
 //! Stopping a download that is already running.
 //!
 //! Pausing is not a special mode the engine has to hold open — it is stopping,
-//! and resuming is starting again. The part file's length is the resume
-//! ledger, so a paused download costs nothing to hold and a resumed one asks
-//! only for the bytes it does not have. That is why there is no state here
-//! beyond a single flag: everything else is already on disk.
+//! and resuming is starting again. What each range has fetched is recorded
+//! on disk as it arrives, so a paused download costs nothing to hold and a
+//! resumed one asks again only for what it does not have. That is why
+//! there is no state here beyond a single flag: everything else is already
+//! on disk.
 
 use std::sync::atomic::{AtomicU8, Ordering};
 use std::sync::Arc;

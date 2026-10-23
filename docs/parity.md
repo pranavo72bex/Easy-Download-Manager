@@ -16,11 +16,12 @@ after a restart, a server that was or was not contacted.
 | `BLOCKED` | Needs something code cannot supply |
 | `N/A` | Out of scope, and why |
 
-Last checked 2026-10-12: the desktop workspace's tests, the extension's
-(`browser/`, Rust, 18 on the host), `scripts/app-check.py` against the built
-binary, and `scripts/chrome-check.py` (14 checks in Chrome for Testing 155),
-all passing. There is no JavaScript test suite any more: the extension is
-Rust compiled to WebAssembly. Test paths are under
+Each row carries the run that proves it, with its date where that matters.
+The last full pass, 2026-10-23: `cargo test --workspace`, clippy and
+`cargo xtask privacy` on macOS; `linux-check.sh`, `linux-gui-check.sh` and
+the two Wayland close checks in Docker ([testing.md](testing.md) lists
+them, and what the container is not). There is no JavaScript test suite:
+the extension is Rust compiled to WebAssembly. Test paths are under
 `desktop/crates/dm-core/tests/` unless they say otherwise.
 
 ## A. Adding downloads
@@ -209,9 +210,9 @@ the host and the extension.
 | "Download video" panel over players | PASS | `decide.rs` `the_panel_is_for_real_players_only`, `the_panel_sits_in_the_players_corner_and_stays_on_screen`, `a_panel_click_hands_the_file_or_the_page`; `chrome-check.py` hovers real players. A file `<video>` beneath a transparent overlay gets the panel, its click lands the file in dm's folder, and the panel hides while playing. A MediaSource player hands dm the page, not the `blob:` address. A 96px clip gets no panel. On 2026-10-17, `CHROME_PATH=/usr/bin/chromium DM_BINARY=~/.local/bin/dm python3 scripts/live-panel-check.py` visited W3Schools: the panel appeared and handed `mov_bbb.mp4` to dm; it completed and played (10 s, 176p), with no dm page errors. The combined run was 31/33 because two later popup checks failed; the standalone `chrome-check.py` passed 53/53. |
 | The panel on YouTube | PASS (by hand) | `python3 scripts/youtube-check.py`, 2026-10-12. On "Me at the zoo" the panel shows over the playing player in its corner and stays while the pointer rests for five seconds. Its click says "Sent to dm", and the `.webm` lands in dm's folder through yt-dlp. Not in CI: it leaves loopback |
 | Panel on a site whose policy forbids WebAssembly | PARTIAL | Chrome applies the page's CSP to the page script's WebAssembly, so the panel cannot load there; `chrome-check.py` checks it fails quietly and that the right-click menu still hands that video |
-| Chrome end to end | PASS | `python3 scripts/chrome-check.py` (30 checks) |
+| Chrome end to end | PASS | `python3 scripts/chrome-check.py` (Chrome for Testing; checks are named in the script) |
 | Firefox end to end | PASS | `scripts/firefox-check.py native`, Firefox 157 fetched into `~/.cache/dm-firefox` (not installed), 2026-10-12: installs with no warnings; a caught download and "Download link with dm" land in dm's folder; the panel shows over a video and its click hands the file. The run found the panel's click broken in Firefox, now fixed |
-| Windows registration | PARTIAL | `register.rs` writes both manifests under `%LOCALAPPDATA%\dm` and a key per browser (Chrome, Chromium, Edge, Brave, Vivaldi, Firefox) through `reg.exe`; the arguments are unit-tested on every OS and the code compiles for Windows (`scripts/windows-check.sh`). Never run on Windows |
+| Windows registration | PARTIAL | `register.rs` writes both manifests under `%LOCALAPPDATA%\dm` and a key per browser (Chrome, Chromium, Edge, Brave, Vivaldi, Firefox) through `reg.exe`; the arguments are unit-tested on every OS and the code compiles for Windows (`scripts/windows-check.sh`). Run on CI's Windows machines (gap 2), not on a person's Windows desktop |
 | Cookies | PASS | a video page's session goes with every video handed over and with the panel's quality list, for that download alone: the row drops it once complete (`decide.rs` `cookies_sent`; `host.rs` `a_sites_cookies_handed_over_reach_the_app_and_the_probe`; `tests/cookies.rs`). Otherwise the browser's stay with it unless "Hand over this site's sign-in" is on for the site (toolbar popup): then its cookies go with the hand-off, the host probes with them and the row keeps them (`dm-protocol` round trip; `host.rs` `a_sites_cookies_handed_over_reach_the_app_and_the_probe`; `tests/cookies.rs` `a_handed_over_sign_in_is_its_downloads_alone_and_for_its_server_alone`, including yt-dlp's `--add-headers`). A `cookies.txt` chosen in Options › Network is sent on dm's requests and handed to yt-dlp; without either, a cookie-gated link is refused by dm and finishes in the browser (`chrome-check.py`). The popup switch itself is not browser-driven here (gap 32) |
 
 ## O. Network and proxy
@@ -300,6 +301,10 @@ Evidence is `dm-desktop/tests/window.rs` unless it says otherwise.
 | Lock, second launch, browser hand-off, HLS, yt-dlp, proxy, speed limit, schedule | PASS | `scripts/app-check.py` on macOS and Linux |
 | `--hidden` opens no window | PASS | counted under Xvfb in `linux-check.sh`; no window is made until one is asked for, so none flashes (`app-check.py`, `linux-gui-check.sh`) |
 | Tray: Show, Quit, close hides into it | PASS (Linux) | `scripts/linux-gui-check.sh` drives the StatusNotifierItem as a panel does: the item registers with a watcher, closing hides into it, Show dm, a left click (Activate), Speed limiter and Quit act; a watcher that is missing, late or restarted is handled. Physical clicks on a real panel, and macOS and Windows, not driven |
+| Closing the window with a tray, on Wayland | PASS (sway, KWin) | A program cannot hide its own window on Wayland, so dm minimizes it and keeps drawing instead of marking it hidden and going blank (gap 265). `scripts/linux-wayland-close-check.sh` under sway (7 checks) and `scripts/linux-kde-close-check.sh` under KWin 6.8.1 (12 checks: KWin reports the minimize, a download started meanwhile completes, restoring shows the window); on the original code the KDE check fails 4 of 12. Not Plasma's panel, not a physical session, not the AppImage itself |
+| Extract a finished ZIP: here, or to a folder | PASS | `dm-core` `extract.rs` (14 tests: `..`, absolute, drive and backslash paths, symlinks, device modes, repeated names in any case, a file that is also a folder, entry, size and ratio limits, bombs, truncated and corrupt archives, cancel, never replaces); `window.rs` `a_finished_zip_is_extracted_beside_itself_and_a_hostile_one_is_refused`; `linux-gui-check.sh` clicks it on a real row and tries a hostile zip |
+| The command line: list, status, pause, resume, cancel | PASS | `cli.rs` (parsing, redaction, exit codes against a stand-in dm); `window.rs` `the_command_line_pauses_resumes_and_cancels_by_number_and_leaves_the_selection_alone`; `app-check.py` and `linux-gui-check.sh` against the real binary (0, 1, 2 and 3 exit codes). Needs a dm started with `--control` |
+| A live recording stops after a set time and keeps what it has | PASS | `tests/live.rs` `a_recording_limit_ends_an_endless_stream_and_keeps_what_was_recorded` (an endless MMS stream, 3 s); `settings.rs` and `window.rs` `the_recording_limit_is_set_in_options_and_reaches_the_queue`. One setting for all rows (gap 263) |
 | Dock click brings a hidden window back (macOS) | NOT VERIFIED | wired through winit's own delegate class; not clicked |
 | Dragging a link from a browser onto the window | PARTIAL | macOS (`a_link_dragged_from_a_browser_is_taken_and_a_file_is_left_to_winit`), Windows (`a_link_dragged_from_a_browser_is_taken_and_words_are_not`), X11 (`scripts/linux-drag-check.sh`, real Firefox), Wayland (`scripts/linux-wayland-drag-check.sh`) |
 | Dragging finished files out of the window | PARTIAL | macOS and Windows through the `drag` crate, driven in `window.rs`, never watched landing; X11 and Wayland watched landing (`scripts/linux-drag-check.sh`, `scripts/linux-wayland-drag-check.sh`) |
@@ -379,9 +384,9 @@ Evidence is `dm-desktop/tests/window.rs` unless it says otherwise.
 | Behaviour | Status | Evidence |
 |---|---|---|
 | macOS app and dmg | PASS | `cargo packager` builds a 7.9 MB dmg; the binary inside `dm.app` passes `app-check.py` |
-| Linux client | PASS | `scripts/linux-check.sh` (Debian container, 36 checks; no desktop tray host under Xvfb) |
-| Linux deb and AppImage | PARTIAL | `scripts/linux-package.sh` builds both with `cargo packager` in Debian 12 arm64 (no WebKitGTK installed), installs the 10 MB `.deb` through apt and drives the installed `/usr/bin/dm-desktop` through `app-check.py` (all pass); the 19 MB AppImage (95 MB under Tauri) answers the browser's handshake. Not built on x86_64 or on CI's Ubuntu 22.04 |
+| Linux client | PASS | `scripts/linux-check.sh` (Debian container, `app-check.py`, 60 checks on 2026-10-23); `scripts/linux-gui-check.sh` (real mouse and keys, a tray host, 92 checks) |
+| Linux deb, rpm and AppImage | PARTIAL | `scripts/linux-package.sh` and `rpm-check.sh` build them and install the `.deb` through apt (Debian 12, Ubuntu 22.04, arm64 and x86_64) and the `.rpm` through dnf and zypper (Fedora 41, openSUSE 15.6), driving the installed binary through `app-check.py`/`smoke.py`; CI installs and runs every installer on its own system before a release is drafted, passed 2026-10-20 (gaps 3, 4). Not seen on a real desktop install of each |
 | Arch (PKGBUILD) | PASS | `scripts/arch-check.sh`: the release PKGBUILD through makepkg in Arch Linux ARM (build, its `check()` of the engine, package), installed with pacman, the installed `dm` answers a browser hand-off. The first run found the memory test warming too little for glibc's per-thread arenas; it now warms as much as it measures |
-| Windows | NOT VERIFIED | CI written, never run |
+| Windows | PARTIAL | CI's windows-latest: the workspace tests on every push; the NSIS installer installed silently and `smoke.py` passed against the installed binary (2026-10-20); the whole of `app-check.py` against the real `dm-desktop.exe` (`windows-check.yml`, 2026-10-21). Not a real Windows desktop (GPU driver, tray, SmartScreen, login): `windows-checklist.md` |
 | Code signing and notarisation | BLOCKED | needs bought certificates |
 | Login item at a real login | NOT VERIFIED | the `--hidden` launch is checked; a real login is not |

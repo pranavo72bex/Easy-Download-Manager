@@ -1,16 +1,17 @@
 //! Streams served over RTMP, RTSP and MMS: the protocols of media servers
 //! and older players, which no HTTP request reaches.
 //!
-//! RTMP (RTMPS and RTMPT too) and RTSP (RTSPS too) are dm's own (`rtmp.rs`,
-//! `rtsp.rs`): the stream recorded as it comes into a fragmented MP4 that
+//! RTMP (RTMPS and RTMPT too) is dm's own client (`rtmp.rs`), RTSP (RTSPS
+//! too) goes through the `retina` crate (`rtsp.rs`): the stream recorded as
+//! it comes into a fragmented MP4 that
 //! plays however far it got (`fmp4`), rewritten as a plain one when it ends
 //! (`mp4mux`). MMS is asked for over HTTP (`mms.rs`) and kept as the
 //! Windows Media it is. RTMPE, Flash's encrypted RTMP, is refused. Each is
 //! placed as every finished download is (`finish`: its category,
 //! its folder, a digest checked). A live stream has no end and no position
 //! to come back to: it runs until its server ends it or the person stops
-//! it, and a resume starts it again. Neither has a proxy for these, so with
-//! a proxy in force the download is refused rather than sent around it.
+//! it, and a resume starts it again. None of these goes through a proxy, so
+//! with a proxy in force the download is refused rather than sent around it.
 
 use std::path::PathBuf;
 use std::sync::atomic::AtomicU64;
@@ -121,12 +122,49 @@ pub async fn download_live(
     let downloaded = Arc::new(AtomicU64::new(0));
     let reporter = report.map(|tx| crate::download::watch(Arc::clone(&downloaded), None, tx));
 
+    // The recorders stop, and close their file, when their control says so.
+    // They are given one of their own that mirrors the download's, so the
+    // time limit can stop a recording the way Stop does without pausing the
+    // row: a limit is an end, not a pause.
+    let control = crate::Control::new();
+    let limited = Arc::new(std::sync::atomic::AtomicBool::new(false));
+    let watcher = {
+        let (outer, inner, limited) = (
+            options.control.clone(),
+            control.clone(),
+            Arc::clone(&limited),
+        );
+        let deadline = options
+            .record_limit
+            .map(|l| tokio::time::Instant::now() + l);
+        tokio::spawn(async move {
+            loop {
+                tokio::time::sleep(std::time::Duration::from_millis(100)).await;
+                match outer.wanted() {
+                    crate::control::Wanted::Run => {}
+                    crate::control::Wanted::Pause => return inner.pause(),
+                    crate::control::Wanted::Cancel => return inner.cancel(),
+                }
+                if deadline.is_some_and(|d| tokio::time::Instant::now() >= d) {
+                    limited.store(true, std::sync::atomic::Ordering::SeqCst);
+                    return inner.pause();
+                }
+            }
+        })
+    };
     let recorded = if scheme.starts_with("rtsp") {
-        crate::rtsp::record(url, &part, &options.control, &downloaded).await
+        crate::rtsp::record(url, &part, &control, &downloaded).await
     } else if scheme.starts_with("mms") {
-        crate::mms::record(url, &part, &options.control, &downloaded).await
+        crate::mms::record(url, &part, &control, &downloaded).await
     } else {
-        crate::rtmp::record(url, &part, &options.control, &downloaded).await
+        crate::rtmp::record(url, &part, &control, &downloaded).await
+    };
+    watcher.abort();
+    // Ended by the limit: what was recorded is kept and placed, as when the
+    // server ends the stream.
+    let recorded = match recorded {
+        Err(Error::Paused) if limited.load(std::sync::atomic::Ordering::SeqCst) => Ok(0),
+        other => other,
     };
     stop_reporting(reporter).await;
     if let Err(stopped) = recorded {

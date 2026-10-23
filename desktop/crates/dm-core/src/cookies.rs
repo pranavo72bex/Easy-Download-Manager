@@ -1,13 +1,12 @@
 //! Cookies from a `cookies.txt` file, sent on dm's own requests.
 //!
-//! dm's browser extension leaves the browser's cookies alone: taking them
-//! would mean asking for access to every site and the `cookies` permission.
-//! So a download that needs a signed-in session finished in the browser. A
-//! person who wants dm to fetch those exports a `cookies.txt` (the Netscape
-//! format every "get cookies.txt" add-on writes, and that curl and
-//! yt-dlp's `--cookies` read) and points dm at it.
-//! dm then sends the matching cookies with each request of its own, and
-//! hands the same file to yt-dlp.
+//! A download that needs a signed-in session reaches dm with it one of two
+//! ways. The browser hands a site's sign-in over with the download, where
+//! the person asked it to (`SignIn`, carried by that download alone). Or a
+//! person exports a `cookies.txt` (the Netscape format every "get
+//! cookies.txt" add-on writes, and that curl and yt-dlp's `--cookies` read)
+//! and points dm at it; dm then sends the matching cookies with each
+//! request of its own, and hands the same file to yt-dlp.
 //!
 //! The file is read when it is chosen and whenever the settings are applied;
 //! nothing is written back, and the cookies never leave this machine except

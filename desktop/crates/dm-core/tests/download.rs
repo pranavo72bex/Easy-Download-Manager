@@ -571,16 +571,11 @@ async fn a_second_download_does_not_overwrite_the_first() {
     assert!(a.path.exists() && b.path.exists());
 }
 
-/// A scratch directory that removes itself when the test ends.
-///
-/// Held by the caller: dropping the `TempDir` deletes the tree, so a test
-/// that lets it go early pulls the ground out from under its own download.
-
 #[tokio::test]
 async fn a_server_that_refuses_at_first_is_waited_out() {
     /* Reliability, not speed: a download that gives up on the first 503 is
      * one that fails whenever a CDN is briefly busy. The server here refuses
-     * the probe and the opening request of every range before relenting. */
+     * its first three requests, the probe among them, before relenting. */
     let body = bytes(4 * MB);
     let (addr, hits) = serve(Mode::Flaky, body.clone()).await;
     let dir = tempdir();
@@ -685,8 +680,8 @@ async fn progress_is_reported_while_the_file_arrives() {
 
 #[tokio::test]
 async fn a_paused_download_stops_and_keeps_what_it_had() {
-    /* Pausing is stopping, and resuming is starting again — the part files
-     * are the ledger, so the second attempt asks only for the rest. This
+    /* Pausing is stopping, and resuming is starting again — what is staged
+     * is the ledger, so the second attempt asks only for the rest. This
      * checks both halves: that it actually stops, and that finishing later
      * still produces the right bytes. */
     let body = bytes(12 * MB);

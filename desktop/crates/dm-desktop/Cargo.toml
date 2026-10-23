@@ -121,6 +121,8 @@ dm-protocol = { path = "../dm-protocol" }
 # tree, and rendered offscreen for a picture of what it draws.
 egui_kittest = { version = "0.37", features = ["wgpu", "snapshot"] }
 tempfile = "3"
+# A real archive for the extraction test.
+zip = { version = "8", default-features = false, features = ["deflate"] }
 # The window's memory written out as eframe writes it, for a relaunch.
 ron = "0.12"
 axum = "0.7"
