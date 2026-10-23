@@ -59,6 +59,9 @@ pub fn parse(args: &[String]) -> Result<(Ask, bool, Option<String>, Option<Strin
                 .map_err(|_| format!("{w:?} is not a download number (see `list`)"))
         })
         .collect::<Result<Vec<_>, _>>()?;
+    // `pause 1 1` is one download paused once.
+    let mut seen = std::collections::HashSet::new();
+    let ids: Vec<u64> = ids.into_iter().filter(|id| seen.insert(*id)).collect();
     let ask = match (verb.as_str(), ids.as_slice()) {
         ("list", []) => Ask::List,
         ("list", _) => return Err("list takes no download numbers".into()),
@@ -119,12 +122,28 @@ fn line(row: &Value) -> String {
         n if n.is_empty() => text("url"),
         n => n,
     };
+    let (done, total) = (
+        row.get("downloaded").and_then(Value::as_u64),
+        row.get("total").and_then(Value::as_u64),
+    );
+    let percent = match (done, total) {
+        (Some(d), Some(t)) if t > 0 => format!("{}%", (d.min(t) * 100 / t)),
+        _ => String::new(),
+    };
+    let speed = match row.get("speed").and_then(Value::as_f64) {
+        Some(s) if text("state") == "running" && s >= 1.0 => {
+            format!("{}/s", size(&json!(s as u64)))
+        }
+        _ => String::new(),
+    };
     format!(
-        "{:>5}  {:<10}  {:>10} / {:<10}  {}",
+        "{:>5}  {:<10}  {:>10} / {:<10} {:>4}  {:>11}  {}",
         row.get("id").and_then(Value::as_u64).unwrap_or(0),
         state,
         size(row.get("downloaded").unwrap_or(&Value::Null)),
         size(row.get("total").unwrap_or(&Value::Null)),
+        percent,
+        speed,
         name
     )
 }
@@ -159,6 +178,9 @@ pub fn run_with(
         Ask::List => match rows(control) {
             Ok(rows) => {
                 put(&rows);
+                if rows.is_empty() && !json_out {
+                    let _ = writeln!(err, "dm: no downloads");
+                }
                 0
             }
             Err(e) => {
@@ -217,8 +239,21 @@ pub fn run_with(
     }
 }
 
+const USAGE: &str = "\
+Usage: dm-desktop list | status ID | pause ID... | resume ID... | cancel ID...
+                  [--json] [--port PORT] [--token-file FILE]
+
+Talks to the dm that is running (started with --control 0, or with Options >
+General > Let the command line... on). Numbers are the ones `list` shows.
+Exit: 0 done, 1 refused or not acted on, 2 used wrongly, 3 no dm running.
+";
+
 /// `dm-desktop list|status|pause|resume|cancel …`: the exit code.
 pub fn main(args: &[String], home: &Path) -> i32 {
+    if args.iter().any(|a| a == "--help" || a == "-h") {
+        print!("{USAGE}");
+        return 0;
+    }
     let (ask, json_out, port, token) = match parse(args) {
         Ok(parsed) => parsed,
         Err(why) => {
@@ -289,6 +324,14 @@ mod tests {
         }
         assert!(line(&brief(&row)).contains("failed (connection reset)"));
         assert!(line(&brief(&row)).contains("1.5 KiB"));
+        assert!(line(&brief(&row)).contains(" 37%"), "{}", line(&brief(&row)));
+        let running = json!({
+            "id": 5, "url": "u", "filename": "g.bin", "state": { "kind": "running" },
+            "progress": { "downloaded": 1 << 20, "total": 4 << 20, "speed": 2048.0 }
+        });
+        assert!(line(&brief(&running)).contains("25%  "), "{}", line(&brief(&running)));
+        assert!(line(&brief(&running)).contains("2.0 KiB/s"));
+        assert_eq!(parse(&words("pause 3 3 4 3")).unwrap().0, Ask::Act("downloads.pause", vec![3, 4]));
     }
 
     /// A dm that answers `queue.list` with one row and records the rest.

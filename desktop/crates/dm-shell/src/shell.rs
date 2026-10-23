@@ -201,6 +201,26 @@ pub fn orders(args: &[String]) -> Orders {
     orders
 }
 
+/// Bare words on the command line that are no link, no file on this
+/// computer and no option's value: a mistyped command (`dm lst`), which
+/// `orders` ignores and which would otherwise just open the window.
+pub fn unrecognised(args: &[String]) -> Vec<String> {
+    let mut words = Vec::new();
+    let mut i = 0;
+    while let Some(arg) = args.get(i) {
+        match arg.as_str() {
+            "--save-to" | "--name" | "--when-done" | "--control" => i += 1,
+            a if a.starts_with('-')
+                || a.contains(':')
+                || is_link(a)
+                || Path::new(a).exists() => {}
+            a => words.push(a.to_string()),
+        }
+        i += 1;
+    }
+    words
+}
+
 /// What a request from the command line or a browser asks the queue for.
 pub fn add_options(request: &host::Request) -> dm_core::AddOptions {
     dm_core::AddOptions {

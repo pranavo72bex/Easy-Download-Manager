@@ -5,6 +5,10 @@ the browser extension (`v*` tags) are versioned separately.
 
 ## Unreleased
 
+- Command line: a word that is no link, file or command (`dm-desktop lst`)
+  is now refused with exit 2 instead of silently opening dm; `list --help`
+  prints usage; `list` shows percent done and speed, and says "no
+  downloads" when there are none; `pause 1 1` counts one download once.
 - A folder dm watches (Options › Downloads): a `.url`, `.webloc`, text file of
   links or `.torrent` saved there is added, then moved to its `done` folder.
 - Site rules (Options › Network): a folder and a speed limit for a site's

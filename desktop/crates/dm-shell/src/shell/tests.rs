@@ -308,6 +308,20 @@ fn only_links_are_taken_from_the_command_line() {
 }
 
 #[test]
+fn a_mistyped_command_is_found_and_real_arguments_are_not() {
+    let dir = tempfile::tempdir().unwrap();
+    let file = dir.path().join("notes.txt");
+    std::fs::write(&file, b"x").unwrap();
+    let file = file.display().to_string();
+    let args = argv(&[
+        "--control", "0", "--save-to", "somewhere", "--name", "a.bin", "--when-done", "exit",
+        "--hidden", "-psn_0_1", "https://e.com/a", "magnet:?xt=x", "C:\\x\\y.torrent", &file,
+    ]);
+    assert!(unrecognised(&args).is_empty(), "{:?}", unrecognised(&args));
+    assert_eq!(unrecognised(&argv(&["lst", "--later", "fly"])), ["lst", "fly"]);
+}
+
+#[test]
 fn a_torrent_on_this_computer_is_taken_by_path_or_file_address() {
     let dir = tempfile::tempdir().unwrap();
     let file = dir.path().join("a b.torrent");

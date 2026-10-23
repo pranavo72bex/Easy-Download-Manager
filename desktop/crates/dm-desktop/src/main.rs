@@ -238,6 +238,17 @@ fn main() {
         std::process::exit(code);
     }
 
+    // A word that is no link, file or option is a typo, not a request to
+    // open the window: say so and stop (`dm lst` used to open dm silently).
+    let strays = shell::unrecognised(&args);
+    if !strays.is_empty() {
+        attach_console();
+        for word in &strays {
+            eprintln!("dm: {word:?} is not a link, a file or a command (see --help)");
+        }
+        std::process::exit(2);
+    }
+
     let handed = shell::orders(&args);
 
     // One dm at a time. The lock is held for the life of this process by

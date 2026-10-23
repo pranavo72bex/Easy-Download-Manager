@@ -586,6 +586,12 @@ def click_at(tab, x, y):
 
 def click_panel(tab):
     state = panel(tab)
+    if not (state or {}).get("shown"):
+        # It hides itself when the pointer rests away from it (the wait
+        # before this click was long enough), so a person would bring it
+        # back by pointing at the player; the click must not land on nothing.
+        hover(tab, tab.evaluate(VIDEO_RECT))
+        state = wait_for(lambda: (panel(tab) or {}).get("shown") and panel(tab), 3) or state
     x, y = state["x"] + 60, state["y"] + state["h"] / 2
     mouse(tab, "mouseMoved", x, y)
     mouse(tab, "mousePressed", x, y)

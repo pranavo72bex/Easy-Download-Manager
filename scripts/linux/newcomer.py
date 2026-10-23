@@ -123,9 +123,10 @@ def newcomer():
         shot("07-video-done")
         check("the video finishes with nothing installed", done,
               row_text(home, VIDEO))
-        folder = pathlib.Path.home() / "Downloads"
-        landed = [p for p in folder.rglob("*") if p.is_file()] if folder.exists() else []
-        print(f"        landed: {[p.name for p in landed]}", flush=True)
+        # A row saying "Complete" is not a file: look where the row says it is.
+        saved = pathlib.Path((row_of(home, VIDEO) or {}).get("path") or "/nonexistent")
+        check("and the video is a real file where the row says", saved.is_file() and saved.stat().st_size > 100_000,
+              f"{saved} {saved.stat().st_size if saved.is_file() else 'missing'}")
 
         click("push button", "Not now")
         time.sleep(1)
