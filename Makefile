@@ -1,6 +1,6 @@
 # dm — clone it and install it.
 #
-#     ./edm --install        (or: make install)
+#     make install
 #
 # What this can and cannot do, said plainly, because the difference matters:
 #

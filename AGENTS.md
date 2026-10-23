@@ -9,6 +9,7 @@ then `docs/parity.md`, then `docs/decisions.md`.
 | Read | Why |
 |---|---|
 | `docs/gaps.md` | The ranked work list: take the top open item |
+| `docs/feature-status.md` | Every feature, with the run that showed it and what is unchecked |
 | `docs/parity.md` | dm's behaviour checklist, with the test or run that proves each line |
 | `docs/ui-design.md` | dm's look as tokens; verify a visual change with `scripts/ui-shot.py` |
 | `docs/video-panel.md` | The browser's "Download video" panel, line by line with its tests |

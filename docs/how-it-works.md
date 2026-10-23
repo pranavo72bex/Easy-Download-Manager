@@ -99,7 +99,7 @@ that means on first launch.
 ```sh
 git clone https://github.com/pranavo72bex/Easy-Download-Manager
 cd Easy-Download-Manager
-./edm --install          # or: make install
+make install
 ```
 
 That builds and installs the desktop client, builds the extension (Rust to
@@ -116,10 +116,10 @@ you visit. A download manager whose extension is on the Web Store can get to
 one click, because an installer may name a Store extension in a policy.
 
 ```sh
-./edm --register            # tell the browsers where dm is (done by --install)
-./edm --register <id>       # also allow a Chrome Web Store build's id
-./edm --doctor              # what is installed, what is missing
-./edm --uninstall           # all of it back out
+make register              # tell the browsers where dm is (done by make install)
+make register EXT_ID=<id>  # also allow a Chrome Web Store build's id
+make doctor                # what is installed, what is missing
+make uninstall             # all of it back out
 ```
 
 The unpacked Chrome build's id is fixed by the public key in its manifest
