@@ -210,10 +210,7 @@ pub fn unrecognised(args: &[String]) -> Vec<String> {
     while let Some(arg) = args.get(i) {
         match arg.as_str() {
             "--save-to" | "--name" | "--when-done" | "--control" => i += 1,
-            a if a.starts_with('-')
-                || a.contains(':')
-                || is_link(a)
-                || Path::new(a).exists() => {}
+            a if a.starts_with('-') || a.contains(':') || is_link(a) || Path::new(a).exists() => {}
             a => words.push(a.to_string()),
         }
         i += 1;

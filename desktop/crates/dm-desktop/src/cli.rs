@@ -324,14 +324,25 @@ mod tests {
         }
         assert!(line(&brief(&row)).contains("failed (connection reset)"));
         assert!(line(&brief(&row)).contains("1.5 KiB"));
-        assert!(line(&brief(&row)).contains(" 37%"), "{}", line(&brief(&row)));
+        assert!(
+            line(&brief(&row)).contains(" 37%"),
+            "{}",
+            line(&brief(&row))
+        );
         let running = json!({
             "id": 5, "url": "u", "filename": "g.bin", "state": { "kind": "running" },
             "progress": { "downloaded": 1 << 20, "total": 4 << 20, "speed": 2048.0 }
         });
-        assert!(line(&brief(&running)).contains("25%  "), "{}", line(&brief(&running)));
+        assert!(
+            line(&brief(&running)).contains("25%  "),
+            "{}",
+            line(&brief(&running))
+        );
         assert!(line(&brief(&running)).contains("2.0 KiB/s"));
-        assert_eq!(parse(&words("pause 3 3 4 3")).unwrap().0, Ask::Act("downloads.pause", vec![3, 4]));
+        assert_eq!(
+            parse(&words("pause 3 3 4 3")).unwrap().0,
+            Ask::Act("downloads.pause", vec![3, 4])
+        );
     }
 
     /// A dm that answers `queue.list` with one row and records the rest.

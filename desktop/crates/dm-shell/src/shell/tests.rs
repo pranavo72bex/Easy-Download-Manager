@@ -314,11 +314,26 @@ fn a_mistyped_command_is_found_and_real_arguments_are_not() {
     std::fs::write(&file, b"x").unwrap();
     let file = file.display().to_string();
     let args = argv(&[
-        "--control", "0", "--save-to", "somewhere", "--name", "a.bin", "--when-done", "exit",
-        "--hidden", "-psn_0_1", "https://e.com/a", "magnet:?xt=x", "C:\\x\\y.torrent", &file,
+        "--control",
+        "0",
+        "--save-to",
+        "somewhere",
+        "--name",
+        "a.bin",
+        "--when-done",
+        "exit",
+        "--hidden",
+        "-psn_0_1",
+        "https://e.com/a",
+        "magnet:?xt=x",
+        "C:\\x\\y.torrent",
+        &file,
     ]);
     assert!(unrecognised(&args).is_empty(), "{:?}", unrecognised(&args));
-    assert_eq!(unrecognised(&argv(&["lst", "--later", "fly"])), ["lst", "fly"]);
+    assert_eq!(
+        unrecognised(&argv(&["lst", "--later", "fly"])),
+        ["lst", "fly"]
+    );
 }
 
 #[test]
