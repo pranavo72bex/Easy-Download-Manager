@@ -703,7 +703,7 @@ mod redirect_tests {
         let made = rcgen::generate_simple_self_signed(vec!["localhost".into()]).unwrap();
         let cert = made.cert.der().to_vec();
         let key =
-            rustls::pki_types::PrivateKeyDer::try_from(made.key_pair.serialize_der()).unwrap();
+            rustls::pki_types::PrivateKeyDer::try_from(made.signing_key.serialize_der()).unwrap();
         let config = rustls::ServerConfig::builder_with_provider(std::sync::Arc::new(
             rustls::crypto::ring::default_provider(),
         ))
