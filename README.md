@@ -235,10 +235,11 @@ Fedora, openSUSE, Arch and AppImage installs.)
 
 dm can be driven by any AI client that speaks the Model Context Protocol
 (Claude Desktop and others), using the client's own account: dm needs no key
-and sends nothing off your computer. It is **off until you turn it on**: tick
-**Options › General › Let AI assistants use dm over MCP**, restart dm once (or
-start it with `--control 0`, or `--headless --control 0`), then add dm to the
-client's settings:
+and sends nothing off your computer. It is **on by default**: dm opens a local control port at every start,
+reachable only from your own computer and only with a token that your account
+alone can read. To turn it off, untick **Options › General › Let AI assistants
+use dm over MCP**; assistants are then refused at once. Add dm to the client's
+settings:
 
 ```json
 { "mcpServers": { "dm": { "command": "/path/to/dm-desktop", "args": ["mcp"] } } }

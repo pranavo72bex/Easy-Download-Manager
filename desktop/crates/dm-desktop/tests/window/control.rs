@@ -425,14 +425,14 @@ fn allow_mcp(harness: &mut Harness<'_, DmApp>, on: bool) {
     harness.state_mut().apply_settings(wanted).unwrap();
 }
 
-/// Options › General › Let AI assistants use dm over MCP: off until ticked,
+/// Options › General › Let AI assistants use dm over MCP: on unless unticked,
 /// asked afresh with every request, and said plainly when it refuses.
 #[test]
 fn ai_assistants_are_answered_only_while_the_setting_is_on() {
     let _file = settings_file();
     let world = world();
     let mut harness = world.harness();
-    assert!(!harness.state().applied.allow_mcp, "off until turned on");
+    assert!(harness.state().applied.allow_mcp, "on unless turned off");
     let (to_window, requests) = std::sync::mpsc::channel();
     harness.state_mut().attach_control(requests);
     let token = "f".repeat(64);
@@ -463,23 +463,24 @@ fn ai_assistants_are_answered_only_while_the_setting_is_on() {
         }
         got
     };
+    let on = round(&mut harness);
+    assert!(on[0].is_ok(), "refused while on, the default: {on:?}");
+    assert!(on[1].is_ok(), "{on:?}");
+    allow_mcp(&mut harness, false);
     let off = round(&mut harness);
     assert!(
         matches!(&off[0], Err(why) if why.contains("turned off")),
-        "an AI assistant was answered while off: {off:?}"
+        "turning it off did not take hold on the open connection: {off:?}"
     );
     assert!(
         off[1].is_ok(),
         "the command line's kind of client is not an AI assistant's: {off:?}"
     );
     allow_mcp(&mut harness, true);
-    let on = round(&mut harness);
-    assert!(on[0].is_ok(), "refused while on: {on:?}");
-    allow_mcp(&mut harness, false);
-    let off_again = round(&mut harness);
+    let on_again = round(&mut harness);
     assert!(
-        matches!(&off_again[0], Err(why) if why.contains("turned off")),
-        "turning it off did not take hold on the open connection: {off_again:?}"
+        on_again[0].is_ok(),
+        "refused after turning it back on: {on_again:?}"
     );
     drop(ask);
     client.join().unwrap();

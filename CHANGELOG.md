@@ -5,10 +5,11 @@ the browser extension (`v*` tags) are versioned separately.
 
 ## App 0.6.0
 
-- Options › General › **Let AI assistants use dm over MCP**: off until ticked.
-  An assistant is refused, in words, while it is off, and turning it off takes
-  hold at once on a connection already open; ticking it also opens the control
-  port from dm's next start, as the command-line setting does.
+- Options › General › **Let AI assistants use dm over MCP**: on by default, and
+  unticked to turn it off. While it is on, dm opens its control port at every
+  start (loopback only, behind a token only this account can read), as the
+  command-line setting does. An assistant is refused, in words, while it is
+  off, and turning it off takes hold at once on a connection already open.
 
 - The list's filter is a search box in the middle of the top row (modern
   look, window wide enough); the filter row keeps only Clear and the count
