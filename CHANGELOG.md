@@ -5,8 +5,9 @@ the browser extension (`v*` tags) are versioned separately.
 
 ## Unreleased
 
-- AI clients (`dm-desktop mcp`): new tools `dm_pause`, `dm_resume` (by id, or
-  all) and `dm_set_speed_limit` (low, medium, high, unlimited). To connect,
+- AI clients (`dm-desktop mcp`): new tools `dm_pause`, `dm_resume`,
+  `dm_cancel` (by id; pause and resume of all when no ids), `dm_move`,
+  `dm_queue` and `dm_set_speed_limit` (an exact KB/s, or a preset). To connect,
   start dm with `--control 0`, then register `dm-desktop` with the argument
   `mcp` as a server in the client's settings (for example
   `{"mcpServers":{"dm":{"command":"/path/to/dm-desktop","args":["mcp"]}}}`).

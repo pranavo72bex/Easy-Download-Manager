@@ -73,10 +73,32 @@ fn tools() -> Value {
             vec![]
         ),
         tool(
+            "dm_cancel",
+            "Cancel the downloads with these ids: they stop, and stay in the list as cancelled. \
+             Their files are not deleted.",
+            json!({ "ids": { "type": "array", "items": { "type": "integer" } } }),
+            vec!["ids"]
+        ),
+        tool(
             "dm_set_speed_limit",
-            "Set the speed limit to a preset: low, medium, high or unlimited.",
-            json!({ "preset": { "type": "string", "enum": ["low", "medium", "high", "unlimited"] } }),
-            vec!["preset"]
+            "Set the speed limit: `kb` for an exact limit in KB/s (0 for none), or `preset` \
+             (low, medium, high, unlimited).",
+            json!({ "kb": { "type": "integer", "minimum": 0 },
+                     "preset": { "type": "string", "enum": ["low", "medium", "high", "unlimited"] } }),
+            vec![]
+        ),
+        tool(
+            "dm_move",
+            "Move the downloads with these ids up or down the queue order.",
+            json!({ "ids": { "type": "array", "items": { "type": "integer" } },
+                     "direction": { "type": "string", "enum": ["up", "down"] } }),
+            vec!["ids", "direction"]
+        ),
+        tool(
+            "dm_queue",
+            "Start or stop the whole main queue.",
+            json!({ "action": { "type": "string", "enum": ["start", "stop"] } }),
+            vec!["action"]
         ),
         tool(
             "dm_inspect",
@@ -97,16 +119,35 @@ fn tools() -> Value {
 /// ones that act on ids select them first.
 fn plan(tool: &str, arguments: &Value) -> Result<Option<Vec<(&'static str, Value)>>, String> {
     let ids = arguments.get("ids").filter(|v| !v.is_null());
-    let acting = |all: &'static str, some: &'static str| {
-        let run = |id: &str| ("command.run", json!({ "id": id }));
-        match ids {
-            Some(ids) => vec![("ui.select", json!({ "ids": ids })), run(some)],
-            None => vec![run(all)],
-        }
+    let acting = |all: &'static str, some: &'static str| match ids {
+        Some(ids) => vec![(some, json!({ "ids": ids }))],
+        None => vec![("command.run", json!({ "id": all }))],
     };
+    let run = |id: &str| ("command.run", json!({ "id": id }));
+    let select = || ("ui.select", json!({ "ids": ids }));
     Ok(Some(match tool {
-        "dm_pause" => acting("downloads.stop_all", "file.stop_download"),
-        "dm_resume" => acting("downloads.resume_all", "file.download_now"),
+        "dm_pause" => acting("downloads.stop_all", "downloads.pause"),
+        "dm_resume" => acting("downloads.resume_all", "downloads.resume"),
+        "dm_cancel" => vec![("downloads.cancel", json!({ "ids": ids }))],
+        "dm_move" => {
+            let up = match arguments.get("direction").and_then(Value::as_str) {
+                Some("up") => true,
+                Some("down") => false,
+                _ => return Err("direction is up or down".into()),
+            };
+            vec![
+                select(),
+                run(if up { "file.move_up" } else { "file.move_down" }),
+            ]
+        }
+        "dm_queue" => match arguments.get("action").and_then(Value::as_str) {
+            Some("start") => vec![run("downloads.start_queue")],
+            Some("stop") => vec![run("downloads.stop_queue")],
+            _ => return Err("action is start or stop".into()),
+        },
+        "dm_set_speed_limit" if arguments.get("kb").is_some() => {
+            vec![("downloads.speed_limit", json!({ "kb": arguments["kb"] }))]
+        }
         "dm_set_speed_limit" => {
             let preset = arguments
                 .get("preset")
@@ -400,28 +441,40 @@ mod tests {
     }
 
     #[test]
-    fn tools_that_act_on_ids_select_them_first() {
-        let calls = plan("dm_pause", &json!({ "ids": [3, 4] }))
-            .unwrap()
-            .unwrap();
-        assert_eq!(calls[0], ("ui.select", json!({ "ids": [3, 4] })));
+    fn tools_become_the_control_calls_they_are() {
+        let one = |tool: &str, args: Value| plan(tool, &args).unwrap().unwrap();
+        let run = |id: &str| ("command.run", json!({ "id": id }));
         assert_eq!(
-            calls[1],
-            ("command.run", json!({ "id": "file.stop_download" }))
+            one("dm_pause", json!({ "ids": [3, 4] })),
+            vec![("downloads.pause", json!({ "ids": [3, 4] }))]
         );
-        let all = plan("dm_resume", &json!({})).unwrap().unwrap();
         assert_eq!(
-            all,
-            vec![("command.run", json!({ "id": "downloads.resume_all" }))]
+            one("dm_resume", json!({})),
+            vec![run("downloads.resume_all")]
         );
-        let speed = plan("dm_set_speed_limit", &json!({ "preset": "low" }))
-            .unwrap()
-            .unwrap();
         assert_eq!(
-            speed,
-            vec![("command.run", json!({ "id": "downloads.speed.low" }))]
+            one("dm_cancel", json!({ "ids": [5] })),
+            vec![("downloads.cancel", json!({ "ids": [5] }))]
+        );
+        assert_eq!(
+            one("dm_set_speed_limit", json!({ "preset": "low" })),
+            vec![run("downloads.speed.low")]
+        );
+        assert_eq!(
+            one("dm_set_speed_limit", json!({ "kb": 500 })),
+            vec![("downloads.speed_limit", json!({ "kb": 500 }))]
+        );
+        assert_eq!(
+            one("dm_move", json!({ "ids": [2], "direction": "down" })),
+            vec![("ui.select", json!({ "ids": [2] })), run("file.move_down")]
+        );
+        assert_eq!(
+            one("dm_queue", json!({ "action": "stop" })),
+            vec![run("downloads.stop_queue")]
         );
         assert!(plan("dm_set_speed_limit", &json!({ "preset": "x" })).is_err());
+        assert!(plan("dm_move", &json!({ "ids": [1] })).is_err());
+        assert!(plan("dm_queue", &json!({ "action": "x" })).is_err());
         assert_eq!(plan("dm_nonsense", &json!({})), Ok(None));
     }
 

@@ -561,14 +561,24 @@ def main():
         names = {t["name"] for t in json.loads(listed_tools.stdout.decode())["result"]["tools"]}
         check("the MCP server offers every tool", sorted(names), sorted(
             ["dm_list_commands", "dm_run_command", "dm_add_downloads", "dm_list_downloads", "dm_select",
-             "dm_pause", "dm_resume", "dm_set_speed_limit", "dm_inspect", "dm_screenshot"]))
+             "dm_pause", "dm_resume", "dm_cancel", "dm_move", "dm_queue", "dm_set_speed_limit",
+             "dm_inspect", "dm_screenshot"]))
         check("dm_list_downloads lists the agent's download", "agent.zip" in tool("dm_list_downloads")["content"][0]["text"], True)
         check("dm_list_commands lists commands", "file.stop_download" in tool("dm_list_commands")["content"][0]["text"], True)
         check("dm_set_speed_limit sets a preset", tool("dm_set_speed_limit", preset="low").get("isError"), None)
         check("and unlimited puts it back", tool("dm_set_speed_limit", preset="unlimited").get("isError"), None)
         check("a wrong preset is an error the model reads", tool("dm_set_speed_limit", preset="warp").get("isError"), True)
+        first_id = [r for r in rows(home) if r["state"]["kind"] == "completed"][0]["id"]
+        check("an exact speed limit is set in KB/s", tool("dm_set_speed_limit", kb=500).get("isError"), None)
+        check("and read back", '"speed_limit_kb":500' in tool("dm_set_speed_limit", kb=500)["content"][0]["text"], True)
+        check("and removed with 0", tool("dm_set_speed_limit", kb=0).get("isError"), None)
+        check("dm_queue stops and starts the main queue",
+              (tool("dm_queue", action="stop").get("isError"), tool("dm_queue", action="start").get("isError")), (None, None))
+        check("dm_queue refuses a wrong action", tool("dm_queue", action="x").get("isError"), True)
+        check("dm_cancel names what it skipped", "already settled" in tool("dm_cancel", ids=[first_id])["content"][0]["text"], True)
+        check("dm_pause names a row that is not running", "not running" in tool("dm_pause", ids=[first_id])["content"][0]["text"], True)
         check("dm_resume with nothing to resume does not crash", "content" in tool("dm_resume"), True)
-        check("dm_pause by id refuses a settled row", tool("dm_pause", ids=[999999]).get("isError"), True)
+        check("dm_pause names an id that is not there", "no such download" in tool("dm_pause", ids=[999999])["content"][0]["text"], True)
         check("dm_run_command will not open a file", tool("dm_run_command", id="file.open").get("isError"), True)
         check("dm_inspect reads the window back", "content" in tool("dm_inspect"), True)
 

@@ -244,10 +244,11 @@ and sends nothing off your computer. Start dm with `--control 0` (or
 
 Then ask in plain words, such as "download these three links, but slowly".
 The tools are `dm_add_downloads`, `dm_list_downloads`, `dm_pause`,
-`dm_resume`, `dm_set_speed_limit` (low, medium, high, unlimited),
-`dm_list_commands`, `dm_run_command`, `dm_select`, `dm_inspect` and
-`dm_screenshot`. Opening a downloaded file and removing a download stay a
-person's click in the window. If dm is restarted, the assistant reconnects on
+`dm_resume`, `dm_cancel` (by number; the file is kept), `dm_move` (up or down
+the queue), `dm_queue` (start or stop the main queue), `dm_set_speed_limit`
+(exact KB/s, or low, medium, high, unlimited), `dm_list_commands`,
+`dm_run_command`, `dm_select`, `dm_inspect` and `dm_screenshot`. Opening a
+downloaded file and deleting a download stay a person's click in the window. If dm is restarted, the assistant reconnects on
 its next request.
 
 ### How video downloads work

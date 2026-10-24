@@ -241,6 +241,25 @@ impl DmApp {
                 }
                 Ok(json!({ "done": done, "skipped": skipped }))
             }
+            // An exact ceiling in KB/s, where the commands only have presets;
+            // 0 is no limit.
+            "downloads.speed_limit" => {
+                let kb = params
+                    .get("kb")
+                    .and_then(|v| v.as_u64())
+                    .ok_or("give `kb`: the limit in KB/s, or 0 for none")?;
+                if kb > 100_000_000 {
+                    return Err("`kb` is at most 100000000".into());
+                }
+                let mut wanted = self.applied.clone();
+                if wanted.speed_limit > 0 {
+                    self.last_limit = wanted.speed_limit;
+                    wanted.last_speed_limit = wanted.speed_limit;
+                }
+                wanted.speed_limit = kb;
+                self.apply_settings(wanted)?;
+                Ok(json!({ "speed_limit_kb": self.applied.speed_limit }))
+            }
             "downloads.add" => {
                 let urls: Vec<String> = match params.get("urls").or_else(|| params.get("url")) {
                     Some(serde_json::Value::String(one)) => vec![one.clone()],
