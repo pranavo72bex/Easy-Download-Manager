@@ -232,18 +232,37 @@ pub type Finder = Box<dyn Fn() -> Result<(u16, String), String> + Send>;
 pub struct Control {
     link: Option<(TcpStream, BufReader<TcpStream>)>,
     find: Finder,
+    client: Option<&'static str>,
 }
 
 impl Control {
     /// Connects to `port` with `token`, and to the same again later.
     pub fn connect(port: u16, token: &str) -> Result<Control, String> {
+        Control::connect_as(port, token, Some("mcp"))
+    }
+
+    /// As `connect`, saying who is asking: `Some("mcp")` is an AI assistant,
+    /// which the window answers only while Options allows it.
+    pub fn connect_as(
+        port: u16,
+        token: &str,
+        client: Option<&'static str>,
+    ) -> Result<Control, String> {
         let token = token.to_string();
-        Control::with(Box::new(move || Ok((port, token.clone()))))
+        Control::with_client(Box::new(move || Ok((port, token.clone()))), client)
     }
 
     /// Connects wherever `find` says, now and on each reconnection.
     pub fn with(find: Finder) -> Result<Control, String> {
-        let mut control = Control { link: None, find };
+        Control::with_client(find, Some("mcp"))
+    }
+
+    fn with_client(find: Finder, client: Option<&'static str>) -> Result<Control, String> {
+        let mut control = Control {
+            link: None,
+            find,
+            client,
+        };
         control.reconnect()?;
         Ok(control)
     }
@@ -260,7 +279,7 @@ impl Control {
         })?;
         let replies = BufReader::new(stream.try_clone().map_err(|e| e.to_string())?);
         self.link = Some((stream, replies));
-        if let Err(why) = self.exchange("auth", json!({ "token": token })) {
+        if let Err(why) = self.exchange("auth", json!({ "token": token, "client": self.client })) {
             self.link = None;
             return Err(why);
         }

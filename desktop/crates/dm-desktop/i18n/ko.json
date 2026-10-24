@@ -647,6 +647,7 @@
  "There is no folder chooser here: use Extract here": "여기에는 폴더 선택기가 없습니다. “여기에 압축 풀기”를 사용하세요",
  "Stop recording a live stream after, minutes (0 records until it ends)": "라이브 스트림 녹화를 멈출 시간(분, 0은 끝날 때까지 녹화)",
  "Let the command line list and steer downloads (dm-desktop list, pause, resume, cancel); from dm's next start": "명령줄에서 다운로드를 나열하고 제어하도록 허용(dm-desktop list, pause, resume, cancel). dm 다음 시작부터",
+ "Let AI assistants use dm over MCP (dm-desktop mcp); from dm's next start": "AI 어시스턴트가 MCP로 dm을 사용하도록 허용 (dm-desktop mcp); dm을 다음에 시작할 때부터",
  "Watch a folder for links: a .url, .webloc or text file of links, or a .torrent saved there is added and moved to its \"done\" folder (empty is off)": "링크를 감시할 폴더: 거기에 저장한 .url, .webloc, 링크가 든 텍스트 파일 또는 .torrent를 추가하고 안의 “done” 폴더로 옮깁니다(비워 두면 꺼짐)",
  "Working it out…": "계산 중…",
  "Check against": "대조할 값",

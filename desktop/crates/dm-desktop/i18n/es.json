@@ -647,6 +647,7 @@
  "There is no folder chooser here: use Extract here": "Aquí no hay selector de carpetas: use «Extraer aquí»",
  "Stop recording a live stream after, minutes (0 records until it ends)": "Detener la grabación de una transmisión en vivo tras, minutos (0 graba hasta que termine)",
  "Let the command line list and steer downloads (dm-desktop list, pause, resume, cancel); from dm's next start": "Dejar que la línea de comandos liste y controle las descargas (dm-desktop list, pause, resume, cancel); desde el próximo inicio de dm",
+ "Let AI assistants use dm over MCP (dm-desktop mcp); from dm's next start": "Permitir que los asistentes de IA usen dm mediante MCP (dm-desktop mcp); desde el próximo inicio de dm",
  "Watch a folder for links: a .url, .webloc or text file of links, or a .torrent saved there is added and moved to its \"done\" folder (empty is off)": "Vigilar una carpeta en busca de enlaces: un .url, .webloc o archivo de texto con enlaces, o un .torrent guardado allí se añade y se mueve a su carpeta «done» (vacío es desactivado)",
  "Working it out…": "Calculando…",
  "Check against": "Comprobar con",

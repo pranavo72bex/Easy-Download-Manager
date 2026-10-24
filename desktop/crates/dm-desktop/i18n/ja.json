@@ -647,6 +647,7 @@
  "There is no folder chooser here: use Extract here": "ここにはフォルダー選択がありません。「ここに展開」を使ってください",
  "Stop recording a live stream after, minutes (0 records until it ends)": "ライブ配信の録画を止めるまでの時間（分、0 は終了まで録画）",
  "Let the command line list and steer downloads (dm-desktop list, pause, resume, cancel); from dm's next start": "コマンドラインからダウンロードの一覧表示と操作を許可する（dm-desktop list、pause、resume、cancel）。dm の次回起動から",
+ "Let AI assistants use dm over MCP (dm-desktop mcp); from dm's next start": "AI アシスタントが MCP 経由で dm を使えるようにする (dm-desktop mcp)。次回 dm を起動したときから",
  "Watch a folder for links: a .url, .webloc or text file of links, or a .torrent saved there is added and moved to its \"done\" folder (empty is off)": "リンクを監視するフォルダー：そこに保存された .url、.webloc、リンクを書いたテキスト、または .torrent を追加し、その中の「done」フォルダーへ移します（空欄は無効）",
  "Working it out…": "計算中…",
  "Check against": "照合する値",

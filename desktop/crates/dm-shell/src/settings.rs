@@ -98,6 +98,11 @@ pub struct Settings {
     /// listens on nothing, and the port exists only under `--control`.
     #[serde(default)]
     pub allow_command_line: bool,
+    /// Let an AI assistant use dm over MCP (`dm-desktop mcp`): its requests
+    /// are answered only while this is on, and it opens the control port at
+    /// start as `allow_command_line` does. Off until turned on.
+    #[serde(default)]
+    pub allow_mcp: bool,
     /// A folder dm reads every few seconds for links saved there: a `.url`,
     /// a `.webloc`, a text file of links or a `.torrent` is added, then
     /// moved into a `done` folder inside it. Empty is off.
@@ -410,6 +415,7 @@ impl Default for Settings {
             watch_clipboard: false,
             start_on_login: true,
             allow_command_line: false,
+            allow_mcp: false,
             watch_folder: String::new(),
             check_updates: false,
             language: String::new(),

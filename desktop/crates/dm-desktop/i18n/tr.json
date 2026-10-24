@@ -647,6 +647,7 @@
  "There is no folder chooser here: use Extract here": "Burada klasör seçici yok: “Buraya çıkar” kullanın",
  "Stop recording a live stream after, minutes (0 records until it ends)": "Canlı yayın kaydını şu kadar dakika sonra durdur (0 yayın bitene kadar kaydeder)",
  "Let the command line list and steer downloads (dm-desktop list, pause, resume, cancel); from dm's next start": "Komut satırının indirmeleri listelemesine ve yönetmesine izin ver (dm-desktop list, pause, resume, cancel); dm’nin bir sonraki açılışından itibaren",
+ "Let AI assistants use dm over MCP (dm-desktop mcp); from dm's next start": "Yapay zekâ asistanlarının dm'yi MCP üzerinden kullanmasına izin ver (dm-desktop mcp); dm'nin bir sonraki başlatılışından itibaren",
  "Watch a folder for links: a .url, .webloc or text file of links, or a .torrent saved there is added and moved to its \"done\" folder (empty is off)": "Bir klasörü bağlantılar için izle: oraya kaydedilen .url, .webloc ya da bağlantı içeren metin dosyası veya .torrent eklenir ve “done” klasörüne taşınır (boş: kapalı)",
  "Working it out…": "Hesaplanıyor…",
  "Check against": "Şununla karşılaştır",

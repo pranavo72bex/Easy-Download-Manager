@@ -14,6 +14,15 @@ impl DmApp {
             }
         }
         for request in asked {
+            // An AI assistant is answered only while Options allows it, asked
+            // afresh each request, so turning it off takes hold at once.
+            if request.via_mcp && !self.applied.allow_mcp {
+                let _ = request.reply.send(Err(
+                    "AI assistants are turned off in dm: tick Options › General › Let AI assistants use dm over MCP"
+                        .to_string(),
+                ));
+                continue;
+            }
             if request.method == "ui.screenshot" && self.headless {
                 let _ = request.reply.send(Err(
                     "dm is running headless: there is no window to picture".into(),

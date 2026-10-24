@@ -29,6 +29,9 @@ use serde_json::{json, Value};
 
 /// One request, handed to the window to answer on its own thread.
 pub struct Request {
+    /// Sent by `dm-desktop mcp` (it says so when it authenticates), so the
+    /// window can refuse it while Options says AI assistants are off.
+    pub via_mcp: bool,
     pub method: String,
     pub params: Value,
     pub reply: mpsc::Sender<Result<Value, String>>,
@@ -229,6 +232,7 @@ fn serve(
     let mut out = stream.try_clone()?;
     let mut reader = BufReader::new(stream);
     let mut authenticated = false;
+    let mut via_mcp = false;
     loop {
         let mut line = String::new();
         let limit = if authenticated {
@@ -271,6 +275,7 @@ fn serve(
         if !authenticated {
             let given = params.get("token").and_then(Value::as_str).unwrap_or("");
             if method == "auth" && constant_time_eq(given.as_bytes(), token.as_bytes()) {
+                via_mcp = params.get("client").and_then(Value::as_str) == Some("mcp");
                 if !connection.authenticated() {
                     write_reply(
                         &mut out,
@@ -298,6 +303,7 @@ fn serve(
         let (reply, answered) = mpsc::channel();
         if to_window
             .send(Request {
+                via_mcp,
                 method,
                 params,
                 reply,

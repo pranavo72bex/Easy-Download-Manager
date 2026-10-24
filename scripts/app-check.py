@@ -259,7 +259,8 @@ def main():
     env = {**os.environ, "DM_HOME": str(home)}
     # Three attempts, not the ten a person gets: a check that a failure is a
     # failure would otherwise wait out minutes of half-minute retries.
-    settings = {"download_dir": str(downloads), "categorize": True, "connections": 4, "attempts": 3}
+    settings = {"download_dir": str(downloads), "categorize": True, "connections": 4, "attempts": 3,
+                "allow_mcp": True}
     (home / "settings.json").write_text(json.dumps(settings))
     # The PATH a Dock or login launch has: no Homebrew, no ~/.local/bin. The
     # tools dm runs are found by their usual homes, or they are not found.
@@ -657,8 +658,33 @@ def main():
         found = cli("list")
         check("with allow_command_line on, a dm started with no --control is listed", found.returncode, 0)
         stop(app, home)
+        # The AI-assistant setting: opens the port by itself, and answers an
+        # assistant only while it is on.
+        def assistant():
+            body = "\n".join([json.dumps({"jsonrpc": "2.0", "id": 1, "method": "initialize", "params": {}}),
+                              json.dumps({"jsonrpc": "2.0", "id": 2, "method": "tools/call",
+                                          "params": {"name": "dm_list_downloads", "arguments": {}}})]) + "\n"
+            out = subprocess.run([BINARY, "mcp"], env=env, input=body.encode(), capture_output=True, timeout=30)
+            return json.loads(out.stdout.decode().splitlines()[1])["result"]
+        for allowed in (True, False):
+            (home / "control.port").unlink(missing_ok=True)
+            (home / "settings.json").write_text(json.dumps({**settings_now, "allow_command_line": False, "allow_mcp": allowed}))
+            app = launch(env, "--headless", "--control", "0")
+            wait_for("the port for the assistant", lambda: (home / "control.port").exists() and (home / "control.port").read_text().strip(), 30)
+            answer = assistant()
+            if allowed:
+                check("an AI assistant is answered when Options allows it", answer.get("isError"), None)
+            else:
+                check("and refused, in words, when it is off", (answer.get("isError"), "turned off" in answer["content"][0]["text"]), (True, True))
+            stop(app, home)
         (home / "control.port").unlink(missing_ok=True)
-        (home / "settings.json").write_text(json.dumps({**settings_now, "allow_command_line": False}))
+        (home / "settings.json").write_text(json.dumps({**settings_now, "allow_command_line": False, "allow_mcp": True}))
+        app = launch(env, "--headless")
+        wait_for("the port the assistant setting opens by itself", lambda: (home / "control.port").exists(), 30)
+        check("the setting alone opens the port, with no --control", assistant().get("isError"), None)
+        stop(app, home)
+        (home / "control.port").unlink(missing_ok=True)
+        (home / "settings.json").write_text(json.dumps({**settings_now, "allow_command_line": False, "allow_mcp": False}))
         app = launch(env, "--headless")
         time.sleep(3)
         check("with it off, there is no port to find", (home / "control.port").exists(), False)

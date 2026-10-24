@@ -45,6 +45,11 @@ pub(super) fn tab_general(ui: &mut egui::Ui, d: &mut OptionsDialog, env: &TabEnv
     );
     check(
         ui,
+        &mut s.allow_mcp,
+        t("Let AI assistants use dm over MCP (dm-desktop mcp); from dm's next start"),
+    );
+    check(
+        ui,
         &mut s.check_updates,
         t("Look for a new version about once a week (asks GitHub; nothing about you is sent)"),
     );

@@ -154,8 +154,10 @@ fn the_control_protocol_runs_commands_and_reads_the_window_back() {
 /// connection to the window.
 #[test]
 fn the_mcp_bridge_gives_an_agent_dm_as_tools() {
+    let _file = settings_file();
     let world = world();
     let mut harness = world.harness();
+    allow_mcp(&mut harness, true);
     let (to_window, requests) = std::sync::mpsc::channel();
     harness.state_mut().attach_control(requests);
     let token = "e".repeat(64);
@@ -415,4 +417,70 @@ fn steps_waiting_for_frames_are_capped_and_refused_while_hidden() {
         .state_mut()
         .human_call("queue.list", &key, None)
         .is_none());
+}
+
+fn allow_mcp(harness: &mut Harness<'_, DmApp>, on: bool) {
+    let mut wanted = harness.state().applied.clone();
+    wanted.allow_mcp = on;
+    harness.state_mut().apply_settings(wanted).unwrap();
+}
+
+/// Options › General › Let AI assistants use dm over MCP: off until ticked,
+/// asked afresh with every request, and said plainly when it refuses.
+#[test]
+fn ai_assistants_are_answered_only_while_the_setting_is_on() {
+    let _file = settings_file();
+    let world = world();
+    let mut harness = world.harness();
+    assert!(!harness.state().applied.allow_mcp, "off until turned on");
+    let (to_window, requests) = std::sync::mpsc::channel();
+    harness.state_mut().attach_control(requests);
+    let token = "f".repeat(64);
+    let port = dm_desktop::control::listen(0, token.clone(), to_window, || {}).unwrap();
+
+    let (ask, asked) = std::sync::mpsc::channel::<()>();
+    let (answer, answers) = std::sync::mpsc::channel::<Result<serde_json::Value, String>>();
+    let client = std::thread::spawn(move || {
+        let mut mcp = dm_desktop::mcp::Control::connect(port, &token).unwrap();
+        // A client that is not MCP: the command line's kind.
+        let mut plain = dm_desktop::mcp::Control::connect_as(port, &token, None).unwrap();
+        while asked.recv().is_ok() {
+            let via_mcp = mcp.call("queue.list", serde_json::json!({}));
+            let via_plain = plain.call("queue.list", serde_json::json!({}));
+            answer.send(via_mcp).unwrap();
+            answer.send(via_plain).unwrap();
+        }
+    });
+    let mut round = |harness: &mut Harness<'_, DmApp>| {
+        ask.send(()).unwrap();
+        let mut got = Vec::new();
+        while got.len() < 2 {
+            harness.step();
+            while let Ok(one) = answers.try_recv() {
+                got.push(one);
+            }
+            std::thread::sleep(Duration::from_millis(5));
+        }
+        got
+    };
+    let off = round(&mut harness);
+    assert!(
+        matches!(&off[0], Err(why) if why.contains("turned off")),
+        "an AI assistant was answered while off: {off:?}"
+    );
+    assert!(
+        off[1].is_ok(),
+        "the command line's kind of client is not an AI assistant's: {off:?}"
+    );
+    allow_mcp(&mut harness, true);
+    let on = round(&mut harness);
+    assert!(on[0].is_ok(), "refused while on: {on:?}");
+    allow_mcp(&mut harness, false);
+    let off_again = round(&mut harness);
+    assert!(
+        matches!(&off_again[0], Err(why) if why.contains("turned off")),
+        "turning it off did not take hold on the open connection: {off_again:?}"
+    );
+    drop(ask);
+    client.join().unwrap();
 }

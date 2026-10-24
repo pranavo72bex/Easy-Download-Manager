@@ -647,6 +647,7 @@
  "There is no folder chooser here: use Extract here": "Tidak ada pemilih folder di sini: gunakan “Ekstrak di sini”",
  "Stop recording a live stream after, minutes (0 records until it ends)": "Hentikan perekaman siaran langsung setelah, menit (0 merekam sampai selesai)",
  "Let the command line list and steer downloads (dm-desktop list, pause, resume, cancel); from dm's next start": "Izinkan baris perintah mendaftar dan mengendalikan unduhan (dm-desktop list, pause, resume, cancel); mulai dm berikutnya",
+ "Let AI assistants use dm over MCP (dm-desktop mcp); from dm's next start": "Izinkan asisten AI memakai dm lewat MCP (dm-desktop mcp); mulai dm dijalankan berikutnya",
  "Watch a folder for links: a .url, .webloc or text file of links, or a .torrent saved there is added and moved to its \"done\" folder (empty is off)": "Pantau folder untuk tautan: berkas .url, .webloc atau teks berisi tautan, atau .torrent yang disimpan di sana ditambahkan lalu dipindah ke folder “done” (kosong berarti mati)",
  "Working it out…": "Sedang dihitung…",
  "Check against": "Cocokkan dengan",

@@ -235,8 +235,10 @@ Fedora, openSUSE, Arch and AppImage installs.)
 
 dm can be driven by any AI client that speaks the Model Context Protocol
 (Claude Desktop and others), using the client's own account: dm needs no key
-and sends nothing off your computer. Start dm with `--control 0` (or
-`--headless --control 0`), then add dm to the client's settings:
+and sends nothing off your computer. It is **off until you turn it on**: tick
+**Options › General › Let AI assistants use dm over MCP**, restart dm once (or
+start it with `--control 0`, or `--headless --control 0`), then add dm to the
+client's settings:
 
 ```json
 { "mcpServers": { "dm": { "command": "/path/to/dm-desktop", "args": ["mcp"] } } }
@@ -256,7 +258,8 @@ double-click too), `dm_type` types into the focused field and `dm_press_key`
 presses a key (Escape closes a dialog, Enter presses its default button). An
 assistant can open Options, click through its tabs, add a link by typing it
 and check the result in `dm_screenshot`. Opening a
-downloaded file and deleting a download stay a person's click in the window. If dm is restarted, the assistant reconnects on
+downloaded file and deleting a download stay a person's click in the window.
+Untick the box and the assistant is refused at once, with a message that says why. If dm is restarted, the assistant reconnects on
 its next request.
 
 ### How video downloads work

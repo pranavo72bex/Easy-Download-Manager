@@ -647,6 +647,7 @@
  "There is no folder chooser here: use Extract here": "此处没有文件夹选择器：请使用“解压到此处”",
  "Stop recording a live stream after, minutes (0 records until it ends)": "直播录制多少分钟后停止（0 为录到结束）",
  "Let the command line list and steer downloads (dm-desktop list, pause, resume, cancel); from dm's next start": "允许命令行列出并控制下载（dm-desktop list、pause、resume、cancel）；下次启动 dm 时生效",
+ "Let AI assistants use dm over MCP (dm-desktop mcp); from dm's next start": "允许 AI 助手通过 MCP 使用 dm（dm-desktop mcp）；自 dm 下次启动起",
  "Watch a folder for links: a .url, .webloc or text file of links, or a .torrent saved there is added and moved to its \"done\" folder (empty is off)": "监视文件夹中的链接：保存在其中的 .url、.webloc、含链接的文本文件或 .torrent 会被添加，并移入其中的“done”文件夹（留空为关闭）",
  "Working it out…": "正在计算…",
  "Check against": "核对",

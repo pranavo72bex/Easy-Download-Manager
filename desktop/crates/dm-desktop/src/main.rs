@@ -330,7 +330,7 @@ fn main() {
         .or_else(|| std::env::var("DM_CONTROL").ok())
         .and_then(|p| p.parse().ok())
         // Or the person's own setting (Options › General): the command line.
-        .or_else(|| saved.allow_command_line.then_some(0));
+        .or_else(|| (saved.allow_command_line || saved.allow_mcp).then_some(0));
 
     #[cfg(target_os = "macos")]
     let _ = notify_rust::set_application("com.dm.desktop");

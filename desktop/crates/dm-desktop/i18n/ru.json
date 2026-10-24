@@ -647,6 +647,7 @@
  "There is no folder chooser here: use Extract here": "Здесь нет выбора папки: используйте «Извлечь сюда»",
  "Stop recording a live stream after, minutes (0 records until it ends)": "Остановить запись прямой трансляции через, минут (0 — писать до конца)",
  "Let the command line list and steer downloads (dm-desktop list, pause, resume, cancel); from dm's next start": "Разрешить командной строке показывать и направлять загрузки (dm-desktop list, pause, resume, cancel); со следующего запуска dm",
+ "Let AI assistants use dm over MCP (dm-desktop mcp); from dm's next start": "Разрешить ИИ-ассистентам использовать dm через MCP (dm-desktop mcp); со следующего запуска dm",
  "Watch a folder for links: a .url, .webloc or text file of links, or a .torrent saved there is added and moved to its \"done\" folder (empty is off)": "Следить за папкой со ссылками: сохранённый там .url, .webloc, текстовый файл со ссылками или .torrent добавляется и переносится в папку «done» (пусто — выключено)",
  "Working it out…": "Вычисляется…",
  "Check against": "Сверить с",
