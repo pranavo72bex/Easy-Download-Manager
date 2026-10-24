@@ -9,8 +9,8 @@ This release also carries what was prepared as 0.6.0, which was never published.
 
 - Shorter, plainer words in Options, the remove question, errors and hints,
   in the sentence case WinUI uses ("Start dm when I sign in", "Allow the
-  command line to control dm", "Its file is kept."). The other languages keep
-  their earlier wording until retranslated.
+  command line to control dm", "Its file is kept."). The other twelve languages are
+  retranslated to match (a machine pass, not yet read by native speakers).
 
 - Options › General › **Allow AI assistants to control dm (MCP)**: on by default, and
   unticked to turn it off. While it is on, dm opens its control port at every
