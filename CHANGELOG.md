@@ -5,6 +5,12 @@ the browser extension (`v*` tags) are versioned separately.
 
 ## Unreleased
 
+- AI clients (`dm-desktop mcp`): new tools `dm_pause`, `dm_resume` (by id, or
+  all) and `dm_set_speed_limit` (low, medium, high, unlimited). To connect,
+  start dm with `--control 0`, then register `dm-desktop` with the argument
+  `mcp` as a server in the client's settings (for example
+  `{"mcpServers":{"dm":{"command":"/path/to/dm-desktop","args":["mcp"]}}}`).
+  Removing a download stays a person's click.
 - Command line: a word that is no link, file or command (`dm-desktop lst`)
   is now refused with exit 2 instead of silently opening dm; `list --help`
   prints usage; `list` shows percent done and speed, and says "no

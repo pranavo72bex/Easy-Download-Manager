@@ -231,6 +231,25 @@ over the loopback address with a token only your account can read, and
 prints no cookies or sign-ins. (`dm` rather than `dm-desktop` on the
 Fedora, openSUSE, Arch and AppImage installs.)
 
+### From an AI assistant (MCP)
+
+dm can be driven by any AI client that speaks the Model Context Protocol
+(Claude Desktop and others), using the client's own account: dm needs no key
+and sends nothing off your computer. Start dm with `--control 0` (or
+`--headless --control 0`), then add dm to the client's settings:
+
+```json
+{ "mcpServers": { "dm": { "command": "/path/to/dm-desktop", "args": ["mcp"] } } }
+```
+
+Then ask in plain words, such as "download these three links, but slowly".
+The tools are `dm_add_downloads`, `dm_list_downloads`, `dm_pause`,
+`dm_resume`, `dm_set_speed_limit` (low, medium, high, unlimited),
+`dm_list_commands`, `dm_run_command`, `dm_select`, `dm_inspect` and
+`dm_screenshot`. Opening a downloaded file and removing a download stay a
+person's click in the window. If dm is restarted, the assistant reconnects on
+its next request.
+
 ### How video downloads work
 
 You do not need to install anything for video.

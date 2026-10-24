@@ -550,6 +550,27 @@ def main():
         wait_for("the agent's download never finished",
                  lambda: [r for r in rows(home) if r["url"].endswith("/agent.zip") and r["state"]["kind"] == "completed"], 30)
         check("which completes", True)
+        def tool(name, **arguments):
+            body = "\n".join([json.dumps({"jsonrpc": "2.0", "id": 1, "method": "initialize", "params": {}}),
+                              json.dumps({"jsonrpc": "2.0", "id": 2, "method": "tools/call",
+                                          "params": {"name": name, "arguments": arguments}})]) + "\n"
+            out = subprocess.run([BINARY, "mcp"], env=env, input=body.encode(), capture_output=True, timeout=30)
+            return [json.loads(l) for l in out.stdout.decode().splitlines() if l.strip()][1]["result"]
+        listed_tools = subprocess.run([BINARY, "mcp"], env=env, capture_output=True, timeout=30,
+                                      input=(json.dumps({"jsonrpc": "2.0", "id": 1, "method": "tools/list"}) + "\n").encode())
+        names = {t["name"] for t in json.loads(listed_tools.stdout.decode())["result"]["tools"]}
+        check("the MCP server offers every tool", sorted(names), sorted(
+            ["dm_list_commands", "dm_run_command", "dm_add_downloads", "dm_list_downloads", "dm_select",
+             "dm_pause", "dm_resume", "dm_set_speed_limit", "dm_inspect", "dm_screenshot"]))
+        check("dm_list_downloads lists the agent's download", "agent.zip" in tool("dm_list_downloads")["content"][0]["text"], True)
+        check("dm_list_commands lists commands", "file.stop_download" in tool("dm_list_commands")["content"][0]["text"], True)
+        check("dm_set_speed_limit sets a preset", tool("dm_set_speed_limit", preset="low").get("isError"), None)
+        check("and unlimited puts it back", tool("dm_set_speed_limit", preset="unlimited").get("isError"), None)
+        check("a wrong preset is an error the model reads", tool("dm_set_speed_limit", preset="warp").get("isError"), True)
+        check("dm_resume with nothing to resume does not crash", "content" in tool("dm_resume"), True)
+        check("dm_pause by id refuses a settled row", tool("dm_pause", ids=[999999]).get("isError"), True)
+        check("dm_run_command will not open a file", tool("dm_run_command", id="file.open").get("isError"), True)
+        check("dm_inspect reads the window back", "content" in tool("dm_inspect"), True)
 
         # The command line's verbs, as another client of the same port.
         def cli(*args):

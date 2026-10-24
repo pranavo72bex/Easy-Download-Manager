@@ -50,7 +50,7 @@ auto-launch = "0.6"
 notify-rust = "4"
 arboard = "3"
 # The control protocol's token.
-getrandom = "0.3"
+getrandom = "0.4"
 # Import and Export's file choosers.
 rfd = "0.17"
 image = { version = "0.25", default-features = false, features = ["png"] }
