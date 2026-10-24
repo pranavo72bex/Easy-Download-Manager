@@ -1,6 +1,6 @@
 [package]
 name = "dm-desktop"
-version = "0.7.0"
+version = "0.7.1"
 authors = ["pranavo72bex <pranavj304@gmail.com>"]
 license = "MIT"
 edition = "2021"

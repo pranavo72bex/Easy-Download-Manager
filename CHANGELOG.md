@@ -3,9 +3,9 @@
 What changed in each release, newest first. The app (`desktop-v*` tags) and
 the browser extension (`v*` tags) are versioned separately.
 
-## App 0.7.0
+## App 0.7.1
 
-This release also carries what was prepared as 0.6.0, which was never published.
+This release also carries what was prepared as 0.6.0 and 0.7.0, which were never published (0.7.0's release check failed on Windows, in a test script, and was withdrawn).
 
 - Shorter, plainer words in Options, the remove question, errors and hints,
   in the sentence case WinUI uses ("Start dm when I sign in", "Allow the
