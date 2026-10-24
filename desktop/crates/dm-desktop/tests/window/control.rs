@@ -485,3 +485,35 @@ fn ai_assistants_are_answered_only_while_the_setting_is_on() {
     drop(ask);
     client.join().unwrap();
 }
+
+/// A port opened only because AI assistants are allowed answers assistants
+/// and nothing else: the command line is not handed over by that default.
+#[test]
+fn a_port_opened_for_assistants_alone_refuses_other_clients() {
+    let _file = settings_file();
+    let world = world();
+    let mut harness = world.harness();
+    harness.state_mut().restrict_control_to_assistants(true);
+    let (to_window, requests) = std::sync::mpsc::channel();
+    harness.state_mut().attach_control(requests);
+    let token = "9".repeat(64);
+    let port = dm_desktop::control::listen(0, token.clone(), to_window, || {}).unwrap();
+    let client = std::thread::spawn(move || {
+        let mut mcp = dm_desktop::mcp::Control::connect(port, &token).unwrap();
+        let mut plain = dm_desktop::mcp::Control::connect_as(port, &token, None).unwrap();
+        (
+            mcp.call("queue.list", serde_json::json!({})),
+            plain.call("queue.list", serde_json::json!({})),
+        )
+    });
+    while !client.is_finished() {
+        harness.step();
+        std::thread::sleep(Duration::from_millis(5));
+    }
+    let (assistant, other) = client.join().unwrap();
+    assert!(assistant.is_ok(), "{assistant:?}");
+    assert!(
+        matches!(&other, Err(why) if why.contains("AI assistants only")),
+        "{other:?}"
+    );
+}

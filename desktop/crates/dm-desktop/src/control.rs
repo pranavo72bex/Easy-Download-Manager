@@ -59,6 +59,18 @@ pub fn closing() {
     CLOSING.store(true, Ordering::SeqCst);
 }
 
+/// A new token, written over the old one: made at every start of dm's own
+/// control port, so a token a stale `control.port` once let a stranger read
+/// opens nothing at the next start.
+pub fn fresh_token(home: &Path) -> std::io::Result<String> {
+    let mut bytes = [0u8; 32];
+    getrandom::fill(&mut bytes).map_err(|e| std::io::Error::other(e.to_string()))?;
+    let token: String = bytes.iter().map(|b| format!("{b:02x}")).collect();
+    std::fs::create_dir_all(home)?;
+    dm_core::write_atomic(&home.join("control.token"), token.as_bytes())?;
+    Ok(token)
+}
+
 /// The token a client must present, made on first use.
 pub fn token(home: &Path) -> std::io::Result<String> {
     let path = home.join("control.token");

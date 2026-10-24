@@ -159,8 +159,16 @@ fn plan(tool: &str, arguments: &Value) -> Result<Option<Vec<(&'static str, Value
     Ok(Some(match tool {
         "dm_pause" => acting("downloads.stop_all", "downloads.pause"),
         "dm_resume" => acting("downloads.resume_all", "downloads.resume"),
-        "dm_cancel" => vec![("downloads.cancel", json!({ "ids": ids }))],
+        "dm_cancel" => {
+            if ids.is_none_or(|v| v.as_array().is_none_or(Vec::is_empty)) {
+                return Err("give `ids`: the downloads to cancel".into());
+            }
+            vec![("downloads.cancel", json!({ "ids": ids }))]
+        }
         "dm_move" => {
+            if ids.is_none_or(|v| v.as_array().is_none_or(Vec::is_empty)) {
+                return Err("give `ids`: the downloads to move".into());
+            }
             let up = match arguments.get("direction").and_then(Value::as_str) {
                 Some("up") => true,
                 Some("down") => false,
@@ -176,7 +184,7 @@ fn plan(tool: &str, arguments: &Value) -> Result<Option<Vec<(&'static str, Value
             Some("stop") => vec![run("downloads.stop_queue")],
             _ => return Err("action is start or stop".into()),
         },
-        "dm_set_speed_limit" if arguments.get("kb").is_some() => {
+        "dm_set_speed_limit" if arguments.get("kb").is_some_and(|k| !k.is_null()) => {
             vec![("downloads.speed_limit", json!({ "kb": arguments["kb"] }))]
         }
         "dm_set_speed_limit" => {
@@ -254,6 +262,12 @@ impl Control {
 
     /// Connects wherever `find` says, now and on each reconnection.
     pub fn with(find: Finder) -> Result<Control, String> {
+        Control::with_client(find, None)
+    }
+
+    /// As `with`, as an AI assistant: the window answers it only while
+    /// Options allows assistants.
+    pub fn as_assistant(find: Finder) -> Result<Control, String> {
         Control::with_client(find, Some("mcp"))
     }
 
@@ -277,6 +291,12 @@ impl Control {
                  --control 0"
             )
         })?;
+        // An answer that never comes (a minimized window draws no frame to
+        // take a screenshot in) ends the wait rather than hanging the
+        // assistant for good.
+        stream
+            .set_read_timeout(Some(std::time::Duration::from_secs(90)))
+            .map_err(|e| e.to_string())?;
         let replies = BufReader::new(stream.try_clone().map_err(|e| e.to_string())?);
         self.link = Some((stream, replies));
         if let Err(why) = self.exchange("auth", json!({ "token": token, "client": self.client })) {
@@ -331,7 +351,12 @@ impl Control {
         let line = json!({ "id": 1, "method": method, "params": params });
         writeln!(out, "{line}").map_err(|e| e.to_string())?;
         let mut reply = String::new();
-        replies.read_line(&mut reply).map_err(|e| e.to_string())?;
+        if let Err(e) = replies.read_line(&mut reply) {
+            // A reply that comes late would be read as the next call's:
+            // the connection is made afresh instead.
+            self.link = None;
+            return Err(e.to_string());
+        }
         let reply: Value =
             serde_json::from_str(&reply).map_err(|_| "dm closed the connection".to_string())?;
         if reply.get("ok") == Some(&Value::Bool(true)) {
@@ -456,7 +481,7 @@ pub fn main(args: &[String], home: &Path) -> i32 {
             .cloned()
     };
     let find = finder(home, value("--port"), value("--token-file"));
-    let mut control = match Control::with(find) {
+    let mut control = match Control::as_assistant(find) {
         Ok(control) => control,
         Err(why) => {
             eprintln!("dm mcp: {why}");
@@ -541,6 +566,16 @@ mod tests {
         );
         assert!(plan("dm_set_speed_limit", &json!({ "preset": "x" })).is_err());
         assert!(plan("dm_move", &json!({ "ids": [1] })).is_err());
+        // Without ids, cancel and move refuse rather than act on a stray
+        // selection or none.
+        assert!(plan("dm_cancel", &json!({})).is_err());
+        assert!(plan("dm_cancel", &json!({ "ids": [] })).is_err());
+        assert!(plan("dm_move", &json!({ "direction": "up" })).is_err());
+        // A null `kb` is no `kb`: the preset is used.
+        assert_eq!(
+            one("dm_set_speed_limit", json!({ "kb": null, "preset": "low" })),
+            vec![run("downloads.speed.low")]
+        );
         assert!(plan("dm_queue", &json!({ "action": "x" })).is_err());
         assert_eq!(plan("dm_nonsense", &json!({})), Ok(None));
     }

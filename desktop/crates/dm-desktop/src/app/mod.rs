@@ -369,12 +369,14 @@ pub struct DmApp {
     /// The words drawn on the last frame, for the control protocol's `ui.click`.
     screen: Vec<human::ScreenText>,
     /// Pointer and key events to give the window, a step a frame.
-    synthetic: std::collections::VecDeque<Vec<egui::Event>>,
+    synthetic: std::collections::VecDeque<(Instant, Vec<egui::Event>)>,
     /// When a control client last clicked, typed or pressed a key: what is
     /// done within moments of it is a script's, not a person's.
     scripted_at: Option<Instant>,
     /// The filter is in the top row's search box this frame.
     title_search: bool,
+    /// The control port answers AI assistants only (see `main.rs`).
+    mcp_only: bool,
     /// Rows the window added itself (Add URL, a series, an import): they
     /// open their progress window, if at all, as they are added. Any other
     /// row that appears running — a browser's hand-off, a second launch's
@@ -522,6 +524,7 @@ impl DmApp {
             synthetic: Default::default(),
             scripted_at: None,
             title_search: false,
+            mcp_only: false,
             own: HashSet::new(),
             last_added: Vec::new(),
             said_about: None,

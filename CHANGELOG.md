@@ -3,13 +3,20 @@
 What changed in each release, newest first. The app (`desktop-v*` tags) and
 the browser extension (`v*` tags) are versioned separately.
 
-## App 0.6.0
+## App 0.7.0
+
+This release also carries what was prepared as 0.6.0, which was never published.
 
 - Options › General › **Let AI assistants use dm over MCP**: on by default, and
   unticked to turn it off. While it is on, dm opens its control port at every
   start (loopback only, behind a token only this account can read), as the
   command-line setting does. An assistant is refused, in words, while it is
   off, and turning it off takes hold at once on a connection already open.
+  A port opened only for assistants answers assistants and nothing else; it
+  is given a new token at every start; steps a client queues for the window
+  are dropped if they wait more than five seconds; an answer that never comes
+  ends the assistant's wait after 90 seconds; `dm_cancel` and `dm_move`
+  refuse to run without ids.
 
 - The list's filter is a search box in the middle of the top row (modern
   look, window wide enough); the filter row keeps only Clear and the count

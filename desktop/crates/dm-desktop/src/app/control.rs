@@ -6,6 +6,11 @@ impl DmApp {
         self.control = Some(requests);
     }
 
+    /// From now on the control port answers only AI assistants.
+    pub fn restrict_control_to_assistants(&mut self, only: bool) {
+        self.mcp_only = only;
+    }
+
     pub(super) fn answer_control(&mut self, ctx: &egui::Context) {
         let mut asked = Vec::new();
         if let Some(requests) = &self.control {
@@ -14,6 +19,13 @@ impl DmApp {
             }
         }
         for request in asked {
+            if self.mcp_only && !request.via_mcp {
+                let _ = request.reply.send(Err(
+                    "this dm's control port is open for AI assistants only: tick Options › General › Let the command line list and steer downloads, or start dm with --control"
+                        .to_string(),
+                ));
+                continue;
+            }
             // An AI assistant is answered only while Options allows it, asked
             // afresh each request, so turning it off takes hold at once.
             if request.via_mcp && !self.applied.allow_mcp {

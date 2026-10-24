@@ -682,6 +682,9 @@ def main():
         app = launch(env, "--headless")
         wait_for("the port the assistant setting opens by itself", lambda: (home / "control.port").exists(), 30)
         check("the setting alone opens the port, with no --control", assistant().get("isError"), None)
+        handed = cli("list")
+        check("but it answers assistants only: the command line is refused",
+              (handed.returncode != 0, b"AI assistants only" in handed.stderr + handed.stdout), (True, True))
         stop(app, home)
         (home / "control.port").unlink(missing_ok=True)
         (home / "settings.json").write_text(json.dumps({**settings_now, "allow_command_line": False, "allow_mcp": False}))

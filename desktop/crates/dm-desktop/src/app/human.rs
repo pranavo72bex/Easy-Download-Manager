@@ -14,6 +14,9 @@ use serde_json::{json, Value};
 /// How many steps may wait for frames before more are refused.
 pub const MAX_WAITING_STEPS: usize = 64;
 
+/// How long a step may wait for a frame before it is dropped.
+const STEP_EXPIRES: Duration = Duration::from_secs(5);
+
 /// One piece of text drawn this frame.
 #[derive(Clone, Debug)]
 pub struct ScreenText {
@@ -74,7 +77,26 @@ impl DmApp {
 
     /// Events for the frame about to run: one step of what was asked.
     pub fn synthetic_events(&mut self, ctx: &egui::Context) -> Vec<egui::Event> {
-        let events = self.synthetic.pop_front().unwrap_or_default();
+        // Steps that waited for frames that never came (a minimized window
+        // draws none) are dropped, not replayed onto whatever is on screen
+        // when it comes back.
+        if self
+            .synthetic
+            .front()
+            .is_some_and(|(at, _)| at.elapsed() > STEP_EXPIRES)
+        {
+            self.synthetic.clear();
+        }
+        let events = self
+            .synthetic
+            .pop_front()
+            .map(|(_, e)| e)
+            .unwrap_or_default();
+        // The moment an event is given to the window is the script's, not
+        // the moment it was asked for.
+        if !events.is_empty() {
+            self.scripted_at = Some(Instant::now());
+        }
         if !self.synthetic.is_empty() {
             ctx.request_repaint();
         }
@@ -176,24 +198,29 @@ impl DmApp {
                     .and_then(Value::as_bool)
                     .unwrap_or(false);
                 let m = egui::Modifiers::NONE;
-                self.synthetic
-                    .push_back(vec![egui::Event::PointerMoved(pos)]);
-                self.synthetic.push_back(Vec::new());
+                step(&mut self.synthetic, vec![egui::Event::PointerMoved(pos)]);
+                step(&mut self.synthetic, Vec::new());
                 for _ in 0..if double { 2 } else { 1 } {
-                    self.synthetic.push_back(vec![egui::Event::PointerButton {
-                        pos,
-                        button,
-                        pressed: true,
-                        modifiers: m,
-                    }]);
-                    self.synthetic.push_back(vec![egui::Event::PointerButton {
-                        pos,
-                        button,
-                        pressed: false,
-                        modifiers: m,
-                    }]);
+                    step(
+                        &mut self.synthetic,
+                        vec![egui::Event::PointerButton {
+                            pos,
+                            button,
+                            pressed: true,
+                            modifiers: m,
+                        }],
+                    );
+                    step(
+                        &mut self.synthetic,
+                        vec![egui::Event::PointerButton {
+                            pos,
+                            button,
+                            pressed: false,
+                            modifiers: m,
+                        }],
+                    );
                 }
-                self.synthetic.push_back(Vec::new());
+                step(&mut self.synthetic, Vec::new());
                 wake();
                 Ok(json!({ "clicked": target.text, "at": [pos.x, pos.y] }))
             })(),
@@ -202,8 +229,10 @@ impl DmApp {
                     .get("text")
                     .and_then(Value::as_str)
                     .ok_or("give `text`: what to type into the field that has focus")?;
-                self.synthetic
-                    .push_back(vec![egui::Event::Text(text.to_string())]);
+                step(
+                    &mut self.synthetic,
+                    vec![egui::Event::Text(text.to_string())],
+                );
                 wake();
                 Ok(json!({ "typed": text.chars().count() }))
             })(),
@@ -237,14 +266,22 @@ impl DmApp {
                     repeat: false,
                     modifiers,
                 };
-                self.synthetic.push_back(vec![event(true)]);
-                self.synthetic.push_back(vec![event(false)]);
+                step(&mut self.synthetic, vec![event(true)]);
+                step(&mut self.synthetic, vec![event(false)]);
                 wake();
                 Ok(json!({ "pressed": name }))
             })(),
             _ => return None,
         })
     }
+}
+
+/// One step for a frame, stamped with when it was asked for.
+fn step(
+    queue: &mut std::collections::VecDeque<(Instant, Vec<egui::Event>)>,
+    events: Vec<egui::Event>,
+) {
+    queue.push_back((Instant::now(), events));
 }
 
 fn collect(shape: &egui::Shape, clip: egui::Rect, out: &mut Vec<ScreenText>) {

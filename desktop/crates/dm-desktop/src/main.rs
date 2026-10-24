@@ -93,9 +93,9 @@ fn window_state_file(home: Option<std::ffi::OsString>) -> Option<std::path::Path
 }
 
 /// Starts the control protocol and says where in dm's home.
-fn start_control(app: &mut DmApp, port: u16, ctx: &egui::Context) {
+fn start_control(app: &mut DmApp, port: u16, ctx: &egui::Context, assistants_only: bool) {
     let home = settings::home();
-    let started = dm_desktop::control::token(&home).and_then(|token| {
+    let started = dm_desktop::control::fresh_token(&home).and_then(|token| {
         let (to_window, requests) = mpsc::channel();
         let wake = ctx.clone();
         let port =
@@ -104,7 +104,10 @@ fn start_control(app: &mut DmApp, port: u16, ctx: &egui::Context) {
         Ok((port, requests))
     });
     match started {
-        Ok((_, requests)) => app.attach_control(requests),
+        Ok((_, requests)) => {
+            app.attach_control(requests);
+            app.restrict_control_to_assistants(assistants_only);
+        }
         Err(e) => app
             .backend
             .note(format!("the control protocol could not start: {e}")),
@@ -331,6 +334,13 @@ fn main() {
         .and_then(|p| p.parse().ok())
         // Or the person's own setting (Options › General): the command line.
         .or_else(|| (saved.allow_command_line || saved.allow_mcp).then_some(0));
+    // Open only because AI assistants are allowed (not asked for by
+    // `--control`, `DM_CONTROL` or the command-line setting): then the port
+    // answers assistants and nothing else, so the default does not hand the
+    // command line to people who never turned it on.
+    let assistants_only = !args.iter().any(|a| a == "--control")
+        && std::env::var_os("DM_CONTROL").is_none()
+        && !saved.allow_command_line;
 
     #[cfg(target_os = "macos")]
     let _ = notify_rust::set_application("com.dm.desktop");
@@ -453,7 +463,7 @@ fn main() {
         let mut app = DmApp::new(backend);
         app.headless = true;
         if let Some(port) = control {
-            start_control(&mut app, port, &ctx);
+            start_control(&mut app, port, &ctx, assistants_only);
         }
         while !app.quit_asked && !SIGNALLED.load(Ordering::SeqCst) {
             app.logic(&ctx);
@@ -532,7 +542,7 @@ fn main() {
         let icon = built.ok().flatten();
         let mut app = DmApp::new(backend);
         if let Some(port) = control {
-            start_control(&mut app, port, ctx);
+            start_control(&mut app, port, ctx, assistants_only);
         }
         Window {
             app,
