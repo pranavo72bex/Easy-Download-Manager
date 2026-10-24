@@ -287,6 +287,23 @@ impl DmApp {
                     .get("later")
                     .and_then(|v| v.as_bool())
                     .unwrap_or(false);
+                // Over this connection a download goes into the download
+                // folder or below it, not into a startup folder or a
+                // shell's profile.
+                if let Some(folder) = text("folder") {
+                    let full = dm_shell::settings::full_folder(&folder, None)
+                        .ok_or("`folder` must be a full path, such as ~/Downloads")?;
+                    let inside = full.starts_with(&self.applied.download_dir)
+                        && !full
+                            .components()
+                            .any(|c| matches!(c, std::path::Component::ParentDir));
+                    if !inside {
+                        return Err(format!(
+                            "`folder` must be inside the download folder, {}",
+                            self.applied.download_dir.display()
+                        ));
+                    }
+                }
                 let with = dm_core::AddOptions {
                     later,
                     queue: if later {

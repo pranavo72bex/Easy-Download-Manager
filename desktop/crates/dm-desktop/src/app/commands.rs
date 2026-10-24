@@ -97,6 +97,16 @@ impl DmApp {
     /// Runs one command, as a menu item, button, key or the control
     /// protocol asked for it.
     pub fn run(&mut self, command: Command) {
+        if self.by_script()
+            && matches!(
+                command,
+                Command::OpenFile | Command::OpenWith | Command::Preview
+            )
+        {
+            self.said =
+                crate::i18n::t("Opening a file is done by a person, not by a script").into();
+            return;
+        }
         if !self.enabled(command) {
             return;
         }

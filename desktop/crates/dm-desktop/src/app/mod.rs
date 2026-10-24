@@ -370,6 +370,9 @@ pub struct DmApp {
     screen: Vec<human::ScreenText>,
     /// Pointer and key events to give the window, a step a frame.
     synthetic: std::collections::VecDeque<Vec<egui::Event>>,
+    /// When a control client last clicked, typed or pressed a key: what is
+    /// done within moments of it is a script's, not a person's.
+    scripted_at: Option<Instant>,
     /// Rows the window added itself (Add URL, a series, an import): they
     /// open their progress window, if at all, as they are added. Any other
     /// row that appears running — a browser's hand-off, a second launch's
@@ -515,6 +518,7 @@ impl DmApp {
             control: None,
             screen: Vec::new(),
             synthetic: Default::default(),
+            scripted_at: None,
             own: HashSet::new(),
             last_added: Vec::new(),
             said_about: None,

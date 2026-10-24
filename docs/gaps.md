@@ -21,8 +21,10 @@ is not a gap in the program; it is what has not yet been watched.
 
 ## Open work
 
-None. A defect found in use is added here as a row, with how to reproduce it
-and how it will be shown fixed.
+Found by a security review (2026-10-24); each row says how it closes.
 
 | #  | Gap | Status | How it closes |
 |----|-----|--------|---------------|
+| 1  | macOS downloads carry no quarantine mark (`dm-core/src/motw.rs` marks only on Windows), so Gatekeeper never checks a downloaded app, and nor does extraction | OPEN | Set `com.apple.quarantine` on macOS when a download finishes and on extracted files; a test reads the attribute back |
+| 2  | An update is verified by a digest from the same release it comes from (`update.rs`); whoever can change the release can change both | OPEN | Sign `latest.json` with an ed25519 key whose public half is built into dm; refuse an update whose signature does not verify |
+| 3  | A saved site login is sent to subdomains of the site and over plain `http://` (`dm-shell/src/settings.rs`) | OPEN | Send saved logins only over https, and only to the exact host unless a rule says otherwise; a test for http and for a subdomain |

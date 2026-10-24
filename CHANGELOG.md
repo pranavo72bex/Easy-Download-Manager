@@ -5,6 +5,12 @@ the browser extension (`v*` tags) are versioned separately.
 
 ## Unreleased
 
+- Security: over the control protocol and MCP, a download may only be saved
+  inside the download folder; and what a client clicks or types can no longer
+  run a downloaded file (Open, Open with, Preview, a double-click that opens,
+  Install now) or set the command run when a download finishes.
+- The floating drop target opens in the screen's bottom-right corner, not in
+  the middle of the screen.
 - AI clients can use the window like a person: `dm_screen` (read what is on
   screen), `dm_click`, `dm_type` and `dm_press_key`, behind the control
   protocol's `ui.texts`, `ui.click`, `ui.type` and `ui.key`. Clicks go to the

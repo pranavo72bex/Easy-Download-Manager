@@ -118,7 +118,7 @@ impl DmApp {
                     self.reveal_file(&path);
                     self.update_row = None;
                 }
-            } else if crate::dialogs::primary(ui, "Install now").clicked() {
+            } else if crate::dialogs::primary(ui, "Install now").clicked() && !self.by_script() {
                 self.open_file(&path);
                 self.update_row = None;
                 self.ask_quit();

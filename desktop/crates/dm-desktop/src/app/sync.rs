@@ -537,7 +537,12 @@ impl DmApp {
 
     /// Puts settings into force, and puts the window's copy back when that
     /// fails rather than leaving it showing what is not in force.
-    pub fn apply_settings(&mut self, wanted: Settings) -> Result<(), String> {
+    pub fn apply_settings(&mut self, mut wanted: Settings) -> Result<(), String> {
+        // The command run when a download finishes is a person's to set, as
+        // a settings file imported never sets it.
+        if self.by_script() {
+            wanted.on_complete = self.applied.on_complete.clone();
+        }
         let watch_changed = wanted.watch_clipboard != self.applied.watch_clipboard;
         match self.backend.set_settings(wanted) {
             Ok(now) => {

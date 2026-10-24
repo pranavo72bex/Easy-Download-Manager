@@ -37,6 +37,16 @@ fn is_run_a_file(text: &str) -> bool {
 }
 
 impl DmApp {
+    /// Whether a control client acted a moment ago. What runs a downloaded
+    /// file, and the command dm runs when a download finishes, are refused
+    /// then: words on a button are no proof of what it does (a double-click
+    /// on a row opens it, once Options says so), so the refusal is made
+    /// where the file would be run, not only where the click is aimed.
+    pub(super) fn by_script(&self) -> bool {
+        self.scripted_at
+            .is_some_and(|at| at.elapsed() < Duration::from_secs(3))
+    }
+
     /// Reads the words drawn this frame. Run at the end of the frame, and
     /// only when a control client may ask.
     pub fn scan_screen(&mut self, ctx: &egui::Context) {
@@ -75,6 +85,9 @@ impl DmApp {
         params: &Value,
         ctx: Option<&egui::Context>,
     ) -> Option<Result<Value, String>> {
+        if matches!(method, "ui.click" | "ui.type" | "ui.key") {
+            self.scripted_at = Some(Instant::now());
+        }
         let wake = || {
             if let Some(ctx) = ctx {
                 ctx.request_repaint();

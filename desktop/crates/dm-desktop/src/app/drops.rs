@@ -10,7 +10,17 @@ impl DmApp {
             return;
         }
         let id = egui::ViewportId::from_hash_of("dm-drop-target");
-        let builder = egui::ViewportBuilder::default()
+        // First shown in the screen's bottom-right corner, clear of the
+        // taskbar or Dock: a window made with no position opens in the middle
+        // of the screen, over whatever is being read or clicked. A person
+        // moves it by dragging, and that is where it stays until dm quits.
+        let corner = ctx.input(|i| i.viewport().monitor_size).map(|screen| {
+            egui::pos2(
+                (screen.x - 64.0 - 24.0).max(0.0),
+                (screen.y - 64.0 - 96.0).max(0.0),
+            )
+        });
+        let mut builder = egui::ViewportBuilder::default()
             .with_title(crate::drops::DROP_TARGET_TITLE)
             .with_inner_size([64.0, 64.0])
             .with_resizable(false)
@@ -18,6 +28,9 @@ impl DmApp {
             .with_transparent(true)
             .with_always_on_top()
             .with_taskbar(false);
+        if let Some(corner) = corner {
+            builder = builder.with_position(corner);
+        }
         let mut links = Vec::new();
         let mut dropped_any = false;
         let mut action: Option<Command> = None;
