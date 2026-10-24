@@ -9,8 +9,10 @@ the browser extension (`v*` tags) are versioned separately.
   inside the download folder; and what a client clicks or types can no longer
   run a downloaded file (Open, Open with, Preview, a double-click that opens,
   Install now) or set the command run when a download finishes.
-- The floating drop target is a small, translucent 40-point tile (it was a
-  solid 64-point one with a large arrow and a label); it opens in dm's window's bottom-right corner, on
+- The floating drop target is a small 44-point card in the window's own
+  surface, with a hairline edge and a Fluent download glyph in the accent, and
+  fills with the accent only while a link is held over it (it was a solid blue
+  64-point tile with a large arrow and a label); it opens in dm's window's bottom-right corner, on
   the same display, not in the middle of the screen.
 - AI clients can use the window like a person: `dm_screen` (read what is on
   screen), `dm_click`, `dm_type` and `dm_press_key`, behind the control

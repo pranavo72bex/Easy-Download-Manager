@@ -1,8 +1,8 @@
 use super::*;
 
-/// The drop target's side, in points: a small tile that is easy to miss on
-/// purpose, as it floats over the work.
-const SIZE: f32 = 40.0;
+/// The drop target's side, in points: a small card that stays out of the
+/// way of the work it floats over.
+const SIZE: f32 = 44.0;
 
 impl DmApp {
     /// The floating drop target (View › Drop target): a small window over
@@ -71,22 +71,41 @@ impl DmApp {
                 .show(vui, |ui| {
                     let (rect, response) =
                         ui.allocate_exact_size(ui.available_size(), egui::Sense::click_and_drag());
-                    // Quiet until something is over it or the pointer is.
-                    let lit = over || response.hovered();
-                    let fill = if lit {
-                        tokens.brand_hover
+                    // A card, as the rest of the window is: the dialog's
+                    // surface, a hairline edge and a Fluent glyph in the
+                    // accent. Only a link held over it fills it with the
+                    // accent, to say that it will take it.
+                    let (fill, edge, ink) = if over {
+                        (tokens.brand, tokens.brand, tokens.on_brand)
+                    } else if response.hovered() {
+                        (tokens.control_hover, tokens.stroke, tokens.accent)
                     } else {
-                        tokens.brand.gamma_multiply(0.7)
+                        (tokens.dialog, tokens.border, tokens.accent)
                     };
+                    let card = rect.shrink(3.0);
                     let painter = ui.painter();
-                    painter.rect_filled(rect.shrink(2.0), 10.0, fill);
-                    painter.text(
-                        rect.center(),
-                        egui::Align2::CENTER_CENTER,
-                        "↓",
-                        egui::FontId::proportional(16.0),
-                        tokens.on_brand,
+                    painter.rect_filled(card, 8.0, fill);
+                    painter.rect_stroke(
+                        card,
+                        8.0,
+                        egui::Stroke::new(1.0, edge),
+                        egui::StrokeKind::Inside,
                     );
+                    let glyph = egui::Rect::from_center_size(card.center(), egui::vec2(18.0, 18.0));
+                    if !crate::icons::glyph(
+                        painter,
+                        glyph,
+                        crate::icons::fluent::ARROW_DOWNLOAD,
+                        ink,
+                    ) {
+                        painter.text(
+                            card.center(),
+                            egui::Align2::CENTER_CENTER,
+                            "↓",
+                            egui::FontId::proportional(16.0),
+                            ink,
+                        );
+                    }
                     if response.drag_started() {
                         ctx.send_viewport_cmd(egui::ViewportCommand::StartDrag);
                     }
