@@ -306,7 +306,7 @@ mod tests {
         let made = rcgen::generate_simple_self_signed(vec!["localhost".into()]).unwrap();
         let cert = made.cert.der().clone();
         let key =
-            rustls::pki_types::PrivateKeyDer::try_from(made.key_pair.serialize_der()).unwrap();
+            rustls::pki_types::PrivateKeyDer::try_from(made.signing_key.serialize_der()).unwrap();
         let provider = std::sync::Arc::new(rustls::crypto::ring::default_provider());
         let server = rustls::ServerConfig::builder_with_provider(provider.clone())
             .with_safe_default_protocol_versions()
