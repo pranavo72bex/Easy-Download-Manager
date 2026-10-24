@@ -61,6 +61,24 @@ fn tools() -> Value {
             vec!["ids"]
         ),
         tool(
+            "dm_pause",
+            "Stop the downloads with these ids; with no ids, every download that is running.",
+            json!({ "ids": { "type": "array", "items": { "type": "integer" } } }),
+            vec![]
+        ),
+        tool(
+            "dm_resume",
+            "Start or resume the downloads with these ids; with no ids, every unfinished one.",
+            json!({ "ids": { "type": "array", "items": { "type": "integer" } } }),
+            vec![]
+        ),
+        tool(
+            "dm_set_speed_limit",
+            "Set the speed limit to a preset: low, medium, high or unlimited.",
+            json!({ "preset": { "type": "string", "enum": ["low", "medium", "high", "unlimited"] } }),
+            vec!["preset"]
+        ),
+        tool(
             "dm_inspect",
             "What the window shows: the rows, the selection, the open dialogs.",
             json!({}),
@@ -73,6 +91,42 @@ fn tools() -> Value {
             vec![]
         ),
     ])
+}
+
+/// The control calls a tool is, in order: most are one method, the
+/// ones that act on ids select them first.
+fn plan(tool: &str, arguments: &Value) -> Result<Option<Vec<(&'static str, Value)>>, String> {
+    let ids = arguments.get("ids").filter(|v| !v.is_null());
+    let acting = |all: &'static str, some: &'static str| {
+        let run = |id: &str| ("command.run", json!({ "id": id }));
+        match ids {
+            Some(ids) => vec![("ui.select", json!({ "ids": ids })), run(some)],
+            None => vec![run(all)],
+        }
+    };
+    Ok(Some(match tool {
+        "dm_pause" => acting("downloads.stop_all", "file.stop_download"),
+        "dm_resume" => acting("downloads.resume_all", "file.download_now"),
+        "dm_set_speed_limit" => {
+            let preset = arguments
+                .get("preset")
+                .and_then(Value::as_str)
+                .unwrap_or("");
+            if !["low", "medium", "high", "unlimited"].contains(&preset) {
+                return Err(format!(
+                    "preset is low, medium, high or unlimited, not {preset:?}"
+                ));
+            }
+            vec![(
+                "command.run",
+                json!({ "id": format!("downloads.speed.{preset}") }),
+            )]
+        }
+        other => match method_of(other) {
+            Some(method) => vec![(method, arguments.clone())],
+            None => return Ok(None),
+        },
+    }))
 }
 
 /// The control method a tool is.
@@ -213,18 +267,30 @@ pub fn answer(message: &Value, control: &mut Control) -> Option<Value> {
                 .pointer("/params/arguments")
                 .cloned()
                 .unwrap_or(json!({}));
-            match method_of(name) {
-                None => Err((-32602, format!("no tool is called {name}"))),
+            match plan(name, &arguments) {
+                Ok(None) => Err((-32602, format!("no tool is called {name}"))),
                 // A tool that fails is a result the model reads, not a
                 // protocol error.
-                Some(control_method) => Ok(match control.call(control_method, arguments) {
-                    Ok(result) => {
-                        json!({ "content": [{ "type": "text", "text": result.to_string() }] })
+                Ok(Some(calls)) => Ok({
+                    let mut last = Ok(Value::Null);
+                    for (method, params) in calls {
+                        last = control.call(method, params);
+                        if last.is_err() {
+                            break;
+                        }
                     }
-                    Err(error) => {
-                        json!({ "content": [{ "type": "text", "text": error }], "isError": true })
+                    match last {
+                        Ok(result) => {
+                            json!({ "content": [{ "type": "text", "text": result.to_string() }] })
+                        }
+                        Err(error) => {
+                            json!({ "content": [{ "type": "text", "text": error }], "isError": true })
+                        }
                     }
                 }),
+                Err(why) => {
+                    Ok(json!({ "content": [{ "type": "text", "text": why }], "isError": true }))
+                }
             }
         }
         other => Err((-32601, format!("no method is called {other}"))),
@@ -331,6 +397,32 @@ mod tests {
             }
         });
         port
+    }
+
+    #[test]
+    fn tools_that_act_on_ids_select_them_first() {
+        let calls = plan("dm_pause", &json!({ "ids": [3, 4] }))
+            .unwrap()
+            .unwrap();
+        assert_eq!(calls[0], ("ui.select", json!({ "ids": [3, 4] })));
+        assert_eq!(
+            calls[1],
+            ("command.run", json!({ "id": "file.stop_download" }))
+        );
+        let all = plan("dm_resume", &json!({})).unwrap().unwrap();
+        assert_eq!(
+            all,
+            vec![("command.run", json!({ "id": "downloads.resume_all" }))]
+        );
+        let speed = plan("dm_set_speed_limit", &json!({ "preset": "low" }))
+            .unwrap()
+            .unwrap();
+        assert_eq!(
+            speed,
+            vec![("command.run", json!({ "id": "downloads.speed.low" }))]
+        );
+        assert!(plan("dm_set_speed_limit", &json!({ "preset": "x" })).is_err());
+        assert_eq!(plan("dm_nonsense", &json!({})), Ok(None));
     }
 
     #[test]
