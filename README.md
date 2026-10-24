@@ -247,7 +247,15 @@ The tools are `dm_add_downloads`, `dm_list_downloads`, `dm_pause`,
 `dm_resume`, `dm_cancel` (by number; the file is kept), `dm_move` (up or down
 the queue), `dm_queue` (start or stop the main queue), `dm_set_speed_limit`
 (exact KB/s, or low, medium, high, unlimited), `dm_list_commands`,
-`dm_run_command`, `dm_select`, `dm_inspect` and `dm_screenshot`. Opening a
+`dm_run_command`, `dm_select`, `dm_inspect` and `dm_screenshot`.
+
+To use the window as a person does, with dm started *with* its window (not
+`--headless`): `dm_screen` reads every word on screen, `dm_click` clicks a
+button, tab, menu item or checkbox by the words on it (right-click and
+double-click too), `dm_type` types into the focused field and `dm_press_key`
+presses a key (Escape closes a dialog, Enter presses its default button). An
+assistant can open Options, click through its tabs, add a link by typing it
+and check the result in `dm_screenshot`. Opening a
 downloaded file and deleting a download stay a person's click in the window. If dm is restarted, the assistant reconnects on
 its next request.
 

@@ -101,6 +101,37 @@ fn tools() -> Value {
             vec!["action"]
         ),
         tool(
+            "dm_screen",
+            "Everything written on dm's window right now, with where, nearest the front first: \
+             what a person reads. Use it to see which buttons, tabs and fields there are.",
+            json!({}),
+            vec![]
+        ),
+        tool(
+            "dm_click",
+            "Click the button, tab, menu item, checkbox or row on screen that says `text`, as a \
+             person's mouse would. `button` right opens a context menu; `double` double-clicks; \
+             `nth` picks a later match. Opening or previewing a downloaded file is refused. \
+             Follow with dm_screen or dm_screenshot to see the result.",
+            json!({ "text": { "type": "string" }, "button": { "type": "string", "enum": ["left", "right"] },
+                     "double": { "type": "boolean" }, "nth": { "type": "integer", "minimum": 0 } }),
+            vec!["text"]
+        ),
+        tool(
+            "dm_type",
+            "Type text into the field that has focus (click it first).",
+            json!({ "text": { "type": "string" } }),
+            vec!["text"]
+        ),
+        tool(
+            "dm_press_key",
+            "Press a key: Escape closes the top dialog, Enter presses its default button, Tab \
+             moves between fields. `modifiers` may hold ctrl, shift, alt, cmd.",
+            json!({ "key": { "type": "string" },
+                     "modifiers": { "type": "array", "items": { "type": "string" } } }),
+            vec!["key"]
+        ),
+        tool(
             "dm_inspect",
             "What the window shows: the rows, the selection, the open dialogs.",
             json!({}),
@@ -180,6 +211,10 @@ fn method_of(tool: &str) -> Option<&'static str> {
         "dm_select" => "ui.select",
         "dm_inspect" => "ui.inspect",
         "dm_screenshot" => "ui.screenshot",
+        "dm_screen" => "ui.texts",
+        "dm_click" => "ui.click",
+        "dm_type" => "ui.type",
+        "dm_press_key" => "ui.key",
         _ => return None,
     })
 }
@@ -258,6 +293,11 @@ impl Control {
             self.reconnect()?;
         }
         let answer = self.exchange(method, params);
+        // A click, a typed word or a key is done a frame at a time: what
+        // is drawn next is read after it has been.
+        if answer.is_ok() && matches!(method, "ui.click" | "ui.type" | "ui.key") {
+            std::thread::sleep(std::time::Duration::from_millis(350));
+        }
         if answer.is_err() && !self.alive() {
             // Gone mid-call: the next call connects again.
             self.link = None;
@@ -438,6 +478,14 @@ mod tests {
             }
         });
         port
+    }
+
+    #[test]
+    fn the_human_tools_are_control_calls() {
+        assert_eq!(method_of("dm_click"), Some("ui.click"));
+        assert_eq!(method_of("dm_screen"), Some("ui.texts"));
+        assert_eq!(method_of("dm_type"), Some("ui.type"));
+        assert_eq!(method_of("dm_press_key"), Some("ui.key"));
     }
 
     #[test]

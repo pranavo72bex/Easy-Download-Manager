@@ -43,7 +43,10 @@ impl DmApp {
                 ctx.request_repaint();
                 continue;
             }
-            let answer = self.control_call(&request.method, &request.params);
+            let answer = match self.human_call(&request.method, &request.params, Some(ctx)) {
+                Some(answer) => answer,
+                None => self.control_call(&request.method, &request.params),
+            };
             let _ = request.reply.send(answer);
         }
     }

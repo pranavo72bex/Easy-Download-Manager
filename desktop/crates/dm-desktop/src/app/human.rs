@@ -1,0 +1,242 @@
+//! Driving the window as a person does: see what is drawn, click a word,
+//! type, press a key. Behind `ui.texts`, `ui.click`, `ui.type` and `ui.key`
+//! of the control protocol, and so behind the AI client's tools.
+//!
+//! What is on screen is read from the frame's own text shapes, back to
+//! front, so a click lands on the word a person would see on top. Clicks,
+//! typing and keys are fed to egui as the pointer and keyboard would, one
+//! step a frame, so a button needs the hover, press and release a real one
+//! does.
+
+use super::*;
+use serde_json::{json, Value};
+
+/// One piece of text drawn this frame.
+#[derive(Clone, Debug)]
+pub struct ScreenText {
+    pub text: String,
+    pub rect: egui::Rect,
+}
+
+/// Words a script or an AI client may not click: they run a downloaded file,
+/// which on Windows may be a program, and that stays a person's click.
+fn is_run_a_file(text: &str) -> bool {
+    use crate::commands::Command;
+    let text = text.trim().to_lowercase();
+    [Command::OpenFile, Command::OpenWith, Command::Preview]
+        .iter()
+        .flat_map(|c| [c.label(), crate::i18n::t(c.label())])
+        .chain(
+            ["Open", "Open with…", "Preview"]
+                .into_iter()
+                .flat_map(|e| [e, crate::i18n::t(e)]),
+        )
+        .any(|label| {
+            label.trim().trim_end_matches('…').to_lowercase() == text.trim_end_matches('…')
+        })
+}
+
+impl DmApp {
+    /// Reads the words drawn this frame. Run at the end of the frame, and
+    /// only when a control client may ask.
+    pub fn scan_screen(&mut self, ctx: &egui::Context) {
+        if self.control.is_none() {
+            return;
+        }
+        let mut layers = vec![egui::LayerId::background()];
+        layers.extend(ctx.memory(|m| m.layer_ids().collect::<Vec<_>>()));
+        let mut seen = Vec::new();
+        ctx.graphics(|graphics| {
+            for layer in &layers {
+                let Some(list) = graphics.get(*layer) else {
+                    continue;
+                };
+                for clipped in list.all_entries() {
+                    collect(&clipped.shape, clipped.clip_rect, &mut seen);
+                }
+            }
+        });
+        self.screen = seen;
+    }
+
+    /// Events for the frame about to run: one step of what was asked.
+    pub fn synthetic_events(&mut self, ctx: &egui::Context) -> Vec<egui::Event> {
+        let events = self.synthetic.pop_front().unwrap_or_default();
+        if !self.synthetic.is_empty() {
+            ctx.request_repaint();
+        }
+        events
+    }
+
+    /// Answers the `ui.*` requests that act like a person.
+    pub(super) fn human_call(
+        &mut self,
+        method: &str,
+        params: &Value,
+        ctx: Option<&egui::Context>,
+    ) -> Option<Result<Value, String>> {
+        let wake = || {
+            if let Some(ctx) = ctx {
+                ctx.request_repaint();
+            }
+        };
+        Some(match method {
+            "ui.texts" => {
+                let texts: Vec<Value> = self
+                    .screen
+                    .iter()
+                    .rev()
+                    .map(|t| {
+                        json!({ "text": t.text, "rect": [t.rect.min.x, t.rect.min.y, t.rect.max.x, t.rect.max.y] })
+                    })
+                    .collect();
+                Ok(json!({ "texts": texts, "note": "nearest the front first" }))
+            }
+            "ui.click" => (|| {
+                let wanted = params
+                    .get("text")
+                    .and_then(Value::as_str)
+                    .filter(|t| !t.is_empty())
+                    .ok_or("give `text`: the words on the button, tab or menu to click")?;
+                if is_run_a_file(wanted) {
+                    return Err(format!(
+                        "{wanted} runs a downloaded file: it is done in the window by a person, not over this connection"
+                    ));
+                }
+                let nth = params.get("nth").and_then(Value::as_u64).unwrap_or(0) as usize;
+                let lower = wanted.to_lowercase();
+                let matching = |exact: bool| -> Vec<&ScreenText> {
+                    self.screen
+                        .iter()
+                        .rev()
+                        .filter(|t| {
+                            let have = t.text.trim().to_lowercase();
+                            if exact {
+                                have == lower
+                            } else {
+                                have.contains(&lower)
+                            }
+                        })
+                        .collect()
+                };
+                let mut found = matching(true);
+                if found.is_empty() {
+                    found = matching(false);
+                }
+                let target = found.get(nth).copied().ok_or_else(|| {
+                    let near: Vec<&str> = self
+                        .screen
+                        .iter()
+                        .rev()
+                        .map(|t| t.text.as_str())
+                        .take(40)
+                        .collect();
+                    format!("nothing on screen says {wanted:?}; some of what does: {near:?}")
+                })?;
+                if is_run_a_file(&target.text) {
+                    return Err(format!("{} is done by a person", target.text));
+                }
+                let pos = target.rect.center();
+                let button = match params.get("button").and_then(Value::as_str) {
+                    Some("right") | Some("secondary") => egui::PointerButton::Secondary,
+                    _ => egui::PointerButton::Primary,
+                };
+                let double = params
+                    .get("double")
+                    .and_then(Value::as_bool)
+                    .unwrap_or(false);
+                let m = egui::Modifiers::NONE;
+                self.synthetic
+                    .push_back(vec![egui::Event::PointerMoved(pos)]);
+                self.synthetic.push_back(Vec::new());
+                for _ in 0..if double { 2 } else { 1 } {
+                    self.synthetic.push_back(vec![egui::Event::PointerButton {
+                        pos,
+                        button,
+                        pressed: true,
+                        modifiers: m,
+                    }]);
+                    self.synthetic.push_back(vec![egui::Event::PointerButton {
+                        pos,
+                        button,
+                        pressed: false,
+                        modifiers: m,
+                    }]);
+                }
+                self.synthetic.push_back(Vec::new());
+                wake();
+                Ok(json!({ "clicked": target.text, "at": [pos.x, pos.y] }))
+            })(),
+            "ui.type" => (|| {
+                let text = params
+                    .get("text")
+                    .and_then(Value::as_str)
+                    .ok_or("give `text`: what to type into the field that has focus")?;
+                self.synthetic
+                    .push_back(vec![egui::Event::Text(text.to_string())]);
+                wake();
+                Ok(json!({ "typed": text.chars().count() }))
+            })(),
+            "ui.key" => (|| {
+                let name = params
+                    .get("key")
+                    .and_then(Value::as_str)
+                    .ok_or("give `key`: Escape, Enter, Tab, Delete, ArrowDown, A…")?;
+                let key =
+                    egui::Key::from_name(name).ok_or_else(|| format!("no key is called {name}"))?;
+                let has = |m: &str| {
+                    params
+                        .get("modifiers")
+                        .and_then(Value::as_array)
+                        .is_some_and(|a| {
+                            a.iter()
+                                .any(|v| v.as_str().is_some_and(|s| s.eq_ignore_ascii_case(m)))
+                        })
+                };
+                let modifiers = egui::Modifiers {
+                    alt: has("alt"),
+                    ctrl: has("ctrl"),
+                    shift: has("shift"),
+                    mac_cmd: has("cmd"),
+                    command: has("ctrl") && !cfg!(target_os = "macos") || has("cmd"),
+                };
+                let event = |pressed| egui::Event::Key {
+                    key,
+                    physical_key: Some(key),
+                    pressed,
+                    repeat: false,
+                    modifiers,
+                };
+                self.synthetic.push_back(vec![event(true)]);
+                self.synthetic.push_back(vec![event(false)]);
+                wake();
+                Ok(json!({ "pressed": name }))
+            })(),
+            _ => return None,
+        })
+    }
+}
+
+fn collect(shape: &egui::Shape, clip: egui::Rect, out: &mut Vec<ScreenText>) {
+    match shape {
+        egui::Shape::Vec(inner) => inner.iter().for_each(|s| collect(s, clip, out)),
+        egui::Shape::Text(text) => {
+            for row in &text.galley.rows {
+                let words = row.text();
+                let rect = row.rect().translate(text.pos.to_vec2() + row.pos.to_vec2());
+                // Only what a person could see, and that is not blank.
+                if words.trim().is_empty() || !clip.intersects(rect) {
+                    continue;
+                }
+                let rect = rect.intersect(clip);
+                if rect.width() > 0.0 && rect.height() > 0.0 {
+                    out.push(ScreenText {
+                        text: words.trim().to_string(),
+                        rect,
+                    });
+                }
+            }
+        }
+        _ => {}
+    }
+}

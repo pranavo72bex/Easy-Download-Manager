@@ -5,6 +5,11 @@ the browser extension (`v*` tags) are versioned separately.
 
 ## Unreleased
 
+- AI clients can use the window like a person: `dm_screen` (read what is on
+  screen), `dm_click`, `dm_type` and `dm_press_key`, behind the control
+  protocol's `ui.texts`, `ui.click`, `ui.type` and `ui.key`. Clicks go to the
+  front-most matching words, as the pointer would; running a downloaded file
+  (Open, Open with, Preview) is refused.
 - AI clients (`dm-desktop mcp`): new tools `dm_pause`, `dm_resume`,
   `dm_cancel` (by id; pause and resume of all when no ids), `dm_move`,
   `dm_queue` and `dm_set_speed_limit` (an exact KB/s, or a preset). To connect,

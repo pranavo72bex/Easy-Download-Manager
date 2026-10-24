@@ -77,10 +77,12 @@ impl eframe::App for Window {
     /// A drag out of the window on X11 ends with the button let go under
     /// the drag's own grab, which winit never hears: egui is told, or it
     /// would go on thinking the button held (`xdnd`).
-    #[cfg(target_os = "linux")]
     fn raw_input_hook(&mut self, ctx: &egui::Context, raw_input: &mut egui::RawInput) {
+        raw_input.events.extend(self.app.synthetic_events(ctx));
+        #[cfg(target_os = "linux")]
         let ended = dm_desktop::xdnd::ENDED.swap(false, std::sync::atomic::Ordering::Relaxed)
             | winit::platform::wayland::dm_take_drag_ended();
+        #[cfg(target_os = "linux")]
         if ended {
             let pos = ctx.input(|i| i.pointer.latest_pos()).unwrap_or_default();
             raw_input.events.push(egui::Event::PointerButton {
@@ -101,6 +103,7 @@ impl eframe::App for Window {
             return;
         }
         self.app.ui(ui);
+        self.app.scan_screen(ui.ctx());
         // Links dragged in from a browser, where winit hands over files only.
         {
             use raw_window_handle::HasWindowHandle;

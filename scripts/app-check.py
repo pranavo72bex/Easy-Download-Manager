@@ -515,6 +515,43 @@ def main():
             check("a screenshot is a PNG of the window", png.read_bytes()[:4], b"\x89PNG")
         else:
             check("a screenshot of the running window", shot.get("error"), None)
+        # The window used as a person uses it: words read off the screen,
+        # clicked, typed into, and a key pressed.
+        def human(method, **params):
+            answer = call(method, **params)
+            time.sleep(0.5)
+            return answer
+        def on_screen():
+            return [t["text"] for t in call("ui.texts")["result"]["texts"]]
+        def open_dialogs():
+            return call("ui.inspect")["result"]["dialogs"]
+        human("ui.key", key="Escape")  # the Add URL the command check opened
+        check("a dialog is closed by Escape", "Add URL" not in open_dialogs())
+        check("the screen can be read as words", "Add URL" in on_screen())
+        human("ui.click", text="Options")
+        check("clicking a toolbar button opens its dialog", "Options" in open_dialogs())
+        human("ui.click", text="Network")
+        check("clicking a tab changes the page", "Network" in on_screen())
+        human("ui.click", text="Cancel")
+        check("clicking Cancel closes the dialog", "Options" not in open_dialogs())
+        human("ui.click", text="Add URL")
+        check("Add URL opens from its button", "Add URL" in open_dialogs())
+        call("ui.key", key="A", modifiers=["cmd" if sys.platform == "darwin" else "ctrl"])
+        human("ui.type", text=url("typed.zip"))
+        human("ui.click", text="OK")
+        check("what was typed reaches the next dialog", "typed.zip" in on_screen())
+        human("ui.click", text="Start now")
+        done = wait_for("the link typed by hand never finished",
+                        lambda: [r for r in rows(home) if r["url"].endswith("/typed.zip") and r["state"]["kind"] == "completed"], 30)
+        check("and clicking Start now downloads it", pathlib.Path(done[0]["path"]).read_bytes() == PAYLOAD)
+        human("ui.click", text="Add URL")
+        human("ui.key", key="Escape")
+        check("Escape closes the top dialog", "Add URL" not in open_dialogs())
+        human("ui.click", text="Program")
+        check("a menu opens and lists its items", "Add numbered series…" in on_screen())
+        human("ui.key", key="Escape")
+        refused = call("ui.click", text="Open")
+        check("opening a downloaded file is refused", (refused["ok"], "person" in refused.get("error", "")), (False, True))
         conn.close()
         stop(app, home)
 
@@ -562,7 +599,7 @@ def main():
         check("the MCP server offers every tool", sorted(names), sorted(
             ["dm_list_commands", "dm_run_command", "dm_add_downloads", "dm_list_downloads", "dm_select",
              "dm_pause", "dm_resume", "dm_cancel", "dm_move", "dm_queue", "dm_set_speed_limit",
-             "dm_inspect", "dm_screenshot"]))
+             "dm_screen", "dm_click", "dm_type", "dm_press_key", "dm_inspect", "dm_screenshot"]))
         check("dm_list_downloads lists the agent's download", "agent.zip" in tool("dm_list_downloads")["content"][0]["text"], True)
         check("dm_list_commands lists commands", "file.stop_download" in tool("dm_list_commands")["content"][0]["text"], True)
         check("dm_set_speed_limit sets a preset", tool("dm_set_speed_limit", preset="low").get("isError"), None)
@@ -580,6 +617,7 @@ def main():
         check("dm_resume with nothing to resume does not crash", "content" in tool("dm_resume"), True)
         check("dm_pause names an id that is not there", "no such download" in tool("dm_pause", ids=[999999])["content"][0]["text"], True)
         check("dm_run_command will not open a file", tool("dm_run_command", id="file.open").get("isError"), True)
+        check("a human tool on a headless dm says there is no screen to read", tool("dm_screen").get("isError") is None, True)
         check("dm_inspect reads the window back", "content" in tool("dm_inspect"), True)
 
         # The command line's verbs, as another client of the same port.

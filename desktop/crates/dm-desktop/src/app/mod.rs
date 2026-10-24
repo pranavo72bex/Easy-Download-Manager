@@ -28,6 +28,7 @@ mod commands;
 mod control;
 mod drops;
 mod files;
+mod human;
 mod links;
 mod lists;
 mod menus;
@@ -365,6 +366,10 @@ pub struct DmApp {
     pub hidden: bool,
     /// Requests from the control protocol, when it is on.
     control: Option<std::sync::mpsc::Receiver<crate::control::Request>>,
+    /// The words drawn on the last frame, for the control protocol's `ui.click`.
+    screen: Vec<human::ScreenText>,
+    /// Pointer and key events to give the window, a step a frame.
+    synthetic: std::collections::VecDeque<Vec<egui::Event>>,
     /// Rows the window added itself (Add URL, a series, an import): they
     /// open their progress window, if at all, as they are added. Any other
     /// row that appears running — a browser's hand-off, a second launch's
@@ -508,6 +513,8 @@ impl DmApp {
             headless: false,
             hidden: false,
             control: None,
+            screen: Vec::new(),
+            synthetic: Default::default(),
             own: HashSet::new(),
             last_added: Vec::new(),
             said_about: None,
