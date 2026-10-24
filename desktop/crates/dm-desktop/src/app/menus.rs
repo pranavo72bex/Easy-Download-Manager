@@ -39,11 +39,6 @@ impl DmApp {
         if behind {
             self.open_menu_by_key = false;
         }
-        // The row is as tall with the search box as without, so the window
-        // does not jump when the first download is added.
-        if crate::theme::Tokens::get(ui.ctx()).modern {
-            ui.set_min_height(30.0);
-        }
         ui.add_enabled_ui(!behind, |ui| self.menu_bar_items(ui));
     }
 
@@ -68,13 +63,22 @@ impl DmApp {
         // keep clear of them.
         let middle = ui.min_rect().center().y;
         let field =
-            egui::Rect::from_min_size(egui::pos2(left, middle - 13.0), egui::vec2(width, 26.0));
-        let response = ui.put(
-            field,
+            egui::Rect::from_min_size(egui::pos2(left, middle - 10.0), egui::vec2(width, 20.0));
+        // In a child of its own, which leaves the row's height as the menus
+        // make it: Options and the other dialogs size themselves to the room
+        // below it, and on Windows' fonts a few points tipped Options into
+        // scrolling.
+        let mut child = ui.new_child(egui::UiBuilder::new().max_rect(field));
+        let response = child.add(
             egui::TextEdit::singleline(&mut self.filter)
                 .hint_text(t("Name, address or note"))
-                .margin(egui::Margin::symmetric(8, 4))
-                .desired_width(width - 28.0),
+                .margin(egui::Margin {
+                    left: 8,
+                    right: 28,
+                    top: 1,
+                    bottom: 1,
+                })
+                .desired_width(width),
         );
         ui.ctx().accesskit_node_builder(response.id, |node| {
             node.set_label(t("Filter"));
