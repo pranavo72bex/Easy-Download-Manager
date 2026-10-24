@@ -103,8 +103,9 @@ impl DmApp {
                 Command::OpenFile | Command::OpenWith | Command::Preview
             )
         {
-            self.said =
-                crate::i18n::t("Opening a file is done by a person, not by a script").into();
+            self.said = "Opening a file is done by a person, not by a script"
+                .to_string()
+                .into();
             return;
         }
         if !self.enabled(command) {
