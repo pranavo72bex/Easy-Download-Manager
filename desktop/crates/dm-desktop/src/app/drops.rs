@@ -1,5 +1,9 @@
 use super::*;
 
+/// The drop target's side, in points: a small tile that is easy to miss on
+/// purpose, as it floats over the work.
+const SIZE: f32 = 40.0;
+
 impl DmApp {
     /// The floating drop target (View › Drop target): a small window over
     /// every other, moved by dragging it, that takes a link or a file of
@@ -19,20 +23,20 @@ impl DmApp {
             let view = i.viewport();
             match (view.outer_rect, view.minimized) {
                 (Some(window), Some(false) | None) => Some(egui::pos2(
-                    (window.max.x - 64.0 - 24.0).max(window.min.x),
-                    (window.max.y - 64.0 - 56.0).max(window.min.y),
+                    (window.max.x - SIZE - 20.0).max(window.min.x),
+                    (window.max.y - SIZE - 52.0).max(window.min.y),
                 )),
                 _ => view.monitor_size.map(|screen| {
                     egui::pos2(
-                        (screen.x - 64.0 - 24.0).max(0.0),
-                        (screen.y - 64.0 - 96.0).max(0.0),
+                        (screen.x - SIZE - 20.0).max(0.0),
+                        (screen.y - SIZE - 96.0).max(0.0),
                     )
                 }),
             }
         });
         let mut builder = egui::ViewportBuilder::default()
             .with_title(crate::drops::DROP_TARGET_TITLE)
-            .with_inner_size([64.0, 64.0])
+            .with_inner_size([SIZE, SIZE])
             .with_resizable(false)
             .with_decorations(false)
             .with_transparent(true)
@@ -67,25 +71,20 @@ impl DmApp {
                 .show(vui, |ui| {
                     let (rect, response) =
                         ui.allocate_exact_size(ui.available_size(), egui::Sense::click_and_drag());
-                    let fill = if over || response.hovered() {
+                    // Quiet until something is over it or the pointer is.
+                    let lit = over || response.hovered();
+                    let fill = if lit {
                         tokens.brand_hover
                     } else {
-                        tokens.brand
+                        tokens.brand.gamma_multiply(0.7)
                     };
                     let painter = ui.painter();
-                    painter.rect_filled(rect.shrink(2.0), 12.0, fill);
+                    painter.rect_filled(rect.shrink(2.0), 10.0, fill);
                     painter.text(
-                        rect.center() - egui::vec2(0.0, 6.0),
+                        rect.center(),
                         egui::Align2::CENTER_CENTER,
                         "↓",
-                        egui::FontId::proportional(24.0),
-                        tokens.on_brand,
-                    );
-                    painter.text(
-                        rect.center() + egui::vec2(0.0, 16.0),
-                        egui::Align2::CENTER_CENTER,
-                        "dm",
-                        egui::FontId::proportional(11.0),
+                        egui::FontId::proportional(16.0),
                         tokens.on_brand,
                     );
                     if response.drag_started() {
