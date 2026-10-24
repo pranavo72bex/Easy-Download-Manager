@@ -451,7 +451,7 @@ fn ai_assistants_are_answered_only_while_the_setting_is_on() {
             answer.send(via_plain).unwrap();
         }
     });
-    let mut round = |harness: &mut Harness<'_, DmApp>| {
+    let round = |harness: &mut Harness<'_, DmApp>| {
         ask.send(()).unwrap();
         let mut got = Vec::new();
         while got.len() < 2 {
