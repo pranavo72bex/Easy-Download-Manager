@@ -23,29 +23,51 @@ impl DmApp {
             return;
         }
         let mut open: Option<&str> = None;
-        ui.horizontal_wrapped(|ui| {
-            ui.label(t("Add dm to your browser:")).on_hover_text(t(
-                "Downloads you click in your browser come to dm once its extension is added.",
-            ));
-            if ui.button("Microsoft Edge").clicked() {
-                open = Some(EXTENSION_EDGE);
-            }
-            if ui.button("Firefox").clicked() {
-                open = Some(EXTENSION_FIREFOX);
-            }
-            if ui.button(t("Chrome and others")).clicked() {
-                open = Some(EXTENSION_CHROME);
-            }
-            if ui.button(t("Not now")).clicked() {
-                let _ = std::fs::create_dir_all(&home);
-                let _ = std::fs::write(home.join(BROWSER_HINT_HIDDEN), b"");
-                self.browser_hint = (Some(Instant::now()), false);
-            }
-        });
+        let tokens = crate::theme::Tokens::get(ui.ctx());
+        // WinUI's InfoBar: a card in the layer's surface with a hairline
+        // edge, an accent badge, the title in strong type and its message
+        // beside it, the actions after.
+        egui::Frame::new()
+            .fill(tokens.control)
+            .stroke(egui::Stroke::new(1.0, tokens.border))
+            .corner_radius(tokens.card_radius as f32)
+            .inner_margin(egui::Margin::symmetric(12, 8))
+            .show(ui, |ui| {
+                ui.set_width(ui.available_width());
+                ui.horizontal_wrapped(|ui| {
+                    let (badge, _) = ui.allocate_exact_size(egui::vec2(16.0, 16.0), egui::Sense::hover());
+                    ui.painter().circle_filled(badge.center(), 8.0, tokens.brand);
+                    ui.painter().text(
+                        badge.center(),
+                        egui::Align2::CENTER_CENTER,
+                        "i",
+                        egui::FontId::proportional(11.0),
+                        tokens.on_brand,
+                    );
+                    ui.label(egui::RichText::new(t("Add dm to your browser:")).strong())
+                        .on_hover_text(t(
+                            "Downloads you click in your browser come to dm once its extension is added.",
+                        ));
+                    if ui.button("Microsoft Edge").clicked() {
+                        open = Some(EXTENSION_EDGE);
+                    }
+                    if ui.button("Firefox").clicked() {
+                        open = Some(EXTENSION_FIREFOX);
+                    }
+                    if ui.button(t("Chrome and others")).clicked() {
+                        open = Some(EXTENSION_CHROME);
+                    }
+                    if ui.button(t("Not now")).clicked() {
+                        let _ = std::fs::create_dir_all(&home);
+                        let _ = std::fs::write(home.join(BROWSER_HINT_HIDDEN), b"");
+                        self.browser_hint = (Some(Instant::now()), false);
+                    }
+                });
+            });
+        ui.add_space(8.0);
         if let Some(page) = open {
             self.open_file(page);
         }
-        ui.separator();
     }
 
     /// A download that paused by itself for want of room or of its drive:

@@ -5,6 +5,8 @@ the browser extension (`v*` tags) are versioned separately.
 
 ## Unreleased
 
+- "Add dm to your browser" is an InfoBar, as WinUI draws one: a rounded card
+  with a hairline edge, an accent badge and strong title, in both themes.
 - Security: over the control protocol and MCP, a download may only be saved
   inside the download folder; and what a client clicks or types can no longer
   run a downloaded file (Open, Open with, Preview, a double-click that opens,

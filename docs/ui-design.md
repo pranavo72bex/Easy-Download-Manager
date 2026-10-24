@@ -63,6 +63,9 @@ Shadows: Fluent's 28 under dialogs, 16 under menus.
   A dialog is laid out as WinUI's ContentDialog: its title at the top left
   (`dialogs::Dialog`), its buttons on a footer band at the right, the main
   action first and filled with the accent (`dialogs::footer`).
+- **Messages are InfoBars:** a card in the control surface with a hairline
+  edge and 8 px corners, an accent badge, the title in strong type and the
+  actions after it (`bars.rs`); the floating drop target is the same card.
 - **Contrast is tested, not eyeballed** (`theme.rs`): a selected row
   carries the accent pill at 3:1 on the list and its words at 4.5:1 on its
   fill (Classic's row is a solid `#0072d0`); the focus ring is two lines,
