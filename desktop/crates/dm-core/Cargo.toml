@@ -40,7 +40,7 @@ md-5 = "0.11.0"
 # NTLM sign-ins (`ntlm.rs`): its NT hash is MD4 of the password, and its
 # client challenge must be unpredictable.
 md4 = "0.11"
-getrandom = "0.3"
+getrandom = "0.4"
 hex = "0.4.3"
 quick-xml = "0.42.0"
 url = "2.5.8"
