@@ -7,7 +7,7 @@ browser.
 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="docs/screenshot-dark.png">
-  <img alt="The dm window: a toolbar, a list of places on the left, and the downloads as a table with their size, status, time left and speed" src="docs/screenshot.png">
+  <img alt="The dm window: a menu row with a search box, a toolbar, a list of places on the left, and the downloads as a table with their size, status, time left and speed" src="docs/screenshot.png">
 </picture>
 
 You install two things, both free:

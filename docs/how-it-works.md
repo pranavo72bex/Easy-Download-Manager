@@ -33,7 +33,7 @@ every download stays with the browser.
 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="screenshot-dark.png">
-  <img alt="The dm window: a menu bar, a toolbar of Add URL, Resume, Stop and the rest, a category tree, and the downloads as a table with Name, Size, Status, Time left, Speed and Date" src="screenshot.png">
+  <img alt="The dm window: a menu bar with a search box, a toolbar of Add URL, Resume, Stop and the rest, a category tree, and the downloads as a table with Name, Size, Status, Time left, Speed and Date" src="screenshot.png">
 </picture>
 
 <sub>The window, light or dark as the computer is (Options › General › Look

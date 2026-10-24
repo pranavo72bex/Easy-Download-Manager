@@ -5,6 +5,9 @@ the browser extension (`v*` tags) are versioned separately.
 
 ## Unreleased
 
+- The list's filter is a search box in the middle of the top row (modern
+  look, window wide enough); the filter row keeps only Clear and the count
+  while words are typed. The Find window keeps further from the found row.
 - "Add dm to your browser" is an InfoBar, as WinUI draws one: a rounded card
   with a hairline edge, an accent badge and strong title, in both themes.
 - Security: over the control protocol and MCP, a download may only be saved

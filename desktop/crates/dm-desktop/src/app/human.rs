@@ -88,6 +88,20 @@ impl DmApp {
         if matches!(method, "ui.click" | "ui.type" | "ui.key") {
             self.scripted_at = Some(Instant::now());
         }
+        // Steps wait for frames: a window that draws none (parked in the
+        // tray) would let a client queue them without end.
+        if matches!(method, "ui.click" | "ui.type" | "ui.key") {
+            if self.hidden {
+                return Some(Err(
+                    "dm's window is hidden in the tray: show it first".into()
+                ));
+            }
+            if self.synthetic.len() > 64 {
+                return Some(Err(
+                    "too many steps are waiting: let the window catch up".into()
+                ));
+            }
+        }
         let wake = || {
             if let Some(ctx) = ctx {
                 ctx.request_repaint();

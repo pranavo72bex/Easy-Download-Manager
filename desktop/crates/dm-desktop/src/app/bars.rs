@@ -22,51 +22,70 @@ impl DmApp {
         if !self.browser_hint.1 || room < 16.0 {
             return;
         }
-        let mut open: Option<&str> = None;
+        let mut open: Option<&'static str> = None;
         let tokens = crate::theme::Tokens::get(ui.ctx());
-        // WinUI's InfoBar: a card in the layer's surface with a hairline
-        // edge, an accent badge, the title in strong type and its message
-        // beside it, the actions after.
-        egui::Frame::new()
-            .fill(tokens.control)
-            .stroke(egui::Stroke::new(1.0, tokens.border))
-            .corner_radius(tokens.card_radius as f32)
-            .inner_margin(egui::Margin::symmetric(12, 8))
-            .show(ui, |ui| {
-                ui.set_width(ui.available_width());
-                ui.horizontal_wrapped(|ui| {
-                    let (badge, _) = ui.allocate_exact_size(egui::vec2(16.0, 16.0), egui::Sense::hover());
-                    ui.painter().circle_filled(badge.center(), 8.0, tokens.brand);
-                    ui.painter().text(
-                        badge.center(),
-                        egui::Align2::CENTER_CENTER,
-                        "i",
-                        egui::FontId::proportional(11.0),
-                        tokens.on_brand,
-                    );
-                    ui.label(egui::RichText::new(t("Add dm to your browser:")).strong())
-                        .on_hover_text(t(
-                            "Downloads you click in your browser come to dm once its extension is added.",
-                        ));
-                    if ui.button("Microsoft Edge").clicked() {
-                        open = Some(EXTENSION_EDGE);
-                    }
-                    if ui.button("Firefox").clicked() {
-                        open = Some(EXTENSION_FIREFOX);
-                    }
-                    if ui.button(t("Chrome and others")).clicked() {
-                        open = Some(EXTENSION_CHROME);
-                    }
-                    if ui.button(t("Not now")).clicked() {
-                        let _ = std::fs::create_dir_all(&home);
-                        let _ = std::fs::write(home.join(BROWSER_HINT_HIDDEN), b"");
-                        self.browser_hint = (Some(Instant::now()), false);
-                    }
+        if tokens.modern {
+            // WinUI's InfoBar: a card in the control's surface with a
+            // hairline edge, an accent badge, a strong title, then the
+            // actions.
+            egui::Frame::new()
+                .fill(tokens.control)
+                .stroke(egui::Stroke::new(1.0, tokens.border))
+                .corner_radius(tokens.card_radius as f32)
+                .inner_margin(egui::Margin::symmetric(12, 8))
+                .show(ui, |ui| {
+                    ui.set_width(ui.available_width());
+                    ui.horizontal_wrapped(|ui| {
+                        let (badge, _) =
+                            ui.allocate_exact_size(egui::vec2(16.0, 16.0), egui::Sense::hover());
+                        ui.painter()
+                            .circle_filled(badge.center(), 8.0, tokens.brand);
+                        ui.painter().text(
+                            badge.center(),
+                            egui::Align2::CENTER_CENTER,
+                            "i",
+                            egui::FontId::proportional(11.0),
+                            tokens.on_brand,
+                        );
+                        self.browser_actions(ui, &mut open, &home, true);
+                    });
                 });
-            });
-        ui.add_space(8.0);
+            ui.add_space(8.0);
+        } else {
+            ui.horizontal_wrapped(|ui| self.browser_actions(ui, &mut open, &home, false));
+            ui.separator();
+        }
         if let Some(page) = open {
             self.open_file(page);
+        }
+    }
+
+    /// The browser hint's words and buttons, which both looks share.
+    fn browser_actions(
+        &mut self,
+        ui: &mut egui::Ui,
+        open: &mut Option<&'static str>,
+        home: &std::path::Path,
+        strong: bool,
+    ) {
+        let title = egui::RichText::new(t("Add dm to your browser:"));
+        ui.label(if strong { title.strong() } else { title })
+            .on_hover_text(t(
+                "Downloads you click in your browser come to dm once its extension is added.",
+            ));
+        if ui.button("Microsoft Edge").clicked() {
+            *open = Some(EXTENSION_EDGE);
+        }
+        if ui.button("Firefox").clicked() {
+            *open = Some(EXTENSION_FIREFOX);
+        }
+        if ui.button(t("Chrome and others")).clicked() {
+            *open = Some(EXTENSION_CHROME);
+        }
+        if ui.button(t("Not now")).clicked() {
+            let _ = std::fs::create_dir_all(home);
+            let _ = std::fs::write(home.join(BROWSER_HINT_HIDDEN), b"");
+            self.browser_hint = (Some(Instant::now()), false);
         }
     }
 
@@ -152,6 +171,22 @@ impl DmApp {
         ui.separator();
     }
 
+    /// Clear, and how many rows the filter leaves.
+    fn filter_status(&mut self, ui: &mut egui::Ui) {
+        if ui.button(t("Clear")).clicked() {
+            self.filter.clear();
+        }
+        let shown = self.rows.iter().filter(|r| self.shows(r)).count();
+        ui.label(
+            egui::RichText::new(crate::i18n::tn(
+                "{} shown||{} shown",
+                shown as u64,
+                &[&shown],
+            ))
+            .weak(),
+        );
+    }
+
     /// A field over the list that narrows it as one types. Shown once
     /// there is a list to narrow; Escape in it, or ×, shows every row again.
     pub(super) fn filter_bar(&mut self, ui: &mut egui::Ui) {
@@ -161,28 +196,9 @@ impl DmApp {
         // Held by the top row's search box, where it has room.
         if self.title_search {
             if !self.filter.is_empty() {
-                let shown = self.rows.iter().filter(|r| self.shows(r)).count();
-                ui.horizontal(|ui| {
-                    if ui.button(t("Clear")).clicked() {
-                        self.filter.clear();
-                    }
-                    ui.label(
-                        egui::RichText::new(crate::i18n::tn(
-                            "{} shown||{} shown",
-                            shown as u64,
-                            &[&shown],
-                        ))
-                        .weak(),
-                    );
-                });
+                ui.horizontal(|ui| self.filter_status(ui));
                 ui.add_space(2.0);
             }
-            return;
-        }
-        // Left out where the list itself has too little room, as at 300 %
-        // text in a short window, where it pushed the last row under the
-        // status bar; never while it holds words, which hide rows.
-        if self.filter.is_empty() && ui.available_height() < 200.0 {
             return;
         }
         ui.horizontal(|ui| {
@@ -198,18 +214,7 @@ impl DmApp {
                 self.filter.clear();
             }
             if !self.filter.is_empty() {
-                if ui.button(t("Clear")).clicked() {
-                    self.filter.clear();
-                }
-                let shown = self.rows.iter().filter(|r| self.shows(r)).count();
-                ui.label(
-                    egui::RichText::new(crate::i18n::tn(
-                        "{} shown||{} shown",
-                        shown as u64,
-                        &[&shown],
-                    ))
-                    .weak(),
-                );
+                self.filter_status(ui);
             }
         });
         ui.add_space(2.0);

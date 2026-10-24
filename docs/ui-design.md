@@ -63,6 +63,9 @@ Shadows: Fluent's 28 under dialogs, 16 under menus.
   A dialog is laid out as WinUI's ContentDialog: its title at the top left
   (`dialogs::Dialog`), its buttons on a footer band at the right, the main
   action first and filled with the accent (`dialogs::footer`).
+- **The search box** is in the top row, centred and clear of the menus, with
+  the magnifier at its right (`menus.rs`, `search_slot`); where the row has
+  no room for it (under 180 points) the filter keeps its place above the list.
 - **Messages are InfoBars:** a card in the control surface with a hairline
   edge and 8 px corners, an accent badge, the title in strong type and the
   actions after it (`bars.rs`); the floating drop target is the same card.

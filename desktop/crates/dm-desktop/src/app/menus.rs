@@ -39,6 +39,13 @@ impl DmApp {
         if behind {
             self.open_menu_by_key = false;
         }
+        // Decided afresh each frame, by the row that draws the box.
+        self.title_search = false;
+        // The row is as tall with the search box as without, so the window
+        // does not jump when the first download is added.
+        if crate::theme::Tokens::get(ui.ctx()).modern {
+            ui.set_min_height(30.0);
+        }
         ui.add_enabled_ui(!behind, |ui| self.menu_bar_items(ui));
     }
 
@@ -48,21 +55,20 @@ impl DmApp {
     /// row has no room for it, and in the classic look.
     fn title_search(&mut self, ui: &mut egui::Ui, used: f32) {
         let tokens = crate::theme::Tokens::get(ui.ctx());
-        // The window's width, whatever the menu bar's own area is.
         let window = ui.ctx().content_rect();
-        let row = egui::Rect::from_x_y_ranges(window.x_range(), ui.min_rect().y_range());
-        let width = 360.0_f32.min(row.width() - 16.0);
-        let left = (row.center().x - width / 2.0).max(used + 24.0);
-        let width = width.min(row.right() - 8.0 - left);
         let wanted = tokens.modern && (!self.rows.is_empty() || !self.filter.is_empty());
-        self.title_search = wanted && width >= 180.0;
-        if !self.title_search {
+        let slot = if wanted {
+            search_slot((window.left(), window.right()), used)
+        } else {
+            None
+        };
+        self.title_search = slot.is_some();
+        let Some((left, width)) = slot else {
             return;
-        }
-        let field = egui::Rect::from_min_size(
-            egui::pos2(left, row.center().y - 14.0),
-            egui::vec2(width, 28.0),
-        );
+        };
+        let middle = ui.min_rect().center().y;
+        let field =
+            egui::Rect::from_min_size(egui::pos2(left, middle - 13.0), egui::vec2(width, 26.0));
         let response = ui.put(
             field,
             egui::TextEdit::singleline(&mut self.filter)
@@ -73,7 +79,11 @@ impl DmApp {
         ui.ctx().accesskit_node_builder(response.id, |node| {
             node.set_label(t("Filter"));
         });
-        if response.has_focus() && ui.input(|i| i.key_pressed(egui::Key::Escape)) {
+        // Escape gives the field's focus up in the same frame, so it is
+        // asked of the field's loss too.
+        if (response.has_focus() || response.lost_focus())
+            && ui.input(|i| i.key_pressed(egui::Key::Escape))
+        {
             self.filter.clear();
         }
         // The magnifier, drawn: the icon font holds only what the window
@@ -501,5 +511,32 @@ impl DmApp {
                 self.said = e.into();
             }
         }
+    }
+}
+
+/// Where the top row's search box goes: its left edge and width, centred in
+/// the window and clear of the menus (which end at `used`); None where it
+/// would be narrower than 180 points.
+pub(super) fn search_slot(window: (f32, f32), used: f32) -> Option<(f32, f32)> {
+    let width = 360.0_f32.min(window.1 - window.0 - 16.0);
+    let left = ((window.0 + window.1) / 2.0 - width / 2.0).max(used + 24.0);
+    let width = width.min(window.1 - 8.0 - left);
+    (width >= 180.0).then_some((left, width))
+}
+
+#[cfg(test)]
+mod search_slot_tests {
+    use super::search_slot;
+
+    #[test]
+    fn the_box_is_centred_clear_of_the_menus_and_left_out_where_narrow() {
+        assert_eq!(search_slot((0.0, 960.0), 255.0), Some((300.0, 360.0)));
+        // Menus reaching past the middle push it right, and narrow it.
+        assert_eq!(search_slot((0.0, 960.0), 500.0), Some((524.0, 360.0)));
+        // No room left: the list's own filter row is used.
+        assert_eq!(search_slot((0.0, 960.0), 800.0), None);
+        assert_eq!(search_slot((0.0, 400.0), 255.0), None);
+        // A window narrower than the margins never gives a negative width.
+        assert_eq!(search_slot((0.0, 10.0), 0.0), None);
     }
 }
