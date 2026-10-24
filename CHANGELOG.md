@@ -3,7 +3,7 @@
 What changed in each release, newest first. The app (`desktop-v*` tags) and
 the browser extension (`v*` tags) are versioned separately.
 
-## Unreleased
+## App 0.6.0
 
 - The list's filter is a search box in the middle of the top row (modern
   look, window wide enough); the filter row keeps only Clear and the count

@@ -3,7 +3,7 @@
 # Built from source rather than repackaging a .deb, so it links against
 # Arch's own libraries rather than an older runner's.
 pkgname=dm
-pkgver=0.5.0
+pkgver=0.6.0
 pkgrel=1
 pkgdesc="A download manager: many connections, resume, and a queue"
 arch=('x86_64' 'aarch64')
@@ -30,7 +30,7 @@ optdepends=('yt-dlp: downloads from sites that serve video through a player'
 options=('!debug' '!lto')
 
 source=("$pkgname-$pkgver.tar.gz::$url/archive/refs/tags/desktop-v$pkgver.tar.gz")
-sha256sums=('be8a4729065944d3cab93fbe2234aa153ecdeb2d3db71617257f2ac77c39bdfe')
+sha256sums=('SKIP')
 
 # The name GitHub gives the extracted tag archive, which is the repository
 # name and not the package name.
