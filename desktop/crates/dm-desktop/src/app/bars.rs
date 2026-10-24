@@ -158,6 +158,27 @@ impl DmApp {
         if self.rows.is_empty() && self.filter.is_empty() {
             return;
         }
+        // Held by the top row's search box, where it has room.
+        if self.title_search {
+            if !self.filter.is_empty() {
+                let shown = self.rows.iter().filter(|r| self.shows(r)).count();
+                ui.horizontal(|ui| {
+                    if ui.button(t("Clear")).clicked() {
+                        self.filter.clear();
+                    }
+                    ui.label(
+                        egui::RichText::new(crate::i18n::tn(
+                            "{} shown||{} shown",
+                            shown as u64,
+                            &[&shown],
+                        ))
+                        .weak(),
+                    );
+                });
+                ui.add_space(2.0);
+            }
+            return;
+        }
         // Left out where the list itself has too little room, as at 300 %
         // text in a short window, where it pushed the last row under the
         // status bar; never while it holds words, which hide rows.

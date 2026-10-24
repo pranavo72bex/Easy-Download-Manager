@@ -42,6 +42,49 @@ impl DmApp {
         ui.add_enabled_ui(!behind, |ui| self.menu_bar_items(ui));
     }
 
+    /// The search box in the middle of the top row, as a navigation view's
+    /// title bar holds one: the field that narrows the list, with the
+    /// magnifier at its right. Left to the list's own filter row where the
+    /// row has no room for it, and in the classic look.
+    fn title_search(&mut self, ui: &mut egui::Ui, used: f32) {
+        let tokens = crate::theme::Tokens::get(ui.ctx());
+        // The window's width, whatever the menu bar's own area is.
+        let window = ui.ctx().content_rect();
+        let row = egui::Rect::from_x_y_ranges(window.x_range(), ui.min_rect().y_range());
+        let width = 360.0_f32.min(row.width() - 16.0);
+        let left = (row.center().x - width / 2.0).max(used + 24.0);
+        let width = width.min(row.right() - 8.0 - left);
+        let wanted = tokens.modern && (!self.rows.is_empty() || !self.filter.is_empty());
+        self.title_search = wanted && width >= 180.0;
+        if !self.title_search {
+            return;
+        }
+        let field = egui::Rect::from_min_size(
+            egui::pos2(left, row.center().y - 14.0),
+            egui::vec2(width, 28.0),
+        );
+        let response = ui.put(
+            field,
+            egui::TextEdit::singleline(&mut self.filter)
+                .hint_text(t("Name, address or note"))
+                .margin(egui::Margin::symmetric(8, 4))
+                .desired_width(width - 28.0),
+        );
+        ui.ctx().accesskit_node_builder(response.id, |node| {
+            node.set_label(t("Filter"));
+        });
+        if response.has_focus() && ui.input(|i| i.key_pressed(egui::Key::Escape)) {
+            self.filter.clear();
+        }
+        // The magnifier, drawn: the icon font holds only what the window
+        // otherwise needs.
+        let c = egui::pos2(field.right() - 18.0, field.center().y - 1.0);
+        let stroke = egui::Stroke::new(1.3, tokens.weak);
+        ui.painter().circle_stroke(c, 4.5, stroke);
+        ui.painter()
+            .line_segment([c + egui::vec2(3.4, 3.4), c + egui::vec2(7.0, 7.0)], stroke);
+    }
+
     pub(super) fn menu_bar_items(&mut self, ui: &mut egui::Ui) {
         // F10 opens the first menu, as on any desktop: the menus could be
         // reached only by Tabbing to them. Opened before the bar
@@ -279,10 +322,12 @@ impl DmApp {
                     self.item(ui, Command::CheckForUpdates);
                     self.item(ui, Command::About);
                 });
+                let used = help.response.rect.right();
                 self.menus = [program, file, downloads, view, help]
                     .iter()
                     .map(|menu| egui::Popup::default_response_id(&menu.response))
                     .collect();
+                self.title_search(ui, used);
             });
     }
 

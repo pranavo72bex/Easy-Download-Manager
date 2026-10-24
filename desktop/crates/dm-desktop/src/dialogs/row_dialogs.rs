@@ -248,7 +248,7 @@ pub(super) fn find(app: &mut DmApp, ctx: &egui::Context) {
     let mut place = window(ctx, "Find");
     if let Some(row) = found {
         let middle = egui::Rect::from_center_size(screen.center(), size);
-        if middle.expand(4.0).intersects(row) {
+        if middle.expand(24.0).intersects(row) {
             let below = row.bottom() + 12.0;
             let top = if below + size.y <= screen.bottom() - 8.0 {
                 below
