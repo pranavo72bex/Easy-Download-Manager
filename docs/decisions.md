@@ -1571,3 +1571,14 @@ held. Tested under sway (headless) with a virtual pointer written for the
 test (`scripts/linux/vpointer.c`, wlroots' virtual-pointer protocol), since
 a headless compositor has no pointer of its own and `swaymsg seat … cursor`
 reaches no client without one.
+
+## 2026-10-24 Find keeps 24 points from the row it found (was 4)
+
+The top-row search box moved the list up 30 points, and Find's placement,
+which reads the found row's rectangle from the frame before, then left the
+dialog 6 points over the row (`find_stays_clear_of_the_row_it_found`). A wider
+margin absorbs that one frame of lag rather than chasing the layout; the test
+that caught it covers the margin. Tried and dropped: reading the row's
+rectangle again after the list's own layout, which needs a second pass over
+the frame for one dialog.
+

@@ -376,3 +376,43 @@ fn shots() {
     render(&mut harness, "light", "settings.png");
     render(&mut harness, "dark", "settings-dark.png");
 }
+
+/// What a client asks of the window as a person would waits for frames, so
+/// it may not pile up without end, nor be queued for a window that draws
+/// none.
+#[test]
+fn steps_waiting_for_frames_are_capped_and_refused_while_hidden() {
+    let world = world();
+    let mut harness = world.harness();
+    let key = serde_json::json!({ "key": "A" });
+    // No frame runs between these, so each one waits (a key is two steps).
+    let mut taken = 0;
+    let refused = loop {
+        let answer = harness.state_mut().human_call("ui.key", &key, None);
+        match answer {
+            Some(Ok(_)) => taken += 1,
+            other => break other,
+        }
+        assert!(taken < 100, "nothing was ever refused");
+    };
+    assert!(taken >= 10, "refused too soon: {taken}");
+    assert!(
+        matches!(&refused, Some(Err(why)) if why.contains("too many steps")),
+        "{refused:?}"
+    );
+    harness.run_steps(4);
+    harness.state_mut().hidden = true;
+    let hidden =
+        harness
+            .state_mut()
+            .human_call("ui.click", &serde_json::json!({ "text": "Add URL" }), None);
+    assert!(
+        matches!(&hidden, Some(Err(why)) if why.contains("hidden")),
+        "{hidden:?}"
+    );
+    // And a method that is not a person's is none of its business.
+    assert!(harness
+        .state_mut()
+        .human_call("queue.list", &key, None)
+        .is_none());
+}

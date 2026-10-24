@@ -39,8 +39,6 @@ impl DmApp {
         if behind {
             self.open_menu_by_key = false;
         }
-        // Decided afresh each frame, by the row that draws the box.
-        self.title_search = false;
         // The row is as tall with the search box as without, so the window
         // does not jump when the first download is added.
         if crate::theme::Tokens::get(ui.ctx()).modern {
@@ -66,6 +64,8 @@ impl DmApp {
         let Some((left, width)) = slot else {
             return;
         };
+        // The row holds the menus and nothing else, so the box needs only
+        // keep clear of them.
         let middle = ui.min_rect().center().y;
         let field =
             egui::Rect::from_min_size(egui::pos2(left, middle - 13.0), egui::vec2(width, 26.0));
@@ -81,7 +81,9 @@ impl DmApp {
         });
         // Escape gives the field's focus up in the same frame, so it is
         // asked of the field's loss too.
-        if (response.has_focus() || response.lost_focus())
+        // (not when a click elsewhere took the focus on the same frame).
+        let by_click = ui.input(|i| i.pointer.any_pressed());
+        if (response.has_focus() || (response.lost_focus() && !by_click))
             && ui.input(|i| i.key_pressed(egui::Key::Escape))
         {
             self.filter.clear();

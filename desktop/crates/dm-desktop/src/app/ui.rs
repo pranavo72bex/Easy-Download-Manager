@@ -106,6 +106,9 @@ impl DmApp {
             }
         }
         self.was_behind = behind;
+        // Decided afresh each frame, by the top row that draws the box; a
+        // frame without that row leaves the list its own filter.
+        self.title_search = false;
         let menu = egui::Panel::top("menu")
             .show_separator_line(lines)
             .frame(flat(t.frame, 6, 2))

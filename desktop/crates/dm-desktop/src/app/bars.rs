@@ -201,6 +201,12 @@ impl DmApp {
             }
             return;
         }
+        // Left out where the list itself has too little room, as at 300 %
+        // text in a short window, where it pushed the last row under the
+        // status bar; never while it holds words, which hide rows.
+        if self.filter.is_empty() && ui.available_height() < 200.0 {
+            return;
+        }
         ui.horizontal(|ui| {
             let name = ui.label(t("Filter"));
             let field = ui

@@ -11,6 +11,9 @@
 use super::*;
 use serde_json::{json, Value};
 
+/// How many steps may wait for frames before more are refused.
+pub const MAX_WAITING_STEPS: usize = 64;
+
 /// One piece of text drawn this frame.
 #[derive(Clone, Debug)]
 pub struct ScreenText {
@@ -79,28 +82,28 @@ impl DmApp {
     }
 
     /// Answers the `ui.*` requests that act like a person.
-    pub(super) fn human_call(
+    pub fn human_call(
         &mut self,
         method: &str,
         params: &Value,
         ctx: Option<&egui::Context>,
     ) -> Option<Result<Value, String>> {
-        if matches!(method, "ui.click" | "ui.type" | "ui.key") {
-            self.scripted_at = Some(Instant::now());
-        }
         // Steps wait for frames: a window that draws none (parked in the
         // tray) would let a client queue them without end.
         if matches!(method, "ui.click" | "ui.type" | "ui.key") {
             if self.hidden {
                 return Some(Err(
-                    "dm's window is hidden in the tray: show it first".into()
+                    "dm's window is hidden in the tray: launch dm again, or choose Show in the tray, first"
+                        .into(),
                 ));
             }
-            if self.synthetic.len() > 64 {
+            if self.synthetic.len() > MAX_WAITING_STEPS {
                 return Some(Err(
                     "too many steps are waiting: let the window catch up".into()
                 ));
             }
+            // Only what was taken counts as a script's moment.
+            self.scripted_at = Some(Instant::now());
         }
         let wake = || {
             if let Some(ctx) = ctx {
