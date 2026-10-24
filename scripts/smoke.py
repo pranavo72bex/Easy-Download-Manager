@@ -157,8 +157,11 @@ def main():
         native_host(env)
         window(env)
 
-        app = launch([str(BINARY), "--headless", "--control", "0"], env)
+        # The window check above was ended hard, which leaves its port file
+        # behind: the new dm's port is waited for, not the old one read.
         port_file = home / "control.port"
+        port_file.unlink(missing_ok=True)
+        app = launch([str(BINARY), "--headless", "--control", "0"], env)
         deadline = time.time() + 60
         while not (port_file.exists() and port_file.read_text().strip()):
             if app.poll() is not None:
