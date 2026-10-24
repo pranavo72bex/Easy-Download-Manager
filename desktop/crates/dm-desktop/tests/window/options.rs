@@ -122,7 +122,7 @@ fn site_limits_attempts_and_the_timeout_are_set_in_options_and_reach_the_queue()
         .query_by_label("Attempts per connection (0 to keep trying)")
         .is_some());
     assert!(harness
-        .query_by_label("Give up on a connection that sends nothing for, seconds")
+        .query_by_label("Time out a silent connection after (seconds)")
         .is_some());
     click(&mut harness, "Add a site limit");
     type_into(&mut harness, "Site", "Slow.Example");
@@ -179,7 +179,7 @@ fn the_recording_limit_is_set_in_options_and_reaches_the_queue() {
     }
     harness.run_steps(2);
     assert!(harness
-        .query_by_label("Stop recording a live stream after, minutes (0 records until it ends)")
+        .query_by_label("Stop recording after (minutes, 0 for no limit)")
         .is_some());
     if let Some(d) = harness.state_mut().dialogs.options.as_mut() {
         d.draft.record_minutes = 90;
@@ -354,7 +354,7 @@ fn a_queues_own_file_limit_and_the_parts_folder_are_set_in_options() {
     let staged = world.dir.path().join("staging");
     type_into(
         &mut harness,
-        "Folder for unfinished downloads (empty for dm's own)",
+        "Folder for unfinished downloads",
         &staged.display().to_string(),
     );
     click(&mut harness, "OK");
@@ -395,7 +395,7 @@ fn an_option_that_cannot_be_applied_is_said_and_what_was_typed_is_kept() {
     let mut harness = world.harness();
     click(&mut harness, "Options");
     harness
-        .get_by_label_contains("Start dm when you log in")
+        .get_by_label_contains("Start dm when I sign in")
         .click();
     harness
         .get_by_label_contains("Play a sound when a download finishes")
@@ -412,7 +412,7 @@ fn an_option_that_cannot_be_applied_is_said_and_what_was_typed_is_kept() {
         .query_by_label_contains("could not change start-on-login")
         .is_some());
     for typed in [
-        "Start dm when you log in",
+        "Start dm when I sign in",
         "Play a sound when a download finishes",
     ] {
         assert_eq!(
@@ -681,13 +681,13 @@ fn options_refuses_a_proxy_with_no_host() {
         "OK took a proxy with no host"
     );
     assert!(harness
-        .query_by_label_contains("A proxy needs a host")
+        .query_by_label_contains("Enter the proxy's host")
         .is_some());
     assert!(!harness.state().backend().settings().proxy.enabled);
     type_into(&mut harness, "Host", "http://proxy.example:3128");
     click(&mut harness, "OK");
     assert!(harness
-        .query_by_label_contains("is not a proxy host")
+        .query_by_label_contains("isn't a valid proxy host")
         .is_some());
     assert!(!harness.state().backend().settings().proxy.enabled);
     click(&mut harness, "Cancel");
@@ -891,7 +891,7 @@ fn the_command_line_setting_is_in_options_off_by_default_and_saved() {
     assert!(!harness.state().backend().settings().allow_command_line);
     click(&mut harness, "Options");
     assert!(harness
-        .query_by_label_contains("Let the command line list and steer downloads")
+        .query_by_label_contains("Allow the command line to control dm")
         .is_some());
     if let Some(d) = harness.state_mut().dialogs.options.as_mut() {
         d.draft.allow_command_line = true;

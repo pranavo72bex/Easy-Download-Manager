@@ -55,46 +55,38 @@ pub(super) fn confirm_remove(app: &mut DmApp, ctx: &egui::Context) {
             // of two finished files the box would delete.
             let mixed = unfinished && !files.is_empty();
             ui.label(match (unfinished, ids.len()) {
-                (true, _) if mixed => t(
-                    "Some of these are finished and some are not. Unfinished ones lose what they fetched.",
-                ),
-                (true, 1) if !fetched => {
-                    t("This download has not fetched anything yet. Delete it from the list?")
+                (true, _) if mixed => {
+                    t("Some downloads aren't finished. They lose what was downloaded.")
                 }
+                (true, 1) if !fetched => t("Nothing was downloaded yet. Remove it from the list?"),
                 (true, _) if !fetched => {
-                    t("These downloads have not fetched anything yet. Delete them from the list?")
+                    t("Nothing was downloaded yet. Remove them from the list?")
                 }
-                (true, 1) => t(
-                    "This download is not finished. Removing it throws away what has been fetched.",
-                ),
+                (true, 1) => {
+                    t("This download isn't finished. Removing it discards what was downloaded.")
+                }
                 (true, _) => t(
-                    "Some of these are not finished. Removing them throws away what has been fetched.",
+                    "Some downloads aren't finished. Removing them discards what was downloaded.",
                 ),
                 // What the box below says happens to the files, said here
                 // too: the sentence promised the file stayed while the box
                 // was deleting it.
-                (false, 1) if app.dialogs.remove_files => {
-                    t("Take this download off the list and delete its file from the disk?")
-                }
-                (false, _) if app.dialogs.remove_files => {
-                    t("Take these downloads off the list and delete their files from the disk?")
-                }
+                (false, 1) if app.dialogs.remove_files => t("Its file is deleted too."),
+                (false, _) if app.dialogs.remove_files => t("Their files are deleted too."),
                 // No file on the disk (cancelled, or since deleted): none to
                 // stay anywhere.
-                (false, 1) if files.is_empty() => t("Take this download off the list?"),
-                (false, _) if files.is_empty() => t("Take these downloads off the list?"),
-                (false, 1) => t("Take this download off the list? Its file stays where it is."),
-                (false, _) => {
-                    t("Take these downloads off the list? Their files stay where they are.")
-                }
+                (false, 1) if files.is_empty() => t("This removes it from the list."),
+                (false, _) if files.is_empty() => t("This removes them from the list."),
+                (false, 1) => t("Its file is kept."),
+                (false, _) => t("Their files are kept."),
             });
             if mixed {
                 // In its number: "the finished ones'" of one.
                 ui.label(match (app.dialogs.remove_files, files.len()) {
-                    (true, 1) => t("The finished one's file is deleted from the disk too."),
-                    (true, _) => t("The finished ones' files are deleted from the disk too."),
-                    (false, 1) => t("The finished one's file stays where it is."),
-                    (false, _) => t("The finished ones' files stay where they are."),
+                    (true, 1) => t("The finished file is deleted too."),
+                    (true, _) => t("The finished files are deleted too."),
+                    (false, 1) => t("The finished file is kept."),
+                    (false, _) => t("The finished files are kept."),
                 });
             }
             // Which one, by name: "this download" was all it said.
@@ -120,12 +112,13 @@ pub(super) fn confirm_remove(app: &mut DmApp, ctx: &egui::Context) {
             // default, and never by Enter.
             let files = files.len();
             let go = if files > 0 {
-                check(ui,
+                check(
+                    ui,
                     &mut app.dialogs.remove_files,
                     if files == 1 {
-                        t("Also delete the file from the disk")
+                        t("Also delete the file")
                     } else {
-                        t("Also delete their files from the disk")
+                        t("Also delete the files")
                     },
                 );
                 if app.dialogs.remove_files {
@@ -210,7 +203,7 @@ pub(super) fn confirm_cancel(app: &mut DmApp, ctx: &egui::Context) {
     window(ctx, "Cancel this download?").show(ctx, |ui| {
         ui.strong(&*crate::bidi::visual(&name));
         if fetched {
-            ui.label(t("Cancelling it throws away what has been fetched."));
+            ui.label(t("Cancelling discards what was downloaded."));
         }
         // Apart from the words, as in the other questions: the buttons sat
         // against the file's name.
@@ -264,9 +257,7 @@ pub(super) fn confirm_outside(app: &mut DmApp, ctx: &egui::Context) {
         if !why.is_empty() {
             ui.label(RichText::new(why).small().weak());
         }
-        ui.label(t(
-            "Start it now anyway? Only what you picked starts; the rest keep waiting.",
-        ));
+        ui.label(t("Start it now? Only your selection starts."));
         footer(ui, |ui| {
             start = primary(ui, "Start now").clicked() || enter_free(ui);
             wait = ui.button(t("Keep waiting")).clicked();
@@ -401,7 +392,7 @@ pub(super) fn skip_offer(app: &mut DmApp, ctx: &egui::Context) {
     let (mut leave, mut keep) = (false, false);
     window(ctx, "Leave this site to the browser?").show(ctx, |ui| {
         ui.label(tf(
-            "You cancelled two downloads handed over from {}. Leave its downloads to the browser from now on?",
+            "You cancelled two downloads from {}. Leave its downloads to the browser?",
             &[&site],
         ));
         footer(ui, |ui| {

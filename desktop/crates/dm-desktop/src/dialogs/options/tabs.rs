@@ -33,36 +33,28 @@ pub(super) fn tab_general(ui: &mut egui::Ui, d: &mut OptionsDialog, env: &TabEnv
     // In groups under headings: one list of a dozen boxes was
     // hard to find a setting in (a design review).
     section(ui, t("Starting and updating"));
-    check(
-        ui,
-        &mut s.start_on_login,
-        t("Start dm when you log in, so a browser hand-off always has an app to land in"),
-    );
+    check(ui, &mut s.start_on_login, t("Start dm when I sign in"));
     check(
         ui,
         &mut s.allow_command_line,
-        t("Let the command line list and steer downloads (dm-desktop list, pause, resume, cancel); from dm's next start"),
+        t("Allow the command line to control dm"),
     );
     check(
         ui,
         &mut s.allow_mcp,
-        t("Let AI assistants use dm over MCP (dm-desktop mcp); from dm's next start"),
+        t("Allow AI assistants to control dm (MCP)"),
     );
-    check(
-        ui,
-        &mut s.check_updates,
-        t("Look for a new version about once a week (asks GitHub; nothing about you is sent)"),
-    );
+    check(ui, &mut s.check_updates, t("Check for updates once a week"));
     section(ui, t("Windows and sounds"));
     check(
         ui,
         &mut s.show_progress,
-        t("Show a progress window when a download starts"),
+        t("Show progress when a download starts"),
     );
     check(
         ui,
         &mut s.show_complete,
-        t("Show a window when a download finishes"),
+        t("Show a message when a download finishes"),
     );
     check(
         ui,
@@ -76,32 +68,28 @@ pub(super) fn tab_general(ui: &mut egui::Ui, d: &mut OptionsDialog, env: &TabEnv
     );
     // Offered only where it can be drawn.
     if crate::chrome::mica_possible() {
-        check(
-            ui,
-            &mut s.mica,
-            t("Mica: the desktop's colours behind the window (from dm's next start)"),
-        );
+        check(ui, &mut s.mica, t("Use the Mica backdrop"));
     }
     section(ui, t("Adding and keeping files"));
     check(
         ui,
         &mut s.watch_clipboard,
-        t("Watch the clipboard for links and offer to download them"),
+        t("Offer to download links I copy"),
     );
     check(
         ui,
         &mut s.ask_panel_downloads,
-        t("Ask where to save a video from the browser's panel"),
+        t("Ask where to save videos"),
     );
     check(
         ui,
         &mut s.ask_caught_downloads,
-        t("Ask where to save a download taken from the browser"),
+        t("Ask where to save browser downloads"),
     );
     check(
         ui,
         &mut s.server_dates,
-        t("Give a finished file the date its server says it last changed"),
+        t("Keep the file's date from the server"),
     );
     section(ui, t("The list"));
     // Each choice of a group under its name, as WinUI's radio
@@ -190,18 +178,18 @@ pub(super) fn tab_file_types(ui: &mut egui::Ui, d: &mut OptionsDialog, env: &Tab
     check(
         ui,
         &mut c.enabled,
-        t("Take downloads of these types from the browser"),
+        t("Take these file types from the browser"),
     );
     ui.add_enabled_ui(c.enabled, |ui| {
                     let name = ui.label(t("File types"));
                     ui.add(egui::TextEdit::multiline(&mut d.types).desired_rows(3).desired_width(ui.available_width().min(480.0)))
                         .labelled_by(name.id);
-                    ui.label(RichText::new(t("Without dots, separated by spaces. Empty takes every type.")).small().weak());
-                    number_row(ui, t("Leave files smaller than, KB (0 for none)"), |ui, name| {
+                    ui.label(RichText::new(t("Separate types with spaces, no dots. Leave empty for all.")).small().weak());
+                    number_row(ui, t("Ignore files smaller than (KB)"), |ui, name| {
                         ui.add(number_box(&mut c.min_size_kb).range(0..=1024 * 1024)).labelled_by(name);
                     });
                     field(ui, t("Never take downloads from these sites"), &mut d.skip, 480.0);
-                    ui.label(RichText::new(t("Sites such as example.com or *.example.com, separated by spaces; each covers its subdomains.")).small().weak());
+                    ui.label(RichText::new(t("Separate sites with spaces. example.com covers its subdomains.")).small().weak());
                     // A link that works once was spent by dm asking about
                     // it before taking it.
                     field(ui, t("Sites whose links work only once"), &mut d.once, 480.0);
@@ -255,12 +243,12 @@ pub(super) fn tab_file_types(ui: &mut egui::Ui, d: &mut OptionsDialog, env: &Tab
     check(
         ui,
         &mut c.video_panel,
-        t("Show \"Download video\" over videos in the browser"),
+        t("Show Download video on web videos"),
     );
     check(
         ui,
         &mut c.sign_in_everywhere,
-        t("Hand over the browser's sign-in with every download"),
+        t("Send the browser's sign-in with downloads"),
     );
     ui.label(RichText::new(t("A file only a signed-in browser can fetch then comes to dm too. The cookies go with that download alone and are forgotten once it is done; without this, only the sites switched on in the extension's popup send them.")).small().weak());
     ui.label(RichText::new(t("Read by the browser extension the next time it talks to dm: a download it catches, or its right-click menu. The right-click menu hands anything over regardless.")).small().weak());
@@ -280,7 +268,7 @@ pub(super) fn tab_save_to(ui: &mut egui::Ui, d: &mut OptionsDialog, env: &TabEnv
     }
     folder_field(
         ui,
-        t("Folder for unfinished downloads (empty for dm's own)"),
+        t("Folder for unfinished downloads"),
         &mut s.parts_dir,
         platform,
     );
@@ -413,9 +401,7 @@ pub(super) fn tab_downloads(ui: &mut egui::Ui, d: &mut OptionsDialog, env: &TabE
         t("Save streams that arrive as .ts as MP4"),
     );
     ui.add_space(4.0);
-    ui.label(t(
-        "Queues that run fewer files at once than the number above:",
-    ));
+    ui.label(t("Queues with their own limit:"));
     let mut remove = None;
     // One limit a queue: two for Main queue were both kept and
     // the last won without a word. Each offers
@@ -477,7 +463,7 @@ pub(super) fn tab_downloads(ui: &mut egui::Ui, d: &mut OptionsDialog, env: &TabE
     }
     // Queues that start on their own, each at its own time.
     ui.add_space(4.0);
-    ui.label(t("Queues that start on their own each day:"));
+    ui.label(t("Queues that start at a set time:"));
     let mut remove = None;
     for (i, start) in s.queue_starts.iter_mut().enumerate() {
         ui.horizontal_wrapped(|ui| {
@@ -526,20 +512,16 @@ pub(super) fn tab_downloads(ui: &mut egui::Ui, d: &mut OptionsDialog, env: &TabE
     s.watch_folder = watch;
     number_row(
         ui,
-        t("Stop recording a live stream after, minutes (0 records until it ends)"),
+        t("Stop recording after (minutes, 0 for no limit)"),
         |ui, name| {
             ui.add(number_box(&mut s.record_minutes).range(0..=1440))
                 .labelled_by(name);
         },
     );
-    number_row(
-        ui,
-        t("Ask the Recheck queue's servers for changes every, hours (0 only when asked)"),
-        |ui, name| {
-            ui.add(number_box(&mut s.recheck_hours).range(0..=24 * 31))
-                .labelled_by(name);
-        },
-    );
+    number_row(ui, t("Recheck every (hours, 0 for manual)"), |ui, name| {
+        ui.add(number_box(&mut s.recheck_hours).range(0..=24 * 31))
+            .labelled_by(name);
+    });
     ui.add_space(8.0);
     ui.label(t("When a download finishes, run (a virus checker, a script); the file's path is added at the end:"));
     field(ui, t("Command"), &mut s.on_complete, 320.0);
@@ -547,7 +529,7 @@ pub(super) fn tab_downloads(ui: &mut egui::Ui, d: &mut OptionsDialog, env: &TabE
     check(
         ui,
         &mut s.fetch_tools,
-        t("Fetch the video helper (yt-dlp) when a video page needs it"),
+        t("Get the video helper (yt-dlp) when needed"),
     );
     ui.label(RichText::new(t("From its official GitHub release, checked against its published checksum, and kept current weekly. Off, only a yt-dlp installed on this computer is used.")).small().weak());
 }
@@ -572,7 +554,7 @@ pub(super) fn tab_connection(ui: &mut egui::Ui, d: &mut OptionsDialog, env: &Tab
     );
     number_row(
         ui,
-        t("Seconds between attempts (0 lets dm choose)"),
+        t("Wait between attempts (seconds, 0 for automatic)"),
         |ui, name| {
             ui.add(number_box(&mut s.retry_wait).range(0..=3600))
                 .labelled_by(name);
@@ -580,16 +562,14 @@ pub(super) fn tab_connection(ui: &mut egui::Ui, d: &mut OptionsDialog, env: &Tab
     );
     number_row(
         ui,
-        t("Give up on a connection that sends nothing for, seconds"),
+        t("Time out a silent connection after (seconds)"),
         |ui, name| {
             ui.add(number_box(&mut s.read_timeout).range(5..=600))
                 .labelled_by(name);
         },
     );
     ui.add_space(8.0);
-    ui.label(t(
-        "Sites that take fewer connections at once than the setting:",
-    ));
+    ui.label(t("Sites with their own connection limit:"));
     let mut remove = None;
     let count = s.host_limits.len();
     for (i, limit) in s.host_limits.iter_mut().enumerate() {
@@ -614,9 +594,7 @@ pub(super) fn tab_connection(ui: &mut egui::Ui, d: &mut OptionsDialog, env: &Tab
         d.fresh = true;
     }
     ui.add_space(8.0);
-    ui.label(t(
-        "Sites whose downloads go to a folder of their own, at a speed of their own:",
-    ));
+    ui.label(t("Sites with their own folder and speed:"));
     let mut drop_rule = None;
     let rules = s.site_rules.len();
     for (i, rule) in s.site_rules.iter_mut().enumerate() {
@@ -640,7 +618,7 @@ pub(super) fn tab_connection(ui: &mut egui::Ui, d: &mut OptionsDialog, env: &Tab
     }
     ui.add_space(8.0);
     ui.label(t(
-        "For downloads that need you signed in: a cookies.txt exported from your browser.",
+        "For downloads that need a sign-in: a cookies.txt from your browser.",
     ));
     let cookies_before = s.cookies_file.clone();
     ui.horizontal_wrapped(|ui| {

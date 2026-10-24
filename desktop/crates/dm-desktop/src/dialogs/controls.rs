@@ -582,10 +582,7 @@ pub(super) fn browse(
         }
     }
     if ui.data(|d| d.get_temp::<bool>(missing)).unwrap_or(false) {
-        ui.colored_label(
-            warn(ui),
-            t("No folder chooser on this desktop; type the folder's path."),
-        );
+        ui.colored_label(warn(ui), t("No folder picker here: type the path."));
     }
 }
 

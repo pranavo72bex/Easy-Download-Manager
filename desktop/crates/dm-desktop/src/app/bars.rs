@@ -71,7 +71,7 @@ impl DmApp {
         let title = egui::RichText::new(t("Add dm to your browser:"));
         ui.label(if strong { title.strong() } else { title })
             .on_hover_text(t(
-                "Downloads you click in your browser come to dm once its extension is added.",
+                "Sends browser downloads to dm once the extension is added.",
             ));
         if ui.button("Microsoft Edge").clicked() {
             *open = Some(EXTENSION_EDGE);

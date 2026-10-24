@@ -110,7 +110,7 @@ pub(super) fn limiter(app: &mut DmApp, ctx: &egui::Context) {
                 .num_columns(2)
                 .spacing([12.0, 8.0])
                 .show(ui, |ui| {
-                    let name = ui.label(t("Maximum, KB/s across every download (0 for none)"));
+                    let name = ui.label(t("Speed limit (KB/s, 0 for none)"));
                     // The limit takes the keyboard as the dialog opens, and
                     // Enter in it applies, as in any other dialog's field.
                     let field = focused(

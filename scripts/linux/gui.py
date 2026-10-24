@@ -685,7 +685,7 @@ def options_by_hand(home):
     name, a control of that tab found, then one value set, saved with OK and
     read back from the settings file."""
     print("\nOptions, tab by tab, with the real pointer")
-    recording = "Stop recording a live stream after, minutes (0 records until it ends)"
+    recording = "Stop recording after (minutes, 0 for no limit)"
     tabs = [("General", "Language"), ("Browser", "File types"), ("Folders", "Download folder"),
             ("Downloads", recording), ("Network", "Speed limit, KB/s (0 for none)"),
             ("Proxy", "Proxy type"), ("Sign-ins", "Add a login")]
@@ -757,9 +757,9 @@ def human_session(home, env, app):
         key("ctrl+comma")
         # Both switches are on the General tab, which Options opens on.
         check("Options has a switch for the progress window",
-              click("*", "Show a progress window when a download starts"))
+              click("*", "Show progress when a download starts"))
         check("and one for the completion window",
-              click("*", "Show a window when a download finishes"))
+              click("*", "Show a message when a download finishes"))
         click("push button", "OK")
         time.sleep(0.5)
         prog = files.url("progress-watch.bin")
@@ -777,8 +777,8 @@ def human_session(home, env, app):
         check("and it closes", not where("*", "Download complete"))
         # Back off, so the rest of the session is not covered by pop-ups.
         key("ctrl+comma")
-        click("*", "Show a progress window when a download starts")
-        click("*", "Show a window when a download finishes")
+        click("*", "Show progress when a download starts")
+        click("*", "Show a message when a download finishes")
         click("push button", "OK")
 
         print("\nmistakes and the keyboard")
@@ -862,7 +862,7 @@ def human_session(home, env, app):
         check("its Speed limiter submenu opens on hover",
               wait_for(lambda: where("*", "Speed limiter settings", True), 5))
         check("Speed limiter settings opens the dialog",
-              click("*", "Speed limiter settings", contains=True) and click_field("Maximum, KB/s across every download (0 for none)"))
+              click("*", "Speed limiter settings", contains=True) and click_field("Speed limit (KB/s, 0 for none)"))
         type_text("256")
         key("Return")
         click("push button", "OK")

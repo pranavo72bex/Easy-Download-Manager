@@ -179,10 +179,8 @@ impl DmApp {
                     .collect();
                 if !held.is_empty() {
                     if self.headless {
-                        self.said = crate::i18n::Said::new(
-                            "Waiting for the schedule or the download limit; it starts by itself when allowed.",
-                            &[],
-                        );
+                        self.said =
+                            crate::i18n::Said::new("Waiting for the schedule or speed limit.", &[]);
                     } else {
                         self.dialogs.confirm_outside = Some(held);
                     }
@@ -293,8 +291,7 @@ impl DmApp {
             }
             Command::ExtractTo => {
                 if !self.backend.platform.can_choose_folder() {
-                    self.said =
-                        crate::i18n::t("There is no folder chooser here: use Extract here").into();
+                    self.said = crate::i18n::t("No folder picker here. Use Extract here.").into();
                 } else if let Some(folder) = self.backend.platform.choose_folder() {
                     self.extract_zip(&targets[0].path, &targets[0].url, Some(folder));
                 }

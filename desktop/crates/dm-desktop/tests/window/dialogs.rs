@@ -555,7 +555,7 @@ fn a_site_search_reads_pages_deep_and_a_saved_one_runs_on_its_own() {
     click(&mut harness, "Site files");
     type_into(&mut harness, "Start page", &world.url("page.html"));
     assert!(harness
-        .query_by_label("Pages deep (0 for the start page only)")
+        .query_by_label("Page depth (0 for the start page only)")
         .is_some());
     if let Some(d) = harness.state_mut().dialogs.site_files.as_mut() {
         d.depth = 1;
@@ -964,7 +964,7 @@ fn the_clipboard_watcher_offers_only_new_links_and_only_when_on() {
     // Scrolled to first, as a person scrolls to it: where Windows 11 adds
     // the Mica box above it, the box is below the tab's visible edge and a
     // click at it reached nothing.
-    let watch = "Watch the clipboard for links and offer to download them";
+    let watch = "Offer to download links I copy";
     harness.get_by_label(watch).scroll_to_me();
     // The scroll is animated: clicked mid-way, the box had moved on.
     harness.run();
@@ -1157,7 +1157,7 @@ fn browse_with_no_folder_chooser_says_to_type_the_path() {
     harness.run_steps(3);
     click(&mut harness, "Browse…");
     assert!(harness
-        .query_by_label("No folder chooser on this desktop; type the folder's path.")
+        .query_by_label("No folder picker here: type the path.")
         .is_some());
 }
 
@@ -1243,7 +1243,7 @@ fn import_and_export_take_a_typed_path_without_a_file_chooser() {
     harness.state_mut().run(Command::Export);
     harness.run_steps(3);
     assert!(harness
-        .query_by_label("No file chooser on this desktop; type the file's path.")
+        .query_by_label("No file picker here: type the path.")
         .is_some());
     if let Some(d) = harness.state_mut().dialogs.list_file.as_mut() {
         assert!(d.path.ends_with("downloads.dmlist"), "{}", d.path);
@@ -1445,7 +1445,7 @@ fn download_details_says_the_name_it_will_get_and_a_server_refusal() {
     if harness.query_by_label("Already in the list").is_some() {
         click(&mut harness, "Download again");
     }
-    let pending = "Another download in the list has this name; this one will be given a number.";
+    let pending = "A download with this name exists. This one will be numbered.";
     for _ in 0..100 {
         if harness.query_by_label(pending).is_some() {
             break;
@@ -1661,7 +1661,7 @@ fn a_number_box_says_when_what_was_typed_is_not_a_number() {
     let mut harness = world.harness();
     click(&mut harness, "Options");
     click(&mut harness, "Network");
-    let label = "Give up on a connection that sends nothing for, seconds";
+    let label = "Time out a silent connection after (seconds)";
     let before = harness
         .state()
         .dialogs

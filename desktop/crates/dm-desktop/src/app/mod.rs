@@ -203,8 +203,7 @@ const WELCOMED: &str = "welcomed";
 /// What a drop with no link in it is answered with, and what the empty list
 /// says. A link dragged from a browser is taken everywhere: on macOS and
 /// Windows by `drops`, on X11 and Wayland by winit as dm builds it.
-pub const DROP_HINT: &str =
-    "Drop a link from a browser, a .torrent, a .url or .webloc file, or a text file of links, here.";
+pub const DROP_HINT: &str = "Drop a link, .torrent, .url, .webloc or text file of links here.";
 
 /// The drop hint: the same everywhere, Wayland included since dm's winit
 /// takes a browser's link there too.
@@ -591,7 +590,7 @@ pub fn worded_problem(problem: &str) -> String {
         .and_then(|rest| rest.split_once("), so it is turned off"));
     match proxy {
         Some((why, _)) => crate::i18n::tf(
-            "The saved proxy could not be used ({}), so it is turned off and downloads go out directly. Fix it under Options › Proxy and tick it again.",
+            "The proxy can't be used ({}) and is off. Fix it in Options › Proxy.",
             &[&why],
         ),
         None => problem.to_string(),

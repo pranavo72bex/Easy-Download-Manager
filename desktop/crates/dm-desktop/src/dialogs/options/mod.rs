@@ -246,14 +246,17 @@ pub(super) fn options(app: &mut DmApp, ctx: &egui::Context) {
             if p.enabled && p.kind != Kind::System {
                 let host = p.host.trim();
                 let why = if host.is_empty() {
-                    Some(t("A proxy needs a host: type its name or address, or untick \"Connect through a proxy\".").to_string())
+                    Some(
+                        t("Enter the proxy's host, or untick \"Connect through a proxy\".")
+                            .to_string(),
+                    )
                 } else if host.contains("://")
                     || host
                         .chars()
                         .any(|c| c.is_whitespace() || "/@?#".contains(c))
                 {
                     Some(tf(
-                        "\"{}\" is not a proxy host: type only its name or address, such as proxy.example.com, with the port in its own field.",
+                        "\"{}\" isn't a valid proxy host. Enter a name like proxy.example.com; the port goes in its own field.",
                         &[&host],
                     ))
                 } else if p.port == 0 {

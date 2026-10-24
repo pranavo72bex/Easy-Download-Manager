@@ -213,8 +213,7 @@ It appears in dm instead of in the browser, and downloads there.
 
 ### From a terminal
 
-Turn on **Options › General › Let the command line list and steer
-downloads** (off until you do), or start dm with `--control 0` (also
+Turn on **Options › General › Allow the command line to control dm** (off until you do), or start dm with `--control 0` (also
 `--headless --control 0` for no window), and another terminal can see and
 steer its downloads:
 
@@ -237,8 +236,8 @@ dm can be driven by any AI client that speaks the Model Context Protocol
 (Claude Desktop and others), using the client's own account: dm needs no key
 and sends nothing off your computer. It is **on by default**: dm opens a local control port at every start,
 reachable only from your own computer and only with a token that your account
-alone can read. To turn it off, untick **Options › General › Let AI assistants
-use dm over MCP**; assistants are then refused at once. Add dm to the client's
+alone can read. To turn it off, untick **Options › General › Allow AI assistants
+to control dm (MCP)**; assistants are then refused at once. Add dm to the client's
 settings:
 
 ```json

@@ -68,17 +68,14 @@ impl Update {
             Update::Asking => t("Checking…").to_owned(),
             Update::Current => tf("This is the newest version ({}).", &[&running]),
             Update::Newer(v, Some(_)) => tf(
-                "dm {} is out (this is {}). Its installer can be downloaded in dm, and opened when it has finished.",
+                "dm {} is available (you have {}). Download its installer here.",
                 &[v, &running],
             ),
             Update::Newer(v, None) => tf(
                 "dm {} is out (this is {}). It is on the project's releases page.",
                 &[v, &running],
             ),
-            Update::NoRelease => tf(
-                "No release of dm has been published yet, so there is nothing to update to (this is {}).",
-                &[&running],
-            ),
+            Update::NoRelease => tf("No newer release yet (you have {}).", &[&running]),
             // In plain words where dm knows them (the raw
             // "error sending request for url (…)" offline).
             Update::Failed(why) => tf(

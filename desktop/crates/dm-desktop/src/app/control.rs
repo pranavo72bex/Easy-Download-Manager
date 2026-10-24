@@ -21,7 +21,7 @@ impl DmApp {
         for request in asked {
             if self.mcp_only && !request.via_mcp {
                 let _ = request.reply.send(Err(
-                    "this dm's control port is open for AI assistants only: tick Options › General › Let the command line list and steer downloads, or start dm with --control"
+                    "this dm's control port is open for AI assistants only: tick Options › General › Allow the command line to control dm, or start dm with --control"
                         .to_string(),
                 ));
                 continue;
@@ -30,7 +30,7 @@ impl DmApp {
             // afresh each request, so turning it off takes hold at once.
             if request.via_mcp && !self.applied.allow_mcp {
                 let _ = request.reply.send(Err(
-                    "AI assistants are turned off in dm: tick Options › General › Let AI assistants use dm over MCP"
+                    "AI assistants are turned off in dm: tick Options › General › Allow AI assistants to control dm (MCP)"
                         .to_string(),
                 ));
                 continue;

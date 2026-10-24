@@ -176,7 +176,7 @@ pub(super) fn complete(app: &mut DmApp, ctx: &egui::Context) {
             app.said = why.into();
         } else {
             app.said = crate::i18n::Said::new(
-                "Download complete will not open again; turn it back on in Options › General.",
+                "This window won't open again. Turn it on in Options › General.",
                 &[],
             );
         }

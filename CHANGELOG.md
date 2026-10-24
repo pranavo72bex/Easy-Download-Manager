@@ -7,7 +7,12 @@ the browser extension (`v*` tags) are versioned separately.
 
 This release also carries what was prepared as 0.6.0, which was never published.
 
-- Options › General › **Let AI assistants use dm over MCP**: on by default, and
+- Shorter, plainer words in Options, the remove question, errors and hints,
+  in the sentence case WinUI uses ("Start dm when I sign in", "Allow the
+  command line to control dm", "Its file is kept."). The other languages keep
+  their earlier wording until retranslated.
+
+- Options › General › **Allow AI assistants to control dm (MCP)**: on by default, and
   unticked to turn it off. While it is on, dm opens its control port at every
   start (loopback only, behind a token only this account can read), as the
   command-line setting does. An assistant is refused, in words, while it is
@@ -55,7 +60,7 @@ This release also carries what was prepared as 0.6.0, which was never published.
 - Properties shows a finished file's SHA-256 and checks it against a digest
   you paste; Move/Rename of several files takes a name pattern (`{n}`,
   `{name}`).
-- Options › General › Let the command line list and steer downloads: the
+- Options › General › Allow the command line to control dm: the
   command line finds a dm started in the ordinary way (off by default).
 - FTP: a part a power cut tore is repaired when a download resumes, as HTTP's
   is.

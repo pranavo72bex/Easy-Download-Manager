@@ -636,14 +636,12 @@ fn resume_on_a_held_row_offers_to_start_it_outside_the_schedule() {
         app.rows().iter().all(|r| r.state == State::Completed)
     });
     // Nothing is said about waiting once nothing waits.
-    harness.state_mut().said = dm_desktop::i18n::Said::new(
-        "Waiting for the schedule or the download limit; it starts by itself when allowed.",
-        &[],
-    );
+    harness.state_mut().said =
+        dm_desktop::i18n::Said::new("Waiting for the schedule or speed limit.", &[]);
     harness.run_steps(3);
     assert!(
         harness
-            .query_by_label_contains("Waiting for the schedule or the download limit")
+            .query_by_label_contains("Waiting for the schedule or speed limit")
             .is_none(),
         "a stale 'Waiting for the schedule' with nothing held"
     );
@@ -932,13 +930,13 @@ fn remove_says_when_finished_and_unfinished_rows_are_mixed() {
     harness.state_mut().run(Command::Remove);
     harness.run_steps(3);
     assert!(harness
-        .query_by_label_contains("Some of these are finished and some are not")
+        .query_by_label_contains("Some downloads aren't finished")
         .is_some());
     assert!(harness
-        .query_by_label("The finished one's file stays where it is.")
+        .query_by_label("The finished file is kept.")
         .is_some());
     assert!(harness
-        .query_by_label_contains("have not fetched anything yet")
+        .query_by_label_contains("Nothing was downloaded yet")
         .is_none());
 }
 

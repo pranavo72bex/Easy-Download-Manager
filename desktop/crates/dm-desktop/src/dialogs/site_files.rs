@@ -24,12 +24,12 @@ pub(super) fn site_files(app: &mut DmApp, ctx: &egui::Context) {
             ));
             field(ui, t("File types"), &mut d.types, 420.0);
             ui.horizontal(|ui| {
-                let name = ui.label(t("Pages deep (0 for the start page only)"));
+                let name = ui.label(t("Page depth (0 for the start page only)"));
                 ui.add(number_box(&mut d.depth).range(0..=dm_shell::lists::MAX_DEPTH))
                     .labelled_by(name.id);
             });
             ui.horizontal(|ui| {
-                let name = ui.label(t("Stop reading pages after, minutes (0 for no limit)"));
+                let name = ui.label(t("Stop reading pages after (minutes)"));
                 ui.add(
                     number_box(&mut d.stop_after_minutes).range(0..=dm_shell::lists::MOST_MINUTES),
                 )
@@ -52,7 +52,7 @@ pub(super) fn site_files(app: &mut DmApp, ctx: &egui::Context) {
                 field(ui, t("Save this search as"), &mut d.name, 160.0);
             });
             ui.horizontal_wrapped(|ui| {
-                let name = ui.add(egui::Label::new(t("Run every, hours (0 only by hand)")).extend());
+                let name = ui.add(egui::Label::new(t("Run every (hours, 0 for manual)")).extend());
                 ui.add(number_box(&mut d.every_hours).range(0..=24 * 31))
                     .labelled_by(name.id);
                 save = ui.button(t("Save search")).clicked();

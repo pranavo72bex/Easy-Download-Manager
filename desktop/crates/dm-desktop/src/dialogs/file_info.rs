@@ -336,10 +336,7 @@ pub(super) fn file_info(app: &mut DmApp, ctx: &egui::Context) {
             if d.no_chooser {
                 ui.add(
                     egui::Label::new(
-                        RichText::new(t(
-                            "No folder chooser on this desktop; type the folder's path.",
-                        ))
-                        .color(warn(ui)),
+                        RichText::new(t("No folder picker here: type the path.")).color(warn(ui)),
                     )
                     .wrap(),
                 );
@@ -348,8 +345,10 @@ pub(super) fn file_info(app: &mut DmApp, ctx: &egui::Context) {
                 Some(Clash::Listed) => {
                     ui.add(
                         egui::Label::new(
-                            RichText::new(t("Another download in the list has this name; this one will be given a number."))
-                                .color(warn(ui)),
+                            RichText::new(t(
+                                "A download with this name exists. This one will be numbered.",
+                            ))
+                            .color(warn(ui)),
                         )
                         .wrap(),
                     );
@@ -371,12 +370,8 @@ pub(super) fn file_info(app: &mut DmApp, ctx: &egui::Context) {
                     {
                         d.replace = false;
                     }
-                    if radio_flag(
-                        ui,
-                        d.replace,
-                        t("Replace that file once this one is whole"),
-                    )
-                    .clicked()
+                    if radio_flag(ui, d.replace, t("Replace that file once this one is whole"))
+                        .clicked()
                     {
                         d.replace = true;
                     }

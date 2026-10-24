@@ -724,7 +724,7 @@ fn remove_deletes_the_file_too_only_when_asked() {
     select(&mut harness, "other.pdf");
     harness.state_mut().run(Command::Remove);
     harness.run_steps(3);
-    click(&mut harness, "Also delete the file from the disk");
+    click(&mut harness, "Also delete the file");
     click(&mut harness, "Yes, delete");
     harness.state_mut().refresh();
     assert!(!std::path::Path::new(&pdf).exists(), "the file stayed");
@@ -1166,7 +1166,7 @@ fn add_url_selects_its_link_and_refuses_two_run_together() {
     harness.run_steps(2);
     click(&mut harness, "OK");
     assert!(harness
-        .query_by_label_contains("two addresses run together")
+        .query_by_label_contains("looks like two links")
         .is_some());
     assert!(harness.query_by_label("Download details").is_none());
     assert!(harness.state().rows().is_empty());

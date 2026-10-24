@@ -246,7 +246,7 @@ mod two_addresses_tests {
              go out directly. Fix it under Options › Proxy and tick it again.",
         );
         assert!(
-            said.starts_with("The saved proxy could not be used (the proxy has no host)"),
+            said.starts_with("The proxy can't be used (the proxy has no host)"),
             "{said}"
         );
         assert_eq!(worded_problem("something else"), "something else");

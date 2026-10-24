@@ -611,7 +611,7 @@ fn download_details_starts_afresh_and_its_warning_wraps() {
         .with_size(egui::vec2(720.0, 600.0))
         .build_ui_state(|ui, app: &mut DmApp| app.ui(ui), app);
     *world.fake.no_chooser.lock().unwrap() = true;
-    let warning = "No folder chooser on this desktop; type the folder's path.";
+    let warning = "No folder picker here: type the path.";
     harness
         .state_mut()
         .dialogs
@@ -782,7 +782,7 @@ fn dialogs_keep_their_place_and_show_the_size() {
     type_into(&mut harness, "Address", &two);
     click(&mut harness, "OK");
     harness.run_steps(4);
-    assert!(harness.query_by_label_contains("two addresses").is_some());
+    assert!(harness.query_by_label_contains("two links").is_some());
     let after = harness.get_by_label("OK").rect();
     assert!(
         (before.top() - after.top()).abs() < 1.0,

@@ -54,7 +54,7 @@ pub(super) fn list_file(app: &mut DmApp, ctx: &egui::Context) {
         window(ctx, "Import a list")
     };
     dialog.open(&mut open).show(ctx, |ui| {
-        ui.label(t("No file chooser on this desktop; type the file's path."));
+        ui.label(t("No file picker here: type the path."));
         let path = focused(field(ui, t("File's path"), &mut d.path, 420.0), focus);
         ok |= entered(&path);
         if !d.says.is_empty() {
@@ -278,7 +278,7 @@ pub(super) fn add_url(app: &mut DmApp, ctx: &egui::Context) {
         d.says = if address.is_empty() {
             t("Type or paste the address of what to download.").into()
         } else {
-            t("That is not a link dm can download. Paste a web address, such as https://example.com/file.zip.").into()
+            t("That isn't a link dm can download. Paste a web address like https://example.com/file.zip.").into()
         };
         // The address keeps the keyboard, to be put right: after the
         // warning, typing went nowhere.
@@ -286,7 +286,9 @@ pub(super) fn add_url(app: &mut DmApp, ctx: &egui::Context) {
         return;
     }
     if crate::app::two_addresses(&address) {
-        d.says = t("That is two addresses run together. Add one at a time, or several with Program › Add links from clipboard.").into();
+        d.says =
+            t("That looks like two links. Add one at a time, or use Add links from clipboard.")
+                .into();
         // The address keeps the keyboard, to be put right: after the
         // warning, typing went nowhere.
         app.dialogs.focus_on("Add URL");

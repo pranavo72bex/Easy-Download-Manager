@@ -13,7 +13,7 @@ pub(super) fn welcome(app: &mut DmApp, ctx: &egui::Context) {
         .open(&mut open)
         .show(ctx, |ui| {
             ui.label(t(
-                "Downloads you click in your browser come to dm once its extension is added. It takes a minute, once.",
+                "Add the extension so downloads from your browser come to dm.",
             ));
             ui.add_space(8.0);
             use dm_shell::register::Store;
@@ -44,10 +44,14 @@ pub(super) fn welcome(app: &mut DmApp, ctx: &egui::Context) {
             // it starts with the computer, in the tray, so a download
             // clicked in the browser always has dm to go to.
             ui.add_space(8.0);
-            check(ui, &mut at_login, t("Start dm with the computer, in the tray"));
+            check(
+                ui,
+                &mut at_login,
+                t("Start dm with the computer, in the tray"),
+            );
             ui.label(
                 RichText::new(t(
-                    "So a download clicked in the browser always has dm to go to. Options › General changes it later.",
+                    "So browser downloads always reach dm. Change this later in Options › General.",
                 ))
                 .small()
                 .weak(),
@@ -132,7 +136,7 @@ pub(super) fn about(app: &mut DmApp, ctx: &egui::Context) {
                     Ok(id) => {
                         app.update_row = Some(id);
                         crate::i18n::Said::new(
-                            "The new installer is downloading; dm offers to install it once it is checked.",
+                            "Downloading the update. dm will offer to install it when it's verified.",
                             &[],
                         )
                     }

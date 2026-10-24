@@ -263,10 +263,10 @@ pub(super) fn drag_out(
         }
     }
     let _ = (frame, files);
-    Err(dm_desktop::i18n::t(
-        "Dragging files out of dm is not available here: right-click › Open folder",
+    Err(
+        dm_desktop::i18n::t("Dragging out isn't available here. Use right-click › Open folder.")
+            .into(),
     )
-    .into())
 }
 
 /// What a dragged file looks like under the pointer: dm's icon, small.
