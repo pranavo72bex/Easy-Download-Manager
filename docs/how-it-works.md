@@ -369,8 +369,12 @@ server on loopback, and check what each did to the queue.
 
 ```
 browser/                  the extension, in Rust (crate dm-catcher)
-  src/decide.rs           every decision, tested on the host
-  src/web.rs              the browser side: extension APIs, native messaging
+  src/decide.rs           every decision, tested on the host; its parts are decide/ (download,
+                          menu, app, media_panel, sites, streams, timing), re-exported from it
+  src/web.rs              the browser side: extension APIs, native messaging; web/ holds plumbing,
+                          host, settings, streams, handoff, downloads, page, actions
+  src/content.rs          the page script's panel; content/ holds rules, dom, build, show,
+                          keyboard, visible, events, handoff
 extension/
   background.js           the loader: registers listeners, forwards to the WebAssembly
   manifest.json           Chrome, Edge, Brave, Vivaldi, Opera
@@ -395,15 +399,19 @@ desktop/
     checksum.rs           verifying a finished file against a published hash
     metalink.rs           reading a list of mirrors for one file
     torrent.rs            magnets and .torrent files, via librqbit
-    stream.rs, tsmux.rs   HLS playlists, and transport streams put into MP4
-    mp4mux.rs, mkvmux.rs  picture and sound joined into one MP4 or WebM
-    live.rs, rtmp.rs, rtsp.rs, mms.rs   live streams recorded as they come
+    stream.rs, tsmux.rs   HLS playlists, and transport streams put into MP4 (tsmux/: demux,
+                          samples, sound, headers, tracks)
+    mp4mux.rs, mkvmux.rs  picture and sound joined into one MP4 or WebM (mp4mux/: read, write, text)
+    live.rs, rtmp.rs, rtsp.rs, mms.rs   live streams recorded as they come (rtmp/: amf, wire,
+                          recorder, connect, session)
     ytdlp.rs, tools.rs    pages handed to yt-dlp, and the tools dm fetches and checks
     extract.rs            a ZIP extracted into a folder of its own, refusing hostile entries
-    control.rs, cookies.rs, auth.rs, ftp.rs   the stop flag, sign-ins, FTP
+    control.rs, cookies.rs, auth.rs, ftp.rs   the stop flag, sign-ins, FTP (ftp/: transport,
+                          target, reply, session, listing, transfer)
   crates/dm-protocol/     what the extension and the host say, and the catch rule
   crates/dm-shell/        settings, the browser host, --register, one-instance lock, startup
   crates/dm-desktop/      the window, in egui; the tray, login item, notifications
+    src/table.rs, theme.rs   the download list and the look; table/ and theme/ hold their parts
     src/main.rs           startup; platform.rs, tray.rs, window.rs, hidden.rs, signals.rs, login.rs are its parts
     src/app/              the window's state (mod.rs) and what it does, one concern per file:
                           sync.rs (queue ↔ rows), commands.rs (enabled/run), control.rs (the control protocol),
