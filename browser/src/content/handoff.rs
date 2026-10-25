@@ -76,8 +76,29 @@ pub(super) fn clicked() {
         );
     });
     let asked = message(decide::FORMATS_MESSAGE, &src, &frame);
+    // Whatever goes wrong behind the click (the background asleep, the app
+    // not answering, a helper that never returns), the panel does not stay
+    // on "Reading qualities…": past the longest the app may take, it says so
+    // and gives the click back.
+    let answered = std::rc::Rc::new(std::cell::Cell::new(false));
+    {
+        let answered = std::rc::Rc::clone(&answered);
+        set_timeout(
+            move || {
+                if !answered.replace(true) {
+                    failed("dm did not answer in time. Try again, or right-click the video and choose Download media with dm.");
+                }
+            },
+            decide::FORMATS_PATIENCE_MS,
+        );
+    }
     wasm_bindgen_futures::spawn_local(async move {
-        let reply = match send(asked.into()).await {
+        let reply = send(asked.into()).await;
+        // A reply after the watchdog spoke is the old click's: dropped.
+        if answered.replace(true) {
+            return;
+        }
+        let reply = match reply {
             Ok(reply) => reply,
             Err(e) => {
                 web_sys::console::debug_2(&"dm: the panel's message was not delivered:".into(), &e);

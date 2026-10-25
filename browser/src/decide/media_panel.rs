@@ -121,6 +121,11 @@ pub struct PanelClick {
     pub sound: Option<String>,
 }
 
+/// How long the panel waits for the list of qualities before it gives up
+/// and says so, in milliseconds: the background waits at most 40 s for the
+/// app, so this is longer than that and no more.
+pub const FORMATS_PATIENCE_MS: i32 = 50_000;
+
 /// The page script telling what a video player asked for.
 pub const MEDIA_SEEN_MESSAGE: &str = "dm.media-seen";
 
