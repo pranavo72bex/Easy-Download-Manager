@@ -819,19 +819,44 @@ async fn a_gather_cut_short_by_a_crash_is_cleared_when_the_stream_is_placed() {
 }
 
 #[tokio::test]
-async fn a_stream_cut_by_byte_ranges_is_refused_without_yt_dlp_not_saved_wrong() {
-    // Saved as segments joined, it was the whole source repeated and called
-    // done. Without yt-dlp to read it, it is refused with what fixes it.
+async fn a_stream_cut_from_one_file_by_byte_ranges_is_fetched_by_range_and_joined() {
+    // Saved as segments joined it was the whole source repeated; now each
+    // piece is asked for by its bytes, with no yt-dlp.
+    use axum::extract::State;
     let _turn = ENV.lock().await;
-    let site = tempdir();
-    std::fs::write(site.path().join("main.ts"), vec![7u8; 4096]).unwrap();
-    std::fs::write(
-        site.path().join("show.m3u8"),
-        "#EXTM3U\n#EXT-X-TARGETDURATION:4\n#EXTINF:4,\n#EXT-X-BYTERANGE:2048@0\nmain.ts\n\
-         #EXTINF:4,\n#EXT-X-BYTERANGE:2048\nmain.ts\n#EXT-X-ENDLIST\n",
-    )
-    .unwrap();
-    let addr = serve_folder(site.path().to_path_buf()).await;
+    let source: Vec<u8> = (0..4096u32).map(|n| (n % 251) as u8).collect();
+    let served = Arc::new(source.clone());
+    async fn handler(
+        State(file): State<Arc<Vec<u8>>>,
+        headers: axum::http::HeaderMap,
+        uri: Uri,
+    ) -> Response {
+        if uri.path().ends_with(".m3u8") {
+            let list =
+                "#EXTM3U\n#EXT-X-TARGETDURATION:4\n#EXTINF:4,\n#EXT-X-BYTERANGE:2048@0\nmain.ts\n\
+                        #EXTINF:4,\n#EXT-X-BYTERANGE:2048\nmain.ts\n#EXT-X-ENDLIST\n";
+            return Response::builder()
+                .header("content-type", "application/vnd.apple.mpegurl")
+                .body(Body::from(list))
+                .unwrap();
+        }
+        let Some(range) = headers.get("range").and_then(|v| v.to_str().ok()) else {
+            // A server that does not honour ranges: the whole file.
+            return Response::builder().body(Body::from(file.to_vec())).unwrap();
+        };
+        let (first, last) = range.trim_start_matches("bytes=").split_once('-').unwrap();
+        let (first, last): (usize, usize) = (first.parse().unwrap(), last.parse().unwrap());
+        Response::builder()
+            .status(StatusCode::PARTIAL_CONTENT)
+            .header("content-type", "video/mp2t")
+            .header(
+                "content-range",
+                format!("bytes {first}-{last}/{}", file.len()),
+            )
+            .body(Body::from(file[first..=last].to_vec()))
+            .unwrap()
+    }
+    let addr = common::serve(axum::Router::new().fallback(handler).with_state(served)).await;
     std::env::set_var("DM_YTDLP", "");
     let dir = tempdir();
     let outcome = download(
@@ -841,14 +866,8 @@ async fn a_stream_cut_by_byte_ranges_is_refused_without_yt_dlp_not_saved_wrong()
     )
     .await;
     std::env::remove_var("DM_YTDLP");
-    let said = outcome
-        .expect_err("a byte-range stream was saved as joined segments")
-        .to_string();
-    assert!(said.contains("video helper"), "{said}");
-    let saved = std::fs::read_dir(dir.path().join("out"))
-        .map(|d| d.count())
-        .unwrap_or(0);
-    assert_eq!(saved, 0, "something was saved");
+    let done = outcome.expect("a byte-range stream was refused");
+    assert_eq!(std::fs::read(&done.path).unwrap(), source);
 }
 
 /// A short link that redirects to the CDN's master playlist, whose chosen

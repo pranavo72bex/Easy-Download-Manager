@@ -90,13 +90,12 @@ fn streams_dm_cannot_assemble_itself_are_named() {
         None,
         "VOD without an end tag"
     );
+    // Cut by byte ranges, which dm fetches as ranges.
     let ranged = "#EXTM3U\n#EXT-X-BYTERANGE:100@0\nmain.ts\n#EXT-X-ENDLIST\n";
-    assert!(beyond_dm(None, None, ranged, "http://h/v/i.m3u8")
-        .unwrap()
-        .contains("byte ranges"));
+    assert_eq!(beyond_dm(None, None, ranged, "http://h/v/i.m3u8"), None);
     let ranged_map =
         "#EXTM3U\n#EXT-X-MAP:URI=\"m.mp4\",BYTERANGE=\"720@0\"\nm.mp4\n#EXT-X-ENDLIST\n";
-    assert!(beyond_dm(None, None, ranged_map, "http://h/v/i.m3u8").is_some());
+    assert_eq!(beyond_dm(None, None, ranged_map, "http://h/v/i.m3u8"), None);
     // Live is recorded as it goes, not refused.
     let live = "#EXTM3U\n#EXTINF:4,\na.ts\n";
     assert_eq!(beyond_dm(None, None, live, "http://h/v/i.m3u8"), None);
@@ -432,4 +431,45 @@ fn a_segment_survives_being_encrypted_and_decrypted() {
     assert_eq!(decrypt(&key, &iv, &sealed).unwrap(), plain);
     // The wrong key must fail rather than produce plausible rubbish.
     assert!(decrypt(&[9u8; 16], &iv, &sealed).is_err());
+}
+
+#[test]
+fn byte_ranges_name_the_bytes_of_each_segment() {
+    let text = "#EXTM3U\n#EXT-X-MAP:URI=\"f.mp4\",BYTERANGE=\"720@0\"\n\
+                #EXT-X-BYTERANGE:1000@720\nf.mp4\n#EXT-X-BYTERANGE:500\nf.mp4\n\
+                #EXT-X-BYTERANGE:300@5000\nf.mp4\nplain.m4s\n#EXT-X-ENDLIST\n";
+    let s = media_playlist(
+        text,
+        "http://h/v/i.m3u8",
+        "http://h/v/i.m3u8",
+        Quality::Best,
+    )
+    .unwrap();
+    let ranges: Vec<Option<(u64, u64)>> = s.parts.iter().map(|p| p.range).collect();
+    assert_eq!(
+        ranges,
+        [
+            Some((0, 719)),
+            Some((720, 1719)),
+            // Goes on from where the last piece of the same file stopped.
+            Some((1720, 2219)),
+            Some((5000, 5299)),
+            None
+        ]
+    );
+}
+
+#[test]
+fn a_byte_range_dm_cannot_read_is_refused_not_ignored() {
+    // Ignored, the segments would be the whole file repeated.
+    for bad in ["x", "0", "10@x", "@5", ""] {
+        let text = format!("#EXTM3U\n#EXT-X-BYTERANGE:{bad}\nmain.ts\n#EXT-X-ENDLIST\n");
+        assert!(
+            media_playlist(&text, "http://h/i.m3u8", "http://h/i.m3u8", Quality::Best).is_err(),
+            "{bad}"
+        );
+    }
+    // A range with no start, and no piece of that file before it.
+    let first = "#EXTM3U\n#EXT-X-BYTERANGE:100\nmain.ts\n#EXT-X-ENDLIST\n";
+    assert!(media_playlist(first, "http://h/i.m3u8", "http://h/i.m3u8", Quality::Best).is_err());
 }

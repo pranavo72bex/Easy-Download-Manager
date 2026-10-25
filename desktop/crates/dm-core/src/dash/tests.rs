@@ -134,7 +134,8 @@ fn a_single_file_with_an_index_is_fetched_whole() {
         track.pieces,
         vec![Piece {
             url: "https://other.example/v.mp4".into(),
-            range: None
+            range: None,
+            lock: None
         }]
     );
 }

@@ -33,6 +33,16 @@ pub struct Piece {
     pub url: String,
     /// First and last byte, inclusive.
     pub range: Option<(u64, u64)>,
+    /// The key and vector the bytes are scrambled with (an HLS stream's
+    /// AES-128), to be undone as the piece is fetched.
+    pub lock: Option<Lock>,
+}
+
+/// An AES-128 key and the initialisation vector one piece is scrambled with.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Lock {
+    pub key: Vec<u8>,
+    pub iv: [u8; 16],
 }
 
 /// Whether a track carries picture or sound.
@@ -314,6 +324,7 @@ fn pieces_of(c: &Context) -> Result<Vec<Piece>, Error> {
             pieces.push(Piece {
                 url: join(&c.base, &url)?,
                 range: None,
+                lock: None,
             });
         }
         let media = attr("media").ok_or_else(|| unreadable("media template"))?;
@@ -323,6 +334,7 @@ fn pieces_of(c: &Context) -> Result<Vec<Piece>, Error> {
             Ok(Piece {
                 url: join(&c.base, &url)?,
                 range: None,
+                lock: None,
             })
         };
         let timeline = c
@@ -390,11 +402,13 @@ fn pieces_of(c: &Context) -> Result<Vec<Piece>, Error> {
                 pieces.push(Piece {
                     url: join(&c.base, src)?,
                     range: init.attr("range").and_then(byte_range),
+                    lock: None,
                 });
             } else {
                 pieces.push(Piece {
                     url: c.base.clone(),
                     range: init.attr("range").and_then(byte_range),
+                    lock: None,
                 });
             }
         }
@@ -409,6 +423,7 @@ fn pieces_of(c: &Context) -> Result<Vec<Piece>, Error> {
             pieces.push(Piece {
                 url,
                 range: s.attr("mediaRange").and_then(byte_range),
+                lock: None,
             });
         }
         return Ok(pieces);
@@ -420,6 +435,7 @@ fn pieces_of(c: &Context) -> Result<Vec<Piece>, Error> {
         return Ok(vec![Piece {
             url: c.base.clone(),
             range: None,
+            lock: None,
         }]);
     }
     Err(unreadable("segment addressing"))
