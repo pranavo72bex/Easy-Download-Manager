@@ -458,6 +458,24 @@ impl DmApp {
                 Err(e) => format!("Not shared: {e}").into(),
             };
         }
+        let torbox: Vec<_> = std::mem::take(&mut *dm_core::lock(&self.torbox_done));
+        for answer in torbox {
+            match answer {
+                Ok(files) => {
+                    for file in files {
+                        let options = dm_core::AddOptions {
+                            save_name: Some(file.name).filter(|n| !n.is_empty()),
+                            ..Default::default()
+                        };
+                        let sizes = HashMap::from([(file.url.clone(), file.size)]);
+                        if let Err(e) = self.add_sized(&[file.url], options, &sizes) {
+                            self.said = format!("TorBox's file was not added: {e}").into();
+                        }
+                    }
+                }
+                Err(e) => self.said = e.into(),
+            }
+        }
         if let Some((checked, changed)) = dm_core::lock(&self.rechecked).take() {
             self.said = crate::i18n::Said::counting(
                 "Checked {} finished file with its server. Changed since, and downloaded again: {}.||Checked {} finished files with their servers. Changed since, and downloaded again: {}.",

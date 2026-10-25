@@ -7,6 +7,12 @@ the browser extension (`v*` tags) are versioned separately.
 
 This release also carries what was prepared as 0.6.0 and 0.7.0, which were never published (0.7.0's release check failed on Windows, in a test script, and was withdrawn).
 
+- **Download through TorBox**: with your own TorBox API key in Options ›
+  Sign-ins, a link sent from Add URL (Through TorBox) or a download's menu is
+  fetched by TorBox, and the finished file's address is downloaded by dm like
+  any other. Only when asked, per link; the key stays on this computer and out
+  of exported settings. A person's click, refused to the control port and AI
+  assistants like Share on Gofile.
 - **Share on Gofile** in the File and row menus: a finished file is uploaded
   to Gofile as a guest upload and the link to its page is copied. Only when
   asked, per file; no account or key is kept. Gofile's terms could not be

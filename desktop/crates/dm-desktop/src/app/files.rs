@@ -87,6 +87,40 @@ impl DmApp {
         }
     }
 
+    /// Has TorBox fetch each link, then adds what it made ready as ordinary
+    /// downloads. Only on request: nothing is sent otherwise.
+    pub fn download_through_torbox(&mut self, links: Vec<String>) {
+        let key = self.applied.torbox_key.clone();
+        if key.trim().is_empty() || links.is_empty() {
+            return;
+        }
+        let done = Arc::clone(&self.torbox_done);
+        let client = self.client();
+        self.said = crate::i18n::t("Asking TorBox…").into();
+        let spawned = std::thread::Builder::new()
+            .name("dm-torbox".into())
+            .spawn(move || {
+                let rt = tokio::runtime::Builder::new_current_thread()
+                    .enable_all()
+                    .build();
+                for link in links {
+                    let answer = match &rt {
+                        Ok(rt) => rt.block_on(dm_core::torbox::fetch(
+                            &client,
+                            &key,
+                            &link,
+                            Default::default(),
+                        )),
+                        Err(e) => Err(e.to_string()),
+                    };
+                    dm_core::lock(&done).push(answer);
+                }
+            });
+        if let Err(e) = spawned {
+            self.said = format!("TorBox was not asked: {e}").into();
+        }
+    }
+
     pub fn reveal_file(&self, path: &str) {
         let said = Arc::clone(&self.opener_said);
         let report: crate::power::Report = Box::new(move |why| *dm_core::lock(&said) = Some(why));

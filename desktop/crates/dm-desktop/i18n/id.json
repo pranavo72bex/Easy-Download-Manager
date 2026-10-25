@@ -661,5 +661,11 @@
  "Empty keeps the names. {n} counts from 1, {name} is the old name": "Kosong mempertahankan nama. {n} menghitung dari 1, {name} adalah nama lama",
  "Sites with their own folder and speed:": "Situs dengan folder dan kecepatan sendiri:",
  "Delete site rule": "Hapus aturan situs",
- "Add a site rule": "Tambah aturan situs"
+ "Add a site rule": "Tambah aturan situs",
+ "Download through TorBox": "Unduh lewat TorBox",
+ "Asking TorBox…": "Menanyakan ke TorBox…",
+ "Through TorBox": "Lewat TorBox",
+ "API key": "Kunci API",
+ "TorBox API key: to fetch a link through your TorBox account (Add URL › Through TorBox, or a download's menu).": "Kunci API TorBox: untuk mengambil tautan lewat akun TorBox Anda (Tambah URL › Lewat TorBox, atau menu unduhan).",
+ "Only a link you send is shared with TorBox, with this key.": "Hanya tautan yang Anda kirim yang dibagikan ke TorBox, bersama kunci ini."
 }

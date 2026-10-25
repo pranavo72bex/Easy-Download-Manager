@@ -191,6 +191,7 @@ pub(super) fn duplicate(app: &mut DmApp, ctx: &egui::Context) {
 pub(super) fn add_url(app: &mut DmApp, ctx: &egui::Context) {
     let focus = app.dialogs.take_focus("Add URL");
     let recent = app.applied.recent_urls.clone();
+    let has_torbox = !app.applied.torbox_key.trim().is_empty();
     let Some(d) = app.dialogs.add_url.as_mut() else {
         return;
     };
@@ -247,6 +248,9 @@ pub(super) fn add_url(app: &mut DmApp, ctx: &egui::Context) {
                 ok |= entered(&password);
             });
         });
+        if has_torbox {
+            check(ui, &mut d.torbox, t("Through TorBox"));
+        }
         warning_line(ui, &d.says);
         footer(ui, |ui| {
             ok |= primary(ui, "OK").clicked() || enter_free(ui);
@@ -267,6 +271,7 @@ pub(super) fn add_url(app: &mut DmApp, ctx: &egui::Context) {
     if !ok {
         return;
     }
+    let torbox = d.torbox;
     let mut address = d.address.trim().to_string();
     // A .torrent on this computer, by its path or its file:// address: it
     // could only be dragged in, and Add URL called it no link.
@@ -312,6 +317,10 @@ pub(super) fn add_url(app: &mut DmApp, ctx: &egui::Context) {
             Ok(now) => app.applied.recent_urls = now.recent_urls,
             Err(e) => app.said = e.into(),
         }
+    }
+    if torbox && has_torbox {
+        app.download_through_torbox(vec![address]);
+        return;
     }
     // Already a row: asked, rather than a second row nobody meant.
     if let Some(id) = already_listed(app, &address) {

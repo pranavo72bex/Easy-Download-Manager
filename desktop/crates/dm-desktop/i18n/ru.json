@@ -661,5 +661,11 @@
  "Empty keeps the names. {n} counts from 1, {name} is the old name": "Пусто — имена не меняются. {n} считает с 1, {name} — прежнее имя",
  "Sites with their own folder and speed:": "Сайты со своей папкой и скоростью:",
  "Delete site rule": "Удалить правило сайта",
- "Add a site rule": "Добавить правило сайта"
+ "Add a site rule": "Добавить правило сайта",
+ "Download through TorBox": "Скачать через TorBox",
+ "Asking TorBox…": "Запрос к TorBox…",
+ "Through TorBox": "Через TorBox",
+ "API key": "Ключ API",
+ "TorBox API key: to fetch a link through your TorBox account (Add URL › Through TorBox, or a download's menu).": "Ключ API TorBox: чтобы получить ссылку через ваш аккаунт TorBox (Добавить URL › Через TorBox или меню загрузки).",
+ "Only a link you send is shared with TorBox, with this key.": "TorBox получает только ссылку, которую вы отправили, вместе с этим ключом."
 }

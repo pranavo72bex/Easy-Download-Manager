@@ -25,7 +25,7 @@ pub struct ScreenText {
 }
 
 /// Words a script or an AI client may not click: they run a downloaded file,
-/// which on Windows may be a program, or send one to Gofile, and that stays a
+/// which on Windows may be a program, or send one to Gofile or a link to TorBox, and that stays a
 /// person's click.
 fn is_run_a_file(text: &str) -> bool {
     use crate::commands::Command;
@@ -35,6 +35,7 @@ fn is_run_a_file(text: &str) -> bool {
         Command::OpenWith,
         Command::Preview,
         Command::ShareOnGofile,
+        Command::DownloadViaTorBox,
     ]
     .iter()
     .flat_map(|c| [c.label(), crate::i18n::t(c.label())])

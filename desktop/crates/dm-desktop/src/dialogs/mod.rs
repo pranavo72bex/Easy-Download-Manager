@@ -77,6 +77,8 @@ pub struct AddUrl {
     pub login: String,
     pub password: String,
     pub says: String,
+    /// Fetch the link through the person's TorBox account.
+    pub torbox: bool,
 }
 
 /// "Download details": where and how, before a download starts.

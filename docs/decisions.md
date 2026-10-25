@@ -3,6 +3,19 @@
 Decisions that shape dm and are not obvious from the code, newest first. Each says what was decided and why, so a later change
 can see what it is undoing.
 
+## 2026-10-25: TorBox, built on the owner's request
+
+Reverses the debrid half of the 2026-10-24 drop below, for TorBox only. TorBox
+publishes its API as an OpenAPI file, so the endpoints are not guessed from
+client code. Each person uses their own key (Options › Sign-ins; kept like a
+password and left out of exported settings). Never automatic: a link goes to
+TorBox only from Add URL's "Through TorBox" or the row command, both refused to
+scripts and AI assistants. The key travels as a bearer header, except that
+`requestdl` takes it as a query value, so network errors are printed without
+the address. Only `https://` file addresses are accepted back. Web links only,
+not magnets or torrents. Its terms were not read in full and no live fetch was
+possible without an account, so the live path is NOT VERIFIED.
+
 ## 2026-10-25: Gofile sharing, built on the owner's request
 
 Reverses the Gofile half of the 2026-10-24 drop below. Built as a menu
