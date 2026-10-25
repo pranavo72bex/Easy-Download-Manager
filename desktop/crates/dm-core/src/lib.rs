@@ -20,6 +20,7 @@ pub mod download;
 pub mod extract;
 pub mod fmp4;
 pub mod ftp;
+pub mod gofile;
 pub mod limit;
 pub mod live;
 pub mod metalink;

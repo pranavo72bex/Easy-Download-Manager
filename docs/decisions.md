@@ -3,6 +3,18 @@
 Decisions that shape dm and are not obvious from the code, newest first. Each says what was decided and why, so a later change
 can see what it is undoing.
 
+## 2026-10-25: Gofile sharing, built on the owner's request
+
+Reverses the Gofile half of the 2026-10-24 drop below. Built as a menu
+action on one finished file, never automatic, guest upload only (no token
+setting, so no secret is stored). Gofile's terms were still unreadable
+(its API page renders only in a browser), so the endpoints
+(`api.gofile.io/servers`, `{server}.gofile.io/contents/uploadfile`) and the
+answer's `downloadPage` field come from public client code and are checked
+only against a local stand-in; the first real upload is the real test. The
+server name is restricted to `[a-z0-9-]` and the link to `https://` before
+either is used.
+
 ## 2026-10-24: The work list is empty: what was built, and what was dropped and why
 
 `docs/gaps.md` held 58 open rows. Each is now either built (below) or dropped

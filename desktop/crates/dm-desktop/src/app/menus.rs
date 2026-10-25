@@ -178,6 +178,7 @@ impl DmApp {
                         Command::OpenFolder,
                         Command::ExtractHere,
                         Command::ExtractTo,
+                        Command::ShareOnGofile,
                         Command::Properties,
                     ] {
                         self.item(ui, c);

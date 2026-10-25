@@ -443,6 +443,12 @@ of them.
       a URL without `.mpd` takes the same route. Each route is pinned by
       `DM_YTDLP` — empty for the refusal, a stand-in that records its
       arguments for the hand-off — so neither can be deleted unnoticed
+- [x] Share a finished file on Gofile — Share on Gofile in the File and row
+      menus (`gofile.rs`): asks Gofile for a server, streams the file up as a
+      guest upload, copies the page link; only on request, no key kept.
+      Tested against a local stand-in server (body carries the file whole,
+      refusals and hostile server names handled); NOT tried against the
+      live service
 - [x] Extract a finished ZIP — Extract here / Extract to… in the row menu
       (`extract.rs`): every entry judged before any is written (paths that
       leave the folder, links, devices, passwords, repeated names, size and

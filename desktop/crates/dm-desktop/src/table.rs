@@ -907,6 +907,7 @@ fn row_menu(app: &mut DmApp, ui: &mut egui::Ui) {
         Command::OpenFolder,
         Command::ExtractHere,
         Command::ExtractTo,
+        Command::ShareOnGofile,
         Command::MoveRename,
         Command::Redownload,
     ] {

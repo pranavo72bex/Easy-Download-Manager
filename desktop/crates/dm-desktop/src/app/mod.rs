@@ -344,6 +344,8 @@ pub struct DmApp {
     pub rechecked: Arc<std::sync::Mutex<Option<(usize, usize)>>>,
     /// Why the system could not open a file or folder, said when it is known.
     opener_said: Arc<std::sync::Mutex<Option<String>>>,
+    /// A Gofile upload's end: the link to share, or why there is none.
+    gofile_done: Arc<std::sync::Mutex<Option<Result<String, String>>>>,
     /// What had the keyboard when a dialog came in front, given it back
     /// when none is: the window behind takes no clicks meanwhile, and a
     /// control that cannot be used lets the keyboard go.
@@ -511,6 +513,7 @@ impl DmApp {
             popup_was_open: false,
             rechecked: Arc::default(),
             opener_said: Arc::default(),
+            gofile_done: Arc::default(),
             focus_before: None,
             was_behind: false,
             cancelled_hand_offs: std::collections::HashMap::new(),

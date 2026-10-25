@@ -62,6 +62,31 @@ impl DmApp {
         }
     }
 
+    /// Uploads a finished file to Gofile and puts the link to it on the
+    /// clipboard. Only on request: nothing is sent otherwise.
+    pub fn share_on_gofile(&mut self, path: &str) {
+        let done = Arc::clone(&self.gofile_done);
+        let path = std::path::PathBuf::from(path);
+        let client = self.client();
+        self.said = crate::i18n::t("Uploading to Gofile…").into();
+        let spawned = std::thread::Builder::new()
+            .name("dm-gofile".into())
+            .spawn(move || {
+                let answer = tokio::runtime::Builder::new_current_thread()
+                    .enable_all()
+                    .build()
+                    .map_err(|e| e.to_string())
+                    .and_then(|rt| {
+                        rt.block_on(dm_core::gofile::upload(&client, &path))
+                            .map(|up| up.page)
+                    });
+                *dm_core::lock(&done) = Some(answer);
+            });
+        if let Err(e) = spawned {
+            self.said = format!("Not shared: {e}").into();
+        }
+    }
+
     pub fn reveal_file(&self, path: &str) {
         let said = Arc::clone(&self.opener_said);
         let report: crate::power::Report = Box::new(move |why| *dm_core::lock(&said) = Some(why));

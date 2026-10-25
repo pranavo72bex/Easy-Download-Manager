@@ -7,6 +7,12 @@ the browser extension (`v*` tags) are versioned separately.
 
 This release also carries what was prepared as 0.6.0 and 0.7.0, which were never published (0.7.0's release check failed on Windows, in a test script, and was withdrawn).
 
+- **Share on Gofile** in the File and row menus: a finished file is uploaded
+  to Gofile as a guest upload and the link to its page is copied. Only when
+  asked, per file; no account or key is kept. Gofile's terms could not be
+  read when this was added; the address and answer shape are from public
+  client code and were not tried against the live service.
+
 - Shorter, plainer words in Options, the remove question, errors and hints,
   in the sentence case WinUI uses ("Start dm when I sign in", "Allow the
   command line to control dm", "Its file is kept."). The other twelve languages are
