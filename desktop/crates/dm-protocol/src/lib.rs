@@ -175,6 +175,10 @@ pub struct Start {
     /// The quality picked in the panel's list; absent is the app's setting.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub quality: Option<String>,
+    /// A separate sound track for the picture at `url`, from a player that
+    /// fetched them apart; dm fetches both and joins them.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub sound: Option<String>,
     /// What the list called it, for the app's dialog to show.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub label: Option<String>,

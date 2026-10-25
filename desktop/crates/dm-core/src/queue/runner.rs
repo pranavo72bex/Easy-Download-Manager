@@ -261,6 +261,7 @@ impl Queue {
                         (!slot.entry.referrer.is_empty()).then(|| slot.entry.referrer.clone());
                     // For categories a person limited to sites.
                     options.categories.site = crate::category::host_of(&slot.entry.url);
+                    options.sound = slot.entry.sound.clone();
                     // The quality picked in the browser's panel, over the setting.
                     if let Some(quality) = &slot.entry.quality {
                         options.quality = crate::stream::Quality::named(quality);

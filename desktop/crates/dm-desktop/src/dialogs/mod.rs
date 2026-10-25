@@ -87,6 +87,8 @@ pub struct FileInfo {
     pub referrer: String,
     /// The quality picked in the browser's panel, and what its list said.
     pub quality: Option<String>,
+    /// A separate sound track for the first address, fetched and joined with it.
+    pub sound: Option<String>,
     pub label: Option<String>,
     pub folder: String,
     pub name: String,

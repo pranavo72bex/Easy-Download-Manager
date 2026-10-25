@@ -47,6 +47,7 @@ impl Dialogs {
             urls: vec![request.url],
             referrer: request.referrer,
             quality: request.quality,
+            sound: request.sound,
             label: request.label,
             name: request.save_name.unwrap_or_default(),
             queue: MAIN_QUEUE.into(),

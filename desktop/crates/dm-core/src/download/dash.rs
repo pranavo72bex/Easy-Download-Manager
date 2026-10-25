@@ -76,6 +76,120 @@ pub(super) async fn download_pair(
     .await
 }
 
+/// A picture and a sound a player fetched apart (two plain files, as a video
+/// site serves them), fetched together and joined as the two tracks of a DASH
+/// stream are. Each is read in pieces by byte range, so a server that does not
+/// honour ranges is refused here rather than written in as the whole of a
+/// piece.
+pub(super) async fn download_media_pair(
+    client: &reqwest::Client,
+    picture: &str,
+    sound: &str,
+    options: &Options,
+    report: Option<tokio::sync::mpsc::Sender<Update>>,
+) -> Result<Finished, Error> {
+    /// The size of one request. Large enough that setting a request up is
+    /// small beside carrying it, small enough that a stop is heard promptly.
+    const PIECE: u64 = 8 * 1024 * 1024;
+
+    let track = |medium, url: &str, total: u64| Track {
+        medium,
+        id: String::new(),
+        bandwidth: 0,
+        height: 0,
+        webm: query_of(url, "mime").is_some_and(|m| m.contains("webm")),
+        pieces: pieces_of(url, total, PIECE),
+    };
+    let (picture_size, sound_size) = tokio::try_join!(
+        total_of(client, picture, options),
+        total_of(client, sound, options)
+    )?;
+    let tracks = [
+        track(Medium::Video, picture, picture_size),
+        track(Medium::Audio, sound, sound_size),
+    ];
+    let refs: Vec<&Track> = tracks.iter().collect();
+    // The name a person gave, made an `.mp4` as what is joined is one.
+    let filename = match options
+        .save_name
+        .as_deref()
+        .map(str::trim)
+        .filter(|n| !n.is_empty())
+    {
+        Some(name) if name.to_ascii_lowercase().ends_with(".mp4") => name.to_string(),
+        Some(name) => format!("{name}.mp4"),
+        None => "video.mp4".to_string(),
+    };
+    let signature = format!("media {picture}\n{sound}");
+    // `finish` places the file under the chosen name as it stands.
+    let options = &Options {
+        save_name: Some(filename.clone()),
+        ..options.clone()
+    };
+    join_tracks(
+        client, &refs, &filename, "mp4", false, &signature, options, report,
+    )
+    .await
+}
+
+/// The value of one query parameter of a URL, where it has it.
+pub(crate) fn query_of(url: &str, key: &str) -> Option<String> {
+    let query = url.split_once('?')?.1.split('#').next()?;
+    query.split('&').find_map(|pair| {
+        let (name, value) = pair.split_once('=')?;
+        (name == key).then(|| value.replace("%2F", "/").replace("%2f", "/"))
+    })
+}
+
+/// `total` bytes cut into requests of at most `piece` bytes each. A file of
+/// no known length (0) is one request with no range.
+pub(crate) fn pieces_of(url: &str, total: u64, piece: u64) -> Vec<dash::Piece> {
+    if total == 0 {
+        return vec![dash::Piece {
+            url: url.to_string(),
+            range: None,
+        }];
+    }
+    let mut pieces = Vec::new();
+    let mut first = 0;
+    while first < total {
+        let last = (first + piece).min(total) - 1;
+        pieces.push(dash::Piece {
+            url: url.to_string(),
+            range: Some((first, last)),
+        });
+        first = last + 1;
+    }
+    pieces
+}
+
+/// How long a file is, asked of the server by a one-byte range: the length
+/// after the slash of `Content-Range`. A server that answers the whole file
+/// does not do ranges, and is refused rather than fetched twice as often.
+async fn total_of(client: &reqwest::Client, url: &str, options: &Options) -> Result<u64, Error> {
+    let request = get(
+        client,
+        url,
+        options.referrer.as_deref(),
+        options.sign_in.as_ref(),
+    )
+    .header(reqwest::header::RANGE, "bytes=0-0");
+    let res = or_stop(&options.control, crate::auth::send(client, request, url)).await?;
+    let res = Error::refused_or(res).await?;
+    if res.status() != reqwest::StatusCode::PARTIAL_CONTENT {
+        return Err(Error::Internal(format!(
+            "{url} does not serve byte ranges, which a picture and sound fetched apart need"
+        )));
+    }
+    res.headers()
+        .get(reqwest::header::CONTENT_RANGE)
+        .and_then(|v| v.to_str().ok())
+        .and_then(|v| v.rsplit('/').next())
+        .and_then(|n| n.trim().parse::<u64>().ok())
+        .filter(|n| *n > 0)
+        .ok_or_else(|| Error::Internal(format!("{url} did not say how long it is")))
+}
+
 /// The tracks fetched, gathered one file each, and joined into the file
 /// named `filename`, placed where downloads go. `signature` says what is
 /// being fetched: parts staged for something else are not adopted.
@@ -153,58 +267,88 @@ async fn join_tracks(
     })
 }
 
-/// Every piece of each track, in order, then each track gathered into a
-/// file of its own. A piece is written under a temporary name and moved
-/// when whole, so a part file that is present is a finished one.
+/// Every piece of each track, then each track gathered into a file of its
+/// own. The tracks are fetched at the same time (a picture and a sound do not
+/// wait for one another), and the pieces of a track on as many connections as
+/// are set. A piece is written under a temporary name and moved when whole,
+/// so a part file that is present is a finished one.
 async fn fetch_tracks(
     client: &reqwest::Client,
     tracks: &[&Track],
     options: &Options,
     downloaded: &AtomicU64,
 ) -> Result<Vec<PathBuf>, Error> {
-    let mut index = 0usize;
-    let mut files = Vec::new();
+    let mut first = 0usize;
+    let mut work = Vec::new();
     for (n, track) in tracks.iter().enumerate() {
-        let first = index;
-        let kind = match (track.medium, track.webm) {
-            (_, true) => "webm",
-            (Medium::Video, false) => "mp4",
-            (Medium::Audio, false) => "m4a",
-        };
-        let gathered = options.parts_dir.join(format!("track{n}.{kind}"));
-        // Gathered before a stop: its pieces were freed as they were
-        // consumed, and the file is named only when whole.
-        if fs::metadata(&gathered).await.is_ok_and(|m| m.len() > 0) {
-            index += track.pieces.len();
-            files.push(gathered);
-            continue;
-        }
-        for piece in &track.pieces {
-            let done = part_path(&options.parts_dir, index);
-            index += 1;
-            if let Ok(meta) = fs::metadata(&done).await {
-                downloaded.fetch_add(meta.len(), Ordering::Relaxed);
-                continue;
-            }
-            options.control.check()?;
-            let staging = done.with_extension("partial");
-            let body = retry::run_up_to(&options.control, options.tries(), || {
-                hls::fetch_segment_range(client, &piece.url, piece.range, options)
-            })
-            .await?;
-            downloaded.fetch_add(body.len() as u64, Ordering::Relaxed);
-            fs::write(&staging, &body).await?;
-            fs::rename(&staging, &done).await?;
-        }
-        let parts: Vec<PathBuf> = (first..index)
-            .map(|i| part_path(&options.parts_dir, i))
-            .collect();
-        let partial = options.parts_dir.join(format!("track{n}.partial"));
-        join_parts(&parts, &partial).await?;
-        fs::rename(&partial, &gathered).await?;
-        files.push(gathered);
+        work.push(fetch_track(client, track, n, first, options, downloaded));
+        first += track.pieces.len();
     }
-    Ok(files)
+    futures_util::future::try_join_all(work).await
+}
+
+/// One track: its pieces (numbered from `first`), gathered into `track{n}`.
+async fn fetch_track(
+    client: &reqwest::Client,
+    track: &Track,
+    n: usize,
+    first: usize,
+    options: &Options,
+    downloaded: &AtomicU64,
+) -> Result<PathBuf, Error> {
+    let kind = match (track.medium, track.webm) {
+        (_, true) => "webm",
+        (Medium::Video, false) => "mp4",
+        (Medium::Audio, false) => "m4a",
+    };
+    let gathered = options.parts_dir.join(format!("track{n}.{kind}"));
+    // Gathered before a stop: its pieces were freed as they were
+    // consumed, and the file is named only when whole.
+    if fs::metadata(&gathered).await.is_ok_and(|m| m.len() > 0) {
+        return Ok(gathered);
+    }
+    // As many at once as there are connections, a group after a group: a
+    // slow piece holds up its own group only.
+    let at_once = options.connections.max(1);
+    let indexed: Vec<(usize, &dash::Piece)> = track.pieces.iter().enumerate().collect();
+    for group in indexed.chunks(at_once) {
+        let fetching = group
+            .iter()
+            .map(|(i, piece)| fetch_piece(client, piece, first + i, options, downloaded));
+        futures_util::future::try_join_all(fetching).await?;
+    }
+    let parts: Vec<PathBuf> = (first..first + track.pieces.len())
+        .map(|i| part_path(&options.parts_dir, i))
+        .collect();
+    let partial = options.parts_dir.join(format!("track{n}.partial"));
+    join_parts(&parts, &partial).await?;
+    fs::rename(&partial, &gathered).await?;
+    Ok(gathered)
+}
+
+/// One piece, written to its part file when it is whole.
+async fn fetch_piece(
+    client: &reqwest::Client,
+    piece: &dash::Piece,
+    index: usize,
+    options: &Options,
+    downloaded: &AtomicU64,
+) -> Result<(), Error> {
+    let done = part_path(&options.parts_dir, index);
+    if let Ok(meta) = fs::metadata(&done).await {
+        downloaded.fetch_add(meta.len(), Ordering::Relaxed);
+        return Ok(());
+    }
+    options.control.check()?;
+    let staging = done.with_extension("partial");
+    let body = retry::run_up_to(&options.control, options.tries(), || {
+        hls::fetch_segment_range(client, &piece.url, piece.range, options)
+    })
+    .await?;
+    downloaded.fetch_add(body.len() as u64, Ordering::Relaxed);
+    fs::write(&staging, &body).await?;
+    fs::rename(&staging, &done).await?;
+    Ok(())
 }
 
 #[cfg(test)]
@@ -226,6 +370,7 @@ mod tests {
             categories: Categories::default(),
             checksum: None,
             quality: Quality::Best,
+            sound: None,
             media: false,
             referrer: None,
             proxy: None,
@@ -271,6 +416,10 @@ mod tests {
                 match asked {
                     Some((a, b)) if honours => Response::builder()
                         .status(StatusCode::PARTIAL_CONTENT)
+                        .header(
+                            header::CONTENT_RANGE,
+                            format!("bytes {a}-{}/{}", b.min(body.len() - 1), body.len()),
+                        )
                         .body(Body::from(body[a..=b.min(body.len() - 1)].to_vec()))
                         .unwrap(),
                     _ => Response::new(Body::from(body)),
@@ -403,5 +552,65 @@ mod tests {
         assert_eq!(done.path.extension().unwrap(), "mp4");
         let data = std::fs::read(&done.path).unwrap();
         assert_eq!(data.windows(4).filter(|w| *w == b"trak").count(), 2);
+    }
+
+    #[test]
+    fn a_file_is_cut_into_whole_ranges_with_no_gap_or_overlap() {
+        let pieces = pieces_of("http://x/f", 25, 10);
+        let ranges: Vec<_> = pieces.iter().map(|p| p.range).collect();
+        assert_eq!(ranges, [Some((0, 9)), Some((10, 19)), Some((20, 24))]);
+        assert_eq!(pieces_of("http://x/f", 10, 10)[0].range, Some((0, 9)));
+        assert_eq!(pieces_of("http://x/f", 0, 10)[0].range, None);
+    }
+
+    #[test]
+    fn a_query_parameter_is_read_by_name() {
+        let url = "https://r1.example/videoplayback?itag=137&mime=video%2Fmp4&clen=99#x";
+        assert_eq!(query_of(url, "mime").as_deref(), Some("video/mp4"));
+        assert_eq!(query_of(url, "itag").as_deref(), Some("137"));
+        assert_eq!(query_of(url, "nope"), None);
+    }
+
+    #[tokio::test]
+    async fn a_picture_and_a_sound_fetched_apart_are_joined_into_one_mp4() {
+        let dir = tempfile::tempdir().unwrap();
+        let (video, _) = fragmented(dir.path(), "v.mp4", 3);
+        let (audio, _) = plain(dir.path(), "a.m4a", 5, 120);
+        let app = axum::Router::new()
+            .route("/p/picture", ranged(std::fs::read(video).unwrap(), true))
+            .route("/p/sound", ranged(std::fs::read(audio).unwrap(), true));
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let addr = listener.local_addr().unwrap();
+        tokio::spawn(async move { axum::serve(listener, app).await.unwrap() });
+        let mut options = options(dir.path());
+        options.sound = Some(format!("http://{addr}/p/sound"));
+        options.save_name = Some("clip".into());
+        let url = format!("http://{addr}/p/picture");
+        let done = crate::download::download(&reqwest::Client::new(), &url, &options)
+            .await
+            .unwrap();
+        assert_eq!(done.path.file_name().unwrap(), "clip.mp4");
+        let data = std::fs::read(&done.path).unwrap();
+        assert_eq!(data.windows(4).filter(|w| *w == b"trak").count(), 2);
+    }
+
+    #[tokio::test]
+    async fn a_sound_from_a_server_that_ignores_ranges_is_refused() {
+        let dir = tempfile::tempdir().unwrap();
+        let (video, _) = fragmented(dir.path(), "v.mp4", 2);
+        let (audio, _) = plain(dir.path(), "a.m4a", 3, 50);
+        let app = axum::Router::new()
+            .route("/p/picture", ranged(std::fs::read(video).unwrap(), true))
+            .route("/p/sound", ranged(std::fs::read(audio).unwrap(), false));
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let addr = listener.local_addr().unwrap();
+        tokio::spawn(async move { axum::serve(listener, app).await.unwrap() });
+        let mut options = options(dir.path());
+        options.sound = Some(format!("http://{addr}/p/sound"));
+        let url = format!("http://{addr}/p/picture");
+        let err = crate::download::download(&reqwest::Client::new(), &url, &options)
+            .await
+            .unwrap_err();
+        assert!(err.to_string().contains("byte ranges"), "{err}");
     }
 }
