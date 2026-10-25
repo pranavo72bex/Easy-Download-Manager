@@ -323,6 +323,8 @@ pub struct DmApp {
     theme_in_force: Option<crate::theme::Theme>,
     /// The computer's accent last put in force (`accent.rs`).
     accent_in_force: Option<Option<crate::accent::Palette>>,
+    /// The smallest text size the type ramp was last raised to.
+    min_font_in_force: Option<u32>,
     /// Whether the window's motion was last set to none (`motion.rs`).
     motion_in_force: Option<bool>,
     fonts_ready: bool,
@@ -501,6 +503,7 @@ impl DmApp {
             theme_in_force: None,
             motion_in_force: None,
             accent_in_force: None,
+            min_font_in_force: None,
             fonts_ready: false,
             when_done: Default::default(),
             failed_told: HashSet::new(),

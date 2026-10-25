@@ -572,7 +572,6 @@
  "Its file is deleted too.": "ファイルも削除されます。",
  "Their files are deleted too.": "ファイルも削除されます。",
  "Starting and updating": "起動とアップデート",
- "Windows and sounds": "ウィンドウとサウンド",
  "Adding and keeping files": "ファイルの追加と保存",
  "The list": "リスト",
  "Settings file": "設定ファイル",
@@ -658,5 +657,11 @@
  "Empty keeps the names. {n} counts from 1, {name} is the old name": "空欄なら名前はそのまま。{n} は 1 から数え、{name} は元の名前",
  "Sites with their own folder and speed:": "独自のフォルダーと速度を使うサイト：",
  "Delete site rule": "サイトのルールを削除",
- "Add a site rule": "サイトのルールを追加"
+ "Add a site rule": "サイトのルールを追加",
+ "Pop-ups": "ポップアップ",
+ "Sounds and look": "サウンドと外観",
+ "Offer a new link when a download's link has expired": "ダウンロードのリンクが期限切れになったら新しいリンクを案内する",
+ "Smallest text": "最小の文字サイズ",
+ "As designed": "標準",
+ "{} pt": "{} pt"
 }

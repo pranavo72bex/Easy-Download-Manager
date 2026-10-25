@@ -572,7 +572,6 @@
  "Its file is deleted too.": "O arquivo dele também é excluído.",
  "Their files are deleted too.": "Os arquivos deles também são excluídos.",
  "Starting and updating": "Inicialização e atualizações",
- "Windows and sounds": "Janelas e sons",
  "Adding and keeping files": "Adicionar e guardar arquivos",
  "The list": "A lista",
  "Settings file": "Arquivo de configurações",
@@ -658,5 +657,11 @@
  "Empty keeps the names. {n} counts from 1, {name} is the old name": "Vazio mantém os nomes. {n} conta a partir de 1, {name} é o nome antigo",
  "Sites with their own folder and speed:": "Sites com pasta e velocidade próprias:",
  "Delete site rule": "Excluir regra do site",
- "Add a site rule": "Adicionar regra de site"
+ "Add a site rule": "Adicionar regra de site",
+ "Pop-ups": "Janelas pop-up",
+ "Sounds and look": "Sons e aparência",
+ "Offer a new link when a download's link has expired": "Oferecer um novo link quando o link de um download expirar",
+ "Smallest text": "Menor texto",
+ "As designed": "Conforme o design",
+ "{} pt": "{} pt"
 }

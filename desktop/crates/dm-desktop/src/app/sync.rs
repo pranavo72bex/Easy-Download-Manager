@@ -95,7 +95,11 @@ impl DmApp {
         // download link. Not over another dialog; the row's own failure
         // says Retry, and the row menu has it, either way.
         if let Some(id) = expired.first() {
-            if !self.headless && !self.dialogs.in_front() && self.dialogs.update_link.is_none() {
+            if self.applied.offer_new_link
+                && !self.headless
+                && !self.dialogs.in_front()
+                && self.dialogs.update_link.is_none()
+            {
                 self.dialogs.focus_on("Update download link");
                 self.dialogs.update_link = Some((*id, String::new(), String::new()));
             }

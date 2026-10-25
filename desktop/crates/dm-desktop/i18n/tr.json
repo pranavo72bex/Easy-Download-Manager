@@ -572,7 +572,6 @@
  "Its file is deleted too.": "Dosyası da silinir.",
  "Their files are deleted too.": "Dosyaları da silinir.",
  "Starting and updating": "Başlatma ve güncelleme",
- "Windows and sounds": "Pencereler ve sesler",
  "Adding and keeping files": "Dosya ekleme ve saklama",
  "The list": "Liste",
  "Settings file": "Ayar dosyası",
@@ -658,5 +657,11 @@
  "Empty keeps the names. {n} counts from 1, {name} is the old name": "Boş bırakılırsa adlar korunur. {n} 1’den sayar, {name} eski addır",
  "Sites with their own folder and speed:": "Kendi klasörü ve hızı olan siteler:",
  "Delete site rule": "Site kuralını sil",
- "Add a site rule": "Site kuralı ekle"
+ "Add a site rule": "Site kuralı ekle",
+ "Pop-ups": "Açılır pencereler",
+ "Sounds and look": "Sesler ve görünüm",
+ "Offer a new link when a download's link has expired": "Bir indirmenin bağlantısı dolduğunda yeni bağlantı öner",
+ "Smallest text": "En küçük metin",
+ "As designed": "Tasarlandığı gibi",
+ "{} pt": "{} pt"
 }

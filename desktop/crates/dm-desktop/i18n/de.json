@@ -572,7 +572,6 @@
  "Its file is deleted too.": "Die Datei wird auch gelöscht.",
  "Their files are deleted too.": "Die Dateien werden auch gelöscht.",
  "Starting and updating": "Start und Aktualisierung",
- "Windows and sounds": "Fenster und Töne",
  "Adding and keeping files": "Dateien hinzufügen und ablegen",
  "The list": "Die Liste",
  "Settings file": "Einstellungsdatei",
@@ -658,5 +657,11 @@
  "Empty keeps the names. {n} counts from 1, {name} is the old name": "Leer behält die Namen. {n} zählt ab 1, {name} ist der alte Name",
  "Sites with their own folder and speed:": "Seiten mit eigenem Ordner und Tempo:",
  "Delete site rule": "Websiteregel löschen",
- "Add a site rule": "Websiteregel hinzufügen"
+ "Add a site rule": "Websiteregel hinzufügen",
+ "Pop-ups": "Hinweisfenster",
+ "Sounds and look": "Töne und Aussehen",
+ "Offer a new link when a download's link has expired": "Neuen Link anbieten, wenn der Link eines Downloads abgelaufen ist",
+ "Smallest text": "Kleinste Schrift",
+ "As designed": "Wie gestaltet",
+ "{} pt": "{} pt"
 }

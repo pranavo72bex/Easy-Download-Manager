@@ -675,3 +675,37 @@ fn a_site_rule_gives_its_sites_downloads_a_folder_and_a_speed_unless_chosen_othe
     let other = settings.with_site_rule("https://elsewhere.org/a.zip", AddOptions::default());
     assert!(other.save_dir.is_none() && other.speed_limit == 0);
 }
+
+#[test]
+fn the_smallest_text_and_the_new_link_offer_have_safe_defaults_and_limits() {
+    // A file written before either existed: ramp as designed, offer on.
+    let old: Settings = serde_json::from_str("{}").unwrap();
+    assert_eq!(old.min_font_size, 0);
+    assert!(old.offer_new_link);
+    assert_eq!(Settings::default().min_font_size, 0);
+    // Zero is "as designed"; anything else stays within what is readable
+    // and what fits a window.
+    let low = Settings {
+        min_font_size: 3,
+        ..Settings::default()
+    }
+    .clamped();
+    assert_eq!(low.min_font_size, MIN_FONT.0);
+    let high = Settings {
+        min_font_size: 400,
+        ..Settings::default()
+    }
+    .clamped();
+    assert_eq!(high.min_font_size, MIN_FONT.1);
+    let off = Settings::default().clamped();
+    assert_eq!(off.min_font_size, 0);
+    // Kept through a save.
+    let text = serde_json::to_string(&Settings {
+        min_font_size: 16,
+        offer_new_link: false,
+        ..Settings::default()
+    })
+    .unwrap();
+    let back: Settings = serde_json::from_str(&text).unwrap();
+    assert_eq!((back.min_font_size, back.offer_new_link), (16, false));
+}

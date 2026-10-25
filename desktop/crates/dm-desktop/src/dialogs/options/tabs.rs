@@ -45,17 +45,7 @@ pub(super) fn tab_general(ui: &mut egui::Ui, d: &mut OptionsDialog, env: &TabEnv
         t("Allow AI assistants to control dm (MCP)"),
     );
     check(ui, &mut s.check_updates, t("Check for updates once a week"));
-    section(ui, t("Windows and sounds"));
-    check(
-        ui,
-        &mut s.show_progress,
-        t("Show progress when a download starts"),
-    );
-    check(
-        ui,
-        &mut s.show_complete,
-        t("Show a message when a download finishes"),
-    );
+    section(ui, t("Sounds and look"));
     check(
         ui,
         &mut s.sound_on_complete,
@@ -70,7 +60,38 @@ pub(super) fn tab_general(ui: &mut egui::Ui, d: &mut OptionsDialog, env: &TabEnv
     if crate::chrome::mica_possible() {
         check(ui, &mut s.mica, t("Use the Mica backdrop"));
     }
-    section(ui, t("Adding and keeping files"));
+    ui.horizontal_wrapped(|ui| {
+        let name = ui.label(t("Smallest text"));
+        let shown = |pt: u32| {
+            if pt == 0 {
+                t("As designed").to_string()
+            } else {
+                tf("{} pt", &[&pt])
+            }
+        };
+        combo("min-font")
+            .selected_text(shown(s.min_font_size))
+            .show_ui(ui, |ui| {
+                for pt in [0, 12, 14, 16, 18, 20, 24] {
+                    if option(ui, s.min_font_size == pt, shown(pt)).clicked() {
+                        s.min_font_size = pt;
+                    }
+                }
+            })
+            .response
+            .labelled_by(name.id);
+    });
+    section(ui, t("Pop-ups"));
+    check(
+        ui,
+        &mut s.show_progress,
+        t("Show progress when a download starts"),
+    );
+    check(
+        ui,
+        &mut s.show_complete,
+        t("Show a message when a download finishes"),
+    );
     check(
         ui,
         &mut s.watch_clipboard,
@@ -86,6 +107,12 @@ pub(super) fn tab_general(ui: &mut egui::Ui, d: &mut OptionsDialog, env: &TabEnv
         &mut s.ask_caught_downloads,
         t("Ask where to save browser downloads"),
     );
+    check(
+        ui,
+        &mut s.offer_new_link,
+        t("Offer a new link when a download's link has expired"),
+    );
+    section(ui, t("Adding and keeping files"));
     check(
         ui,
         &mut s.server_dates,

@@ -572,7 +572,6 @@
  "Its file is deleted too.": "Его файл тоже будет удалён.",
  "Their files are deleted too.": "Их файлы тоже будут удалены.",
  "Starting and updating": "Запуск и обновления",
- "Windows and sounds": "Окна и звуки",
  "Adding and keeping files": "Добавление и хранение файлов",
  "The list": "Список",
  "Settings file": "Файл настроек",
@@ -658,5 +657,11 @@
  "Empty keeps the names. {n} counts from 1, {name} is the old name": "Пусто — имена не меняются. {n} считает с 1, {name} — прежнее имя",
  "Sites with their own folder and speed:": "Сайты со своей папкой и скоростью:",
  "Delete site rule": "Удалить правило сайта",
- "Add a site rule": "Добавить правило сайта"
+ "Add a site rule": "Добавить правило сайта",
+ "Pop-ups": "Всплывающие окна",
+ "Sounds and look": "Звуки и внешний вид",
+ "Offer a new link when a download's link has expired": "Предлагать новую ссылку, когда ссылка загрузки устарела",
+ "Smallest text": "Наименьший текст",
+ "As designed": "По умолчанию",
+ "{} pt": "{} pt"
 }

@@ -57,8 +57,11 @@ impl DmApp {
         if self.theme_in_force != Some(theme)
             || ready != self.fonts_ready
             || self.accent_in_force != Some(accent)
+            || self.min_font_in_force != Some(self.applied.min_font_size)
         {
             crate::theme::apply_with_accent(&ctx, theme, accent);
+            crate::theme::raise_text_to(&ctx, self.applied.min_font_size);
+            self.min_font_in_force = Some(self.applied.min_font_size);
             self.accent_in_force = Some(accent);
             self.theme_in_force = Some(theme);
             self.fonts_ready = ready;
