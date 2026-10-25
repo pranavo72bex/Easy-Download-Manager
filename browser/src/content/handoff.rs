@@ -23,6 +23,55 @@ pub(super) fn asking() -> Option<(String, String)> {
     Some((src, frame))
 }
 
+/// How long an answer asked for ahead of a click is still the one to give.
+const READ_AHEAD_MS: f64 = 120_000.0;
+
+/// The app's answer about the page's qualities: the one asked for when the
+/// panel was raised if it is still fresh, else a new ask. An answer that was
+/// a refusal or never came is dropped, so the next click asks again.
+fn reading(src: &str, frame: &str) -> Promise {
+    let now = js_sys::Date::now();
+    let kept = READING.with(|r| {
+        r.borrow()
+            .as_ref()
+            .filter(|(page, at, _)| page == frame && now - at < READ_AHEAD_MS)
+            .map(|(_, _, promise)| promise.clone())
+    });
+    if let Some(promise) = kept {
+        return promise;
+    }
+    let asked = message(decide::FORMATS_MESSAGE, src, frame);
+    let page = frame.to_string();
+    let promise = wasm_bindgen_futures::future_to_promise(async move {
+        let reply = send(asked.into()).await;
+        let ok = reply
+            .as_ref()
+            .ok()
+            .and_then(|r| Reflect::get(r, &"ok".into()).ok())
+            .and_then(|v| v.as_bool())
+            .unwrap_or(false);
+        if !ok {
+            READING.with(|r| {
+                let mut r = r.borrow_mut();
+                if r.as_ref().is_some_and(|(p, _, _)| *p == page) {
+                    *r = None;
+                }
+            });
+        }
+        reply
+    });
+    READING.with(|r| *r.borrow_mut() = Some((frame.to_string(), now, promise.clone())));
+    promise
+}
+
+/// Asks for the page's qualities now, so they are there at the click.
+pub(super) fn read_ahead(src: &str) {
+    let frame = window()
+        .and_then(|w| w.location().href().ok())
+        .unwrap_or_default();
+    let _ = reading(src, &frame);
+}
+
 pub(super) fn message(kind: &str, src: &str, frame: &str) -> js_sys::Object {
     let message = js_sys::Object::new();
     let _ = Reflect::set(&message, &"type".into(), &kind.into());
@@ -75,7 +124,7 @@ pub(super) fn clicked() {
             "dm is reading this page's video qualities; this can take up to half a minute.",
         );
     });
-    let asked = message(decide::FORMATS_MESSAGE, &src, &frame);
+    let pending = reading(&src, &frame);
     // Whatever goes wrong behind the click (the background asleep, the app
     // not answering, a helper that never returns), the panel does not stay
     // on "Reading qualities…": past the longest the app may take, it says so
@@ -93,7 +142,7 @@ pub(super) fn clicked() {
         );
     }
     wasm_bindgen_futures::spawn_local(async move {
-        let reply = send(asked.into()).await;
+        let reply = JsFuture::from(pending).await;
         // A reply after the watchdog spoke is the old click's: dropped.
         if answered.replace(true) {
             return;

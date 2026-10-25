@@ -105,6 +105,9 @@ pub(super) fn show(element: &Element) -> bool {
             close_list(p);
             say(p, "");
             p.current = Some(element.clone());
+            if offer.page && !protected {
+                read_ahead(&media.src);
+            }
         }
         p.generation = p.generation.wrapping_add(1);
         let style = p.host.style();
