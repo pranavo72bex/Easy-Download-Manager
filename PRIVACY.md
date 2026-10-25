@@ -11,6 +11,14 @@ click it: it fetches the release's `latest.json` from GitHub. That request
 carries nothing about you or your downloads; GitHub sees an address asking
 for a public file, as it does for any download.
 
+## Sharing a file on Gofile
+
+Only when you pick Share on Gofile on a finished download, dm uploads that
+one file to Gofile as a guest upload and copies the link. Gofile receives the
+file and its name, and sees your address as any website does; there is no
+account or key, and nothing is sent about your other downloads. Gofile's own
+terms and retention apply to the uploaded file.
+
 ## Getting the tools for video sites
 
 A video site's page (YouTube and the like) is downloaded with yt-dlp, which
@@ -125,7 +133,7 @@ the truth and the disagreement is a bug worth reporting.
 This is also checked, not only promised: `cargo xtask privacy` (in
 `desktop/`, and as a test in every build) fails if any crate that sends
 reports — analytics, crash reporting, telemetry — enters the build, or if
-shipped code names any address but GitHub's. dm reaches GitHub only when
+shipped code names any address but GitHub's and Gofile's. dm reaches GitHub only when
 you check for updates or open Help, or to fetch yt-dlp and QuickJS when a
-video needs them and your computer has none. The two extension stores are
+video needs them and your computer has none. Gofile is reached only for Share on Gofile. The two extension stores are
 opened in your browser only when you click to add dm to it.

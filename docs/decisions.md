@@ -11,7 +11,8 @@ setting, so no secret is stored). Gofile's terms were still unreadable
 (its API page renders only in a browser), so the endpoints
 (`api.gofile.io/servers`, `{server}.gofile.io/contents/uploadfile`) and the
 answer's `downloadPage` field come from public client code and are checked
-only against a local stand-in; the first real upload is the real test. The
+against a local stand-in, and a real upload on 2026-10-25 confirmed
+them. The
 server name is restricted to `[a-z0-9-]` and the link to `https://` before
 either is used.
 

@@ -191,6 +191,38 @@ fn a_finished_zip_is_extracted_beside_itself_and_a_hostile_one_is_refused() {
 }
 
 #[test]
+fn sharing_on_gofile_waits_for_a_finished_file() {
+    let world = world();
+    let mut harness = world.harness();
+    add_url(&mut harness, &world.url("half.mp4"), "Start now");
+    until(&mut harness, "the first bytes to arrive", |app| {
+        app.rows().iter().any(|r| r.progress.downloaded > 0)
+    });
+    select(&mut harness, "half.mp4");
+    assert!(!harness.state().enabled(Command::ShareOnGofile));
+}
+
+/// By hand, against the real service: `cargo test -p dm-desktop --test window -- --ignored`.
+#[test]
+#[ignore]
+fn a_finished_download_is_shared_on_gofile_and_its_link_said() {
+    let world = world();
+    let mut harness = world.harness();
+    add_url(&mut harness, &world.url("file.zip"), "Start now");
+    until(&mut harness, "file.zip to finish", |app| {
+        app.rows().iter().any(|r| r.state == State::Completed)
+    });
+    select(&mut harness, "file.zip");
+    assert!(harness.state().enabled(Command::ShareOnGofile));
+    harness.state_mut().run(Command::ShareOnGofile);
+    until(&mut harness, "the link", |app| {
+        app.said
+            .english()
+            .starts_with("Gofile link copied: https://gofile.io/d/")
+    });
+}
+
+#[test]
 fn a_video_half_fetched_is_previewed_from_what_is_on_disk() {
     let world = world();
     let mut harness = world.harness();

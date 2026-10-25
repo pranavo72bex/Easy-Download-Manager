@@ -10,8 +10,8 @@ This release also carries what was prepared as 0.6.0 and 0.7.0, which were never
 - **Share on Gofile** in the File and row menus: a finished file is uploaded
   to Gofile as a guest upload and the link to its page is copied. Only when
   asked, per file; no account or key is kept. Gofile's terms could not be
-  read when this was added; the address and answer shape are from public
-  client code and were not tried against the live service.
+  read when this was added; the address and answer shape come from public
+  client code and were confirmed by a real upload on 2026-10-25.
 
 - Shorter, plainer words in Options, the remove question, errors and hints,
   in the sentence case WinUI uses ("Start dm when I sign in", "Allow the

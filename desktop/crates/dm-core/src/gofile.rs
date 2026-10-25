@@ -313,4 +313,16 @@ mod tests {
         assert!(err.contains("refused"), "{err}");
         std::fs::remove_file(&file).ok();
     }
+
+    /// Against the real service; run by hand with `--ignored`.
+    #[tokio::test]
+    #[ignore]
+    async fn live_upload() {
+        let file = std::env::temp_dir().join("dm-gofile-live.txt");
+        std::fs::write(&file, b"dm upload test, safe to delete\n").unwrap();
+        let up = upload(&crate::client(), &file).await.unwrap();
+        println!("LINK {} {}", up.page, up.id);
+        assert!(up.page.starts_with("https://gofile.io/d/"));
+        std::fs::remove_file(&file).ok();
+    }
 }

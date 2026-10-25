@@ -447,8 +447,10 @@ of them.
       menus (`gofile.rs`): asks Gofile for a server, streams the file up as a
       guest upload, copies the page link; only on request, no key kept.
       Tested against a local stand-in server (body carries the file whole,
-      refusals and hostile server names handled); NOT tried against the
-      live service
+      refusals and hostile server names handled); one real upload through
+      the window on 2026-10-25 (`--ignored` tests in `gofile.rs` and
+      `tests/window/downloads.rs`, which hit the live service and so are
+      not in CI)
 - [x] Extract a finished ZIP — Extract here / Extract to… in the row menu
       (`extract.rs`): every entry judged before any is written (paths that
       leave the folder, links, devices, passwords, repeated names, size and
