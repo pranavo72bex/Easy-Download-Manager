@@ -1,8 +1,9 @@
 //! The Mark of the Web: on Windows, a downloaded file carries where it
 //! came from in a `Zone.Identifier` stream beside it, as a browser's
 //! downloads do, so SmartScreen and Office still treat it as from the
-//! internet. A download manager that left it off would be a way round
-//! those warnings.
+//! internet. On macOS the same is the `com.apple.quarantine` attribute,
+//! which Gatekeeper reads. A download manager that left it off would be
+//! a way round those warnings.
 
 use std::path::Path;
 
@@ -33,16 +34,60 @@ fn plain(address: &str) -> Option<String> {
     (!text.contains(['\r', '\n'])).then_some(text)
 }
 
-/// Marks a finished file as from the internet. Only on Windows, only a
-/// file (a torrent's folder is left as it is), and a file system without
-/// streams (FAT32) is said nothing about: the download is not at fault.
+/// The attribute's value: downloaded (flag 0083), when in hex seconds, and
+/// by whom.
+pub fn quarantine_text(seconds: u64) -> String {
+    format!("0083;{seconds:x};dm;")
+}
+
+/// Marks a finished file as from the internet. On Windows and macOS only,
+/// only a file (a torrent's folder is left as it is), and a file system
+/// without streams or attributes (FAT32) is said nothing about: the
+/// download is not at fault.
 pub fn mark(path: &Path, url: &str, referrer: &str) {
-    if !cfg!(windows) || !path.is_file() {
+    if !path.is_file() {
         return;
     }
-    let mut stream = path.as_os_str().to_owned();
-    stream.push(":Zone.Identifier");
-    let _ = std::fs::write(stream, zone_text(url, referrer));
+    #[cfg(windows)]
+    {
+        let mut stream = path.as_os_str().to_owned();
+        stream.push(":Zone.Identifier");
+        let _ = std::fs::write(stream, zone_text(url, referrer));
+    }
+    #[cfg(target_os = "macos")]
+    {
+        let _ = (url, referrer);
+        let seconds = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .map_or(0, |d| d.as_secs());
+        let _ = set_quarantine(path, &quarantine_text(seconds));
+    }
+    #[cfg(not(any(windows, target_os = "macos")))]
+    let _ = (url, referrer);
+}
+
+#[cfg(target_os = "macos")]
+fn set_quarantine(path: &Path, value: &str) -> std::io::Result<()> {
+    use std::os::unix::ffi::OsStrExt;
+    let path = std::ffi::CString::new(path.as_os_str().as_bytes())
+        .map_err(|_| std::io::Error::from(std::io::ErrorKind::InvalidInput))?;
+    let name = c"com.apple.quarantine";
+    // SAFETY: both names are NUL-terminated and the value's length is passed.
+    let done = unsafe {
+        libc::setxattr(
+            path.as_ptr(),
+            name.as_ptr(),
+            value.as_ptr().cast(),
+            value.len(),
+            0,
+            0,
+        )
+    };
+    if done == 0 {
+        Ok(())
+    } else {
+        Err(std::io::Error::last_os_error())
+    }
 }
 
 #[cfg(test)]
@@ -62,6 +107,24 @@ mod tests {
         assert!(!text.contains(&secret) && !text.contains("me@"));
         let magnet = zone_text("magnet:?xt=urn:btih:abc", "");
         assert_eq!(magnet, "[ZoneTransfer]\r\nZoneId=3\r\n");
+    }
+
+    /// Run on a Mac: the attribute is read back from the file.
+    #[cfg(target_os = "macos")]
+    #[test]
+    fn a_finished_file_on_macos_carries_the_quarantine_attribute() {
+        let dir = tempfile::tempdir().unwrap();
+        let file = dir.path().join("setup.dmg");
+        std::fs::write(&file, b"x").unwrap();
+        mark(&file, "https://files.example/setup.dmg", "");
+        let out = std::process::Command::new("xattr")
+            .args(["-p", "com.apple.quarantine"])
+            .arg(&file)
+            .output()
+            .unwrap();
+        let text = String::from_utf8_lossy(&out.stdout);
+        assert!(text.starts_with("0083;"), "{text}");
+        assert_eq!(std::fs::read(&file).unwrap(), b"x");
     }
 
     /// Run on CI's Windows machines: the stream is really written on NTFS.

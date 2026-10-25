@@ -33,8 +33,32 @@ fn a_site_login_goes_on_the_hosts_it_names_and_no_others() {
         ..Settings::default()
     };
     assert_eq!(
+        settings.with_login("https://example.com/f.zip"),
+        format!("https://me:{}@example.com/f.zip", escaped(&password))
+    );
+    // Not a subdomain, and not over plain http.
+    assert_eq!(
         settings.with_login("https://dl.example.com/f.zip"),
-        format!("https://me:{}@dl.example.com/f.zip", escaped(&password))
+        "https://dl.example.com/f.zip"
+    );
+    assert_eq!(
+        settings.with_login("http://example.com/f.zip"),
+        "http://example.com/f.zip"
+    );
+    let dotted = Settings {
+        site_logins: vec![SiteLogin {
+            host: ".example.com".into(),
+            username: "me".into(),
+            password: password.clone(),
+        }],
+        ..Settings::default()
+    };
+    assert!(dotted
+        .with_login("https://dl.example.com/f.zip")
+        .starts_with("https://me:"));
+    assert_eq!(
+        dotted.with_login("https://notexample.com/f.zip"),
+        "https://notexample.com/f.zip"
     );
     assert_eq!(
         settings.with_login("https://notexample.com/f.zip"),

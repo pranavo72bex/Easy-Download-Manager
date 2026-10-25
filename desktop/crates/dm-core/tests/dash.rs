@@ -130,28 +130,34 @@ fn recorded(record: &Path) -> Vec<String> {
         .collect()
 }
 
+/// A manifest is dm's own to read now: with no yt-dlp at all it is not
+/// refused for want of one, and with one it is never handed over. This one
+/// lists a picture with no pieces to fetch, so it fails by saying so.
 #[tokio::test]
-async fn without_ytdlp_a_dash_manifest_is_refused_and_names_the_fix() {
+async fn a_dash_manifest_is_read_by_dm_and_never_handed_to_ytdlp() {
     let _turn = ENV.lock().await;
-    std::env::set_var("DM_YTDLP", "");
+    let dir = tempdir();
+    let record = dir.path().join("argv");
+    std::env::set_var("DM_YTDLP", fake_ytdlp(dir.path()));
+    std::env::set_var("DM_FAKE_RECORD", &record);
+    std::env::remove_var("DM_FAKE_FAIL");
 
     let url = serve_manifest().await;
-    let dir = tempdir();
     let err = download(&client(), &url, &options(dir.path()))
         .await
-        .expect_err("a DASH manifest was fetched with nothing to join it");
-
+        .expect_err("a manifest with nothing to fetch was saved");
     let said = err.to_string();
     assert!(
-        said.contains("video helper"),
-        "the refusal should say what fixes it: {said}"
+        !said.contains("video helper") && said.contains("manifest"),
+        "dm should say what is wrong with the manifest: {said}"
     );
-    // Not the video half, not the manifest's own XML, nothing.
+    assert!(!record.exists(), "the manifest was handed to yt-dlp");
     assert_eq!(files_under(&dir.path().join("out")), Vec::<PathBuf>::new());
+    std::env::remove_var("DM_YTDLP");
 }
 
 #[tokio::test]
-async fn with_ytdlp_a_dash_manifest_is_handed_over_with_the_proxy_and_the_page() {
+async fn a_page_is_handed_to_ytdlp_with_the_proxy_and_the_referrer() {
     let _turn = ENV.lock().await;
     let dir = tempdir();
     let record = dir.path().join("argv");
@@ -160,7 +166,7 @@ async fn with_ytdlp_a_dash_manifest_is_handed_over_with_the_proxy_and_the_page()
     std::env::remove_var("DM_FAKE_FAIL");
 
     let proxy_password = common::secrets::secret("proxy");
-    let url = serve_manifest().await;
+    let url = serve_page().await;
     let finished = download(
         &client(),
         &url,
@@ -258,7 +264,7 @@ async fn a_digest_that_does_not_match_fails_the_hand_off_and_keeps_nothing() {
     std::env::set_var("DM_FAKE_RECORD", dir.path().join("argv"));
     std::env::remove_var("DM_FAKE_FAIL");
 
-    let url = serve_manifest().await;
+    let url = serve_page().await;
     let err = download(
         &client(),
         &url,
@@ -284,7 +290,7 @@ async fn dm_joins_the_picture_and_sound_yt_dlp_left() {
     let fixtures = Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/mp4");
     std::env::set_var("DM_FAKE_HALVES", &fixtures);
 
-    let url = serve_manifest().await;
+    let url = serve_page().await;
     let finished = download(&client(), &url, &options(dir.path())).await;
     std::env::remove_var("DM_FAKE_HALVES");
     let finished = finished.expect("the two halves were not joined");
@@ -321,7 +327,7 @@ async fn a_webm_asked_for_is_joined_by_dm_into_one_webm() {
     let fixtures = Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/webm");
     std::env::set_var("DM_FAKE_HALVES", &fixtures);
 
-    let url = serve_manifest().await;
+    let url = serve_page().await;
     let finished = download(
         &client(),
         &url,

@@ -3,6 +3,17 @@
 Decisions that shape dm and are not obvious from the code, newest first. Each says what was decided and why, so a later change
 can see what it is undoing.
 
+## 2026-10-25: Update manifests are signed; logins are exact-host and https
+
+`latest.json` is signed with ed25519 (`latest.json.sig`, made in the release
+job by `cargo xtask sign-update`); the public key is built into `update.rs`
+and checked with `ring`, already in the tree. The private key was generated
+by `cargo xtask update-keygen` and is kept by the owner, never committed: it
+must be set as the repository secret `UPDATE_SIGNING_KEY` or the release
+job fails. Saved site logins no longer cover subdomains by default (a leading
+dot opts in) and are never sent over plain http except to localhost.
+Quarantine on macOS is set through `setxattr` (libc), on files only.
+
 ## 2026-10-25: TorBox built, then removed at the owner's request
 
 A TorBox integration (own API key, Add URL › Through TorBox, a row command;
@@ -1645,3 +1656,32 @@ asked first while downloads run. Not seen on a real compositor from this
 shell; `swaymsg kill` in `linux-wayland-close-check.sh` sets no desktop name,
 so it still checks the minimize path. Considered: a setting for what closing
 does, dropped until someone needs the other choice.
+
+## 2026-10-25 DASH is dm's own; yt-dlp is left the pages
+
+A DASH manifest went to yt-dlp, so a stream whose address was a plain `.mpd`
+needed a 40–80 MB helper fetched first. A manifest is a published format with
+no site logic in it: it says where the pieces are. So `dash.rs` reads it
+(templates with `$Number$`/`$Time$`/`$RepresentationID$`/`$Bandwidth$` and
+widths, `SegmentTimeline` with repeats, `SegmentList` and `mediaRange`,
+single files), `download/dash.rs` fetches the chosen picture and sound, and
+`mp4mux`/`mkvmux` (which already read fragmented MP4 and WebM) join them.
+Decided: one period only (an advertisement break would join two initialisation
+segments, the case `beyond_dm` refuses for HLS); live (`dynamic`) refused
+rather than half-recorded; anything under `ContentProtection` skipped, and
+named if nothing else remains; a byte range answered with anything but
+`206` and the right length is an error, since a server that ignores the range
+and sends the file would be written in as a piece. Sound is a main-role track
+over a louder commentary, in the picture's container where there is one.
+
+Not changed: a *page* (a video site's watch address) still goes to yt-dlp,
+because the media's address is minted by the site's own player and reading
+it is site logic, which this project does not write (2026-10-11, 2026-10-21).
+The way past that without site logic is to take the address from the player
+in the browser, which already ran the site's code: see docs/gaps.md.
+
+A picture and sound that an HLS master keeps in playlists of their own
+(`#EXT-X-MEDIA TYPE=AUDIO` with a `URI`) are dm's too when both are plain
+fragmented MP4: fetched as the two tracks of a DASH stream and joined by
+`mp4mux`. Encrypted, byte-ranged or transport-stream pairs are still
+`Beyond`, because joining them wrongly saves a silent film as complete.

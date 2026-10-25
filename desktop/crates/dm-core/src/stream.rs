@@ -253,26 +253,39 @@ pub fn beyond_dm(
     // tracks without addresses is sound carried in the picture's segments;
     // a commentary track elsewhere in the master is not this rendition's.
     if let (Some(master), Some(group)) = (master, audio_group) {
-        let rows = lines(master);
-        let tracks: Vec<&str> = rows
-            .iter()
-            .copied()
-            .filter(|l| {
-                let u = l.to_ascii_uppercase();
-                u.starts_with("#EXT-X-MEDIA")
-                    && u.contains("TYPE=AUDIO")
-                    && attribute(l, "GROUP-ID").as_deref() == Some(group)
-            })
-            .collect();
-        let default = tracks
-            .iter()
-            .find(|l| attribute(l, "DEFAULT").is_some_and(|d| d.eq_ignore_ascii_case("YES")))
-            .or(tracks.first());
-        if default.is_some_and(|l| attribute(l, "URI").is_some()) {
+        if audio_uri(master, group).is_some() {
             return Some("this stream carries its sound separately from its picture");
         }
     }
     None
+}
+
+/// The playlist of the sound a rendition plays with, where its audio group
+/// keeps the sound apart from the picture: the group's default track, else
+/// its first, joined onto `base`. `None` for sound carried in the picture's
+/// own segments (a track with no address).
+pub fn audio_playlist(master: &str, group: &str, base: &str) -> Option<String> {
+    join(base, &audio_uri(master, group)?).ok()
+}
+
+/// The address a rendition's separate sound is listed under, as written.
+fn audio_uri(master: &str, group: &str) -> Option<String> {
+    let rows = lines(master);
+    let tracks: Vec<&str> = rows
+        .iter()
+        .copied()
+        .filter(|l| {
+            let u = l.to_ascii_uppercase();
+            u.starts_with("#EXT-X-MEDIA")
+                && u.contains("TYPE=AUDIO")
+                && attribute(l, "GROUP-ID").as_deref() == Some(group)
+        })
+        .collect();
+    let chosen = tracks
+        .iter()
+        .find(|l| attribute(l, "DEFAULT").is_some_and(|d| d.eq_ignore_ascii_case("YES")))
+        .or(tracks.first())?;
+    attribute(chosen, "URI")
 }
 
 /// Every rendition a master playlist lists, in the order it lists them.
@@ -557,7 +570,7 @@ impl Stream {
 ///
 /// The manifest is nearly always called `index.m3u8` or `master.m3u8`, so the
 /// directory above it carries the only meaningful name.
-fn name_for(url: &str, container: &str) -> String {
+pub(crate) fn name_for(url: &str, container: &str) -> String {
     const ANONYMOUS: [&str; 6] = ["index", "master", "playlist", "manifest", "stream", "video"];
 
     let stem = (|| {

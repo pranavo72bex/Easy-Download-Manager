@@ -47,12 +47,12 @@ fn signed_in_only() -> axum::Router {
             }),
         )
         .route(
-            "/manifest.mpd",
+            "/watch",
             get(|| async {
                 Response::builder()
                     .status(200)
-                    .header("content-type", "application/dash+xml")
-                    .body(Body::from("<MPD/>"))
+                    .header("content-type", "text/html")
+                    .body(Body::from("<html></html>"))
                     .unwrap()
             }),
         )
@@ -107,7 +107,7 @@ async fn a_cookies_file_signs_dms_requests_and_yt_dlps_in() {
     std::env::set_var("DM_YTDLP", fake_ytdlp(dir.path(), &record));
     download(
         &client(),
-        &format!("http://{addr}/manifest.mpd"),
+        &format!("http://{addr}/watch"),
         &options(dir.path()),
     )
     .await
@@ -218,7 +218,7 @@ async fn a_handed_over_sign_in_is_its_downloads_alone_and_for_its_server_alone()
     // command line, and the file is gone when the run ends.
     let record = dir.path().join("argv2");
     std::env::set_var("DM_YTDLP", fake_ytdlp(dir.path(), &record));
-    let page = format!("http://{addr}/manifest.mpd");
+    let page = format!("http://{addr}/watch");
     download(
         &client(),
         &page,

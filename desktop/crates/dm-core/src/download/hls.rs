@@ -15,6 +15,12 @@ pub(super) async fn download_stream(
 ) -> Result<Finished, Error> {
     let (mut listed, rendition) = match resolve_stream(client, url, options).await? {
         Resolved::Own(listed, rendition) => (listed, rendition),
+        Resolved::Pair(picture, sound, rendition) => {
+            return super::dash::download_pair(
+                client, &picture, &sound, &rendition, options, report,
+            )
+            .await;
+        }
         Resolved::Live(playlist) => {
             return record_live(client, &playlist, url, options, report).await
         }
@@ -461,6 +467,9 @@ pub(super) enum Resolved {
     Live(String),
     /// Why dm does not assemble it itself (`stream::beyond_dm`).
     Beyond(&'static str),
+    /// A picture and its sound as two playlists of fragmented MP4, which dm
+    /// fetches as two tracks and joins; the rendition's address names them.
+    Pair(Box<stream::Stream>, Box<stream::Stream>, String),
 }
 
 /// Reads the manifest, following a master playlist to the rendition wanted.
@@ -484,6 +493,22 @@ pub(super) async fn resolve_stream(
         let chosen = stream::pick(stream::variants(&text, &landed), quality)
             .ok_or_else(|| Error::Internal("no playable rendition in that stream".into()))?;
         let (media, media_landed) = fetch_playlist(client, &chosen.url, options).await?;
+        let apart = chosen
+            .audio
+            .as_deref()
+            .and_then(|group| stream::audio_playlist(&text, group, &landed));
+        if let Some(sound_url) = apart {
+            return resolve_pair(
+                client,
+                url,
+                &chosen.url,
+                &media,
+                &media_landed,
+                &sound_url,
+                options,
+            )
+            .await;
+        }
         if let Some(why) =
             stream::beyond_dm(Some(&text), chosen.audio.as_deref(), &media, &media_landed)
         {
@@ -503,6 +528,42 @@ pub(super) async fn resolve_stream(
     }
     let listed = stream::media_playlist(&text, &landed, url, quality)?;
     Ok(Resolved::Own(listed, url.to_string()))
+}
+
+/// A picture and the sound the master keeps apart from it. Only plain
+/// fragmented MP4 on both sides is dm's to join; an encrypted, byte-ranged
+/// or transport-stream pair is `Beyond`, as before.
+async fn resolve_pair(
+    client: &reqwest::Client,
+    name_from: &str,
+    rendition: &str,
+    media: &str,
+    media_landed: &str,
+    sound_url: &str,
+    options: &Options,
+) -> Result<Resolved, Error> {
+    const APART: &str = "this stream carries its sound separately from its picture";
+    if let Some(why) = stream::beyond_dm(None, None, media, media_landed) {
+        return Ok(Resolved::Beyond(why));
+    }
+    if stream::is_live(media) {
+        return Ok(Resolved::Live(rendition.to_string()));
+    }
+    let (sound, sound_landed) = fetch_playlist(client, sound_url, options).await?;
+    if stream::beyond_dm(None, None, &sound, &sound_landed).is_some() || stream::is_live(&sound) {
+        return Ok(Resolved::Beyond(APART));
+    }
+    let picture = stream::media_playlist(media, media_landed, name_from, options.quality)?;
+    let sound = stream::media_playlist(&sound, &sound_landed, name_from, Quality::Best)?;
+    let plain = |s: &stream::Stream| s.key.is_none() && s.container == "mp4";
+    if !(plain(&picture) && plain(&sound)) {
+        return Ok(Resolved::Beyond(APART));
+    }
+    Ok(Resolved::Pair(
+        Box::new(picture),
+        Box::new(sound),
+        format!("{rendition}\n{sound_url}"),
+    ))
 }
 
 /// A playlist's text and the address it was finally served from, which
@@ -592,6 +653,18 @@ pub(super) async fn fetch_segment_body(
     url: &str,
     options: &Options,
 ) -> Result<Vec<u8>, Error> {
+    fetch_segment_range(client, url, None, options).await
+}
+
+/// [`fetch_segment_body`] for a piece that is part of a file: exactly the
+/// bytes asked for, or an error. A server that ignores the range and sends
+/// the whole file would otherwise be written in as the piece.
+pub(super) async fn fetch_segment_range(
+    client: &reqwest::Client,
+    url: &str,
+    range: Option<(u64, u64)>,
+    options: &Options,
+) -> Result<Vec<u8>, Error> {
     /// The largest a segment is sized for up front. A segment grown by
     /// doubling from empty is copied about fourteen times on the way, so the
     /// hint is worth taking — but only as far as a real segment goes.
@@ -599,21 +672,22 @@ pub(super) async fn fetch_segment_body(
     /// otherwise be an allocation of a terabyte.
     const HINT_CAP: u64 = 32 * 1024 * 1024;
 
-    let res = or_stop(
-        &options.control,
-        crate::auth::send(
-            client,
-            get(
-                client,
-                url,
-                options.referrer.as_deref(),
-                options.sign_in.as_ref(),
-            ),
-            url,
-        ),
-    )
-    .await?;
+    let mut request = get(
+        client,
+        url,
+        options.referrer.as_deref(),
+        options.sign_in.as_ref(),
+    );
+    if let Some((first, last)) = range {
+        request = request.header(reqwest::header::RANGE, format!("bytes={first}-{last}"));
+    }
+    let res = or_stop(&options.control, crate::auth::send(client, request, url)).await?;
     let res = Error::refused_or(res).await?;
+    if range.is_some() && res.status() != reqwest::StatusCode::PARTIAL_CONTENT {
+        return Err(Error::Internal(format!(
+            "{url} did not honour the byte range this stream is cut by"
+        )));
+    }
     let hint = res.content_length().unwrap_or(0).min(HINT_CAP);
     let mut body = Vec::with_capacity(hint as usize);
     let mut chunks = res.bytes_stream();
@@ -632,6 +706,13 @@ pub(super) async fn fetch_segment_body(
             Ok(())
         })
         .await?;
+    }
+    if let Some((first, last)) = range {
+        if body.len() as u64 != last - first + 1 {
+            return Err(Error::Internal(format!(
+                "{url} answered a byte range with the wrong number of bytes"
+            )));
+        }
     }
     Ok(body)
 }

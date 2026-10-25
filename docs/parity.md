@@ -238,12 +238,12 @@ the host and the extension.
 | HLS behind redirects: entries joined against where each playlist landed | PASS | `hls.rs` `relative_entries_are_joined_against_where_a_redirect_landed` |
 | Sound alone named for what its segments are: by their first bytes (TS, fMP4, ADTS bare or behind ID3), else by their addresses (`.m4a`, `.ts`, `.aac`); a second, different initialisation segment (compared as resolved addresses) goes to yt-dlp | PASS | `stream.rs` `sound_alone_is_named_for_what_its_segments_are`, `segments_are_told_apart_by_their_first_bytes`, `a_second_initialisation_segment_is_refused_not_swapped_in`; `hls.rs` `packed_audio_from_tokenised_addresses_is_saved_as_aac` |
 | A refusal's body is read no further than 64 KiB and for no longer than 5 s | PASS | `errors.rs` `a_refusal_whose_body_never_ends_is_answered_promptly` (a 500 whose body never ends) |
-| yt-dlp is given the proxy in a 0600 config file of the run's own, never on its command line | PASS | `dash.rs` `with_ytdlp_a_dash_manifest_is_handed_over_with_the_proxy_and_the_page` (no password in argv; the file gone after the run); a real yt-dlp 2026.08.19 read the file's quoting (`--verbose` proxy map) |
+| yt-dlp is given the proxy in a 0600 config file of the run's own, never on its command line | PASS | `dash.rs` `a_page_is_handed_to_ytdlp_with_the_proxy_and_the_referrer` (no password in argv; the file gone after the run); a real yt-dlp 2026.08.19 read the file's quoting (`--verbose` proxy map) |
 | A torrent's own name is cleaned before its folder is made | PASS | `torrent.rs` `a_torrents_own_name_cannot_lead_out_of_the_download_folder` (`../.config/autostart`) |
 | A cleared row's run still winding down counts against the limit | PASS | `queue.rs` `a_cleared_row_holds_its_slot_until_its_run_lets_go` |
 | yt-dlp progress over picture then sound only goes forward | PASS | `ytdlp_tree.rs` `progress_across_picture_and_sound_only_goes_forward`; `ytdlp.rs` unit tests (float estimates) |
 | A link to a page named as a document (`notes.html`) goes to yt-dlp first, where some video sites end a watch page in `.html`; whatever yt-dlp cannot do with it, dm's own client fetches with the row's referrer and cookies, and without yt-dlp it is fetched directly | PASS | `pages.rs` (`a_page_named_as_a_document_is_fetched_by_dm_when_yt_dlp_is_refused`: a referrer-gated `report.html`, the stand-in yt-dlp never run) |
-| DASH | PASS | handed to yt-dlp; refused with the reason without it (`dash.rs`) |
+| DASH | PASS | read and joined by dm itself, no yt-dlp (`dash.rs` tests, `download/dash.rs` tests); a manifest is never handed to yt-dlp (`a_dash_manifest_is_read_by_dm_and_never_handed_to_ytdlp`) |
 | Player pages | PASS | handed to the user's yt-dlp; `ytdlp.rs` against a loopback server |
 | DRM or site-specific extraction | N/A | not done, by design |
 

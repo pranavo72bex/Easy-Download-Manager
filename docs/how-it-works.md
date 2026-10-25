@@ -384,7 +384,7 @@ desktop/
   crates/dm-core/
     download/             one download: mod.rs (options, the entry points), ranged.rs (the
                           range workers, resume), http.rs, mirrors.rs, hls.rs (playlists and
-                          live), assemble.rs, space.rs (free-disk accounting), files.rs (parts, names)
+                          live), dash.rs (a DASH stream: fetch both tracks, join), assemble.rs, space.rs (free-disk accounting), files.rs (parts, names)
     queue/                several downloads, a limit, and the states between: mod.rs (the state),
                           runner.rs (what starts and when), actions.rs (pause, resume, cancel,
                           remove), settings.rs, persist.rs, edit.rs, recheck.rs, queues.rs
@@ -399,6 +399,8 @@ desktop/
     checksum.rs           verifying a finished file against a published hash
     metalink.rs           reading a list of mirrors for one file
     torrent.rs            magnets and .torrent files, via librqbit
+    dash.rs               DASH manifests read by dm: templates, lists, byte ranges, the picture
+                          and sound chosen (the fetching is download/dash.rs)
     stream.rs, tsmux.rs   HLS playlists, and transport streams put into MP4 (tsmux/: demux,
                           samples, sound, headers, tracks)
     mp4mux.rs, mkvmux.rs  picture and sound joined into one MP4 or WebM (mp4mux/: read, write, text)
