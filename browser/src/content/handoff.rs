@@ -68,11 +68,37 @@ pub(super) fn clicked() {
         // "Reading the vi…".
         set_title(p, "Reading qualities…");
         close_list(p);
-        say(p, "");
+        // Said, so a wait is not taken for a hang: reading a video page can
+        // take up to half a minute.
+        say(
+            p,
+            "dm is reading this page's video qualities; this can take up to half a minute.",
+        );
     });
     let asked = message(decide::FORMATS_MESSAGE, &src, &frame);
+    // Whatever goes wrong behind the click (the background asleep, the app
+    // not answering, a helper that never returns), the panel does not stay
+    // on "Reading qualities…": past the longest the app may take, it says so
+    // and gives the click back.
+    let answered = std::rc::Rc::new(std::cell::Cell::new(false));
+    {
+        let answered = std::rc::Rc::clone(&answered);
+        set_timeout(
+            move || {
+                if !answered.replace(true) {
+                    failed("dm did not answer in time. Try again, or right-click the video and choose Download media with dm.");
+                }
+            },
+            decide::FORMATS_PATIENCE_MS,
+        );
+    }
     wasm_bindgen_futures::spawn_local(async move {
-        let reply = match send(asked.into()).await {
+        let reply = send(asked.into()).await;
+        // A reply after the watchdog spoke is the old click's: dropped.
+        if answered.replace(true) {
+            return;
+        }
+        let reply = match reply {
             Ok(reply) => reply,
             Err(e) => {
                 web_sys::console::debug_2(&"dm: the panel's message was not delivered:".into(), &e);
@@ -92,7 +118,10 @@ pub(super) fn clicked() {
             .ok()
             .and_then(|v| v.dyn_into().ok())
             .unwrap_or_default();
-        with_panel(|p| p.settled = false);
+        with_panel(|p| {
+            p.settled = false;
+            say(p, "");
+        });
         match choices.length() {
             0 => hand(&src, &frame, None, None),
             1 => hand_choice(&src, &frame, &choices.get(0)),
@@ -138,7 +167,8 @@ pub(super) fn hand_choice(src: &str, frame: &str, choice: &JsValue) {
     if url.is_empty() {
         hand(src, frame, Some(text_of(choice, "quality")), label);
     } else {
-        hand(&url, frame, None, label);
+        let sound = Some(text_of(choice, "sound")).filter(|s| !s.is_empty());
+        hand_with(&url, frame, None, label, sound);
     }
 }
 
@@ -155,7 +185,22 @@ pub(super) fn failed(said: &str) {
 /// Hands the player's media to the app through the background, at the
 /// quality picked; the app asks where to save it.
 pub(super) fn hand(src: &str, frame: &str, quality: Option<String>, label: Option<String>) {
+    hand_with(src, frame, quality, label, None);
+}
+
+/// As [`hand`], with the address of a sound the player fetched apart from
+/// the picture at `src`, which the app fetches with it and joins.
+pub(super) fn hand_with(
+    src: &str,
+    frame: &str,
+    quality: Option<String>,
+    label: Option<String>,
+    sound: Option<String>,
+) {
     let message = message(PANEL_MESSAGE, src, frame);
+    if let Some(sound) = &sound {
+        let _ = Reflect::set(&message, &"sound".into(), &sound.into());
+    }
     if let Some(quality) = &quality {
         let _ = Reflect::set(&message, &"quality".into(), &quality.into());
     }

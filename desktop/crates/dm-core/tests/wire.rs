@@ -43,6 +43,7 @@ fn entry(state: State) -> Entry {
         replaces: None,
         speed_limit: 0,
         stalled: String::new(),
+        sound: None,
     }
 }
 

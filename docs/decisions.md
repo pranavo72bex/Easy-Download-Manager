@@ -1685,3 +1685,28 @@ A picture and sound that an HLS master keeps in playlists of their own
 fragmented MP4: fetched as the two tracks of a DASH stream and joined by
 `mp4mux`. Encrypted, byte-ranged or transport-stream pairs are still
 `Beyond`, because joining them wrongly saves a silent film as complete.
+
+## A picture and a sound the player fetched apart (2026-10-25)
+
+The extension reads a video site's player requests (`webRequest`, and
+`extension/document.js` in the page's own world, which tells the same address
+through `content.js`) and, where the request is a `videoplayback` of a
+`googlevideo.com` host, keeps the file's own address (the per-piece `range`,
+`rn` and `rbuf` taken off) as a picture or a sound by its `mime`/`itag`. A
+tab that has loaded both shows one line, "1080p video + sound", whose hand-off
+carries a second address (`Start.sound`, `Entry.sound`, `Options.sound`). dm
+fetches both at once in 8 MiB byte-range pieces, as many at a time as the
+connection setting, and joins them with its own muxer
+(`download::dash::download_media_pair`). A server that does not answer a
+range is refused, not fetched whole.
+
+Known limit, measured on 2026-10-21 (see "A video page's session goes with
+its video"): such addresses stop with a 403 after about 1 MB where the site
+wants a proof-of-origin token the page's player holds. This route is tried
+where the player's addresses work; where it fails the row fails with the
+server's refusal, and the same page remains one click away through the video
+helper. Not tested against the live site (no browser network in the build
+environment): tested against local servers that answer ranges as a CDN does.
+Hostnames stay out of the manifest (the privacy check forbids them), so the
+page script is registered for every page and itself ignores any host but
+`googlevideo.com`; it only reads an address and leaves the request alone.

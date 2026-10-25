@@ -41,6 +41,9 @@ pub struct Request {
     /// The quality picked in the browser's video panel.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub quality: Option<String>,
+    /// A separate sound track for `url`'s picture, fetched with it and joined.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub sound: Option<String>,
     /// What the panel's list called that quality.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub label: Option<String>,
@@ -561,6 +564,7 @@ pub fn answer(
             referrer,
             caught,
             quality,
+            sound,
             label,
             ask,
             cookies,
@@ -609,6 +613,9 @@ pub fn answer(
                         url,
                         referrer,
                         quality: quality.filter(|q| !q.trim().is_empty()),
+                        sound: sound
+                            .map(|s| s.trim().to_string())
+                            .filter(|s| !s.is_empty()),
                         label,
                         // A caught download asks too, where Options says so.
                         ask: ask || (caught && saved(home).ask_caught_downloads),

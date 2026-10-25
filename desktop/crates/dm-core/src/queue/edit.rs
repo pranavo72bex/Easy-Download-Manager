@@ -49,6 +49,10 @@ impl Queue {
             slot.entry.save_dir = with.save_dir.filter(|d| !d.trim().is_empty());
             slot.entry.save_name = with.save_name.filter(|n| !n.trim().is_empty());
             slot.entry.quality = with.quality.filter(|q| !q.trim().is_empty());
+            slot.entry.sound = with
+                .sound
+                .map(|s| s.trim().to_string())
+                .filter(|s| s.starts_with("https://") || s.starts_with("http://"));
             slot.entry.cookies = with.cookies.trim().to_string();
             slot.entry.cookies_once = with.cookies_once && !slot.entry.cookies.is_empty();
             slot.entry.replaces = with.replaces.filter(|p| !p.trim().is_empty());

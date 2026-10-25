@@ -117,7 +117,17 @@ pub struct PanelClick {
     /// The quality picked from the panel's list, and what the list said.
     pub quality: Option<String>,
     pub label: Option<String>,
+    /// A sound the player fetched apart from the picture at `src`.
+    pub sound: Option<String>,
 }
+
+/// How long the panel waits for the list of qualities before it gives up
+/// and says so, in milliseconds: the background waits at most 40 s for the
+/// app, so this is longer than that and no more.
+pub const FORMATS_PATIENCE_MS: i32 = 50_000;
+
+/// The page script telling what a video player asked for.
+pub const MEDIA_SEEN_MESSAGE: &str = "dm.media-seen";
 
 /// The page script asking what qualities a player's video comes in.
 pub const FORMATS_MESSAGE: &str = "dm.formats";

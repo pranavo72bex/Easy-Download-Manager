@@ -145,6 +145,10 @@ pub struct Entry {
     /// `Quality::named`'s words; `None` is the setting's.
     #[serde(default)]
     pub quality: Option<String>,
+    /// The address of a separate sound track for the picture at `url`, from a
+    /// player that fetched them apart; both are fetched and joined.
+    #[serde(default)]
+    pub sound: Option<String>,
     /// Where this row's parts are staged, recorded when it first started,
     /// so the folder in the settings can change without stranding them.
     /// Empty until then.
@@ -213,6 +217,8 @@ pub struct AddOptions {
     /// The quality picked in the browser's video panel, in
     /// `Quality::named`'s words; `None` is the setting's.
     pub quality: Option<String>,
+    /// See `Entry::sound`.
+    pub sound: Option<String>,
     /// The browser's cookies for this download's site, as a `Cookie`
     /// header, where the person switched that on for the site.
     pub cookies: String,
@@ -512,6 +518,7 @@ impl Queue {
                 save_name: None,
                 validator: None,
                 quality: None,
+                sound: None,
                 parts_dir: String::new(),
                 began_in: String::new(),
                 cookies: String::new(),

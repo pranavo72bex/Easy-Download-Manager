@@ -226,6 +226,7 @@ pub fn add_options(request: &host::Request) -> dm_core::AddOptions {
         save_name: request.save_name.clone(),
         later: request.later,
         quality: request.quality.clone(),
+        sound: request.sound.clone(),
         cookies: request.cookies.clone(),
         cookies_once: request.cookies_once,
         queue: if request.later {

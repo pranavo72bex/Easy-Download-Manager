@@ -637,6 +637,7 @@ impl Settings {
             // row when it starts one.
             checksum: None,
             quality: self.quality(),
+            sound: None,
             media: false,
             referrer: None,
             // For the tools dm runs; the client has its own copy.

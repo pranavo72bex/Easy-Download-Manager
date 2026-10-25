@@ -72,6 +72,10 @@ pub struct Options {
     pub checksum: Option<Checksum>,
     /// Which rendition to take from an adaptive stream.
     pub quality: Quality,
+    /// The address of a separate sound track for the picture at the download's
+    /// own address, which a player fetched apart from it: both are fetched at
+    /// once and joined (`dash::download_media_pair`).
+    pub sound: Option<String>,
     /// Media was asked for (a player's video, from the browser's panel or
     /// media menu): a page yt-dlp cannot read fails, rather than being
     /// fetched as the document its address ends like (a
@@ -410,6 +414,11 @@ async fn fetch_reporting(
 ) -> Result<Finished, Error> {
     // Before anything is fetched, by every route below.
     writable(&options.dest_dir).await?;
+
+    // A picture and a sound a player fetched apart: both at once, then joined.
+    if let Some(sound) = options.sound.as_deref() {
+        return dash::download_media_pair(client, url, sound, options, report).await;
+    }
 
     /* A torrent is not fetched from a server at all — there is nothing to
      * probe, no length to split into ranges, no address to resume from. It
@@ -795,6 +804,7 @@ mod tests {
             categories: Categories::default(),
             checksum: None,
             quality: Quality::Best,
+            sound: None,
             media: false,
             referrer: None,
             proxy: None,

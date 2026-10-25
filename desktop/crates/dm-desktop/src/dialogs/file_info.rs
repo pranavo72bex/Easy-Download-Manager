@@ -450,6 +450,7 @@ pub(super) fn file_info(app: &mut DmApp, ctx: &egui::Context) {
         later,
         referrer: d.referrer.clone(),
         quality: d.quality.clone(),
+        sound: d.sound.clone(),
         cookies: d.cookies.clone(),
         cookies_once: d.cookies_once,
         checksum: None,
