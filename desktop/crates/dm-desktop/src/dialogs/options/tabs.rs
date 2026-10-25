@@ -671,8 +671,7 @@ pub(super) fn tab_proxy(ui: &mut egui::Ui, d: &mut OptionsDialog, _env: &TabEnv<
                         Kind::System => t("The computer's proxy settings").to_string(),
                         other => format!("{other:?}").to_uppercase(),
                     };
-                    ui.horizontal(|ui| {
-                        let name = ui.label(t("Proxy type"));
+                    setting_row(ui, t("Proxy type"), |ui, name| {
                         combo("proxy-kind")
                             .selected_text(kind_name(p.kind))
                             .show_ui(ui, |ui| {
@@ -697,7 +696,7 @@ pub(super) fn tab_proxy(ui: &mut egui::Ui, d: &mut OptionsDialog, _env: &TabEnv<
                                 }
                             })
                             .response
-                            .labelled_by(name.id);
+                            .labelled_by(name);
                     });
                     ui.add_enabled_ui(p.kind != Kind::System, |ui| {
                         field(ui, t("Host"), &mut p.host, 260.0);
