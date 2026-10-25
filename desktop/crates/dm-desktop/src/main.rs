@@ -64,6 +64,7 @@ struct Window {
     show_asked: Arc<AtomicBool>,
     /// The look last told to the window's title bar (Windows).
     title_bar_in_force: Option<(bool, egui::Color32, egui::Color32)>,
+    taskbar: dm_desktop::taskbar::Taskbar,
     /// Kept alive for as long as the window: dropping the icon removes it.
     /// With its menu's items, relabelled when the language changes.
     icon: Option<TrayMade>,
@@ -565,6 +566,7 @@ fn main() {
             quitting: false,
             show_asked,
             title_bar_in_force: None,
+            taskbar: dm_desktop::taskbar::Taskbar::default(),
             icon,
             tray_language: language,
             tray_tip: String::new(),

@@ -7,6 +7,7 @@ the browser extension (`v*` tags) are versioned separately.
 
 - A video a site's player fetches as a separate picture and sound (as YouTube's does) is offered in the panel's list as one line; dm fetches both at once, by byte range, and joins them into one MP4 with no helper program. The pieces of a DASH or HLS track are fetched on as many connections as are set.
 - The panel no longer sits on "Reading qualities…": the wait is said in words, streams the page itself loaded are offered after eight seconds, and past 50 seconds it says dm did not answer and gives the click back.
+- Windows: the taskbar button shows progress (green while downloading, yellow when paused, red for a minute after a failure), and the program declares per-monitor DPI awareness so text is sharp at 125% and 150%. The computer is kept awake while a download runs.
 
 ## App 0.7.1
 

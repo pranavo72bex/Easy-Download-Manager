@@ -20,8 +20,11 @@ fn main() {
     let dir = std::env::var("CARGO_MANIFEST_DIR").unwrap_or_default();
     let icon = std::path::Path::new(&dir).join("icons").join("icon.ico");
     let icon = icon.display().to_string().replace('\\', "\\\\");
+    let manifest = std::path::Path::new(&dir).join("dm.manifest");
+    let manifest = manifest.display().to_string().replace('\\', "\\\\");
     let rc = format!(
         r#"1 ICON "{icon}"
+1 24 "{manifest}"
 1 VERSIONINFO
 FILEVERSION {major},{minor},{patch},0
 PRODUCTVERSION {major},{minor},{patch},0
