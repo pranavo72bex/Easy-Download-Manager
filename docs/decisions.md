@@ -3,6 +3,17 @@
 Decisions that shape dm and are not obvious from the code, newest first. Each says what was decided and why, so a later change
 can see what it is undoing.
 
+## 2026-10-25: Update manifests are signed; logins are exact-host and https
+
+`latest.json` is signed with ed25519 (`latest.json.sig`, made in the release
+job by `cargo xtask sign-update`); the public key is built into `update.rs`
+and checked with `ring`, already in the tree. The private key was generated
+by `cargo xtask update-keygen` and is kept by the owner, never committed: it
+must be set as the repository secret `UPDATE_SIGNING_KEY` or the release
+job fails. Saved site logins no longer cover subdomains by default (a leading
+dot opts in) and are never sent over plain http except to localhost.
+Quarantine on macOS is set through `setxattr` (libc), on files only.
+
 ## 2026-10-25: TorBox built, then removed at the owner's request
 
 A TorBox integration (own API key, Add URL › Through TorBox, a row command;

@@ -359,7 +359,8 @@ impl Settings {
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(default)]
 pub struct SiteLogin {
-    /// The host, or a suffix of it: `example.com` covers `dl.example.com`.
+    /// The host, exactly: `example.com` does not cover `dl.example.com`.
+    /// A leading dot (`.example.com`) also covers its subdomains.
     pub host: String,
     pub username: String,
     pub password: String,
@@ -862,7 +863,9 @@ impl Settings {
 
 impl Settings {
     /// `url` with a site login's user and password in it, where one applies
-    /// and the address carries none of its own. HTTP and HTTPS only.
+    /// and the address carries none of its own. HTTPS only (plain HTTP only
+    /// to this computer), and only to the exact host unless the saved host
+    /// begins with a dot.
     /// The rule of the site `url` is on, the most specific host that covers
     /// it.
     pub fn site_rule_for(&self, url: &str) -> Option<&SiteRule> {
@@ -899,10 +902,16 @@ impl Settings {
         let Ok(mut parsed) = url::Url::parse(url) else {
             return url.to_string();
         };
-        if !matches!(parsed.scheme(), "http" | "https") || !parsed.username().is_empty() {
+        if !parsed.username().is_empty() {
             return url.to_string();
         }
         let host = parsed.host_str().unwrap_or("").to_ascii_lowercase();
+        let on_this_computer = host == "localhost" || host == "127.0.0.1" || host == "[::1]";
+        match parsed.scheme() {
+            "https" => {}
+            "http" if on_this_computer => {}
+            _ => return url.to_string(),
+        }
         let found = self.site_logins.iter().find(|login| {
             // A host saved as a whole address names its host (one pasted in matched nothing, and the download got 401).
             let given = login.host.trim();
@@ -914,8 +923,10 @@ impl Settings {
             } else {
                 given.split(['/', ':']).next().unwrap_or("").to_string()
             };
+            let with_subdomains = given.starts_with('.');
             let want = given.trim_start_matches('.').to_ascii_lowercase();
-            !want.is_empty() && (host == want || host.ends_with(&format!(".{want}")))
+            !want.is_empty()
+                && (host == want || (with_subdomains && host.ends_with(&format!(".{want}"))))
         });
         match found {
             Some(login)

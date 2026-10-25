@@ -24,7 +24,12 @@ fn main() {
             parity_evidence().map(|()| "every test docs/parity.md cites exists".to_string())
         }
         "secrets" => secrets().map(|()| "no credential is written into a tracked file".to_string()),
-        _ => Err("usage: cargo xtask <scorecard|layers|privacy|parity|secrets>".to_string()),
+        "update-keygen" => update_keygen(),
+        "sign-update" => sign_update(std::env::args().nth(2).as_deref()),
+        _ => Err(
+            "usage: cargo xtask <scorecard|layers|privacy|parity|secrets|update-keygen|sign-update>"
+                .to_string(),
+        ),
     };
     match result {
         Ok(said) => println!("{said}"),
@@ -637,6 +642,38 @@ fn parity_evidence() -> Result<(), String> {
 #[cfg(test)]
 #[path = "../../test-support/secrets.rs"]
 mod test_secrets;
+
+/// A new update-signing key: the private half (base64 PKCS#8, for the
+/// `UPDATE_SIGNING_KEY` secret) on stdout's second line and the public half
+/// (base64, 32 bytes, for `update.rs`) on the first.
+fn update_keygen() -> Result<String, String> {
+    use base64::Engine;
+    use ring::signature::{Ed25519KeyPair, KeyPair};
+    let rng = ring::rand::SystemRandom::new();
+    let pkcs8 = Ed25519KeyPair::generate_pkcs8(&rng).map_err(|e| e.to_string())?;
+    let pair = Ed25519KeyPair::from_pkcs8(pkcs8.as_ref()).map_err(|e| e.to_string())?;
+    let b64 = base64::engine::general_purpose::STANDARD;
+    Ok(format!(
+        "{}\n{}",
+        b64.encode(pair.public_key().as_ref()),
+        b64.encode(pkcs8.as_ref())
+    ))
+}
+
+/// Signs `<file>` with the key in `UPDATE_SIGNING_KEY`, writing the base64
+/// signature to `<file>.sig` beside it.
+fn sign_update(file: Option<&str>) -> Result<String, String> {
+    use base64::Engine;
+    let file = file.ok_or("usage: cargo xtask sign-update <latest.json>")?;
+    let key = std::env::var("UPDATE_SIGNING_KEY").map_err(|_| "UPDATE_SIGNING_KEY is not set")?;
+    let b64 = base64::engine::general_purpose::STANDARD;
+    let der = b64.decode(key.trim()).map_err(|e| e.to_string())?;
+    let pair = ring::signature::Ed25519KeyPair::from_pkcs8(&der).map_err(|e| e.to_string())?;
+    let bytes = std::fs::read(file).map_err(|e| format!("{file}: {e}"))?;
+    let out = format!("{file}.sig");
+    std::fs::write(&out, b64.encode(pair.sign(&bytes).as_ref())).map_err(|e| e.to_string())?;
+    Ok(format!("signed {file}"))
+}
 
 #[cfg(test)]
 mod tests {
