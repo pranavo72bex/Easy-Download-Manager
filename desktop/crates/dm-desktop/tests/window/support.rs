@@ -446,12 +446,18 @@ pub(crate) fn click(harness: &mut Harness<'_, DmApp>, name: &str) {
     if harness.state().dialogs.file_info.is_some() {
         settle_details(harness);
     }
+    // Scrolled to first, as a person scrolls to what is below the fold: how
+    // far down a row is depends on the computer's type.
+    harness.get_by_label(name).scroll_to_me();
+    harness.run_steps(3);
     harness.get_by_label(name).click();
     harness.run_steps(3);
 }
 
 /// Types into a field found by its name.
 pub(crate) fn type_into(harness: &mut Harness<'_, DmApp>, name: &str, text: &str) {
+    harness.get_by_label(name).scroll_to_me();
+    harness.run_steps(3);
     harness.get_by_label(name).click();
     harness.run_steps(2);
     harness.get_by_label(name).type_text(text);
@@ -462,6 +468,10 @@ pub(crate) fn type_into(harness: &mut Harness<'_, DmApp>, name: &str, text: &str
 /// label shares it.
 pub(crate) fn type_role(harness: &mut Harness<'_, DmApp>, name: &str, text: &str) {
     use egui::accesskit::Role;
+    harness
+        .get_by_role_and_label(Role::TextInput, name)
+        .scroll_to_me();
+    harness.run_steps(3);
     harness.get_by_role_and_label(Role::TextInput, name).click();
     harness.run_steps(2);
     harness
