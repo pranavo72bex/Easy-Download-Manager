@@ -3,6 +3,11 @@
 What changed in each release, newest first. The app (`desktop-v*` tags) and
 the browser extension (`v*` tags) are versioned separately.
 
+## Unreleased
+
+- A video a site's player fetches as a separate picture and sound (as YouTube's does) is offered in the panel's list as one line; dm fetches both at once, by byte range, and joins them into one MP4 with no helper program. The pieces of a DASH or HLS track are fetched on as many connections as are set.
+- The panel no longer sits on "Reading qualities…": the wait is said in words, streams the page itself loaded are offered after eight seconds, and past 50 seconds it says dm did not answer and gives the click back.
+
 ## App 0.7.1
 
 This release also carries what was prepared as 0.6.0 and 0.7.0, which were never published (0.7.0's release check failed on Windows, in a test script, and was withdrawn).
