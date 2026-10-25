@@ -90,12 +90,22 @@ fn the_file_types_the_browser_hands_over_are_set_in_options() {
         .get_by_role_and_label(Role::MultilineTextInput, "File types")
         .type_text("ZIP .iso, mkv");
     harness.run_steps(2);
+    // Scrolled to, as a person scrolls to a field below the fold: how far
+    // down it is depends on the computer's type.
+    harness
+        .get_by_label("Never take downloads from these sites")
+        .scroll_to_me();
+    harness.run();
     type_into(
         &mut harness,
         "Never take downloads from these sites",
         "intranet.example",
     );
     // Sites whose links work once.
+    harness
+        .get_by_label("Sites whose links work only once")
+        .scroll_to_me();
+    harness.run();
     type_into(
         &mut harness,
         "Sites whose links work only once",
