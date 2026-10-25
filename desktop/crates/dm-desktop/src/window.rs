@@ -119,6 +119,14 @@ impl eframe::App for Window {
             use raw_window_handle::HasWindowHandle;
             if let Ok(handle) = frame.window_handle() {
                 dm_desktop::drops::attach(handle.as_raw());
+                // Progress on the taskbar button, for a minimised window.
+                let now = std::time::SystemTime::now()
+                    .duration_since(std::time::UNIX_EPOCH)
+                    .map_or(0, |d| d.as_secs());
+                self.taskbar.show(
+                    handle.as_raw(),
+                    dm_desktop::taskbar::mode_of(self.app.rows(), now),
+                );
                 // The title bar in the look's colours, when the look changes.
                 let t = dm_desktop::theme::Tokens::get(ui.ctx());
                 let look = (t.dark, t.frame, t.text);

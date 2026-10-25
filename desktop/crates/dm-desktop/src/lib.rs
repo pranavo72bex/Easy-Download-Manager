@@ -35,6 +35,7 @@ pub mod power;
 pub mod region;
 pub mod system_theme;
 pub mod table;
+pub mod taskbar;
 pub mod theme;
 pub mod update;
 pub mod wake;
