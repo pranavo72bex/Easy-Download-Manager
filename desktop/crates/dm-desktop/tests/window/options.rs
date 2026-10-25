@@ -973,7 +973,6 @@ fn appearance_sets_the_theme_and_the_size_of_text_for_the_whole_window() {
     harness.run_steps(2);
     assert!((harness.ctx.zoom_factor() - 0.85).abs() < 0.001);
     // The theme is a choice put in force on OK, as before.
-    open_choice(&mut harness, "Theme");
     click(&mut harness, "Dark");
     click(&mut harness, "OK");
     assert_eq!(harness.state().backend().settings().theme, "dark");

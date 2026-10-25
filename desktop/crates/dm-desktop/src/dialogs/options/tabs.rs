@@ -14,12 +14,9 @@ pub(super) struct TabEnv<'a> {
 pub(super) fn tab_general(ui: &mut egui::Ui, d: &mut OptionsDialog, env: &TabEnv<'_>) {
     let TabEnv { platform, .. } = *env;
     let s = &mut d.draft;
-    ui.horizontal_wrapped(|ui| {
+    setting_row(ui, t("Language"), |ui, name| {
         let now = crate::i18n::chosen(&s.language);
-        // Named by its label, so a screen reader says what it is;
-        // the name before the choice, as every number and choice
-        // in Options has it (some had it after).
-        let name = ui.label(t("Language"));
+        // Named by its row, so a screen reader says what it is.
         combo("language")
             .selected_text(crate::i18n::name_of(now))
             .show_ui(ui, |ui| {
@@ -28,27 +25,13 @@ pub(super) fn tab_general(ui: &mut egui::Ui, d: &mut OptionsDialog, env: &TabEnv
                 }
             })
             .response
-            .labelled_by(name.id);
+            .labelled_by(name);
     });
     // Appearance, as a modern app lays its settings out: a name at the left
     // and its choice at the right, under a hairline.
     section(ui, t("Appearance"));
-    setting_row(ui, t("Theme"), |ui, name| {
-        let shown = THEMES
-            .iter()
-            .find(|(word, _)| *word == s.theme)
-            .map_or(THEMES[0].1, |(_, label)| *label);
-        combo("theme")
-            .selected_text(t(shown))
-            .show_ui(ui, |ui| {
-                for (word, label) in THEMES {
-                    if option(ui, s.theme == word, t(label)).clicked() {
-                        s.theme = word.to_string();
-                    }
-                }
-            })
-            .response
-            .labelled_by(name);
+    setting_row(ui, t("Theme"), |ui, _| {
+        theme_segments(ui, &mut s.theme);
     });
     setting_row(ui, t("Text size"), |ui, name| {
         // The size of everything in the window, the one View › Text size

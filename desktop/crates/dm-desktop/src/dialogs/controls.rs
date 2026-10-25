@@ -708,6 +708,8 @@ pub(crate) fn setting_row(
         |ui| {
             let label = ui.label(name);
             ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                // Clear of the scroll bar, which floats over the right edge.
+                ui.add_space(8.0);
                 control(ui, label.id)
             });
         },
@@ -716,4 +718,141 @@ pub(crate) fn setting_row(
     ui.painter()
         .hline(ui.max_rect().x_range(), y, egui::Stroke::new(1.0, t.border));
     ui.add_space(1.0);
+}
+
+/// The look's choice as a row of icon buttons in one rounded tray, the
+/// chosen one raised: a monitor for "as the computer is", a sun, a moon and
+/// a window for the classic look. Each says its name when the pointer rests
+/// on it, and to a screen reader.
+pub(crate) fn theme_segments(ui: &mut egui::Ui, current: &mut String) -> egui::Response {
+    let t = crate::theme::Tokens::get(ui.ctx());
+    let side = 32.0;
+    let pad = 2.0;
+    let count = crate::dialogs::THEMES.len() as f32;
+    let (tray, mut whole) = ui.allocate_exact_size(
+        egui::vec2(count * side + (count + 1.0) * pad, side + 2.0 * pad),
+        egui::Sense::hover(),
+    );
+    ui.painter()
+        .rect_filled(tray, t.radius.saturating_add(2), t.control);
+    ui.painter().rect_stroke(
+        tray,
+        t.radius.saturating_add(2),
+        egui::Stroke::new(1.0, t.border),
+        egui::StrokeKind::Inside,
+    );
+    for (n, (word, label)) in crate::dialogs::THEMES.iter().enumerate() {
+        let cell = egui::Rect::from_min_size(
+            tray.min + egui::vec2(pad + n as f32 * (side + pad), pad),
+            egui::vec2(side, side),
+        );
+        let name = crate::i18n::t(label);
+        let mut response = ui
+            .interact(
+                cell,
+                ui.scope_id().with(("theme", *word)),
+                egui::Sense::click(),
+            )
+            .on_hover_text(name);
+        let chosen = *current == *word;
+        response.widget_info(|| {
+            egui::WidgetInfo::selected(egui::Role::RadioButton, true, chosen, name)
+        });
+        if response.clicked() && !chosen {
+            *current = (*word).to_string();
+            response.mark_changed();
+            whole.mark_changed();
+        }
+        let painter = ui.painter();
+        if chosen {
+            painter.rect_filled(cell, t.radius, t.control_pressed);
+            painter.rect_stroke(
+                cell,
+                t.radius,
+                egui::Stroke::new(1.0, t.stroke),
+                egui::StrokeKind::Inside,
+            );
+        } else if response.hovered() {
+            painter.rect_filled(cell, t.radius, t.hover);
+        }
+        let ink = if chosen { t.text } else { t.weak };
+        theme_icon(painter, cell.center(), word, egui::Stroke::new(1.5, ink));
+        if response.has_focus() {
+            painter.rect_stroke(
+                cell,
+                t.radius,
+                egui::Stroke::new(2.0, t.focus_outer),
+                egui::StrokeKind::Inside,
+            );
+        }
+    }
+    whole
+}
+
+/// A 16 px line drawing for a look, centred on `c`.
+fn theme_icon(painter: &egui::Painter, c: egui::Pos2, word: &str, stroke: egui::Stroke) {
+    let ink = stroke.color;
+    match word {
+        // A monitor on its stand.
+        "system" => {
+            let screen =
+                egui::Rect::from_center_size(c - egui::vec2(0.0, 1.5), egui::vec2(15.0, 10.0));
+            painter.rect_stroke(screen, 2.0, stroke, egui::StrokeKind::Middle);
+            painter.line_segment(
+                [c + egui::vec2(-3.5, 6.0), c + egui::vec2(3.5, 6.0)],
+                stroke,
+            );
+            painter.line_segment([c + egui::vec2(0.0, 3.5), c + egui::vec2(0.0, 6.0)], stroke);
+        }
+        // A sun: a disc and eight rays.
+        "light" => {
+            painter.circle_stroke(c, 3.5, stroke);
+            for k in 0..8 {
+                let a = k as f32 * std::f32::consts::FRAC_PI_4;
+                let d = egui::vec2(a.cos(), a.sin());
+                painter.line_segment([c + d * 6.0, c + d * 8.0], stroke);
+            }
+        }
+        // A moon: the part of a disc outside a second, nearer one corner.
+        "dark" => {
+            let (r1, r2) = (7.0_f32, 6.0_f32);
+            let bite = c + egui::vec2(3.5, -2.5);
+            let ring = |centre: egui::Pos2, r: f32| {
+                (0..=48)
+                    .map(|k| {
+                        let a = k as f32 / 48.0 * std::f32::consts::TAU;
+                        centre + egui::vec2(a.cos(), a.sin()) * r
+                    })
+                    .collect::<Vec<_>>()
+            };
+            let mut edge: Vec<egui::Pos2> = ring(c, r1)
+                .into_iter()
+                .filter(|p| p.distance(bite) >= r2)
+                .collect();
+            // The inner arc, walked back from where the outer one ends.
+            let mut inner: Vec<egui::Pos2> = ring(bite, r2)
+                .into_iter()
+                .filter(|p| p.distance(c) <= r1)
+                .collect();
+            inner.reverse();
+            edge.extend(inner);
+            if let Some(first) = edge.first().copied() {
+                edge.push(first);
+            }
+            painter.add(egui::Shape::line(edge, stroke));
+        }
+        // A window with its title bar: the classic look.
+        _ => {
+            let frame = egui::Rect::from_center_size(c, egui::vec2(15.0, 12.0));
+            painter.rect_stroke(frame, 1.0, stroke, egui::StrokeKind::Middle);
+            painter.line_segment(
+                [
+                    frame.left_top() + egui::vec2(0.0, 3.5),
+                    frame.right_top() + egui::vec2(0.0, 3.5),
+                ],
+                stroke,
+            );
+            painter.circle_filled(frame.left_top() + egui::vec2(3.0, 1.8), 0.8, ink);
+        }
+    }
 }
