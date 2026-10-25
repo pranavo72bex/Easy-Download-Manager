@@ -8,6 +8,16 @@ pub(super) fn registration_failed(why: &str) -> String {
     )
 }
 
+/// Whether a Wayland compositor named by `desktop` (XDG_CURRENT_DESKTOP)
+/// has no minimize, so that minimizing a closed window does nothing a
+/// person can see. Their close key (Super+Q) then looked dead.
+pub(super) fn minimize_is_ignored(desktop: &str) -> bool {
+    let desktop = desktop.to_lowercase();
+    ["sway", "hyprland", "river", "niri", "dwl", "i3", "qtile"]
+        .iter()
+        .any(|name| desktop.split([':', ';']).any(|d| d == *name))
+}
+
 impl Window {
     pub(super) fn show(&mut self, ctx: &egui::Context) {
         let maximized = std::mem::take(&mut self.hidden_maximized);
@@ -179,9 +189,14 @@ impl Window {
         // The close button hides the window instead of ending the app: a
         // download manager that stops downloading when you close its window
         // is not one. Quit is in the tray menu, and Cmd+Q still quits.
+        // On a tiling Wayland desktop a minimized window stays on screen, so
+        // closing it there quits (asked first while downloads run).
+        let nowhere_to_hide = self.wayland
+            && minimize_is_ignored(&std::env::var("XDG_CURRENT_DESKTOP").unwrap_or_default());
         if ctx.input(|i| i.viewport().close_requested())
             && self.has_tray
             && !self.quitting
+            && !nowhere_to_hide
             && tray_host()
         {
             ctx.send_viewport_cmd(egui::ViewportCommand::CancelClose);
@@ -235,5 +250,20 @@ impl Window {
             self.quitting = true;
             ctx.send_viewport_cmd(egui::ViewportCommand::Close);
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::minimize_is_ignored;
+
+    #[test]
+    fn tiling_desktops_have_no_minimize_and_others_do() {
+        assert!(minimize_is_ignored("sway"));
+        assert!(minimize_is_ignored("Hyprland"));
+        assert!(minimize_is_ignored("niri:GNOME"));
+        assert!(!minimize_is_ignored("KDE"));
+        assert!(!minimize_is_ignored("ubuntu:GNOME"));
+        assert!(!minimize_is_ignored(""));
     }
 }

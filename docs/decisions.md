@@ -1622,3 +1622,14 @@ Left as it is, on purpose:
   own Add links window has the checkboxes. A page overlay needs a real
   browser to check, which this project's shell does not have, so it is not
   built unseen.
+
+## 2026-10-25 Closing the window quits on a tiling Wayland desktop
+
+Close-to-tray on Wayland minimizes (2026-10-23), and sway, Hyprland, river,
+niri and similar have no minimize: Super+Q (their kill-window key) changed
+nothing on screen. Where `XDG_CURRENT_DESKTOP` names one of them
+(`minimize_is_ignored`, unit-tested) a close takes the no-tray path: dm exits,
+asked first while downloads run. Not seen on a real compositor from this
+shell; `swaymsg kill` in `linux-wayland-close-check.sh` sets no desktop name,
+so it still checks the minimize path. Considered: a setting for what closing
+does, dropped until someone needs the other choice.

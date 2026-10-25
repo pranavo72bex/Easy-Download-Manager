@@ -10,6 +10,10 @@ This release also carries what was prepared as 0.6.0 and 0.7.0, which were never
 - An address that differs only by tracking parameters (`utm_*`, `fbclid`,
   `gclid`, `igshid`, `si`, `feature`) is the same address when dm asks
   whether a link is already in the list.
+- On tiling Wayland desktops (sway, Hyprland, river, niri, …) closing the
+  window, Super+Q included, now exits dm, asking first while downloads run.
+  dm used to minimize it there, which those desktops ignore, so the key
+  looked dead.
 - The tray menu has Start queue and Stop all, so downloads can be started and
   stopped without opening the window.
 
