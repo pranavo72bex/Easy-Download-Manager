@@ -62,28 +62,39 @@ impl DmApp {
         }
     }
 
-    /// Uploads a finished file to Gofile and puts the link to it on the
-    /// clipboard. Only on request: nothing is sent otherwise.
-    pub fn share_on_gofile(&mut self, path: &str) {
-        let done = Arc::clone(&self.gofile_done);
-        let path = std::path::PathBuf::from(path);
-        let client = self.client();
-        self.said = crate::i18n::t("Uploading to Gofile…").into();
-        let spawned = std::thread::Builder::new()
-            .name("dm-gofile".into())
-            .spawn(move || {
-                let answer = tokio::runtime::Builder::new_current_thread()
-                    .enable_all()
-                    .build()
-                    .map_err(|e| e.to_string())
-                    .and_then(|rt| {
-                        rt.block_on(dm_core::gofile::upload(&client, &path))
-                            .map(|up| up.page)
-                    });
-                *dm_core::lock(&done) = Some(answer);
-            });
-        if let Err(e) = spawned {
-            self.said = format!("Not shared: {e}").into();
+    /// Shares a finished file on the local network and puts the link on the
+    /// clipboard. Only on request: the port is open until the share is
+    /// stopped, an hour passes, or dm quits, and the link is not guessable.
+    pub fn share_on_network(&mut self, path: &str) {
+        // One share at a time: a new one ends the last.
+        self.share = None;
+        match dm_core::lanshare::start(std::path::Path::new(path), dm_core::lanshare::LASTS) {
+            Ok(share) => {
+                let link = share.url().to_string();
+                self.share = Some(share);
+                self.copied = Some(link.clone());
+                self.said = format!(
+                    "{} {link}",
+                    crate::i18n::t(
+                        "Network link copied. It works for an hour, or until you stop sharing:"
+                    )
+                )
+                .into();
+            }
+            Err(e) => self.said = format!("Not shared: {e}").into(),
+        }
+    }
+
+    /// Whether a file is being shared on the network now.
+    pub fn share_active(&self) -> bool {
+        self.share.is_some()
+    }
+
+    /// Ends the network share: its port closes and its link stops working.
+    pub fn stop_sharing(&mut self) {
+        if let Some(share) = self.share.take() {
+            share.stop();
+            self.said = crate::i18n::t("Stopped sharing.").into();
         }
     }
 

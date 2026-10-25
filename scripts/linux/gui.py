@@ -623,22 +623,34 @@ def extract_and_command_line(home, env):
         check("extracting again makes a second folder and replaces nothing",
               wait_for(lambda: (path.parent / (folder.name + " (1)") / "readme.txt").exists(), 15))
 
-        # Share on Gofile, on the same finished row. The menu item is always
-        # checked; the upload itself goes to the real service, so only when
-        # asked for with DM_GOFILE_LIVE=1.
+        # Share on this network, on the same finished row: clicked as a
+        # person does, then fetched from outside the app with curl the way
+        # a neighbour's download manager would, and stopped.
         click_row("good.zip", button="3")
-        check("the row menu offers Share on Gofile", bool(wait_for(lambda: where("*", "Share on Gofile"), 5)))
-        if os.environ.get("DM_GOFILE_LIVE"):
-            click("*", "Share on Gofile", seconds=5)
-            said = wait_for(lambda: (ORACLE("ui.inspect") or {}).get("said", "").startswith(("Gofile link copied", "Not shared"))
-                            and (ORACLE("ui.inspect") or {}).get("said"), 90)
-            check("the status line gives a Gofile link", bool(said) and said.startswith("Gofile link copied: https://gofile.io/d/"), str(said))
-            link = str(said).split(": ", 1)[-1].strip()
-            pasted = subprocess.run(["xclip", "-o", "-selection", "clipboard"], capture_output=True, text=True).stdout.strip()
-            check("and the same link is on the clipboard", pasted == link, pasted)
-            print("   gofile link:", link)
-        else:
-            x("xdotool", "key", "Escape")
+        check("the row menu offers Share on this network", bool(wait_for(lambda: where("*", "Share on this network"), 5)))
+        click("*", "Share on this network", seconds=5)
+        said = wait_for(lambda: (ORACLE("ui.inspect") or {}).get("said", "").startswith(("Network link copied", "Not shared"))
+                        and (ORACLE("ui.inspect") or {}).get("said"), 15)
+        check("the status line gives a network link", bool(said) and said.startswith("Network link copied.") and "http://" in said, str(said))
+        link = str(said).rsplit(" ", 1)[-1].strip()
+        pasted = subprocess.run(["xclip", "-o", "-selection", "clipboard"], capture_output=True, text=True).stdout.strip()
+        check("and the same link is on the clipboard", pasted == link, pasted)
+        check("the link is not the loopback, which only this computer reaches", "://127." not in link and "://localhost" not in link, link)
+        got = subprocess.run(["curl", "-sS", "--max-time", "20", "-o", "/tmp/shared-copy.zip", "-w", "%{http_code}", link], capture_output=True, text=True).stdout
+        check("another program fetches the file from the link", got == "200" and open("/tmp/shared-copy.zip", "rb").read() == path.read_bytes(), got)
+        part = subprocess.run(["curl", "-sS", "--max-time", "20", "-r", "0-9", "-w", "|%{http_code}", link], capture_output=True).stdout
+        check("and a range of it, which is what lets a download manager use several connections",
+              part == path.read_bytes()[:10] + b"|206", repr(part))
+        wrong = subprocess.run(["curl", "-sS", "--max-time", "20", "-o", "/dev/null", "-w", "%{http_code}", link.rsplit("/", 2)[0] + "/00000000000000000000000000000000/good.zip"], capture_output=True, text=True).stdout
+        check("a link with another token gets nothing", wrong == "404", wrong)
+        click_row("good.zip", button="3")
+        check("while sharing, the row menu offers Stop sharing", bool(wait_for(lambda: where("*", "Stop sharing"), 5)))
+        click("*", "Stop sharing", seconds=5)
+        gone = wait_for(lambda: subprocess.run(["curl", "-sS", "--max-time", "5", "-o", "/dev/null", "-w", "%{http_code}", link], capture_output=True, text=True).stdout == "000", 10)
+        check("after Stop sharing the link is dead", bool(gone))
+        click_row("good.zip", button="3")
+        check("and the row menu no longer offers Stop sharing", not where("*", "Stop sharing"))
+        x("xdotool", "key", "Escape")
 
         # A hostile archive: refused whole, nothing written anywhere.
         evil = f"{base}/evil.zip"

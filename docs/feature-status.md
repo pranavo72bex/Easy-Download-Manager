@@ -443,14 +443,15 @@ of them.
       a URL without `.mpd` takes the same route. Each route is pinned by
       `DM_YTDLP` — empty for the refusal, a stand-in that records its
       arguments for the hand-off — so neither can be deleted unnoticed
-- [x] Share a finished file on Gofile — Share on Gofile in the File and row
-      menus (`gofile.rs`): asks Gofile for a server, streams the file up as a
-      guest upload, copies the page link; only on request, no key kept.
-      Tested against a local stand-in server (body carries the file whole,
-      refusals and hostile server names handled); one real upload through
-      the window on 2026-10-25 (`--ignored` tests in `gofile.rs` and
-      `tests/window/downloads.rs`, which hit the live service and so are
-      not in CI)
+- [x] Share a finished file on the local network — Share on this network and
+      Stop sharing (`lanshare.rs`): a port opens only on request, serves that
+      one file at an unguessable address (128 random bits) with byte ranges,
+      closes after an hour or on Stop; refused to scripts. `tests/lanshare.rs`
+      (whole file, ranges, wrong token and traversal, POST, stop, expiry, and
+      dm's own engine fetching it over several connections), the window test
+      `a_finished_download_is_shared_on_the_network_and_stopped`, and
+      `scripts/linux-share-check.sh`, which fetches it over a container's
+      real address with curl, 8 ranges at once, byte for byte
 - [x] Extract a finished ZIP — Extract here / Extract to… in the row menu
       (`extract.rs`): every entry judged before any is written (paths that
       leave the folder, links, devices, passwords, repeated names, size and

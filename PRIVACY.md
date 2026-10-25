@@ -11,13 +11,18 @@ click it: it fetches the release's `latest.json` from GitHub. That request
 carries nothing about you or your downloads; GitHub sees an address asking
 for a public file, as it does for any download.
 
-## Sharing a file on Gofile
+## Sharing a file on your network
 
-Only when you pick Share on Gofile on a finished download, dm uploads that
-one file to Gofile as a guest upload and copies the link. Gofile receives the
-file and its name, and sees your address as any website does; there is no
-account or key, and nothing is sent about your other downloads. Gofile's own
-terms and retention apply to the uploaded file.
+Only when you pick Share on this network on a finished download, dm opens one
+port on this computer's network address and serves that one file there, so
+another computer on the same network can paste the link into its download
+manager. The link is plain HTTP, not encrypted. The link holds
+128 random bits, so it cannot be guessed; nothing else on this computer is
+reachable through it, and nothing is sent to any server. It ends when you pick
+Stop sharing, after an hour, or when dm quits. Your system's firewall may ask
+to allow dm to accept connections the first time. Anyone who has the link and
+can reach the port can download the file while it is open, so give it only to
+people you mean to.
 
 ## Getting the tools for video sites
 
@@ -110,7 +115,8 @@ Options › Browser has "Hand over the browser's sign-in with every download"
 takes its own site's cookies, sent to that site's server only, and they are
 dropped from the row once that download is done, as a video page's are.
 
-**On this computer only.** dm listens on no network address by default. Started
+**On this computer only.** dm listens on no network address by default (the one
+exception is a file you share on your network, above). Started
 with `--control` (or `--headless --control`), it opens a port on the loopback
 address (`127.0.0.1`), which only programs on this computer can reach, and only
 one that presents a token kept in a file your account alone can read; the
@@ -133,7 +139,7 @@ the truth and the disagreement is a bug worth reporting.
 This is also checked, not only promised: `cargo xtask privacy` (in
 `desktop/`, and as a test in every build) fails if any crate that sends
 reports — analytics, crash reporting, telemetry — enters the build, or if
-shipped code names any address but GitHub's and Gofile's. dm reaches GitHub only when
+shipped code names any address but GitHub's. dm reaches GitHub only when
 you check for updates or open Help, or to fetch yt-dlp and QuickJS when a
-video needs them and your computer has none. Gofile is reached only for Share on Gofile. The two extension stores are
+video needs them and your computer has none. The two extension stores are
 opened in your browser only when you click to add dm to it.

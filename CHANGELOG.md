@@ -17,12 +17,14 @@ This release also carries what was prepared as 0.6.0 and 0.7.0, which were never
 - The tray menu has Start queue and Stop all, so downloads can be started and
   stopped without opening the window.
 
-- **Share on Gofile** in the File and row menus: a finished file is uploaded
-  to Gofile as a guest upload and the link to its page is copied. Only when
-  asked, per file; no account or key is kept. Gofile's terms could not be
-  read when this was added; the address and answer shape come from public
-  client code and were confirmed by a real upload on 2026-10-25. It is a person's click: the control port, the
-  command line and AI assistants are refused it, as they are opening a file.
+- **Share on this network** in the File and row menus: a finished file is
+  served from this computer, for an hour or until **Stop sharing**, and its
+  link is copied. A neighbour's download manager pastes the link and fetches
+  the file over several connections at once, as the server answers byte
+  ranges. The link holds 128 random bits, serves that one file only, and the
+  port is closed the rest of the time. It is a person's click: the control
+  port, the command line and AI assistants are refused it, as they are
+  opening a file.
 
 - Shorter, plainer words in Options, the remove question, errors and hints,
   in the sentence case WinUI uses ("Start dm when I sign in", "Allow the

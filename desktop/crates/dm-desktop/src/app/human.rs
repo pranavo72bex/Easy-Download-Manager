@@ -25,8 +25,8 @@ pub struct ScreenText {
 }
 
 /// Words a script or an AI client may not click: they run a downloaded file,
-/// which on Windows may be a program, or send one to Gofile, and that stays a
-/// person's click.
+/// which on Windows may be a program, or share one on the network, and that
+/// stays a person's click.
 fn is_run_a_file(text: &str) -> bool {
     use crate::commands::Command;
     let text = text.trim().to_lowercase();
@@ -34,7 +34,7 @@ fn is_run_a_file(text: &str) -> bool {
         Command::OpenFile,
         Command::OpenWith,
         Command::Preview,
-        Command::ShareOnGofile,
+        Command::ShareOnNetwork,
     ]
     .iter()
     .flat_map(|c| [c.label(), crate::i18n::t(c.label())])

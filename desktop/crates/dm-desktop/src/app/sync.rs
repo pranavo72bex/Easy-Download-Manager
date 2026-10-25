@@ -449,15 +449,6 @@ impl DmApp {
         if let Some(why) = dm_core::lock(&self.opener_said).take() {
             self.said = why.into();
         }
-        if let Some(answer) = dm_core::lock(&self.gofile_done).take() {
-            self.said = match answer {
-                Ok(link) => {
-                    self.copied = Some(link.clone());
-                    format!("{} {link}", crate::i18n::t("Gofile link copied:")).into()
-                }
-                Err(e) => format!("Not shared: {e}").into(),
-            };
-        }
         if let Some((checked, changed)) = dm_core::lock(&self.rechecked).take() {
             self.said = crate::i18n::Said::counting(
                 "Checked {} finished file with its server. Changed since, and downloaded again: {}.||Checked {} finished files with their servers. Changed since, and downloaded again: {}.",

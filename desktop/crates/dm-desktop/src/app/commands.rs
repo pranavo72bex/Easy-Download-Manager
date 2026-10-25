@@ -71,12 +71,14 @@ impl DmApp {
                     && !crate::table::gone(targets[0])
             }
             // A finished file that is still on disk.
-            Command::ShareOnGofile => {
+            Command::ShareOnNetwork => {
                 targets.len() == 1
                     && targets[0].state == State::Completed
                     && !targets[0].path.is_empty()
                     && !crate::table::gone(targets[0])
             }
+            // While a file is being shared on the network.
+            Command::StopSharing => self.share.is_some(),
             Command::OpenFile | Command::OpenWith => {
                 targets.len() == 1
                     && targets[0].state == State::Completed
@@ -115,7 +117,7 @@ impl DmApp {
                 .into();
             return;
         }
-        if self.by_script() && command == Command::ShareOnGofile {
+        if self.by_script() && command == Command::ShareOnNetwork {
             self.said = "Sharing a file is done by a person, not by a script"
                 .to_string()
                 .into();
@@ -302,7 +304,8 @@ impl DmApp {
             Command::ExtractHere => {
                 self.extract_zip(&targets[0].path, &targets[0].url, None);
             }
-            Command::ShareOnGofile => self.share_on_gofile(&targets[0].path),
+            Command::ShareOnNetwork => self.share_on_network(&targets[0].path),
+            Command::StopSharing => self.stop_sharing(),
             Command::ExtractTo => {
                 if !self.backend.platform.can_choose_folder() {
                     self.said = crate::i18n::t("No folder picker here. Use Extract here.").into();
