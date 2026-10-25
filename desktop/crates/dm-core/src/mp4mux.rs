@@ -171,7 +171,7 @@ use text::*;
 pub(crate) use write::*;
 
 #[cfg(test)]
-mod tests {
+pub(crate) mod tests {
     use super::*;
 
     /// A minimal track: one sample description of `codec`, `samples` of
@@ -241,7 +241,7 @@ mod tests {
     /// A fragmented file: an empty index, then fragments of three samples,
     /// the second sample of each not a sync sample, data counted from its
     /// moof. Sample n of the file is n bytes of the byte n.
-    fn fragmented(dir: &Path, name: &str, fragments: u32) -> (PathBuf, Vec<Vec<u8>>) {
+    pub(crate) fn fragmented(dir: &Path, name: &str, fragments: u32) -> (PathBuf, Vec<Vec<u8>>) {
         let mut file = boxed(b"ftyp", &[b"iso5", &[0u8; 4]]);
         file.extend(moov_of(1, b"vide", 90000, &empty_stbl(), true));
         let mut samples = Vec::new();
@@ -281,7 +281,7 @@ mod tests {
     }
 
     /// A plain file of `count` samples of 10 bytes, two per chunk.
-    fn plain(dir: &Path, name: &str, count: u32, byte: u8) -> (PathBuf, Vec<Vec<u8>>) {
+    pub(crate) fn plain(dir: &Path, name: &str, count: u32, byte: u8) -> (PathBuf, Vec<Vec<u8>>) {
         let ftyp = boxed(b"ftyp", &[b"M4A ", &[0u8; 4]]);
         let samples: Vec<Vec<u8>> = (0..count)
             .map(|i| vec![byte.wrapping_add(i as u8); 10])

@@ -13,6 +13,11 @@ This release also carries what was prepared as 0.6.0 and 0.7.0, which were never
   subdomains too when saved with a leading dot (`.example.com`); the update
   check refuses a `latest.json` that lacks a good ed25519 signature
   (`latest.json.sig`).
+- DASH streams (`.mpd`) are read and joined by dm itself: the picture and
+  sound are fetched, with byte ranges where the manifest cuts a file so, and
+  joined into one MP4 or WebM without a re-encode. A DASH stream no longer
+  needs a video helper downloaded; a live one, or one under a rights system,
+  is refused with the reason.
 - An address that differs only by tracking parameters (`utm_*`, `fbclid`,
   `gclid`, `igshid`, `si`, `feature`) is the same address when dm asks
   whether a link is already in the list.

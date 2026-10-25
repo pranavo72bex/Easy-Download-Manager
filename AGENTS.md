@@ -27,8 +27,8 @@ A free download manager for Windows, macOS and Linux, with a browser
 extension that hands it the browser's downloads.
 
 - `desktop/` is the product. `crates/dm-core` is the engine (probe, plan,
-  ranged fetch, resume, assembly, queue, HLS, Metalink, BitTorrent, yt-dlp
-  hand-off). `crates/dm-shell` is everything around the window that is not
+  ranged fetch, resume, assembly, queue, HLS, DASH, Metalink, BitTorrent,
+  yt-dlp hand-off for player pages). `crates/dm-shell` is everything around the window that is not
   the window: settings, the native messaging host, the one-instance lock,
   startup and the inbox. `crates/dm-desktop` is the window, drawn in Rust
   with egui, no web view, plus the

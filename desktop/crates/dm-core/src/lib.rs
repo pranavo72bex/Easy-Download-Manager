@@ -16,6 +16,7 @@ pub mod category;
 pub mod checksum;
 pub mod control;
 pub mod cookies;
+pub mod dash;
 pub mod download;
 pub mod extract;
 pub mod fmp4;

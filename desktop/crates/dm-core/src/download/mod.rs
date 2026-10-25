@@ -29,6 +29,7 @@ use crate::stream::{self, Quality};
 use crate::Error;
 
 mod assemble;
+mod dash;
 mod files;
 mod hls;
 mod http;
@@ -484,29 +485,14 @@ async fn fetch_reporting(
      * it takes a path of its own rather than being fetched as the few
      * kilobytes of text it literally is. */
     /* A DASH manifest routinely carries picture and sound as separate
-     * representations, and joining them needs a muxer. yt-dlp reads MPDs
-     * natively and dm joins what it fetches — so where yt-dlp is there a
-     * DASH stream is handed to it, the way a player page is. Without it the
-     * manifest is refused plainly rather than fetched by half: only the
-     * video, reported as a success, is a silent film. Decided once, here,
-     * from the URL and the content type together — a manifest served as
-     * `application/dash+xml` from a URL that does not end in `.mpd` is DASH
-     * just the same. */
+     * representations; dm reads it, fetches both and joins them itself
+     * (`dash`, `mp4mux`, `mkvmux`). Decided once, here, from the URL and the
+     * content type together — a manifest served as `application/dash+xml`
+     * from a URL that does not end in `.mpd` is DASH just the same. */
     let kind = stream::kind_of(url, info.content_type.as_deref());
-    // yt-dlp found, or fetched by dm where the computer has none (`tools`).
-    let dash_tools = match kind {
-        Some(stream::Kind::Dash) => Some(crate::tools::for_video(client).await),
-        _ => None,
-    };
     match kind {
-        Some(stream::Kind::Dash) if matches!(dash_tools, Some(Ok(()))) => {
-            return crate::ytdlp::download_ytdlp(url, options, report).await;
-        }
         Some(stream::Kind::Dash) => {
-            return Err(Error::Internal(format!(
-                "this stream needs dm's video helper, which could not be got ready ({})",
-                dash_tools.and_then(Result::err).unwrap_or_default()
-            )));
+            return dash::download_dash(client, url, options, report).await;
         }
         Some(stream::Kind::Hls) => {
             return download_stream(client, url, options, report).await;

@@ -435,14 +435,17 @@ of them.
       the one chosen is written beside the parts, and segments of another
       are discarded rather than spliced in after a quality change. The page's
       referrer goes on every request of the stream, not only the probe; a
-      test serves a stream only to its page and gets it. DASH in the client goes to
-      yt-dlp, which reads MPDs natively, and dm joins its picture and sound.
-      Without the video helper a DASH manifest is refused rather than the video
-      half fetched alone and called a success. Decided once, from the URL
-      and the content type together, so a manifest served as `dash+xml` from
-      a URL without `.mpd` takes the same route. Each route is pinned by
-      `DM_YTDLP` — empty for the refusal, a stand-in that records its
-      arguments for the hand-off — so neither can be deleted unnoticed
+      test serves a stream only to its page and gets it. DASH is read by dm itself
+      (2026-10-25, `dash.rs`, `download/dash.rs`): templates (number, time,
+      timeline), segment lists with byte ranges, and single files; the picture
+      and sound are chosen by the quality and container asked for, each fetched
+      piece by piece (a byte range a server does not honour is an error, not
+      the whole file written in as one piece), resumed from the pieces already
+      whole, and joined by dm's own muxer (`mp4mux`, `mkvmux`). A live manifest,
+      one that changes period part-way, and one under a rights system
+      (`ContentProtection`) are refused by name. Pinned by the parser's unit
+      tests and by a download of a picture cut by byte ranges and a sound,
+      served with ranges, joined into one MP4 (`download/dash.rs` tests)
 - [x] Extract a finished ZIP — Extract here / Extract to… in the row menu
       (`extract.rs`): every entry judged before any is written (paths that
       leave the folder, links, devices, passwords, repeated names, size and

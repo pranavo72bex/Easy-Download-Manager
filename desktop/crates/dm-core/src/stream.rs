@@ -557,7 +557,7 @@ impl Stream {
 ///
 /// The manifest is nearly always called `index.m3u8` or `master.m3u8`, so the
 /// directory above it carries the only meaningful name.
-fn name_for(url: &str, container: &str) -> String {
+pub(crate) fn name_for(url: &str, container: &str) -> String {
     const ANONYMOUS: [&str; 6] = ["index", "master", "playlist", "manifest", "stream", "video"];
 
     let stem = (|| {

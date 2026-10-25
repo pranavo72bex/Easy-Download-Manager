@@ -276,8 +276,16 @@ mod tests {
         assert!(signed_by(&key, manifest, &good));
         assert!(signed_by(&key, manifest, &format!("{good}\n")));
         // Changed after signing, signed by someone else, missing, or junk.
-        assert!(!signed_by(&key, br#"{"version":"9.9.9","sha256":{"a":"b"}}"#, &good));
-        assert!(!signed_by(&key, manifest, &b64.encode(theirs.sign(manifest).as_ref())));
+        assert!(!signed_by(
+            &key,
+            br#"{"version":"9.9.9","sha256":{"a":"b"}}"#,
+            &good
+        ));
+        assert!(!signed_by(
+            &key,
+            manifest,
+            &b64.encode(theirs.sign(manifest).as_ref())
+        ));
         assert!(!signed_by(&key, manifest, ""));
         assert!(!signed_by(&key, manifest, "not base64!"));
         assert!(!signed_by("", manifest, &good));

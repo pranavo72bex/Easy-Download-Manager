@@ -592,6 +592,18 @@ pub(super) async fn fetch_segment_body(
     url: &str,
     options: &Options,
 ) -> Result<Vec<u8>, Error> {
+    fetch_segment_range(client, url, None, options).await
+}
+
+/// [`fetch_segment_body`] for a piece that is part of a file: exactly the
+/// bytes asked for, or an error. A server that ignores the range and sends
+/// the whole file would otherwise be written in as the piece.
+pub(super) async fn fetch_segment_range(
+    client: &reqwest::Client,
+    url: &str,
+    range: Option<(u64, u64)>,
+    options: &Options,
+) -> Result<Vec<u8>, Error> {
     /// The largest a segment is sized for up front. A segment grown by
     /// doubling from empty is copied about fourteen times on the way, so the
     /// hint is worth taking — but only as far as a real segment goes.
@@ -599,21 +611,22 @@ pub(super) async fn fetch_segment_body(
     /// otherwise be an allocation of a terabyte.
     const HINT_CAP: u64 = 32 * 1024 * 1024;
 
-    let res = or_stop(
-        &options.control,
-        crate::auth::send(
-            client,
-            get(
-                client,
-                url,
-                options.referrer.as_deref(),
-                options.sign_in.as_ref(),
-            ),
-            url,
-        ),
-    )
-    .await?;
+    let mut request = get(
+        client,
+        url,
+        options.referrer.as_deref(),
+        options.sign_in.as_ref(),
+    );
+    if let Some((first, last)) = range {
+        request = request.header(reqwest::header::RANGE, format!("bytes={first}-{last}"));
+    }
+    let res = or_stop(&options.control, crate::auth::send(client, request, url)).await?;
     let res = Error::refused_or(res).await?;
+    if range.is_some() && res.status() != reqwest::StatusCode::PARTIAL_CONTENT {
+        return Err(Error::Internal(format!(
+            "{url} did not honour the byte range this stream is cut by"
+        )));
+    }
     let hint = res.content_length().unwrap_or(0).min(HINT_CAP);
     let mut body = Vec::with_capacity(hint as usize);
     let mut chunks = res.bytes_stream();
@@ -632,6 +645,13 @@ pub(super) async fn fetch_segment_body(
             Ok(())
         })
         .await?;
+    }
+    if let Some((first, last)) = range {
+        if body.len() as u64 != last - first + 1 {
+            return Err(Error::Internal(format!(
+                "{url} answered a byte range with the wrong number of bytes"
+            )));
+        }
     }
     Ok(body)
 }
