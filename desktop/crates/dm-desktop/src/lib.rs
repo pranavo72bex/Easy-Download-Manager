@@ -17,6 +17,7 @@
 pub mod accent;
 pub mod app;
 pub mod autostart;
+pub mod awake;
 pub mod backend;
 pub mod bidi;
 pub mod chrome;

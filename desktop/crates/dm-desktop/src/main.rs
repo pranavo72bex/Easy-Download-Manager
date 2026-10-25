@@ -436,6 +436,16 @@ fn main() {
         runtime.spawn(async move { queue.run().await });
     }
 
+    // The computer kept awake for as long as a download is running.
+    {
+        let (queue, handle) = (queue.clone(), runtime.handle().clone());
+        dm_desktop::awake::watch(move || {
+            handle
+                .block_on(queue.list())
+                .iter()
+                .any(|row| row.state == dm_core::queue::State::Running)
+        });
+    }
     let mut backend = Backend::new(runtime.handle().clone(), queue, saved, notices, platform);
     // A sleeping computer woken for the schedule, where the Scheduler says.
     {
