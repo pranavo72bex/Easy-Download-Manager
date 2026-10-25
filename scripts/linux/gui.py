@@ -623,6 +623,23 @@ def extract_and_command_line(home, env):
         check("extracting again makes a second folder and replaces nothing",
               wait_for(lambda: (path.parent / (folder.name + " (1)") / "readme.txt").exists(), 15))
 
+        # Share on Gofile, on the same finished row. The menu item is always
+        # checked; the upload itself goes to the real service, so only when
+        # asked for with DM_GOFILE_LIVE=1.
+        click_row("good.zip", button="3")
+        check("the row menu offers Share on Gofile", bool(wait_for(lambda: where("*", "Share on Gofile"), 5)))
+        if os.environ.get("DM_GOFILE_LIVE"):
+            click("*", "Share on Gofile", seconds=5)
+            said = wait_for(lambda: (ORACLE("ui.inspect") or {}).get("said", "").startswith(("Gofile link copied", "Not shared"))
+                            and (ORACLE("ui.inspect") or {}).get("said"), 90)
+            check("the status line gives a Gofile link", bool(said) and said.startswith("Gofile link copied: https://gofile.io/d/"), str(said))
+            link = str(said).split(": ", 1)[-1].strip()
+            pasted = subprocess.run(["xclip", "-o", "-selection", "clipboard"], capture_output=True, text=True).stdout.strip()
+            check("and the same link is on the clipboard", pasted == link, pasted)
+            print("   gofile link:", link)
+        else:
+            x("xdotool", "key", "Escape")
+
         # A hostile archive: refused whole, nothing written anywhere.
         evil = f"{base}/evil.zip"
         add_url_by_hand(evil)

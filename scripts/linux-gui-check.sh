@@ -3,6 +3,7 @@
 #
 #   sh scripts/linux-gui-check.sh
 #   DM_ORCA=1 sh scripts/linux-gui-check.sh    # with Orca, a real screen reader
+#   DM_GOFILE_LIVE=1 sh scripts/linux-gui-check.sh   # also uploads a file to Gofile
 #
 # Builds the client in the Debian image linux-check.sh uses, then runs
 # scripts/linux/gui.py under Xvfb with a window manager (openbox), a
@@ -18,6 +19,7 @@ git ls-files -z --cached --others --exclude-standard \
   | tar --null -T - -cf - \
   | exec docker run --rm -i \
       -e DM_ORCA="${DM_ORCA:-}" \
+      -e DM_GOFILE_LIVE="${DM_GOFILE_LIVE:-}" \
       -v dm-linux-target:/target \
       -v "$HOME/.cargo/registry":/usr/local/cargo/registry \
       dm-linux-check sh -c '

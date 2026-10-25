@@ -294,12 +294,22 @@ fn opening_a_file_is_refused_over_the_control_protocol() {
     let world = world();
     let mut harness = world.harness();
     let app = harness.state_mut();
-    for id in ["file.open", "file.open_with"] {
+    for id in ["file.open", "file.open_with", "file.share_gofile"] {
         let refused = app
             .control_call("command.run", &serde_json::json!({ "id": id }))
             .expect_err(id);
         assert!(refused.contains("by a person"), "{refused}");
     }
+    // Nor by clicking its words.
+    let clicked = app.human_call(
+        "ui.click",
+        &serde_json::json!({ "text": "Share on Gofile" }),
+        None,
+    );
+    assert!(
+        matches!(&clicked, Some(Err(why)) if why.contains("by a person")),
+        "{clicked:?}"
+    );
 }
 
 #[test]

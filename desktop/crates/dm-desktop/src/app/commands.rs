@@ -115,6 +115,12 @@ impl DmApp {
                 .into();
             return;
         }
+        if self.by_script() && command == Command::ShareOnGofile {
+            self.said = "Sharing a file is done by a person, not by a script"
+                .to_string()
+                .into();
+            return;
+        }
         if !self.enabled(command) {
             return;
         }
