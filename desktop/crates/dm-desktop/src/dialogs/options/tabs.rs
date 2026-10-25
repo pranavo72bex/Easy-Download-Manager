@@ -376,34 +376,30 @@ pub(super) fn tab_downloads(ui: &mut egui::Ui, d: &mut OptionsDialog, env: &TabE
         queues, platform, ..
     } = *env;
     let s = &mut d.draft;
-    egui::Grid::new("downloads")
-        .num_columns(2)
-        .spacing([12.0, 8.0])
-        .show(ui, |ui| {
-            let name = ui.label(t("Connections per file"));
-            ui.add(number_box(&mut s.connections).range(1..=32))
-                .labelled_by(name.id);
-            ui.end_row();
-            let name = ui.label(t("Files at once"));
-            ui.add(number_box(&mut s.concurrency).range(1..=10))
-                .labelled_by(name.id);
-            ui.end_row();
-            let choices = QUALITIES;
-            let current = choices
-                .iter()
-                .find(|(v, _)| *v == s.stream_quality)
-                .map(|(_, l)| *l)
-                .unwrap_or("Best available");
-            ui.label(t("Video quality"));
-            combo("quality")
-                .selected_text(t(current))
-                .show_ui(ui, |ui| {
-                    for (value, label) in choices {
-                        pick(ui, &mut s.stream_quality, value.to_string(), t(label));
-                    }
-                });
-            ui.end_row();
-        });
+    number_row(ui, t("Connections per file"), |ui, name| {
+        ui.add(number_box(&mut s.connections).range(1..=32))
+            .labelled_by(name);
+    });
+    number_row(ui, t("Files at once"), |ui, name| {
+        ui.add(number_box(&mut s.concurrency).range(1..=10))
+            .labelled_by(name);
+    });
+    setting_row(ui, t("Video quality"), |ui, name| {
+        let current = QUALITIES
+            .iter()
+            .find(|(v, _)| *v == s.stream_quality)
+            .map(|(_, l)| *l)
+            .unwrap_or("Best available");
+        combo("quality")
+            .selected_text(t(current))
+            .show_ui(ui, |ui| {
+                for (value, label) in QUALITIES {
+                    pick(ui, &mut s.stream_quality, value.to_string(), t(label));
+                }
+            })
+            .response
+            .labelled_by(name);
+    });
     toggle_row(
         ui,
         &mut s.start_queue_on_launch,

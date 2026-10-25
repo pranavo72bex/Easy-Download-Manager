@@ -67,9 +67,12 @@ impl egui::Widget for NumberBox<'_> {
             let focus = response.has_focus();
             let height = if focus { 2.0 } else { 1.0 };
             let rect = response.rect;
+            // Stopping where the corners start to curve, as the other
+            // fields' line does.
+            let inset = f32::from(t.radius) + 0.5;
             let line = egui::Rect::from_min_max(
-                egui::pos2(rect.left() + 1.0, rect.bottom() - height),
-                egui::pos2(rect.right() - 1.0, rect.bottom()),
+                egui::pos2(rect.left() + inset, rect.bottom() - height),
+                egui::pos2(rect.right() - inset, rect.bottom()),
             );
             ui.painter()
                 .rect_filled(line, 0.0, if focus { t.brand } else { t.stroke });
@@ -90,19 +93,7 @@ pub(super) fn number_row(
     words: &str,
     add: impl FnOnce(&mut egui::Ui, egui::Id),
 ) {
-    ui.horizontal(|ui| {
-        let room = (ui.available_width() - 96.0).max(120.0);
-        let name = ui
-            // At least a box's height, centred in it: one line of words
-            // sat below the box's middle.
-            .allocate_ui_with_layout(
-                egui::vec2(room, ui.spacing().interact_size.y),
-                egui::Layout::left_to_right(egui::Align::Center).with_main_wrap(true),
-                |ui| ui.add(egui::Label::new(words).wrap()),
-            )
-            .inner;
-        add(ui, name.id);
-    });
+    setting_row(ui, words, add);
 }
 
 /// A heading over a group of settings: a little room above, in the
@@ -702,11 +693,22 @@ pub(crate) fn setting_row(
     control: impl FnOnce(&mut egui::Ui, egui::Id),
 ) {
     let t = crate::theme::Tokens::get(ui.ctx());
+    let width = ui.available_width();
     ui.allocate_ui_with_layout(
-        egui::vec2(ui.available_width(), 40.0),
+        egui::vec2(width, 40.0),
         egui::Layout::left_to_right(egui::Align::Center),
         |ui| {
-            let label = ui.label(name);
+            ui.set_min_height(40.0);
+            // The words wrap in the room the control leaves them, and the
+            // control stays beside them, centred on them.
+            let room = (width - 120.0).max(120.0);
+            let label = ui
+                .allocate_ui_with_layout(
+                    egui::vec2(room, 0.0),
+                    egui::Layout::left_to_right(egui::Align::Center).with_main_wrap(true),
+                    |ui| ui.add(egui::Label::new(name).wrap()),
+                )
+                .inner;
             ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                 // Clear of the scroll bar, which floats over the right edge.
                 ui.add_space(8.0);

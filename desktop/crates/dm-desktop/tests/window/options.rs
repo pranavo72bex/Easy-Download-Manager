@@ -313,7 +313,15 @@ fn a_queues_start_time_is_set_in_options() {
         d.tab = dm_desktop::dialogs::Tab::Downloads;
     }
     harness.run_steps(2);
+    // Scrolled to, as a person scrolls to it.
+    harness.get_by_label("Add a start time").scroll_to_me();
+    harness.run();
     click(&mut harness, "Add a start time");
+    harness.run_steps(2);
+    harness
+        .get_by_label_contains("Starts at (HH:MM)")
+        .scroll_to_me();
+    harness.run();
     type_role(&mut harness, "Starts at (HH:MM)", "x");
     assert!(harness.query_by_label("Not a time").is_some());
     if let Some(d) = harness.state_mut().dialogs.options.as_mut() {
