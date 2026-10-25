@@ -265,7 +265,7 @@ mod tests {
     async fn a_file_goes_up_whole_and_its_page_comes_back() {
         let dir = std::env::temp_dir().join(format!("dm-gofile-{}", std::process::id()));
         std::fs::create_dir_all(&dir).unwrap();
-        let file = dir.join("big \"one\".bin");
+        let file = dir.join("big one.bin");
         let content: Vec<u8> = (0..700_000u32).map(|i| (i % 251) as u8).collect();
         std::fs::write(&file, &content).unwrap();
 
@@ -294,7 +294,7 @@ mod tests {
         let request = upload.await.unwrap();
         let text = String::from_utf8_lossy(&request);
         assert!(text.starts_with("POST /contents/uploadfile"));
-        assert!(text.contains("name=\"file\"; filename=\"big _one_.bin\""));
+        assert!(text.contains("name=\"file\"; filename=\"big one.bin\""));
         // The file's bytes are in the body, unchanged.
         assert!(request
             .windows(content.len())

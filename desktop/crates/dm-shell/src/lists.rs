@@ -663,7 +663,10 @@ mod tests {
         let a = super::bare("https://v.example/watch?v=1&si=abc&utm_source=x");
         assert_eq!(a, super::bare("https://v.example/watch?v=1"));
         assert_ne!(a, super::bare("https://v.example/watch?v=2"));
-        assert_eq!(super::bare("https://a.example/f.zip?fbclid=z"), super::bare("https://a.example/f.zip"));
+        assert_eq!(
+            super::bare("https://a.example/f.zip?fbclid=z"),
+            super::bare("https://a.example/f.zip")
+        );
     }
 
     use super::*;
