@@ -172,7 +172,6 @@
  "Link on your clipboard:": "Panodaki bağlantı:",
  "Links on the clipboard": "Panodaki bağlantılar",
  "Login": "Oturum",
- "Look": "Görünüm",
  "Check for updates once a week": "Güncellemeleri haftada bir denetle",
  "Main queue": "Ana kuyruk",
  "Speed limit (KB/s, 0 for none)": "Hız sınırı (KB/sn, 0 yok)",
@@ -659,9 +658,11 @@
  "Delete site rule": "Site kuralını sil",
  "Add a site rule": "Site kuralı ekle",
  "Pop-ups": "Açılır pencereler",
- "Sounds and look": "Sesler ve görünüm",
  "Offer a new link when a download's link has expired": "Bir indirmenin bağlantısı dolduğunda yeni bağlantı öner",
- "Smallest text": "En küçük metin",
- "As designed": "Tasarlandığı gibi",
- "{} pt": "{} pt"
+ "Appearance": "Görünüm",
+ "Theme": "Tema",
+ "Small": "Küçük",
+ "Medium": "Orta",
+ "Large": "Büyük",
+ "Sounds": "Sesler"
 }

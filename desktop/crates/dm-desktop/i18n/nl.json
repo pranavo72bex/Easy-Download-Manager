@@ -172,7 +172,6 @@
  "Link on your clipboard:": "Link op je klembord:",
  "Links on the clipboard": "Links op het klembord",
  "Login": "Gebruikersnaam",
- "Look": "Uiterlijk",
  "Check for updates once a week": "Eén keer per week op updates controleren",
  "Main queue": "Hoofdwachtrij",
  "Speed limit (KB/s, 0 for none)": "Snelheidslimiet (KB/s, 0 voor geen)",
@@ -659,9 +658,11 @@
  "Delete site rule": "Siteregel verwijderen",
  "Add a site rule": "Siteregel toevoegen",
  "Pop-ups": "Pop-ups",
- "Sounds and look": "Geluiden en uiterlijk",
  "Offer a new link when a download's link has expired": "Een nieuwe link aanbieden als de link van een download is verlopen",
- "Smallest text": "Kleinste tekst",
- "As designed": "Zoals ontworpen",
- "{} pt": "{} pt"
+ "Appearance": "Uiterlijk",
+ "Theme": "Thema",
+ "Small": "Klein",
+ "Medium": "Gemiddeld",
+ "Large": "Groot",
+ "Sounds": "Geluiden"
 }

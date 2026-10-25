@@ -30,90 +30,105 @@ pub(super) fn tab_general(ui: &mut egui::Ui, d: &mut OptionsDialog, env: &TabEnv
             .response
             .labelled_by(name.id);
     });
+    // Appearance, as a modern app lays its settings out: a name at the left
+    // and its choice at the right, under a hairline.
+    section(ui, t("Appearance"));
+    setting_row(ui, t("Theme"), |ui, name| {
+        let shown = THEMES
+            .iter()
+            .find(|(word, _)| *word == s.theme)
+            .map_or(THEMES[0].1, |(_, label)| *label);
+        combo("theme")
+            .selected_text(t(shown))
+            .show_ui(ui, |ui| {
+                for (word, label) in THEMES {
+                    if option(ui, s.theme == word, t(label)).clicked() {
+                        s.theme = word.to_string();
+                    }
+                }
+            })
+            .response
+            .labelled_by(name);
+    });
+    setting_row(ui, t("Text size"), |ui, name| {
+        // The size of everything in the window, the one View › Text size
+        // and Ctrl with + and − also change, so it is read from it.
+        let now = text_size_named(ui.ctx().zoom_factor());
+        combo("text-size")
+            .selected_text(t(now))
+            .show_ui(ui, |ui| {
+                for (label, zoom) in TEXT_SIZES {
+                    if option(ui, now == label, t(label)).clicked() {
+                        ui.ctx().set_zoom_factor(zoom);
+                    }
+                }
+            })
+            .response
+            .labelled_by(name);
+    });
     // In groups under headings: one list of a dozen boxes was
     // hard to find a setting in (a design review).
     section(ui, t("Starting and updating"));
-    check(ui, &mut s.start_on_login, t("Start dm when I sign in"));
-    check(
+    toggle_row(ui, &mut s.start_on_login, t("Start dm when I sign in"));
+    toggle_row(
         ui,
         &mut s.allow_command_line,
         t("Allow the command line to control dm"),
     );
-    check(
+    toggle_row(
         ui,
         &mut s.allow_mcp,
         t("Allow AI assistants to control dm (MCP)"),
     );
-    check(ui, &mut s.check_updates, t("Check for updates once a week"));
-    section(ui, t("Sounds and look"));
-    check(
+    toggle_row(ui, &mut s.check_updates, t("Check for updates once a week"));
+    section(ui, t("Sounds"));
+    toggle_row(
         ui,
         &mut s.sound_on_complete,
         t("Play a sound when a download finishes"),
     );
-    check(
+    toggle_row(
         ui,
         &mut s.sound_on_failure,
         t("Play a sound when a download fails"),
     );
     // Offered only where it can be drawn.
     if crate::chrome::mica_possible() {
-        check(ui, &mut s.mica, t("Use the Mica backdrop"));
+        toggle_row(ui, &mut s.mica, t("Use the Mica backdrop"));
     }
-    ui.horizontal_wrapped(|ui| {
-        let name = ui.label(t("Smallest text"));
-        let shown = |pt: u32| {
-            if pt == 0 {
-                t("As designed").to_string()
-            } else {
-                tf("{} pt", &[&pt])
-            }
-        };
-        combo("min-font")
-            .selected_text(shown(s.min_font_size))
-            .show_ui(ui, |ui| {
-                for pt in [0, 12, 14, 16, 18, 20, 24] {
-                    if option(ui, s.min_font_size == pt, shown(pt)).clicked() {
-                        s.min_font_size = pt;
-                    }
-                }
-            })
-            .response
-            .labelled_by(name.id);
-    });
     section(ui, t("Pop-ups"));
-    check(
+    toggle_row(
         ui,
         &mut s.show_progress,
         t("Show progress when a download starts"),
     );
-    check(
+    toggle_row(
         ui,
         &mut s.show_complete,
         t("Show a message when a download finishes"),
     );
-    check(
+    toggle_row(
         ui,
         &mut s.watch_clipboard,
         t("Offer to download links I copy"),
     );
-    check(
+    toggle_row(
         ui,
         &mut s.ask_panel_downloads,
         t("Ask where to save videos"),
     );
-    check(
+    toggle_row(
         ui,
         &mut s.ask_caught_downloads,
         t("Ask where to save browser downloads"),
     );
-    check(
+    toggle_row(
         ui,
         &mut s.offer_new_link,
         t("Offer a new link when a download's link has expired"),
     );
     section(ui, t("Adding and keeping files"));
-    check(
+    toggle_row(
         ui,
         &mut s.server_dates,
         t("Keep the file's date from the server"),
@@ -129,12 +144,6 @@ pub(super) fn tab_general(ui: &mut egui::Ui, d: &mut OptionsDialog, env: &TabEnv
             ("folder", t("opens its folder")),
         ] {
             radio(ui, &mut s.double_click, word.to_string(), name);
-        }
-    });
-    ui.label(t("Look"));
-    ui.vertical(|ui| {
-        for (word, name) in THEMES {
-            radio(ui, &mut s.theme, word.to_string(), t(name));
         }
     });
     // Settings to carry to another computer, never with a
@@ -202,7 +211,7 @@ pub(super) fn tab_file_types(ui: &mut egui::Ui, d: &mut OptionsDialog, env: &Tab
     });
     ui.add_space(8.0);
     let c = &mut s.catch;
-    check(
+    toggle_row(
         ui,
         &mut c.enabled,
         t("Take these file types from the browser"),
@@ -267,12 +276,12 @@ pub(super) fn tab_file_types(ui: &mut egui::Ui, d: &mut OptionsDialog, env: &Tab
             t("The two keys are the same; holding it leaves the download with the browser."),
         );
     }
-    check(
+    toggle_row(
         ui,
         &mut c.video_panel,
         t("Show Download video on web videos"),
     );
-    check(
+    toggle_row(
         ui,
         &mut c.sign_in_everywhere,
         t("Send the browser's sign-in with downloads"),
@@ -304,7 +313,7 @@ pub(super) fn tab_save_to(ui: &mut egui::Ui, d: &mut OptionsDialog, env: &TabEnv
             .small()
             .weak(),
     );
-    check(
+    toggle_row(
         ui,
         &mut s.categorize,
         t("Sort finished files into folders by kind"),
@@ -412,17 +421,17 @@ pub(super) fn tab_downloads(ui: &mut egui::Ui, d: &mut OptionsDialog, env: &TabE
                 });
             ui.end_row();
         });
-    check(
+    toggle_row(
         ui,
         &mut s.start_queue_on_launch,
         t("Start the Main queue when dm opens"),
     );
-    check(
+    toggle_row(
         ui,
         &mut s.subtitles,
         t("Embed subtitles in videos from player pages"),
     );
-    check(
+    toggle_row(
         ui,
         &mut s.remux_ts,
         t("Save streams that arrive as .ts as MP4"),
@@ -553,7 +562,7 @@ pub(super) fn tab_downloads(ui: &mut egui::Ui, d: &mut OptionsDialog, env: &TabE
     ui.label(t("When a download finishes, run (a virus checker, a script); the file's path is added at the end:"));
     field(ui, t("Command"), &mut s.on_complete, 320.0);
     ui.add_space(8.0);
-    check(
+    toggle_row(
         ui,
         &mut s.fetch_tools,
         t("Get the video helper (yt-dlp) when needed"),
@@ -677,7 +686,7 @@ pub(super) fn tab_proxy(ui: &mut egui::Ui, d: &mut OptionsDialog, _env: &TabEnv<
     let s = &mut d.draft;
     use dm_core::proxy::Kind;
     let p = &mut s.proxy;
-    check(ui, &mut p.enabled, t("Connect through a proxy"));
+    toggle_row(ui, &mut p.enabled, t("Connect through a proxy"));
     ui.add_enabled_ui(p.enabled, |ui| {
                     let kind_name = |kind: Kind| match kind {
                         Kind::System => t("The computer's proxy settings").to_string(),

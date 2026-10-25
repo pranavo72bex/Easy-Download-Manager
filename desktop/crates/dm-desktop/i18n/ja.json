@@ -172,7 +172,6 @@
  "Link on your clipboard:": "クリップボードのリンク：",
  "Links on the clipboard": "クリップボードのリンク",
  "Login": "ログイン",
- "Look": "外観",
  "Check for updates once a week": "1 週間に 1 回、更新を確認する",
  "Main queue": "メインキュー",
  "Speed limit (KB/s, 0 for none)": "速度制限（KB/秒、0 で制限なし）",
@@ -659,9 +658,11 @@
  "Delete site rule": "サイトのルールを削除",
  "Add a site rule": "サイトのルールを追加",
  "Pop-ups": "ポップアップ",
- "Sounds and look": "サウンドと外観",
  "Offer a new link when a download's link has expired": "ダウンロードのリンクが期限切れになったら新しいリンクを案内する",
- "Smallest text": "最小の文字サイズ",
- "As designed": "標準",
- "{} pt": "{} pt"
+ "Appearance": "外観",
+ "Theme": "テーマ",
+ "Small": "小",
+ "Medium": "中",
+ "Large": "大",
+ "Sounds": "サウンド"
 }

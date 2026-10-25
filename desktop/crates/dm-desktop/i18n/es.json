@@ -172,7 +172,6 @@
  "Link on your clipboard:": "Enlace en el portapapeles:",
  "Links on the clipboard": "Enlaces en el portapapeles",
  "Login": "Inicio de sesión",
- "Look": "Aspecto",
  "Check for updates once a week": "Buscar actualizaciones una vez por semana",
  "Main queue": "Cola principal",
  "Speed limit (KB/s, 0 for none)": "Límite de velocidad (KB/s, 0 para ninguno)",
@@ -659,9 +658,11 @@
  "Delete site rule": "Eliminar regla del sitio",
  "Add a site rule": "Añadir regla de sitio",
  "Pop-ups": "Ventanas emergentes",
- "Sounds and look": "Sonidos y aspecto",
  "Offer a new link when a download's link has expired": "Ofrecer un enlace nuevo cuando caduque el de una descarga",
- "Smallest text": "Texto más pequeño",
- "As designed": "Según el diseño",
- "{} pt": "{} pt"
+ "Appearance": "Apariencia",
+ "Theme": "Tema",
+ "Small": "Pequeño",
+ "Medium": "Mediano",
+ "Large": "Grande",
+ "Sounds": "Sonidos"
 }

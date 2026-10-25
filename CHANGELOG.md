@@ -6,7 +6,7 @@ the browser extension (`v*` tags) are versioned separately.
 ## Unreleased
 
 - A video a site's player fetches as a separate picture and sound (as YouTube's does) is offered in the panel's list as one line; dm fetches both at once, by byte range, and joins them into one MP4 with no helper program. The pieces of a DASH or HLS track are fetched on as many connections as are set.
-- Options › General has a **Pop-ups** group (progress window, finished message, the offer for copied links, where to save videos and browser downloads) with a new switch for the "Update download link" window that opens when a link runs out part-way, and **Smallest text** (12 to 24 pt), which raises every size of the type ramp under it.
+- Options › General has an **Appearance** group (Theme, and Text size: Small, Medium or Large, which scales the whole window), every setting there is a toggle switch rather than a check box, the pop-ups are one **Pop-ups** group, and the "Update download link" window that opens by itself when a link runs out has a switch of its own.
 - The panel no longer sits on "Reading qualities…": the wait is said in words, streams the page itself loaded are offered after eight seconds, and past 50 seconds it says dm did not answer and gives the click back.
 - The panel reads a video page's qualities as soon as it is raised over the player, so a click lists them at once (0.04 s on YouTube in Edge) instead of waiting on "Reading qualities…"; a click made sooner joins the read already under way.
 - Windows: the taskbar button shows progress (green while downloading, yellow when paused, red for a minute after a failure), and the program declares per-monitor DPI awareness so text is sharp at 125% and 150%. The computer is kept awake while a download runs.

@@ -397,6 +397,11 @@ fn an_option_that_cannot_be_applied_is_said_and_what_was_typed_is_kept() {
     harness
         .get_by_label_contains("Start dm when I sign in")
         .click();
+    // Scrolled to, as a person scrolls to it.
+    harness
+        .get_by_label_contains("Play a sound when a download finishes")
+        .scroll_to_me();
+    harness.run();
     harness
         .get_by_label_contains("Play a sound when a download finishes")
         .click();
@@ -947,4 +952,39 @@ fn a_site_rule_set_in_options_sends_that_sites_downloads_to_its_folder_at_its_sp
     click(&mut harness, "Delete site rule");
     click(&mut harness, "OK");
     assert!(harness.state().backend().settings().site_rules.is_empty());
+}
+
+#[test]
+fn appearance_sets_the_theme_and_the_size_of_text_for_the_whole_window() {
+    let _file = settings_file();
+    let world = world();
+    let mut harness = world.harness();
+    click(&mut harness, "Options");
+    harness.get_by_label("Appearance").scroll_to_me();
+    harness.run();
+    assert_eq!(harness.ctx.zoom_factor(), 1.0);
+    // Medium is the design; Large and Small scale everything.
+    open_choice(&mut harness, "Text size");
+    click(&mut harness, "Large");
+    harness.run_steps(2);
+    assert!((harness.ctx.zoom_factor() - 1.2).abs() < 0.001);
+    open_choice(&mut harness, "Text size");
+    click(&mut harness, "Small");
+    harness.run_steps(2);
+    assert!((harness.ctx.zoom_factor() - 0.85).abs() < 0.001);
+    // The theme is a choice put in force on OK, as before.
+    open_choice(&mut harness, "Theme");
+    click(&mut harness, "Dark");
+    click(&mut harness, "OK");
+    assert_eq!(harness.state().backend().settings().theme, "dark");
+}
+
+/// Opens the drop-down a row names, as a click on it does.
+fn open_choice(harness: &mut Harness<'_, DmApp>, name: &str) {
+    harness
+        .query_all_by_label(name)
+        .find(|n| n.accesskit_node().role() == egui::accesskit::Role::ComboBox)
+        .unwrap_or_else(|| panic!("no drop-down named {name}"))
+        .click();
+    harness.run_steps(2);
 }

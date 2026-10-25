@@ -172,7 +172,6 @@
  "Link on your clipboard:": "Ссылка в буфере обмена:",
  "Links on the clipboard": "Ссылки в буфере обмена",
  "Login": "Вход",
- "Look": "Оформление",
  "Check for updates once a week": "Проверять обновления раз в неделю",
  "Main queue": "Основная очередь",
  "Speed limit (KB/s, 0 for none)": "Ограничение скорости (КБ/с, 0 — нет)",
@@ -659,9 +658,11 @@
  "Delete site rule": "Удалить правило сайта",
  "Add a site rule": "Добавить правило сайта",
  "Pop-ups": "Всплывающие окна",
- "Sounds and look": "Звуки и внешний вид",
  "Offer a new link when a download's link has expired": "Предлагать новую ссылку, когда ссылка загрузки устарела",
- "Smallest text": "Наименьший текст",
- "As designed": "По умолчанию",
- "{} pt": "{} pt"
+ "Appearance": "Внешний вид",
+ "Theme": "Тема",
+ "Small": "Мелкий",
+ "Medium": "Средний",
+ "Large": "Крупный",
+ "Sounds": "Звуки"
 }

@@ -248,10 +248,6 @@ pub struct Settings {
     /// Put a `.ts` stream into an MP4 (dm's own remux).
     #[serde(default = "yes")]
     pub remux_ts: bool,
-    /// The smallest text the window draws, in points: any size of the type
-    /// ramp below it is raised to it. Zero leaves the ramp as it is.
-    #[serde(default)]
-    pub min_font_size: u32,
     /// Open "Update download link" by itself when a download's signed link
     /// has run out part-way. Off, the row says it failed and its menu has
     /// Update download link.
@@ -299,9 +295,6 @@ pub const RECENT_URLS: usize = 20;
 
 /// Ten: the last five half a minute apart, so a download rides out a
 /// couple of minutes without a network (`retry::backoff`).
-/// The smallest text a person may ask for, and the largest minimum.
-pub const MIN_FONT: (u32, u32) = (12, 24);
-
 fn default_true() -> bool {
     true
 }
@@ -405,7 +398,6 @@ impl Default for Settings {
             queue_starts: Vec::new(),
             drop_target: false,
             mica: false,
-            min_font_size: 0,
             offer_new_link: true,
             fetch_tools: true,
             remux_ts: true,
@@ -497,9 +489,6 @@ impl Settings {
         self.limit_hours = self.limit_hours.clamp(1, LIMIT_HOURS);
         self.attempts = self.attempts.clamp(ATTEMPTS.0, ATTEMPTS.1);
         self.recheck_hours = self.recheck_hours.min(LIMIT_HOURS);
-        if self.min_font_size != 0 {
-            self.min_font_size = self.min_font_size.clamp(MIN_FONT.0, MIN_FONT.1);
-        }
         self.read_timeout = self
             .read_timeout
             .clamp(READ_TIMEOUT_SECS.0, READ_TIMEOUT_SECS.1);

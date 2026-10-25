@@ -172,7 +172,6 @@
  "Link on your clipboard:": "Link in der Zwischenablage:",
  "Links on the clipboard": "Links in der Zwischenablage",
  "Login": "Anmeldung",
- "Look": "Aussehen",
  "Check for updates once a week": "Einmal pro Woche nach Updates suchen",
  "Main queue": "Haupt-Warteschlange",
  "Speed limit (KB/s, 0 for none)": "Geschwindigkeitslimit (KB/s, 0 für keins)",
@@ -659,9 +658,11 @@
  "Delete site rule": "Websiteregel löschen",
  "Add a site rule": "Websiteregel hinzufügen",
  "Pop-ups": "Hinweisfenster",
- "Sounds and look": "Töne und Aussehen",
  "Offer a new link when a download's link has expired": "Neuen Link anbieten, wenn der Link eines Downloads abgelaufen ist",
- "Smallest text": "Kleinste Schrift",
- "As designed": "Wie gestaltet",
- "{} pt": "{} pt"
+ "Appearance": "Darstellung",
+ "Theme": "Design",
+ "Small": "Klein",
+ "Medium": "Mittel",
+ "Large": "Groß",
+ "Sounds": "Töne"
 }

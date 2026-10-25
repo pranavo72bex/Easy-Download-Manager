@@ -604,3 +604,116 @@ pub(super) fn browse_button(
     }
     Some(true)
 }
+
+/// A row of settings as WinUI's toggle switch draws it: the words at the
+/// left, a 40 by 20 pill at the right that is the accent when on and an
+/// outline when off, the thumb sliding to the side that is chosen. The
+/// classic look keeps its check box.
+pub(crate) fn toggle_row(
+    ui: &mut egui::Ui,
+    on: &mut bool,
+    text: impl Into<egui::WidgetText>,
+) -> egui::Response {
+    let t = crate::theme::Tokens::get(ui.ctx());
+    if !t.modern {
+        return check(ui, on, text);
+    }
+    let text: egui::WidgetText = text.into();
+    let words = text.text().to_string();
+    let galley = text.into_galley(
+        ui,
+        Some(egui::TextWrapMode::Extend),
+        f32::INFINITY,
+        egui::TextStyle::Body,
+    );
+    let size = egui::vec2(ui.available_width().max(120.0), 36.0);
+    let (rect, mut response) = ui.allocate_exact_size(size, egui::Sense::click());
+    if response.clicked() {
+        *on = !*on;
+        response.mark_changed();
+    }
+    let enabled = ui.is_enabled();
+    response.widget_info(|| egui::WidgetInfo::selected(egui::Role::Switch, enabled, *on, &words));
+    let painter = ui.painter();
+    if response.hovered() {
+        painter.rect_filled(rect, t.radius, t.hover);
+    }
+    painter.galley(
+        egui::pos2(rect.left() + 4.0, rect.center().y - galley.size().y / 2.0),
+        galley,
+        t.text,
+    );
+    let pill = egui::Rect::from_center_size(
+        egui::pos2(rect.right() - 4.0 - 20.0, rect.center().y),
+        egui::vec2(40.0, 20.0),
+    );
+    let round = 10.0;
+    if *on {
+        painter.rect_filled(pill, round, if enabled { t.brand } else { t.disabled });
+    } else {
+        painter.rect_stroke(
+            pill,
+            round,
+            egui::Stroke::new(1.0, t.text2),
+            egui::StrokeKind::Inside,
+        );
+    }
+    let grow = if response.hovered() || response.is_pointer_button_down_on() {
+        1.0
+    } else {
+        0.0
+    };
+    let (x, radius, colour) = if *on {
+        (pill.right() - 10.0, 6.0 + grow, t.on_brand)
+    } else {
+        (pill.left() + 10.0, 5.0 + grow, t.text2)
+    };
+    painter.circle_filled(egui::pos2(x, pill.center().y), radius, colour);
+    if response.has_focus() {
+        painter.rect_stroke(
+            rect,
+            t.radius,
+            egui::Stroke::new(2.0, t.focus_outer),
+            egui::StrokeKind::Inside,
+        );
+    }
+    response
+}
+
+/// The sizes of text the window offers, by name and as the window's zoom:
+/// medium is the design.
+pub(crate) const TEXT_SIZES: [(&str, f32); 3] = [("Small", 0.85), ("Medium", 1.0), ("Large", 1.2)];
+
+/// The name of the text size nearest to a zoom.
+pub(crate) fn text_size_named(zoom: f32) -> &'static str {
+    TEXT_SIZES
+        .iter()
+        .min_by(|a, b| (a.1 - zoom).abs().total_cmp(&(b.1 - zoom).abs()))
+        .map_or("Medium", |s| s.0)
+}
+
+/// One row of an Appearance-style list: the name at the left, the control
+/// at the right, and a hairline under it, as the settings of a modern app
+/// are laid out. The control is drawn right to left, so a drop-down
+/// stands against the edge.
+pub(crate) fn setting_row(
+    ui: &mut egui::Ui,
+    name: &str,
+    control: impl FnOnce(&mut egui::Ui, egui::Id),
+) {
+    let t = crate::theme::Tokens::get(ui.ctx());
+    ui.allocate_ui_with_layout(
+        egui::vec2(ui.available_width(), 40.0),
+        egui::Layout::left_to_right(egui::Align::Center),
+        |ui| {
+            let label = ui.label(name);
+            ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                control(ui, label.id)
+            });
+        },
+    );
+    let y = ui.cursor().top();
+    ui.painter()
+        .hline(ui.max_rect().x_range(), y, egui::Stroke::new(1.0, t.border));
+    ui.add_space(1.0);
+}

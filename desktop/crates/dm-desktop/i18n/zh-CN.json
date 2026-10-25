@@ -172,7 +172,6 @@
  "Link on your clipboard:": "剪贴板中的链接：",
  "Links on the clipboard": "剪贴板中的链接",
  "Login": "登录",
- "Look": "外观",
  "Check for updates once a week": "每周检查一次更新",
  "Main queue": "主队列",
  "Speed limit (KB/s, 0 for none)": "速度限制（KB/s，0 为不限）",
@@ -659,9 +658,11 @@
  "Delete site rule": "删除网站规则",
  "Add a site rule": "添加网站规则",
  "Pop-ups": "弹出窗口",
- "Sounds and look": "声音和外观",
  "Offer a new link when a download's link has expired": "下载链接过期时提供新链接",
- "Smallest text": "最小文字",
- "As designed": "默认",
- "{} pt": "{} pt"
+ "Appearance": "外观",
+ "Theme": "主题",
+ "Small": "小",
+ "Medium": "中",
+ "Large": "大",
+ "Sounds": "声音"
 }

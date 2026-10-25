@@ -172,7 +172,6 @@
  "Link on your clipboard:": "클립보드의 링크:",
  "Links on the clipboard": "클립보드의 링크",
  "Login": "로그인",
- "Look": "모양",
  "Check for updates once a week": "일주일에 한 번 업데이트 확인",
  "Main queue": "기본 대기열",
  "Speed limit (KB/s, 0 for none)": "속도 제한(KB/s, 0은 제한 없음)",
@@ -659,9 +658,11 @@
  "Delete site rule": "사이트 규칙 삭제",
  "Add a site rule": "사이트 규칙 추가",
  "Pop-ups": "팝업",
- "Sounds and look": "소리 및 모양",
  "Offer a new link when a download's link has expired": "다운로드 링크가 만료되면 새 링크 제안",
- "Smallest text": "최소 글자 크기",
- "As designed": "기본",
- "{} pt": "{} pt"
+ "Appearance": "모양",
+ "Theme": "테마",
+ "Small": "작게",
+ "Medium": "보통",
+ "Large": "크게",
+ "Sounds": "소리"
 }

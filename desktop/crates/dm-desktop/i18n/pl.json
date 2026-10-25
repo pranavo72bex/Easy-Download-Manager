@@ -172,7 +172,6 @@
  "Link on your clipboard:": "Link w schowku:",
  "Links on the clipboard": "Linki w schowku",
  "Login": "Login",
- "Look": "Wygląd",
  "Check for updates once a week": "Sprawdzaj aktualizacje raz w tygodniu",
  "Main queue": "Kolejka główna",
  "Speed limit (KB/s, 0 for none)": "Limit prędkości (KB/s, 0 bez limitu)",
@@ -659,9 +658,11 @@
  "Delete site rule": "Usuń regułę witryny",
  "Add a site rule": "Dodaj regułę witryny",
  "Pop-ups": "Okna powiadomień",
- "Sounds and look": "Dźwięki i wygląd",
  "Offer a new link when a download's link has expired": "Zaproponuj nowy link, gdy link pobierania wygasł",
- "Smallest text": "Najmniejszy tekst",
- "As designed": "Domyślny",
- "{} pt": "{} pt"
+ "Appearance": "Wygląd",
+ "Theme": "Motyw",
+ "Small": "Mały",
+ "Medium": "Średni",
+ "Large": "Duży",
+ "Sounds": "Dźwięki"
 }

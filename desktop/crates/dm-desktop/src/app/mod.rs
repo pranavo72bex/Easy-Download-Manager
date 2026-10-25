@@ -323,8 +323,6 @@ pub struct DmApp {
     theme_in_force: Option<crate::theme::Theme>,
     /// The computer's accent last put in force (`accent.rs`).
     accent_in_force: Option<Option<crate::accent::Palette>>,
-    /// The smallest text size the type ramp was last raised to.
-    min_font_in_force: Option<u32>,
     /// Whether the window's motion was last set to none (`motion.rs`).
     motion_in_force: Option<bool>,
     fonts_ready: bool,
@@ -503,7 +501,6 @@ impl DmApp {
             theme_in_force: None,
             motion_in_force: None,
             accent_in_force: None,
-            min_font_in_force: None,
             fonts_ready: false,
             when_done: Default::default(),
             failed_told: HashSet::new(),
@@ -636,6 +633,7 @@ pub fn run_time_words() -> Vec<&'static str> {
     let mut words: Vec<&'static str> = Vec::new();
     words.extend(crate::dialogs::TABS.iter().map(|(_, w)| *w));
     words.extend(crate::dialogs::THEMES.iter().map(|(_, w)| *w));
+    words.extend(crate::dialogs::TEXT_SIZES.iter().map(|(w, _)| *w));
     words.extend(crate::dialogs::QUALITIES.iter().map(|(_, w)| *w));
     words.extend(crate::dialogs::DAYS);
     words.extend(TOOL_STYLES.iter().map(|(_, w)| *w));

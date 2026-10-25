@@ -172,7 +172,6 @@
  "Link on your clipboard:": "Tautan di papan klip:",
  "Links on the clipboard": "Tautan di papan klip",
  "Login": "Login",
- "Look": "Tampilan",
  "Check for updates once a week": "Periksa pembaruan seminggu sekali",
  "Main queue": "Antrean utama",
  "Speed limit (KB/s, 0 for none)": "Batas kecepatan (KB/s, 0 tanpa batas)",
@@ -659,9 +658,11 @@
  "Delete site rule": "Hapus aturan situs",
  "Add a site rule": "Tambah aturan situs",
  "Pop-ups": "Jendela pop-up",
- "Sounds and look": "Suara dan tampilan",
  "Offer a new link when a download's link has expired": "Tawarkan tautan baru saat tautan unduhan kedaluwarsa",
- "Smallest text": "Teks terkecil",
- "As designed": "Sesuai desain",
- "{} pt": "{} pt"
+ "Appearance": "Tampilan",
+ "Theme": "Tema",
+ "Small": "Kecil",
+ "Medium": "Sedang",
+ "Large": "Besar",
+ "Sounds": "Suara"
 }

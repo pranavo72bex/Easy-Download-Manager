@@ -376,32 +376,6 @@ mod tests {
     use super::*;
 
     #[test]
-    fn no_text_is_drawn_under_the_smallest_asked_for() {
-        let ctx = Context::default();
-        apply(&ctx, Theme::Light);
-        let size = |ctx: &Context, style: TextStyle| {
-            ctx.style_of(egui::Theme::Light).text_styles[&style].size
-        };
-        assert_eq!(size(&ctx, TextStyle::Small), 12.0);
-        raise_text_to(&ctx, 0);
-        assert_eq!(size(&ctx, TextStyle::Small), 12.0, "zero leaves the ramp");
-        raise_text_to(&ctx, 16);
-        for style in [
-            TextStyle::Small,
-            TextStyle::Body,
-            TextStyle::Button,
-            TextStyle::Monospace,
-        ] {
-            assert_eq!(size(&ctx, style), 16.0);
-        }
-        assert_eq!(
-            size(&ctx, TextStyle::Heading),
-            20.0,
-            "a larger size is not shrunk"
-        );
-    }
-
-    #[test]
     fn the_default_look_is_modern_and_follows_the_computer() {
         assert_eq!(Theme::resolve("system", false), Theme::Light);
         assert_eq!(Theme::resolve("system", true), Theme::Dark);

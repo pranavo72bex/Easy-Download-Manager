@@ -180,20 +180,3 @@ pub fn apply_with_accent(ctx: &Context, theme: Theme, accent: Option<crate::acce
     });
     ctx.data_mut(|d| d.insert_temp(egui::Id::unique("dm-tokens"), t));
 }
-
-/// Raises every size of the type ramp that is under `min` points to it, for
-/// the person who asked for no text smaller than that. Zero changes nothing.
-/// Run after [`apply_with_accent`], which sets the ramp afresh.
-pub fn raise_text_to(ctx: &Context, min: u32) {
-    if min == 0 {
-        return;
-    }
-    let min = min as f32;
-    for which in [egui::Theme::Dark, egui::Theme::Light] {
-        ctx.style_mut_of(which, |style| {
-            for font in style.text_styles.values_mut() {
-                font.size = font.size.max(min);
-            }
-        });
-    }
-}
