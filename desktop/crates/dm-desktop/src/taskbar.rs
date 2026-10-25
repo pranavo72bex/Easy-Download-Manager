@@ -212,6 +212,7 @@ mod tests {
             save_name: None,
             validator: None,
             quality: None,
+            sound: None,
             parts_dir: String::new(),
             began_in: String::new(),
             cookies: String::new(),
