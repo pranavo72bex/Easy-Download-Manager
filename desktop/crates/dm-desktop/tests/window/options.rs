@@ -982,8 +982,16 @@ fn appearance_sets_the_theme_and_the_size_of_text_for_the_whole_window() {
     assert!((harness.ctx.zoom_factor() - 0.85).abs() < 0.001);
     // The theme is a choice put in force on OK, as before.
     click(&mut harness, "Dark");
+    // Shown as it is chosen, before OK.
+    harness.run_steps(3);
+    assert!(harness.state().dark, "the dark look is not shown");
+    click(&mut harness, "Light");
+    harness.run_steps(3);
+    assert!(!harness.state().dark, "the light look is not shown");
+    click(&mut harness, "Dark");
     click(&mut harness, "OK");
     assert_eq!(harness.state().backend().settings().theme, "dark");
+    assert!(harness.state().dark);
 }
 
 /// Opens the drop-down a row names, as a click on it does.

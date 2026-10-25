@@ -704,7 +704,7 @@ pub(crate) fn setting_row(
             let room = (width - 120.0).max(120.0);
             let label = ui
                 .allocate_ui_with_layout(
-                    egui::vec2(room, 0.0),
+                    egui::vec2(room, 40.0),
                     egui::Layout::left_to_right(egui::Align::Center).with_main_wrap(true),
                     |ui| ui.add(egui::Label::new(name).wrap()),
                 )
