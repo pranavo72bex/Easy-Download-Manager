@@ -12,9 +12,9 @@ fetch, and the owner judged it not worth carrying yet. It is in git history
 (commits `cbfa3c8`, `291fc09`) if it is wanted again. The 2026-10-24 drop of
 debrid providers stands.
 
-## 2026-10-25: Gofile sharing was built and removed; sharing on the network instead
+## 2026-10-25: Sharing a finished file was built twice and removed both times
 
-Share on Gofile (a guest upload, its page link copied) was built on the
+**Share on Gofile** (a guest upload, its page link copied) was built on the
 owner's request (commits `0d505d1`, `f4089e0`, `020e3dc`) and a real upload
 worked. It was removed the same day because it did not do what it was for: a
 Gofile link cannot be downloaded by dm. The link is a JavaScript page (3 KB of
@@ -23,35 +23,19 @@ account: listing or fetching a folder through the API is closed to free
 accounts, and the website gets round it with a token taken from its own
 script. Using that token would be getting round a restriction Gofile put
 there, and it would break whenever they change the site. Gofile's terms had
-also never been readable. Nothing of it is left: not the code, the menu
-items, the strings, the privacy text or the allowed address. It is in git
-history if it is wanted again.
+also never been readable.
 
-For fast sharing that dm does control: **Share on this network**
-(`lanshare.rs`). A person's click opens one port, serves one finished file at
-`http://<this computer's address>:<port>/<128 random bits>/<name>` with byte
-ranges, so the other side's download manager opens its usual several
-connections; it closes on Stop sharing, after an hour, or when dm quits.
-Nothing is listening otherwise, so the "no listening by default" rule holds.
-Security reviewed 2026-10-25, and two weaknesses found in the first version
-were fixed with tests: it listened on every interface (a VPN included), now
-only on the one address its link names; and it counted a connection only once
-its request was read, so a peer with no link could hold many idle ones, now
-counted from accept, with the ones past 32 closed unanswered. As built: one file
-only (the path is fixed when sharing starts and resolved then, so no name in a
-request reaches the disk); the token is compared in constant time and a wrong
-one is answered like any other bad path (404); GET and HEAD only; one range or
-the whole file; a request head is capped at 8 KB and must arrive within 10 s;
-a stalled write is cut after 60 s; no cookies, no log; refused to scripts,
-the control port and AI clients. What it does not do: encrypt (plain HTTP on
-the local network, so anyone who can watch that network and sees the link can
-fetch the file while the share is open), or limit how many times it is
-downloaded. Not built: sharing beyond the local network. That needs a relay or
-a port the router forwards, and no free service of ours exists; the options for
-it are for the owner to decide. On macOS the application firewall holds an
-unsigned program's incoming connections until it is allowed (seen in testing:
-accepted and silent), so a released, signed dm asks once; the Linux container
-test uses the container's own address and is not affected.
+**Share on this network** (commit `81d9e00`: one finished file served on the
+computer's own address, for an hour, with byte ranges and an unguessable link)
+was built in its place, tested (a container fetched it byte for byte, by
+range and eight at once; real clicks in the window; a security review that
+found and fixed two weaknesses) and then removed at the owner's word: sharing
+is not part of a download manager's job, and it was the one feature that
+opened a port for others to reach. Neither feature is left in the code, menus,
+strings, privacy text or allowed addresses; both are in git history.
+
+Not built, and not wanted unless the owner says so: sharing beyond one's own
+computer. dm downloads; it does not host.
 
 ## 2026-10-24: The work list is empty: what was built, and what was dropped and why
 

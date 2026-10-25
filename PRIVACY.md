@@ -11,19 +11,6 @@ click it: it fetches the release's `latest.json` from GitHub. That request
 carries nothing about you or your downloads; GitHub sees an address asking
 for a public file, as it does for any download.
 
-## Sharing a file on your network
-
-Only when you pick Share on this network on a finished download, dm opens one
-port on this computer's network address and serves that one file there, so
-another computer on the same network can paste the link into its download
-manager. The link is plain HTTP, not encrypted. The link holds
-128 random bits, so it cannot be guessed; nothing else on this computer is
-reachable through it, and nothing is sent to any server. It ends when you pick
-Stop sharing, after an hour, or when dm quits. Your system's firewall may ask
-to allow dm to accept connections the first time. Anyone who has the link and
-can reach the port can download the file while it is open, so give it only to
-people you mean to.
-
 ## Getting the tools for video sites
 
 A video site's page (YouTube and the like) is downloaded with yt-dlp, which
@@ -115,8 +102,7 @@ Options › Browser has "Hand over the browser's sign-in with every download"
 takes its own site's cookies, sent to that site's server only, and they are
 dropped from the row once that download is done, as a video page's are.
 
-**On this computer only.** dm listens on no network address by default (the one
-exception is a file you share on your network, above). Started
+**On this computer only.** dm listens on no network address by default. Started
 with `--control` (or `--headless --control`), it opens a port on the loopback
 address (`127.0.0.1`), which only programs on this computer can reach, and only
 one that presents a token kept in a file your account alone can read; the

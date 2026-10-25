@@ -62,42 +62,6 @@ impl DmApp {
         }
     }
 
-    /// Shares a finished file on the local network and puts the link on the
-    /// clipboard. Only on request: the port is open until the share is
-    /// stopped, an hour passes, or dm quits, and the link is not guessable.
-    pub fn share_on_network(&mut self, path: &str) {
-        // One share at a time: a new one ends the last.
-        self.share = None;
-        match dm_core::lanshare::start(std::path::Path::new(path), dm_core::lanshare::LASTS) {
-            Ok(share) => {
-                let link = share.url().to_string();
-                self.share = Some(share);
-                self.copied = Some(link.clone());
-                self.said = format!(
-                    "{} {link}",
-                    crate::i18n::t(
-                        "Network link copied. It works for an hour, or until you stop sharing:"
-                    )
-                )
-                .into();
-            }
-            Err(e) => self.said = format!("Not shared: {e}").into(),
-        }
-    }
-
-    /// Whether a file is being shared on the network now.
-    pub fn share_active(&self) -> bool {
-        self.share.is_some()
-    }
-
-    /// Ends the network share: its port closes and its link stops working.
-    pub fn stop_sharing(&mut self) {
-        if let Some(share) = self.share.take() {
-            share.stop();
-            self.said = crate::i18n::t("Stopped sharing.").into();
-        }
-    }
-
     pub fn reveal_file(&self, path: &str) {
         let said = Arc::clone(&self.opener_said);
         let report: crate::power::Report = Box::new(move |why| *dm_core::lock(&said) = Some(why));

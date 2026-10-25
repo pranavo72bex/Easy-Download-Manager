@@ -178,15 +178,9 @@ impl DmApp {
                         Command::OpenFolder,
                         Command::ExtractHere,
                         Command::ExtractTo,
-                        Command::ShareOnNetwork,
                         Command::Properties,
                     ] {
                         self.item(ui, c);
-                    }
-                    // Only while a file is being shared: otherwise a menu
-                    // item that can do nothing.
-                    if self.share.is_some() {
-                        self.item(ui, Command::StopSharing);
                     }
                     ui.separator();
                     for c in [

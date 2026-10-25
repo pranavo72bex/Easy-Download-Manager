@@ -1,6 +1,3 @@
-#[allow(unused_imports)]
-use super::*;
-
 /// What the window offers to queue on its own: the first word of some text,
 /// if it is a link. The queue is the authority on what it accepts.
 pub fn looks_downloadable(text: &str) -> Option<String> {
@@ -238,6 +235,7 @@ pub fn links_in_file(kind: Option<&str>, text: &str) -> Vec<String> {
 #[cfg(test)]
 mod two_addresses_tests {
     use super::*;
+    use crate::app::{as_shown, worded_problem};
 
     #[test]
     fn the_saved_proxy_turned_off_at_launch_is_said_in_the_windows_words() {

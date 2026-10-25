@@ -29,7 +29,9 @@ static PENDING: Mutex<Vec<Dropped>> = Mutex::new(Vec::new());
 static WINDOW: OnceLock<egui::Context> = OnceLock::new();
 
 /// A drop for the window to read; the window is woken to do so.
-#[allow(dead_code)]
+// Called by the macOS and Windows drop targets; Linux takes drops through
+// winit.
+#[cfg_attr(not(any(windows, target_os = "macos")), allow(dead_code))]
 pub(crate) fn arrived(what: Dropped) {
     dm_core::lock(&PENDING).push(what);
     if let Some(ctx) = WINDOW.get() {

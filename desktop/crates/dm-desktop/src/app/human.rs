@@ -25,25 +25,21 @@ pub struct ScreenText {
 }
 
 /// Words a script or an AI client may not click: they run a downloaded file,
-/// which on Windows may be a program, or share one on the network, and that
-/// stays a person's click.
+/// which on Windows may be a program, and that stays a person's click.
 fn is_run_a_file(text: &str) -> bool {
     use crate::commands::Command;
     let text = text.trim().to_lowercase();
-    [
-        Command::OpenFile,
-        Command::OpenWith,
-        Command::Preview,
-        Command::ShareOnNetwork,
-    ]
-    .iter()
-    .flat_map(|c| [c.label(), crate::i18n::t(c.label())])
-    .chain(
-        ["Open", "Open with…", "Preview"]
-            .into_iter()
-            .flat_map(|e| [e, crate::i18n::t(e)]),
-    )
-    .any(|label| label.trim().trim_end_matches('…').to_lowercase() == text.trim_end_matches('…'))
+    [Command::OpenFile, Command::OpenWith, Command::Preview]
+        .iter()
+        .flat_map(|c| [c.label(), crate::i18n::t(c.label())])
+        .chain(
+            ["Open", "Open with…", "Preview"]
+                .into_iter()
+                .flat_map(|e| [e, crate::i18n::t(e)]),
+        )
+        .any(|label| {
+            label.trim().trim_end_matches('…').to_lowercase() == text.trim_end_matches('…')
+        })
 }
 
 impl DmApp {

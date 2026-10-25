@@ -91,14 +91,9 @@ impl DmApp {
                 // Opening a downloaded file runs it, on Windows, if it is a
                 // program: a person's click in the window, never a script's
                 // or an AI client's that a web page may have talked into it.
-                // Nor is opening a port to share a file: a page's words in an
-                // AI client's context must not be able to publish a download.
                 if matches!(
                     command,
-                    Command::OpenFile
-                        | Command::OpenWith
-                        | Command::Preview
-                        | Command::ShareOnNetwork
+                    Command::OpenFile | Command::OpenWith | Command::Preview
                 ) {
                     return Err(format!(
                         "{id} is done in the window by a person, not over this connection"

@@ -11,15 +11,10 @@ pub(super) fn row_menu(app: &mut DmApp, ui: &mut egui::Ui) {
         Command::OpenFolder,
         Command::ExtractHere,
         Command::ExtractTo,
-        Command::ShareOnNetwork,
         Command::MoveRename,
         Command::Redownload,
     ] {
         menu_item(app, ui, command, command.title());
-    }
-    // Only while a file is being shared.
-    if app.share_active() {
-        menu_item(app, ui, Command::StopSharing, Command::StopSharing.title());
     }
     ui.separator();
     menu_item(
