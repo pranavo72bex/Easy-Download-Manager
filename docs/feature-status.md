@@ -445,7 +445,9 @@ of them.
       one that changes period part-way, and one under a rights system
       (`ContentProtection`) are refused by name. Pinned by the parser's unit
       tests and by a download of a picture cut by byte ranges and a sound,
-      served with ranges, joined into one MP4 (`download/dash.rs` tests)
+      served with ranges, joined into one MP4 (`download/dash.rs` tests). An HLS
+      master that keeps its sound in a playlist of its own is fetched and
+      joined the same way when both are plain fragmented MP4
 - [x] Extract a finished ZIP — Extract here / Extract to… in the row menu
       (`extract.rs`): every entry judged before any is written (paths that
       leave the folder, links, devices, passwords, repeated names, size and

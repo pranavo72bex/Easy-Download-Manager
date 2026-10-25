@@ -1679,3 +1679,9 @@ because the media's address is minted by the site's own player and reading
 it is site logic, which this project does not write (2026-10-11, 2026-10-21).
 The way past that without site logic is to take the address from the player
 in the browser, which already ran the site's code: see docs/gaps.md.
+
+A picture and sound that an HLS master keeps in playlists of their own
+(`#EXT-X-MEDIA TYPE=AUDIO` with a `URI`) are dm's too when both are plain
+fragmented MP4: fetched as the two tracks of a DASH stream and joined by
+`mp4mux`. Encrypted, byte-ranged or transport-stream pairs are still
+`Beyond`, because joining them wrongly saves a silent film as complete.

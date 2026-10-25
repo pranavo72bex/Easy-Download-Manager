@@ -33,9 +33,66 @@ pub(super) async fn download_dash(
         (Some(_), false) => "mp4",
     };
     let filename = stream::name_for(url, extension);
+    let signature = format!("{url}\n{}", plan.signature());
+    join_tracks(
+        client, &tracks, &filename, extension, webm, &signature, options, report,
+    )
+    .await
+}
 
+/// An HLS picture and sound kept in playlists of their own (plain
+/// fragmented MP4 on both sides), fetched and joined as the two tracks of a
+/// DASH stream are.
+pub(super) async fn download_pair(
+    client: &reqwest::Client,
+    picture: &stream::Stream,
+    sound: &stream::Stream,
+    rendition: &str,
+    options: &Options,
+    report: Option<tokio::sync::mpsc::Sender<Update>>,
+) -> Result<Finished, Error> {
+    let track = |medium, s: &stream::Stream| Track {
+        medium,
+        id: String::new(),
+        bandwidth: 0,
+        height: 0,
+        webm: false,
+        pieces: s
+            .parts
+            .iter()
+            .map(|p| dash::Piece {
+                url: p.url.clone(),
+                range: None,
+            })
+            .collect(),
+    };
+    let tracks = [track(Medium::Video, picture), track(Medium::Audio, sound)];
+    let refs: Vec<&Track> = tracks.iter().collect();
+    let signature = format!("pair {rendition}");
+    let name = picture.filename.clone();
+    join_tracks(
+        client, &refs, &name, "mp4", false, &signature, options, report,
+    )
+    .await
+}
+
+/// The tracks fetched, gathered one file each, and joined into the file
+/// named `filename`, placed where downloads go. `signature` says what is
+/// being fetched: parts staged for something else are not adopted.
+#[allow(clippy::too_many_arguments)]
+async fn join_tracks(
+    client: &reqwest::Client,
+    tracks: &[&Track],
+    filename: &str,
+    extension: &str,
+    webm: bool,
+    signature: &str,
+    options: &Options,
+    report: Option<tokio::sync::mpsc::Sender<Update>>,
+) -> Result<Finished, Error> {
+    let filename = filename.to_string();
     fs::create_dir_all(&options.parts_dir).await?;
-    hls::keep_only_parts_of(&options.parts_dir, &format!("{url}\n{}", plan.signature())).await?;
+    hls::keep_only_parts_of(&options.parts_dir, signature).await?;
 
     if let Some(tx) = &report {
         let _ = tx
@@ -53,7 +110,7 @@ pub(super) async fn download_dash(
     if !fs::metadata(&joined).await.is_ok_and(|m| m.len() > 0) {
         let downloaded = Arc::new(AtomicU64::new(0));
         let meter = report.map(|tx| watch(Arc::clone(&downloaded), None, tx));
-        let fetched = fetch_tracks(client, &tracks, options, &downloaded).await;
+        let fetched = fetch_tracks(client, tracks, options, &downloaded).await;
         if let Some((handle, finished)) = meter {
             let _ = finished.send(());
             let _ = handle.await;
@@ -290,5 +347,61 @@ mod tests {
             .unwrap_err();
         assert!(err.to_string().contains("byte range"), "{err}");
         assert!(!options.dest_dir.join("show.mp4").exists());
+    }
+
+    #[tokio::test]
+    async fn an_hls_picture_and_its_separate_sound_are_joined_into_one_mp4() {
+        let dir = tempfile::tempdir().unwrap();
+        let (video, _) = fragmented(dir.path(), "v.mp4", 2);
+        let (audio, _) = plain(dir.path(), "a.m4a", 4, 50);
+        let video = std::fs::read(video).unwrap();
+        let audio = std::fs::read(audio).unwrap();
+        let starts = box_starts(&video);
+        let (init, first, second) = (
+            video[..starts[2]].to_vec(),
+            video[starts[2]..starts[4]].to_vec(),
+            video[starts[4]..].to_vec(),
+        );
+        let text = |body: &'static str| {
+            get(move || async move {
+                Response::builder()
+                    .header(header::CONTENT_TYPE, "application/vnd.apple.mpegurl")
+                    .body(Body::from(body))
+                    .unwrap()
+            })
+        };
+        let bytes = |body: Vec<u8>| get(move || async move { Response::new(Body::from(body)) });
+        let app = axum::Router::new()
+            .route(
+                "/hls/master.m3u8",
+                text(
+                    "#EXTM3U\n#EXT-X-MEDIA:TYPE=AUDIO,GROUP-ID=\"a\",NAME=\"en\",DEFAULT=YES,URI=\"sound.m3u8\"\n\
+                     #EXT-X-STREAM-INF:BANDWIDTH=900000,RESOLUTION=640x360,AUDIO=\"a\"\npicture.m3u8\n",
+                ),
+            )
+            .route(
+                "/hls/picture.m3u8",
+                text("#EXTM3U\n#EXT-X-TARGETDURATION:4\n#EXT-X-MAP:URI=\"init.mp4\"\n#EXTINF:4,\none.m4s\n#EXTINF:4,\ntwo.m4s\n#EXT-X-ENDLIST\n"),
+            )
+            .route(
+                "/hls/sound.m3u8",
+                text("#EXTM3U\n#EXT-X-TARGETDURATION:4\n#EXTINF:4,\nsound.m4s\n#EXT-X-ENDLIST\n"),
+            )
+            .route("/hls/init.mp4", bytes(init))
+            .route("/hls/one.m4s", bytes(first))
+            .route("/hls/two.m4s", bytes(second))
+            .route("/hls/sound.m4s", bytes(audio));
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let addr = listener.local_addr().unwrap();
+        tokio::spawn(async move { axum::serve(listener, app).await.unwrap() });
+
+        let options = options(dir.path());
+        let url = format!("http://{addr}/hls/master.m3u8");
+        let done = crate::download::download(&reqwest::Client::new(), &url, &options)
+            .await
+            .unwrap();
+        assert_eq!(done.path.extension().unwrap(), "mp4");
+        let data = std::fs::read(&done.path).unwrap();
+        assert_eq!(data.windows(4).filter(|w| *w == b"trak").count(), 2);
     }
 }
