@@ -19,16 +19,6 @@ file and its name, and sees your address as any website does; there is no
 account or key, and nothing is sent about your other downloads. Gofile's own
 terms and retention apply to the uploaded file.
 
-## Fetching a link through TorBox
-
-Only if you put your own TorBox API key in Options › Sign-ins and then send a
-link with Add URL › Through TorBox or a download's Download through TorBox,
-dm sends that one link and your key to TorBox's API, which fetches it on its
-servers; dm then downloads the finished file from the address TorBox returns.
-The key is kept in dm's settings file on this computer, is left out of an
-exported settings file, and is never printed in an error. Nothing is sent about
-your other downloads. TorBox's own terms and logging apply to what you send it.
-
 ## Getting the tools for video sites
 
 A video site's page (YouTube and the like) is downloaded with yt-dlp, which
@@ -143,7 +133,7 @@ the truth and the disagreement is a bug worth reporting.
 This is also checked, not only promised: `cargo xtask privacy` (in
 `desktop/`, and as a test in every build) fails if any crate that sends
 reports — analytics, crash reporting, telemetry — enters the build, or if
-shipped code names any address but GitHub's, Gofile's and TorBox's. dm reaches GitHub only when
+shipped code names any address but GitHub's and Gofile's. dm reaches GitHub only when
 you check for updates or open Help, or to fetch yt-dlp and QuickJS when a
-video needs them and your computer has none. Gofile is reached only for Share on Gofile, and TorBox only for a link you send through it. The two extension stores are
+video needs them and your computer has none. Gofile is reached only for Share on Gofile. The two extension stores are
 opened in your browser only when you click to add dm to it.

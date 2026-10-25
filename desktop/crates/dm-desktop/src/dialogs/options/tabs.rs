@@ -744,24 +744,4 @@ pub(super) fn tab_site_logins(ui: &mut egui::Ui, d: &mut OptionsDialog, env: &Ta
         .small()
         .weak(),
     );
-    ui.separator();
-    ui.label(t(
-        "TorBox API key: to fetch a link through your TorBox account (Add URL › Through TorBox, or a download's menu).",
-    ));
-    ui.horizontal(|ui| {
-        let name = ui.label(t("API key"));
-        ui.add(
-            egui::TextEdit::singleline(&mut s.torbox_key)
-                .password(true)
-                .desired_width(ui.available_width().min(260.0)),
-        )
-        .labelled_by(name.id);
-    });
-    ui.label(
-        RichText::new(t(
-            "Only a link you send is shared with TorBox, with this key.",
-        ))
-        .small()
-        .weak(),
-    );
 }

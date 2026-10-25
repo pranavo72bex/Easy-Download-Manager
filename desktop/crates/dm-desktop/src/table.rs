@@ -910,7 +910,6 @@ fn row_menu(app: &mut DmApp, ui: &mut egui::Ui) {
         Command::ShareOnGofile,
         Command::MoveRename,
         Command::Redownload,
-        Command::DownloadViaTorBox,
     ] {
         menu_item(app, ui, command, command.title());
     }

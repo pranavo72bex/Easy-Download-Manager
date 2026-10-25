@@ -661,11 +661,5 @@
  "Empty keeps the names. {n} counts from 1, {name} is the old name": "Leeg behoudt de namen. {n} telt vanaf 1, {name} is de oude naam",
  "Sites with their own folder and speed:": "Sites met een eigen map en snelheid:",
  "Delete site rule": "Siteregel verwijderen",
- "Add a site rule": "Siteregel toevoegen",
- "Download through TorBox": "Downloaden via TorBox",
- "Asking TorBox…": "TorBox wordt gevraagd…",
- "Through TorBox": "Via TorBox",
- "API key": "API-sleutel",
- "TorBox API key: to fetch a link through your TorBox account (Add URL › Through TorBox, or a download's menu).": "TorBox-API-sleutel: om een link via uw TorBox-account op te halen (URL toevoegen › Via TorBox, of het menu van een download).",
- "Only a link you send is shared with TorBox, with this key.": "Alleen een link die u verstuurt wordt met deze sleutel met TorBox gedeeld."
+ "Add a site rule": "Siteregel toevoegen"
 }

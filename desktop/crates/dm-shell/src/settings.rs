@@ -173,9 +173,6 @@ pub struct Settings {
     /// host, so a protected file need not be typed for each time.
     #[serde(default, deserialize_with = "lenient::site_logins")]
     pub site_logins: Vec<SiteLogin>,
-    /// The person's TorBox API key, for sending a link through their
-    /// account (Options › Sign-ins). Empty: TorBox is not offered.
-    pub torbox_key: String,
 
     /// Which downloads the browser extension takes from the browser —
     /// Options › Browser. Kept here, in the app, and sent to the extension
@@ -324,7 +321,6 @@ impl Settings {
             login.password.clear();
         }
         out.proxy.password.clear();
-        out.torbox_key.clear();
         out.recent_urls.clear();
         out.last_folders.clear();
         serde_json::to_string_pretty(&out).unwrap_or_default()
@@ -349,8 +345,6 @@ impl Settings {
         if read.proxy.username == self.proxy.username {
             read.proxy.password = self.proxy.password.clone();
         }
-        // A key is this computer's own, as a password is.
-        read.torbox_key = self.torbox_key.clone();
         read.recent_urls = self.recent_urls.clone();
         read.last_folders = self.last_folders.clone();
         // Never a program to run from someone else's file: the command run
@@ -449,7 +443,6 @@ impl Default for Settings {
             sort_ascending: true,
             toolbar_hidden: Vec::new(),
             site_logins: Vec::new(),
-            torbox_key: String::new(),
             catch: dm_protocol::CatchRules::default(),
         }
     }
@@ -465,7 +458,6 @@ impl Settings {
         self.connections = self.connections.clamp(CONNECTIONS.0, CONNECTIONS.1);
         self.concurrency = self.concurrency.clamp(CONCURRENCY.0, CONCURRENCY.1);
         self.speed_limit = self.speed_limit.clamp(SPEED_LIMIT_KB.0, SPEED_LIMIT_KB.1);
-        self.torbox_key = self.torbox_key.trim().to_string();
         self.recent_urls.truncate(RECENT_URLS);
         self.retry_wait = self.retry_wait.min(3600);
         // A day at most: a stream meant to run longer is stopped by hand.

@@ -395,9 +395,7 @@ fn a_queue_start_must_be_a_time() {
 fn exported_settings_carry_no_password_and_imported_ones_keep_this_computers() {
     let kept = crate::test_secrets::secret("password");
     let proxy_kept = crate::test_secrets::secret("proxy");
-    let torbox_kept = crate::test_secrets::secret("torbox");
     let mut here = Settings {
-        torbox_key: torbox_kept.clone(),
         site_logins: vec![SiteLogin {
             host: "example.com".into(),
             username: "me".into(),
@@ -413,10 +411,6 @@ fn exported_settings_carry_no_password_and_imported_ones_keep_this_computers() {
     here.on_complete = "their-program --flag".into();
     let file = here.exported();
     assert!(!file.contains(&kept), "a password left in the file");
-    assert!(
-        !file.contains(&torbox_kept),
-        "a TorBox key left in the file"
-    );
     assert!(!file.contains("e.com/a.zip"), "history left in the file");
     assert!(
         !file.contains("private zips"),
@@ -424,7 +418,6 @@ fn exported_settings_carry_no_password_and_imported_ones_keep_this_computers() {
     );
     let mut elsewhere = Settings {
         site_logins: here.site_logins.clone(),
-        torbox_key: torbox_kept.clone(),
         ..Settings::default()
     };
     elsewhere.proxy.username = "proxyuser".into();
@@ -433,7 +426,6 @@ fn exported_settings_carry_no_password_and_imported_ones_keep_this_computers() {
     assert_eq!(read.connections, 5);
     assert_eq!(read.site_logins[0].password, kept);
     assert_eq!(read.proxy.password, proxy_kept);
-    assert_eq!(read.torbox_key, torbox_kept);
     // A command to run is never taken from a file.
     assert_eq!(read.on_complete, elsewhere.on_complete);
     assert!(elsewhere.imported("not settings").is_err());

@@ -661,11 +661,5 @@
  "Empty keeps the names. {n} counts from 1, {name} is the old name": "Boş bırakılırsa adlar korunur. {n} 1’den sayar, {name} eski addır",
  "Sites with their own folder and speed:": "Kendi klasörü ve hızı olan siteler:",
  "Delete site rule": "Site kuralını sil",
- "Add a site rule": "Site kuralı ekle",
- "Download through TorBox": "TorBox ile indir",
- "Asking TorBox…": "TorBox’a soruluyor…",
- "Through TorBox": "TorBox ile",
- "API key": "API anahtarı",
- "TorBox API key: to fetch a link through your TorBox account (Add URL › Through TorBox, or a download's menu).": "TorBox API anahtarı: bir bağlantıyı TorBox hesabınızla almak için (URL ekle › TorBox ile veya bir indirmenin menüsü).",
- "Only a link you send is shared with TorBox, with this key.": "TorBox ile yalnızca sizin gönderdiğiniz bağlantı, bu anahtarla paylaşılır."
+ "Add a site rule": "Site kuralı ekle"
 }

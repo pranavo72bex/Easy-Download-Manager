@@ -661,11 +661,5 @@
  "Empty keeps the names. {n} counts from 1, {name} is the old name": "留空则保留名称。{n} 从 1 起计数，{name} 为原名称",
  "Sites with their own folder and speed:": "有各自文件夹和速度的网站：",
  "Delete site rule": "删除网站规则",
- "Add a site rule": "添加网站规则",
- "Download through TorBox": "通过 TorBox 下载",
- "Asking TorBox…": "正在询问 TorBox…",
- "Through TorBox": "通过 TorBox",
- "API key": "API 密钥",
- "TorBox API key: to fetch a link through your TorBox account (Add URL › Through TorBox, or a download's menu).": "TorBox API 密钥：通过你的 TorBox 账户获取链接（添加 URL › 通过 TorBox，或下载项的菜单）。",
- "Only a link you send is shared with TorBox, with this key.": "只有你发送的链接会连同此密钥分享给 TorBox。"
+ "Add a site rule": "添加网站规则"
 }

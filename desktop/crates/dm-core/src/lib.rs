@@ -46,7 +46,6 @@ pub mod subtitles;
 #[path = "../../../test-support/secrets.rs"]
 pub(crate) mod test_secrets;
 pub mod tools;
-pub mod torbox;
 pub mod torrent;
 pub mod tsmux;
 pub mod ytdlp;

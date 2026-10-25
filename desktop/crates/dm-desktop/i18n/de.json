@@ -661,11 +661,5 @@
  "Empty keeps the names. {n} counts from 1, {name} is the old name": "Leer behält die Namen. {n} zählt ab 1, {name} ist der alte Name",
  "Sites with their own folder and speed:": "Seiten mit eigenem Ordner und Tempo:",
  "Delete site rule": "Websiteregel löschen",
- "Add a site rule": "Websiteregel hinzufügen",
- "Download through TorBox": "Über TorBox herunterladen",
- "Asking TorBox…": "TorBox wird gefragt…",
- "Through TorBox": "Über TorBox",
- "API key": "API-Schlüssel",
- "TorBox API key: to fetch a link through your TorBox account (Add URL › Through TorBox, or a download's menu).": "TorBox-API-Schlüssel: um einen Link über Ihr TorBox-Konto abzurufen (URL hinzufügen › Über TorBox oder das Menü eines Downloads).",
- "Only a link you send is shared with TorBox, with this key.": "Nur ein Link, den Sie senden, wird mit diesem Schlüssel an TorBox weitergegeben."
+ "Add a site rule": "Websiteregel hinzufügen"
 }

@@ -223,21 +223,6 @@ fn a_finished_download_is_shared_on_gofile_and_its_link_said() {
 }
 
 #[test]
-fn downloading_through_torbox_needs_a_key_and_a_link_not_yet_finished() {
-    let world = world();
-    let mut harness = world.harness();
-    add_url(&mut harness, &world.url("file.zip"), "Start now");
-    until(&mut harness, "file.zip to finish", |app| {
-        app.rows().iter().any(|r| r.state == State::Completed)
-    });
-    select(&mut harness, "file.zip");
-    // No key: not offered. A finished file: nothing to fetch.
-    assert!(!harness.state().enabled(Command::DownloadViaTorBox));
-    harness.state_mut().applied.torbox_key = "key".into();
-    assert!(!harness.state().enabled(Command::DownloadViaTorBox));
-}
-
-#[test]
 fn a_video_half_fetched_is_previewed_from_what_is_on_disk() {
     let world = world();
     let mut harness = world.harness();

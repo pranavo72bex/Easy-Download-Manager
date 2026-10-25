@@ -99,7 +99,6 @@ impl DmApp {
                         | Command::OpenWith
                         | Command::Preview
                         | Command::ShareOnGofile
-                        | Command::DownloadViaTorBox
                 ) {
                     return Err(format!(
                         "{id} is done in the window by a person, not over this connection"

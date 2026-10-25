@@ -661,11 +661,5 @@
  "Empty keeps the names. {n} counts from 1, {name} is the old name": "비워 두면 이름을 유지합니다. {n}은 1부터 세고 {name}은 이전 이름입니다",
  "Sites with their own folder and speed:": "자체 폴더와 속도를 쓰는 사이트:",
  "Delete site rule": "사이트 규칙 삭제",
- "Add a site rule": "사이트 규칙 추가",
- "Download through TorBox": "TorBox로 다운로드",
- "Asking TorBox…": "TorBox에 요청하는 중…",
- "Through TorBox": "TorBox로",
- "API key": "API 키",
- "TorBox API key: to fetch a link through your TorBox account (Add URL › Through TorBox, or a download's menu).": "TorBox API 키: TorBox 계정으로 링크를 가져옵니다(URL 추가 › TorBox로, 또는 다운로드 메뉴).",
- "Only a link you send is shared with TorBox, with this key.": "직접 보낸 링크만 이 키와 함께 TorBox에 전달됩니다."
+ "Add a site rule": "사이트 규칙 추가"
 }

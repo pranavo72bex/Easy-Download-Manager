@@ -661,11 +661,5 @@
  "Empty keeps the names. {n} counts from 1, {name} is the old name": "空欄なら名前はそのまま。{n} は 1 から数え、{name} は元の名前",
  "Sites with their own folder and speed:": "独自のフォルダーと速度を使うサイト：",
  "Delete site rule": "サイトのルールを削除",
- "Add a site rule": "サイトのルールを追加",
- "Download through TorBox": "TorBox 経由でダウンロード",
- "Asking TorBox…": "TorBox に問い合わせ中…",
- "Through TorBox": "TorBox 経由",
- "API key": "API キー",
- "TorBox API key: to fetch a link through your TorBox account (Add URL › Through TorBox, or a download's menu).": "TorBox API キー: TorBox アカウントでリンクを取得します（URL を追加 › TorBox 経由、またはダウンロードのメニュー）。",
- "Only a link you send is shared with TorBox, with this key.": "このキーとともに TorBox に渡されるのは、あなたが送ったリンクだけです。"
+ "Add a site rule": "サイトのルールを追加"
 }

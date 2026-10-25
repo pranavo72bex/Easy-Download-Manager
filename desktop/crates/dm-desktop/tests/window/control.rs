@@ -294,12 +294,7 @@ fn opening_a_file_is_refused_over_the_control_protocol() {
     let world = world();
     let mut harness = world.harness();
     let app = harness.state_mut();
-    for id in [
-        "file.open",
-        "file.open_with",
-        "file.share_gofile",
-        "file.torbox",
-    ] {
+    for id in ["file.open", "file.open_with", "file.share_gofile"] {
         let refused = app
             .control_call("command.run", &serde_json::json!({ "id": id }))
             .expect_err(id);

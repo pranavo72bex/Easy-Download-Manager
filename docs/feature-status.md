@@ -443,14 +443,6 @@ of them.
       a URL without `.mpd` takes the same route. Each route is pinned by
       `DM_YTDLP` — empty for the refusal, a stand-in that records its
       arguments for the hand-off — so neither can be deleted unnoticed
-- [x] Download supported links through TorBox — `torbox.rs`: create a web
-      download, poll until it is finished, ask for each file's address, hand
-      those https addresses to the engine. Key in Options › Sign-ins, kept out
-      of exported settings and error text. Tested against a local stand-in
-      (form-encoded link, bearer key, polling, failure, refusal, insecure
-      address, key not in errors); endpoints and fields checked against
-      TorBox's public OpenAPI file on 2026-10-25. No real account was
-      available, so a live fetch is NOT VERIFIED
 - [x] Share a finished file on Gofile — Share on Gofile in the File and row
       menus (`gofile.rs`): asks Gofile for a server, streams the file up as a
       guest upload, copies the page link; only on request, no key kept.

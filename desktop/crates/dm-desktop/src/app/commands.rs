@@ -31,14 +31,6 @@ impl DmApp {
             Command::Redownload => any(|r| {
                 matches!(r.state, State::Completed | State::Cancelled) || r.progress.downloaded > 0
             }),
-            // With a key set, for links TorBox can be asked for.
-            Command::DownloadViaTorBox => {
-                !self.applied.torbox_key.trim().is_empty()
-                    && any(|r| {
-                        r.state != State::Completed
-                            && (r.url.starts_with("http://") || r.url.starts_with("https://"))
-                    })
-            }
             Command::CopyLink => !targets.is_empty(),
             Command::UpdateLink => {
                 targets.len() == 1
@@ -123,9 +115,7 @@ impl DmApp {
                 .into();
             return;
         }
-        if self.by_script()
-            && matches!(command, Command::ShareOnGofile | Command::DownloadViaTorBox)
-        {
+        if self.by_script() && command == Command::ShareOnGofile {
             self.said = "Sharing a file is done by a person, not by a script"
                 .to_string()
                 .into();
@@ -313,14 +303,6 @@ impl DmApp {
                 self.extract_zip(&targets[0].path, &targets[0].url, None);
             }
             Command::ShareOnGofile => self.share_on_gofile(&targets[0].path),
-            Command::DownloadViaTorBox => {
-                let links: Vec<String> = targets
-                    .iter()
-                    .filter(|r| r.state != State::Completed)
-                    .map(|r| r.url.clone())
-                    .collect();
-                self.download_through_torbox(links);
-            }
             Command::ExtractTo => {
                 if !self.backend.platform.can_choose_folder() {
                     self.said = crate::i18n::t("No folder picker here. Use Extract here.").into();
