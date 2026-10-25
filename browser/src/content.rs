@@ -86,6 +86,10 @@ thread_local! {
     static RULES_ASKED: std::cell::Cell<bool> = const { std::cell::Cell::new(false) };
     // How far the person dragged the panel from its corner, for this page.
     static NUDGE: std::cell::Cell<(f64, f64)> = const { std::cell::Cell::new((0.0, 0.0)) };
+    // The qualities of the page being watched, asked for when the panel was
+    // raised so that a click has them already: the page's address, when it
+    // was asked (ms) and the answer on its way.
+    static READING: RefCell<Option<(String, f64, Promise)>> = const { RefCell::new(None) };
     // Where the panel's corner is for the player it is shown over.
     static SPOT: std::cell::Cell<(f64, f64)> = const { std::cell::Cell::new((0.0, 0.0)) };
     // A drag under way: where the pointer went down, and the nudge then.
