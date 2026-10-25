@@ -3,6 +3,15 @@
 Decisions that shape dm and are not obvious from the code, newest first. Each says what was decided and why, so a later change
 can see what it is undoing.
 
+## 2026-10-25: TorBox built, then removed at the owner's request
+
+A TorBox integration (own API key, Add URL › Through TorBox, a row command;
+`torbox.rs`) was built and tested against a stand-in and against the live API
+with a bad key, then reverted: no account was available to prove a real
+fetch, and the owner judged it not worth carrying yet. It is in git history
+(commits `cbfa3c8`, `291fc09`) if it is wanted again. The 2026-10-24 drop of
+debrid providers stands.
+
 ## 2026-10-25: Gofile sharing, built on the owner's request
 
 Reverses the Gofile half of the 2026-10-24 drop below. Built as a menu
