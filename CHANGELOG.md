@@ -5,6 +5,8 @@ the browser extension (`v*` tags) are versioned separately.
 
 ## Unreleased
 
+- The video list opens at once: the panel reads a page's qualities when it is raised over the player, leaves out what a list does not need (a third less time on YouTube), and a reading is kept ten minutes, so a page opened again lists in a few hundredths of a second.
+- An HLS stream cut from one file by byte ranges, and a picture and sound of encrypted (AES-128) fragmented MP4, are fetched and joined by dm itself.
 - A video a site's player fetches as a separate picture and sound (as YouTube's does) is offered in the panel's list as one line; dm fetches both at once, by byte range, and joins them into one MP4 with no helper program. The pieces of a DASH or HLS track are fetched on as many connections as are set.
 - Options › General has an **Appearance** group (Theme, and Text size: Small, Medium or Large, which scales the whole window), every setting there is a toggle switch rather than a check box, the pop-ups are one **Pop-ups** group, and the "Update download link" window that opens by itself when a link runs out has a switch of its own.
 - The panel no longer sits on "Reading qualities…": the wait is said in words, streams the page itself loaded are offered after eight seconds, and past 50 seconds it says dm did not answer and gives the click back.

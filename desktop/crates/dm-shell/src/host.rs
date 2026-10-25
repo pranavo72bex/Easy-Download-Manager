@@ -447,13 +447,21 @@ fn now_secs() -> u64 {
         .map_or(0, |d| d.as_secs())
 }
 
-/// A page and the session it was read with, as one name: a different
-/// sign-in can show a different list, so the cookies are part of it (as a
-/// fingerprint, never kept).
+/// A page and the kind of session it was read with, as one name: signed in
+/// or not, and with which cookies' names. Their values are left out: a
+/// site restamps some on every request, and a name that changed with each
+/// would never be found again. Never kept as more than a fingerprint.
 fn formats_key(url: &str, cookies: &str) -> String {
     use std::hash::{Hash, Hasher};
+    let mut names: Vec<&str> = cookies
+        .split(';')
+        .filter_map(|c| c.split_once('=').map(|(n, _)| n.trim()))
+        .filter(|n| !n.is_empty())
+        .collect();
+    names.sort_unstable();
+    names.dedup();
     let mut hasher = std::collections::hash_map::DefaultHasher::new();
-    cookies.hash(&mut hasher);
+    names.hash(&mut hasher);
     let page = url.split('#').next().unwrap_or(url);
     format!("{page}\n{:016x}", hasher.finish())
 }
