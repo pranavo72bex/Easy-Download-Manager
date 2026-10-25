@@ -1604,3 +1604,21 @@ that caught it covers the margin. Tried and dropped: reading the row's
 rectangle again after the list's own layout, which needs a second pass over
 the frame for one dialog.
 
+## 2026-10-25 Gaps found by a behaviour walk-through, and what was left
+
+Done: tracking parameters are ignored when comparing addresses (`lists::bare`,
+used for every "already in the list" question; the address that is fetched is
+untouched), and the tray gained Start queue and Stop all.
+
+Left as it is, on purpose:
+- A certificate that cannot be checked stops the download with the reason
+  said. A "continue anyway" would be the one place dm fetched over a link
+  anyone on the path can read and swap; nothing a person is waiting for
+  justifies it. Considered: a per-row override, dropped.
+- Taking a download the browser would keep is Shift-click, and the keys are
+  options; a second default combination adds nothing.
+- A floating button over selected links, with a checklist of them: the
+  right-click "Download selected links" hands over the same set, and dm's
+  own Add links window has the checkboxes. A page overlay needs a real
+  browser to check, which this project's shell does not have, so it is not
+  built unseen.

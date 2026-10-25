@@ -7,6 +7,12 @@ the browser extension (`v*` tags) are versioned separately.
 
 This release also carries what was prepared as 0.6.0 and 0.7.0, which were never published (0.7.0's release check failed on Windows, in a test script, and was withdrawn).
 
+- An address that differs only by tracking parameters (`utm_*`, `fbclid`,
+  `gclid`, `igshid`, `si`, `feature`) is the same address when dm asks
+  whether a link is already in the list.
+- The tray menu has Start queue and Stop all, so downloads can be started and
+  stopped without opening the window.
+
 - **Share on Gofile** in the File and row menus: a finished file is uploaded
   to Gofile as a guest upload and the link to its page is copied. Only when
   asked, per file; no account or key is kept. Gofile's terms could not be

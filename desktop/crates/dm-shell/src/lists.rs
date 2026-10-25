@@ -292,12 +292,31 @@ pub struct Search {
 /// The most a saved search remembers having found.
 pub const MOST_SEEN: usize = 10_000;
 
-/// An address without its user and password, for telling two apart.
+/// Query keys a site or a share button adds to say where a visitor came
+/// from; they never change what is served.
+fn is_tracking(key: &str) -> bool {
+    key.starts_with("utm_") || matches!(key, "fbclid" | "gclid" | "igshid" | "si" | "feature")
+}
+
+/// An address without its user and password, nor the parameters that only
+/// track a visit, for telling two apart.
 pub fn bare(url: &str) -> String {
     match url::Url::parse(url) {
         Ok(mut parsed) => {
             let _ = parsed.set_username("");
             let _ = parsed.set_password(None);
+            if parsed.query().is_some() {
+                let kept: Vec<(String, String)> = parsed
+                    .query_pairs()
+                    .filter(|(k, _)| !is_tracking(k))
+                    .map(|(k, v)| (k.into_owned(), v.into_owned()))
+                    .collect();
+                if kept.is_empty() {
+                    parsed.set_query(None);
+                } else {
+                    parsed.query_pairs_mut().clear().extend_pairs(kept);
+                }
+            }
             parsed.to_string()
         }
         Err(_) => url.to_string(),
@@ -639,6 +658,14 @@ pub async fn crawl_until(
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn tracking_parameters_do_not_make_an_address_new() {
+        let a = super::bare("https://v.example/watch?v=1&si=abc&utm_source=x");
+        assert_eq!(a, super::bare("https://v.example/watch?v=1"));
+        assert_ne!(a, super::bare("https://v.example/watch?v=2"));
+        assert_eq!(super::bare("https://a.example/f.zip?fbclid=z"), super::bare("https://a.example/f.zip"));
+    }
+
     use super::*;
 
     /// An FTP server's folders walked as a site's pages are: down to the

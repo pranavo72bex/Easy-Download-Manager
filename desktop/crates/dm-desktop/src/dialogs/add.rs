@@ -1,13 +1,7 @@
 use super::*;
 /// An address without its login, for telling two rows apart.
 pub(crate) fn bare(url: &str) -> String {
-    url::Url::parse(url)
-        .map(|mut u| {
-            let _ = u.set_username("");
-            let _ = u.set_password(None);
-            u.to_string()
-        })
-        .unwrap_or_else(|_| url.to_string())
+    dm_shell::lists::bare(url)
 }
 
 /// Asked when a list being imported holds addresses already in the list,

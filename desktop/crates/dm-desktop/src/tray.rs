@@ -13,7 +13,8 @@ pub(super) fn tray_words() -> [&'static str; 5] {
     ]
 }
 
-/// The tray icon: Show, the speed limiter and Scheduler, and Quit.
+/// The tray icon: Show, Start queue and Stop all, the speed limiter and
+/// Scheduler, and Quit.
 ///
 /// Optional: a desktop may not expose a StatusNotifier host. In that case dm
 /// says so in the window and closing it quits instead of hiding without a tray.
@@ -50,14 +51,23 @@ pub(super) fn tray(wake: egui::Context, send: mpsc::Sender<Tray>) -> Result<Tray
     .into_iter()
     .map(|c| (c, MenuItem::new(c.title(), true, None)))
     .collect();
+    // Start and stop the downloads without opening the window.
+    let queue: Vec<(Command, MenuItem)> = [Command::StartQueue, Command::StopAll]
+        .into_iter()
+        .map(|c| (c, MenuItem::new(c.title(), true, None)))
+        .collect();
     let speeds = Submenu::new(dm_desktop::i18n::t("Speed"), true);
     for (_, item) in &presets {
         let _ = speeds.append(item);
     }
     let mut items = vec![show.clone(), scheduler.clone(), quit.clone()];
     items.extend(presets.iter().map(|(_, item)| item.clone()));
+    items.extend(queue.iter().map(|(_, item)| item.clone()));
     let menu = Menu::with_items(&[
         &show,
+        &PredefinedMenuItem::separator(),
+        &queue[0].1,
+        &queue[1].1,
         &PredefinedMenuItem::separator(),
         &limiter,
         &speeds,
@@ -70,6 +80,7 @@ pub(super) fn tray(wake: egui::Context, send: mpsc::Sender<Tray>) -> Result<Tray
     let (limiter_id, scheduler_id) = (limiter.id().clone(), scheduler.id().clone());
     let preset_ids: Vec<(tray_icon::menu::MenuId, Command)> = presets
         .iter()
+        .chain(queue.iter())
         .map(|(c, item)| (item.id().clone(), *c))
         .collect();
 
