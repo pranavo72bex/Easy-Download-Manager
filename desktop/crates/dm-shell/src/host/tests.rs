@@ -443,6 +443,32 @@ fn a_video_from_the_panel_reaches_the_app_with_its_quality_and_asks_first() {
     assert!(filed.ask);
 }
 
+#[test]
+fn a_picture_and_the_sound_that_goes_with_it_reach_the_app_together() {
+    let dir = tempfile::tempdir().unwrap();
+    let frame = Asked::Start(Start {
+        id: "pair-1".into(),
+        url: "https://cdn.example/picture".into(),
+        sound: Some(" https://cdn.example/sound ".into()),
+        ..Start::default()
+    })
+    .to_frame();
+    let (reply, _) = ask(dir.path(), frame, true, Ok(()));
+    assert_eq!(
+        reply,
+        Some(Reply::Started {
+            id: "pair-1".into()
+        })
+    );
+    let filed: Request = serde_json::from_str(
+        &std::fs::read_to_string(inbox(dir.path()).join("pair-1.json")).unwrap(),
+    )
+    .unwrap();
+    assert_eq!(filed.sound.as_deref(), Some("https://cdn.example/sound"));
+    let options = crate::shell::add_options(&filed);
+    assert_eq!(options.sound.as_deref(), Some("https://cdn.example/sound"));
+}
+
 fn ask(
     home: &Path,
     frame: serde_json::Value,

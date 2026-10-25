@@ -17,6 +17,17 @@
     try { return Boolean(ext.runtime?.id); } catch { return false; }
   };
 
+  // What document.js saw a video player ask for (on the sites it is
+  // registered for), told to the background so the panel's list can offer
+  // the picture and sound together. Only from this page, only an address.
+  window.addEventListener('message', (event) => {
+    const data = event.data;
+    if (event.source !== window || data?.source !== 'dm-media-seen' || typeof data.url !== 'string') return;
+    try {
+      ext.runtime.sendMessage({ type: 'dm.media-seen', url: data.url }).catch(() => {});
+    } catch { /* the extension was updated under this page */ }
+  });
+
   // A click with a key held: the app's rules (Options › Browser) name the
   // key that leaves a download with the browser (Alt unless changed) and
   // the one that hands it to dm whatever its type or size (Shift unless

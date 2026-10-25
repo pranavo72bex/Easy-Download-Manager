@@ -68,7 +68,12 @@ pub(super) fn clicked() {
         // "Reading the vi…".
         set_title(p, "Reading qualities…");
         close_list(p);
-        say(p, "");
+        // Said, so a wait is not taken for a hang: reading a video page can
+        // take up to half a minute.
+        say(
+            p,
+            "dm is reading this page's video qualities; this can take up to half a minute.",
+        );
     });
     let asked = message(decide::FORMATS_MESSAGE, &src, &frame);
     wasm_bindgen_futures::spawn_local(async move {
@@ -92,7 +97,10 @@ pub(super) fn clicked() {
             .ok()
             .and_then(|v| v.dyn_into().ok())
             .unwrap_or_default();
-        with_panel(|p| p.settled = false);
+        with_panel(|p| {
+            p.settled = false;
+            say(p, "");
+        });
         match choices.length() {
             0 => hand(&src, &frame, None, None),
             1 => hand_choice(&src, &frame, &choices.get(0)),
@@ -138,7 +146,8 @@ pub(super) fn hand_choice(src: &str, frame: &str, choice: &JsValue) {
     if url.is_empty() {
         hand(src, frame, Some(text_of(choice, "quality")), label);
     } else {
-        hand(&url, frame, None, label);
+        let sound = Some(text_of(choice, "sound")).filter(|s| !s.is_empty());
+        hand_with(&url, frame, None, label, sound);
     }
 }
 
@@ -155,7 +164,22 @@ pub(super) fn failed(said: &str) {
 /// Hands the player's media to the app through the background, at the
 /// quality picked; the app asks where to save it.
 pub(super) fn hand(src: &str, frame: &str, quality: Option<String>, label: Option<String>) {
+    hand_with(src, frame, quality, label, None);
+}
+
+/// As [`hand`], with the address of a sound the player fetched apart from
+/// the picture at `src`, which the app fetches with it and joins.
+pub(super) fn hand_with(
+    src: &str,
+    frame: &str,
+    quality: Option<String>,
+    label: Option<String>,
+    sound: Option<String>,
+) {
     let message = message(PANEL_MESSAGE, src, frame);
+    if let Some(sound) = &sound {
+        let _ = Reflect::set(&message, &"sound".into(), &sound.into());
+    }
     if let Some(quality) = &quality {
         let _ = Reflect::set(&message, &"quality".into(), &quality.into());
     }

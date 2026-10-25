@@ -117,7 +117,12 @@ pub struct PanelClick {
     /// The quality picked from the panel's list, and what the list said.
     pub quality: Option<String>,
     pub label: Option<String>,
+    /// A sound the player fetched apart from the picture at `src`.
+    pub sound: Option<String>,
 }
+
+/// The page script telling what a video player asked for.
+pub const MEDIA_SEEN_MESSAGE: &str = "dm.media-seen";
 
 /// The page script asking what qualities a player's video comes in.
 pub const FORMATS_MESSAGE: &str = "dm.formats";

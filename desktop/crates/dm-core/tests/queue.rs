@@ -124,6 +124,40 @@ async fn a_change_to_the_queue_is_told() {
     );
 }
 
+/// A sound the player fetched apart is kept on the row, and only where it is
+/// a web address: anything else would be fetched by dm on a page's word.
+#[tokio::test]
+async fn a_sound_is_kept_on_the_row_only_if_it_is_a_web_address() {
+    let dir = tempdir();
+    let q = queue(dir.path(), 1);
+    let mut kept = Vec::new();
+    for sound in ["https://cdn.example/s", "file:///etc/passwd", "ftp://h/s"] {
+        let id = q
+            .add_with(
+                "http://127.0.0.1:9/picture",
+                dm_core::AddOptions {
+                    later: true,
+                    sound: Some(sound.into()),
+                    ..Default::default()
+                },
+            )
+            .await
+            .unwrap();
+        kept.push(
+            q.list()
+                .await
+                .into_iter()
+                .find(|e| e.id == id)
+                .unwrap()
+                .sound,
+        );
+    }
+    assert_eq!(
+        kept,
+        [Some("https://cdn.example/s".to_string()), None, None]
+    );
+}
+
 #[tokio::test]
 async fn downloads_run_together_but_not_all_at_once() {
     let (addr, peak) = serve().await;

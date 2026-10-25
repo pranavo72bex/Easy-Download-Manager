@@ -1203,3 +1203,44 @@ fn the_host_answers_well_before_the_extension_stops_waiting() {
     let host_ms = (dm_protocol::PROBE_WITHIN_MS + dm_protocol::ANSWER_MARGIN_MS) as f64;
     assert!(host_ms + 5_000.0 <= TAKEN_WITHIN_MS, "{host_ms}");
 }
+
+fn player(itag: u32, mime: &str, clen: u64, extra: &str) -> String {
+    format!(
+        "https://rr1.sn-x.googlevideo.com/videoplayback?expire=9&itag={itag}&mime={mime}&clen={clen}&sig=abc{extra}"
+    )
+}
+
+#[test]
+fn a_picture_and_a_sound_a_player_fetched_apart_are_one_line_with_both_addresses() {
+    let mut streams = Streams::default();
+    let picture = player(137, "video%2Fmp4", 900, "&range=0-99&rn=3");
+    let sound = player(140, "audio%2Fmp4", 100, "&rn=4&rbuf=1");
+    for url in [&picture, &sound] {
+        streams.absorb(&seen(url, "xmlhttprequest", &[]));
+    }
+    let list = streams.of(7);
+    assert_eq!(list.len(), 1);
+    assert_eq!(list[0].label, "1080p video + sound");
+    assert_eq!(list[0].size, Some(1000));
+    // The pieces' own parameters are not part of the file's address.
+    assert!(!list[0].url.contains("range=") && !list[0].url.contains("rn="));
+    let sound = list[0].sound.as_deref().unwrap();
+    assert!(sound.contains("itag=140") && !sound.contains("rbuf"));
+}
+
+#[test]
+fn a_picture_with_no_sound_is_not_offered_alone() {
+    let mut streams = Streams::default();
+    let mut one = seen(&player(137, "video%2Fmp4", 900, ""), "xmlhttprequest", &[]);
+    one.tab_id = 7;
+    streams.absorb(&one);
+    assert!(streams.of(7).is_empty());
+}
+
+#[test]
+fn only_a_video_servers_playback_addresses_are_read_as_tracks() {
+    assert!(track_of("https://evil.example/videoplayback?itag=137&mime=video%2Fmp4").is_none());
+    assert!(track_of("https://notgooglevideo.com/videoplayback?itag=137").is_none());
+    assert!(track_of("https://a.googlevideo.com/other?itag=137").is_none());
+    assert!(track_of("https://a.googlevideo.com/videoplayback?itag=9999").is_none());
+}

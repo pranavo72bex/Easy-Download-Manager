@@ -28,6 +28,17 @@
         "<all_urls>"
       ],
       "js": [
+        "document.js"
+      ],
+      "all_frames": true,
+      "run_at": "document_start",
+      "world": "MAIN"
+    },
+    {
+      "matches": [
+        "<all_urls>"
+      ],
+      "js": [
         "content.js"
       ],
       "all_frames": true,

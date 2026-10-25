@@ -29,11 +29,16 @@ pub struct Seen {
 pub enum StreamKind {
     /// An HLS playlist: the app fetches its segments and joins them.
     Hls,
-    /// A DASH manifest: the app hands it to yt-dlp, which joins picture and
-    /// sound.
+    /// A DASH manifest: the app reads it, fetches picture and sound and
+    /// joins them itself.
     Dash,
     /// A whole audio or video file.
     File,
+    /// The picture of a video a player fetches apart from its sound: not
+    /// offered alone, but with a sound as one line (`Stream::sound`).
+    Picture,
+    /// The sound that goes with a [`StreamKind::Picture`].
+    Sound,
 }
 
 /// Media a page loaded, offered in the panel beside what yt-dlp reads.
@@ -43,6 +48,11 @@ pub struct Stream {
     pub kind: StreamKind,
     pub size: Option<u64>,
     pub label: String,
+    /// For a picture and a sound a player fetched apart, joined into one
+    /// line of the list: the address of the sound, which dm fetches with the
+    /// picture at `url` and joins.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub sound: Option<String>,
 }
 
 /// A whole file smaller than this is a thumbnail, a sound effect or an ad
@@ -81,12 +91,16 @@ pub fn stream_seen(seen: &Seen) -> Option<Stream> {
         .map(|(_, e)| e.to_string())
         .unwrap_or_default();
 
+    if let Some(track) = track_of(&seen.url) {
+        return Some(track);
+    }
     if mime.contains("mpegurl") || ext == "m3u8" {
         return Some(Stream {
             url: seen.url.clone(),
             kind: StreamKind::Hls,
             size: None,
             label: "HLS stream".into(),
+            sound: None,
         });
     }
     if mime.contains("dash+xml") || ext == "mpd" {
@@ -95,6 +109,7 @@ pub fn stream_seen(seen: &Seen) -> Option<Stream> {
             kind: StreamKind::Dash,
             size: None,
             label: "DASH stream".into(),
+            sound: None,
         });
     }
 
@@ -142,6 +157,80 @@ pub fn stream_seen(seen: &Seen) -> Option<Stream> {
         kind: StreamKind::File,
         size,
         label: format!("{format} {kind} file"),
+        sound: None,
+    })
+}
+
+/// Picture and sound itags of a video site's player, for the label and for a
+/// response that names no type: the picture's height, or 0 for a sound.
+fn itag_height(itag: u32) -> Option<u32> {
+    Some(match itag {
+        160 | 278 | 394 => 144,
+        133 | 242 | 395 => 240,
+        134 | 243 | 396 => 360,
+        135 | 244 | 397 => 480,
+        136 | 247 | 298 | 398 => 720,
+        137 | 248 | 299 | 399 => 1080,
+        264 | 271 | 400 => 1440,
+        266 | 313 | 401 => 2160,
+        139 | 140 | 141 | 249 | 250 | 251 => 0,
+        _ => return None,
+    })
+}
+
+/// One query parameter of an address, percent-decoded where it is a type.
+fn param(url: &str, key: &str) -> Option<String> {
+    let query = url.split_once('?')?.1.split('#').next()?;
+    query.split('&').find_map(|pair| {
+        let (name, value) = pair.split_once('=')?;
+        (name == key).then(|| value.replace("%2F", "/").replace("%2f", "/"))
+    })
+}
+
+/// A picture or a sound of a player that fetches each as a whole file in
+/// pieces, read from the address of any of its requests: the file's own
+/// address (the player's per-piece `range`, `rn` and `rbuf` taken off, which
+/// name the piece and not the file), what it is and how long it is.
+pub fn track_of(url: &str) -> Option<Stream> {
+    let (host, rest) = url.split_once("://")?.1.split_once('/')?;
+    let (path, query) = rest.split_once('?')?;
+    if !(host == "googlevideo.com" || host.ends_with(".googlevideo.com"))
+        || !path.ends_with("videoplayback")
+    {
+        return None;
+    }
+    let itag = param(url, "itag").and_then(|v| v.parse::<u32>().ok());
+    let kind_word = param(url, "mime").unwrap_or_default().to_ascii_lowercase();
+    let height = itag.and_then(itag_height);
+    let kind = if kind_word.starts_with("video/") || height.is_some_and(|h| h > 0) {
+        StreamKind::Picture
+    } else if kind_word.starts_with("audio/") || height == Some(0) {
+        StreamKind::Sound
+    } else {
+        return None;
+    };
+    let kept: Vec<&str> = query
+        .split('#')
+        .next()
+        .unwrap_or("")
+        .split('&')
+        .filter(|pair| {
+            let name = pair.split('=').next().unwrap_or("");
+            !matches!(name, "range" | "rn" | "rbuf")
+        })
+        .collect();
+    let whole = format!("https://{host}/{path}?{}", kept.join("&"));
+    let label = match (kind, height) {
+        (StreamKind::Picture, Some(h)) if h > 0 => format!("{h}p video"),
+        (StreamKind::Picture, _) => "video".to_string(),
+        _ => "sound".to_string(),
+    };
+    Some(Stream {
+        url: whole,
+        kind,
+        size: param(url, "clen").and_then(|v| v.parse().ok()),
+        label,
+        sound: None,
     })
 }
 
@@ -297,6 +386,28 @@ impl Streams {
     /// apart by their file name.
     pub fn of(&self, tab: i64) -> Vec<Stream> {
         let mut list = self.by_tab.get(&tab).cloned().unwrap_or_default();
+        // A picture and a sound a player fetched apart are one line, with
+        // the largest of each: the best the page has loaded.
+        let largest = |list: &[Stream], kind: StreamKind| {
+            list.iter()
+                .filter(|s| s.kind == kind)
+                .max_by_key(|s| s.size.unwrap_or(0))
+                .cloned()
+        };
+        let (picture, sound) = (
+            largest(&list, StreamKind::Picture),
+            largest(&list, StreamKind::Sound),
+        );
+        list.retain(|s| !matches!(s.kind, StreamKind::Picture | StreamKind::Sound));
+        if let (Some(picture), Some(sound)) = (picture, sound) {
+            list.push(Stream {
+                url: picture.url,
+                kind: StreamKind::File,
+                size: picture.size.zip(sound.size).map(|(a, b)| a + b),
+                label: format!("{} + sound", picture.label),
+                sound: Some(sound.url),
+            });
+        }
         list.sort_by_key(|s| {
             (
                 s.kind == StreamKind::File,

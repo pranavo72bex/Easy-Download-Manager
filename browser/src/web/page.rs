@@ -35,7 +35,7 @@ pub(super) async fn in_browser_instead(target: &Target, why: &str) -> Result<Str
 /// Hands something a person asked for. `Ok` carries a word for whoever
 /// asked; `Err` why it could not be done.
 pub(super) async fn hand_target(target: Target, store: Option<String>) -> Result<String, String> {
-    hand_chosen(target, store, None, None, false).await
+    hand_chosen(target, store, None, None, None, false).await
 }
 
 /// Hands one download over, with the quality picked from the panel's list
@@ -46,6 +46,7 @@ pub(super) async fn hand_chosen(
     store: Option<String>,
     quality: Option<String>,
     label: Option<String>,
+    sound: Option<String>,
     ask: bool,
 ) -> Result<String, String> {
     let (app, port) = app().await;
@@ -72,6 +73,7 @@ pub(super) async fn hand_chosen(
         // when yt-dlp cannot read it.
         quality: quality.or_else(|| target.page.then(|| "best".to_string())),
         label,
+        sound: sound.filter(|s| s.starts_with("https://") || s.starts_with("http://")),
         ask,
         ..Start::default()
     };
@@ -166,6 +168,23 @@ pub async fn on_page_message(message: JsValue, sender: JsValue) -> JsValue {
     let answer = |ok: bool, said: &str| to_js(&serde_json::json!({ "ok": ok, "said": said }));
     if get(&sender, "id").as_string().unwrap_or_default() != own_id() {
         return answer(false, "that message did not come from dm");
+    }
+    // What the page's player asked for, as the page script saw it: read as
+    // a response of the tab it came from, which is all the list needs.
+    if get(&message, "type").as_string().as_deref() == Some(decide::MEDIA_SEEN_MESSAGE) {
+        let tab = get(&sender, "tab.id").as_f64().unwrap_or(-1.0);
+        let url = get(&message, "url").as_string().unwrap_or_default();
+        if tab >= 0.0 && decide::track_of(&url).is_some() {
+            let details = to_js(&serde_json::json!({
+                "url": url,
+                "tabId": tab,
+                "type": "xmlhttprequest",
+                "statusCode": 200,
+                "responseHeaders": [],
+            }));
+            on_response_started(details).await;
+        }
+        return answer(true, "noted");
     }
     // The toolbar popup: how the app is, and bringing it up.
     match get(&message, "type").as_string().as_deref() {
@@ -299,7 +318,22 @@ pub async fn on_page_message(message: JsValue, sender: JsValue) -> JsValue {
     if click.kind == decide::FORMATS_MESSAGE {
         let tab = get(&sender, "tab.id").as_f64().map_or(-1, |id| id as i64);
         let streams = streams_of(tab).await;
-        let read = formats_of(&target, tab_store(&sender, "tab").as_deref()).await;
+        // The video helper can take half a minute over a page. Where the page
+        // has already shown streams of its own, they are not held back for
+        // it past a few seconds.
+        let store = tab_store(&sender, "tab");
+        let ask = Box::pin(formats_of(&target, store.as_deref()));
+        let read = if streams.is_empty() {
+            ask.await
+        } else {
+            let patience = Box::pin(sleep(8_000.0));
+            match futures_util::future::select(ask, patience).await {
+                futures_util::future::Either::Left((done, _)) => done,
+                futures_util::future::Either::Right(_) => {
+                    Err("the video helper is still reading this page".to_string())
+                }
+            }
+        };
         let mut lines: Vec<serde_json::Value> = match &read {
             Ok(choices) => choices
                 .iter()
@@ -316,6 +350,7 @@ pub async fn on_page_message(message: JsValue, sender: JsValue) -> JsValue {
         lines.extend(streams.iter().map(|s| {
             serde_json::json!({
                 "url": s.url,
+                "sound": s.sound,
                 "label": s.label,
                 "line": decide::choice_line(&s.label, s.size),
             })
@@ -332,6 +367,7 @@ pub async fn on_page_message(message: JsValue, sender: JsValue) -> JsValue {
         tab_store(&sender, "tab"),
         click.quality,
         click.label,
+        click.sound,
         true,
     )
     .await
