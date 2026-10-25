@@ -172,7 +172,6 @@
  "Link on your clipboard:": "클립보드의 링크:",
  "Links on the clipboard": "클립보드의 링크",
  "Login": "로그인",
- "Look": "모양",
  "Check for updates once a week": "일주일에 한 번 업데이트 확인",
  "Main queue": "기본 대기열",
  "Speed limit (KB/s, 0 for none)": "속도 제한(KB/s, 0은 제한 없음)",
@@ -572,7 +571,6 @@
  "Its file is deleted too.": "파일도 삭제됩니다.",
  "Their files are deleted too.": "파일도 삭제됩니다.",
  "Starting and updating": "시작 및 업데이트",
- "Windows and sounds": "창과 소리",
  "Adding and keeping files": "파일 추가 및 보관",
  "The list": "목록",
  "Settings file": "설정 파일",
@@ -658,5 +656,13 @@
  "Empty keeps the names. {n} counts from 1, {name} is the old name": "비워 두면 이름을 유지합니다. {n}은 1부터 세고 {name}은 이전 이름입니다",
  "Sites with their own folder and speed:": "자체 폴더와 속도를 쓰는 사이트:",
  "Delete site rule": "사이트 규칙 삭제",
- "Add a site rule": "사이트 규칙 추가"
+ "Add a site rule": "사이트 규칙 추가",
+ "Pop-ups": "팝업",
+ "Offer a new link when a download's link has expired": "다운로드 링크가 만료되면 새 링크 제안",
+ "Appearance": "모양",
+ "Theme": "테마",
+ "Small": "작게",
+ "Medium": "보통",
+ "Large": "크게",
+ "Sounds": "소리"
 }

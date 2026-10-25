@@ -675,3 +675,16 @@ fn a_site_rule_gives_its_sites_downloads_a_folder_and_a_speed_unless_chosen_othe
     let other = settings.with_site_rule("https://elsewhere.org/a.zip", AddOptions::default());
     assert!(other.save_dir.is_none() && other.speed_limit == 0);
 }
+
+#[test]
+fn the_new_link_offer_is_on_for_an_old_file_and_kept_when_turned_off() {
+    let old: Settings = serde_json::from_str("{}").unwrap();
+    assert!(old.offer_new_link);
+    let text = serde_json::to_string(&Settings {
+        offer_new_link: false,
+        ..Settings::default()
+    })
+    .unwrap();
+    let back: Settings = serde_json::from_str(&text).unwrap();
+    assert!(!back.offer_new_link);
+}

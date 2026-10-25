@@ -67,9 +67,12 @@ impl egui::Widget for NumberBox<'_> {
             let focus = response.has_focus();
             let height = if focus { 2.0 } else { 1.0 };
             let rect = response.rect;
+            // Stopping where the corners start to curve, as the other
+            // fields' line does.
+            let inset = f32::from(t.radius) + 0.5;
             let line = egui::Rect::from_min_max(
-                egui::pos2(rect.left() + 1.0, rect.bottom() - height),
-                egui::pos2(rect.right() - 1.0, rect.bottom()),
+                egui::pos2(rect.left() + inset, rect.bottom() - height),
+                egui::pos2(rect.right() - inset, rect.bottom()),
             );
             ui.painter()
                 .rect_filled(line, 0.0, if focus { t.brand } else { t.stroke });
@@ -90,19 +93,7 @@ pub(super) fn number_row(
     words: &str,
     add: impl FnOnce(&mut egui::Ui, egui::Id),
 ) {
-    ui.horizontal(|ui| {
-        let room = (ui.available_width() - 96.0).max(120.0);
-        let name = ui
-            // At least a box's height, centred in it: one line of words
-            // sat below the box's middle.
-            .allocate_ui_with_layout(
-                egui::vec2(room, ui.spacing().interact_size.y),
-                egui::Layout::left_to_right(egui::Align::Center).with_main_wrap(true),
-                |ui| ui.add(egui::Label::new(words).wrap()),
-            )
-            .inner;
-        add(ui, name.id);
-    });
+    setting_row(ui, words, add);
 }
 
 /// A heading over a group of settings: a little room above, in the
@@ -603,4 +594,267 @@ pub(super) fn browse_button(
         *folder = picked.display().to_string();
     }
     Some(true)
+}
+
+/// A row of settings as WinUI's toggle switch draws it: the words at the
+/// left, a 40 by 20 pill at the right that is the accent when on and an
+/// outline when off, the thumb sliding to the side that is chosen. The
+/// classic look keeps its check box.
+pub(crate) fn toggle_row(
+    ui: &mut egui::Ui,
+    on: &mut bool,
+    text: impl Into<egui::WidgetText>,
+) -> egui::Response {
+    let t = crate::theme::Tokens::get(ui.ctx());
+    if !t.modern {
+        return check(ui, on, text);
+    }
+    let text: egui::WidgetText = text.into();
+    let words = text.text().to_string();
+    let galley = text.into_galley(
+        ui,
+        Some(egui::TextWrapMode::Extend),
+        f32::INFINITY,
+        egui::TextStyle::Body,
+    );
+    let size = egui::vec2(ui.available_width().max(120.0), 36.0);
+    let (rect, mut response) = ui.allocate_exact_size(size, egui::Sense::click());
+    if response.clicked() {
+        *on = !*on;
+        response.mark_changed();
+    }
+    let enabled = ui.is_enabled();
+    response.widget_info(|| egui::WidgetInfo::selected(egui::Role::Switch, enabled, *on, &words));
+    let painter = ui.painter();
+    if response.hovered() {
+        painter.rect_filled(rect, t.radius, t.hover);
+    }
+    painter.galley(
+        egui::pos2(rect.left() + 4.0, rect.center().y - galley.size().y / 2.0),
+        galley,
+        t.text,
+    );
+    let pill = egui::Rect::from_center_size(
+        egui::pos2(rect.right() - 4.0 - 20.0, rect.center().y),
+        egui::vec2(40.0, 20.0),
+    );
+    let round = 10.0;
+    if *on {
+        painter.rect_filled(pill, round, if enabled { t.brand } else { t.disabled });
+    } else {
+        painter.rect_stroke(
+            pill,
+            round,
+            egui::Stroke::new(1.0, t.text2),
+            egui::StrokeKind::Inside,
+        );
+    }
+    let grow = if response.hovered() || response.is_pointer_button_down_on() {
+        1.0
+    } else {
+        0.0
+    };
+    let (x, radius, colour) = if *on {
+        (pill.right() - 10.0, 6.0 + grow, t.on_brand)
+    } else {
+        (pill.left() + 10.0, 5.0 + grow, t.text2)
+    };
+    painter.circle_filled(egui::pos2(x, pill.center().y), radius, colour);
+    if response.has_focus() {
+        painter.rect_stroke(
+            rect,
+            t.radius,
+            egui::Stroke::new(2.0, t.focus_outer),
+            egui::StrokeKind::Inside,
+        );
+    }
+    response
+}
+
+/// The sizes of text the window offers, by name and as the window's zoom:
+/// medium is the design.
+pub(crate) const TEXT_SIZES: [(&str, f32); 3] = [("Small", 0.85), ("Medium", 1.0), ("Large", 1.2)];
+
+/// The name of the text size nearest to a zoom.
+pub(crate) fn text_size_named(zoom: f32) -> &'static str {
+    TEXT_SIZES
+        .iter()
+        .min_by(|a, b| (a.1 - zoom).abs().total_cmp(&(b.1 - zoom).abs()))
+        .map_or("Medium", |s| s.0)
+}
+
+/// One row of an Appearance-style list: the name at the left, the control
+/// at the right, and a hairline under it, as the settings of a modern app
+/// are laid out. The control is drawn right to left, so a drop-down
+/// stands against the edge.
+pub(crate) fn setting_row(
+    ui: &mut egui::Ui,
+    name: &str,
+    control: impl FnOnce(&mut egui::Ui, egui::Id),
+) {
+    let t = crate::theme::Tokens::get(ui.ctx());
+    let width = ui.available_width();
+    ui.allocate_ui_with_layout(
+        egui::vec2(width, 40.0),
+        egui::Layout::left_to_right(egui::Align::Center),
+        |ui| {
+            ui.set_min_height(40.0);
+            // The words wrap in the room the control leaves them, and the
+            // control stays beside them, centred on them.
+            let room = (width - 120.0).max(120.0);
+            let label = ui
+                .allocate_ui_with_layout(
+                    egui::vec2(room, 40.0),
+                    egui::Layout::left_to_right(egui::Align::Center).with_main_wrap(true),
+                    |ui| ui.add(egui::Label::new(name).wrap()),
+                )
+                .inner;
+            ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                // Clear of the scroll bar, which floats over the right edge.
+                ui.add_space(8.0);
+                control(ui, label.id)
+            });
+        },
+    );
+    let y = ui.cursor().top();
+    ui.painter()
+        .hline(ui.max_rect().x_range(), y, egui::Stroke::new(1.0, t.border));
+    ui.add_space(1.0);
+}
+
+/// The look's choice as a row of icon buttons in one rounded tray, the
+/// chosen one raised: a monitor for "as the computer is", a sun, a moon and
+/// a window for the classic look. Each says its name when the pointer rests
+/// on it, and to a screen reader.
+pub(crate) fn theme_segments(ui: &mut egui::Ui, current: &mut String) -> egui::Response {
+    let t = crate::theme::Tokens::get(ui.ctx());
+    let side = 32.0;
+    let pad = 2.0;
+    let count = crate::dialogs::THEMES.len() as f32;
+    let (tray, mut whole) = ui.allocate_exact_size(
+        egui::vec2(count * side + (count + 1.0) * pad, side + 2.0 * pad),
+        egui::Sense::hover(),
+    );
+    ui.painter()
+        .rect_filled(tray, t.radius.saturating_add(2), t.control);
+    ui.painter().rect_stroke(
+        tray,
+        t.radius.saturating_add(2),
+        egui::Stroke::new(1.0, t.border),
+        egui::StrokeKind::Inside,
+    );
+    for (n, (word, label)) in crate::dialogs::THEMES.iter().enumerate() {
+        let cell = egui::Rect::from_min_size(
+            tray.min + egui::vec2(pad + n as f32 * (side + pad), pad),
+            egui::vec2(side, side),
+        );
+        let name = crate::i18n::t(label);
+        let mut response = ui
+            .interact(
+                cell,
+                ui.scope_id().with(("theme", *word)),
+                egui::Sense::click(),
+            )
+            .on_hover_text(name);
+        let chosen = *current == *word;
+        response.widget_info(|| {
+            egui::WidgetInfo::selected(egui::Role::RadioButton, true, chosen, name)
+        });
+        if response.clicked() && !chosen {
+            *current = (*word).to_string();
+            response.mark_changed();
+            whole.mark_changed();
+        }
+        let painter = ui.painter();
+        if chosen {
+            painter.rect_filled(cell, t.radius, t.control_pressed);
+            painter.rect_stroke(
+                cell,
+                t.radius,
+                egui::Stroke::new(1.0, t.stroke),
+                egui::StrokeKind::Inside,
+            );
+        } else if response.hovered() {
+            painter.rect_filled(cell, t.radius, t.hover);
+        }
+        let ink = if chosen { t.text } else { t.weak };
+        theme_icon(painter, cell.center(), word, egui::Stroke::new(1.5, ink));
+        if response.has_focus() {
+            painter.rect_stroke(
+                cell,
+                t.radius,
+                egui::Stroke::new(2.0, t.focus_outer),
+                egui::StrokeKind::Inside,
+            );
+        }
+    }
+    whole
+}
+
+/// A 16 px line drawing for a look, centred on `c`.
+fn theme_icon(painter: &egui::Painter, c: egui::Pos2, word: &str, stroke: egui::Stroke) {
+    let ink = stroke.color;
+    match word {
+        // A monitor on its stand.
+        "system" => {
+            let screen =
+                egui::Rect::from_center_size(c - egui::vec2(0.0, 1.5), egui::vec2(15.0, 10.0));
+            painter.rect_stroke(screen, 2.0, stroke, egui::StrokeKind::Middle);
+            painter.line_segment(
+                [c + egui::vec2(-3.5, 6.0), c + egui::vec2(3.5, 6.0)],
+                stroke,
+            );
+            painter.line_segment([c + egui::vec2(0.0, 3.5), c + egui::vec2(0.0, 6.0)], stroke);
+        }
+        // A sun: a disc and eight rays.
+        "light" => {
+            painter.circle_stroke(c, 3.5, stroke);
+            for k in 0..8 {
+                let a = k as f32 * std::f32::consts::FRAC_PI_4;
+                let d = egui::vec2(a.cos(), a.sin());
+                painter.line_segment([c + d * 6.0, c + d * 8.0], stroke);
+            }
+        }
+        // A moon: the part of a disc outside a second, nearer one corner.
+        "dark" => {
+            let (r1, r2) = (7.0_f32, 6.0_f32);
+            let bite = c + egui::vec2(3.5, -2.5);
+            let ring = |centre: egui::Pos2, r: f32| {
+                (0..=48)
+                    .map(|k| {
+                        let a = k as f32 / 48.0 * std::f32::consts::TAU;
+                        centre + egui::vec2(a.cos(), a.sin()) * r
+                    })
+                    .collect::<Vec<_>>()
+            };
+            let mut edge: Vec<egui::Pos2> = ring(c, r1)
+                .into_iter()
+                .filter(|p| p.distance(bite) >= r2)
+                .collect();
+            // The inner arc, walked back from where the outer one ends.
+            let mut inner: Vec<egui::Pos2> = ring(bite, r2)
+                .into_iter()
+                .filter(|p| p.distance(c) <= r1)
+                .collect();
+            inner.reverse();
+            edge.extend(inner);
+            if let Some(first) = edge.first().copied() {
+                edge.push(first);
+            }
+            painter.add(egui::Shape::line(edge, stroke));
+        }
+        // A window with its title bar: the classic look.
+        _ => {
+            let frame = egui::Rect::from_center_size(c, egui::vec2(15.0, 12.0));
+            painter.rect_stroke(frame, 1.0, stroke, egui::StrokeKind::Middle);
+            painter.line_segment(
+                [
+                    frame.left_top() + egui::vec2(0.0, 3.5),
+                    frame.right_top() + egui::vec2(0.0, 3.5),
+                ],
+                stroke,
+            );
+            painter.circle_filled(frame.left_top() + egui::vec2(3.0, 1.8), 0.8, ink);
+        }
+    }
 }

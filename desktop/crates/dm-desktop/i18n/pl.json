@@ -172,7 +172,6 @@
  "Link on your clipboard:": "Link w schowku:",
  "Links on the clipboard": "Linki w schowku",
  "Login": "Login",
- "Look": "Wygląd",
  "Check for updates once a week": "Sprawdzaj aktualizacje raz w tygodniu",
  "Main queue": "Kolejka główna",
  "Speed limit (KB/s, 0 for none)": "Limit prędkości (KB/s, 0 bez limitu)",
@@ -572,7 +571,6 @@
  "Its file is deleted too.": "Jego plik też zostanie usunięty.",
  "Their files are deleted too.": "Ich pliki też zostaną usunięte.",
  "Starting and updating": "Uruchamianie i aktualizacje",
- "Windows and sounds": "Okna i dźwięki",
  "Adding and keeping files": "Dodawanie i przechowywanie plików",
  "The list": "Lista",
  "Settings file": "Plik ustawień",
@@ -658,5 +656,13 @@
  "Empty keeps the names. {n} counts from 1, {name} is the old name": "Puste zachowuje nazwy. {n} liczy od 1, {name} to dawna nazwa",
  "Sites with their own folder and speed:": "Witryny z własnym folderem i prędkością:",
  "Delete site rule": "Usuń regułę witryny",
- "Add a site rule": "Dodaj regułę witryny"
+ "Add a site rule": "Dodaj regułę witryny",
+ "Pop-ups": "Okna powiadomień",
+ "Offer a new link when a download's link has expired": "Zaproponuj nowy link, gdy link pobierania wygasł",
+ "Appearance": "Wygląd",
+ "Theme": "Motyw",
+ "Small": "Mały",
+ "Medium": "Średni",
+ "Large": "Duży",
+ "Sounds": "Dźwięki"
 }

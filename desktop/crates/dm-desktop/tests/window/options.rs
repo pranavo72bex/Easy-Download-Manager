@@ -90,12 +90,22 @@ fn the_file_types_the_browser_hands_over_are_set_in_options() {
         .get_by_role_and_label(Role::MultilineTextInput, "File types")
         .type_text("ZIP .iso, mkv");
     harness.run_steps(2);
+    // Scrolled to, as a person scrolls to a field below the fold: how far
+    // down it is depends on the computer's type.
+    harness
+        .get_by_label("Never take downloads from these sites")
+        .scroll_to_me();
+    harness.run();
     type_into(
         &mut harness,
         "Never take downloads from these sites",
         "intranet.example",
     );
     // Sites whose links work once.
+    harness
+        .get_by_label("Sites whose links work only once")
+        .scroll_to_me();
+    harness.run();
     type_into(
         &mut harness,
         "Sites whose links work only once",
@@ -313,7 +323,15 @@ fn a_queues_start_time_is_set_in_options() {
         d.tab = dm_desktop::dialogs::Tab::Downloads;
     }
     harness.run_steps(2);
+    // Scrolled to, as a person scrolls to it.
+    harness.get_by_label("Add a start time").scroll_to_me();
+    harness.run();
     click(&mut harness, "Add a start time");
+    harness.run_steps(2);
+    harness
+        .get_by_label_contains("Starts at (HH:MM)")
+        .scroll_to_me();
+    harness.run();
     type_role(&mut harness, "Starts at (HH:MM)", "x");
     assert!(harness.query_by_label("Not a time").is_some());
     if let Some(d) = harness.state_mut().dialogs.options.as_mut() {
@@ -397,6 +415,11 @@ fn an_option_that_cannot_be_applied_is_said_and_what_was_typed_is_kept() {
     harness
         .get_by_label_contains("Start dm when I sign in")
         .click();
+    // Scrolled to, as a person scrolls to it.
+    harness
+        .get_by_label_contains("Play a sound when a download finishes")
+        .scroll_to_me();
+    harness.run();
     harness
         .get_by_label_contains("Play a sound when a download finishes")
         .click();
@@ -947,4 +970,46 @@ fn a_site_rule_set_in_options_sends_that_sites_downloads_to_its_folder_at_its_sp
     click(&mut harness, "Delete site rule");
     click(&mut harness, "OK");
     assert!(harness.state().backend().settings().site_rules.is_empty());
+}
+
+#[test]
+fn appearance_sets_the_theme_and_the_size_of_text_for_the_whole_window() {
+    let _file = settings_file();
+    let world = world();
+    let mut harness = world.harness();
+    click(&mut harness, "Options");
+    harness.get_by_label("Appearance").scroll_to_me();
+    harness.run();
+    assert_eq!(harness.ctx.zoom_factor(), 1.0);
+    // Medium is the design; Large and Small scale everything.
+    open_choice(&mut harness, "Text size");
+    click(&mut harness, "Large");
+    harness.run_steps(2);
+    assert!((harness.ctx.zoom_factor() - 1.2).abs() < 0.001);
+    open_choice(&mut harness, "Text size");
+    click(&mut harness, "Small");
+    harness.run_steps(2);
+    assert!((harness.ctx.zoom_factor() - 0.85).abs() < 0.001);
+    // The theme is a choice put in force on OK, as before.
+    click(&mut harness, "Dark");
+    // Shown as it is chosen, before OK.
+    harness.run_steps(3);
+    assert!(harness.state().dark, "the dark look is not shown");
+    click(&mut harness, "Light");
+    harness.run_steps(3);
+    assert!(!harness.state().dark, "the light look is not shown");
+    click(&mut harness, "Dark");
+    click(&mut harness, "OK");
+    assert_eq!(harness.state().backend().settings().theme, "dark");
+    assert!(harness.state().dark);
+}
+
+/// Opens the drop-down a row names, as a click on it does.
+fn open_choice(harness: &mut Harness<'_, DmApp>, name: &str) {
+    harness
+        .query_all_by_label(name)
+        .find(|n| n.accesskit_node().role() == egui::accesskit::Role::ComboBox)
+        .unwrap_or_else(|| panic!("no drop-down named {name}"))
+        .click();
+    harness.run_steps(2);
 }

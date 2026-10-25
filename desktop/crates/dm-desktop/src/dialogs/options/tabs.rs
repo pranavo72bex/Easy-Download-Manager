@@ -14,12 +14,9 @@ pub(super) struct TabEnv<'a> {
 pub(super) fn tab_general(ui: &mut egui::Ui, d: &mut OptionsDialog, env: &TabEnv<'_>) {
     let TabEnv { platform, .. } = *env;
     let s = &mut d.draft;
-    ui.horizontal_wrapped(|ui| {
+    setting_row(ui, t("Language"), |ui, name| {
         let now = crate::i18n::chosen(&s.language);
-        // Named by its label, so a screen reader says what it is;
-        // the name before the choice, as every number and choice
-        // in Options has it (some had it after).
-        let name = ui.label(t("Language"));
+        // Named by its row, so a screen reader says what it is.
         combo("language")
             .selected_text(crate::i18n::name_of(now))
             .show_ui(ui, |ui| {
@@ -28,65 +25,93 @@ pub(super) fn tab_general(ui: &mut egui::Ui, d: &mut OptionsDialog, env: &TabEnv
                 }
             })
             .response
-            .labelled_by(name.id);
+            .labelled_by(name);
+    });
+    // Appearance, as a modern app lays its settings out: a name at the left
+    // and its choice at the right, under a hairline.
+    section(ui, t("Appearance"));
+    setting_row(ui, t("Theme"), |ui, _| {
+        theme_segments(ui, &mut s.theme);
+    });
+    setting_row(ui, t("Text size"), |ui, name| {
+        // The size of everything in the window, the one View › Text size
+        // and Ctrl with + and − also change, so it is read from it.
+        let now = text_size_named(ui.ctx().zoom_factor());
+        combo("text-size")
+            .selected_text(t(now))
+            .show_ui(ui, |ui| {
+                for (label, zoom) in TEXT_SIZES {
+                    if option(ui, now == label, t(label)).clicked() {
+                        ui.ctx().set_zoom_factor(zoom);
+                    }
+                }
+            })
+            .response
+            .labelled_by(name);
     });
     // In groups under headings: one list of a dozen boxes was
     // hard to find a setting in (a design review).
     section(ui, t("Starting and updating"));
-    check(ui, &mut s.start_on_login, t("Start dm when I sign in"));
-    check(
+    toggle_row(ui, &mut s.start_on_login, t("Start dm when I sign in"));
+    toggle_row(
         ui,
         &mut s.allow_command_line,
         t("Allow the command line to control dm"),
     );
-    check(
+    toggle_row(
         ui,
         &mut s.allow_mcp,
         t("Allow AI assistants to control dm (MCP)"),
     );
-    check(ui, &mut s.check_updates, t("Check for updates once a week"));
-    section(ui, t("Windows and sounds"));
-    check(
-        ui,
-        &mut s.show_progress,
-        t("Show progress when a download starts"),
-    );
-    check(
-        ui,
-        &mut s.show_complete,
-        t("Show a message when a download finishes"),
-    );
-    check(
+    toggle_row(ui, &mut s.check_updates, t("Check for updates once a week"));
+    section(ui, t("Sounds"));
+    toggle_row(
         ui,
         &mut s.sound_on_complete,
         t("Play a sound when a download finishes"),
     );
-    check(
+    toggle_row(
         ui,
         &mut s.sound_on_failure,
         t("Play a sound when a download fails"),
     );
     // Offered only where it can be drawn.
     if crate::chrome::mica_possible() {
-        check(ui, &mut s.mica, t("Use the Mica backdrop"));
+        toggle_row(ui, &mut s.mica, t("Use the Mica backdrop"));
     }
-    section(ui, t("Adding and keeping files"));
-    check(
+    section(ui, t("Pop-ups"));
+    toggle_row(
+        ui,
+        &mut s.show_progress,
+        t("Show progress when a download starts"),
+    );
+    toggle_row(
+        ui,
+        &mut s.show_complete,
+        t("Show a message when a download finishes"),
+    );
+    toggle_row(
         ui,
         &mut s.watch_clipboard,
         t("Offer to download links I copy"),
     );
-    check(
+    toggle_row(
         ui,
         &mut s.ask_panel_downloads,
         t("Ask where to save videos"),
     );
-    check(
+    toggle_row(
         ui,
         &mut s.ask_caught_downloads,
         t("Ask where to save browser downloads"),
     );
-    check(
+    toggle_row(
+        ui,
+        &mut s.offer_new_link,
+        t("Offer a new link when a download's link has expired"),
+    );
+    section(ui, t("Adding and keeping files"));
+    toggle_row(
         ui,
         &mut s.server_dates,
         t("Keep the file's date from the server"),
@@ -102,12 +127,6 @@ pub(super) fn tab_general(ui: &mut egui::Ui, d: &mut OptionsDialog, env: &TabEnv
             ("folder", t("opens its folder")),
         ] {
             radio(ui, &mut s.double_click, word.to_string(), name);
-        }
-    });
-    ui.label(t("Look"));
-    ui.vertical(|ui| {
-        for (word, name) in THEMES {
-            radio(ui, &mut s.theme, word.to_string(), t(name));
         }
     });
     // Settings to carry to another computer, never with a
@@ -175,7 +194,7 @@ pub(super) fn tab_file_types(ui: &mut egui::Ui, d: &mut OptionsDialog, env: &Tab
     });
     ui.add_space(8.0);
     let c = &mut s.catch;
-    check(
+    toggle_row(
         ui,
         &mut c.enabled,
         t("Take these file types from the browser"),
@@ -240,12 +259,12 @@ pub(super) fn tab_file_types(ui: &mut egui::Ui, d: &mut OptionsDialog, env: &Tab
             t("The two keys are the same; holding it leaves the download with the browser."),
         );
     }
-    check(
+    toggle_row(
         ui,
         &mut c.video_panel,
         t("Show Download video on web videos"),
     );
-    check(
+    toggle_row(
         ui,
         &mut c.sign_in_everywhere,
         t("Send the browser's sign-in with downloads"),
@@ -277,7 +296,7 @@ pub(super) fn tab_save_to(ui: &mut egui::Ui, d: &mut OptionsDialog, env: &TabEnv
             .small()
             .weak(),
     );
-    check(
+    toggle_row(
         ui,
         &mut s.categorize,
         t("Sort finished files into folders by kind"),
@@ -357,45 +376,41 @@ pub(super) fn tab_downloads(ui: &mut egui::Ui, d: &mut OptionsDialog, env: &TabE
         queues, platform, ..
     } = *env;
     let s = &mut d.draft;
-    egui::Grid::new("downloads")
-        .num_columns(2)
-        .spacing([12.0, 8.0])
-        .show(ui, |ui| {
-            let name = ui.label(t("Connections per file"));
-            ui.add(number_box(&mut s.connections).range(1..=32))
-                .labelled_by(name.id);
-            ui.end_row();
-            let name = ui.label(t("Files at once"));
-            ui.add(number_box(&mut s.concurrency).range(1..=10))
-                .labelled_by(name.id);
-            ui.end_row();
-            let choices = QUALITIES;
-            let current = choices
-                .iter()
-                .find(|(v, _)| *v == s.stream_quality)
-                .map(|(_, l)| *l)
-                .unwrap_or("Best available");
-            ui.label(t("Video quality"));
-            combo("quality")
-                .selected_text(t(current))
-                .show_ui(ui, |ui| {
-                    for (value, label) in choices {
-                        pick(ui, &mut s.stream_quality, value.to_string(), t(label));
-                    }
-                });
-            ui.end_row();
-        });
-    check(
+    number_row(ui, t("Connections per file"), |ui, name| {
+        ui.add(number_box(&mut s.connections).range(1..=32))
+            .labelled_by(name);
+    });
+    number_row(ui, t("Files at once"), |ui, name| {
+        ui.add(number_box(&mut s.concurrency).range(1..=10))
+            .labelled_by(name);
+    });
+    setting_row(ui, t("Video quality"), |ui, name| {
+        let current = QUALITIES
+            .iter()
+            .find(|(v, _)| *v == s.stream_quality)
+            .map(|(_, l)| *l)
+            .unwrap_or("Best available");
+        combo("quality")
+            .selected_text(t(current))
+            .show_ui(ui, |ui| {
+                for (value, label) in QUALITIES {
+                    pick(ui, &mut s.stream_quality, value.to_string(), t(label));
+                }
+            })
+            .response
+            .labelled_by(name);
+    });
+    toggle_row(
         ui,
         &mut s.start_queue_on_launch,
         t("Start the Main queue when dm opens"),
     );
-    check(
+    toggle_row(
         ui,
         &mut s.subtitles,
         t("Embed subtitles in videos from player pages"),
     );
-    check(
+    toggle_row(
         ui,
         &mut s.remux_ts,
         t("Save streams that arrive as .ts as MP4"),
@@ -526,7 +541,7 @@ pub(super) fn tab_downloads(ui: &mut egui::Ui, d: &mut OptionsDialog, env: &TabE
     ui.label(t("When a download finishes, run (a virus checker, a script); the file's path is added at the end:"));
     field(ui, t("Command"), &mut s.on_complete, 320.0);
     ui.add_space(8.0);
-    check(
+    toggle_row(
         ui,
         &mut s.fetch_tools,
         t("Get the video helper (yt-dlp) when needed"),
@@ -650,14 +665,13 @@ pub(super) fn tab_proxy(ui: &mut egui::Ui, d: &mut OptionsDialog, _env: &TabEnv<
     let s = &mut d.draft;
     use dm_core::proxy::Kind;
     let p = &mut s.proxy;
-    check(ui, &mut p.enabled, t("Connect through a proxy"));
+    toggle_row(ui, &mut p.enabled, t("Connect through a proxy"));
     ui.add_enabled_ui(p.enabled, |ui| {
                     let kind_name = |kind: Kind| match kind {
                         Kind::System => t("The computer's proxy settings").to_string(),
                         other => format!("{other:?}").to_uppercase(),
                     };
-                    ui.horizontal(|ui| {
-                        let name = ui.label(t("Proxy type"));
+                    setting_row(ui, t("Proxy type"), |ui, name| {
                         combo("proxy-kind")
                             .selected_text(kind_name(p.kind))
                             .show_ui(ui, |ui| {
@@ -682,7 +696,7 @@ pub(super) fn tab_proxy(ui: &mut egui::Ui, d: &mut OptionsDialog, _env: &TabEnv<
                                 }
                             })
                             .response
-                            .labelled_by(name.id);
+                            .labelled_by(name);
                     });
                     ui.add_enabled_ui(p.kind != Kind::System, |ui| {
                         field(ui, t("Host"), &mut p.host, 260.0);

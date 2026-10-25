@@ -95,9 +95,12 @@ pub(super) fn underline_fields(ctx: &egui::Context) {
             );
         }
         let height = if focus { 2.0 } else { 1.0 };
+        // Stopping where the corners start to curve: a line run to the
+        // ends stood out of the rounded corners as a white notch.
+        let inset = f32::from(t.radius) + 0.5;
         let line = egui::Rect::from_min_max(
-            egui::pos2(rect.left() + 1.0, rect.bottom() - height),
-            egui::pos2(rect.right() - 1.0, rect.bottom()),
+            egui::pos2(rect.left() + inset, rect.bottom() - height),
+            egui::pos2(rect.right() - inset, rect.bottom()),
         );
         painter.rect_filled(line, 0.0, if focus { t.brand } else { t.stroke });
     }

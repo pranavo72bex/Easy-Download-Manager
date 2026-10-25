@@ -248,6 +248,11 @@ pub struct Settings {
     /// Put a `.ts` stream into an MP4 (dm's own remux).
     #[serde(default = "yes")]
     pub remux_ts: bool,
+    /// Open "Update download link" by itself when a download's signed link
+    /// has run out part-way. Off, the row says it failed and its menu has
+    /// Update download link.
+    #[serde(default = "yes")]
+    pub offer_new_link: bool,
     /// Where unfinished downloads are staged; empty for dm's own folder.
     /// A download already begun keeps the folder it began in.
     #[serde(default)]
@@ -393,6 +398,7 @@ impl Default for Settings {
             queue_starts: Vec::new(),
             drop_target: false,
             mica: false,
+            offer_new_link: true,
             fetch_tools: true,
             remux_ts: true,
             parts_dir: String::new(),

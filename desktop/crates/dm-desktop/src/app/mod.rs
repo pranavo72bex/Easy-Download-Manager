@@ -633,6 +633,7 @@ pub fn run_time_words() -> Vec<&'static str> {
     let mut words: Vec<&'static str> = Vec::new();
     words.extend(crate::dialogs::TABS.iter().map(|(_, w)| *w));
     words.extend(crate::dialogs::THEMES.iter().map(|(_, w)| *w));
+    words.extend(crate::dialogs::TEXT_SIZES.iter().map(|(w, _)| *w));
     words.extend(crate::dialogs::QUALITIES.iter().map(|(_, w)| *w));
     words.extend(crate::dialogs::DAYS);
     words.extend(TOOL_STYLES.iter().map(|(_, w)| *w));

@@ -47,7 +47,14 @@ impl DmApp {
         let system_dark = crate::system_theme::prefers_dark()
             .or_else(|| ctx.system_theme().map(|t| t == egui::Theme::Dark))
             .unwrap_or(false);
-        let theme = crate::theme::Theme::resolve(&self.applied.theme, system_dark);
+        // The look chosen in an open Options is shown as it is chosen, and
+        // goes back with Cancel; OK puts it in force.
+        let wanted = self
+            .dialogs
+            .options
+            .as_ref()
+            .map_or(self.applied.theme.as_str(), |d| d.draft.theme.as_str());
+        let theme = crate::theme::Theme::resolve(wanted, system_dark);
         // Applied again once the embedded fonts are in force (a frame after
         // they are set), so headings take the semibold face.
         let ready = crate::theme::fonts_ready(&ctx);

@@ -172,7 +172,6 @@
  "Link on your clipboard:": "Tautan di papan klip:",
  "Links on the clipboard": "Tautan di papan klip",
  "Login": "Login",
- "Look": "Tampilan",
  "Check for updates once a week": "Periksa pembaruan seminggu sekali",
  "Main queue": "Antrean utama",
  "Speed limit (KB/s, 0 for none)": "Batas kecepatan (KB/s, 0 tanpa batas)",
@@ -572,7 +571,6 @@
  "Its file is deleted too.": "Berkasnya juga dihapus.",
  "Their files are deleted too.": "Berkasnya juga dihapus.",
  "Starting and updating": "Memulai dan memperbarui",
- "Windows and sounds": "Jendela dan suara",
  "Adding and keeping files": "Menambah dan menyimpan berkas",
  "The list": "Daftar",
  "Settings file": "Berkas pengaturan",
@@ -658,5 +656,13 @@
  "Empty keeps the names. {n} counts from 1, {name} is the old name": "Kosong mempertahankan nama. {n} menghitung dari 1, {name} adalah nama lama",
  "Sites with their own folder and speed:": "Situs dengan folder dan kecepatan sendiri:",
  "Delete site rule": "Hapus aturan situs",
- "Add a site rule": "Tambah aturan situs"
+ "Add a site rule": "Tambah aturan situs",
+ "Pop-ups": "Jendela pop-up",
+ "Offer a new link when a download's link has expired": "Tawarkan tautan baru saat tautan unduhan kedaluwarsa",
+ "Appearance": "Tampilan",
+ "Theme": "Tema",
+ "Small": "Kecil",
+ "Medium": "Sedang",
+ "Large": "Besar",
+ "Sounds": "Suara"
 }

@@ -172,7 +172,6 @@
  "Link on your clipboard:": "クリップボードのリンク：",
  "Links on the clipboard": "クリップボードのリンク",
  "Login": "ログイン",
- "Look": "外観",
  "Check for updates once a week": "1 週間に 1 回、更新を確認する",
  "Main queue": "メインキュー",
  "Speed limit (KB/s, 0 for none)": "速度制限（KB/秒、0 で制限なし）",
@@ -572,7 +571,6 @@
  "Its file is deleted too.": "ファイルも削除されます。",
  "Their files are deleted too.": "ファイルも削除されます。",
  "Starting and updating": "起動とアップデート",
- "Windows and sounds": "ウィンドウとサウンド",
  "Adding and keeping files": "ファイルの追加と保存",
  "The list": "リスト",
  "Settings file": "設定ファイル",
@@ -658,5 +656,13 @@
  "Empty keeps the names. {n} counts from 1, {name} is the old name": "空欄なら名前はそのまま。{n} は 1 から数え、{name} は元の名前",
  "Sites with their own folder and speed:": "独自のフォルダーと速度を使うサイト：",
  "Delete site rule": "サイトのルールを削除",
- "Add a site rule": "サイトのルールを追加"
+ "Add a site rule": "サイトのルールを追加",
+ "Pop-ups": "ポップアップ",
+ "Offer a new link when a download's link has expired": "ダウンロードのリンクが期限切れになったら新しいリンクを案内する",
+ "Appearance": "外観",
+ "Theme": "テーマ",
+ "Small": "小",
+ "Medium": "中",
+ "Large": "大",
+ "Sounds": "サウンド"
 }

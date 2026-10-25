@@ -172,7 +172,6 @@
  "Link on your clipboard:": "Link op je klembord:",
  "Links on the clipboard": "Links op het klembord",
  "Login": "Gebruikersnaam",
- "Look": "Uiterlijk",
  "Check for updates once a week": "Eén keer per week op updates controleren",
  "Main queue": "Hoofdwachtrij",
  "Speed limit (KB/s, 0 for none)": "Snelheidslimiet (KB/s, 0 voor geen)",
@@ -572,7 +571,6 @@
  "Its file is deleted too.": "Het bestand wordt ook verwijderd.",
  "Their files are deleted too.": "De bestanden worden ook verwijderd.",
  "Starting and updating": "Starten en bijwerken",
- "Windows and sounds": "Vensters en geluiden",
  "Adding and keeping files": "Bestanden toevoegen en bewaren",
  "The list": "De lijst",
  "Settings file": "Instellingenbestand",
@@ -658,5 +656,13 @@
  "Empty keeps the names. {n} counts from 1, {name} is the old name": "Leeg behoudt de namen. {n} telt vanaf 1, {name} is de oude naam",
  "Sites with their own folder and speed:": "Sites met een eigen map en snelheid:",
  "Delete site rule": "Siteregel verwijderen",
- "Add a site rule": "Siteregel toevoegen"
+ "Add a site rule": "Siteregel toevoegen",
+ "Pop-ups": "Pop-ups",
+ "Offer a new link when a download's link has expired": "Een nieuwe link aanbieden als de link van een download is verlopen",
+ "Appearance": "Uiterlijk",
+ "Theme": "Thema",
+ "Small": "Klein",
+ "Medium": "Gemiddeld",
+ "Large": "Groot",
+ "Sounds": "Geluiden"
 }
