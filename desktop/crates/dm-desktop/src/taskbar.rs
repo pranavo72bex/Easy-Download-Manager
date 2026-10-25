@@ -73,7 +73,7 @@ impl Taskbar {
                 self.list = win::List::new();
             }
             if let Some(list) = &self.list {
-                list.set(handle.hwnd.get() as isize, mode);
+                list.set(handle.hwnd.get(), mode);
             }
         }
         #[cfg(not(windows))]
