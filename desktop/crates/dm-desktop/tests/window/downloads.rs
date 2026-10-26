@@ -2177,16 +2177,12 @@ fn the_hovered_rows_buttons_stay_off_a_window_in_front_of_the_list() {
     harness.hover_at(egui::pos2(dialog.center().x, behind.center().y));
     harness.run_steps(4);
     assert!(
-        harness
-            .query_all_by_label_contains("Remove ")
-            .filter(|n| n.accesskit_node().role() == egui::accesskit::Role::Button)
-            .filter(|n| {
-                n.accesskit_node()
+        !harness.query_all_by_label_contains("Remove ").any(|n| {
+            n.accesskit_node().role() == egui::accesskit::Role::Button
+                && n.accesskit_node()
                     .label()
                     .is_some_and(|l| l.starts_with("Remove "))
-            })
-            .next()
-            .is_none(),
+        }),
         "the row's buttons were drawn over the window in front"
     );
 }

@@ -105,7 +105,9 @@ fn the_search_box_is_level_with_the_menus() {
     type_into(&mut harness, "To", "3");
     click(&mut harness, "Add for later");
     harness.run_steps(3);
-    let menu = harness.get_by_role_and_label(Role::Button, "Downloads").rect();
+    let menu = harness
+        .get_by_role_and_label(Role::Button, "Downloads")
+        .rect();
     let field = harness.get_by_label("Filter").rect();
     assert!(
         (field.center().y - menu.center().y).abs() <= 1.5,

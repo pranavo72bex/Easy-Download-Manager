@@ -1025,9 +1025,11 @@ fn restore_defaults_puts_a_tab_back_and_only_that_tab() {
             assert!(fresh.get(*key).is_some(), "{key} is no setting");
         }
     }
-    let mut changed = dm_shell::settings::Settings::default();
-    changed.connections = 9;
-    changed.theme = "dark".into();
+    let mut changed = dm_shell::settings::Settings {
+        connections: 9,
+        theme: "dark".into(),
+        ..Default::default()
+    };
     changed.catch.extensions = vec!["zzz".into()];
     let mut dialog = dm_desktop::dialogs::OptionsDialog {
         tab: Tab::Downloads,
