@@ -5,6 +5,8 @@ the browser extension (`v*` tags) are versioned separately.
 
 ## Unreleased
 
+- The buttons that appear on the row under the pointer no longer draw over a window in front of the list (Download complete, for one).
+- Options has no divider line under some of its rows and not others; none has one.
 - A finished download's row says when it finished, beside "Complete".
 - Add dm's welcome asks where downloads go and ends with Done: the browser, the folder, done.
 - Closing the window asks once whether dm keeps running in the tray, and keeps the answer (Options › General › When I close the window).

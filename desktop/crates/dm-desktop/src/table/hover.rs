@@ -24,6 +24,16 @@ pub(super) fn actions(
     let Some(pos) = ctx.pointer_hover_pos().filter(|p| clip.contains(*p)) else {
         return;
     };
+    // Only where the list itself is under the pointer: a window in front of
+    // it (Download complete, Properties) is not the row behind it, and the
+    // buttons drew over its words. The buttons' own area counts as the list.
+    let own = egui::LayerId::new(egui::Order::Foreground, egui::Id::unique("row-actions"));
+    if ctx
+        .layer_id_at(pos)
+        .is_some_and(|layer| layer != ui.layer_id() && layer != own)
+    {
+        return;
+    }
     let Some((entry, rect)) = rows.iter().find_map(|r| {
         app.row_rects
             .get(&r.id)

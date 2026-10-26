@@ -49,6 +49,10 @@ pub(super) fn tab_general(ui: &mut egui::Ui, d: &mut OptionsDialog, env: &TabEnv
             .response
             .labelled_by(name);
     });
+    // In groups under headings: one list of a dozen boxes was
+    // hard to find a setting in (a design review).
+    section(ui, t("Starting and updating"));
+    toggle_row(ui, &mut s.start_on_login, t("Start dm when I sign in"));
     setting_row(ui, t("When I close the window"), |ui, name| {
         let shown = match s.on_close.as_str() {
             "tray" => t("Keep running in the tray"),
@@ -70,10 +74,6 @@ pub(super) fn tab_general(ui: &mut egui::Ui, d: &mut OptionsDialog, env: &TabEnv
             .response
             .labelled_by(name);
     });
-    // In groups under headings: one list of a dozen boxes was
-    // hard to find a setting in (a design review).
-    section(ui, t("Starting and updating"));
-    toggle_row(ui, &mut s.start_on_login, t("Start dm when I sign in"));
     toggle_row(
         ui,
         &mut s.allow_command_line,

@@ -701,16 +701,16 @@ pub(crate) fn text_size_named(zoom: f32) -> &'static str {
         .map_or("Medium", |s| s.0)
 }
 
-/// One row of an Appearance-style list: the name at the left, the control
-/// at the right, and a hairline under it, as the settings of a modern app
-/// are laid out. The control is drawn right to left, so a drop-down
-/// stands against the edge.
+/// One row of an Appearance-style list: the name at the left and the control
+/// at the right, as the settings of a modern app are laid out; with no line
+/// under it, as a toggle's row has none, so every setting reads the same.
+/// The control is drawn right to left, so a drop-down stands against the
+/// edge.
 pub(crate) fn setting_row(
     ui: &mut egui::Ui,
     name: &str,
     control: impl FnOnce(&mut egui::Ui, egui::Id),
 ) {
-    let t = crate::theme::Tokens::get(ui.ctx());
     let width = ui.available_width();
     ui.allocate_ui_with_layout(
         egui::vec2(width, 40.0),
@@ -734,10 +734,6 @@ pub(crate) fn setting_row(
             });
         },
     );
-    let y = ui.cursor().top();
-    ui.painter()
-        .hline(ui.max_rect().x_range(), y, egui::Stroke::new(1.0, t.border));
-    ui.add_space(1.0);
 }
 
 /// The look's choice as a row of icon buttons in one rounded tray, the

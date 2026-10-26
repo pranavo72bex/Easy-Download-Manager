@@ -2130,3 +2130,48 @@ fn a_very_big_download_is_told_about_the_scheduler_once() {
     back.hinted_big = false;
     harness.state_mut().apply_settings(back).unwrap();
 }
+
+/// The row's buttons belong to the list: a window in front of it (Download
+/// complete is not a question, and keeps the list usable beside it), with a
+/// row behind the pointer, gets none drawn over its words.
+#[test]
+fn the_hovered_rows_buttons_stay_off_a_window_in_front_of_the_list() {
+    let world = world();
+    let mut harness = world.harness();
+    harness.state_mut().applied.show_complete = true;
+    let links: Vec<String> = (0..16)
+        .map(|i| world.url(&format!("stalled-{i:02}.bin")))
+        .collect();
+    harness.state().backend().pause_all();
+    harness.state().backend().add(&links.join(" ")).unwrap();
+    harness.state().backend().pause_all();
+    add_url(&mut harness, &world.url("file.zip"), "Start now");
+    until(&mut harness, "it to finish", |app| {
+        app.rows().iter().any(|r| r.state == State::Completed)
+    });
+    harness.run_steps(6);
+    let dialog = harness.get_by_label("Download complete").rect();
+    // A row behind the window, and the pointer where both are.
+    let behind = harness
+        .state()
+        .row_rects
+        .values()
+        .find(|r| r.center().y > dialog.top() + 40.0 && r.center().y < dialog.bottom() - 40.0)
+        .copied()
+        .expect("a row behind the window");
+    harness.hover_at(egui::pos2(dialog.center().x, behind.center().y));
+    harness.run_steps(4);
+    assert!(
+        harness
+            .query_all_by_label_contains("Remove ")
+            .filter(|n| n.accesskit_node().role() == egui::accesskit::Role::Button)
+            .filter(|n| {
+                n.accesskit_node()
+                    .label()
+                    .is_some_and(|l| l.starts_with("Remove "))
+            })
+            .next()
+            .is_none(),
+        "the row's buttons were drawn over the window in front"
+    );
+}
