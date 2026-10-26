@@ -66,6 +66,13 @@ echo "  extension/pkg: $(du -k "$pkg/dm_catcher_bg.wasm" | cut -f1) KB of WebAss
 # ships; the check below compares it with what the manifests name.
 files="background.js content.js document.js popup.html popup.js pkg icons"
 
+# Built beside the folder and swapped in whole: a browser with dist/chrome
+# loaded as an unpacked extension (a developer's, or a tester's) restarts the
+# extension's worker whenever it likes, and one that started while the folder
+# was being deleted and refilled found no file to import and stayed dead,
+# every download left to the browser, until the extension was reloaded by hand.
+final="$dist"
+dist="$final.new"
 rm -rf "$dist"
 mkdir -p "$dist"
 
@@ -101,3 +108,11 @@ pack() {
 echo "packaging dm $version"
 pack chrome manifest.json
 pack firefox manifest.firefox.json
+
+# The finished folders put where the browser looks, in two renames: the old
+# ones are never half there.
+rm -rf "$final.old"
+[ -d "$final" ] && mv "$final" "$final.old"
+mv "$dist" "$final"
+rm -rf "$final.old"
+dist="$final"

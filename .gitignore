@@ -13,3 +13,5 @@ human-shots/
 
 # Internal QA notes and screenshots, kept on the tester's computer.
 qa/
+dist.new/
+dist.old/
