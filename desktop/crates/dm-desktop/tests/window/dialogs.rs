@@ -1771,3 +1771,16 @@ fn the_menus_do_not_open_dialogs_over_a_dialog() {
     harness.run_steps(3);
     assert!(harness.state().dialogs.about_open);
 }
+
+/// egui outlines a focused field in the selection stroke, which showed white
+/// at the rounded corners of every field, not only Options'; the look that
+/// draws its own focus frame gives that stroke no width.
+#[test]
+fn no_field_is_outlined_in_the_selection_stroke_where_the_look_draws_its_own() {
+    let world = world();
+    let mut harness = world.harness();
+    harness.run_steps(2);
+    let modern = dm_desktop::theme::Tokens::get(&harness.ctx).modern;
+    let width = harness.ctx.global_style().visuals.selection.stroke.width;
+    assert_eq!(width == 0.0, modern, "selection stroke width {width}");
+}

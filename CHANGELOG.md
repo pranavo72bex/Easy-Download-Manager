@@ -5,6 +5,7 @@ the browser extension (`v*` tags) are versioned separately.
 
 ## Unreleased
 
+- Text fields in every dialog, not only Options, no longer show a white outline at their rounded corners when they have the keyboard, in the dark look especially.
 - The row under the pointer has Stop/Resume and Remove buttons; the status bar's speed limit is a button; downloads that finish together give one notification, and a Linux notification offers Open folder; the floating drop target shows overall progress.
 - "Don't show this window again" in Download complete now stays ticked and keeps the window open until you close it, and is saved then.
 - More downloads reach dm instead of the browser: Office documents, disk images and more video and archive types are caught by default, and one slow start of the app no longer sends the next few downloads to the browser. A link whose earlier download failed, or whose file was deleted, downloads again without asking.

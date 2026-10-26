@@ -37,7 +37,13 @@ pub fn apply_with_accent(ctx: &Context, theme: Theme, accent: Option<crate::acce
     v.code_bg_color = t.pane;
     v.override_text_color = Some(t.text);
     v.selection.bg_fill = t.selection;
-    v.selection.stroke = Stroke::new(1.0, t.selection_text);
+    // egui outlines a focused text field in this stroke, which is also the
+    // colour selected words are drawn in (white in a dialog's fields). The
+    // modern look draws its own focus frame and accent line
+    // (`underline_fields`), and the outline egui added showed white at the
+    // rounded corners in every field, so there it has no width.
+    let outline = if t.modern { 0.0 } else { 1.0 };
+    v.selection.stroke = Stroke::new(outline, t.selection_text);
     v.hyperlink_color = t.accent;
     v.error_fg_color = t.error;
     v.warn_fg_color = t.warn;
