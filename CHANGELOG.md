@@ -5,6 +5,7 @@ the browser extension (`v*` tags) are versioned separately.
 
 ## Unreleased
 
+- A plain click on a link to a PDF, a video or a song, which a browser shows in the tab and starts no download for, now goes to dm by the same rules as a download (the types listed, the sites to leave alone, the master switch). Where dm does not take it, the link opens as it would have; Alt keeps it with the browser as before.
 - A list of file types to catch saved by an earlier version gets the types added to the defaults since (documents among them) once, so a .docx or .xlsx is no longer left to the browser for good; types taken out afterwards stay out.
 - Text fields in every dialog, not only Options, no longer show a white outline at their rounded corners when they have the keyboard, in the dark look especially.
 - The row under the pointer has Stop/Resume and Remove buttons; the status bar's speed limit is a button; downloads that finish together give one notification, and a Linux notification offers Open folder; the floating drop target shows overall progress.

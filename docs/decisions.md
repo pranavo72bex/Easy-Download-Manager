@@ -1858,3 +1858,22 @@ every type and is not touched. The same applies to the two "ask first"
 settings, which are saved as they were: an older file keeps asking before a
 caught download starts, until the person turns it off in Options.
 
+## 2026-10-26: A click on a file the browser shows is caught by the page script
+
+A link to a `.pdf`, `.mp4` or `.mp3` opens in the tab: the browser starts no
+download, so `downloads.onCreated` never fires and a type on dm's list was
+read, not caught. The page script now sees the person's plain left click
+(`isTrusted`, no key held, no `download` attribute, an http(s) link to one of
+the browser-shown types that is also on the app's list), keeps the page from
+opening it, and asks the background (`dm.inline`); the background applies the
+app's rules (`CatchRules::takes`, the master switch, the popup's switch, not a
+private window) and hands the file over. Any "no" (no app, a site to leave
+alone, a failed hand-off) makes the page open the link itself, so a click is
+never swallowed. Dropped: `declarativeNetRequest` setting
+`Content-Disposition: attachment` on those responses, which would also take
+the Alt key's way out and every address typed or bookmarked, and make a PDF
+impossible to read in the browser at all; and `webRequest` blocking, which
+Manifest V3 does not give an extension. Not covered: an address typed into
+the bar, a bookmark, a link opened from another app, a PDF in an embedded
+viewer: those are the browser's page loads, not clicks the page can see.
+

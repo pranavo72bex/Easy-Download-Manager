@@ -497,7 +497,7 @@ def main():
         shutil.copy2(common.BINARY, host)
         (engine_home / "settings.json").write_text(json.dumps({
             "download_dir": str(engine_dl), "categorize": False,
-            "catch": {"enabled": True, "extensions": ["bin"]},
+            "catch": {"enabled": True, "extensions": ["bin"], "defaultsVersion": 1},
             # The dialog the app opens for a panel video is the window test's.
             "ask_panel_downloads": False,
         }))

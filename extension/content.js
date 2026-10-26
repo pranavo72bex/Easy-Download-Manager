@@ -40,6 +40,22 @@
   // off, a magnet link is the browser's.
   let rulesOn = true;
   let popupOn = true;
+  // The file types the app catches (empty: every type), and the ones a
+  // browser shows in the tab and never downloads, so a click on a link to
+  // one starts no download for the downloads list to catch.
+  let wanted = null;
+  const shownInTab = new Set(['pdf', 'mp4', 'm4v', 'webm', 'ogv', 'mov', 'mp3', 'm4a', 'wav',
+    'ogg', 'opus', 'flac', 'aac']);
+  const inlineKind = (link) => {
+    let url;
+    try { url = new URL(link.href); } catch { return false; }
+    if (url.protocol !== 'http:' && url.protocol !== 'https:') return false;
+    const name = decodeURIComponent(url.pathname).split('/').pop() ?? '';
+    const dot = name.lastIndexOf('.');
+    if (dot < 1) return false;
+    const kind = name.slice(dot + 1).toLowerCase();
+    return shownInTab.has(kind) && (wanted === null || wanted.size === 0 || wanted.has(kind));
+  };
   const catchingNow = () => rulesOn && popupOn;
   const held = (event, key) => (key === 'alt' && event.altKey)
     || (key === 'shift' && event.shiftKey)
@@ -49,6 +65,9 @@
     if (typeof rules.keepKey === 'string') keys.keep = rules.keepKey;
     if (typeof rules.takeKey === 'string') keys.take = rules.takeKey;
     if (typeof rules.enabled === 'boolean') rulesOn = rules.enabled;
+    if (Array.isArray(rules.extensions)) {
+      wanted = new Set(rules.extensions.map((e) => String(e).trim().replace(/^\./, '').toLowerCase()));
+    }
   };
   try {
     ext.storage.local.get(['dm.catch', 'dm.catching']).then((got) => {
@@ -89,6 +108,28 @@
         window.location.href = magnet.href;
       }
       return;
+    }
+    // A plain click on a link to a file the browser would show in the tab:
+    // the app takes it where its rules do, and the link opens as it would
+    // have where they do not. A person's click only, with no key held (a
+    // key opens a tab or a window, or is the keep and take keys' own).
+    if (event.isTrusted && event.button === 0 && catchingNow() && !privateTab
+        && !event.altKey && !event.ctrlKey && !event.metaKey && !event.shiftKey) {
+      const shown = event.target.closest('a[href]');
+      if (shown && !shown.hasAttribute('download') && inlineKind(shown)) {
+        const href = String(shown.href);
+        const newTab = shown.target === '_blank';
+        const open = () => { if (newTab) window.open(href, '_blank', 'noopener'); else window.location.href = href; };
+        event.preventDefault();
+        try {
+          ext.runtime.sendMessage({ type: 'dm.inline', src: href, frame: '' })
+            .then((answer) => { if (!answer?.ok) open(); })
+            .catch(open);
+        } catch {
+          open();
+        }
+        return;
+      }
     }
     const keep = held(event, keys.keep);
     const take = !keep && !privateTab && keys.take !== '' && event.isTrusted && held(event, keys.take);

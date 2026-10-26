@@ -366,7 +366,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
         if path == "/page.html":
             links = "".join(f'<p><a id="{n}" href="/files/{n}">{n}</a></p>' for n in
                             ("caught.bin", "notes.txt", "kept.zip", "private.bin", "absent.bin",
-                             "alt.bin", "off.bin", "forced.txt", "small.pdf", "small.bin", LONG))
+                             "alt.bin", "off.bin", "forced.txt", "small.pdf", "small-shown.pdf", "small.bin", LONG))
             page = f"<!doctype html><title>dm check</title>{links}".encode()
             self.send_response(200)
             self.send_header("Content-Type", "text/html")
@@ -401,7 +401,10 @@ class Handler(http.server.BaseHTTPRequestHandler):
             end = min(int(last), end) if last else end
         self.send_response(206 if ranged else 200)
         self.send_header("Content-Type", "application/pdf" if name.endswith(".pdf") else "application/octet-stream")
-        self.send_header("Content-Disposition", f'attachment; filename="{name}"')
+        # A file a browser shows in the tab is served as a page would be,
+        # with no Content-Disposition: opening it starts no download.
+        if not name.startswith("small-shown"):
+            self.send_header("Content-Disposition", f'attachment; filename="{name}"')
         self.send_header("Accept-Ranges", "bytes")
         self.send_header("Content-Length", str(end - start + 1))
         if ranged:
@@ -874,7 +877,7 @@ def main():
     host.chmod(0o755)
     (engine_home / "settings.json").write_text(json.dumps({
         "download_dir": str(engine_dl), "categorize": False,
-        "catch": {"enabled": True, "extensions": ["bin", "pdf"]},
+        "catch": {"enabled": True, "extensions": ["bin", "pdf"], "defaultsVersion": 1},
         # The dialog the app opens for a panel video is the window test's to
         # drive; here the panel's videos go straight to the folder.
         "ask_panel_downloads": False,
@@ -1055,6 +1058,20 @@ def main():
         check("and the browser's finished copy is removed, file and list entry",
               left == [] and pdfs(browser_dl) == [],
               f"browser list {left}, browser folder {pdfs(browser_dl)}")
+
+        # A PDF the browser would show in the tab starts no download at all:
+        # a person's plain click on its link is the only thing dm can see,
+        # and the app takes it by its rules; the tab stays on the page.
+        tab = open_tab(base, f"{origin}/page.html")
+        loaded(tab, "/page.html", '[id="small-shown.pdf"]')
+        x, y = tab.evaluate("""(() => { const r = document.getElementById('small-shown.pdf')
+          .getBoundingClientRect(); return [r.left + 5, r.top + r.height / 2]; })()""")
+        click_at(tab, x, y)
+        shown = wait_for(lambda: whole(engine_dl, "small-shown.pdf"), 60)
+        stayed = tab.evaluate("location.pathname")
+        check("a plain click on a link to a PDF the browser would show in the tab goes to dm",
+              shown and stayed == "/page.html", f"tab at {stayed}")
+        check("and the browser kept nothing of it", not (browser_dl / "small-shown.pdf").exists())
 
         # 3. Not a type the app catches.
         click(base, origin, "notes.txt")

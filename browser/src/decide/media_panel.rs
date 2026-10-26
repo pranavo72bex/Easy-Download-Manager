@@ -188,6 +188,20 @@ pub const TAKE_MESSAGE: &str = "dm.take";
 /// opens magnets with, which on macOS and Windows was never dm.
 pub const MAGNET_MESSAGE: &str = "dm.magnet";
 
+/// A plain click on a link to a file the browser would show in the tab (a
+/// PDF, a video, a song) instead of downloading it. Such a click starts no
+/// download, so dm never saw it; the page script asks the app to take it, and
+/// the browser opens it as it would have where the app cannot.
+pub const INLINE_MESSAGE: &str = "dm.inline";
+
+/// The address a plain click on an inline file asks the app to take.
+pub fn inline_url(click: &PanelClick) -> Result<String, String> {
+    if click.kind != INLINE_MESSAGE {
+        return Err("that is not a click on a file the browser shows".into());
+    }
+    web_address(&click.src)
+}
+
 /// The magnet a clicked link names, if it names a torrent.
 pub fn magnet_url(click: &PanelClick) -> Result<String, String> {
     if click.kind != MAGNET_MESSAGE {

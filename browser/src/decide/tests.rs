@@ -566,6 +566,12 @@ fn an_alt_click_leaves_a_web_address_with_the_browser_and_nothing_else() {
     );
     assert!(take_url(&click(SKIP_MESSAGE, "https://e.com/f.zip")).is_err());
     assert!(take_url(&click(TAKE_MESSAGE, "file:///etc/passwd")).is_err());
+    assert_eq!(
+        inline_url(&click(INLINE_MESSAGE, "https://e.com/a.pdf")).as_deref(),
+        Ok("https://e.com/a.pdf")
+    );
+    assert!(inline_url(&click(INLINE_MESSAGE, "javascript:void(0)")).is_err());
+    assert!(inline_url(&click(TAKE_MESSAGE, "https://e.com/a.pdf")).is_err());
     assert!(skip_url(&click(PANEL_MESSAGE, "https://e.com/f.zip")).is_err());
     let mut released = Released::default();
     released.remember("https://e.com/f.zip", 0.0);

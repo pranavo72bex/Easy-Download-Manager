@@ -258,6 +258,49 @@ pub async fn on_page_message(message: JsValue, sender: JsValue) -> JsValue {
         // so the browser's prompt names the site, not the extension.
         return answer(false, &why);
     }
+    // A plain click on a link to a PDF, a video or a song: the browser shows
+    // it in the tab and starts no download, so the app takes it here, by the
+    // same rules a download is caught by. Where it does not (no app, a site
+    // to leave alone, a type it does not list), the answer is no and the page
+    // opens the link as it would have.
+    if click.kind == decide::INLINE_MESSAGE {
+        let url = match decide::inline_url(&click) {
+            Ok(url) => url,
+            Err(why) => return answer(false, &why),
+        };
+        if private {
+            return answer(false, "dm takes nothing from a private window");
+        }
+        if !catching().await {
+            return answer(false, "catching is switched off");
+        }
+        match app().await.0 {
+            App::Absent { reason } => return answer(false, &reason),
+            App::Present { rules, .. } => {
+                let candidate = dm_protocol::Candidate {
+                    url: &url,
+                    asked_url: &url,
+                    referrer: &tab_url,
+                    ..dm_protocol::Candidate::default()
+                };
+                if let Err(left) = rules.takes(&candidate, false) {
+                    return answer(false, left.reason());
+                }
+            }
+        }
+        let target = Target {
+            url: url.clone(),
+            referrer: tab_url.clone(),
+            page: false,
+        };
+        return match hand_target(target, tab_store(&sender, "tab")).await {
+            Ok(_) => {
+                notify("dm is downloading it", &decide::taken_name("", &url));
+                answer(true, "the app takes it")
+            }
+            Err(why) => answer(false, &why),
+        };
+    }
     // A click with the take key held: the download about to start is the
     // app's, whatever the types and size floor say.
     // Handed over as "Download link with dm" is: a link that is not itself
