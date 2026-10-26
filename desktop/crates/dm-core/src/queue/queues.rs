@@ -14,6 +14,7 @@ impl Queue {
             }
         }
         if started > 0 {
+            self.kick();
             self.save().await;
         }
         started

@@ -129,6 +129,13 @@ impl Limiter {
         both
     }
 
+    /// Whether a ceiling is set, this one or the download's own: read
+    /// without waiting for anyone.
+    pub fn is_limited(&self) -> bool {
+        self.rate.load(Ordering::Acquire) != 0
+            || self.also.as_ref().is_some_and(|own| own.is_limited())
+    }
+
     pub async fn rate(&self) -> u64 {
         self.inner.lock().await.rate
     }

@@ -121,6 +121,19 @@ pub async fn probe(
     let validator =
         header(reqwest::header::ETAG).or_else(|| header(reqwest::header::LAST_MODIFIED));
 
+    /* The byte asked for is read, so the connection goes back to the pool.
+     *
+     * A response dropped with its body unread is a connection closed: the
+     * download's first range then opened a new one, a TCP and a TLS
+     * handshake — two or three round trips to a distant server — before its
+     * first byte, beside a connection already open to the same server. Only
+     * a small answer, and only for so long: a server that ignored the range
+     * and is sending the whole file is not read here, and its connection
+     * goes as before. */
+    if res.content_length().is_some_and(|n| n <= REUSE_BELOW) {
+        let _ = tokio::time::timeout(REUSE_WITHIN, res.bytes()).await;
+    }
+
     let content_type = header(reqwest::header::CONTENT_TYPE);
     let modified = header(reqwest::header::LAST_MODIFIED);
     let filename = filename_for(
@@ -142,6 +155,12 @@ pub async fn probe(
         content_type,
     })
 }
+
+/// The largest probe answer read to its end so its connection is kept for
+/// the download (one byte, or a short error page's worth), and how long that
+/// reading may take.
+const REUSE_BELOW: u64 = 16 * 1024;
+const REUSE_WITHIN: std::time::Duration = std::time::Duration::from_secs(2);
 
 /// Names a Windows filesystem refuses outright, whatever the extension.
 ///

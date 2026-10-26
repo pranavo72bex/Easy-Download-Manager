@@ -379,6 +379,50 @@ where
     }
 }
 
+/// [`next_or_stop`] for a body read chunk after chunk: one timer for the
+/// whole body, armed again only when it fires, rather than one made and
+/// thrown away for every chunk.
+///
+/// A chunk that is there already is taken without touching a timer; one
+/// still to come is waited on with the control looked at every quarter of a
+/// second, as before. Over a fast link a connection reads thousands of
+/// chunks a second, and each `timeout` registered and removed a timer entry
+/// for a wait that almost never ran out.
+pub(crate) struct Reader {
+    tick: std::pin::Pin<Box<tokio::time::Sleep>>,
+}
+
+impl Reader {
+    pub(crate) fn new() -> Reader {
+        Reader {
+            tick: Box::pin(tokio::time::sleep(STOP_LOOK)),
+        }
+    }
+
+    pub(crate) async fn next<S>(
+        &mut self,
+        stream: &mut S,
+        control: &Control,
+    ) -> Result<Option<S::Item>, Error>
+    where
+        S: futures_util::Stream + Unpin,
+    {
+        loop {
+            control.check()?;
+            tokio::select! {
+                biased;
+                item = stream.next() => return Ok(item),
+                () = &mut self.tick => {
+                    self.tick.as_mut().reset(tokio::time::Instant::now() + STOP_LOOK);
+                }
+            }
+        }
+    }
+}
+
+/// How often a wait on a quiet body looks at the control.
+const STOP_LOOK: Duration = Duration::from_millis(250);
+
 /// The most of one stream segment held in memory.
 pub(super) const SEGMENT_CAP: usize = 512 * 1024 * 1024;
 

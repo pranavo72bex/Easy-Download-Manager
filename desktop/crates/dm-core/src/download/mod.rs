@@ -661,11 +661,16 @@ async fn fetch_reporting(
     }
     let again = report.clone();
     let reporter = report.map(|tx| watch(Arc::clone(&job.downloaded), info.size, tx));
-    let workers = options
-        .connections
-        .clamp(1, plan::MAX_CONNECTIONS)
-        .min(planned);
-    let outcome = run(client, &job, planned, workers, info.resumable).await;
+    let wanted = options.connections.clamp(1, plan::MAX_CONNECTIONS);
+    let workers = wanted.min(planned);
+    // Connections beyond the ranges planned, for a file small enough to be one
+    // or two: they join late and only if the server is slow (`ranged::run`).
+    let helpers = if info.resumable && info.size.is_some() {
+        wanted - workers
+    } else {
+        0
+    };
+    let outcome = run(client, &job, planned, workers, helpers, info.resumable).await;
 
     if let Some((handle, finished)) = reporter {
         // Ask for a closing sample, then wait for it to be sent.

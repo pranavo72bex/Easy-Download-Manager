@@ -40,6 +40,7 @@ impl Queue {
             slot.entry.began_in = folder;
             slot.requeue();
         }
+        self.kick();
         self.save().await;
         Ok(())
     }
@@ -113,6 +114,7 @@ impl Queue {
         }
         slot.requeue();
         drop(slots);
+        self.kick();
         self.save().await;
     }
 
@@ -143,6 +145,7 @@ impl Queue {
         if let Some(slot) = self.inner.slots.lock().await.get_mut(&id) {
             slot.task = Some(task);
         }
+        self.kick();
         self.save().await;
         true
     }
@@ -202,6 +205,7 @@ impl Queue {
             }
         }
         if resumed > 0 {
+            self.kick();
             self.save().await;
         }
         resumed
@@ -231,6 +235,7 @@ impl Queue {
             eta: None,
         };
         drop(slots);
+        self.kick();
         self.save().await;
         true
     }

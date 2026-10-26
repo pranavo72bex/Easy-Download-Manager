@@ -1183,3 +1183,257 @@ async fn a_pause_before_the_server_answers_is_honoured_at_once() {
         asked.elapsed()
     );
 }
+
+/// The probe's connection is the download's: the byte it asked for is read,
+/// so the connection goes back to the pool and the first range is sent on
+/// it, rather than on a new one with its own handshake.
+#[tokio::test]
+async fn the_probes_connection_carries_the_download() {
+    let body = Arc::new(vec![7u8; 2 * MB]);
+    let ports = Arc::new(std::sync::Mutex::new(
+        std::collections::HashSet::<u16>::new(),
+    ));
+    let (data, seen) = (body.clone(), ports.clone());
+    let app = axum::Router::new().route(
+        "/f.bin",
+        get(
+            move |axum::extract::ConnectInfo(from): axum::extract::ConnectInfo<SocketAddr>,
+                  headers: HeaderMap| {
+                let (data, seen) = (data.clone(), seen.clone());
+                async move {
+                    seen.lock().unwrap().insert(from.port());
+                    let size = data.len();
+                    let (a, b) = headers
+                        .get("range")
+                        .and_then(|v| v.to_str().ok())
+                        .and_then(|v| v.strip_prefix("bytes="))
+                        .and_then(|v| v.split_once('-'))
+                        .map(|(a, b)| {
+                            (
+                                a.parse::<usize>().unwrap(),
+                                b.parse::<usize>().unwrap_or(size - 1).min(size - 1),
+                            )
+                        })
+                        .unwrap_or((0, size - 1));
+                    Response::builder()
+                        .status(206)
+                        .header("content-range", format!("bytes {a}-{b}/{size}"))
+                        .header("content-length", b - a + 1)
+                        .header("etag", "\"one\"")
+                        .body(Body::from(data[a..=b].to_vec()))
+                        .unwrap()
+                }
+            },
+        ),
+    );
+    let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let addr = listener.local_addr().unwrap();
+    tokio::spawn(async move {
+        axum::serve(
+            listener,
+            app.into_make_service_with_connect_info::<SocketAddr>(),
+        )
+        .await
+        .unwrap()
+    });
+
+    let dir = tempdir();
+    let opts = dm_core::Options {
+        connections: 1,
+        ..options(dir.path())
+    };
+    let done = download(&client(), &format!("http://{addr}/f.bin"), &opts)
+        .await
+        .expect("the download failed");
+    assert_eq!(std::fs::read(&done.path).unwrap(), *body);
+    assert_eq!(
+        ports.lock().unwrap().len(),
+        1,
+        "the probe and the one range were made on separate connections"
+    );
+}
+
+/// A server that serves ranges, and says which connections (by their client
+/// port) it was asked on. `pace` holds each connection to about that many
+/// bytes a second, as a server that limits each one does; `None` is as fast
+/// as the socket takes it.
+async fn serve_counting(
+    body: Arc<Vec<u8>>,
+    pace: Option<usize>,
+) -> (
+    SocketAddr,
+    Arc<std::sync::Mutex<std::collections::HashSet<u16>>>,
+) {
+    let ports = Arc::new(std::sync::Mutex::new(
+        std::collections::HashSet::<u16>::new(),
+    ));
+    let (data, seen) = (body, ports.clone());
+    let app = axum::Router::new().route(
+        "/f.bin",
+        get(
+            move |axum::extract::ConnectInfo(from): axum::extract::ConnectInfo<SocketAddr>,
+                  headers: HeaderMap| {
+                let (data, seen) = (data.clone(), seen.clone());
+                async move {
+                    seen.lock().unwrap().insert(from.port());
+                    let size = data.len();
+                    let (a, b) = headers
+                        .get("range")
+                        .and_then(|v| v.to_str().ok())
+                        .and_then(|v| v.strip_prefix("bytes="))
+                        .and_then(|v| v.split_once('-'))
+                        .map(|(a, b)| {
+                            (
+                                a.parse::<usize>().unwrap(),
+                                b.parse::<usize>().unwrap_or(size - 1).min(size - 1),
+                            )
+                        })
+                        .unwrap_or((0, size - 1));
+                    let piece = bytes::Bytes::copy_from_slice(&data[a..=b]);
+                    let chunk = 64 * 1024;
+                    let stream = futures_util::stream::unfold(0usize, move |at| {
+                        let piece = piece.clone();
+                        async move {
+                            if at >= piece.len() {
+                                return None;
+                            }
+                            let end = (at + chunk).min(piece.len());
+                            if let Some(rate) = pace {
+                                let wait = (end - at) as f64 / rate as f64;
+                                tokio::time::sleep(Duration::from_secs_f64(wait)).await;
+                            }
+                            Some((Ok::<_, std::io::Error>(piece.slice(at..end)), end))
+                        }
+                    });
+                    Response::builder()
+                        .status(206)
+                        .header("content-range", format!("bytes {a}-{b}/{size}"))
+                        .header("content-length", b - a + 1)
+                        .header("etag", "\"one\"")
+                        .body(Body::from_stream(stream))
+                        .unwrap()
+                }
+            },
+        ),
+    );
+    let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let addr = listener.local_addr().unwrap();
+    tokio::spawn(async move {
+        axum::serve(
+            listener,
+            app.into_make_service_with_connect_info::<SocketAddr>(),
+        )
+        .await
+        .unwrap()
+    });
+    (addr, ports)
+}
+
+/// A small file from a server that holds each connection to a megabyte a
+/// second is fetched on more than one: the first connection is seen to be
+/// slow, and the others join it, so it takes about a second and not three.
+#[tokio::test]
+async fn a_small_file_from_a_slow_server_is_fetched_on_helping_connections() {
+    let body = Arc::new(vec![9u8; 3 * MB]);
+    let (addr, ports) = serve_counting(body.clone(), Some(MB)).await;
+    let dir = tempdir();
+    let opts = dm_core::Options {
+        connections: 8,
+        ..options(dir.path())
+    };
+    let started = std::time::Instant::now();
+    let done = download(&client(), &format!("http://{addr}/f.bin"), &opts)
+        .await
+        .expect("the download failed");
+    let took = started.elapsed();
+    assert_eq!(
+        std::fs::read(&done.path).unwrap(),
+        *body,
+        "the file is not the file"
+    );
+    assert!(
+        ports.lock().unwrap().len() > 2,
+        "no helping connection joined: {} used",
+        ports.lock().unwrap().len()
+    );
+    assert!(
+        took < Duration::from_millis(2200),
+        "3 MB at 1 MB/s on one connection takes three seconds; helped, {took:?}"
+    );
+}
+
+/// The same small file from a server that is not slow is fetched on the one
+/// connection the probe opened: a helper would cost a round trip to save
+/// nothing, so none is ever opened.
+#[tokio::test]
+async fn a_small_file_from_a_fast_server_gets_no_helping_connection() {
+    let body = Arc::new(vec![5u8; 3 * MB / 2]);
+    let (addr, ports) = serve_counting(body.clone(), None).await;
+    let dir = tempdir();
+    let opts = dm_core::Options {
+        connections: 8,
+        ..options(dir.path())
+    };
+    let done = download(&client(), &format!("http://{addr}/f.bin"), &opts)
+        .await
+        .expect("the download failed");
+    assert_eq!(std::fs::read(&done.path).unwrap(), *body);
+    assert_eq!(
+        ports.lock().unwrap().len(),
+        1,
+        "a connection was opened that the fast server did not need"
+    );
+}
+
+/// Pausing while helpers wait to see whether they are needed pauses the
+/// download at once; they do not hold it up.
+#[tokio::test]
+async fn a_pause_while_helpers_are_still_waiting_is_honoured() {
+    let body = Arc::new(vec![3u8; 3 * MB]);
+    let (addr, _ports) = serve_counting(body, Some(MB)).await;
+    let dir = tempdir();
+    let control = Control::new();
+    let opts = dm_core::Options {
+        connections: 8,
+        control: control.clone(),
+        ..options(dir.path())
+    };
+    let url = format!("http://{addr}/f.bin");
+    let task = tokio::spawn(async move { download(&client(), &url, &opts).await });
+    tokio::time::sleep(Duration::from_millis(60)).await;
+    control.pause();
+    let paused = std::time::Instant::now();
+    let outcome = tokio::time::timeout(Duration::from_secs(3), task)
+        .await
+        .expect("the pause was not honoured")
+        .unwrap();
+    assert!(matches!(outcome, Err(Error::Paused)), "{outcome:?}");
+    assert!(
+        paused.elapsed() < Duration::from_secs(2),
+        "the pause took {:?}",
+        paused.elapsed()
+    );
+}
+
+/// With a speed limit of dm's own set, the limit is the bottleneck, and a
+/// helping connection would only share it out again: none is opened.
+#[tokio::test]
+async fn a_download_under_a_speed_limit_gets_no_helping_connection() {
+    let body = Arc::new(vec![4u8; 3 * MB / 2]);
+    let (addr, ports) = serve_counting(body.clone(), Some(MB)).await;
+    let dir = tempdir();
+    let opts = dm_core::Options {
+        connections: 8,
+        limiter: dm_core::Limiter::new(2 * MB as u64),
+        ..options(dir.path())
+    };
+    let done = download(&client(), &format!("http://{addr}/f.bin"), &opts)
+        .await
+        .expect("the download failed");
+    assert_eq!(std::fs::read(&done.path).unwrap(), *body);
+    assert_eq!(
+        ports.lock().unwrap().len(),
+        1,
+        "a connection was opened to share a limit out"
+    );
+}

@@ -926,6 +926,7 @@ pub async fn watch_inbox(
      * that none was ever idle long enough to end: after ten downloads,
      * seventy threads and their memory stayed for the life of dm.
      * */
+    let bell = open_bell(&dir);
     loop {
         // `--unregister`, uninstalling dm: this dm ends, as a stop signal
         // ends it, rather than stay in the tray and write back what the
@@ -997,9 +998,56 @@ pub async fn watch_inbox(
         if !queue.scheduling() {
             wake(&queue);
         }
-        tokio::time::sleep(std::time::Duration::from_millis(500)).await;
+        wait_for_inbox(bell.as_ref()).await;
     }
 }
+
+/// How often the inbox is looked at with no bell rung.
+const INBOX_POLL: std::time::Duration = std::time::Duration::from_millis(500);
+
+/// The doorbell a browser hand-off rings (`host::ring`): a loopback socket
+/// whose port is written down in the inbox for the host to find. `None`
+/// where it cannot be had, and the inbox is polled as before.
+fn open_bell(dir: &std::path::Path) -> Option<tokio::net::UdpSocket> {
+    let socket = std::net::UdpSocket::bind((std::net::Ipv4Addr::LOCALHOST, 0)).ok()?;
+    socket.set_nonblocking(true).ok()?;
+    let port = socket.local_addr().ok()?.port();
+    std::fs::create_dir_all(dir).ok()?;
+    // Whole, then moved: a host reading a half-written port would ring
+    // somebody else's.
+    let temp = dir.join(format!(".{}.{}.tmp", host::BELL, std::process::id()));
+    std::fs::write(&temp, port.to_string()).ok()?;
+    if std::fs::rename(&temp, dir.join(host::BELL)).is_err() {
+        let _ = std::fs::remove_file(&temp);
+        return None;
+    }
+    tokio::net::UdpSocket::from_std(socket).ok()
+}
+
+/// Until the next look at the inbox: the poll's interval, or sooner when the
+/// bell rings. Every datagram already waiting is taken with the first, so a
+/// burst of rings is one look; and a look follows the last by a few
+/// milliseconds at least, so a program sending datagrams as fast as it can
+/// makes dm read a directory a few hundred times a second, no more. The
+/// floor comes before the wait, not after a ring: a ring meanwhile waits on
+/// the socket, and the first after a quiet spell is answered at once.
+async fn wait_for_inbox(bell: Option<&tokio::net::UdpSocket>) {
+    let Some(bell) = bell else {
+        tokio::time::sleep(INBOX_POLL).await;
+        return;
+    };
+    tokio::time::sleep(BELL_FLOOR).await;
+    let mut buf = [0u8; 16];
+    tokio::select! {
+        _ = tokio::time::sleep(INBOX_POLL - BELL_FLOOR) => {}
+        _ = bell.recv(&mut buf) => {
+            while bell.try_recv(&mut buf).is_ok() {}
+        }
+    }
+}
+
+/// The least time between two looks at the inbox when the bell rings.
+const BELL_FLOOR: std::time::Duration = std::time::Duration::from_millis(3);
 
 /// The words of a command line, as a shell would split them: spaces apart,
 /// except inside single or double quotes, and a backslash escaping the next

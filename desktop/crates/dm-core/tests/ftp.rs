@@ -236,7 +236,9 @@ async fn an_ftp_file_is_fetched_over_several_connections() {
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
 async fn a_paused_ftp_download_resumes_from_its_parts() {
-    let data = body(4 * 1024 * 1024);
+    let data = body(8 * 1024 * 1024);
+    // Eight connections at 1 MB/s each: about a second, so the pause below
+    // lands while every range is still under way.
     let quirks = Quirks {
         rate: Some(1024 * 1024),
         ..Quirks::default()
@@ -287,7 +289,9 @@ async fn a_paused_ftp_download_resumes_from_its_parts() {
 /// out the right size and wrong in the middle.
 #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
 async fn a_part_torn_by_a_power_cut_is_repaired_when_an_ftp_download_resumes() {
-    let data = body(4 * 1024 * 1024);
+    let data = body(8 * 1024 * 1024);
+    // Eight connections at 1 MB/s each: about a second, so the pause below
+    // lands while every range is still under way.
     let quirks = Quirks {
         rate: Some(1024 * 1024),
         ..Quirks::default()

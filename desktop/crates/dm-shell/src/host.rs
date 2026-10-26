@@ -101,6 +101,33 @@ pub fn inbox(home: &Path) -> PathBuf {
     home.join("inbox")
 }
 
+/// The file in the inbox where a running dm writes the loopback port its
+/// doorbell listens on. No extension, so the watcher never reads it as a
+/// request.
+pub const BELL: &str = "bell";
+
+/// Tells a running dm there is something in its inbox, now.
+///
+/// The inbox is polled every half second, which every browser hand-off to a
+/// running dm waited out: a quarter of a second on average between the click
+/// and the first byte, half of one at worst. One empty datagram to the port
+/// dm wrote down wakes its watcher at once. It carries nothing and asks for
+/// nothing: a datagram from anyone else only makes dm look at its inbox
+/// early, which it does twice a second anyway. Best effort: a dm that wrote
+/// no bell, or has gone, is found by the poll as before.
+pub fn ring(home: &Path) {
+    let Some(port) = std::fs::read_to_string(inbox(home).join(BELL))
+        .ok()
+        .and_then(|text| text.trim().parse::<u16>().ok())
+        .filter(|&port| port != 0)
+    else {
+        return;
+    };
+    if let Ok(socket) = std::net::UdpSocket::bind((std::net::Ipv4Addr::LOCALHOST, 0)) {
+        let _ = socket.send_to(&[], (std::net::Ipv4Addr::LOCALHOST, port));
+    }
+}
+
 /// Writes a request where the app will find it.
 ///
 /// Whole then moved, so the app cannot read a half-written file — it polls a
@@ -301,6 +328,9 @@ pub trait World {
     fn app_running(&mut self) -> bool;
     /// Starts one.
     fn launch(&mut self) -> std::io::Result<()>;
+    /// Wakes a running dm's inbox watcher, so a hand-off filed for it is
+    /// read now rather than at its next poll. Nothing by default.
+    fn ring(&mut self) {}
     /// Whether dm, from outside the browser, can fetch `url` at all, asked
     /// for no longer than `within_ms`; when it can, the type the server
     /// said it was sending, after redirects (empty where it said none).
@@ -342,6 +372,10 @@ impl World for Here<'_> {
         launch_desktop()?;
         self.started = true;
         Ok(())
+    }
+
+    fn ring(&mut self) {
+        ring(self.home);
     }
 
     /// One ranged request, made the way the queue will make it: through the
@@ -599,7 +633,10 @@ pub fn answer(
                     },
                 );
                 match filed {
-                    Ok(_) if world.app_running() => Reply::Started { id },
+                    Ok(_) if world.app_running() => {
+                        world.ring();
+                        Reply::Started { id }
+                    }
                     Ok(filed) => match world.launch() {
                         Ok(()) => Reply::Started { id },
                         // Taken back out: the browser keeps it, and a dm
@@ -622,8 +659,10 @@ pub fn answer(
         // opens it. Nothing is downloaded.
         Ok(Asked::Show) => {
             let shown = if world.app_running() {
-                std::fs::create_dir_all(inbox(home))
-                    .and_then(|()| std::fs::write(inbox(home).join("show"), b""))
+                let shown = std::fs::create_dir_all(inbox(home))
+                    .and_then(|()| std::fs::write(inbox(home).join("show"), b""));
+                world.ring();
+                shown
             } else {
                 world.launch()
             };
@@ -716,7 +755,10 @@ pub fn answer(
                         ..Request::default()
                     },
                 ) {
-                    Ok(_) if world.app_running() => Reply::Started { id },
+                    Ok(_) if world.app_running() => {
+                        world.ring();
+                        Reply::Started { id }
+                    }
                     Ok(filed) => match world.launch() {
                         Ok(()) => Reply::Started { id },
                         // Filed, but nothing will read it: said now, not

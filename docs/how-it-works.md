@@ -299,8 +299,10 @@ an executable and cannot pass it arguments, so the binary works out that a
 browser started it from what each browser passes as its first argument. It
 asks the server once (through the saved proxy, with the page as referrer)
 before taking a download the browser is holding (`caught`), writes the request into a directory the running app
-watches, starts the app if it is not running, answers, and exits with the
-port the browser owns. It is one-way past `download.started`: the app's
+watches, starts the app if it is not running (or rings a running one's
+doorbell, a loopback port it wrote to `inbox/bell`, so the request is read
+at once rather than at the next half-second poll), answers, and exits with
+the port the browser owns. It is one-way past `download.started`: the app's
 window is where the download is.
 
 **Never losing a download.** A caught download is paused while the app is

@@ -1,6 +1,11 @@
 use super::*;
 
 impl Queue {
+    /// Wakes a scheduler that is waiting for its next tick.
+    pub(super) fn kick(&self) {
+        self.inner.kick.notify_one();
+    }
+
     /// Whether anything is still running or waiting to.
     pub async fn busy(&self) -> bool {
         self.inner
@@ -33,7 +38,12 @@ impl Queue {
             if !self.busy().await {
                 break;
             }
-            tokio::time::sleep(Duration::from_millis(50)).await;
+            // Polled, and woken early by an add (`kick`): a download added
+            // while others run waited up to a tick for its first byte.
+            tokio::select! {
+                _ = tokio::time::sleep(Duration::from_millis(50)) => {}
+                _ = self.inner.kick.notified() => {}
+            }
         }
         self.inner.scheduling.store(false, Ordering::SeqCst);
     }

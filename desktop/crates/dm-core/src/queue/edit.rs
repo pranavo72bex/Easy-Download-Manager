@@ -12,6 +12,7 @@ impl Queue {
     pub async fn add_with(&self, url: &str, with: AddOptions) -> Option<Id> {
         let id = self.add_unsaved(url, with).await;
         if id.is_some() {
+            self.kick();
             self.save().await;
         }
         id
@@ -27,6 +28,7 @@ impl Queue {
             ids.push(self.add_unsaved(&url, with).await);
         }
         if ids.iter().any(Option::is_some) {
+            self.kick();
             self.save().await;
         }
         ids
@@ -160,6 +162,7 @@ impl Queue {
         };
         if reset {
             self.discard_parts(id).await;
+            self.kick();
             self.save().await;
         }
         reset

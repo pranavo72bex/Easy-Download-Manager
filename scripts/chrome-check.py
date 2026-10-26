@@ -246,7 +246,11 @@ ARRIVING = ("early1.bin", "early2.bin", "early3.bin")
 
 def body(name):
     seed = hashlib.sha256(name.encode()).digest()
-    size = 300_000 if name.startswith("small") else SIZE
+    # A few files of the sizes that small ones are: 3 MB, which a server that
+    # holds each connection to a megabyte a second serves in three; 1.5 MB.
+    size = (300_000 if name.startswith("small") else
+            3 * 1024 * 1024 if name.startswith("paced") else
+            3 * 1024 * 1024 // 2 if name.startswith("quick") else SIZE)
     return (seed * (size // len(seed) + 1))[:size]
 
 
@@ -325,7 +329,8 @@ class Handler(http.server.BaseHTTPRequestHandler):
         path = urllib.parse.urlparse(self.path).path
         agent = self.headers.get("User-Agent", "")
         requests.append({"path": path, "agent": agent, "referer": self.headers.get("Referer", ""),
-                         "range": self.headers.get("Range", "")})
+                         "range": self.headers.get("Range", ""), "t": time.monotonic(),
+                         "port": self.client_address[1]})
         if path == "/framed.html":
             port = self.server.server_address[1]
             page = ('<!doctype html><title>a page embedding a player</title><h1>an article</h1>'
@@ -366,7 +371,8 @@ class Handler(http.server.BaseHTTPRequestHandler):
         if path == "/page.html":
             links = "".join(f'<p><a id="{n}" href="/files/{n}">{n}</a></p>' for n in
                             ("caught.bin", "notes.txt", "kept.zip", "private.bin", "absent.bin",
-                             "alt.bin", "off.bin", "forced.txt", "paused.bin", "resumed.bin", "small.pdf", "small-shown.pdf", "small.bin", LONG))
+                             "alt.bin", "off.bin", "forced.txt", "paused.bin", "resumed.bin", "small.pdf", "small-shown.pdf", "small.bin",
+                             "paced.bin", "quick.bin", "quick2.bin", "quick3.bin", LONG))
             page = f"<!doctype html><title>dm check</title>{links}".encode()
             self.send_response(200)
             self.send_header("Content-Type", "text/html")
@@ -413,10 +419,15 @@ class Handler(http.server.BaseHTTPRequestHandler):
         # The browser is served slowly, the way a large file arrives, so a
         # download is still running when the extension holds it; dm is not.
         slow = not agent.startswith("dm/") and not name.startswith("small")
+        # "paced": every connection, dm's too, held to about a megabyte a
+        # second, as a server that limits each one does.
+        paced = name.startswith("paced")
         try:
             for at in range(start, end + 1, 32 * 1024):
                 self.wfile.write(data[at:min(at + 32 * 1024, end + 1)])
-                if slow:
+                if paced:
+                    time.sleep(0.03125)
+                elif slow:
                     time.sleep(0.08)
         except (BrokenPipeError, ConnectionResetError):
             pass
@@ -512,6 +523,19 @@ def save_dialogs():
     found = subprocess.run(["xdotool", "search", "--onlyvisible", "--name", "^(Save File|Save As)$"],
                            capture_output=True, text=True, timeout=20).stdout.split()
     return found
+
+
+def human_click(base, origin, link):
+    """Opens the page in a tab and presses the mouse on one link, as a
+    person does: a real pointer, at the link's place, not a script's click."""
+    tab = open_tab(base, f"{origin}/page.html")
+    loaded(tab, "/page.html", f"[id={json.dumps(link)}]")
+    # Scrolled to first, as a person scrolls to a link below the fold.
+    x, y = tab.evaluate(f"""(() => {{ const el = document.getElementById({json.dumps(link)});
+      el.scrollIntoView({{block: 'center'}}); const r = el.getBoundingClientRect();
+      return [r.left + 5, r.top + r.height / 2]; }})()""")
+    click_at(tab, x, y)
+    return tab
 
 
 def click(base, origin, link):
@@ -1072,6 +1096,38 @@ def main():
         check("a plain click on a link to a PDF the browser would show in the tab goes to dm",
               shown and stayed == "/page.html", f"tab at {stayed}")
         check("and the browser kept nothing of it", not (browser_dl / "small-shown.pdf").exists())
+
+        # A person clicks, and watches how long dm takes to start and to finish.
+        # A small file from a server that holds each connection to a megabyte
+        # a second: one connection takes three seconds and more for 3 MB; the
+        # connections that join once the first is seen to be slow bring it
+        # to about one.
+        mark = len(requests)
+        began = time.monotonic()
+        human_click(base, origin, "paced.bin")
+        done = wait_for(lambda: whole(engine_dl, "paced.bin"), 40)
+        took = time.monotonic() - began
+        ports = {r["port"] for r in requests[mark:]
+                 if r["path"].endswith("/paced.bin") and r["agent"].startswith("dm/")}
+        check("a small file from a server that holds each connection to 1 MB/s is fetched on helping connections",
+              done and took < 2.8 and len(ports) >= 4, f"{took:.2f} s on {len(ports)} of dm's connections")
+        # The same size from a fast server: no connection is opened that it
+        # did not need (the host's own probe and the app's one), and dm starts
+        # at once: the time from the click to dm's first request for it.
+        starts = []
+        for name in ("quick.bin", "quick2.bin", "quick3.bin"):
+            mark = len(requests)
+            began = time.monotonic()
+            human_click(base, origin, name)
+            done = wait_for(lambda: whole(engine_dl, name), 40)
+            asked = [r for r in requests[mark:] if r["path"].endswith("/" + name) and r["agent"].startswith("dm/")]
+            ports = {r["port"] for r in asked}
+            starts.append((min(r["t"] for r in asked) - began) * 1000 if asked else 9999)
+            check(f"{name}, from a fast server, is fetched on no more connections than it needs",
+                  done and len(ports) <= 2, f"{len(ports)} of dm's connections")
+        starts.sort()
+        check("dm's first request comes soon after the click (the doorbell, not the half-second poll)",
+              starts[1] < 700, f"{', '.join(f'{s:.0f} ms' for s in starts)} (median {starts[1]:.0f} ms)")
 
         # 3. Not a type the app catches.
         click(base, origin, "notes.txt")

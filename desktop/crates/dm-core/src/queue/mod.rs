@@ -318,6 +318,9 @@ struct Inner {
     queue_limits: std::sync::Mutex<HashMap<String, usize>>,
     /// Whether a scheduler is already serving this queue.
     scheduling: AtomicBool,
+    /// Wakes a scheduler between its ticks, so a download added while
+    /// others run starts now rather than at the next tick.
+    kick: tokio::sync::Notify,
     /// Whether the recheck queue's servers are being asked now.
     rechecking: AtomicBool,
     /// When the queue may run.
@@ -408,6 +411,7 @@ impl Queue {
                 problems: std::sync::Mutex::new(Vec::new()),
                 leaving: std::sync::Mutex::new(Vec::new()),
                 scheduling: AtomicBool::new(false),
+                kick: tokio::sync::Notify::new(),
                 rechecking: AtomicBool::new(false),
                 concurrency: AtomicUsize::new(concurrency.max(1)),
                 queue_limits: std::sync::Mutex::new(HashMap::new()),

@@ -49,6 +49,8 @@ cd ../browser && cargo test                     # the extension's decisions, on 
 | `scripts/firefox-check.py` | The same in a real Firefox | `python3 scripts/firefox-check.py native` |
 | `scripts/panel-check.py` | The "Download video" panel's hard cases in Chromium | `python3 scripts/panel-check.py` |
 | `scripts/ui-shot.py` | A picture of the window for checking a visual change by eye | `python3 scripts/ui-shot.py` |
+| `scripts/launch-latency.py` | How long from a browser click (a `download.start` to the native host) to dm's first request for the file, with dm closed (cold) and running (warm). Numbers for comparing two builds, not a pass or a fail | `xvfb-run -a python3 scripts/launch-latency.py desktop/target/release/dm-desktop` |
+| `tests/throughput.rs` | The engine's own speed: loopback with no pacing, a server 80 ms away, and one holding each connection to 1 MB/s. Ignored by default; for comparing two builds on one machine | `cargo test -p dm-core --release --test throughput -- --ignored --nocapture --test-threads=1` |
 
 By hand only (they reach real sites, so they are not in CI):
 `scripts/youtube-check.py`, `scripts/live-panel-check.py`,

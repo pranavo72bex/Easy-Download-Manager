@@ -439,3 +439,38 @@ fn an_empty_checksum_clears_and_nonsense_is_refused() {
     assert!(checksum("not a digest").is_err());
     assert!(checksum(&"a".repeat(64)).unwrap().is_some());
 }
+
+/// A hand-off rings the running dm's doorbell, and its inbox watcher looks
+/// at once rather than at its next poll half a second on.
+#[tokio::test]
+async fn the_doorbell_wakes_the_inbox_watcher_at_once() {
+    let home = tempfile::tempdir().unwrap();
+    let dir = host::inbox(home.path());
+    let bell = super::open_bell(&dir).expect("a loopback socket");
+    assert!(
+        dir.join(host::BELL).exists(),
+        "the port was not written down"
+    );
+
+    let started = std::time::Instant::now();
+    let waiting = tokio::spawn(async move { super::wait_for_inbox(Some(&bell)).await });
+    tokio::time::sleep(std::time::Duration::from_millis(20)).await;
+    host::ring(home.path());
+    waiting.await.unwrap();
+    let took = started.elapsed();
+    assert!(
+        took < std::time::Duration::from_millis(250),
+        "the ring did not wake the watcher: {took:?}"
+    );
+}
+
+/// With no bell written (an older dm, or none running), a ring does nothing
+/// and fails nothing.
+#[test]
+fn a_ring_with_nobody_listening_is_harmless() {
+    let home = tempfile::tempdir().unwrap();
+    host::ring(home.path());
+    std::fs::create_dir_all(host::inbox(home.path())).unwrap();
+    std::fs::write(host::inbox(home.path()).join(host::BELL), "not a port").unwrap();
+    host::ring(home.path());
+}

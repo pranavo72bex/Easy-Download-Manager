@@ -3,6 +3,67 @@
 Decisions that shape dm and are not obvious from the code, newest first. Each says what was decided and why, so a later change
 can see what it is undoing.
 
+## 2026-10-26: A speed pass, measured (`tests/throughput.rs`)
+
+The engine was measured before anything was changed: 1.1 GB/s on one
+connection and about 1.5 GB/s on eight over loopback on a two-core machine,
+server included. Nothing between the socket and the disk holds a real link
+back, so the write path, buffers and locks were left as they are. What did
+hold downloads back was waiting:
+
+- **Small files on one connection.** `MIN_SEGMENT` (1 MiB) holds a file under
+  2 MB to one range, and with `workers = connections.min(planned)` nothing
+  was free to halve it. Cutting the file finer at the start (256 KiB, as a
+  first version did) took a 1.5 MB file from a server that holds each
+  connection to 1 MB/s, 40 ms away, from 1.55 s to 0.40 s, but cost every
+  fast distant server a round trip, since each extra range opens a
+  connection (80 ms away, no cap: 512 KB and 1.5 MB 0.27 s → 0.35 s). So the
+  ranges are planned as before, and the connections beyond them are
+  *helpers* (`ranged::run`): each waits 100 ms, watches the bytes arrive for
+  80 ms, and halves a range only when more than 0.3 s of the file is left at
+  that rate (`slow_enough_to_help`). A fast server finishes before they
+  decide and never sees them (the test counts connections); a slow one is
+  helped within a fraction of a second. Against the same two servers, in the
+  same benchmark (`DM_BENCH_SMALL=1`), before → now: capped, 1.5 MB 1.55 s →
+  0.80 s, 3 MB 1.14 s → 0.80 s; uncapped, 0.27 s → 0.27 s and 0.35–0.45 s →
+  0.44 s. The rate is watched over a window rather than since the start,
+  which counts the wait for the first byte as slowness (a first try, with
+  "nothing yet" taken as slow, made 3 MB and 6 MB at 80 ms slower). Two FTP
+  tests that paused a 4 MB download at 0.4 s found it finished and fetch 8 MB
+  now.
+- **A hand-off to a running dm waited for the inbox poll** (every 500 ms).
+  dm now writes the port of a loopback UDP socket to `inbox/bell`, and the
+  host sends one empty datagram after filing a request (`host::ring`); the
+  watcher looks at once. The datagram carries nothing, so anyone else
+  sending one only makes dm read its inbox early, and a flood is held to a
+  look every few milliseconds. The poll stays for an older host, a missing
+  bell, or a socket that could not be had. A notifier on the directory was
+  weighed again and dropped for the reason it was dropped before. From
+  `download.start` to the server's first request (`scripts/launch-latency.py`,
+  median of nine, macOS debug builds): 520 ms → 59 ms with dm running (Linux
+  under Xvfb, median of five: 509 ms → 13 ms); with
+  dm closed, starting it took 16 ms before and 20 ms after (noise).
+- **A download added while others run waited for the scheduler's next
+  tick** (50 ms). An add, a resume, a retry or a queue start now wakes it
+  (`Queue::kick`); the tick stays as it was.
+- **The probe's byte is read** when its answer is small, so its connection
+  goes back to the pool for the first range. Most servers send that byte
+  with the headers, and hyper reused the connection already; one that
+  sends the body apart had its connection closed and cost the first range
+  a handshake.
+- **One timer per body** in the range loop (`hls::Reader`) instead of a
+  `timeout` made and dropped for every chunk; a pause is still seen within
+  a quarter of a second. Within the benchmark's noise on loopback; kept
+  because it does less per chunk and changes nothing else.
+
+Weighed and not done: fetching the first range on the probe's own request
+(`bytes=0-`) would save a round trip before the first byte, but a server
+that answers a range of the whole file with 200 (Wikimedia does) would then
+read as one without ranges and lose every connection but one, and a second
+request beside the probe meets servers that allow one connection with a
+429 on the probe. A caching DNS resolver: Windows, macOS and systemd all
+cache lookups already.
+
 ## 2026-10-25: Update manifests are signed; logins are exact-host and https
 
 `latest.json` is signed with ed25519 (`latest.json.sig`, made in the release

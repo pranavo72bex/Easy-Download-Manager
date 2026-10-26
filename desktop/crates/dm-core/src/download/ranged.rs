@@ -122,6 +122,60 @@ pub(super) async fn preallocate(job: &Job) -> Result<(), Error> {
     Ok(())
 }
 
+/// How long a helper connection waits before it asks whether the first ones
+/// need it, and the window over which it then watches how fast bytes arrive.
+const HELP_AFTER: Duration = Duration::from_millis(100);
+const HELP_WATCH: Duration = Duration::from_millis(80);
+
+/// How much work, at the rate seen, a helper is worth opening a connection
+/// for: a connection costs a round trip before its first byte, so one opened
+/// for what the others finish sooner only slows the end.
+const HELP_WORTH_SECS: f64 = 0.3;
+
+/// How long a helper waits for the first bytes to show a rate. A link that
+/// has sent nothing for so long is slow enough to be helped.
+const HELP_GIVE_UP: Duration = Duration::from_millis(1500);
+
+/// Whether a connection beyond the planned ranges is worth opening now: the
+/// rate bytes are arriving at, watched over a short window (not from the
+/// start, which counts the wait for the first byte as slowness), leaves more
+/// than [`HELP_WORTH_SECS`] of the file still to come.
+async fn slow_enough_to_help(job: &Job, started: tokio::time::Instant) -> bool {
+    // With a limit of dm's own set, the limit is the bottleneck and another
+    // connection would only share it out again.
+    if job.limiter.is_limited() {
+        return false;
+    }
+    let Some(size) = job.size else {
+        return false;
+    };
+    let mut from = (
+        tokio::time::Instant::now(),
+        job.downloaded.load(Ordering::Relaxed),
+    );
+    loop {
+        tokio::time::sleep(HELP_WATCH).await;
+        let now = (
+            tokio::time::Instant::now(),
+            job.downloaded.load(Ordering::Relaxed),
+        );
+        let left = size.saturating_sub(now.1) as f64;
+        if left == 0.0 {
+            return false;
+        }
+        if now.1 > from.1 {
+            let rate = (now.1 - from.1) as f64 / now.0.duration_since(from.0).as_secs_f64();
+            return left / rate > HELP_WORTH_SECS;
+        }
+        // Nothing came in this window: looked at again, until it is plainly
+        // slow.
+        if now.0.duration_since(started) >= HELP_GIVE_UP {
+            return true;
+        }
+        from = now;
+    }
+}
+
 /// Runs every range, and keeps running until none are left unfinished.
 ///
 /// `workers` connections take the pieces in file order, each the next one
@@ -130,11 +184,18 @@ pub(super) async fn preallocate(job: &Job) -> Result<(), Error> {
 /// left untaken, a connection that is free halves the largest range still
 /// under way and takes its back half (dynamic segmentation),
 /// so no connection sits idle behind a slow one.
+///
+/// `helpers` more connections than there are pieces (a small file, on few
+/// ranges) start late: each waits [`HELP_AFTER`], and halves a range only if
+/// the file is slow enough that more than [`HELP_WORTH_SECS`] is left. A
+/// server that serves it fast never sees them, and one that holds each
+/// connection down is fetched on all of them within a fraction of a second.
 pub(super) async fn run(
     client: &reqwest::Client,
     job: &Arc<Job>,
     planned: usize,
     workers: usize,
+    helpers: usize,
     resumable: bool,
 ) -> Result<(), Error> {
     let next = Arc::new(std::sync::atomic::AtomicUsize::new(0));
@@ -142,10 +203,35 @@ pub(super) async fn run(
     let orphans = Arc::new(std::sync::Mutex::new(Vec::<usize>::new()));
     let active = Arc::new(std::sync::atomic::AtomicUsize::new(workers.max(1)));
     let mut running = tokio::task::JoinSet::new();
-    for _ in 0..workers.max(1) {
+    // When the connections with ranges of their own are done, helpers still
+    // waiting have nothing to wait for.
+    let first_wave = Arc::new(std::sync::atomic::AtomicUsize::new(workers.max(1)));
+    let (wave_over, wave_over_seen) = tokio::sync::watch::channel(false);
+    // Set once the server has turned a connection away: it limits them, and
+    // a helper is not worth asking it for.
+    let refused = Arc::new(std::sync::atomic::AtomicBool::new(false));
+    let started = tokio::time::Instant::now();
+    for ordinal in 0..workers.max(1) + helpers {
+        let helper = ordinal >= workers.max(1);
         let (client, job, next) = (client.clone(), Arc::clone(job), Arc::clone(&next));
         let (orphans, active) = (Arc::clone(&orphans), Arc::clone(&active));
+        let refused = Arc::clone(&refused);
+        let (first_wave, wave_over, mut wave_over_seen) = (
+            Arc::clone(&first_wave),
+            wave_over.clone(),
+            wave_over_seen.clone(),
+        );
         running.spawn(async move {
+            // A helper that has been let in: it is one of the active, to the
+            // connection that steps aside for a server that limits them.
+            let mut joined = false;
+            if helper {
+                tokio::select! {
+                    () = tokio::time::sleep(HELP_AFTER) => {}
+                    _ = wave_over_seen.wait_for(|over| *over) => return Ok(()),
+                }
+                job.control.check()?;
+            }
             loop {
                 let index = next.fetch_add(1, Ordering::Relaxed);
                 let orphan = if index < planned {
@@ -158,11 +244,24 @@ pub(super) async fn run(
                 } else if let Some(index) = orphan {
                     index
                 } else {
+                    if helper
+                        && (refused.load(Ordering::SeqCst)
+                            || !slow_enough_to_help(&job, started).await
+                            // Looked at again after the watching: a refusal
+                            // while it went on is as good as one before.
+                            || refused.load(Ordering::SeqCst))
+                    {
+                        break;
+                    }
                     match split_largest(&job).await {
                         Some(index) => index,
                         None => break,
                     }
                 };
+                if helper && !joined {
+                    joined = true;
+                    active.fetch_add(1, Ordering::SeqCst);
+                }
                 crate::lock(&job.live[index]).taken = true;
                 match fetch_segment(&client, &job, index, resumable, &active).await {
                     Ok(()) => {}
@@ -173,6 +272,7 @@ pub(super) async fn run(
                      * connections asks, rather than failing a download the
                      * rest are fetching. */
                     Err(e) if crate::retry::transient(&e) && active.load(Ordering::SeqCst) > 1 => {
+                        refused.store(true, Ordering::SeqCst);
                         crate::lock(&job.live[index]).taken = false;
                         crate::lock(&orphans).push(index);
                         break;
@@ -180,7 +280,12 @@ pub(super) async fn run(
                     Err(e) => return Err(e),
                 }
             }
-            active.fetch_sub(1, Ordering::SeqCst);
+            if !helper || joined {
+                active.fetch_sub(1, Ordering::SeqCst);
+            }
+            if !helper && first_wave.fetch_sub(1, Ordering::SeqCst) == 1 {
+                let _ = wave_over.send(true);
+            }
             Ok::<(), Error>(())
         });
     }
@@ -653,11 +758,12 @@ pub(super) async fn attempt_segment(
     // its back half.
     let mut span_now = span;
     let mut want_lead = lead;
+    let mut reader = Reader::new();
 
     loop {
         let chunk = match carry.take() {
             Some(rest) => Ok(rest),
-            None => match next_or_stop(&mut stream, &job.control).await {
+            None => match reader.next(&mut stream, &job.control).await {
                 Ok(Some(chunk)) => chunk,
                 Ok(None) => break,
                 // Stopped while waiting: what is in the write buffer is on
