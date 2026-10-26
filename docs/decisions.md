@@ -1960,3 +1960,16 @@ points tall, 64 from 800, and 28 below (`dialog_shadow_blur`), since egui
 counts a shadow in a window's size. The menu has 32; tooltips share egui's one
 popup shadow and have 32 too, not 16.
 
+## 2026-10-26: `app-check.py` reads the window after waking it
+
+The real-binary check failed one run in three or four, on builds from before
+this day's changes as well as after (4 of 12 and 2 of 12), at steps that click
+and then read the window's words once after half a second. A request for the
+words (`ui.texts`) reads the last frame drawn and does not make the window
+draw one; any other control call (`ui.inspect`) does. The steps now wait up to
+three seconds for what they expect, waking the window each time round
+(`soon`), and a batch finishing no longer opens a Download complete window
+over the dialog being typed into (`show_complete` off in the check's own
+settings). 16 of 16 runs pass. The app was not at fault: a person's pointer
+makes frames all the time.
+

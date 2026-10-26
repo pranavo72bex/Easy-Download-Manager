@@ -259,8 +259,11 @@ def main():
     env = {**os.environ, "DM_HOME": str(home)}
     # Three attempts, not the ten a person gets: a check that a failure is a
     # failure would otherwise wait out minutes of half-minute retries.
+    # No "Download complete" window: it opens when a batch finishes, at whatever
+    # moment that is, over the dialog the check is typing into (a flake of one
+    # run in six or so, on builds from before and after it was found).
     settings = {"download_dir": str(downloads), "categorize": True, "connections": 4, "attempts": 3,
-                "allow_mcp": True}
+                "allow_mcp": True, "show_complete": False}
     (home / "settings.json").write_text(json.dumps(settings))
     # The PATH a Dock or login launch has: no Homebrew, no ~/.local/bin. The
     # tools dm runs are found by their usual homes, or they are not found.
@@ -522,34 +525,51 @@ def main():
             answer = call(method, **params)
             time.sleep(0.5)
             return answer
+        def soon(test, seconds=3.0):
+            """Whether `test` comes true within a few seconds: a window that
+            is busy answers a click after the half second a person would
+            wait, and reading the screen once at that moment failed one run
+            in five or so."""
+            end = time.time() + seconds
+            while time.time() < end:
+                # A request that wakes the window, so it draws what the click
+                # opened: reading its words alone can read the frame before.
+                call("ui.inspect")
+                if test():
+                    return True
+                time.sleep(0.1)
+            return test()
         def on_screen():
             return [t["text"] for t in call("ui.texts")["result"]["texts"]]
         def open_dialogs():
             return call("ui.inspect")["result"]["dialogs"]
         human("ui.key", key="Escape")  # the Add URL the command check opened
-        check("a dialog is closed by Escape", "Add URL" not in open_dialogs())
-        check("the screen can be read as words", "Add URL" in on_screen())
+        check("a dialog is closed by Escape", soon(lambda: "Add URL" not in open_dialogs()))
+        check("the screen can be read as words", soon(lambda: "Add URL" in on_screen()))
         human("ui.click", text="Options")
-        check("clicking a toolbar button opens its dialog", "Options" in open_dialogs())
+        check("clicking a toolbar button opens its dialog", soon(lambda: "Options" in open_dialogs()))
         human("ui.click", text="Network")
-        check("clicking a tab changes the page", "Network" in on_screen())
+        check("clicking a tab changes the page", soon(lambda: "Network" in on_screen()))
         human("ui.click", text="Cancel")
-        check("clicking Cancel closes the dialog", "Options" not in open_dialogs())
+        check("clicking Cancel closes the dialog", soon(lambda: "Options" not in open_dialogs()))
         human("ui.click", text="Add URL")
-        check("Add URL opens from its button", "Add URL" in open_dialogs())
+        check("Add URL opens from its button", soon(lambda: "Add URL" in open_dialogs()))
         call("ui.key", key="A", modifiers=["cmd" if sys.platform == "darwin" else "ctrl"])
         human("ui.type", text=url("typed.zip"))
         human("ui.click", text="OK")
-        check("what was typed reaches the next dialog", "typed.zip" in on_screen())
+        check("what was typed reaches the next dialog", soon(lambda: "typed.zip" in on_screen()))
         human("ui.click", text="Start now")
         done = wait_for("the link typed by hand never finished",
                         lambda: [r for r in rows(home) if r["url"].endswith("/typed.zip") and r["state"]["kind"] == "completed"], 30)
         check("and clicking Start now downloads it", pathlib.Path(done[0]["path"]).read_bytes() == PAYLOAD)
         human("ui.click", text="Add URL")
+        # Open before Escape is pressed: it closes the dialog in front, and a
+        # dialog still opening is not yet one.
+        soon(lambda: "Add URL" in open_dialogs())
         human("ui.key", key="Escape")
-        check("Escape closes the top dialog", "Add URL" not in open_dialogs())
+        check("Escape closes the top dialog", soon(lambda: "Add URL" not in open_dialogs()))
         human("ui.click", text="Program")
-        check("a menu opens and lists its items", "Add numbered series…" in on_screen())
+        check("a menu opens and lists its items", soon(lambda: "Add numbered series…" in on_screen()))
         human("ui.key", key="Escape")
         outside = call("downloads.add", urls=[url("outside.zip")], folder=str(home.parent / "elsewhere"))
         check("a download is refused a folder outside the download folder", (outside["ok"], "inside the download folder" in outside.get("error", "")), (False, True))
