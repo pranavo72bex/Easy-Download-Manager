@@ -23,6 +23,9 @@ use crate::download::{Finished, Options, Update};
 use crate::stream::Quality;
 use crate::{category, Error};
 
+mod fetch;
+pub use fetch::download_page;
+
 /// The line prefix yt-dlp is told to stamp on its progress, so dm can pick
 /// its own numbers out of everything else the tool prints.
 const MARK: &str = "@dm@";
@@ -652,7 +655,84 @@ pub async fn list_choices(
             refusal(&stderr).unwrap_or_else(|| "yt-dlp could not read that page".into()),
         ));
     }
+    // Kept, so the download a click on the list starts does not read the
+    // page again (`fetch::download_page`).
+    remember_reading(url, &output.stdout).await;
     Ok(choices(&String::from_utf8_lossy(&output.stdout)))
+}
+
+/// Where yt-dlp's readings of pages are kept for a few minutes, shared by
+/// the browser's host (which reads a page for the panel's list) and the app
+/// (which downloads it). None set, none kept.
+static READINGS: std::sync::OnceLock<PathBuf> = std::sync::OnceLock::new();
+
+/// How long a reading serves a download: as long as the panel's list of
+/// the same page is believed. A page's stream addresses last hours.
+const READING_KEPT: std::time::Duration = std::time::Duration::from_secs(600);
+
+/// Keeps readings of pages in `dir` (in dm's home).
+pub fn keep_readings_in(dir: PathBuf) {
+    let _ = READINGS.set(dir);
+}
+
+/// Where a reading of `url` is kept: a name made from the page's address,
+/// so the address itself is in no file name.
+fn reading_path(url: &str) -> Option<PathBuf> {
+    use std::hash::{Hash, Hasher};
+    let page = url.trim().split('#').next().unwrap_or("");
+    let mut hasher = std::collections::hash_map::DefaultHasher::new();
+    page.hash(&mut hasher);
+    Some(
+        READINGS
+            .get()?
+            .join(format!("{:016x}.json", hasher.finish())),
+    )
+}
+
+/// Keeps a reading, for this account alone, and lets go of the stale ones.
+/// Best effort: a reading not kept only means the page is read again.
+async fn remember_reading(url: &str, json: &[u8]) {
+    let (Some(path), Ok(text)) = (reading_path(url), std::str::from_utf8(json)) else {
+        return;
+    };
+    let Some(dir) = path.parent() else {
+        return;
+    };
+    if tokio::fs::create_dir_all(dir).await.is_err() {
+        return;
+    }
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        let _ = tokio::fs::set_permissions(dir, std::fs::Permissions::from_mode(0o700)).await;
+    }
+    if let Ok(mut listing) = tokio::fs::read_dir(dir).await {
+        while let Ok(Some(entry)) = listing.next_entry().await {
+            let stale = entry
+                .metadata()
+                .await
+                .ok()
+                .and_then(|m| m.modified().ok())
+                .and_then(|at| at.elapsed().ok())
+                .is_none_or(|age| age >= READING_KEPT);
+            if stale {
+                let _ = tokio::fs::remove_file(entry.path()).await;
+            }
+        }
+    }
+    let _ = write_private(&path, text.trim()).await;
+}
+
+/// A reading of `url` made in the last few minutes, if one was kept.
+fn fresh_reading(url: &str) -> Option<PathBuf> {
+    let path = reading_path(url)?;
+    let age = std::fs::metadata(&path)
+        .ok()?
+        .modified()
+        .ok()?
+        .elapsed()
+        .ok()?;
+    (age < READING_KEPT).then_some(path)
 }
 
 /// Runs yt-dlp for one page, reporting progress and placing the result.
@@ -662,6 +742,17 @@ pub async fn list_choices(
 /// folder until it is finished.
 pub async fn download_ytdlp(
     url: &str,
+    options: &Options,
+    report: Option<tokio::sync::mpsc::Sender<Update>>,
+) -> Result<Finished, Error> {
+    download_ytdlp_from(url, None, options, report).await
+}
+
+/// [`download_ytdlp`], from a reading of the page yt-dlp already made
+/// (`--load-info-json`) where there is one, so the page is not read twice.
+async fn download_ytdlp_from(
+    url: &str,
+    reading: Option<&Path>,
     options: &Options,
     report: Option<tokio::sync::mpsc::Sender<Update>>,
 ) -> Result<Finished, Error> {
@@ -756,8 +847,15 @@ pub async fn download_ytdlp(
         command.arg("--limit-rate").arg(rate.to_string());
     }
 
-    // After `--`: whatever the address, yt-dlp never reads it as an option.
-    command.arg("--").arg(url);
+    match reading {
+        Some(reading) => {
+            command.arg("--load-info-json").arg(reading);
+        }
+        // After `--`: whatever the address, yt-dlp never reads it as an option.
+        None => {
+            command.arg("--").arg(url);
+        }
+    }
 
     let mut child = command
         .spawn()

@@ -826,6 +826,8 @@ fn checked(
 /// Runs as the browser's native messaging host until the browser closes it.
 pub fn run(home: &Path) {
     dm_core::tools::set_folder(home.join("tools"));
+    // The panel's readings of pages, kept for the app's download of them.
+    dm_core::ytdlp::keep_readings_in(home.join("readings"));
     dm_core::tools::allow_fetching(saved(home).fetch_tools);
     let mut input = std::io::stdin();
     let mut output = std::io::stdout();

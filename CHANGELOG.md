@@ -5,6 +5,9 @@ the browser extension (`v*` tags) are versioned separately.
 
 ## Unreleased
 
+- The search box in the menu bar sits on the menus' own line, its hint and magnifier on its middle (they were drawn high, with the box grown downward).
+- A video picked from the panel's list starts at once: the download reuses the reading of the page the list just made, instead of the video helper reading the page a second time (seconds on YouTube).
+- Videos from YouTube and other sites download on every connection set: the video helper only reads the page, and dm fetches the picture and sound itself (32 MB from a server holding each connection to 1 MB/s: 32.7 s → 4.8 s). Where a site refuses dm's own fetch, the helper downloads as before, without reading the page again. A video caught from a player that the site will not serve to dm is fetched from its page instead of failing.
 - Windows: while a fullscreen app, a presentation or Focus Assist is on, dm holds its notifications and says them afterwards, and plays no sound.
 - Windows: High Contrast. The window is drawn in the system's own colours whatever look was chosen, and follows the theme when it is changed.
 - Windows: the taskbar button's jump list has Add URL (opens that dialog in the running dm, as `dm-desktop --new-download` does) and Open downloads folder.

@@ -409,6 +409,7 @@ desktop/
     live.rs, rtmp.rs, rtsp.rs, mms.rs   live streams recorded as they come (rtmp/: amf, wire,
                           recorder, connect, session)
     ytdlp.rs, tools.rs    pages handed to yt-dlp, and the tools dm fetches and checks
+    ytdlp/fetch.rs        a page read by yt-dlp, its streams fetched by dm's engine
     extract.rs            a ZIP extracted into a folder of its own, refusing hostile entries
     control.rs, cookies.rs, auth.rs, ftp.rs   the stop flag, sign-ins, FTP (ftp/: transport,
                           target, reply, session, listing, transfer)

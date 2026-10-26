@@ -65,8 +65,11 @@ impl DmApp {
         // The row holds the menus and nothing else, so the box needs only
         // keep clear of them.
         let middle = ui.min_rect().center().y;
+        // As tall as a field is (`interact_size`), centred on the row: a
+        // box drawn 20 high grew downward to that height, under the line.
+        let high = ui.spacing().interact_size.y;
         let field =
-            egui::Rect::from_min_size(egui::pos2(left, middle - 10.0), egui::vec2(width, 20.0));
+            egui::Rect::from_min_size(egui::pos2(left, middle - high / 2.0), egui::vec2(width, high));
         // In a child of its own, which leaves the row's height as the menus
         // make it: Options and the other dialogs size themselves to the room
         // below it, and on Windows' fonts a few points tipped Options into
@@ -75,6 +78,9 @@ impl DmApp {
         let response = child.add(
             egui::TextEdit::singleline(&mut self.filter)
                 .hint_text(t("Name, address or note"))
+                // Text and hint on the box's middle line, not its top.
+                .align(egui::Align2::LEFT_CENTER)
+                .min_size(egui::vec2(width, high))
                 .margin(egui::Margin {
                     left: 8,
                     right: 28,
@@ -97,7 +103,8 @@ impl DmApp {
         }
         // The magnifier, drawn: the icon font holds only what the window
         // otherwise needs.
-        let c = egui::pos2(field.right() - 18.0, field.center().y - 1.0);
+        // The glass and its handle together are centred on the line the text is on.
+        let c = egui::pos2(response.rect.right() - 19.0, response.rect.center().y - 1.25);
         let stroke = egui::Stroke::new(1.3, tokens.weak);
         ui.painter().circle_stroke(c, 4.5, stroke);
         ui.painter()

@@ -318,6 +318,8 @@ pub async fn start(orders: &Orders) -> Started {
     // yt-dlp and QuickJS, fetched into dm's own folder when a video page
     // needs them; a yt-dlp fetched before is kept current.
     dm_core::tools::set_folder(settings::home().join("tools"));
+    // Readings of video pages the browser's host made, for downloads to reuse.
+    dm_core::ytdlp::keep_readings_in(settings::home().join("readings"));
     let (mut saved, unreadable) = Settings::load();
     dm_core::tools::allow_fetching(saved.fetch_tools);
     let mut notices: Vec<String> = unreadable.into_iter().collect();

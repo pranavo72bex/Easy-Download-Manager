@@ -181,3 +181,145 @@ async fn an_hls_stream_yt_dlp_saved_as_ts_is_made_a_real_mp4() {
     assert_eq!(has(b"trak"), 2, "picture and sound are both in it");
     assert!(has(b"avc1") >= 1 && has(b"mp4a") >= 1);
 }
+
+/// The real yt-dlp reads a page and dm fetches what it found
+/// (`download_page`): the file arrives whole, on more than one connection.
+#[tokio::test(flavor = "multi_thread")]
+async fn a_page_the_real_ytdlp_reads_is_fetched_by_dm_on_many_connections() {
+    if !ytdlp::usable() {
+        eprintln!("no usable yt-dlp installed — skipping the yt-dlp end-to-end test");
+        return;
+    }
+    let body: Vec<u8> = (0..4 * 1024 * 1024).map(|i| (i * 13 % 251) as u8).collect();
+    let served = Arc::new(body.clone());
+    let ports = Arc::new(std::sync::Mutex::new(
+        std::collections::HashSet::<u16>::new(),
+    ));
+    let seen = Arc::clone(&ports);
+    let app = Router::new().route(
+        "/clip.mp4",
+        get(
+            move |axum::extract::ConnectInfo(from): axum::extract::ConnectInfo<
+                std::net::SocketAddr,
+            >,
+                  headers: axum::http::HeaderMap| {
+                let (served, seen) = (Arc::clone(&served), Arc::clone(&seen));
+                async move {
+                    seen.lock().unwrap().insert(from.port());
+                    let size = served.len();
+                    let (a, b) = headers
+                        .get("range")
+                        .and_then(|v| v.to_str().ok())
+                        .and_then(|v| v.strip_prefix("bytes="))
+                        .and_then(|v| v.split_once('-'))
+                        .map(|(a, b)| {
+                            (
+                                a.parse::<usize>().unwrap(),
+                                b.parse::<usize>().unwrap_or(size - 1).min(size - 1),
+                            )
+                        })
+                        .unwrap_or((0, size - 1));
+                    Response::builder()
+                        .status(206)
+                        .header(header::CONTENT_TYPE, "video/mp4")
+                        .header("content-range", format!("bytes {a}-{b}/{size}"))
+                        .header("content-length", b - a + 1)
+                        .body(Body::from(served[a..=b].to_vec()))
+                        .unwrap()
+                }
+            },
+        ),
+    );
+    let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let addr = listener.local_addr().unwrap();
+    tokio::spawn(async move {
+        axum::serve(
+            listener,
+            app.into_make_service_with_connect_info::<std::net::SocketAddr>(),
+        )
+        .await
+        .unwrap()
+    });
+    let url = format!("http://{addr}/clip.mp4");
+
+    let dir = tempdir();
+    let finished = ytdlp::download_page(&dm_core::client(), &url, &options(dir.path()), None)
+        .await
+        .expect("the page did not download");
+    assert_eq!(std::fs::read(&finished.path).unwrap(), body);
+    assert!(finished.path.starts_with(dir.path().join("out")));
+    assert!(
+        ports.lock().unwrap().len() > 2,
+        "fetched on one connection: yt-dlp downloaded it rather than dm"
+    );
+}
+
+/// With the real yt-dlp: the panel's list reads the page (`list_choices`)
+/// and the download chooses its format from that reading, so the page's
+/// server is asked once for the page and then only for the file's bytes.
+#[tokio::test(flavor = "multi_thread")]
+async fn the_real_ytdlps_list_reading_serves_the_download() {
+    if !ytdlp::usable() {
+        eprintln!("no usable yt-dlp installed — skipping the yt-dlp end-to-end test");
+        return;
+    }
+    let readings = Box::leak(Box::new(tempdir()));
+    ytdlp::keep_readings_in(readings.path().to_path_buf());
+    let body: Vec<u8> = (0..300 * 1024).map(|i| (i * 17 % 251) as u8).collect();
+    let served = Arc::new(body.clone());
+    let whole = Arc::new(std::sync::atomic::AtomicUsize::new(0));
+    let counted = Arc::clone(&whole);
+    let app = Router::new().route(
+        "/clip.mp4",
+        get(move |headers: axum::http::HeaderMap| {
+            let (served, counted) = (Arc::clone(&served), Arc::clone(&counted));
+            async move {
+                let size = served.len();
+                match headers
+                    .get("range")
+                    .and_then(|v| v.to_str().ok())
+                    .and_then(|v| v.strip_prefix("bytes="))
+                    .and_then(|v| v.split_once('-'))
+                {
+                    Some((a, b)) => {
+                        let a: usize = a.parse().unwrap();
+                        let b = b.parse::<usize>().unwrap_or(size - 1).min(size - 1);
+                        Response::builder()
+                            .status(206)
+                            .header(header::CONTENT_TYPE, "video/mp4")
+                            .header("content-range", format!("bytes {a}-{b}/{size}"))
+                            .body(Body::from(served[a..=b].to_vec()))
+                            .unwrap()
+                    }
+                    None => {
+                        // A request with no range is yt-dlp reading the page.
+                        counted.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+                        Response::builder()
+                            .header(header::CONTENT_TYPE, "video/mp4")
+                            .body(Body::from(served.to_vec()))
+                            .unwrap()
+                    }
+                }
+            }
+        }),
+    );
+    let addr = serve(app).await;
+    let url = format!("http://{addr}/clip.mp4");
+
+    ytdlp::list_choices(&url, None, None, None)
+        .await
+        .expect("the list was not read");
+    let read_for_list = whole.load(std::sync::atomic::Ordering::SeqCst);
+    assert!(read_for_list > 0, "yt-dlp's reading never asked the server");
+    let dir = tempdir();
+    let finished = ytdlp::download_page(&dm_core::client(), &url, &options(dir.path()), None)
+        .await
+        .expect("the page did not download");
+
+    assert_eq!(std::fs::read(&finished.path).unwrap(), body);
+    assert_eq!(
+        whole.load(std::sync::atomic::Ordering::SeqCst),
+        read_for_list,
+        "yt-dlp read the page again for the download"
+    );
+}

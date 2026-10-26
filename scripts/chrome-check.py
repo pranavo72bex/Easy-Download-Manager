@@ -945,18 +945,29 @@ def main():
         "type": "stdio", "allowed_origins": [f"chrome-extension://{expected_id}/"],
     })
     registration.write_text(host_manifest)
-    # Brave reads host manifests only from its own folder in the real home,
-    # whatever profile it runs: the folder `dm --register` writes. For the
-    # length of the check dm's manifest there names this copy; whatever was
-    # there is put back afterwards, as firefox-check does for Firefox.
-    borrowed = None
-    if "brave" in str(chrome).lower():
-        support = (pathlib.Path.home() / "Library/Application Support" if sys.platform == "darwin"
-                   else pathlib.Path.home() / ".config")
-        borrowed = support / "BraveSoftware/Brave-Browser/NativeMessagingHosts/com.dm.engine.json"
-        borrowed_was = borrowed.read_bytes() if borrowed.exists() else None
-        borrowed.parent.mkdir(parents=True, exist_ok=True)
-        borrowed.write_text(host_manifest)
+    # Brave and Edge read host manifests from their own folder in the real
+    # home, whatever profile they run: the folder `dm --register` writes. For
+    # the length of the check dm's manifest there names this copy (so Edge
+    # finds this check's host, not the installed dm, and "no host" is true
+    # when it is removed); whatever was there is put back afterwards, as
+    # firefox-check does for Firefox.
+    borrowed = []
+    where = str(chrome).lower()
+    home = pathlib.Path.home()
+    mac = sys.platform == "darwin"
+    folders = []
+    if "brave" in where:
+        folders.append(home / ("Library/Application Support/BraveSoftware/Brave-Browser" if mac
+                               else ".config/BraveSoftware/Brave-Browser"))
+    if "edge" in where:
+        folders.append(home / ("Library/Application Support/Microsoft Edge" if mac else ".config/microsoft-edge"))
+        # Edge falls back to Chrome's folder for a host it does not find in its own.
+        folders.append(home / ("Library/Application Support/Google/Chrome" if mac else ".config/google-chrome"))
+    for folder in folders:
+        path = folder / "NativeMessagingHosts/com.dm.engine.json"
+        borrowed.append((path, path.read_bytes() if path.exists() else None))
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(host_manifest)
 
     server = Server(("127.0.0.1", 0), Handler)
     threading.Thread(target=server.serve_forever, daemon=True).start()
@@ -1290,8 +1301,8 @@ def main():
 
         # 8. No app: the browser keeps it.
         registration.unlink()
-        if borrowed is not None:
-            borrowed.unlink(missing_ok=True)
+        for path, _ in borrowed:
+            path.unlink(missing_ok=True)
         worker.evaluate("dmReady.then(m => m.forget_app())")
         click(base, origin, "absent.bin")
         kept = wait_for(lambda: whole(browser_dl, "absent.bin"), 60)
@@ -1319,11 +1330,11 @@ def main():
             browser.wait(timeout=10)
         except subprocess.TimeoutExpired:
             os.killpg(os.getpgid(browser.pid), signal.SIGKILL)
-        if borrowed is not None:
-            if borrowed_was is not None:
-                borrowed.write_bytes(borrowed_was)
+        for path, was in borrowed:
+            if was is not None:
+                path.write_bytes(was)
             else:
-                borrowed.unlink(missing_ok=True)
+                path.unlink(missing_ok=True)
         # The app the host started outlives the browser by design.
         subprocess.run(["pkill", "-f", str(host)], check=False)
         server.shutdown()

@@ -3,6 +3,58 @@
 Decisions that shape dm and are not obvious from the code, newest first. Each says what was decided and why, so a later change
 can see what it is undoing.
 
+## 2026-10-26: yt-dlp reads a video page, dm fetches it
+
+yt-dlp downloaded what it read on one connection a stream, so a video ran at
+one connection's speed (1 MB/s from a server holding each connection to
+that) while dm's engine sat idle. Now `ytdlp::download_page` asks yt-dlp
+only what it would fetch (`-O "%()j"`, nothing downloaded, with the same
+format choice, name template, sign-in and proxy as its own download) and
+dm fetches each stream that is a plain file (`http`/`https`) with its own
+engine, with the agent yt-dlp gave it (`prefer_agent`; a site can bind its
+addresses to the client it gave them to), and joins picture and sound as
+before (`finish_dm`). Measured with the real yt-dlp against that server,
+40 ms away: 8 MB 8.69 s → 1.78 s, 32 MB 32.69 s → 4.77 s, the page's
+reading included (`tests/throughput.rs`, `video_helper`).
+
+Nothing that downloaded before can fail now. Streams in pieces (HLS, DASH
+fragments), live ones and a site's own protocols stay yt-dlp's; where dm's
+fetch is refused, yt-dlp downloads the same reading (`--load-info-json`),
+so the page is not read twice, and from the page again if that reading no
+longer serves. A refusal is remembered in the staging folder, so a resume
+goes to yt-dlp at once. A pause keeps each stream's parts under its format
+id; a resume reads the page again (addresses expire after hours) and the
+engine adopts them by size and validator. Subtitles are fetched from the
+reading's addresses and carried in as before. The reading can hold the
+site's cookies: written for this account alone and removed after.
+
+The page is read once, not twice. The panel's list (`list_choices`, in the
+browser's host) keeps yt-dlp's whole `-J` reading for ten minutes in
+`<home>/readings` (a file per page, named by a hash of its address, for
+this account alone, the stale ones deleted at each write), and the
+download a click starts has yt-dlp choose its format from it
+(`--load-info-json`, 0.23 s here with the server gone) instead of reading
+the site again (1.7 to 6 s on YouTube, measured 2026-10-22/25). A reading
+that no longer serves is passed over for a fresh one. A fresh reading
+skips YouTube's HLS manifests and translated subtitles, as the list's
+does: dm fetches neither, and they were about a third of a reading's time.
+
+A picture and sound the extension caught from a player and that refuse dm
+(YouTube's 403 after about a megabyte without the player's token) now fall
+back to their page through the same route, rather than failing the row.
+
+Why not without yt-dlp, as IDM is: IDM reads the player's own requests in
+the browser, which dm's extension already does (2026-10-25), and keeps up
+with each site by shipping fixes every week or two (30-odd builds in a
+year, most "resolved video recognition problems"). YouTube's web player
+has since moved to SABR, whose requests name no format and cannot be
+fetched by range; taking it over would mean writing YouTube's streaming
+protocol (protobuf requests, UMP answers, its redirects and policies) into
+dm, using the page's proof-of-origin token, and keeping it working alone.
+yt-dlp is kept current by many and fetched afresh by dm weekly. Recording
+what the player plays was weighed too: only the quality the player picks,
+and only as fast as it plays.
+
 ## 2026-10-26: A speed pass, measured (`tests/throughput.rs`)
 
 The engine was measured before anything was changed: 1.1 GB/s on one

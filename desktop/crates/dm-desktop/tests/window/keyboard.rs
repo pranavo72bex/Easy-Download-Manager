@@ -90,6 +90,31 @@ fn the_list_narrows_as_a_filter_is_typed() {
     assert_eq!(harness.state().visible().len(), 12);
 }
 
+/// The search box in the menu bar's row is on the menus' own line: its
+/// middle is the middle of the words beside it, and it is not taller than a
+/// field is (it once grew downward from a box drawn 20 high).
+#[test]
+fn the_search_box_is_level_with_the_menus() {
+    use egui::accesskit::Role;
+    let world = world();
+    let mut harness = world.harness();
+    harness.state_mut().run(Command::AddSeries);
+    harness.run_steps(2);
+    type_into(&mut harness, "Address with *", &world.url("part*.bin"));
+    type_into(&mut harness, "From", "1");
+    type_into(&mut harness, "To", "3");
+    click(&mut harness, "Add for later");
+    harness.run_steps(3);
+    let menu = harness.get_by_role_and_label(Role::Button, "Downloads").rect();
+    let field = harness.get_by_label("Filter").rect();
+    assert!(
+        (field.center().y - menu.center().y).abs() <= 1.5,
+        "the box's middle is {} and the menus' {}",
+        field.center().y,
+        menu.center().y
+    );
+}
+
 #[test]
 fn escape_closes_the_menu_or_the_dialog_in_front_and_nothing_behind_it() {
     use egui::accesskit::Role;

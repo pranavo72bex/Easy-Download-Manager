@@ -85,7 +85,11 @@ not a bot"). They go to the app on this computer only, are sent to that
 page's server only (in a file of the download's own, readable by your
 account alone and removed when the download ends), and are dropped from the
 row once the video is downloaded. This is why the extension has the
-browser's cookies permission.
+browser's cookies permission. The video helper's reading of a page, which
+can hold those cookies and the video's addresses, is kept for ten minutes
+in a `readings` folder in dm's own data (readable by your account alone),
+so the download a click on the panel starts does not read the page again;
+older ones are deleted.
 
 **Sign-ins for other downloads.** Other downloads go without your cookies;
 one that needs a sign-in is left to the browser — unless you switch "Hand

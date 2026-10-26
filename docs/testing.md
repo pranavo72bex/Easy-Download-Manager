@@ -47,10 +47,11 @@ cd ../browser && cargo test                     # the extension's decisions, on 
 | `scripts/smoke.py` | An *installed* dm starts, answers as the browsers' native host, opens a window, runs headless and downloads byte-exact. The same on Linux, Windows and macOS | `python3 scripts/smoke.py /path/to/dm-desktop` |
 | `scripts/chrome-check.py` | The extension in Chrome for Testing handing off to a real dm: byte-exact files, the browser's copy gone, cookie-gated files left to the browser, no host | `sh scripts/package.sh` then `python3 scripts/chrome-check.py` |
 | `scripts/firefox-check.py` | The same in a real Firefox | `python3 scripts/firefox-check.py native` |
+| `scripts/chrome-check.py` with `CHROME_PATH` set to Microsoft Edge | The same 69 checks in Edge itself (catching, helping connections, PDF in a tab, Alt, paused sites, popup, no-host); Edge's and Chrome's host registrations are set aside for the run and put back | `CHROME_PATH="/Applications/Microsoft Edge.app/Contents/MacOS/Microsoft Edge" DM_CHROME_HEADLESS=1 python3 scripts/chrome-check.py` |
 | `scripts/panel-check.py` | The "Download video" panel's hard cases in Chromium | `python3 scripts/panel-check.py` |
 | `scripts/ui-shot.py` | A picture of the window for checking a visual change by eye | `python3 scripts/ui-shot.py` |
 | `scripts/launch-latency.py` | How long from a browser click (a `download.start` to the native host) to dm's first request for the file, with dm closed (cold) and running (warm). Numbers for comparing two builds, not a pass or a fail | `xvfb-run -a python3 scripts/launch-latency.py desktop/target/release/dm-desktop` |
-| `tests/throughput.rs` | The engine's own speed: loopback with no pacing, a server 80 ms away, and one holding each connection to 1 MB/s. Ignored by default; for comparing two builds on one machine | `cargo test -p dm-core --release --test throughput -- --ignored --nocapture --test-threads=1` |
+| `tests/throughput.rs` | The engine's own speed: loopback with no pacing, a server 80 ms away, and one holding each connection to 1 MB/s; `video_helper` compares yt-dlp fetching a page's stream against dm fetching it (needs yt-dlp). Ignored by default; for comparing two builds on one machine | `cargo test -p dm-core --release --test throughput -- --ignored --nocapture --test-threads=1` |
 
 By hand only (they reach real sites, so they are not in CI):
 `scripts/youtube-check.py`, `scripts/live-panel-check.py`,

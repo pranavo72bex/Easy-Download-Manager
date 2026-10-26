@@ -419,7 +419,31 @@ async fn fetch_reporting(
 
     // A picture and a sound a player fetched apart: both at once, then joined.
     if let Some(sound) = options.sound.as_deref() {
-        return dash::download_media_pair(client, url, sound, options, report).await;
+        let paired = dash::download_media_pair(client, url, sound, options, report.clone()).await;
+        /* Addresses taken from a player can stop serving anyone but that
+         * player (YouTube's ask for a proof-of-origin token after about a
+         * megabyte): the page they came from is read by the video helper
+         * instead, and its streams fetched by dm all the same, rather than
+         * the row failing on what the browser could play. */
+        let page = options
+            .referrer
+            .as_deref()
+            .filter(|page| page.starts_with("https://") || page.starts_with("http://"));
+        return match (paired, page) {
+            (Err(why), Some(page))
+                if !matches!(why, Error::Paused | Error::Cancelled)
+                    && crate::tools::for_video(client).await.is_ok() =>
+            {
+                eprintln!("dm: the player's streams were refused ({why}); reading {page} instead");
+                discard_staged(&options.parts_dir).await;
+                let page_options = Options {
+                    sound: None,
+                    ..options.clone()
+                };
+                crate::ytdlp::download_page(client, page, &page_options, report).await
+            }
+            (outcome, _) => outcome,
+        };
     }
 
     /* A torrent is not fetched from a server at all — there is nothing to
@@ -482,7 +506,7 @@ async fn fetch_reporting(
                 status: 403 | 429, ..
             },
         ) if !names_a_document(url) && crate::tools::for_video(client).await.is_ok() => {
-            return match crate::ytdlp::download_ytdlp(url, options, report.clone()).await {
+            return match crate::ytdlp::download_page(client, url, options, report.clone()).await {
                 Ok(done) => Ok(done),
                 Err(stopped @ (Error::Paused | Error::Cancelled)) => Err(stopped),
                 // A site yt-dlp does not know: the page's own refusal says
@@ -548,7 +572,7 @@ async fn fetch_reporting(
          * yt-dlp's alone: its HTML is never the download anyone meant. */
         let document = names_a_document(url);
         if crate::tools::for_video(client).await.is_ok() {
-            match crate::ytdlp::download_ytdlp(url, options, report.clone()).await {
+            match crate::ytdlp::download_page(client, url, options, report.clone()).await {
                 Err(e)
                     if document
                         && !options.media
