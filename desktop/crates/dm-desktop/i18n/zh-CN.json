@@ -488,7 +488,7 @@
  "the server's security certificate could not be checked": "无法验证服务器的安全证书",
  "the disk is full": "磁盘已满",
  "dm may not write to that folder": "dm 无权写入该文件夹",
- "this link no longer works (404)": "此链接已失效 (404)",
+ "this link no longer works": "此链接已失效",
  "Added {} again: that address was already in the list.": "已再次添加 {}：该地址原已在列表中。",
  "done, {}": "已完成，{}",
  "waiting, {}": "等待中，{}",

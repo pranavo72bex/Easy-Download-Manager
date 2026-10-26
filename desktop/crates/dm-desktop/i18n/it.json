@@ -488,7 +488,7 @@
  "the server's security certificate could not be checked": "non è stato possibile verificare il certificato di sicurezza del server",
  "the disk is full": "il disco è pieno",
  "dm may not write to that folder": "dm non ha il permesso di scrivere in quella cartella",
- "this link no longer works (404)": "questo link non funziona più (404)",
+ "this link no longer works": "questo link non funziona più",
  "Added {} again: that address was already in the list.": "{} aggiunto di nuovo: quell'indirizzo era già nell'elenco.",
  "done, {}": "completato, {}",
  "waiting, {}": "in attesa, {}",

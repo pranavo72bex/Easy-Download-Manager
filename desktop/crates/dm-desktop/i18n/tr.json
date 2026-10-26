@@ -488,7 +488,7 @@
  "the server's security certificate could not be checked": "sunucunun güvenlik sertifikası doğrulanamadı",
  "the disk is full": "disk dolu",
  "dm may not write to that folder": "dm bu klasöre yazamıyor",
- "this link no longer works (404)": "bu bağlantı artık çalışmıyor (404)",
+ "this link no longer works": "bu bağlantı artık çalışmıyor",
  "Added {} again: that address was already in the list.": "{} yeniden eklendi: bu adres zaten listedeydi.",
  "done, {}": "bitti, {}",
  "waiting, {}": "bekliyor, {}",

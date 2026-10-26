@@ -58,7 +58,7 @@ High Contrast, Narrator, keyboard-only pass (§12), reboot (E4), Wi-Fi off
 - At 1920 px wide the table has a horizontal scrollbar and the last column's
   header is cut to "C…". **Fix:** let the Name column give up width first.
 
-### N5 The failed row says what, not what next 🟡 (reworded: "this link no longer works (404)")
+### N5 The failed row says what, not what next 🟡 (reworded: "this link no longer works")
 - "The server has no file at thi…" is truncated and has no next step.
   **IDM:** "Refresh link". **Fix:** shorter wording ("This link no longer
   works") with the row's menu offering Update link.

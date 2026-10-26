@@ -488,7 +488,7 @@
  "the server's security certificate could not be checked": "サーバーのセキュリティ証明書を確認できませんでした",
  "the disk is full": "ディスクがいっぱいです",
  "dm may not write to that folder": "dm にはそのフォルダーへの書き込みが許可されていません",
- "this link no longer works (404)": "このリンクはもう使えません (404)",
+ "this link no longer works": "このリンクはもう使えません",
  "Added {} again: that address was already in the list.": "{} をもう一度追加しました：そのアドレスはすでにリストにありました。",
  "done, {}": "完了、{}",
  "waiting, {}": "待機中、{}",

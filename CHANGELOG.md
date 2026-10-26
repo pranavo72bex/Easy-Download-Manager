@@ -6,7 +6,7 @@ the browser extension (`v*` tags) are versioned separately.
 ## Unreleased
 
 - A download the browser handed over and dm waits to ask about (Download details, a page's links, "Download again") brings dm's window forward, so it is not left behind another window or in the tray as if lost.
-- A link that gives "404" now says "this link no longer works (404)", in all thirteen languages, in place of "the server has no file at this address".
+- A link that gives "404" now says "this link no longer works", in all thirteen languages, in place of "the server has no file at this address".
 - A plain click on a link to a PDF, a video or a song, which a browser shows in the tab and starts no download for, now goes to dm by the same rules as a download (the types listed, the sites to leave alone, the master switch). Where dm does not take it, the link opens as it would have; Alt keeps it with the browser as before.
 - A list of file types to catch saved by an earlier version gets the types added to the defaults since (documents among them) once, so a .docx or .xlsx is no longer left to the browser for good; types taken out afterwards stay out.
 - Text fields in every dialog, not only Options, no longer show a white outline at their rounded corners when they have the keyboard, in the dark look especially.
