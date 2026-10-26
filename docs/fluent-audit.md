@@ -9,10 +9,10 @@ theme, macOS). **Not checked by eye on Windows**, which is where most of
 | § | Standard | State | Evidence |
 |---|---|---|---|
 | 1 | Multiples of 4, 8 between controls, 24 dialog padding | Met | `item_spacing` 8, `window_margin` 24, `menu_margin` 4 |
-| 1 | Standard control height 32 | **Met in dialogs, not in the window's chrome** | Dialogs set `interact_size.y` to 32 (`dialogs/frame.rs`); the list, bars and menus keep 24. At 32 everywhere 2 of 4 failures were the tests' own assumption (menu items under 30 tall) and menu pitch, fixed; the list's self-sizing drifts at 300% text with the clipboard bar (measured, gaps row 10) |
+| 1 | Standard control height 32 | **Met** | `interact_size.y` is 32 everywhere in the modern look; menu items are 32 with no gap between them. Making it so found a real bug (the list's vertical bar clamped the list's offset in a one-row list: `a_list_with_room_for_one_row_stays_where_it_was_scrolled`) |
 | 2 | Type ramp, Segoe UI Variable, no bold/italic | Mostly met | 12 / 14 / 20 semibold are the ramp's Caption, Body, Subtitle; Segoe UI Variable in `theme/fonts.rs`. Line heights and the 28+ sizes are not set (nothing uses them). Monospace 13 for hashes is outside the ramp |
-| 3 | Theme tokens only, Light/Dark/High Contrast, system accent | Partly | Colours come from `Tokens`; Light, Dark, System and Classic exist, accent follows the system. **No High Contrast handling** in code (gaps row 11) |
-| 4 | Mica, Acrylic, shadows 8/16/32/128 | Partly | Mica where `chrome::mica()`; solid fallback otherwise. Shadows are 28 (dialog) and 16 (menu, tooltip): egui counts a shadow in a window's size and 128 no longer fitted at 200% (comment in `apply.rs`). Gaps row 12 |
+| 3 | Theme tokens only, Light/Dark/High Contrast, system accent | Met, High Contrast unseen on Windows | Colours come from `Tokens`; Light, Dark, System and Classic exist, accent follows the system; High Contrast (`Theme::HighContrast`) takes the system's colours whatever look was chosen, and its readability is tested (4.5:1 and up in both built-in schemes). Not yet run on Windows (gaps row 11) |
+| 4 | Mica, Acrylic, shadows 8/16/32/128 | Met as far as egui allows | Mica where `chrome::mica()`, solid in High Contrast and elsewhere. A dialog's shadow is the deepest of 128, 64 and 28 its window has room for (egui counts a shadow in a window's size; `dialog_shadow_blur`, tested at four window sizes); menus 32, and tooltips share egui's one popup shadow, so 32 too |
 | 5 | Radius 4 and 8, 1 px strokes | Met | `radius` 4, `card_radius` 8 in the modern look |
 | 6 | One icon set, tooltips, accessible names | Not verified | One font of icons in `icons.rs`; tooltips on every icon-only button not walked |
 | 7 | One accent button per view, verbs, ellipsis, InfoBar, TeachingTip | Mostly | One primary button per dialog in every picture; the "Add dm to your browser" banner is the first-run hint. Dialog button order is OK / Open / Cancel |
@@ -20,9 +20,12 @@ theme, macOS). **Not checked by eye on Windows**, which is where most of
 | 9 | Motion 83/167/250 ms, off when animation is off | Met for off | egui's fade is 1/12 s = 83 ms; `motion.rs` sets it to 0 with the system's setting (tested) |
 | 10 | Keyboard, double-stroke focus, Narrator, High Contrast | Partly | Focus ring is two strokes (`focus_outer`/`focus_inner`); `accesskit` is wired; keyboard tests exist. Narrator and High Contrast not run |
 | 11 | Sentence case, plain words | Met for case, partly for words | 0 of 666 strings in Title Case. Jargon rows remain (gaps row 9) |
-| 12 | Taskbar progress, toasts, tray, jump list | Partly | `taskbar.rs` (progress), notifications and a tray exist. **No jump list.** A Retry action on a failure toast not found |
+| 12 | Taskbar progress, toasts, tray, jump list | Met, the new parts unseen on Windows | `taskbar.rs` (progress), notifications, a tray, `jumplist.rs` (Add URL, Open downloads folder) and held toasts during a fullscreen app or Focus Assist (`quiet.rs`). A Retry action on a failure toast not found. Gaps rows 11 and 14 |
 | 13 | Forbidden list | Not walked | — |
 
-## Not done on purpose
-The 32 px control height: a broad change that moves every dialog and needs a
-look on a real Windows screen at 100–225 % before it is kept.
+## Written without being run
+
+`contrast.rs`, `jumplist.rs` and `quiet.rs` are for Windows and have not run
+there. `scripts/windows-modules-check.sh` compiles them for
+`x86_64-pc-windows-msvc` from any computer and tests their logic; what is left
+for a Windows computer is in gaps rows 11 and 14.

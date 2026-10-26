@@ -425,6 +425,13 @@ pub fn show(app: &mut DmApp, ui: &mut egui::Ui) {
                 egui::ScrollArea::vertical()
                     .id_salt("list-bar")
                     .auto_shrink([false, false])
+                    // As tall as the strip and no taller: a scroll area is
+                    // never under 64 points, and in a strip of one row (300%
+                    // text with the clipboard's bar above) it could not reach
+                    // as far as the list, clamped the list's offset to its
+                    // own and pulled the list back a little each frame, so
+                    // the last row was never there.
+                    .min_scrolled_height(strip.height())
                     .max_height(strip.height())
                     .vertical_scroll_offset(offset)
                     .scroll_bar_visibility(egui::scroll_area::ScrollBarVisibility::AlwaysVisible)

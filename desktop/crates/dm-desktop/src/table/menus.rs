@@ -53,6 +53,8 @@ pub(super) fn menu_item(app: &mut DmApp, ui: &mut egui::Ui, command: Command, la
         label.to_string()
     };
     let enabled = app.enabled(command);
+    // 32 tall one against the next, as the menu bar's items are.
+    ui.spacing_mut().item_spacing.y = 0.0;
     let response = ui.add_enabled(enabled, egui::Button::new(shown));
     response.widget_info(|| egui::WidgetInfo::labeled(egui::Role::Button, enabled, label));
     if response.clicked() {

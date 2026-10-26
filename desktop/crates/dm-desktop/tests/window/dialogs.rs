@@ -1905,3 +1905,43 @@ fn a_new_download_order_opens_add_url_and_brings_the_window_forward() {
         "taken, so not again"
     );
 }
+
+/// In a tall window a dialog has the deep shadow, and still stands whole in
+/// the window: its shadow is counted in its size, and a window with room for
+/// 128 of it must not push the dialog or its buttons off an edge.
+#[test]
+fn a_dialog_with_the_deepest_shadow_still_stands_whole_in_a_tall_window() {
+    let _file = settings_file();
+    let world = world();
+    for (width, height) in [
+        (1600.0, 1000.0),
+        (1200.0, 820.0),
+        (960.0, 660.0),
+        (600.0, 460.0),
+    ] {
+        let mut harness = Harness::builder()
+            .with_size(egui::vec2(width, height))
+            .build_ui_state(|ui, app: &mut DmApp| app.ui(ui), world.app());
+        harness
+            .state_mut()
+            .dialogs
+            .open_options(&Settings::default());
+        harness.run_steps(6);
+        let screen = harness.ctx.content_rect();
+        // The dialog's title is the last of the words "Options" (the toolbar's is first).
+        let options = harness
+            .query_all_by_label("Options")
+            .last()
+            .expect("the dialog")
+            .rect();
+        let ok = harness.get_by_label("OK").rect();
+        assert!(
+            screen.contains_rect(options.shrink(1.0)),
+            "Options {options:?} runs off the {width}x{height} window"
+        );
+        assert!(
+            ok.bottom() <= screen.bottom() && ok.top() >= screen.top(),
+            "OK {ok:?} is off the {width}x{height} window"
+        );
+    }
+}

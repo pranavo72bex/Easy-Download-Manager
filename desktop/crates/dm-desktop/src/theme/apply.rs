@@ -57,10 +57,11 @@ pub fn apply_with_accent(ctx: &Context, theme: Theme, accent: Option<crate::acce
     let radius = CornerRadius::same(t.radius);
     v.window_corner_radius = CornerRadius::same(t.card_radius);
     v.menu_corner_radius = CornerRadius::same(t.card_radius);
-    // Fluent's elevation: a dialog at 28, a menu or a tooltip at 16 (a key
-    // and an ambient shadow, here as the one egui draws). Not 64: egui
-    // counts a window's shadow in its size, and at 200% a dialog with that
-    // much shadow no longer fitted the window.
+    // Fluent's elevation, as the one shadow egui draws: a menu at 32 (the
+    // tooltip shares egui's popup shadow), and a dialog at the deepest of
+    // 128, 64 and 28 its window has room for (`dialog_shadow_blur`): egui
+    // counts a window's shadow in its size, and at 200% a dialog with a deep
+    // one no longer fitted the window. This one is the floor.
     let (deep, soft) = if t.dark { (71, 71) } else { (61, 36) };
     v.window_shadow = Shadow {
         offset: [0, 14],
@@ -69,8 +70,8 @@ pub fn apply_with_accent(ctx: &Context, theme: Theme, accent: Option<crate::acce
         color: Color32::from_black_alpha(deep),
     };
     v.popup_shadow = Shadow {
-        offset: [0, 8],
-        blur: 16,
+        offset: [0, 16],
+        blur: 32,
         spread: 0,
         color: Color32::from_black_alpha(soft),
     };
@@ -170,13 +171,13 @@ pub fn apply_with_accent(ctx: &Context, theme: Theme, accent: Option<crate::acce
         // Set after the line above, which put egui's own back over it.
         style.spacing.scroll = steady_scroll();
         if t.modern {
-            // WinUI's compact density, which it offers for information-
-            // dense apps: fields and drop-downs 24 tall, buttons padded 11
-            // by 5; 8 between controls, a dialog padded 24, a check box's
-            // box 20 with 8 before its words.
+            // WinUI's standard density: controls 32 tall (the Fluent 2
+            // standard control height), buttons padded 11 by 5; 8 between
+            // controls, a dialog padded 24, a check box's box 20 with 8
+            // before its words. A menu's items are 32 with no gap between.
             style.spacing.button_padding = egui::vec2(11.0, 5.0);
             style.spacing.item_spacing = egui::vec2(8.0, 8.0);
-            style.spacing.interact_size.y = 24.0;
+            style.spacing.interact_size.y = 32.0;
             style.spacing.menu_margin = egui::Margin::same(4);
             style.spacing.window_margin = egui::Margin::same(24);
             // A drop-down's chevron takes a square this wide: at 20, a

@@ -595,7 +595,7 @@ mod tests {
     fn going_from_a_modern_look_to_classic_leaves_none_of_its_spacing() {
         let ctx = Context::default();
         apply(&ctx, Theme::Light);
-        assert_eq!(ctx.global_style().spacing.interact_size.y, 24.0);
+        assert_eq!(ctx.global_style().spacing.interact_size.y, 32.0);
         apply(&ctx, Theme::Classic);
         let fresh = egui::style::Spacing::default();
         let now = ctx.global_style().spacing.clone();

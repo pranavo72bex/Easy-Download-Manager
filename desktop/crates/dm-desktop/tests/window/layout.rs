@@ -1155,3 +1155,43 @@ fn properties_open_in_the_middle() {
         "Properties opened at the top: {title:?}"
     );
 }
+
+/// A list with room for one row, as 300% text with the clipboard's bar above
+/// leaves, stays where it was scrolled: its vertical bar (a scroll area of
+/// its own, never under 64 points) clamped the list's offset to its own and
+/// pulled the list back a little every frame.
+#[test]
+fn a_list_with_room_for_one_row_stays_where_it_was_scrolled() {
+    let world = world();
+    let mut harness = Harness::builder()
+        .with_size(egui::vec2(1600.0, 1000.0))
+        .build_ui_state(|ui, app: &mut DmApp| app.ui(ui), world.app());
+    let links: Vec<String> = (0..34)
+        .map(|i| world.url(&format!("stalled-{i:02}.bin")))
+        .collect();
+    harness.state().backend().pause_all();
+    harness.state().backend().add(&links.join(" ")).unwrap();
+    harness.state().backend().pause_all();
+    harness.state_mut().refresh();
+    harness.state_mut().clipboard.offered = Some(world.url("offered.zip"));
+    harness.ctx.set_zoom_factor(3.0);
+    harness.run_steps(3);
+    let last = harness.state().rows().last().unwrap().id;
+    harness.state_mut().scroll_to = Some(last);
+    harness.run_steps(6);
+    let name = dm_desktop::app::name_of(harness.state().rows().last().unwrap());
+    let place = |harness: &Harness<'_, DmApp>| {
+        harness
+            .query_all_by_label(&name)
+            .map(|n| n.rect())
+            .find(|r| r.width() > 0.0)
+            .map(|r| r.top())
+    };
+    let first = place(&harness).expect("the last row is shown");
+    harness.run_steps(30);
+    let later = place(&harness).expect("the last row is still shown");
+    assert!(
+        (first - later).abs() < 0.5,
+        "the list moved from {first} to {later} by itself"
+    );
+}

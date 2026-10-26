@@ -79,7 +79,7 @@ a screen is re-scored only where it was drawn again.
 
 - Settings: 13 have a line under them and each tab has Restore defaults; the
   rest have no line and there is no separate Advanced page (row 16).
-- Nothing holds notifications back while a fullscreen app or Focus Assist is
-  on. Blocked: the Windows code cannot be compiled on this machine (row 14).
-- A retry does not say when it will try again (row 17).
-- The window's own controls are 24 tall, not 32 (row 10); dialogs are 32.
+- Held notifications during a fullscreen app or Focus Assist, High Contrast and
+  the taskbar jump list are written and compile for Windows, but are to be
+  seen on a Windows computer (rows 11 and 14).
+- Translations of the new words were written without a native reader (row 5).

@@ -10,6 +10,9 @@ impl DmApp {
         } else {
             title.to_string()
         };
+        // Items 32 tall one against the next, as a WinUI menu's are: the 8
+        // between controls would make a menu of twenty a third taller.
+        ui.spacing_mut().item_spacing.y = 0.0;
         let mut button = egui::Button::new(shown);
         if let Some(shortcut) = command.shortcut() {
             button = button.shortcut_text(format::shortcut(ui.ctx(), &shortcut));

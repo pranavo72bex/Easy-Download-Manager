@@ -568,12 +568,13 @@ pub(crate) fn press(h: &mut Harness<'_, DmApp>, path: &[&str]) {
         } else if i + 1 == path.len() {
             // A menu item with a key says it after its name, "Help F1"; a
             // key never starts lowercase, so "Find" is not "Find next".
-            // A toolbar button of the same name (32 px tall or more) may
-            // lie under the open menu; the menu's item is the one meant.
+            // A toolbar button of the same name (44 px tall, picture over
+            // words) may lie under the open menu; the menu's item, 32
+            // tall, is the one meant.
             let item = |n: &egui_kittest::Node<'_>| {
                 n.accesskit_node()
                     .bounding_box()
-                    .is_some_and(|b| b.height() < 30.0)
+                    .is_some_and(|b| b.height() <= 33.0)
             };
             let matching: Vec<_> = h
                 .query_all_by_label_contains(name)

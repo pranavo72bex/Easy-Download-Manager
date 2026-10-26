@@ -5,6 +5,12 @@ the browser extension (`v*` tags) are versioned separately.
 
 ## Unreleased
 
+- Windows: while a fullscreen app, a presentation or Focus Assist is on, dm holds its notifications and says them afterwards, and plays no sound.
+- Windows: High Contrast. The window is drawn in the system's own colours whatever look was chosen, and follows the theme when it is changed.
+- Windows: the taskbar button's jump list has Add URL (opens that dialog in the running dm, as `dm-desktop --new-download` does) and Open downloads folder.
+- A download that is retrying says when it tries again ("next try in 8s").
+- Controls in the main window are 32 points tall, as dialogs' are, and menu items are 32 with no gap; and a list with room for one row (300% text, the clipboard's bar above it) no longer pulls itself away from the row scrolled to.
+- A dialog's shadow is the deepest of 128, 64 and 28 its window has room for; a menu's is 32.
 - The buttons that appear on the row under the pointer no longer draw over a window in front of the list (Download complete, for one).
 - Options has no divider line under some of its rows and not others; none has one.
 - A finished download's row says when it finished, beside "Complete".

@@ -15,7 +15,11 @@ pub(super) fn window(ctx: &egui::Context, title: &'static str) -> Dialog<'static
     if let Some(bottom) = ctx.data(|d| d.get_temp::<f32>(menu_bottom_id())) {
         room.min.y = room.min.y.max(bottom).min(room.max.y - 160.0);
     }
-    let tall = (room.height() - 56.0).max(160.0);
+    // The shadow is the deepest the room has space for: egui counts a
+    // window's shadow in its size, so a deep one in a small window left the
+    // dialog no room (at 200% text, none).
+    let blur = dialog_shadow_blur(room.height());
+    let tall = (room.height() - (f32::from(blur) + 28.0)).max(160.0);
     let reached = ctx
         .memory(|m| m.area_rect(window_id(title)))
         // With some slack: a scrolled dialog stands about as tall as it may.
@@ -38,7 +42,15 @@ pub(super) fn window(ctx: &egui::Context, title: &'static str) -> Dialog<'static
             d.remove::<(f32, u64)>(held_id);
         }
     });
+    let style = ctx.global_style();
+    let shadow = egui::epaint::Shadow {
+        offset: [0, (blur / 2) as i8],
+        blur,
+        spread: 0,
+        color: style.visuals.window_shadow.color,
+    };
     Dialog::new(t(title))
+        .with(|w| w.frame(egui::Frame::window(&style).shadow(shadow)))
         .id(window_id(title))
         .collapsible(false)
         .resizable(false)
@@ -55,6 +67,19 @@ pub(super) fn window(ctx: &egui::Context, title: &'static str) -> Dialog<'static
         .vscroll(cramped)
         .constrain_to(room)
         .anchor(egui::Align2::CENTER_CENTER, [0.0, 0.0])
+}
+
+/// How deep a dialog's shadow is in a window `height` points tall: Fluent's
+/// dialog elevation is 128, and the deepest of 128, 64 and 28 that leaves the
+/// dialog room is used, down to 28 in a small window.
+pub(crate) fn dialog_shadow_blur(height: f32) -> u8 {
+    if height >= 1000.0 {
+        128
+    } else if height >= 800.0 {
+        64
+    } else {
+        28
+    }
 }
 
 /// A dialog laid out as WinUI's are: no title bar, but its title at the
@@ -624,4 +649,18 @@ pub(super) fn row_on_band<R>(
         ]),
     );
     shown
+}
+
+#[cfg(test)]
+mod shadow_tests {
+    use super::dialog_shadow_blur;
+
+    #[test]
+    fn a_dialog_has_the_deepest_shadow_its_window_has_room_for() {
+        assert_eq!(dialog_shadow_blur(480.0), 28, "a small window");
+        assert_eq!(dialog_shadow_blur(720.0), 28, "the default window");
+        assert_eq!(dialog_shadow_blur(800.0), 64);
+        assert_eq!(dialog_shadow_blur(1000.0), 128);
+        assert_eq!(dialog_shadow_blur(1440.0), 128);
+    }
 }

@@ -1929,3 +1929,34 @@ being able to compile it (gaps row 14), and hiding the sideways extra columns
 (Last try, Description, Referrer, Folder) by default, which changes what every
 saved window shows and which fifteen tests read.
 
+## 2026-10-26: Windows modules are checked from here, and run on Windows later
+
+`cargo check --target x86_64-pc-windows-msvc -p dm-desktop` stops at the C
+build of `aws-lc-sys` without a Windows toolchain, so Windows-only code could
+not be compiled on a Mac, and was left unwritten. The new Windows code
+(`quiet.rs`, `contrast.rs`, `jumplist.rs`) is written to need only `std`,
+`windows-sys` and `windows`, which are plain Rust, and
+`scripts/windows-modules-check.sh` includes each file in a crate of its own and
+checks it for the Windows target; their logic (what is quiet, what is held, the
+palette's contrast) is plain code the tests run anywhere. What it cannot say is
+whether the system answers as expected, so gaps rows 11 and 14 stay open as
+checks to make on Windows. Dropped: a `windows` crate behind a feature in
+dm-core, to check the whole of dm-desktop (a second build for one check), and
+leaving the rows blocked (a person can only verify what exists).
+
+High Contrast is not a fifth choice in Options: Windows says it is on, and
+every program is expected to follow, whatever it was set to; the debug-only
+`DM_HIGH_CONTRAST=black|white` shows the look elsewhere. A jump list is
+published once at start, in the language then in force.
+
+The list's vertical bar was a scroll area under egui's 64-point minimum, in a
+strip of one row it could not reach as far as the list and pulled it back each
+frame. Controls at 32 made that strip one row at 300% text with the clipboard's
+bar, which is how it was found; it is fixed by giving the bar the strip's own
+height (`min_scrolled_height`), and held by a test.
+
+A dialog's shadow follows the room: Fluent's 128 where the window is 1000
+points tall, 64 from 800, and 28 below (`dialog_shadow_blur`), since egui
+counts a shadow in a window's size. The menu has 32; tooltips share egui's one
+popup shadow and have 32 too, not 16.
+
