@@ -129,12 +129,14 @@ pub async fn to_mp4_async(input: PathBuf, out: PathBuf) -> Result<u64, String> {
 
 mod demux;
 mod headers;
+mod packed;
 mod samples;
 mod sound;
 mod tracks;
 
 use demux::*;
 pub(crate) use headers::*;
+pub use packed::{is_packed_aac, is_transport_stream, join_packed, join_packed_async};
 use samples::*;
 pub(crate) use sound::*;
 use tracks::*;

@@ -435,27 +435,39 @@ pub(super) fn field(
     width: f32,
 ) -> egui::Response {
     let name = ui.label(label);
-    // The look's focus frame, kept before the selection colours change:
-    // the field draws its focused frame in the selection's stroke, which
-    // `selection_seen` turns the colour of selected words — white on the
-    // dialog's white, so a field focused on open had no frame at all.
-    // It is drawn again over the field in the look's own colour.
-    let ring = ui.visuals().selection.stroke;
+    // The field's own frame is left off and drawn here: egui draws a
+    // focused one in the selection's stroke, which `selection_seen` turns
+    // white (the colour selected words read in), and a white frame showed
+    // at the rounded corners.
     let corner = ui.visuals().widgets.inactive.corner_radius;
+    let fill = ui.visuals().extreme_bg_color;
+    let edge = ui.visuals().widgets.inactive.bg_stroke;
+    let frame = ui.painter().add(egui::Shape::Noop);
     let field = ui
         .scope(|ui| {
             selection_seen(ui);
             // No wider than the room there is: at 200% text a fixed width
             // pushed Options off the window.
             let width = width.min(ui.available_width()).max(40.0);
-            ui.add(egui::TextEdit::singleline(text).desired_width(width))
+            ui.add(
+                egui::TextEdit::singleline(text)
+                    .desired_width(width)
+                    .frame(egui::Frame::NONE.inner_margin(egui::Margin::symmetric(4, 2))),
+            )
         })
         .inner
         .labelled_by(name.id);
-    if field.has_focus() {
-        ui.painter()
-            .rect_stroke(field.rect, corner, ring, egui::StrokeKind::Inside);
-    }
+    // Focused, the window's own pass draws the frame and the accent line
+    // (`underline_fields`); a second outline under it blurred the corners.
+    let stroke = if field.has_focus() {
+        egui::Stroke::NONE
+    } else {
+        edge
+    };
+    ui.painter().set(
+        frame,
+        egui::epaint::RectShape::new(field.rect, corner, fill, stroke, egui::StrokeKind::Inside),
+    );
     field
 }
 

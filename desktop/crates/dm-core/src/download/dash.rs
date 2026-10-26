@@ -86,7 +86,12 @@ pub(super) async fn download_pair(
     ];
     let refs: Vec<&Track> = tracks.iter().collect();
     let signature = format!("pair {rendition}");
-    let name = picture.filename.clone();
+    // A transport-stream picture is joined into an MP4 all the same.
+    let name = if picture.container == "ts" {
+        format!("{}.mp4", hls::ts_stem(&picture.filename))
+    } else {
+        picture.filename.clone()
+    };
     join_tracks(
         client, &refs, &name, "mp4", false, &signature, options, report,
     )
@@ -277,6 +282,18 @@ async fn join_tracks(
         // from a pause it would go on writing a file a resume makes afresh.
         let made = if webm {
             crate::mkvmux::join_async(files.clone(), partial.clone()).await
+        } else if let [picture, sound] = files.as_slice().iter().collect::<Vec<_>>()[..]
+            .iter()
+            .map(|p| (*p).clone())
+            .collect::<Vec<_>>()
+            .as_slice()
+        {
+            if crate::tsmux::is_transport_stream(picture) && crate::tsmux::is_packed_aac(sound) {
+                crate::tsmux::join_packed_async(picture.clone(), sound.clone(), partial.clone())
+                    .await
+            } else {
+                crate::mp4mux::join_async(files.clone(), partial.clone()).await
+            }
         } else {
             crate::mp4mux::join_async(files.clone(), partial.clone()).await
         };
@@ -593,6 +610,67 @@ mod tests {
         assert_eq!(done.path.extension().unwrap(), "mp4");
         let data = std::fs::read(&done.path).unwrap();
         assert_eq!(data.windows(4).filter(|w| *w == b"trak").count(), 2);
+    }
+
+    /// A transport-stream picture with its sound in packed AAC, which a
+    /// master playlist keeps in a rendition of its own, comes out one MP4
+    /// with both tracks — with no video helper to fall back on.
+    #[tokio::test]
+    async fn an_hls_transport_stream_picture_and_packed_aac_sound_are_joined_into_one_mp4() {
+        let picture = include_bytes!("../../tests/fixtures/media/hls/h264/seg0.ts").to_vec();
+        // 44.1 kHz stereo AAC-LC frames of 300 bytes behind an ID3 tag that
+        // starts the sound with the picture.
+        let mut sound = b"ID3\x04\x00\x00\x00\x00\x00\x4f".to_vec();
+        sound.extend_from_slice(b"PRIV\x00\x00\x00\x35\x00\x00");
+        sound.extend_from_slice(b"com.apple.streaming.transportStreamTimestamp\0");
+        sound.extend_from_slice(&[0, 0, 0, 0, 0, 0, 0, 0]);
+        for _ in 0..80 {
+            let mut frame = vec![0xff, 0xf1, 0x50, 0x80, 0x25, 0x80 | 0x1f, 0xfc];
+            frame.resize(300, 7);
+            sound.extend(frame);
+        }
+        let text = |body: &'static str| {
+            get(move || async move {
+                Response::builder()
+                    .header(header::CONTENT_TYPE, "application/vnd.apple.mpegurl")
+                    .body(Body::from(body))
+                    .unwrap()
+            })
+        };
+        let bytes = |body: Vec<u8>| get(move || async move { Response::new(Body::from(body)) });
+        let app = axum::Router::new()
+            .route(
+                "/hls/master.m3u8",
+                text(
+                    "#EXTM3U\n#EXT-X-MEDIA:TYPE=AUDIO,GROUP-ID=\"a\",NAME=\"en\",DEFAULT=YES,URI=\"sound.m3u8\"\n\
+                     #EXT-X-STREAM-INF:BANDWIDTH=900000,RESOLUTION=640x360,AUDIO=\"a\"\npicture.m3u8\n",
+                ),
+            )
+            .route(
+                "/hls/picture.m3u8",
+                text("#EXTM3U\n#EXT-X-TARGETDURATION:4\n#EXTINF:4,\none.ts\n#EXT-X-ENDLIST\n"),
+            )
+            .route(
+                "/hls/sound.m3u8",
+                text("#EXTM3U\n#EXT-X-TARGETDURATION:4\n#EXTINF:4,\nsound.aac\n#EXT-X-ENDLIST\n"),
+            )
+            .route("/hls/one.ts", bytes(picture))
+            .route("/hls/sound.aac", bytes(sound));
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let addr = listener.local_addr().unwrap();
+        tokio::spawn(async move { axum::serve(listener, app).await.unwrap() });
+
+        let dir = tempfile::tempdir().unwrap();
+        let options = options(dir.path());
+        let url = format!("http://{addr}/hls/master.m3u8");
+        let done = crate::download::download(&reqwest::Client::new(), &url, &options)
+            .await
+            .unwrap();
+        assert_eq!(done.path.extension().unwrap(), "mp4");
+        let data = std::fs::read(&done.path).unwrap();
+        assert_eq!(data.windows(4).filter(|w| *w == b"trak").count(), 2);
+        assert!(data.windows(4).any(|w| w == b"avc1"));
+        assert!(data.windows(4).any(|w| w == b"mp4a"));
     }
 
     #[tokio::test]

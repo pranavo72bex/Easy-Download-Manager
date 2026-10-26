@@ -530,9 +530,10 @@ pub(super) async fn resolve_stream(
     Ok(Resolved::Own(listed, url.to_string()))
 }
 
-/// A picture and the sound the master keeps apart from it. Only fragmented
-/// MP4 on both sides is dm's to join (encrypted with AES-128 or cut by byte
-/// ranges as it may be); a transport-stream pair is `Beyond`, as before.
+/// A picture and the sound the master keeps apart from it. Fragmented MP4 on
+/// both sides is dm's to join (encrypted with AES-128 or cut by byte ranges
+/// as it may be), as is a transport-stream picture with packed AAC sound;
+/// any other pair is `Beyond`.
 async fn resolve_pair(
     client: &reqwest::Client,
     name_from: &str,
@@ -556,9 +557,11 @@ async fn resolve_pair(
     let picture = stream::media_playlist(media, media_landed, name_from, options.quality)?;
     let sound = stream::media_playlist(&sound, &sound_landed, name_from, Quality::Best)?;
     // Fragmented MP4 on both sides, scrambled or not, whole or cut by byte
-    // ranges: a transport-stream picture or packed sound is still beyond.
+    // ranges; or a transport-stream picture with packed AAC sound. Any other
+    // mix is still beyond.
     let fragmented = |s: &stream::Stream| s.container == "mp4";
-    if !(fragmented(&picture) && fragmented(&sound)) {
+    let packed = picture.container == "ts" && sound.container == "aac";
+    if !((fragmented(&picture) && fragmented(&sound)) || packed) {
         return Ok(Resolved::Beyond(APART));
     }
     Ok(Resolved::Pair(

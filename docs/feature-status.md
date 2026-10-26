@@ -506,7 +506,7 @@ of them.
       are searched and the tool is spawned by its resolved path. yt-dlp
       (and QuickJS, its JavaScript engine) are fetched by dm, an MP4 picture and M4A sound
       are joined by dm itself (`mp4mux.rs`) and an HLS transport stream put
-      into an MP4 by dm (`tsmux.rs`); a real 720p YouTube video arrived that
+      into an MP4 by dm (`tsmux.rs`; with packed-AAC sound kept apart, `tsmux/packed.rs`, 2026-10-26, shown by a test with `DM_YTDLP` empty); a real 720p YouTube video arrived that
       way, decoded identical (2026-10-21). Proven under `PATH=/usr/bin:/bin`: a real watch URL completes
       as one merged file. Before this, that same launch quietly saved the
       page's HTML as a "completed" download named `watch`. Since 2026-10-21 nothing has to be installed:

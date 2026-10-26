@@ -1745,3 +1745,16 @@ ignored one saved the whole source repeated and called it done. A pair
 `dash::Piece` carries a `Lock` (key and the vector its segment number
 makes), undone as each piece is fetched. Still `Beyond`: a transport-stream
 picture with packed-AAC sound (gaps.md row 7).
+
+## 2026-10-26: A transport-stream picture with packed-AAC sound is joined by dm
+
+An HLS master that keeps its sound in `.aac` segments beside a `.ts` picture
+went to yt-dlp. dm now reads the ADTS frames as `tsmux` reads a transport
+stream's, takes the sound's start from the first segment's ID3
+`transportStreamTimestamp` (the picture's 90 kHz clock), and writes both as the
+two tracks of one MP4 (`tsmux::join_packed`). The join is chosen by sniffing
+the gathered files (0x47 sync byte; ID3 or ADTS), not by a new flag on the
+track, so the DASH and fMP4 paths are untouched. A stream `tsmux` refuses
+(HEVC with odd sound, MPEG-2 picture) fails the join with the reason rather
+than falling back; dropped: asking yt-dlp after the fetch, which would fetch
+the stream twice.
