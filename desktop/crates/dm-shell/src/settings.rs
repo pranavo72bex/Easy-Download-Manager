@@ -437,7 +437,7 @@ impl Default for Settings {
             ask_panel_downloads: false,
             ask_caught_downloads: false,
             theme: "system".into(),
-            double_click: "properties".into(),
+            double_click: "open".into(),
             server_dates: false,
             retry_wait: 0,
             record_minutes: 0,

@@ -41,8 +41,16 @@ pub(super) fn cell(
         Column::TimeLeft => {
             if entry.state == State::Running {
                 right(ui, |ui| {
-                    let left = entry.progress.eta.map(format::span).unwrap_or_default();
-                    ui.label(digits(ui, left))
+                    // A file of known size that has no rate to go on yet says
+                    // so, rather than a blank that looks like nothing is
+                    // happening; one of unknown size has no time to give.
+                    match entry.progress.eta {
+                        Some(eta) => ui.label(digits(ui, format::span(eta))),
+                        None if entry.progress.total.is_some() => {
+                            ui.label(RichText::new(t("Calculating…")).weak())
+                        }
+                        None => ui.label(""),
+                    }
                 });
             }
         }

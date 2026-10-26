@@ -61,6 +61,7 @@ image = { version = "0.25", default-features = false, features = ["png"] }
 # The system's language, for the window's first one: from the OS itself,
 # since an app opened from the Dock or a login item has no LANG.
 sys-locale = "0.3"
+trash = "5.2.9"
 
 # Dragging a finished file out of the window, into Finder, Explorer, a mail
 # or a chat. It starts the drag from the window's native handle, which it

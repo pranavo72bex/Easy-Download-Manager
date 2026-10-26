@@ -28,7 +28,9 @@ pub(super) fn confirm_remove(app: &mut DmApp, ctx: &egui::Context) {
         .collect();
     let (mut yes, mut no) = (false, false);
     // Not "unfinished" of a set with finished files in it.
-    let english = if unfinished && ids.len() == 1 {
+    let english = if app.dialogs.deleting_files {
+        "Delete file"
+    } else if unfinished && ids.len() == 1 {
         "Remove an unfinished download"
     } else if unfinished && files.is_empty() {
         "Remove unfinished downloads"
@@ -39,6 +41,7 @@ pub(super) fn confirm_remove(app: &mut DmApp, ctx: &egui::Context) {
     let title = match english {
         "Remove an unfinished download" => t("Remove an unfinished download"),
         "Remove unfinished downloads" => t("Remove unfinished downloads"),
+        "Delete file" => t("Delete file"),
         _ => t("Remove from the list"),
     };
     Dialog::new(title)
@@ -137,12 +140,15 @@ pub(super) fn confirm_remove(app: &mut DmApp, ctx: &egui::Context) {
         });
     if yes {
         app.dialogs.confirm_remove = None;
+        app.dialogs.deleting_files = false;
         let delete = std::mem::take(&mut app.dialogs.remove_files);
         if delete {
             let failed: Vec<String> = files
                 .iter()
                 .filter_map(|path| {
-                    std::fs::remove_file(path)
+                    app.backend
+                        .platform
+                        .trash(path)
                         .err()
                         .map(|e| format!("{path}: {e}"))
                 })
@@ -178,6 +184,7 @@ pub(super) fn confirm_remove(app: &mut DmApp, ctx: &egui::Context) {
     } else if no {
         app.dialogs.confirm_remove = None;
         app.dialogs.remove_files = false;
+        app.dialogs.deleting_files = false;
     }
 }
 

@@ -2676,3 +2676,38 @@ async fn a_row_retrying_a_failing_server_lets_the_next_one_run() {
     q.cancel(broken).await;
     let _ = tokio::time::timeout(Duration::from_secs(10), running).await;
 }
+
+#[tokio::test]
+async fn a_finished_download_taken_off_the_list_by_mistake_is_put_back_where_it_was() {
+    let (addr, _) = serve().await;
+    let dir = tempdir();
+    let q = queue(dir.path(), 1);
+    let first = q.add(&format!("http://{addr}/one.bin")).await.unwrap();
+    let second = q.add(&format!("http://{addr}/two.bin")).await.unwrap();
+    let third = q.add(&format!("http://{addr}/three.bin")).await.unwrap();
+    q.run().await;
+
+    let rows = q.finished_rows(&[second]).await;
+    assert_eq!(rows.len(), 1);
+    q.remove(second).await;
+    assert!(q.get(second).await.is_none());
+
+    q.put_back(rows).await;
+    let ids: Vec<_> = q.list().await.iter().map(|r| r.id).collect();
+    assert_eq!(ids, [first, second, third], "not back in its place");
+    let row = q.get(second).await.unwrap();
+    assert_eq!(row.state, DownloadState::Completed);
+    assert!(
+        std::path::Path::new(&row.path).is_file(),
+        "its file is not where the row says"
+    );
+
+    // Put back twice, it is not listed twice; and an unfinished row has
+    // nothing to put back, since its fetched bytes go with it.
+    let again = q.finished_rows(&[second]).await;
+    q.put_back(again).await;
+    assert_eq!(q.list().await.len(), 3);
+    let held = q.add(&format!("http://{addr}/held.bin")).await.unwrap();
+    q.pause(held).await;
+    assert!(q.finished_rows(&[held]).await.is_empty());
+}

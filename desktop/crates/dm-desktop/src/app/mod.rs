@@ -312,6 +312,8 @@ pub struct DmApp {
     weekly_pending: bool,
     /// The speed limit to go back to when the limiter is turned on again.
     last_limit: u64,
+    /// Finished downloads just taken off the list, with when, for Undo.
+    pub undo_remove: Option<(Instant, Vec<(usize, Entry)>)>,
     /// A word in the status bar about the last thing done.
     pub said: crate::i18n::Said,
     /// What Copy link asked to put on the clipboard, for the next frame.
@@ -437,6 +439,8 @@ pub struct DmApp {
 /// How long the status line keeps its last sentence.
 // Long enough to read; not standing over what was done since.
 const SAID_FOR: Duration = Duration::from_secs(12);
+/// How long Undo is offered after a download is taken off the list.
+const UNDO_FOR: Duration = Duration::from_secs(5);
 
 impl DmApp {
     pub fn new(backend: Backend) -> Self {
@@ -489,6 +493,7 @@ impl DmApp {
             watch_skip: HashSet::new(),
             browser_hint: (None, false),
             update_row: None,
+            undo_remove: None,
             show_asked: false,
             awaiting_link: None,
             welcome_checked: false,

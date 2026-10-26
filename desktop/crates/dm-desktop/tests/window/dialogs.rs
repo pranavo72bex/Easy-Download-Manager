@@ -206,6 +206,9 @@ fn a_pages_links_open_the_download_links_dialog() {
 fn a_double_click_opens_properties_and_open_runs_a_finished_file() {
     let world = world();
     let mut harness = world.quick_harness();
+    // Options › General's other choice; "opens the file" is the new
+    // install's, below.
+    harness.state_mut().applied.double_click = "properties".into();
     add_url(&mut harness, &world.url("file.zip"), "Start now");
     add_url(&mut harness, &world.url("stalled.bin"), "Start now");
     until(&mut harness, "one to finish", |app| {
@@ -1783,4 +1786,25 @@ fn no_field_is_outlined_in_the_selection_stroke_where_the_look_draws_its_own() {
     let modern = dm_desktop::theme::Tokens::get(&harness.ctx).modern;
     let width = harness.ctx.global_style().visuals.selection.stroke.width;
     assert_eq!(width == 0.0, modern, "selection stroke width {width}");
+}
+
+/// The new install's double-click opens a finished file, as a file manager's
+/// does; one that is not finished shows its Properties.
+#[test]
+fn the_default_double_click_opens_a_finished_file_and_shows_properties_for_the_rest() {
+    let world = world();
+    let mut harness = world.quick_harness();
+    add_url(&mut harness, &world.url("file.zip"), "Start now");
+    add_url(&mut harness, &world.url("stalled.bin"), "Start now");
+    until(&mut harness, "one to finish", |app| {
+        app.rows().iter().any(|r| r.state == State::Completed)
+    });
+    harness.run_steps(2);
+    let path = row(&harness, "file.zip").path;
+    double_click(&mut harness, "file.zip");
+    harness.run_steps(3);
+    assert_eq!(*world.fake.opened.lock().unwrap(), [path]);
+    double_click(&mut harness, "stalled.bin");
+    harness.run_steps(3);
+    assert!(harness.query_by_label("File properties").is_some());
 }

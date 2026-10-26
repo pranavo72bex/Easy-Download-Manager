@@ -96,6 +96,10 @@ impl Platform for Fake {
         self.opened.lock().unwrap().push(path.to_string());
         Ok(())
     }
+    fn trash(&self, path: &str) -> Result<(), String> {
+        self.opened.lock().unwrap().push(format!("trash {path}"));
+        std::fs::remove_file(path).map_err(|e| e.to_string())
+    }
     fn choose_file(&self, _save: bool, _suggested: &str) -> Option<std::path::PathBuf> {
         self.chosen.lock().unwrap().clone()
     }

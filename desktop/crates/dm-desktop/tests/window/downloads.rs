@@ -715,19 +715,32 @@ fn remove_deletes_the_file_too_only_when_asked() {
     select(&mut harness, "file.zip");
     harness.state_mut().run(Command::Remove);
     harness.run_steps(3);
-    click(&mut harness, "Remove it");
     harness.state_mut().refresh();
     assert!(
         std::path::Path::new(&zip).is_file(),
         "the file went without being asked"
     );
+    assert_eq!(harness.state().rows().len(), 1, "Remove asked first");
+    // Delete file is the one that asks, and says what happens to the file.
     select(&mut harness, "other.pdf");
-    harness.state_mut().run(Command::Remove);
+    harness.state_mut().run(Command::DeleteFile);
     harness.run_steps(3);
-    click(&mut harness, "Also delete the file");
+    assert!(
+        harness.query_by_label("Delete file").is_some(),
+        "no question"
+    );
     click(&mut harness, "Yes, delete");
     harness.state_mut().refresh();
     assert!(!std::path::Path::new(&pdf).exists(), "the file stayed");
+    assert!(
+        world
+            .fake
+            .opened
+            .lock()
+            .unwrap()
+            .contains(&format!("trash {pdf}")),
+        "the file was erased, not put in the Recycle Bin or Trash"
+    );
     assert!(harness.state().rows().is_empty());
 }
 
@@ -1979,4 +1992,90 @@ fn a_hand_over_that_asks_brings_the_window_forward_and_one_that_starts_does_not(
         harness.state().show_asked,
         "the waiting dialog stayed behind"
     );
+}
+
+/// A download of known size that has no rate to go on says "Calculating…" in
+/// Time left, not nothing; and a double-click opens a finished file, as a
+/// file manager's does.
+#[test]
+fn time_left_says_calculating_until_there_is_a_rate() {
+    let world = world();
+    let mut harness = world.harness();
+    add_url(&mut harness, &world.url("stalled.bin"), "Start now");
+    until(&mut harness, "to run", |app| app.downloading() == 1);
+    for _ in 0..30 {
+        if harness.query_by_label("Calculating…").is_some() {
+            break;
+        }
+        std::thread::sleep(std::time::Duration::from_millis(40));
+        harness.step();
+    }
+    assert!(
+        harness.query_by_label("Calculating…").is_some(),
+        "Time left stayed blank while there was no rate"
+    );
+}
+
+#[test]
+fn a_new_install_opens_a_finished_file_on_a_double_click() {
+    assert_eq!(dm_shell::settings::Settings::default().double_click, "open");
+}
+
+/// Taking a finished download off the list asks nothing, offers Undo, and
+/// Undo puts it back where it was; its file never moves.
+#[test]
+fn removing_a_finished_download_is_undone_from_the_status_bar() {
+    let world = world();
+    let mut harness = world.harness();
+    add_url(&mut harness, &world.url("file.zip"), "Start now");
+    add_url(&mut harness, &world.url("other.pdf"), "Start now");
+    until(&mut harness, "both to complete", |app| {
+        app.rows().len() == 2 && app.rows().iter().all(|r| r.state == State::Completed)
+    });
+    let first = row(&harness, "file.zip").id;
+    let path = row(&harness, "file.zip").path;
+    select(&mut harness, "file.zip");
+    harness.state_mut().run(Command::Remove);
+    harness.run_steps(3);
+    assert_eq!(harness.state().rows().len(), 1);
+    assert!(harness.query_by_label_contains("from the list").is_some());
+    click(&mut harness, "Undo");
+    harness.run_steps(2);
+    let ids: Vec<_> = harness.state().rows().iter().map(|r| r.id).collect();
+    assert_eq!(ids.first(), Some(&first), "not back in its place");
+    assert!(std::path::Path::new(&path).is_file());
+    assert!(
+        harness.query_by_label("Undo").is_none(),
+        "Undo stayed after it was used"
+    );
+}
+
+/// Several links pasted into Add URL, a line each (the field makes them one
+/// line with a space between), are one batch in Download details, not a
+/// warning to add them one at a time.
+#[test]
+fn five_links_pasted_into_add_url_are_one_batch() {
+    let world = world();
+    let mut harness = world.harness();
+    let links: Vec<String> = (1..=5)
+        .map(|i| world.url(&format!("batch-{i}.bin")))
+        .collect();
+    harness.state_mut().dialogs.open_add_url(None);
+    harness.run_steps(3);
+    harness.event(egui::Event::Text(links.join(" ")));
+    harness.run_steps(2);
+    click(&mut harness, "OK");
+    harness.run_steps(3);
+    assert!(harness.query_by_label("Download details").is_some());
+    let asked = harness
+        .state()
+        .dialogs
+        .file_info
+        .as_ref()
+        .map(|d| d.urls.clone())
+        .unwrap_or_default();
+    assert_eq!(asked, links, "the five links were not one batch");
+    assert!(harness
+        .query_by_label_contains("looks like two links")
+        .is_none());
 }

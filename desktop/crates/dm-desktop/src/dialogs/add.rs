@@ -296,6 +296,18 @@ pub(super) fn add_url(app: &mut DmApp, ctx: &egui::Context) {
         app.dialogs.focus_on("Add URL");
         return;
     }
+    // Several links pasted one after another (a list copied from a page or a
+    // chat, a line each): a batch, in one Download details. Run together with
+    // nothing between them, they are still asked about, since where one ends
+    // is a guess.
+    if crate::app::two_addresses(&address) {
+        let found = crate::app::links_in(&address);
+        if found.len() > 1 && found.len() == address.split_whitespace().count() {
+            app.dialogs.add_url = None;
+            app.dialogs.open_file_info(found);
+            return;
+        }
+    }
     if crate::app::two_addresses(&address) {
         d.says =
             t("That looks like two links. Add one at a time, or use Add links from clipboard.")

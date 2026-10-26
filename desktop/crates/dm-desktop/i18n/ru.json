@@ -664,5 +664,10 @@
  "Small": "Мелкий",
  "Medium": "Средний",
  "Large": "Крупный",
- "Sounds": "Звуки"
+ "Sounds": "Звуки",
+ "Calculating…": "Вычисление…",
+ "Removed {} download from the list.||Removed {} downloads from the list.": "Удалена из списка {} загрузка.||Удалено из списка {} загрузки.||Удалено из списка {} загрузок.",
+ "Undo": "Отменить",
+ "Put back {} download.||Put back {} downloads.": "Восстановлена {} загрузка.||Восстановлено {} загрузки.||Восстановлено {} загрузок.",
+ "Delete file": "Удалить файл"
 }

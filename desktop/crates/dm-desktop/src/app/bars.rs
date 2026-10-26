@@ -335,6 +335,16 @@ impl DmApp {
                 .iter()
                 .any(|r| r.state == State::Paused && r.paused_by_schedule);
         let showing = fresh && !stale && !self.said.is_empty() && !self.said.is_limiter();
+        // Undo, for the few seconds after downloads were taken off the list.
+        let undo_live = match &self.undo_remove {
+            Some((at, _)) if at.elapsed() < UNDO_FOR => true,
+            Some(_) => {
+                self.undo_remove = None;
+                false
+            }
+            None => false,
+        };
+        let mut undo_asked = false;
         ui.horizontal(|ui| {
             // Each "· …" part starts with its own space: the usual gap as
             // well read as two spaces before the dot.
@@ -415,7 +425,8 @@ impl DmApp {
                 // window's edge.
                 let whole = self.said.shown();
                 let short = whole.lines().next().unwrap_or_default().to_string();
-                let room = (ui.available_width() - 8.0).max(80.0);
+                let room =
+                    (ui.available_width() - 8.0 - if undo_live { 72.0 } else { 0.0 }).max(80.0);
                 ui.scope(|ui| {
                     ui.set_max_width(room);
                     let drawn = ui.add(
@@ -433,6 +444,12 @@ impl DmApp {
                     });
                     drawn.on_hover_text(whole);
                 });
+                if undo_live {
+                    if ui.link(t("Undo")).clicked() {
+                        undo_asked = true;
+                    }
+                    ui.ctx().request_repaint_after(UNDO_FOR);
+                }
                 ui.ctx().request_repaint_after(SAID_FOR);
             }
             // The folder in what room is left, cut short with an ellipsis
@@ -453,6 +470,9 @@ impl DmApp {
                 }
             });
         });
+        if undo_asked {
+            self.undo_remove();
+        }
     }
 
     pub(super) fn problem_list(&mut self, ui: &mut egui::Ui) {

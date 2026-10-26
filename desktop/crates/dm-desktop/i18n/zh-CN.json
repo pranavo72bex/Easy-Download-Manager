@@ -664,5 +664,10 @@
  "Small": "小",
  "Medium": "中",
  "Large": "大",
- "Sounds": "声音"
+ "Sounds": "声音",
+ "Calculating…": "正在计算…",
+ "Removed {} download from the list.||Removed {} downloads from the list.": "已从列表中移除 {} 个下载。",
+ "Undo": "撤销",
+ "Put back {} download.||Put back {} downloads.": "已恢复 {} 个下载。",
+ "Delete file": "删除文件"
 }

@@ -267,6 +267,56 @@ impl Queue {
         Some(slot)
     }
 
+    /// The finished downloads among `ids` as they stand, each with its place in
+    /// the list, for [`Queue::put_back`]: taking one off the list loses
+    /// nothing, since its file stays where it was saved.
+    pub async fn finished_rows(&self, ids: &[Id]) -> Vec<(usize, Entry)> {
+        let slots = self.inner.slots.lock().await;
+        let order = self.inner.order.lock().await;
+        order
+            .iter()
+            .enumerate()
+            .filter(|(_, id)| ids.contains(id))
+            .filter_map(|(at, id)| {
+                let entry = &slots.get(id)?.entry;
+                (entry.state == State::Completed).then(|| (at, entry.clone()))
+            })
+            .collect()
+    }
+
+    /// Puts rows taken off the list back, each where it was (or at the end
+    /// of a shorter list). A row whose number is in use again is left out.
+    pub async fn put_back(&self, rows: Vec<(usize, Entry)>) {
+        if rows.is_empty() {
+            return;
+        }
+        {
+            let mut slots = self.inner.slots.lock().await;
+            let mut order = self.inner.order.lock().await;
+            for (at, entry) in rows {
+                if slots.contains_key(&entry.id) {
+                    continue;
+                }
+                let id = entry.id;
+                let own_limit = crate::limit::Limiter::new(entry.speed_limit.saturating_mul(1024));
+                slots.insert(
+                    id,
+                    Slot {
+                        entry,
+                        control: Control::new(),
+                        task: None,
+                        outside_schedule: false,
+                        retrying: None,
+                        own_limit,
+                    },
+                );
+                let at = at.min(order.len());
+                order.insert(at, id);
+            }
+        }
+        self.save().await;
+    }
+
     /// Forgets a download entirely, stopping it first if it was running.
     ///
     /// Not `cancel` and then forget: that discarded the parts and wrote the

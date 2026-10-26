@@ -25,6 +25,7 @@ pub enum Command {
     DownloadNow,
     StopDownload,
     Remove,
+    DeleteFile,
     Redownload,
     UpdateLink,
     CopyLink,
@@ -93,6 +94,7 @@ impl Command {
         Command::DownloadNow,
         Command::StopDownload,
         Command::Remove,
+        Command::DeleteFile,
         Command::Redownload,
         Command::UpdateLink,
         Command::CopyLink,
@@ -158,6 +160,7 @@ impl Command {
             Command::DownloadNow => "file.download_now",
             Command::StopDownload => "file.stop_download",
             Command::Remove => "file.remove",
+            Command::DeleteFile => "file.delete_file",
             Command::Redownload => "file.redownload",
             Command::UpdateLink => "file.update_link",
             Command::CopyLink => "file.copy_link",
@@ -224,6 +227,7 @@ impl Command {
                 | Command::Export
                 | Command::SiteFiles
                 | Command::UpdateLink
+                | Command::DeleteFile
                 | Command::MoveToQueue
                 | Command::Properties
                 | Command::MoveRename
@@ -265,6 +269,7 @@ impl Command {
             Command::DownloadNow => "Resume download",
             Command::StopDownload => "Stop download",
             Command::Remove => "Remove",
+            Command::DeleteFile => "Delete file",
             Command::Redownload => "Redownload",
             Command::UpdateLink => "Update download link",
             Command::CopyLink => "Copy link",

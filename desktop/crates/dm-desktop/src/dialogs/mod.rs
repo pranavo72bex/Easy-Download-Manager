@@ -510,6 +510,9 @@ pub struct Dialogs {
     pub confirm_remove: Option<Vec<Id>>,
     /// The Remove question's "Also delete the file": off each time it asks.
     pub remove_files: bool,
+    /// The question is Delete file's: the file goes to the Recycle Bin or
+    /// the Trash, and the row with it.
+    pub deleting_files: bool,
     /// The Remove question's title as last drawn, in English, for the
     /// control protocol: it depends on what is being removed.
     pub remove_title: &'static str,

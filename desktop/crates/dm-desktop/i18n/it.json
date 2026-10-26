@@ -664,5 +664,10 @@
  "Small": "Piccolo",
  "Medium": "Medio",
  "Large": "Grande",
- "Sounds": "Suoni"
+ "Sounds": "Suoni",
+ "Calculating…": "Calcolo in corso…",
+ "Removed {} download from the list.||Removed {} downloads from the list.": "{} download rimosso dall'elenco.||{} download rimossi dall'elenco.",
+ "Undo": "Annulla",
+ "Put back {} download.||Put back {} downloads.": "{} download ripristinato.||{} download ripristinati.",
+ "Delete file": "Elimina file"
 }

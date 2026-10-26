@@ -1892,3 +1892,18 @@ in Options › Browser. The 404 text was reworded for a person (not the
 server's words) in all thirteen catalogs; the other plain-wording rows stay
 open (gaps row 9) since each is a string in every catalog.
 
+## 2026-10-26: Remove from the list asks nothing for a finished download
+
+The standards separate "Remove from list" (safe, no prompt, Undo for five
+seconds) from "Delete file" (a question, the Recycle Bin, never permanent).
+A finished row's removal loses nothing, so `Remove` now takes it off at once
+and the queue keeps its snapshot (`Queue::finished_rows`) for `put_back`,
+which restores it in its place; Undo is a link in the status bar for five
+seconds, not a toast with its own window. An unfinished row still asks: its
+fetched bytes go with it and cannot be put back. `Delete file` reuses the
+removal question with the file ticked, and `Platform::trash` (the `trash`
+crate on a desktop, a plain delete in the tests) moves the file out instead of
+erasing it. Dropped: undo for an unfinished row, which would mean keeping its
+parts folder for five seconds and the disk it holds. The new dependency,
+`trash` 5.2.9, is the one crate for the three systems' recycle bins.
+

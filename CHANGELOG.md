@@ -5,6 +5,10 @@ the browser extension (`v*` tags) are versioned separately.
 
 ## Unreleased
 
+- A finished download taken off the list leaves at once, with no question (its file stays), and Undo in the status bar puts it back where it was for five seconds. Deleting the file is its own command, File › Delete file, which asks and moves the file to the Recycle Bin or the Trash, not erasing it.
+- Several links pasted into Add URL are one batch in Download details, in place of "Add one at a time".
+- A double-click opens a finished file on a new install (it showed Properties); an unfinished download still shows Properties.
+- A running download of known size with no rate yet says "Calculating…" in Time left.
 - Dialogs' fields, drop-downs and buttons are 32 points tall, the Fluent 2 standard control height, in place of 24.
 - A download the browser handed over and dm waits to ask about (Download details, a page's links, "Download again") brings dm's window forward, so it is not left behind another window or in the tray as if lost.
 - A link that gives "404" now says "this link no longer works", in all thirteen languages, in place of "the server has no file at this address".

@@ -24,6 +24,13 @@ impl DmApp {
                         .iter()
                         .all(|r| !matches!(r.state, State::Running | State::Queued))
             }
+            // A finished download's file, which only a settled row has.
+            Command::DeleteFile => {
+                any(|r| r.state == State::Completed)
+                    && targets
+                        .iter()
+                        .all(|r| !matches!(r.state, State::Running | State::Queued))
+            }
             Command::MoveToQueue | Command::Properties => !targets.is_empty(),
             // Only where there is something to fetch again: a row that has
             // fetched nothing yet would only start.
@@ -212,12 +219,21 @@ impl DmApp {
                 // unfinished download's fetched bytes go with it, and a
                 // finished one leaves the list.
                 // Headless, with nobody to ask, finished rows go as before.
+                // A finished download leaves the list without a question, as
+                // nothing is lost (its file stays) and a slip can be undone
+                // for a few seconds; Delete file is the one that asks.
                 let ids: Vec<Id> = targets.iter().map(|r| r.id).collect();
-                if self.headless && targets.iter().all(|r| r.state == State::Completed) {
-                    self.remove_now(&ids);
+                if targets.iter().all(|r| r.state == State::Completed) {
+                    self.remove_finished_with_undo(&ids);
                 } else {
                     self.dialogs.confirm_remove = Some(ids);
                 }
+            }
+            Command::DeleteFile => {
+                let ids: Vec<Id> = targets.iter().map(|r| r.id).collect();
+                self.dialogs.remove_files = true;
+                self.dialogs.deleting_files = true;
+                self.dialogs.confirm_remove = Some(ids);
             }
             Command::Redownload => {
                 for row in &targets {

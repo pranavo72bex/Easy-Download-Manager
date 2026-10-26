@@ -664,5 +664,10 @@
  "Small": "Küçük",
  "Medium": "Orta",
  "Large": "Büyük",
- "Sounds": "Sesler"
+ "Sounds": "Sesler",
+ "Calculating…": "Hesaplanıyor…",
+ "Removed {} download from the list.||Removed {} downloads from the list.": "{} indirme listeden kaldırıldı.",
+ "Undo": "Geri al",
+ "Put back {} download.||Put back {} downloads.": "{} indirme geri alındı.",
+ "Delete file": "Dosyayı sil"
 }

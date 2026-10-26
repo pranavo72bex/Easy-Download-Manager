@@ -659,16 +659,17 @@ fn the_delete_key_asks_and_the_limiter_takes_enter() {
     select(&mut harness, "file.zip");
     harness.key_press(egui::Key::Delete);
     harness.run_steps(3);
-    assert_eq!(harness.state().rows().len(), 1, "Delete removed it at once");
-    assert!(harness.query_by_label("Remove from the list").is_some());
-    click(&mut harness, "Keep it");
+    // A finished download leaves the list without a question (its file
+    // stays), with Undo for a few seconds.
+    assert!(harness.state().rows().is_empty(), "Delete asked first");
+    assert!(harness.state().dialogs.confirm_remove.is_none());
+    click(&mut harness, "Undo");
+    assert_eq!(harness.state().rows().len(), 1, "Undo did not put it back");
     click(&mut harness, "Remove");
     assert!(
-        harness.state().dialogs.confirm_remove.is_some(),
-        "the toolbar's Delete asks the same"
+        harness.state().rows().is_empty(),
+        "the toolbar's Remove asks, where Delete does not"
     );
-    click(&mut harness, "Remove it");
-    assert!(harness.state().rows().is_empty());
 
     harness.state_mut().run(Command::SpeedLimiterSettings);
     harness.run_steps(3);

@@ -43,6 +43,11 @@ pub trait Platform: Send + Sync {
             report(e);
         }
     }
+    /// Moves a file to the Recycle Bin or the Trash, so a deleted download can
+    /// be got back. A platform with none deletes it.
+    fn trash(&self, path: &str) -> Result<(), String> {
+        std::fs::remove_file(path).map_err(|e| e.to_string())
+    }
     /// Plays the system's short sound for a finished download.
     fn chime(&self);
     /// Plays the system's short sound for a failed download. The finish's
@@ -198,6 +203,16 @@ impl Backend {
 
     pub fn remove(&self, id: Id) {
         self.block_on(self.queue.remove(id));
+    }
+
+    /// The finished rows among `ids` as they stand, to put back.
+    pub fn finished_rows(&self, ids: &[Id]) -> Vec<(usize, Entry)> {
+        self.block_on(self.queue.finished_rows(ids))
+    }
+
+    /// Rows taken off the list put back where they were.
+    pub fn put_back(&self, rows: Vec<(usize, Entry)>) {
+        self.block_on(self.queue.put_back(rows));
     }
 
     /// Several rows taken out with one save of the queue.

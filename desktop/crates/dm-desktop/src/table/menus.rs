@@ -27,6 +27,7 @@ pub(super) fn row_menu(app: &mut DmApp, ui: &mut egui::Ui) {
     menu_item(app, ui, Command::UpdateLink, t("Update download link"));
     menu_item(app, ui, Command::CopyLink, t("Copy link"));
     menu_item(app, ui, Command::Remove, t("Remove"));
+    menu_item(app, ui, Command::DeleteFile, Command::DeleteFile.title());
     ui.separator();
     menu_item(app, ui, Command::MoveToQueue, t("Move to queue"));
     menu_item(

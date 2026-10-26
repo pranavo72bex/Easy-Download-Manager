@@ -664,5 +664,10 @@
  "Small": "Klein",
  "Medium": "Gemiddeld",
  "Large": "Groot",
- "Sounds": "Geluiden"
+ "Sounds": "Geluiden",
+ "Calculating…": "Berekenen…",
+ "Removed {} download from the list.||Removed {} downloads from the list.": "{} download uit de lijst verwijderd.||{} downloads uit de lijst verwijderd.",
+ "Undo": "Ongedaan maken",
+ "Put back {} download.||Put back {} downloads.": "{} download hersteld.||{} downloads hersteld.",
+ "Delete file": "Bestand verwijderen"
 }

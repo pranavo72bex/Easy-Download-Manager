@@ -664,5 +664,10 @@
  "Small": "小",
  "Medium": "中",
  "Large": "大",
- "Sounds": "サウンド"
+ "Sounds": "サウンド",
+ "Calculating…": "計算中…",
+ "Removed {} download from the list.||Removed {} downloads from the list.": "{} 件のダウンロードをリストから削除しました。",
+ "Undo": "元に戻す",
+ "Put back {} download.||Put back {} downloads.": "{} 件のダウンロードを元に戻しました。",
+ "Delete file": "ファイルを削除"
 }

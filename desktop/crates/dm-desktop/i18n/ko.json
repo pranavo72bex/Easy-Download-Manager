@@ -664,5 +664,10 @@
  "Small": "작게",
  "Medium": "보통",
  "Large": "크게",
- "Sounds": "소리"
+ "Sounds": "소리",
+ "Calculating…": "계산 중…",
+ "Removed {} download from the list.||Removed {} downloads from the list.": "다운로드 {}개를 목록에서 제거했습니다.",
+ "Undo": "실행 취소",
+ "Put back {} download.||Put back {} downloads.": "다운로드 {}개를 복원했습니다.",
+ "Delete file": "파일 삭제"
 }

@@ -625,6 +625,42 @@ impl DmApp {
         self.refresh();
     }
 
+    /// Takes finished rows off the list with no question, since their files
+    /// stay where they were saved, and keeps them for a few seconds so Undo
+    /// can put them back.
+    pub fn remove_finished_with_undo(&mut self, ids: &[Id]) {
+        let rows = self.backend.finished_rows(ids);
+        self.remove_now(ids);
+        if !rows.is_empty() {
+            self.said = crate::i18n::Said::counting(
+                "Removed {} download from the list.||Removed {} downloads from the list.",
+                rows.len() as u64,
+                &[&rows.len()],
+            );
+            self.undo_remove = Some((Instant::now(), rows));
+        }
+    }
+
+    /// Puts back what was just taken off the list, if it is still in time.
+    pub fn undo_remove(&mut self) {
+        let Some((at, rows)) = self.undo_remove.take() else {
+            return;
+        };
+        if at.elapsed() >= UNDO_FOR || rows.is_empty() {
+            return;
+        }
+        let ids: Vec<Id> = rows.iter().map(|(_, e)| e.id).collect();
+        let n = rows.len();
+        self.backend.put_back(rows);
+        self.refresh();
+        self.selected = ids.into_iter().collect();
+        self.said = crate::i18n::Said::counting(
+            "Put back {} download.||Put back {} downloads.",
+            n as u64,
+            &[&n],
+        );
+    }
+
     /// Program › Exit, Cmd+Q and the tray's Quit: asked first while
     /// anything is downloading, since quitting stops it. A window with
     /// nobody to ask (headless) quits.

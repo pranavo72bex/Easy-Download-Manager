@@ -163,6 +163,7 @@ impl DmApp {
                     ui.separator();
                     for c in [
                         Command::Remove,
+                        Command::DeleteFile,
                         Command::Redownload,
                         Command::UpdateLink,
                         Command::CopyLink,

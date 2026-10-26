@@ -63,6 +63,12 @@ impl Platform for Desktop {
         .map_err(|e| e.to_string())
     }
 
+    /// To the Recycle Bin or the Trash, not erased: a file deleted by a
+    /// mistake can be put back.
+    fn trash(&self, path: &str) -> Result<(), String> {
+        trash::delete(path).map_err(|e| e.to_string())
+    }
+
     /// Posted from a thread of its own: on macOS, `show` waits on the
     /// system for about two seconds, and called from the window's thread
     /// every finished download froze the window that long (several at once,

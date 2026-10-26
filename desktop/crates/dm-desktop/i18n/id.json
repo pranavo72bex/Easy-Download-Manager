@@ -664,5 +664,10 @@
  "Small": "Kecil",
  "Medium": "Sedang",
  "Large": "Besar",
- "Sounds": "Suara"
+ "Sounds": "Suara",
+ "Calculating…": "Menghitung…",
+ "Removed {} download from the list.||Removed {} downloads from the list.": "{} unduhan dihapus dari daftar.",
+ "Undo": "Urungkan",
+ "Put back {} download.||Put back {} downloads.": "{} unduhan dikembalikan.",
+ "Delete file": "Hapus berkas"
 }
