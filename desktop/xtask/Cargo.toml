@@ -8,5 +8,3 @@ description = "dm's own checks: the scorecard, the layering of the crates, and t
 
 [dependencies]
 toml = "0.8"
-ring = "0.17"
-base64 = "0.22"

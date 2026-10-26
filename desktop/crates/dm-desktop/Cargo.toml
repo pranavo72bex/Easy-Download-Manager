@@ -28,8 +28,6 @@ memmap2 = "0.9"
 dm-core = { path = "../dm-core" }
 # Checks the ed25519 signature on the update manifest; already in the tree
 # through rustls.
-ring = "0.17"
-base64 = "0.22"
 dm-shell = { path = "../dm-shell" }
 eframe = { version = "0.37", default-features = false, features = ["default_fonts", "glow", "persistence", "wayland", "x11", "accesskit", "clipboard"] }
 # The emoji fonts 0.36 bundled (◀ ▶ and the like in menus and buttons),
@@ -157,7 +155,7 @@ tokio = { version = "1", features = ["full"] }
 # The installers: `cargo packager --release` from this directory.
 # What `cargo tauri build` made, without Tauri: a .app and .dmg on macOS, a
 # .deb and an AppImage on Linux, an NSIS installer on Windows. The update
-# check reads the release's own latest.json, signed by `cargo xtask sign-update`.
+# check reads the release's own latest.json.
 [package.metadata.packager]
 productName = "dm"
 identifier = "com.dm.desktop"

@@ -2086,3 +2086,12 @@ over the dialog being typed into (`show_complete` off in the check's own
 settings). 16 of 16 runs pass. The app was not at fault: a person's pointer
 makes frames all the time.
 
+
+## 2026-10-27: Update-manifest signing removed
+
+The 2026-10-25 ed25519 signing of `latest.json` needed a private key kept as
+the repository secret `UPDATE_SIGNING_KEY`; the owner has none and will not
+set one up for now, so the 0.8.0 release job failed at the signing step. The
+signing step, `cargo xtask sign-update`/`update-keygen` and the check in
+`update.rs` are removed; the installer is still checked against the SHA-256
+in the manifest. It is in git history (commit `89a66d6`) if wanted again.

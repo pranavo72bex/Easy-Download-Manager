@@ -60,8 +60,7 @@ This release also carries what was prepared as 0.6.0 and 0.7.0, which were never
   mark, so Gatekeeper checks it; a saved site login is sent only over https
   (plain http only to this computer) and only to its exact host, or to
   subdomains too when saved with a leading dot (`.example.com`); the update
-  check refuses a `latest.json` that lacks a good ed25519 signature
-  (`latest.json.sig`).
+  check reads the release's `latest.json` and checks the installer against its digest.
 - DASH streams (`.mpd`) are read and joined by dm itself: the picture and
   sound are fetched, with byte ranges where the manifest cuts a file so, and
   joined into one MP4 or WebM without a re-encode. A DASH stream no longer

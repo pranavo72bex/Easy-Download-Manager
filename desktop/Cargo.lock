@@ -1736,7 +1736,6 @@ dependencies = [
  "arboard",
  "auto-launch",
  "axum 0.7.9",
- "base64 0.22.1",
  "chrono",
  "dm-core",
  "dm-protocol",
@@ -1759,7 +1758,6 @@ dependencies = [
  "proptest",
  "raw-window-handle",
  "rfd",
- "ring",
  "ron",
  "serde_json",
  "sha2 0.11.0",
@@ -8577,8 +8575,6 @@ checksum = "e450f9b2ed1dff33c94c12589a87338689467b9c4f5d8a5710bd09a847d2c8a7"
 name = "xtask"
 version = "0.8.0"
 dependencies = [
- "base64 0.22.1",
- "ring",
  "toml 0.8.2",
 ]
 

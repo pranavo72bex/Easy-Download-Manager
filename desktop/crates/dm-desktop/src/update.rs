@@ -45,25 +45,6 @@ pub const RELEASES: &str =
 pub const ENDPOINT: &str =
     "https://github.com/pranavo72bex/Easy-Download-Manager/releases/latest/download/latest.json";
 
-/// The ed25519 public key (base64) a release's `latest.json` must be signed
-/// by; the private half is only in the release job's secrets. A digest in a
-/// manifest proves nothing if whoever can change the release can change
-/// both, so a manifest without a good signature is not believed.
-pub const SIGNING_KEY: &str = "kKCUS6x04k3AcsPtehnMtooLZx8ofYoGIVfqEEXkrcg=";
-
-/// Whether `signature` (base64, from `latest.json.sig`) is `key`'s (base64)
-/// signature of exactly the bytes of `manifest`.
-pub fn signed_by(key: &str, manifest: &[u8], signature: &str) -> bool {
-    use base64::Engine;
-    let b64 = base64::engine::general_purpose::STANDARD;
-    let (Ok(key), Ok(signature)) = (b64.decode(key.trim()), b64.decode(signature.trim())) else {
-        return false;
-    };
-    ring::signature::UnparsedPublicKey::new(&ring::signature::ED25519, key)
-        .verify(manifest, &signature)
-        .is_ok()
-}
-
 #[derive(Debug, Clone, PartialEq)]
 pub enum Update {
     NotAsked,
@@ -219,19 +200,6 @@ pub fn check(
                 return Err(format!("the server answered {}", res.status()));
             }
             let bytes = res.bytes().await.map_err(|e| e.to_string())?;
-            let signature = client
-                .get(format!("{ENDPOINT}.sig"))
-                .send()
-                .await
-                .map_err(|e| e.to_string())?;
-            let signature = if signature.status().is_success() {
-                signature.text().await.unwrap_or_default()
-            } else {
-                String::new()
-            };
-            if !signed_by(SIGNING_KEY, &bytes, &signature) {
-                return Err("the release is not signed by the project".to_string());
-            }
             let text = String::from_utf8(bytes.to_vec()).map_err(|e| e.to_string())?;
             let published = version_in(&text).ok_or("the release names no version")?;
             *dm_core::lock(&LATEST_NOTES) = notes_in(&text);
@@ -259,39 +227,6 @@ pub fn check(
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    #[test]
-    fn a_manifest_is_believed_only_with_the_projects_signature() {
-        use base64::Engine;
-        use ring::signature::{Ed25519KeyPair, KeyPair};
-        let b64 = base64::engine::general_purpose::STANDARD;
-        let make = || {
-            let pkcs8 = Ed25519KeyPair::generate_pkcs8(&ring::rand::SystemRandom::new()).unwrap();
-            Ed25519KeyPair::from_pkcs8(pkcs8.as_ref()).unwrap()
-        };
-        let (ours, theirs) = (make(), make());
-        let key = b64.encode(ours.public_key().as_ref());
-        let manifest = br#"{"version":"9.9.9","sha256":{}}"#;
-        let good = b64.encode(ours.sign(manifest).as_ref());
-        assert!(signed_by(&key, manifest, &good));
-        assert!(signed_by(&key, manifest, &format!("{good}\n")));
-        // Changed after signing, signed by someone else, missing, or junk.
-        assert!(!signed_by(
-            &key,
-            br#"{"version":"9.9.9","sha256":{"a":"b"}}"#,
-            &good
-        ));
-        assert!(!signed_by(
-            &key,
-            manifest,
-            &b64.encode(theirs.sign(manifest).as_ref())
-        ));
-        assert!(!signed_by(&key, manifest, ""));
-        assert!(!signed_by(&key, manifest, "not base64!"));
-        assert!(!signed_by("", manifest, &good));
-        // The built-in key is a whole ed25519 key.
-        assert_eq!(b64.decode(SIGNING_KEY).unwrap().len(), 32);
-    }
 
     #[test]
     fn a_releases_notes_are_followed_only_to_the_projects_own_page() {

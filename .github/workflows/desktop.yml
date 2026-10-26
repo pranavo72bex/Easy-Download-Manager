@@ -400,16 +400,6 @@ jobs:
             > installers/latest.json
           cat installers/latest.json
 
-      # dm believes a manifest only with this signature (update.rs). The
-      # private key is the repository secret UPDATE_SIGNING_KEY, from
-      # `cargo xtask update-keygen`; without it this step fails and nothing
-      # is drafted.
-      - name: Sign the update manifest
-        working-directory: desktop
-        env:
-          UPDATE_SIGNING_KEY: ${{ secrets.UPDATE_SIGNING_KEY }}
-        run: cargo xtask sign-update ../installers/latest.json
-
       - uses: softprops/action-gh-release@3bb12739c298aeb8a4eeaf626c5b8d85266b0e65 # v2
         with:
           draft: true
