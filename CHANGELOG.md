@@ -5,6 +5,10 @@ the browser extension (`v*` tags) are versioned separately.
 
 ## Unreleased
 
+## App 0.8.1
+
+- The update check no longer asks for a signature on `latest.json` (no signing key is held); the installer is still checked against its SHA-256. 0.8.0 was never released; its changes are below.
+
 ## App 0.8.0
 
 - The search box in the menu bar sits on the menus' own line, its hint and magnifier on its middle (they were drawn high, with the box grown downward).
