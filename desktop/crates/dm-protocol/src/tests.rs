@@ -177,6 +177,7 @@ fn the_rules_cross_as_written_and_read_from_either_spelling() {
         rules: CatchRules {
             enabled: false,
             extensions: vec!["zip".into()],
+            defaults_version: 1,
             min_size_kb: 5,
             skip_hosts: vec!["e.com".into()],
             keep_key: "ctrl".into(),

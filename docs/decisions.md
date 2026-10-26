@@ -1843,3 +1843,18 @@ asked twice:
 Already in place and unchanged: categories, Filter and sort, drag in and out,
 the clipboard bar, the context menu and extensions, the tray, the scheduler.
 
+## 2026-10-26: A saved list of caught types is brought up to the defaults once
+
+A person who never opened Options kept the list of file types an older version
+had saved, and documents (.doc, .docx, .xls, .xlsx and others), added to the
+defaults later, stayed in the browser for good; a saved value always beats a
+new default. `catch.defaultsVersion` (0 when absent) says which edition of
+`DEFAULT_EXTENSIONS` a list has been brought up to; below the current one, the
+types it lacks are added once, in the app as it loads settings and in the host
+the browser asks (`CatchRules::bring_up_to_date`). Dropped: adding the defaults
+on every start, which would put back a type a person took out; and telling an
+untouched list from an edited one, which the file cannot say. An empty list is
+every type and is not touched. The same applies to the two "ask first"
+settings, which are saved as they were: an older file keeps asking before a
+caught download starts, until the person turns it off in Options.
+

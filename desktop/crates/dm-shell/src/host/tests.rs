@@ -570,7 +570,7 @@ fn the_extension_is_sent_the_catch_rules_in_the_apps_settings() {
 
     std::fs::write(
         dir.path().join("settings.json"),
-        r#"{"connections":4,"catch":{"enabled":true,"extensions":["bin"],"skipHosts":["e.com"]}}"#,
+        r#"{"connections":4,"catch":{"enabled":true,"extensions":["bin"],"defaultsVersion":1,"skipHosts":["e.com"]}}"#,
     )
     .unwrap();
     let (reply, _) = ask(dir.path(), asked.clone(), true, Ok(()));
@@ -1043,4 +1043,19 @@ fn a_page_read_a_moment_ago_is_not_read_again_and_an_old_reading_is_not_believed
     assert!(recalled_formats(home.path(), &first, 2001).is_none());
     let last = formats_key(&format!("https://v.example/{}", FORMATS_KEPT_PAGES + 4), "");
     assert!(recalled_formats(home.path(), &last, 2001).is_some());
+}
+
+/// The browser asks for the rules without the app: a list saved before
+/// documents joined the defaults reaches it with them.
+#[test]
+fn the_rules_the_browser_asks_for_have_the_new_default_types() {
+    let home = tempfile::tempdir().unwrap();
+    std::fs::write(
+        home.path().join("settings.json"),
+        r#"{"catch": {"extensions": ["zip"]}}"#,
+    )
+    .unwrap();
+    let rules = catch_rules(home.path());
+    assert!(rules.extensions.iter().any(|k| k == "docx"));
+    assert!(rules.extensions.iter().any(|k| k == "zip"));
 }

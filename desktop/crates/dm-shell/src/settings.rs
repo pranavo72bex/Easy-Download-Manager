@@ -471,6 +471,7 @@ impl Settings {
         if !["properties", "open", "folder"].contains(&self.double_click.as_str()) {
             self.double_click = "properties".into();
         }
+        self.catch.bring_up_to_date();
         // The click keys are one of those the extension knows, or (to take)
         // none; anything else is what they ship as.
         if !dm_protocol::CLICK_KEYS.contains(&self.catch.keep_key.as_str()) {

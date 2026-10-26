@@ -280,7 +280,11 @@ fn keep_pipes_from_children() {}
 /// did so. An unreadable or missing file means the defaults, which is what
 /// the app itself would be running with.
 pub fn catch_rules(home: &Path) -> CatchRules {
-    saved(home).catch
+    let mut rules = saved(home).catch;
+    // The app brings a saved list up to date as it starts; the browser asks
+    // for it whether or not the app has.
+    rules.bring_up_to_date();
+    rules
 }
 
 pub(crate) fn saved(home: &Path) -> crate::Settings {

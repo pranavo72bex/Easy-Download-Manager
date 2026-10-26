@@ -688,3 +688,40 @@ fn the_new_link_offer_is_on_for_an_old_file_and_kept_when_turned_off() {
     let back: Settings = serde_json::from_str(&text).unwrap();
     assert!(!back.offer_new_link);
 }
+
+fn saved_with_catch(extensions: &str, version: &str) -> Settings {
+    let text = format!(r#"{{"catch": {{"extensions": {extensions}{version}}}}}"#);
+    serde_json::from_str::<Settings>(&text).unwrap().clamped()
+}
+
+/// A catch list saved before documents joined the defaults has them now, so
+/// a .docx is not left to the browser for good; nothing the person had is
+/// lost.
+#[test]
+fn a_catch_list_saved_before_new_default_types_gets_them_once() {
+    let settings = saved_with_catch(r#"["zip", "xyz"]"#, "");
+    for kind in ["zip", "xyz", "docx", "xlsx", "dmg"] {
+        assert!(
+            settings.catch.extensions.iter().any(|k| k == kind),
+            "{kind}"
+        );
+    }
+    assert_eq!(
+        settings.catch.defaults_version,
+        dm_protocol::CATCH_DEFAULTS_VERSION
+    );
+}
+
+/// Once brought up to date, a type taken out stays out; and a list that
+/// means every type (empty) is not turned into a short one.
+#[test]
+fn a_catch_list_brought_up_to_date_is_left_as_the_person_made_it() {
+    let version = format!(
+        r#", "defaultsVersion": {}"#,
+        dm_protocol::CATCH_DEFAULTS_VERSION
+    );
+    let settings = saved_with_catch(r#"["zip"]"#, &version);
+    assert_eq!(settings.catch.extensions, ["zip"]);
+    let every = saved_with_catch("[]", "");
+    assert!(every.catch.extensions.is_empty());
+}

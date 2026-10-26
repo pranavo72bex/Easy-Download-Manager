@@ -451,6 +451,13 @@ pub const DEFAULT_EXTENSIONS: &[&str] = &[
     "torrent",
 ];
 
+/// The edition of [`DEFAULT_EXTENSIONS`] now: raised when types are added.
+pub const CATCH_DEFAULTS_VERSION: u32 = 1;
+
+fn unversioned() -> u32 {
+    0
+}
+
 /// Which downloads the app takes from the browser. Kept in the app's settings
 /// file as `catch`, and sent to the extension when it asks.
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
@@ -461,6 +468,12 @@ pub struct CatchRules {
     pub enabled: bool,
     /// File types, without the dot. Empty means every type.
     pub extensions: Vec<String>,
+    /// Which edition of [`DEFAULT_EXTENSIONS`] `extensions` has been brought
+    /// up to. A saved list does not pick up the types added to the defaults
+    /// since it was saved (documents, in one edition) unless the app adds
+    /// them once; zero is a list saved before this field existed.
+    #[serde(alias = "defaults_version", default = "unversioned")]
+    pub defaults_version: u32,
     /// Smaller than this stays with the browser. Zero is no floor. An unknown
     /// size is not a reason to leave a download.
     #[serde(alias = "min_size_kb")]
@@ -522,11 +535,31 @@ fn listed(list: &[String], urls: &[&str]) -> bool {
 /// The keys a click can be held with, as the rules name them.
 pub const CLICK_KEYS: [&str; 3] = ["alt", "shift", "ctrl"];
 
+impl CatchRules {
+    /// A list saved before some types joined the defaults gets them once: a
+    /// person who never touched the list otherwise kept documents in the
+    /// browser for good. An empty list is every type and is left as it is.
+    pub fn bring_up_to_date(&mut self) {
+        if self.defaults_version >= CATCH_DEFAULTS_VERSION {
+            return;
+        }
+        if !self.extensions.is_empty() {
+            for kind in DEFAULT_EXTENSIONS {
+                if !self.extensions.iter().any(|have| have == kind) {
+                    self.extensions.push((*kind).to_string());
+                }
+            }
+        }
+        self.defaults_version = CATCH_DEFAULTS_VERSION;
+    }
+}
+
 impl Default for CatchRules {
     fn default() -> Self {
         CatchRules {
             enabled: true,
             extensions: DEFAULT_EXTENSIONS.iter().map(|s| s.to_string()).collect(),
+            defaults_version: CATCH_DEFAULTS_VERSION,
             min_size_kb: 0,
             skip_hosts: Vec::new(),
             keep_key: "alt".into(),
