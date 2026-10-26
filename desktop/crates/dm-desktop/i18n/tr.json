@@ -692,5 +692,7 @@
  "Keep running in the tray": "Sistem tepsisinde çalışmaya devam et",
  "This is a big download. Downloads › Scheduler can run it at night, when you are not using the computer.": "Bu büyük bir indirme. İndirmeler › Zamanlayıcı bunu bilgisayarı kullanmadığınız gece çalıştırabilir.",
  "The page the link was on.": "Bağlantının bulunduğu sayfa.",
- "A fingerprint of the file. If a site gives you one, you can paste it below to check the file is whole.": "Dosyanın parmak izi. Bir site size bir tane veriyorsa, dosyanın eksiksiz olduğunu doğrulamak için aşağıya yapıştırın."
+ "A fingerprint of the file. If a site gives you one, you can paste it below to check the file is whole.": "Dosyanın parmak izi. Bir site size bir tane veriyorsa, dosyanın eksiksiz olduğunu doğrulamak için aşağıya yapıştırın.",
+ "Open downloads folder": "İndirmeler klasörünü aç",
+ "next try in {}": "sonraki deneme {} sonra"
 }

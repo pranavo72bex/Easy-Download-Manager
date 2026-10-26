@@ -1414,6 +1414,21 @@ fn a_retry_says_its_attempt() {
             .first()
             .is_some_and(|r| dm_desktop::app::status_of(r) == "Connection dropped (retry 2 of 5)")
     });
+    // It says when it tries again, not only that it will.
+    let mut said = false;
+    for _ in 0..40 {
+        if harness
+            .query_all_by_label_contains("next try in")
+            .next()
+            .is_some()
+        {
+            said = true;
+            break;
+        }
+        std::thread::sleep(std::time::Duration::from_millis(25));
+        harness.run_steps(1);
+    }
+    assert!(said, "a retry did not say when it would try again");
     // A new address is taken while it retries, and finishes it (the field was greyed as for a running download).
     let id = harness.state().rows()[0].id;
     harness.state_mut().selected = [id].into();

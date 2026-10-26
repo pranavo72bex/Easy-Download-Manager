@@ -376,6 +376,8 @@ pub enum Update {
         of: u32,
         /// What failed, in the engine's words, so the row can say why.
         why: String,
+        /// How long it waits before the next attempt.
+        wait: std::time::Duration,
     },
 }
 
@@ -445,10 +447,15 @@ async fn fetch_reporting(
     // The probe is as worth retrying as anything after it: a server that is
     // briefly busy should not fail a download before it has begun. Each
     // retry is said, as a range's is.
-    let retrying = |attempt, of, error: &Error| {
+    let retrying = |attempt, of, error: &Error, wait| {
         if let Some(tx) = &report {
             let why = error.to_string();
-            let _ = tx.try_send(Update::Retrying { attempt, of, why });
+            let _ = tx.try_send(Update::Retrying {
+                attempt,
+                of,
+                why,
+                wait,
+            });
         }
     };
     let probed = retry::run_up_to_telling(&options.control, options.tries(), retrying, || {

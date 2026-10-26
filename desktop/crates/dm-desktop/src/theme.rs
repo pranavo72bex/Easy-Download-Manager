@@ -23,12 +23,24 @@ pub enum Theme {
     Dark,
     /// A classic light Windows window.
     Classic,
+    /// Windows' High Contrast, in the colours the system sets: the look
+    /// whatever was chosen while one is on.
+    HighContrast(crate::contrast::Palette),
 }
 
 impl Theme {
     /// The theme a settings word chooses. "system" (and anything unknown)
     /// follows the computer: dark when it is dark, else light.
-    pub fn resolve(word: &str, system_dark: bool) -> Theme {
+    pub fn resolve(
+        word: &str,
+        system_dark: bool,
+        high_contrast: Option<crate::contrast::Palette>,
+    ) -> Theme {
+        // A person who turned High Contrast on has asked every program for
+        // it, whichever look this one was set to.
+        if let Some(palette) = high_contrast {
+            return Theme::HighContrast(palette);
+        }
         match word.trim() {
             "light" => Theme::Light,
             "dark" => Theme::Dark,
@@ -40,6 +52,7 @@ impl Theme {
 
     pub fn tokens(self) -> Tokens {
         match self {
+            Theme::HighContrast(palette) => high_contrast_tokens(&palette),
             // The modern look, light: WinUI 3's light brushes (Fluent 2 as
             // Windows draws it), each laid over the surface it sits on.
             Theme::Light => Tokens {
@@ -108,6 +121,7 @@ impl Theme {
                 // ControlCornerRadius and OverlayCornerRadius.
                 radius: 4,
                 card_radius: 8,
+                high_contrast: false,
             },
             // The modern look, dark: WinUI 3's dark brushes.
             Theme::Dark => Tokens {
@@ -149,6 +163,7 @@ impl Theme {
                 coloured_tools: false,
                 radius: 4,
                 card_radius: 8,
+                high_contrast: false,
             },
             // the classic look: a plain light desktop palette.
             Theme::Classic => Tokens {
@@ -190,6 +205,7 @@ impl Theme {
                 coloured_tools: true,
                 radius: 2,
                 card_radius: 4,
+                high_contrast: false,
             },
         }
     }
@@ -200,6 +216,56 @@ impl Tokens {
     /// makes stand out on its own list.
     pub fn progress(&self) -> Color32 {
         self.brand
+    }
+}
+
+/// The look in the system's High Contrast colours: every surface the window
+/// colour, every word and line the text colour, the selected the highlight
+/// with its own text, a link the hot-light colour. Nothing is told by colour
+/// alone (a state has its glyph and its words), nothing is see-through, and
+/// the corners are square, as Windows draws its own.
+fn high_contrast_tokens(p: &crate::contrast::Palette) -> Tokens {
+    let c = |[r, g, b]: crate::contrast::Rgb| Color32::from_rgb(r, g, b);
+    Tokens {
+        dark: p.is_dark(),
+        modern: true,
+        frame: c(p.window),
+        pane: c(p.window),
+        list: c(p.window),
+        header: c(p.window),
+        dialog: c(p.window),
+        border: c(p.window_text),
+        stroke: c(p.window_text),
+        edge: c(p.window_text),
+        text: c(p.window_text),
+        text2: c(p.window_text),
+        weak: c(p.window_text),
+        disabled: c(p.gray_text),
+        selection: c(p.highlight),
+        selection_text: c(p.highlight_text),
+        row_selected: c(p.highlight),
+        row_selected_text: c(p.highlight_text),
+        focus_outer: c(p.window_text),
+        focus_inner: c(p.window),
+        hover: c(p.highlight),
+        pressed: c(p.highlight),
+        control: c(p.button_face),
+        control_hover: c(p.highlight),
+        control_pressed: c(p.highlight),
+        accent: c(p.hotlight),
+        brand: c(p.highlight),
+        brand_hover: c(p.highlight),
+        brand_pressed: c(p.highlight),
+        on_brand: c(p.highlight_text),
+        text_selection: c(p.highlight),
+        error: c(p.window_text),
+        success: c(p.window_text),
+        warn: c(p.window_text),
+        folder: c(p.window_text),
+        coloured_tools: false,
+        radius: 0,
+        card_radius: 0,
+        high_contrast: true,
     }
 }
 
@@ -287,6 +353,9 @@ pub struct Tokens {
     pub coloured_tools: bool,
     pub radius: u8,
     pub card_radius: u8,
+    /// The system's High Contrast colours: nothing dims, nothing is laid
+    /// over a surface.
+    pub high_contrast: bool,
 }
 
 impl Tokens {
@@ -377,12 +446,16 @@ mod tests {
 
     #[test]
     fn the_default_look_is_modern_and_follows_the_computer() {
-        assert_eq!(Theme::resolve("system", false), Theme::Light);
-        assert_eq!(Theme::resolve("system", true), Theme::Dark);
-        assert_eq!(Theme::resolve("", true), Theme::Dark, "unknown is system");
-        assert_eq!(Theme::resolve("light", true), Theme::Light);
-        assert_eq!(Theme::resolve("dark", false), Theme::Dark);
-        assert_eq!(Theme::resolve("classic", true), Theme::Classic);
+        assert_eq!(Theme::resolve("system", false, None), Theme::Light);
+        assert_eq!(Theme::resolve("system", true, None), Theme::Dark);
+        assert_eq!(
+            Theme::resolve("", true, None),
+            Theme::Dark,
+            "unknown is system"
+        );
+        assert_eq!(Theme::resolve("light", true, None), Theme::Light);
+        assert_eq!(Theme::resolve("dark", false, None), Theme::Dark);
+        assert_eq!(Theme::resolve("classic", true, None), Theme::Classic);
     }
 
     /// A fill as it shows on `surface`: the subtle fills are see-through.
@@ -684,5 +757,54 @@ mod scroll_tests {
             style.foreground_color,
             "drawn in a fill the looks keep clear"
         );
+    }
+}
+
+#[cfg(test)]
+mod high_contrast_tests {
+    use super::*;
+    use crate::contrast::Palette;
+
+    #[test]
+    fn a_system_high_contrast_theme_is_the_look_whatever_was_chosen() {
+        for word in ["system", "light", "dark", "classic", ""] {
+            assert_eq!(
+                Theme::resolve(word, false, Some(Palette::BLACK)),
+                Theme::HighContrast(Palette::BLACK),
+                "{word}"
+            );
+        }
+        // A different scheme is a different look, so the window is drawn
+        // again when the person changes it.
+        assert_ne!(
+            Theme::HighContrast(Palette::BLACK),
+            Theme::HighContrast(Palette::WHITE)
+        );
+    }
+
+    /// Every word on every surface it is drawn on, in each scheme: at least
+    /// the 7:1 that High Contrast is for.
+    #[test]
+    fn the_high_contrast_looks_read_at_seven_to_one() {
+        for palette in [Palette::BLACK, Palette::WHITE] {
+            let t = Theme::HighContrast(palette).tokens();
+            for (name, words, ground) in [
+                ("text on the window", t.text, t.frame),
+                ("text on the list", t.text, t.list),
+                ("text on a dialog", t.text, t.dialog),
+                ("text on a button", t.text, t.control),
+                ("selected words", t.selection_text, t.selection),
+                ("a selected row", t.row_selected_text, t.row_selected),
+                ("words on the accent fill", t.on_brand, t.brand),
+                ("what is disabled", t.disabled, t.frame),
+                ("a link", t.accent, t.frame),
+                ("a line", t.stroke, t.frame),
+            ] {
+                let seen = contrast(words, ground);
+                assert!(seen >= 4.5, "{name}: {seen:.1}:1 in {palette:?}");
+            }
+            assert_eq!(t.radius, 0, "square corners");
+            assert!(t.frame.a() == 255, "nothing see-through");
+        }
     }
 }

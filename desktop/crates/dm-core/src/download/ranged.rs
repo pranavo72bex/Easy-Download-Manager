@@ -343,10 +343,15 @@ pub(super) async fn fetch_segment(
     // one that got further than the last is not progress toward the end.
     let on_disk = || if resumable { job.ledger(index) } else { 0 };
     // Said while it waits, so the row tells a retry from a stall.
-    let retrying = |attempt, of, error: &Error| {
+    let retrying = |attempt, of, error: &Error, wait| {
         if let Some(tx) = &job.report {
             let why = error.to_string();
-            let _ = tx.try_send(Update::Retrying { attempt, of, why });
+            let _ = tx.try_send(Update::Retrying {
+                attempt,
+                of,
+                why,
+                wait,
+            });
         }
     };
     /* A server that takes only so many connections at once answers the

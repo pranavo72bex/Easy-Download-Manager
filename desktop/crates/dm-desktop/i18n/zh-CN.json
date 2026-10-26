@@ -692,5 +692,7 @@
  "Keep running in the tray": "继续在托盘中运行",
  "This is a big download. Downloads › Scheduler can run it at night, when you are not using the computer.": "这是一个很大的下载。可在“下载 › 计划任务”中安排它在夜间、你不使用计算机时运行。",
  "The page the link was on.": "链接所在的页面。",
- "A fingerprint of the file. If a site gives you one, you can paste it below to check the file is whole.": "文件的指纹。如果网站提供了一个，可将它粘贴在下方，以确认文件完整。"
+ "A fingerprint of the file. If a site gives you one, you can paste it below to check the file is whole.": "文件的指纹。如果网站提供了一个，可将它粘贴在下方，以确认文件完整。",
+ "Open downloads folder": "打开下载文件夹",
+ "next try in {}": "{}后重试"
 }

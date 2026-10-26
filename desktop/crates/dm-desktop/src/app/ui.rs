@@ -54,7 +54,7 @@ impl DmApp {
             .options
             .as_ref()
             .map_or(self.applied.theme.as_str(), |d| d.draft.theme.as_str());
-        let theme = crate::theme::Theme::resolve(wanted, system_dark);
+        let theme = crate::theme::Theme::resolve(wanted, system_dark, crate::contrast::system());
         // Applied again once the embedded fonts are in force (a frame after
         // they are set), so headings take the semibold face.
         let ready = crate::theme::fonts_ready(&ctx);

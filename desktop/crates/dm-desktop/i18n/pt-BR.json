@@ -692,5 +692,7 @@
  "Keep running in the tray": "Continuar em execução na bandeja",
  "This is a big download. Downloads › Scheduler can run it at night, when you are not using the computer.": "Este é um download grande. Downloads › Agendador pode executá-lo à noite, quando você não estiver usando o computador.",
  "The page the link was on.": "A página em que o link estava.",
- "A fingerprint of the file. If a site gives you one, you can paste it below to check the file is whole.": "Uma impressão digital do arquivo. Se um site informar uma, cole-a abaixo para verificar se o arquivo está completo."
+ "A fingerprint of the file. If a site gives you one, you can paste it below to check the file is whole.": "Uma impressão digital do arquivo. Se um site informar uma, cole-a abaixo para verificar se o arquivo está completo.",
+ "Open downloads folder": "Abrir a pasta de downloads",
+ "next try in {}": "próxima tentativa em {}"
 }

@@ -661,7 +661,11 @@ pub fn show(app: &mut DmApp, ctx: &egui::Context) {
     // In the modern look every dialog that keeps the clicks to itself
     // does, as a ContentDialog lays SmokeFillColorDefault over its window.
     let tokens = crate::theme::Tokens::get(ctx);
-    let smoke = if tokens.modern {
+    let smoke = if tokens.high_contrast {
+        // Nothing dims in High Contrast: a grey laid over the window is a
+        // contrast the person turned the theme on to be rid of.
+        None
+    } else if tokens.modern {
         app.dialogs.modal().then_some(0x4d)
     } else {
         app.dialogs

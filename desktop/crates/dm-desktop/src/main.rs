@@ -156,6 +156,7 @@ follows them:
   --name NAME        save the next link as NAME
   --later            add the next link to the queue without starting it
   --start-queue      start the main queue
+  --new-download     open Add URL (what the taskbar's jump list does)
   --when-done WHAT   once the downloads are done: nothing, exit, sleep,
                      hibernate or shutdown (for this session)
 
@@ -296,6 +297,7 @@ fn main() {
     };
     // `--when-done`, for the window this launch starts to take up.
     shell::leave_when_done(&settings::home(), &handed);
+    shell::leave_new_download(&settings::home(), &handed);
 
     // Made before the signals are listened for, so one arriving during
     // startup still reaches the window once there is one.
@@ -552,6 +554,12 @@ fn main() {
         let has_tray = built.is_ok();
         let icon = built.ok().flatten();
         let mut app = DmApp::new(backend);
+        // The taskbar button's jump list (Windows): Add URL and the folder.
+        dm_desktop::jumplist::publish(
+            dm_desktop::i18n::t("Add URL"),
+            dm_desktop::i18n::t("Open downloads folder"),
+            &app.applied.download_dir,
+        );
         if let Some(port) = control {
             start_control(&mut app, port, ctx, assistants_only);
         }

@@ -16,13 +16,16 @@ pub fn apply(ctx: &Context, theme: Theme) {
 /// computer's), where it reads well.
 pub fn apply_with_accent(ctx: &Context, theme: Theme, accent: Option<crate::accent::Palette>) {
     fonts(ctx);
+    // High Contrast is the system's colours and no other: not the accent.
+    let high_contrast = matches!(theme, Theme::HighContrast(_));
     let mut t = match &accent {
-        Some(palette) => crate::accent::tokens(theme.tokens(), palette),
-        None => theme.tokens(),
+        Some(palette) if !high_contrast => crate::accent::tokens(theme.tokens(), palette),
+        _ => theme.tokens(),
     };
     // Under Mica the frame is clear and the backdrop is its colour; the
     // list, dialogs and fields stay solid to be read on.
-    if crate::chrome::mica() {
+    // (Not in High Contrast, which has no material.)
+    if crate::chrome::mica() && !high_contrast {
         t.frame = egui::Color32::TRANSPARENT;
     }
     let mut v = if t.dark {

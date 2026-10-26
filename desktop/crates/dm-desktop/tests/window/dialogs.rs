@@ -1873,3 +1873,35 @@ fn the_welcome_confirms_where_downloads_go_and_ends_with_done() {
     back.download_dir = was;
     harness.state_mut().apply_settings(back).unwrap();
 }
+
+/// `--new-download` (the taskbar jump list's New download), left in the inbox,
+/// brings the window forward with Add URL open; with nothing left, nothing
+/// opens.
+#[test]
+fn a_new_download_order_opens_add_url_and_brings_the_window_forward() {
+    let _file = settings_file();
+    let world = world();
+    let mut harness = world.harness();
+    harness.state_mut().take_new_download();
+    assert!(
+        harness.state().dialogs.add_url.is_none(),
+        "opened with no order"
+    );
+    let inbox = dm_shell::host::inbox(&dm_shell::settings::home());
+    std::fs::create_dir_all(&inbox).unwrap();
+    std::fs::write(inbox.join(dm_shell::shell::NEW_DOWNLOAD_FILE), b"").unwrap();
+    harness.state_mut().take_new_download();
+    harness.run_steps(3);
+    assert!(
+        harness.state().dialogs.add_url.is_some(),
+        "Add URL did not open"
+    );
+    assert!(
+        harness.state().show_asked,
+        "the window was not asked forward"
+    );
+    assert!(
+        !inbox.join(dm_shell::shell::NEW_DOWNLOAD_FILE).exists(),
+        "taken, so not again"
+    );
+}

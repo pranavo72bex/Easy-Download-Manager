@@ -258,7 +258,7 @@ struct Slot {
     /// The attempt a range of this run is on after a failure, and how many
     /// there may be (0 for no end), and what failed, until bytes arrive
     /// again. Not saved: it is about this run.
-    retrying: Option<(u32, u32, String)>,
+    retrying: Option<(u32, u32, String, std::time::Instant)>,
     /// This row's own speed limit (`Entry::speed_limit`), chained to the
     /// shared one while it runs, so a change reaches it at once.
     own_limit: crate::limit::Limiter,

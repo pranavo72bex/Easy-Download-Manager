@@ -89,11 +89,29 @@ thread_local! {
     /// beside the rows, which the engine hands over without it.
     static RETRYING: std::cell::RefCell<HashMap<Id, (u32, u32, String)>> =
         std::cell::RefCell::new(HashMap::new());
+    /// When each retrying row tries again.
+    static NEXT_TRY: std::cell::RefCell<HashMap<Id, std::time::Instant>> =
+        std::cell::RefCell::new(HashMap::new());
 }
 
 /// What the engine now says about retries, for the statuses drawn next.
-pub fn set_retrying(now: HashMap<Id, (u32, u32, String)>) {
-    RETRYING.with(|r| *r.borrow_mut() = now);
+pub fn set_retrying(now: HashMap<Id, (u32, u32, String, std::time::Instant)>) {
+    NEXT_TRY.with(|n| {
+        *n.borrow_mut() = now.iter().map(|(id, r)| (*id, r.3)).collect();
+    });
+    RETRYING.with(|r| {
+        *r.borrow_mut() = now
+            .into_iter()
+            .map(|(id, (attempt, of, why, _))| (id, (attempt, of, why)))
+            .collect();
+    });
+}
+
+/// How long until a retrying row tries again: nothing once it is due.
+pub(crate) fn next_try(id: Id) -> Option<std::time::Duration> {
+    let at = NEXT_TRY.with(|n| n.borrow().get(&id).copied())?;
+    at.checked_duration_since(std::time::Instant::now())
+        .filter(|left| !left.is_zero())
 }
 
 thread_local! {

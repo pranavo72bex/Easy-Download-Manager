@@ -692,5 +692,7 @@
  "Keep running in the tray": "트레이에서 계속 실행",
  "This is a big download. Downloads › Scheduler can run it at night, when you are not using the computer.": "큰 다운로드입니다. 다운로드 › 스케줄러로 컴퓨터를 사용하지 않는 밤에 실행할 수 있습니다.",
  "The page the link was on.": "링크가 있던 페이지입니다.",
- "A fingerprint of the file. If a site gives you one, you can paste it below to check the file is whole.": "파일의 지문과 같은 값입니다. 사이트에서 알려 주면 아래에 붙여넣어 파일이 온전한지 확인할 수 있습니다."
+ "A fingerprint of the file. If a site gives you one, you can paste it below to check the file is whole.": "파일의 지문과 같은 값입니다. 사이트에서 알려 주면 아래에 붙여넣어 파일이 온전한지 확인할 수 있습니다.",
+ "Open downloads folder": "다운로드 폴더 열기",
+ "next try in {}": "다음 시도까지 {}"
 }

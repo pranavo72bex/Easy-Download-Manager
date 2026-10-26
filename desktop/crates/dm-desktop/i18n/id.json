@@ -692,5 +692,7 @@
  "Keep running in the tray": "Tetap berjalan di baki",
  "This is a big download. Downloads › Scheduler can run it at night, when you are not using the computer.": "Ini unduhan besar. Unduhan › Penjadwal dapat menjalankannya pada malam hari, saat Anda tidak memakai komputer.",
  "The page the link was on.": "Halaman tempat tautan itu berada.",
- "A fingerprint of the file. If a site gives you one, you can paste it below to check the file is whole.": "Sidik jari file. Jika situs memberikannya, tempel di bawah untuk memeriksa bahwa file utuh."
+ "A fingerprint of the file. If a site gives you one, you can paste it below to check the file is whole.": "Sidik jari file. Jika situs memberikannya, tempel di bawah untuk memeriksa bahwa file utuh.",
+ "Open downloads folder": "Buka folder unduhan",
+ "next try in {}": "percobaan berikutnya dalam {}"
 }

@@ -89,6 +89,9 @@ pub struct Orders {
     /// `--when-done WHAT`: what the window does once the downloads are
     /// done, one of [`WHEN_DONE`].
     pub when_done: Option<String>,
+    /// `--new-download`: the window opens Add URL (the jump list's "New
+    /// download").
+    pub new_download: bool,
 }
 
 /// The words `--when-done` takes.
@@ -110,6 +113,9 @@ fn routed_to_window() -> bool {
 
 /// The file in the inbox that carries `--when-done` to the window.
 pub const WHEN_DONE_FILE: &str = "when-done";
+
+/// The file in the inbox that carries `--new-download` to the window.
+pub const NEW_DOWNLOAD_FILE: &str = "new-download";
 
 fn is_link(arg: &str) -> bool {
     arg.starts_with("http://")
@@ -170,6 +176,7 @@ pub fn orders(args: &[String]) -> Orders {
             }
             "--later" => next.later = true,
             "--start-queue" => orders.start_queue = true,
+            "--new-download" => orders.new_download = true,
             "--when-done" => {
                 let word = args.get(i + 1).map(|w| w.trim().to_ascii_lowercase());
                 match word {
@@ -252,7 +259,17 @@ pub fn hand_to_running(home: &Path, orders: &Orders) {
         let _ = std::fs::write(host::inbox(home).join("start-queue"), b"");
     }
     leave_when_done(home, orders);
+    leave_new_download(home, orders);
     let _ = std::fs::write(host::inbox(home).join("show"), b"");
+}
+
+/// `--new-download`, left in the inbox for the window to take up: the one
+/// running, or the one this launch starts.
+pub fn leave_new_download(home: &Path, orders: &Orders) {
+    if orders.new_download {
+        let _ = std::fs::create_dir_all(host::inbox(home));
+        let _ = std::fs::write(host::inbox(home).join(NEW_DOWNLOAD_FILE), b"");
+    }
 }
 
 /// `--when-done`, left in the inbox for the window to take up: the one

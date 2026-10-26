@@ -692,5 +692,7 @@
  "Keep running in the tray": "Продолжить работу в трее",
  "This is a big download. Downloads › Scheduler can run it at night, when you are not using the computer.": "Это большая загрузка. Загрузки › Планировщик может запустить её ночью, когда вы не пользуетесь компьютером.",
  "The page the link was on.": "Страница, на которой была ссылка.",
- "A fingerprint of the file. If a site gives you one, you can paste it below to check the file is whole.": "Отпечаток файла. Если сайт его указывает, вставьте его ниже, чтобы проверить, что файл загружен полностью."
+ "A fingerprint of the file. If a site gives you one, you can paste it below to check the file is whole.": "Отпечаток файла. Если сайт его указывает, вставьте его ниже, чтобы проверить, что файл загружен полностью.",
+ "Open downloads folder": "Открыть папку загрузок",
+ "next try in {}": "следующая попытка через {}"
 }

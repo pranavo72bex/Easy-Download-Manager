@@ -371,6 +371,24 @@ fn when_done_is_read_and_left_for_the_window() {
 }
 
 #[test]
+fn new_download_is_read_and_left_for_the_window_that_opens_add_url() {
+    let got = orders(&argv(&["--new-download"]));
+    assert!(got.new_download);
+    assert!(got.downloads.is_empty(), "it is no link");
+    assert!(!orders(&argv(&[])).new_download);
+    assert!(
+        unrecognised(&argv(&["--new-download"])).is_empty(),
+        "an option, not a mistyped command"
+    );
+    let home = tempfile::tempdir().unwrap();
+    hand_to_running(home.path(), &got);
+    assert!(host::inbox(home.path()).join(NEW_DOWNLOAD_FILE).exists());
+    let other = tempfile::tempdir().unwrap();
+    hand_to_running(other.path(), &orders(&argv(&["--start-queue"])));
+    assert!(!host::inbox(other.path()).join(NEW_DOWNLOAD_FILE).exists());
+}
+
+#[test]
 fn options_apply_to_the_link_after_them() {
     // A folder that is whole on this system: on Windows "/tmp/in" is
     // taken as on the current drive, "D:/tmp/in" (CI, 0.2.0).

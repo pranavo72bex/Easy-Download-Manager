@@ -84,6 +84,18 @@ objc2-foundation = { version = "0.3", default-features = false, features = ["std
 # for the login item, read as UTF-16; MessageBeep for the
 # sounds. Already in the tree through dm-core.
 [target.'cfg(windows)'.dependencies]
+# The taskbar button's jump list (jumplist.rs): COM, which windows-sys has no
+# wrappers for. Already in the tree through other crates.
+windows = { version = "0.62", features = [
+  "Win32_Foundation",
+  "Win32_System_Com",
+  "Win32_System_Com_StructuredStorage",
+  "Win32_System_Variant",
+  "Win32_UI_Shell",
+  "Win32_UI_Shell_Common",
+  "Win32_UI_Shell_PropertiesSystem",
+  "Win32_Storage_EnhancedStorage",
+] }
 windows-sys = { version = "0.61", features = [
   "Win32_Foundation",
   # The title bar dark, and in the window's colour (chrome.rs).
@@ -106,6 +118,8 @@ windows-sys = { version = "0.61", features = [
   "Win32_System_Ole",
   "Win32_System_SystemServices",
   "Win32_UI_Controls",
+  # High Contrast: whether it is on, and the colours it sets (contrast.rs).
+  "Win32_UI_Accessibility",
   "Win32_UI_Shell",
 ] }
 

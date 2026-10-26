@@ -152,7 +152,13 @@ pub(super) fn draw_glyph(ui: &mut egui::Ui, glyph: Glyph, colour: egui::Color32)
 }
 
 pub(super) fn status_cell(ui: &mut egui::Ui, entry: &Entry, held: Option<&str>, selected: bool) {
-    let text = status_of(entry);
+    let mut text = status_of(entry);
+    // A retry says when it tries again, so a wait is not taken for a stall.
+    if entry.state == State::Running {
+        if let Some(left) = crate::app::next_try(entry.id) {
+            text = format!("{text} · {}", tf("next try in {}", &[&format::span(left)]));
+        }
+    }
     let tokens = crate::theme::Tokens::get(ui.ctx());
     // On the classic look's selected row every word is in the selection's
     // own colour: red, blue or a faded grey would not read on its fill.

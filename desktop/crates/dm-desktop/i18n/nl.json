@@ -692,5 +692,7 @@
  "Keep running in the tray": "Blijven draaien in het systeemvak",
  "This is a big download. Downloads › Scheduler can run it at night, when you are not using the computer.": "Dit is een grote download. Downloads › Planner kan hem 's nachts uitvoeren, als je de computer niet gebruikt.",
  "The page the link was on.": "De pagina waar de link stond.",
- "A fingerprint of the file. If a site gives you one, you can paste it below to check the file is whole.": "Een vingerafdruk van het bestand. Geeft een site er een, plak die dan hieronder om te controleren of het bestand compleet is."
+ "A fingerprint of the file. If a site gives you one, you can paste it below to check the file is whole.": "Een vingerafdruk van het bestand. Geeft een site er een, plak die dan hieronder om te controleren of het bestand compleet is.",
+ "Open downloads folder": "Downloadmap openen",
+ "next try in {}": "volgende poging over {}"
 }

@@ -18,6 +18,9 @@ pub trait Platform: Send + Sync {
     fn set_login_item(&self, wanted: bool) -> Result<(), String>;
     /// Announces a finished download.
     fn notify(&self, title: &str, body: &str);
+    /// Called often: what a platform held back while the person was busy
+    /// (a fullscreen app, a presentation) is said once it is not.
+    fn tick(&self) {}
     /// Announces a finished file, which a click on the notification opens
     /// where the system says it was clicked.
     fn notify_file(&self, title: &str, body: &str, _path: &str) {
@@ -141,7 +144,9 @@ impl Backend {
 
     /// The rows being retried now, each with its attempt and how many
     /// there may be (0 for no end).
-    pub fn retrying(&self) -> std::collections::HashMap<Id, (u32, u32, String)> {
+    pub fn retrying(
+        &self,
+    ) -> std::collections::HashMap<Id, (u32, u32, String, std::time::Instant)> {
         self.block_on(self.queue.retrying())
     }
 

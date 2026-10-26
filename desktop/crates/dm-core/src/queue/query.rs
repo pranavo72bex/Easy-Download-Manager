@@ -5,7 +5,7 @@ impl Queue {
     /// it is on (the first try is 1) and how many there may be, 0 for no
     /// end, and what failed, in the engine's words. Over once bytes arrive
     /// again.
-    pub async fn retrying(&self) -> HashMap<Id, (u32, u32, String)> {
+    pub async fn retrying(&self) -> HashMap<Id, (u32, u32, String, std::time::Instant)> {
         self.inner
             .slots
             .lock()

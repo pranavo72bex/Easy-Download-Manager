@@ -24,6 +24,7 @@ impl DmApp {
     /// announcing what finished, collecting problems.
     pub fn refresh(&mut self) {
         self.take_when_done();
+        self.take_new_download();
         self.rows = self.backend.list();
         self.place_rows();
         set_retrying(self.backend.retrying());
@@ -332,6 +333,17 @@ impl DmApp {
 
     /// `--when-done` from the command line, left in the inbox by this
     /// launch or a later one.
+    /// `--new-download`, left in the inbox by this launch or a later one:
+    /// the window comes forward with Add URL open.
+    pub fn take_new_download(&mut self) {
+        let file = dm_shell::host::inbox(&dm_shell::settings::home())
+            .join(dm_shell::shell::NEW_DOWNLOAD_FILE);
+        if std::fs::remove_file(&file).is_ok() && !self.headless {
+            self.show_asked = true;
+            self.run(Command::AddUrl);
+        }
+    }
+
     pub(super) fn take_when_done(&mut self) {
         let file = dm_shell::host::inbox(&dm_shell::settings::home())
             .join(dm_shell::shell::WHEN_DONE_FILE);
@@ -480,6 +492,9 @@ impl DmApp {
                 app.dialogs.duplicate.is_some(),
             )
         };
+        // What was held back while the person was busy elsewhere (a
+        // fullscreen app, Focus Assist), said once they are not.
+        self.backend.platform.tick();
         self.big_download_hint();
         let before = waiting(self);
         self.take_handed();

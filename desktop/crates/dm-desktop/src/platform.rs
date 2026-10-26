@@ -75,14 +75,22 @@ impl Platform for Desktop {
     /// 25 seconds). Found by `scripts/ui-shot.py` and a `sample` of the
     /// stuck process.
     fn notify(&self, title: &str, body: &str) {
-        let (title, body) = (title.to_string(), body.to_string());
-        std::thread::spawn(move || {
-            let _ = notify_rust::Notification::new()
-                .appname("dm")
-                .summary(&title)
-                .body(&body)
-                .show();
-        });
+        // Held while a fullscreen app, a presentation or Focus Assist has
+        // the person's attention, and said when it does not.
+        let note = dm_desktop::quiet::Note {
+            title: title.to_string(),
+            body: body.to_string(),
+            path: None,
+        };
+        if let Some(note) = dm_desktop::quiet::offer(note) {
+            say(note);
+        }
+    }
+
+    fn tick(&self) {
+        for note in dm_desktop::quiet::due_notes() {
+            say(note);
+        }
     }
 
     /// As `notify`, and a click on it opens the file, where the system
@@ -91,44 +99,27 @@ impl Platform for Desktop {
     /// which can hold a thread for as long as the notification is kept, so
     /// there a click brings dm forward, as the system does by itself.
     fn notify_file(&self, title: &str, body: &str, path: &str) {
-        /// Notifications waited on at once: each holds a thread until it is
-        /// clicked or closed, and some servers keep them a long time.
-        static WAITING: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsize::new(0);
-        const MOST_WAITING: usize = 8;
-        let (title, body, path) = (title.to_string(), body.to_string(), path.to_string());
-        std::thread::spawn(move || {
-            let mut notification = notify_rust::Notification::new();
-            notification.appname("dm").summary(&title).body(&body);
-            #[cfg(all(unix, not(target_os = "macos")))]
-            if !path.is_empty() {
-                // The body's click, as the servers name it, and a button for
-                // the folder: Open File and Open Folder on the toast itself.
-                notification.action("default", "Open");
-                notification.action("folder", "Open folder");
-            }
-            let Ok(handle) = notification.show() else {
-                return;
-            };
-            #[cfg(target_os = "macos")]
-            let _ = (handle, &path, &WAITING, MOST_WAITING);
-            #[cfg(not(target_os = "macos"))]
-            {
-                use std::sync::atomic::Ordering;
-                if path.is_empty() || WAITING.fetch_add(1, Ordering::AcqRel) >= MOST_WAITING {
-                    WAITING.fetch_sub(1, Ordering::AcqRel);
-                    return;
-                }
-                let _ = handle.wait_for_response(|response: &notify_rust::NotificationResponse| {
-                    if response.is_default_action() {
-                        let _ = shell::open_file(&path);
-                    } else if matches!(response, notify_rust::NotificationResponse::Action(key) if key == "folder")
-                    {
-                        let _ = shell::reveal_in_folder(&path);
-                    }
-                });
-                WAITING.fetch_sub(1, Ordering::AcqRel);
-            }
-        });
+        let note = dm_desktop::quiet::Note {
+            title: title.to_string(),
+            body: body.to_string(),
+            path: Some(path.to_string()),
+        };
+        if let Some(note) = dm_desktop::quiet::offer(note) {
+            say(note);
+        }
+    }
+
+    fn chime(&self) {
+        // A sound that comes late is only noise: not while the person is busy.
+        if !dm_desktop::quiet::quiet_now() {
+            dm_desktop::power::chime();
+        }
+    }
+
+    fn alert(&self) {
+        if !dm_desktop::quiet::quiet_now() {
+            dm_desktop::power::alert();
+        }
     }
 
     fn clipboard(&self) -> Option<String> {
@@ -166,14 +157,6 @@ impl Platform for Desktop {
                 report(e);
             }
         });
-    }
-
-    fn chime(&self) {
-        dm_desktop::power::chime();
-    }
-
-    fn alert(&self) {
-        dm_desktop::power::alert();
     }
 
     fn power(
@@ -332,4 +315,56 @@ pub(super) fn file_chooser_portal() -> bool {
         .map(|b| b.cache_properties(zbus::proxy::CacheProperties::No))
         .and_then(|b| b.build());
     proxy.is_ok_and(|p| p.get_property::<u32>("version").is_ok())
+}
+
+/// Says a toast: one whose click opens a finished file, or a plain one.
+fn say(note: dm_desktop::quiet::Note) {
+    let dm_desktop::quiet::Note { title, body, path } = note;
+    let Some(path) = path else {
+        std::thread::spawn(move || {
+            let _ = notify_rust::Notification::new()
+                .appname("dm")
+                .summary(&title)
+                .body(&body)
+                .show();
+        });
+        return;
+    };
+    /// Notifications waited on at once: each holds a thread until it is
+    /// clicked or closed, and some servers keep them a long time.
+    static WAITING: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsize::new(0);
+    const MOST_WAITING: usize = 8;
+    std::thread::spawn(move || {
+        let mut notification = notify_rust::Notification::new();
+        notification.appname("dm").summary(&title).body(&body);
+        #[cfg(all(unix, not(target_os = "macos")))]
+        if !path.is_empty() {
+            // The body's click, as the servers name it, and a button for
+            // the folder: Open File and Open Folder on the toast itself.
+            notification.action("default", "Open");
+            notification.action("folder", "Open folder");
+        }
+        let Ok(handle) = notification.show() else {
+            return;
+        };
+        #[cfg(target_os = "macos")]
+        let _ = (handle, &path, &WAITING, MOST_WAITING);
+        #[cfg(not(target_os = "macos"))]
+        {
+            use std::sync::atomic::Ordering;
+            if path.is_empty() || WAITING.fetch_add(1, Ordering::AcqRel) >= MOST_WAITING {
+                WAITING.fetch_sub(1, Ordering::AcqRel);
+                return;
+            }
+            let _ = handle.wait_for_response(|response: &notify_rust::NotificationResponse| {
+                if response.is_default_action() {
+                    let _ = shell::open_file(&path);
+                } else if matches!(response, notify_rust::NotificationResponse::Action(key) if key == "folder")
+                {
+                    let _ = shell::reveal_in_folder(&path);
+                }
+            });
+            WAITING.fetch_sub(1, Ordering::AcqRel);
+        }
+    });
 }

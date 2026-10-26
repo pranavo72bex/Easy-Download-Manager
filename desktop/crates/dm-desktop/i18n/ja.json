@@ -692,5 +692,7 @@
  "Keep running in the tray": "トレイで実行し続ける",
  "This is a big download. Downloads › Scheduler can run it at night, when you are not using the computer.": "これは大きなダウンロードです。ダウンロード › スケジューラーを使うと、コンピューターを使わない夜間に実行できます。",
  "The page the link was on.": "リンクがあったページです。",
- "A fingerprint of the file. If a site gives you one, you can paste it below to check the file is whole.": "ファイルの指紋のようなものです。サイトから示された場合は、下に貼り付けるとファイルが欠けていないか確認できます。"
+ "A fingerprint of the file. If a site gives you one, you can paste it below to check the file is whole.": "ファイルの指紋のようなものです。サイトから示された場合は、下に貼り付けるとファイルが欠けていないか確認できます。",
+ "Open downloads folder": "ダウンロード フォルダーを開く",
+ "next try in {}": "次の再試行まで {}"
 }

@@ -323,10 +323,16 @@ impl Queue {
                                 slot.entry.validator = Some(validator);
                             }
                             // The highest attempt of any range is the row's.
-                            crate::download::Update::Retrying { attempt, of, why } => {
-                                let now = slot.retrying.as_ref().map_or(0, |(a, _, _)| *a);
+                            crate::download::Update::Retrying {
+                                attempt,
+                                of,
+                                why,
+                                wait,
+                            } => {
+                                let now = slot.retrying.as_ref().map_or(0, |(a, _, _, _)| *a);
                                 if attempt >= now {
-                                    slot.retrying = Some((attempt, of, why));
+                                    slot.retrying =
+                                        Some((attempt, of, why, std::time::Instant::now() + wait));
                                 }
                             }
                         }
