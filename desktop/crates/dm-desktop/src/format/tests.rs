@@ -149,7 +149,7 @@ fn common_failures_have_plain_reasons() {
     // What the address or the server's page says is not the reason.
     assert_eq!(
         reason("the server answered 404 Not Found for https://e.com/birth-certificate.pdf"),
-        Some("the server has no file at this address (404)")
+        Some("this link no longer works (404)")
     );
     assert_eq!(
         reason("the torrent could not be added: error decoding torrent: invalid value"),

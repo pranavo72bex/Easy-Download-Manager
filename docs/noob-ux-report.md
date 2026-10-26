@@ -43,7 +43,7 @@ High Contrast, Narrator, keyboard-only pass (§12), reboot (E4), Wi-Fi off
   an upgrader with `ask_caught_downloads: true` saved keeps being asked. That
   is a choice the file cannot tell from a deliberate one; see N2.
 
-### N2 Nothing tells Sam a download is waiting for a click 🟠
+### N2 Nothing tells Sam a download is waiting for a click 🟠 (fixed: the window comes forward)
 - When dm asks first ("Download details"), the browser has already let go of
   the file. If that window is behind another one, the download seems lost.
 - **Fix:** bring the window to the front (and say so in the notification), or
@@ -58,7 +58,7 @@ High Contrast, Narrator, keyboard-only pass (§12), reboot (E4), Wi-Fi off
 - At 1920 px wide the table has a horizontal scrollbar and the last column's
   header is cut to "C…". **Fix:** let the Name column give up width first.
 
-### N5 The failed row says what, not what next 🟡
+### N5 The failed row says what, not what next 🟡 (reworded: "this link no longer works (404)")
 - "The server has no file at thi…" is truncated and has no next step.
   **IDM:** "Refresh link". **Fix:** shorter wording ("This link no longer
   works") with the row's menu offering Update link.

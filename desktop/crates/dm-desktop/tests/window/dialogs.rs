@@ -1427,7 +1427,7 @@ fn download_details_says_the_name_it_will_get_and_a_server_refusal() {
     click(&mut harness, "Add URL");
     type_into(&mut harness, "Address", &world.url("missing.bin"));
     click(&mut harness, "OK");
-    let refused = "Not available: the server has no file at this address (404).";
+    let refused = "Not available: this link no longer works (404).";
     for _ in 0..100 {
         if harness.query_by_label(refused).is_some() {
             break;

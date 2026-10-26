@@ -488,7 +488,7 @@
  "the server's security certificate could not be checked": "서버의 보안 인증서를 확인할 수 없습니다",
  "the disk is full": "디스크가 가득 찼습니다",
  "dm may not write to that folder": "dm이 그 폴더에 쓸 수 없습니다",
- "the server has no file at this address (404)": "이 주소에 파일이 없습니다(404)",
+ "this link no longer works (404)": "이 링크는 더 이상 작동하지 않습니다 (404)",
  "Added {} again: that address was already in the list.": "{}을(를) 다시 추가했습니다. 그 주소는 이미 목록에 있었습니다.",
  "done, {}": "완료, {}",
  "waiting, {}": "대기, {}",

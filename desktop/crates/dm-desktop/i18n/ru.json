@@ -488,7 +488,7 @@
  "the server's security certificate could not be checked": "не удалось проверить сертификат безопасности сервера",
  "the disk is full": "диск заполнен",
  "dm may not write to that folder": "dm не может записывать в эту папку",
- "the server has no file at this address (404)": "на сервере нет файла по этому адресу (404)",
+ "this link no longer works (404)": "эта ссылка больше не работает (404)",
  "Added {} again: that address was already in the list.": "{} добавлен снова: этот адрес уже был в списке.",
  "done, {}": "готово, {}",
  "waiting, {}": "ожидает, {}",

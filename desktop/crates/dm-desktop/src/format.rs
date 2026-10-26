@@ -355,7 +355,7 @@ pub const REASONS: [(&[&str], &str); 32] = [
     ),
     (
         &["the server answered 404"],
-        "the server has no file at this address (404)",
+        "this link no longer works (404)",
     ),
     (
         &["error decoding torrent", "this file is not a torrent"],

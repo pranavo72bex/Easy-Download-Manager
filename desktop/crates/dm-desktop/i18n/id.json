@@ -488,7 +488,7 @@
  "the server's security certificate could not be checked": "sertifikat keamanan server tidak dapat diperiksa",
  "the disk is full": "disk penuh",
  "dm may not write to that folder": "dm tidak diizinkan menulis ke folder itu",
- "the server has no file at this address (404)": "server tidak memiliki file di alamat ini (404)",
+ "this link no longer works (404)": "tautan ini sudah tidak berfungsi (404)",
  "Added {} again: that address was already in the list.": "{} ditambahkan lagi: alamat itu sudah ada di daftar.",
  "done, {}": "selesai, {}",
  "waiting, {}": "menunggu, {}",

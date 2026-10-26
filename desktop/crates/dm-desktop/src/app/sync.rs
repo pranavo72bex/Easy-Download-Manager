@@ -470,7 +470,23 @@ impl DmApp {
         if self.refreshed.is_none_or(|at| at.elapsed() >= REFRESH) {
             self.refresh();
         }
+        // A download handed over and waiting for the person's answer (Download
+        // details, the page's links, "Download again") has left the browser
+        // already: a window behind another, or in the tray, made it look lost.
+        let waiting = |app: &Self| {
+            (
+                app.dialogs.file_info.is_some(),
+                app.dialogs.links.is_some(),
+                app.dialogs.duplicate.is_some(),
+            )
+        };
+        let before = waiting(self);
         self.take_handed();
+        let after = waiting(self);
+        if !self.headless && (after.0 && !before.0 || after.1 && !before.1 || after.2 && !before.2)
+        {
+            self.show_asked = true;
+        }
         self.countdown_tick();
         if let Some(why) = dm_core::lock(&self.opener_said).take() {
             self.said = why.into();

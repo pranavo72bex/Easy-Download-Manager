@@ -1877,3 +1877,18 @@ Manifest V3 does not give an extension. Not covered: an address typed into
 the bar, a bookmark, a link opened from another app, a PDF in an embedded
 viewer: those are the browser's page loads, not clicks the page can see.
 
+## 2026-10-26: A waiting dialog comes forward; a saved "ask first" is not migrated
+
+A download the browser handed over and dm asks about has already left the
+browser, so a dialog behind another window or in the tray looked like a lost
+download. Opening Download details, the page's links or "Download again"
+from a hand-off now sets `show_asked`, which the window already honours (it
+shows itself, unminimized and focused), and a hand-off that starts at once
+does not. Dropped: migrating a saved `ask_caught_downloads` or
+`ask_panel_downloads` to off, as the catch list was brought up to date: the
+file cannot tell an old default from a person's choice, and wrongly turning
+off a question someone wanted is worse than a question they can switch off
+in Options › Browser. The 404 text was reworded for a person (not the
+server's words) in all thirteen catalogs; the other plain-wording rows stay
+open (gaps row 9) since each is a string in every catalog.
+

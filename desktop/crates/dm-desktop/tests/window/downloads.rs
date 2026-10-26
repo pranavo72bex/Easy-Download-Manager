@@ -1942,3 +1942,41 @@ fn the_hovered_row_offers_stop_and_remove_on_itself() {
         "no buttons on the hovered row"
     );
 }
+
+/// A download handed over and waiting for an answer has left the browser: the
+/// window comes forward for it. One that starts at once does not take the
+/// person's screen.
+#[test]
+fn a_hand_over_that_asks_brings_the_window_forward_and_one_that_starts_does_not() {
+    let world = world();
+    let mut harness = world.harness();
+    let handed = |harness: &mut Harness<'_, DmApp>, name: &str| {
+        harness
+            .state()
+            .backend()
+            .handed
+            .lock()
+            .unwrap()
+            .push_back(dm_shell::host::Request {
+                url: world.url(name),
+                referrer: "https://e.com/page".into(),
+                caught: true,
+                ..Default::default()
+            });
+        let ctx = harness.ctx.clone();
+        harness.state_mut().logic(&ctx);
+    };
+    harness.state_mut().applied.ask_caught_downloads = false;
+    handed(&mut harness, "quiet.zip");
+    assert!(
+        !harness.state().show_asked,
+        "raised for a download that started"
+    );
+    harness.state_mut().applied.ask_caught_downloads = true;
+    handed(&mut harness, "asks.zip");
+    assert!(harness.state().dialogs.file_info.is_some());
+    assert!(
+        harness.state().show_asked,
+        "the waiting dialog stayed behind"
+    );
+}
