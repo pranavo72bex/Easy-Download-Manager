@@ -397,6 +397,12 @@ impl World for Here<'_> {
         if !(url.starts_with("http://") || url.starts_with("https://")) {
             return Err("only a web page has qualities to list".into());
         }
+        // What was read a few minutes ago, by this very host or another the
+        // browser started since, is not read again: yt-dlp takes seconds.
+        let key = formats_key(url, cookies);
+        if let Some(listed) = recalled_formats(self.home, &key, now_secs()) {
+            return Ok(listed);
+        }
         let proxy = saved(self.home).proxy.url_for_tools();
         let runtime = tokio::runtime::Builder::new_current_thread()
             .enable_all()
@@ -417,14 +423,95 @@ impl World for Here<'_> {
                 dm_core::cookies::SignIn::new(url, cookies).as_ref(),
             ))
             .map_err(|e| e.to_string())?;
-        Ok(listed
+        let listed: Vec<Choice> = listed
             .into_iter()
             .map(|c| Choice {
                 label: c.label,
                 quality: c.quality,
                 size: c.size,
             })
-            .collect())
+            .collect();
+        remember_formats(self.home, &key, &listed, now_secs());
+        Ok(listed)
+    }
+}
+
+/// How long a read of a page's qualities is kept, in seconds.
+const FORMATS_KEPT_SECS: u64 = 600;
+/// How many pages' readings are kept.
+const FORMATS_KEPT_PAGES: usize = 48;
+
+fn now_secs() -> u64 {
+    std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map_or(0, |d| d.as_secs())
+}
+
+/// A page and the kind of session it was read with, as one name: signed in
+/// or not, and with which cookies' names. Their values are left out: a
+/// site restamps some on every request, and a name that changed with each
+/// would never be found again. Never kept as more than a fingerprint.
+fn formats_key(url: &str, cookies: &str) -> String {
+    use std::hash::{Hash, Hasher};
+    let mut names: Vec<&str> = cookies
+        .split(';')
+        .filter_map(|c| c.split_once('=').map(|(n, _)| n.trim()))
+        .filter(|n| !n.is_empty())
+        .collect();
+    names.sort_unstable();
+    names.dedup();
+    let mut hasher = std::collections::hash_map::DefaultHasher::new();
+    names.hash(&mut hasher);
+    let page = url.split('#').next().unwrap_or(url);
+    format!("{page}\n{:016x}", hasher.finish())
+}
+
+#[derive(serde::Serialize, serde::Deserialize)]
+struct Remembered {
+    key: String,
+    at: u64,
+    choices: Vec<Choice>,
+}
+
+fn formats_file(home: &Path) -> std::path::PathBuf {
+    home.join("formats.cache.json")
+}
+
+fn recalled_formats(home: &Path, key: &str, now: u64) -> Option<Vec<Choice>> {
+    let text = std::fs::read_to_string(formats_file(home)).ok()?;
+    let all: Vec<Remembered> = serde_json::from_str(&text).ok()?;
+    all.into_iter()
+        .find(|r| r.key == key && now.saturating_sub(r.at) < FORMATS_KEPT_SECS)
+        .map(|r| r.choices)
+        .filter(|choices| !choices.is_empty())
+}
+
+/// Best effort: a home that cannot be written to only means the next read
+/// is made again.
+fn remember_formats(home: &Path, key: &str, choices: &[Choice], now: u64) {
+    if choices.is_empty() {
+        return;
+    }
+    let mut all: Vec<Remembered> = std::fs::read_to_string(formats_file(home))
+        .ok()
+        .and_then(|text| serde_json::from_str(&text).ok())
+        .unwrap_or_default();
+    all.retain(|r| r.key != key && now.saturating_sub(r.at) < FORMATS_KEPT_SECS);
+    all.push(Remembered {
+        key: key.to_string(),
+        at: now,
+        choices: choices.to_vec(),
+    });
+    let excess = all.len().saturating_sub(FORMATS_KEPT_PAGES);
+    all.drain(..excess);
+    let Ok(text) = serde_json::to_string(&all) else {
+        return;
+    };
+    let _ = std::fs::create_dir_all(home);
+    let file = formats_file(home);
+    let staged = file.with_extension("tmp");
+    if std::fs::write(&staged, text).is_ok() {
+        let _ = std::fs::rename(&staged, &file);
     }
 }
 

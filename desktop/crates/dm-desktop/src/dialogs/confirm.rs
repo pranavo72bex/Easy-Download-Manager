@@ -112,7 +112,7 @@ pub(super) fn confirm_remove(app: &mut DmApp, ctx: &egui::Context) {
             // default, and never by Enter.
             let files = files.len();
             let go = if files > 0 {
-                check(
+                toggle_row(
                     ui,
                     &mut app.dialogs.remove_files,
                     if files == 1 {

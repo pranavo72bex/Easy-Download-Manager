@@ -191,7 +191,7 @@ pub(super) async fn record_live(
                 continue;
             }
             let body = match retry::run_up_to(&options.control, options.tries(), || {
-                fetch_segment_body(client, &part.url, options)
+                fetch_segment_range(client, &part.url, part.range, options)
             })
             .await
             {
@@ -530,9 +530,9 @@ pub(super) async fn resolve_stream(
     Ok(Resolved::Own(listed, url.to_string()))
 }
 
-/// A picture and the sound the master keeps apart from it. Only plain
-/// fragmented MP4 on both sides is dm's to join; an encrypted, byte-ranged
-/// or transport-stream pair is `Beyond`, as before.
+/// A picture and the sound the master keeps apart from it. Only fragmented
+/// MP4 on both sides is dm's to join (encrypted with AES-128 or cut by byte
+/// ranges as it may be); a transport-stream pair is `Beyond`, as before.
 async fn resolve_pair(
     client: &reqwest::Client,
     name_from: &str,
@@ -555,8 +555,10 @@ async fn resolve_pair(
     }
     let picture = stream::media_playlist(media, media_landed, name_from, options.quality)?;
     let sound = stream::media_playlist(&sound, &sound_landed, name_from, Quality::Best)?;
-    let plain = |s: &stream::Stream| s.key.is_none() && s.container == "mp4";
-    if !(plain(&picture) && plain(&sound)) {
+    // Fragmented MP4 on both sides, scrambled or not, whole or cut by byte
+    // ranges: a transport-stream picture or packed sound is still beyond.
+    let fragmented = |s: &stream::Stream| s.container == "mp4";
+    if !(fragmented(&picture) && fragmented(&sound)) {
         return Ok(Resolved::Beyond(APART));
     }
     Ok(Resolved::Pair(
@@ -628,7 +630,7 @@ pub(super) async fn fetch_segments(
 
         let staging = done.with_extension("partial");
         let fetched = retry::run_up_to(&options.control, options.tries(), || {
-            fetch_segment_body(client, &part.url, options)
+            fetch_segment_range(client, &part.url, part.range, options)
         })
         .await?;
 
@@ -647,18 +649,10 @@ pub(super) async fn fetch_segments(
     Ok(())
 }
 
-/// One segment, whole, because it has to be decrypted before it can be kept.
-pub(super) async fn fetch_segment_body(
-    client: &reqwest::Client,
-    url: &str,
-    options: &Options,
-) -> Result<Vec<u8>, Error> {
-    fetch_segment_range(client, url, None, options).await
-}
-
-/// [`fetch_segment_body`] for a piece that is part of a file: exactly the
-/// bytes asked for, or an error. A server that ignores the range and sends
-/// the whole file would otherwise be written in as the piece.
+/// One segment, whole or the bytes of a file that it is, held because it
+/// has to be decrypted before it can be kept: exactly the bytes asked for,
+/// or an error. A server that ignores the range and sends the whole file
+/// would otherwise be written in as the piece.
 pub(super) async fn fetch_segment_range(
     client: &reqwest::Client,
     url: &str,

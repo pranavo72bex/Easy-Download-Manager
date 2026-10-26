@@ -51,7 +51,14 @@ pub(super) async fn download_pair(
     options: &Options,
     report: Option<tokio::sync::mpsc::Sender<Update>>,
 ) -> Result<Finished, Error> {
-    let track = |medium, s: &stream::Stream| Track {
+    // A key is fetched once for the stream it opens, then each piece is
+    // given it with the vector its own number makes (the initialisation
+    // segment is never scrambled).
+    let (picture_key, sound_key) = tokio::try_join!(
+        key_of(client, picture, options),
+        key_of(client, sound, options)
+    )?;
+    let track = |medium, s: &stream::Stream, key: &Option<(stream::Key, Vec<u8>)>| Track {
         medium,
         id: String::new(),
         bandwidth: 0,
@@ -62,11 +69,21 @@ pub(super) async fn download_pair(
             .iter()
             .map(|p| dash::Piece {
                 url: p.url.clone(),
-                range: None,
+                range: p.range,
+                lock: match key {
+                    Some((declared, bytes)) if !p.init => Some(dash::Lock {
+                        key: bytes.clone(),
+                        iv: stream::iv_for(declared, p.sequence),
+                    }),
+                    _ => None,
+                },
             })
             .collect(),
     };
-    let tracks = [track(Medium::Video, picture), track(Medium::Audio, sound)];
+    let tracks = [
+        track(Medium::Video, picture, &picture_key),
+        track(Medium::Audio, sound, &sound_key),
+    ];
     let refs: Vec<&Track> = tracks.iter().collect();
     let signature = format!("pair {rendition}");
     let name = picture.filename.clone();
@@ -74,6 +91,24 @@ pub(super) async fn download_pair(
         client, &refs, &name, "mp4", false, &signature, options, report,
     )
     .await
+}
+
+/// The key an HLS stream's segments are scrambled with, fetched once, with
+/// what says which vector each takes.
+async fn key_of(
+    client: &reqwest::Client,
+    s: &stream::Stream,
+    options: &Options,
+) -> Result<Option<(stream::Key, Vec<u8>)>, Error> {
+    match &s.key {
+        Some(declared) => Ok(Some((
+            declared.clone(),
+            fetch_capped(client, &declared.uri, 1024, options)
+                .await?
+                .body,
+        ))),
+        None => Ok(None),
+    }
 }
 
 /// A picture and a sound a player fetched apart (two plain files, as a video
@@ -148,6 +183,7 @@ pub(crate) fn pieces_of(url: &str, total: u64, piece: u64) -> Vec<dash::Piece> {
         return vec![dash::Piece {
             url: url.to_string(),
             range: None,
+            lock: None,
         }];
     }
     let mut pieces = Vec::new();
@@ -157,6 +193,7 @@ pub(crate) fn pieces_of(url: &str, total: u64, piece: u64) -> Vec<dash::Piece> {
         pieces.push(dash::Piece {
             url: url.to_string(),
             range: Some((first, last)),
+            lock: None,
         });
         first = last + 1;
     }
@@ -345,6 +382,10 @@ async fn fetch_piece(
         hls::fetch_segment_range(client, &piece.url, piece.range, options)
     })
     .await?;
+    let body = match &piece.lock {
+        Some(lock) => stream::decrypt(&lock.key, &lock.iv, &body)?,
+        None => body,
+    };
     downloaded.fetch_add(body.len() as u64, Ordering::Relaxed);
     fs::write(&staging, &body).await?;
     fs::rename(&staging, &done).await?;
@@ -540,6 +581,90 @@ mod tests {
             .route("/hls/one.m4s", bytes(first))
             .route("/hls/two.m4s", bytes(second))
             .route("/hls/sound.m4s", bytes(audio));
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let addr = listener.local_addr().unwrap();
+        tokio::spawn(async move { axum::serve(listener, app).await.unwrap() });
+
+        let options = options(dir.path());
+        let url = format!("http://{addr}/hls/master.m3u8");
+        let done = crate::download::download(&reqwest::Client::new(), &url, &options)
+            .await
+            .unwrap();
+        assert_eq!(done.path.extension().unwrap(), "mp4");
+        let data = std::fs::read(&done.path).unwrap();
+        assert_eq!(data.windows(4).filter(|w| *w == b"trak").count(), 2);
+    }
+
+    #[tokio::test]
+    async fn an_encrypted_hls_pair_cut_by_byte_ranges_is_fetched_decrypted_and_joined() {
+        use aes::cipher::{block_padding::Pkcs7, BlockModeEncrypt, InnerIvInit, KeyInit};
+        let dir = tempfile::tempdir().unwrap();
+        let (video, _) = fragmented(dir.path(), "v.mp4", 2);
+        let (audio, _) = plain(dir.path(), "a.m4a", 4, 50);
+        let video = std::fs::read(video).unwrap();
+        let audio = std::fs::read(audio).unwrap();
+        let starts = box_starts(&video);
+        let (init, first, second) = (
+            video[..starts[2]].to_vec(),
+            video[starts[2]..starts[4]].to_vec(),
+            video[starts[4]..].to_vec(),
+        );
+        let key = [9u8; 16];
+        // Sealed as a player would: CBC under the vector the sequence makes.
+        let seal = |data: &[u8], sequence: u64| {
+            let mut iv = [0u8; 16];
+            iv[8..].copy_from_slice(&sequence.to_be_bytes());
+            cbc::Encryptor::<aes::Aes128>::inner_iv_slice_init(
+                aes::Aes128::new_from_slice(&key).unwrap(),
+                &iv,
+            )
+            .unwrap()
+            .encrypt_padded_vec::<Pkcs7>(data)
+        };
+        // One file for the picture's two segments, back to back; the sound
+        // is one segment in a file of its own.
+        let (a, b) = (seal(&first, 0), seal(&second, 1));
+        let mut picture_file = init.clone();
+        picture_file.extend_from_slice(&a);
+        picture_file.extend_from_slice(&b);
+        let sealed_sound = seal(&audio, 0);
+        let list = format!(
+            "#EXTM3U\n#EXT-X-TARGETDURATION:4\n\
+             #EXT-X-MAP:URI=\"p.mp4\",BYTERANGE=\"{}@0\"\n#EXT-X-KEY:METHOD=AES-128,URI=\"key.bin\"\n\
+             #EXTINF:4,\n#EXT-X-BYTERANGE:{}@{}\np.mp4\n#EXTINF:4,\n#EXT-X-BYTERANGE:{}\np.mp4\n#EXT-X-ENDLIST\n",
+            init.len(),
+            a.len(),
+            init.len(),
+            b.len()
+        );
+        let sound_list =
+            "#EXTM3U\n#EXT-X-TARGETDURATION:4\n#EXT-X-KEY:METHOD=AES-128,URI=\"key.bin\"\n\
+                          #EXTINF:4,\nsound.m4s\n#EXT-X-ENDLIST\n";
+        let text = |body: String| {
+            get(move || {
+                let body = body.clone();
+                async move {
+                    Response::builder()
+                        .header(header::CONTENT_TYPE, "application/vnd.apple.mpegurl")
+                        .body(Body::from(body))
+                        .unwrap()
+                }
+            })
+        };
+        let app = axum::Router::new()
+            .route(
+                "/hls/master.m3u8",
+                text(
+                    "#EXTM3U\n#EXT-X-MEDIA:TYPE=AUDIO,GROUP-ID=\"a\",NAME=\"en\",DEFAULT=YES,URI=\"sound.m3u8\"\n\
+                     #EXT-X-STREAM-INF:BANDWIDTH=900000,RESOLUTION=640x360,AUDIO=\"a\"\npicture.m3u8\n"
+                        .into(),
+                ),
+            )
+            .route("/hls/picture.m3u8", text(list))
+            .route("/hls/sound.m3u8", text(sound_list.into()))
+            .route("/hls/key.bin", get(move || async move { Response::new(Body::from(key.to_vec())) }))
+            .route("/hls/p.mp4", ranged(picture_file, true))
+            .route("/hls/sound.m4s", ranged(sealed_sound, true));
         let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
         let addr = listener.local_addr().unwrap();
         tokio::spawn(async move { axum::serve(listener, app).await.unwrap() });

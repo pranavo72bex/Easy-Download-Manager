@@ -613,6 +613,12 @@ pub async fn list_choices(
         .arg("-J")
         .arg("--no-playlist")
         .arg("--no-warnings")
+        // A list needs neither the HLS manifests (the same heights are in
+        // the DASH ones) nor the translated subtitles: leaving them out
+        // saves requests, about a third of the time on YouTube. Other
+        // sites ignore it.
+        .arg("--extractor-args")
+        .arg("youtube:skip=hls,translated_subs")
         .arg("--socket-timeout")
         .arg("15")
         .stdout(Stdio::piped())

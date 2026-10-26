@@ -1710,3 +1710,38 @@ environment): tested against local servers that answer ranges as a CDN does.
 Hostnames stay out of the manifest (the privacy check forbids them), so the
 page script is registered for every page and itself ignores any host but
 `googlevideo.com`; it only reads an address and leaves the request alone.
+
+## Reading a page's qualities faster (2026-10-25)
+
+The panel's list took 2 to 39 seconds, nearly all of it yt-dlp reading the
+page. Three things, kept in this order of effect:
+
+1. The extension asks as soon as the panel is raised over a player (on
+   play), not at the click, and a click made sooner joins the read under
+   way (`content/handoff.rs`, `reading`). Measured in Edge 156 on a
+   YouTube watch page: hovering, waiting eight seconds, clicking: the list
+   in 0.03 s.
+2. `list_choices` passes `--extractor-args youtube:skip=hls,translated_subs`:
+   the same heights are in the DASH manifests, and the list needs neither
+   the HLS ones nor the translated subtitles. 2.4 s to 1.7 s on the same
+   page, the same eight heights and sizes. The client choice was tried and
+   dropped: `android_vr` and `mweb` read in about 1.6 s but offered five
+   formats, nothing above 338 p; `tv`, `ios` and `web_safari` were refused.
+   Downloads are untouched.
+3. A reading is kept for ten minutes in `formats.cache.json` in dm's home
+   (48 pages), keyed by the page and the *names* of the cookies sent: a
+   site restamps some cookie values on every request, and keyed by value a
+   page was never found again (measured: the second read took 1.6 s).
+   A page opened again, in another tab or by another host process, lists
+   in 10 to 20 ms. Only a non-empty reading is kept.
+
+## HLS byte ranges and encrypted pairs (2026-10-25)
+
+`#EXT-X-BYTERANGE` (and a `BYTERANGE` on `#EXT-X-MAP`) are read into
+`Part::range` and each piece is asked for by its bytes, exactly or refused
+(`fetch_segment_range`). A range dm cannot read is an error, not ignored: an
+ignored one saved the whole source repeated and called it done. A pair
+(picture and sound in playlists of their own) may now be AES-128 as well:
+`dash::Piece` carries a `Lock` (key and the vector its segment number
+makes), undone as each piece is fetched. Still `Beyond`: a transport-stream
+picture with packed-AAC sound (gaps.md row 7).

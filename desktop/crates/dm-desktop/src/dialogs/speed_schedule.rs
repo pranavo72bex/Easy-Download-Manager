@@ -13,7 +13,7 @@ pub(super) fn scheduler(app: &mut DmApp, ctx: &egui::Context) {
         // Plainly, for every queue: "When Main queue and every other
         // download may run." read oddly.
         ui.label(t("The hours when downloads may run, in every queue."));
-        check(
+        toggle_row(
             ui,
             &mut schedule.enabled,
             t("Only download between set hours"),
@@ -39,7 +39,7 @@ pub(super) fn scheduler(app: &mut DmApp, ctx: &egui::Context) {
             });
             // Where the system lets dm wake the computer for it.
             if crate::wake::possible() {
-                check(
+                toggle_row(
                     ui,
                     &mut schedule.wake,
                     t("Wake the computer from sleep to start"),

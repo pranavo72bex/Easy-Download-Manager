@@ -59,6 +59,9 @@ pub struct Part {
     /// The media sequence number, which is the IV when the playlist declares
     /// none of its own.
     pub sequence: u64,
+    /// The bytes of `url` this piece is, first and last, both included, where
+    /// the stream is cut from one file by `#EXT-X-BYTERANGE`.
+    pub range: Option<(u64, u64)>,
 }
 
 /// Everything needed to fetch a stream as one file.
@@ -202,9 +205,6 @@ pub fn beyond_dm(
     media_url: &str,
 ) -> Option<&'static str> {
     let upper = media.to_ascii_uppercase();
-    if upper.contains("#EXT-X-BYTERANGE") || upper.contains("BYTERANGE=") {
-        return Some("this stream is cut from one file by byte ranges");
-    }
     // Keys that differ, not key lines: some packagers restate the same key
     // before every segment, which dm decrypts as one key.
     let keys: std::collections::BTreeSet<String> = lines(media)
@@ -364,6 +364,24 @@ pub fn pick(offered: Vec<Variant>, quality: Quality) -> Option<Variant> {
     }
 }
 
+/// A byte range as the playlist writes it: a length, and `@` where it starts.
+fn byte_range(text: &str) -> Result<(u64, Option<u64>), Error> {
+    let bad = || {
+        Error::Internal(format!(
+            "the stream names a byte range dm cannot read: {text}"
+        ))
+    };
+    let (len, at) = match text.trim().trim_matches('"').split_once('@') {
+        Some((len, at)) => (len, Some(at.parse::<u64>().map_err(|_| bad())?)),
+        None => (text.trim().trim_matches('"'), None),
+    };
+    let len = len.parse::<u64>().map_err(|_| bad())?;
+    if len == 0 {
+        return Err(bad());
+    }
+    Ok((len, at))
+}
+
 /// Reads a media playlist into the segments that make up the file.
 ///
 /// `name_from` is the URL the person actually reached for: a rendition is
@@ -380,6 +398,10 @@ pub fn media_playlist(
     let mut key = None;
     let mut container = "ts";
     let mut sequence = 0u64;
+    // `#EXT-X-BYTERANGE` names the bytes of the next segment: a length, and
+    // where it starts unless it goes on from the last piece of the same file.
+    let mut cut: Option<(u64, Option<u64>)> = None;
+    let mut ended_at: std::collections::HashMap<String, u64> = std::collections::HashMap::new();
 
     for row in lines(text) {
         /* Segment URLs are the overwhelming majority of a media playlist and
@@ -387,8 +409,24 @@ pub fn media_playlist(
          * first — uppercasing every line allocated a copy of the whole
          * playlist for the sake of the handful of lines that start with #. */
         if !row.starts_with('#') {
+            let url = join(url, row)?;
+            let range = match cut.take() {
+                Some((len, at)) => {
+                    let first = at.or_else(|| ended_at.get(&url).copied()).ok_or_else(|| {
+                        Error::Internal("a byte range with no start follows nothing".into())
+                    })?;
+                    let last = first
+                        .checked_add(len)
+                        .and_then(|end| end.checked_sub(1))
+                        .ok_or_else(|| Error::Internal("a byte range of no length".into()))?;
+                    ended_at.insert(url.clone(), last + 1);
+                    Some((first, last))
+                }
+                None => None,
+            };
             parts.push(Part {
-                url: join(url, row)?,
+                url,
+                range,
                 init: false,
                 /* Numbered by media segments only.
                  *
@@ -408,6 +446,11 @@ pub fn media_playlist(
                 .nth(1)
                 .and_then(|v| v.trim().parse().ok())
                 .unwrap_or(0);
+            continue;
+        }
+
+        if upper.starts_with("#EXT-X-BYTERANGE") {
+            cut = Some(byte_range(row.split_once(':').map_or("", |(_, v)| v))?);
             continue;
         }
 
@@ -449,10 +492,22 @@ pub fn media_playlist(
                 // sent a stream whose initialisation segment changes to
                 // yt-dlp, so the first is the only one.
                 if init.is_none() {
+                    let range = match attribute(row, "BYTERANGE") {
+                        Some(text) => match byte_range(&text)? {
+                            (len, Some(first)) => Some((first, first.saturating_add(len) - 1)),
+                            (_, None) => {
+                                return Err(Error::Internal(
+                                    "the initialisation segment's byte range has no start".into(),
+                                ))
+                            }
+                        },
+                        None => None,
+                    };
                     init = Some(Part {
                         url: join(url, &uri)?,
                         init: true,
                         sequence: 0,
+                        range,
                     });
                 }
                 container = "mp4";

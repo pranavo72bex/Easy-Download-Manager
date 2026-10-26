@@ -44,7 +44,7 @@ pub(super) fn welcome(app: &mut DmApp, ctx: &egui::Context) {
             // it starts with the computer, in the tray, so a download
             // clicked in the browser always has dm to go to.
             ui.add_space(8.0);
-            check(
+            toggle_row(
                 ui,
                 &mut at_login,
                 t("Start dm with the computer, in the tray"),

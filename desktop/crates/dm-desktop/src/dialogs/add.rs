@@ -226,7 +226,7 @@ pub(super) fn add_url(app: &mut DmApp, ctx: &egui::Context) {
                 forget = ui.button(t("Clear history")).clicked();
             });
         }
-        check(ui, &mut d.authorize, t("Needs a sign-in"));
+        toggle_row(ui, &mut d.authorize, t("Needs a sign-in"));
         ui.add_enabled_ui(d.authorize, |ui| {
             ui.horizontal(|ui| {
                 ok |= entered(&field(ui, t("Login"), &mut d.login, 140.0));

@@ -1007,3 +1007,41 @@ fn a_frame_this_host_does_not_answer_gets_nothing() {
         assert_eq!(ask(dir.path(), frame, true, Ok(())).0, None);
     }
 }
+
+fn choice(label: &str) -> Choice {
+    Choice {
+        label: label.into(),
+        quality: "best".into(),
+        size: Some(1),
+    }
+}
+
+#[test]
+fn a_page_read_a_moment_ago_is_not_read_again_and_an_old_reading_is_not_believed() {
+    let home = tempfile::tempdir().unwrap();
+    let key = formats_key("https://v.example/watch?v=1#t=5", "sid=1");
+    assert!(recalled_formats(home.path(), &key, 1000).is_none());
+    remember_formats(home.path(), &key, &[choice("MP4 720")], 1000);
+    let got = recalled_formats(home.path(), &key, 1000 + FORMATS_KEPT_SECS - 1).unwrap();
+    assert_eq!(got[0].label, "MP4 720");
+    assert!(recalled_formats(home.path(), &key, 1000 + FORMATS_KEPT_SECS).is_none());
+    // A site restamping a cookie's value does not make it another session;
+    // other cookies do.
+    assert_eq!(key, formats_key("https://v.example/watch?v=1", "sid=9"));
+    let other = formats_key("https://v.example/watch?v=1", "sid=2; login=1");
+    assert!(recalled_formats(home.path(), &other, 1001).is_none());
+    // The fragment is not part of the page.
+    assert_eq!(key, formats_key("https://v.example/watch?v=1", "sid=1"));
+    // An empty reading is never kept.
+    remember_formats(home.path(), &other, &[], 1002);
+    assert!(recalled_formats(home.path(), &other, 1003).is_none());
+    // Only the latest pages are kept.
+    for n in 0..FORMATS_KEPT_PAGES + 5 {
+        let k = formats_key(&format!("https://v.example/{n}"), "");
+        remember_formats(home.path(), &k, &[choice("x")], 2000);
+    }
+    let first = formats_key("https://v.example/0", "");
+    assert!(recalled_formats(home.path(), &first, 2001).is_none());
+    let last = formats_key(&format!("https://v.example/{}", FORMATS_KEPT_PAGES + 4), "");
+    assert!(recalled_formats(home.path(), &last, 2001).is_some());
+}
