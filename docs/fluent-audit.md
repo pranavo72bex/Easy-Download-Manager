@@ -9,7 +9,7 @@ theme, macOS). **Not checked by eye on Windows**, which is where most of
 | § | Standard | State | Evidence |
 |---|---|---|---|
 | 1 | Multiples of 4, 8 between controls, 24 dialog padding | Met | `item_spacing` 8, `window_margin` 24, `menu_margin` 4 |
-| 1 | Standard control height 32 | **Not met: 24** | `interact_size.y` is 24 ("compact density", chosen earlier). Set to 32 as an experiment: 4 window tests fail (Properties and menu clicks fall below the fold; a list row ends under the sideways bar at large text). Reverted. Gaps row 10 |
+| 1 | Standard control height 32 | **Met in dialogs, not in the window's chrome** | Dialogs set `interact_size.y` to 32 (`dialogs/frame.rs`); the list, bars and menus keep 24. At 32 everywhere 2 of 4 failures were the tests' own assumption (menu items under 30 tall) and menu pitch, fixed; the list's self-sizing drifts at 300% text with the clipboard bar (measured, gaps row 10) |
 | 2 | Type ramp, Segoe UI Variable, no bold/italic | Mostly met | 12 / 14 / 20 semibold are the ramp's Caption, Body, Subtitle; Segoe UI Variable in `theme/fonts.rs`. Line heights and the 28+ sizes are not set (nothing uses them). Monospace 13 for hashes is outside the ramp |
 | 3 | Theme tokens only, Light/Dark/High Contrast, system accent | Partly | Colours come from `Tokens`; Light, Dark, System and Classic exist, accent follows the system. **No High Contrast handling** in code (gaps row 11) |
 | 4 | Mica, Acrylic, shadows 8/16/32/128 | Partly | Mica where `chrome::mica()`; solid fallback otherwise. Shadows are 28 (dialog) and 16 (menu, tooltip): egui counts a shadow in a window's size and 128 no longer fitted at 200% (comment in `apply.rs`). Gaps row 12 |

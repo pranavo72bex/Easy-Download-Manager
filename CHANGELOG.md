@@ -5,6 +5,7 @@ the browser extension (`v*` tags) are versioned separately.
 
 ## Unreleased
 
+- Dialogs' fields, drop-downs and buttons are 32 points tall, the Fluent 2 standard control height, in place of 24.
 - A download the browser handed over and dm waits to ask about (Download details, a page's links, "Download again") brings dm's window forward, so it is not left behind another window or in the tray as if lost.
 - A link that gives "404" now says "this link no longer works", in all thirteen languages, in place of "the server has no file at this address".
 - A plain click on a link to a PDF, a video or a song, which a browser shows in the tab and starts no download for, now goes to dm by the same rules as a download (the types listed, the sites to leave alone, the master switch). Where dm does not take it, the link opens as it would have; Alt keeps it with the browser as before.

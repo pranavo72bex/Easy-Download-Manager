@@ -301,11 +301,14 @@ fn downloads_finishing_under_the_exit_question_never_quit_dm() {
             .rect()
     };
     let before = at(&harness);
-    // Given the frames to say it on a busy machine.
+    // Given the time to say it on a busy machine: the status line is
+    // refreshed by the clock, and fifty frames drawn back to back take a
+    // few milliseconds.
     for _ in 0..50 {
         if harness.query_by_label_contains("2 downloads").is_some() {
             break;
         }
+        std::thread::sleep(std::time::Duration::from_millis(40));
         harness.step();
     }
     assert!(harness.query_by_label_contains("2 downloads").is_some());
