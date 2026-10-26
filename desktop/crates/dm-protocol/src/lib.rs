@@ -439,14 +439,15 @@ impl Reply {
 pub const DEFAULT_EXTENSIONS: &[&str] = &[
     // archives
     "zip", "rar", "7z", "gz", "gzip", "tgz", "bz2", "xz", "zst", "tar", "z", "lzh", "arj", "cab",
-    // programs and disk images
+    "lz", "lzma", "tbz2", "txz", // programs and disk images
     "exe", "msi", "msu", "dmg", "pkg", "deb", "rpm", "apk", "appimage", "iso", "img", "bin",
-    // video
+    "msix", "jar", "whl", "ipa", "vmdk", "vdi", "vhd", "vhdx", "ova", // video
     "mp4", "m4v", "mkv", "avi", "mov", "wmv", "flv", "webm", "mpg", "mpeg", "3gp", "ogv", "ts",
-    // audio
+    "rmvb", "vob", "m2ts", "mts", "asf", // audio
     "mp3", "flac", "wav", "m4a", "aac", "ogg", "opus", "wma", "aif", "aiff",
     // documents
-    "pdf", "epub", "mobi", "djvu", "ppt", "pptx", "pps", // the one kind only dm has
+    "pdf", "epub", "mobi", "djvu", "ppt", "pptx", "pps", "doc", "docx", "xls", "xlsx", "odt", "ods",
+    "odp", // the one kind only dm has
     "torrent",
 ];
 

@@ -36,6 +36,7 @@ impl DmApp {
         self.forget_said_about();
 
         let mut finished = Vec::new();
+        let mut toasts: Vec<(String, String)> = Vec::new();
         let mut failed = Vec::new();
         let mut expired = Vec::new();
         for row in &self.rows {
@@ -60,9 +61,7 @@ impl DmApp {
                 );
             }
             if row.state == State::Completed && self.notified.insert(row.id) && self.notify_ready {
-                self.backend
-                    .platform
-                    .notify_file(t("Download finished"), &name_of(row), &row.path);
+                toasts.push((name_of(row), row.path.clone()));
                 finished.push(row.id);
                 // The command a person set to run on each finished file.
                 let command = self.applied.on_complete.trim();
@@ -74,6 +73,19 @@ impl DmApp {
                     }
                 }
             }
+        }
+        // One toast for what finished in this pass, not one per file: a batch
+        // is one sentence, a single file keeps its Open and Open folder.
+        match toasts.as_slice() {
+            [] => {}
+            [(name, path)] => self
+                .backend
+                .platform
+                .notify_file(t("Download finished"), name, path),
+            many => self.backend.platform.notify(
+                t("Download finished"),
+                &tf("{} downloads finished.", &[&many.len()]),
+            ),
         }
         if self.applied.sound_on_complete && !finished.is_empty() {
             self.backend.platform.chime();
@@ -294,6 +306,16 @@ impl DmApp {
                 }
             }
             return;
+        }
+        // A download caught in the browser for an address already listed is
+        // not fetched a second time unasked: the person is shown the row and
+        // chooses "Download again". Only with a window to ask in.
+        if request.caught && !self.headless {
+            if let Some(id) = crate::dialogs::worth_keeping(self, &request.url) {
+                self.dialogs.duplicate = Some((request.url.clone(), id));
+                self.taken_from_browser(&request.url);
+                return;
+            }
         }
         if !ask {
             match self

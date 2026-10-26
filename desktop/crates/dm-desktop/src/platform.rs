@@ -95,8 +95,10 @@ impl Platform for Desktop {
             notification.appname("dm").summary(&title).body(&body);
             #[cfg(all(unix, not(target_os = "macos")))]
             if !path.is_empty() {
-                // The body's click, as the servers name it.
+                // The body's click, as the servers name it, and a button for
+                // the folder: Open File and Open Folder on the toast itself.
                 notification.action("default", "Open");
+                notification.action("folder", "Open folder");
             }
             let Ok(handle) = notification.show() else {
                 return;
@@ -113,6 +115,9 @@ impl Platform for Desktop {
                 let _ = handle.wait_for_response(|response: &notify_rust::NotificationResponse| {
                     if response.is_default_action() {
                         let _ = shell::open_file(&path);
+                    } else if matches!(response, notify_rust::NotificationResponse::Action(key) if key == "folder")
+                    {
+                        let _ = shell::reveal_in_folder(&path);
                     }
                 });
                 WAITING.fetch_sub(1, Ordering::AcqRel);

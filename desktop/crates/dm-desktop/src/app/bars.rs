@@ -372,8 +372,24 @@ impl DmApp {
                     &[&later],
                 ));
             }
-            if self.applied.speed_limit > 0 {
-                ui.label(tf("· limited to {} KB/s", &[&self.applied.speed_limit]));
+            // The speed cap, always in reach: a click turns it off or on, and
+            // before one was ever set, opens its settings.
+            let limited = self.applied.speed_limit > 0;
+            let chip = if limited {
+                tf("· limited to {} KB/s", &[&self.applied.speed_limit])
+            } else {
+                format!("· {}", t("Speed limiter"))
+            };
+            let chip = ui
+                .add(egui::Label::new(egui::RichText::new(chip).weak()).sense(egui::Sense::click()))
+                .on_hover_cursor(egui::CursorIcon::PointingHand)
+                .on_hover_text(t("Speed limiter"));
+            if chip.clicked() {
+                self.queued.push(if limited || self.last_limit > 0 {
+                    Command::SpeedLimiterToggle
+                } else {
+                    Command::SpeedLimiterSettings
+                });
             }
             if let Some(wait) = self.backend.queue.allowance_spent() {
                 ui.label(tf(

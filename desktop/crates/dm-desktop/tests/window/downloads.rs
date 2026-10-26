@@ -1611,13 +1611,40 @@ fn download_complete_offers_open_with_and_not_again() {
     });
     harness.run_steps(3);
     assert!(harness.query_by_label("Open with…").is_some());
+    // Ticking marks the box and leaves the window open; nothing is saved yet.
     click(&mut harness, "Don't show this window again");
+    harness.run_steps(2);
+    assert!(harness.query_by_label("Download complete").is_some());
+    assert!(
+        harness.state().dialogs.complete_never,
+        "the box is not kept ticked"
+    );
+    assert!(
+        harness.state().applied.show_complete,
+        "saved before it was closed"
+    );
+    // Closing the window saves it.
+    click(&mut harness, "Close");
     harness.run_steps(2);
     assert!(harness.query_by_label("Download complete").is_none());
     assert!(
         !harness.state().applied.show_complete,
         "the setting stays on"
     );
+    assert!(!harness.state().dialogs.complete_never);
+    // Kept, not only for this window: the engine has it, and the next
+    // download that finishes opens nothing.
+    assert!(!harness.state().backend().settings().show_complete);
+    add_url(&mut harness, &world.url("other.pdf"), "Start now");
+    until(&mut harness, "the second download to complete", |app| {
+        app.rows()
+            .iter()
+            .filter(|r| r.state == State::Completed)
+            .count()
+            == 2
+    });
+    harness.run_steps(3);
+    assert!(harness.query_by_label("Download complete").is_none());
     // Put back for the tests after.
     let mut wanted = harness.state().applied.clone();
     wanted.show_complete = true;
@@ -1829,4 +1856,89 @@ fn properties_show_the_files_sha256_and_check_a_given_digest() {
     harness.run_steps(3);
     assert!(harness.query_by_label("It matches.").is_none());
     assert!(harness.query_by_label("It does not match.").is_none());
+}
+
+#[test]
+fn a_caught_download_of_a_listed_address_asks_before_fetching_again() {
+    let world = world();
+    let mut harness = world.harness();
+    harness.state_mut().applied.ask_caught_downloads = false;
+    let url = world.url("file.zip");
+    harness
+        .state()
+        .backend()
+        .add_with(&url, dm_core::AddOptions::default())
+        .unwrap();
+    harness.state_mut().refresh();
+    let before = harness.state().rows().len();
+    harness
+        .state()
+        .backend()
+        .handed
+        .lock()
+        .unwrap()
+        .push_back(dm_shell::host::Request {
+            url: url.clone(),
+            referrer: "https://e.com/page".into(),
+            caught: true,
+            ..Default::default()
+        });
+    harness.state_mut().take_handed();
+    harness.run_steps(3);
+    assert!(harness.state().dialogs.duplicate.is_some());
+    harness.state_mut().refresh();
+    assert_eq!(
+        harness.state().rows().len(),
+        before,
+        "fetched again unasked"
+    );
+}
+
+/// Escape closes Download complete as its Close does, and a ticked "Don't
+/// show this window again" is kept either way.
+#[test]
+fn escape_keeps_a_ticked_dont_show_again_as_close_does() {
+    let _file = settings_file();
+    let world = world();
+    let mut harness = world.harness();
+    harness.state_mut().applied.show_complete = true;
+    add_url(&mut harness, &world.url("file.zip"), "Start now");
+    until(&mut harness, "the download to complete", |app| {
+        app.rows().iter().any(|r| r.state == State::Completed)
+    });
+    harness.run_steps(3);
+    click(&mut harness, "Don't show this window again");
+    harness.run_steps(2);
+    assert!(harness.state().applied.show_complete);
+    harness.key_press(egui::Key::Escape);
+    harness.run_steps(3);
+    assert!(harness.query_by_label("Download complete").is_none());
+    assert!(!harness.state().applied.show_complete);
+    let mut wanted = harness.state().applied.clone();
+    wanted.show_complete = true;
+    harness.state_mut().apply_settings(wanted).unwrap();
+}
+
+/// The row under the pointer has its own Stop/Resume and Remove, so a
+/// download is paused and resumed where it is, not from the toolbar.
+#[test]
+fn the_hovered_row_offers_stop_and_remove_on_itself() {
+    let world = world();
+    let mut harness = world.harness();
+    add_url(&mut harness, &world.url("slow.bin"), "Add for later");
+    harness.state_mut().refresh();
+    harness.run_steps(3);
+    let id = harness.state().rows()[0].id;
+    let rect = *harness
+        .state()
+        .row_rects
+        .get(&id)
+        .expect("the row is drawn");
+    harness.hover_at(rect.center());
+    harness.run_steps(3);
+    let name = dm_desktop::app::name_of(&harness.state().rows()[0].clone());
+    assert!(
+        harness.query_by_label(&format!("Remove {name}")).is_some(),
+        "no buttons on the hovered row"
+    );
 }

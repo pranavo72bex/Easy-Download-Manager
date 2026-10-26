@@ -776,18 +776,19 @@ def panel_checks(base, origin, engine_dl, engine_home, worker):
         click_at(tab, box["x"] + shown["x"] + 60, box["y"] + shown["y"] + shown["h"] / 2)
     check("and its click lands the frame's video in dm", wait_for(lambda: whole(engine_dl, "framed.mp4"), 60))
 
-    # A video dm is refused but the browser can fetch: the panel hands it
-    # to dm, dm is refused, and the browser downloads it instead, so the
-    # person who asked for it gets it.
+    # A video dm is refused but the browser can fetch: asked of dm by the
+    # panel, it is dm's. dm takes it and says if it fails; the browser is
+    # never started on it behind the person's back.
     tab = panel_page(base, origin, "/privatevideo.html")
     hover(tab, tab.evaluate(VIDEO_RECT))
     if wait_for(lambda: (panel(tab) or {}).get("shown"), 5):
         click_panel(tab)
-    said = wait_for(lambda: (panel(tab) or {}).get("title") == "Downloading in the browser" and panel(tab), 30) or panel(tab) or {}
-    check("a video dm is refused is downloaded by the browser instead, and the panel says so",
-          said.get("title") == "Downloading in the browser", str(said))
-    check("and it lands in the browser's folder, not dm's",
-          wait_for(lambda: whole(engine_dl.parent / "browser-downloads", "private-clip.mp4"), 90) and not (engine_dl / "private-clip.mp4").exists())
+    said = wait_for(lambda: (panel(tab) or {}).get("title") == "Sent to dm" and panel(tab), 30) or panel(tab) or {}
+    check("a video dm may be refused is still handed to dm, and the panel says so",
+          said.get("title") == "Sent to dm", str(said))
+    time.sleep(2)
+    check("and the browser does not download it",
+          not (engine_dl.parent / "browser-downloads" / "private-clip.mp4").exists())
 
     # A player that keeps its video in a web component's shadow root.
     tab = panel_page(base, origin, "/shadow.html")
@@ -1077,12 +1078,13 @@ def main():
               f"browser folder: {sorted(p.name for p in browser_dl.iterdir())}")
         worker.evaluate("chrome.storage.local.remove('dm.catch.all').then(() => 'ok')")
 
-        # 5. Only the browser can fetch it: dm says so before anything is
-        # taken, and the browser carries on with its own download.
+        # 5. Only the browser can fetch it: dm is refused without the
+        # browser's session, so it is handed over again with it, for this
+        # download, and dm fetches it; the browser keeps nothing.
         click(base, origin, "private.bin")
-        kept = wait_for(lambda: whole(browser_dl, "private.bin"), 60)
-        check("a link only the signed-in browser can fetch stays with the browser and finishes",
-              kept and not (engine_dl / "private.bin").exists())
+        taken = wait_for(lambda: whole(engine_dl, "private.bin"), 60)
+        check("a link only the signed-in browser can fetch is fetched by dm with the browser's session",
+              taken and not (browser_dl / "private.bin").exists())
 
         # 6. The context menu's handler.
         worker.evaluate(

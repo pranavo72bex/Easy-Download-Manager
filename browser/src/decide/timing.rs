@@ -4,9 +4,10 @@
 /// not for ever; a minute keeps a burst of downloads from starting the host
 /// once each.
 pub const PRESENT_FOR_MS: f64 = 60_000.0;
-/// How long "no app" is believed. Short, so an app installed or registered
-/// since is found without restarting the browser.
-pub const ABSENT_FOR_MS: f64 = 10_000.0;
+/// How long "no app" is believed. Very short: a start that was slow, or a
+/// host that failed once, must not send the next downloads to the browser, and
+/// an app installed or registered since is found without restarting it.
+pub const ABSENT_FOR_MS: f64 = 2_000.0;
 /// How long the host has to answer the handshake. Not its reply time, which
 /// is milliseconds, but its start: the browser spawns it cold, and a freshly
 /// installed binary can be held by the system's first-run checks.

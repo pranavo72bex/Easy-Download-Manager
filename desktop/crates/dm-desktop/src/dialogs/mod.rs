@@ -473,6 +473,9 @@ pub struct Dialogs {
     /// Progress windows a person closed: Resume does not open them again.
     pub progress_closed: BTreeSet<Id>,
     pub complete: BTreeSet<Id>,
+    /// "Don't show this window again" ticked in the Download complete
+    /// window: kept ticked while it is open and saved when it closes.
+    pub complete_never: bool,
     /// Whether each download could resume, as last read while it ran.
     pub resumable_seen: std::collections::HashMap<Id, bool>,
     /// The KB/s typed for a download's own limit in its progress window,

@@ -5,6 +5,12 @@ the browser extension (`v*` tags) are versioned separately.
 
 ## Unreleased
 
+- The row under the pointer has Stop/Resume and Remove buttons; the status bar's speed limit is a button; downloads that finish together give one notification, and a Linux notification offers Open folder; the floating drop target shows overall progress.
+- "Don't show this window again" in Download complete now stays ticked and keeps the window open until you close it, and is saved then.
+- More downloads reach dm instead of the browser: Office documents, disk images and more video and archive types are caught by default, and one slow start of the app no longer sends the next few downloads to the browser. A link whose earlier download failed, or whose file was deleted, downloads again without asking.
+- A link only the signed-in browser can fetch is now taken by dm with that session for the one download, instead of being left to the browser; a link already in dm's list asks before it is fetched again, and the browser says why when it keeps a download.
+- The floating "Download video" button and "Download with dm" always hand the file to dm; a site that refuses dm no longer sends it to the browser's downloader (it shows as a failed row in dm instead).
+- A download taken from the browser (the floating "Download video" button, or a caught download) now starts in dm at once; "Download details" opens first only if Options › "Ask where to save…" is on, which it no longer is by default.
 - An HLS stream whose picture is a transport stream and whose sound is packed AAC (`.aac` segments) is joined into one MP4 by dm itself, with no video helper.
 - The video list opens at once: the panel reads a page's qualities when it is raised over the player, leaves out what a list does not need (a third less time on YouTube), and a reading is kept ten minutes, so a page opened again lists in a few hundredths of a second.
 - An HLS stream cut from one file by byte ranges, and a picture and sound of encrypted (AES-128) fragmented MP4, are fetched and joined by dm itself.

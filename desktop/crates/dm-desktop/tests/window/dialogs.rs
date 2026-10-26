@@ -58,6 +58,7 @@ fn links_on_the_clipboard_are_picked_and_put_in_the_main_queue() {
 fn a_video_from_the_browsers_panel_opens_download_file_info_with_its_quality() {
     let world = world();
     let mut harness = world.harness();
+    harness.state_mut().applied.ask_panel_downloads = true;
     let page = world.url("file.zip");
     harness
         .state()
@@ -131,6 +132,7 @@ fn the_welcome_offers_the_extension_for_each_browser() {
 fn a_pages_links_open_the_download_links_dialog() {
     let world = world();
     let mut harness = world.harness();
+    harness.state_mut().applied.ask_panel_downloads = true;
     hand_links(
         &mut harness,
         &world,
@@ -805,6 +807,7 @@ fn two_cancelled_hand_offs_from_a_site_offer_to_leave_it_to_the_browser() {
     let _file = settings_file();
     let world = world();
     let mut harness = world.harness();
+    harness.state_mut().applied.ask_panel_downloads = true;
     let hand = |harness: &mut Harness<'_, DmApp>, name: &str| {
         harness
             .state()
@@ -870,6 +873,7 @@ fn two_cancelled_hand_offs_from_a_site_offer_to_leave_it_to_the_browser() {
 fn a_handed_over_videos_sign_in_survives_download_details() {
     let world = world();
     let mut harness = world.harness();
+    harness.state_mut().applied.ask_panel_downloads = true;
     harness
         .state()
         .backend()

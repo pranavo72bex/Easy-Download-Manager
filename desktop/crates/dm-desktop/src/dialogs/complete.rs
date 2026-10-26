@@ -17,6 +17,8 @@ pub(super) fn complete(app: &mut DmApp, ctx: &egui::Context) {
         .complete
         .retain(|id| rows.iter().any(|r| r.id == *id));
     if rows.is_empty() {
+        // Closed by the last Open, with the box ticked: the choice is kept.
+        settle_never(app);
         return;
     }
     // Not over a question waiting for its answer: it opened over Exit, its
@@ -30,7 +32,7 @@ pub(super) fn complete(app: &mut DmApp, ctx: &egui::Context) {
     }
     let mut done: Vec<Id> = Vec::new();
     let mut close = false;
-    let mut never_again = false;
+    let mut never_again = app.dialogs.complete_never;
     let mut with: Vec<String> = Vec::new();
     let mut shut = true;
     // In the corner above the status bar, out of the way of the rows a
@@ -169,26 +171,35 @@ pub(super) fn complete(app: &mut DmApp, ctx: &egui::Context) {
                 ui.checkbox(&mut never_again, t("Don't show this window again"));
             });
         });
-    if never_again {
-        let mut wanted = app.applied.clone();
-        wanted.show_complete = false;
-        if let Err(why) = app.apply_settings(wanted) {
-            app.said = why.into();
-        } else {
-            app.said = crate::i18n::Said::new(
-                "This window won't open again. Turn it on in Options › General.",
-                &[],
-            );
-        }
-        app.dialogs.complete.clear();
-    }
+    // Ticking only marks the box; the window stays until it is closed, and
+    // the choice is saved then.
+    app.dialogs.complete_never = never_again;
     if close || !shut {
         app.dialogs.complete.clear();
+        settle_never(app);
     }
     for id in done {
         app.dialogs.complete.remove(&id);
     }
     for path in with {
         app.open_with_chosen(&path);
+    }
+}
+
+/// Saves a ticked "Don't show this window again", once the window is gone.
+fn settle_never(app: &mut DmApp) {
+    if !std::mem::take(&mut app.dialogs.complete_never) {
+        return;
+    }
+    let mut wanted = app.applied.clone();
+    wanted.show_complete = false;
+    match app.apply_settings(wanted) {
+        Ok(()) => {
+            app.said = crate::i18n::Said::new(
+                "This window won't open again. Turn it on in Options › General.",
+                &[],
+            );
+        }
+        Err(why) => app.said = why.into(),
     }
 }

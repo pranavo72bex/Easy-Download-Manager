@@ -5,6 +5,8 @@
 use crate::i18n::{t, tf};
 use std::collections::BTreeSet;
 
+mod hover;
+
 use dm_core::{Entry, Id, State};
 use egui::RichText;
 use egui_extras::{Column as Width, TableBuilder};
@@ -463,6 +465,7 @@ pub fn show(app: &mut DmApp, ui: &mut egui::Ui) {
         app.drag_out = files;
     }
     reorder(app, ui, list_clip);
+    hover::actions(app, ui, &rows, list_clip);
     if let Some(id) = menu.and_then(|i| rows.get(i)).map(|r| r.id) {
         // A right click on a row outside the selection acts on that row.
         if !app.selected.contains(&id) {

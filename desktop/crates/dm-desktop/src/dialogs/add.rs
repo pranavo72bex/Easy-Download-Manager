@@ -149,6 +149,23 @@ pub(crate) fn already_listed(app: &DmApp, address: &str) -> Option<Id> {
         .map(|r| r.id)
 }
 
+/// The row a caught download of `address` would duplicate: one listed and
+/// still worth keeping. A failed row, or a finished one whose file has gone
+/// from the disk, is not: the person clicking the link again wants it.
+pub(crate) fn worth_keeping(app: &DmApp, address: &str) -> Option<Id> {
+    let wanted = bare(address);
+    app.rows()
+        .iter()
+        .find(|r| {
+            r.state != State::Cancelled
+                && !matches!(r.state, State::Failed(_))
+                && bare(&r.url) == wanted
+                && (r.state != State::Completed
+                    || (!r.path.is_empty() && std::path::Path::new(&r.path).exists()))
+        })
+        .map(|r| r.id)
+}
+
 /// Asked when an address typed in is already a row: download it again,
 /// show the row, or leave it.
 pub(super) fn duplicate(app: &mut DmApp, ctx: &egui::Context) {

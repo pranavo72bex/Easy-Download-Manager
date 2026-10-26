@@ -45,6 +45,33 @@ impl DmApp {
         if let Some(corner) = corner {
             builder = builder.with_position(corner);
         }
+        // The overall progress of what is downloading, for the card to show
+        // while the main window is out of sight: a thin bar along its foot
+        // and the speed on hover.
+        let running: Vec<&dm_core::Entry> = self
+            .rows
+            .iter()
+            .filter(|r| r.state == dm_core::State::Running)
+            .collect();
+        let total: u64 = running.iter().filter_map(|r| r.progress.total).sum();
+        let done: u64 = running
+            .iter()
+            .filter(|r| r.progress.total.is_some())
+            .map(|r| r.progress.downloaded)
+            .sum();
+        let fraction = (total > 0).then(|| (done as f32 / total as f32).clamp(0.0, 1.0));
+        let busy = (!running.is_empty()).then(|| {
+            let rate: f64 = running.iter().map(|r| r.progress.speed).sum();
+            let said = crate::i18n::tn(
+                "{} downloading at {}||{} downloading at {}",
+                running.len() as u64,
+                &[&running.len(), &crate::format::rate(rate)],
+            );
+            match fraction {
+                Some(f) => format!("{said} — {}%", (f * 100.0).floor() as u32),
+                None => said,
+            }
+        });
         let mut links = Vec::new();
         let mut dropped_any = false;
         let mut action: Option<Command> = None;
@@ -106,11 +133,25 @@ impl DmApp {
                             ink,
                         );
                     }
+                    if let Some(f) = fraction {
+                        let track = egui::Rect::from_min_size(
+                            egui::pos2(card.left() + 6.0, card.bottom() - 7.0),
+                            egui::vec2(card.width() - 12.0, 3.0),
+                        );
+                        painter.rect_filled(track, 1.5, tokens.border);
+                        let mut filled = track;
+                        filled.set_width((track.width() * f).max(3.0));
+                        painter.rect_filled(filled, 1.5, tokens.accent);
+                    }
                     if response.drag_started() {
                         ctx.send_viewport_cmd(egui::ViewportCommand::StartDrag);
                     }
-                    let response = response
-                        .on_hover_text(t("Drop a link here to download it with dm. Drag to move."));
+                    let response = response.on_hover_text(match &busy {
+                        Some(said) => said.clone(),
+                        None => {
+                            t("Drop a link here to download it with dm. Drag to move.").to_string()
+                        }
+                    });
                     if response.double_clicked() {
                         show = true;
                     }

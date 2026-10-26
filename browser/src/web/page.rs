@@ -64,10 +64,11 @@ pub(super) async fn hand_chosen(
         referrer: target.referrer.clone(),
         cookies,
         cookies_once,
-        // A file is checked before dm takes it, as a caught download is: a
-        // site that refuses dm (W3Schools did, with 403, on one network)
-        // would otherwise leave a failed row and nothing downloaded.
-        caught: !target.page,
+        // Not checked first, as a caught download is: this one was asked of
+        // dm, by name, so dm takes it and says if it fails, rather than
+        // handing it back to start in the browser when dm's own request is
+        // refused (a site that answers dm differently from the browser).
+        caught: false,
         // A page is handed over for its media, picked or not: with a
         // quality the app never saves the page itself in the video's place
         // when yt-dlp cannot read it.

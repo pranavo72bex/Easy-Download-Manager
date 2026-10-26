@@ -1758,3 +1758,88 @@ track, so the DASH and fMP4 paths are untouched. A stream `tsmux` refuses
 (HEVC with odd sound, MPEG-2 picture) fails the join with the reason rather
 than falling back; dropped: asking yt-dlp after the fetch, which would fetch
 the stream twice.
+
+## 2026-10-26: A browser hand-off starts at once; "Download details" is opt-in
+
+`ask_panel_downloads` and `ask_caught_downloads` now default to off (this
+reverses "A video from the panel asks first", 2026-10-12). A click on the
+floating "Download video" button, or a download dm catches, was handed over
+and then waited in "Download details" for a "Start" press, which read as the
+browser having downloaded it and dm opening late. Measured in Edge 156: the
+browser's copy is paused 0.02 s after it is created; the 1.5–1.9 s before dm's
+first request is the browser starting the native host the first time in a
+session (22 ms after), which `on_startup` already warms. The two switches stay
+in Options for anyone who wants the dialog. Existing settings files keep what
+they hold. Side effect: with both off, "Download all links" queues the links
+without the picker (the links dialog follows the same switch).
+
+## 2026-10-26: A file asked of dm by name is never started in the browser instead
+
+The floating "Download video" button and the menus' "Download with dm" handed a
+file as `caught`, so the host fetched it first and, if dm was refused (a 403
+where the browser has the site's session), the extension gave it back and the
+browser downloaded it: the "download started in the browser" the person saw.
+They are handed over as asked for now (`caught: false`); dm takes the file and
+a refused one shows as a failed row to retry or sign in for. The browser still
+takes over only when no dm app can be reached at all. Dropped: probing first,
+which is what let the browser start.
+
+## 2026-10-26: A caught download dm is refused is retried with the session, not left in the browser
+
+A link only a signed-in browser could fetch was refused by dm's pre-check and
+stayed in the browser. The extension now hands it over a second time with the
+page's cookies for that one download (`cookies_once`, to the download's own
+server, dropped when it ends), and the browser keeps it only if dm fails again.
+A caught download of an address already in dm's list opens "Already in the
+list" (Show it / Download again) instead of being fetched a second time
+unasked. When the browser does keep a download because dm could not take it or
+could not be reached, it says so in a notification. Left with the browser by
+design: Alt-click, a type dm does not catch, catching switched off.
+
+## 2026-10-26: Smaller ways a download ended up in the browser
+
+- "No app" is believed for 2 s, not 10: one slow or failed start no longer
+  sends the next ten seconds of downloads to the browser.
+- The default catch list gained Office documents (doc, docx, xls, xlsx, odt,
+  ods, odp), disk images (vmdk, vdi, vhd, vhdx, ova), jar, whl, ipa, msix,
+  more video (rmvb, vob, m2ts, mts, asf) and archives (lz, lzma, tbz2, txz).
+  A settings file that already lists types keeps its own list.
+- A caught link of an address in the list asks (Show it / Download again) only
+  while that row is worth keeping: a failed row, or a finished one whose file
+  is gone from the disk, is fetched again without asking.
+
+## 2026-10-26: "Don't show this window again" ticks, then saves when the window closes
+
+The box in "Download complete" applied the setting on the frame it was ticked
+and shut the window under the pointer, so it never showed as ticked. It now
+stays ticked (`Dialogs::complete_never`), the window stays, and the choice is
+saved when the window closes by Close, ×, or the last Open; a later download
+that finishes opens nothing (tested through the engine's own settings).
+Escape closes the window as Close and × do, and the ticked box is kept on that
+path too (`Dialogs::close_top` empties the set; the window saves the choice on
+its next frame). Rule for dismissal in dm: a dialog's check box is a choice made
+in the dialog, kept ticked while it is open and saved when it is dismissed by
+any route, never applied (and the dialog shut) under the pointer.
+
+## 2026-10-26: Everyday controls where the eye is
+
+A pass against a list of what a download manager should do without being
+asked twice:
+
+- The row under the pointer shows Stop or Resume (Retry when it failed) and
+  Remove on itself (`table/hover.rs`), through the toolbar's commands; their
+  names carry the file's, so they are not the toolbar's twins to a screen
+  reader.
+- The status bar's speed-limit text is a button: a click turns the cap off or
+  on, and opens the limiter's settings when none was ever set (turning on a
+  cap of 1 KB/s was what the toggle did then).
+- Downloads that finish in one pass are one toast ("N downloads finished."),
+  a single file keeps its toast with Open and, on Linux, an Open folder
+  button. Not done: the Windows toast's buttons and a batch spread over many
+  seconds (each pass is judged alone).
+- The floating drop target (View › Drop target) shows the overall progress of
+  what is downloading as a bar along its foot, and the speed on hover. Not
+  done: a separate resizable mini window.
+Already in place and unchanged: categories, Filter and sort, drag in and out,
+the clipboard bar, the context menu and extensions, the tray, the scheduler.
+

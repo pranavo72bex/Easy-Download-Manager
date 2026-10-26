@@ -131,8 +131,7 @@ pub struct Settings {
     /// to name it and choose where it goes, before it starts.
     pub ask_panel_downloads: bool,
     /// A download caught from the browser: "Download details" opens for it
-    /// too, rather than it starting at once. On for a new install; a
-    /// settings file written before it existed keeps downloads starting.
+    /// too, rather than it starting at once. Off by default, since 2026-10-26.
     #[serde(default)]
     pub ask_caught_downloads: bool,
     /// The window's look: "system" (the modern look, light or dark as the
@@ -435,8 +434,8 @@ impl Default for Settings {
             show_progress: true,
             show_complete: true,
             sound_on_complete: false,
-            ask_panel_downloads: true,
-            ask_caught_downloads: true,
+            ask_panel_downloads: false,
+            ask_caught_downloads: false,
             theme: "system".into(),
             double_click: "properties".into(),
             server_dates: false,

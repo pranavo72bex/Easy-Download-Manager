@@ -82,6 +82,11 @@ pub async fn on_download_created(item: JsValue) {
         if paused {
             give_back(&id, &found.url).await;
         }
+        // Said when the browser keeps a download that dm would have taken
+        // had it been reachable; a type dm does not catch is not news.
+        if matches!(app, App::Absent { .. }) {
+            notify("The browser is downloading it", "dm could not be reached");
+        }
         return log("debug", &format!("left with the browser: {why}"));
     }
 
@@ -114,7 +119,30 @@ pub async fn on_download_created(item: JsValue) {
         mime: found.mime.clone(),
         ..Start::default()
     };
-    match hand(port, start).await {
+    // dm refused for want of the browser's session (a link only a signed-in
+    // browser can fetch): handed over again with that session, for this one
+    // download, rather than left to download in the browser.
+    let mut outcome = hand(port, start.clone()).await;
+    if outcome
+        .as_ref()
+        .is_err_and(|why| why.contains("dm cannot fetch this without the browser"))
+        && start.cookies.is_empty()
+    {
+        let (cookies, _) = listed_sign_in(&found.url, found.store.as_deref(), true, true).await;
+        if !cookies.is_empty() {
+            outcome = hand(
+                None,
+                Start {
+                    id: hand_id("b", found.id, now()),
+                    cookies,
+                    cookies_once: true,
+                    ..start
+                },
+            )
+            .await;
+        }
+    }
+    match outcome {
         Ok(()) => {
             log("info", &format!("handed {} to the dm app", found.url));
             // Said in the browser, where the download just vanished; dm's
@@ -169,6 +197,7 @@ pub async fn on_download_created(item: JsValue) {
                     found.url
                 ),
             );
+            notify("The browser is downloading it", &why);
             if paused {
                 give_back(&id, &found.url).await;
             }
