@@ -20,10 +20,10 @@ for them are cited).
 | 4 | Network gone mid-download, then back | **Met by tests** (`a_link_that_drops_every_half_megabyte_still_delivers_the_file`, `a_connection_dropped_mid_range_is_retried`). Row says "Connection dropped (retry n of m)". Not run with a real cable | 0 | the retry wording says nothing about *when* it will try again | open (below) |
 | 5 | Restart mid-download | **Met by tests** (`the_queue_survives_the_app_closing`, `a_power_cut_that_lost_a_block…_is_repaired_not_restarted`, `what_the_schedule_paused_is_started_after_a_restart`) | 0 | none found | — |
 | 6 | Recover after an expired link | **Met.** Update download link has "Get it from the browser": it opens the page the file came from and takes the next download clicked there as the new link (`an_expired_link_is_refreshed_and_the_download_completes`) | menu or row, 1 click, then click the file on the page | needs the person to click the file again | — |
-| 7 | Find a file from last week and open its folder | **Partly.** Search filters instantly (name, address, note); Done and the categories narrow it; "Open folder" is on every row. A finished row shows no date, and "Last try" is a seventh column | type, right-click, Open folder | **no date on a finished row** | open (row 15) |
-| 8 | Schedule a big download for the night, shut down when done | **Met.** Scheduler: "The hours when downloads may run, in every queue", plain times and days; Downloads › When done: Shut down | 3 dialogs | the hint is not offered when a 5 GB file starts | open (row 17) |
+| 7 | Find a file from last week and open its folder | **Met.** Search filters instantly (name, address, note); Done and the categories narrow it; "Open folder" is on every row; a finished row now says "Complete" and when | type, right-click, Open folder | there was no date on a finished row | the date beside "Complete" (`a_finished_row_says_when_it_finished`) |
+| 8 | Schedule a big download for the night, shut down when done | **Met.** Scheduler: "The hours when downloads may run, in every queue", plain times and days; Downloads › When done: Shut down; a 5 GB download now says once that the Scheduler can run it at night | 3 dialogs | the hint was not offered | said once (`a_very_big_download_is_told_about_the_scheduler_once`) |
 | 9 | Remove a download by mistake, then undo | **Was not met; fixed for finished downloads.** Remove asked a question first and had no Undo. A finished one now leaves the list at once and the status bar offers **Undo** for 5 seconds; Undo puts it back where it was. Delete file is its own command with a question, and goes to the Recycle Bin or the Trash, not erased | 1 click, 1 click to undo | the question for a routine action; a delete that could not be got back | engine `finished_rows`/`put_back`, tests in `dm-core` and the window; unfinished rows still ask (their fetched bytes go with them) |
-| 10 | Change the folder for videos only | **Met.** Options › Folders: categories with their own folders | 2 dialogs | no description under it | open (row 15) |
+| 10 | Change the folder for videos only | **Met.** Options › Folders: categories with their own folders | 2 dialogs | no description under it | Folders already explains its categories; Restore defaults added |
 
 ## Also fixed from the standards
 
@@ -32,6 +32,11 @@ for them are cited).
 - A running download of known size with no rate yet says **Calculating…** in
   Time left, not a blank. Time left is smoothed already (`dm-core/src/progress.rs`).
 - Dialogs' fields and buttons are 32 points tall (Fluent 2).
+- The close button asks once whether dm keeps running in the tray, and keeps the
+  answer; the welcome now asks where downloads go and ends with Done.
+- "Pause capturing on this site" in the extension's popup (checked in Edge:
+  a paused site's download stays with the browser, and goes to dm again once
+  it is not paused).
 - A dead link reads "this link no longer works".
 
 ## The ten heuristics, screen by screen
@@ -51,28 +56,30 @@ Not scored because not drawn and looked at: Download details, the Delete file
 question, the other Options pages, the extension's popup, the video panel, the
 completion window.
 
-### Below 4, and what was done
-- **Main window · 8 Minimal (3):** the sixth column, Queue, is cut to half a
-  letter beside the scrollbar at the default width. Open: gaps row 9.
-- **Main window · 10 Help (3):** the empty state teaches ("Add URL, paste a
-  link, or send one from your browser" with a button) and a banner offers the
-  extension, but there is no one-time hint when it would help. Open: row 17.
-- **Properties · 2 Real world (3), 10 Help (3):** Referrer, SHA-256, "A digest
-  you were given". Open: row 9.
-- **Options › General:** 2 Real world (3) *Allow the command line to control
-  dm*; 3 Control (3) no Restore defaults; 6 Recognise (3) the theme is four
-  icons with no words; 9 Recover (3) no Restore defaults; 10 Help (2) no line
-  under any setting. Open: rows 9 and 16.
+### Below 4, and what was done since
+Scores above are as drawn at the time; what has changed since is listed, and
+a screen is re-scored only where it was drawn again.
+
+- **Main window · 8 Minimal (3):** the Queue column is now drawn only while a
+  download has a queue, and finished rows say when they finished (drawn
+  again). The sixth column is now Last try, still cut by the sideways scroll:
+  the extra columns are reached by scrolling, by design. Stays 3.
+- **Main window · 10 Help (3):** a very big download now says once that the
+  Scheduler can run it at night, and the welcome asks where downloads go and
+  ends with Done. Not drawn again; not re-scored.
+- **Properties · 2 Real world (3), 10 Help (3):** Referrer and SHA-256 now
+  explain themselves on hover. Not drawn again; not re-scored.
+- **Options › General:** a line under 13 of the settings with the program's
+  own names (including the command line), Restore defaults on each tab, and
+  "When I close the window". Only the top of General was drawn again, which
+  shows no line yet; not re-scored. The theme's four icons have names on hover
+  and for a screen reader (checked in the code).
 
 ## What still falls short of the standards (all in `docs/gaps.md`)
 
-- Settings: no one-line description under each, no Restore defaults per
-  section, no separate Advanced page (row 16).
-- The extension popup has "Take every download from this site" but not "Pause
-  capturing for this site" (row 13).
+- Settings: 13 have a line under them and each tab has Restore defaults; the
+  rest have no line and there is no separate Advanced page (row 16).
 - Nothing holds notifications back while a fullscreen app or Focus Assist is
-  on, and the close button is not asked about once and remembered (row 14).
-- A finished row shows no date; "Last try" is the seventh column (row 15).
-- First run is a banner, not three skippable steps; the 5 GB scheduling hint
-  does not exist (row 17).
-- The time the next retry will happen is not said (row 17).
+  on. Blocked: the Windows code cannot be compiled on this machine (row 14).
+- A retry does not say when it will try again (row 17).
+- The window's own controls are 24 tall, not 32 (row 10); dialogs are 32.

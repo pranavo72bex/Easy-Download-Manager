@@ -173,6 +173,9 @@ impl Window {
         if std::mem::take(&mut self.app.show_asked) {
             self.show(ctx);
         }
+        if std::mem::take(&mut self.app.hide_asked) {
+            self.hide(ctx);
+        }
         if self.show_asked.swap(false, Ordering::Relaxed) {
             if let Some(why) = dm_shell::register::worth_saying(
                 &mut self.browsers_said,
@@ -208,7 +211,14 @@ impl Window {
             && tray_host()
         {
             ctx.send_viewport_cmd(egui::ViewportCommand::CancelClose);
-            self.hide(ctx);
+            // Asked once what the close button does, and the answer kept in
+            // Options: a download manager that quits when its window closes
+            // is not one, and one that never says it stays is a surprise.
+            match self.app.applied.on_close.as_str() {
+                "exit" => self.app.ask_quit(),
+                "tray" => self.hide(ctx),
+                _ => self.app.dialogs.confirm_close = true,
+            }
         } else if ctx.input(|i| i.viewport().close_requested())
             && !self.quitting
             && !self.app.quit_asked

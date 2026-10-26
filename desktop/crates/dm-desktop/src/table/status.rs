@@ -254,6 +254,15 @@ pub(super) fn status_cell(ui: &mut egui::Ui, entry: &Entry, held: Option<&str>, 
                     ui.label(words)
                         .on_hover_text(format!("{} is no longer there", entry.path));
                 }
+                // When it finished, beside the word, so a file from last week
+                // is found by its day and not only by its name.
+                State::Completed => {
+                    ui.add(egui::Label::new(digits(ui, text)).truncate());
+                    let when = format::when(entry.finished_at);
+                    if !when.is_empty() {
+                        ui.label(RichText::new(when).weak());
+                    }
+                }
                 // Cut with "…" where the column is narrow, the whole on hover:
                 // clipped, "Waiting for Sta" ended mid-word.
                 _ => {

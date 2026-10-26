@@ -1907,3 +1907,25 @@ erasing it. Dropped: undo for an unfinished row, which would mean keeping its
 parts folder for five seconds and the disk it holds. The new dependency,
 `trash` 5.2.9, is the one crate for the three systems' recycle bins.
 
+## 2026-10-26: The first run is the welcome; hints are said once; paused sites are the extension's
+
+The standards ask for a first run of at most three skippable steps. dm already
+opened a welcome on a new install (the extension for each browser found, start
+with the computer); it now also shows the folder downloads go to, which can be
+changed there, and ends with Done (Later still skips it). A hint is said once
+ever and kept in the settings file (`hinted_big`, for a download of 5 GB or
+more; the Scheduler is what it names): said again, it is a nag. The close
+button asks once (`on_close`: ask, tray, exit) and the answer is the setting,
+changeable in Options, so no answer is hidden. "Pause capturing on this site"
+is a list in the extension's storage (`dm.catch.paused`), as "Take every
+download from this site" is, not a setting in the app: the app's skip list
+(Options › Browser) is the app's own, for every browser, and a popup that
+wrote into it would need the host to be running. Restore defaults copies a
+tab's saved settings from `Settings::default()` by key, as `changed_only`
+merges them, so a setting the tab shows but not a key is a test failure
+(`tab_settings`); Sign-ins has none, since a person's logins are not a
+default to go back to. Dropped: a Windows quiet-hours check written without
+being able to compile it (gaps row 14), and hiding the sideways extra columns
+(Last try, Description, Referrer, Folder) by default, which changes what every
+saved window shows and which fifteen tests read.
+

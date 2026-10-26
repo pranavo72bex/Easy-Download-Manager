@@ -1250,3 +1250,34 @@ fn only_a_video_servers_playback_addresses_are_read_as_tracks() {
     assert!(track_of("https://a.googlevideo.com/other?itag=137").is_none());
     assert!(track_of("https://a.googlevideo.com/videoplayback?itag=9999").is_none());
 }
+
+#[test]
+fn a_site_capturing_is_paused_for_keeps_its_downloads_wherever_they_are_served_from() {
+    let listed = vec!["example.org".to_string()];
+    let own = first_look(
+        &item(json!({ "id": 1, "url": "https://files.example.org/a.zip" })),
+        OWN,
+    )
+    .unwrap();
+    assert!(paused_download(&listed, &own), "a site it is part of");
+    let from_page = first_look(
+        &item(json!({
+            "id": 2, "url": "https://cdn.other/a.zip",
+            "referrer": "https://example.org/get",
+        })),
+        OWN,
+    )
+    .unwrap();
+    assert!(
+        paused_download(&listed, &from_page),
+        "started from its page"
+    );
+    let elsewhere = first_look(
+        &item(json!({ "id": 3, "url": "https://cdn.other/a.zip" })),
+        OWN,
+    )
+    .unwrap();
+    assert!(!paused_download(&listed, &elsewhere));
+    assert!(paused(&listed, "https://www.example.org/x.pdf"));
+    assert!(!paused(&[], "https://example.org/x.pdf"));
+}

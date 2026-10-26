@@ -385,6 +385,43 @@ pub(super) fn confirm_exit(app: &mut DmApp, ctx: &egui::Context) {
     }
 }
 
+/// The close button's question, asked once: dm goes on running in the tray
+/// (downloads continue, the browser can still hand it links), or it exits.
+/// Either answer is kept in Options.
+pub(super) fn confirm_close(app: &mut DmApp, ctx: &egui::Context) {
+    if !app.dialogs.confirm_close {
+        return;
+    }
+    let (mut keep, mut exit) = (false, false);
+    let width = EXIT_WIDTH.min(ctx.content_rect().width() - 48.0).max(220.0);
+    window(ctx, "Keep running in the tray?").show(ctx, |ui| {
+        ui.set_width(width);
+        ui.add(
+            egui::Label::new(t(
+                "Closing the window can leave dm running in the tray, so your downloads go on and your browser can still hand it links. Or exit dm now. You can change this in Options.",
+            ))
+            .wrap(),
+        );
+        footer(ui, |ui| {
+            keep = primary(ui, "Keep running").clicked();
+            exit = ui.button(t("Exit")).clicked();
+        });
+    });
+    if keep || exit {
+        app.dialogs.confirm_close = false;
+        let mut wanted = app.applied.clone();
+        wanted.on_close = if keep { "tray" } else { "exit" }.into();
+        if let Err(e) = app.apply_settings(wanted) {
+            app.said = e.into();
+        }
+        if keep {
+            app.hide_asked = true;
+        } else {
+            app.ask_quit();
+        }
+    }
+}
+
 /// The Exit question's width, held whatever its words say, where the
 /// screen has room for it.
 pub(super) const EXIT_WIDTH: f32 = 440.0;

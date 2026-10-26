@@ -394,6 +394,99 @@ pub enum Tab {
     SiteLogins,
 }
 
+/// The settings each tab of Options edits, by the names they are saved under:
+/// what its Restore defaults puts back. Sign-ins hold a person's own logins,
+/// which are not a default to go back to.
+pub fn tab_settings(tab: Tab) -> &'static [&'static str] {
+    match tab {
+        Tab::General => &[
+            "language",
+            "theme",
+            "start_on_login",
+            "allow_command_line",
+            "allow_mcp",
+            "check_updates",
+            "sound_on_complete",
+            "sound_on_failure",
+            "mica",
+            "show_progress",
+            "show_complete",
+            "watch_clipboard",
+            "ask_panel_downloads",
+            "ask_caught_downloads",
+            "offer_new_link",
+            "server_dates",
+            "double_click",
+            "on_close",
+        ],
+        Tab::FileTypes => &["catch"],
+        Tab::SaveTo => &[
+            "categorize",
+            "category_folders",
+            "download_dir",
+            "parts_dir",
+        ],
+        Tab::Downloads => &[
+            "concurrency",
+            "connections",
+            "fetch_tools",
+            "on_complete",
+            "queue_limits",
+            "queue_starts",
+            "recheck_hours",
+            "record_minutes",
+            "remux_ts",
+            "start_queue_on_launch",
+            "stream_quality",
+            "subtitles",
+            "watch_folder",
+        ],
+        Tab::Connection => &[
+            "attempts",
+            "cookies_file",
+            "host_limits",
+            "read_timeout",
+            "retry_wait",
+            "site_rules",
+            "speed_limit",
+        ],
+        Tab::Proxy => &["proxy"],
+        Tab::SiteLogins => &[],
+    }
+}
+
+impl OptionsDialog {
+    /// Puts the tab's settings back to what a new install has, in the draft:
+    /// OK keeps them, Cancel leaves everything as it was. The words typed for
+    /// the lists are read again from what they now hold.
+    pub fn restore_defaults(&mut self) {
+        let (Ok(serde_json::Value::Object(mut now)), Ok(serde_json::Value::Object(fresh))) = (
+            serde_json::to_value(&self.draft),
+            serde_json::to_value(Settings::default()),
+        ) else {
+            return;
+        };
+        for key in tab_settings(self.tab) {
+            if let Some(value) = fresh.get(*key) {
+                now.insert((*key).to_string(), value.clone());
+            }
+        }
+        if let Ok(draft) = serde_json::from_value(serde_json::Value::Object(now)) {
+            self.draft = draft;
+        }
+        let s = &self.draft;
+        self.types = s.catch.extensions.join(" ");
+        self.skip = s.catch.skip_hosts.join(" ");
+        self.once = s.catch.once_hosts.join(" ");
+        self.bypass = s.proxy.bypass.join(" ");
+        self.custom = s
+            .custom_categories
+            .iter()
+            .map(|c| [c.name.clone(), c.extensions.join(" "), c.sites.join(" ")])
+            .collect();
+    }
+}
+
 pub const TABS: [(Tab, &str); 7] = [
     (Tab::General, "General"),
     (Tab::FileTypes, "Browser"),
@@ -504,6 +597,8 @@ pub struct Dialogs {
     pub about_open: bool,
     /// A new install's "Add dm to your browser", with the browsers found.
     pub welcome: Option<Vec<dm_shell::register::Installed>>,
+    /// The welcome's download folder, as it is being edited.
+    pub welcome_dir: String,
     /// Check for updates as soon as About is drawn.
     pub check_update: bool,
     /// Rows Remove was asked for, by any of its ways: asked about first.
@@ -538,6 +633,9 @@ pub struct Dialogs {
     pub raise: Vec<egui::Id>,
     /// Exit asked for while downloads run: asked whether to stop them.
     pub confirm_exit: bool,
+    /// The window's close button pressed with no answer kept yet: asked
+    /// whether dm keeps running in the tray.
+    pub confirm_close: bool,
     /// The dialog, by English title, whose first field takes the keyboard
     /// when it is next drawn: a dialog opened to be typed in is typed in
     /// at once, without a click first.
@@ -582,6 +680,7 @@ pub fn show(app: &mut DmApp, ctx: &egui::Context) {
     }
     countdown(app, ctx);
     confirm_exit(app, ctx);
+    confirm_close(app, ctx);
     links(app, ctx);
     confirm_remove(app, ctx);
     confirm_outside(app, ctx);

@@ -1013,3 +1013,46 @@ fn open_choice(harness: &mut Harness<'_, DmApp>, name: &str) {
         .click();
     harness.run_steps(2);
 }
+
+/// Every setting a tab's Restore defaults names exists, and putting a tab
+/// back changes what the tab edits and nothing else.
+#[test]
+fn restore_defaults_puts_a_tab_back_and_only_that_tab() {
+    use dm_desktop::dialogs::{tab_settings, Tab, TABS};
+    let fresh = serde_json::to_value(dm_shell::settings::Settings::default()).unwrap();
+    for (tab, _) in TABS {
+        for key in tab_settings(tab) {
+            assert!(fresh.get(*key).is_some(), "{key} is no setting");
+        }
+    }
+    let mut changed = dm_shell::settings::Settings::default();
+    changed.connections = 9;
+    changed.theme = "dark".into();
+    changed.catch.extensions = vec!["zzz".into()];
+    let mut dialog = dm_desktop::dialogs::OptionsDialog {
+        tab: Tab::Downloads,
+        draft: changed.clone(),
+        opened: changed.clone(),
+        says: String::new(),
+        types: "zzz".into(),
+        skip: String::new(),
+        once: String::new(),
+        bypass: String::new(),
+        custom: Vec::new(),
+        fresh: false,
+        fresh_tab: 0,
+    };
+    dialog.restore_defaults();
+    let defaults = dm_shell::settings::Settings::default();
+    assert_eq!(dialog.draft.connections, defaults.connections);
+    assert_eq!(dialog.draft.theme, "dark", "General's setting was put back");
+    assert_eq!(
+        dialog.draft.catch.extensions,
+        ["zzz"],
+        "Browser's was put back"
+    );
+    dialog.tab = Tab::FileTypes;
+    dialog.restore_defaults();
+    assert_eq!(dialog.draft.catch.extensions, defaults.catch.extensions);
+    assert_eq!(dialog.types, defaults.catch.extensions.join(" "));
+}

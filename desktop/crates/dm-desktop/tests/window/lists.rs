@@ -887,8 +887,8 @@ fn each_queue_has_at_most_one_limit() {
     harness.run_steps(3);
     let queues = harness.state().backend().queues();
     for _ in 0..queues.len() + 1 {
-        harness.get_by_label("Add a queue limit").click();
-        harness.run_steps(2);
+        // Scrolled to first, as a person scrolls to what is below the fold.
+        click(&mut harness, "Add a queue limit");
     }
     let limits: Vec<String> = harness
         .state()

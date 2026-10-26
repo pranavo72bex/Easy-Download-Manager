@@ -73,6 +73,10 @@ pub fn show(app: &mut DmApp, ui: &mut egui::Ui) {
         .iter()
         .copied()
         .filter(|c| !app.hidden_columns.contains(c))
+        // Queue is empty for a download with no queue of its own, which is
+        // most; drawn then, it only pushed the sixth column half out of the
+        // window, its heading cut to a letter beside the sideways bar.
+        .filter(|c| *c != Column::Queue || app.rows.iter().any(|r| !r.queue.is_empty()))
         .collect();
     // Plain rows; the modern look's are taller.
     let striped = false;

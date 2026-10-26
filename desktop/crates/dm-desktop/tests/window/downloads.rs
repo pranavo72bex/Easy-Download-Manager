@@ -2079,3 +2079,54 @@ fn five_links_pasted_into_add_url_are_one_batch() {
         .query_by_label_contains("looks like two links")
         .is_none());
 }
+
+/// A finished row says when it finished, beside "Complete", so a file from
+/// last week is found by its day.
+#[test]
+fn a_finished_row_says_when_it_finished() {
+    let world = world();
+    let mut harness = world.harness();
+    add_url(&mut harness, &world.url("file.zip"), "Start now");
+    until(&mut harness, "it to finish", |app| {
+        app.rows().iter().any(|r| r.state == State::Completed)
+    });
+    harness.run_steps(3);
+    let finished = row(&harness, "file.zip").finished_at;
+    let when = dm_desktop::format::when(finished);
+    assert!(!when.is_empty(), "a finished row has no finishing time");
+    assert!(
+        harness.query_by_label("Complete").is_some(),
+        "Complete is no longer on its own"
+    );
+    assert!(
+        harness.query_all_by_label(&when).count() >= 1,
+        "no {when} on the row"
+    );
+}
+
+/// A very big download says once that the Scheduler can run it at night, and
+/// never again.
+#[test]
+fn a_very_big_download_is_told_about_the_scheduler_once() {
+    let _file = settings_file();
+    let world = world();
+    let mut harness = world.harness();
+    add_url(&mut harness, &world.url("stalled.bin"), "Start now");
+    until(&mut harness, "it to run", |app| app.downloading() == 1);
+    harness.state_mut().big_download_hint();
+    assert!(!harness.state().applied.hinted_big, "said for a small file");
+    harness.state_mut().rows[0].progress.total = Some(6 << 30);
+    harness.state_mut().big_download_hint();
+    assert!(harness.state().applied.hinted_big);
+    harness.run_steps(2);
+    assert!(harness
+        .query_by_label_contains("Scheduler can run it at night")
+        .is_some());
+    // Said, so not said again: the words are cleared and it stays quiet.
+    harness.state_mut().said = Default::default();
+    harness.state_mut().big_download_hint();
+    assert!(harness.state().said.is_empty(), "said a second time");
+    let mut back = harness.state().applied.clone();
+    back.hinted_big = false;
+    harness.state_mut().apply_settings(back).unwrap();
+}

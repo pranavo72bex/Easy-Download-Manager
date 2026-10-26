@@ -480,6 +480,7 @@ impl DmApp {
                 app.dialogs.duplicate.is_some(),
             )
         };
+        self.big_download_hint();
         let before = waiting(self);
         self.take_handed();
         let after = waiting(self);
@@ -623,6 +624,30 @@ impl DmApp {
         }
         self.selected.clear();
         self.refresh();
+    }
+
+    /// A very big download that has started: said once, ever, that the
+    /// Scheduler can run it at night. Not said again once it has been.
+    pub fn big_download_hint(&mut self) {
+        const BIG: u64 = 5 << 30;
+        if self.applied.hinted_big
+            || self.headless
+            || !self
+                .rows
+                .iter()
+                .any(|r| r.state == State::Running && r.progress.total.is_some_and(|t| t >= BIG))
+        {
+            return;
+        }
+        self.said = crate::i18n::Said::new(
+            "This is a big download. Downloads › Scheduler can run it at night, when you are not using the computer.",
+            &[],
+        );
+        let mut wanted = self.applied.clone();
+        wanted.hinted_big = true;
+        if let Err(e) = self.apply_settings(wanted) {
+            self.said = e.into();
+        }
     }
 
     /// Takes finished rows off the list with no question, since their files

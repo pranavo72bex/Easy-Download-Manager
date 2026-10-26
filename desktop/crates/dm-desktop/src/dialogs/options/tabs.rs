@@ -49,6 +49,27 @@ pub(super) fn tab_general(ui: &mut egui::Ui, d: &mut OptionsDialog, env: &TabEnv
             .response
             .labelled_by(name);
     });
+    setting_row(ui, t("When I close the window"), |ui, name| {
+        let shown = match s.on_close.as_str() {
+            "tray" => t("Keep running in the tray"),
+            "exit" => t("Exit dm"),
+            _ => t("Ask me"),
+        };
+        combo("on-close")
+            .selected_text(shown)
+            .show_ui(ui, |ui| {
+                pick(ui, &mut s.on_close, "ask".to_string(), t("Ask me"));
+                pick(
+                    ui,
+                    &mut s.on_close,
+                    "tray".to_string(),
+                    t("Keep running in the tray"),
+                );
+                pick(ui, &mut s.on_close, "exit".to_string(), t("Exit dm"));
+            })
+            .response
+            .labelled_by(name);
+    });
     // In groups under headings: one list of a dozen boxes was
     // hard to find a setting in (a design review).
     section(ui, t("Starting and updating"));
@@ -58,10 +79,18 @@ pub(super) fn tab_general(ui: &mut egui::Ui, d: &mut OptionsDialog, env: &TabEnv
         &mut s.allow_command_line,
         t("Allow the command line to control dm"),
     );
+    hint(
+        ui,
+        t("Lets other programs on this computer add and stop downloads."),
+    );
     toggle_row(
         ui,
         &mut s.allow_mcp,
         t("Allow AI assistants to control dm (MCP)"),
+    );
+    hint(
+        ui,
+        t("Lets an AI assistant you run on this computer add and manage downloads."),
     );
     toggle_row(ui, &mut s.check_updates, t("Check for updates once a week"));
     section(ui, t("Sounds"));
@@ -95,26 +124,46 @@ pub(super) fn tab_general(ui: &mut egui::Ui, d: &mut OptionsDialog, env: &TabEnv
         &mut s.watch_clipboard,
         t("Offer to download links I copy"),
     );
+    hint(
+        ui,
+        t("dm looks at what you copy and offers to download any link."),
+    );
     toggle_row(
         ui,
         &mut s.ask_panel_downloads,
         t("Ask where to save videos"),
+    );
+    hint(
+        ui,
+        t("Shows Download details before a video from a page starts."),
     );
     toggle_row(
         ui,
         &mut s.ask_caught_downloads,
         t("Ask where to save browser downloads"),
     );
+    hint(
+        ui,
+        t("Shows Download details before a download from your browser starts."),
+    );
     toggle_row(
         ui,
         &mut s.offer_new_link,
         t("Offer a new link when a download's link has expired"),
+    );
+    hint(
+        ui,
+        t("Asks you to click the file again on its page, to get a link that works."),
     );
     section(ui, t("Adding and keeping files"));
     toggle_row(
         ui,
         &mut s.server_dates,
         t("Keep the file's date from the server"),
+    );
+    hint(
+        ui,
+        t("A saved file gets the date the website gives it, not today's."),
     );
     section(ui, t("The list"));
     // Each choice of a group under its name, as WinUI's radio
@@ -380,10 +429,12 @@ pub(super) fn tab_downloads(ui: &mut egui::Ui, d: &mut OptionsDialog, env: &TabE
         ui.add(number_box(&mut s.connections).range(1..=32))
             .labelled_by(name);
     });
+    hint(ui, t("How many parts of a file dm fetches at once. More is faster on most sites, but some limit it."));
     number_row(ui, t("Files at once"), |ui, name| {
         ui.add(number_box(&mut s.concurrency).range(1..=10))
             .labelled_by(name);
     });
+    hint(ui, t("How many files download at the same time."));
     setting_row(ui, t("Video quality"), |ui, name| {
         let current = QUALITIES
             .iter()
@@ -559,6 +610,7 @@ pub(super) fn tab_connection(ui: &mut egui::Ui, d: &mut OptionsDialog, env: &Tab
         ui.add(number_box(&mut s.speed_limit).range(0..=1024 * 1024))
             .labelled_by(name);
     });
+    hint(ui, t("Keeps dm from using all of your connection."));
     number_row(
         ui,
         t("Attempts per connection (0 to keep trying)"),
@@ -597,6 +649,15 @@ pub(super) fn tab_connection(ui: &mut egui::Ui, d: &mut OptionsDialog, env: &Tab
                 remove = Some(i);
             }
         });
+        hint(
+            ui,
+            t("How long a connection may say nothing before dm gives up on it."),
+        );
+        hint(ui, t("How long dm waits before it tries again."));
+        hint(
+            ui,
+            t("How many times dm tries again after a connection fails."),
+        );
     }
     if let Some(i) = remove {
         s.host_limits.remove(i);

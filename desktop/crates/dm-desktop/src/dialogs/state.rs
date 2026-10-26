@@ -198,6 +198,7 @@ impl Dialogs {
     /// and answered later by an Enter meant for something else.
     pub fn asking(&self) -> bool {
         self.confirm_exit
+            || self.confirm_close
             || self.confirm_remove.is_some()
             || self.confirm_outside.is_some()
             || self.confirm_cancel.is_some()
@@ -210,6 +211,7 @@ impl Dialogs {
     pub(super) fn questions(&self) -> Vec<&'static str> {
         [
             (self.confirm_exit, "Exit dm?"),
+            (self.confirm_close, "Keep running in the tray?"),
             (self.confirm_remove.is_some(), "Delete unfinished downloads"),
             (
                 self.confirm_outside.is_some(),
@@ -248,6 +250,7 @@ impl Dialogs {
     pub(super) fn modal_layers(&self) -> Vec<egui::LayerId> {
         let mut ids: Vec<egui::Id> = [
             (self.confirm_exit, "Exit dm?"),
+            (self.confirm_close, "Keep running in the tray?"),
             (self.confirm_remove.is_some(), "Delete unfinished downloads"),
             (
                 self.confirm_outside.is_some(),
@@ -351,6 +354,7 @@ impl Dialogs {
             }
         };
         say(self.confirm_exit, "Exit dm?");
+        say(self.confirm_close, "Keep running in the tray?");
         // By the title it shows (an old name whatever it said).
         let removing = if self.remove_title.is_empty() {
             "Remove from the list"
@@ -403,6 +407,7 @@ impl Dialogs {
     /// one behind the window in front.
     pub fn close_top(&mut self, back_to_front: &[egui::Id]) -> bool {
         if std::mem::take(&mut self.confirm_exit)
+            || std::mem::take(&mut self.confirm_close)
             || self.confirm_remove.take().is_some()
             || self.confirm_outside.take().is_some()
             || self.confirm_cancel.take().is_some()

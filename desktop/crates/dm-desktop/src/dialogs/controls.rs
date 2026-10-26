@@ -96,6 +96,12 @@ pub(super) fn number_row(
     setting_row(ui, words, add);
 }
 
+/// A line under a setting, in small weak words, saying in plain terms what it
+/// does: for the ones whose names are the program's own.
+pub(super) fn hint(ui: &mut egui::Ui, words: &str) {
+    ui.label(RichText::new(words).small().weak());
+}
+
 /// A heading over a group of settings: a little room above, in the
 /// heading's weight, on the 4-point grid.
 pub(super) fn section(ui: &mut egui::Ui, words: &str) {

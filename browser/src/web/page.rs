@@ -274,6 +274,10 @@ pub async fn on_page_message(message: JsValue, sender: JsValue) -> JsValue {
         if !catching().await {
             return answer(false, "catching is switched off");
         }
+        let paused = paused_sites().await;
+        if decide::paused(&paused, &url) || decide::paused(&paused, &tab_url) {
+            return answer(false, "capturing is paused for this site");
+        }
         match app().await.0 {
             App::Absent { reason } => return answer(false, &reason),
             App::Present { rules, .. } => {

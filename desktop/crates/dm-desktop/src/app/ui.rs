@@ -537,6 +537,7 @@ impl DmApp {
             .map(std::path::PathBuf::from)
             .unwrap_or_default();
         self.dialogs.welcome = Some(dm_shell::register::installed_browsers(&home));
+        self.dialogs.welcome_dir = self.applied.download_dir.display().to_string();
         let dm_home = dm_shell::settings::home();
         let _ = std::fs::create_dir_all(&dm_home);
         let _ = std::fs::write(dm_home.join(WELCOMED), b"");

@@ -59,6 +59,25 @@ pub fn forced_download(all: &[String], found: &Catchable) -> bool {
         .any(|url| forced(all, url))
 }
 
+/// Where the sites whose downloads the browser keeps are listed, from the
+/// toolbar popup: "Pause capturing on this site". A click with the take key
+/// held still hands its download over.
+pub const PAUSED_KEY: &str = "dm.catch.paused";
+
+/// Whether capturing is paused for the site at `url`: its site is listed, or
+/// a site it is part of.
+pub fn paused(list: &[String], url: &str) -> bool {
+    site_listed(list, url)
+}
+
+/// Whether a download is from a site capturing is paused for: where it was
+/// asked for, where it is served from or the page it came from.
+pub fn paused_download(list: &[String], found: &Catchable) -> bool {
+    [&found.url, &found.asked_url, &found.referrer]
+        .iter()
+        .any(|url| paused(list, url))
+}
+
 /// Where the sites whose sign-in (their cookies) goes to dm with a download
 /// are kept, from the toolbar popup: "Hand over this site's sign-in". The
 /// browser's `cookies` permission is asked for the first time one is

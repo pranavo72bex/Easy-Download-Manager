@@ -316,6 +316,20 @@ pub fn popup_start(ext: JsValue) {
         },
     ));
 
+    // Capturing paused for this site: its downloads stay with the browser.
+    wasm_bindgen_futures::spawn_local(site_switch(
+        ext.clone(),
+        SiteSwitch {
+            input: "paused",
+            row: "paused-row",
+            label: "paused-label",
+            key: decide::PAUSED_KEY,
+            listed_is_on: true,
+            says: |site| format!("Pause capturing on {site}"),
+            none: "No downloads to pause on this page",
+        },
+    ));
+
     // This site's sign-in with its downloads.
     wasm_bindgen_futures::spawn_local(cookies_switch(ext.clone()));
 

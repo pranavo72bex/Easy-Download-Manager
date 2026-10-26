@@ -58,6 +58,20 @@ pub(super) async fn forced_for(found: &Catchable) -> bool {
     decide::forced_download(&list, found)
 }
 
+/// The sites the toolbar popup has capturing paused for.
+pub(super) async fn paused_sites() -> Vec<String> {
+    let Ok(got) = call(
+        "storage.local",
+        "get",
+        &[JsValue::from_str(decide::PAUSED_KEY)],
+    )
+    .await
+    else {
+        return Vec::new();
+    };
+    serde_json::from_value(from_js(&field(&got, decide::PAUSED_KEY))).unwrap_or_default()
+}
+
 /// The browser's cookies for `url`, as the header it would send, where the
 /// toolbar popup has that switched on for the site; empty otherwise, and
 /// empty on any failure. `store` is the cookie store (Firefox's container)

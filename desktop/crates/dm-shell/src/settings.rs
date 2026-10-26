@@ -140,6 +140,13 @@ pub struct Settings {
     /// What a double-click on a row does: "properties", "open" (a finished
     /// file; Properties for one not finished) or "folder" (its folder).
     pub double_click: String,
+    /// What the window's close button does: "ask" (the first time, and the
+    /// answer is kept here), "tray" (dm goes on running in the tray) or
+    /// "exit".
+    pub on_close: String,
+    /// The hint about the Scheduler, said once when a very big download
+    /// starts, has been said.
+    pub hinted_big: bool,
     /// A finished file takes the date its server says it last changed,
     /// rather than when it was fetched. Off by default.
     pub server_dates: bool,
@@ -438,6 +445,8 @@ impl Default for Settings {
             ask_caught_downloads: false,
             theme: "system".into(),
             double_click: "open".into(),
+            on_close: "ask".into(),
+            hinted_big: false,
             server_dates: false,
             retry_wait: 0,
             record_minutes: 0,
@@ -468,6 +477,9 @@ impl Settings {
         self.retry_wait = self.retry_wait.min(3600);
         // A day at most: a stream meant to run longer is stopped by hand.
         self.record_minutes = self.record_minutes.min(24 * 60);
+        if !["ask", "tray", "exit"].contains(&self.on_close.as_str()) {
+            self.on_close = "ask".into();
+        }
         if !["properties", "open", "folder"].contains(&self.double_click.as_str()) {
             self.double_click = "properties".into();
         }

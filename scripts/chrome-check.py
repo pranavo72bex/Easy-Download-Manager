@@ -366,7 +366,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
         if path == "/page.html":
             links = "".join(f'<p><a id="{n}" href="/files/{n}">{n}</a></p>' for n in
                             ("caught.bin", "notes.txt", "kept.zip", "private.bin", "absent.bin",
-                             "alt.bin", "off.bin", "forced.txt", "small.pdf", "small-shown.pdf", "small.bin", LONG))
+                             "alt.bin", "off.bin", "forced.txt", "paused.bin", "resumed.bin", "small.pdf", "small-shown.pdf", "small.bin", LONG))
             page = f"<!doctype html><title>dm check</title>{links}".encode()
             self.send_response(200)
             self.send_header("Content-Type", "text/html")
@@ -1094,6 +1094,21 @@ def main():
               f"dm folder: {sorted(p.name for p in engine_dl.iterdir())}; "
               f"browser folder: {sorted(p.name for p in browser_dl.iterdir())}")
         worker.evaluate("chrome.storage.local.remove('dm.catch.all').then(() => 'ok')")
+
+        # The popup's "Pause capturing on this site": a type the app catches
+        # stays with the browser while the site is listed, and goes to dm
+        # again once it is not.
+        worker.evaluate("chrome.storage.local.set({'dm.catch.paused': ['127.0.0.1']}).then(() => 'ok')")
+        click(base, origin, "paused.bin")
+        kept = wait_for(lambda: whole(browser_dl, "paused.bin"), 60)
+        check("with 'Pause capturing on this site' on, a type the app catches stays with the browser",
+              kept and not (engine_dl / "paused.bin").exists(),
+              f"dm folder: {sorted(p.name for p in engine_dl.iterdir())}")
+        worker.evaluate("chrome.storage.local.remove('dm.catch.paused').then(() => 'ok')")
+        click(base, origin, "resumed.bin")
+        taken = wait_for(lambda: whole(engine_dl, "resumed.bin"), 60)
+        check("and goes to dm again once the site is not paused",
+              taken and not (browser_dl / "resumed.bin").exists())
 
         # 5. Only the browser can fetch it: dm is refused without the
         # browser's session, so it is handed over again with it, for this

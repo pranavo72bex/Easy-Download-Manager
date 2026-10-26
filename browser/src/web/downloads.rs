@@ -55,6 +55,14 @@ pub async fn on_download_created(item: JsValue) {
         let mut taken = t.borrow_mut();
         taken.take(&found.url, now()) || taken.take(&asked_for, now())
     });
+    // A site the popup has paused is the browser's, unless a click with the
+    // take key held asked for this one.
+    if !clicked && decide::paused_download(&paused_sites().await, &found) {
+        return log(
+            "debug",
+            "left with the browser: capturing is paused for its site",
+        );
+    }
     let forced = clicked || forced_for(&found).await;
     let early = remembered_rules()
         .await

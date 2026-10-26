@@ -9,6 +9,9 @@ pub(super) fn welcome(app: &mut DmApp, ctx: &egui::Context) {
     let mut later = false;
     let mut page: Option<&'static str> = None;
     let mut at_login = app.applied.start_on_login;
+    let mut dir = app.dialogs.welcome_dir.clone();
+    let mut done = false;
+    let platform = std::sync::Arc::clone(&app.backend.platform);
     window(ctx, "Add dm to your browser")
         .open(&mut open)
         .show(ctx, |ui| {
@@ -40,6 +43,10 @@ pub(super) fn welcome(app: &mut DmApp, ctx: &egui::Context) {
                     }
                 }
             }
+            // Where downloads go, to confirm or change now: the second of the
+            // three steps (the browser, the folder, done).
+            ui.add_space(8.0);
+            folder_field(ui, t("Download folder"), &mut dir, &*platform);
             // What dm changed on the computer, said where it can be undone:
             // it starts with the computer, in the tray, so a download
             // clicked in the browser always has dm to go to.
@@ -57,11 +64,23 @@ pub(super) fn welcome(app: &mut DmApp, ctx: &egui::Context) {
                 .weak(),
             );
             footer(ui, |ui| {
+                done = primary(ui, "Done").clicked();
                 if ui.button(t("Later")).clicked() {
                     later = true;
                 }
             });
         });
+    app.dialogs.welcome_dir = dir.clone();
+    if done || later || !open {
+        let chosen = std::path::PathBuf::from(dir.trim());
+        if !dir.trim().is_empty() && chosen != app.applied.download_dir {
+            let mut wanted = app.applied.clone();
+            wanted.download_dir = chosen;
+            if let Err(e) = app.apply_settings(wanted) {
+                app.said = e.into();
+            }
+        }
+    }
     if at_login != app.applied.start_on_login {
         let mut wanted = app.applied.clone();
         wanted.start_on_login = at_login;
@@ -72,7 +91,7 @@ pub(super) fn welcome(app: &mut DmApp, ctx: &egui::Context) {
     if let Some(page) = page {
         app.open_file(page);
     }
-    if !open || later {
+    if !open || later || done {
         app.dialogs.welcome = None;
     }
 }

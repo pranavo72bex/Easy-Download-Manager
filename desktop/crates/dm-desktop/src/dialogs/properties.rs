@@ -153,7 +153,8 @@ pub(super) fn properties(app: &mut DmApp, ctx: &egui::Context) {
                                 });
                                 said(ui, &saved_to);
                                 ui.end_row();
-                                ui.label(t("Referrer"));
+                                ui.label(t("Referrer"))
+                                    .on_hover_text(t("The page the link was on."));
                                 said(ui, &row.referrer);
                                 ui.end_row();
                                 let name = ui.label(t("Address"));
@@ -318,7 +319,9 @@ fn digest_rows(
         ctx.request_repaint_after(std::time::Duration::from_millis(200));
     };
     start_sum(runtime, &d.sums, path, Algorithm::Sha256);
-    ui.label("SHA-256");
+    ui.label("SHA-256").on_hover_text(t(
+        "A fingerprint of the file. If a site gives you one, you can paste it below to check the file is whole.",
+    ));
     match sum_of(&d.sums, Algorithm::Sha256) {
         None => waiting(ui),
         Some(Ok(hex)) => {

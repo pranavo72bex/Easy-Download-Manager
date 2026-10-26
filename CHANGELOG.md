@@ -5,6 +5,14 @@ the browser extension (`v*` tags) are versioned separately.
 
 ## Unreleased
 
+- A finished download's row says when it finished, beside "Complete".
+- Add dm's welcome asks where downloads go and ends with Done: the browser, the folder, done.
+- Closing the window asks once whether dm keeps running in the tray, and keeps the answer (Options › General › When I close the window).
+- Options: a line under the settings whose names are jargon, and Restore defaults on each tab.
+- The extension's popup has "Pause capturing on this site": its downloads stay with the browser, except a click with the take key held.
+- A very big download (5 GB or more) says once that the Scheduler can run it at night.
+- The Queue column is drawn only while a download has a queue of its own, so the sixth column is not cut half off at the default width.
+- Properties explains Referrer and SHA-256 on hover.
 - A finished download taken off the list leaves at once, with no question (its file stays), and Undo in the status bar puts it back where it was for five seconds. Deleting the file is its own command, File › Delete file, which asks and moves the file to the Recycle Bin or the Trash, not erasing it.
 - Several links pasted into Add URL are one batch in Download details, in place of "Add one at a time".
 - A double-click opens a finished file on a new install (it showed Properties); an unfinished download still shows Properties.

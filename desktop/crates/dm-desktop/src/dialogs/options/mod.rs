@@ -73,6 +73,14 @@ pub(super) fn options(app: &mut DmApp, ctx: &egui::Context) {
             Tab::Proxy => tab_proxy(ui, d, &env),
             Tab::SiteLogins => tab_site_logins(ui, d, &env),
         }
+        // Each tab's own settings back to a new install's, in the draft: OK
+        // keeps them, Cancel leaves everything as it was.
+        if !tab_settings(d.tab).is_empty() {
+            ui.add_space(16.0);
+            if ui.button(t("Restore defaults")).clicked() {
+                d.restore_defaults();
+            }
+        }
     };
     // Too short for the tabs, a few rows of settings and the buttons (200%
     // text in a 460-point window, 300% in 800): the dialog scrolls as one

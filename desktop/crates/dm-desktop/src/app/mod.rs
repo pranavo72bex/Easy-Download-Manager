@@ -264,6 +264,8 @@ pub struct DmApp {
     /// The window was asked to come up from inside it (the floating drop
     /// target's Show dm), for the program around it to do.
     pub show_asked: bool,
+    /// The window is to go to the tray (the close question's answer).
+    pub hide_asked: bool,
     /// A row waiting for its fresh link from the browser, and since when:
     /// the next download caught there becomes its link.
     pub awaiting_link: Option<(Id, Instant)>,
@@ -495,6 +497,7 @@ impl DmApp {
             update_row: None,
             undo_remove: None,
             show_asked: false,
+            hide_asked: false,
             awaiting_link: None,
             welcome_checked: false,
             update: Arc::new(Mutex::new(Update::NotAsked)),

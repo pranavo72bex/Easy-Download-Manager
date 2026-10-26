@@ -1808,3 +1808,68 @@ fn the_default_double_click_opens_a_finished_file_and_shows_properties_for_the_r
     harness.run_steps(3);
     assert!(harness.query_by_label("File properties").is_some());
 }
+
+/// The close button asks once whether dm keeps running in the tray, and what
+/// is chosen is kept: Keep running goes to the tray, Exit quits, and neither
+/// is asked again.
+#[test]
+fn the_close_question_is_asked_once_and_the_answer_is_kept() {
+    let _file = settings_file();
+    let world = world();
+    let mut harness = world.harness();
+    assert_eq!(harness.state().applied.on_close, "ask");
+    harness.state_mut().dialogs.confirm_close = true;
+    harness.run_steps(3);
+    assert!(harness
+        .query_by_label("Keep running in the tray?")
+        .is_some());
+    click(&mut harness, "Keep running");
+    assert!(!harness.state().dialogs.confirm_close);
+    assert!(
+        harness.state().hide_asked,
+        "the window was not sent to the tray"
+    );
+    assert_eq!(harness.state().applied.on_close, "tray");
+
+    // The other answer, from a fresh question.
+    let mut again = harness.state().applied.clone();
+    again.on_close = "ask".into();
+    harness.state_mut().apply_settings(again).unwrap();
+    harness.state_mut().dialogs.confirm_close = true;
+    harness.run_steps(3);
+    click(&mut harness, "Exit");
+    assert_eq!(harness.state().applied.on_close, "exit");
+    assert!(harness.state().quit_asked, "Exit did not quit");
+    // Put back for the other tests.
+    let mut back = harness.state().applied.clone();
+    back.on_close = "ask".into();
+    harness.state_mut().apply_settings(back).unwrap();
+}
+
+/// The welcome is three steps: the browser, where downloads go, and Done.
+/// The folder shown is the one in force, a change is kept on Done, and Later
+/// leaves it as it was.
+#[test]
+fn the_welcome_confirms_where_downloads_go_and_ends_with_done() {
+    let _file = settings_file();
+    let world = world();
+    let mut harness = world.harness();
+    let was = harness.state().applied.download_dir.clone();
+    harness.state_mut().welcome();
+    harness.run_steps(3);
+    assert!(harness.query_by_label("Download folder").is_some());
+    assert_eq!(
+        harness.state().dialogs.welcome_dir,
+        was.display().to_string(),
+        "not the folder in force"
+    );
+    let elsewhere = world.dir.path().join("elsewhere");
+    harness.state_mut().dialogs.welcome_dir = elsewhere.display().to_string();
+    click(&mut harness, "Done");
+    assert!(harness.state().dialogs.welcome.is_none());
+    assert_eq!(harness.state().applied.download_dir, elsewhere);
+    // Put back for the other tests.
+    let mut back = harness.state().applied.clone();
+    back.download_dir = was;
+    harness.state_mut().apply_settings(back).unwrap();
+}
