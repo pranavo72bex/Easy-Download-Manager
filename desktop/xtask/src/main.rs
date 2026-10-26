@@ -24,10 +24,7 @@ fn main() {
             parity_evidence().map(|()| "every test docs/parity.md cites exists".to_string())
         }
         "secrets" => secrets().map(|()| "no credential is written into a tracked file".to_string()),
-        _ => Err(
-            "usage: cargo xtask <scorecard|layers|privacy|parity|secrets>"
-                .to_string(),
-        ),
+        _ => Err("usage: cargo xtask <scorecard|layers|privacy|parity|secrets>".to_string()),
     };
     match result {
         Ok(said) => println!("{said}"),
