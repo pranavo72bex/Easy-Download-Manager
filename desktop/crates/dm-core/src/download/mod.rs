@@ -300,8 +300,9 @@ struct Live {
 /// The most ranges a download can end up with, splits included.
 const MAX_RANGES: usize = 256;
 
-/// A range is halved only if each half would be at least this.
-const MIN_SPLIT: u64 = 256 * 1024;
+/// A range is halved only if each half would be at least this (128 KB: 256 KB
+/// left a 1.5 MB file on a connection-capped server a third slower).
+const MIN_SPLIT: u64 = 128 * 1024;
 
 impl Job {
     /// The one file every range of this download is written into, each at

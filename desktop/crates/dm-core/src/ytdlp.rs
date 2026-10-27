@@ -630,16 +630,78 @@ pub async fn list_choices_fast(
 
 /// Has yt-dlp read a page and keep the reading for the download, unless one
 /// was kept already: what a list made without yt-dlp leaves undone, so a
-/// click on a quality does not start with the page being read.
+/// click on a quality does not start with the page being read. A marker
+/// beside the reading says one is being made, so a download that starts
+/// before it is done waits for it (`wait_for_reading`) instead of having
+/// yt-dlp read the page a second time at once.
 pub async fn warm_reading(
     url: &str,
     referrer: Option<&str>,
     proxy: Option<&str>,
     sign_in: Option<&crate::cookies::SignIn>,
 ) {
-    if fresh_reading(url).is_none() {
-        let _ = read_choices(url, referrer, proxy, sign_in).await;
+    if fresh_reading(url).is_some() {
+        return;
     }
+    let marker = reading_path(url).map(|p| p.with_extension("busy"));
+    if let Some(marker) = &marker {
+        if let Some(dir) = marker.parent() {
+            let _ = std::fs::create_dir_all(dir);
+        }
+        let _ = std::fs::write(marker, b"");
+    }
+    // The marker is touched each second while the read goes on, so one left
+    // by a host that was ended mid-read is seen to be stale in seconds.
+    let read = read_choices(url, referrer, proxy, sign_in);
+    tokio::pin!(read);
+    loop {
+        tokio::select! {
+            _ = &mut read => break,
+            () = tokio::time::sleep(READING_BEAT) => {
+                if let Some(marker) = &marker {
+                    let _ = std::fs::write(marker, b"");
+                }
+            }
+        }
+    }
+    if let Some(marker) = marker {
+        let _ = std::fs::remove_file(marker);
+    }
+}
+
+/// How often a reading being made says so, and how long without it a
+/// waiter takes the read to have been ended.
+const READING_BEAT: std::time::Duration = std::time::Duration::from_secs(1);
+const READING_STALE: std::time::Duration = std::time::Duration::from_secs(3);
+
+/// The longest a reading being made is waited for: as long as yt-dlp is
+/// given to read a page, so a reading that never comes costs no more than
+/// the second one would have.
+const READING_WAIT: std::time::Duration = std::time::Duration::from_secs(45);
+
+/// Waits for a reading of `url` that `warm_reading` is making, if one is,
+/// and returns when it is kept, when the run making it ends without one, or
+/// after [`READING_WAIT`]. A pause or cancel ends the wait.
+pub(crate) async fn wait_for_reading(
+    url: &str,
+    control: &crate::control::Control,
+) -> Result<(), Error> {
+    let Some(marker) = reading_path(url).map(|p| p.with_extension("busy")) else {
+        return Ok(());
+    };
+    let started = std::time::Instant::now();
+    let busy = |marker: &Path| {
+        std::fs::metadata(marker)
+            .ok()
+            .and_then(|m| m.modified().ok())
+            .and_then(|at| at.elapsed().ok())
+            .is_some_and(|age| age < READING_STALE)
+    };
+    while fresh_reading(url).is_none() && busy(&marker) && started.elapsed() < READING_WAIT {
+        control.check()?;
+        tokio::time::sleep(std::time::Duration::from_millis(100)).await;
+    }
+    Ok(())
 }
 
 /// Asks yt-dlp what a page offers, for the panel's list. Bounded: a page
@@ -1475,6 +1537,34 @@ mod tests {
         let at = std::time::Instant::now();
         super::remove_staging(&staging).await;
         assert!(at.elapsed() < std::time::Duration::from_millis(150));
+    }
+
+    /// A reading being made is waited for only while it says so: a marker
+    /// left by a host that was ended is let go of in seconds, not waited out.
+    #[tokio::test]
+    async fn a_stale_reading_marker_is_not_waited_for() {
+        let dir = Box::leak(Box::new(tempfile::tempdir().unwrap()));
+        super::keep_readings_in(dir.path().to_path_buf());
+        let url = "https://v.example/watch?v=stale";
+        let marker = super::reading_path(url).unwrap().with_extension("busy");
+        let file = std::fs::File::create(&marker).unwrap();
+        file.set_modified(std::time::SystemTime::now() - std::time::Duration::from_secs(30))
+            .unwrap();
+        let at = std::time::Instant::now();
+        super::wait_for_reading(url, &crate::control::Control::new())
+            .await
+            .unwrap();
+        assert!(at.elapsed() < std::time::Duration::from_millis(300));
+        // One touched just now is waited for (here, until the pause).
+        std::fs::write(&marker, b"").unwrap();
+        let control = crate::control::Control::new();
+        let held = control.clone();
+        tokio::spawn(async move {
+            tokio::time::sleep(std::time::Duration::from_millis(250)).await;
+            held.pause();
+        });
+        let result = super::wait_for_reading(url, &control).await;
+        assert!(matches!(result, Err(crate::Error::Paused)), "{result:?}");
     }
 
     #[test]

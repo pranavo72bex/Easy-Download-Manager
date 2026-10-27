@@ -57,6 +57,7 @@ pub async fn download_page(
      * reading chooses the format without yt-dlp asking the site again
      * (a fifth of a second against seconds on YouTube). One that no longer
      * serves is passed over for a fresh reading. */
+    super::wait_for_reading(url, &options.control).await?;
     let kept = match fresh_reading(url) {
         Some(saved) => match resolve(url, options, Some(&saved)).await {
             Ok(read) => Some(read),

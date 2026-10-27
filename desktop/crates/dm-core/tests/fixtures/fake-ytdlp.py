@@ -32,6 +32,10 @@ with open(os.path.join(case, "calls.log"), "a") as log:
     log.write(" ".join(args) + "\n")
 
 if "-J" in args:
+    # A slow page: a case folder's `delay` file says for how many seconds.
+    if os.path.exists(os.path.join(case, "delay")):
+        import time
+        time.sleep(float(open(os.path.join(case, "delay")).read()))
     # The panel's list: the reading as yt-dlp prints it for a page.
     with open(os.path.join(case, "info.json")) as f:
         print(f.read().replace("\n", " "))

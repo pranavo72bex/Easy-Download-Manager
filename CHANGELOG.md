@@ -5,6 +5,9 @@ the browser extension (`v*` tags) are versioned separately.
 
 ## Unreleased
 
+- A video click made while the page is still being read behind the quality list waits for that reading (up to 45 s, and only while the read says it is alive), instead of having yt-dlp read the page a second time at the same moment.
+- A small file from a server that holds each connection down is helped sooner: a range may be halved down to 128 KB pieces (256 KB before). Measured on a server holding each connection to 1 MB/s, 40 ms away: 1.5 MB, 0.9 s to 0.65 s; a server that does not hold connections down is not affected.
+
 - A failed read of a video page says why: the panel's list had thrown yt-dlp's error output away, so every failure read "could not read that page". It now gives yt-dlp's own last error line ("…: This video is unavailable"), and says in plain words when yt-dlp could not run YouTube's player script (its solver or JavaScript engine is missing), which a sign-in does not fix.
 
 - dm takes every download the browser starts, whatever its type (text, zip, anything), unless a list of types is chosen in Options › File types. A list that is still the old defaults becomes every type when dm starts; one a person changed is kept.

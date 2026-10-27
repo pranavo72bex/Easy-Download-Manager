@@ -473,3 +473,58 @@ async fn a_download_reuses_the_reading_the_panels_list_made() {
         "the page was read again for the download: {calls:?}"
     );
 }
+
+/// A click on a quality while the page is still being read behind the list
+/// (the list came from the page's own data) waits for that reading, rather
+/// than having yt-dlp read the page a second time at once.
+#[tokio::test(flavor = "multi_thread")]
+async fn a_download_started_during_the_warming_read_waits_for_it() {
+    use_fake_ytdlp();
+    let readings = Box::leak(Box::new(tempdir()));
+    ytdlp::keep_readings_in(readings.path().to_path_buf());
+    let data: Vec<u8> = (0..256 * 1024).map(|i| (i * 7 % 251) as u8).collect();
+    let addr = serve_files(Served {
+        files: Arc::new(vec![("/video", data.clone())]),
+        refuse: None,
+        seen: Seen::default(),
+        pace: None,
+    })
+    .await;
+    let dir = tempdir();
+    let (case, page) = case(
+        dir.path(),
+        serde_json::json!({
+            "id": "w", "title": "Warm", "ext": "mp4", "format_id": "18",
+            "protocol": "https", "url": format!("http://{addr}/video"),
+            "filename": "__STAGE__/Warm [w].mp4", "formats": []
+        }),
+        b"not this",
+    );
+    std::fs::write(case.join("delay"), "1.5").unwrap();
+
+    let warming = {
+        let page = page.clone();
+        tokio::spawn(async move { ytdlp::warm_reading(&page, None, None, None).await })
+    };
+    // The helper is running by now, and says so.
+    tokio::time::sleep(std::time::Duration::from_millis(400)).await;
+    let started = std::time::Instant::now();
+    let done = ytdlp::download_page(&client(), &page, &options(dir.path()), None)
+        .await
+        .expect("the page did not download");
+    assert!(
+        started.elapsed() >= std::time::Duration::from_millis(800),
+        "it did not wait for the reading: {:?}",
+        started.elapsed()
+    );
+    warming.await.unwrap();
+
+    assert_eq!(std::fs::read(&done.path).unwrap(), data);
+    let calls = calls(&case);
+    assert_eq!(calls.len(), 2, "{calls:?}");
+    assert!(calls[0].contains("-J"), "{calls:?}");
+    assert!(
+        calls[1].contains("--load-info-json"),
+        "read twice: {calls:?}"
+    );
+}
