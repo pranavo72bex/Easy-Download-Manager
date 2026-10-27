@@ -1024,7 +1024,6 @@ mod tests {
         let file = std::fs::File::create(&marker).unwrap();
         file.set_modified(std::time::SystemTime::now() - std::time::Duration::from_secs(30))
             .unwrap();
-        // Windows keeps a time set through an open handle against later writes.
         drop(file);
         let at = std::time::Instant::now();
         super::wait_for_reading(url, &crate::control::Control::new())
@@ -1032,7 +1031,12 @@ mod tests {
             .unwrap();
         assert!(at.elapsed() < std::time::Duration::from_millis(300));
         // One touched just now is waited for (here, until the pause).
-        std::fs::write(&marker, b"").unwrap();
+        std::fs::OpenOptions::new()
+            .write(true)
+            .open(&marker)
+            .unwrap()
+            .set_modified(std::time::SystemTime::now())
+            .unwrap();
         let control = crate::control::Control::new();
         let held = control.clone();
         tokio::spawn(async move {
