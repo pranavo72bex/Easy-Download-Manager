@@ -63,7 +63,29 @@ pub(super) fn actions(
             Command::DownloadNow,
             format!("{} {file}", t("Retry")),
         )),
-        State::Completed | State::Cancelled => {}
+        // What a person wants of a finished download: to play it, or to
+        // see where it is.
+        State::Completed => {
+            buttons.push((
+                Icon::Resume,
+                Command::OpenFile,
+                format!("{} {file}", t("Open")),
+            ));
+            buttons.push((
+                Icon::Folder,
+                Command::OpenFolder,
+                format!("{} {file}", t("Open folder")),
+            ));
+        }
+        State::Cancelled => {}
+    }
+    // The details window a download no longer opens by itself.
+    if !matches!(entry.state, State::Completed | State::Cancelled) {
+        buttons.push((
+            Icon::Details,
+            Command::ShowProgress,
+            format!("{} {file}", t("Details")),
+        ));
     }
     buttons.push((
         Icon::Delete,

@@ -1969,6 +1969,46 @@ fn the_hovered_row_offers_stop_and_remove_on_itself() {
         harness.query_by_label(&format!("Remove {name}")).is_some(),
         "no buttons on the hovered row"
     );
+    // A progress window no longer opens by itself: Details is how a person
+    // asks for it.
+    assert!(harness.state().dialogs.progress.is_empty());
+    harness.get_by_label(&format!("Details {name}")).click();
+    harness.run_steps(3);
+    assert!(
+        harness.state().dialogs.progress.contains(&id),
+        "Details opened no progress window"
+    );
+}
+
+/// A finished download's row offers Open (to play it) and Open folder, not
+/// only Remove, and no Details: there is nothing left to follow.
+#[test]
+fn a_finished_rows_buttons_open_the_file_and_its_folder() {
+    let world = world();
+    let mut harness = world.harness();
+    add_url(&mut harness, &world.url("file.zip"), "Start now");
+    until(&mut harness, "the download to complete", |app| {
+        app.rows().iter().any(|r| r.state == State::Completed)
+    });
+    harness.run_steps(3);
+    let row = harness.state().rows()[0].clone();
+    let rect = *harness
+        .state()
+        .row_rects
+        .get(&row.id)
+        .expect("the row is drawn");
+    harness.hover_at(rect.center());
+    harness.run_steps(3);
+    let name = dm_desktop::app::name_of(&row);
+    for button in ["Open", "Open folder", "Remove"] {
+        assert!(
+            harness
+                .query_by_label(&format!("{button} {name}"))
+                .is_some(),
+            "no {button} on a finished row"
+        );
+    }
+    assert!(harness.query_by_label(&format!("Details {name}")).is_none());
 }
 
 /// A download handed over and waiting for an answer has left the browser: the

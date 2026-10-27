@@ -5,6 +5,8 @@ the browser extension (`v*` tags) are versioned separately.
 
 ## Unreleased
 
+- A row has its own buttons under the pointer for what a person wants next: a finished download has Open (plays it), Open folder and Remove; one still going has Stop or Resume, Details (opens its progress window, which no longer opens by itself) and Remove. Enter on a selected row and Show progress in the menu open it too.
+
 - The panel's list of qualities for a YouTube video comes from the watch page's own player data, in about a second (1.3 s, 0.8 s, 1.3 s on three videos, against 4.0 s, 2.6 s, 3.3 s through yt-dlp, with identical lists), and no longer waits for yt-dlp or for it to be fetched. yt-dlp then reads the page behind the answer for the download; where the page gives no list (a sign-in or consent page, a live stream) yt-dlp reads it as before.
 - The panel's bar shows a drawn download icon in a larger circle, and dm no longer opens a progress window or a finished window by default (Options › Pop-ups turns them on).
 

@@ -381,6 +381,8 @@ impl Tokens {
             Icon::Options => Color32::from_rgb(0x55, 0x5f, 0x6b),
             Icon::Scheduler => Color32::from_rgb(0x8a, 0x5a, 0x00),
             Icon::SiteFiles => Color32::from_rgb(0x0e, 0x8a, 0x8a),
+            Icon::Folder => Color32::from_rgb(0xb7, 0x93, 0x1f),
+            Icon::Details => Color32::from_rgb(0x55, 0x5f, 0x6b),
         }
     }
 }

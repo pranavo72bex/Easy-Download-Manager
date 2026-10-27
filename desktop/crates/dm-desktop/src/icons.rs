@@ -72,6 +72,8 @@ fn fluent_of(icon: Icon) -> char {
         Icon::StartQueue => fluent::PLAY_CIRCLE,
         Icon::StopQueue => fluent::PAUSE_CIRCLE,
         Icon::SiteFiles => fluent::GLOBE,
+        Icon::Folder => fluent::FOLDER,
+        Icon::Details => fluent::LIST,
     }
 }
 
@@ -88,6 +90,10 @@ pub enum Icon {
     StartQueue,
     StopQueue,
     SiteFiles,
+    /// Open the folder a file is in (a row's own button, not the toolbar's).
+    Folder,
+    /// A download's details window (a row's own button).
+    Details,
 }
 
 /// Draws `icon` inside `rect` in `color`.
@@ -172,6 +178,12 @@ pub fn paint(painter: &Painter, rect: Rect, icon: Icon, color: Color32) {
             painter.circle_stroke(c, s * 0.42, stroke);
             line((-0.84, 0.0), (0.84, 0.0));
             painter.add(Shape::ellipse_stroke(c, vec2(s * 0.18, s * 0.42), stroke));
+        }
+        Icon::Folder => folder_outline(painter, rect, color),
+        Icon::Details => {
+            line((-0.7, -0.5), (0.7, -0.5));
+            line((-0.7, 0.0), (0.7, 0.0));
+            line((-0.7, 0.5), (0.7, 0.5));
         }
     }
 }
