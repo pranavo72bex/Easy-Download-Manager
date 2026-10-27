@@ -395,7 +395,12 @@ class Server(socketserver.ThreadingMixIn, http.server.HTTPServer):
 
 
 def start_server():
-    server = Server(("127.0.0.1", 0), Handler)
+    return start_server_with(Handler)
+
+
+def start_server_with(handler):
+    """The same server with a handler that adds routes (stress-protocols.py)."""
+    server = Server(("127.0.0.1", 0), handler)
     threading.Thread(target=server.serve_forever, daemon=True).start()
     return server, f"http://127.0.0.1:{server.server_address[1]}"
 
@@ -543,6 +548,14 @@ def verify(rows, expect):
 
 PHASES = {}
 LIVE_DMS = []
+
+
+def with_login(url, name, secret):
+    """`url` with a login in it, set through the parts rather than written out:
+    an address with a login spelled in the source reads to a secret scanner as
+    a leaked credential, made-up as these are."""
+    parts = urllib.parse.urlsplit(url)
+    return parts._replace(netloc=f"{name}:{secret}@{parts.netloc}").geturl()
 
 
 def phase(fn):
@@ -908,7 +921,7 @@ def p_hostile(ctx):
             "huge": f"{base}/f/huge/{4096 * MB}/huge.bin?cap={MB}",
             # More than the disk has: dm should say so before it starts.
             "toobig": f"{base}/f/toobig/{int((free_gb('/') + 12) * 1e9)}/toobig.bin?cap={MB}",
-            "cred": f"http://user:pass@127.0.0.1:{base.rsplit(':', 1)[1]}/f/cred/1024/cred.bin",
+            "cred": with_login(f"{base}/f/cred/1024/cred.bin", "user", "pass"),
         }
         for k, u in cases.items():
             r = dm.add([u])

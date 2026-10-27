@@ -22,8 +22,9 @@ is not a gap in the program; it is what has not yet been watched.
 ## Open work
 
 Found by a security review (2026-10-24) and a stress test (2026-10-27,
-`scripts/stress-check.py`: a local server, a dm of its own and Microsoft Edge;
-torrents left out); each row says how it closes.
+`scripts/stress-check.py` and `scripts/stress-protocols.py`: local servers, a
+dm of its own and Microsoft Edge; torrents on loopback inside a sandbox, and
+one public Creative Commons torrent); each row says how it closes.
 
 | #  | Gap | Status | How it closes |
 |----|-----|--------|---------------|
@@ -37,4 +38,6 @@ torrents left out); each row says how it closes.
 | 20 | A link that redirects to a `file://` address is listed as a completed download of 0 bytes named `to`; a redirect to `ftp://` fails with "URL scheme is not allowed". Nothing of the computer's file is saved (checked against `/etc/hosts`), but the row says it worked | OPEN | Treat a redirect to a scheme dm does not follow as the download's failure, as the `ftp://` one is |
 | 21 | A response whose headers can never be read (1 MB of header) is retried with back-off for 153 s before the row fails, as a passing error would be | OPEN | Count an oversized or unparsable header as final, not as a network error to wait out |
 | 22 | The control call `ui.inspect` takes 25 ms with 1 500 rows, 2.7 s with 3 000 and 7.6 s with 5 000 (it grows with the square of the list; the window itself answers other calls in about 10 ms at any of these sizes and idles at 0.3% of a core) | OPEN | Build its rows from one pass instead of a search per row |
-| 23 | The stress test did not cover FTP, DASH, proxies, mirrors and Metalink, the scheduler's clock, the watch folder, the clipboard offer, the MCP server, a full disk (a file larger than the free space is held `paused`, which was checked; filling the disk was not tried), the computer sleeping, packet loss on a real network, or Windows and Linux | OPEN | Each needs its own phase in `stress-check.py`; a full disk and sleep need a disposable volume or machine, which this run did not have |
+| 23 | A master playlist (`.m3u8`) whose only variant is itself keeps its row `running` with no bytes, one request about every 3 s, for as long as it was watched (6.5 minutes), with memory flat at 21 MB: nothing limits how deep a playlist may nest | OPEN | Give playlist nesting a depth limit (a few levels) and fail the row with a reason; `python3 scripts/stress-protocols.py manifests` shows it (a million-segment playlist and a 100 000-hour DASH manifest are refused at once, which is right) |
+| 24 | A Metalink whose first mirror serves different bytes (same size, other content) fails the whole download with "this server does not serve ranges honestly", though a later mirror is good and the file's SHA-256 is given; a dead first mirror is skipped correctly | OPEN | Drop a mirror that disagrees with the probe's validator, take the next, and fail only when none is left (`stress-protocols.py mirrors`, case `wrongfirst`) |
+| 25 | Not covered by the stress tests: the clipboard offer (it needs the clipboard written by another program), a full disk and the computer sleeping (both would harm this computer), the real DASH download of a playable stream (only hostile manifests were tried), HTTPS through a proxy (CONNECT), SOCKS proxies, FTPS, and Windows and Linux. Torrents were covered on loopback only, inside a sandbox that refuses every other connection, and once against webtorrent.io's public Creative Commons "The WIRED CD" (54 MB, 18 files, 21 s, paused and resumed, nothing outside the folder) | OPEN | Each needs its own phase in `scripts/stress-protocols.py`; a full disk and sleep need a disposable volume or machine |
