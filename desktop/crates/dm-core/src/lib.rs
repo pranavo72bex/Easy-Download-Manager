@@ -173,6 +173,22 @@ impl Error {
         if status.is_client_error() || status.is_server_error() {
             return Err(Error::from_response(res).await);
         }
+        // A redirect the client did not follow (to a `file://` or `ftp://`
+        // address, say) is no file: listed as a finished download of its
+        // empty body, it said the download had worked.
+        if status.is_redirection() && status != reqwest::StatusCode::NOT_MODIFIED {
+            let to = res
+                .headers()
+                .get(reqwest::header::LOCATION)
+                .and_then(|v| v.to_str().ok())
+                .unwrap_or("somewhere else")
+                .chars()
+                .take(200)
+                .collect::<String>();
+            return Err(Error::Internal(format!(
+                "the server sent dm on to {to}, an address dm does not follow"
+            )));
+        }
         Ok(res)
     }
 

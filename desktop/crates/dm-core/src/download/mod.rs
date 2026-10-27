@@ -270,6 +270,8 @@ struct Job {
     sign_in: Option<crate::cookies::SignIn>,
     /// Where a retry is said, if anyone is listening.
     report: Option<tokio::sync::mpsc::Sender<Update>>,
+    /// Where the free space is read, for a download of no known length.
+    room: Room,
     /// Bytes on disk across every range.
     ///
     /// An atomic rather than a field under the segment lock: this is written
@@ -296,6 +298,16 @@ struct Live {
     /// A connection has taken it, so it is not waiting for one.
     taken: bool,
 }
+
+/// The least free space a download of no known length may leave. Such a body
+/// has no end to plan the room for: a server that sends on for ever, or a
+/// small compressed one that unpacks to gigabytes (a response whose
+/// `Content-Encoding` the engine undoes), wrote until the disk was full.
+const DISK_FLOOR: u64 = 256 * 1024 * 1024;
+
+/// How much a download of no known length writes between looks at the free
+/// space.
+const DISK_LOOK_EVERY: u64 = 32 * 1024 * 1024;
 
 /// The most ranges a download can end up with, splits included.
 const MAX_RANGES: usize = 256;
@@ -416,6 +428,72 @@ pub enum Update {
 /// A separate entry point rather than a field on `Options`: a channel is not
 /// configuration, and `Options` stays something a caller can clone and debug.
 pub async fn download_reporting(
+    client: &reqwest::Client,
+    url: &str,
+    options: &Options,
+    report: Option<tokio::sync::mpsc::Sender<Update>>,
+) -> Result<Finished, Error> {
+    let counted = Arc::new(AtomicUsize::new(0));
+    let outcome = MIRRORS
+        .scope(
+            counted.clone(),
+            Box::pin(fetched_once_more_if_changed(
+                client,
+                url,
+                options,
+                report.clone(),
+            )),
+        )
+        .await;
+    /* A Metalink whose mirrors give files that disagree (the same length,
+     * other bytes) fails as a whole, though one of them may be the file.
+     * Each is then tried alone, in the document's order, and what
+     * the document's digest accepts is the download; it fails only when
+     * none is left. */
+    let mirrors = counted.load(Ordering::SeqCst);
+    if mirrors > 1
+        && matches!(
+            outcome,
+            Err(Error::DishonestRanges | Error::Checksum { .. } | Error::Changed)
+        )
+    {
+        let mut last = outcome;
+        for only in 0..mirrors {
+            discard_staged(&options.parts_dir).await;
+            let again = ONLY_MIRROR
+                .scope(
+                    only,
+                    MIRRORS.scope(
+                        counted.clone(),
+                        Box::pin(fetched_once_more_if_changed(
+                            client,
+                            url,
+                            options,
+                            report.clone(),
+                        )),
+                    ),
+                )
+                .await;
+            match again {
+                Ok(done) => return Ok(done),
+                Err(stop @ (Error::Paused | Error::Cancelled)) => return Err(stop),
+                Err(e) => last = Err(e),
+            }
+        }
+        return last;
+    }
+    outcome
+}
+
+tokio::task_local! {
+    /// How many mirrors the Metalink being fetched named that agree about
+    /// the file, told back to `download_reporting`.
+    static MIRRORS: Arc<AtomicUsize>;
+    /// The one mirror to fetch from, where each is being tried alone.
+    static ONLY_MIRROR: usize;
+}
+
+async fn fetched_once_more_if_changed(
     client: &reqwest::Client,
     url: &str,
     options: &Options,
@@ -644,7 +722,11 @@ async fn fetch_reporting(
         let (mirrors, agreed) =
             or_stop(&options.control, agreeing_mirrors(client, &listed)).await?;
 
-        sources = mirrors;
+        let _ = MIRRORS.try_with(|n| n.store(mirrors.len(), Ordering::SeqCst));
+        sources = match ONLY_MIRROR.try_with(|only| *only) {
+            Ok(only) => mirrors.get(only).cloned().into_iter().collect(),
+            Err(_) => mirrors,
+        };
         info = agreed;
         if !listed.filename.is_empty() {
             info.filename = listed.filename.clone();
@@ -696,6 +778,7 @@ async fn fetch_reporting(
         tries: options.tries(),
         sign_in: options.sign_in.clone(),
         report: report.clone(),
+        room: options.room.clone(),
     });
 
     // Anything already staged from a previous run counts as done. Read from

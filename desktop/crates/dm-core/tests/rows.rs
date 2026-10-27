@@ -315,6 +315,7 @@ async fn removing_many_rows_writes_the_queue_once() {
 
     let before = q.saves_written();
     q.remove_many(&ids[1..]).await;
+    q.flush().await;
     assert_eq!(q.saves_written() - before, 1, "one save for the batch");
     let rows = q.list().await;
     assert_eq!(rows.len(), 1);

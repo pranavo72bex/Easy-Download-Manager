@@ -312,6 +312,11 @@ struct Inner {
     /// Held from reading the rows to renaming the file, so an older snapshot
     /// cannot be written after a newer one.
     saving: Mutex<()>,
+    /// When the queue file was last written, and whether a change is
+    /// waiting for the next write (`save`, `flush`).
+    written: std::sync::Mutex<Option<std::time::Instant>>,
+    unwritten: AtomicBool,
+    trailing: AtomicBool,
     concurrency: AtomicUsize,
     /// Fewer files at once for a named queue than `concurrency` allows in
     /// all: a queue of one for a site that takes one download at a time.
@@ -408,6 +413,9 @@ impl Queue {
                 options: Mutex::new(options),
                 store: Mutex::new(None),
                 saving: Mutex::new(()),
+                written: std::sync::Mutex::new(None),
+                unwritten: AtomicBool::new(false),
+                trailing: AtomicBool::new(false),
                 problems: std::sync::Mutex::new(Vec::new()),
                 leaving: std::sync::Mutex::new(Vec::new()),
                 scheduling: AtomicBool::new(false),

@@ -225,6 +225,12 @@ impl Backend {
         self.block_on(self.queue.remove_many(ids));
     }
 
+    /// Writes the queue file now if a change is still waiting to be written:
+    /// what a dm that is ending does last.
+    pub fn flush(&self) {
+        self.block_on(self.queue.flush());
+    }
+
     /// One command for the lot, not one per row: pausing forty downloads by
     /// asking forty times rewrites the queue file forty times.
     pub fn pause_all(&self) -> usize {

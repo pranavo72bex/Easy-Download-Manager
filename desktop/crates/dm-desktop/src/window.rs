@@ -59,6 +59,12 @@ impl Window {
 }
 
 impl eframe::App for Window {
+    /// The last thing a window that is closing does: the queue file gets
+    /// whatever change was still waiting for its turn.
+    fn on_exit(&mut self, _gl: Option<&eframe::glow::Context>) {
+        self.app.backend().flush();
+    }
+
     /// Clear under Mica, so the backdrop shows through the frame.
     fn clear_color(&self, _visuals: &egui::Visuals) -> [f32; 4] {
         if dm_desktop::chrome::mica() {

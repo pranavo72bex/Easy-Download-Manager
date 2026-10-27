@@ -489,6 +489,7 @@ fn main() {
             app.logic(&ctx);
             std::thread::sleep(std::time::Duration::from_millis(50));
         }
+        app.backend().flush();
         dm_desktop::control::closing();
         dm_desktop::control::forget_port(&settings::home());
         return;

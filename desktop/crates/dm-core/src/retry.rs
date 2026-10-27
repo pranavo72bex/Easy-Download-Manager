@@ -30,7 +30,12 @@ pub fn transient(error: &Error) -> bool {
         // decode error, not a request error, and was the commonest drop of
         // all: one reset on one range failed the whole download.
         Error::Network(e) => {
-            e.is_timeout() || e.is_connect() || e.is_request() || e.is_body() || e.is_decode()
+            !unreadable_response(e)
+                && (e.is_timeout()
+                    || e.is_connect()
+                    || e.is_request()
+                    || e.is_body()
+                    || e.is_decode())
         }
         // A connection that stopped short deserves another go.
         Error::Incomplete { .. } => true,
@@ -40,6 +45,25 @@ pub fn transient(error: &Error) -> bool {
         // Disk errors, a changed file, a dishonest server: all answers.
         _ => false,
     }
+}
+
+/// Whether the server's answer could not be read as HTTP at all (headers
+/// beyond any limit, a malformed status line or header): asking again gets the
+/// same bytes, so waiting between tries only held a failure back for minutes.
+fn unreadable_response(error: &reqwest::Error) -> bool {
+    let mut source: Option<&(dyn std::error::Error + 'static)> = Some(error);
+    while let Some(e) = source {
+        let said = e.to_string().to_ascii_lowercase();
+        if said.contains("message head is too large")
+            || said.contains("invalid http")
+            || said.contains("invalid header")
+            || said.contains("invalid status")
+        {
+            return true;
+        }
+        source = e.source();
+    }
+    false
 }
 
 /// How long to wait before attempt `attempt` (zero-based).

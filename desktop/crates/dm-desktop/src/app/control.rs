@@ -165,13 +165,14 @@ impl DmApp {
                 // will be saved as (the control protocol said
                 // the name a second copy would not get).
                 let mut categories = self.applied.categories();
+                let before = self.earlier_of_the_same_name();
                 let rows: Vec<_> = self
                     .visible()
                     .iter()
                     .map(|r| {
                         json!({
                             "id": r.id,
-                            "name": self.name_it_will_get(r, &mut categories),
+                            "name": self.name_it_will_get_after(r, &mut categories, Some(before.get(&r.id).copied().unwrap_or(0))),
                             "status": status_in_english(r),
                             "queue": r.queue,
                             "description": r.description,
@@ -346,9 +347,17 @@ impl DmApp {
                     .get("again")
                     .and_then(|v| v.as_bool())
                     .unwrap_or(false);
+                // The rows' addresses once, not a search of every row for each
+                // link: 6 ms a link at 12 000 rows, a minute and a half for
+                // 20 000.
+                let known = if again {
+                    Default::default()
+                } else {
+                    crate::dialogs::listed_addresses(self)
+                };
                 let (listed, fresh): (Vec<String>, Vec<String>) = urls
                     .into_iter()
-                    .partition(|u| !again && crate::dialogs::already_listed(self, u).is_some());
+                    .partition(|u| !again && known.contains(&crate::dialogs::bare(u)));
                 let added = if fresh.is_empty() {
                     0
                 } else {

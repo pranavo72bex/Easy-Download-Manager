@@ -35,6 +35,7 @@ async fn the_main_queue_starts_at_launch_when_the_setting_says_so() {
         .await
         .unwrap();
     assert_eq!(queue.get(id).await.unwrap().state, State::Paused);
+    queue.flush().await;
     drop(queue);
 
     let started = dm_shell::shell::start(&dm_shell::shell::orders(&[])).await;

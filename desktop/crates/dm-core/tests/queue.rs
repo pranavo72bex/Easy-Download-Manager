@@ -459,6 +459,7 @@ async fn a_link_added_before_the_saved_queue_loads_is_kept() {
     first.persist_to(store.clone()).await;
     let old = first.add(&format!("http://{addr}/old.bin")).await.unwrap();
     first.pause(old).await;
+    first.flush().await;
 
     let second = queue(dir.path(), 1);
     second
@@ -522,6 +523,8 @@ async fn the_queue_survives_the_app_closing() {
     first.persist_to(store.clone()).await;
     let kept = first.add(&format!("http://{addr}/kept.bin")).await.unwrap();
     first.pause(kept).await;
+    // What the app does as it ends.
+    first.flush().await;
 
     // A second run of the app, against the same store.
     let second = queue(dir.path(), 1);
@@ -557,6 +560,7 @@ async fn a_download_that_was_running_comes_back_ready_to_resume() {
     first.persist_to(store.clone()).await;
     let id = first.add(&format!("http://{addr}/f.bin")).await.unwrap();
     first.run().await;
+    first.flush().await;
 
     // Forge the state the app would have been killed in. Asserted, because
     // `replace` on a string that does not contain the pattern returns it
@@ -621,6 +625,7 @@ async fn a_finished_download_is_still_finished_after_a_restart() {
     let id = first.add(&format!("http://{addr}/f.bin")).await.unwrap();
     first.run().await;
     assert_eq!(first.get(id).await.unwrap().state, DownloadState::Completed);
+    first.flush().await;
 
     let second = queue(dir.path(), 1);
     second.persist_to(store).await;
@@ -649,6 +654,7 @@ async fn a_failure_is_still_a_failure_after_a_restart() {
         first.get(id).await.unwrap().state,
         DownloadState::Failed(_)
     ));
+    first.flush().await;
 
     let second = queue(dir.path(), 1);
     second.persist_to(store).await;
@@ -1001,6 +1007,7 @@ async fn what_the_schedule_paused_is_started_after_a_restart() {
     let id = first.add(&format!("http://{addr}/f.bin")).await.unwrap();
     first.run().await;
     assert_eq!(first.get(id).await.unwrap().state, DownloadState::Paused);
+    first.flush().await;
 
     let second = queue(dir.path(), 2);
     second.persist_to(store).await;
@@ -1693,6 +1700,9 @@ async fn a_queue_that_cannot_be_written_says_so_rather_than_pretending() {
     // next launch will not.
     std::fs::set_permissions(&store_dir, std::fs::Permissions::from_mode(0o500)).unwrap();
     q.add(&format!("http://{addr}/f.bin")).await.unwrap();
+    // A change waits a moment for its write (`Queue::flush` is what the app
+    // does as it ends); the failure is said when the write is made.
+    q.flush().await;
     let problems = q.problems();
     std::fs::set_permissions(&store_dir, std::fs::Permissions::from_mode(0o700)).unwrap();
 
@@ -1801,6 +1811,7 @@ async fn saves_at_the_same_time_do_not_report_a_failure_that_did_not_happen() {
         save.await.unwrap();
     }
 
+    q.flush().await;
     assert!(q.problems().is_empty(), "{:?}", q.problems());
     let left: Vec<_> = std::fs::read_dir(dir.path())
         .unwrap()

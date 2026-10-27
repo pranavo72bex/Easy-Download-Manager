@@ -1,5 +1,8 @@
 use super::*;
 
+/// The least time between two writes of the queue file.
+const SAVE_EVERY: Duration = Duration::from_millis(150);
+
 impl Queue {
     /// Writes the queue to `path` from now on, and reads back what is there.
     ///
@@ -126,6 +129,15 @@ impl Queue {
     ///
     /// Called on state changes rather than on progress: a byte count moves
     /// thousands of times a download and says nothing a restart needs.
+    ///
+    /// The first change after a quiet moment is written before this returns.
+    /// Changes that follow within [`SAVE_EVERY`] of a write are folded into
+    /// one more write, made when that time is up, so the cost of a long list
+    /// is paid once per interval and not once per change: every state change
+    /// used to rewrite and sync the whole list, which held 20 000 links to
+    /// 13 small files a second and took a minute to cancel 2 000 of them.
+    /// [`Queue::flush`] writes what is waiting at once, for a program that
+    /// is about to end.
     pub(super) async fn save(&self) {
         let told = crate::lock(&self.inner.changed).clone();
         if let Some(tell) = told {
@@ -134,19 +146,68 @@ impl Queue {
         let Some(path) = self.inner.store.lock().await.clone() else {
             return;
         };
+        let due = crate::lock(&self.inner.written).is_none_or(|at| at.elapsed() >= SAVE_EVERY);
+        if due {
+            self.write_to(&path).await;
+            return;
+        }
+        self.inner.unwritten.store(true, Ordering::SeqCst);
+        if self.inner.trailing.swap(true, Ordering::SeqCst) {
+            return;
+        }
+        let queue = self.clone();
+        tokio::spawn(async move {
+            loop {
+                let wait = crate::lock(&queue.inner.written)
+                    .map_or(Duration::ZERO, |at| SAVE_EVERY.saturating_sub(at.elapsed()));
+                tokio::time::sleep(wait).await;
+                if crate::lock(&queue.inner.written).is_none_or(|at| at.elapsed() >= SAVE_EVERY) {
+                    break;
+                }
+            }
+            queue.inner.trailing.store(false, Ordering::SeqCst);
+            queue.flush().await;
+        });
+    }
+
+    /// Writes the queue now if a change is waiting for its turn, and returns
+    /// when what was asked for is on disk (a write already under way is waited
+    /// for).
+    pub async fn flush(&self) {
+        if self.inner.unwritten.load(Ordering::SeqCst) {
+            if let Some(path) = self.inner.store.lock().await.clone() {
+                self.write_to(&path).await;
+                return;
+            }
+        }
+        let _waited = self.inner.saving.lock().await;
+    }
+
+    /// One write of the whole list: serialized and synced off the runtime's
+    /// threads (a long list takes a tenth of a second or more), one at a
+    /// time so an older snapshot is never written after a newer one.
+    async fn write_to(&self, path: &std::path::Path) {
         let _saving = self.inner.saving.lock().await;
+        self.inner.unwritten.store(false, Ordering::SeqCst);
         self.inner.saves.fetch_add(1, Ordering::Relaxed);
         let entries = self.list().await;
-
-        let write = || -> std::io::Result<()> {
-            crate::write_atomic(&path, serde_json::to_string_pretty(&entries)?.as_bytes())
+        let target = path.to_path_buf();
+        let wrote = tokio::task::spawn_blocking(move || -> std::io::Result<()> {
+            crate::write_atomic(&target, serde_json::to_string_pretty(&entries)?.as_bytes())
+        })
+        .await;
+        *crate::lock(&self.inner.written) = Some(std::time::Instant::now());
+        let failed = match wrote {
+            Ok(Ok(())) => None,
+            Ok(Err(e)) => Some(e.to_string()),
+            Err(e) => Some(e.to_string()),
         };
-        if let Err(e) = write() {
+        if let Some(e) = failed {
             self.note(format!(
                 "the queue could not be written ({e}); changes since will not survive a restart"
             ));
         }
-        self.save_quota(&path);
+        self.save_quota(path);
     }
 
     /// Writes what the download limit has used beside the queue file, so a

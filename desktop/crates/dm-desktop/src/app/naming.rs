@@ -50,7 +50,39 @@ impl DmApp {
     /// ` (1)` it will get where its folder already has that name — a file
     /// added again said `big.bin` until it finished as `big (1).bin`.
     /// The folder is asked at most every two seconds per row.
+    /// For every row not yet placed, how many rows before it are bound for the
+    /// same folder under the same name: what `name_it_will_get_after` is told.
+    /// One pass, in the order the rows were added.
+    pub fn earlier_of_the_same_name(&self) -> HashMap<Id, usize> {
+        let mut order: Vec<&Entry> = self.rows.iter().collect();
+        order.sort_by_key(|r| r.id);
+        let mut seen: HashMap<(Option<String>, String), usize> = HashMap::new();
+        let mut before = HashMap::new();
+        for r in order {
+            if r.state.settled() || !r.path.is_empty() {
+                continue;
+            }
+            let count = seen.entry((r.save_dir.clone(), name_of(r))).or_insert(0);
+            before.insert(r.id, *count);
+            *count += 1;
+        }
+        before
+    }
+
     pub fn name_it_will_get(&self, row: &Entry, categories: &mut dm_core::Categories) -> String {
+        self.name_it_will_get_after(row, categories, None)
+    }
+
+    /// [`Self::name_it_will_get`], where how many earlier rows of the same name
+    /// bound for the same folder take a free name first is already known
+    /// (`earlier_of_the_same_name`), as a list of every row's name needs it
+    /// once for all and not by a search of every row for each.
+    pub fn name_it_will_get_after(
+        &self,
+        row: &Entry,
+        categories: &mut dm_core::Categories,
+        known_before: Option<usize>,
+    ) -> String {
         let name = name_of(row);
         if !row.path.is_empty() || matches!(row.state, State::Completed | State::Cancelled) {
             return name;
@@ -79,17 +111,18 @@ impl DmApp {
             // Each earlier row of the same name bound for the same folder,
             // and not yet placed, takes a free name first: three added for
             // later all read "slow (1).bin".
-            let before = self
-                .rows
-                .iter()
-                .filter(|r| {
-                    r.id < row.id
-                        && !r.state.settled()
-                        && r.path.is_empty()
-                        && r.save_dir == row.save_dir
-                        && name_of(r) == name
-                })
-                .count();
+            let before = known_before.unwrap_or_else(|| {
+                self.rows
+                    .iter()
+                    .filter(|r| {
+                        r.id < row.id
+                            && !r.state.settled()
+                            && r.path.is_empty()
+                            && r.save_dir == row.save_dir
+                            && name_of(r) == name
+                    })
+                    .count()
+            });
             let said =
                 dm_core::download::nth_free_name(std::path::Path::new(&folder), &name, before);
             free.insert(key, (Instant::now(), said.clone()));

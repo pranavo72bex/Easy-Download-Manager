@@ -1044,3 +1044,75 @@ async fn a_live_recording_stopped_keeps_what_it_recorded() {
     assert!(got.len() >= first * 2, "{} bytes", got.len());
     assert_eq!(&got[..first], segment(0).as_slice());
 }
+
+/// A master playlist whose rendition is itself has no segments: it fails at
+/// once, where it was taken for a live stream and watched for ever, one
+/// request every few seconds.
+#[tokio::test]
+async fn a_master_playlist_that_names_itself_fails_instead_of_being_watched_for_ever() {
+    use axum::routing::get;
+    use axum::Router;
+    let app = Router::new().route(
+        "/nest/x.m3u8",
+        get(|headers: HeaderMap| async move {
+            let host = headers
+                .get("host")
+                .and_then(|h| h.to_str().ok())
+                .unwrap_or("")
+                .to_string();
+            Response::builder()
+                .header("content-type", "application/vnd.apple.mpegurl")
+                .body(Body::from(format!(
+                    "#EXTM3U\n#EXT-X-STREAM-INF:BANDWIDTH=1000\nhttp://{host}/nest/x.m3u8\n"
+                )))
+                .unwrap()
+        }),
+    );
+    let addr = common::serve(app).await;
+    let dir = tempdir();
+    let started = std::time::Instant::now();
+    let result = tokio::time::timeout(
+        std::time::Duration::from_secs(20),
+        download(
+            &client(),
+            &format!("http://{addr}/nest/x.m3u8"),
+            &options(dir.path(), dm_core::stream::Quality::Best),
+        ),
+    )
+    .await
+    .expect("a playlist that names itself was still being worked on after 20 s");
+    let why = result
+        .expect_err("a playlist of no segments was saved as a download")
+        .to_string();
+    assert!(why.contains("another master playlist"), "{why}");
+    assert!(started.elapsed() < std::time::Duration::from_secs(10));
+}
+
+/// A playlist that lists nothing at all is no live stream either.
+#[tokio::test]
+async fn an_empty_playlist_fails_instead_of_being_watched_for_ever() {
+    use axum::routing::get;
+    use axum::Router;
+    let app = Router::new().route(
+        "/empty.m3u8",
+        get(|| async {
+            Response::builder()
+                .header("content-type", "application/vnd.apple.mpegurl")
+                .body(Body::from("#EXTM3U\n#EXT-X-VERSION:3\n"))
+                .unwrap()
+        }),
+    );
+    let addr = common::serve(app).await;
+    let dir = tempdir();
+    let result = tokio::time::timeout(
+        std::time::Duration::from_secs(20),
+        download(
+            &client(),
+            &format!("http://{addr}/empty.m3u8"),
+            &options(dir.path(), dm_core::stream::Quality::Best),
+        ),
+    )
+    .await
+    .expect("an empty playlist was still being worked on after 20 s");
+    assert!(result.is_err(), "an empty playlist was saved as a download");
+}

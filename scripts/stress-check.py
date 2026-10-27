@@ -927,13 +927,17 @@ def p_hostile(ctx):
             r = dm.add([u])
             measure("hostile", f"{k}: add -> ok={r.get('ok')} {str(r.get('error') or r.get('result'))[:100]}")
         time.sleep(1)
+        # An answer whose headers cannot be read fails at once; timed apart
+        # from the others, which are retried for minutes by design.
         t_start = time.time()
-        wait_for(lambda: all(r["state"]["kind"] in ("completed", "failed", "cancelled", "paused") for r in dm.rows() if "/stall" not in r["url"]) and len(dm.rows()) >= 3, 200, every=2)
+        bighead = lambda: next((r for r in dm.rows() if "/bighead" in r["url"]), None)
+        wait_for(lambda: (bighead() or {"state": {"kind": ""}})["state"]["kind"] in ("completed", "failed", "cancelled"), 60, every=1)
         waited = time.time() - t_start
+        wait_for(lambda: all(r["state"]["kind"] in ("completed", "failed", "cancelled", "paused") for r in dm.rows() if "/stall" not in r["url"]) and len(dm.rows()) >= 3, 200, every=2)
         rows = dm.rows()
         for r in rows:
-            if "/bighead" in r["url"] and r["state"]["kind"] == "failed" and waited > 60:
-                finding("low", "hostile", f"a response whose headers can never be parsed (1 MB of header) is retried for {waited:.0f}s before it fails: a permanent error is treated like a passing one")
+            if "/bighead" in r["url"] and (r["state"]["kind"] != "failed" or waited > 20):
+                finding("low", "hostile", f"a response whose headers can never be parsed (1 MB of header) took {waited:.0f}s to fail ({r['state']['kind']}): a permanent error is treated like a passing one")
             measure("hostile", f"{r['url'][-40:]} -> {r['state']['kind']} {r['state'].get('reason', '') if isinstance(r['state'], dict) else ''}")
         # Whatever a file:// redirect saved is compared with the real file:
         # a link to /etc/hosts that ends as an empty or error page is not
@@ -954,7 +958,7 @@ def p_hostile(ctx):
                 sz = pathlib.Path(r["path"]).stat().st_size
                 measure("hostile", f"gzip body of ~300 KB expanded to {sz // MB} MB on disk")
                 if sz > 100 * MB:
-                    finding("medium", "hostile", f"a 300 MB gzip-encoded response (about 300 KB on the wire) was decompressed and saved as {sz // MB} MB: a download can fill the disk through Content-Encoding")
+                    finding("low", "hostile", f"a gzip-encoded response of about 300 KB on the wire was decompressed and saved as {sz // MB} MB: only the disk floor (256 MB free) stops a larger one")
         for r in rows:
             if "/toobig/" in r["url"]:
                 measure("hostile", f"a file larger than the free disk space: {r['state']}")

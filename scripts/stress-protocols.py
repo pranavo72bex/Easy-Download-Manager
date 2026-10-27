@@ -369,7 +369,112 @@ class Lossy(threading.Thread):
         pump(up, c, True)
 
 
+class Socks5(threading.Thread):
+    """A SOCKS5 server on loopback with no login: counts the connections it is asked for."""
+    def __init__(self, refuse=False):
+        super().__init__(daemon=True)
+        self.sock = socket.socket()
+        self.sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+        self.sock.bind(("127.0.0.1", 0))
+        self.sock.listen(256)
+        self.port = self.sock.getsockname()[1]
+        self.connects = []
+        self.refuse = refuse
+
+    def run(self):
+        while True:
+            try:
+                c, _ = self.sock.accept()
+            except OSError:
+                return
+            threading.Thread(target=self.one, args=(c,), daemon=True).start()
+
+    def one(self, c):
+        try:
+            head = c.recv(2)
+            if len(head) < 2 or head[0] != 5:
+                return c.close()
+            c.recv(head[1])
+            c.sendall(b"\x05\x00")
+            req = c.recv(4)
+            if len(req) < 4 or req[1] != 1:
+                return c.close()
+            if req[3] == 1:
+                host = socket.inet_ntoa(c.recv(4))
+            elif req[3] == 3:
+                host = c.recv(c.recv(1)[0]).decode()
+            else:
+                return c.close()
+            port = int.from_bytes(c.recv(2), "big")
+            self.connects.append((host, port))
+            if self.refuse:
+                c.sendall(b"\x05\x02\x00\x01\x00\x00\x00\x00\x00\x00")
+                return c.close()
+            up = socket.create_connection((host, port), timeout=10)
+            c.sendall(b"\x05\x00\x00\x01\x00\x00\x00\x00\x00\x00")
+        except OSError:
+            return c.close()
+        def pump(a, b):
+            try:
+                while (d := a.recv(65536)):
+                    b.sendall(d)
+            except OSError:
+                pass
+            for x in (a, b):
+                try:
+                    x.shutdown(socket.SHUT_RDWR)
+                except OSError:
+                    pass
+        threading.Thread(target=pump, args=(up, c), daemon=True).start()
+        pump(c, up)
+
+
 # --------------------------------------------------------------- phases
+
+
+@phase
+def p_socks(ctx):
+    """Downloads through a SOCKS5 proxy: used, and never bypassed when it refuses or is gone."""
+    base, root = ctx["base"], ctx["root"]
+    proxy = Socks5()
+    proxy.start()
+    def settings(port):
+        return {"connections": 4, "retries": 1, "proxy": {"enabled": True, "type": "socks5", "host": "127.0.0.1", "port": port, "username": "", "password": "", "bypass": []}}
+    dm = DM(root, settings(proxy.port), name="socks1").start()
+    try:
+        expect, urls = {}, []
+        for i in range(20):
+            expect[f"sk{i}.bin"] = (f"sk{i}", 2 * MB)
+            urls.append(f"{base}/f/sk{i}/{2 * MB}/sk{i}.bin")
+        dm.add(urls)
+        wait_for(lambda: len(dm.rows()) >= 20 and all(r["state"]["kind"] in ("completed", "failed") for r in dm.rows()), 120)
+        ok, bad = verify(dm.rows(), expect)
+        measure("socks", f"20 files through SOCKS5: {ok} byte-exact; the proxy was asked for {len(proxy.connects)} connections, the server saw {sc.Stats.requests} requests")
+        if ok != 20:
+            finding("high", "socks", f"through a working SOCKS5 proxy {ok} of 20 files were exact: {states(dm.rows())}")
+        if len(proxy.connects) == 0:
+            finding("critical", "socks", "no connection went through the SOCKS5 proxy that was set")
+    finally:
+        dm.stop()
+        shutil.rmtree(dm.out, ignore_errors=True)
+    for label, port, refuse in (("a proxy that refuses every request", None, True), ("a proxy that is not there", 1, False)):
+        refusing = Socks5(refuse=True)
+        if refuse:
+            refusing.start()
+            port = refusing.port
+        sc.Stats.reset()
+        dm = DM(root, settings(port), name="socks2" + str(bool(refuse))).start()
+        try:
+            dm.add([f"{base}/f/skd{int(refuse)}/{MB}/skd{int(refuse)}.bin"])
+            wait_for(lambda: any(r["state"]["kind"] in ("completed", "failed") for r in dm.rows()), 120)
+            kind = dm.rows()[0]["state"]["kind"]
+            measure("socks", f"{label}: download {kind}; the server saw {sc.Stats.requests} requests")
+            if sc.Stats.requests or kind == "completed":
+                finding("critical", "socks", f"with {label}, the download {'completed' if kind == 'completed' else 'failed'} and the server saw {sc.Stats.requests} direct requests: it went around the proxy that was set")
+        finally:
+            dm.stop()
+            shutil.rmtree(dm.out, ignore_errors=True)
+
 
 @phase
 def p_proxy(ctx):

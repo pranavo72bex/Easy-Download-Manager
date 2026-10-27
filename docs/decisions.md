@@ -3,6 +3,20 @@
 Decisions that shape dm and are not obvious from the code, newest first. Each says what was decided and why, so a later change
 can see what it is undoing.
 
+## 2026-10-27: The queue file is written at most every 150 ms
+
+Found by the stress test (`scripts/stress-check.py bigqueue`): every state
+change rewrote the whole list, pretty-printed and synced, and the caller
+waited for it, so a long list made every operation slow in proportion to its
+length (cancel 2 000 of 20 000 rows: 60 s). Now the first change after 150 ms
+of quiet is written before the call returns, as before, and changes inside
+the window are folded into one write when it ends (`Queue::save`,
+`Queue::flush`); the write is made on a blocking thread. The window and the
+headless loop flush as they end. What this costs: a dm killed within 150 ms of
+a change forgets that change (the staged parts stay on disk). The file stays pretty-printed: tests and
+people read it. Not done: a journal, which would also cut the cost of
+each write on a very long list.
+
 ## 2026-10-27: Where the time between a YouTube click and its first byte went
 
 Measured in Edge with the video file's real size on disk (not the space

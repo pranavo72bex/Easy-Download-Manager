@@ -1437,3 +1437,95 @@ async fn a_download_under_a_speed_limit_gets_no_helping_connection() {
         "a connection was opened to share a limit out"
     );
 }
+
+/// A body with no length to plan the room for, that goes on and on (or a
+/// small compressed one that unpacks to gigabytes), is stopped before it
+/// fills the disk: the free space is looked at as it comes.
+#[tokio::test]
+async fn a_body_of_no_known_length_is_stopped_before_it_fills_the_disk() {
+    use axum::{body::Body, routing::get, Router};
+    use futures_util::stream;
+    let app = Router::new().route(
+        "/endless.bin",
+        get(|| async {
+            let chunk = bytes::Bytes::from(vec![7u8; 256 * 1024]);
+            Body::from_stream(stream::iter(
+                std::iter::repeat_n(chunk, 600).map(Ok::<_, std::io::Error>),
+            ))
+        }),
+    );
+    let addr = common::serve(app).await;
+    let dir = tempdir();
+    // A disk with 100 MB free: under the floor.
+    let opts = dm_core::Options {
+        room: dm_core::Room::with_free_space(|_| Some(100 * 1024 * 1024)),
+        attempts: 1,
+        ..options(dir.path())
+    };
+    let started = std::time::Instant::now();
+    let result = download(&client(), &format!("http://{addr}/endless.bin"), &opts).await;
+    let why = match result {
+        Err(e) => e.to_string(),
+        Ok(done) => panic!(
+            "{} bytes of a body with no end were saved",
+            std::fs::metadata(&done.path).map(|m| m.len()).unwrap_or(0)
+        ),
+    };
+    assert!(why.contains("less than"), "{why}");
+    // Stopped within a few looks of the start, not after the 150 MB sent.
+    let on_disk: u64 = walk(dir.path())
+        .iter()
+        .filter_map(|p| p.metadata().ok())
+        .filter(|m| m.is_file())
+        .map(|m| m.len())
+        .sum();
+    assert!(
+        on_disk < 100 * 1024 * 1024,
+        "{on_disk} bytes were written before it stopped ({:?})",
+        started.elapsed()
+    );
+}
+
+fn walk(dir: &std::path::Path) -> Vec<std::path::PathBuf> {
+    let mut out = Vec::new();
+    if let Ok(entries) = std::fs::read_dir(dir) {
+        for e in entries.flatten() {
+            out.push(e.path());
+            if e.path().is_dir() {
+                out.extend(walk(&e.path()));
+            }
+        }
+    }
+    out
+}
+
+/// A redirect to an address the client will not follow (a local file, an
+/// FTP server) is the download's failure, not an empty file that finished.
+#[tokio::test]
+async fn a_redirect_to_an_address_dm_does_not_follow_fails() {
+    use axum::{routing::get, Router};
+    let app = Router::new().route(
+        "/to-file.bin",
+        get(|| async {
+            Response::builder()
+                .status(302)
+                .header("location", "file:///etc/hosts")
+                .body(Body::empty())
+                .unwrap()
+        }),
+    );
+    let addr = common::serve(app).await;
+    let dir = tempdir();
+    let opts = dm_core::Options {
+        attempts: 1,
+        ..options(dir.path())
+    };
+    match download(&client(), &format!("http://{addr}/to-file.bin"), &opts).await {
+        Err(e) => assert!(e.to_string().contains("does not follow"), "{e}"),
+        Ok(done) => panic!(
+            "a redirect to a file: address was recorded as finished ({} bytes at {})",
+            std::fs::metadata(&done.path).map(|m| m.len()).unwrap_or(0),
+            done.path.display()
+        ),
+    }
+}

@@ -537,6 +537,15 @@ pub(super) async fn resolve_stream(
         let chosen = stream::pick(stream::variants(&text, &landed), quality)
             .ok_or_else(|| Error::Internal("no playable rendition in that stream".into()))?;
         let (media, media_landed) = fetch_playlist(client, &chosen.url, options).await?;
+        // A rendition is a media playlist. One that is another master (or the
+        // same one: a playlist that names itself) has no segments to fetch
+        // and, with no end marker, was taken for a live stream and watched
+        // for ever.
+        if media.to_ascii_uppercase().contains("#EXT-X-STREAM-INF") {
+            return Err(Error::Internal(
+                "that playlist's rendition is another master playlist, not one of segments".into(),
+            ));
+        }
         let apart = chosen
             .audio
             .as_deref()
@@ -566,6 +575,9 @@ pub(super) async fn resolve_stream(
     }
     if let Some(why) = stream::beyond_dm(None, None, &text, &landed) {
         return Ok(Resolved::Beyond(why));
+    }
+    if !text.contains("#EXTINF") {
+        return Err(Error::Internal("that playlist lists no media".into()));
     }
     if stream::is_live(&text) {
         return Ok(Resolved::Live(url.to_string()));

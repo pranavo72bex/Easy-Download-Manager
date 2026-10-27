@@ -2256,3 +2256,38 @@ fn the_hovered_rows_buttons_stay_off_a_window_in_front_of_the_list() {
         "the row's buttons were drawn over the window in front"
     );
 }
+
+/// Describing the window to a script (`ui.inspect`) with a long list took
+/// time that grew with the square of the list (7 s at 5 000 rows): each
+/// row's name looked through every other row for its namesakes. Added in
+/// one call, 3 000 links are also checked against the list once, not each
+/// against every row.
+#[test]
+fn describing_a_long_list_takes_a_moment_not_seconds() {
+    let world = world();
+    let mut harness = world.harness();
+    let urls: Vec<String> = (0..3000)
+        .map(|n| world.url(&format!("many/f{n}.bin")))
+        .collect();
+    let started = std::time::Instant::now();
+    let added = harness
+        .state_mut()
+        .control_call(
+            "downloads.add",
+            &serde_json::json!({ "urls": urls, "later": true }),
+        )
+        .unwrap();
+    assert_eq!(added["added"], 3000);
+    let adding = started.elapsed();
+    let started = std::time::Instant::now();
+    let seen = harness
+        .state_mut()
+        .control_call("ui.inspect", &serde_json::json!({}))
+        .unwrap();
+    let inspecting = started.elapsed();
+    assert_eq!(seen["rows"].as_array().unwrap().len(), 3000);
+    assert!(
+        adding < Duration::from_secs(10) && inspecting < Duration::from_secs(2),
+        "3000 links took {adding:?} to add and {inspecting:?} to describe"
+    );
+}

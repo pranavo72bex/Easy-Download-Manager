@@ -702,6 +702,8 @@ pub(super) async fn attempt_segment(
     file.seek(std::io::SeekFrom::Start(start + already)).await?;
 
     let mut written = already;
+    // Where the free space was last looked at (`DISK_LOOK_EVERY`).
+    let mut disk_looked = already;
     // What the ledger says and when it said it, so it is written down
     // again every few megabytes or every second rather than every chunk.
     let mut recorded = already;
@@ -793,6 +795,23 @@ pub(super) async fn attempt_segment(
         }
         file.write_all(&chunk).await?;
         written += chunk.len() as u64;
+        // With no length to have planned the room for, the disk is looked at as
+        // the bytes come, and the download stopped before it fills it.
+        if job.size.is_none() && written - disk_looked >= DISK_LOOK_EVERY {
+            disk_looked = written;
+            if job
+                .room
+                .free_space(&job.parts)
+                .is_some_and(|free| free < DISK_FLOOR)
+            {
+                file.flush().await?;
+                put(&mut ledger, written).await?;
+                return Err(Error::Internal(format!(
+                    "stopped: the disk has less than {} free and this download has no length to say when it ends",
+                    amount(DISK_FLOOR)
+                )));
+            }
+        }
         // Written down every few megabytes or every second: a crash then
         // costs no more than that of this range, fetched again.
         if written > recorded
