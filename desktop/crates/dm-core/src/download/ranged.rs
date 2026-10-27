@@ -603,7 +603,18 @@ pub(super) async fn attempt_segment(
      * Safe because the ledger is written down only after the buffer is
      * flushed: a retry starts from what the ledger says reached the disk, so
      * a buffer lost to a crash costs the bytes it held and nothing else. */
-    let mut stream = res.bytes_stream();
+    // Undone here where a server compressed what it was not asked to: with a
+    // count of what came over the wire, so that a body which unpacks to far
+    // more is stopped (`decode.rs`).
+    let stopped: crate::decode::Stopped = Default::default();
+    let mut stream: std::pin::Pin<
+        Box<dyn futures_util::Stream<Item = reqwest::Result<bytes::Bytes>> + Send>,
+    > = match crate::decode::coding_of(res.headers()) {
+        Some(coding) => {
+            crate::decode::decoded(coding, Box::pin(res.bytes_stream()), stopped.clone())
+        }
+        None => Box::pin(res.bytes_stream()),
+    };
     // The part of a chunk past the bytes compared, still to be written.
     let mut carry = None;
     let already = if check > 0 {
@@ -860,6 +871,12 @@ pub(super) async fn attempt_segment(
 
     file.flush().await?;
     put(&mut ledger, written).await?;
+    // A body that stopped being undone is the download's failure, not a
+    // short file that ended.
+    let why = stopped.lock().ok().and_then(|slot| slot.clone());
+    if let Some(why) = why {
+        return Err(Error::Internal(why));
+    }
 
     /* The shared plan is touched once, at the end, rather than per chunk.
      *

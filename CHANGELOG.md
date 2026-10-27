@@ -5,6 +5,9 @@ the browser extension (`v*` tags) are versioned separately.
 
 ## Unreleased
 
+- A compressed response (gzip, deflate, brotli) is decoded by dm, not by the HTTP library, so a body that unpacks to more than 100 times what was sent (and past 64 MiB) is stopped as a decompression bomb instead of filling the folder.
+- The queue file is streamed to disk, and written compact above 500 rows, instead of built as one string first.
+
 - A long list no longer slows everything down: the queue file is written at once after a quiet moment and otherwise once every 150 ms (a dm ending writes what is waiting), so 20 000 links are added in 3 s (97 s before) and 2 000 of them cancelled in 0.1 s (60 s); 2 000 small files finish at 132 a second (57); describing the window to a script (`ui.inspect`) takes no longer with 5 000 rows.
 - A download of no known length stops before it takes the disk below 256 MB; a link that redirects to a `file://` or `ftp://` address fails with a reason (it was listed as a finished empty download); a response whose headers cannot be read fails at once (it was retried for 150 s); a master playlist that names itself, or a playlist with no media, fails (it was watched for ever); a Metalink whose first mirror serves other bytes goes on to the next mirror the document's digest accepts.
 

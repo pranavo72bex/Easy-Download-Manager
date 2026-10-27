@@ -170,7 +170,16 @@ pub(crate) async fn fetch_capped(
     let res = Error::refused_or(res).await?;
     let landed = res.url().to_string();
     let mut body = Vec::new();
-    let mut chunks = res.bytes_stream();
+    // Undone where a server compressed it unasked (`decode.rs`).
+    let stopped: crate::decode::Stopped = Default::default();
+    let mut chunks: std::pin::Pin<
+        Box<dyn futures_util::Stream<Item = reqwest::Result<bytes::Bytes>> + Send>,
+    > = match crate::decode::coding_of(res.headers()) {
+        Some(coding) => {
+            crate::decode::decoded(coding, Box::pin(res.bytes_stream()), stopped.clone())
+        }
+        None => Box::pin(res.bytes_stream()),
+    };
     while let Some(chunk) = next_or_stop(&mut chunks, &options.control).await? {
         let chunk = chunk?;
         if body.len() + chunk.len() > most {
@@ -184,6 +193,10 @@ pub(crate) async fn fetch_capped(
             Ok(())
         })
         .await?;
+    }
+    let why = stopped.lock().ok().and_then(|slot| slot.clone());
+    if let Some(why) = why {
+        return Err(Error::Internal(why));
     }
     Ok(Fetched { body, landed })
 }

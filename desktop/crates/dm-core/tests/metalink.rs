@@ -153,7 +153,10 @@ async fn a_mirror_serving_other_bytes_is_passed_over_for_one_that_matches_the_di
     )
     .await
     .expect("the good mirror was not used after the first one's bytes were refused");
-    assert!(std::fs::read(&done.path).unwrap() == good, "the file is not the one the digest names");
+    assert!(
+        std::fs::read(&done.path).unwrap() == good,
+        "the file is not the one the digest names"
+    );
 
     // With only the wrong one, the digest refuses it and nothing is kept.
     let only_wrong = format!(r#"<url>http://{mirrors}/m1/f.bin</url>"#);

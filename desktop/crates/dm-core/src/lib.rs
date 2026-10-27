@@ -17,6 +17,7 @@ pub mod checksum;
 pub mod control;
 pub mod cookies;
 pub mod dash;
+mod decode;
 pub mod download;
 pub mod extract;
 pub mod fmp4;
@@ -426,16 +427,29 @@ pub fn readable(body: &str) -> String {
 /// the settings, a request handed over by a browser and the rest — are read
 /// back by something that must never see half of one.
 pub fn write_atomic(path: &std::path::Path, bytes: &[u8]) -> std::io::Result<()> {
-    replace(path, bytes, true)
+    replace(path, |w| w.write_all(bytes), true)
+}
+
+/// As [`write_atomic`], for a file produced piece by piece: nothing the size
+/// of the whole file is held in memory.
+pub fn write_atomic_with(
+    path: &std::path::Path,
+    fill: impl FnOnce(&mut dyn std::io::Write) -> std::io::Result<()>,
+) -> std::io::Result<()> {
+    replace(path, fill, true)
 }
 
 /// As [`write_atomic`], without waiting for the disk: for a file whose
 /// stale or empty copy after a power cut costs time but not correctness.
 pub fn write_atomic_unsynced(path: &std::path::Path, bytes: &[u8]) -> std::io::Result<()> {
-    replace(path, bytes, false)
+    replace(path, |w| w.write_all(bytes), false)
 }
 
-fn replace(path: &std::path::Path, bytes: &[u8], durable: bool) -> std::io::Result<()> {
+fn replace(
+    path: &std::path::Path,
+    fill: impl FnOnce(&mut dyn std::io::Write) -> std::io::Result<()>,
+    durable: bool,
+) -> std::io::Result<()> {
     if let Some(parent) = path.parent() {
         std::fs::create_dir_all(parent)?;
     }
@@ -459,7 +473,10 @@ fn replace(path: &std::path::Path, bytes: &[u8], durable: bool) -> std::io::Resu
         #[cfg(unix)]
         std::os::unix::fs::OpenOptionsExt::mode(&mut open, 0o600);
         let mut file = open.open(&temp)?;
-        file.write_all(bytes)?;
+        let mut buffered = std::io::BufWriter::new(&mut file);
+        fill(&mut buffered)?;
+        buffered.flush()?;
+        drop(buffered);
         if durable {
             file.sync_all()?;
         }

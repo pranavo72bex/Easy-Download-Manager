@@ -1,5 +1,7 @@
 use super::*;
 
+/// Rows up to which the queue file is indented.
+const PRETTY_UP_TO: usize = 500;
 /// The least time between two writes of the queue file.
 const SAVE_EVERY: Duration = Duration::from_millis(150);
 
@@ -193,7 +195,16 @@ impl Queue {
         let entries = self.list().await;
         let target = path.to_path_buf();
         let wrote = tokio::task::spawn_blocking(move || -> std::io::Result<()> {
-            crate::write_atomic(&target, serde_json::to_string_pretty(&entries)?.as_bytes())
+            crate::write_atomic_with(&target, |w| {
+                // Indented for a person reading a short list; a long one is
+                // written compact, a third of the bytes.
+                let done = if entries.len() <= PRETTY_UP_TO {
+                    serde_json::to_writer_pretty(w, &entries)
+                } else {
+                    serde_json::to_writer(w, &entries)
+                };
+                done.map_err(std::io::Error::from)
+            })
         })
         .await;
         *crate::lock(&self.inner.written) = Some(std::time::Instant::now());

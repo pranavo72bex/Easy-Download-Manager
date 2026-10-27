@@ -1529,3 +1529,90 @@ async fn a_redirect_to_an_address_dm_does_not_follow_fails() {
         ),
     }
 }
+
+/// A response that is a few hundred kilobytes on the wire and gigabytes when
+/// undone (a decompression bomb) is stopped by the ratio between the two,
+/// well before it fills anything; the same coding on a page of text, which is
+/// ten times its size at most, is undone in full.
+#[tokio::test]
+async fn a_compressed_body_that_unpacks_to_far_more_than_it_sent_is_stopped() {
+    use axum::{routing::get, Router};
+    use std::io::Write;
+    let bomb = {
+        let mut e = flate2::write::GzEncoder::new(Vec::new(), flate2::Compression::fast());
+        let zeros = vec![0u8; 1024 * 1024];
+        for _ in 0..100 {
+            e.write_all(&zeros).unwrap();
+        }
+        e.finish().unwrap()
+    };
+    assert!(bomb.len() < 1024 * 1024, "the bomb is {} bytes", bomb.len());
+    let text: Vec<u8> = (0..2_000_000u32)
+        .flat_map(|i| format!("line {}\n", i % 977).into_bytes())
+        .collect();
+    let text_gz = {
+        let mut e = flate2::write::GzEncoder::new(Vec::new(), flate2::Compression::default());
+        e.write_all(&text).unwrap();
+        e.finish().unwrap()
+    };
+    let plain = text.clone();
+    let app = Router::new()
+        .route(
+            "/bomb.bin",
+            get(move || {
+                let body = bomb.clone();
+                async move {
+                    Response::builder()
+                        .header("content-encoding", "gzip")
+                        .body(Body::from(body))
+                        .unwrap()
+                }
+            }),
+        )
+        .route(
+            "/page.txt",
+            get(move || {
+                let body = text_gz.clone();
+                async move {
+                    Response::builder()
+                        .header("content-encoding", "gzip")
+                        .body(Body::from(body))
+                        .unwrap()
+                }
+            }),
+        );
+    let addr = common::serve(app).await;
+    let dir = tempdir();
+    let opts = dm_core::Options {
+        attempts: 1,
+        ..options(dir.path())
+    };
+    let why = match download(&client(), &format!("http://{addr}/bomb.bin"), &opts).await {
+        Err(e) => e.to_string(),
+        Ok(done) => panic!(
+            "a bomb was saved: {} bytes",
+            std::fs::metadata(&done.path).map(|m| m.len()).unwrap_or(0)
+        ),
+    };
+    assert!(why.contains("unpacks to far more"), "{why}");
+    let written: u64 = walk(dir.path())
+        .iter()
+        .filter_map(|p| p.metadata().ok())
+        .filter(|m| m.is_file())
+        .map(|m| m.len())
+        .sum();
+    assert!(
+        written < 150 * 1024 * 1024,
+        "{written} bytes were written before it stopped"
+    );
+
+    let dir = tempdir();
+    let opts = dm_core::Options {
+        attempts: 1,
+        ..options(dir.path())
+    };
+    let done = download(&client(), &format!("http://{addr}/page.txt"), &opts)
+        .await
+        .expect("a compressed page of text was refused");
+    assert_eq!(std::fs::read(&done.path).unwrap(), plain);
+}

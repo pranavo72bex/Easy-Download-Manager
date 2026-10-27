@@ -2183,3 +2183,13 @@ set one up for now, so the 0.8.0 release job failed at the signing step. The
 signing step, `cargo xtask sign-update`/`update-keygen` and the check in
 `update.rs` are removed; the installer is still checked against the SHA-256
 in the manifest. It is in git history (commit `89a66d6`) if wanted again.
+
+## 2026-10-27: Compressed bodies are decoded by dm
+
+reqwest's gzip/brotli features decode inside the client and report no count
+of the wire bytes, so a ratio limit was impossible. They are off; `decode.rs`
+wraps flate2 and brotli-decompressor writers, counts the wire bytes, and
+stops a body past 64 MiB that unpacks to over 100 times what was sent. A
+download with a content coding has no known size or resume, as before.
+Tried and dropped: handing freed memory back to the system on a timer
+(`memory.rs`): RSS did not move, so it was removed.

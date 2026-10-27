@@ -118,6 +118,14 @@ pub async fn probe(
         )
     };
 
+    // A body in a coding is undone as it comes (`decode.rs`): its length is
+    // that of the encoded bytes, and says nothing of the file's.
+    let (size, resumable) = if crate::decode::coding_of(&headers).is_some() {
+        (None, false)
+    } else {
+        (size, resumable)
+    };
+
     let validator =
         header(reqwest::header::ETAG).or_else(|| header(reqwest::header::LAST_MODIFIED));
 

@@ -12,7 +12,7 @@ tokio = { version = "1", features = ["rt-multi-thread", "macros", "fs", "io-util
 # build on a machine without libssl headers is one nobody can package.
 # `socks`, or a SOCKS proxy in the settings failed every HTTP download with
 # "unsupported scheme".
-reqwest = { version = "0.12", default-features = false, features = ["stream", "rustls-tls", "gzip", "brotli", "system-proxy", "socks"] }
+reqwest = { version = "0.12", default-features = false, features = ["stream", "rustls-tls", "system-proxy", "socks"] }
 # FTP through a SOCKS proxy: the handshake, after which the connection is a
 # plain one. HTTP CONNECT is a few lines and is written here.
 tokio-socks = "0.5"
@@ -54,6 +54,12 @@ tokio-util = "0.7"
 dirs = "7.0.0"
 zip = { version = "9", default-features = false, features = ["deflate"] }
 
+# A body a server compresses unasked is undone here and not by reqwest, which
+# gives no count of the bytes on the wire: with it the expansion is held to a
+# ratio (`decode.rs`), as a decompression bomb needs.
+flate2 = "1"
+brotli-decompressor = "5"
+
 # `killpg`, to end yt-dlp's process group without running a `kill` program
 # that a minimal `PATH` may not find. Already in the tree through tokio.
 [target.'cfg(unix)'.dependencies]
@@ -69,8 +75,6 @@ windows-sys = { version = "0.61", features = ["Win32_Storage_FileSystem"] }
 # Random and hostile input for the readers of outside data (tests/fuzz.rs),
 # on stable Rust inside cargo test.
 proptest = "1"
-# The zoo's gzip-serving case.
-flate2 = "1"
 tokio = { version = "1", features = ["full"] }
 axum = "0.7"
 rand = "0.8"
