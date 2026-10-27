@@ -970,7 +970,14 @@ def main():
         folders.append(home / ("Library/Application Support/Google/Chrome" if mac else ".config/google-chrome"))
     for folder in folders:
         path = folder / "NativeMessagingHosts/com.dm.engine.json"
-        borrowed.append((path, path.read_bytes() if path.exists() else None))
+        was = path.read_bytes() if path.exists() else None
+        # What an earlier run that was stopped before it could put things back
+        # left is not the person's own: kept as "what was there", it would be
+        # put back for good, and their browser would hand every download to a
+        # host in a temporary folder that is gone.
+        if was is not None and b"dm (chrome-check)" in was:
+            was = None
+        borrowed.append((path, was))
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_text(host_manifest)
 
