@@ -317,6 +317,8 @@ struct Inner {
     written: std::sync::Mutex<Option<std::time::Instant>>,
     unwritten: AtomicBool,
     trailing: AtomicBool,
+    /// How long the last write of the queue file took, in milliseconds.
+    last_write_ms: std::sync::atomic::AtomicU64,
     concurrency: AtomicUsize,
     /// Fewer files at once for a named queue than `concurrency` allows in
     /// all: a queue of one for a site that takes one download at a time.
@@ -416,6 +418,7 @@ impl Queue {
                 written: std::sync::Mutex::new(None),
                 unwritten: AtomicBool::new(false),
                 trailing: AtomicBool::new(false),
+                last_write_ms: std::sync::atomic::AtomicU64::new(0),
                 problems: std::sync::Mutex::new(Vec::new()),
                 leaving: std::sync::Mutex::new(Vec::new()),
                 scheduling: AtomicBool::new(false),

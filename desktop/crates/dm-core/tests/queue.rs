@@ -1699,6 +1699,9 @@ async fn a_queue_that_cannot_be_written_says_so_rather_than_pretending() {
     // that changed. Every change from here is one the window shows and the
     // next launch will not.
     std::fs::set_permissions(&store_dir, std::fs::Permissions::from_mode(0o500)).unwrap();
+    if std::fs::write(store_dir.join("probe"), b"").is_ok() {
+        return; // root writes past permissions (a container): nothing to test
+    }
     q.add(&format!("http://{addr}/f.bin")).await.unwrap();
     // A change waits a moment for its write (`Queue::flush` is what the app
     // does as it ends); the failure is said when the write is made.
@@ -2285,6 +2288,7 @@ async fn a_rows_sign_in_stays_with_it_for_redownload_and_recheck_until_it_is_del
     q.run().await;
     // Gone with the row, and from the file the queue is kept in.
     q.remove(id).await;
+    q.flush().await;
     let saved = std::fs::read_to_string(&store).unwrap();
     assert!(!saved.contains("session=1"), "{saved}");
 }

@@ -5,6 +5,9 @@ the browser extension (`v*` tags) are versioned separately.
 
 ## Unreleased
 
+- The queue file is written at most once in ten times what the last write took (150 ms to 5 s), so a very long list spends a tenth of its time saving itself.
+- Linux checks: `scripts/linux-stress.sh` runs the workspace tests and the stress phases in a container with no network; three tests that need a non-root user skip under root.
+
 - A compressed response (gzip, deflate, brotli) is decoded by dm, not by the HTTP library, so a body that unpacks to more than 100 times what was sent (and past 64 MiB) is stopped as a decompression bomb instead of filling the folder.
 - The queue file is streamed to disk, and written compact above 500 rows, instead of built as one string first.
 

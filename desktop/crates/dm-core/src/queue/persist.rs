@@ -148,7 +148,8 @@ impl Queue {
         let Some(path) = self.inner.store.lock().await.clone() else {
             return;
         };
-        let due = crate::lock(&self.inner.written).is_none_or(|at| at.elapsed() >= SAVE_EVERY);
+        let due =
+            crate::lock(&self.inner.written).is_none_or(|at| at.elapsed() >= self.save_every());
         if due {
             self.write_to(&path).await;
             return;
@@ -160,16 +161,27 @@ impl Queue {
         let queue = self.clone();
         tokio::spawn(async move {
             loop {
-                let wait = crate::lock(&queue.inner.written)
-                    .map_or(Duration::ZERO, |at| SAVE_EVERY.saturating_sub(at.elapsed()));
+                let wait = crate::lock(&queue.inner.written).map_or(Duration::ZERO, |at| {
+                    queue.save_every().saturating_sub(at.elapsed())
+                });
                 tokio::time::sleep(wait).await;
-                if crate::lock(&queue.inner.written).is_none_or(|at| at.elapsed() >= SAVE_EVERY) {
+                if crate::lock(&queue.inner.written)
+                    .is_none_or(|at| at.elapsed() >= queue.save_every())
+                {
                     break;
                 }
             }
             queue.inner.trailing.store(false, Ordering::SeqCst);
             queue.flush().await;
         });
+    }
+
+    /// The least time between two writes: [`SAVE_EVERY`], or ten times what
+    /// the last write took, so a long list spends a tenth of its time
+    /// rewriting itself and the rest on the downloads.
+    fn save_every(&self) -> Duration {
+        let took = Duration::from_millis(self.inner.last_write_ms.load(Ordering::Relaxed));
+        SAVE_EVERY.max(took * 10).min(Duration::from_secs(5))
     }
 
     /// Writes the queue now if a change is waiting for its turn, and returns
@@ -193,6 +205,7 @@ impl Queue {
         self.inner.unwritten.store(false, Ordering::SeqCst);
         self.inner.saves.fetch_add(1, Ordering::Relaxed);
         let entries = self.list().await;
+        let began = std::time::Instant::now();
         let target = path.to_path_buf();
         let wrote = tokio::task::spawn_blocking(move || -> std::io::Result<()> {
             crate::write_atomic_with(&target, |w| {
@@ -207,6 +220,10 @@ impl Queue {
             })
         })
         .await;
+        self.inner.last_write_ms.store(
+            began.elapsed().as_millis().try_into().unwrap_or(u64::MAX),
+            Ordering::Relaxed,
+        );
         *crate::lock(&self.inner.written) = Some(std::time::Instant::now());
         let failed = match wrote {
             Ok(Ok(())) => None,

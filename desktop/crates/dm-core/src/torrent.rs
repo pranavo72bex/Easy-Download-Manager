@@ -743,6 +743,10 @@ mod tests {
         let unreadable = from.join("a/b/locked.bin");
         std::fs::write(&unreadable, b"x").unwrap();
         std::fs::set_permissions(&unreadable, std::fs::Permissions::from_mode(0o000)).unwrap();
+        if std::fs::read(&unreadable).is_ok() {
+            // Root reads past permissions (a container): nothing to test.
+            return;
+        }
         let downloads = tmp.path().join("downloads");
         let to = downloads.join("Show");
         std::fs::create_dir_all(&to).unwrap();

@@ -1081,7 +1081,7 @@ def main():
     root = pathlib.Path(tempfile.mkdtemp(prefix="dm-stress-"))
     server, base = sc.start_server()
     ctx = {"root": root, "base": base, "server": server}
-    print(f"protocol stress check: dm {sc.BINARY}, server {base}, folder {root}, {sc.free_gb('/'):.1f} GB free", flush=True)
+    print(f"protocol stress check: dm {sc.BINARY}, server {base}, folder {root}, {sc.free_gb(tempfile.gettempdir()):.1f} GB free", flush=True)
     try:
         for name in names:
             if name not in PHASES:
@@ -1098,7 +1098,7 @@ def main():
                 import traceback
                 traceback.print_exc()
                 finding("high", name, f"the check itself failed: {e!r}")
-            print(f"   ({time.time() - t0:.0f}s, {sc.free_gb('/'):.1f} GB free)", flush=True)
+            print(f"   ({time.time() - t0:.0f}s, {sc.free_gb(tempfile.gettempdir()):.1f} GB free)", flush=True)
     finally:
         server.shutdown()
         for d in sc.LIVE_DMS:

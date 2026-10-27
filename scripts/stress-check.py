@@ -564,8 +564,8 @@ def phase(fn):
 
 
 def guard(phase_name):
-    if free_gb("/") < MIN_FREE_GB:
-        finding("info", phase_name, f"skipped: only {free_gb('/'):.1f} GB free, below the {MIN_FREE_GB} GB the check keeps")
+    if free_gb(tempfile.gettempdir()) < MIN_FREE_GB:
+        finding("info", phase_name, f"skipped: only {free_gb(tempfile.gettempdir()):.1f} GB free, below the {MIN_FREE_GB} GB the check keeps")
         return False
     return True
 
@@ -920,7 +920,7 @@ def p_hostile(ctx):
             # room, but the server never fills it.
             "huge": f"{base}/f/huge/{4096 * MB}/huge.bin?cap={MB}",
             # More than the disk has: dm should say so before it starts.
-            "toobig": f"{base}/f/toobig/{int((free_gb('/') + 12) * 1e9)}/toobig.bin?cap={MB}",
+            "toobig": f"{base}/f/toobig/{int((free_gb(tempfile.gettempdir()) + 12) * 1e9)}/toobig.bin?cap={MB}",
             "cred": with_login(f"{base}/f/cred/1024/cred.bin", "user", "pass"),
         }
         for k, u in cases.items():
@@ -1141,6 +1141,8 @@ def p_bigqueue(ctx):
             if k in (0, n // 2, n - step):
                 measure("bigqueue", f"batch of {step} at {k} links listed took {time.time() - t:.2f}s")
         measure("bigqueue", f"{n} links queued in {time.time() - t0:.0f}s")
+        rss_idle, *_ = proc_stats(dm.proc.pid)
+        measure("bigqueue", f"rss {rss_idle:.0f} MB with {n} rows before anyone lists them ({rss_idle * 1024 / n:.1f} KB per row)")
         t = time.time()
         rows = dm.rows()
         measure("bigqueue", f"queue.list of {len(rows)} rows took {time.time() - t:.2f}s")
@@ -1157,6 +1159,8 @@ def p_bigqueue(ctx):
         measure("bigqueue", f"queue.json is {size // 1024} KB for {n} rows")
         t = time.time()
         dm.start()
+        rss_back, *_ = proc_stats(dm.proc.pid)
+        measure("bigqueue", f"rss {rss_back:.0f} MB just after a restart with {n} rows ({rss_back * 1024 / n:.1f} KB per row)")
         back = dm.rows()
         measure("bigqueue", f"a restart with {n} rows listed {len(back)} after {time.time() - t:.1f}s")
         if len(back) != n:
@@ -1257,17 +1261,17 @@ def p_large(ctx):
     """One 1.5 GB file on 16 connections: integrity, memory, and the disk it needs."""
     base, root = ctx["base"], ctx["root"]
     size = 1536 * MB
-    if free_gb("/") < MIN_FREE_GB + 4:
+    if free_gb(tempfile.gettempdir()) < MIN_FREE_GB + 4:
         finding("info", "large", "skipped: not enough free disk for a 1.5 GB file with the safety margin")
         return
     dm = DM(root, {"connections": 16}, name="large").start()
     try:
         dm.add([f"{base}/f/large/{size}/large.bin"])
         t0 = time.time()
-        lowest = free_gb("/")
+        lowest = free_gb(tempfile.gettempdir())
         def settled():
             nonlocal lowest
-            lowest = min(lowest, free_gb("/"))
+            lowest = min(lowest, free_gb(tempfile.gettempdir()))
             return any(r["state"]["kind"] in ("completed", "failed") for r in dm.rows())
         wait_for(settled, 600, every=1)
         took = time.time() - t0
@@ -1570,7 +1574,7 @@ def main():
     root = pathlib.Path(tempfile.mkdtemp(prefix="dm-stress-"))
     server, base = start_server()
     ctx = {"root": root, "base": base, "server": server}
-    print(f"stress check: dm {BINARY}, server {base}, folder {root}, {free_gb('/'):.1f} GB free", flush=True)
+    print(f"stress check: dm {BINARY}, server {base}, folder {root}, {free_gb(tempfile.gettempdir()):.1f} GB free", flush=True)
     try:
         for name in names:
             if name not in PHASES:
@@ -1587,7 +1591,7 @@ def main():
                 import traceback
                 traceback.print_exc()
                 finding("high", name, f"the check itself failed: {e!r}")
-            print(f"   ({time.time() - t0:.0f}s, {free_gb('/'):.1f} GB free)", flush=True)
+            print(f"   ({time.time() - t0:.0f}s, {free_gb(tempfile.gettempdir()):.1f} GB free)", flush=True)
     finally:
         server.shutdown()
         # Only the dm this run started: another run's is not this one's to end.

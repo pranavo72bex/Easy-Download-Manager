@@ -456,6 +456,9 @@ async fn a_download_folder_that_cannot_be_written_is_said_before_fetching() {
     let o = options(dir.path());
     std::fs::create_dir_all(&o.dest_dir).unwrap();
     std::fs::set_permissions(&o.dest_dir, std::fs::Permissions::from_mode(0o500)).unwrap();
+    if std::fs::write(o.dest_dir.join("probe"), b"").is_ok() {
+        return; // root writes past permissions (a container): nothing to test
+    }
 
     let result = download(&client(), &format!("http://{addr}/f.bin"), &o).await;
     std::fs::set_permissions(&o.dest_dir, std::fs::Permissions::from_mode(0o700)).unwrap();
