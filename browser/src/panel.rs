@@ -42,8 +42,10 @@ button:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
 .grip:active { cursor: grabbing; }
 .go { flex: 1; min-width: 0; display: flex; align-items: center; gap: 8px; padding: 0 8px; text-align: left; }
 .go:hover, .go:focus-visible { background: var(--hover); }
-.mark { width: 20px; height: 20px; flex: none; border-radius: 50%; background: var(--accent); color: var(--on-accent);
-  display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 12px; }
+.mark { width: 24px; height: 24px; flex: none; border-radius: 50%; background: var(--accent); color: var(--on-accent);
+  display: flex; align-items: center; justify-content: center; }
+.mark svg { width: 16px; height: 16px; display: block; fill: none; stroke: currentColor; stroke-width: 2.6;
+  stroke-linecap: round; stroke-linejoin: round; }
 .wrap.done .mark { background: var(--success); }
 .wrap.dead .mark { background: var(--error); }
 .title { flex: 1; min-width: 12em; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
@@ -69,7 +71,7 @@ button:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
 /// with what it says; `.live` says each result aloud.
 pub const BODY: &str = r#"<div class="panel" role="group" aria-label="dm">
 <div class="wrap">
-<span class="grip" aria-hidden="true" title="Drag to move">&#8942;&#8942;</span><button class="go" type="button"><span class="mark" aria-hidden="true">&#8595;</span><span class="title"></span><span class="caret" aria-hidden="true" hidden>&#9662;</span></button>
+<span class="grip" aria-hidden="true" title="Drag to move">&#8942;&#8942;</span><button class="go" type="button"><span class="mark" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M12 3v12M6.5 9.5 12 15l5.5-5.5M5 20h14"/></svg></span><span class="title"></span><span class="caret" aria-hidden="true" hidden>&#9662;</span></button>
 <button class="help" type="button" aria-label="What is this?" title="What is this?">?</button>
 <button class="close" type="button" aria-label="Hide" aria-haspopup="menu" title="Hide">&#215;</button>
 </div>

@@ -118,12 +118,15 @@ pub struct Settings {
     /// When dm last looked for a newer version, in seconds since 1970.
     pub update_checked: u64,
 
-    /// Open a progress window for a download as it starts.
-    #[serde(default = "yes")]
+    /// Open a progress window for a download as it starts. Off unless turned
+    /// on: the list already shows progress, and a window opening over the
+    /// work on every download was in the way.
+    #[serde(default)]
     pub show_progress: bool,
     /// Say so in a window when a download finishes, with Open and Open
-    /// folder.
-    #[serde(default = "yes")]
+    /// folder. Off unless turned on: a download just starts and finishes
+    /// in the list.
+    #[serde(default)]
     pub show_complete: bool,
     /// Play the system's short sound when a download finishes.
     pub sound_on_complete: bool,
@@ -438,8 +441,8 @@ impl Default for Settings {
             check_updates: false,
             language: String::new(),
             update_checked: 0,
-            show_progress: true,
-            show_complete: true,
+            show_progress: false,
+            show_complete: false,
             sound_on_complete: false,
             ask_panel_downloads: false,
             ask_caught_downloads: false,
