@@ -7,6 +7,7 @@ the browser extension (`v*` tags) are versioned separately.
 
 - dm takes every download the browser starts, whatever its type (text, zip, anything), unless a list of types is chosen in Options › File types. A list that is still the old defaults becomes every type when dm starts; one a person changed is kept.
 
+- The progress and finished windows saved as on by an earlier dm (which had them on for everyone) are turned off once, and the saved file records it, so turning one back on in Options stands. Options says where to find a download's progress with it off: Details on its row.
 - A row has its own buttons under the pointer for what a person wants next: a finished download has Open (plays it), Open folder and Remove; one still going has Stop or Resume, Details (opens its progress window, which no longer opens by itself) and Remove. Enter on a selected row and Show progress in the menu open it too.
 
 - The panel's list of qualities for a YouTube video comes from the watch page's own player data, in about a second (1.3 s, 0.8 s, 1.3 s on three videos, against 4.0 s, 2.6 s, 3.3 s through yt-dlp, with identical lists), and no longer waits for yt-dlp or for it to be fetched. yt-dlp then reads the page behind the answer for the download; where the page gives no list (a sign-in or consent page, a live stream) yt-dlp reads it as before.

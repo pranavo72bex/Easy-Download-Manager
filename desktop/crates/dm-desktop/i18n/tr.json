@@ -215,6 +215,7 @@
  "Port": "Bağlantı noktası",
  "Program": "Program",
  "Details": "Ayrıntılar",
+ "Off: press Details on a download's row to open its progress.": "Kapalı: ilerlemesini açmak için bir indirmenin satırındaki Ayrıntılar’a basın.",
  "Properties": "Özellikler",
  "Proxy": "Vekil sunucu",
  "Proxy type": "Vekil sunucu türü",

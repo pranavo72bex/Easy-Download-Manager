@@ -114,6 +114,10 @@ pub(super) fn tab_general(ui: &mut egui::Ui, d: &mut OptionsDialog, env: &TabEnv
         &mut s.show_progress,
         t("Show progress when a download starts"),
     );
+    hint(
+        ui,
+        t("Off: press Details on a download's row to open its progress."),
+    );
     toggle_row(
         ui,
         &mut s.show_complete,

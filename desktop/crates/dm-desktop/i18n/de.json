@@ -215,6 +215,7 @@
  "Port": "Port",
  "Program": "Programm",
  "Details": "Details",
+ "Off: press Details on a download's row to open its progress.": "Aus: Auf „Details“ in der Zeile eines Downloads klicken, um den Fortschritt zu öffnen.",
  "Properties": "Eigenschaften",
  "Proxy": "Proxy",
  "Proxy type": "Proxy-Typ",

@@ -215,6 +215,7 @@
  "Port": "Порт",
  "Program": "Программа",
  "Details": "Подробности",
+ "Off: press Details on a download's row to open its progress.": "Выключено: нажмите «Подробности» в строке загрузки, чтобы открыть ход загрузки.",
  "Properties": "Свойства",
  "Proxy": "Прокси",
  "Proxy type": "Тип прокси",

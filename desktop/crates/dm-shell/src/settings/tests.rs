@@ -723,3 +723,24 @@ fn a_catch_list_brought_up_to_date_is_left_as_the_person_made_it() {
     let every = saved_with_catch("[]", "");
     assert!(every.catch.extensions.is_empty());
 }
+
+/// Both pop-ups were on for everyone, so a saved `true` from before they
+/// were off by default is the old default and is let go once; a choice made
+/// since (the edition is saved with it) stands.
+#[test]
+fn pop_ups_saved_on_before_they_were_off_by_default_are_turned_off_once() {
+    let old = serde_json::from_str::<Settings>(r#"{"show_progress": true, "show_complete": true}"#)
+        .unwrap()
+        .clamped();
+    assert!(!old.show_progress && !old.show_complete);
+    assert_eq!(old.popups_version, POPUPS_VERSION);
+    // Turned on afterwards and saved: kept through the next read.
+    let mut chosen = old.clone();
+    chosen.show_progress = true;
+    let text = serde_json::to_string(&chosen).unwrap();
+    let again = serde_json::from_str::<Settings>(&text).unwrap().clamped();
+    assert!(again.show_progress && !again.show_complete);
+    // A fresh install has them off.
+    let fresh = Settings::default();
+    assert!(!fresh.show_progress && !fresh.show_complete);
+}

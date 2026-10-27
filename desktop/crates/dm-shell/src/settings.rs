@@ -118,6 +118,12 @@ pub struct Settings {
     /// When dm last looked for a newer version, in seconds since 1970.
     pub update_checked: u64,
 
+    /// Which edition of the pop-up defaults the two switches below were
+    /// last brought up to. Zero is a file from before they were off by
+    /// default, whose `true` was the default, not a choice: it is read as
+    /// off once (`clamped`), and from then on a person's choice stands.
+    #[serde(default)]
+    pub popups_version: u32,
     /// Open a progress window for a download as it starts. Off unless turned
     /// on: the list already shows progress, and a window opening over the
     /// work on every download was in the way.
@@ -325,6 +331,10 @@ fn yes() -> bool {
     true
 }
 
+/// The edition of the pop-up defaults now (1: progress and finished windows
+/// off until turned on).
+pub const POPUPS_VERSION: u32 = 1;
+
 impl Settings {
     /// The settings as a file to carry to another computer: every choice,
     /// but no password — Sign-ins keep their sites and names, the proxy its
@@ -441,6 +451,7 @@ impl Default for Settings {
             check_updates: false,
             language: String::new(),
             update_checked: 0,
+            popups_version: POPUPS_VERSION,
             show_progress: false,
             show_complete: false,
             sound_on_complete: false,
@@ -487,6 +498,13 @@ impl Settings {
             self.double_click = "properties".into();
         }
         self.catch.bring_up_to_date();
+        // Both pop-ups were on for everyone before they were off by default:
+        // a saved `true` from then is the old default, so it is let go once.
+        if self.popups_version < POPUPS_VERSION {
+            self.show_progress = false;
+            self.show_complete = false;
+            self.popups_version = POPUPS_VERSION;
+        }
         // The click keys are one of those the extension knows, or (to take)
         // none; anything else is what they ship as.
         if !dm_protocol::CLICK_KEYS.contains(&self.catch.keep_key.as_str()) {
