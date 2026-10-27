@@ -1,0 +1,205 @@
+//! The qualities a page offers, for the "Download video" panel's list.
+
+use super::*;
+
+/// One choice the "Download video" panel offers:
+/// a quality and the size it comes to.
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+pub struct Choice {
+    /// What the list says, such as "MP4 1280×720" or "M4A audio".
+    pub label: String,
+    /// The quality to download it at, in `Quality::named`'s words.
+    pub quality: String,
+    /// Bytes, where yt-dlp knows or estimates them.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub size: Option<u64>,
+}
+
+/// The choices in yt-dlp's `-J` description of a page: one per picture
+/// height, tallest first, each with the biggest file at that height (and the
+/// sound it would be joined with), then the best sound alone. Nothing it
+/// cannot read is listed; garbage gives an empty list, not an error.
+pub fn choices(described: &str) -> Vec<Choice> {
+    let Ok(page) = serde_json::from_str::<serde_json::Value>(described) else {
+        return Vec::new();
+    };
+    let formats = page
+        .get("formats")
+        .and_then(|f| f.as_array())
+        .cloned()
+        .unwrap_or_default();
+    let size_of = |f: &serde_json::Value| {
+        f.get("filesize")
+            .and_then(|v| v.as_u64())
+            .or_else(|| f.get("filesize_approx").and_then(|v| v.as_u64()))
+    };
+    let has = |f: &serde_json::Value, key: &str| {
+        f.get(key)
+            .and_then(|v| v.as_str())
+            .is_some_and(|c| c != "none")
+    };
+    let is = |f: &serde_json::Value, ext: &str| f.get("ext").and_then(|v| v.as_str()) == Some(ext);
+    // The sound on its own that a picture-only format is joined with: M4A
+    // first, as MP4 is what the list offers first, then the best of the rest.
+    let audio = formats
+        .iter()
+        .filter(|f| has(f, "acodec") && !has(f, "vcodec"))
+        .max_by_key(|f| {
+            (
+                is(f, "m4a"),
+                f.get("abr").and_then(|v| v.as_f64()).unwrap_or(0.0) as u64,
+            )
+        });
+    let audio_size = audio.and_then(size_of);
+
+    let mut by_height: Vec<(u32, String, String, Option<u64>)> = Vec::new();
+    for f in &formats {
+        let Some(height) = f.get("height").and_then(|v| v.as_u64()).map(|h| h as u32) else {
+            continue;
+        };
+        // A picture where it has a height, unless yt-dlp says it has none:
+        // an HLS master's renditions list no codecs, and come as
+        // `vcodec: null`, which left a stream with no list.
+        let no_picture = f.get("vcodec").and_then(|v| v.as_str()) == Some("none");
+        if height == 0 || no_picture {
+            continue;
+        }
+        let width = f.get("width").and_then(|v| v.as_u64()).unwrap_or(0);
+        let ext = f.get("ext").and_then(|v| v.as_str()).unwrap_or("video");
+        let label = if width > 0 {
+            format!("{} {width}×{height}", ext.to_ascii_uppercase())
+        } else {
+            format!("{} {height}p", ext.to_ascii_uppercase())
+        };
+        // A picture alone is joined with the sound, so its size counts both.
+        let size = match (size_of(f), has(f, "acodec")) {
+            (Some(s), true) => Some(s),
+            (Some(s), false) => Some(s + audio_size.unwrap_or(0)),
+            (None, _) => None,
+        };
+        let ext = ext.to_ascii_lowercase();
+        // MP4 at a height wherever there is one; another container only where MP4 has nothing that tall.
+        let rank = |ext: &str, size: Option<u64>| (ext == "mp4", size);
+        match by_height.iter_mut().find(|(h, _, _, _)| *h == height) {
+            Some(slot) if rank(&ext, size) > rank(&slot.2, slot.3) => {
+                *slot = (height, label, ext, size)
+            }
+            Some(_) => {}
+            None => by_height.push((height, label, ext, size)),
+        }
+    }
+    by_height.sort_by_key(|slot| std::cmp::Reverse(slot.0));
+    let mut list: Vec<Choice> = by_height
+        .into_iter()
+        .map(|(height, label, ext, size)| Choice {
+            label,
+            quality: format!("{height}/{ext}"),
+            size,
+        })
+        .collect();
+    if let Some(audio) = audio {
+        let ext = audio.get("ext").and_then(|v| v.as_str()).unwrap_or("audio");
+        list.push(Choice {
+            label: format!("{} audio", ext.to_ascii_uppercase()),
+            quality: format!("audio/{}", ext.to_ascii_lowercase()),
+            size: audio_size,
+        });
+    }
+    list
+}
+
+/// What a page offers, for the panel's list. A YouTube watch page is read
+/// from its own player data first ([`list_choices_fast`], under a second);
+/// anything that does not give a list that way, and every other site, is
+/// read by yt-dlp ([`read_choices`]).
+pub async fn list_choices(
+    url: &str,
+    referrer: Option<&str>,
+    proxy: Option<&str>,
+    sign_in: Option<&crate::cookies::SignIn>,
+) -> Result<Vec<Choice>, Error> {
+    if let Some(list) = list_choices_fast(url, proxy, sign_in).await {
+        return Ok(list);
+    }
+    read_choices(url, referrer, proxy, sign_in).await
+}
+
+/// The panel's list from a YouTube watch page's own player data, with no
+/// yt-dlp run: `None` for another site or a page that does not give one.
+pub async fn list_choices_fast(
+    url: &str,
+    proxy: Option<&str>,
+    sign_in: Option<&crate::cookies::SignIn>,
+) -> Option<Vec<Choice>> {
+    if !page_data::is_watch_page(url) {
+        return None;
+    }
+    page_data::fetch_choices(url, proxy, sign_in).await
+}
+
+/// Asks yt-dlp what a page offers, for the panel's list. Bounded: a page
+/// yt-dlp cannot read in half a minute gets no list, and the panel falls
+/// back to downloading the best. Its whole reading is kept for the
+/// download (`remember_reading`).
+pub async fn read_choices(
+    url: &str,
+    referrer: Option<&str>,
+    proxy: Option<&str>,
+    sign_in: Option<&crate::cookies::SignIn>,
+) -> Result<Vec<Choice>, Error> {
+    let binary = binary()
+        .ok_or_else(|| Error::Internal("dm's video helper is not available here".into()))?;
+    let mut command = Command::new(binary);
+    crate::no_window_async(&mut command);
+    js_runtime(&mut command);
+    command
+        .arg("-J")
+        .arg("--no-playlist")
+        .arg("--no-warnings")
+        // A list needs neither the HLS manifests (the same heights are in
+        // the DASH ones) nor the translated subtitles: leaving them out
+        // saves requests, about a third of the time on YouTube. Other
+        // sites ignore it.
+        .arg("--extractor-args")
+        .arg("youtube:skip=hls,translated_subs")
+        .arg("--socket-timeout")
+        .arg("15")
+        .stdout(Stdio::piped())
+        // Kept, so a refusal is said as yt-dlp said it (`said_by`); thrown
+        // away, every failure read "could not read that page".
+        .stderr(Stdio::piped())
+        .kill_on_drop(true);
+    let _proxied = match proxy {
+        Some(proxy) => Some(proxy_by_file(&mut command, &std::env::temp_dir(), proxy).await?),
+        None => None,
+    };
+    if let Some(referrer) = referrer {
+        command.arg("--referer").arg(referrer);
+    }
+    // The page's session from the browser, or the cookies file a person
+    // chose, so a video that needs them signed in (or a site's "not a bot"
+    // check) is read as their browser would.
+    static RUNS: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
+    let run = RUNS.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+    let path =
+        std::env::temp_dir().join(format!("dm-list-{}-{run}.cookies.txt", std::process::id()));
+    let _signed = cookies_by_file(&mut command, &path, sign_in, url).await?;
+    // After `--`: whatever the address, yt-dlp never reads it as an option.
+    command.arg("--").arg(url);
+    let run = command.output();
+    let output = tokio::time::timeout(std::time::Duration::from_secs(30), run)
+        .await
+        .map_err(|_| Error::Internal("yt-dlp took too long to read the page".into()))?
+        .map_err(|e| Error::Internal(format!("yt-dlp would not start: {e}")))?;
+    if !output.status.success() {
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        return Err(Error::Internal(said_by(
+            &stderr,
+            "yt-dlp could not read that page",
+        )));
+    }
+    // Kept, so the download a click on the list starts does not read the
+    // page again (`fetch::download_page`).
+    remember_reading(url, &output.stdout).await;
+    Ok(choices(&String::from_utf8_lossy(&output.stdout)))
+}

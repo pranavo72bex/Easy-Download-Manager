@@ -410,6 +410,11 @@ desktop/
                           recorder, connect, session)
     ytdlp.rs, tools.rs    pages handed to yt-dlp, and the tools dm fetches and checks
     ytdlp/fetch.rs        a page read by yt-dlp, its streams fetched by dm's engine
+    ytdlp/choices.rs      the panel's list of qualities (page data first, yt-dlp as fallback)
+    ytdlp/page_data.rs    a YouTube watch page's own player data, read as that list
+    ytdlp/readings.rs     yt-dlp's readings kept for the download, and the marker while one is made
+    ytdlp/refusal.rs      a failed yt-dlp run said in words a person can act on
+    ytdlp/process.rs      yt-dlp's process trees, ended with everything under them
     extract.rs            a ZIP extracted into a folder of its own, refusing hostile entries
     control.rs, cookies.rs, auth.rs, ftp.rs   the stop flag, sign-ins, FTP (ftp/: transport,
                           target, reply, session, listing, transfer)
