@@ -24,6 +24,7 @@ use crate::stream::Quality;
 use crate::{category, Error};
 
 mod fetch;
+mod page_data;
 pub use fetch::download_page;
 
 /// The line prefix yt-dlp is told to stamp on its progress, so dm can pick
@@ -598,10 +599,54 @@ pub fn choices(described: &str) -> Vec<Choice> {
     list
 }
 
+/// What a page offers, for the panel's list. A YouTube watch page is read
+/// from its own player data first ([`list_choices_fast`], under a second);
+/// anything that does not give a list that way, and every other site, is
+/// read by yt-dlp ([`read_choices`]).
+pub async fn list_choices(
+    url: &str,
+    referrer: Option<&str>,
+    proxy: Option<&str>,
+    sign_in: Option<&crate::cookies::SignIn>,
+) -> Result<Vec<Choice>, Error> {
+    if let Some(list) = list_choices_fast(url, proxy, sign_in).await {
+        return Ok(list);
+    }
+    read_choices(url, referrer, proxy, sign_in).await
+}
+
+/// The panel's list from a YouTube watch page's own player data, with no
+/// yt-dlp run: `None` for another site or a page that does not give one.
+pub async fn list_choices_fast(
+    url: &str,
+    proxy: Option<&str>,
+    sign_in: Option<&crate::cookies::SignIn>,
+) -> Option<Vec<Choice>> {
+    if !page_data::is_watch_page(url) {
+        return None;
+    }
+    page_data::fetch_choices(url, proxy, sign_in).await
+}
+
+/// Has yt-dlp read a page and keep the reading for the download, unless one
+/// was kept already: what a list made without yt-dlp leaves undone, so a
+/// click on a quality does not start with the page being read.
+pub async fn warm_reading(
+    url: &str,
+    referrer: Option<&str>,
+    proxy: Option<&str>,
+    sign_in: Option<&crate::cookies::SignIn>,
+) {
+    if fresh_reading(url).is_none() {
+        let _ = read_choices(url, referrer, proxy, sign_in).await;
+    }
+}
+
 /// Asks yt-dlp what a page offers, for the panel's list. Bounded: a page
 /// yt-dlp cannot read in half a minute gets no list, and the panel falls
-/// back to downloading the best.
-pub async fn list_choices(
+/// back to downloading the best. Its whole reading is kept for the
+/// download (`remember_reading`).
+pub async fn read_choices(
     url: &str,
     referrer: Option<&str>,
     proxy: Option<&str>,

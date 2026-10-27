@@ -447,20 +447,58 @@ impl World for Here<'_> {
             .build()
             .map_err(|e| e.to_string())?;
         let referrer = (!referrer.is_empty()).then_some(referrer);
-        // yt-dlp found, or fetched now by dm where the computer has none,
-        // through the same proxy the download will take.
         let settings = saved(self.home);
-        if let Ok(client) = dm_core::proxy::client_with(&settings.proxy) {
-            runtime.block_on(dm_core::tools::for_video(&client))?;
-        }
-        let listed = runtime
-            .block_on(dm_core::ytdlp::list_choices(
-                url,
-                referrer,
-                proxy.as_deref(),
-                dm_core::cookies::SignIn::new(url, cookies).as_ref(),
-            ))
-            .map_err(|e| e.to_string())?;
+        let sign_in = dm_core::cookies::SignIn::new(url, cookies);
+        // A YouTube watch page lists its own qualities: no yt-dlp for that,
+        // which can take seconds and, where dm has none yet, a fetch of it.
+        // yt-dlp then reads the page behind the answer, for the download.
+        let fast = runtime.block_on(dm_core::ytdlp::list_choices_fast(
+            url,
+            proxy.as_deref(),
+            sign_in.as_ref(),
+        ));
+        let listed = if let Some(listed) = fast {
+            let (url, referrer, proxy) =
+                (url.to_string(), referrer.map(str::to_string), proxy.clone());
+            let (sign_in, proxied) = (sign_in.clone(), settings.proxy.clone());
+            std::thread::spawn(move || {
+                let Ok(runtime) = tokio::runtime::Builder::new_current_thread()
+                    .enable_all()
+                    .build()
+                else {
+                    return;
+                };
+                if let Ok(client) = dm_core::proxy::client_with(&proxied) {
+                    if runtime
+                        .block_on(dm_core::tools::for_video(&client))
+                        .is_err()
+                    {
+                        return;
+                    }
+                }
+                runtime.block_on(dm_core::ytdlp::warm_reading(
+                    &url,
+                    referrer.as_deref(),
+                    proxy.as_deref(),
+                    sign_in.as_ref(),
+                ));
+            });
+            listed
+        } else {
+            // yt-dlp found, or fetched now by dm where the computer has
+            // none, through the same proxy the download will take.
+            if let Ok(client) = dm_core::proxy::client_with(&settings.proxy) {
+                runtime.block_on(dm_core::tools::for_video(&client))?;
+            }
+            runtime
+                .block_on(dm_core::ytdlp::read_choices(
+                    url,
+                    referrer,
+                    proxy.as_deref(),
+                    sign_in.as_ref(),
+                ))
+                .map_err(|e| e.to_string())?
+        };
         let listed: Vec<Choice> = listed
             .into_iter()
             .map(|c| Choice {

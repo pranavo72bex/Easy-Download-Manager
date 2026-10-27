@@ -3,6 +3,20 @@
 Decisions that shape dm and are not obvious from the code, newest first. Each says what was decided and why, so a later change
 can see what it is undoing.
 
+## 2026-10-27: The panel's list for YouTube is read from the page's data
+
+Measured: yt-dlp takes 2.6-4.5 s over a watch page (its `player_skip=js` saves
+about a second but drops the addresses the download needs; `android_vr`,
+`tv_simply` and `mweb` list one to five formats, and `web` and `tv` fail with
+"page needs to be reloaded"). The watch page's own `ytInitialPlayerResponse`
+carries every picture and sound with its size, in one request of 0.8 s. The
+panel's list is read from that (`ytdlp/page_data.rs`, same labels, qualities
+and order as `choices`, checked against yt-dlp on three videos); the SABR
+streams carry no addresses, so the download is still yt-dlp's reading of the
+page, started behind the list (`warm_reading`). Any page that is not
+`status: OK`, is live or lacks the data goes to yt-dlp as before. Dropped: a
+`player_client` pick for yt-dlp (fewer formats, and fails by video).
+
 ## 2026-10-26: yt-dlp reads a video page, dm fetches it
 
 yt-dlp downloaded what it read on one connection a stream, so a video ran at
