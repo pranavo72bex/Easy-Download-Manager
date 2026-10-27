@@ -5,9 +5,9 @@ the browser extension (`v*` tags) are versioned separately.
 
 ## Unreleased
 
-## App 0.8.1
+## App 0.8.2
 
-- The update check no longer asks for a signature on `latest.json` (no signing key is held); the installer is still checked against its SHA-256. 0.8.0 was never released; its changes are below.
+- The update check no longer asks for a signature on `latest.json` (no signing key is held); the installer is still checked against its SHA-256. 0.8.0 and 0.8.1 were never released (their release builds failed); their changes are below.
 
 ## App 0.8.0
 
