@@ -611,13 +611,15 @@ def click_at(tab, x, y):
     mouse(tab, "mouseReleased", x, y)
 
 
-def click_panel(tab):
+def click_panel(tab, player=None):
+    """Clicks the panel's bar. `player` is the player's rectangle, for a page
+    whose player is not this check's own `#v` (a real site's)."""
     state = panel(tab)
     if not (state or {}).get("shown"):
         # It hides itself when the pointer rests away from it (the wait
         # before this click was long enough), so a person would bring it
         # back by pointing at the player; the click must not land on nothing.
-        hover(tab, tab.evaluate(VIDEO_RECT))
+        hover(tab, player or tab.evaluate(VIDEO_RECT))
         state = wait_for(lambda: (panel(tab) or {}).get("shown") and panel(tab), 3) or state
     x, y = state["x"] + 60, state["y"] + state["h"] / 2
     mouse(tab, "mouseMoved", x, y)
@@ -628,7 +630,10 @@ def click_panel(tab):
 def panel_checks(base, origin, engine_dl, engine_home, worker):
     # A file behind a player's control layer.
     tab = panel_page(base, origin, "/video.html")
-    video = tab.evaluate(VIDEO_RECT)
+    # The page's own video, not yet there on a slow load: waited for, not
+    # read as null (which ended the whole check with a TypeError).
+    video = wait_for(lambda: tab.evaluate(
+        "document.getElementById('v') ? 1 : 0") and tab.evaluate(VIDEO_RECT), 15)
     hover(tab, video)
     shown = wait_for(lambda: (panel(tab) or {}).get("shown") and panel(tab), 3) or panel(tab) or {}
     check("hovering a video raises 'Download video', through the player's control layer",

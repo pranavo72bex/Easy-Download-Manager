@@ -2,7 +2,10 @@
 """The "Download video" panel on a real YouTube page, by hand only.
 
 Every other check runs against servers on loopback; this one goes to
-youtube.com, so it is not in CI and runs only when someone asks it to. It
+youtube.com, so it is not in CI and runs only when someone asks it to. In a window rather than with
+DM_CHROME_HEADLESS=1, a pointer resting over the browser can fail its
+pointer checks (the panel hid, or a drag ended at the pointer): the browser
+likely sends a mouse move at the real pointer after the page changes. It
 runs chrome-check.py's setup and its local checks, but replaces the panel
 step with a real watch page ("Me at the zoo", 19 seconds):
 
@@ -73,7 +76,7 @@ def youtube(base, origin, engine_dl, engine_home, worker):
     time.sleep(5)
     cc.check("YouTube: it stays while the pointer rests on the playing video",
              (cc.panel(tab) or {}).get("shown"), str(cc.panel(tab)))
-    cc.click_panel(tab)
+    cc.click_panel(tab, rect)
     # The qualities the video comes in, from the app's yt-dlp.
     listed = cc.wait_for(lambda: len((cc.panel(tab) or {}).get("lines") or []) >= 2 and cc.panel(tab), 60) or {}
     cc.check("YouTube: its click lists the video's qualities with their sizes",
