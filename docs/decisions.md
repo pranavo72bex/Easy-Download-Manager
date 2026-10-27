@@ -3,6 +3,16 @@
 Decisions that shape dm and are not obvious from the code, newest first. Each says what was decided and why, so a later change
 can see what it is undoing.
 
+## 2026-10-27: Every type is caught out of the box
+
+A download the browser starts is already a download (a page it navigates to
+is not), so the type list only left files with the browser (`.txt`, `.json`,
+an unlisted type) that a person wanted in dm. The default is now no list,
+which `CatchRules::takes` already read as every type. A saved list that is
+exactly the old defaults was never chosen and becomes empty
+(`bring_up_to_date`, edition 2); a changed list, an Alt-click, a skipped site,
+the size floor and a private window still leave a download with the browser.
+
 ## 2026-10-27: The panel's list for YouTube is read from the page's data
 
 Measured: yt-dlp takes 2.6-4.5 s over a watch page (its `player_skip=js` saves

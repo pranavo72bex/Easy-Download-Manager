@@ -586,14 +586,12 @@ fn settings_written_by_an_earlier_version_still_read() {
 }
 
 #[test]
-fn the_extension_catches_the_default_file_types_until_told_otherwise() {
+fn the_extension_catches_every_file_type_until_told_otherwise() {
     // A settings file from before the extension asked the app has no
-    // `catch`; the browser must still hand over the default file types.
+    // `catch`; the browser must still hand over every download.
     let old: Settings = serde_json::from_str(r#"{"connections":4}"#).unwrap();
     assert!(old.catch.enabled);
-    for kind in ["zip", "exe", "mp4", "pdf", "iso"] {
-        assert!(old.catch.extensions.iter().any(|e| e == kind), "{kind}");
-    }
+    assert!(old.catch.extensions.is_empty(), "no list is every type");
 
     let chosen: Settings = serde_json::from_str(
         r#"{"catch":{"enabled":false,"extensions":["bin"],"minSizeKb":5,"skipHosts":["e.com"]}}"#,

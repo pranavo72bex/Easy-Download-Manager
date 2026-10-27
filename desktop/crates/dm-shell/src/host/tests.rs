@@ -1046,16 +1046,23 @@ fn a_page_read_a_moment_ago_is_not_read_again_and_an_old_reading_is_not_believed
 }
 
 /// The browser asks for the rules without the app: a list saved before
-/// documents joined the defaults reaches it with them.
+/// documents joined the defaults reaches it with them, and one that is then
+/// only the old defaults reaches it as every type.
 #[test]
 fn the_rules_the_browser_asks_for_have_the_new_default_types() {
     let home = tempfile::tempdir().unwrap();
     std::fs::write(
         home.path().join("settings.json"),
-        r#"{"catch": {"extensions": ["zip"]}}"#,
+        r#"{"catch": {"extensions": ["zip", "xyz"]}}"#,
     )
     .unwrap();
     let rules = catch_rules(home.path());
     assert!(rules.extensions.iter().any(|k| k == "docx"));
-    assert!(rules.extensions.iter().any(|k| k == "zip"));
+    assert!(rules.extensions.iter().any(|k| k == "xyz"));
+    std::fs::write(
+        home.path().join("settings.json"),
+        r#"{"catch": {"extensions": ["zip"]}}"#,
+    )
+    .unwrap();
+    assert!(catch_rules(home.path()).extensions.is_empty());
 }

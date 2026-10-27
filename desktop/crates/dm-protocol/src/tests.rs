@@ -210,12 +210,15 @@ fn the_rules_cross_as_written_and_read_from_either_spelling() {
         !typed.sign_in_everywhere,
         "a sign-in goes only where chosen"
     );
-    assert!(!typed.extensions.is_empty());
+    assert!(typed.extensions.is_empty(), "no list chosen is every type");
 }
 
 #[test]
-fn the_default_types_catch_files_not_pages() {
-    let rules = CatchRules::default();
+fn a_chosen_list_of_types_catches_files_not_pages() {
+    let rules = CatchRules {
+        extensions: DEFAULT_EXTENSIONS.iter().map(|s| s.to_string()).collect(),
+        ..CatchRules::default()
+    };
     for caught in [
         "https://e.com/setup.exe",
         "https://e.com/a/b/archive.ZIP?token=1",
@@ -550,7 +553,61 @@ fn a_dot_in_a_directory_or_a_hidden_file_is_not_a_type() {
     assert_eq!(extension_of("noext"), None);
     assert_eq!(extension_of("weird.a-b"), None);
     assert_eq!(
-        CatchRules::default().catches(&file("https://e.com/v1.2/download")),
+        CatchRules {
+            extensions: DEFAULT_EXTENSIONS.iter().map(|s| s.to_string()).collect(),
+            ..CatchRules::default()
+        }
+        .catches(&file("https://e.com/v1.2/download")),
         Err(Left::NotAFileType)
     );
+}
+
+#[test]
+fn out_of_the_box_every_type_is_caught() {
+    let rules = CatchRules::default();
+    for any in [
+        "https://e.com/notes.txt",
+        "https://e.com/a.zip",
+        "https://e.com/data.json",
+        "https://e.com/download?id=5",
+        "https://e.com/page.html",
+        "https://e.com/odd.xyz123",
+    ] {
+        assert_eq!(rules.catches(&file(any)), Ok(()), "{any}");
+    }
+}
+
+#[test]
+fn an_unchosen_list_from_an_earlier_edition_becomes_every_type_and_a_chosen_one_stays() {
+    let old = |extensions: Vec<String>, defaults_version| CatchRules {
+        extensions,
+        defaults_version,
+        ..CatchRules::default()
+    };
+    let defaults = || {
+        DEFAULT_EXTENSIONS
+            .iter()
+            .map(|s| s.to_string())
+            .collect::<Vec<_>>()
+    };
+    // Still the old defaults, from either edition.
+    for version in [0, 1] {
+        let mut rules = old(defaults(), version);
+        rules.bring_up_to_date();
+        assert!(rules.extensions.is_empty(), "version {version}");
+        assert_eq!(rules.defaults_version, CATCH_DEFAULTS_VERSION);
+    }
+    // One the person changed keeps their choice, and a version-0 list still
+    // gains the types added since.
+    let mut mine = old(defaults(), 1);
+    mine.extensions.retain(|e| e != "zip");
+    mine.bring_up_to_date();
+    assert!(!mine.extensions.is_empty() && !mine.extensions.contains(&"zip".to_string()));
+    let mut short = old(vec!["zip".into(), "pdf".into()], 1);
+    short.bring_up_to_date();
+    assert_eq!(short.extensions, ["zip", "pdf"]);
+    // Brought up once.
+    let mut again = old(vec!["zip".into()], CATCH_DEFAULTS_VERSION);
+    again.bring_up_to_date();
+    assert_eq!(again.extensions, ["zip"]);
 }

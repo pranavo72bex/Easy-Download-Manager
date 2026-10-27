@@ -1183,7 +1183,10 @@ fn a_forced_site_still_answers_to_the_apps_switch_and_skip_list() {
         OWN,
     )
     .unwrap();
-    let rules = CatchRules::default();
+    let rules = CatchRules {
+        extensions: vec!["zip".into()],
+        ..CatchRules::default()
+    };
     assert!(
         rules.catches(&found.candidate()).is_err(),
         "not a type caught"

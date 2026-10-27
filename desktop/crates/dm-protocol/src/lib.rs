@@ -434,8 +434,10 @@ impl Reply {
 
 /* ------------------------------------------------------------ catching */
 
-/// The file types caught out of the box: archives, installers and disk
-/// images, video, audio and documents — and `.torrent`.
+/// The file types dm used to catch out of the box: archives, installers and
+/// disk images, video, audio and documents — and `.torrent`. dm now catches
+/// every type unless a list is chosen; this is what an unchosen list from an
+/// earlier edition holds, which is how one is told from a chosen one.
 pub const DEFAULT_EXTENSIONS: &[&str] = &[
     // archives
     "zip", "rar", "7z", "gz", "gzip", "tgz", "bz2", "xz", "zst", "tar", "z", "lzh", "arj", "cab",
@@ -451,8 +453,9 @@ pub const DEFAULT_EXTENSIONS: &[&str] = &[
     "torrent",
 ];
 
-/// The edition of [`DEFAULT_EXTENSIONS`] now: raised when types are added.
-pub const CATCH_DEFAULTS_VERSION: u32 = 1;
+/// The edition of the catch defaults now. 2: every type is caught, so a list
+/// that is still the old defaults becomes empty.
+pub const CATCH_DEFAULTS_VERSION: u32 = 2;
 
 fn unversioned() -> u32 {
     0
@@ -538,16 +541,29 @@ pub const CLICK_KEYS: [&str; 3] = ["alt", "shift", "ctrl"];
 impl CatchRules {
     /// A list saved before some types joined the defaults gets them once: a
     /// person who never touched the list otherwise kept documents in the
-    /// browser for good. An empty list is every type and is left as it is.
+    /// browser for good. One that is then exactly the old defaults was never
+    /// chosen, and becomes every type (an empty list), which dm now catches
+    /// out of the box; a list a person changed is left as it is.
     pub fn bring_up_to_date(&mut self) {
         if self.defaults_version >= CATCH_DEFAULTS_VERSION {
             return;
         }
         if !self.extensions.is_empty() {
-            for kind in DEFAULT_EXTENSIONS {
-                if !self.extensions.iter().any(|have| have == kind) {
-                    self.extensions.push((*kind).to_string());
+            if self.defaults_version < 1 {
+                for kind in DEFAULT_EXTENSIONS {
+                    if !self.extensions.iter().any(|have| have == kind) {
+                        self.extensions.push((*kind).to_string());
+                    }
                 }
+            }
+            let mut have: Vec<&str> = self.extensions.iter().map(String::as_str).collect();
+            have.sort_unstable();
+            have.dedup();
+            let mut old: Vec<&str> = DEFAULT_EXTENSIONS.to_vec();
+            old.sort_unstable();
+            old.dedup();
+            if have == old {
+                self.extensions.clear();
             }
         }
         self.defaults_version = CATCH_DEFAULTS_VERSION;
@@ -558,7 +574,7 @@ impl Default for CatchRules {
     fn default() -> Self {
         CatchRules {
             enabled: true,
-            extensions: DEFAULT_EXTENSIONS.iter().map(|s| s.to_string()).collect(),
+            extensions: Vec::new(),
             defaults_version: CATCH_DEFAULTS_VERSION,
             min_size_kb: 0,
             skip_hosts: Vec::new(),
