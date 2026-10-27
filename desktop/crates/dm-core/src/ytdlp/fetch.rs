@@ -423,7 +423,7 @@ async fn fetch_stream(
         server_dates: false,
         ..options.clone()
     };
-    let done = crate::download::download_reporting(client, &stream.url, &opts, report).await?;
+    let done = crate::download::download_video_stream(client, &stream.url, &opts, report).await?;
     tokio::fs::rename(&done.path, &stream.target).await?;
     let _ = tokio::fs::remove_dir_all(&own).await;
     Ok(())

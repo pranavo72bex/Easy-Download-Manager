@@ -341,6 +341,35 @@ impl Job {
     }
 }
 
+tokio::task_local! {
+    /// Set while one stream of a video page is fetched (`ytdlp::fetch`): the
+    /// address is the file, so a refusal or a page in its place is the
+    /// stream's failure, not a page for yt-dlp to try. Handed to it as one,
+    /// each of a video's streams cost two more yt-dlp runs (about 1.4 s on
+    /// YouTube, which refuses dm's own requests for its streams) before the
+    /// helper downloaded the video from its reading as it was always going to.
+    static STREAM: ();
+}
+
+/// [`download_reporting`] for one stream of a video page (`ytdlp::fetch`):
+/// the address is the file, so what the server refuses, or answers with a
+/// page, is that stream's failure and nothing is handed to yt-dlp.
+pub async fn download_video_stream(
+    client: &reqwest::Client,
+    url: &str,
+    options: &Options,
+    report: Option<tokio::sync::mpsc::Sender<Update>>,
+) -> Result<Finished, Error> {
+    // Boxed: a video page's streams are downloads that may themselves meet a
+    // page (`ytdlp::download_page`), which an async fn cannot be recursive in.
+    Box::pin(STREAM.scope((), download_reporting(client, url, options, report))).await
+}
+
+/// Whether the download in hand is one stream of a video page.
+fn is_stream() -> bool {
+    STREAM.try_with(|()| ()).is_ok()
+}
+
 pub async fn download(
     client: &reqwest::Client,
     url: &str,
@@ -506,7 +535,10 @@ async fn fetch_reporting(
             refused @ Error::Refused {
                 status: 403 | 429, ..
             },
-        ) if !names_a_document(url) && crate::tools::for_video(client).await.is_ok() => {
+        ) if !is_stream()
+            && !names_a_document(url)
+            && crate::tools::for_video(client).await.is_ok() =>
+        {
             return match crate::ytdlp::download_page(client, url, options, report.clone()).await {
                 Ok(done) => Ok(done),
                 Err(stopped @ (Error::Paused | Error::Cancelled)) => Err(stopped),
@@ -554,6 +586,11 @@ async fn fetch_reporting(
      * would save the page as a "video" or fail about an unknown site. The
      * first bytes tell the two apart. */
     let page = crate::ytdlp::is_page(info.content_type.as_deref());
+    if page && is_stream() {
+        return Err(Error::Internal(
+            "the stream answered with a web page rather than the file".into(),
+        ));
+    }
     if page && names_a_file(url) {
         if starts_as_html(client, url, options).await {
             return Err(Error::Internal(

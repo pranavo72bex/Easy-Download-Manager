@@ -451,14 +451,27 @@ impl World for Here<'_> {
         let sign_in = dm_core::cookies::SignIn::new(url, cookies);
         // A YouTube watch page lists its own qualities: no yt-dlp for that,
         // which can take seconds and, where dm has none yet, a fetch of it.
-        // yt-dlp then reads the page behind the answer, for the download.
+        // yt-dlp reads the page for the download at the same time, not after
+        // the list: it takes about three seconds, and a click on a quality
+        // is likely sooner than that after the list.
+        let watch = dm_core::ytdlp::is_watch_page(url);
+        if watch {
+            dm_core::ytdlp::mark_reading(url);
+            warm_in_background(url, referrer.unwrap_or(""), cookies);
+        }
         let fast = runtime.block_on(dm_core::ytdlp::list_choices_fast(
             url,
             proxy.as_deref(),
             sign_in.as_ref(),
         ));
+        // Where the page gave no list, the reading being made gives one: the
+        // same yt-dlp run, not a second.
+        let fast = match fast {
+            Some(listed) => Some(listed),
+            None if watch => runtime.block_on(dm_core::ytdlp::kept_choices(url)),
+            None => None,
+        };
         let listed = if let Some(listed) = fast {
-            warm_in_background(url, referrer.unwrap_or(""), cookies);
             listed
         } else {
             // yt-dlp found, or fetched now by dm where the computer has

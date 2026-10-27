@@ -154,3 +154,27 @@ pub(super) fn fresh_reading(url: &str) -> Option<PathBuf> {
         .ok()?;
     (age < READING_KEPT).then_some(path)
 }
+
+/// Says a reading of `url` is about to be made (`warm_reading`, in another
+/// process that has not started yet), so a download or a list asked for in
+/// the meantime waits for it rather than reading the page itself.
+pub fn mark_reading(url: &str) {
+    if let Some(marker) = reading_path(url).map(|p| p.with_extension("busy")) {
+        if let Some(dir) = marker.parent() {
+            let _ = std::fs::create_dir_all(dir);
+        }
+        let _ = std::fs::write(marker, b"");
+    }
+}
+
+/// The choices in the reading of `url` that is kept or being made, waiting
+/// for one that is being made; `None` where there is none, or it lists
+/// nothing.
+pub async fn kept_choices(url: &str) -> Option<Vec<super::Choice>> {
+    wait_for_reading(url, &crate::control::Control::new())
+        .await
+        .ok()?;
+    let text = tokio::fs::read_to_string(fresh_reading(url)?).await.ok()?;
+    let list = super::choices(&text);
+    (!list.is_empty()).then_some(list)
+}

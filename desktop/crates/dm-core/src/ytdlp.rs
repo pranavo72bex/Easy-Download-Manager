@@ -33,7 +33,13 @@ mod refusal;
 pub use choices::{choices, list_choices, list_choices_fast, read_choices, Choice};
 pub use fetch::download_page;
 pub use process::end_all;
-pub use readings::{keep_readings_in, warm_reading};
+pub use readings::{keep_readings_in, kept_choices, mark_reading, warm_reading};
+/// Whether `url` is a YouTube page whose own data lists its qualities
+/// (`list_choices_fast`).
+pub fn is_watch_page(url: &str) -> bool {
+    page_data::is_watch_page(url)
+}
+
 pub use refusal::{refusal, said_by, UNKNOWN_SITE};
 
 #[cfg(test)]
@@ -1033,6 +1039,43 @@ mod tests {
         });
         let result = super::wait_for_reading(url, &control).await;
         assert!(matches!(result, Err(crate::Error::Paused)), "{result:?}");
+    }
+
+    /// A list asked for while a reading of the page is being made is that
+    /// reading's, not a second run's: waited for, then read from it.
+    #[tokio::test]
+    async fn the_list_of_a_reading_being_made_is_read_from_it() {
+        let dir = Box::leak(Box::new(tempfile::tempdir().unwrap()));
+        super::keep_readings_in(dir.path().to_path_buf());
+        let url = "https://v.example/watch?v=making";
+        // Nothing made, nothing marked: no list.
+        assert!(super::kept_choices(url).await.is_none());
+        // Marked, and then made 400 ms later by another process.
+        super::mark_reading(url);
+        let reading = super::reading_path(url).unwrap();
+        let writer = tokio::spawn({
+            let reading = reading.clone();
+            async move {
+                tokio::time::sleep(std::time::Duration::from_millis(400)).await;
+                let described = serde_json::json!({ "formats": [
+                    { "format_id": "a", "ext": "m4a", "vcodec": "none", "acodec": "mp4a", "abr": 128, "filesize": 1000 },
+                    { "format_id": "v", "ext": "mp4", "height": 720, "width": 1280, "vcodec": "avc1", "acodec": "none", "filesize": 9000 },
+                ]});
+                std::fs::write(&reading, described.to_string()).unwrap();
+                let _ = std::fs::remove_file(reading.with_extension("busy"));
+            }
+        });
+        let at = std::time::Instant::now();
+        let list = super::kept_choices(url)
+            .await
+            .expect("no list from the reading");
+        assert!(
+            at.elapsed() >= std::time::Duration::from_millis(300),
+            "did not wait"
+        );
+        let said: Vec<&str> = list.iter().map(|c| c.quality.as_str()).collect();
+        assert_eq!(said, ["720/mp4", "audio/m4a"]);
+        writer.await.unwrap();
     }
 
     #[test]

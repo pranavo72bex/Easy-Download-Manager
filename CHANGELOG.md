@@ -5,6 +5,8 @@ the browser extension (`v*` tags) are versioned separately.
 
 ## Unreleased
 
+- A YouTube click gets real bytes in 1.7-2.0 s whether it is made at once or after a few seconds of looking (a real video in Edge, measured by the video file growing on disk: 8.4 s at once and 6.0 s after 3 s of looking before). Three changes: the page is read for the download at the same moment as the quality list, not after it; a video's streams that YouTube refuses to dm are no longer handed to yt-dlp as pages (two more runs for each, about 1.4 s); and the read goes through yt-dlp's visionos client first (2.0 s against 3.2 s, the same 31 formats up to 2160p), which also lists no wait where the default merges in a client whose streams YouTube asks to be waited 4 s for. Where that client gives nothing, the default read is made as before. An earlier note in this file put the speed-up at 5-8 s to 1.3-3.7 s: that was measured by the size of files on disk, which counted files dm had only reserved space for.
+
 - A video click now starts in 1.3-3.7 s instead of 5-8 s (a real YouTube video in Edge, from a click on a quality to the first 200 KB on disk: 5.1-5.7 s to 1.25 s after looking at the player for 8 s, 8.2 s to 3.7 s when clicked at once). The page reading made behind the quality list was ended with the browser's host a few seconds after the list was answered, so it never reached the download; it is now made by a process of its own (`dm-desktop --warm-reading`, the page and session on its standard input) that outlives the host.
 - With the progress window off, the first download says once, in the status line, to hover a download and press Details to watch its progress.
 

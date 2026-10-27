@@ -528,3 +528,36 @@ async fn a_download_started_during_the_warming_read_waits_for_it() {
         "read twice: {calls:?}"
     );
 }
+
+/// A stream of a video page that the server refuses is that stream's
+/// failure: it is not handed to yt-dlp as if it were a page (two more
+/// yt-dlp runs for each of a video's streams, about 1.4 s on YouTube, before
+/// the helper downloaded the video from its reading as it was going to).
+#[tokio::test(flavor = "multi_thread")]
+async fn a_refused_stream_is_not_handed_to_ytdlp_as_a_page() {
+    use_fake_ytdlp();
+    let dir = tempdir();
+    let addr = serve_files(Served {
+        files: Arc::new(vec![("/video", vec![1u8; 1024])]),
+        refuse: Some("/video"),
+        seen: Seen::default(),
+        pace: None,
+    })
+    .await;
+    let (case, _page) = case(dir.path(), serde_json::json!({ "formats": [] }), b"unused");
+    let url = format!("http://{addr}/video");
+    let opts = dm_core::Options {
+        attempts: 1,
+        ..options(dir.path())
+    };
+    let failed = dm_core::download::download_video_stream(&client(), &url, &opts, None).await;
+    assert!(
+        matches!(failed, Err(dm_core::Error::Refused { status: 403, .. })),
+        "{failed:?}"
+    );
+    assert!(
+        calls(&case).is_empty(),
+        "yt-dlp was run: {:?}",
+        calls(&case)
+    );
+}

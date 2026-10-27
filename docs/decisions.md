@@ -3,6 +3,23 @@
 Decisions that shape dm and are not obvious from the code, newest first. Each says what was decided and why, so a later change
 can see what it is undoing.
 
+## 2026-10-27: Where the time between a YouTube click and its first byte went
+
+Measured in Edge with the video file's real size on disk (not the space
+reserved, which an earlier measurement counted). After a click with a reading
+ready, 4-5 s went on: yt-dlp runs for each of the two streams dm's own
+request is refused for (YouTube answers dm 403; the refusal was handed to
+yt-dlp as a page, `download::is_stream` now stops that), and then yt-dlp
+*sleeping*: formats from YouTube's tv client carry an `available_at` four
+seconds after the read, which yt-dlp waits for ("as required by the site")
+and which is not shortened here. The default read merges that client with
+visionos; asking for visionos alone (`FAST_YOUTUBE_CLIENT`) lists the same
+heights and no wait. It is yt-dlp's own, documented client choice, and falls
+back to the default read where it gives nothing. The read for the download
+starts when the list is asked for, in parallel with the page's own data
+(`mark_reading` before the helper starts, `kept_choices` where the page data
+gives no list), not after it.
+
 ## 2026-10-27: The reading behind the panel's list is made by a process of its own
 
 Measured in Edge on a real YouTube video: the quality list was already shown
