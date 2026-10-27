@@ -5,6 +5,10 @@ the browser extension (`v*` tags) are versioned separately.
 
 ## Unreleased
 
+## App 0.8.3
+
+- CI fixes only: a shellcheck guard in `scripts/linux/stress-inside.sh` and a Windows-only timing in one test; no change to the program.
+
 - The queue file is written at most once in ten times what the last write took (150 ms to 5 s), so a very long list spends a tenth of its time saving itself.
 - Linux checks: `scripts/linux-stress.sh` runs the workspace tests and the stress phases in a container with no network; three tests that need a non-root user skip under root.
 

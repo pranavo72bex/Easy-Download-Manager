@@ -3,7 +3,7 @@
 # Built from source rather than repackaging a .deb, so it links against
 # Arch's own libraries rather than an older runner's.
 pkgname=dm
-pkgver=0.8.2
+pkgver=0.8.3
 pkgrel=1
 pkgdesc="A download manager: many connections, resume, and a queue"
 arch=('x86_64' 'aarch64')

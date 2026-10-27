@@ -1,6 +1,6 @@
 [package]
 name = "dm-shell"
-version = "0.8.2"
+version = "0.8.3"
 license = "MIT"
 edition = "2021"
 description = "What every dm window shares: the settings, the browser host, the one-instance lock, startup and the inbox"
