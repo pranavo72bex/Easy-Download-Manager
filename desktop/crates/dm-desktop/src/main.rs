@@ -189,6 +189,13 @@ fn main() {
     settings::enter_portable();
     let args = shell::args();
 
+    // The browser's host asking for a page to be read behind the panel's
+    // list, in a process that outlives it: one page on stdin, nothing shown.
+    if args.len() == 1 && args.first().map(String::as_str) == Some(host::WARM_FLAG) {
+        host::warm_main(&settings::home());
+        return;
+    }
+
     // Launched by a browser rather than a person: framed JSON on stdin and
     // stdout, no window, nothing else printed.
     if shell::browser_launch(&args) {

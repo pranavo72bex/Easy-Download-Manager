@@ -156,6 +156,10 @@ pub struct Settings {
     /// The hint about the Scheduler, said once when a very big download
     /// starts, has been said.
     pub hinted_big: bool,
+    /// The hint that a row's Details button opens a download's progress,
+    /// said once when a download starts with the progress window off, has
+    /// been said.
+    pub hinted_details: bool,
     /// A finished file takes the date its server says it last changed,
     /// rather than when it was fetched. Off by default.
     pub server_dates: bool,
@@ -461,6 +465,7 @@ impl Default for Settings {
             double_click: "open".into(),
             on_close: "ask".into(),
             hinted_big: false,
+            hinted_details: false,
             server_dates: false,
             retry_wait: 0,
             record_minutes: 0,

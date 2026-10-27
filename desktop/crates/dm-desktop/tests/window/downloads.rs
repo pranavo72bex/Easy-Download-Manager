@@ -2186,6 +2186,36 @@ fn a_very_big_download_is_told_about_the_scheduler_once() {
     harness.state_mut().apply_settings(back).unwrap();
 }
 
+/// With the progress window off, the first download says once where its
+/// progress is; not while the window opens by itself, and not twice.
+#[test]
+fn a_started_download_says_once_where_its_progress_is() {
+    let _file = settings_file();
+    let world = world();
+    let mut harness = world.harness();
+    harness.state_mut().applied.show_progress = true;
+    add_url(&mut harness, &world.url("stalled.bin"), "Start now");
+    until(&mut harness, "it to run", |app| app.downloading() == 1);
+    harness.state_mut().details_hint();
+    assert!(
+        !harness.state().applied.hinted_details,
+        "said where the window opens by itself"
+    );
+    harness.state_mut().applied.show_progress = false;
+    harness.state_mut().details_hint();
+    assert!(harness.state().applied.hinted_details);
+    harness.run_steps(2);
+    assert!(harness
+        .query_by_label_contains("press Details to watch its progress")
+        .is_some());
+    harness.state_mut().said = Default::default();
+    harness.state_mut().details_hint();
+    assert!(harness.state().said.is_empty(), "said a second time");
+    let mut back = harness.state().applied.clone();
+    back.hinted_details = false;
+    harness.state_mut().apply_settings(back).unwrap();
+}
+
 /// The row's buttons belong to the list: a window in front of it (Download
 /// complete is not a question, and keeps the list usable beside it), with a
 /// row behind the pointer, gets none drawn over its words.

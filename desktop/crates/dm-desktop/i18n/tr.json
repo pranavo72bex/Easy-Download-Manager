@@ -216,6 +216,7 @@
  "Program": "Program",
  "Details": "Ayrıntılar",
  "Off: press Details on a download's row to open its progress.": "Kapalı: ilerlemesini açmak için bir indirmenin satırındaki Ayrıntılar’a basın.",
+ "Hover a download and press Details to watch its progress.": "Bir indirmenin üzerine gelin ve ilerlemesini izlemek için Ayrıntılar’a basın.",
  "Properties": "Özellikler",
  "Proxy": "Vekil sunucu",
  "Proxy type": "Vekil sunucu türü",

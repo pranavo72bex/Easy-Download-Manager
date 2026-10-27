@@ -216,6 +216,7 @@
  "Program": "程序",
  "Details": "详细信息",
  "Off: press Details on a download's row to open its progress.": "关闭：在下载行上点击“详细信息”以打开其进度。",
+ "Hover a download and press Details to watch its progress.": "将鼠标移到下载上，点击“详细信息”查看进度。",
  "Properties": "属性",
  "Proxy": "代理",
  "Proxy type": "代理类型",

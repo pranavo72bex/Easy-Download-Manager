@@ -216,6 +216,7 @@
  "Program": "Программа",
  "Details": "Подробности",
  "Off: press Details on a download's row to open its progress.": "Выключено: нажмите «Подробности» в строке загрузки, чтобы открыть ход загрузки.",
+ "Hover a download and press Details to watch its progress.": "Наведите курсор на загрузку и нажмите «Подробности», чтобы следить за ходом.",
  "Properties": "Свойства",
  "Proxy": "Прокси",
  "Proxy type": "Тип прокси",

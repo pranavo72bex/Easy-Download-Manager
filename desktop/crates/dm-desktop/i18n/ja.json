@@ -216,6 +216,7 @@
  "Program": "プログラム",
  "Details": "詳細",
  "Off: press Details on a download's row to open its progress.": "オフ：ダウンロードの行で「詳細」を押すと進行状況を開きます。",
+ "Hover a download and press Details to watch its progress.": "ダウンロードにポインターを合わせて「詳細」を押すと進行状況を確認できます。",
  "Properties": "プロパティ",
  "Proxy": "プロキシ",
  "Proxy type": "プロキシの種類",

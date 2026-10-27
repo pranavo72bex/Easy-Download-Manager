@@ -3,6 +3,23 @@
 Decisions that shape dm and are not obvious from the code, newest first. Each says what was decided and why, so a later change
 can see what it is undoing.
 
+## 2026-10-27: The reading behind the panel's list is made by a process of its own
+
+Measured in Edge on a real YouTube video: the quality list was already shown
+at the click (0.02 s: it is asked for when the panel appears, and read from
+the page's own data in about a second), so reading it inside the page would
+have gained nothing. What took 5-8 s was after the click: the reading that
+the host started behind the list (a thread) was ended with the host, which
+the browser stops within seconds of its answer, and the download read the
+page itself (3.6 s) and then each stream (`-O`). Waiting for the thread in
+the host did not help (the browser ended the host anyway). The reading is
+now made by `dm-desktop --warm-reading`, started detached from the host's
+process group with the page and session on its standard input, so a click
+after a second or more finds it (`wait_for_reading` waits for one still being
+made). Not done: reading the player response in the page (an isolated
+content script cannot see the page's own variable; the inline script is
+stale after YouTube's in-page navigation).
+
 ## 2026-10-27: What a failed YouTube read says; cookies stay the browser's session
 
 Checked against a report that YouTube downloads fail in dm: dm already runs

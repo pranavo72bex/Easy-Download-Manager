@@ -216,6 +216,7 @@
  "Program": "Program",
  "Details": "Detail",
  "Off: press Details on a download's row to open its progress.": "Mati: tekan Detail pada baris unduhan untuk membuka kemajuannya.",
+ "Hover a download and press Details to watch its progress.": "Arahkan kursor ke unduhan dan tekan Detail untuk melihat kemajuannya.",
  "Properties": "Properti",
  "Proxy": "Proksi",
  "Proxy type": "Jenis proksi",

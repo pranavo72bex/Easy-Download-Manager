@@ -216,6 +216,7 @@
  "Program": "Program",
  "Details": "Szczegóły",
  "Off: press Details on a download's row to open its progress.": "Wyłączone: naciśnij Szczegóły w wierszu pobierania, aby otworzyć jego postęp.",
+ "Hover a download and press Details to watch its progress.": "Najedź na pobieranie i naciśnij Szczegóły, aby śledzić jego postęp.",
  "Properties": "Właściwości",
  "Proxy": "Proxy",
  "Proxy type": "Typ proxy",

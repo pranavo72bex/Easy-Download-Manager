@@ -458,31 +458,7 @@ impl World for Here<'_> {
             sign_in.as_ref(),
         ));
         let listed = if let Some(listed) = fast {
-            let (url, referrer, proxy) =
-                (url.to_string(), referrer.map(str::to_string), proxy.clone());
-            let (sign_in, proxied) = (sign_in.clone(), settings.proxy.clone());
-            std::thread::spawn(move || {
-                let Ok(runtime) = tokio::runtime::Builder::new_current_thread()
-                    .enable_all()
-                    .build()
-                else {
-                    return;
-                };
-                if let Ok(client) = dm_core::proxy::client_with(&proxied) {
-                    if runtime
-                        .block_on(dm_core::tools::for_video(&client))
-                        .is_err()
-                    {
-                        return;
-                    }
-                }
-                runtime.block_on(dm_core::ytdlp::warm_reading(
-                    &url,
-                    referrer.as_deref(),
-                    proxy.as_deref(),
-                    sign_in.as_ref(),
-                ));
-            });
+            warm_in_background(url, referrer.unwrap_or(""), cookies);
             listed
         } else {
             // yt-dlp found, or fetched now by dm where the computer has
@@ -859,6 +835,115 @@ fn checked(
         Ok(_) if dm_protocol::time_left(world.now_ms(), deadline).is_none() => Some(late.into()),
         Ok(_) => None,
     }
+}
+
+/// The argument that makes dm read one page for the panel and leave
+/// (`warm_main`).
+pub const WARM_FLAG: &str = "--warm-reading";
+
+/// Has yt-dlp read a page behind the panel's list, for the download a click
+/// on it starts, in a process of its own. The browser ends this host soon
+/// after it has its answer (seen: within three seconds, with yt-dlp still
+/// reading), and a reading made inside it was ended too and never there for
+/// the download to use. The page and the session travel on its standard
+/// input, not on a command line anyone can read.
+fn warm_in_background(url: &str, referrer: &str, cookies: &str) {
+    let Ok(executable) = std::env::current_exe() else {
+        return;
+    };
+    let start = |breakaway: bool| {
+        let mut command = Command::new(&executable);
+        command
+            .arg(WARM_FLAG)
+            .stdin(Stdio::piped())
+            .stdout(Stdio::null())
+            .stderr(Stdio::null());
+        detach(&mut command, breakaway);
+        command.spawn()
+    };
+    let Ok(mut child) = start(true).or_else(|_| start(false)) else {
+        return;
+    };
+    if let Some(mut input) = child.stdin.take() {
+        let said = serde_json::json!({ "url": url, "referrer": referrer, "cookies": cookies });
+        let _ = input.write_all(said.to_string().as_bytes());
+    }
+    // Not waited for: it outlives this host, which is the point. Reaped by
+    // the system once this process is gone.
+    drop(child);
+}
+
+/// Makes `command` outlive its parent: in a process group of its own where
+/// the browser ends only the host's, and outside a job where Firefox on
+/// Windows ends the host's whole job (as `launch_desktop` does for the app).
+fn detach(command: &mut Command, breakaway: bool) {
+    #[cfg(unix)]
+    {
+        use std::os::unix::process::CommandExt;
+        command.process_group(0);
+        let _ = breakaway;
+    }
+    #[cfg(windows)]
+    {
+        use std::os::windows::process::CommandExt;
+        const DETACHED_PROCESS: u32 = 0x0000_0008;
+        const CREATE_BREAKAWAY_FROM_JOB: u32 = 0x0100_0000;
+        command.creation_flags(if breakaway {
+            DETACHED_PROCESS | CREATE_BREAKAWAY_FROM_JOB
+        } else {
+            DETACHED_PROCESS
+        });
+    }
+}
+
+/// What `--warm-reading` does: reads the page and session on standard input
+/// and has yt-dlp read the page into dm's readings, then ends.
+pub fn warm_main(home: &Path) {
+    let mut said = String::new();
+    if std::io::stdin().read_to_string(&mut said).is_ok() {
+        warm_page(home, &said);
+    }
+}
+
+/// The page and session `said` names (JSON: `url`, `referrer`, `cookies`),
+/// read by yt-dlp into dm's readings. Anything that is not an http(s) page
+/// is left alone.
+fn warm_page(home: &Path, said: &str) {
+    let Ok(said) = serde_json::from_str::<serde_json::Value>(said) else {
+        return;
+    };
+    let text = |key: &str| said.get(key).and_then(|v| v.as_str()).unwrap_or("");
+    let (url, referrer, cookies) = (text("url"), text("referrer"), text("cookies"));
+    if !(url.starts_with("http://") || url.starts_with("https://")) {
+        return;
+    }
+    dm_core::tools::set_folder(home.join("tools"));
+    dm_core::ytdlp::keep_readings_in(home.join("readings"));
+    let settings = saved(home);
+    dm_core::tools::allow_fetching(settings.fetch_tools);
+    let _ = dm_core::cookies::use_file(std::path::Path::new(settings.cookies_file.trim()));
+    let Ok(runtime) = tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()
+    else {
+        return;
+    };
+    if let Ok(client) = dm_core::proxy::client_with(&settings.proxy) {
+        if runtime
+            .block_on(dm_core::tools::for_video(&client))
+            .is_err()
+        {
+            return;
+        }
+    }
+    let proxy = settings.proxy.url_for_tools();
+    let sign_in = dm_core::cookies::SignIn::new(url, cookies);
+    runtime.block_on(dm_core::ytdlp::warm_reading(
+        url,
+        (!referrer.is_empty()).then_some(referrer),
+        proxy.as_deref(),
+        sign_in.as_ref(),
+    ));
 }
 
 /// Runs as the browser's native messaging host until the browser closes it.

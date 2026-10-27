@@ -496,6 +496,7 @@ impl DmApp {
         // fullscreen app, Focus Assist), said once they are not.
         self.backend.platform.tick();
         self.big_download_hint();
+        self.details_hint();
         let before = waiting(self);
         self.take_handed();
         let after = waiting(self);
@@ -660,6 +661,30 @@ impl DmApp {
         );
         let mut wanted = self.applied.clone();
         wanted.hinted_big = true;
+        if let Err(e) = self.apply_settings(wanted) {
+            self.said = e.into();
+        }
+    }
+
+    /// A download that has started with no progress window to show it: said
+    /// once, ever, where to open one. The progress window no longer opens by
+    /// itself, and without the words a person has nothing to say it is there.
+    /// Waits while something else is being said.
+    pub fn details_hint(&mut self) {
+        if self.applied.hinted_details
+            || self.applied.show_progress
+            || self.headless
+            || !self.said.is_empty()
+            || !self.rows.iter().any(|r| r.state == State::Running)
+        {
+            return;
+        }
+        self.said = crate::i18n::Said::new(
+            "Hover a download and press Details to watch its progress.",
+            &[],
+        );
+        let mut wanted = self.applied.clone();
+        wanted.hinted_details = true;
         if let Err(e) = self.apply_settings(wanted) {
             self.said = e.into();
         }

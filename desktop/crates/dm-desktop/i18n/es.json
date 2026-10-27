@@ -216,6 +216,7 @@
  "Program": "Programa",
  "Details": "Detalles",
  "Off: press Details on a download's row to open its progress.": "Desactivado: pulsa Detalles en la fila de una descarga para abrir su progreso.",
+ "Hover a download and press Details to watch its progress.": "Pasa el cursor sobre una descarga y pulsa Detalles para ver su progreso.",
  "Properties": "Propiedades",
  "Proxy": "Proxy",
  "Proxy type": "Tipo de proxy",

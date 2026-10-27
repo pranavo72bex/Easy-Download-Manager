@@ -1,5 +1,11 @@
 use super::*;
 
+mod helping;
+mod staged;
+
+use helping::*;
+pub(super) use staged::*;
+
 /// Samples the byte count and reports a rate until the download ends.
 ///
 /// A sampler rather than a report per chunk: chunks arrive thousands of times
@@ -120,60 +126,6 @@ pub(super) async fn preallocate(job: &Job) -> Result<(), Error> {
         }
     }
     Ok(())
-}
-
-/// How long a helper connection waits before it asks whether the first ones
-/// need it, and the window over which it then watches how fast bytes arrive.
-const HELP_AFTER: Duration = Duration::from_millis(100);
-const HELP_WATCH: Duration = Duration::from_millis(80);
-
-/// How much work, at the rate seen, a helper is worth opening a connection
-/// for: a connection costs a round trip before its first byte, so one opened
-/// for what the others finish sooner only slows the end.
-const HELP_WORTH_SECS: f64 = 0.3;
-
-/// How long a helper waits for the first bytes to show a rate. A link that
-/// has sent nothing for so long is slow enough to be helped.
-const HELP_GIVE_UP: Duration = Duration::from_millis(1500);
-
-/// Whether a connection beyond the planned ranges is worth opening now: the
-/// rate bytes are arriving at, watched over a short window (not from the
-/// start, which counts the wait for the first byte as slowness), leaves more
-/// than [`HELP_WORTH_SECS`] of the file still to come.
-async fn slow_enough_to_help(job: &Job, started: tokio::time::Instant) -> bool {
-    // With a limit of dm's own set, the limit is the bottleneck and another
-    // connection would only share it out again.
-    if job.limiter.is_limited() {
-        return false;
-    }
-    let Some(size) = job.size else {
-        return false;
-    };
-    let mut from = (
-        tokio::time::Instant::now(),
-        job.downloaded.load(Ordering::Relaxed),
-    );
-    loop {
-        tokio::time::sleep(HELP_WATCH).await;
-        let now = (
-            tokio::time::Instant::now(),
-            job.downloaded.load(Ordering::Relaxed),
-        );
-        let left = size.saturating_sub(now.1) as f64;
-        if left == 0.0 {
-            return false;
-        }
-        if now.1 > from.1 {
-            let rate = (now.1 - from.1) as f64 / now.0.duration_since(from.0).as_secs_f64();
-            return left / rate > HELP_WORTH_SECS;
-        }
-        // Nothing came in this window: looked at again, until it is plainly
-        // slow.
-        if now.0.duration_since(started) >= HELP_GIVE_UP {
-            return true;
-        }
-        from = now;
-    }
 }
 
 /// Runs every range, and keeps running until none are left unfinished.
@@ -926,110 +878,6 @@ pub(super) async fn attempt_segment(
         });
     }
     Ok(())
-}
-
-/// How often a range's ledger is written down while it downloads: every
-/// this many bytes, or every second, whichever comes first.
-pub(super) const LEDGER_EVERY: u64 = 4 * 1024 * 1024;
-pub(super) const LEDGER_EVERY_SECOND: Duration = Duration::from_secs(1);
-
-/// How much of a part's end is fetched again and compared on a resume: more
-/// than a filesystem leaves unwritten at a power cut, little enough to cost
-/// nothing beside the rest.
-pub(super) const RESUME_CHECK: u64 = 64 * 1024;
-
-/// How long the other connections get to put what they hold on disk after a
-/// pause or a cancel, before the ones still going are stopped.
-pub(super) const STOP_GRACE: Duration = Duration::from_secs(1);
-
-/// The unit a disk writes in, and so the unit a power cut loses.
-pub(super) const DISK_BLOCK: u64 = 4096;
-
-/// Removes the plan and the part files staged under `dir`.
-pub(super) async fn discard_staged(dir: &Path) {
-    let _ = fs::remove_file(crate::plan::record_path(dir)).await;
-    if let Ok(mut listing) = fs::read_dir(dir).await {
-        while let Ok(Some(entry)) = listing.next_entry().await {
-            let name = entry.file_name().to_string_lossy().into_owned();
-            if name.starts_with("part-")
-                || name.starts_with("done-")
-                || name == STAGED
-                || name.starts_with(crate::queue::PREVIEW)
-            {
-                let _ = fs::remove_file(entry.path()).await;
-            }
-        }
-    }
-}
-
-/// After the file is found changed: the plan its parts were fetched under
-/// goes, so the next attempt adopts none of them and starts afresh, rather
-/// than resuming into a file that no longer exists on the server.
-pub(super) async fn forget_plan(job: &Job) {
-    let _ = fs::remove_file(crate::plan::record_path(&job.parts)).await;
-}
-
-/// How far back past the checked window one repair follows a run of zeros
-/// in a part. Far more than a disk block or the write buffer a power cut
-/// loses at once, and still little to fetch again where the zeros were the
-/// file's own; a longer loss is followed a step of this at a time.
-pub(super) const ZERO_RUN_STEP: u64 = 4 * 1024 * 1024;
-
-/// Where the run of zeros that ends at `end` in this file begins, looking
-/// no further back than `floor`: `end` itself when the byte before it is not
-/// zero, `floor` when the run reaches it. Read backwards a block of reads at
-/// a time, so a long run costs reads, not memory.
-pub(super) async fn zeros_ending_at(path: &Path, end: u64, floor: u64) -> Result<u64, Error> {
-    const STEP: u64 = 64 * 1024;
-    let mut file = tokio::fs::File::open(path).await?;
-    let mut buf = vec![0u8; STEP as usize];
-    let mut at = end;
-    while at > floor {
-        let from = at.saturating_sub(STEP).max(floor);
-        let len = (at - from) as usize;
-        let chunk = buf.get_mut(..len).unwrap_or(&mut []);
-        file.seek(std::io::SeekFrom::Start(from)).await?;
-        tokio::io::AsyncReadExt::read_exact(&mut file, chunk).await?;
-        if let Some(last) = chunk.iter().rposition(|&b| b != 0) {
-            return Ok(from + last as u64 + 1);
-        }
-        at = from;
-    }
-    Ok(floor)
-}
-
-/// Reads `tail.len()` bytes off the stream against `tail`: how many agree
-/// from the front, and whatever the stream gave past them (from the first
-/// byte that differed, or past the end of `tail`), still to be written.
-pub(super) async fn compare_tail<S>(
-    stream: &mut S,
-    tail: &[u8],
-    control: &Control,
-) -> Result<(u64, Option<bytes::Bytes>), Error>
-where
-    S: futures_util::Stream<Item = reqwest::Result<bytes::Bytes>> + Unpin,
-{
-    let mut seen = 0usize;
-    while seen < tail.len() {
-        let Some(chunk) = next_or_stop(stream, control).await? else {
-            // Ended early: what agreed so far is kept, and the rest of the
-            // range is short, which the caller reports as such.
-            break;
-        };
-        let chunk = chunk.map_err(Error::Network)?;
-        let theirs = chunk
-            .get(..chunk.len().min(tail.len() - seen))
-            .unwrap_or(&[]);
-        let ours = tail.get(seen..seen + theirs.len()).unwrap_or(&[]);
-        if let Some(at) = theirs.iter().zip(ours).position(|(a, b)| a != b) {
-            return Ok(((seen + at) as u64, Some(chunk.slice(at..))));
-        }
-        seen += theirs.len();
-        if theirs.len() < chunk.len() {
-            return Ok((seen as u64, Some(chunk.slice(theirs.len()..))));
-        }
-    }
-    Ok((seen as u64, None))
 }
 
 /* ------------------------------------------------------------- streams */

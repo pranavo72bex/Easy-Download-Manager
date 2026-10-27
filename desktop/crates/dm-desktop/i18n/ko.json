@@ -216,6 +216,7 @@
  "Program": "프로그램",
  "Details": "세부 정보",
  "Off: press Details on a download's row to open its progress.": "꺼짐: 다운로드 행에서 “세부 정보”를 눌러 진행 상황을 엽니다.",
+ "Hover a download and press Details to watch its progress.": "다운로드 위에 마우스를 올리고 “세부 정보”를 눌러 진행 상황을 확인하세요.",
  "Properties": "속성",
  "Proxy": "프록시",
  "Proxy type": "프록시 종류",

@@ -5,6 +5,9 @@ the browser extension (`v*` tags) are versioned separately.
 
 ## Unreleased
 
+- A video click now starts in 1.3-3.7 s instead of 5-8 s (a real YouTube video in Edge, from a click on a quality to the first 200 KB on disk: 5.1-5.7 s to 1.25 s after looking at the player for 8 s, 8.2 s to 3.7 s when clicked at once). The page reading made behind the quality list was ended with the browser's host a few seconds after the list was answered, so it never reached the download; it is now made by a process of its own (`dm-desktop --warm-reading`, the page and session on its standard input) that outlives the host.
+- With the progress window off, the first download says once, in the status line, to hover a download and press Details to watch its progress.
+
 - A video click made while the page is still being read behind the quality list waits for that reading (up to 45 s, and only while the read says it is alive), instead of having yt-dlp read the page a second time at the same moment.
 - A small file from a server that holds each connection down is helped sooner: a range may be halved down to 128 KB pieces (256 KB before). Measured on a server holding each connection to 1 MB/s, 40 ms away: 1.5 MB, 0.9 s to 0.65 s; a server that does not hold connections down is not affected.
 

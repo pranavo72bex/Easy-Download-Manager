@@ -1066,3 +1066,22 @@ fn the_rules_the_browser_asks_for_have_the_new_default_types() {
     .unwrap();
     assert!(catch_rules(home.path()).extensions.is_empty());
 }
+
+/// What the browser's host leaves for the helper that reads a page behind the
+/// panel's list: only an http(s) page is read, and nothing else is made.
+#[test]
+fn the_page_reading_helper_ignores_what_is_not_a_page() {
+    let home = tempfile::tempdir().unwrap();
+    for said in [
+        "not json",
+        "{}",
+        r#"{"url": "file:///etc/passwd"}"#,
+        r#"{"url": "javascript:alert(1)"}"#,
+    ] {
+        warm_page(home.path(), said);
+    }
+    assert!(
+        !home.path().join("readings").exists(),
+        "a reading was made of what is not a page"
+    );
+}
