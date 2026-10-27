@@ -29,7 +29,7 @@ use tokio::process::Command;
 
 use super::{
     binary, container_sort, cookies_by_file, download_ytdlp, download_ytdlp_from, finish_dm,
-    format_for, fresh_reading, js_runtime, proxy_by_file, refusal, remove_staging, write_private,
+    format_for, fresh_reading, js_runtime, proxy_by_file, remove_staging, said_by, write_private,
     RemoveOnDrop,
 };
 use crate::download::{Finished, Options, Update};
@@ -325,9 +325,10 @@ async fn resolve(url: &str, options: &Options, saved: Option<&Path>) -> Result<R
     .await?;
     if !output.status.success() {
         let stderr = String::from_utf8_lossy(&output.stderr);
-        return Err(Error::Internal(
-            refusal(&stderr).unwrap_or_else(|| "yt-dlp could not read that page".into()),
-        ));
+        return Err(Error::Internal(said_by(
+            &stderr,
+            "yt-dlp could not read that page",
+        )));
     }
     let text = String::from_utf8_lossy(&output.stdout)
         .lines()

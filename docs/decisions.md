@@ -3,6 +3,22 @@
 Decisions that shape dm and are not obvious from the code, newest first. Each says what was decided and why, so a later change
 can see what it is undoing.
 
+## 2026-10-27: What a failed YouTube read says; cookies stay the browser's session
+
+Checked against a report that YouTube downloads fail in dm: dm already runs
+the yt-dlp it finds only if under 120 days old (else its own fetched copy,
+refreshed weekly), hands yt-dlp a JavaScript engine by path (Deno, else the
+QuickJS dm fetched) on every read and download, and sends the page's session
+or a chosen cookies file. What was wrong: the list read dropped yt-dlp's
+stderr, so no failure could be told from another. Now `said_by` gives a known
+refusal in words, else yt-dlp's last `ERROR:` line. Only yt-dlp's own words
+for a failed player script ("solving failed", "challenge solver", "no
+supported JavaScript runtime", "only images are available") are called that;
+"Requested format is not available" is not, as it has many causes. Not done:
+`--cookies-from-browser` (dm passes the extension's session for that page
+alone, so no browser profile is read and no cookie is kept) and
+`--remote-components` (it has yt-dlp fetch code from GitHub to run).
+
 ## 2026-10-27: Every type is caught out of the box
 
 A download the browser starts is already a download (a page it navigates to

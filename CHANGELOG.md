@@ -5,6 +5,8 @@ the browser extension (`v*` tags) are versioned separately.
 
 ## Unreleased
 
+- A failed read of a video page says why: the panel's list had thrown yt-dlp's error output away, so every failure read "could not read that page". It now gives yt-dlp's own last error line ("…: This video is unavailable"), and says in plain words when yt-dlp could not run YouTube's player script (its solver or JavaScript engine is missing), which a sign-in does not fix.
+
 - dm takes every download the browser starts, whatever its type (text, zip, anything), unless a list of types is chosen in Options › File types. A list that is still the old defaults becomes every type when dm starts; one a person changed is kept.
 
 - The progress and finished windows saved as on by an earlier dm (which had them on for everyone) are turned off once, and the saved file records it, so turning one back on in Options stands. Options says where to find a download's progress with it off: Details on its row.

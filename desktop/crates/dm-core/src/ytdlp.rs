@@ -670,7 +670,9 @@ pub async fn read_choices(
         .arg("--socket-timeout")
         .arg("15")
         .stdout(Stdio::piped())
-        .stderr(Stdio::null())
+        // Kept, so a refusal is said as yt-dlp said it (`said_by`); thrown
+        // away, every failure read "could not read that page".
+        .stderr(Stdio::piped())
         .kill_on_drop(true);
     let _proxied = match proxy {
         Some(proxy) => Some(proxy_by_file(&mut command, &std::env::temp_dir(), proxy).await?),
@@ -696,9 +698,10 @@ pub async fn read_choices(
         .map_err(|e| Error::Internal(format!("yt-dlp would not start: {e}")))?;
     if !output.status.success() {
         let stderr = String::from_utf8_lossy(&output.stderr);
-        return Err(Error::Internal(
-            refusal(&stderr).unwrap_or_else(|| "yt-dlp could not read that page".into()),
-        ));
+        return Err(Error::Internal(said_by(
+            &stderr,
+            "yt-dlp could not read that page",
+        )));
     }
     // Kept, so the download a click on the list starts does not read the
     // page again (`fetch::download_page`).
@@ -1365,7 +1368,11 @@ pub fn refusal(stderr: &str) -> Option<String> {
     if has("private video") {
         return Some("that video is private".into());
     }
-    if has("video unavailable") || has("this video has been removed") || has("http error 404") {
+    if has("video unavailable")
+        || has("this video is unavailable")
+        || has("this video has been removed")
+        || has("http error 404")
+    {
         return Some("that video is not available any more".into());
     }
     if has("unsupported url") {
@@ -1381,12 +1388,46 @@ pub fn refusal(stderr: &str) -> Option<String> {
                 .into(),
         );
     }
+    // YouTube's player script has to be run to read some or all of a
+    // video's formats; yt-dlp says so in these words. Last, since a sign-in or a private video is the
+    // better thing to say where it is the cause; cookies do not help here.
+    if has("solving failed")
+        || has("challenge solver")
+        || has("no supported javascript runtime")
+        || has("only images are available")
+    {
+        return Some(
+            "yt-dlp could not run the site's player script, so it found no formats it can \
+             fetch (a sign-in does not fix this): update yt-dlp, or install Deno \
+             (deno.com) for it to run the script with"
+                .into(),
+        );
+    }
     None
+}
+
+/// What to say of a failed yt-dlp run: its refusal in plain words where it
+/// is a known one, else its own last error line, else `fallback`. Never the
+/// whole output: it can carry addresses.
+pub fn said_by(stderr: &str, fallback: &str) -> String {
+    if let Some(said) = refusal(stderr) {
+        return said;
+    }
+    let line = stderr
+        .lines()
+        .rev()
+        .find_map(|l| l.trim().strip_prefix("ERROR:"))
+        .map(|l| l.trim().chars().take(200).collect::<String>())
+        .filter(|l| !l.is_empty());
+    match line {
+        Some(line) => format!("{fallback}: {line}"),
+        None => fallback.to_string(),
+    }
 }
 
 #[cfg(test)]
 mod tests {
-    use super::refusal;
+    use super::{refusal, said_by};
 
     #[cfg(unix)]
     /// A stream whose renditions name no codecs, as yt-dlp
@@ -1463,6 +1504,31 @@ mod tests {
         )
         .is_some_and(|said| said.contains("copy-protected")));
         assert_eq!(refusal("ERROR: something else entirely"), None);
+        // YouTube's player script, which a cookie does not stand in for.
+        for stderr in [
+            "WARNING: [youtube] x: n challenge solving failed: Some formats may be missing.\nERROR: [youtube] x: Only images are available for download.",
+            "WARNING: [youtube] No supported JavaScript runtime could be found.",
+        ] {
+            assert!(refusal(stderr).unwrap().contains("player script"), "{stderr}");
+        }
+        // A sign-in stays a sign-in even where the format is missing too.
+        assert!(refusal(
+            "ERROR: Sign in to confirm your age\nERROR: Requested format is not available"
+        )
+        .unwrap()
+        .contains("signed in"));
+        // Unknown refusals keep yt-dlp's own last error, not a bare failure.
+        assert_eq!(
+            said_by(
+                "WARNING: x\nERROR: [e] 1: a thing went wrong\n",
+                "could not read"
+            ),
+            "could not read: [e] 1: a thing went wrong"
+        );
+        assert_eq!(
+            said_by("nothing useful", "could not read"),
+            "could not read"
+        );
     }
 
     use super::*;
