@@ -2,7 +2,7 @@
 # Runs inside a container with no network (only loopback): the workspace
 # tests, then the stress phases that need nothing but local servers.
 set -u
-cd /work/desktop
+cd /work/desktop || exit 1
 export CARGO_TARGET_DIR=/target CARGO_INCREMENTAL=0
 echo "== cargo test --workspace"
 [ -n "${DM_ONLY:-}" ] || cargo test --workspace --no-fail-fast 2>&1 | grep -E "^test result|FAILED|panicked|error(\[|:)|failures:" | sort | uniq -c | sort -rn | head -40

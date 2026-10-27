@@ -1024,6 +1024,8 @@ mod tests {
         let file = std::fs::File::create(&marker).unwrap();
         file.set_modified(std::time::SystemTime::now() - std::time::Duration::from_secs(30))
             .unwrap();
+        // Windows keeps a time set through an open handle against later writes.
+        drop(file);
         let at = std::time::Instant::now();
         super::wait_for_reading(url, &crate::control::Control::new())
             .await
