@@ -66,6 +66,17 @@ no text, forms or cookies and sends nothing until you click the panel. Then
 it sends the player's address and the page's address to the extension's
 background, which passes them to the app as above.
 
+**YouTube's player requests.** A second page script runs in the page's own
+world on every site, because a content script's own world cannot see a
+page's network calls. It wraps the page's `fetch` and `XMLHttpRequest`
+only to look at the address of each request: when one is a video stream from
+`googlevideo.com`, it passes that address to the extension's background, which
+keeps it for that tab in the browser's session memory and forgets it when the tab
+loads another page. It reads no request or response body, header, cookie, text
+or form, changes nothing about any request, and sends nothing off your
+computer; an address is handed to the app only when you pick that video in
+the panel, as above.
+
 **Nothing else.** The only thing the extension stores is the app's catch
 rules: the file types, size floor and skipped sites from dm's settings. They
 are kept in the browser's extension storage on this computer, so a download

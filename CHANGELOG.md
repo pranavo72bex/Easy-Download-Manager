@@ -21,6 +21,16 @@ the browser extension (`v*` tags) are versioned separately.
 - The window does about half the work per frame with a long list: with 5000 rows and 20 downloads moving its thread was busy 18 % of the time and is now 10 %. Two dialogs no longer parse every row's address on every frame while closed, the list of queue names is read without copying every row, and the toolbar's selection checks no longer copy and sort the whole list.
 - With a long list the window does less in every frame: the rows it shows, the sidebar's counts and each row's kind and search text are kept until the list is read again or a sort, filter or place changes, rather than made again each frame (5000 rows: 370 µs a frame before, 7 ns now), and its thread is busy 5-6 % of the time under 5000 rows with 20 downloads moving, where it was 17-19 %.
 
+**Browser extension 3.2.0**
+
+- Every download type is caught by default, and a list still at the old defaults becomes every type.
+- A plain click on a link to a PDF, video or song goes to dm by the catch rules.
+- A download the browser hands over starts in dm at once; the everyday controls are where the eye is.
+- The "Download video" panel reads a video page's qualities when it is raised, gives up after 50 seconds and says so, and offers a picture and a sound a player fetched apart as one line.
+- The popup has "Pause capturing on this site": that site's downloads stay with the browser, except a click with the take key held.
+- A new page script, in the page's own world, looks at the address of the page's `fetch` and `XMLHttpRequest` calls to find a player's `googlevideo.com` streams on sites no page reader knows. It changes no request and sends nothing off the computer (PRIVACY.md says so, under "YouTube's player requests"). The Chromium manifest gains that one content script and no permission; the Firefox manifest is unchanged.
+- The panel's icon is an SVG in a larger circle.
+
 ## App 0.8.3
 
 - CI fixes only: a shellcheck guard in `scripts/linux/stress-inside.sh` and a Windows-only timing in one test; no change to the program.
