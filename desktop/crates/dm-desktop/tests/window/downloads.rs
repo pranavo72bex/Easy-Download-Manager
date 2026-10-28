@@ -2291,3 +2291,27 @@ fn describing_a_long_list_takes_a_moment_not_seconds() {
         "3000 links took {adding:?} to add and {inspecting:?} to describe"
     );
 }
+
+/// The progress window of a download that finishes goes with it, whether or
+/// not the complete window is on (it is not, by default): left open it said
+/// "Complete" with no button to press, one more for each download after it.
+#[test]
+fn the_progress_window_of_a_finished_download_closes() {
+    let world = world();
+    let mut harness = world.harness();
+    add_url(&mut harness, &world.url("file.zip"), "Start now");
+    let id = row(&harness, "file.zip").id;
+    harness.state_mut().dialogs.progress.insert(id);
+    until(&mut harness, "file.zip to finish", |app| {
+        app.rows()
+            .iter()
+            .any(|r| r.id == id && r.state == State::Completed)
+    });
+    until(&mut harness, "its progress window to close", |app| {
+        !app.dialogs.progress.contains(&id)
+    });
+    assert!(
+        !harness.state().applied.show_complete,
+        "this checks the default, where there is no complete window"
+    );
+}

@@ -17,6 +17,7 @@ the browser extension (`v*` tags) are versioned separately.
 - The window no longer shows a stale state after a change made while nothing was moving: a download resumed from the command line, the control port or an AI client while everything was stopped was shown as stopped (the details window with its Resume button) until it finished; the list is now read within a quarter of a second of any change.
 - Pausing and then resuming a download over the control port, the command line or MCP in quick succession no longer refuses the resume as "it is not paused": the answer comes from the queue, not from the window's copy of the list.
 - A paused, waiting, finished or cancelled download no longer reports the speed and time left of its last run to the command line, the control port or an AI client; and the details window of a finished download no longer says "Can resume: Unknown until the server answers".
+- The progress window of a download that has finished now closes by itself (it stayed open reading "Complete", with no button, one more for each download), and a stopped download's bar in the list is drawn in the progress colour, dimmed, rather than in the grey of its own track.
 
 ## App 0.8.3
 

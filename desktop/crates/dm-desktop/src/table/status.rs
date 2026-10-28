@@ -189,7 +189,14 @@ pub(super) fn status_cell(ui: &mut egui::Ui, entry: &Entry, held: Option<&str>, 
         };
     let bar_colour = match glyph {
         Glyph::Failed => tokens.error,
-        Glyph::Paused | Glyph::Waiting | Glyph::Cancelled => tokens.weak,
+        // Where a stopped download got to, in the progress colour a little
+        // dimmed: in the grey of its track it was the faintest thing in the
+        // row, beside the one button (Resume) that makes a person look.
+        // A solid blend toward the list, not a see-through colour; High
+        // Contrast keeps the colour whole.
+        Glyph::Paused if tokens.high_contrast => tokens.progress(),
+        Glyph::Paused => tokens.progress().lerp_to_gamma(tokens.list, 0.35),
+        Glyph::Waiting | Glyph::Cancelled => tokens.weak,
         _ => tokens.progress(),
     };
     ui.horizontal(|ui| {

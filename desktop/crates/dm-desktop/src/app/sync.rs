@@ -98,10 +98,13 @@ impl DmApp {
             self.backend.platform.alert();
         }
         self.when_queue_dry();
-        if self.applied.show_complete {
-            for id in finished {
-                // In place of its progress window.
-                self.dialogs.progress.remove(&id);
+        for id in finished {
+            /* Over, so its progress window is: left open it said "Complete"
+             * with no button to press, and one for each finished download
+             * stacked behind the next. With the complete window on, that
+             * comes in its place. */
+            self.dialogs.progress.remove(&id);
+            if self.applied.show_complete {
                 self.dialogs.complete.insert(id);
             }
         }
