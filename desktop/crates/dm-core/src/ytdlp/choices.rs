@@ -180,6 +180,7 @@ async fn read_choices_as(
     let mut command = Command::new(binary);
     crate::no_window_async(&mut command);
     js_runtime(&mut command);
+    unpack_where_programs_run(&mut command);
     command
         .arg("-J")
         .arg("--no-playlist")

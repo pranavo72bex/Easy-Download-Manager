@@ -29,8 +29,8 @@ use tokio::process::Command;
 
 use super::{
     binary, container_sort, cookies_by_file, download_ytdlp, download_ytdlp_from, finish_dm,
-    format_for, fresh_reading, js_runtime, proxy_by_file, remove_staging, said_by, write_private,
-    RemoveOnDrop,
+    format_for, fresh_reading, js_runtime, proxy_by_file, remove_staging, said_by,
+    unpack_where_programs_run, write_private, RemoveOnDrop,
 };
 use crate::download::{Finished, Options, Update};
 use crate::{category, Error};
@@ -417,6 +417,7 @@ async fn resolve(url: &str, options: &Options, saved: Option<&Path>) -> Result<R
     let mut command = Command::new(binary);
     crate::no_window_async(&mut command);
     js_runtime(&mut command);
+    unpack_where_programs_run(&mut command);
     command
         .arg("--no-playlist")
         .arg("--no-warnings")

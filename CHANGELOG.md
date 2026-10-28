@@ -3,7 +3,9 @@
 What changed in each release, newest first. The app (`desktop-v*` tags) and
 the browser extension (`v*` tags) are versioned separately.
 
-## Unreleased
+## App 0.8.4
+
+- yt-dlp now starts on a computer whose `/tmp` is mounted `noexec`, whichever build of it dm runs: where the system's temporary folder does not let programs run, dm runs yt-dlp with a temporary folder of its own beside its tools. The single-file build (one fetched before this version, or a standalone one a person installed) unpacks itself into `/tmp` at every start and could not, and every video then said "dm could not get the video from this page".
 
 - A connection that goes quiet is asked again after five seconds instead of held for the 30-second read timeout, once the other connections show it up (under a sixty-fourth of the download's rate while that is over 1 MiB, never under dm's own speed limit, only on a range's first tries): 32 MB with one silent connection 31.2 s before, 6.2 s now.
 - HLS segments are fetched up to eight at a time, not one after another (40 segments at 100 ms each: 0.65 s; one at a time they take over 4 s); DASH pieces are taken by the next free connection rather than in groups that wait for their slowest; yt-dlp, where it still downloads, is given `--concurrent-fragments`.

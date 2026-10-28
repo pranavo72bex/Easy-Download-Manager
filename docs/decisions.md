@@ -2580,3 +2580,14 @@ that CachyOS under `noexec`: the single file fails, the unpacked one starts. Wha
 is not shown: that this person's `/tmp` is `noexec` (asked of them), the
 extension's own UI (the hand-off is its message, sent by script), and the current
 code's x86-64 build (its aarch64 build was run on Arch earlier).
+
+## 2026-10-28: yt-dlp gets a temporary folder of dm's own when /tmp is noexec
+
+The unpacked yt-dlp (0.8.3's follow-up) does not unpack at each start, but a
+single-file yt-dlp a person installed, or one fetched by an older dm, still does,
+into `TMPDIR`. On a `noexec` mount it cannot start. dm reads `/proc/self/mounts`
+once (`ytdlp::runnable_temp`); if the system temporary folder sits on a `noexec`
+mount it sets `TMPDIR` for yt-dlp to `<tools folder>/tmp` (made on demand, `_MEI*`
+older than a day removed). Where `/tmp` allows programs nothing changes. Tried and
+dropped: asking the person to set `TMPDIR` themselves (they see only "could not get
+the video"); remounting is not ours to do.

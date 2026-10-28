@@ -100,6 +100,9 @@ fn stale(path: &Path) -> bool {
     }
     let mut command = std::process::Command::new(path);
     crate::no_window(&mut command);
+    if let Some(dir) = runnable_temp() {
+        command.env("TMPDIR", dir);
+    }
     let said = command
         .arg("--version")
         .stdin(std::process::Stdio::null())
@@ -166,6 +169,105 @@ fn js_runtime(command: &mut Command) {
             .arg("--no-js-runtimes")
             .arg("--js-runtimes")
             .arg(format!("quickjs:{}", quickjs.display()));
+    }
+}
+
+/// Whether `path` is on a file system mounted `noexec`, by the mount table
+/// (`/proc/self/mounts`): the mount whose point is the longest parent of
+/// `path` decides. A point is compared by whole folders, so `/tmp2` is not
+/// `/tmp`.
+#[cfg_attr(not(any(target_os = "linux", test)), allow(dead_code))]
+fn on_noexec_mount(mounts: &str, path: &Path) -> bool {
+    // The table writes a space, a tab, a new line and a backslash in a name as
+    // \040, \011, \012 and \134.
+    fn unescaped(field: &str) -> String {
+        let mut out = String::new();
+        let mut chars = field.chars().peekable();
+        while let Some(c) = chars.next() {
+            if c == '\\' {
+                let octal: String = chars.clone().take(3).collect();
+                if let Ok(byte) = u8::from_str_radix(&octal, 8) {
+                    out.push(byte as char);
+                    chars.nth(2);
+                    continue;
+                }
+            }
+            out.push(c);
+        }
+        out
+    }
+    let mut deciding: Option<(usize, bool)> = None;
+    for line in mounts.lines() {
+        let mut fields = line.split_whitespace();
+        let (Some(_device), Some(point), Some(_kind), Some(options)) =
+            (fields.next(), fields.next(), fields.next(), fields.next())
+        else {
+            continue;
+        };
+        let point = unescaped(point);
+        if path.starts_with(&point) {
+            let depth = Path::new(&point).components().count();
+            if deciding.is_none_or(|(deepest, _)| depth >= deepest) {
+                deciding = Some((depth, options.split(',').any(|o| o == "noexec")));
+            }
+        }
+    }
+    deciding.is_some_and(|(_, noexec)| noexec)
+}
+
+/// Where yt-dlp may unpack itself, where the system's temporary folder does
+/// not let a program run from it (mounted `noexec`, as hardened and tuned
+/// Linux systems have `/tmp`): a folder of dm's own beside the tools, which
+/// has to allow it for the tools to run at all. `None` where the temporary
+/// folder is fine, or there is no tools folder, which leaves yt-dlp as it
+/// was. A single-file yt-dlp (what dm fetched before it fetched the unpacked
+/// one, and what a person installs) unpacks into the temporary folder at every
+/// start, and could not start under `noexec`: "error while loading shared
+/// libraries: libz.so.1: failed to map segment from shared object".
+fn runnable_temp() -> Option<&'static Path> {
+    static CHOSEN: std::sync::OnceLock<Option<PathBuf>> = std::sync::OnceLock::new();
+    CHOSEN
+        .get_or_init(|| {
+            if !cfg!(target_os = "linux") {
+                return None;
+            }
+            let temp = std::env::temp_dir().canonicalize().ok()?;
+            let mounts = std::fs::read_to_string("/proc/self/mounts").ok()?;
+            if !on_noexec_mount(&mounts, &temp) {
+                return None;
+            }
+            let dir = crate::tools::folder()?.join("tmp");
+            std::fs::create_dir_all(&dir).ok()?;
+            forget_old_unpackings(&dir);
+            Some(dir)
+        })
+        .as_deref()
+}
+
+/// What a yt-dlp that was killed left of its unpacking (`_MEI…`), a day old or
+/// more, removed from `dir`.
+fn forget_old_unpackings(dir: &Path) {
+    let day = std::time::Duration::from_secs(86_400);
+    let Ok(listing) = std::fs::read_dir(dir) else {
+        return;
+    };
+    for entry in listing.flatten() {
+        let old = entry
+            .metadata()
+            .and_then(|m| m.modified())
+            .ok()
+            .and_then(|at| at.elapsed().ok())
+            .is_some_and(|age| age > day);
+        if old && entry.file_name().to_string_lossy().starts_with("_MEI") {
+            let _ = std::fs::remove_dir_all(entry.path());
+        }
+    }
+}
+
+/// yt-dlp run where it can unpack itself (`runnable_temp`).
+fn unpack_where_programs_run(command: &mut Command) {
+    if let Some(dir) = runnable_temp() {
+        command.env("TMPDIR", dir);
     }
 }
 
@@ -605,6 +707,7 @@ async fn download_ytdlp_from(
     command.process_group(0);
 
     js_runtime(&mut command);
+    unpack_where_programs_run(&mut command);
     if options.subtitles {
         // Fetched as WebVTT beside the video, and put into it by dm.
         command.args(["--write-subs", "--sub-langs", "all", "--sub-format", "vtt"]);
@@ -1367,5 +1470,65 @@ mod windows_homes_tests {
         // Elsewhere the bare name, as before.
         assert_eq!(names("yt-dlp", false), ["yt-dlp"]);
         let _ = std::fs::remove_dir_all(&root);
+    }
+}
+
+#[cfg(test)]
+mod noexec_tests {
+    use super::*;
+
+    const MOUNTS: &str = "\
+/dev/sda2 / btrfs rw,noatime 0 0
+tmpfs /tmp tmpfs rw,nosuid,nodev,noexec,relatime,size=4194304k 0 0
+tmpfs /run tmpfs rw,nosuid,nodev,noexec 0 0
+/dev/sda3 /home btrfs rw,noatime 0 0
+/dev/sdb1 /mnt/my\\040disk ext4 rw,noexec 0 0
+tmpfs /tmp2 tmpfs rw,noexec 0 0
+";
+
+    fn noexec(path: &str) -> bool {
+        on_noexec_mount(MOUNTS, Path::new(path))
+    }
+
+    /// The system's temporary folder as hardened systems mount it: nothing
+    /// unpacked into it can be run.
+    #[test]
+    fn a_folder_under_a_noexec_mount_is_noexec() {
+        assert!(noexec("/tmp"));
+        assert!(noexec("/tmp/_MEI123/libz.so.1"));
+        assert!(noexec("/run/user/1000"));
+    }
+
+    /// Where programs may run, nothing is changed.
+    #[test]
+    fn a_folder_on_an_ordinary_mount_is_not() {
+        assert!(!noexec("/home/me/.local/share/dm-engine/tools"));
+        assert!(!noexec("/var/tmp"));
+    }
+
+    /// The deepest mount point decides, by whole folders: `/tmp2` is another
+    /// mount and says nothing of `/tmp`, and a folder under `/` that is not
+    /// under a mount of its own follows `/`.
+    #[test]
+    fn the_deepest_mount_decides_by_whole_folders() {
+        let mounts = "/dev/sda2 / ext4 rw,noexec 0 0\ntmpfs /tmp tmpfs rw,exec 0 0\n";
+        assert!(!on_noexec_mount(mounts, Path::new("/tmp/x")));
+        assert!(on_noexec_mount(mounts, Path::new("/var/tmp/x")));
+        let near = "/dev/sda2 / ext4 rw 0 0\ntmpfs /tmp2 tmpfs rw,noexec 0 0\n";
+        assert!(!on_noexec_mount(near, Path::new("/tmp/x")));
+    }
+
+    /// A mount point with a space in it is written with an escape.
+    #[test]
+    fn an_escaped_mount_point_is_read_back() {
+        assert!(noexec("/mnt/my disk/video"));
+    }
+
+    /// A table with nothing in it, or not one, is no reason to change how
+    /// yt-dlp is run.
+    #[test]
+    fn no_table_is_no_noexec() {
+        assert!(!on_noexec_mount("", Path::new("/tmp")));
+        assert!(!on_noexec_mount("garbage", Path::new("/tmp")));
     }
 }
