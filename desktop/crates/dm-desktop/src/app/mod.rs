@@ -88,6 +88,10 @@ const HIDDEN_IDLE: Duration = Duration::from_secs(30);
 /// How often the clipboard is looked at, when watching it is on.
 const CLIPBOARD: Duration = Duration::from_secs(1);
 
+/// What the rows the table shows were made from: the generation of the list,
+/// the place, the filter, the sort and how many sizes a dialog has told.
+type VisibleKey = (u64, Place, String, Option<(Column, bool)>, usize);
+
 /// A place in the category tree: a filter over the one list.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Place {
@@ -426,6 +430,20 @@ pub struct DmApp {
     haystacks: HashMap<Id, String>,
     /// The filter's words, lowercased, and the filter they were made from.
     filter_words: std::cell::RefCell<(String, Vec<String>)>,
+    /// Counts up whenever `rows` or what places them is made again; what is
+    /// worked out from the rows is kept for as long as it stands still.
+    rows_gen: u64,
+    /// The rows the table shows, in order, and what they were made from
+    /// (`DmApp::visible_shared`): a frame with no new read of the list
+    /// reuses them instead of copying and sorting every row again.
+    visible_cache: std::cell::RefCell<Option<(VisibleKey, std::rc::Rc<Vec<Entry>>)>>,
+    /// How many rows each place holds, for the generation it was counted at.
+    counts_cache: std::cell::RefCell<(u64, HashMap<String, usize>)>,
+    /// What each row's kind, own category and filter text were made from, so
+    /// a read of the list makes them again only for a row that changed.
+    place_fingerprints: HashMap<Id, u64>,
+    /// The categories of a person's own that `placed` was made under.
+    place_rules: String,
     /// The language the places were last drawn in.
     rail_language: Option<String>,
     /// Columns were moved, shown or hidden since the list was drawn.
@@ -563,6 +581,11 @@ impl DmApp {
             placed: HashMap::new(),
             haystacks: HashMap::new(),
             filter_words: Default::default(),
+            rows_gen: 0,
+            visible_cache: Default::default(),
+            counts_cache: Default::default(),
+            place_fingerprints: HashMap::new(),
+            place_rules: String::new(),
             rail_language: None,
             columns_changed: false,
             recent_hands: Vec::new(),

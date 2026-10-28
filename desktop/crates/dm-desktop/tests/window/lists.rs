@@ -1003,3 +1003,40 @@ fn the_rows_a_command_acts_on_are_the_selected_ones_in_table_order() {
         }
     }
 }
+
+#[test]
+#[ignore = "a timing, run by hand: cargo test -p dm-desktop --test window frame_cost -- --ignored --nocapture"]
+fn frame_cost_of_a_long_list() {
+    use dm_desktop::app::Column;
+    let world = world();
+    let mut harness = world.harness();
+    let urls: Vec<String> = (0..5000)
+        .map(|i| world.url(&format!("file{i}.zip")))
+        .collect();
+    let items = urls
+        .iter()
+        .map(|u| (u.clone(), Default::default()))
+        .collect();
+    let _ = harness.state().backend.add_each(items);
+    harness.state_mut().refresh();
+    assert!(harness.state().rows().len() >= 5000);
+    harness.state_mut().sort_by(Column::Name);
+    let app = harness.state();
+    let frames = 200;
+    let t = std::time::Instant::now();
+    for _ in 0..frames {
+        std::hint::black_box(app.visible());
+    }
+    let copied = t.elapsed() / frames;
+    let t = std::time::Instant::now();
+    for _ in 0..frames {
+        std::hint::black_box(app.visible_shared());
+    }
+    let cached = t.elapsed() / frames;
+    let t = std::time::Instant::now();
+    for _ in 0..frames {
+        std::hint::black_box(app.count(&dm_desktop::app::Place::All));
+    }
+    let counted = t.elapsed() / frames;
+    println!("5000 rows sorted by name, per frame: copy+sort {copied:?}, cached {cached:?}, count {counted:?}");
+}

@@ -69,12 +69,35 @@ impl DmApp {
     /// frame, and 500 rows went past the frame budget (CI, 909e714).
     pub(super) fn place_rows(&mut self) {
         let categories = self.applied.categories();
-        let mut placed = HashMap::with_capacity(self.rows.len());
-        let mut haystacks = HashMap::with_capacity(self.rows.len());
+        // Under other categories of a person's own, every row is placed
+        // again; under the same, only those whose name, address, note or
+        // kind changed (a read of the list four times a second used to
+        // parse and lowercase every row's, 5,000 of them).
+        let rules = format!("{:?}", categories.custom);
+        if rules != self.place_rules {
+            self.place_rules = rules;
+            self.place_fingerprints.clear();
+        }
+        self.rows_gen += 1;
         for row in &self.rows {
+            use std::hash::{Hash, Hasher};
+            let mut hasher = std::collections::hash_map::DefaultHasher::new();
+            (
+                &row.url,
+                &row.filename,
+                &row.save_name,
+                &row.description,
+                row.category.map_or(255u8, |c| c as u8),
+            )
+                .hash(&mut hasher);
+            let fingerprint = hasher.finish();
+            if self.place_fingerprints.get(&row.id) == Some(&fingerprint)
+                && self.placed.contains_key(&row.id)
+            {
+                continue;
+            }
             // Each row's name worked out once: from its address, for a row
-            // not yet named, it is a parse and a decode, and it was done
-            // three times a row (2.8 µs a row, 14 ms at 5,000 rows).
+            // not yet named, it is a parse and a decode.
             let name = name_of(row);
             // The site only where a category of a person's own could ask:
             // without one, every address was parsed again for nothing.
@@ -86,11 +109,17 @@ impl DmApp {
                     .map(|c| c.name.clone())
             };
             let kind = dm_core::category::by_name(&name).or(row.category);
-            haystacks.insert(row.id, haystack_named(&name, row));
-            placed.insert(row.id, (kind, custom));
+            self.haystacks.insert(row.id, haystack_named(&name, row));
+            self.placed.insert(row.id, (kind, custom));
+            self.place_fingerprints.insert(row.id, fingerprint);
         }
-        self.placed = placed;
-        self.haystacks = haystacks;
+        // Rows that are gone.
+        if self.placed.len() != self.rows.len() {
+            let ids: HashSet<Id> = self.rows.iter().map(|r| r.id).collect();
+            self.placed.retain(|id, _| ids.contains(id));
+            self.haystacks.retain(|id, _| ids.contains(id));
+            self.place_fingerprints.retain(|id, _| ids.contains(id));
+        }
     }
 
     /// A row's kind and own category, from [`Self::place_rows`] when it has
@@ -102,19 +131,52 @@ impl DmApp {
         }
     }
 
+    /// How many rows are in `place`: counted once for each generation of the
+    /// list, not once a frame for each place the sidebar draws.
     pub fn count(&self, place: &Place) -> usize {
-        self.rows.iter().filter(|r| self.within(place, r)).count()
+        let mut cache = self.counts_cache.borrow_mut();
+        if cache.0 != self.rows_gen {
+            cache.0 = self.rows_gen;
+            cache.1.clear();
+        }
+        *cache
+            .1
+            .entry(format!("{place:?}"))
+            .or_insert_with(|| self.rows.iter().filter(|r| self.within(place, r)).count())
     }
 
     /// The rows the table shows, in the order it shows them.
     pub fn visible(&self) -> Vec<Entry> {
+        self.visible_shared().as_ref().clone()
+    }
+
+    /// [`Self::visible`], kept from one frame to the next for as long as
+    /// nothing it is made from has changed: the list read again, the place,
+    /// the filter, the sort or a size a dialog told. The table asks every
+    /// frame, and a copy and a sort of every row cost a few milliseconds a
+    /// frame at 5,000 rows, in every frame the pointer moved.
+    pub fn visible_shared(&self) -> std::rc::Rc<Vec<Entry>> {
+        let key: VisibleKey = (
+            self.rows_gen,
+            self.place.clone(),
+            self.filter.clone(),
+            self.sort,
+            self.sizes_told.len(),
+        );
+        if let Some((made_from, rows)) = &*self.visible_cache.borrow() {
+            if *made_from == key {
+                return std::rc::Rc::clone(rows);
+            }
+        }
         let rows: Vec<Entry> = self
             .rows
             .iter()
             .filter(|r| self.shows(r))
             .cloned()
             .collect();
-        self.shaped(rows)
+        let rows = std::rc::Rc::new(self.shaped(rows));
+        *self.visible_cache.borrow_mut() = Some((key, std::rc::Rc::clone(&rows)));
+        rows
     }
 
     /// `rows` as the table shows them: with the size a dialog learned until

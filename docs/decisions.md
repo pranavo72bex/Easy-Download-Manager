@@ -2395,3 +2395,19 @@ Not changed, and why: idle was already 0.3-0.5 %, so the repaint cadence
 show this (it includes the download threads and moved 9-16 % between runs of
 one binary), which is why the thread was measured on its own.
 
+The shown rows, the sidebar's counts and each row's kind and filter text are
+kept from one frame to the next (`DmApp::visible_shared`, `count`,
+`place_rows`), each under what it is made from: a generation counter bumped
+when the list is read or the places are made again, and for the rows the
+place, the filter, the sort and how many sizes a dialog has told. A place is
+made again for a row only when its address, name, note or kind changed (a
+hash of those), and for every row when a person's own categories do. Per frame
+at 5000 rows sorted by name (release; `frame_cost_of_a_long_list`, run by
+hand): copy and sort 370 us, cached 7 ns; a place's count 98 ns. The window's
+thread under 5000 rows and 20 downloads moving: 17-19 % busy at the start, 6.0
+and 4.9 % now. Checked as a person would use it (`qa.py`, 28 checks: click the
+headings, each place and its count, search in any case and clear it, select,
+Stop, Resume, add and remove with a sort and a filter on), all passing, and
+failing 8 of 28 with the generation never advanced, so the session can see a
+stale cache.
+

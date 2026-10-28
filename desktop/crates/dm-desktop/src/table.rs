@@ -19,7 +19,7 @@ pub fn show(app: &mut DmApp, ui: &mut egui::Ui) {
     // A click on a row's text selects the row. Selectable text took the
     // click for itself, so clicking a file's name selected nothing.
     ui.style_mut().interaction.selectable_labels = false;
-    let rows = app.visible();
+    let rows = app.visible_shared();
     let asking = app.dialogs.asking();
     let mut categories = app.applied.categories();
     // Why a held row waits, said on hovering it.

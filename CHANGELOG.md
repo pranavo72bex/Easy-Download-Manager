@@ -19,6 +19,7 @@ the browser extension (`v*` tags) are versioned separately.
 - A paused, waiting, finished or cancelled download no longer reports the speed and time left of its last run to the command line, the control port or an AI client; and the details window of a finished download no longer says "Can resume: Unknown until the server answers".
 - The progress window of a download that has finished now closes by itself (it stayed open reading "Complete", with no button, one more for each download), and a stopped download's bar in the list is drawn in the progress colour, dimmed, rather than in the grey of its own track.
 - The window does about half the work per frame with a long list: with 5000 rows and 20 downloads moving its thread was busy 18 % of the time and is now 10 %. Two dialogs no longer parse every row's address on every frame while closed, the list of queue names is read without copying every row, and the toolbar's selection checks no longer copy and sort the whole list.
+- With a long list the window does less in every frame: the rows it shows, the sidebar's counts and each row's kind and search text are kept until the list is read again or a sort, filter or place changes, rather than made again each frame (5000 rows: 370 µs a frame before, 7 ns now), and its thread is busy 5-6 % of the time under 5000 rows with 20 downloads moving, where it was 17-19 %.
 
 ## App 0.8.3
 

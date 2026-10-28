@@ -29,6 +29,7 @@ impl DmApp {
         self.take_when_done();
         self.take_new_download();
         self.rows = self.backend.list();
+        self.rows_gen += 1;
         self.place_rows();
         set_retrying(self.backend.retrying());
         crate::table::set_superseded(&self.rows);
