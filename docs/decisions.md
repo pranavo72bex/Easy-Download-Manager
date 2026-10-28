@@ -2563,5 +2563,20 @@ the like; and with `/tmp` noexec an AppImage run without FUSE
 (`--appimage-extract-and-run`) cannot start either, which a desktop's FUSE mount
 does not do. The status now says yt-dlp's words after the vague sentence
 (`format::ytdlp_said`: the last `ERROR:` line, extractor and id taken off, no
-address, 120 characters), so the next report carries its cause. Not run: the
-reporter's Brave, its cookies and its x86-64 yt-dlp.
+address, 120 characters), so the next report carries its cause.
+
+Reproduced on CachyOS itself with Brave (`scripts/linux/cachyos-brave/run.sh`):
+CachyOS's own image (x86-64, under emulation), Brave 1.98.62 as Brave publishes it
+(it runs a page, and `dm-desktop --register` connected dm to
+`BraveSoftware/Brave-Browser`), and the released 0.8.3 AppImage unpacked. A page
+with a video in it is handed to dm over the native host exactly as the extension's
+Download video panel sends it (`engine.hello`, then `download.start` with a
+quality). With `/tmp` as normal it completes (`A video (1) [page-1].mp4`, 600000
+bytes); with `/tmp` `noexec` the row fails with the `libz.so.1: failed to map
+segment` loader error and the Status column reads "Error: dm could not get the video
+from this page", the person's sentence; with `noexec` and `TMPDIR` pointed at a
+folder that allows programs the same page completes. yt-dlp's own two builds on
+that CachyOS under `noexec`: the single file fails, the unpacked one starts. What
+is not shown: that this person's `/tmp` is `noexec` (asked of them), the
+extension's own UI (the hand-off is its message, sent by script), and the current
+code's x86-64 build (its aarch64 build was run on Arch earlier).
