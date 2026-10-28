@@ -183,10 +183,14 @@ pub(super) fn pick_list(
 ) {
     ui.horizontal(|ui| {
         if ui.button(t("Check all")).clicked() {
-            links.iter_mut().for_each(|l| l.1 = true);
+            for link in links.iter_mut() {
+                link.1 = true;
+            }
         }
         if ui.button(t("Uncheck all")).clicked() {
-            links.iter_mut().for_each(|l| l.1 = false);
+            for link in links.iter_mut() {
+                link.1 = false;
+            }
         }
     });
     egui::ScrollArea::vertical()

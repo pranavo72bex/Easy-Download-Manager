@@ -129,6 +129,8 @@ fn use_fake_ytdlp() {
         // Made runnable here: git keeps the mode, a zip of the tree may not.
         use std::os::unix::fs::PermissionsExt;
         std::fs::set_permissions(&fake, std::fs::Permissions::from_mode(0o755)).unwrap();
+        // SAFETY: runs once (`Once`), and every test in this binary calls this
+        // before it reads the environment.
         unsafe {
             std::env::set_var("DM_YTDLP", &fake);
             // No JavaScript runtime is looked for or passed.

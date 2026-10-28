@@ -2411,3 +2411,52 @@ Stop, Resume, add and remove with a sort and a filter on), all passing, and
 failing 8 of 28 with the generation never advanced, so the session can see a
 stale cache.
 
+## 2026-10-28: Google's Rust style guide, what was taken and what was not
+
+Read at <https://google.github.io/styleguide/rustguide.html> and checked rule
+by rule, with the guide's own lints (`clippy::wildcard_imports`,
+`needless_for_each`, `undocumented_unsafe_blocks`, `must_use_candidate`,
+`fn_params_excessive_bools`, `string_add`, `missing_panics_doc` and
+rustc's `missing_docs`) and greps for the rest. Its Chromium and Fuchsia
+rules (flat `rust_library` layout, `chromium::import!`, `git cl format`,
+`rust_gtest_interop`, `fuchsia_sync::Mutex`, no `async`, no std threads)
+belong to those build systems and were not applied.
+
+Already as the guide asks, found by checking: no `unwrap`, `expect` or `panic`
+outside tests (denied in every crate); no `ctor`, `#[rustfmt::skip]`,
+`#[doc(hidden)]`, `get_` getters or `Ext` traits; the lints for `ptr_arg`,
+`borrowed_box`, `should_implement_trait`, `new_without_default`,
+`len_without_is_empty`, `wrong_self_convention`, `unnecessary_unwrap`,
+`fn_params_excessive_bools` and `missing_panics_doc` have no findings.
+
+Changed: every `unsafe` block in the macOS and test code has a `// SAFETY:`
+comment that says what makes it sound (28 had none), and a lint keeps it so
+(`undocumented_unsafe_blocks`, not on Windows, whose blocks are not written up
+yet); three strings built with `+` are built with `format!`; two `for_each`
+are loops, and `string_add` and `needless_for_each` are kept clean by a lint;
+`rustfmt.toml` says the width of 100 the guide asks for (rustfmt's default,
+stated); the cache key added the same day is a struct with named fields, not a
+tuple; one test that set `DM_HOME` in every case of a property test now sets
+it once (the standard library calls `set_var` unsafe because another thread may
+be reading, which a comment cannot make false: the exposure that remains is
+named in the comment).
+
+Kept, on purpose:
+
+- `lock()` (`dm-core/src/lib.rs`) takes the data of a poisoned mutex
+  (`PoisonError::into_inner`), where the guide says never to. dm's plain mutexes
+  guard a problem list, a schedule and the window's settings, which stay whole
+  after a panic elsewhere, and one panic turning into a crash at every later
+  lock was judged worse; changing it would put a `Result` on hundreds of calls.
+- `tray.rs` calls `catch_unwind` around the tray's creation, where the guide
+  allows it only if never relied on. It is: a panic in the tray library on some
+  desktop would otherwise end the program, and dm runs without a tray instead.
+- `use super::*;` in a file module (121 uses) and `use submodule::*;` in a
+  parent that only re-exports: the guide allows the glob in inline modules and
+  in non-leaf modules that re-export; a file module extending its parent is the
+  same shape, and replacing them is churn with no behaviour.
+- `Rc<Vec<Entry>>` for the shown rows (`visible_shared`): the guide prefers
+  unique ownership, and the alternative is a copy of every row in every frame.
+- Not taken: `imports_granularity = Module`, `hex_literal_case` and
+  `format_macro_matchers` are nightly-only rustfmt options.
+

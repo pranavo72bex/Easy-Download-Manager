@@ -146,6 +146,8 @@ async fn the_computers_proxy_settings_are_the_environments() {
     )
     .await
     .unwrap();
+    // SAFETY: as at the `set_var` above: the one test in this binary that
+    // touches the environment.
     unsafe {
         std::env::remove_var("HTTP_PROXY");
     }

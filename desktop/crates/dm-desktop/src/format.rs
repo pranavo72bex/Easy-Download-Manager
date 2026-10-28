@@ -276,7 +276,7 @@ pub fn natural(a: &str, b: &str) -> std::cmp::Ordering {
 pub fn titled(word: &str) -> String {
     let mut chars = word.chars();
     match chars.next() {
-        Some(first) => first.to_uppercase().collect::<String>() + chars.as_str(),
+        Some(first) => format!("{}{}", first.to_uppercase(), chars.as_str()),
         None => String::new(),
     }
 }

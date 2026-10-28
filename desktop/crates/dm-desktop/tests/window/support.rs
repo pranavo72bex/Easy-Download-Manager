@@ -52,7 +52,8 @@ pub(crate) fn home() -> &'static std::path::Path {
     static HOME: OnceLock<tempfile::TempDir> = OnceLock::new();
     HOME.get_or_init(|| {
         let dir = tempfile::tempdir().unwrap();
-        // Set once, before any test reads it.
+        // SAFETY: set once (`OnceLock`), before any test reads it: they all reach
+        // the home through this function.
         unsafe { std::env::set_var("DM_HOME", dir.path()) };
         // Sizes and dates as the language writes them, on any machine.
         dm_desktop::region::pin(None);

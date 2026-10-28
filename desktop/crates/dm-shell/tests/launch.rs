@@ -7,7 +7,8 @@ use dm_shell::settings::{self, Settings};
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn the_main_queue_starts_at_launch_when_the_setting_says_so() {
     let home = tempfile::tempdir().unwrap();
-    // The one test in this binary, so the process-wide home is its own.
+    // SAFETY: the one test in this binary, so the process-wide home is its own
+    // and nothing else is reading the environment while it is set.
     unsafe { std::env::set_var("DM_HOME", home.path()) };
     let saved = Settings {
         download_dir: home.path().join("out"),

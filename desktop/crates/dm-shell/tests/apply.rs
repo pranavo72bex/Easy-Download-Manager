@@ -7,7 +7,8 @@ use dm_shell::shell;
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn the_cookies_file_is_read_at_launch_and_its_loss_blocks_nothing() {
     let home = tempfile::tempdir().unwrap();
-    // The one test in this binary, so the process-wide home is its own.
+    // SAFETY: the one test in this binary, so the process-wide home is its own
+    // and nothing else is reading the environment while it is set.
     unsafe { std::env::set_var("DM_HOME", home.path()) };
     let cookies = home.path().join("cookies.txt");
     std::fs::write(

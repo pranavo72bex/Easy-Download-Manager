@@ -156,7 +156,7 @@ fn hmac_md5(key: &[u8], parts: &[&[u8]]) -> [u8; 16] {
 /// NTOWFv2: the password's NT hash, keyed to the user and the domain.
 pub fn ntowf_v2(user: &str, domain: &str, password: &str) -> [u8; 16] {
     let nt_hash = Md4::digest(utf16(password));
-    let who = utf16(&(user.to_uppercase() + domain));
+    let who = utf16(&format!("{}{domain}", user.to_uppercase()));
     hmac_md5(&nt_hash, &[&who])
 }
 

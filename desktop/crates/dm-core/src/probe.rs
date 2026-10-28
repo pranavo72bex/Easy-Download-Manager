@@ -428,10 +428,10 @@ pub fn sanitize(name: &str) -> String {
         }
         // A cut can end on a space or a dot, which Windows drops and the
         // next clean trims: the name recorded and the name on disk differ.
-        out = keep
-            .trim_end_matches(|c: char| c == '.' || c.is_whitespace())
-            .to_string()
-            + &tail;
+        out = format!(
+            "{}{tail}",
+            keep.trim_end_matches(|c: char| c == '.' || c.is_whitespace())
+        );
     }
     out
 }

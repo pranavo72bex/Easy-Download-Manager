@@ -1,0 +1,5 @@
+# Google's Rust style guide asks for 100 columns, which is rustfmt's own
+# default; said here so it is the project's, and not an accident of a default.
+# Only options stable rustfmt has: the guide's `hex_literal_case`,
+# `format_macro_matchers` and `imports_granularity` are nightly-only.
+max_width = 100

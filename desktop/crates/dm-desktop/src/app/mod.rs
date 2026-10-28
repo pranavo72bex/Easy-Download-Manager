@@ -88,9 +88,18 @@ const HIDDEN_IDLE: Duration = Duration::from_secs(30);
 /// How often the clipboard is looked at, when watching it is on.
 const CLIPBOARD: Duration = Duration::from_secs(1);
 
-/// What the rows the table shows were made from: the generation of the list,
-/// the place, the filter, the sort and how many sizes a dialog has told.
-type VisibleKey = (u64, Place, String, Option<(Column, bool)>, usize);
+/// What the rows the table shows were made from.
+#[derive(Debug, Clone, PartialEq)]
+struct VisibleKey {
+    /// The generation of the list (`DmApp::rows_gen`).
+    list: u64,
+    place: Place,
+    filter: String,
+    sort: Option<(Column, bool)>,
+    /// How many sizes a dialog has told, which the rows show until they know
+    /// their own.
+    sizes_told: usize,
+}
 
 /// A place in the category tree: a filter over the one list.
 #[derive(Debug, Clone, PartialEq, Eq)]

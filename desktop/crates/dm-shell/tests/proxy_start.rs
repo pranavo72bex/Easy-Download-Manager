@@ -7,7 +7,8 @@ use dm_shell::settings::Settings;
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn a_saved_proxy_with_no_host_is_turned_off_and_said_at_launch() {
     let home = tempfile::tempdir().unwrap();
-    // The one test in this binary, so the process-wide home is its own.
+    // SAFETY: the one test in this binary, so the process-wide home is its own
+    // and nothing else is reading the environment while it is set.
     unsafe { std::env::set_var("DM_HOME", home.path()) };
     let mut saved = Settings {
         download_dir: home.path().join("out"),

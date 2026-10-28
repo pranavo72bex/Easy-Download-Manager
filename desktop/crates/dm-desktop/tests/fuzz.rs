@@ -48,6 +48,23 @@ impl Platform for Nothing {
     }
 }
 
+/// The window's settings file stays out of the real home: one for the whole
+/// binary, set once rather than by every case.
+fn keep_out_of_the_real_home() {
+    static HOME: std::sync::OnceLock<tempfile::TempDir> = std::sync::OnceLock::new();
+    HOME.get_or_init(|| {
+        let dir = tempfile::tempdir().unwrap();
+        // SAFETY: set once (`OnceLock`) before the first case that reads it
+        // runs. `set_var` is unsafe because another thread may read the
+        // environment at that moment; the only other reader in this binary is
+        // each test's `PROPTEST_CASES` lookup as it starts, an exposure that is
+        // inherent to setting the environment from a test and is why this is done
+        // once and not in every case.
+        unsafe { std::env::set_var("DM_HOME", dir.path()) };
+        dir
+    });
+}
+
 fn any_json() -> impl Strategy<Value = Value> {
     let leaf = prop_oneof![
         Just(Value::Null),
@@ -95,8 +112,7 @@ proptest! {
         params in any_json(),
     ) {
         let dir = tempfile::tempdir().unwrap();
-        // The window's settings file stays out of the real home.
-        unsafe { std::env::set_var("DM_HOME", dir.path()) };
+        keep_out_of_the_real_home();
         let runtime = tokio::runtime::Runtime::new().unwrap();
         let settings = Settings {
             download_dir: dir.path().join("out"),

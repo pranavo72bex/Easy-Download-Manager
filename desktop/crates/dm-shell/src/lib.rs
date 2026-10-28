@@ -13,6 +13,12 @@
     not(test),
     deny(clippy::unwrap_used, clippy::expect_used, clippy::panic)
 )]
+// From Google's Rust style guide, checked in CI: an `unsafe` block says why it
+// is sound (`// SAFETY:`; not on Windows, whose blocks are not all written up
+// yet), and a string is built with `format!` rather than `+`, and a loop is a
+// loop rather than `for_each`.
+#![cfg_attr(not(windows), warn(clippy::undocumented_unsafe_blocks))]
+#![warn(clippy::string_add, clippy::needless_for_each)]
 pub mod host;
 pub mod instance;
 pub mod lists;

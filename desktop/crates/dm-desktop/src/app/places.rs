@@ -156,13 +156,13 @@ impl DmApp {
     /// frame, and a copy and a sort of every row cost a few milliseconds a
     /// frame at 5,000 rows, in every frame the pointer moved.
     pub fn visible_shared(&self) -> std::rc::Rc<Vec<Entry>> {
-        let key: VisibleKey = (
-            self.rows_gen,
-            self.place.clone(),
-            self.filter.clone(),
-            self.sort,
-            self.sizes_told.len(),
-        );
+        let key = VisibleKey {
+            list: self.rows_gen,
+            place: self.place.clone(),
+            filter: self.filter.clone(),
+            sort: self.sort,
+            sizes_told: self.sizes_told.len(),
+        };
         if let Some((made_from, rows)) = &*self.visible_cache.borrow() {
             if *made_from == key {
                 return std::rc::Rc::clone(rows);

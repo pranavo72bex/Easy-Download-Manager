@@ -45,6 +45,8 @@ pub fn on_reopen(reopen: impl Fn() + Send + Sync + 'static) {
         return;
     };
     let object: &AnyObject = delegate.as_ref();
+    // SAFETY: `object` is the application's live delegate, borrowed from `app`
+    // for this call; `object_getClass` only reads its class pointer.
     let class: *const AnyClass = unsafe { objc2::ffi::object_getClass(object) };
     let selector = Sel::register(c"applicationShouldHandleReopen:hasVisibleWindows:");
     // BOOL is `bool` on Apple silicon and `signed char` on Intel.
@@ -53,6 +55,10 @@ pub fn on_reopen(reopen: impl Fn() + Send + Sync + 'static) {
     } else {
         c"c@:@c"
     };
+    // SAFETY: `should_handle_reopen` has exactly the signature of the Objective-C
+    // method (self, _cmd, sender, hasVisibleWindows, returning BOOL), `types` is
+    // its type encoding on this architecture, and `class` is a class, not an
+    // instance. A class that already answers the selector makes the call fail.
     unsafe {
         let imp: objc2::runtime::Imp = std::mem::transmute(
             should_handle_reopen
