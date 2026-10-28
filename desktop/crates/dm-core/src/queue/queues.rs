@@ -117,10 +117,15 @@ impl Queue {
 
     /// The names of the queues rows are in, in the order first met.
     pub async fn queues(&self) -> Vec<String> {
+        // Read in place: the window asks several times a frame, and a copy of
+        // every row to read one name from each was most of what it cost.
+        let slots = self.inner.slots.lock().await;
+        let order = self.inner.order.lock().await;
         let mut names = vec![MAIN_QUEUE.to_string(), RECHECK_QUEUE.to_string()];
-        for entry in self.list().await {
-            if !entry.queue.is_empty() && !names.contains(&entry.queue) {
-                names.push(entry.queue);
+        for slot in order.iter().filter_map(|id| slots.get(id)) {
+            let queue = &slot.entry.queue;
+            if !queue.is_empty() && !names.contains(queue) {
+                names.push(queue.clone());
             }
         }
         names

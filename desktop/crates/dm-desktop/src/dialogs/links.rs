@@ -198,6 +198,12 @@ pub(super) fn links(app: &mut DmApp, ctx: &egui::Context) {
 }
 
 pub(super) fn clip_links(app: &mut DmApp, ctx: &egui::Context) {
+    // Before the addresses are worked out: every row's was parsed on every
+    // frame for a dialog that is almost never open (a fifth of a frame's
+    // time with 5,000 rows).
+    if app.dialogs.clip_links.is_none() {
+        return;
+    }
     let listed = listed_addresses(app);
     let Some(links) = app.dialogs.clip_links.as_mut() else {
         return;

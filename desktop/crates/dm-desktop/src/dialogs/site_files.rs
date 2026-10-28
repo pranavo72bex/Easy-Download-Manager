@@ -1,9 +1,14 @@
 use super::*;
 pub(super) fn site_files(app: &mut DmApp, ctx: &egui::Context) {
+    let focus = app.dialogs.take_focus("Site files");
+    // Nothing more is worked out for a dialog that is not open: its client
+    // was built and every row's address parsed on every frame.
+    if app.dialogs.site_files.is_none() {
+        return;
+    }
     // Built before the dialog is borrowed: the client reads the settings.
     let client = app.client();
     let listed = listed_addresses(app);
-    let focus = app.dialogs.take_focus("Site files");
     let Some(d) = app.dialogs.site_files.as_mut() else {
         return;
     };

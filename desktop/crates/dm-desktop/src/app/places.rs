@@ -108,12 +108,18 @@ impl DmApp {
 
     /// The rows the table shows, in the order it shows them.
     pub fn visible(&self) -> Vec<Entry> {
-        let mut rows: Vec<Entry> = self
+        let rows: Vec<Entry> = self
             .rows
             .iter()
             .filter(|r| self.shows(r))
             .cloned()
             .collect();
+        self.shaped(rows)
+    }
+
+    /// `rows` as the table shows them: with the size a dialog learned until
+    /// the row knows its own, and in the order it is sorted.
+    fn shaped(&self, mut rows: Vec<Entry>) -> Vec<Entry> {
         // What a dialog learned of a row's size, until the row knows it.
         for row in &mut rows {
             if row.progress.total.is_none() {
@@ -136,11 +142,23 @@ impl DmApp {
     }
 
     /// The rows a command acts on: the selection, in table order.
+    ///
+    /// Only the selected rows are copied and sorted, not every row shown: a
+    /// stable sort of some of the rows is those rows in the order a stable
+    /// sort of all of them puts them in. The toolbar asks for this several
+    /// times a frame, and with nothing selected it asks for nothing at all
+    /// (it was a copy and a sort of the whole list, 5,000 rows, each time).
     pub fn targets(&self) -> Vec<Entry> {
-        self.visible()
-            .into_iter()
-            .filter(|r| self.selected.contains(&r.id))
-            .collect()
+        if self.selected.is_empty() {
+            return Vec::new();
+        }
+        let rows: Vec<Entry> = self
+            .rows
+            .iter()
+            .filter(|r| self.selected.contains(&r.id) && self.shows(r))
+            .cloned()
+            .collect();
+        self.shaped(rows)
     }
 
     /// The queue a queue command means: the one shown, or the main one.

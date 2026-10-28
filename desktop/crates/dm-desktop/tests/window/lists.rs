@@ -963,3 +963,43 @@ fn new_installs_sort_by_kind_and_start_at_login() {
     assert!(fresh.categorize);
     assert!(fresh.start_on_login);
 }
+
+/// What a command acts on is the selection as the table shows it: the same
+/// rows in the same order as filtering what is shown by the selection, under
+/// every sort. `targets` copies and sorts only the selected rows, where it
+/// once did all of them.
+#[test]
+fn the_rows_a_command_acts_on_are_the_selected_ones_in_table_order() {
+    use dm_desktop::app::Column;
+    let world = world();
+    let mut harness = world.harness();
+    for name in ["file.zip", "other.pdf", "deep.pdf", "report.pdf"] {
+        add_url(&mut harness, &world.url(name), "Start now");
+    }
+    until(&mut harness, "four rows", |app| app.rows().len() == 4);
+    let ids: Vec<_> = harness.state().rows().iter().map(|r| r.id).collect();
+    let picks = [
+        vec![],
+        vec![ids[0]],
+        vec![ids[3], ids[1]],
+        vec![ids[0], ids[1], ids[2], ids[3]],
+    ];
+    for picked in picks {
+        harness.state_mut().selected = picked.iter().copied().collect();
+        for column in Column::ALL {
+            // Ascending, then descending, then a plain order.
+            for _ in 0..2 {
+                harness.state_mut().sort_by(column);
+                let app = harness.state();
+                let expected: Vec<_> = app
+                    .visible()
+                    .into_iter()
+                    .filter(|r| picked.contains(&r.id))
+                    .map(|r| r.id)
+                    .collect();
+                let got: Vec<_> = app.targets().into_iter().map(|r| r.id).collect();
+                assert_eq!(got, expected, "{picked:?} under {column:?}");
+            }
+        }
+    }
+}

@@ -2356,3 +2356,42 @@ frame, and no run found it longer than 0.7 s.
 A row that is not Running has no speed or time left (`Slot::stopped_moving`,
 on hold, requeue, cancel, the end of a run, and for a report that arrives after
 one of them), as `persist` already said of a restored one.
+
+## 2026-10-28: Per-frame work in the window, measured and cut
+
+Following the optimisation guide (baseline, profile, smallest change, measure
+again). Gates first: `cargo fmt --check`, `cargo check`, `cargo clippy
+--all-targets --all-features -D warnings`, `cargo test --workspace` (1164) and
+`cargo audit` (both workspaces) were already clean; `unwrap`, `expect` and
+`panic` are denied outside tests in every crate.
+
+Baseline, release build, macOS, 5000 rows and 20 downloads moving, nothing
+else running: idle 0.3-0.5 % of a core and 190 MB; with the downloads moving
+the process used 15-17 % (mostly the engine's threads, so not a measure of the
+window). Measured on the window's own thread instead, by sampling it for
+about 6 s (`sample`, a symbolized release build): busy 17.0 % and 19.2 % of
+the time. The profile named what a frame did that it need not:
+
+- `dialogs::clip_links` and `dialogs::site_files` worked out
+  `listed_addresses` (a URL parse of every row; `site_files` also built an
+  HTTP client) before checking that their dialog was open: about a quarter of
+  the busy time, on every frame, for dialogs that are almost never open.
+- `Queue::queues()` copied every row to read each one's queue name, and the
+  window asks several times a frame (side rail, tree, dialogs).
+- `targets()` (the toolbar's enabled states call it several times a frame)
+  copied and sorted every shown row to find the selected ones, usually none.
+
+Each now does only what its answer needs: the dialogs return first,
+`queues()` reads the rows in place, and `targets()` returns at once with
+nothing selected and otherwise copies and sorts only the selected rows (a
+stable sort of some rows is those rows in a stable sort of all of them; a test
+compares it with `visible()` filtered by the selection under every sort).
+After: busy 10.5 % and 8.9 % (11.1 % with the first two changes alone),
+URL parsing in frames 0, `Backend::queues` 208 -> 21-27 samples, `visible()`
+200 -> 48-63. About 46 % less work on the window's thread.
+
+Not changed, and why: idle was already 0.3-0.5 %, so the repaint cadence
+(`request_repaint_after`) stays; the whole-process CPU figure is too noisy to
+show this (it includes the download threads and moved 9-16 % between runs of
+one binary), which is why the thread was measured on its own.
+
