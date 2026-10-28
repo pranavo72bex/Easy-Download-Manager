@@ -18,7 +18,7 @@ What it shows, in order:
      helping connections and takes about a second, not three;
   3. a PDF, which Edge would open in the tab: dm takes it, the tab stays;
   4. Alt held while clicking: Edge keeps its own download, as asked;
-  5. a type dm is not set to catch (a .txt): Edge keeps it;
+  5. any other type (a .txt and a .md): dm takes them too, Edge keeps nothing;
   6. the extension's popup, with its switches.
 """
 import glob
@@ -54,6 +54,7 @@ FILES = {
     "manual.pdf": (MB, "application/pdf", False, False),
     "keepme.bin": (MB, "application/octet-stream", True, False),
     "notes.txt": (200_000, "text/plain", True, False),
+    "readme.md": (50_000, "text/markdown", True, False),
 }
 log = []
 
@@ -81,7 +82,8 @@ PAGE = """<!doctype html><meta charset=utf-8><title>dm test window (not your Edg
 <a class=l id=slow.bin href="/files/slow.bin">2 &middot; A 3 MB file <small>from a server that holds each connection to 1 MB/s</small></a>
 <a class=l id=manual.pdf href="/files/manual.pdf">3 &middot; A PDF <small>Edge would open this in the tab</small></a>
 <a class=l id=keepme.bin href="/files/keepme.bin">4 &middot; Alt + click <small>asks Edge to keep the download itself</small></a>
-<a class=l id=notes.txt href="/files/notes.txt">5 &middot; A text file <small>a type dm is not set to catch</small></a>
+<a class=l id=notes.txt href="/files/notes.txt">5 &middot; A text file <small>any type is dm's, not only archives and videos</small></a>
+<a class=l id=readme.md href="/files/readme.md">6 &middot; A Markdown file <small>the same</small></a>
 """
 
 
@@ -284,15 +286,17 @@ def main():
         time.sleep(PAUSE)
 
         # 5 ------------------------------------------------------------
-        name, size = "notes.txt", FILES["notes.txt"][0]
-        print("\n5. A type dm is not set to catch", flush=True)
-        say(tab, "Step 5 of 5: a .txt file, a type dm does not catch.", name)
-        press(tab, name)
-        ok = cc.wait_for(lambda: edge_kept(name) or edge_has(name, size), 30)
-        say(tab, "Edge kept it, as dm's list of types says." if ok and not dm_has(name, size) else "not as expected", name)
-        results.append((name, bool(ok) and not dm_has(name, size), "Edge kept it; dm did not"))
-        shot(tab, work, 5)
-        time.sleep(PAUSE)
+        print("\n5. Any other type: dm takes it", flush=True)
+        for name in ("notes.txt", "readme.md"):
+            size = FILES[name][0]
+            say(tab, f"Step 5 of 5: a {name.rsplit('.', 1)[1]} file. Every type is dm's.", name)
+            press(tab, name)
+            ok = cc.wait_for(lambda: dm_has(name, size), 30)
+            kept = edge_kept(name) or edge_has(name, size)
+            say(tab, f"dm took {name}; Edge kept nothing." if ok and not kept else "not as expected", name)
+            results.append((name, bool(ok) and not kept, "dm took it; Edge kept nothing"))
+            shot(tab, work, 5)
+            time.sleep(PAUSE)
 
         # 6 ------------------------------------------------------------
         print("\n6. The extension's popup", flush=True)
