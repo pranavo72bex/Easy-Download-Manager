@@ -2538,21 +2538,30 @@ Windows: the zip step and the Windows run of the check first happen in CI.
 `latest.json` lists every file, but the updater takes the Windows installer by
 its `-setup.exe` ending, so the zip is never offered as an update.
 
-**"dm could not get the video from this page", CachyOS, AppImage, Brave.** Not
-reproduced. The released x86-64 AppImage cannot run in Docker on this Apple
-Silicon machine (Exec format error even for `--appimage-version`); the aarch64
-AppImage of the same release on an arm64 Arch Linux image, started the way an
-AppImage runs (`--appimage-extract-and-run`, no display but Xvfb, no `DM_HOME`
-set by hand), downloaded a YouTube page to completion. Found on the way: the
-AppImage bundles no libraries (`usr/lib` is empty, `AppRun` sets no
+**"dm could not get the video from this page", CachyOS, AppImage, Brave.** One
+way it happens found and shown; that it is this person's way is not confirmed.
+The released x86-64 AppImage cannot run in Docker on the Apple Silicon machine
+this was tried on (Exec format error even for `--appimage-version`), so the
+aarch64 AppImage of the same release was run on an arm64 Arch Linux image, started
+the way an AppImage runs, with no `DM_HOME` set by hand. With `/tmp` as on a
+default system the page downloads. With `/tmp` mounted `noexec` the single-file
+yt-dlp that dm 0.8.3 fetches cannot start (it unpacks itself into `/tmp` on each
+start: "error while loading shared libraries: libz.so.1: failed to map segment
+from shared object"), and the row ends as the person's sentence: dm's state was
+`yt-dlp could not download that: …/tools/yt-dlp: error while loading shared
+libraries…`, which the status table turned into "dm could not get the video from
+this page" for every yt-dlp failure it had no words for. The current tree, which
+fetches the unpacked build (written for startup speed), fetched
+`tools/yt-dlp-linux/…`, ran, and reached YouTube under the same `noexec` `/tmp`
+(its only failure there was this network's HTTP 429, from repeated tests).
+`TMPDIR=<a folder programs may run from>` makes the released one-file build start
+too (checked on 0.8.3). `scripts/linux/noexec-tmp-check.sh` shows the single
+file failing and the unpacked build starting, from yt-dlp's own release files.
+Also found: the AppImage bundles no libraries (`usr/lib` is empty, `AppRun` sets no
 environment), so on a minimal system it needs the host's `libxkbcommon-x11` and
-the like; and the one-file yt-dlp 0.8.3 fetches unpacks itself to `/tmp` on
-each start, which an unpacked build (since written, unreleased) does not.
-What the person saw is a catch-all: every `yt-dlp could not download that: …`
-the table does not name became that one sentence, with yt-dlp's words only on
-hover. They now follow the sentence (`format::ytdlp_said`: the last `ERROR:`
-line, extractor and id taken off, no address, 120 characters), so the next
-report carries the cause. Until then the cause is unknown; asked of the
-person: hover the failed row's Status, or run `dm-desktop` with `--control` and
-read `queue.list`'s `state`.
-
+the like; and with `/tmp` noexec an AppImage run without FUSE
+(`--appimage-extract-and-run`) cannot start either, which a desktop's FUSE mount
+does not do. The status now says yt-dlp's words after the vague sentence
+(`format::ytdlp_said`: the last `ERROR:` line, extractor and id taken off, no
+address, 120 characters), so the next report carries its cause. Not run: the
+reporter's Brave, its cookies and its x86-64 yt-dlp.
