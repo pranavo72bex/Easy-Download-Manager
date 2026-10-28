@@ -5,6 +5,14 @@ the browser extension (`v*` tags) are versioned separately.
 
 ## Unreleased
 
+- A connection that goes quiet is asked again after five seconds instead of held for the 30-second read timeout, once the other connections show it up (under a sixty-fourth of the download's rate while that is over 1 MiB, never under dm's own speed limit, only on a range's first tries): 32 MB with one silent connection 31.2 s before, 6.2 s now.
+- HLS segments are fetched up to eight at a time, not one after another (40 segments at 100 ms each: 0.65 s; one at a time they take over 4 s); DASH pieces are taken by the next free connection rather than in groups that wait for their slowest; yt-dlp, where it still downloads, is given `--concurrent-fragments`.
+- A video stream whose server holds each request to a size (yt-dlp's `downloader_options.http_chunk_size`) is asked for in slices of that size on each connection, not one long request that gets slowed or cut: 16 MiB where every response slows after 1 MiB, 6.4 s before, 0.55 s now. Streams that state no size are fetched exactly as before.
+- A video address that runs out while its stream downloads (YouTube's do after some hours) is renewed: dm reads the page once more and goes on from the bytes it has, instead of throwing them away and handing the video to yt-dlp to start again.
+- A video stream is asked with every header its page reading names (`Accept-Language`, `Sec-Fetch-Mode` and the rest), for that stream alone; before only the agent was, and it stayed with the site until dm closed.
+- yt-dlp, when it still downloads a file itself, asks for it in 10 MB pieces, as it already did for YouTube's own formats; a server that ignores ranges is unaffected.
+- yt-dlp is fetched as its unpacked build on Windows and Linux too (musl included), as on macOS: it starts in 0.22 s where the single file took 0.6 s on Linux. An earlier single file is replaced at the next start.
+
 ## App 0.8.3
 
 - CI fixes only: a shellcheck guard in `scripts/linux/stress-inside.sh` and a Windows-only timing in one test; no change to the program.

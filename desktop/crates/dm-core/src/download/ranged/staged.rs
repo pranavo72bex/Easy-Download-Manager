@@ -15,6 +15,12 @@ pub(in crate::download) const LEDGER_EVERY_SECOND: Duration = Duration::from_sec
 /// nothing beside the rest.
 pub(in crate::download) const RESUME_CHECK: u64 = 64 * 1024;
 
+/// The least a capped request (`Job::chunk`) may ask for. Above the resume
+/// check and the overlap byte together, so every slice brings bytes that are
+/// new, and not so small that a bad figure turns a file into thousands of
+/// requests.
+pub(in crate::download) const MIN_CHUNK: u64 = 1024 * 1024;
+
 /// How long the other connections get to put what they hold on disk after a
 /// pause or a cancel, before the ones still going are stopped.
 pub(in crate::download) const STOP_GRACE: Duration = Duration::from_secs(1);

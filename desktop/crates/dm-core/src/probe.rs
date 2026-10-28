@@ -48,7 +48,12 @@ pub async fn probe(
             .header(reqwest::header::USER_AGENT, agent)
             // The length of the file itself, as the download will ask for it.
             .header(reqwest::header::ACCEPT_ENCODING, crate::download::IDENTITY);
-        if let Some(cookies) = crate::cookies::header_with(sign_in, url) {
+        let cookies = crate::cookies::header_with(sign_in, url);
+        // What a video site's reading asks one of its streams with, if this
+        // is one; below dm's own `Cookie` and `Referer`.
+        request =
+            crate::download::stream_headers().onto(request, cookies.is_some(), referrer.is_some());
+        if let Some(cookies) = cookies {
             request = request.header(reqwest::header::COOKIE, cookies);
         }
         // A hotlink-protected server serves the file only to a request that

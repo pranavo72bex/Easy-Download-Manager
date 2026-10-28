@@ -426,14 +426,36 @@ pub(super) async fn fetch_segment(
             }
         ) && active.load(Ordering::SeqCst) > 1
     };
-    let outcome =
-        retry::run_making_progress_unless(&job.control, job.tries, on_disk, retrying, busy, || {
-            // Counted before the attempt, so the next one picks a different
-            // mirror where there is one to pick.
-            job.attempts[index].fetch_add(1, Ordering::Relaxed);
-            attempt_segment(client, job, index, resumable)
-        })
+    let outcome = loop {
+        let before = on_disk();
+        let outcome = retry::run_making_progress_unless(
+            &job.control,
+            job.tries,
+            on_disk,
+            retrying,
+            busy,
+            || {
+                // Counted before the attempt, so the next one picks a different
+                // mirror where there is one to pick.
+                job.attempts[index].fetch_add(1, Ordering::Relaxed);
+                attempt_segment(client, job, index, resumable)
+            },
+        )
         .await;
+        /* A capped request that came whole leaves the rest of its range to
+         * the next one, on this connection. Only while bytes arrive, so a
+         * server that answers nothing new cannot hold this loop; and the
+         * slice was no failed try, so it is not counted as one. */
+        let more = {
+            let l = crate::lock(&job.live[index]);
+            on_disk() < (l.end - l.start).saturating_add(1)
+        };
+        if outcome.is_ok() && job.chunk.is_some() && resumable && more && on_disk() > before {
+            job.attempts[index].fetch_sub(1, Ordering::Relaxed);
+            continue;
+        }
+        break outcome;
+    };
 
     match outcome {
         // Asked to stop, so stop — including not treating it as a short range
@@ -508,6 +530,14 @@ pub(super) async fn attempt_segment(
         start + already - check
     };
 
+    /* Where this request stops. Without a cap, at the range's end, as ever.
+     * With one (`Job::chunk`, from the reading of a video page), a slice of
+     * it: the connection asks for the next when this one ends, and the
+     * range, the ledger and what a split sees are those of the whole. */
+    let asked_end = match job.chunk.filter(|_| resumable) {
+        Some(cap) => end.min(from.saturating_add(cap.max(MIN_CHUNK)) - 1),
+        None => end,
+    };
     let source = job.source(index);
     let mut request = get(
         client,
@@ -515,8 +545,13 @@ pub(super) async fn attempt_segment(
         job.referrer.as_deref(),
         job.sign_in.as_ref(),
     );
+    request = job.headers.onto(
+        request,
+        crate::cookies::header_with(job.sign_in.as_ref(), &source.url).is_some(),
+        job.referrer.is_some(),
+    );
     if resumable {
-        request = request.header(reqwest::header::RANGE, format!("bytes={from}-{end}"));
+        request = request.header(reqwest::header::RANGE, format!("bytes={from}-{asked_end}"));
         // Only ever alongside a range: it is a condition on the range, and a
         // republished file answers 200 instead, which is how a changed file
         // is noticed rather than spliced into the old one. The validator is
@@ -724,24 +759,46 @@ pub(super) async fn attempt_segment(
     let mut span_now = span;
     let mut want_lead = lead;
     let mut reader = Reader::new();
+    let mut window = Window::open(written, job);
 
     loop {
+        // A connection far slower than the rest is dropped and asked again,
+        // rather than held to the read timeout while the others finish.
+        if window.over() {
+            // Only for the first tries of a range: one the server keeps
+            // serving slowly is then waited out, not retried to a failure.
+            if job.attempts[index].load(Ordering::Relaxed) <= 2 && window.stalled(written, job) {
+                file.flush().await?;
+                put(&mut ledger, written).await?;
+                return Err(Error::Incomplete {
+                    got: written,
+                    expected: span_now,
+                });
+            }
+            window = Window::open(written, job);
+        }
         let chunk = match carry.take() {
             Some(rest) => Ok(rest),
-            None => match reader.next(&mut stream, &job.control).await {
-                Ok(Some(chunk)) => chunk,
-                Ok(None) => break,
-                // Stopped while waiting: what is in the write buffer is on
-                // disk before the range lets go, or a resume fetches it again.
-                Err(stopped) => {
-                    file.flush().await?;
-                    put(&mut ledger, written).await?;
-                    if matches!(stopped, Error::Paused) {
-                        job.segments.lock().await[index].done = written.min(span_now);
+            None => {
+                match tokio::time::timeout_at(window.ends(), reader.next(&mut stream, &job.control))
+                    .await
+                {
+                    // The window ran out with nothing arriving: judged at the top.
+                    Err(_) => continue,
+                    Ok(Ok(Some(chunk))) => chunk,
+                    Ok(Ok(None)) => break,
+                    // Stopped while waiting: what is in the write buffer is on
+                    // disk before the range lets go, or a resume fetches it again.
+                    Ok(Err(stopped)) => {
+                        file.flush().await?;
+                        put(&mut ledger, written).await?;
+                        if matches!(stopped, Error::Paused) {
+                            job.segments.lock().await[index].done = written.min(span_now);
+                        }
+                        return Err(stopped);
                     }
-                    return Err(stopped);
                 }
-            },
+            }
         };
         // A stream that dies mid-range leaves what it wrote; flushing before
         // giving up is what lets the retry pick up from there instead of
@@ -903,6 +960,11 @@ pub(super) async fn attempt_segment(
      * retry as "short" before this. A length the response stated is still
      * held to, and assembly holds the total to the probed one. */
     if !resumable && stated.is_none_or(|stated| stated == written) {
+        return Ok(());
+    }
+
+    // A slice that came whole is not a short range: the next is asked for.
+    if asked_end < end && written < span_now && start + written > asked_end {
         return Ok(());
     }
 

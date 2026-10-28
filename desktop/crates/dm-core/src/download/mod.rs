@@ -261,6 +261,10 @@ struct Job {
     resumable: bool,
     validator: Option<String>,
     parts: PathBuf,
+    /// The most one request asks for; see [`StreamHints::chunk`].
+    chunk: Option<u64>,
+    /// This stream's own headers; see [`Headers`].
+    headers: Headers,
     control: Control,
     /// The page a download came from, sent as `Referer` on every request.
     referrer: Option<String>,
@@ -361,6 +365,23 @@ tokio::task_local! {
     /// YouTube, which refuses dm's own requests for its streams) before the
     /// helper downloaded the video from its reading as it was always going to.
     static STREAM: ();
+
+    /// What yt-dlp's reading says about how one stream of a video page is
+    /// served, set beside [`STREAM`]. Kept here rather than on `Options`,
+    /// which callers build field by field.
+    static HINTS: StreamHints;
+}
+
+/// How the server of a stream wants to be asked, as yt-dlp's reading of the
+/// page gave it. Data only: nothing here names a site.
+#[derive(Debug, Clone, Default, PartialEq)]
+pub(crate) struct StreamHints {
+    /// The rest of the headers its reading says the server is asked with.
+    pub headers: Headers,
+    /// The most bytes one request may ask for (`downloader_options`'
+    /// `http_chunk_size`): a server that slows or cuts any one response
+    /// after that is asked for the next slice on a fresh one.
+    pub chunk: Option<u64>,
 }
 
 /// [`download_reporting`] for one stream of a video page (`ytdlp::fetch`):
@@ -372,9 +393,101 @@ pub async fn download_video_stream(
     options: &Options,
     report: Option<tokio::sync::mpsc::Sender<Update>>,
 ) -> Result<Finished, Error> {
+    download_video_stream_with(client, url, options, report, StreamHints::default()).await
+}
+
+/// Headers a video site's reading gives for one stream (`http_headers`),
+/// kept for that stream's requests alone.
+///
+/// Only what dm does not own: the agent goes by dm's table of agents, and
+/// `Range`, `If-Range`, `Accept-Encoding` (the engine needs the file as it
+/// is) and the connection's own are dm's. A `Cookie` can be a sign-in, so
+/// the values are never printed, and it is sent only where dm has none of
+/// its own for the site, as a `Referer` only where it has none.
+#[derive(Clone, Default, PartialEq)]
+pub(crate) struct Headers(Vec<(reqwest::header::HeaderName, reqwest::header::HeaderValue)>);
+
+impl std::fmt::Debug for Headers {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_list()
+            .entries(self.0.iter().map(|(n, _)| n))
+            .finish()
+    }
+}
+
+impl Headers {
+    /// The sendable ones of `(name, value)` pairs; the rest are dropped.
+    pub fn of<'a>(pairs: impl IntoIterator<Item = (&'a str, &'a str)>) -> Headers {
+        const DM_OWN: [&str; 14] = [
+            "user-agent",
+            "range",
+            "if-range",
+            "accept-encoding",
+            "host",
+            "content-length",
+            "content-type",
+            "transfer-encoding",
+            "connection",
+            "te",
+            "upgrade",
+            "expect",
+            "proxy-authorization",
+            "authorization",
+        ];
+        Headers(
+            pairs
+                .into_iter()
+                .filter(|(name, _)| !DM_OWN.iter().any(|own| own.eq_ignore_ascii_case(name)))
+                .filter_map(|(name, value)| {
+                    Some((
+                        reqwest::header::HeaderName::from_bytes(name.as_bytes()).ok()?,
+                        reqwest::header::HeaderValue::from_str(value).ok()?,
+                    ))
+                })
+                .collect(),
+        )
+    }
+
+    /// `request` with these added, below what dm sets itself.
+    pub fn onto(
+        &self,
+        mut request: reqwest::RequestBuilder,
+        own_cookie: bool,
+        own_referrer: bool,
+    ) -> reqwest::RequestBuilder {
+        for (name, value) in &self.0 {
+            let held = (*name == reqwest::header::COOKIE && own_cookie)
+                || (*name == reqwest::header::REFERER && own_referrer);
+            if !held {
+                request = request.header(name.clone(), value.clone());
+            }
+        }
+        request
+    }
+}
+
+/// The headers of the stream being fetched, if one is.
+pub(crate) fn stream_headers() -> Headers {
+    HINTS
+        .try_with(|hints| hints.headers.clone())
+        .unwrap_or_default()
+}
+
+/// [`download_video_stream`] for a stream the reading says how to ask for.
+pub(crate) async fn download_video_stream_with(
+    client: &reqwest::Client,
+    url: &str,
+    options: &Options,
+    report: Option<tokio::sync::mpsc::Sender<Update>>,
+    hints: StreamHints,
+) -> Result<Finished, Error> {
     // Boxed: a video page's streams are downloads that may themselves meet a
     // page (`ytdlp::download_page`), which an async fn cannot be recursive in.
-    Box::pin(STREAM.scope((), download_reporting(client, url, options, report))).await
+    Box::pin(HINTS.scope(
+        hints,
+        STREAM.scope((), download_reporting(client, url, options, report)),
+    ))
+    .await
 }
 
 /// Whether the download in hand is one stream of a video page.
@@ -772,6 +885,8 @@ async fn fetch_reporting(
         resumable: info.resumable,
         validator: info.validator.clone(),
         parts: options.parts_dir.clone(),
+        chunk: HINTS.try_with(|hints| hints.chunk).ok().flatten(),
+        headers: stream_headers(),
         downloaded: Arc::new(AtomicU64::new(0)),
         control: options.control.clone(),
         referrer: options.referrer.clone(),
@@ -872,6 +987,9 @@ async fn fetch_reporting(
         mirrors: job.sources.len(),
     })
 }
+
+#[cfg(test)]
+mod capped_tests;
 
 #[cfg(test)]
 mod tests {

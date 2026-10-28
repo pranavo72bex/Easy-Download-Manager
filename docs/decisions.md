@@ -2193,3 +2193,101 @@ stops a body past 64 MiB that unpacks to over 100 times what was sent. A
 download with a content coding has no known size or resume, as before.
 Tried and dropped: handing freed memory back to the system on a timer
 (`memory.rs`): RSS did not move, so it was removed.
+
+## 2026-10-28: Speed audit, what was changed and what was not
+
+Changed: a low-speed drop for ranged connections (`ranged/helping.rs`
+`Window`), concurrent HLS segments, DASH pieces by a shared counter, yt-dlp
+`--concurrent-fragments`. Measured with `tests/speed.rs` and `tests/hls.rs`.
+Not changed: the 16 KiB write buffer (loopback 512 MB runs at 480-640 MB/s, so
+the disk write is not the limit here; Windows/NTFS and 10 GbE are unmeasured),
+the second probe after the host's own (needs the probe result carried in the
+inbox and a freshness rule), HTTP/1.1 pinning (kept: separate congestion
+windows per range). The stall drop is limited to a range's first two tries so
+a server that serves one range slowly for good is waited out, not retried to a
+failure.
+
+## 2026-10-28: The video route follows what yt-dlp's reading says, per stream
+
+Four changes to the route that fetches a video page's streams itself
+(`ytdlp/fetch.rs`), each driven by a field of yt-dlp's reading and none by a
+site's name.
+
+**A request is as long as the reading says a server allows.** A format's
+`downloader_options.http_chunk_size` (10 MiB on YouTube) becomes the most one
+request asks for: a connection asks for the next slice of its range when one
+ends (`ranged.rs`, `attempt_segment`, `fetch_segment`). Segments, ledger,
+splitting and the resume check are those of the whole range; no figure means
+the code that was there. The figure is raised to 1 MiB at least, so every
+slice brings bytes beyond the resume check. It travels as `StreamHints`
+(a task-local beside `STREAM`) and `Job.chunk`, not as a field of `Options`,
+which is built field by field in every test and by callers. A local server that
+slows each response after 1 MiB: 16 MiB in 6.4 s without, 0.55 s with.
+
+**An address that runs out is renewed once.** A 403 or 410 from a stream, when
+its `expire` has passed or bytes were already fetched, reads the page again and
+continues if the streams are the same (format id, name, stated size). The saved
+plan holds no address, so nothing on disk changes. A refusal at the first ask
+on a live address keeps the old route (the `REFUSED` marker, yt-dlp downloads),
+so a site that refuses dm does not cost a second reading. Pause and cancel
+during the second reading stop the download, as anywhere.
+
+**A stream's headers are that stream's.** All of `http_headers` goes with its
+probe and ranges (`download::Headers`), carried on `Job`, not kept by host as
+the agent is (`prefer_agent` stays for the agent, as before). Not forwarded:
+the agent, `Range`, `If-Range`, `Accept-Encoding` (the engine needs the file
+as the server keeps it), the connection's own headers and `Authorization`;
+`Cookie` and `Referer` only where dm has none of its own. Values are never
+printed (`Headers` has a `Debug` of names alone).
+
+**yt-dlp, when it downloads itself, gets `--http-chunk-size 10M` and not
+`--throttled-rate`.** Run against yt-dlp 2026.10.21: chunking a server that
+ignores ranges gave an identical 25 MB file, `--limit-rate 3M` held (25 MB in
+8.7 s) and the `@dm@` progress lines were unchanged. `--throttled-rate 100K`
+against a server held to 40 KB/s: the 600 kB file never arrived in four minutes
+(a 0-byte `.part`; yt-dlp starts over each time it reads the link as throttled),
+where without it the same file took 16 s. Tried and dropped: it would turn a
+slow connection into a download that never ends, on the path that downloads
+today.
+
+## 2026-10-28: yt-dlp's unpacked builds on every system
+
+`yt-dlp_win*.zip`, `yt-dlp_linux*.zip` and `yt-dlp_musllinux*.zip` (all in the
+release's `SHA2-256SUMS`) replace the one-file builds, as `yt-dlp_macos.zip`
+did for macOS. Each unpacks to `yt-dlp-<os>/`, the program beside `_internal/`;
+macOS keeps `ditto` (it keeps what a signed program's files carry), the rest use
+the `zip` crate (`unpack_portable`: a name that leaves the folder is refused,
+modes are kept, at most 600 MB). musl is told by a `/lib/ld-musl-*` loader.
+An earlier one-file install is replaced at the next start (`freshen`) and
+removed once the unpacked build is in; until then it is still found. Measured
+on Linux aarch64 (Debian 12, a container, files on its own disk), `--version`:
+one-file 0.59-0.66 s, unpacked 0.22-0.24 s, five runs each, twice. That is the
+whole gain on Linux (0.4 s a run); the 8-14 s of macOS does not happen there.
+Windows was not measured.
+
+## 2026-10-28: Routing `m3u8_native` to dm's own HLS (design only)
+
+Not built. yt-dlp already fetches HLS fragments concurrently (`--concurrent-
+fragments`, since 2026-10-27), so the gain over today is unmeasured and may be
+small; a measurement on a recorded run comes before code.
+
+Which formats: `protocol` is `m3u8_native`, the reading is not live, `has_drm`
+is not true, the playlist's keys are `AES-128` or none (`SAMPLE-AES` and
+`EXT-X-MAP` shapes dm's `resolve_stream` calls `Beyond` stay yt-dlp's), and
+`http_headers` are what `Headers` carries (applied in `fetch_segment_range`,
+which does not yet). The format's `url` is already the chosen variant's media
+playlist, so dm takes it as given and does not choose a rendition again.
+
+How: `Read::plan` gives such a stream a kind beside the plain-file one;
+`fetch_stream` calls `hls::download_stream` into the same `.dm-f{id}` folder
+(segments resume as whole segments, as they do anywhere), and the existing
+`merge_progress` adds the streams' bytes up (no total, so no ETA, until every
+stream has one). A separate audio playlist is a second stream, joined like the
+two files of a plain pair, which needs each to be an MP4 first (`remux_ts`);
+that join is the part to prove on real streams.
+
+Fallback: any failure but a pause or cancel (including `Beyond`) forgets the
+parts, writes `REFUSED` and has yt-dlp download the same reading, as for a
+plain file; an expired playlist address is renewed as above. Not wired through
+`hls::download_stream`'s own `Beyond` arm, which hands the segment-playlist
+address to yt-dlp as if it were a page.

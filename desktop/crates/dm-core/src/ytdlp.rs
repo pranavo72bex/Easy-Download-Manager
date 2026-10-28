@@ -579,6 +579,20 @@ async fn download_ytdlp_from(
         .arg("3")
         .arg("--fragment-retries")
         .arg("3")
+        // Fragments of an HLS or DASH stream fetched together, not one at a
+        // time (yt-dlp's default): a round trip per fragment otherwise.
+        .arg("--concurrent-fragments")
+        .arg(options.connections.clamp(1, 8).to_string())
+        /* A plain file asked for in pieces of this size, each its own request:
+         * a server that slows or cuts any one response (YouTube's do, which
+         * yt-dlp does for its own formats already) is then asked afresh. A
+         * server that ignores ranges answers the whole file and is
+         * unaffected, and `--limit-rate` and the progress lines are the same
+         * with it (run against yt-dlp 2026.10.21). Not `--throttled-rate`:
+         * yt-dlp reads a link slower than that as a throttled server and
+         * starts the download over, for ever, where it finishes without. */
+        .arg("--http-chunk-size")
+        .arg("10M")
         .arg("--socket-timeout")
         .arg("15")
         .stdout(Stdio::piped())

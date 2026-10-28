@@ -173,16 +173,47 @@ pub fn official() -> Sources {
 /// yt-dlp's standalone build for an OS and processor, by its release's
 /// file name.
 pub fn ytdlp_asset(os: &str, arch: &str) -> Option<&'static str> {
-    Some(match (os, arch) {
-        ("windows", "x86_64") => "yt-dlp.exe",
-        ("windows", "aarch64") => "yt-dlp_arm64.exe",
-        // Unpacked: the single-file build unpacks itself at every start,
-        // 8 to 14 seconds on macOS where this takes 0.3.
-        ("macos", _) => "yt-dlp_macos.zip",
-        ("linux", "x86_64") => "yt-dlp_linux",
-        ("linux", "aarch64") => "yt-dlp_linux_aarch64",
+    ytdlp_asset_for(os, arch, false)
+}
+
+/// [`ytdlp_asset`] for a Linux whose C library is musl where `musl` (Alpine
+/// and the like), which the glibc build does not run on.
+///
+/// The unpacked builds, every one: the single-file build unpacks itself at
+/// every start, 8 to 14 seconds on macOS where the unpacked one takes 0.3.
+pub fn ytdlp_asset_for(os: &str, arch: &str, musl: bool) -> Option<&'static str> {
+    Some(match (os, arch, musl) {
+        ("windows", "x86_64", _) => "yt-dlp_win.zip",
+        ("windows", "aarch64", _) => "yt-dlp_win_arm64.zip",
+        ("windows", "x86", _) => "yt-dlp_win_x86.zip",
+        ("macos", _, _) => "yt-dlp_macos.zip",
+        ("linux", "x86_64", false) => "yt-dlp_linux.zip",
+        ("linux", "aarch64", false) => "yt-dlp_linux_aarch64.zip",
+        ("linux", "x86_64", true) => "yt-dlp_musllinux.zip",
+        ("linux", "aarch64", true) => "yt-dlp_musllinux_aarch64.zip",
         _ => return None,
     })
+}
+
+/// Whether this Linux runs on musl: its loader is in `/lib` under a musl
+/// name, which glibc's is not.
+fn on_musl() -> bool {
+    cfg!(target_os = "linux")
+        && std::fs::read_dir("/lib")
+            .into_iter()
+            .flatten()
+            .flatten()
+            .any(|entry| entry.file_name().to_string_lossy().starts_with("ld-musl-"))
+}
+
+/// The program inside an unpacked build's folder: named as its archive is,
+/// except Windows's, which is `yt-dlp.exe`.
+fn unpacked_program(asset: &str) -> String {
+    if asset.starts_with("yt-dlp_win") {
+        "yt-dlp.exe".into()
+    } else {
+        asset.trim_end_matches(".zip").to_string()
+    }
 }
 
 /// QuickJS's build for an OS and processor, by its release's file name.
@@ -274,56 +305,116 @@ async fn place(path: &Path, bytes: &[u8]) -> Result<(), Error> {
     Ok(())
 }
 
-/// The folder the unpacked macOS yt-dlp is kept in, under the tools folder,
-/// and its program within.
-const MACOS_DIR: &str = "yt-dlp-macos";
-const MACOS_PROGRAM: &str = "yt-dlp_macos";
+/// The folder an unpacked yt-dlp is kept in, under the tools folder: one for
+/// each system, the macOS one named as it was when macOS was the only one.
+fn unpacked_dir(os: &str) -> &'static str {
+    match os {
+        "macos" => "yt-dlp-macos",
+        "windows" => "yt-dlp-windows",
+        _ => "yt-dlp-linux",
+    }
+}
 
 /// Whether `path` is a copy dm fetched (under its tools folder).
 pub(crate) fn is_fetched(path: &Path) -> bool {
     folder().is_some_and(|folder| path.starts_with(folder))
 }
 
-/// The copy of `program` dm fetched, if there is one.
+/// The copy of `program` dm fetched, if there is one: an unpacked yt-dlp
+/// first, else the single file an earlier dm fetched.
 pub(crate) fn fetched(program: &str) -> Option<PathBuf> {
     let folder = folder()?;
-    let candidates = [
-        folder.join(MACOS_DIR).join(MACOS_PROGRAM),
-        folder.join(if cfg!(windows) {
-            format!("{program}.exe")
-        } else {
-            program.to_string()
-        }),
-    ];
-    candidates
-        .into_iter()
-        .filter(|c| program == "yt-dlp" || !c.starts_with(folder.join(MACOS_DIR)))
-        .find(|c| c.is_file())
+    let os = std::env::consts::OS;
+    let mut candidates = Vec::new();
+    if program == "yt-dlp" {
+        if let Some(asset) = ytdlp_asset_for(os, std::env::consts::ARCH, on_musl()) {
+            candidates.push(folder.join(unpacked_dir(os)).join(unpacked_program(asset)));
+        }
+    }
+    candidates.push(folder.join(if cfg!(windows) {
+        format!("{program}.exe")
+    } else {
+        program.to_string()
+    }));
+    candidates.into_iter().find(|c| c.is_file())
 }
 
-/// Unpacks a zip into `into` with macOS's own `ditto`, whole or not at all.
+/// Unpacks a zip into `into`, whole or not at all: into a folder beside it
+/// first, which takes `into`'s place only once every file is out.
+///
+/// macOS's own `ditto` there, which keeps what a signed program's files
+/// carry; the `zip` crate elsewhere (`unpack_portable`).
 async fn unpack(zip: &[u8], into: &Path) -> Result<(), Error> {
     let parent = into.parent().unwrap_or(into);
     tokio::fs::create_dir_all(parent).await?;
-    let archive = into.with_extension("zip.partial");
     let staging = into.with_extension("partial");
-    tokio::fs::write(&archive, zip).await?;
     let _ = tokio::fs::remove_dir_all(&staging).await;
-    let status = tokio::process::Command::new("/usr/bin/ditto")
-        .args(["-x", "-k"])
-        .arg(&archive)
-        .arg(&staging)
-        .status()
-        .await;
-    let _ = tokio::fs::remove_file(&archive).await;
-    if !status.is_ok_and(|s| s.success()) {
+    let unpacked = if cfg!(target_os = "macos") {
+        let archive = into.with_extension("zip.partial");
+        tokio::fs::write(&archive, zip).await?;
+        let status = tokio::process::Command::new("/usr/bin/ditto")
+            .args(["-x", "-k"])
+            .arg(&archive)
+            .arg(&staging)
+            .status()
+            .await;
+        let _ = tokio::fs::remove_file(&archive).await;
+        status.is_ok_and(|s| s.success())
+    } else {
+        let (zip, staging) = (zip.to_vec(), staging.clone());
+        tokio::task::spawn_blocking(move || unpack_portable(&zip, &staging))
+            .await
+            .map_err(|e| Error::Internal(e.to_string()))?
+            .is_ok()
+    };
+    if !unpacked {
         let _ = tokio::fs::remove_dir_all(&staging).await;
         return Err(Error::Internal(
-            "yt-dlp's macOS build could not be unpacked".into(),
+            "yt-dlp's build could not be unpacked".into(),
         ));
     }
     let _ = tokio::fs::remove_dir_all(into).await;
     tokio::fs::rename(&staging, into).await?;
+    Ok(())
+}
+
+/// The most an unpacked yt-dlp may come to: the builds are under 100 MB.
+const MOST_UNPACKED: u64 = 600 * 1024 * 1024;
+
+/// A zip's files written under `into`, with the permissions it records.
+/// A name that would leave `into` is refused, and so is an archive that
+/// unpacks to more than any build does.
+pub(crate) fn unpack_portable(zip: &[u8], into: &Path) -> Result<(), String> {
+    let mut archive = zip::ZipArchive::new(std::io::Cursor::new(zip)).map_err(|e| e.to_string())?;
+    let total: u64 = (0..archive.len())
+        .filter_map(|i| archive.by_index_raw(i).ok().map(|f| f.size()))
+        .sum();
+    if total > MOST_UNPACKED {
+        return Err("the archive unpacks to more than any yt-dlp does".into());
+    }
+    std::fs::create_dir_all(into).map_err(|e| e.to_string())?;
+    for i in 0..archive.len() {
+        let mut file = archive.by_index(i).map_err(|e| e.to_string())?;
+        let name = file
+            .enclosed_name()
+            .ok_or_else(|| "a name in the archive leaves the folder".to_string())?;
+        let target = into.join(name);
+        if file.is_dir() {
+            std::fs::create_dir_all(&target).map_err(|e| e.to_string())?;
+            continue;
+        }
+        if let Some(dir) = target.parent() {
+            std::fs::create_dir_all(dir).map_err(|e| e.to_string())?;
+        }
+        let mut out = std::fs::File::create(&target).map_err(|e| e.to_string())?;
+        std::io::copy(&mut file, &mut out).map_err(|e| e.to_string())?;
+        #[cfg(unix)]
+        if let Some(mode) = file.unix_mode() {
+            use std::os::unix::fs::PermissionsExt;
+            std::fs::set_permissions(&target, std::fs::Permissions::from_mode(mode & 0o777))
+                .map_err(|e| e.to_string())?;
+        }
+    }
     Ok(())
 }
 
@@ -339,7 +430,7 @@ pub async fn fetch_into(
     let path = folder.join(tool.file_name());
     match tool {
         Tool::YtDlp => {
-            let asset = ytdlp_asset(os, arch).ok_or_else(|| {
+            let asset = ytdlp_asset_for(os, arch, on_musl()).ok_or_else(|| {
                 Error::Internal(format!("yt-dlp publishes no build for {os} on {arch}"))
             })?;
             let sums = fetch(client, &format!("{}/SHA2-256SUMS", sources.ytdlp)).await?;
@@ -353,9 +444,17 @@ pub async fn fetch_into(
                 ));
             }
             if asset.ends_with(".zip") {
-                let dir = folder.join(MACOS_DIR);
+                let dir = folder.join(unpacked_dir(os));
                 unpack(&bytes, &dir).await?;
-                return Ok(dir.join(MACOS_PROGRAM));
+                let program = dir.join(unpacked_program(asset));
+                if !program.is_file() {
+                    return Err(Error::Internal(
+                        "the yt-dlp unpacked has not the program it should".into(),
+                    ));
+                }
+                // The single file an earlier dm fetched is no longer wanted.
+                let _ = tokio::fs::remove_file(&path).await;
+                return Ok(program);
             }
             place(&path, &bytes).await?;
         }
@@ -467,7 +566,12 @@ pub async fn freshen(client: reqwest::Client) {
         .ok()
         .and_then(|at| at.elapsed().ok())
         .is_some_and(|age| age > week);
-    if !stale {
+    /* The single file an earlier dm fetched is replaced at once by the
+     * unpacked build where there is one, not a week on: it is the one that
+     * takes seconds to start. A failed fetch leaves it as it was. */
+    let one_file = current == folder.join(Tool::YtDlp.file_name())
+        && ytdlp_asset_for(std::env::consts::OS, std::env::consts::ARCH, on_musl()).is_some();
+    if !stale && !one_file {
         return;
     }
     let _one = lock_of(Tool::YtDlp).lock().await;
@@ -501,12 +605,28 @@ mod tests {
 
     #[test]
     fn each_system_gets_its_own_builds() {
-        assert_eq!(ytdlp_asset("windows", "x86_64"), Some("yt-dlp.exe"));
+        assert_eq!(ytdlp_asset("windows", "x86_64"), Some("yt-dlp_win.zip"));
+        assert_eq!(
+            ytdlp_asset("windows", "aarch64"),
+            Some("yt-dlp_win_arm64.zip")
+        );
+        assert_eq!(ytdlp_asset("windows", "x86"), Some("yt-dlp_win_x86.zip"));
         assert_eq!(ytdlp_asset("macos", "aarch64"), Some("yt-dlp_macos.zip"));
+        assert_eq!(ytdlp_asset("linux", "x86_64"), Some("yt-dlp_linux.zip"));
         assert_eq!(
             ytdlp_asset("linux", "aarch64"),
-            Some("yt-dlp_linux_aarch64")
+            Some("yt-dlp_linux_aarch64.zip")
         );
+        assert_eq!(
+            ytdlp_asset_for("linux", "x86_64", true),
+            Some("yt-dlp_musllinux.zip")
+        );
+        assert_eq!(
+            ytdlp_asset_for("linux", "aarch64", true),
+            Some("yt-dlp_musllinux_aarch64.zip")
+        );
+        assert_eq!(unpacked_program("yt-dlp_win_arm64.zip"), "yt-dlp.exe");
+        assert_eq!(unpacked_program("yt-dlp_linux.zip"), "yt-dlp_linux");
         assert_eq!(ytdlp_asset("freebsd", "x86_64"), None);
     }
 
@@ -550,5 +670,55 @@ mod tests {
         assert!(digest_in(sums, "yt-dlp").is_some());
         assert_eq!(digest_in(sums, "yt-dlp_macos"), None);
         assert_eq!(digest_in(sums, "yt-dlp_linux"), None);
+    }
+
+    fn zip_of(files: &[(&str, &[u8], u32)]) -> Vec<u8> {
+        use std::io::Write;
+        let mut out = std::io::Cursor::new(Vec::new());
+        let mut zip = zip::ZipWriter::new(&mut out);
+        for (name, body, mode) in files {
+            let options = zip::write::SimpleFileOptions::default().unix_permissions(*mode);
+            zip.start_file(*name, options).unwrap();
+            zip.write_all(body).unwrap();
+        }
+        zip.finish().unwrap();
+        out.into_inner()
+    }
+
+    #[test]
+    fn an_unpacked_build_keeps_its_layout_and_permissions() {
+        let dir = tempfile::tempdir().unwrap();
+        let zip = zip_of(&[
+            ("yt-dlp_linux", b"#!/bin/sh\necho 1\n", 0o755),
+            ("_internal/lib/a.so", b"lib", 0o644),
+        ]);
+        let into = dir.path().join("out");
+        unpack_portable(&zip, &into).unwrap();
+        assert_eq!(
+            std::fs::read(into.join("_internal/lib/a.so")).unwrap(),
+            b"lib"
+        );
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::PermissionsExt;
+            let mode = |p: &str| {
+                std::fs::metadata(into.join(p))
+                    .unwrap()
+                    .permissions()
+                    .mode()
+                    & 0o777
+            };
+            assert_eq!(mode("yt-dlp_linux"), 0o755);
+            assert_eq!(mode("_internal/lib/a.so"), 0o644);
+        }
+    }
+
+    #[test]
+    fn a_name_that_leaves_the_folder_is_refused_and_nothing_is_written_outside() {
+        let dir = tempfile::tempdir().unwrap();
+        let zip = zip_of(&[("../escaped", b"x", 0o644)]);
+        let into = dir.path().join("out");
+        assert!(unpack_portable(&zip, &into).is_err());
+        assert!(!dir.path().join("escaped").exists());
     }
 }

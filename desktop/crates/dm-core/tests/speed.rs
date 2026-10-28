@@ -361,3 +361,67 @@ async fn the_shown_speed_keeps_to_the_limit_from_the_first_second() {
         );
     }
 }
+
+/// A connection that goes silent after its first chunk is dropped and asked
+/// again once the others have shown it up, not waited out for the whole
+/// read timeout (30 seconds).
+#[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+async fn a_connection_gone_silent_is_asked_again_before_the_read_timeout() {
+    let data = body();
+    let asked = Arc::new(AtomicUsize::new(0));
+    let (served, counter) = (data.clone(), asked.clone());
+    let app = axum::Router::new().route(
+        "/big.bin",
+        get(move |headers: HeaderMap| {
+            let (data, counter) = (served.clone(), counter.clone());
+            async move {
+                let (a, b) = headers
+                    .get("range")
+                    .and_then(|v| v.to_str().ok())
+                    .and_then(|v| v.strip_prefix("bytes="))
+                    .and_then(|v| v.split_once('-'))
+                    .map(|(a, b)| (a.parse::<usize>().unwrap(), b.parse::<usize>().unwrap()))
+                    .unwrap();
+                let silent = b > a && counter.fetch_add(1, Ordering::SeqCst) == SLOW_REQUEST;
+                let body = if silent {
+                    // One chunk, then nothing for a minute.
+                    let first = bytes::Bytes::copy_from_slice(&data[a..a + 64 * 1024]);
+                    Body::from_stream(
+                        futures_util::stream::once(async move { Ok::<_, std::io::Error>(first) })
+                            .chain(futures_util::stream::once(async {
+                                tokio::time::sleep(Duration::from_secs(60)).await;
+                                Ok(bytes::Bytes::new())
+                            })),
+                    )
+                } else {
+                    Body::from(data[a..=b].to_vec())
+                };
+                Response::builder()
+                    .status(206)
+                    .header("content-range", format!("bytes {a}-{b}/{SIZE}"))
+                    .header("content-length", b - a + 1)
+                    .header("etag", "\"big\"")
+                    .body(body)
+                    .unwrap()
+            }
+        }),
+    );
+    let addr = serve(app).await;
+    let dir = tempdir();
+    let started = Instant::now();
+    let done = download(
+        &client(),
+        &format!("http://{addr}/big.bin"),
+        &options(dir.path()),
+    )
+    .await
+    .expect("the download failed");
+    let took = started.elapsed();
+    println!("32 MB, one connection silent: {:.2}s", took.as_secs_f64());
+    assert_eq!(std::fs::read(&done.path).unwrap(), *data);
+    assert!(
+        took.as_secs_f64() < 15.0,
+        "the silent connection was waited out: {:.2}s",
+        took.as_secs_f64()
+    );
+}

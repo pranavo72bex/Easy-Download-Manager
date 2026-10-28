@@ -1116,3 +1116,54 @@ async fn an_empty_playlist_fails_instead_of_being_watched_for_ever() {
     .expect("an empty playlist was still being worked on after 20 s");
     assert!(result.is_err(), "an empty playlist was saved as a download");
 }
+
+/// A distant server answers each segment a round trip late. Fetched one at a
+/// time, forty of them wait forty round trips; together, a few.
+#[tokio::test]
+async fn segments_from_a_distant_server_are_fetched_together_and_joined_in_order() {
+    const COUNT: usize = 40;
+    const LATE: std::time::Duration = std::time::Duration::from_millis(100);
+    let piece = |i: usize| vec![(i % 251) as u8; 8 * 1024];
+    let app = axum::Router::new().fallback(move |uri: Uri| async move {
+        let path = uri.path().to_string();
+        if path.ends_with("/index.m3u8") {
+            let list: String = (0..COUNT)
+                .map(|i| format!("#EXTINF:4.0,\nseg{i}.ts\n"))
+                .collect();
+            return Response::new(Body::from(format!(
+                "#EXTM3U\n#EXT-X-TARGETDURATION:4\n#EXT-X-MEDIA-SEQUENCE:0\n{list}#EXT-X-ENDLIST\n"
+            )));
+        }
+        let index = path
+            .rsplit('/')
+            .next()
+            .and_then(|f| f.strip_prefix("seg"))
+            .and_then(|f| f.strip_suffix(".ts"))
+            .and_then(|n| n.parse::<usize>().ok())
+            .unwrap();
+        tokio::time::sleep(LATE).await;
+        Response::new(Body::from(piece(index)))
+    });
+    let addr = common::serve(app).await;
+    let dir = tempdir();
+    let started = std::time::Instant::now();
+    let done = download(
+        &client(),
+        &format!("http://{addr}/v/index.m3u8"),
+        &options(dir.path(), dm_core::stream::Quality::Best),
+    )
+    .await
+    .expect("the stream failed");
+    let took = started.elapsed();
+    println!("40 segments, 100 ms each: {:.2}s", took.as_secs_f64());
+    let want: Vec<u8> = (0..COUNT).flat_map(piece).collect();
+    assert_eq!(
+        std::fs::read(&done.path).unwrap(),
+        want,
+        "wrong order or a lost byte"
+    );
+    assert!(
+        took < LATE * (COUNT as u32) / 2,
+        "segments were fetched one at a time: {took:?}"
+    );
+}

@@ -658,12 +658,15 @@ pub(super) async fn keep_only_parts_of(parts_dir: &Path, rendition: &str) -> Res
     Ok(())
 }
 
-/// Fetches every segment, in order, into its own part file.
+/// Fetches every segment into its own part file, several at once.
 ///
-/// Sequential on purpose. Segments arrive already split, so there is nothing
-/// to gain from asking one server for eight at once beyond what its own
-/// per-connection limit allows, and a stream fetched out of order is a file
-/// that has to be held in memory to be put back in order.
+/// A segment is a few seconds of video, so one at a time a stream spends
+/// most of its time waiting a round trip per segment rather than carrying
+/// bytes (on a distant server the link sat idle between them). Up to
+/// [`SEGMENTS_AT_ONCE`] are under way together, each into its own part named
+/// by its index, so arrival order does not matter: the parts are joined by
+/// index afterwards, as before. The first failure is the stream's, and the
+/// segments still under way are dropped with it.
 pub(super) async fn fetch_segments(
     client: &reqwest::Client,
     listed: &stream::Stream,
@@ -671,40 +674,67 @@ pub(super) async fn fetch_segments(
     options: &Options,
     downloaded: &AtomicU64,
 ) -> Result<(), Error> {
-    for (index, part) in listed.parts.iter().enumerate() {
-        let done = part_path(&options.parts_dir, index);
-
-        /* Written under a temporary name and moved when whole.
-         *
-         * A segment has no declared length, so a part file that is present
-         * says nothing about whether it finished — half of one looks exactly
-         * like all of one. Only a completed segment is ever given its real
-         * name, which is what makes resuming a stream possible at all. */
-        if let Ok(meta) = fs::metadata(&done).await {
-            downloaded.fetch_add(meta.len(), Ordering::Relaxed);
-            continue;
+    // Workers taking the next unfetched index, rather than a stream of
+    // futures: each worker is one plain future, which keeps this `Send`.
+    let next = AtomicUsize::new(0);
+    let worker = || async {
+        loop {
+            let index = next.fetch_add(1, Ordering::Relaxed);
+            let Some(part) = listed.parts.get(index) else {
+                return Ok::<(), Error>(());
+            };
+            fetch_one_segment(client, listed, key, options, downloaded, index, part).await?;
         }
+    };
+    let at_once = options.connections.clamp(1, SEGMENTS_AT_ONCE);
+    futures_util::future::try_join_all((0..at_once).map(|_| worker())).await?;
+    Ok(())
+}
 
-        options.control.check()?;
+/// The most segments of one stream fetched at once.
+const SEGMENTS_AT_ONCE: usize = 8;
 
-        let staging = done.with_extension("partial");
-        let fetched = retry::run_up_to(&options.control, options.tries(), || {
-            fetch_segment_range(client, &part.url, part.range, options)
-        })
-        .await?;
+async fn fetch_one_segment(
+    client: &reqwest::Client,
+    listed: &stream::Stream,
+    key: Option<&[u8]>,
+    options: &Options,
+    downloaded: &AtomicU64,
+    index: usize,
+    part: &stream::Part,
+) -> Result<(), Error> {
+    let done = part_path(&options.parts_dir, index);
 
-        let bytes = match (key, &listed.key) {
-            (Some(key), Some(declared)) if !part.init => {
-                // The initialisation segment is never encrypted.
-                stream::decrypt(key, &stream::iv_for(declared, part.sequence), &fetched)?
-            }
-            _ => fetched,
-        };
-
-        downloaded.fetch_add(bytes.len() as u64, Ordering::Relaxed);
-        fs::write(&staging, &bytes).await?;
-        fs::rename(&staging, &done).await?;
+    /* Written under a temporary name and moved when whole.
+     *
+     * A segment has no declared length, so a part file that is present
+     * says nothing about whether it finished — half of one looks exactly
+     * like all of one. Only a completed segment is ever given its real
+     * name, which is what makes resuming a stream possible at all. */
+    if let Ok(meta) = fs::metadata(&done).await {
+        downloaded.fetch_add(meta.len(), Ordering::Relaxed);
+        return Ok(());
     }
+
+    options.control.check()?;
+
+    let staging = done.with_extension("partial");
+    let fetched = retry::run_up_to(&options.control, options.tries(), || {
+        fetch_segment_range(client, &part.url, part.range, options)
+    })
+    .await?;
+
+    let bytes = match (key, &listed.key) {
+        (Some(key), Some(declared)) if !part.init => {
+            // The initialisation segment is never encrypted.
+            stream::decrypt(key, &stream::iv_for(declared, part.sequence), &fetched)?
+        }
+        _ => fetched,
+    };
+
+    downloaded.fetch_add(bytes.len() as u64, Ordering::Relaxed);
+    fs::write(&staging, &bytes).await?;
+    fs::rename(&staging, &done).await?;
     Ok(())
 }
 

@@ -303,6 +303,11 @@ async fn a_stream_that_refuses_dm_is_downloaded_by_ytdlp_from_its_reading() {
         calls[1].contains("--load-info-json") && !calls[1].contains("watch?case="),
         "yt-dlp read the page again rather than downloading its reading: {calls:?}"
     );
+    // Asked in pieces and for fragments together; never `--throttled-rate`,
+    // which a link slower than it turns into a download that never ends.
+    assert!(calls[1].contains("--http-chunk-size 10M"), "{calls:?}");
+    assert!(calls[1].contains("--concurrent-fragments"), "{calls:?}");
+    assert!(!calls[1].contains("--throttled-rate"), "{calls:?}");
 }
 
 /// Streams yt-dlp would fetch in pieces (HLS here) are left to it whole.
@@ -360,7 +365,14 @@ async fn a_paused_video_resumes_from_what_dm_fetched() {
         let (page, opts) = (page.clone(), opts.clone());
         tokio::spawn(async move { ytdlp::download_page(&client(), &page, &opts, None).await })
     };
-    tokio::time::sleep(std::time::Duration::from_millis(600)).await;
+    // Paused once the streams are being fetched, not after a guess at how
+    // long that takes to begin.
+    for _ in 0..400 {
+        if seen.0.lock().unwrap().len() >= 2 {
+            break;
+        }
+        tokio::time::sleep(std::time::Duration::from_millis(25)).await;
+    }
     opts.control.pause();
     let first = running.await.unwrap();
     assert!(
@@ -560,4 +572,226 @@ async fn a_refused_stream_is_not_handed_to_ytdlp_as_a_page() {
         "yt-dlp was run: {:?}",
         calls(&case)
     );
+}
+
+/// An address that runs out while a stream is being fetched (YouTube's do,
+/// some hours on): dm reads the page again, takes the new address and goes
+/// on from what it has, rather than starting over with yt-dlp.
+#[tokio::test(flavor = "multi_thread")]
+async fn an_address_that_runs_out_mid_download_is_renewed_and_resumed() {
+    use axum::extract::Query;
+    use std::collections::HashMap;
+    use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
+
+    use_fake_ytdlp();
+    const SIZE: usize = 6 * 1024 * 1024;
+    let data: Arc<Vec<u8>> = Arc::new((0..SIZE).map(|i| (i * 7 % 251) as u8).collect());
+    let expired = Arc::new(AtomicBool::new(false));
+    let fresh_bytes = Arc::new(AtomicUsize::new(0));
+    let (served, gone, counted) = (data.clone(), expired.clone(), fresh_bytes.clone());
+    let app = axum::Router::new().route(
+        "/video",
+        get(
+            move |Query(q): Query<HashMap<String, String>>, headers: HeaderMap| {
+                let (data, gone, counted) = (served.clone(), gone.clone(), counted.clone());
+                async move {
+                    let token = q.get("t").map(String::as_str).unwrap_or("");
+                    if token == "old" && gone.load(Ordering::SeqCst) {
+                        return Response::builder()
+                            .status(StatusCode::FORBIDDEN)
+                            .body(Body::empty())
+                            .unwrap();
+                    }
+                    let (a, b) = headers
+                        .get("range")
+                        .and_then(|v| v.to_str().ok())
+                        .and_then(|v| v.strip_prefix("bytes="))
+                        .and_then(|v| v.split_once('-'))
+                        .map(|(a, b)| {
+                            (
+                                a.parse::<usize>().unwrap(),
+                                b.parse::<usize>().unwrap_or(SIZE - 1).min(SIZE - 1),
+                            )
+                        })
+                        .unwrap_or((0, SIZE - 1));
+                    if token == "new" && b > a {
+                        counted.fetch_add(b - a + 1, Ordering::SeqCst);
+                    }
+                    // About a megabyte a second to a response.
+                    const CHUNK: usize = 64 * 1024;
+                    let pieces: Vec<(usize, usize)> = (a..=b)
+                        .step_by(CHUNK)
+                        .map(|s| (s, (s + CHUNK - 1).min(b)))
+                        .collect();
+                    let body = Body::from_stream(futures_util::StreamExt::then(
+                        futures_util::stream::iter(pieces),
+                        move |(s, e)| {
+                            let data = data.clone();
+                            async move {
+                                tokio::time::sleep(std::time::Duration::from_millis(60)).await;
+                                Ok::<_, std::io::Error>(bytes::Bytes::copy_from_slice(&data[s..=e]))
+                            }
+                        },
+                    ));
+                    Response::builder()
+                        .status(206)
+                        .header("content-range", format!("bytes {a}-{b}/{SIZE}"))
+                        .header("content-length", b - a + 1)
+                        .header("etag", "\"v\"")
+                        .body(body)
+                        .unwrap()
+                }
+            },
+        ),
+    );
+    let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let addr = listener.local_addr().unwrap();
+    tokio::spawn(async move { axum::serve(listener, app).await.unwrap() });
+
+    let dir = tempdir();
+    let reading = |token: &str| {
+        serde_json::json!({
+            "id": "e", "title": "Expiring", "ext": "mp4", "format_id": "18",
+            "protocol": "https", "url": format!("http://{addr}/video?t={token}"),
+            "filename": "__STAGE__/Expiring [e].mp4", "filesize": SIZE,
+            "downloader_options": {"http_chunk_size": 1024 * 1024}
+        })
+    };
+    let (case, page) = case(dir.path(), reading("old"), b"not this");
+    std::fs::write(case.join("info.next.json"), reading("new").to_string()).unwrap();
+
+    let flip = expired.clone();
+    tokio::spawn(async move {
+        tokio::time::sleep(std::time::Duration::from_millis(800)).await;
+        flip.store(true, Ordering::SeqCst);
+    });
+    let opts = dm_core::Options {
+        connections: 2,
+        ..options(dir.path())
+    };
+    let done = ytdlp::download_page(&client(), &page, &opts, None)
+        .await
+        .expect("the renewed download failed");
+
+    assert!(
+        std::fs::read(&done.path).unwrap() == *data,
+        "the renewed download is not the file"
+    );
+    let calls = calls(&case);
+    assert_eq!(
+        calls.iter().filter(|c| c.contains(" -O ")).count(),
+        2,
+        "the page was read again once: {calls:?}"
+    );
+    assert!(
+        calls.iter().all(|c| c.contains(" -O ")),
+        "yt-dlp was handed the download: {calls:?}"
+    );
+    let again = fresh_bytes.load(Ordering::SeqCst);
+    assert!(
+        again > 0 && again < SIZE,
+        "what was fetched before was fetched again: {again} of {SIZE} bytes under the new address"
+    );
+}
+
+/// A stream is asked with every header its reading names, on the probe and
+/// on each range; a download of the same host started apart from it is not,
+/// and the headers dm owns (`Range`, `Accept-Encoding`) stay dm's.
+#[tokio::test(flavor = "multi_thread")]
+async fn a_streams_headers_are_sent_for_it_alone() {
+    type Asked = Arc<Mutex<Vec<(String, HeaderMap)>>>;
+    use_fake_ytdlp();
+    const SIZE: usize = 2 * 1024 * 1024;
+    let data: Arc<Vec<u8>> = Arc::new((0..SIZE).map(|i| (i * 13 % 247) as u8).collect());
+    let asked: Asked = Arc::default();
+    let (served, log) = (data.clone(), asked.clone());
+    let app = axum::Router::new().fallback(get(move |uri: Uri, headers: HeaderMap| {
+        let (data, log) = (served.clone(), log.clone());
+        async move {
+            log.lock()
+                .unwrap()
+                .push((uri.path().to_string(), headers.clone()));
+            let (a, b) = headers
+                .get("range")
+                .and_then(|v| v.to_str().ok())
+                .and_then(|v| v.strip_prefix("bytes="))
+                .and_then(|v| v.split_once('-'))
+                .map(|(a, b)| {
+                    (
+                        a.parse::<usize>().unwrap(),
+                        b.parse::<usize>().unwrap_or(SIZE - 1).min(SIZE - 1),
+                    )
+                })
+                .unwrap_or((0, SIZE - 1));
+            Response::builder()
+                .status(206)
+                .header("content-range", format!("bytes {a}-{b}/{SIZE}"))
+                .header("content-length", b - a + 1)
+                .header("etag", "\"v\"")
+                .body(Body::from(bytes::Bytes::copy_from_slice(&data[a..=b])))
+                .unwrap()
+        }
+    }));
+    let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let addr = listener.local_addr().unwrap();
+    tokio::spawn(async move { axum::serve(listener, app).await.unwrap() });
+
+    let dir = tempdir();
+    let (_case, page) = case(
+        dir.path(),
+        serde_json::json!({
+            "id": "h", "title": "Headed", "ext": "mp4", "format_id": "18",
+            "protocol": "https", "url": format!("http://{addr}/a.mp4"),
+            "filename": "__STAGE__/Headed [h].mp4",
+            "http_headers": {
+                "X-Stream": "yes", "Accept-Language": "xx-YY", "Sec-Fetch-Mode": "navigate",
+                "Range": "bytes=5-6", "Accept-Encoding": "gzip", "Cookie": "theirs=1"
+            }
+        }),
+        b"not this",
+    );
+    let done = ytdlp::download_page(&client(), &page, &options(dir.path()), None)
+        .await
+        .expect("the stream was not fetched");
+    assert!(std::fs::read(&done.path).unwrap() == *data, "not the file");
+
+    let other = tempdir();
+    dm_core::download(
+        &client(),
+        &format!("http://{addr}/b.bin"),
+        &options(other.path()),
+    )
+    .await
+    .expect("the plain download failed");
+
+    let asked = asked.lock().unwrap();
+    let (stream, plain): (Vec<_>, Vec<_>) = asked.iter().partition(|(path, _)| path == "/a.mp4");
+    assert!(stream.len() >= 2, "a probe and ranges: {}", stream.len());
+    for (_, h) in &stream {
+        assert_eq!(h.get("x-stream").map(|v| v.as_bytes()), Some(&b"yes"[..]));
+        assert_eq!(
+            h.get("accept-language").map(|v| v.as_bytes()),
+            Some(&b"xx-YY"[..])
+        );
+        assert_eq!(
+            h.get("accept-encoding").map(|v| v.as_bytes()),
+            Some(&b"identity"[..])
+        );
+        assert_ne!(
+            h.get("range").map(|v| v.as_bytes()),
+            Some(&b"bytes=5-6"[..])
+        );
+    }
+    assert!(!plain.is_empty());
+    for (_, h) in &plain {
+        assert!(h.get("x-stream").is_none(), "leaked into another download");
+        assert!(
+            h.get("accept-language").is_none(),
+            "leaked into another download"
+        );
+        assert!(
+            h.get("cookie").is_none(),
+            "a cookie leaked into another download"
+        );
+    }
 }

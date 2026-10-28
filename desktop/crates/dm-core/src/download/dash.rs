@@ -361,16 +361,20 @@ async fn fetch_track(
     if fs::metadata(&gathered).await.is_ok_and(|m| m.len() > 0) {
         return Ok(gathered);
     }
-    // As many at once as there are connections, a group after a group: a
-    // slow piece holds up its own group only.
+    // As many at once as there are connections, each taking the next piece as
+    // it finishes its own: a slow piece holds only the connection it is on.
     let at_once = options.connections.max(1);
-    let indexed: Vec<(usize, &dash::Piece)> = track.pieces.iter().enumerate().collect();
-    for group in indexed.chunks(at_once) {
-        let fetching = group
-            .iter()
-            .map(|(i, piece)| fetch_piece(client, piece, first + i, options, downloaded));
-        futures_util::future::try_join_all(fetching).await?;
-    }
+    let next = std::sync::atomic::AtomicUsize::new(0);
+    let worker = || async {
+        loop {
+            let i = next.fetch_add(1, Ordering::Relaxed);
+            let Some(piece) = track.pieces.get(i) else {
+                return Ok::<(), Error>(());
+            };
+            fetch_piece(client, piece, first + i, options, downloaded).await?;
+        }
+    };
+    futures_util::future::try_join_all((0..at_once).map(|_| worker())).await?;
     let parts: Vec<PathBuf> = (first..first + track.pieces.len())
         .map(|i| part_path(&options.parts_dir, i))
         .collect();

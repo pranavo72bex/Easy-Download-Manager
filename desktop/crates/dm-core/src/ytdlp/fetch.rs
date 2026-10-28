@@ -66,6 +66,7 @@ pub async fn download_page(
         },
         None => None,
     };
+    let from_saved = kept.is_some();
     let read = match kept {
         Some(read) => Ok(read),
         None => resolve(url, options, None).await,
@@ -80,8 +81,41 @@ pub async fn download_page(
         // Streams dm does not fetch itself: yt-dlp downloads this reading.
         return from_reading(url, &read, options, report).await;
     };
+    /* A reading kept from earlier whose addresses have lapsed is read
+     * again now, rather than found out stream by stream. */
+    let (plan, read) = if from_saved && plan.streams.iter().any(Stream::expired) {
+        match resolve(url, options, None).await {
+            Ok(fresh) => match fresh.plan(staging) {
+                Some(again) => (again, fresh),
+                None => (plan, read),
+            },
+            Err(stop @ (Error::Paused | Error::Cancelled)) => return Err(stop),
+            Err(_) => (plan, read),
+        }
+    } else {
+        (plan, read)
+    };
 
-    match fetch(client, &plan, &read, options, report.clone()).await {
+    let mut current = (plan, read);
+    let mut outcome = fetch(client, &current.0, &current.1, options, report.clone()).await;
+    if matches!(
+        &outcome,
+        Err(Error::Refused {
+            status: 403 | 410,
+            ..
+        })
+    ) {
+        match renewed(url, &current.0, options).await {
+            Ok(Some(next)) => {
+                current = next;
+                outcome = fetch(client, &current.0, &current.1, options, report.clone()).await;
+            }
+            Ok(None) => {}
+            Err(stop) => outcome = Err(stop),
+        }
+    }
+    let read = current.1;
+    match outcome {
         Ok(done) => Ok(done),
         Err(Error::Paused) => Err(Error::Paused),
         Err(Error::Cancelled) => {
@@ -95,6 +129,54 @@ pub async fn download_page(
             from_reading(url, &read, options, report).await
         }
     }
+}
+
+/// The page read again, after a stream's address was refused (403 or 410),
+/// where that is what an address that has run out looks like: the plan's
+/// own `expire` has passed, or bytes were already fetched, so the address
+/// served once. One refused at the first ask never did, and is yt-dlp's as
+/// before. `None` where the fresh reading is not the same streams (another
+/// format, name or size): what is staged belongs to the old ones.
+async fn renewed(url: &str, plan: &Plan, options: &Options) -> Result<Option<(Plan, Read)>, Error> {
+    let staging = &options.parts_dir;
+    if !plan.streams.iter().any(Stream::expired) && !fetched_any(staging).await {
+        return Ok(None);
+    }
+    let read = match resolve(url, options, None).await {
+        Ok(read) => read,
+        Err(stop @ (Error::Paused | Error::Cancelled)) => return Err(stop),
+        Err(_) => return Ok(None),
+    };
+    Ok(read
+        .plan(staging)
+        .filter(|fresh| fresh.same_streams(plan))
+        .map(|fresh| (fresh, read)))
+}
+
+/// Whether any stream has bytes on disk in its parts folder, by the ledgers
+/// the engine keeps there.
+async fn fetched_any(staging: &Path) -> bool {
+    let Ok(mut folders) = tokio::fs::read_dir(staging).await else {
+        return false;
+    };
+    while let Ok(Some(folder)) = folders.next_entry().await {
+        if !folder.file_name().to_string_lossy().starts_with(".dm-f") {
+            continue;
+        }
+        let Ok(mut parts) = tokio::fs::read_dir(folder.path().join("parts")).await else {
+            continue;
+        };
+        while let Ok(Some(part)) = parts.next_entry().await {
+            if !part.file_name().to_string_lossy().starts_with("done-") {
+                continue;
+            }
+            let held = tokio::fs::read_to_string(part.path()).await;
+            if held.is_ok_and(|text| text.trim().parse::<u64>().is_ok_and(|n| n > 0)) {
+                return true;
+            }
+        }
+    }
+    false
 }
 
 /// Left in the staging folder when dm's own fetch was refused.
@@ -165,6 +247,25 @@ struct Format {
     ext: Option<String>,
     #[serde(default)]
     http_headers: HashMap<String, serde_json::Value>,
+    /// Left as it came: a figure of an unexpected kind must not make the
+    /// whole reading unreadable (`chunk`).
+    #[serde(default)]
+    downloader_options: Option<serde_json::Value>,
+    /// The exact size, where the site stated it; the estimate is not one.
+    #[serde(default)]
+    filesize: Option<serde_json::Value>,
+}
+
+impl Format {
+    /// The most bytes one request for this format may ask for, where yt-dlp
+    /// says its server holds each to that (`http_chunk_size`).
+    fn chunk(&self) -> Option<u64> {
+        self.downloader_options
+            .as_ref()?
+            .get("http_chunk_size")?
+            .as_u64()
+            .filter(|&n| n > 0)
+    }
 }
 
 #[derive(Debug, Default, serde::Deserialize)]
@@ -195,6 +296,45 @@ struct Stream {
     /// The format's name, which keeps one stream's parts apart from
     /// another's across a pause.
     id: String,
+    /// The most one request may ask for; see `Format::chunk`.
+    chunk: Option<u64>,
+    /// The size the site stated, which a renewed reading must agree with.
+    size: Option<u64>,
+    /// The rest of what the reading says the server is asked with; kept to
+    /// this stream's requests (`crate::download::Headers`).
+    headers: crate::download::Headers,
+}
+
+impl Stream {
+    /// Whether the address says it has run out: a generic `expire` query
+    /// value (seconds since 1970) that has passed. Without one, no.
+    fn expired(&self) -> bool {
+        let Ok(address) = reqwest::Url::parse(&self.url) else {
+            return false;
+        };
+        let at = address
+            .query_pairs()
+            .find(|(name, _)| name == "expire")
+            .and_then(|(_, value)| value.parse::<u64>().ok());
+        let now = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .map_or(0, |d| d.as_secs());
+        at.is_some_and(|at| at <= now)
+    }
+}
+
+impl Plan {
+    /// Whether `other` is the same streams read again: what was fetched so
+    /// far is only good for these. The addresses are what differs.
+    fn same_streams(&self, other: &Plan) -> bool {
+        self.produced == other.produced
+            && self.streams.len() == other.streams.len()
+            && self.streams.iter().zip(&other.streams).all(|(a, b)| {
+                a.id == b.id
+                    && a.target == b.target
+                    && (a.size.is_none() || b.size.is_none() || a.size == b.size)
+            })
+    }
 }
 
 impl Read {
@@ -253,6 +393,14 @@ impl Read {
                 agent,
                 target,
                 id,
+                chunk: format.chunk(),
+                size: format.filesize.as_ref().and_then(|v| v.as_u64()),
+                headers: crate::download::Headers::of(
+                    format
+                        .http_headers
+                        .iter()
+                        .filter_map(|(name, value)| Some((name.as_str(), value.as_str()?))),
+                ),
             });
         }
         Some(Plan { streams, produced })
@@ -423,7 +571,13 @@ async fn fetch_stream(
         server_dates: false,
         ..options.clone()
     };
-    let done = crate::download::download_video_stream(client, &stream.url, &opts, report).await?;
+    let hints = crate::download::StreamHints {
+        chunk: stream.chunk,
+        headers: stream.headers.clone(),
+    };
+    let done =
+        crate::download::download_video_stream_with(client, &stream.url, &opts, report, hints)
+            .await?;
     tokio::fs::rename(&done.path, &stream.target).await?;
     let _ = tokio::fs::remove_dir_all(&own).await;
     Ok(())
@@ -595,6 +749,23 @@ mod tests {
             PathBuf::from("/s/Talk [abc].f251-drc.webm")
         );
         assert_eq!(plan.streams[1].agent, None);
+    }
+
+    #[test]
+    fn a_chunk_size_is_read_where_given_and_ignored_where_odd() {
+        let r = read(
+            r#"{"filename": "/s/a.mp4", "requested_formats": [
+                {"format_id": "1", "protocol": "https", "url": "https://x/1",
+                 "downloader_options": {"http_chunk_size": 10485760}},
+                {"format_id": "2", "protocol": "https", "url": "https://x/2",
+                 "downloader_options": {"http_chunk_size": "ten"}},
+                {"format_id": "3", "protocol": "https", "url": "https://x/3",
+                 "downloader_options": {"http_chunk_size": 0}},
+                {"format_id": "4", "protocol": "https", "url": "https://x/4"}]}"#,
+        );
+        let plan = r.plan(Path::new("/s")).expect("a plan");
+        let chunks: Vec<_> = plan.streams.iter().map(|s| s.chunk).collect();
+        assert_eq!(chunks, [Some(10_485_760), None, None, None]);
     }
 
     #[test]

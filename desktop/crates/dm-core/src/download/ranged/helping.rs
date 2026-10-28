@@ -61,3 +61,49 @@ pub(in crate::download) async fn slow_enough_to_help(
         from = now;
     }
 }
+
+/// How long a connection is watched before it is judged against the rest.
+const STALL_WINDOW: Duration = Duration::from_secs(5);
+
+/// One look at a connection: what it and the whole download had brought in
+/// when the window opened.
+pub(in crate::download) struct Window {
+    opened: tokio::time::Instant,
+    own: u64,
+    all: u64,
+}
+
+impl Window {
+    pub(in crate::download) fn open(own: u64, job: &Job) -> Window {
+        Window {
+            opened: tokio::time::Instant::now(),
+            own,
+            all: job.downloaded.load(Ordering::Relaxed),
+        }
+    }
+
+    pub(in crate::download) fn ends(&self) -> tokio::time::Instant {
+        self.opened + STALL_WINDOW
+    }
+
+    pub(in crate::download) fn over(&self) -> bool {
+        tokio::time::Instant::now() >= self.ends()
+    }
+
+    /// Whether this connection brought in under a sixty-fourth of what the
+    /// download as a whole did over the window, while that was a real flow
+    /// (over 1 MiB). Never under a limit of dm's own, which holds every
+    /// connection back alike, and never alone: a download that is all slow
+    /// is the link's, and the read timeout is its judge.
+    pub(in crate::download) fn stalled(&self, own: u64, job: &Job) -> bool {
+        if job.limiter.is_limited() {
+            return false;
+        }
+        let all = job
+            .downloaded
+            .load(Ordering::Relaxed)
+            .saturating_sub(self.all);
+        let mine = own.saturating_sub(self.own);
+        all > 1024 * 1024 && mine < all / 64
+    }
+}

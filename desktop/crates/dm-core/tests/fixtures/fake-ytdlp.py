@@ -42,7 +42,11 @@ if "-J" in args:
     sys.exit(0)
 
 if "-O" in args:
-    with open(os.path.join(case, "info.json")) as f:
+    # A page read again later gives what `info.next.json` holds, where the
+    # case has one: addresses that have been renewed.
+    earlier = open(os.path.join(case, "calls.log")).read().count(" -O ")
+    named = "info.next.json" if earlier > 1 and os.path.exists(os.path.join(case, "info.next.json")) else "info.json"
+    with open(os.path.join(case, named)) as f:
         print(f.read().replace("__STAGE__", stage).replace("\n", " "))
     sys.exit(0)
 

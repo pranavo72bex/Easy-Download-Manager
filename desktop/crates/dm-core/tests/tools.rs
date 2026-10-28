@@ -23,6 +23,21 @@ fn an_installed_yt_dlp_is_found() {
     );
 }
 
+/// yt-dlp's unpacked build as its release gives it: the program beside an
+/// `_internal` folder, in a zip.
+fn build_zip(program: &[u8]) -> Vec<u8> {
+    use std::io::Write as _;
+    let mut out = std::io::Cursor::new(Vec::new());
+    let mut zip = zip::ZipWriter::new(&mut out);
+    let file = |mode| zip::write::SimpleFileOptions::default().unix_permissions(mode);
+    zip.start_file("yt-dlp_linux", file(0o755)).unwrap();
+    zip.write_all(program).unwrap();
+    zip.start_file("_internal/lib.so", file(0o644)).unwrap();
+    zip.write_all(b"library").unwrap();
+    zip.finish().unwrap();
+    out.into_inner()
+}
+
 /// A server standing in for yt-dlp's and QuickJS's releases: yt-dlp's Linux
 /// and Windows builds, the same bytes, the checksums given, and one QuickJS
 /// build.
@@ -31,8 +46,8 @@ async fn releases(ytdlp: Vec<u8>, sums: String) -> String {
     let exe = ytdlp.clone();
     let app = axum::Router::new()
         .route("/y/SHA2-256SUMS", get(move || async move { sums }))
-        .route("/y/yt-dlp_linux", get(move || async move { ytdlp }))
-        .route("/y/yt-dlp.exe", get(move || async move { exe }))
+        .route("/y/yt-dlp_linux.zip", get(move || async move { ytdlp }))
+        .route("/y/yt-dlp_win.zip", get(move || async move { exe }))
         .route("/q/qjs-linux-x86_64", get(|| async { &b"a quickjs"[..] }));
     format!("http://{}", common::serve(app).await)
 }
@@ -43,10 +58,11 @@ async fn releases(ytdlp: Vec<u8>, sums: String) -> String {
 #[tokio::test]
 async fn fetched_tools_are_kept_only_when_they_match() {
     let program = b"#!/bin/sh\necho fetched\n".to_vec();
-    let digest = hex::encode(sha2::Sha256::digest(&program));
+    let zip = build_zip(&program);
+    let digest = hex::encode(sha2::Sha256::digest(&zip));
     let base = releases(
-        program.clone(),
-        format!("{digest}  yt-dlp_linux\n0000000000000000000000000000000000000000000000000000000000000000  yt-dlp.exe\n"),
+        zip,
+        format!("{digest}  yt-dlp_linux.zip\n0000000000000000000000000000000000000000000000000000000000000000  yt-dlp_win.zip\n"),
     )
     .await;
     let sources = Sources {
@@ -59,6 +75,8 @@ async fn fetched_tools_are_kept_only_when_they_match() {
     };
     let dir = common::tempdir();
     let client = dm_core::client();
+    // The single file an earlier dm fetched: gone once the unpacked build is.
+    std::fs::write(dir.path().join("yt-dlp"), b"old one-file build").unwrap();
 
     let ytdlp = fetch_into(
         &client,
@@ -71,6 +89,16 @@ async fn fetched_tools_are_kept_only_when_they_match() {
     .await
     .expect("the matching yt-dlp");
     assert_eq!(std::fs::read(&ytdlp).unwrap(), program);
+    assert!(ytdlp.ends_with("yt-dlp-linux/yt-dlp_linux"), "{ytdlp:?}");
+    assert_eq!(
+        std::fs::read(ytdlp.parent().unwrap().join("_internal/lib.so")).unwrap(),
+        b"library"
+    );
+    assert!(!dir.path().join("yt-dlp").exists(), "the old file stayed");
+    assert!(
+        !ytdlp.parent().unwrap().with_extension("partial").exists(),
+        "a staging folder was left"
+    );
     #[cfg(unix)]
     {
         use std::os::unix::fs::PermissionsExt as _;
