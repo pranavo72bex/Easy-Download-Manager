@@ -240,16 +240,22 @@ pub(crate) async fn finish(
     // found it.
     // A gather or a remux cut short by a crash, on a run that placed the
     // stream without them, goes too.
-    for note in ["plan.json", "rendition", "joined.ts.partial", REMUXED] {
-        let _ = fs::remove_file(options.parts_dir.join(note)).await;
-    }
-    // And each range's ledger, which the bytes they spoke for have left.
-    if let Ok(mut listing) = fs::read_dir(&options.parts_dir).await {
-        while let Ok(Some(entry)) = listing.next_entry().await {
-            if entry.file_name().to_string_lossy().starts_with("done-") {
-                let _ = fs::remove_file(entry.path()).await;
+    // One task for all of it: each call through the async file API is a hop
+    // to the blocking pool, and a small file made seven or more of them.
+    let dir = options.parts_dir.clone();
+    let _ = tokio::task::spawn_blocking(move || {
+        for note in ["plan.json", "rendition", "joined.ts.partial", REMUXED] {
+            let _ = std::fs::remove_file(dir.join(note));
+        }
+        // And each range's ledger, which the bytes they spoke for have left.
+        if let Ok(listing) = std::fs::read_dir(&dir) {
+            for entry in listing.flatten() {
+                if entry.file_name().to_string_lossy().starts_with("done-") {
+                    let _ = std::fs::remove_file(entry.path());
+                }
             }
         }
-    }
+    })
+    .await;
     Ok((path, bytes, category))
 }

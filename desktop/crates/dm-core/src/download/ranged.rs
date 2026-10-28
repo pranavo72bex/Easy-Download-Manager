@@ -426,8 +426,11 @@ pub(super) async fn fetch_segment(
             }
         ) && active.load(Ordering::SeqCst) > 1
     };
+    // Only a capped stream is asked again slice by slice; without a cap the
+    // ledger is not read here at all (it is a file, opened and read).
+    let sliced = job.chunk.is_some() && resumable;
     let outcome = loop {
-        let before = on_disk();
+        let before = if sliced { on_disk() } else { 0 };
         let outcome = retry::run_making_progress_unless(
             &job.control,
             job.tries,
@@ -446,13 +449,16 @@ pub(super) async fn fetch_segment(
          * the next one, on this connection. Only while bytes arrive, so a
          * server that answers nothing new cannot hold this loop; and the
          * slice was no failed try, so it is not counted as one. */
-        let more = {
-            let l = crate::lock(&job.live[index]);
-            on_disk() < (l.end - l.start).saturating_add(1)
-        };
-        if outcome.is_ok() && job.chunk.is_some() && resumable && more && on_disk() > before {
-            job.attempts[index].fetch_sub(1, Ordering::Relaxed);
-            continue;
+        if sliced && outcome.is_ok() {
+            let now = on_disk();
+            let more = {
+                let l = crate::lock(&job.live[index]);
+                now < (l.end - l.start).saturating_add(1)
+            };
+            if more && now > before {
+                job.attempts[index].fetch_sub(1, Ordering::Relaxed);
+                continue;
+            }
         }
         break outcome;
     };

@@ -30,19 +30,24 @@ pub(in crate::download) const DISK_BLOCK: u64 = 4096;
 
 /// Removes the plan and the part files staged under `dir`.
 pub(in crate::download) async fn discard_staged(dir: &Path) {
-    let _ = fs::remove_file(crate::plan::record_path(dir)).await;
-    if let Ok(mut listing) = fs::read_dir(dir).await {
-        while let Ok(Some(entry)) = listing.next_entry().await {
-            let name = entry.file_name().to_string_lossy().into_owned();
-            if name.starts_with("part-")
-                || name.starts_with("done-")
-                || name == STAGED
-                || name.starts_with(crate::queue::PREVIEW)
-            {
-                let _ = fs::remove_file(entry.path()).await;
+    // One blocking task, not a hop to the pool for each file.
+    let dir = dir.to_path_buf();
+    let _ = tokio::task::spawn_blocking(move || {
+        let _ = std::fs::remove_file(crate::plan::record_path(&dir));
+        if let Ok(listing) = std::fs::read_dir(&dir) {
+            for entry in listing.flatten() {
+                let name = entry.file_name().to_string_lossy().into_owned();
+                if name.starts_with("part-")
+                    || name.starts_with("done-")
+                    || name == STAGED
+                    || name.starts_with(crate::queue::PREVIEW)
+                {
+                    let _ = std::fs::remove_file(entry.path());
+                }
             }
         }
-    }
+    })
+    .await;
 }
 
 /// After the file is found changed: the plan its parts were fetched under

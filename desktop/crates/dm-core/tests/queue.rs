@@ -2726,3 +2726,84 @@ async fn a_finished_download_taken_off_the_list_by_mistake_is_put_back_where_it_
     q.pause(held).await;
     assert!(q.finished_rows(&[held]).await.is_empty());
 }
+
+/// A place freed by a download that has finished is filled at once, not at
+/// the scheduler's next tick (fifty milliseconds): with one place and tiny
+/// files, a queue is as fast as the files, not as slow as the ticks. Over a
+/// thousand small files this was 131 files a second, however quick each was.
+#[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+async fn a_finished_download_hands_its_place_to_the_next_at_once() {
+    use axum::routing::get;
+    const FILES: usize = 60;
+    let app = axum::Router::new().fallback(get(|| async {
+        Response::builder()
+            .status(StatusCode::OK)
+            .header("content-length", 512)
+            .body(Body::from(vec![3u8; 512]))
+            .unwrap()
+    }));
+    let addr = common::serve(app).await;
+    let dir = tempdir();
+    let q = queue(dir.path(), 1);
+    for n in 0..FILES {
+        q.add(&format!("http://{addr}/tiny{n}.bin")).await.unwrap();
+    }
+    let started = std::time::Instant::now();
+    q.run().await;
+    let took = started.elapsed();
+    assert!(q
+        .list()
+        .await
+        .iter()
+        .all(|e| e.state == DownloadState::Completed));
+    println!(
+        "{FILES} tiny files, one place: {:.2}s ({:.0} files/s)",
+        took.as_secs_f64(),
+        FILES as f64 / took.as_secs_f64()
+    );
+    /* Waiting for the tick after each file puts a floor under this: one
+     * place, a tick every 50 ms, so no less than about 50 ms a file at any
+     * load, 3 s here. Handed on at once it is the files alone (0.2 s on an
+     * idle machine, several seconds with every core busy, where this is
+     * not a test to read anything into); the bound is just under the floor,
+     * so the tick always fails it. */
+    assert!(
+        took < Duration::from_millis(FILES as u64 * 45),
+        "{FILES} tiny files took {took:?}: places are refilled by the tick, not when they free"
+    );
+}
+
+/// What `run` returns after is already owed to the disk: a `flush` straight
+/// after finds the last download's state waiting, however soon the scheduler
+/// found nothing left to do (a finished download wakes it at once).
+#[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+async fn the_last_state_is_on_disk_when_run_returns() {
+    use axum::routing::get;
+    let app = axum::Router::new().fallback(get(|| async {
+        Response::builder()
+            .status(StatusCode::OK)
+            .header("content-length", 64)
+            .body(Body::from(vec![1u8; 64]))
+            .unwrap()
+    }));
+    let addr = common::serve(app).await;
+    for round in 0..40 {
+        let dir = tempdir();
+        let store = dir.path().join("queue.json");
+        let first = queue(dir.path(), 1);
+        first.persist_to(store.clone()).await;
+        let id = first
+            .add(&format!("http://{addr}/r{round}.bin"))
+            .await
+            .unwrap();
+        first.run().await;
+        first.flush().await;
+        let second = queue(dir.path(), 1);
+        second.persist_to(store).await;
+        assert_eq!(
+            second.get(id).await.unwrap().state,
+            DownloadState::Completed,
+            "round {round}: the finished state was not on disk after run and flush"
+        );
+    }
+}

@@ -545,6 +545,18 @@ impl Queue {
             // this same lock, so holding it here would deadlock the task
             // that just finished a download.
             drop(slots);
+            // This download's place is free: the next in line starts now,
+            // not at the next tick. A small file is over in a few
+            // milliseconds, and its place sat empty for the rest of the
+            // fifty, which was all that held a queue of them to about 130
+            // files a second however fast they were.
+            //
+            // The save is owed before the scheduler is woken: it may find
+            // nothing left to run and return, and a `flush` right after
+            // would otherwise see nothing waiting and write nothing, the
+            // last state lost (the tick's delay used to hide this).
+            queue.inner.unwritten.store(true, Ordering::SeqCst);
+            queue.kick();
             queue.save().await;
         })
     }

@@ -2291,3 +2291,38 @@ parts, writes `REFUSED` and has yt-dlp download the same reading, as for a
 plain file; an expired playlist address is renewed as above. Not wired through
 `hls::download_stream`'s own `Beyond` arm, which hands the segment-playlist
 address to yt-dlp as if it were a page.
+
+## 2026-10-28: A finished download wakes the scheduler
+
+The scheduler fills free places on a fifty-millisecond tick and only an *add*
+woke it earlier, so a place freed by a download that took five milliseconds
+sat empty for the rest of the tick: eight places refilled every ~60 ms is the
+131 files a second `stress-check.py many_small` showed on every run, whatever
+the files or the machine's speed (identical to 0.1 file/s with and without
+other changes, which is how it was found: sampled with `sample`, the process
+spent its time in file calls, and removing some of them changed nothing).
+`start()` now calls `kick()` when a download settles. Measured on a release
+build, macOS: 2 000 small files 131 -> 740 files/s, byte-exact; 200 small files
+with 20 000 queued 37 -> 116 files/s; the concurrency limit, pause storm, crash
+resume and leak phases unchanged. Debug build, one place, 60 tiny files: 3.1 s
+without, 0.22 s with (`queue.rs`).
+
+Two smaller changes in the same pass, not separable by measurement while the
+tick was the limit: the ledger is read for the slice loop only when a stream is
+capped (my own change of earlier the same day read it twice per range for every
+download), and the end-of-download cleanup (`assemble.rs`, `discard_staged`) is
+one blocking task instead of a hop to the pool for each file. Looked at and
+left: `plan.json` is written by temporary file and rename for every download
+(about a seventh of the file calls of a small one); writing it in place would
+leave a torn file the resume then reads as no plan, and what a resume does
+without a plan was not worth changing for a few per cent.
+
+The wake-up exposed a race the tick had hidden: `run` returns as soon as
+nothing is busy, and the finishing task registered its last queue save a moment
+later, so a `flush` right after `run` found nothing waiting and wrote nothing
+(the full workspace run caught it once: `a_finished_download_is_still_finished_
+after_a_restart`; the app's equivalent is quitting just after the last download
+settles). The save is now owed (`unwritten`) before the scheduler is woken. The
+test for it (`the_last_state_is_on_disk_when_run_returns`, 40 rounds) passes
+without the fix on an idle machine and fails 4 runs of 4 with the CPU saturated,
+so it only means something under load.

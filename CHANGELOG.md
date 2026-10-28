@@ -13,6 +13,7 @@ the browser extension (`v*` tags) are versioned separately.
 - yt-dlp, when it still downloads a file itself, asks for it in 10 MB pieces, as it already did for YouTube's own formats; a server that ignores ranges is unaffected.
 - yt-dlp is fetched as its unpacked build on Windows and Linux too (musl included), as on macOS: it starts in 0.22 s where the single file took 0.6 s on Linux. An earlier single file is replaced at the next start.
 - A link on port 0 is refused when it is added, with a reason, instead of becoming a row that can only fail; the command line and AI assistants are told of an address already in the list once, not once for each time it was repeated.
+- A queue of small files no longer waits for the scheduler's next tick after each one: a finished download hands its place to the next at once. 2 000 small files at once: 131 files/s before, 740 now (all byte-exact); 200 small files behind 20 000 queued links: 37 files/s before, 116 now.
 
 ## App 0.8.3
 
