@@ -971,6 +971,7 @@ fn new_installs_sort_by_kind_and_start_at_login() {
 #[test]
 fn the_rows_a_command_acts_on_are_the_selected_ones_in_table_order() {
     use dm_desktop::app::Column;
+    let _file = settings_file();
     let world = world();
     let mut harness = world.harness();
     for name in ["file.zip", "other.pdf", "deep.pdf", "report.pdf"] {

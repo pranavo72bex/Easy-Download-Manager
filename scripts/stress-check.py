@@ -1199,6 +1199,24 @@ def p_edge(ctx):
     spec.loader.exec_module(cc)
     n = int(os.environ.get("DM_STRESS_EDGE", "40"))
     cc.CHROME_PATH_DEFAULT = None
+    # Microsoft Edge itself, as the phase says: the installed one unless a
+    # browser was named (CHROME_PATH). Chrome for Testing, which the browser
+    # check downloads when none is named, is a different browser: it failed
+    # here three ways in a row (the connection closed, timed out, reset) where
+    # Edge passed all 38 checks.
+    if not os.environ.get("CHROME_PATH"):
+        edge = next((p for p in (
+            "/Applications/Microsoft Edge.app/Contents/MacOS/Microsoft Edge",
+            r"C:\Program Files (x86)\Microsoft\Edge\Application\msedge.exe",
+            r"C:\Program Files\Microsoft\Edge\Application\msedge.exe",
+            "/usr/bin/microsoft-edge",
+            "/opt/microsoft/msedge/msedge",
+        ) if pathlib.Path(p).exists()), None)
+        if edge:
+            os.environ["CHROME_PATH"] = edge
+        else:
+            print("  (Microsoft Edge is not installed here: Chrome for Testing stands in, "
+                  "which is not what this phase is about)", flush=True)
 
     def hook(devtools, origin, engine_dl, engine_home, worker):
         print(f"  (the browser check's own steps are done; now {n} downloads at once)", flush=True)

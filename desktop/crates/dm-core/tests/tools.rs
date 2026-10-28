@@ -76,7 +76,13 @@ async fn fetched_tools_are_kept_only_when_they_match() {
     let dir = common::tempdir();
     let client = dm_core::client();
     // The single file an earlier dm fetched: gone once the unpacked build is.
-    std::fs::write(dir.path().join("yt-dlp"), b"old one-file build").unwrap();
+    // Named as dm names it on this system (`.exe` on Windows).
+    let one_file = dir.path().join(if cfg!(windows) {
+        "yt-dlp.exe"
+    } else {
+        "yt-dlp"
+    });
+    std::fs::write(&one_file, b"old one-file build").unwrap();
 
     let ytdlp = fetch_into(
         &client,
@@ -94,7 +100,7 @@ async fn fetched_tools_are_kept_only_when_they_match() {
         std::fs::read(ytdlp.parent().unwrap().join("_internal/lib.so")).unwrap(),
         b"library"
     );
-    assert!(!dir.path().join("yt-dlp").exists(), "the old file stayed");
+    assert!(!one_file.exists(), "the old file stayed");
     assert!(
         !ytdlp.parent().unwrap().with_extension("partial").exists(),
         "a staging folder was left"

@@ -524,6 +524,7 @@ fn a_port_opened_for_assistants_alone_refuses_other_clients() {
 /// download stayed stopped.
 #[test]
 fn a_resume_straight_after_a_pause_is_not_refused_by_a_stale_list() {
+    let _file = settings_file();
     let world = world();
     let mut harness = world.harness();
     add_url(&mut harness, &world.url("stalled.bin"), "Start now");

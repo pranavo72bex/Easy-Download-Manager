@@ -456,3 +456,36 @@ async fn a_speed_limit_given_when_a_row_is_added_is_the_rows_own_and_is_kept() {
         "no limit unless given"
     );
 }
+
+/// A change is written once, however many flushes ask at the same moment: the
+/// one that waits out the write gap and one made by a caller both saw a save
+/// owed, and each wrote the whole list. (Seen as 2 saves for 1 on a slow
+/// runner.)
+#[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+async fn flushes_made_at_once_write_one_change_once() {
+    let addr = serve().await;
+    for round in 0..40 {
+        let dir = tempdir();
+        let q = queue(dir.path());
+        q.persist_to(dir.path().join("queue.json")).await;
+        let url = |n: u32| format!("http://{addr}/r{round}-{n}.bin");
+        q.add(&url(0)).await.unwrap();
+        // Within the write gap of that save, so this one is owed, not written.
+        q.add(&url(1)).await.unwrap();
+        let before = q.saves_written();
+        let flushes: Vec<_> = (0..8)
+            .map(|_| {
+                let q = q.clone();
+                tokio::spawn(async move { q.flush().await })
+            })
+            .collect();
+        for flush in flushes {
+            flush.await.unwrap();
+        }
+        assert_eq!(
+            q.saves_written() - before,
+            1,
+            "round {round}: one change, written more than once"
+        );
+    }
+}

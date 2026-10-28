@@ -2460,3 +2460,61 @@ Kept, on purpose:
 - Not taken: `imports_granularity = Module`, `hex_literal_case` and
   `format_macro_matchers` are nightly-only rustfmt options.
 
+## 2026-10-28: Three CI failures, and what each was
+
+CI on `36bec4b` failed on Linux and Windows. Read from the job logs, fixed, and
+checked on Linux in the repo's container image (fmt, clippy `-D warnings`, the
+layering check and 1167 tests, none failing).
+
+- Linux: clippy refused three `unsafe` blocks in `xdnd.rs` that had no
+  `// SAFETY:`. The lint added that morning is on for every non-Windows build;
+  those blocks are Linux-only and did not compile on the Mac it was written on.
+  Written up; a lint that applies to code the author cannot compile has to be
+  tried on that code before it is made a rule.
+- Windows: `fetched_tools_are_kept_only_when_they_match` planted the old
+  single-file yt-dlp as `yt-dlp`, where Windows names it `yt-dlp.exe`; the code
+  was right and removed `yt-dlp.exe`. The test names it as the system does.
+- Windows (it passed on the retry): `removing_many_rows_writes_the_queue_once`
+  saw 2 saves for 1. `Queue::flush` looked at "is a save owed" before taking the
+  save lock, so the trailing flush and a caller's both saw it owed and each
+  wrote the list. It now looks again once it holds the lock. A test of eight
+  concurrent flushes fails against the old one (4 runs of 4) and passes now.
+
+Also found by running the same suite again: window tests of that day took the
+settings-file lock only inside `add_url`, then went on driving a window that can
+write the settings file, and an Options test then read someone else's defaults
+(about half the runs of `cargo test`; nextest's process per test hid it in CI).
+They hold it for their whole run, as the others do. An earlier note here that
+this was "load" was wrong.
+
+The stress suite's `edge` phase ran Chrome for Testing, not Edge: it blanked
+`CHROME_PATH`, so the browser check downloaded Chrome and failed three runs in
+a row (connection closed, timed out, reset). It now uses the installed
+Microsoft Edge (macOS, Windows, Linux paths) and says when it has to fall back:
+38 of 38 checks pass with Edge 156, forty simultaneous downloads all taken by
+dm and none kept by Edge.
+
+## 2026-10-28: Microsoft's Pragmatic Rust Guidelines (the part given)
+
+Checked against what was pasted (it stopped partway). Already as asked: no
+`panic!`, `assert!`, `todo!` or `unreachable!` in shipped code (so every one
+has no message to be missing); `unsafe` has its reason written beside it; no
+macros of dm's own; module and crate docs are about what a thing does.
+
+Not applied, and why:
+
+- Items reachable by one path (`M-SINGLE-ITEM-PATH`): `dm_core::category` is
+  public and its types are also re-exported at the crate root (about twenty
+  items), so each is reachable two ways. One path means changing it in every
+  crate that uses the other; a public-path change for you to decide.
+- `M-PANIC-IS-STOP` calls `unwrap()` on a poisoned lock valid, where
+  `dm_core::lock` takes a poisoned mutex's data; and `M-PANIC-CONTINUATION` asks
+  for a restart after a caught panic, where the tray's `catch_unwind` goes on
+  without a tray. Both are the choices already recorded above; the two guides
+  disagree about the first (Google: never reach inside a poisoned mutex).
+- `M-TARGET-CPU` is for server applications; a desktop program has to run on
+  the oldest computer it is installed on. `M-MIMALLOC-APPS` (a C allocator in
+  every build, on every platform, for a speed-up that was not measured here)
+  and `M-FAST-HASHER` were not tried: the profile of 2026-10-28 does not show
+  the allocator or the hasher.
+

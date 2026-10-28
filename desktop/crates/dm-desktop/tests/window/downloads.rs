@@ -2297,6 +2297,7 @@ fn describing_a_long_list_takes_a_moment_not_seconds() {
 /// "Complete" with no button to press, one more for each download after it.
 #[test]
 fn the_progress_window_of_a_finished_download_closes() {
+    let _file = settings_file();
     let world = world();
     let mut harness = world.harness();
     add_url(&mut harness, &world.url("file.zip"), "Start now");

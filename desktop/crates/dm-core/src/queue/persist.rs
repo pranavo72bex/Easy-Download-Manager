@@ -190,7 +190,15 @@ impl Queue {
     pub async fn flush(&self) {
         if self.inner.unwritten.load(Ordering::SeqCst) {
             if let Some(path) = self.inner.store.lock().await.clone() {
-                self.write_to(&path).await;
+                let saving = self.inner.saving.lock().await;
+                /* Asked again now that this is the one writing: two flushes
+                 * (the one waiting out the write gap and one made by a
+                 * caller) both saw a save owed, and each wrote the list, one
+                 * after the other, for a single change. */
+                if self.inner.unwritten.swap(false, Ordering::SeqCst) {
+                    self.write_held(&path).await;
+                }
+                drop(saving);
                 return;
             }
         }
@@ -203,6 +211,12 @@ impl Queue {
     async fn write_to(&self, path: &std::path::Path) {
         let _saving = self.inner.saving.lock().await;
         self.inner.unwritten.store(false, Ordering::SeqCst);
+        self.write_held(path).await;
+    }
+
+    /// [`Self::write_to`] by whoever holds `saving` and has cleared what was
+    /// owed.
+    async fn write_held(&self, path: &std::path::Path) {
         self.inner.saves.fetch_add(1, Ordering::Relaxed);
         let entries = self.list().await;
         let began = std::time::Instant::now();

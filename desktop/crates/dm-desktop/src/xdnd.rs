@@ -53,6 +53,11 @@ fn release_winit(display: *mut std::ffi::c_void) {
         return;
     }
     if let Ok(xlib) = x11_dl::xlib::Xlib::open() {
+        // SAFETY: `display` is not null (checked above) and is winit's live Xlib
+        // `Display*` for the window being dragged from, which the caller keeps
+        // for the call. `XUngrabPointer` takes a display and a time (0 is
+        // CurrentTime) and `XFlush` a display; the library `xlib` opened stays
+        // loaded while they run.
         unsafe {
             (xlib.XUngrabPointer)(display.cast(), 0);
             (xlib.XFlush)(display.cast());
@@ -61,10 +66,14 @@ fn release_winit(display: *mut std::ffi::c_void) {
     // winit reads the pointer through XInput 2, whose own grab of the
     // master pointer (device 2) is let go of too.
     if let Ok(xi) = x11_dl::xinput2::XInput2::open() {
+        // SAFETY: as above, `display` is winit's live `Display*`;
+        // `XIUngrabDevice` takes a display, a device id (2, the master pointer)
+        // and a time (0, CurrentTime), and the library `xi` opened stays loaded.
         unsafe {
             (xi.XIUngrabDevice)(display.cast(), 2, 0);
         }
         if let Ok(xlib) = x11_dl::xlib::Xlib::open() {
+            // SAFETY: as above.
             unsafe { (xlib.XFlush)(display.cast()) };
         }
     }
