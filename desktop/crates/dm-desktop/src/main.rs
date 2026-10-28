@@ -403,6 +403,7 @@ fn main() {
         // window far more often than it is drawn anyway (10 downloads: 9.7 %
         // of a core became 14.6 %). Requests within the quarter are one.
         queue.on_change(move || {
+            dm_desktop::app::QUEUE_CHANGED.store(true, Ordering::Release);
             if let Some(ctx) = repaint.get() {
                 ctx.request_repaint_after(std::time::Duration::from_millis(250));
             }

@@ -227,9 +227,14 @@ impl DmApp {
                 }
                 let (mut done, mut skipped) = (Vec::new(), Vec::new());
                 for id in ids {
+                    /* The queue's row, not the window's copy of it: that is
+                     * up to a quarter of a second old, and a script that
+                     * paused and then resumed was told "it is not paused".
+                     * What is answered here is what is true now. */
                     let Some(state) = self
+                        .backend
                         .row(id)
-                        .map(|r| (r.state.clone(), r.paused_by_schedule))
+                        .map(|r| (r.state, r.paused_by_schedule))
                     else {
                         skipped.push(json!({ "id": id, "why": "no such download" }));
                         continue;

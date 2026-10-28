@@ -517,3 +517,39 @@ fn a_port_opened_for_assistants_alone_refuses_other_clients() {
         "{other:?}"
     );
 }
+
+/// A pause followed at once by a resume, before the window has read the list
+/// again: the resume is answered from the queue, not from the window's copy,
+/// which still says the download runs. It was refused as "not paused", and the
+/// download stayed stopped.
+#[test]
+fn a_resume_straight_after_a_pause_is_not_refused_by_a_stale_list() {
+    let world = world();
+    let mut harness = world.harness();
+    add_url(&mut harness, &world.url("stalled.bin"), "Start now");
+    until(&mut harness, "stalled.bin to run", |app| {
+        app.rows().iter().any(|r| r.state == State::Running)
+    });
+    let id = row(&harness, "stalled.bin").id;
+    let ids = serde_json::json!({ "ids": [id] });
+    let said = harness
+        .state_mut()
+        .control_call("downloads.pause", &ids)
+        .unwrap();
+    assert_eq!(said["done"], serde_json::json!([id]));
+    // No frame between: the window's list is as it was.
+    let said = harness
+        .state_mut()
+        .control_call("downloads.resume", &ids)
+        .unwrap();
+    assert_eq!(
+        said["done"],
+        serde_json::json!([id]),
+        "the resume was refused: {said}"
+    );
+    until(&mut harness, "it to run again", |app| {
+        app.rows()
+            .iter()
+            .any(|r| r.id == id && r.state == State::Running)
+    });
+}

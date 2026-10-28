@@ -31,6 +31,42 @@ addresses, per-stream headers, yt-dlp's `--http-chunk-size`, unpacked yt-dlp
 builds; `docs/decisions.md`, "The video route follows what yt-dlp's reading
 says"); rows 21 to 23 are what is left of them.
 
+### State audit, 2026-10-28
+
+Reported: a paused download's details window showing Stop instead of Resume,
+dialogs that do not match the row, and a Resume whose progress indicator is
+hard to see. Looked for by running the real window against a local server and
+comparing, every 40 ms, the queue's own state with what the window had read
+(`ui.inspect`) through random pause, resume, cancel, stop all, start queue and
+retry on 8 downloads (4 seeds of 45 to 60 s each), and by photographing the
+details window in each state (`ui.screenshot`). The reported Stop-for-Resume
+was not seen in any frame once the window had read the list; what was found:
+
+Found and closed (tests beside each; `CHANGELOG.md`, `docs/decisions.md`
+"The window reads the queue when it changes"):
+
+- The window did not read the list again after a change made while nothing
+  looked to be moving: its next repaint was then 30 seconds away. A resume
+  over the control port, the command line or an AI client from a state where
+  everything was stopped left the window (and an open details window, with its
+  Resume button and a still bar) showing "Stopped" for as long as the download
+  ran: 4.3 s until it finished, in the run that showed it. Now read within a
+  quarter of a second.
+- `downloads.pause` / `downloads.resume` / `downloads.cancel` were answered
+  from the window's copy of the row: a pause followed at once by a resume was
+  refused as "it is not paused or failed" and the download stayed stopped (3 of
+  3 tries). Now from the queue's row.
+- A row that was paused, queued, finished or cancelled kept the speed and time
+  left of its last run in `queue.list`, `list --json` and MCP (a finished file
+  "moving" at 1.1 MB/s, on every seed). The window itself never drew them.
+- The details window of a finished or cancelled download said "Can resume:
+  Unknown until the server answers".
+
+Not reproduced, so not rows: a snapshot older than about a quarter of a second
+at any other time (none longer than 0.7 s in any run); more running than the
+setting allows; a download that went backwards, passed its size, or completed
+with bytes missing; a Resume that was answered and not applied.
+
 Found by a security review (2026-10-24) and a stress test (2026-10-27,
 `scripts/stress-check.py` and `scripts/stress-protocols.py`: local servers, a
 dm of its own and Microsoft Edge; torrents on loopback inside a sandbox, and
@@ -48,3 +84,6 @@ one public Creative Commons torrent); each row says how it closes.
 | 21 | Streams in pieces (`m3u8_native`) always go to yt-dlp, though dm has its own HLS downloader (`download/hls.rs`). The design is written (`docs/decisions.md`, "Routing `m3u8_native` to dm's own HLS") but not built, because yt-dlp already fetches fragments concurrently and the gain is unmeasured | OPEN | Record a run on an HLS site and time yt-dlp with `--concurrent-fragments 8` against dm's `download_stream` on the same playlist; build the route only if dm is clearly faster, then prove the picture-and-sound join on real streams |
 | 22 | The slice size taken from `http_chunk_size` (since 2026-10-28) is proven on a local server that slows each response after 1 MiB (16 MiB, 6.4 s without, 0.55 s with) and on one real YouTube video of 0.7 MB (`real-sites.py`), where there is nothing to slow. It has not been timed on a long video against a server that actually throttles | PARTIAL | Time a 100 MB or longer video once with the cap and once with it switched off in a local build, on a real connection |
 | 23 | yt-dlp's unpacked builds are fetched and unpacked on Windows by the `zip` crate (`tools::unpack_portable`), checked on macOS and in unit tests and timed on Linux (0.59 to 0.24 s a start), but not run on Windows, where the file names inside `yt-dlp_win*.zip` (`yt-dlp.exe`, `_internal/`) come from reading the archive on macOS, and Windows security software may scan the many small files once | PARTIAL | On a Windows computer with no yt-dlp: add a video link; dm fetches `yt-dlp-windows/yt-dlp.exe`, a page reads and downloads, an earlier one-file `yt-dlp.exe` in dm's tools folder is gone; time `--version` before and after |
+| 24 | The progress window of a download that has finished stays open when Options › Show complete window is off, which is the default, and the only way to see progress windows is to ask for them (Details, or Show progress on). It shows "Status: Complete" with no button but the ×, a "Connections" fold with nothing in it and a blank band under it; one for each such download opened stacks over the last in the cascade (three deep in a run of three downloads, each behind the next). Only with Show complete window on is it replaced by the complete window (`app/sync.rs`, `dialogs.progress.remove`) | OPEN | Decide what a finished download's progress window is for: close it when its download completes (as when the complete window is on), or keep it and give it what a finished file needs (Open, Open folder). Then a test with the window harness that a completed row leaves no progress window, or one with its buttons |
+| 25 | A stopped download's progress bar is drawn in the same grey as its track (`Stopped · 64%`, a 2 px line, the fill a lighter grey than the rest), where a running one is blue; beside Resume, the one moment a person wants to see how far it got, it is the faintest. In the details window the pieces bar stays blue, so the two disagree about whether it is stopped. Seen in a zoomed screenshot of the list row; whether this is the "progress indicator not properly visible" that was reported was not established | OPEN | Draw the stopped fill in the accent colour, dimmed, on a track that can be told from it, in the list row and the details window alike, and check both themes and High Contrast by screenshot (`scripts/ui-shot.py`) |
+| 26 | Not covered by this audit: real mouse and keyboard presses (the loop drives commands and the control port, which reach the same code but not the click handling), a download held by the schedule or the download limit (the "Start now" button and its confirmation), the window in the tray or minimised (its slower wakes), several details windows open at once under a change, and Windows and Linux. Also known and left: the window reads the queue at most four times a second, so a state shown can be a quarter of a second old, and Start queue and Stop queue act on the named Main queue only, so they say "Stopped 0 downloads in Main queue" with ordinary downloads running outside it | OPEN | Each its own run of `scripts` against a built window: the schedule and limit holds first, since they have a button of their own that depends on the row's state |

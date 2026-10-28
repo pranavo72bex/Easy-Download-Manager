@@ -325,6 +325,12 @@ impl Queue {
                                 crate::lock(&queue.inner.quota)
                                     .add(arrived, std::time::SystemTime::now());
                                 slot.entry.progress = progress;
+                                // A report that arrives after a pause or a
+                                // cancel (what was in flight) counts its bytes
+                                // but is not a speed.
+                                if slot.entry.state != State::Running {
+                                    slot.stopped_moving();
+                                }
                                 drop(slots);
                                 queue.save_quota_now_and_then().await;
                                 continue;
@@ -541,6 +547,8 @@ impl Queue {
             if slot.entry.state.settled() {
                 slot.entry.finished_at = Some(now_seconds());
             }
+            // However the run ended, it is not running now.
+            slot.stopped_moving();
             // Dropped before saving: save() reads the queue back through
             // this same lock, so holding it here would deadlock the task
             // that just finished a download.

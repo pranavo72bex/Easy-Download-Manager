@@ -2807,3 +2807,59 @@ async fn the_last_state_is_on_disk_when_run_returns() {
         );
     }
 }
+
+/// A row that is not downloading has no speed and no time left, however it
+/// stopped: paused (with the reports of what was still in flight arriving
+/// after), finished or cancelled. The last run's figures stayed on it, and
+/// a finished download read as moving to anything that read the list.
+#[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+async fn a_row_that_is_not_downloading_has_no_speed_or_time_left() {
+    use axum::routing::get;
+    use futures_util::StreamExt as _;
+    const SIZE: usize = 1_600_000;
+    let app = axum::Router::new().fallback(get(|| async {
+        let pieces = (0..SIZE / 32_000).map(|_| vec![9u8; 32_000]);
+        Response::builder()
+            .status(StatusCode::OK)
+            .header("content-length", SIZE)
+            .body(Body::from_stream(futures_util::stream::iter(pieces).then(
+                |piece| async move {
+                    tokio::time::sleep(Duration::from_millis(25)).await;
+                    Ok::<_, std::io::Error>(bytes::Bytes::from(piece))
+                },
+            )))
+            .unwrap()
+    }));
+    let addr = common::serve(app).await;
+    let dir = tempdir();
+    let q = queue(dir.path(), 2);
+    let id = q.add(&format!("http://{addr}/moving.bin")).await.unwrap();
+    let started = q.clone();
+    tokio::spawn(async move { started.run().await });
+    // Running, with a speed to speak of.
+    let mut moving = false;
+    for _ in 0..200 {
+        let row = q.get(id).await.unwrap();
+        if row.state == DownloadState::Running && row.progress.speed > 1.0 {
+            moving = true;
+            break;
+        }
+        tokio::time::sleep(Duration::from_millis(20)).await;
+    }
+    assert!(moving, "the download never showed a speed");
+
+    q.pause(id).await;
+    // Long enough for what was in flight to be reported.
+    tokio::time::sleep(Duration::from_millis(700)).await;
+    let row = q.get(id).await.unwrap();
+    assert_eq!(row.state, DownloadState::Paused);
+    assert_eq!(row.progress.speed, 0.0, "a paused row kept its speed");
+    assert_eq!(row.progress.eta, None, "a paused row kept its time left");
+
+    q.resume(id).await;
+    q.run().await;
+    let row = q.get(id).await.unwrap();
+    assert_eq!(row.state, DownloadState::Completed);
+    assert_eq!(row.progress.speed, 0.0, "a finished row kept its speed");
+    assert_eq!(row.progress.eta, None, "a finished row kept its time left");
+}

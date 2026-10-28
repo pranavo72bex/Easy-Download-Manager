@@ -14,6 +14,9 @@ the browser extension (`v*` tags) are versioned separately.
 - yt-dlp is fetched as its unpacked build on Windows and Linux too (musl included), as on macOS: it starts in 0.22 s where the single file took 0.6 s on Linux. An earlier single file is replaced at the next start.
 - A link on port 0 is refused when it is added, with a reason, instead of becoming a row that can only fail; the command line and AI assistants are told of an address already in the list once, not once for each time it was repeated.
 - A queue of small files no longer waits for the scheduler's next tick after each one: a finished download hands its place to the next at once. 2 000 small files at once: 131 files/s before, 740 now (all byte-exact); 200 small files behind 20 000 queued links: 37 files/s before, 116 now.
+- The window no longer shows a stale state after a change made while nothing was moving: a download resumed from the command line, the control port or an AI client while everything was stopped was shown as stopped (the details window with its Resume button) until it finished; the list is now read within a quarter of a second of any change.
+- Pausing and then resuming a download over the control port, the command line or MCP in quick succession no longer refuses the resume as "it is not paused": the answer comes from the queue, not from the window's copy of the list.
+- A paused, waiting, finished or cancelled download no longer reports the speed and time left of its last run to the command line, the control port or an AI client; and the details window of a finished download no longer says "Can resume: Unknown until the server answers".
 
 ## App 0.8.3
 

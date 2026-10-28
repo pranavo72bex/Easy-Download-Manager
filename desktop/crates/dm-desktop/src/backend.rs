@@ -142,6 +142,11 @@ impl Backend {
         self.block_on(self.queue.list())
     }
 
+    /// One row as the queue holds it now, not as the window last read it.
+    pub fn row(&self, id: Id) -> Option<Entry> {
+        self.block_on(self.queue.get(id))
+    }
+
     /// The rows being retried now, each with its attempt and how many
     /// there may be (0 for no end).
     pub fn retrying(

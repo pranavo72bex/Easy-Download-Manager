@@ -149,42 +149,47 @@ pub(super) fn progress(app: &mut DmApp, ctx: &egui::Context) {
                             };
                             ui.label(crate::table::digits(ui, left));
                             ui.end_row();
-                            ui.label(t("Can resume"));
-                            // What the server said when the download was planned, not
-                            // a guess from the size: a known size says nothing about
-                            // whether a server serves ranges.
-                            ui.label(match resumable {
-                                Some(true) => t("Yes"),
-                                Some(false) => t("No — a stop starts it again from the beginning"),
-                                // A torrent goes on from the pieces it has;
-                                // there is no server to ask,
-                                // whether or not it failed.
-                                // Not one that failed before it had any:
-                                // a .torrent that could not be read has no
-                                // pieces to go on from.
-                                None if dm_core::is_torrent(&row.url)
-                                    && matches!(row.state, State::Failed(_))
-                                    && p.downloaded == 0 =>
-                                {
-                                    t("No — nothing of it was fetched")
-                                }
-                                None if dm_core::is_torrent(&row.url) => {
-                                    t("Yes, from the pieces it already has")
-                                }
-                                // Failed before the server said: a 401
-                                // is an answer, but not to this.
-                                // The server answered, with a refusal: a
-                                // 404 read "Not yet known" under its own
-                                // reason.
-                                None if matches!(&row.state, State::Failed(why) if why.contains("the server answered")) => {
-                                    t("No — the server refused it")
-                                }
-                                None if matches!(row.state, State::Failed(_)) => {
-                                    t("Not yet known: it failed before the server said")
-                                }
-                                None => t("Unknown until the server answers"),
-                            });
-                            ui.end_row();
+                            /* Nothing to say of resuming a download that is over:
+                             * "Unknown until the server answers" was said of a
+                             * finished file. */
+                            if !matches!(row.state, State::Completed | State::Cancelled) {
+                                ui.label(t("Can resume"));
+                                // What the server said when the download was planned, not
+                                // a guess from the size: a known size says nothing about
+                                // whether a server serves ranges.
+                                ui.label(match resumable {
+                                    Some(true) => t("Yes"),
+                                    Some(false) => t("No — a stop starts it again from the beginning"),
+                                    // A torrent goes on from the pieces it has;
+                                    // there is no server to ask,
+                                    // whether or not it failed.
+                                    // Not one that failed before it had any:
+                                    // a .torrent that could not be read has no
+                                    // pieces to go on from.
+                                    None if dm_core::is_torrent(&row.url)
+                                        && matches!(row.state, State::Failed(_))
+                                        && p.downloaded == 0 =>
+                                    {
+                                        t("No — nothing of it was fetched")
+                                    }
+                                    None if dm_core::is_torrent(&row.url) => {
+                                        t("Yes, from the pieces it already has")
+                                    }
+                                    // Failed before the server said: a 401
+                                    // is an answer, but not to this.
+                                    // The server answered, with a refusal: a
+                                    // 404 read "Not yet known" under its own
+                                    // reason.
+                                    None if matches!(&row.state, State::Failed(why) if why.contains("the server answered")) => {
+                                        t("No — the server refused it")
+                                    }
+                                    None if matches!(row.state, State::Failed(_)) => {
+                                        t("Not yet known: it failed before the server said")
+                                    }
+                                    None => t("Unknown until the server answers"),
+                                });
+                                ui.end_row();
+                            }
                         });
                     let fraction = p.fraction().unwrap_or(0.0) as f32;
                     // No words of its own: Status above says the percentage (it was said twice). Laid out as the file

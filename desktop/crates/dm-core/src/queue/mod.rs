@@ -265,6 +265,15 @@ struct Slot {
 }
 
 impl Slot {
+    /// A row that is not downloading has no speed and no time left: the
+    /// figures of its last run stayed on it (a finished download read as
+    /// moving at 1.1 MB/s to `queue.list`, the command line and an AI
+    /// client), as `persist` already says of a restored one.
+    fn stopped_moving(&mut self) {
+        self.entry.progress.speed = 0.0;
+        self.entry.progress.eta = None;
+    }
+
     /// Whether a previous run is still winding down.
     fn still_stopping(&self) -> bool {
         self.task.as_ref().is_some_and(|task| !task.is_finished())
@@ -276,6 +285,7 @@ impl Slot {
     fn hold(&mut self, by_schedule: bool) {
         self.control.pause();
         self.entry.state = State::Paused;
+        self.stopped_moving();
         self.entry.paused_by_schedule = by_schedule;
         self.outside_schedule = false;
     }
@@ -291,6 +301,7 @@ impl Slot {
     fn requeue(&mut self) {
         self.control = Control::new();
         self.entry.state = State::Queued;
+        self.stopped_moving();
         self.entry.finished_at = None;
         self.entry.paused_by_schedule = false;
         self.entry.stalled.clear();

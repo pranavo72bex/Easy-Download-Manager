@@ -49,6 +49,30 @@ pub use widgets::*;
 
 /// How often the list is read back from the queue while the window shows.
 const REFRESH: Duration = Duration::from_millis(250);
+/// Set whenever the queue changes (`Queue::on_change`), cleared by the next
+/// read of the list. The window decides when to look again from the list it
+/// last read, which cannot say that something has just started: a change
+/// made after a read, while nothing moved, was seen only when another
+/// change or a keystroke came (a resumed download showed "Stopped" and its
+/// Resume button until it finished). This is what says it is still owed.
+pub static QUEUE_CHANGED: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
+
+/// Whether to read the list now, and when to look again if not: at once
+/// once a quarter of a second has passed since the last read, and, if the
+/// queue has changed since, a quarter of a second after it (a little over,
+/// so the wake is never early).
+pub(crate) fn refresh_plan(
+    changed: bool,
+    since_read: Option<Duration>,
+) -> (bool, Option<Duration>) {
+    match since_read {
+        None => (true, None),
+        Some(since) if since >= REFRESH => (true, None),
+        Some(since) if changed => (false, Some(REFRESH - since + Duration::from_millis(5))),
+        Some(_) => (false, None),
+    }
+}
+
 /// The smallest the window may be, on screen at 100% text.
 pub const MIN_WINDOW: (f32, f32) = (720.0, 460.0);
 
@@ -904,5 +928,44 @@ mod disk_full_tests {
         row.save_dir = None;
         row.began_in.clear();
         assert_eq!(status_in_english(&row), "Error: the disk is full");
+    }
+}
+
+#[cfg(test)]
+mod refresh_tests {
+    use super::*;
+
+    const MS: fn(u64) -> Duration = Duration::from_millis;
+
+    /// Never read yet, or a quarter of a second since: read now.
+    #[test]
+    fn the_list_is_read_when_it_is_due() {
+        assert_eq!(refresh_plan(false, None), (true, None));
+        assert_eq!(refresh_plan(false, Some(REFRESH)), (true, None));
+        assert_eq!(refresh_plan(true, Some(MS(900))), (true, None));
+    }
+
+    /// Soon after a read, with nothing changed: left alone, and no extra
+    /// wake asked for (the idle wait stands).
+    #[test]
+    fn a_recent_read_with_no_change_is_left_alone() {
+        assert_eq!(refresh_plan(false, Some(MS(40))), (false, None));
+    }
+
+    /// A change made just after a read is not lost to the long idle wait:
+    /// the next look is asked for a little over a quarter of a second after
+    /// the read, which is when it may be taken. (Before, a resumed download
+    /// showed as stopped until it finished.)
+    #[test]
+    fn a_change_just_after_a_read_is_looked_at_again_when_it_may_be() {
+        let (now, again) = refresh_plan(true, Some(MS(13)));
+        assert!(!now);
+        let again = again.expect("a change must ask to be looked at");
+        assert!(
+            again > REFRESH - MS(13) && again <= REFRESH - MS(13) + MS(10),
+            "{again:?}"
+        );
+        // At that moment it is due.
+        assert!(refresh_plan(true, Some(MS(13) + again)).0);
     }
 }

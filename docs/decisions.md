@@ -2326,3 +2326,33 @@ settles). The save is now owed (`unwritten`) before the scheduler is woken. The
 test for it (`the_last_state_is_on_disk_when_run_returns`, 40 rounds) passes
 without the fix on an idle machine and fails 4 runs of 4 with the CPU saturated,
 so it only means something under load.
+
+## 2026-10-28: The window reads the queue when it changes
+
+The window keeps a copy of the list (`DmApp::rows`) and read it every quarter
+of a second while it thought something moved, every 30 seconds otherwise; a
+change to the queue only asked for a repaint in a quarter of a second. A frame
+that came before that (a control request, a click) read nothing, because a read
+was less than a quarter of a second old, and ended by asking for the next
+repaint in 30 s from a list in which nothing moved, which replaced the earlier
+request. Measured with a line in `refresh()`: a download resumed over the
+control port from idle was not read again for 4.3 s, until it finished.
+
+`QUEUE_CHANGED` is set by the queue's change callback and cleared by a read;
+`refresh_plan(changed, since_read)` reads now when a quarter of a second has
+passed and otherwise, if the flag is set, asks for the next look a quarter of
+a second after the last read. The same run: a read at +264 ms and then every
+255 ms for as long as it moved. The cost is at most one read more per change,
+only within a quarter of a second of another.
+
+Control calls (`downloads.pause`, `resume`, `cancel`) take the row from the
+queue (`Backend::row`) and not from the copy: the copy is read at most four
+times a second, and a script that paused and resumed was told "it is not
+paused". The in-app commands were already right, because each ends with a read.
+Left as it is: everything else the window draws is from the copy, up to a
+quarter of a second old; that is the price of not asking the queue on every
+frame, and no run found it longer than 0.7 s.
+
+A row that is not Running has no speed or time left (`Slot::stopped_moving`,
+on hold, requeue, cancel, the end of a run, and for a report that arrives after
+one of them), as `persist` already said of a restored one.

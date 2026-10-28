@@ -250,6 +250,7 @@ impl Queue {
         }
         slot.control.cancel();
         slot.entry.state = State::Cancelled;
+        slot.stopped_moving();
         slot.entry.finished_at = Some(now_seconds());
         drop(slots);
         self.discard_parts(id).await;

@@ -23,6 +23,9 @@ impl DmApp {
     /// Reads the list back from the queue and does what follows from it:
     /// announcing what finished, collecting problems.
     pub fn refresh(&mut self) {
+        // Before the list is read, so a change made while it is read is
+        // still owed a read afterwards.
+        QUEUE_CHANGED.store(false, std::sync::atomic::Ordering::Release);
         self.take_when_done();
         self.take_new_download();
         self.rows = self.backend.list();
@@ -479,7 +482,11 @@ impl DmApp {
     /// What runs whether or not the window shows: keeping the list current
     /// and watching the clipboard.
     pub fn logic(&mut self, ctx: &egui::Context) {
-        if self.refreshed.is_none_or(|at| at.elapsed() >= REFRESH) {
+        let (read_now, look_again) = refresh_plan(
+            QUEUE_CHANGED.load(std::sync::atomic::Ordering::Acquire),
+            self.refreshed.map(|at| at.elapsed()),
+        );
+        if read_now {
             self.refresh();
         }
         // A download handed over and waiting for the person's answer (Download
@@ -556,6 +563,9 @@ impl DmApp {
         } else {
             wake.min(WATCH_EVERY)
         };
+        // A change since the last read is read as soon as it may be, and
+        // not left to the long wait a list of nothing moving earns.
+        let wake = look_again.map_or(wake, |again| wake.min(again));
         ctx.request_repaint_after(wake);
     }
 
