@@ -2513,10 +2513,13 @@ Not applied, and why:
   without a tray. Both are the choices already recorded above; the two guides
   disagree about the first (Google: never reach inside a poisoned mutex).
 - `M-TARGET-CPU` is for server applications; a desktop program has to run on
-  the oldest computer it is installed on. `M-MIMALLOC-APPS` (a C allocator in
-  every build, on every platform, for a speed-up that was not measured here)
-  and `M-FAST-HASHER` were not tried: the profile of 2026-10-28 does not show
-  the allocator or the hasher.
+  the oldest computer it is installed on. `M-MIMALLOC-APPS` was tried and
+  not kept: two release binaries from one tree, differing only in the global
+  allocator, on `stress-check.py many_small` (2000 small files, three runs
+  each): 735-749 files/s with mimalloc and 736-740 without (the same), and a
+  peak of 112-117 MB resident against 63-64 MB (80 % more), for a C dependency
+  in every platform's build. `M-FAST-HASHER` was not tried: the profile of
+  2026-10-28 does not show the hasher.
 
 ## 2026-10-28: A portable Windows build, and a video failure on CachyOS
 
