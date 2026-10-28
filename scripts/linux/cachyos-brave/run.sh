@@ -7,9 +7,14 @@
 #
 #   sh scripts/linux/cachyos-brave/run.sh
 #   DM=0.8.4 sh scripts/linux/cachyos-brave/run.sh    # another release
+#   DM_APPIMAGE=path/dm_0.8.4_x86_64.AppImage sh scripts/linux/cachyos-brave/run.sh   # not yet released
 set -eu
 here=$(cd "$(dirname "$0")" && pwd)
 dm="${DM:-0.8.3}"
+mkdir -p "$here/local"
+touch "$here/local/.keep"
+rm -f "$here/local/dm.AppImage"
+if [ -n "${DM_APPIMAGE:-}" ]; then cp "$DM_APPIMAGE" "$here/local/dm.AppImage"; fi
 docker build --platform linux/amd64 --build-arg "DM=$dm" -t dm-cachyos-brave "$here"
 for scenario in "exec" "noexec" "noexec-tmpdir"; do
   echo

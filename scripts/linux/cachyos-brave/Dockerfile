@@ -31,6 +31,9 @@ RUN curl -fsSL -o /tmp/brave.zip https://github.com/brave/brave-browser/releases
 # dm 0.8.3, the AppImage that was released, unpacked: its squashfs starts after the
 # runtime's ELF (end of the section headers), and the runtime itself is a static
 # executable this emulation cannot start.
-RUN curl -fsSL -o /opt/dm.AppImage https://github.com/pranavo72bex/Easy-Download-Manager/releases/download/desktop-v${DM}/dm_${DM}_x86_64.AppImage \
+# A build not yet released is handed in as local/dm.AppImage (see run.sh).
+COPY local/ /opt/local/
+RUN if [ -f /opt/local/dm.AppImage ]; then cp /opt/local/dm.AppImage /opt/dm.AppImage; \
+    else curl -fsSL -o /opt/dm.AppImage https://github.com/pranavo72bex/Easy-Download-Manager/releases/download/desktop-v${DM}/dm_${DM}_x86_64.AppImage; fi \
  && python3 -c "import struct,subprocess; d=open('/opt/dm.AppImage','rb').read(64); shoff=struct.unpack_from('<Q',d,0x28)[0]; shentsize,shnum=struct.unpack_from('<HH',d,0x3A); subprocess.check_call(['unsquashfs','-f','-o',str(shoff+shentsize*shnum),'-d','/opt/dm','/opt/dm.AppImage'])" \
  && rm /opt/dm.AppImage && ls /opt/dm

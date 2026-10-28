@@ -236,6 +236,7 @@ jobs:
       - name: The portable zip
         if: runner.os == 'Windows'
         shell: pwsh
+        working-directory: .
         run: |
           $version = (Select-String -Path desktop/crates/dm-desktop/Cargo.toml -Pattern '^version = "(.*)"' | Select-Object -First 1).Matches[0].Groups[1].Value
           $dir = Join-Path desktop/target/release/bundle "dm_${version}_x64-portable"
