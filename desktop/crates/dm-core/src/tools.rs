@@ -603,31 +603,78 @@ mod tests {
         allow_fetching(true);
     }
 
+    /// The unpacked builds yt-dlp's release 2026.10.26 publishes, each with a
+    /// checksum in its `SHA2-256SUMS`: what dm names must be among them, or the
+    /// fetch is a 404 on that system.
+    const PUBLISHED_UNPACKED: [&str; 8] = [
+        "yt-dlp_linux.zip",
+        "yt-dlp_linux_aarch64.zip",
+        "yt-dlp_macos.zip",
+        "yt-dlp_musllinux.zip",
+        "yt-dlp_musllinux_aarch64.zip",
+        "yt-dlp_win.zip",
+        "yt-dlp_win_arm64.zip",
+        "yt-dlp_win_x86.zip",
+    ];
+
     #[test]
-    fn each_system_gets_its_own_builds() {
-        assert_eq!(ytdlp_asset("windows", "x86_64"), Some("yt-dlp_win.zip"));
-        assert_eq!(
-            ytdlp_asset("windows", "aarch64"),
-            Some("yt-dlp_win_arm64.zip")
+    fn every_system_dm_supports_gets_a_build_yt_dlp_publishes() {
+        let systems = [
+            ("windows", "x86_64"),
+            ("windows", "aarch64"),
+            ("windows", "x86"),
+            ("macos", "x86_64"),
+            ("macos", "aarch64"),
+            ("linux", "x86_64"),
+            ("linux", "aarch64"),
+        ];
+        for (os, arch) in systems {
+            for musl in [false, true] {
+                let asset = ytdlp_asset_for(os, arch, musl)
+                    .unwrap_or_else(|| panic!("no build for {os} {arch} (musl: {musl})"));
+                assert!(
+                    PUBLISHED_UNPACKED.contains(&asset),
+                    "{asset} is not among yt-dlp's published builds"
+                );
+                // Unpacked, with the program named inside it as the archive holds it.
+                let program = unpacked_program(asset);
+                assert_eq!(
+                    program.ends_with(".exe"),
+                    os == "windows",
+                    "{asset}: {program}"
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn a_system_is_never_handed_another_systems_build() {
+        // Distinct builds for distinct systems: a Windows machine must not get
+        // a Linux one, nor a musl system the glibc build that cannot run there.
+        let build = |os, arch, musl| ytdlp_asset_for(os, arch, musl).unwrap();
+        assert_ne!(
+            build("windows", "x86_64", false),
+            build("linux", "x86_64", false)
         );
-        assert_eq!(ytdlp_asset("windows", "x86"), Some("yt-dlp_win_x86.zip"));
-        assert_eq!(ytdlp_asset("macos", "aarch64"), Some("yt-dlp_macos.zip"));
-        assert_eq!(ytdlp_asset("linux", "x86_64"), Some("yt-dlp_linux.zip"));
-        assert_eq!(
-            ytdlp_asset("linux", "aarch64"),
-            Some("yt-dlp_linux_aarch64.zip")
+        assert_ne!(
+            build("linux", "x86_64", false),
+            build("linux", "aarch64", false)
         );
-        assert_eq!(
-            ytdlp_asset_for("linux", "x86_64", true),
-            Some("yt-dlp_musllinux.zip")
+        assert_ne!(
+            build("linux", "x86_64", false),
+            build("linux", "x86_64", true)
         );
-        assert_eq!(
-            ytdlp_asset_for("linux", "aarch64", true),
-            Some("yt-dlp_musllinux_aarch64.zip")
+        assert_ne!(
+            build("linux", "aarch64", false),
+            build("linux", "aarch64", true)
         );
-        assert_eq!(unpacked_program("yt-dlp_win_arm64.zip"), "yt-dlp.exe");
-        assert_eq!(unpacked_program("yt-dlp_linux.zip"), "yt-dlp_linux");
+        assert_ne!(
+            build("windows", "x86_64", false),
+            build("windows", "aarch64", false)
+        );
+        // A system with no published build is told so, not handed the nearest.
         assert_eq!(ytdlp_asset("freebsd", "x86_64"), None);
+        assert_eq!(ytdlp_asset("linux", "riscv64"), None);
     }
 
     #[test]

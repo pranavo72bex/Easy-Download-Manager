@@ -436,10 +436,7 @@ pub const REASONS: [(&[&str], &str); 32] = [
         ],
         "this video is not available: it may be private, removed or not shown in your country",
     ),
-    (
-        &["yt-dlp could not download that"],
-        "dm could not get the video from this page",
-    ),
+    (&["yt-dlp could not download that"], VIDEO_NOT_GOT),
     (
         &["an encrypted stream dm cannot record"],
         "dm cannot record this kind of encrypted stream",
@@ -450,6 +447,48 @@ pub const REASONS: [(&[&str], &str); 32] = [
         "the server could not be reached",
     ),
 ];
+
+/// What a video page that yt-dlp failed on is said to be when nothing more
+/// specific is known (`REASONS`), whatever yt-dlp's own words were.
+pub const VIDEO_NOT_GOT: &str = "dm could not get the video from this page";
+
+/// yt-dlp's own words for why it could not download a page, for the status to
+/// say after [`VIDEO_NOT_GOT`]: its last `ERROR:` line, without the extractor
+/// and video id it starts with and without any address (one may be signed),
+/// and short enough for a row. `None` for a failure that is not yt-dlp's or
+/// that said nothing.
+pub fn ytdlp_said(raw: &str) -> Option<String> {
+    let rest = raw.strip_prefix("yt-dlp could not download that:")?;
+    let line = rest
+        .lines()
+        .map(str::trim)
+        .rev()
+        .find(|l| l.contains("ERROR:"))
+        .or_else(|| rest.lines().map(str::trim).rev().find(|l| !l.is_empty()))?;
+    let mut said = line.rsplit("ERROR:").next()?.trim();
+    // "[youtube] jNQXAC9IVRw: text": the extractor, then the id, then the words.
+    if let Some(after) = said.strip_prefix('[').and_then(|s| s.split_once(']')) {
+        said = after.1.trim_start();
+        if let Some((id, text)) = said.split_once(": ") {
+            if !id.contains(' ') {
+                said = text;
+            }
+        }
+    }
+    let said: String = said
+        .split_whitespace()
+        .filter(|word| !word.contains("://"))
+        .collect::<Vec<_>>()
+        .join(" ");
+    let mut chars = said.chars();
+    let short: String = chars.by_ref().take(120).collect();
+    let said = if chars.next().is_some() {
+        format!("{}…", short.trim_end())
+    } else {
+        short
+    };
+    (!said.is_empty()).then_some(said)
+}
 
 /// Why a download is being tried again, in two or three words that fit
 /// the Status column beside the attempt: the server's own trouble, its

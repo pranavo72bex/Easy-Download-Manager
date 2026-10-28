@@ -293,6 +293,19 @@ pub(super) fn status_in(row: &Entry, words: fn(&'static str) -> &'static str) ->
         {
             crate::i18n::fill(words("Error: the disk is full in {}"), &[&going_into(row)])
         }
+        // A video page yt-dlp failed on, with nothing more specific known: the
+        // same sentence for every cause told a person nothing to act on or to
+        // report, so yt-dlp's own words follow it.
+        State::Failed(reason)
+            if format::reason(reason) == Some(format::VIDEO_NOT_GOT)
+                && format::ytdlp_said(reason).is_some() =>
+        {
+            let said = format::ytdlp_said(reason).unwrap_or_default();
+            crate::i18n::fill(
+                words("Error: {}"),
+                &[&format!("{} ({said})", words(format::VIDEO_NOT_GOT))],
+            )
+        }
         State::Failed(reason) => crate::i18n::fill(
             words("Error: {}"),
             &[&format::reason(reason).map_or(reason.as_str(), words)],

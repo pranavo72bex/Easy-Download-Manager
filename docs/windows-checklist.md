@@ -74,12 +74,15 @@ release.
 
 ## Portable and removal
 
-15. **Portable.** Copy `dm-desktop.exe` from dm's install folder (Start menu,
-    right-click dm › Open file location; usually under `%LOCALAPPDATA%`) to a
-    USB stick, and next to it create an empty file named `portable`, with no
-    extension (in Explorer, turn on View › File name extensions first). Exit the
-    installed dm, then run the copy. *Expect:* a `dm-data` folder appears next
-    to it, and the installed dm's list is not shown.
+15. **Portable.** Download `dm_…_x64-portable.zip` from the release, unzip it
+    to a folder (a USB stick, say), and exit the installed dm if there is one.
+    Double-click `dm-desktop.exe` in the unzipped folder. *Expect:* a `dm-data`
+    folder appears next to it, the installed dm's list is not shown, and
+    nothing new is under `%LOCALAPPDATA%\dm-engine`. (CI runs
+    `scripts/portable-check.py` on the zip headless; this is the same on a real
+    desktop with the window.) Then, in a Command Prompt in that folder, run
+    `dm-desktop.exe --register` and *expect* the browser extension to hand a
+    download to this copy.
 16. **Narrator.** Turn on Narrator (Ctrl+Win+Enter) and Tab through the toolbar.
     *Expect:* each button's name is read out. Turn Narrator off.
 17. **Uninstall.** Settings › Apps › dm › Uninstall. *Expect:* dm is removed,

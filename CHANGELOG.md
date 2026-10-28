@@ -21,6 +21,9 @@ the browser extension (`v*` tags) are versioned separately.
 - The window does about half the work per frame with a long list: with 5000 rows and 20 downloads moving its thread was busy 18 % of the time and is now 10 %. Two dialogs no longer parse every row's address on every frame while closed, the list of queue names is read without copying every row, and the toolbar's selection checks no longer copy and sort the whole list.
 - With a long list the window does less in every frame: the rows it shows, the sidebar's counts and each row's kind and search text are kept until the list is read again or a sort, filter or place changes, rather than made again each frame (5000 rows: 370 µs a frame before, 7 ns now), and its thread is busy 5-6 % of the time under 5000 rows with 20 downloads moving, where it was 17-19 %.
 
+- Windows has a portable build, `dm_…_x64-portable.zip`, beside the installer: unzip it anywhere (a USB stick is fine) and run `dm-desktop.exe`. Its settings and list are kept in a `dm-data` folder beside it and nothing else is written to the computer. Each release builds it and runs it once headless before the release is drafted (`scripts/portable-check.py`).
+- A video page dm could not download no longer says only "dm could not get the video from this page": yt-dlp's own last error line follows it, in brackets (for example "Requested format is not available" or "HTTP Error 403: Forbidden"), so the cause can be acted on and reported.
+
 **Browser extension 3.2.0**
 
 - Every download type is caught by default, and a list still at the old defaults becomes every type.

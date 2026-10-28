@@ -2518,3 +2518,38 @@ Not applied, and why:
   and `M-FAST-HASHER` were not tried: the profile of 2026-10-28 does not show
   the allocator or the hasher.
 
+## 2026-10-28: A portable Windows build, and a video failure on CachyOS
+
+**Portable.** dm already kept its data beside the program when an empty file
+named `portable` sat beside it (`settings::enter_portable`), but nothing
+shipped that way: the Windows checklist told a tester to make one by hand, and
+the release held only the NSIS installer. The Windows bundle job now zips
+`dm-desktop.exe`, an empty `portable` and a readme under a folder of its own
+(`dm_<version>_x64-portable.zip`), the `installed` job unzips it and runs
+`scripts/portable-check.py` (headless, with every usual data place pointed at a
+decoy: `dm-data` appears beside the program with its port and its list, and the
+decoy stays empty), and the release job ships it with the rest. The check was
+run here on a Mac and fails, as it should, when the marker is left out (dm then
+writes to `Library/LaunchAgents` and `Application Support`). Not run on
+Windows: the zip step and the Windows run of the check first happen in CI.
+`latest.json` lists every file, but the updater takes the Windows installer by
+its `-setup.exe` ending, so the zip is never offered as an update.
+
+**"dm could not get the video from this page", CachyOS, AppImage, Brave.** Not
+reproduced. The released x86-64 AppImage cannot run in Docker on this Apple
+Silicon machine (Exec format error even for `--appimage-version`); the aarch64
+AppImage of the same release on an arm64 Arch Linux image, started the way an
+AppImage runs (`--appimage-extract-and-run`, no display but Xvfb, no `DM_HOME`
+set by hand), downloaded a YouTube page to completion. Found on the way: the
+AppImage bundles no libraries (`usr/lib` is empty, `AppRun` sets no
+environment), so on a minimal system it needs the host's `libxkbcommon-x11` and
+the like; and the one-file yt-dlp 0.8.3 fetches unpacks itself to `/tmp` on
+each start, which an unpacked build (since written, unreleased) does not.
+What the person saw is a catch-all: every `yt-dlp could not download that: …`
+the table does not name became that one sentence, with yt-dlp's words only on
+hover. They now follow the sentence (`format::ytdlp_said`: the last `ERROR:`
+line, extractor and id taken off, no address, 120 characters), so the next
+report carries the cause. Until then the cause is unknown; asked of the
+person: hover the failed row's Status, or run `dm-desktop` with `--control` and
+read `queue.list`'s `state`.
+

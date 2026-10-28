@@ -942,6 +942,29 @@ mod superseded_tests {
 mod disk_full_tests {
     use super::*;
 
+    /// A video page yt-dlp failed on says what yt-dlp said, after the sentence
+    /// that was all a person had; the specific failures keep their own words.
+    #[test]
+    fn a_video_page_that_failed_says_why_after_the_sentence() {
+        let mut row = rows::status_tests::paused(false);
+        row.state = State::Failed(
+            "yt-dlp could not download that: ERROR: [youtube] x: Requested format is not available"
+                .into(),
+        );
+        assert_eq!(
+            status_in_english(&row),
+            "Error: dm could not get the video from this page (Requested format is not available)"
+        );
+        // A failure with its own plain words is not given a second one.
+        row.state = State::Failed(
+            "yt-dlp could not download that: ERROR: [youtube] x: Video unavailable".into(),
+        );
+        assert_eq!(
+            status_in_english(&row),
+            "Error: this video is not available: it may be private, removed or not shown in your country"
+        );
+    }
+
     /// A full disk says whose, the folder the file was going to.
     #[test]
     fn a_full_disk_says_which_folder() {

@@ -26,6 +26,7 @@ computer, and the extension for your browser:
 | Your computer | Download this file |
 |---|---|
 | Windows 10 or 11 | `dm_…_x64-setup.exe` |
+| Windows 10 or 11, without installing (portable) | `dm_…_x64-portable.zip` |
 | Mac with an Apple chip (M1 or newer) | `dm_…_aarch64.dmg` |
 | Ubuntu, Debian, Linux Mint, Pop!_OS | `dm_…_amd64.deb` (`_arm64.deb` on ARM) |
 | Fedora, openSUSE, RHEL | `dm-…x86_64.rpm` (`aarch64.rpm` on ARM) |
@@ -54,6 +55,16 @@ you the first time. That is expected; here is how to get past it.
 3. If you see **"Windows protected your PC"**, click **More info**, then
    **Run anyway**.
 4. Click through the installer.
+
+### Windows, portable (no installer)
+
+Prefer not to install anything, or want dm on a USB stick? Download
+`dm_…_x64-portable.zip` instead, unzip it anywhere and double-click
+`dm-desktop.exe`. The empty file named `portable` beside it makes dm keep its
+settings and its list in a `dm-data` folder next to it and write nothing else
+to the computer; delete the folder and dm is gone. A portable dm does not start
+when you sign in. To let the browser extension hand downloads to this copy, run
+`dm-desktop.exe --register` once in its folder (and again if you move it).
 
 ### Mac
 
