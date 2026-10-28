@@ -12,6 +12,7 @@ the browser extension (`v*` tags) are versioned separately.
 - A video stream is asked with every header its page reading names (`Accept-Language`, `Sec-Fetch-Mode` and the rest), for that stream alone; before only the agent was, and it stayed with the site until dm closed.
 - yt-dlp, when it still downloads a file itself, asks for it in 10 MB pieces, as it already did for YouTube's own formats; a server that ignores ranges is unaffected.
 - yt-dlp is fetched as its unpacked build on Windows and Linux too (musl included), as on macOS: it starts in 0.22 s where the single file took 0.6 s on Linux. An earlier single file is replaced at the next start.
+- A link on port 0 is refused when it is added, with a reason, instead of becoming a row that can only fail; the command line and AI assistants are told of an address already in the list once, not once for each time it was repeated.
 
 ## App 0.8.3
 

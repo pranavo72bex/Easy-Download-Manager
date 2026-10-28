@@ -67,6 +67,17 @@ async fn a_pasted_list_skips_the_link_it_cannot_use_and_adds_the_rest() {
 }
 
 #[test]
+fn port_zero_is_refused_before_a_row_is_made_for_it() {
+    assert!(super::unusable("http://127.0.0.1:0/x")
+        .unwrap()
+        .contains("port 0"));
+    assert!(super::unusable("https://example.com:0/x").is_some());
+    // Others, and no port at all, are as they were.
+    assert_eq!(super::unusable("http://127.0.0.1:8080/x"), None);
+    assert_eq!(super::unusable("https://example.com/x"), None);
+}
+
+#[test]
 fn an_address_with_no_site_is_refused_with_a_plain_reason() {
     assert!(super::unusable("http://")
         .unwrap()

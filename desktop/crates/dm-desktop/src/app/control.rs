@@ -355,9 +355,13 @@ impl DmApp {
                 } else {
                     crate::dialogs::listed_addresses(self)
                 };
-                let (listed, fresh): (Vec<String>, Vec<String>) = urls
+                let (mut listed, fresh): (Vec<String>, Vec<String>) = urls
                     .into_iter()
                     .partition(|u| !again && known.contains(&crate::dialogs::bare(u)));
+                // Each address once: a script that repeats a link a thousand
+                // times was answered with it a thousand times.
+                let mut seen = std::collections::HashSet::new();
+                listed.retain(|u| seen.insert(u.clone()));
                 let added = if fresh.is_empty() {
                     0
                 } else {

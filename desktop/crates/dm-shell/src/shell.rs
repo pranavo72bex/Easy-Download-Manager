@@ -544,6 +544,10 @@ pub fn unusable(url: &str) -> Option<String> {
         return Some(format!("{url} names no site to download from"));
     }
     match url::Url::parse(url) {
+        // Port 0 is not one a server listens on: the row could only fail.
+        Ok(parsed) if parsed.port() == Some(0) => {
+            Some(format!("{url} names port 0, which no server listens on"))
+        }
         Ok(parsed) if parsed.host_str().is_some_and(|h| !h.is_empty()) => None,
         Ok(_) | Err(url::ParseError::EmptyHost) => {
             Some(format!("{url} names no site to download from"))

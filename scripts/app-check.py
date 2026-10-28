@@ -63,6 +63,14 @@ HITS = {}
 
 
 class Serve(BaseHTTPRequestHandler):
+    def handle(self):
+        # dm closes a connection it no longer needs (a range given up, a
+        # download stopped); the server hearing that is not a failure.
+        try:
+            super().handle()
+        except (ConnectionResetError, BrokenPipeError):
+            pass
+
     def log_message(self, *_):
         pass
 
