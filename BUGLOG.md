@@ -213,6 +213,13 @@ Deviations from the brief, and why:
   under Xvfb it was below the fold (y 410), so the click landed on nothing
   (`elementFromPoint` empty) and dm was never asked. Now scrolled into view
   first, as `human_click` already did. Brave and Edge then pass it.
+- **T-011** `scripts/stress-check.py` `flaky/lieover`: a server whose
+  `Content-Length` is 1000 over the truth while `Content-Range` tells it,
+  closing after the real bytes. The phase took any "completed" as a finding;
+  the file was byte-exact (8 388 608). Before BUG-001 that download hung for
+  ever, which is how the phase passed. Now a finding only where the
+  completed file differs; `lieunder` (fewer bytes than stated) still must
+  not complete, and does not.
 - **T-010** `scripts/chrome-check.py` exited 0 when the extension's worker
   never started (a `return` inside the `try`), so a browser that loaded
   nothing reported success. Now exits 1.

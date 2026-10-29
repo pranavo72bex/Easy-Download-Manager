@@ -729,8 +729,12 @@ def p_flaky(ctx):
             seed = {"redirect": "redir"}.get(k, k)
             if kind == "completed":
                 p = pathlib.Path(r["path"])
-                good = p.exists() and p.stat().st_size == size and file_sha(p) == expected_sha(seed, size) if k not in ("page", "lieover", "lieunder") else None
-                if k in ("lieover", "lieunder"):
+                good = p.exists() and p.stat().st_size == size and file_sha(p) == expected_sha(seed, size) if k != "page" else None
+                # A Content-Length over the truth, with Content-Range telling
+                # it: every byte of the file arrived, and the file is whole
+                # (BUGLOG.md BUG-001: it used to be fetched for ever). One
+                # under the truth cuts the file short, which must not complete.
+                if k == "lieunder" or (k == "lieover" and good is False):
                     finding("high", "flaky", f"{k}: a download whose Content-Length is wrong was marked completed ({p.stat().st_size if p.exists() else 'missing'} bytes on disk)")
                 elif k == "page":
                     finding("high", "flaky", "an HTML page served in place of a .zip was marked completed as if it were the file")
