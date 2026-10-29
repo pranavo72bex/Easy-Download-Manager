@@ -2591,3 +2591,16 @@ mount it sets `TMPDIR` for yt-dlp to `<tools folder>/tmp` (made on demand, `_MEI
 older than a day removed). Where `/tmp` allows programs nothing changes. Tried and
 dropped: asking the person to set `TMPDIR` themselves (they see only "could not get
 the video"); remounting is not ours to do.
+
+## Programs dm starts do not get the AppImage's folders
+
+The AppImage's `AppRun` sets `PYTHONHOME`, `PYTHONPATH`, `LD_LIBRARY_PATH`,
+`PATH` and others to point into the AppImage, for dm's own sake. A person's
+yt-dlp run by the system's Python (CachyOS's `pacman -S yt-dlp`) inherited them
+and died at start ("Fatal Python error … <no Python frame>"). `no_window` and
+`no_window_async`, which every helper dm starts already goes through, now give
+each of those variables without the entries under the AppImage's folder
+(`APPDIR`, or the folder dm's program sits in as `usr/bin/dm-desktop` beside an
+`AppRun`), and unset it where nothing is left. Outside an AppImage nothing
+changes. Dropped: clearing the variables outright, which would also drop a
+person's own `LD_LIBRARY_PATH` entries (CUDA and the like).

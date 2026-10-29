@@ -3,6 +3,10 @@
 What changed in each release, newest first. The app (`desktop-v*` tags) and
 the browser extension (`v*` tags) are versioned separately.
 
+## Unreleased
+
+- dm started from its AppImage no longer breaks the yt-dlp a person installed (CachyOS's and Arch's `pacman -S yt-dlp`, pip's): the AppImage's start program sets `PYTHONHOME`, `PYTHONPATH` and `LD_LIBRARY_PATH` to the AppImage's own folders, and every program dm started inherited them, so the system's Python stopped at once with "Fatal Python error: Failed to import encodings module" and every video said "dm could not get the video from this page (<no Python frame>)". Programs dm starts now get those variables without the AppImage's folders. Reproduced and checked with Brave on CachyOS (`scripts/linux/cachyos-brave/run.sh`, scenario `system-ytdlp`): 0.8.4 fails, this build completes.
+
 ## App 0.8.4
 
 - yt-dlp now starts on a computer whose `/tmp` is mounted `noexec`, whichever build of it dm runs: where the system's temporary folder does not let programs run, dm runs yt-dlp with a temporary folder of its own beside its tools. The single-file build (one fetched before this version, or a standalone one a person installed) unpacks itself into `/tmp` at every start and could not, and every video then said "dm could not get the video from this page".
@@ -35,7 +39,7 @@ the browser extension (`v*` tags) are versioned separately.
 - The popup has "Pause capturing on this site": that site's downloads stay with the browser, except a click with the take key held.
 - A new page script, in the page's own world, looks at the address of the page's `fetch` and `XMLHttpRequest` calls to find a player's `googlevideo.com` streams on sites no page reader knows. It changes no request and sends nothing off the computer (PRIVACY.md says so, under "YouTube's player requests"). The Chromium manifest gains that one content script and no permission; the Firefox manifest is unchanged.
 - The panel's icon is an SVG in a larger circle.
-- The Chromium manifest no longer asks for a per-session (`use_dynamic_url`) address for the panel's WebAssembly: a person's Brave on CachyOS logged "Unsafe attempt to load URL chrome-extension://… Domains, protocols and ports must match" and showed no panel on YouTube. Not reproduced in Brave 1.98.62 on CachyOS (`scripts/linux/cachyos-brave/ext-check.sh`), which loads the panel with and without the flag.
+- The Chromium manifest no longer asks for a per-session (`use_dynamic_url`) address for the panel's WebAssembly. It did not cause the "Unsafe attempt to load URL chrome-extension://…" lines Brave lists on YouTube: a stress run on CachyOS shows them with either address, and the panel loads all the same (gap 30).
 
 ## App 0.8.3
 

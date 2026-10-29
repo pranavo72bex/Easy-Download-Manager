@@ -662,8 +662,15 @@ pub fn prefer_agent(url: &str, agent: &'static str) {
 
 /// On Windows, starts a helper program without a console window: dm's
 /// release build has none of its own, so each `powershell`, `reg` or
-/// yt-dlp it ran flashed one up. Nothing elsewhere.
+/// yt-dlp it ran flashed one up. On Linux, takes the AppImage's own
+/// folders out of what the helper inherits ([`appimage_env`]).
 pub fn no_window(command: &mut std::process::Command) -> &mut std::process::Command {
+    for (name, value) in appimage_env() {
+        match value {
+            Some(v) => command.env(name, v),
+            None => command.env_remove(name),
+        };
+    }
     #[cfg(windows)]
     {
         use std::os::windows::process::CommandExt;
@@ -675,12 +682,83 @@ pub fn no_window(command: &mut std::process::Command) -> &mut std::process::Comm
 
 /// [`no_window`] for tokio's commands.
 pub fn no_window_async(command: &mut tokio::process::Command) -> &mut tokio::process::Command {
+    for (name, value) in appimage_env() {
+        match value {
+            Some(v) => command.env(name, v),
+            None => command.env_remove(name),
+        };
+    }
     #[cfg(windows)]
     {
         const CREATE_NO_WINDOW: u32 = 0x0800_0000;
         command.creation_flags(CREATE_NO_WINDOW);
     }
     command
+}
+
+/// The variables the AppImage's start program (`AppRun`) points into the
+/// AppImage, as a helper should have them: without the AppImage's folders,
+/// or unset where nothing else is left. `PYTHONHOME` set to the AppImage
+/// made a person's own yt-dlp, a script run by the system's Python, stop
+/// with "Fatal Python error: Failed to import encodings module … <no Python
+/// frame>"; `LD_LIBRARY_PATH` would hand it the AppImage's libraries.
+/// The AppImage's folder is `APPDIR`, which its runtime sets, or else the
+/// one dm's program sits in as `<folder>/usr/bin/dm-desktop` (an AppImage
+/// unpacked and started by its `AppRun`). Nothing outside an AppImage.
+pub fn appimage_env() -> Vec<(&'static str, Option<std::ffi::OsString>)> {
+    let appdir = std::env::var_os("APPDIR")
+        .filter(|d| !d.is_empty())
+        .map(std::path::PathBuf::from)
+        .or_else(|| {
+            let exe = std::env::current_exe().ok()?;
+            let usr = exe.parent()?.parent()?;
+            (usr.file_name()? == "usr" && usr.parent()?.join("AppRun").exists())
+                .then(|| usr.parent().map(std::path::Path::to_path_buf))
+                .flatten()
+        });
+    match appdir {
+        Some(appdir) => without_appdir(&appdir, |name| std::env::var_os(name)),
+        None => Vec::new(),
+    }
+}
+
+fn without_appdir(
+    appdir: &std::path::Path,
+    get: impl Fn(&str) -> Option<std::ffi::OsString>,
+) -> Vec<(&'static str, Option<std::ffi::OsString>)> {
+    const SET_BY_APPRUN: [&str; 11] = [
+        "PYTHONHOME",
+        "PYTHONPATH",
+        "PYTHONDONTWRITEBYTECODE",
+        "LD_LIBRARY_PATH",
+        "PERLLIB",
+        "GSETTINGS_SCHEMA_DIR",
+        "QT_PLUGIN_PATH",
+        "GST_PLUGIN_SYSTEM_PATH",
+        "GST_PLUGIN_SYSTEM_PATH_1_0",
+        "XDG_DATA_DIRS",
+        "PATH",
+    ];
+    let mut out = Vec::new();
+    for name in SET_BY_APPRUN {
+        let Some(value) = get(name) else { continue };
+        if name == "PYTHONDONTWRITEBYTECODE" {
+            out.push((name, None));
+            continue;
+        }
+        let kept: Vec<std::path::PathBuf> = std::env::split_paths(&value)
+            .filter(|p| !p.as_os_str().is_empty() && !p.starts_with(appdir))
+            .collect();
+        let rebuilt = if kept.is_empty() {
+            None
+        } else {
+            std::env::join_paths(kept).ok()
+        };
+        if rebuilt.as_ref() != Some(&value) {
+            out.push((name, rebuilt));
+        }
+    }
+    out
 }
 
 /// A path as Windows programs read it: `canonicalize` there gives the
@@ -801,6 +879,39 @@ mod redirect_tests {
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn a_helper_started_from_the_appimage_gets_none_of_its_folders() {
+        use std::ffi::OsString;
+        // What AppRun hands dm on a CachyOS desktop.
+        let env = |name: &str| -> Option<OsString> {
+            Some(OsString::from(match name {
+                "PYTHONHOME" => "/tmp/.mount_dmX/usr/",
+                "PYTHONPATH" => "/tmp/.mount_dmX/usr/share/pyshared/:",
+                "PYTHONDONTWRITEBYTECODE" => "1",
+                "LD_LIBRARY_PATH" => "/tmp/.mount_dmX/usr/lib/:/tmp/.mount_dmX/lib/:/opt/cuda/lib",
+                "PATH" => "/tmp/.mount_dmX/usr/bin/:/usr/local/bin:/usr/bin",
+                "XDG_DATA_DIRS" => "/usr/local/share:/usr/share",
+                _ => return None,
+            }))
+        };
+        let out = super::without_appdir(std::path::Path::new("/tmp/.mount_dmX"), env);
+        let get = |n: &str| out.iter().find(|(k, _)| *k == n).map(|(_, v)| v.clone());
+        assert_eq!(get("PYTHONHOME"), Some(None));
+        assert_eq!(get("PYTHONPATH"), Some(None));
+        assert_eq!(get("PYTHONDONTWRITEBYTECODE"), Some(None));
+        assert_eq!(
+            get("LD_LIBRARY_PATH"),
+            Some(Some(OsString::from("/opt/cuda/lib")))
+        );
+        assert_eq!(
+            get("PATH"),
+            Some(Some(OsString::from("/usr/local/bin:/usr/bin")))
+        );
+        // Left as it is: nothing of the AppImage's in it.
+        assert_eq!(get("XDG_DATA_DIRS"), None);
+        assert_eq!(get("QT_PLUGIN_PATH"), None);
+    }
+
     #[test]
     fn a_file_error_is_said_without_its_system_number() {
         use std::io::{Error, ErrorKind};

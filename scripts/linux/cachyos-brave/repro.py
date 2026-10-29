@@ -15,7 +15,7 @@ class H(http.server.SimpleHTTPRequestHandler):
         s.send_header("Accept-Ranges", "bytes"); super().end_headers()
 srv = socketserver.ThreadingTCPServer(("127.0.0.1", 0), H); srv.daemon_threads = True
 threading.Thread(target=srv.serve_forever, daemon=True).start()
-page = f"http://127.0.0.1:{srv.server_address[1]}/page.html"
+page = os.environ.get("PAGE") or f"http://127.0.0.1:{srv.server_address[1]}/page.html"
 
 say("== /tmp:", subprocess.run("findmnt -no OPTIONS /tmp", shell=True, capture_output=True, text=True).stdout.strip(), "| TMPDIR:", os.environ.get("TMPDIR", "(unset)"))
 # --- Brave opens the page (and so has a profile, which is where dm registers)
