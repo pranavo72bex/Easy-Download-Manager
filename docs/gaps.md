@@ -79,6 +79,25 @@ Found by a security review (2026-10-24) and a stress test (2026-10-27,
 dm of its own and Microsoft Edge; torrents on loopback inside a sandbox, and
 one public Creative Commons torrent); each row says how it closes.
 
+### Video without a helper, 2026-10-29
+
+Asked for: videos the way reference A gets them, with no yt-dlp and no
+upkeep. Found: dm already does what reference A is documented to do (the
+extension reads the player's own requests, dm fetches the picture and the
+sound on many connections and joins them itself; `tests/caught_pair.rs`
+proves it with no yt-dlp present), and it is the first path tried on every
+site. On YouTube it finds nothing: measured in Edge 156, 13 of 13 media
+requests are `POST videoplayback?sabr=1` with no format named, so the only
+helper-free route is a client of YouTube's protocol kept in step with
+YouTube by hand, which reference A does with a paid team (about 30 builds
+a year) and reference B does not do at all. Decided: yt-dlp stays the
+reader where the browser cannot see the files, fetched by dm and current
+within a week, so dm has nothing to keep up; rows 6 and 32 hold the
+reasons. What using it costs, and the change that closes each cost, are
+rows 33 to 38; the order worth doing them in is 33 (a YouTube change costs
+minutes, not a week), 34 (already written and tested), then 35. Each is a
+change to behaviour and waits for the maintainer's word.
+
 | #  | Gap | Status | How it closes |
 |----|-----|--------|---------------|
 | 5  | The 71 reworded strings were translated into the other twelve languages by a machine pass (consistent with each catalog's own vocabulary, checked for placeholders and length) and have not been read by a native speaker | BLOCKED | One native reader per language goes through the 71 strings listed by `git log -p -- desktop/crates/dm-desktop/i18n` for the 0.7.0 commit and corrects them |
