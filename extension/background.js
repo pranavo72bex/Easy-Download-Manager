@@ -36,6 +36,18 @@ ext.webRequest.onResponseStarted.addListener(
 );
 // The floating panel's click, answered so the panel can say what happened.
 ext.runtime.onMessage.addListener((message, sender, reply) => {
+  // The panel's code, put into the asking frame by the browser itself
+  // (pkg/panel.js carries its WebAssembly): an import() from the page's
+  // frame was checked against the page's origin, and Brave refused it on
+  // YouTube ("Unsafe attempt to load URL chrome-extension://…").
+  if (message?.type === 'dm.panel-load') {
+    if (!sender.tab || sender.frameId === undefined) return false;
+    ext.scripting.executeScript({
+      target: { tabId: sender.tab.id, frameIds: [sender.frameId] },
+      files: ['pkg/panel.js'],
+    }).then(() => reply({ ok: true }), (e) => reply({ ok: false, said: String(e) }));
+    return true;
+  }
   ready
     .then((m) => m.on_page_message(message, sender))
     .then(reply, (e) => reply({ ok: false, said: String(e) }));

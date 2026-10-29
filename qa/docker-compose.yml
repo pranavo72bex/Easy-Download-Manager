@@ -1,0 +1,68 @@
+# The QA stack: dm built from this checkout, against servers that misbehave
+# on request, on a network with no way out (internal: true).
+#
+#   sh qa/run.sh            # build, run every scenario, write qa/reports/
+#
+# origin     every HTTP condition (qa/origin/origin.py), HTTP 8080, HTTPS 8443-8446
+# toxiproxy  latency, loss, bandwidth limits and resets between dm and origin
+# mockvideo  pages and HLS streams for yt-dlp's generic extractor
+# app        dm (headless) and the scenarios in qa/tests; downloads on a 200 MB tmpfs
+# browser    Chromium with the unpacked extension, the hand-off checks
+name: dm-qa
+
+networks:
+  qa:
+    internal: true
+
+services:
+  origin:
+    build: { context: ., dockerfile: origin/Dockerfile }
+    networks: [qa]
+    healthcheck:
+      test: ["CMD", "python3", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8080/')"]
+      interval: 2s
+      retries: 30
+
+  toxiproxy:
+    image: ghcr.io/shopify/toxiproxy:2.9.0
+    networks: [qa]
+
+  mockvideo:
+    build: { context: ., dockerfile: mockvideo/Dockerfile }
+    networks: [qa]
+    healthcheck:
+      test: ["CMD", "python3", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8090/video.html')"]
+      interval: 2s
+      retries: 30
+
+  app:
+    build: { context: .., dockerfile: qa/app/Dockerfile }
+    image: dm-qa-app
+    networks: [qa]
+    depends_on:
+      origin: { condition: service_healthy }
+      mockvideo: { condition: service_healthy }
+      toxiproxy: { condition: service_started }
+    tmpfs:
+      - /downloads:size=200m,uid=1000,mode=0755
+      - /tmp:size=1g,uid=1000,mode=1777,exec
+    environment:
+      ORIGIN: http://origin:8080
+      ORIGIN_HOST: origin
+      TOXIPROXY: http://toxiproxy:8474
+      MOCKVIDEO: http://mockvideo:8090
+      QA_SCENARIOS: ${QA_SCENARIOS:-}
+      QA_RUN: ${QA_RUN:-1}
+    volumes:
+      - ./reports:/reports
+
+  browser:
+    image: dm-qa-app
+    networks: [qa]
+    tmpfs:
+      - /tmp:size=1g,uid=1000,mode=1777,exec
+    environment:
+      QA_RUN: ${QA_RUN:-1}
+    volumes:
+      - ./reports:/reports
+    command: ["sh", "qa/tests/browser.sh"]

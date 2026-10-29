@@ -811,6 +811,11 @@ pub(super) async fn attempt_segment(
         // fetching those bytes again.
         let mut chunk = match chunk {
             Ok(c) => c,
+            // Every byte the range asked for is here, and the server hung
+            // up short of the length it stated: the range is whole. Taken as
+            // a failure, it was asked for again and again, each time whole,
+            // the row at 100 % and running for ever (BUGLOG.md, BUG-001).
+            Err(_) if written >= span_now => break,
             Err(e) => {
                 file.flush().await?;
                 put(&mut ledger, written).await?;

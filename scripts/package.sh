@@ -56,6 +56,27 @@ echo "building the extension (dm-catcher, wasm32)"
 rm -rf "$pkg"
 wasm-bindgen --target web --no-typescript --out-dir "$pkg" \
   "$root/browser/target/wasm32-unknown-unknown/release/dm_catcher.wasm"
+# The panel's copy, which the background puts into a page's frame with
+# scripting.executeScript: a script of its own (no module), its WebAssembly
+# written into it, so the page's frame fetches nothing from the extension.
+panel=$(mktemp -d)
+wasm-bindgen --target no-modules --no-typescript --out-dir "$panel" \
+  "$root/browser/target/wasm32-unknown-unknown/release/dm_catcher.wasm"
+python3 - "$panel" "$pkg/panel.js" <<'PY'
+import base64, pathlib, sys
+src = pathlib.Path(sys.argv[1])
+glue = (src / "dm_catcher.js").read_text()
+data = base64.b64encode((src / "dm_catcher_bg.wasm").read_bytes()).decode()
+pathlib.Path(sys.argv[2]).write_text(
+    "// Built by scripts/package.sh: wasm-bindgen's glue and the WebAssembly it loads.\n"
+    + "var __dmPanelCode;\n(() => {\n" + glue + "\n"
+    + "const bytes = Uint8Array.from(atob('" + data + "'), (c) => c.charCodeAt(0));\n"
+    + "__dmPanelCode = wasm_bindgen({ module_or_path: bytes }).then(() => wasm_bindgen);\n"
+    # Handled now as well as when content.js awaits it: on a page whose policy
+    # forbids WebAssembly it rejects first, and Chrome logged that as uncaught.
+    + "__dmPanelCode.catch(() => {});\n})();\n")
+PY
+rm -rf "$panel"
 echo "  extension/pkg: $(du -k "$pkg/dm_catcher_bg.wasm" | cut -f1) KB of WebAssembly"
 
 [ "${1:-}" = "--build" ] && exit 0
@@ -90,13 +111,13 @@ pack() {
   # Every file a manifest names must be in what ships, and so must the
   # module the loader imports and the WebAssembly that module fetches.
   for named in $(sed -n 's/.*"\(icons\/[^"]*\)".*/\1/p; s/.*"\(background\.js\)".*/\1/p; s/.*"\(content\.js\)".*/\1/p; s/.*"\(document\.js\)".*/\1/p; s/.*"\(popup\.html\)".*/\1/p' "$stage/manifest.json") \
-               popup.js pkg/dm_catcher.js pkg/dm_catcher_bg.wasm; do
+               popup.js pkg/dm_catcher.js pkg/dm_catcher_bg.wasm pkg/panel.js; do
     if [ ! -f "$stage/$named" ]; then
       echo "the $browser build is missing $named" >&2
       exit 1
     fi
   done
-  if find "$stage" -name '*.js' | grep -v -e '/background.js$' -e '/content.js$' -e '/document.js$' -e '/popup.js$' -e '/pkg/dm_catcher.js$' >/dev/null; then
+  if find "$stage" -name '*.js' | grep -v -e '/background.js$' -e '/content.js$' -e '/document.js$' -e '/popup.js$' -e '/pkg/dm_catcher.js$' -e '/pkg/panel.js$' >/dev/null; then
     echo "the $browser build carries JavaScript that is neither the loader nor wasm-bindgen's" >&2
     exit 1
   fi

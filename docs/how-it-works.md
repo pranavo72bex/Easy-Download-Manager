@@ -278,8 +278,12 @@ them and forwards each event once the module is ready. Permissions:
 (the app's catch rules, kept so a download is held at once; the popup's
 switches), `webRequest` with access to all sites (the media a page's player
 loads, read only, for the panel's list), plus a page
-script (`extension/content.js`, a loader of the same Rust module) that draws
-the "Download video" panel over players and reads nothing else. On a
+script (`extension/content.js`) that, once a page shows media, asks the
+background to put the panel's code into its frame (`scripting.executeScript`
+with `pkg/panel.js`, the same Rust module built as a plain script with its
+WebAssembly written in), and that code draws the "Download video" panel over
+players and reads nothing else. The page fetches nothing of the extension's,
+and no file of it is offered to pages (no `web_accessible_resources`). On a
 site whose security policy forbids WebAssembly, Chrome holds the page script
 to that policy, so the panel cannot load there; the right-click menu still
 works.

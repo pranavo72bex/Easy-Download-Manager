@@ -5,6 +5,9 @@ the browser extension (`v*` tags) are versioned separately.
 
 ## Unreleased
 
+- A server that sends every byte of a range but says in `Content-Length` that more are coming, then hangs up, no longer keeps a download "running" at 100 % for ever: the range is whole, and is taken as finished.
+- A video helper (yt-dlp) that hangs without a word is ended after two minutes, or ten once it has started, and the row says "yt-dlp stopped answering", instead of staying "running" for ever.
+- A certificate dm does not trust (expired, for another name, self-signed, from a private authority) is said at once instead of after ten retries over two minutes: waiting cannot change it.
 - dm started from its AppImage no longer breaks the yt-dlp a person installed (CachyOS's and Arch's `pacman -S yt-dlp`, pip's): the AppImage's start program sets `PYTHONHOME`, `PYTHONPATH` and `LD_LIBRARY_PATH` to the AppImage's own folders, and every program dm started inherited them, so the system's Python stopped at once with "Fatal Python error: Failed to import encodings module" and every video said "dm could not get the video from this page (<no Python frame>)". Programs dm starts now get those variables without the AppImage's folders. Reproduced and checked with Brave on CachyOS (`scripts/linux/cachyos-brave/run.sh`, scenario `system-ytdlp`): 0.8.4 fails, this build completes.
 
 ## App 0.8.4
@@ -39,7 +42,7 @@ the browser extension (`v*` tags) are versioned separately.
 - The popup has "Pause capturing on this site": that site's downloads stay with the browser, except a click with the take key held.
 - A new page script, in the page's own world, looks at the address of the page's `fetch` and `XMLHttpRequest` calls to find a player's `googlevideo.com` streams on sites no page reader knows. It changes no request and sends nothing off the computer (PRIVACY.md says so, under "YouTube's player requests"). The Chromium manifest gains that one content script and no permission; the Firefox manifest is unchanged.
 - The panel's icon is an SVG in a larger circle.
-- The Chromium manifest no longer asks for a per-session (`use_dynamic_url`) address for the panel's WebAssembly. It did not cause the "Unsafe attempt to load URL chrome-extension://…" lines Brave lists on YouTube: a stress run on CachyOS shows them with either address, and the panel loads all the same (gap 30).
+- The panel's code is put into a page by the browser (`scripting.executeScript` with `pkg/panel.js`, its WebAssembly written into it) instead of imported by the page script. Brave on CachyOS listed "Unsafe attempt to load URL chrome-extension://…/pkg/dm_catcher.js … Domains, protocols and ports must match" for YouTube pages, from that import, which the page's frame checked against the page's own address. The page now fetches nothing of the extension's, and neither manifest offers any file to pages (`web_accessible_resources` is gone), so a site can no longer probe for dm by loading one.
 
 ## App 0.8.3
 

@@ -408,3 +408,30 @@ How dm is built and measured: [docs/how-it-works.md](docs/how-it-works.md).
 How it is tested, including in Docker: [docs/testing.md](docs/testing.md).
 Where to start changing it: [AGENTS.md](AGENTS.md). The open work list:
 [docs/gaps.md](docs/gaps.md).
+
+### How to run the test suite
+
+The quick checks, on any computer with Rust:
+
+```sh
+(cd desktop && cargo test --workspace)
+(cd browser && cargo test)
+```
+
+The Docker QA stack: dm built from this checkout, run headless against a
+server that misbehaves on request (ranges or none, lying lengths, redirects,
+hostile file names, files replaced mid-download, 4xx/5xx and Retry-After,
+stalls, bad certificates, logins and cookies), a link that drops and slows
+(toxiproxy), a small disk, video pages for yt-dlp, and Chromium with the
+extension. Everything is on a Docker network with no way out:
+
+```sh
+sh qa/run.sh                     # build and run once
+QA_RUNS=3 sh qa/run.sh           # three runs in a row
+QA_SCENARIOS="pause_resume disk_full" sh qa/run.sh
+python3 qa/tests/run.py          # the scenarios on this computer, no Docker
+                                 # (those needing the stack are skipped)
+```
+
+Reports (JSON and JUnit per run, and each container's log) go to
+`qa/reports/`. What the suite found is in [BUGLOG.md](BUGLOG.md).

@@ -55,7 +55,9 @@ class WS:
             except (socket.timeout, TimeoutError): break
 
 os.makedirs("/srv", exist_ok=True)
-pathlib.Path("/srv/page.html").write_text('<!doctype html><title>A video</title><body style="margin:0"><video id=v src="/clip.mp4" width=640 height=360 controls></video>')
+pathlib.Path("/srv/page.html").write_text('<!doctype html><title>A video</title><body style="margin:0"><video id=v src="/clip.mp4" width=640 height=360 controls></video>'
+    + ('<script nonce=x>navigator.serviceWorker.register("/sw.js")</script>' if os.environ.get("SW") else ""))
+pathlib.Path("/srv/sw.js").write_text("self.addEventListener('install',e=>self.skipWaiting());self.addEventListener('activate',e=>e.waitUntil(clients.claim()));self.addEventListener('fetch',e=>e.respondWith(fetch(e.request)));")
 pathlib.Path("/srv/bare.html").write_text('<!doctype html><title>No video yet</title><body style="margin:0;height:400px">')
 pathlib.Path("/srv/clip.mp4").write_bytes(bytes((i * 7) & 255 for i in range(600_000)))
 class H(http.server.SimpleHTTPRequestHandler):
@@ -78,12 +80,10 @@ page = "https://www.youtube.com:8443/page.html"
 REAL = "https://www.youtube.com/watch?v=pTq51r85KkM"
 
 def variant(name):
-    d = pathlib.Path(f"/root/ext-{name}"); shutil.rmtree(d, ignore_errors=True); shutil.copytree("/ext", d)
-    m = json.loads((d / "manifest.json").read_text())
-    for r in m["web_accessible_resources"]:
-        if name == "old": r["use_dynamic_url"] = True
-        else: r.pop("use_dynamic_url", None)
-    (d / "manifest.json").write_text(json.dumps(m, indent=2))
+    # "fixed" is the repository's extension as it is; "old" the one in /ext-old
+    # (another checkout's extension folder, built), when given
+    d = pathlib.Path(f"/root/ext-{name}"); shutil.rmtree(d, ignore_errors=True)
+    shutil.copytree("/ext-old" if name == "old" else "/ext", d)
     return d
 
 def run(name, scenario="plain"):
@@ -152,7 +152,14 @@ def run(name, scenario="plain"):
             ws.call("Page.navigate", {"url": target}, session=s)
         time.sleep(15 if scenario == "real" else 4)
         found = False; msgs = list(msgs_pre)
-        for _ in range(12):
+        if os.environ.get("DEBUG_SW"):
+            sw = [x for x in ws.call("Target.getTargets")["result"]["targetInfos"] if x["type"] == "service_worker"]
+            say("   workers:", [x["url"] for x in sw])
+            if sw:
+                ss = ws.call("Target.attachToTarget", {"targetId": sw[0]["targetId"], "flatten": True})["result"]["sessionId"]
+                r = ws.call("Runtime.evaluate", {"awaitPromise": True, "returnByValue": True, "expression": os.environ["DEBUG_SW"]}, session=ss, wait=60)
+                say("   worker says:", json.dumps(r)[:1500])
+        for _ in range(int(os.environ.get("TRIES", 12))):
             ws.call("Input.dispatchMouseEvent", {"type": "mouseMoved", "x": 300 + _ * 5, "y": 200}, session=s)
             ws.drain(1)
             v = ws.call("Runtime.evaluate", {"expression": "document.querySelector('dm-panel') !== null"}, session=s)
@@ -172,7 +179,7 @@ def run(name, scenario="plain"):
 say("== Brave", subprocess.run(["/opt/brave.com/brave/brave", "--version"], capture_output=True, text=True).stdout.strip())
 bad = 0
 scn = os.environ.get("SCENARIO", "plain")
-for name, want in (("old", False), ("fixed", True)):
+for name, want in ((("old", False),) if os.path.isdir("/ext-old") else ()) + (("fixed", True),):
     loaded, msgs, found = run(name, scn)
     say(f"== [{scn}] manifest {name}: panel appeared: {found} | console: {sorted(set(msgs))[:3]}")
     if name == "fixed" and not (found and not [m for m in msgs if not m.startswith("request ")] if scn == "plain" else True): bad = 1

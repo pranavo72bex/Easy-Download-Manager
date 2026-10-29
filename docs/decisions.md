@@ -2604,3 +2604,43 @@ each of those variables without the entries under the AppImage's folder
 `AppRun`), and unset it where nothing is left. Outside an AppImage nothing
 changes. Dropped: clearing the variables outright, which would also drop a
 person's own `LD_LIBRARY_PATH` entries (CUDA and the like).
+
+## The panel's code is injected by the browser, not imported by the page
+
+`content.js` used `import(runtime.getURL('pkg/dm_catcher.js'))` and the module
+fetched its `.wasm`, both listed as web-accessible. Brave on YouTube logged
+"Unsafe attempt to load URL chrome-extension://… Domains, protocols and ports
+must match" for those loads (reproduced by `stress.sh` on real YouTube, on tabs
+opened after the first), whichever address the manifest gave (`use_dynamic_url`
+on or off). Blink logs that when a fetch is checked against the page's origin
+rather than the extension's. Now `content.js` sends `dm.panel-load`; the
+background calls `scripting.executeScript({ files: ['pkg/panel.js'] })` for
+that tab and frame; `panel.js` is wasm-bindgen's `no-modules` glue with the
+WebAssembly written into it as base64 (`scripts/package.sh`), so the page's
+frame fetches nothing and no file is web-accessible. It leaves its exports in
+`__dmPanelCode`, not `__dmPanel`, which the panel itself keeps to start once.
+Cost: 726 KB of script read per media frame instead of a 500 KB fetch; the
+panel still loads only where a page shows media. Tried and dropped: removing
+`use_dynamic_url` alone (the lines stayed, with the stable address).
+
+## A certificate that is not trusted is an answer, not a bad moment
+
+reqwest reports a refused certificate (expired, for another name, an issuer the
+built-in roots do not hold) as a connect error, and `retry::transient` retried
+every connect error: ten tries over two minutes before the row said why
+(BUGLOG.md, BUG-002). `retry::untrusted_certificate` reads the error's chain
+and makes it final, as `unreadable_response` does for headers that cannot be
+read. dm still trusts only the built-in roots (webpki); trusting the system's
+store, for a company's own authority, would be a separate decision.
+
+## yt-dlp is ended when it stops answering
+
+A yt-dlp that said nothing kept its row "running" for as long as dm ran
+(BUGLOG.md, BUG-004). Its two output streams are watched: nothing before its
+first word for 120 s (as long as a page reading may take, `READ_WITHIN`), or
+nothing for ten minutes once it has spoken (a merge or a slow server is quiet
+for a while), and its process tree is ended with "yt-dlp stopped answering".
+`DM_YTDLP_QUIET` sets the first limit for tests, as `DM_YTDLP` names the
+program. Dropped: a limit on the whole run, which a long video on a slow link
+would hit while working.
+

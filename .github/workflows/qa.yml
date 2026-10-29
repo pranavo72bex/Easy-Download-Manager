@@ -1,0 +1,25 @@
+name: QA (Docker)
+
+# The Docker QA stack (qa/): dm built from the pull request, against servers
+# that misbehave on request, on a network with no way out. See BUGLOG.md.
+on:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  qa:
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - name: Run the suite
+        run: sh qa/run.sh
+      - name: Keep the reports
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: qa-reports
+          path: qa/reports/

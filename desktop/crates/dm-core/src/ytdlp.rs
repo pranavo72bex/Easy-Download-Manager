@@ -617,6 +617,54 @@ fn container_sort(container: Option<&str>) -> Vec<String> {
     vec!["-S".into(), sort.into()]
 }
 
+/// How long yt-dlp may say nothing before dm ends it. Before its first word,
+/// as long as a page reading may take (`DM_YTDLP_QUIET` seconds where set,
+/// for tests); once it has started, five times that, for a merge or a slow
+/// server. A yt-dlp hung at start kept its row "running" at nothing for ever
+/// (BUGLOG.md, BUG-004).
+struct Heard {
+    since: std::time::Instant,
+    /// Milliseconds after `since` it last said something; 0 for never.
+    last: std::sync::atomic::AtomicU64,
+    before: std::time::Duration,
+}
+
+impl Heard {
+    fn new() -> Self {
+        let before = std::env::var("DM_YTDLP_QUIET")
+            .ok()
+            .and_then(|s| s.parse::<u64>().ok())
+            .map_or(
+                std::time::Duration::from_secs(120),
+                std::time::Duration::from_secs,
+            );
+        Heard {
+            since: std::time::Instant::now(),
+            last: std::sync::atomic::AtomicU64::new(0),
+            before,
+        }
+    }
+
+    fn now(&self) {
+        let at = u64::try_from(self.since.elapsed().as_millis())
+            .unwrap_or(u64::MAX)
+            .max(1);
+        self.last.store(at, std::sync::atomic::Ordering::Relaxed);
+    }
+
+    /// How long it has been quiet, once that is past what it may be.
+    fn too_quiet(&self) -> Option<std::time::Duration> {
+        let last = self.last.load(std::sync::atomic::Ordering::Relaxed);
+        let (from, limit) = if last == 0 {
+            (std::time::Duration::ZERO, self.before)
+        } else {
+            (std::time::Duration::from_millis(last), self.before * 5)
+        };
+        let quiet = self.since.elapsed().saturating_sub(from);
+        (quiet > limit).then_some(quiet)
+    }
+}
+
 /// Runs yt-dlp for one page, reporting progress and placing the result.
 ///
 /// Staged into the download's own directory and moved into place on success,
@@ -768,10 +816,17 @@ async fn download_ytdlp_from(
         .stderr
         .take()
         .ok_or_else(|| Error::Internal("yt-dlp started without its error output".into()))?;
+    // When yt-dlp last said anything, on either stream, for the watchdog.
+    let heard = std::sync::Arc::new(Heard::new());
+    let heard_errors = heard.clone();
     let errors = tokio::spawn(async move {
-        use tokio::io::AsyncReadExt;
         let mut text = String::new();
-        let _ = BufReader::new(stderr).read_to_string(&mut text).await;
+        let mut lines = BufReader::new(stderr).lines();
+        while let Ok(Some(line)) = lines.next_line().await {
+            heard_errors.now();
+            text.push_str(&line);
+            text.push('\n');
+        }
         text
     });
 
@@ -787,6 +842,7 @@ async fn download_ytdlp_from(
         tokio::select! {
             line = lines.next_line() => {
                 let Some(line) = line.map_err(Error::Disk)? else { break };
+                heard.now();
 
                 if let Some(rest) = line.strip_prefix(MARK) {
                     if let Some(tx) = &report {
@@ -818,6 +874,16 @@ async fn download_ytdlp_from(
             // yt-dlp is quiet. Killing the child leaves its part behind for
             // --continue to resume from; a cancel throws that away.
             _ = tokio::time::sleep(std::time::Duration::from_millis(250)) => {
+                if let Some(quiet) = heard.too_quiet() {
+                    if let Some(pid) = tree.take() {
+                        let _ = tokio::task::spawn_blocking(move || end_tree(pid)).await;
+                    }
+                    let _ = child.kill().await;
+                    return Err(Error::Internal(format!(
+                        "yt-dlp stopped answering: nothing from it in {} s, so it was ended",
+                        quiet.as_secs()
+                    )));
+                }
                 if let Err(stop) = options.control.check() {
                     // The tree first, and waited for, off the runtime: on
                     // Windows `taskkill /T` finds yt-dlp's workers through

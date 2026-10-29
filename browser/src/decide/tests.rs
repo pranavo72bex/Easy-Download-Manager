@@ -47,10 +47,40 @@ fn the_plain_page_script_answers_by_the_names_the_background_uses() {
         assert!(rules.get(field).is_some(), "{field}");
         assert!(script.contains(&format!("rules.{field}")), "{field}");
     }
-    // Registered before the WebAssembly is imported, not after.
-    let import = script.find("import(").unwrap();
-    assert!(script.find("addEventListener('click'").unwrap() < import);
-    assert!(script.find("onMessage.addListener").unwrap() < import);
+    // Registered before the WebAssembly is asked for, not after.
+    let load = script.find("'dm.panel-load'").unwrap();
+    assert!(script.find("addEventListener('click'").unwrap() < load);
+    assert!(script.find("onMessage.addListener").unwrap() < load);
+}
+
+#[test]
+fn the_panel_is_put_in_by_the_browser_and_fetched_from_no_page() {
+    // The background answers the page script's request by injecting the
+    // panel's file; the page itself never loads anything of the extension's
+    // (Brave refused that on YouTube), so no manifest offers a file to pages.
+    let content = include_str!("../../../extension/content.js");
+    let background = include_str!("../../../extension/background.js");
+    assert!(!content.contains("import("));
+    assert!(!content.contains("getURL('pkg/"));
+    assert!(background.contains("'dm.panel-load'"));
+    assert!(background.contains("files: ['pkg/panel.js']"));
+    for manifest in [
+        include_str!("../../../extension/manifest.json"),
+        include_str!("../../../extension/manifest.firefox.json"),
+    ] {
+        assert!(!manifest.contains("web_accessible_resources"));
+        assert!(manifest.contains("\"scripting\""));
+    }
+    // The loader's name for the panel's code is not the name the panel
+    // keeps to start once: sharing it, the panel never started.
+    let package = include_str!("../../../scripts/package.sh");
+    assert!(package.contains("var __dmPanelCode;"));
+    // Quiet where WebAssembly is forbidden: a rejection nobody handled yet
+    // was logged as an error on the page (qa browser check).
+    assert!(package.contains("__dmPanelCode.catch(() => {});"));
+    assert!(content.contains("globalThis.__dmPanelCode"));
+    let start = include_str!("../content/handoff.rs");
+    assert!(start.contains("\"__dmPanel\".into()"));
 }
 
 #[test]

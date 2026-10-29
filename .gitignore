@@ -11,7 +11,23 @@ human-shots/
 .env.*
 !.env.example
 
-# Internal QA notes and screenshots, kept on the tester's computer.
-qa/
+# Internal QA notes and screenshots, kept on the tester's computer; the
+# Docker QA suite itself (qa/run.sh and what it builds) is in the repository.
+qa/*
+!qa/.gitignore
+!qa/docker-compose.yml
+!qa/run.sh
+!qa/app/
+!qa/lib/
+!qa/origin/
+!qa/mockvideo/
+!qa/tests/
+**/__pycache__/
 dist.new/
 dist.old/
+
+# Editors and systems
+Thumbs.db
+*.swp
+.vscode/
+.idea/

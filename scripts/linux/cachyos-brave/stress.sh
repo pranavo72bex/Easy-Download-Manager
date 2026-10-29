@@ -4,6 +4,6 @@
 #   ROUNDS=60 SEED=3 sh scripts/linux/cachyos-brave/stress.sh
 here=$(cd "$(dirname "$0")" && pwd); root=$(cd "$here/../../.." && pwd)
 for v in ${VARIANTS:-old fixed}; do
-  docker run --rm --platform linux/amd64 -e VARIANT=$v -e ROUNDS=${ROUNDS:-40} -e SEED=${SEED:-1} \
-    -v "$here:/scripts:ro" -v "$root/extension:/ext:ro" dm-cachyos-brave python3 /scripts/stress.py
+  docker run --rm --platform linux/amd64 -e VARIANT=$v -e LOCAL=${LOCAL:-} -e SW=${SW:-} -e ROUNDS=${ROUNDS:-40} -e SEED=${SEED:-1} \
+    -v "$here:/scripts:ro" -v "$root/extension:/ext:ro" ${EXT_OLD:+-v "$EXT_OLD:/ext-old:ro"} dm-cachyos-brave python3 /scripts/stress.py
 done

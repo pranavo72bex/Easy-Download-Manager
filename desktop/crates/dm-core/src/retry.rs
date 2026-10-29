@@ -31,6 +31,7 @@ pub fn transient(error: &Error) -> bool {
         // all: one reset on one range failed the whole download.
         Error::Network(e) => {
             !unreadable_response(e)
+                && !untrusted_certificate(e)
                 && (e.is_timeout()
                     || e.is_connect()
                     || e.is_request()
@@ -59,6 +60,21 @@ fn unreadable_response(error: &reqwest::Error) -> bool {
             || said.contains("invalid header")
             || said.contains("invalid status")
         {
+            return true;
+        }
+        source = e.source();
+    }
+    false
+}
+
+/// Whether the connection was refused over the server's certificate (expired,
+/// for another name, from an issuer nobody trusts): it arrives as a failed
+/// connection, but asking again meets the same certificate, and two minutes
+/// of retries only held back the reason (BUGLOG.md, BUG-002).
+fn untrusted_certificate(error: &reqwest::Error) -> bool {
+    let mut source: Option<&(dyn std::error::Error + 'static)> = Some(error);
+    while let Some(e) = source {
+        if e.to_string().to_ascii_lowercase().contains("certificate") {
             return true;
         }
         source = e.source();

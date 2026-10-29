@@ -46,7 +46,8 @@ extension that hands it the browser's downloads.
   `extension/` holds what the browser loads around it: two manifests, the
   icons, `background.js`, a 20-line loader (a Manifest V3 background must
   register its listeners before any WebAssembly can load), and
-  `content.js`, which loads the page script and itself answers Alt-click
+  `content.js`, which has the background put the panel's code
+  (`pkg/panel.js`) into the page's frame and itself answers Alt-click
   and "Download all links", so a page that forbids WebAssembly keeps them. `scripts/package.sh` builds it into
   `extension/pkg`, `dist/chrome` and `dist/firefox`.
 - `scripts/` holds the checks that drive the built program, a browser or a

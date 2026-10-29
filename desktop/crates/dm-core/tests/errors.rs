@@ -254,3 +254,130 @@ async fn a_response_with_unreadable_headers_is_not_retried() {
         hits.load(std::sync::atomic::Ordering::SeqCst)
     );
 }
+
+/// A server that sends every byte a range asked for but says in
+/// `Content-Length` that more are coming, then hangs up. The range is whole:
+/// it was asked again for ever, the row at 100 % and "running" (BUGLOG.md,
+/// BUG-001, found by qa/tests `length_wrong`).
+#[tokio::test]
+async fn a_range_that_came_whole_under_a_longer_stated_length_is_finished() {
+    use std::io::{Read, Write};
+    const SIZE: usize = 300_000;
+    let body: Vec<u8> = (0..SIZE).map(|i| (i * 7 % 251) as u8).collect();
+    let served = body.clone();
+    let listener = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
+    let addr = listener.local_addr().unwrap();
+    std::thread::spawn(move || {
+        for stream in listener.incoming().flatten() {
+            let served = served.clone();
+            std::thread::spawn(move || {
+                let mut stream = stream;
+                let mut head = Vec::new();
+                let mut byte = [0u8; 1];
+                while !head.ends_with(b"\r\n\r\n") {
+                    if stream.read(&mut byte).unwrap_or(0) == 0 {
+                        return;
+                    }
+                    head.push(byte[0]);
+                }
+                let head = String::from_utf8_lossy(&head).to_ascii_lowercase();
+                let range = head
+                    .lines()
+                    .find_map(|l| l.strip_prefix("range: bytes="))
+                    .map(|r| {
+                        let (a, b) = r.trim().split_once('-').unwrap();
+                        let a: usize = a.parse().unwrap();
+                        let b = b.parse::<usize>().map_or(SIZE - 1, |b| b.min(SIZE - 1));
+                        (a, b)
+                    });
+                let (status, first, last) = match range {
+                    Some((a, b)) => ("206 Partial Content", a, b),
+                    None => ("200 OK", 0, SIZE - 1),
+                };
+                let part = &served[first..=last];
+                let said = format!(
+                    "HTTP/1.1 {status}\r\nAccept-Ranges: bytes\r\nContent-Range: bytes {first}-{last}/{SIZE}\r\nContent-Length: {}\r\nConnection: close\r\n\r\n",
+                    part.len() + 1000
+                );
+                let _ = stream.write_all(said.as_bytes());
+                let _ = stream.write_all(part);
+                let _ = stream.shutdown(std::net::Shutdown::Both);
+            });
+        }
+    });
+    let dir = tempdir();
+    let opts = dm_core::Options {
+        connections: 4,
+        ..options(dir.path())
+    };
+    let done = tokio::time::timeout(
+        std::time::Duration::from_secs(30),
+        dm_core::download(&dm_core::client(), &format!("http://{addr}/lie.bin"), &opts),
+    )
+    .await
+    .expect("a range that came whole was asked for again and again");
+    let finished = done.expect("the download failed");
+    assert_eq!(std::fs::read(finished.path).unwrap(), body);
+}
+
+/// A certificate the client does not trust is an answer, not a bad moment:
+/// asking again gets the same certificate. It was retried as a failed
+/// connection, the row "running" at nothing for over two minutes before it
+/// said why (BUGLOG.md, BUG-002, found by qa/tests `bad_certificates`).
+#[tokio::test]
+async fn an_untrusted_certificate_is_said_at_once_not_retried() {
+    use tokio_rustls::rustls;
+    let made = rcgen::generate_simple_self_signed(vec!["localhost".into()]).unwrap();
+    let key = rustls::pki_types::PrivateKeyDer::try_from(made.signing_key.serialize_der()).unwrap();
+    let config = rustls::ServerConfig::builder_with_provider(std::sync::Arc::new(
+        rustls::crypto::ring::default_provider(),
+    ))
+    .with_safe_default_protocol_versions()
+    .unwrap()
+    .with_no_client_auth()
+    .with_single_cert(vec![made.cert.der().clone()], key)
+    .unwrap();
+    let acceptor = tokio_rustls::TlsAcceptor::from(std::sync::Arc::new(config));
+    let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let port = listener.local_addr().unwrap().port();
+    let hits = std::sync::Arc::new(std::sync::atomic::AtomicUsize::new(0));
+    let seen = hits.clone();
+    tokio::spawn(async move {
+        while let Ok((tcp, _)) = listener.accept().await {
+            seen.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+            let acceptor = acceptor.clone();
+            tokio::spawn(async move {
+                let _ = acceptor.accept(tcp).await;
+            });
+        }
+    });
+    let dir = tempdir();
+    let opts = dm_core::Options {
+        attempts: 10,
+        ..options(dir.path())
+    };
+    let started = std::time::Instant::now();
+    let said = tokio::time::timeout(
+        std::time::Duration::from_secs(60),
+        dm_core::download(
+            &dm_core::client(),
+            &format!("https://localhost:{port}/f.bin"),
+            &opts,
+        ),
+    )
+    .await
+    .expect("still trying after a minute")
+    .unwrap_err()
+    .to_string();
+    assert!(
+        started.elapsed() < std::time::Duration::from_secs(5),
+        "{:?} to give up on a certificate that will not change",
+        started.elapsed()
+    );
+    assert!(said.to_lowercase().contains("certificate"), "{said}");
+    assert!(
+        hits.load(std::sync::atomic::Ordering::SeqCst) <= 2,
+        "asked {} times",
+        hits.load(std::sync::atomic::Ordering::SeqCst)
+    );
+}

@@ -37,6 +37,9 @@
 //! The host is deliberately one-way past `download.started`: the extension
 //! catches and the application shows what happened.
 
+// Every public item says what it means: the types are the wire format the
+// extension and the app read (docs/gaps.md row 27).
+#![warn(missing_docs)]
 // Reads outside input: an index out of range here is a crash a server or
 // a file could cause, so every access is checked.
 #![cfg_attr(not(test), deny(clippy::indexing_slicing))]
@@ -87,11 +90,17 @@ pub const EDGE_EXTENSION_ID: &str = "ooafpfjpliofcdlnbdkjhonaoebcpnej";
 
 /// The frame types, for code that has to name one without building it.
 pub mod kind {
+    /// [`Request::Hello`] and its answer, [`Reply::Hello`].
     pub const HELLO: &str = "engine.hello";
+    /// [`Request::Settings`] and its answer, [`Reply::Settings`].
     pub const SETTINGS: &str = "settings.get";
+    /// [`Request::Start`]: a download handed over.
     pub const START: &str = "download.start";
+    /// [`Reply::Started`]: the app has the download.
     pub const STARTED: &str = "download.started";
+    /// [`Reply::Failed`]: the app did not take it; the browser keeps it.
     pub const FAILED: &str = "download.failed";
+    /// [`Request::Show`]: bring the app's window to the front.
     pub const SHOW: &str = "app.show";
 }
 
@@ -126,9 +135,11 @@ pub enum Request {
 /// Links handed over together.
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Default)]
 pub struct Batch {
+    /// The extension's name for this hand-off, echoed in the answer.
     pub id: String,
     /// The page they are on, sent as Referer.
     pub page: String,
+    /// The links, in the page's order; the app's dialog lets the person choose.
     pub urls: Vec<String>,
     /// The page's site's cookies, where the toolbar popup hands over its
     /// sign-in: they go with its links on that site only, as with a single
@@ -140,7 +151,9 @@ pub struct Batch {
 /// A page to list the qualities of.
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Default)]
 pub struct FormatsAsked {
+    /// The page whose video is listed.
     pub url: String,
+    /// The page the video page was reached from, if any, sent as Referer.
     #[serde(default)]
     pub referrer: String,
     /// The page's site's cookies, as the `Cookie` header the browser would
@@ -154,8 +167,11 @@ pub struct FormatsAsked {
 /// at ("audio", a height such as "720", or "best"), and its size in bytes.
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Default)]
 pub struct Choice {
+    /// What the panel's list says, such as "1080p MP4".
     pub label: String,
+    /// The quality to fetch it at: "audio", a height such as "720", or "best".
     pub quality: String,
+    /// Its size in bytes, where yt-dlp's reading of the page says.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub size: Option<u64>,
 }
@@ -166,6 +182,7 @@ pub struct Start {
     /// The extension's name for this hand-off, echoed in the answer. The host
     /// files the request under it, so it holds it to a plain name.
     pub id: String,
+    /// The download's address, or the page's for a video page.
     pub url: String,
     /// The page the download came from. A media URL alone is often not
     /// something anything can fetch twice; the page it was on usually is.
@@ -282,15 +299,24 @@ pub fn page_instead_of_file(browser_mime: &str, url: &str, served: &str) -> bool
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
 #[serde(tag = "type")]
 pub enum Reply {
+    /// The app is there: its version, and what it can do.
     #[serde(rename = "engine.hello")]
     Hello(Hello),
+    /// The app's catch rules.
     #[serde(rename = "settings.get")]
     Settings(SettingsReply),
+    /// The app has the download; the browser's copy can go.
     #[serde(rename = "download.started")]
-    Started { id: String },
+    Started {
+        /// The hand-off's [`Start::id`].
+        id: String,
+    },
+    /// The app did not take the download; the browser keeps it.
     #[serde(rename = "download.failed")]
     Failed {
+        /// The hand-off's [`Start::id`].
         id: String,
+        /// Why, where the host can say.
         #[serde(default)]
         failure: Option<Failure>,
     },
@@ -298,21 +324,26 @@ pub enum Reply {
     /// page could not be read (no yt-dlp, an unsupported site).
     #[serde(rename = "media.formats")]
     Formats {
+        /// The qualities, best first.
         #[serde(default)]
         choices: Vec<Choice>,
+        /// Why there are none, in words for the panel.
         #[serde(default, skip_serializing_if = "Option::is_none")]
         reason: Option<String>,
     },
     /// The window was asked to show itself; a `reason` when it could not be.
     #[serde(rename = "app.shown")]
     Shown {
+        /// Why the window could not be shown, in words for the popup.
         #[serde(default, skip_serializing_if = "Option::is_none")]
         reason: Option<String>,
     },
 }
 
+/// The app's answer to [`Request::Hello`].
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Default)]
 pub struct Hello {
+    /// The app's version, such as "0.8.4".
     #[serde(rename = "engineVersion", default)]
     pub engine_version: String,
     /// Whether the app has a yt-dlp to hand a player page to. Absent from a
@@ -340,14 +371,18 @@ impl Hello {
     }
 }
 
+/// The app's answer to [`Request::Settings`].
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Default)]
 pub struct SettingsReply {
+    /// Which downloads the app wants caught (Options › File types).
     #[serde(rename = "catch", default)]
     pub rules: CatchRules,
 }
 
+/// Why the app did not take a download.
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Default)]
 pub struct Failure {
+    /// The reason, in words a person reads in the extension's log.
     #[serde(default)]
     pub message: String,
 }
@@ -411,6 +446,7 @@ impl Request {
         }
     }
 
+    /// Reads a request frame, refusing one of a version this side does not read.
     pub fn from_frame(frame: &Value) -> Result<Self, Unreadable> {
         open(frame)
     }
@@ -423,6 +459,7 @@ impl Reply {
         envelope(self, OLDEST_PROTOCOL)
     }
 
+    /// Reads a reply frame, refusing one of a version this side does not read.
     pub fn from_frame(frame: &Value) -> Result<Self, Unreadable> {
         open(frame)
     }
@@ -607,20 +644,27 @@ pub struct Candidate<'a> {
     pub referrer: &'a str,
     /// The name the browser chose, if it has chosen; a full path is fine.
     pub filename: &'a str,
+    /// The content type the server gave, as the browser reports it.
     pub mime: &'a str,
+    /// Its size in bytes, where the browser knows it.
     pub size: Option<u64>,
 }
 
 /// Why a download was left with the browser.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Left {
+    /// Catching is turned off.
     Off,
+    /// The site is on the list of sites to leave alone.
     SkippedHost,
+    /// Smaller than the minimum size to catch.
     TooSmall,
+    /// Not one of the file types the app catches.
     NotAFileType,
 }
 
 impl Left {
+    /// The reason, in words for the extension's log.
     pub fn reason(self) -> &'static str {
         match self {
             Left::Off => "catching is turned off in dm's settings",

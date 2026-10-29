@@ -194,3 +194,43 @@ proptest! {
         }
     }
 }
+
+// The header readers a server's answer reaches (BUGLOG.md, Step 3).
+proptest! {
+    #[test]
+    fn a_retry_after_of_anything_is_read_or_ignored_and_never_waits_long(
+        value in prop_oneof![texty(), "[0-9]{1,25}", Just("Wed, 21 Oct 2099 07:28:00 GMT".to_string())],
+        date in proptest::option::of(prop_oneof![texty(), Just("Wed, 21 Oct 2015 07:28:00 GMT".to_string())]),
+        attempt in 0u32..1000,
+    ) {
+        let mut headers = reqwest::header::HeaderMap::new();
+        if let Ok(v) = reqwest::header::HeaderValue::from_str(&value) {
+            headers.insert(reqwest::header::RETRY_AFTER, v);
+        }
+        if let Some(Ok(v)) = date.as_deref().map(reqwest::header::HeaderValue::from_str) {
+            headers.insert(reqwest::header::DATE, v);
+        }
+        let asked = dm_core::retry::retry_after(&headers);
+        // However long a server asks for, one wait is at most a minute, and
+        // dm's own backoff at most half a minute and its jitter.
+        let wait = dm_core::retry::backoff(attempt, asked);
+        prop_assert!(wait <= std::time::Duration::from_secs(60), "{wait:?}");
+        prop_assert!(dm_core::retry::backoff(attempt, None) <= std::time::Duration::from_millis(30_400));
+    }
+
+    #[test]
+    fn a_login_challenge_of_anything_is_read_or_refused(header in texty(), scheme in texty()) {
+        let _ = dm_core::auth::challenge(&header);
+        let _ = dm_core::ntlm::challenge_in(&header, &scheme);
+        let _ = dm_core::ntlm::offered(&header);
+    }
+
+    #[test]
+    fn a_cookie_header_of_anything_is_kept_to_its_site(url in texty(), header in texty()) {
+        if let Some(sign_in) = dm_core::cookies::SignIn::new(&url, &header) {
+            let _ = dm_core::cookies::header_with(Some(&sign_in), &url);
+            // Never sent to a site the sign-in was not given for.
+            prop_assert!(dm_core::cookies::header_with(Some(&sign_in), "https://other.invalid/").is_none());
+        }
+    }
+}

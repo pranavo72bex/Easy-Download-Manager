@@ -1,0 +1,7 @@
+**/target
+dist
+.git
+human-shots
+scripts/linux/cachyos-brave/local
+**/__pycache__
+**/node_modules

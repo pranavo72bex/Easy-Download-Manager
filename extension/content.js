@@ -4,8 +4,8 @@
 // the browser, Shift hands it to dm, as the app's rules name them) and the
 // page's links for "Download all/selected links".
 // The "Download video" panel is written in Rust (browser/src/content.rs),
-// compiled to WebAssembly; a content script cannot be a module, so this
-// loads it. Message names are those in browser/src/decide.rs.
+// compiled to WebAssembly; a content script cannot be a module, so the
+// background puts it in when the page shows media. Message names are those in browser/src/decide.rs.
 (() => {
   const ext = globalThis.browser ?? globalThis.chrome;
   // Put in again by the background when it found no page script answering
@@ -191,8 +191,11 @@
     loading = true;
     stop();
     (async () => {
-      const dm = await import(ext.runtime.getURL('pkg/dm_catcher.js'));
-      await dm.default({ module_or_path: ext.runtime.getURL('pkg/dm_catcher_bg.wasm') });
+      // Put into this frame by the background (pkg/panel.js), which
+      // leaves the panel's functions here once its WebAssembly is ready.
+      const put = await ext.runtime.sendMessage({ type: 'dm.panel-load' });
+      if (!put?.ok) throw new Error(put?.said ?? 'the panel was not put in');
+      const dm = await globalThis.__dmPanelCode;
       dm.content_start(ext);
       if (played) dm.content_played(played);
       else if (point) dm.content_pointer(point.x, point.y);
