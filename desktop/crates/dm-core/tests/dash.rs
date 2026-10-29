@@ -459,10 +459,9 @@ async fn a_page_refused_to_dm_is_handed_to_ytdlp() {
     std::env::set_var("DM_FAKE_FAIL", "1");
     match download(&client(), &format!("{base}/watch"), &once).await {
         Err(e @ dm_core::Error::Internal(_)) => {
-            assert!(
-                e.to_string().contains("yt-dlp could not download that"),
-                "{e}"
-            );
+            // The fake fails as yt-dlp does on a missing format, which dm
+            // now says in its own words (ytdlp/refusal.rs); the 429 is not it.
+            assert!(e.to_string().contains("listed no format"), "{e}");
         }
         other => panic!("expected yt-dlp's reason, got {other:?}"),
     }

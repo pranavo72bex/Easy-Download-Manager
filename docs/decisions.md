@@ -5,6 +5,22 @@ can see what it is undoing.
 
 
 
+
+## 2026-10-29: yt-dlp's failures in dm's words, from a corpus of its lines
+
+`tests/fixtures/ytdlp-errors.txt` holds yt-dlp's error lines as its readers
+print them (YouTube's, Vimeo's, X's, Instagram's, TikTok's, the generic
+one, the downloader's), each with the sentence dm says; `tests/ytdlp_words.rs`
+checks every line is rewritten and that none of yt-dlp's advice (flags,
+its issue tracker, `yt-dlp -U`, links) reaches a person. A line with no
+sentence of its own says the fallback, the site named as people write it
+(`site_name`) and yt-dlp's words in brackets, cut before its advice
+(`last_error`). The download's own failure line keeps its old shape,
+"yt-dlp could not download that: …", because the window's `format.rs`
+reads yt-dlp's words out of it to show after its own sentence; the window
+was not changed. Private and age-restricted are judged before the sign-in
+catch-all: yt-dlp's words for both carry "Sign in".
+
 ## 2026-10-29: A failed yt-dlp run fetches the newest yt-dlp once and tries again
 
 yt-dlp's fix for a site change is usually out within days; dm's weekly

@@ -1343,13 +1343,14 @@ mod tests {
         )
         .unwrap()
         .contains("signed in"));
-        // Unknown refusals keep yt-dlp's own last error, not a bare failure.
+        // Unknown refusals keep yt-dlp's own words, the site named, not a
+        // bare failure; the video's id and yt-dlp's advice are left out.
         assert_eq!(
             said_by(
-                "WARNING: x\nERROR: [e] 1: a thing went wrong\n",
+                "WARNING: x\nERROR: [e] 1: a thing went wrong; please report this issue on https://x\n",
                 "could not read"
             ),
-            "could not read: [e] 1: a thing went wrong"
+            "could not read on E (yt-dlp: a thing went wrong)"
         );
         assert_eq!(
             said_by("nothing useful", "could not read"),

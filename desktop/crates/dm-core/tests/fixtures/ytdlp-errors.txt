@@ -1,0 +1,42 @@
+# yt-dlp's own error lines, as its extractors print them, and what dm says
+# for each (a part of its sentence). One a line, a tab between. Read by
+# tests/ytdlp_words.rs: every line here is rewritten into dm's own words,
+# and none of yt-dlp's advice (flags, its issue tracker) reaches a person.
+ERROR: [youtube] dQw4w9WgXcQ: Video unavailable	not available any more
+ERROR: [youtube] dQw4w9WgXcQ: Video unavailable. This video is private	that video is private
+ERROR: [youtube] dQw4w9WgXcQ: Private video. Sign in if you've been granted access to this video	that video is private
+ERROR: [youtube] dQw4w9WgXcQ: Sign in to confirm your age	age-restricted
+ERROR: [youtube] dQw4w9WgXcQ: Sign in to confirm you're not a bot. Use --cookies-from-browser or --cookies for the authentication. See https://github.com/yt-dlp/yt-dlp/wiki/FAQ#how-do-i-pass-cookies-to-yt-dlp for how to manually pass cookies	not a bot
+ERROR: [youtube] dQw4w9WgXcQ: Sign in to confirm you're not a bot. This helps protect our community. Learn more	not a bot
+ERROR: [youtube] dQw4w9WgXcQ: The uploader has not made this video available in your country	not available in this country
+ERROR: [youtube] dQw4w9WgXcQ: This video is not available in your country	not available in this country
+ERROR: [youtube] dQw4w9WgXcQ: This video has been removed for violating YouTube's Terms of Service	not available any more
+ERROR: [youtube] dQw4w9WgXcQ: This video is no longer available because the YouTube account associated with this video has been terminated.	not available any more
+ERROR: [youtube] dQw4w9WgXcQ: This live event will begin in 2 hours.	has not started yet
+ERROR: [youtube] dQw4w9WgXcQ: Premieres in 3 hours	has not started yet
+ERROR: [youtube] dQw4w9WgXcQ: This live stream recording is not available.	recording is not available
+ERROR: [youtube] dQw4w9WgXcQ: Join this channel to get access to members-only content like this video, and other exclusive perks.	channel's members only
+ERROR: [youtube] dQw4w9WgXcQ: This video is available to this channel's members on level: Supporter (or any higher level). Join this channel to get access to members-only content and other exclusive perks.	channel's members only
+ERROR: [youtube] dQw4w9WgXcQ: This video requires payment to watch.	bought or rented
+ERROR: [youtube] dQw4w9WgXcQ: This video is DRM protected	copy-protected
+ERROR: [youtube] dQw4w9WgXcQ: Incomplete YouTube ID dQw4w9WgX. URL https://www.youtube.com/watch?v=dQw4w9WgX looks truncated.	not a whole video link
+ERROR: [youtube] dQw4w9WgXcQ: YouTube is forcing SABR streaming for this client. See  https://github.com/yt-dlp/yt-dlp/issues/12482  for more details	cannot fetch yet
+ERROR: [youtube] dQw4w9WgXcQ: Requested format is not available. Use --list-formats for a list of available formats	listed no format
+ERROR: [youtube] dQw4w9WgXcQ: Unable to download webpage: HTTP Error 429: Too Many Requests	try again later
+ERROR: [youtube] dQw4w9WgXcQ: Unable to download webpage: <urlopen error [Errno 8] nodename nor servname provided, or not known> (caused by URLError(gaierror(8, 'nodename nor servname provided, or not known')))	could not be reached
+ERROR: [youtube] dQw4w9WgXcQ: Unable to download webpage: <urlopen error [Errno -2] Name or service not known>	could not be reached
+ERROR: [youtube] dQw4w9WgXcQ: Unable to download webpage: The read operation timed out	could not be reached
+ERROR: unable to download video data: HTTP Error 403: Forbidden	refused the stream
+ERROR: unable to open for writing: [Errno 28] No space left on device: '/home/p/Downloads/Talk [abc].f137.mp4.part'	disk is full
+ERROR: Postprocessing: ffmpeg not found. Please install or provide the path using --ffmpeg-location	ffmpeg
+ERROR: [generic] Unsupported URL: https://example.com/page	does not know this site
+ERROR: [vimeo] 123456789: Cannot download embed-only video without embedding URL. Please call yt-dlp with the URL of the page that embeds this video.	page it is embedded in
+ERROR: [vimeo] 123456789: This video is protected by a password, use the --video-password option	needs a password
+ERROR: [vimeo] 123456789: The web client only works when logged-in. Use --cookies, --cookies-from-browser, --username and --password, --netrc-cmd, or --netrc (vimeo) to provide account credentials	signed in
+ERROR: [twitter] 1234567890: NSFW tweet requires authentication. Use --cookies, --cookies-from-browser, --username and --password, --netrc-cmd, or --netrc (twitter) to provide account credentials	signed in
+ERROR: [Instagram] CxYz: Requested content is not available, rate-limit reached or login required. Use --cookies, --cookies-from-browser, --username and --password, --netrc-cmd, or --netrc (instagram) to provide account credentials	signed in
+ERROR: [TikTok] 7234567890123456789: Video not available	not available any more
+ERROR: [youtube] dQw4w9WgXcQ: Unable to extract yt initial data; please report this issue on  https://github.com/yt-dlp/yt-dlp/issues?q= , filling out the appropriate issue template. Confirm you are on the latest version using  yt-dlp -U	on YouTube (yt-dlp: Unable to extract yt initial data)
+ERROR: [youtube] dQw4w9WgXcQ: Unable to extract initial player response; please report this issue on  https://github.com/yt-dlp/yt-dlp/issues?q= , filling out the appropriate issue template	on YouTube (yt-dlp: Unable to extract initial player response)
+ERROR: [dailymotion] x8abcd: something nobody has seen before	on Dailymotion (yt-dlp: something nobody has seen before)
+ERROR: something else entirely	(yt-dlp: something else entirely)
