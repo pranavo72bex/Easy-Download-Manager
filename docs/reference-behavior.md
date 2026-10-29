@@ -90,4 +90,4 @@ disassembled.
 Compared with dm: the same design (yt-dlp reads, the download manager
 fetches). dm joins picture and sound itself, needs no ffmpeg, and runs
 yt-dlp unsandboxed; it does not read a browser's cookie store, by decision
-(`decisions.md`, 2026-10-27).
+(`decisions.md`, the entry on reading a page's video list).
