@@ -3,6 +3,27 @@
 Decisions that shape dm and are not obvious from the code, newest first. Each says what was decided and why, so a later change
 can see what it is undoing.
 
+
+## 2026-10-29: Like reference A without yt-dlp, asked again and measured
+
+Asked for: videos the way reference A gets them, with no yt-dlp, and no
+upkeep. dm already does what reference A is documented to do: the
+extension reads the player's own requests, takes the picture's and the
+sound's addresses, fetches both on many connections and joins them itself,
+with no helper (`tests/caught_pair.rs` proves it with no yt-dlp present).
+On YouTube that finds nothing today: in Edge 156 on a playing watch page,
+13 of 13 media requests were `POST videoplayback?sabr=1` with a binary body
+and no `itag`, `mime` or `range`. So "no yt-dlp on YouTube" means a client
+of YouTube's SABR protocol (protobuf requests, UMP answers, proof-of-origin
+tokens) written into dm and kept in step with YouTube, which is the upkeep
+asked to be avoided; reference A does it with a paid team and a new build
+each time, reference B does not do it at all. Kept as decided on
+2026-10-26: the player's requests first on every site, yt-dlp reading the
+page only where they cannot be used, fetched by dm and current within a
+week, so dm itself has nothing to keep up. Weighed again and not taken:
+saving what the player plays through the browser's media source (only the
+quality it picked, only as fast as it plays).
+
 ## 2026-10-27: The queue file is written at most every 150 ms
 
 Found by the stress test (`scripts/stress-check.py bigqueue`): every state

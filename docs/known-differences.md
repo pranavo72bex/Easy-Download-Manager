@@ -17,6 +17,18 @@ Differences found and left, and why. Anything here that changes is moved to
   and yt-dlp downloads them instead, the file keeps yt-dlp's name, so a page's
   only `<video>` is still numbered "(1)" on that path. Only the path where dm
   fetches the streams, the usual one, drops the number.
+- **YouTube without a helper.** Reference A reads YouTube's player and
+  ships a build whenever YouTube changes (a paid team's work). dm's reading
+  of the player's requests, which it does on every site, finds nothing on
+  YouTube today: its web player streams by SABR, a POST whose body names
+  the format and whose answer is framed (measured 2026-10-29, 13 of 13 media
+  requests). A YouTube client of dm's own would need its protocol, its
+  proof-of-origin tokens and keeping up with every change, which is the
+  upkeep the maintainer wants none of; yt-dlp, kept up by many and fetched
+  by dm afresh each week, is kept instead (`decisions.md`, 2026-10-29). The
+  one helper-free way left, saving what the player plays as it plays, gives
+  only the quality the player picked at the speed it plays; weighed and not
+  taken.
 - **Kerberos.** Reference A signs in with Kerberos; dm's Negotiate carries NTLM only.
   Left: it needs a Kerberos realm to test against and a system library.
 - **Connections on a slow server.** Reference B keeps opening connections

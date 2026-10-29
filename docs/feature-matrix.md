@@ -23,7 +23,8 @@ stated by its maker), reported (third parties only), untested, unknown.
 | Categories | verified | untested | yes: `category.rs` | as now | match |
 | Basic, NTLM, Negotiate, Kerberos | verified | unknown | Basic, NTLM, Negotiate carrying NTLM; no Kerberos | Kerberos needs a realm to test against | partial |
 | A program run on each finished file (virus checker) | verified | unknown | yes: `dm-shell/src/settings.rs` | as now | match |
-| Video pages | reads the player's requests itself | verified: only through a separate add-on, which is yt-dlp | yt-dlp, fetched by dm itself on the first video; nothing to install (`scripts/out-of-box-check.py`) | as now; a replacement is gaps.md row 32 | match, better out of the box |
+| A player's picture and sound, fetched apart, taken from its requests and joined, no helper | verified (its documented method) | n/a | yes, first, on every site: `track_of`, `download_media_pair`; `tests/caught_pair.rs` with no yt-dlp present | as now | match |
+| YouTube | reads the player's requests; a new build whenever YouTube changes | only through its yt-dlp add-on | the player's requests name no format today (SABR, measured 2026-10-29), so yt-dlp reads the page and dm fetches what it found; yt-dlp fetched by dm, current within a week | as now; a helper-free YouTube is a client of YouTube's protocol kept up by hand (gaps.md rows 6, 32) | differs, by decision |
 | yt-dlp only reads; the manager fetches the files | n/a | verified | yes: `ytdlp/fetch.rs` | as now | match |
 | Picture and sound joined | n/a | verified: ffmpeg, a required package | dm's own muxer, nothing to install | as now | dm needs less |
 | yt-dlp in a sandbox (Linux) | n/a | verified: bubblewrap, run plainly where none can be made | none | candidate, see "Worth taking" | open |

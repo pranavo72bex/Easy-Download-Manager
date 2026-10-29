@@ -93,6 +93,28 @@ fetches). dm joins picture and sound itself, needs no ffmpeg, and runs
 yt-dlp unsandboxed; it does not read a browser's cookie store, by decision
 (`decisions.md`, the entry on reading a page's video list).
 
+## Videos without a helper: what the player's requests look like today (Verified, 2026-10-29)
+
+Reference A is described (a write-up handed to this project on 2026-10-29)
+as reading the player's own requests in the browser, taking the picture's
+and the sound's addresses, fetching each in up to 32 pieces at once and
+joining the two itself. dm does each of those steps (`browser/src/decide/
+streams.rs` `track_of`, `download/dash.rs` `download_media_pair`, its own
+muxer), and needs no helper for them: `tests/caught_pair.rs` fetches and
+joins a pair with no yt-dlp on the computer at all.
+
+What that write-up assumes of YouTube no longer holds. Measured in Microsoft
+Edge 156 on a real watch page, playing: 15 requests to googlevideo in 30 s,
+of which 13 were `POST videoplayback?sabr=1` with a binary body and no
+`itag`, `mime` or `range` (the other 2 connectivity probes). The player
+asks for its media by a protobuf body and is answered in UMP frames, so
+there is no address of a picture or a sound to take, and none that a plain
+range fetch could read. The same is reported across the field: yt-dlp
+lists YouTube's web client as SABR-only and routes around it with other
+clients and proof-of-origin tokens; reference B hands YouTube to a yt-dlp
+add-on; reference A ships a new build whenever YouTube changes. Nothing
+reads YouTube without someone keeping up with it.
+
 ## Reference B's download engine, measured (2026-10-29)
 
 Reference B 6.35.2 (emulated x86-64) and dm (native) downloaded the same
