@@ -206,6 +206,14 @@ Deviations from the brief, and why:
   download disk; by `disk_full` 2.9 MB was free and every later download was
   (rightly) paused for want of room. Each dm's folder and home are now removed
   when it closes.
+- **T-009** `scripts/chrome-check.py`, a plain click on a PDF link: the link
+  was measured without scrolling, and in Brave's and Edge's shorter windows
+  under Xvfb it was below the fold (y 410), so the click landed on nothing
+  (`elementFromPoint` empty) and dm was never asked. Now scrolled into view
+  first, as `human_click` already did. Brave and Edge then pass it.
+- **T-010** `scripts/chrome-check.py` exited 0 when the extension's worker
+  never started (a `return` inside the `try`), so a browser that loaded
+  nothing reported success. Now exits 1.
 
 ## Static checks and fuzzing (Step 3)
 
@@ -236,6 +244,30 @@ linux/arm64 from this branch.
 | 4 | 31 / 6 failed | 68 / 69 | T-008 (the shared disk), BUG-004, BUG-005 |
 | 5 | 37 / 0 | 69 / 69 | — |
 | 6, 7, 8 (`QA_RUNS=3`) | 37 / 0 each | 69 / 69 each | — (stop condition met) |
+| 9, 10, 11 (`QA_RUNS=3`, after the commit) | 37 / 0 each | 69 / 69 each | — (timings within 2 % of runs 6 to 8) |
+
+### CachyOS, four browsers (2026-10-29)
+
+`sh scripts/linux/cachyos-browsers/run.sh`: CachyOS (x86-64, emulated on
+Apple silicon), dm and the extension built from this checkout, the hand-off
+checks in each browser.
+
+| Browser | Version | Result |
+|---------|---------|--------|
+| Brave | 1.98.62 (Chromium 156) | 68 / 69 |
+| Microsoft Edge | 156.0.4314.50 | 68 / 69 |
+| Firefox | 159.0 | every `firefox-check.py native` check (the panel's hover needs real input) |
+| Google Chrome | 156.0.8078.73 | not run: see below |
+
+- The one failure in Brave and Edge is the latency check (first request
+  within 700 ms of the click): 1.12 to 1.27 s here, 0.10 to 0.26 s in the
+  native arm64 runs. Each click starts the 160 MB debug dm as the browser's
+  host, an x86 program under emulation; not a dm defect.
+- Google Chrome ignores `--load-extension` since 137. The check now loads the
+  extension over `--remote-debugging-pipe` (`Extensions.loadUnpacked`, with
+  Developer mode on): Chrome accepts it with the right id, but then blocks its
+  pages (`ERR_BLOCKED_BY_CLIENT`, no disable reason in the profile) and never
+  starts its worker. Open: the harness, not dm, until shown otherwise.
 
 The engine's path was searched for `unwrap`, `expect`, `panic!` and unchecked
 indexing: the first three are already denied outside tests in every crate

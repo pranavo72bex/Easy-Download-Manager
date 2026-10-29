@@ -898,6 +898,8 @@ def main():
         "download": {"default_directory": str(browser_dl), "prompt_for_download": False,
                      "directory_upgrade": True},
         "savefile": {"default_directory": str(browser_dl)},
+        # Google Chrome blocks an unpacked extension unless Developer mode is on.
+        "extensions": {"ui": {"developer_mode": True}},
     }))
 
     # The app, copied out of the checkout, with a home and settings of its own.
@@ -1007,23 +1009,61 @@ def main():
         args.insert(1, "--headless=new")
     if os.environ.get("CI"):
         args += ["--no-sandbox", "--disable-dev-shm-usage"]
+    # Google Chrome itself (not Chrome for Testing, Chromium, Brave or Edge)
+    # has ignored --load-extension since 137: there the extension is loaded
+    # over the DevTools pipe (Extensions.loadUnpacked), the port kept for the
+    # rest of the check.
+    pipe = None
+    if "google/chrome/" in str(chrome).lower() or "google chrome.app" in str(chrome).lower():
+        to_chrome, from_us = os.pipe()
+        to_us, from_chrome = os.pipe()
+        os.set_inheritable(to_chrome, True)
+        os.set_inheritable(from_chrome, True)
+        args.insert(1, "--remote-debugging-pipe")
+        pipe = (from_us, to_us, to_chrome, from_chrome)
     log = open(work / "chrome-stderr.txt", "wb")
     # Its own process group, so the whole browser can be stopped at the end,
     # but not its own session: on macOS a new session is a new Mach bootstrap
     # namespace, and Chrome's helper processes could not reach their parent
     # ("bootstrap_look_up … Permission denied"; the tab was killed at once).
-    browser = subprocess.Popen(args, stdout=subprocess.DEVNULL, stderr=log, preexec_fn=os.setpgrp)
+    def fds():
+        os.setpgrp()
+        if pipe:
+            os.dup2(pipe[2], 3)
+            os.dup2(pipe[3], 4)
+    browser = subprocess.Popen(args, stdout=subprocess.DEVNULL, stderr=log, preexec_fn=fds,
+                               pass_fds=(3, 4, pipe[2], pipe[3]) if pipe else ())
+    if pipe:
+        os.close(pipe[2])
+        os.close(pipe[3])
+        os.write(pipe[0], json.dumps({"id": 1, "method": "Extensions.loadUnpacked",
+                                      "params": {"path": str(ext)}}).encode() + b"\0")
+        answer, reply = b"", None
+        while reply is None:
+            chunk = os.read(pipe[1], 65536)
+            if not chunk:
+                break
+            answer += chunk
+            *whole_messages, answer = answer.split(b"\0")
+            reply = next((m for m in whole_messages if json.loads(m).get("id") == 1), None)
+        print("loaded over the DevTools pipe:", (reply or b"no answer").decode(errors="replace")[:200], flush=True)
     print(f"browser: {chrome}\nwork: {work}\n", flush=True)
 
     try:
         base = devtools(profile)
+        if pipe:
+            # Loaded over the pipe, the worker is registered but not started
+            # until something asks for it: the popup's page does, and goes.
+            woke = open_tab(base, f"chrome-extension://{expected_id}/popup.html")
+            time.sleep(3)
+            woke.evaluate("window.close()")
         # Chrome runs component extensions of its own; dm's is the one whose
         # worker is the loader.
         workers = lambda: [t for t in targets(base) if t["type"] == "service_worker"
                            and t["url"].endswith("/background.js")]
         found = wait_for(lambda: [t for t in workers() if expected_id in t["url"]], 30) or workers()
         if not check("the extension's service worker starts", bool(found)):
-            return
+            sys.exit(1)
         worker_url = found[0]["url"]
         ext_id = urllib.parse.urlparse(worker_url).hostname
         check("its id is the one the manifest key fixes", ext_id == expected_id,
@@ -1111,8 +1151,11 @@ def main():
         # and the app takes it by its rules; the tab stays on the page.
         tab = open_tab(base, f"{origin}/page.html")
         loaded(tab, "/page.html", '[id="small-shown.pdf"]')
-        x, y = tab.evaluate("""(() => { const r = document.getElementById('small-shown.pdf')
-          .getBoundingClientRect(); return [r.left + 5, r.top + r.height / 2]; })()""")
+        # Scrolled into view first: in a short window (Brave's or Edge's under
+        # Xvfb) the link was below the fold and the click landed on nothing.
+        x, y = tab.evaluate("""(() => { const l = document.getElementById('small-shown.pdf');
+          l.scrollIntoView({ block: 'center' }); const r = l.getBoundingClientRect();
+          return [r.left + 5, r.top + r.height / 2]; })()""")
         click_at(tab, x, y)
         shown = wait_for(lambda: whole(engine_dl, "small-shown.pdf"), 60)
         stayed = tab.evaluate("location.pathname")
