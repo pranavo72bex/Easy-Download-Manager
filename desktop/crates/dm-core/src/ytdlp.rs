@@ -29,6 +29,7 @@ mod page_data;
 mod process;
 mod readings;
 mod refusal;
+mod sandbox;
 
 pub use choices::{choices, list_choices, list_choices_fast, read_choices, Choice};
 pub use fetch::download_page;
@@ -265,6 +266,16 @@ fn forget_old_unpackings(dir: &Path) {
 }
 
 /// yt-dlp run where it can unpack itself (`runnable_temp`).
+/// yt-dlp at `binary`, in the sandbox where Linux allows one, writing to
+/// `writable` and the temporary folder dm points it at.
+pub(crate) fn writable_to(binary: &Path, writable: &[&Path]) -> Command {
+    let mut open = writable.to_vec();
+    if let Some(dir) = runnable_temp() {
+        open.push(dir);
+    }
+    sandbox::command(binary, &open)
+}
+
 fn unpack_where_programs_run(command: &mut Command) {
     if let Some(dir) = runnable_temp() {
         command.env("TMPDIR", dir);
@@ -725,7 +736,7 @@ async fn download_ytdlp_once(
     // the same bug one step later.
     let binary = binary()
         .ok_or_else(|| Error::Internal("dm's video helper is not available here".into()))?;
-    let mut command = Command::new(binary);
+    let mut command = writable_to(&binary, &[staging]);
     crate::no_window_async(&mut command);
     command
         .arg("--no-playlist")

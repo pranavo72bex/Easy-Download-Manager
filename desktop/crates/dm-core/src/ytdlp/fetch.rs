@@ -25,8 +25,6 @@
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 
-use tokio::process::Command;
-
 use super::{
     binary, container_sort, cookies_by_file, download_ytdlp, download_ytdlp_from, finish_dm,
     format_for, fresh_reading, js_runtime, proxy_by_file, remove_staging, said_by,
@@ -452,7 +450,7 @@ async fn resolve(url: &str, options: &Options, saved: Option<&Path>) -> Result<R
     let staging = &options.parts_dir;
     let binary = binary()
         .ok_or_else(|| Error::Internal("dm's video helper is not available here".into()))?;
-    let mut command = Command::new(binary);
+    let mut command = super::writable_to(&binary, &[staging]);
     crate::no_window_async(&mut command);
     js_runtime(&mut command);
     unpack_where_programs_run(&mut command);

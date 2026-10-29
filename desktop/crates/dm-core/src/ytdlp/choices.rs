@@ -200,7 +200,9 @@ async fn read_choices_once(
 ) -> Result<Vec<Choice>, Error> {
     let binary = binary()
         .ok_or_else(|| Error::Internal("dm's video helper is not available here".into()))?;
-    let mut command = Command::new(binary);
+    // Its proxy and cookie files are in the temporary folder, which the
+    // sandbox leaves open.
+    let mut command = super::writable_to(&binary, &[]);
     crate::no_window_async(&mut command);
     js_runtime(&mut command);
     unpack_where_programs_run(&mut command);
