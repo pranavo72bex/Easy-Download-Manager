@@ -87,6 +87,21 @@ one finding, which was the phase expecting a download to hang (T-011).
 status gained its bytes and one failure sentence names both ways out, as
 row 35 says, in all thirteen catalogs.
 
+## QA before merging the yt-dlp rows (2026-10-29)
+
+- `scripts/human-qa.py` whole, in sight: 36 of 38 the first time; the two
+  were B33 (the panel left in the player's old corner when YouTube re-laid
+  its page under load) and B36 with it. The cause was in the extension
+  (BUG-006), fixed, and the browser rows run again on the fixed build:
+  the local browser check 70 of 70 (a new check shrinks the player and
+  expects the panel to follow; 69 of 70 without the fix), real YouTube in
+  Edge 49 of 49, every file type 52 of 52, Firefox as before. The 25 window
+  rows held in the first run and nothing in `desktop/` changed after it.
+- The Docker QA stack on the changed engine: 37 of 37 scenarios, 69 of 69
+  browser checks. `cargo test --workspace` (desktop and browser), clippy,
+  formatting, the privacy and layering checks: clean. The stress suite:
+  19 phases, no finding after T-011.
+
 ## Next
 
 - Every engine behaviour reference A documents has a match, or a written
