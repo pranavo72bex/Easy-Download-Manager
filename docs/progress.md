@@ -70,6 +70,23 @@ question, and an unfinished one is asked about. One earlier run failed only
 on real YouTube's quality list (yt-dlp read the same video at once just
 after, and the next run passed): a site's slow moment, not a change in dm.
 
+## The yt-dlp costs, closed (2026-10-29, approved by the maintainer)
+
+Rows 33, 34, 35, 36 and 38 of gaps.md, each with a test that failed before
+its change: a failed run fetches the newest yt-dlp once and tries again
+(`tests/ytdlp_heals.rs`); the Linux sandbox (`ytdlp/sandbox.rs`, Docker both
+ways); the helper fetched at the first start and its bytes told
+(`tests/ytdlp_prefetch.rs`, `tests/tools.rs`); yt-dlp's failures in dm's
+words from a corpus of 38 of its lines (`tests/ytdlp_words.rs`); the
+portable build on the computer's Python where the release has no standalone
+one (`tests/ytdlp_portable.rs`). Row 37 (proof-of-origin tokens) looked
+into and left blocked: it needs Node.js and a third-party provider kept
+current with YouTube's bot program. The stress suite ran whole (19 phases):
+one finding, which was the phase expecting a download to hang (T-011).
+`cargo audit` on both workspaces: no advisories. UI files changed: one
+status gained its bytes and one failure sentence names both ways out, as
+row 35 says, in all thirteen catalogs.
+
 ## Next
 
 - Every engine behaviour reference A documents has a match, or a written

@@ -27,7 +27,7 @@ stated by its maker), reported (third parties only), untested, unknown.
 | YouTube | reads the player's requests; a new build whenever YouTube changes | only through its yt-dlp add-on | the player's requests name no format today (SABR, measured 2026-10-29), so yt-dlp reads the page and dm fetches what it found; yt-dlp fetched by dm, current within a week | as now; a helper-free YouTube is a client of YouTube's protocol kept up by hand (gaps.md rows 6, 32) | differs, by decision |
 | yt-dlp only reads; the manager fetches the files | n/a | verified | yes: `ytdlp/fetch.rs` | as now | match |
 | Picture and sound joined | n/a | verified: ffmpeg, a required package | dm's own muxer, nothing to install | as now | dm needs less |
-| yt-dlp in a sandbox (Linux) | n/a | verified: bubblewrap, run plainly where none can be made | none | candidate, see "Worth taking" | open |
+| yt-dlp in a sandbox (Linux) | n/a | verified: bubblewrap, run plainly where none can be made | yes since 2026-10-29: `ytdlp/sandbox.rs`, checked in Docker with and without a sandbox | as now | match |
 | A page's only video named by the page | reported | verified: "Lab clip (1).mp4", yt-dlp's number kept | "Lab clip [watch].mp4" since 2026-10-29: `ytdlp/fetch.rs`; QA `video_page` | as now | dm better |
 | Reading the browser's whole cookie store | n/a | verified, when the page's cookies are not given | never; only the page's own session, from the extension | as now, by decision | different, kept |
 
@@ -36,13 +36,7 @@ stated by its maker), reported (third parties only), untested, unknown.
 Found by the comparison, not yet in dm, and each a change to existing
 behaviour, so each waits for the maintainer:
 
-1. **yt-dlp in a sandbox on Linux** (reference B). The computer read-only to
-   it but for its own folders, browser profiles and keys hidden, and plain
-   yt-dlp wherever a sandbox cannot be made, checked before every run so a
-   video that downloads today still downloads. Built and tested once on
-   2026-10-29 (Docker, with and without the sandbox; full QA passed), then
-   set aside by the maintainer.
-2. **More connections while each is slow** (reference B). Faster on servers
+1. **More connections while each is slow** (reference B). Faster on servers
    that hold each connection to a rate (1.2 s against 2.0 s above), but more
    connections than the person set, and some servers block clients that open
    many; reference A advises four or fewer. A setting, or a ceiling above it,

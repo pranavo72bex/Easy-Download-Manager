@@ -39,6 +39,33 @@ cd ../browser && cargo test                     # the extension's decisions, on 
   Downloads folder or browser profile. A password or token in a test comes
   from `desktop/test-support/secrets.rs`, never from the code.
 
+## The testing plan, and where each part lives
+
+The maintainer's plan (2026-10-29) in six parts, and what answers each:
+
+1. **Unit tests**: `cargo test --workspace` in `desktop/` (the engine's
+   ranges, retries, pause and resume, names, speed limits, the queue; 1 250
+   tests against real servers on loopback) and `browser/` (the extension's
+   decisions). Property tests in each crate's `tests/fuzz.rs`.
+2. **Integration**: the Docker QA stack (`sh qa/run.sh`: 37 scenarios on
+   servers that misbehave, 69 browser checks), the browser checks in real
+   Chrome, Edge and Firefox (`chrome-check.py`, `firefox-check.py`), the
+   real-site runs (`real-sites.py`, `youtube-check.py`), restart and kill
+   recovery in the contract (B21, B22) and the stress suite.
+3. **Test first**: AGENTS.md "Rules for a change" 1 (reproduce first with a
+   failing test) and BUGLOG.md, where every fix names the test that failed
+   before it.
+4. **Security testing**: an authorized agent's black-box run and code
+   reading, reported in `docs/security-report.md` when one is made; the
+   privacy check (`cargo xtask privacy`); the `names`, `hostile` and
+   `control` phases of the stress suite; `cargo audit` on both workspaces.
+5. **Review and fix**: findings go to gaps.md as rows, critical and high
+   first, each closed with a regression test (BUGLOG.md).
+6. **Load, stress and reliability**: `python3 scripts/stress-check.py`
+   (19 phases: thousands of small files, 20 000 queued links, a 1.5 GB
+   file, cuts, stalls, lies, outages, kill -9, a pause storm, limits,
+   leaks, the window under load), measured and printed.
+
 ## QA: the behaviour contract, whole
 
 `python3 scripts/human-qa.py` goes through every row of
