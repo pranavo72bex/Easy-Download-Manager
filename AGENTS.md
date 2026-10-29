@@ -103,6 +103,10 @@ There is no Node, npm or JavaScript test suite; do not add one.
 
 ## Rules for a change
 
+0. What a person does and sees is fixed by `docs/behaviour-contract.md`:
+   no row of it changes without the maintainer's approval in words, and QA
+   is `python3 scripts/human-qa.py` run whole in a visible window, which
+   fails on any row failed or not checked.
 1. Reproduce first: a failing test against the local server in
    `crates/dm-core/tests/common`, or a recorded run.
 2. One defect per change. No drive-by refactors.

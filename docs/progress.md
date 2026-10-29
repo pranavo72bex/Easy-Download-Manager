@@ -56,6 +56,20 @@ records the reference investigation only.
   video: 49 of 49 (the panel over the playing video, its qualities with
   sizes, the video whole in dm's folder).
 
+## The behaviour contract (2026-10-29)
+
+What a person does and sees is fixed in `docs/behaviour-contract.md` (38
+rows); `CLAUDE.md` and `AGENTS.md` forbid changing a row without the
+maintainer's approval, and QA is `scripts/human-qa.py`, the whole list, in
+sight. First full run: 38 of 38, on macOS with Microsoft Edge 156, the
+window's pictures recorded in `docs/behaviour-baseline/`. Writing it found
+three rows that first described dm wrongly, each corrected to what dm
+does, not the other way round: a repeated address is asked about ("Already
+in the list"), a finished download leaves the list with Undo and no
+question, and an unfinished one is asked about. One earlier run failed only
+on real YouTube's quality list (yt-dlp read the same video at once just
+after, and the next run passed): a site's slow moment, not a change in dm.
+
 ## Next
 
 - Every engine behaviour reference A documents has a match, or a written

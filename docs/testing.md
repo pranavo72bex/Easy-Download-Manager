@@ -39,6 +39,17 @@ cd ../browser && cargo test                     # the extension's decisions, on 
   Downloads folder or browser profile. A password or token in a test comes
   from `desktop/test-support/secrets.rs`, never from the code.
 
+## QA: the behaviour contract, whole
+
+`python3 scripts/human-qa.py` goes through every row of
+[behaviour-contract.md](behaviour-contract.md) as a person would: dm's real
+window driven through its own buttons and dialogs against a local server,
+then Microsoft Edge with the extension (`youtube-check.py` on a real video,
+and `every-type-check.py`: every kind of file goes to dm with dm set as
+installed). In sight, never headless; about half an hour. It fails when any
+row fails or was not checked, and `--save-baseline` records the window's
+pictures once a change to them is approved. This is what "QA" means here.
+
 ## The built program, driven
 
 | Check | What it proves | Run |

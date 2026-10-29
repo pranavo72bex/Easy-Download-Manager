@@ -6,6 +6,25 @@ to it. What is done, with the evidence for each line, is in
 [docs/feature-status.md](docs/feature-status.md); the behaviour checklist is
 [docs/parity.md](docs/parity.md).
 
+## BEHAVIOUR CONTRACT (READ BEFORE ANY CHANGE)
+
+What a person does in dm and what then happens is fixed by
+[docs/behaviour-contract.md](docs/behaviour-contract.md). It overrides
+everything below, the work list included:
+
+* Do not change any behaviour in that list unless the maintainer has
+  approved that change in words. Fixing a bug in it is a change: ask first.
+* An approved change edits its row (and `docs/behaviour-baseline/` if the
+  window changes) in the same commit, and the commit names the approval.
+* Do not change the window, its layout, dialogs or wording to make work
+  easier.
+* QA means the whole list: `python3 scripts/human-qa.py`, in a visible
+  window, never headless and never a part of it. Run it before a merge and
+  after any change to `desktop/`, `browser/` or `extension/`. It fails when a
+  row fails or was not checked; report every row it prints.
+* Name no other download manager in code, comments or docs: the reference
+  apps are "reference A" and "reference B".
+
 # Autonomous Development Rules
 
 You are the primary developer of this project.
