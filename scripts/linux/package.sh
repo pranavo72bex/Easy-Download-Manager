@@ -33,6 +33,20 @@ APPIMAGE_EXTRACT_AND_RUN=1 cargo packager --release --formats "$FORMATS" \
 cd /work
 
 BUNDLE=/target/release/bundle
+# Built only, for `make build-linux`: the packages the release has, the .rpm
+# among them, copied out; nothing installed or driven.
+if [ -n "${DM_BUILD_ONLY:-}" ]; then
+  version=$(sed -n 's/^version = "\(.*\)"/\1/p' desktop/crates/dm-desktop/Cargo.toml | head -1)
+  sh scripts/linux/nfpm.sh /target/release/dm-desktop "$version" "$BUNDLE"
+  for f in "$BUNDLE"/*.deb "$BUNDLE"/*.AppImage "$BUNDLE"/*.rpm; do
+    [ -e "$f" ] || continue
+    name=$(basename "$f")
+    case "$name" in dm-desktop_*) name="dm_${name#dm-desktop_}" ;; esac
+    cp "$f" "/out/$name"
+  done
+  ls -la /out
+  exit 0
+fi
 DEB=''
 APPIMAGE=''
 for f in "$BUNDLE"/*.deb; do [ -e "$f" ] && DEB=$f && break; done

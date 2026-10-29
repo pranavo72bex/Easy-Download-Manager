@@ -12,6 +12,8 @@ cd "$(dirname "$0")/.."
 # install. Each platform keeps its own image and build volume.
 # DM_DISTRO=ubuntu2204 runs it on Ubuntu 22.04, the system CI builds the
 # release on, instead of Debian 12.
+# DM_OUT=folder only builds: the .deb, the AppImage and the .rpm are copied
+# there, and nothing is installed or driven (what `make build-linux` uses).
 platform="${DM_PLATFORM:-}"
 distro="${DM_DISTRO:-}"
 suffix="${platform:+-$(echo "$platform" | tr / -)}${distro:+-$distro}"
@@ -25,4 +27,6 @@ git ls-files -z --cached --others --exclude-standard \
       -v "$volume":/target \
       -v "$HOME/.cargo/registry":/usr/local/cargo/registry \
       -e DM_FORMATS="${DM_FORMATS:-}" \
+      -e DM_BUILD_ONLY="${DM_OUT:+1}" \
+      ${DM_OUT:+-v "$DM_OUT":/out} \
       "$tag" sh -c 'mkdir -p /work && cd /work && tar -xf - && sh scripts/linux/package.sh'

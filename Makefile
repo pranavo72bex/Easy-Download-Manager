@@ -1,6 +1,9 @@
-# dm — clone it and install it.
+# dm — clone it and install it, or work on it as with the flutter tool.
 #
-#     make install
+#     make install          build it and put it where your system looks
+#     make run              build it and start it, with its window
+#     make build            installers for every platform this computer can build
+#     make help             everything else
 #
 # What this can and cannot do, said plainly, because the difference matters:
 #
@@ -43,6 +46,16 @@ BINDIR := $(PREFIX)/bin
 APPDIR ?= /Applications
 
 BINARY := desktop/target/release/dm-desktop
+# The version the client says it is, for the installers' names.
+APP_VERSION := $(shell sed -n 's/^version = "\(.*\)"/\1/p' desktop/crates/dm-desktop/Cargo.toml | head -1)
+# Where `make build` puts what it made, one folder a platform.
+BUILD := build
+# Arguments for the client: make run ARGS="--hidden"
+ARGS ?=
+# The Linux packages' architecture: this machine's by default; amd64 or
+# arm64 builds the other under Docker's emulation (slower, and no AppImage).
+LINUX_ARCH ?=
+HAVE_DOCKER := $(shell docker info >/dev/null 2>&1 && echo yes)
 # The extension, built: dist/chrome and dist/firefox, loadable as they are,
 # and the store zips beside them.
 STAGED := dist
@@ -76,20 +89,37 @@ BOLD := $(shell test -t 1 && tput bold 2>/dev/null)
 DIM  := $(shell test -t 1 && tput dim 2>/dev/null)
 OFF  := $(shell test -t 1 && tput sgr0 2>/dev/null)
 
-.PHONY: help install client extension register unregister uninstall test doctor app clean
+.PHONY: help install client extension register unregister uninstall test doctor app clean \
+        run run-release build build-macos build-linux build-windows build-extension \
+        devices analyze format qa qa-docker
 
 help:
 	@echo "$(BOLD)dm$(OFF) — a download manager"
 	@echo
-	@echo "  $(BOLD)make install$(OFF)      build and install the client, stage the extension"
-	@echo "  $(BOLD)make register$(OFF)     let the extension hand downloads to it"
+	@echo "$(BOLD)Working on it$(OFF)"
+	@echo "  $(BOLD)make run$(OFF)             build and start dm with its window (ARGS=\"…\" for dm)"
+	@echo "  make run-release     the same, optimised"
+	@echo "  $(BOLD)make build$(OFF)           installers for every platform this computer can build"
+	@echo "  make build-macos     dm.app and the .dmg                   (on a Mac)"
+	@echo "  make build-linux     .deb, AppImage and .rpm               (on Linux, or with Docker)"
+	@echo "  make build-windows   the portable .zip                     (with Docker)"
+	@echo "  make build-extension the browser extension's zips"
+	@echo "  make devices         which of those this computer can build"
+	@echo "  make test            every test"
+	@echo "  make analyze         clippy, formatting and the privacy check"
+	@echo "  make format          format the code"
+	@echo "  make qa              the behaviour contract, whole, in sight"
+	@echo "  make qa-docker       the Docker QA stack"
+	@echo "  make clean           remove build output"
 	@echo
-	@echo "  make client        just the desktop client"
-	@echo "  make extension     just build the extension (Rust to WebAssembly)"
-	@echo "  make app           installers for this machine (needs cargo-packager)"
-	@echo "  make test          the whole suite"
-	@echo "  make doctor        what is installed and what is missing"
-	@echo "  make uninstall     remove all of it"
+	@echo "$(BOLD)Using it$(OFF)"
+	@echo "  $(BOLD)make install$(OFF)         build and install the client, stage the extension"
+	@echo "  $(BOLD)make register$(OFF)        let the extension hand downloads to it"
+	@echo "  make client          just the desktop client"
+	@echo "  make extension       just build the extension (Rust to WebAssembly)"
+	@echo "  make app             dm.app into $(APPDIR) (on a Mac)"
+	@echo "  make doctor          what is installed and what is missing"
+	@echo "  make uninstall       remove all of it"
 	@echo
 	@echo "$(DIM)  PREFIX=$(PREFIX)   (override to install elsewhere)$(OFF)"
 
@@ -260,6 +290,119 @@ else
 	@echo "  rm -rf ~/.local/share/dm-engine"
 endif
 
+# ------------------------------------------------------- working on it
+
+# Like `flutter run`: build what changed and start the real program, its
+# window and all, from this checkout. Quit it as usual; ARGS go to dm.
+run:
+	@cd desktop && cargo run -p dm-desktop -- $(ARGS)
+
+run-release:
+	@cd desktop && cargo run --release -p dm-desktop -- $(ARGS)
+
+# Like `flutter build` with no platform named: everything this computer can
+# build, each into build/<platform>/, and a list of what was made. A platform
+# it cannot build is named with the reason, not failed.
+build: build-extension
+ifeq ($(UNAME),Darwin)
+	@$(MAKE) --no-print-directory build-macos
+endif
+ifeq ($(UNAME),Linux)
+	@$(MAKE) --no-print-directory build-linux
+else ifeq ($(HAVE_DOCKER),yes)
+	@$(MAKE) --no-print-directory build-linux
+else
+	@echo "$(DIM)Linux skipped: needs Linux or a running Docker$(OFF)"
+endif
+ifeq ($(HAVE_DOCKER),yes)
+	@$(MAKE) --no-print-directory build-windows
+else
+	@echo "$(DIM)Windows skipped: needs a running Docker$(OFF)"
+endif
+	@echo
+	@echo "$(BOLD)built$(OFF)"
+	@find $(BUILD) -maxdepth 2 -type f -o -maxdepth 2 -name '*.app' | sort | sed 's|^|  |'
+
+build-macos:
+ifneq ($(UNAME),Darwin)
+	@echo "the macOS app is built on a Mac (or by CI)"; exit 1
+endif
+	@command -v cargo-packager >/dev/null 2>&1 || { \
+	  echo "needs cargo-packager:  cargo install cargo-packager --version 0.11.8 --locked"; exit 1; }
+	@echo "$(BOLD)macOS$(OFF): dm.app and the .dmg"
+	@cd desktop/crates/dm-desktop && CI=true cargo packager --release --formats app,dmg
+	@rm -rf $(BUILD)/macos && mkdir -p $(BUILD)/macos
+	@cp -R desktop/target/release/bundle/dm.app $(BUILD)/macos/
+	@cp desktop/target/release/bundle/*.dmg $(BUILD)/macos/
+	@ls $(BUILD)/macos | sed 's|^|  $(BUILD)/macos/|'
+
+build-linux:
+	@rm -rf $(BUILD)/linux && mkdir -p $(BUILD)/linux
+ifeq ($(UNAME),Linux)
+	@command -v cargo-packager >/dev/null 2>&1 || { \
+	  echo "needs cargo-packager:  cargo install cargo-packager --version 0.11.8 --locked"; exit 1; }
+	@echo "$(BOLD)Linux$(OFF): .deb, AppImage and .rpm"
+	@cd desktop/crates/dm-desktop && cargo packager --release --formats deb,appimage
+	@sh scripts/linux/nfpm.sh $(BINARY) $(APP_VERSION) desktop/target/release/bundle
+	@for f in desktop/target/release/bundle/*.deb desktop/target/release/bundle/*.AppImage \
+	          desktop/target/release/bundle/*.rpm; do \
+	  [ -e "$$f" ] || continue; n=$$(basename "$$f"); \
+	  case "$$n" in dm-desktop_*) n="dm_$${n#dm-desktop_}" ;; esac; cp "$$f" "$(BUILD)/linux/$$n"; done
+else
+	@test "$(HAVE_DOCKER)" = yes || { echo "Linux packages are built on Linux, or here with Docker running"; exit 1; }
+	@echo "$(BOLD)Linux$(OFF) ($(if $(LINUX_ARCH),$(LINUX_ARCH),this machine's architecture)), in Docker: .deb, $(if $(LINUX_ARCH),,AppImage and ).rpm"
+	@DM_OUT="$(CURDIR)/$(BUILD)/linux" $(if $(LINUX_ARCH),DM_PLATFORM=linux/$(LINUX_ARCH) DM_FORMATS=deb) \
+	  sh scripts/linux-package.sh
+endif
+	@ls $(BUILD)/linux | sed 's|^|  $(BUILD)/linux/|'
+
+build-windows:
+	@test "$(HAVE_DOCKER)" = yes || { echo "the Windows build needs Docker running (or a Windows machine, as CI)"; exit 1; }
+	@echo "$(BOLD)Windows$(OFF) (x86_64), in Docker: the portable .zip"
+	@sh scripts/windows-build.sh $(BUILD)/windows
+
+build-extension:
+	@echo "$(BOLD)the browser extension$(OFF): Chrome, Edge, Brave and Firefox zips"
+	@sh scripts/package.sh
+	@rm -rf $(BUILD)/extension && mkdir -p $(BUILD)/extension
+	@cp $(STAGED)/*.zip $(BUILD)/extension/
+	@ls $(BUILD)/extension | sed 's|^|  $(BUILD)/extension/|'
+
+# Like `flutter devices`: what this computer can build, and why not.
+devices:
+	@echo "$(BOLD)platforms this computer can build$(OFF)"
+	@if [ "$(UNAME)" = Darwin ]; then printf '  %-10s yes  make build-macos\n' macOS; \
+	 else printf '  %-10s no   on a Mac, or CI\n' macOS; fi
+	@if [ "$(UNAME)" = Linux ]; then printf '  %-10s yes  make build-linux\n' Linux; \
+	 elif [ "$(HAVE_DOCKER)" = yes ]; then printf '  %-10s yes  make build-linux (in Docker)\n' Linux; \
+	 else printf '  %-10s no   start Docker\n' Linux; fi
+	@if [ "$(HAVE_DOCKER)" = yes ]; then printf '  %-10s yes  make build-windows (in Docker; the installer is CI'"'"'s)\n' Windows; \
+	 else printf '  %-10s no   start Docker\n' Windows; fi
+	@printf '  %-10s yes  make build-extension\n' extension
+
+# Like `flutter analyze`: what CI refuses, before CI refuses it.
+analyze:
+	@cd desktop && cargo clippy --workspace --all-targets --locked -- -D warnings
+	@cd desktop && cargo fmt --all --check
+	@cd desktop && cargo xtask privacy
+	@cd desktop && cargo xtask layers
+	@cd browser && cargo clippy --all-targets -- -D warnings
+	@cd browser && cargo fmt --check
+	@echo "no warnings, formatted, nothing phones home"
+
+format:
+	@cd desktop && cargo fmt --all
+	@cd browser && cargo fmt
+
+# The behaviour contract, every row, in sight (docs/behaviour-contract.md).
+qa:
+	@cd desktop && cargo build -p dm-desktop
+	@test -f $(STAGED)/chrome/manifest.json || sh scripts/package.sh
+	@python3 scripts/human-qa.py
+
+qa-docker:
+	@sh qa/run.sh
+
 test:
 	@cd browser && cargo test
 	@cd desktop && cargo test --workspace
@@ -267,5 +410,5 @@ test:
 clean:
 	@cd desktop && cargo clean
 	@cd browser && cargo clean
-	@rm -rf dist extension/pkg
+	@rm -rf dist extension/pkg $(BUILD)
 	@echo "removed build output"

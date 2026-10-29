@@ -409,6 +409,17 @@ How it is tested, including in Docker: [docs/testing.md](docs/testing.md).
 Where to start changing it: [AGENTS.md](AGENTS.md). The open work list:
 [docs/gaps.md](docs/gaps.md).
 
+### Run it and build it
+
+From a clone, as with the flutter tool:
+
+```sh
+make run          # build what changed and start dm with its window
+make build        # installers for every platform this computer can build, into build/
+make devices      # which platforms that is (macOS on a Mac; Linux and Windows with Docker)
+make help         # everything else: test, analyze, format, qa, install
+```
+
 ### How to run the test suite
 
 The quick checks, on any computer with Rust:

@@ -31,3 +31,6 @@ Thumbs.db
 *.swp
 .vscode/
 .idea/
+
+# What `make build` made
+/build/

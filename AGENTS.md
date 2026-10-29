@@ -73,6 +73,19 @@ survives a restart. Everything else is `PARTIAL`, `NOT VERIFIED` or
 
 ## Commands
 
+The Makefile is the short way, as with the flutter tool (`make help` lists
+them all):
+
+```sh
+make run [ARGS="…"]     # build what changed and start dm with its window
+make build              # installers for every platform this machine can build, into build/
+make build-macos | build-linux | build-windows | build-extension   # one of them
+make devices            # which platforms this machine can build, and why not
+make test | analyze | format | qa | qa-docker   # tests; what CI refuses; the contract, whole
+```
+
+Underneath:
+
 ```sh
 cd browser && cargo test                   # the extension's decisions, on the host
 cd browser && cargo clippy --target wasm32-unknown-unknown -- -D warnings
