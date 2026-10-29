@@ -435,11 +435,42 @@ pub async fn fetch_into(
     let path = folder.join(tool.file_name());
     match tool {
         Tool::YtDlp => {
-            let asset = ytdlp_asset_for(os, arch, on_musl()).ok_or_else(|| {
-                Error::Internal(format!("yt-dlp publishes no build for {os} on {arch}"))
-            })?;
             let sums = fetch(client, &format!("{}/SHA2-256SUMS", sources.ytdlp)).await?;
-            let expected = digest_in(&String::from_utf8_lossy(&sums), asset)
+            let sums = String::from_utf8_lossy(&sums);
+            /* The standalone build for this computer, where the release has
+             * one. Where it has none (Linux on another processor, a BSD),
+             * yt-dlp's portable build, one file of Python, run by the
+             * computer's own Python where one is installed (gaps.md row 38). */
+            let standalone =
+                ytdlp_asset_for(os, arch, on_musl()).filter(|a| digest_in(&sums, a).is_some());
+            let Some(asset) = standalone else {
+                let Some(python) = crate::ytdlp::python3() else {
+                    return Err(Error::Internal(format!(
+                        "yt-dlp publishes no build for {os} on {arch}, and no Python 3.10 or \
+                         newer is installed to run its portable one: install yt-dlp, or Python"
+                    )));
+                };
+                let expected = digest_in(&sums, PORTABLE).ok_or_else(|| {
+                    Error::Internal("yt-dlp's checksums name no portable build".into())
+                })?;
+                let bytes = fetch(client, &format!("{}/{PORTABLE}", sources.ytdlp)).await?;
+                if hex_of(&bytes) != expected {
+                    return Err(Error::Internal(
+                        "the yt-dlp fetched does not match its published checksum, so it was not kept"
+                            .into(),
+                    ));
+                }
+                let path = folder.join(PORTABLE);
+                place(&path, &bytes).await?;
+                let _ = tokio::fs::write(folder.join(DIGEST_NOTE), &expected).await;
+                let _ = tokio::fs::write(
+                    folder.join(RUN_WITH_PYTHON),
+                    python.as_os_str().as_encoded_bytes(),
+                )
+                .await;
+                return Ok(path);
+            };
+            let expected = digest_in(&sums, asset)
                 .ok_or_else(|| Error::Internal(format!("yt-dlp's checksums name no {asset}")))?;
             let bytes = fetch(client, &format!("{}/{asset}", sources.ytdlp)).await?;
             if hex_of(&bytes) != expected {
@@ -554,11 +585,36 @@ pub fn video_possible() -> bool {
         || (folder().is_some()
             && fetching_allowed()
             && std::env::var_os("DM_YTDLP").is_none()
-            && ytdlp_asset(std::env::consts::OS, std::env::consts::ARCH).is_some())
+            && (ytdlp_asset(std::env::consts::OS, std::env::consts::ARCH).is_some()
+                || crate::ytdlp::python3().is_some()))
 }
 
 /// Where the published digest of the yt-dlp dm fetched is noted, beside it.
 const DIGEST_NOTE: &str = "yt-dlp.digest";
+
+/// yt-dlp's portable build in its release: one file of Python, run by any
+/// Python 3.10 or newer, for the computers the standalone builds leave out.
+const PORTABLE: &str = "yt-dlp";
+
+/// Noted beside a fetched portable build: the Python it is run with. Its
+/// presence is how dm knows to start that build through Python rather
+/// than as a program of its own.
+const RUN_WITH_PYTHON: &str = "yt-dlp.python";
+
+/// The Python a fetched portable yt-dlp is run with, where that is what was
+/// fetched (`RUN_WITH_PYTHON` beside it); `None` for a program run as itself.
+pub(crate) fn python_for(binary: &Path) -> Option<PathBuf> {
+    let folder = binary.parent()?;
+    if binary.file_name()? != PORTABLE || !is_fetched(binary) {
+        return None;
+    }
+    let noted = std::fs::read(folder.join(RUN_WITH_PYTHON)).ok()?;
+    let python = PathBuf::from(String::from_utf8_lossy(&noted).trim());
+    python
+        .is_file()
+        .then_some(python)
+        .or_else(crate::ytdlp::python3)
+}
 
 /// How long after one try for a newer yt-dlp the next may be made: a site
 /// that stays broken must not have dm asking GitHub at every download.
@@ -588,9 +644,8 @@ pub async fn newer_ytdlp(client: &reqwest::Client) -> bool {
         *last = Some(std::time::Instant::now());
     }
     let os = std::env::consts::OS;
-    let Some(asset) = ytdlp_asset_for(os, std::env::consts::ARCH, on_musl()) else {
-        return false;
-    };
+    // The portable build's digest where that is what this computer runs.
+    let asset = ytdlp_asset_for(os, std::env::consts::ARCH, on_musl()).unwrap_or(PORTABLE);
     let sources = official();
     let Ok(sums) = fetch(client, &format!("{}/SHA2-256SUMS", sources.ytdlp)).await else {
         return false;

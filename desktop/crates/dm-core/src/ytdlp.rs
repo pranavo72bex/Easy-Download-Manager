@@ -267,13 +267,68 @@ fn forget_old_unpackings(dir: &Path) {
 
 /// yt-dlp run where it can unpack itself (`runnable_temp`).
 /// yt-dlp at `binary`, in the sandbox where Linux allows one, writing to
-/// `writable` and the temporary folder dm points it at.
+/// `writable` and the temporary folder dm points it at. A fetched portable
+/// build is started through the computer's Python (`tools::python_for`).
 pub(crate) fn writable_to(binary: &Path, writable: &[&Path]) -> Command {
     let mut open = writable.to_vec();
     if let Some(dir) = runnable_temp() {
         open.push(dir);
     }
-    sandbox::command(binary, &open)
+    match crate::tools::python_for(binary) {
+        Some(python) => {
+            let mut command = sandbox::command(&python, &open);
+            command.arg(binary);
+            command
+        }
+        None => sandbox::command(binary, &open),
+    }
+}
+
+/// A Python 3.10 or newer on this computer, for yt-dlp's portable build
+/// where the release has no standalone one: `DM_PYTHON` outright, else
+/// `python3` on `PATH` or in the usual places, asked its version once.
+pub(crate) fn python3() -> Option<PathBuf> {
+    static FOUND: std::sync::OnceLock<Option<PathBuf>> = std::sync::OnceLock::new();
+    FOUND
+        .get_or_init(|| {
+            if let Some(named) = std::env::var_os("DM_PYTHON") {
+                return (!named.is_empty())
+                    .then(|| PathBuf::from(named))
+                    .filter(|p| p.is_file());
+            }
+            let on_path = std::env::var_os("PATH")
+                .map(|p| std::env::split_paths(&p).collect::<Vec<_>>())
+                .unwrap_or_default();
+            let usual = [
+                PathBuf::from("/usr/bin"),
+                PathBuf::from("/usr/local/bin"),
+                PathBuf::from("/opt/homebrew/bin"),
+            ];
+            on_path
+                .iter()
+                .chain(usual.iter())
+                .map(|dir| dir.join("python3"))
+                .filter(|p| p.is_file())
+                .find(|p| python_is_new_enough(p))
+        })
+        .clone()
+}
+
+/// Whether `python` says it is 3.10 or newer, which yt-dlp needs.
+fn python_is_new_enough(python: &Path) -> bool {
+    let mut command = std::process::Command::new(python);
+    crate::no_window(&mut command);
+    let Ok(out) = command.arg("--version").output() else {
+        return false;
+    };
+    let said = String::from_utf8_lossy(&out.stdout) + String::from_utf8_lossy(&out.stderr);
+    let mut parts = said
+        .trim()
+        .strip_prefix("Python ")
+        .unwrap_or("")
+        .split('.')
+        .filter_map(|n| n.parse::<u32>().ok());
+    matches!((parts.next(), parts.next()), (Some(3), Some(minor)) if minor >= 10)
 }
 
 fn unpack_where_programs_run(command: &mut Command) {

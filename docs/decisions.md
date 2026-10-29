@@ -6,6 +6,19 @@ can see what it is undoing.
 
 
 
+
+## 2026-10-29: yt-dlp's portable build where the release has no standalone one
+
+`tools::fetch_into` reads the release's checksums first and takes the
+standalone build only where the release lists one for this computer; else
+the portable build (`yt-dlp`, one file of Python) checked the same way,
+with the Python to run it noted beside it (`yt-dlp.python`), which
+`ytdlp::writable_to` starts it through. `ytdlp::python3` is `DM_PYTHON`, or
+the first `python3` on `PATH` or in the usual places that says it is 3.10
+or newer, asked once a run. Unix only in practice: every Windows has a
+standalone build. `tests/ytdlp_portable.rs` publishes only the portable
+build and downloads through it.
+
 ## 2026-10-29: yt-dlp's failures in dm's words, from a corpus of its lines
 
 `tests/fixtures/ytdlp-errors.txt` holds yt-dlp's error lines as its readers

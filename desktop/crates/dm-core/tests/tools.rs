@@ -175,7 +175,12 @@ async fn fetched_tools_are_kept_only_when_they_match() {
     .await
     .unwrap_err()
     .to_string();
-    assert!(said.contains("no build"), "{said}");
+    // Said as "no build" where the computer has no Python either, and as
+    // "no portable build" where it has one and the release lists none.
+    assert!(
+        said.contains("no build") || said.contains("no portable build"),
+        "{said}"
+    );
 }
 
 /// The real thing, from GitHub: yt-dlp's and QuickJS's builds for this
