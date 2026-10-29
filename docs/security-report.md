@@ -70,7 +70,7 @@ when a previous hop was public (block public->private redirects). Optionally a u
 the queue keeps the raw `url` string (`queue/mod.rs:84`).
 **Reproduction.** `downloads.add {"urls":["http://<login>@127.0.0.1:18080/normal"]}` ->
 `grep` for the password in queue.json hits `"url":"http://<login>@127.0.0.1:1808..."`. The control API
-masks it on read-back: queue.list returns `http://alice:•••@127.0.0.1:18080/normal` (authors already
+masks it on read-back: queue.list returns the address with its password masked (authors already
 treat it as secret for display). Only on-disk persistence is cleartext.
 **Mitigation present.** queue.json is 0600 (verified). Residual risk: plaintext creds on disk/backups/sync.
 **Fix.** Strip userinfo before persisting (keep credential separately), reusing the existing masking
@@ -132,7 +132,7 @@ Unit test `lib.rs:815+`. Not re-tested dynamically (needs trusted TLS cert); med
 
 ### S5 — Cross-host credential leakage on redirect: safe (reqwest strips sensitive headers)
 `http://<login>@127.0.0.1:18080/redir-xhost` -> redirect to localhost:18080. First hop carried
-`authorization: Basic Ym9iOkxFQUtURVNUOQ==`; the hop to the different host (localhost) carried NO auth
+a Basic `authorization` header; the hop to the different host (localhost) carried NO auth
 header. Cookie is in the same reqwest sensitive class and stripped identically. Sign-in is host:port
 scoped (`cookies.rs SignIn::for_url`); cookies.txt matched per request-host (`cookies.rs:76`), recomputed
 against the landed URL.

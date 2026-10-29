@@ -140,6 +140,8 @@ fn bwrap() -> Option<&'static Path> {
 mod tests {
     use super::*;
 
+    // Unix paths throughout: the sandbox is Linux's.
+    #[cfg(unix)]
     #[test]
     fn the_computer_is_read_only_but_for_the_runs_folders_and_secrets_are_hidden() {
         let home = Path::new("/home/p");
