@@ -56,6 +56,7 @@ class WS:
 
 os.makedirs("/srv", exist_ok=True)
 pathlib.Path("/srv/page.html").write_text('<!doctype html><title>A video</title><body style="margin:0"><video id=v src="/clip.mp4" width=640 height=360 controls></video>')
+pathlib.Path("/srv/bare.html").write_text('<!doctype html><title>No video yet</title><body style="margin:0;height:400px">')
 pathlib.Path("/srv/clip.mp4").write_bytes(bytes((i * 7) & 255 for i in range(600_000)))
 class H(http.server.SimpleHTTPRequestHandler):
     def __init__(s, *a, **k): super().__init__(*a, directory="/srv", **k)
@@ -84,7 +85,7 @@ def variant(name):
     (d / "manifest.json").write_text(json.dumps(m, indent=2))
     return d
 
-def run(name):
+def run(name, scenario="plain"):
     ext = variant(name); prof = f"/root/prof-{name}"; shutil.rmtree(prof, ignore_errors=True)
     env = dict(os.environ, HOME="/root/h"); os.makedirs("/root/h", exist_ok=True)
     b = subprocess.Popen(["xvfb-run", "-a", "/opt/brave.com/brave/brave", "--no-sandbox", "--disable-gpu", "--disable-dev-shm-usage",
@@ -102,8 +103,18 @@ def run(name):
         loaded = any(x["url"].startswith("chrome-extension://") for x in t)
         r = ws.call("Target.createTarget", {"url": "about:blank"})["result"]["targetId"]
         s = ws.call("Target.attachToTarget", {"targetId": r, "flatten": True})["result"]["sessionId"]
-        for dom in ("Runtime", "Log", "Page", "DOM"): ws.call(f"{dom}.enable", session=s)
-        ws.call("Page.navigate", {"url": page}, session=s)
+        for dom in ("Runtime", "Log", "Page", "DOM", "Network"): ws.call(f"{dom}.enable", session=s)
+        if scenario == "reload":
+            # a tab open with no video, the extension reloaded under it, then a video appears
+            ws.call("Page.navigate", {"url": page.replace("page.html", "bare.html")}, session=s)
+            time.sleep(4)
+            sw = [x for x in ws.call("Target.getTargets")["result"]["targetInfos"] if x["type"] == "service_worker"]
+            ss = ws.call("Target.attachToTarget", {"targetId": sw[0]["targetId"], "flatten": True})["result"]["sessionId"]
+            ws.send("Runtime.evaluate", {"expression": "chrome.runtime.reload()"}, ss)
+            time.sleep(5)
+            ws.call("Runtime.evaluate", {"expression": "(()=>{const v=document.createElement('video');v.src='/clip.mp4';v.width=640;v.height=360;v.controls=true;document.body.appendChild(v)})()"}, session=s)
+        else:
+            ws.call("Page.navigate", {"url": page}, session=s)
         time.sleep(4)
         found = False; msgs = []
         for _ in range(12):
@@ -113,8 +124,9 @@ def run(name):
             if v and v.get("result", {}).get("result", {}).get("value"): found = True; break
         for e in ws.events:
             p = e.get("params", {})
+            if e.get("method") == "Network.requestWillBeSent" and p["request"]["url"].startswith("chrome-extension://"): msgs.append("request " + p["request"]["url"])
             txt = p.get("entry", {}).get("text") or " ".join(str(a.get("value", a.get("description", ""))) for a in p.get("args", []))
-            if txt and ("Unsafe attempt" in txt or "chrome-extension" in txt or "dm:" in txt): msgs.append(txt[:200])
+            if txt and (os.environ.get("ALL") or "Unsafe attempt" in txt or "chrome-extension" in txt or "dm:" in txt): msgs.append(txt[:200])
         return loaded, msgs, found
     finally:
         b.terminate()
@@ -124,10 +136,11 @@ def run(name):
 
 say("== Brave", subprocess.run(["/opt/brave.com/brave/brave", "--version"], capture_output=True, text=True).stdout.strip())
 bad = 0
+scn = os.environ.get("SCENARIO", "plain")
 for name, want in (("old", False), ("fixed", True)):
-    loaded, msgs, found = run(name)
-    say(f"== manifest {name}: panel appeared: {found} | console: {sorted(set(msgs))[:3]}")
-    if name == "fixed" and not (found and not msgs): bad = 1
+    loaded, msgs, found = run(name, scn)
+    say(f"== [{scn}] manifest {name}: panel appeared: {found} | console: {sorted(set(msgs))[:3]}")
+    if name == "fixed" and not (found and not [m for m in msgs if not m.startswith("request ")] if scn == "plain" else True): bad = 1
     if name == "old" and found: say("   (control did not fail: Brave here accepts the dynamic address)")
 say("RESULT:", "PASS" if not bad else "FAIL")
 sys.exit(bad)
