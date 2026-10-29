@@ -42,6 +42,20 @@ records the reference investigation only.
 - `QA_SCENARIOS="video_page video_page_without_media hls_streams" sh qa/run.sh`: 3/3.
 - `sh qa/run.sh` (full): 37/37 scenarios, 69/69 browser checks.
 
+## Mac QA before merging into main (2026-10-29)
+
+- `cargo test --workspace` (desktop and browser): 1246 passed, 0 failed;
+  clippy, fmt and `cargo xtask privacy` clean.
+- A person's walk through the real window (Add URL, Download details >
+  Start now, Stop, Resume, a kill and reopening, quit and reopening), against
+  a local server with slow, refusing, rangeless, short, redirecting and named
+  files: 21 of 21 on this branch and 21 of 21 on `main`, every step the same.
+  The window's pictures differ from `main`'s only in the clock and the
+  temporary folder's name.
+- Microsoft Edge 156 with the extension, `youtube-check.py` on a real YouTube
+  video: 49 of 49 (the panel over the playing video, its qualities with
+  sizes, the video whole in dm's folder).
+
 ## Next
 
 - Every engine behaviour reference A documents has a match, or a written
