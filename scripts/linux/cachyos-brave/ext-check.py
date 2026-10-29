@@ -75,6 +75,7 @@ srv.socket = ctx.wrap_socket(srv.socket, server_side=True)
 threading.Thread(target=srv.serve_forever, daemon=True).start()
 # the page is on a youtube.com address over https, as the person's was
 page = "https://www.youtube.com:8443/page.html"
+REAL = "https://www.youtube.com/watch?v=pTq51r85KkM"
 
 def variant(name):
     d = pathlib.Path(f"/root/ext-{name}"); shutil.rmtree(d, ignore_errors=True); shutil.copytree("/ext", d)
@@ -88,20 +89,52 @@ def variant(name):
 def run(name, scenario="plain"):
     ext = variant(name); prof = f"/root/prof-{name}"; shutil.rmtree(prof, ignore_errors=True)
     env = dict(os.environ, HOME="/root/h"); os.makedirs("/root/h", exist_ok=True)
-    b = subprocess.Popen(["xvfb-run", "-a", "/opt/brave.com/brave/brave", "--no-sandbox", "--disable-gpu", "--disable-dev-shm-usage",
-        f"--user-data-dir={prof}", f"--load-extension={ext}", "--disable-features=DisableLoadExtensionCommandLineSwitch",
-        "--remote-debugging-port=9333", "--ignore-certificate-errors", "--host-resolver-rules=MAP www.youtube.com 127.0.0.1", "--no-first-run", "--no-default-browser-check", "--window-size=1000,700", "about:blank"],
-        env=env, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-    try:
-        for _ in range(60):
-            try: ver = json.load(urllib.request.urlopen("http://127.0.0.1:9333/json/version", timeout=2)); break
+    target = REAL if scenario == "real" else page
+    def launch(*extra):
+        return subprocess.Popen(["xvfb-run", "-a", "/opt/brave.com/brave/brave", "--no-sandbox", "--disable-gpu", "--disable-dev-shm-usage",
+            f"--user-data-dir={prof}", f"--load-extension={ext}", "--disable-features=DisableLoadExtensionCommandLineSwitch",
+            "--remote-debugging-port=9333", "--ignore-certificate-errors", "--no-first-run", "--no-default-browser-check", "--window-size=1000,700"]
+            + ([] if scenario == "real" else ["--host-resolver-rules=MAP www.youtube.com 127.0.0.1"]) + list(extra),
+            env=env, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    def debugger():
+        for _ in range(90):
+            try: return json.load(urllib.request.urlopen("http://127.0.0.1:9333/json/version", timeout=2))
             except Exception: time.sleep(1)
-        else: return None, ["Brave never opened its debugging port"], False
-        ws = WS(ver["webSocketDebuggerUrl"])
+    if scenario == "private":
+        # dm allowed in Private windows (a setting in its Details page), the video opened in one
+        b = launch("about:blank"); ver = debugger(); ws = WS(ver["webSocketDebuggerUrl"]); time.sleep(5)
+        try: ws.call("Browser.close", wait=10)
+        except Exception: pass
+        b.wait(30); subprocess.run("pkill -f brave", shell=True); time.sleep(2)
+        pf = pathlib.Path(prof) / "Default/Preferences"; p = json.loads(pf.read_text())
+        for k, v in p.get("extensions", {}).get("settings", {}).items():
+            if "dm" in json.dumps(v.get("manifest", {}).get("name", "")) or v.get("path", "").startswith("/root/ext"): v["incognito"] = True
+        pf.write_text(json.dumps(p))
+        sp = pathlib.Path(prof) / "Default/Secure Preferences"
+        if sp.exists():
+            q = json.loads(sp.read_text())
+            for k, v in q.get("extensions", {}).get("settings", {}).items():
+                if v.get("path", "").startswith("/root/ext"): v["incognito"] = True
+            sp.write_text(json.dumps(q))
+        b = launch("--incognito", target)
+    elif scenario == "restart":
+        # the tab was open when Brave last closed; Brave restores it on the next start
+        b = launch(target); ver = debugger(); ws = WS(ver["webSocketDebuggerUrl"]); time.sleep(8)
+        try: ws.call("Browser.close", wait=10)
+        except Exception: pass
+        b.wait(30); subprocess.run("pkill -f brave", shell=True); time.sleep(2)
+        b = launch("--restore-last-session")
+    else:
+        b = launch("about:blank")
+    try:
+        ver = debugger()
+        if not ver: return None, ["Brave never opened its debugging port"], False
+        ws = WS(ver["webSocketDebuggerUrl"]); msgs_pre = []
         # is the extension there at all?
         t = ws.call("Target.getTargets")["result"]["targetInfos"]
         loaded = any(x["url"].startswith("chrome-extension://") for x in t)
-        r = ws.call("Target.createTarget", {"url": "about:blank"})["result"]["targetId"]
+        pages = [x for x in t if x["type"] == "page" and "youtube" in x["url"]]
+        r = pages[0]["targetId"] if scenario in ("restart", "private") and pages else ws.call("Target.createTarget", {"url": "about:blank"})["result"]["targetId"]
         s = ws.call("Target.attachToTarget", {"targetId": r, "flatten": True})["result"]["sessionId"]
         for dom in ("Runtime", "Log", "Page", "DOM", "Network"): ws.call(f"{dom}.enable", session=s)
         if scenario == "reload":
@@ -113,10 +146,12 @@ def run(name, scenario="plain"):
             ws.send("Runtime.evaluate", {"expression": "chrome.runtime.reload()"}, ss)
             time.sleep(5)
             ws.call("Runtime.evaluate", {"expression": "(()=>{const v=document.createElement('video');v.src='/clip.mp4';v.width=640;v.height=360;v.controls=true;document.body.appendChild(v)})()"}, session=s)
+        elif scenario in ("restart", "private"):
+            if not pages: msgs_pre.append("restored tab not found")
         else:
-            ws.call("Page.navigate", {"url": page}, session=s)
-        time.sleep(4)
-        found = False; msgs = []
+            ws.call("Page.navigate", {"url": target}, session=s)
+        time.sleep(15 if scenario == "real" else 4)
+        found = False; msgs = list(msgs_pre)
         for _ in range(12):
             ws.call("Input.dispatchMouseEvent", {"type": "mouseMoved", "x": 300 + _ * 5, "y": 200}, session=s)
             ws.drain(1)
