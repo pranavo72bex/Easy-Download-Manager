@@ -1,4 +1,4 @@
-# Progress: replicating IDM and FDM behaviour in dm's engine
+# Progress: two other download managers' behaviour in dm's engine
 
 Checkpoint, 2026-10-29. The work list stays [gaps.md](gaps.md); this page
 records the reference investigation only.
@@ -13,7 +13,7 @@ records the reference investigation only.
 
 ## Done
 
-1. **Connection reuse (IDM, Verified).** Established dm's behaviour with a new
+1. **Connection reuse (reference A, verified from its documentation).** Established dm's behaviour with a new
    test, `dm-core/tests/reuse.rs`: 11 requests on 4 TCP connections. Already
    a match; no engine change needed.
 2. **A page's only video named without "(1)"** (gaps.md row 31, now closed).
@@ -22,6 +22,18 @@ records the reference investigation only.
    and the QA `video_page` scenario, which failed before the change
    ("QA clip (1) [watch？v=ok-1].mp4") and passes after ("QA clip [watch？v=ok].mp4").
    UI files changed: none.
+
+3. **Reference B run in Docker** (Linux build 6.35.2, emulated x86-64; the
+   lab is kept outside the repository). Its engine was measured against
+   dm's on the same logging server, and its video add-on watched: the add-on
+   is yt-dlp, which only reads the page while reference B fetches the files.
+   Findings in reference-behavior.md; candidates in feature-matrix.md
+   "Worth taking". UI files changed: none.
+4. **yt-dlp in a sandbox on Linux** was built and tested, then set aside by
+   the maintainer (not in the repository); kept as a candidate.
+5. **yt-dlp out of the box**: `scripts/out-of-box-check.py` passed 2026-10-29
+   from a fresh dm home (720p MP4, 480p WebM, sound alone). No replacement for
+   yt-dlp was found (gaps.md row 32); it stays for now.
 
 ## Commands run
 
@@ -32,8 +44,9 @@ records the reference investigation only.
 
 ## Next
 
-- Every engine behaviour IDM documents now has a match, or a written difference (Kerberos), in
-  [feature-matrix.md](feature-matrix.md). The differences left are in
-  [known-differences.md](known-differences.md); none can be closed without
-  running the reference itself or changing a visible setting.
-- A side-by-side run needs FDM installed (macOS) or IDM on a Windows machine.
+- Every engine behaviour reference A documents has a match, or a written
+  difference (Kerberos), in [feature-matrix.md](feature-matrix.md).
+- The two candidates in feature-matrix.md "Worth taking" wait for the
+  maintainer's decision; neither is applied, as each changes existing behaviour.
+- A side-by-side run of reference A needs a Windows machine (the maintainer's
+  laptop, once it can be reached).

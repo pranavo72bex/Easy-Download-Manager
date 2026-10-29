@@ -47,7 +47,7 @@ High Contrast, Narrator, keyboard-only pass (§12), reboot (E4), Wi-Fi off
 - When dm asks first ("Download details"), the browser has already let go of
   the file. If that window is behind another one, the download seems lost.
 - **Fix:** bring the window to the front (and say so in the notification), or
-  default to starting at once everywhere. **IDM:** shows its dialog on top.
+  default to starting at once everywhere. **Other download managers:** show their dialog on top.
 
 ### N3 PDF/video/song links opened in the browser 🟠 (fixed today)
 - Plain click on `.pdf`, `.mp4`, `.mp3` etc. now goes to dm by the app's
@@ -60,7 +60,7 @@ High Contrast, Narrator, keyboard-only pass (§12), reboot (E4), Wi-Fi off
 
 ### N5 The failed row says what, not what next 🟡 (reworded: "this link no longer works")
 - "The server has no file at thi…" is truncated and has no next step.
-  **IDM:** "Refresh link". **Fix:** shorter wording ("This link no longer
+  **Other download managers:** "Refresh link". **Fix:** shorter wording ("This link no longer
   works") with the row's menu offering Update link.
 
 ### N6 Jargon Sam will hit 🟡
@@ -94,7 +94,7 @@ High Contrast, Narrator, keyboard-only pass (§12), reboot (E4), Wi-Fi off
 |---|---|---|
 | Getting started felt easy | 4 | banner and labelled toolbar; installer not seen |
 | Always knew what the app was doing | 3 | N2: a waiting dialog can be missed |
-| Downloading as easy as IDM | 4 | caught and started at once; categories folders N7 |
+| Downloading as easy as the best-known download managers | 4 | caught and started at once; categories folders N7 |
 | Errors told me what to do | 2 | N5 |
 | Looks modern and native | n/a | Windows checks not possible here |
 | I trust it | 3 | unsigned local build; not judged |

@@ -419,7 +419,7 @@ impl Read {
 ///
 /// yt-dlp's reader of a plain page's media (`HTML5MediaEmbed`) numbers every
 /// video it finds, one or several: a page titled "Talk" with one video was
-/// saved as "Talk (1) [watch-1].mp4". IDM and FDM name it by the page alone,
+/// saved as "Talk (1) [watch-1].mp4". Other download managers name it by the page alone,
 /// and a number with nothing to tell apart says there is another.
 fn unnumbered(produced: PathBuf, info: &Info) -> PathBuf {
     let only_one = info.extractor_key.as_deref() == Some("HTML5MediaEmbed")

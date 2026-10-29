@@ -131,7 +131,7 @@ A picture and sound the extension caught from a player and that refuse dm
 (YouTube's 403 after about a megabyte without the player's token) now fall
 back to their page through the same route, rather than failing the row.
 
-Why not without yt-dlp, as IDM is: IDM reads the player's own requests in
+Why not without yt-dlp, as some download managers are: they read the player's own requests in
 the browser, which dm's extension already does (2026-10-25), and keeps up
 with each site by shipping fixes every week or two (30-odd builds in a
 year, most "resolved video recognition problems"). YouTube's web player

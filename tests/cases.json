@@ -1,32 +1,32 @@
 [
   {
     "id": "segmentation-halves-largest",
-    "reference": "IDM: a free connection halves the largest segment left (Verified)",
+    "reference": "reference A: a free connection halves the largest segment left (Verified)",
     "test": "desktop/crates/dm-core/tests/speed.rs",
     "status": "match"
   },
   {
     "id": "connection-reuse",
-    "reference": "IDM: finished connections are reused without a new connect (Verified)",
+    "reference": "reference A: finished connections are reused without a new connect (Verified)",
     "test": "desktop/crates/dm-core/tests/reuse.rs pieces_after_the_first_are_fetched_on_connections_already_open",
     "acceptance": "at most connections + 2 TCP connections for 8 or more requests",
     "status": "match"
   },
   {
     "id": "resume-after-kill",
-    "reference": "IDM: positions saved several times a minute; resume after power loss (Verified)",
+    "reference": "reference A: positions saved several times a minute; resume after power loss (Verified)",
     "test": "qa/tests/scenarios.py resume_after_kill9",
     "status": "match"
   },
   {
     "id": "fewer-connections-for-limited-servers",
-    "reference": "IDM: Exceptions give servers that limit connections fewer (Verified)",
+    "reference": "reference A: Exceptions give servers that limit connections fewer (Verified)",
     "test": "desktop/crates/dm-shell/src/settings/tests.rs attempts_timeouts_and_site_limits_are_held_to_what_the_engine_takes",
     "status": "match"
   },
   {
     "id": "single-page-video-name",
-    "reference": "IDM and FDM: a page's video is named by the page; numbers only tell clashing files apart (Reported)",
+    "reference": "reference A and reference B: a page's video is named by the page; numbers only tell clashing files apart (Reported)",
     "test": "desktop/crates/dm-core/src/ytdlp/fetch.rs a_pages_only_video_is_named_without_the_number_ytdlp_gives_it; qa/tests/scenarios.py video_page",
     "acceptance": "a page with one <video> titled 'QA clip' saves as 'QA clip [watch？v=ok].mp4'; a page with two keeps '(1)'",
     "status": "match"

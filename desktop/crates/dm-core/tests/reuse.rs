@@ -1,7 +1,5 @@
 //! A connection that finished its piece takes the next one on the same
-//! socket, without a new connect (IDM documents this as "reuses available
-//! connections without additional connect and login stages";
-//! docs/reference-behavior.md). The server here keeps connections open and
+//! socket, without a new connect and sign-in (docs/reference-behavior.md). The server here keeps connections open and
 //! counts both what it accepted and what it was asked.
 
 mod common;
