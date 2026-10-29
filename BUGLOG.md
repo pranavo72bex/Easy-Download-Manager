@@ -15,8 +15,7 @@ with no flaky result in those three.
   silent yt-dlp kept its row running for ever; BUG-005 the new panel loader
   logged an error where WebAssembly is forbidden. Each has a regression test
   that failed before its fix.
-- **Open: 2.** A video's file is named "… (1) …" in an empty folder
-  (harmless, not traced); BUG-003 is not yet confirmed on real YouTube
+- **Open: 1.** BUG-003 is not yet confirmed on real YouTube
   (Google blocks the container's browser for now), and the Firefox live-page
   panel check has not been compared with the build before it.
 - **Tests that were wrong: 8** (T-001 to T-008), each explained below before
@@ -160,9 +159,12 @@ Deviations from the brief, and why:
 
 ## Open, not fixed
 
-- A video page's file is saved as "QA clip (1) [watch？v=ok-1].mp4" in an
-  empty folder (`video_page`): a "(1)" with nothing it could clash with.
-  Harmless; not yet traced.
+- Closed 2026-10-29: the "(1)" in "QA clip (1) [watch？v=ok-1].mp4" was not
+  dm's: yt-dlp's `HTML5MediaEmbed` numbers every video on a plain page
+  (`'{title} ({num})'`, `'{id}-{num}'`), even the only one, and leaves the
+  playlist fields out when there is one. dm now drops the number for a
+  page's only video (`ytdlp/fetch.rs` `unnumbered`); `video_page` checks the
+  name, and failed before the change.
 
 ## Tests that were wrong
 

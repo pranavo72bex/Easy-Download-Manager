@@ -222,6 +222,14 @@ struct Info {
     /// joined), from the same template its own download uses.
     #[serde(default)]
     filename: Option<String>,
+    /// Which of yt-dlp's readers made this reading, its id for the video,
+    /// and how many videos the page held (`unnumbered`).
+    #[serde(default)]
+    extractor_key: Option<String>,
+    #[serde(default)]
+    id: Option<String>,
+    #[serde(default)]
+    n_entries: Option<u64>,
     /// A picture and a sound to be joined, where it chose two.
     #[serde(default)]
     requested_formats: Option<Vec<Format>>,
@@ -345,7 +353,7 @@ impl Read {
         if info.is_live == Some(true) {
             return None;
         }
-        let produced = PathBuf::from(info.filename.as_deref()?);
+        let produced = unnumbered(PathBuf::from(info.filename.as_deref()?), info);
         // Only under the staging folder it was told to use.
         if !produced.starts_with(staging) || produced.file_stem().is_none() {
             return None;
@@ -404,6 +412,36 @@ impl Read {
             });
         }
         Some(Plan { streams, produced })
+    }
+}
+
+/// The name of a page's only `<video>` without the number yt-dlp gives it.
+///
+/// yt-dlp's reader of a plain page's media (`HTML5MediaEmbed`) numbers every
+/// video it finds, one or several: a page titled "Talk" with one video was
+/// saved as "Talk (1) [watch-1].mp4". IDM and FDM name it by the page alone,
+/// and a number with nothing to tell apart says there is another.
+fn unnumbered(produced: PathBuf, info: &Info) -> PathBuf {
+    let only_one = info.extractor_key.as_deref() == Some("HTML5MediaEmbed")
+        // One video: yt-dlp leaves the playlist fields out (several: `n_entries`).
+        && info.n_entries.unwrap_or(1) == 1
+        && info.id.as_deref().is_some_and(|id| id.ends_with("-1"));
+    let (true, Some(stem), Some(ext)) = (
+        only_one,
+        produced.file_stem().and_then(|s| s.to_str()),
+        produced.extension().and_then(|e| e.to_str()),
+    ) else {
+        return produced;
+    };
+    // Matched in the name as written, not against `id`: yt-dlp writes the
+    // characters a name cannot hold as others ("watch?v=ok" became
+    // "watch？v=ok").
+    let Some((title, rest)) = stem.rsplit_once(" (1) [") else {
+        return produced;
+    };
+    match rest.strip_suffix("-1]") {
+        Some(id) if !id.contains(" [") => produced.with_file_name(format!("{title} [{id}].{ext}")),
+        _ => produced,
     }
 }
 
@@ -750,6 +788,51 @@ mod tests {
             PathBuf::from("/s/Talk [abc].f251-drc.webm")
         );
         assert_eq!(plan.streams[1].agent, None);
+    }
+
+    #[test]
+    fn a_pages_only_video_is_named_without_the_number_ytdlp_gives_it() {
+        let one = read(
+            r#"{"filename": "/s/QA clip (1) [watch-1].mp4", "ext": "mp4",
+                "extractor_key": "HTML5MediaEmbed", "id": "watch-1",
+                "format_id": "0", "protocol": "http", "url": "http://site/clip.mp4"}"#,
+        );
+        let plan = one.plan(Path::new("/s")).expect("a plan");
+        assert_eq!(plan.produced, PathBuf::from("/s/QA clip [watch].mp4"));
+        assert_eq!(plan.streams[0].target, plan.produced);
+        // Two videos on the page: the numbers tell them apart and stay.
+        let two = read(
+            r#"{"filename": "/s/QA clip (1) [watch-1].mp4", "ext": "mp4",
+                "extractor_key": "HTML5MediaEmbed", "id": "watch-1", "n_entries": 2,
+                "format_id": "0", "protocol": "http", "url": "http://site/clip.mp4"}"#,
+        );
+        assert_eq!(
+            two.plan(Path::new("/s")).unwrap().produced,
+            PathBuf::from("/s/QA clip (1) [watch-1].mp4")
+        );
+        // Another site's title that ends in "(1)" is its own.
+        let other = read(
+            r#"{"filename": "/s/Part (1) [abc-1].mp4", "ext": "mp4",
+                "extractor_key": "Vimeo", "id": "abc-1", "n_entries": 1,
+                "format_id": "0", "protocol": "https", "url": "https://v/1.mp4"}"#,
+        );
+        assert_eq!(
+            other.plan(Path::new("/s")).unwrap().produced,
+            PathBuf::from("/s/Part (1) [abc-1].mp4")
+        );
+    }
+
+    #[test]
+    fn a_numbered_name_is_matched_as_ytdlp_wrote_it() {
+        let r = read(
+            r#"{"filename": "/s/QA clip (1) [watch\uff1fv=ok-1].mp4", "ext": "mp4",
+                "extractor_key": "HTML5MediaEmbed", "id": "watch?v=ok-1",
+                "format_id": "0", "protocol": "http", "url": "http://site/clip.mp4"}"#,
+        );
+        assert_eq!(
+            r.plan(Path::new("/s")).unwrap().produced,
+            PathBuf::from("/s/QA clip [watch\u{ff1f}v=ok].mp4")
+        );
     }
 
     #[test]

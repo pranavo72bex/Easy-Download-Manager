@@ -702,6 +702,9 @@ def video_page():
         check(p.exists() and p.stat().st_size > 10_000, f"{p} missing or tiny")
         files = sorted(x.name for x in dm.out.iterdir())
         check(files == [p.name], f"one video asked for, the folder holds {files}")
+        # The page's only video, named by the page: no "(1)" with nothing to
+        # tell it from (docs/gaps.md row 31, now closed).
+        check(" (1)" not in p.name and "-1]" not in p.name, f"numbered with nothing beside it: {p.name}")
         no_leftovers(dm, row)
         return p.name
     finally:
