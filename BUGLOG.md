@@ -157,6 +157,24 @@ Deviations from the brief, and why:
 - **Regression test**: `browser/src/decide/tests.rs` (the loader is built so),
   and the browser check itself.
 
+### BUG-006 — the panel stayed in the player's old corner when the page re-laid the player
+
+- **Scenario**: `scripts/human-qa.py`, row B33 on a real YouTube page in
+  Edge, with the machine loaded (a Docker image building): YouTube's page
+  settled after the panel was up, the player went from 809 to 742 pixels
+  wide and down 12, and the button sat 51 pixels past the player's new
+  right edge until the pointer moved.
+- **Root cause**: the panel followed a scroll and a window `resize`
+  (`browser/src/content/handoff.rs`), and nothing else; a player that
+  changes size with the window unchanged (a page laying itself out late, a
+  theatre mode) moved out from under it.
+- **Fix**: a `ResizeObserver` on the player the panel sits over
+  (`show.rs` `follow_size_of`), re-anchoring as a scroll does; dropped when
+  the panel hides.
+- **Regression test**: `scripts/chrome-check.py`, "when the player changes
+  size, the panel follows into its new corner, with no pointer move" (the
+  player shrunk by script, no pointer event); failed before, passes after.
+
 ## Open, not fixed
 
 - Closed 2026-10-29: the "(1)" in "QA clip (1) [watch？v=ok-1].mp4" was not

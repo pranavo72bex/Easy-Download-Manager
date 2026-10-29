@@ -77,6 +77,7 @@ pub(super) fn show(element: &Element) -> bool {
         if !same {
             // A new player: a fresh offer, whatever the last one said.
             p.settled = false;
+            follow_size_of(element);
             p.wrap.set_class_name("wrap");
             p.title.set_text_content(Some(if protected {
                 decide::PROTECTED_TITLE
@@ -119,6 +120,7 @@ pub(super) fn show(element: &Element) -> bool {
 }
 
 pub(super) fn hide() {
+    stop_following_size();
     with_panel(|p| {
         let _ = p
             .host
@@ -282,6 +284,47 @@ pub(super) fn on_play(event: Event) {
     if show(&element) {
         hide_soon(PLAY_SHOWS_MS);
     }
+}
+
+thread_local! {
+    /// Watches the player the panel sits over for a change of size.
+    static RESIZED: std::cell::RefCell<Option<web_sys::ResizeObserver>> =
+        const { std::cell::RefCell::new(None) };
+}
+
+/// Has the panel follow `element` when it changes size with the window
+/// unchanged: a page laying its player out late (YouTube's settles after
+/// the panel is up, a few hundred pixels narrower), a theatre mode. A
+/// scroll and a window resize already move it (`on_move`); this is the
+/// third way a player moves under a panel.
+fn follow_size_of(element: &Element) {
+    RESIZED.with(|watched| {
+        let mut slot = watched.borrow_mut();
+        if slot.is_none() {
+            let moved = Closure::<dyn Fn(JsValue, JsValue)>::new(|_, _| {
+                if let Some(Some(element)) = with_panel(|p| p.current.clone()) {
+                    if !show(&element) {
+                        hide();
+                    }
+                }
+            });
+            *slot = web_sys::ResizeObserver::new(moved.as_ref().unchecked_ref()).ok();
+            moved.forget();
+        }
+        if let Some(observer) = slot.as_ref() {
+            observer.disconnect();
+            observer.observe(element);
+        }
+    });
+}
+
+/// Stops following the last player's size (`follow_size_of`).
+fn stop_following_size() {
+    RESIZED.with(|watched| {
+        if let Some(observer) = watched.borrow().as_ref() {
+            observer.disconnect();
+        }
+    });
 }
 
 /// Keeps the panel on its player as the page scrolls or resizes.

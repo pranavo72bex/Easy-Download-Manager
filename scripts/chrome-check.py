@@ -642,6 +642,20 @@ def panel_checks(base, origin, engine_dl, engine_home, worker):
               and video["y"] <= shown.get("y", -1) <= video["y"] + 30)
     check("the panel sits in the player's top right corner", corner,
           f"panel {shown.get('x')},{shown.get('y')} {shown.get('w')}x{shown.get('h')}; video {video}")
+    # The player changes size with the window unchanged, as a page laying
+    # itself out late does (YouTube's settles after the panel is up): the
+    # panel follows it into the new corner without a pointer move.
+    tab.evaluate("(() => { const v = document.getElementById('v'); v.style.width = '420px'; v.style.height = '236px'; return 1; })()")
+    shrunk = wait_for(lambda: (tab.evaluate(VIDEO_RECT) or {}).get("w", 0) < 500 and tab.evaluate(VIDEO_RECT), 5) or {}
+    followed = wait_for(lambda: (lambda p: p.get("shown") and p.get("x", -1) >= shrunk.get("x", 0)
+                                 and p.get("x", 0) + p.get("w", 0) <= shrunk.get("x", 0) + shrunk.get("w", 0) + 1
+                                 and shrunk.get("y", 0) <= p.get("y", -1) <= shrunk.get("y", 0) + 30 and p)(panel(tab) or {}), 5)
+    check("when the player changes size, the panel follows into its new corner, with no pointer move",
+          bool(followed), f"panel {panel(tab)}; video now {shrunk}")
+    tab.evaluate("(() => { const v = document.getElementById('v'); v.style.width = ''; v.style.height = ''; return 1; })()")
+    wait_for(lambda: (tab.evaluate(VIDEO_RECT) or {}).get("w", 0) >= 500, 5)
+    hover(tab, tab.evaluate(VIDEO_RECT))
+    shown = wait_for(lambda: (panel(tab) or {}).get("shown") and panel(tab), 3) or panel(tab) or {}
     check("it says where the file comes from, on hover", shown.get("tip") == "127.0.0.1", shown.get("tip"))
     check("a file is one quality: no list arrow", not shown.get("caret"), str(shown))
     # Dragged by its grip, as a person drags it: it goes where it is put,

@@ -5,6 +5,7 @@ the browser extension (`v*` tags) are versioned separately.
 
 ## Unreleased
 
+- The "Download video" panel follows a player that changes size with the window unchanged (a page laying itself out after the panel is up, a theatre mode), as it already followed a scroll and a window resize; it used to stay in the old corner until the pointer moved.
 - A public site can no longer send dm on, by a redirect, to an address inside this computer or its own network (loopback, link-local, the private ranges, `localhost`): such a redirect is refused and said. A download that starts on an address inside may still be sent on to another inside one. Found by an authorized security test (`docs/security-report.md`).
 - The first video no longer waits on the video helper's fetch where it can be helped: a dm with neither yt-dlp installed nor fetched gets it in the background twenty seconds after its first start; while a fetch runs, the row says how far it is ("Getting ready for videos (first time only)… 12.0 MB / 36.0 MB"); where the fetch fails, the status names both ways out (be online, or install yt-dlp yourself).
 - On a computer yt-dlp publishes no standalone build for (Linux on another processor, the BSDs), dm fetches yt-dlp's portable build instead, one file checked against the published checksums, and runs it with the computer's own Python 3.10 or newer; where there is neither, the row says to install yt-dlp or Python.
