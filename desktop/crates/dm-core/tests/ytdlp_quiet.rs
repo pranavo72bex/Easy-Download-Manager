@@ -1,5 +1,7 @@
 //! A yt-dlp that says nothing is ended, not waited on for ever. Its own test
 //! binary: it names the program and the limit through the environment.
+//! Unix only: the stand-in yt-dlp is a shell script.
+#![cfg(unix)]
 
 mod common;
 use common::{options, tempdir};
@@ -7,7 +9,6 @@ use common::{options, tempdir};
 /// A yt-dlp hung before its first word kept the row "running" at nothing for
 /// as long as dm ran (BUGLOG.md, BUG-004, found by qa/tests
 /// `ytdlp_crash_and_hang`).
-#[cfg(unix)]
 #[tokio::test]
 async fn a_yt_dlp_that_says_nothing_is_ended() {
     use std::os::unix::fs::PermissionsExt;
