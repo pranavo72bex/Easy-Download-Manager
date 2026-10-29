@@ -106,6 +106,16 @@ told where it lives. (If you move it, open it once from its new place.)
 
 ### Arch Linux
 
+From the AUR, where [dm-appimage](https://aur.archlinux.org/packages/dm-appimage)
+installs the release's AppImage (packaged and kept up by
+[Cleboost](https://github.com/Cleboost/missing-aur), not by this project):
+
+```sh
+yay -S dm-appimage        # or paru, or any AUR helper
+```
+
+Or built from source, with the PKGBUILD in this repository:
+
 ```sh
 git clone https://github.com/pranavo72bex/Easy-Download-Manager
 cd Easy-Download-Manager/desktop/packaging
