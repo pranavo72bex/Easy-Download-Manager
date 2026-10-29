@@ -136,12 +136,12 @@ fn bwrap() -> Option<&'static Path> {
         .as_deref()
 }
 
-#[cfg(test)]
+// Unix paths throughout, and the sandbox is Linux's: nothing here runs, or
+// is needed, on Windows.
+#[cfg(all(test, unix))]
 mod tests {
     use super::*;
 
-    // Unix paths throughout: the sandbox is Linux's.
-    #[cfg(unix)]
     #[test]
     fn the_computer_is_read_only_but_for_the_runs_folders_and_secrets_are_hidden() {
         let home = Path::new("/home/p");
