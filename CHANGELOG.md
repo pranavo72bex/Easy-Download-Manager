@@ -5,6 +5,7 @@ the browser extension (`v*` tags) are versioned separately.
 
 ## Unreleased
 
+- A video that fails because a site changed under yt-dlp no longer waits a week for dm's refresh: when yt-dlp fails in words that are not the site's refusal (a missing or private video, a sign-in, "not a bot"), dm checks yt-dlp's releases for a newer build, fetches it if there is one, and tries once more, at most once an hour and never where Options says tools are not fetched. The panel's quality list heals the same way.
 - A page with one plain `<video>` (read by yt-dlp's HTML5 reader) is saved under the page's name, "Talk [watch].mp4", not "Talk (1) [watch-1].mp4": yt-dlp numbers every video such a page has, even the only one. Pages with several keep their numbers.
 - A server that sends every byte of a range but says in `Content-Length` that more are coming, then hangs up, no longer keeps a download "running" at 100 % for ever: the range is whole, and is taken as finished.
 - A video helper (yt-dlp) that hangs without a word is ended after two minutes, or ten once it has started, and the row says "yt-dlp stopped answering", instead of staying "running" for ever.

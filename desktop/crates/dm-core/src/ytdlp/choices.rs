@@ -175,6 +175,29 @@ async fn read_choices_as(
     sign_in: Option<&crate::cookies::SignIn>,
     client: Option<&str>,
 ) -> Result<Vec<Choice>, Error> {
+    let mut unknown_failure = false;
+    match read_choices_once(url, referrer, proxy, sign_in, client, &mut unknown_failure).await {
+        // As `download_ytdlp_from`: a newer yt-dlp fetched and one more
+        // try, where the failure was not a site's refusal (gaps.md row 33).
+        Err(why) if unknown_failure && crate::tools::newer_ytdlp(&crate::client()).await => {
+            eprintln!("dm: yt-dlp could not read the page ({why}); a newer yt-dlp was fetched, so once more");
+            let mut again = false;
+            read_choices_once(url, referrer, proxy, sign_in, client, &mut again).await
+        }
+        outcome => outcome,
+    }
+}
+
+/// One read of a page's choices by yt-dlp. `unknown_failure` is set where
+/// it failed in words that are not a known refusal.
+async fn read_choices_once(
+    url: &str,
+    referrer: Option<&str>,
+    proxy: Option<&str>,
+    sign_in: Option<&crate::cookies::SignIn>,
+    client: Option<&str>,
+    unknown_failure: &mut bool,
+) -> Result<Vec<Choice>, Error> {
     let binary = binary()
         .ok_or_else(|| Error::Internal("dm's video helper is not available here".into()))?;
     let mut command = Command::new(binary);
@@ -225,6 +248,7 @@ async fn read_choices_as(
         .map_err(|e| Error::Internal(format!("yt-dlp would not start: {e}")))?;
     if !output.status.success() {
         let stderr = String::from_utf8_lossy(&output.stderr);
+        *unknown_failure = refusal(&stderr).is_none();
         return Err(Error::Internal(said_by(
             &stderr,
             "yt-dlp could not read that page",

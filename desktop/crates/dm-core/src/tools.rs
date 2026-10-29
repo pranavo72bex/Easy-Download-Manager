@@ -137,10 +137,15 @@ pub struct Sources {
     pub quickjs_digests: Vec<(String, String)>,
 }
 
-/// yt-dlp's own newest release, and QuickJS-ng 0.17.0.
+/// yt-dlp's own newest release, and QuickJS-ng 0.17.0. `DM_YTDLP_RELEASES`
+/// names another address for yt-dlp's files: a test's server standing in
+/// for GitHub.
 pub fn official() -> Sources {
     Sources {
-        ytdlp: "https://github.com/yt-dlp/yt-dlp/releases/latest/download".into(),
+        ytdlp: std::env::var("DM_YTDLP_RELEASES")
+            .ok()
+            .filter(|v| !v.is_empty())
+            .unwrap_or_else(|| "https://github.com/yt-dlp/yt-dlp/releases/latest/download".into()),
         quickjs: "https://github.com/quickjs-ng/quickjs/releases/download/v0.17.0".into(),
         quickjs_digests: [
             (
@@ -454,6 +459,9 @@ pub async fn fetch_into(
                 }
                 // The single file an earlier dm fetched is no longer wanted.
                 let _ = tokio::fs::remove_file(&path).await;
+                // Which release this is, by its published digest: what
+                // `newer_ytdlp` compares the next release's against.
+                let _ = tokio::fs::write(folder.join(DIGEST_NOTE), &expected).await;
                 return Ok(program);
             }
             place(&path, &bytes).await?;
@@ -547,6 +555,62 @@ pub fn video_possible() -> bool {
             && fetching_allowed()
             && std::env::var_os("DM_YTDLP").is_none()
             && ytdlp_asset(std::env::consts::OS, std::env::consts::ARCH).is_some())
+}
+
+/// Where the published digest of the yt-dlp dm fetched is noted, beside it.
+const DIGEST_NOTE: &str = "yt-dlp.digest";
+
+/// How long after one try for a newer yt-dlp the next may be made: a site
+/// that stays broken must not have dm asking GitHub at every download.
+const HEAL_EVERY: std::time::Duration = std::time::Duration::from_secs(3600);
+
+static LAST_HEAL: std::sync::Mutex<Option<std::time::Instant>> = std::sync::Mutex::new(None);
+
+/// A newer yt-dlp than the one dm fetched, fetched now if its release has
+/// one: `true` when a different build is in place and worth trying again
+/// with. For a yt-dlp run that failed in words that are not a site's
+/// refusal: a site has changed and yt-dlp's fix is usually out within
+/// days, which the weekly `freshen` left a person waiting for
+/// (docs/gaps.md row 33). Nothing where fetching is off, where the yt-dlp
+/// in use is one the person installed, or within an hour of the last try.
+pub async fn newer_ytdlp(client: &reqwest::Client) -> bool {
+    let Some(folder) = folder().filter(|_| fetching_allowed()) else {
+        return false;
+    };
+    if !crate::ytdlp::binary().is_some_and(|b| is_fetched(&b)) {
+        return false;
+    }
+    {
+        let mut last = crate::lock(&LAST_HEAL);
+        if last.is_some_and(|at| at.elapsed() < HEAL_EVERY) {
+            return false;
+        }
+        *last = Some(std::time::Instant::now());
+    }
+    let os = std::env::consts::OS;
+    let Some(asset) = ytdlp_asset_for(os, std::env::consts::ARCH, on_musl()) else {
+        return false;
+    };
+    let sources = official();
+    let Ok(sums) = fetch(client, &format!("{}/SHA2-256SUMS", sources.ytdlp)).await else {
+        return false;
+    };
+    let published = digest_in(&String::from_utf8_lossy(&sums), asset);
+    let noted = std::fs::read_to_string(folder.join(DIGEST_NOTE)).ok();
+    if published.is_some() && published == noted {
+        return false;
+    }
+    let _one = lock_of(Tool::YtDlp).lock().await;
+    fetch_into(
+        client,
+        Tool::YtDlp,
+        folder,
+        &sources,
+        os,
+        std::env::consts::ARCH,
+    )
+    .await
+    .is_ok()
 }
 
 /// Keeps a yt-dlp dm fetched current: once it is a week old, fetched

@@ -686,6 +686,30 @@ async fn download_ytdlp_from(
     options: &Options,
     report: Option<tokio::sync::mpsc::Sender<Update>>,
 ) -> Result<Finished, Error> {
+    let mut unknown_failure = false;
+    match download_ytdlp_once(url, reading, options, report.clone(), &mut unknown_failure).await {
+        /* Failed in words that are not a site's refusal: a site may have
+         * changed under yt-dlp, whose fix is usually out within days. A
+         * newer release is fetched now, where there is one, and the run
+         * made once more with it (docs/gaps.md row 33). */
+        Err(why) if unknown_failure && crate::tools::newer_ytdlp(&crate::client()).await => {
+            eprintln!("dm: yt-dlp failed ({why}); a newer yt-dlp was fetched, so once more");
+            let mut again = false;
+            download_ytdlp_once(url, reading, options, report, &mut again).await
+        }
+        outcome => outcome,
+    }
+}
+
+/// One run of yt-dlp's own download. `unknown_failure` is set where it
+/// failed in words that are not a known refusal.
+async fn download_ytdlp_once(
+    url: &str,
+    reading: Option<&Path>,
+    options: &Options,
+    report: Option<tokio::sync::mpsc::Sender<Update>>,
+    unknown_failure: &mut bool,
+) -> Result<Finished, Error> {
     let staging = &options.parts_dir;
     tokio::fs::create_dir_all(staging)
         .await
@@ -924,6 +948,7 @@ async fn download_ytdlp_from(
         if let Some(said) = refusal(&stderr) {
             return Err(Error::Internal(said));
         }
+        *unknown_failure = true;
         return Err(Error::Internal(format!(
             "yt-dlp could not download that{}",
             if tail.is_empty() {

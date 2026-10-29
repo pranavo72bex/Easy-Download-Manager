@@ -4,6 +4,22 @@ Decisions that shape dm and are not obvious from the code, newest first. Each sa
 can see what it is undoing.
 
 
+
+## 2026-10-29: A failed yt-dlp run fetches the newest yt-dlp once and tries again
+
+yt-dlp's fix for a site change is usually out within days; dm's weekly
+`freshen` left everyone waiting up to a week. Now a run that fails in words
+that are not a known refusal (`ytdlp/refusal.rs`) asks the release's
+`SHA2-256SUMS` whether a build other than the one dm noted at its fetch
+(`yt-dlp.digest`) is published, fetches it if so, and runs once more
+(`tools::newer_ytdlp`, used by `download_ytdlp_from` and `read_choices_as`).
+Once an hour at most, so a site that stays broken does not have dm asking
+GitHub at every download; never for a yt-dlp the person installed, which is
+theirs to update; never where fetching is off. Stable releases only:
+nightly carries breakages of its own. `DM_YTDLP_RELEASES` names a test's
+server as the release (`tests/ytdlp_heals.rs`: a broken build, then the
+fix, then nothing more within the hour).
+
 ## 2026-10-29: Like reference A without yt-dlp, asked again and measured
 
 Asked for: videos the way reference A gets them, with no yt-dlp, and no
