@@ -879,6 +879,9 @@ mod redirect_tests {
 
 #[cfg(test)]
 mod tests {
+    // An AppImage is Linux's: its path lists are split on ':', which Windows
+    // does not split on.
+    #[cfg(unix)]
     #[test]
     fn a_helper_started_from_the_appimage_gets_none_of_its_folders() {
         use std::ffi::OsString;
