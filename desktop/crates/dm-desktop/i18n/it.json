@@ -620,7 +620,7 @@
  "Its time ran out with pages still to read; these are the files found until then.": "Il tempo è scaduto con pagine ancora da leggere; questi sono i file trovati fino ad allora.",
  "Error: the disk is full in {}": "Errore: il disco è pieno in {}",
  "Numbers only: the one before was kept": "Solo numeri: è stato mantenuto il precedente",
- "dm could not get ready for videos: check that you are online, then click Retry": "dm non è riuscito a prepararsi per i video: controlla di essere connesso, poi fai clic su Riprova",
+ "dm could not get ready for videos: check that you are online or install yt-dlp yourself, then click Retry": "dm non è riuscito a prepararsi per i video: controlla di essere connesso o installa yt-dlp tu stesso, poi fai clic su Riprova",
  "dm found no video on this page": "dm non ha trovato video in questa pagina",
  "dm cannot record this kind of encrypted stream": "dm non può registrare questo tipo di flusso cifrato",
  "Getting ready for videos (first time only)…": "Preparazione per i video (solo la prima volta)…",

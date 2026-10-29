@@ -412,7 +412,7 @@ pub const REASONS: [(&[&str], &str); 32] = [
     // who never installs them (dm fetches them).
     (
         &["video helper"],
-        "dm could not get ready for videos: check that you are online, then click Retry",
+        "dm could not get ready for videos: check that you are online or install yt-dlp yourself, then click Retry",
     ),
     (
         &[

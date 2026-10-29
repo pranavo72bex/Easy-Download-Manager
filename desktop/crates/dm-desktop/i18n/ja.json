@@ -620,7 +620,7 @@
  "Its time ran out with pages still to read; these are the files found until then.": "未読のページを残して時間切れになりました。それまでに見つかったファイルです。",
  "Error: the disk is full in {}": "エラー：{} のディスクがいっぱいです",
  "Numbers only: the one before was kept": "数字のみ：前の値を維持しました",
- "dm could not get ready for videos: check that you are online, then click Retry": "dm は動画の準備ができませんでした。オンラインか確認してから「再試行」をクリックしてください",
+ "dm could not get ready for videos: check that you are online or install yt-dlp yourself, then click Retry": "dm は動画の準備ができませんでした。オンラインか確認するか yt-dlp を自分でインストールしてから「再試行」をクリックしてください",
  "dm found no video on this page": "このページに動画が見つかりませんでした",
  "dm cannot record this kind of encrypted stream": "dm はこの種類の暗号化ストリームを録画できません",
  "Getting ready for videos (first time only)…": "動画の準備中（初回のみ）…",

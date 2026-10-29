@@ -7,6 +7,21 @@ can see what it is undoing.
 
 
 
+
+## 2026-10-29: The video helper fetched at the first start, its bytes told
+
+`tools::freshen`, which runs at every start, now also fetches yt-dlp (and
+QuickJS where no Deno is installed) when neither is installed nor fetched:
+twenty seconds after the start (`DM_PREFETCH_AFTER` for tests), so a dm
+that runs for a moment does not fetch 36 MB, and never for a named
+`DM_YTDLP`. `tools::preparing_progress` tells the bytes so far of what is
+being fetched (`Counting` in `fetch_once`); the row's "Getting ready for
+videos" status appends them in units alone, so no catalog gained a string.
+The one string that changed, the failure's, names both ways out in all
+thirteen catalogs. Weighed and not done: a fetch at install time (the
+installers are the same for every system, and fetching is the person's
+setting to turn off).
+
 ## 2026-10-29: yt-dlp's portable build where the release has no standalone one
 
 `tools::fetch_into` reads the release's checksums first and takes the

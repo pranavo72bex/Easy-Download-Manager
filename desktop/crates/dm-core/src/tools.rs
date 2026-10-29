@@ -266,6 +266,52 @@ async fn fetch(client: &reqwest::Client, url: &str) -> Result<Vec<u8>, Error> {
     }
 }
 
+/// What is being fetched right now: each file's bytes so far and its length
+/// where the server said it, for the row's status to say (`preparing_progress`).
+static PROGRESS: std::sync::Mutex<Vec<(String, u64, Option<u64>)>> =
+    std::sync::Mutex::new(Vec::new());
+
+/// The bytes so far of the tools being fetched, and their length together
+/// where every server said it; `None` while nothing is being fetched.
+pub fn preparing_progress() -> Option<(u64, Option<u64>)> {
+    let fetching = crate::lock(&PROGRESS);
+    if fetching.is_empty() {
+        return None;
+    }
+    let got = fetching.iter().map(|(_, got, _)| got).sum();
+    let total = fetching
+        .iter()
+        .map(|(_, _, total)| *total)
+        .sum::<Option<u64>>();
+    Some((got, total))
+}
+
+/// One file's place in [`PROGRESS`] while it is fetched, gone when it is
+/// done or failed.
+struct Counting(String);
+
+impl Counting {
+    fn start(url: &str, total: Option<u64>) -> Counting {
+        crate::lock(&PROGRESS).push((url.to_string(), 0, total));
+        Counting(url.to_string())
+    }
+
+    fn got(&self, bytes: u64) {
+        if let Some(entry) = crate::lock(&PROGRESS)
+            .iter_mut()
+            .find(|(u, ..)| *u == self.0)
+        {
+            entry.1 = bytes;
+        }
+    }
+}
+
+impl Drop for Counting {
+    fn drop(&mut self) {
+        crate::lock(&PROGRESS).retain(|(u, ..)| *u != self.0);
+    }
+}
+
 async fn fetch_once(client: &reqwest::Client, url: &str) -> Result<Vec<u8>, Error> {
     let res = client.get(url).send().await?;
     if !res.status().is_success() {
@@ -276,6 +322,7 @@ async fn fetch_once(client: &reqwest::Client, url: &str) -> Result<Vec<u8>, Erro
             retry_after: None,
         });
     }
+    let counting = Counting::start(url, res.content_length());
     let mut body = Vec::new();
     let mut stream = res.bytes_stream();
     while let Some(chunk) = stream.next().await {
@@ -286,6 +333,7 @@ async fn fetch_once(client: &reqwest::Client, url: &str) -> Result<Vec<u8>, Erro
             )));
         }
         body.extend_from_slice(&chunk);
+        counting.got(body.len() as u64);
     }
     Ok(body)
 }
@@ -677,6 +725,21 @@ pub async fn freshen(client: reqwest::Client) {
         return;
     };
     let Some(current) = fetched("yt-dlp") else {
+        /* A first start with nothing to run videos with, neither installed
+         * nor fetched: fetched now, in the background, so the first video
+         * finds it there rather than waiting half a minute on it (gaps.md
+         * row 35). A little after the start, so a dm that runs for a moment
+         * (a check, a `--register`) is not fetching 36 MB. */
+        if crate::ytdlp::binary().is_none() && std::env::var_os("DM_YTDLP").is_none() {
+            let after = std::env::var("DM_PREFETCH_AFTER")
+                .ok()
+                .and_then(|s| s.parse().ok())
+                .unwrap_or(20);
+            tokio::time::sleep(std::time::Duration::from_secs(after)).await;
+            if crate::ytdlp::binary().is_none() {
+                let _ = for_video(&client).await;
+            }
+        }
         return;
     };
     let week = std::time::Duration::from_secs(7 * 24 * 3600);

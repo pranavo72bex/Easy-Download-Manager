@@ -199,7 +199,7 @@ fn common_failures_have_plain_reasons() {
     );
     assert_eq!(
             reason("dm's video helper could not be got ready (network: error sending request for url (https://github.com/x))"),
-            Some("dm could not get ready for videos: check that you are online, then click Retry")
+            Some("dm could not get ready for videos: check that you are online or install yt-dlp yourself, then click Retry")
         );
     assert_eq!(
         reason("could not write C:\\Users\\me\\no space left\\a.zip"),

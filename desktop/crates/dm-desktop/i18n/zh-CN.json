@@ -620,7 +620,7 @@
  "Its time ran out with pages still to read; these are the files found until then.": "时间已到，仍有页面未读；以下是此前找到的文件。",
  "Error: the disk is full in {}": "错误：{} 所在磁盘已满",
  "Numbers only: the one before was kept": "只能输入数字：已保留之前的值",
- "dm could not get ready for videos: check that you are online, then click Retry": "dm 无法完成视频准备：请检查网络连接，然后点击重试",
+ "dm could not get ready for videos: check that you are online or install yt-dlp yourself, then click Retry": "dm 无法完成视频准备：请检查网络连接或自行安装 yt-dlp，然后点击重试",
  "dm found no video on this page": "dm 在此页面上未找到视频",
  "dm cannot record this kind of encrypted stream": "dm 无法录制这种加密流",
  "Getting ready for videos (first time only)…": "正在为视频做准备（仅首次）…",

@@ -240,7 +240,16 @@ pub(super) fn status_in(row: &Entry, words: fn(&'static str) -> &'static str) ->
             // videos, half a minute or so: said, so it does not read as
             // stuck.
             None if dm_core::tools::preparing() => {
-                words("Getting ready for videos (first time only)…").into()
+                let said = words("Getting ready for videos (first time only)…");
+                // With the bytes so far, in units alone, so half a minute
+                // of nothing moving is seen to move.
+                match dm_core::tools::preparing_progress() {
+                    Some((got, Some(total))) => {
+                        format!("{said} {} / {}", format::bytes(got), format::bytes(total))
+                    }
+                    Some((got, None)) => format!("{said} {}", format::bytes(got)),
+                    None => said.into(),
+                }
             }
             None => words("Starting…").into(),
         },

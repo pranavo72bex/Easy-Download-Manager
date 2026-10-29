@@ -620,7 +620,7 @@
  "Its time ran out with pages still to read; these are the files found until then.": "Okunacak sayfalar varken süre doldu; bunlar o ana kadar bulunan dosyalar.",
  "Error: the disk is full in {}": "Hata: {} içinde disk dolu",
  "Numbers only: the one before was kept": "Yalnızca sayı: önceki değer korundu",
- "dm could not get ready for videos: check that you are online, then click Retry": "dm videolara hazırlanamadı: internete bağlı olduğunuzu denetleyin, sonra Yeniden dene'ye tıklayın",
+ "dm could not get ready for videos: check that you are online or install yt-dlp yourself, then click Retry": "dm videolara hazırlanamadı: internete bağlı olduğunuzu denetleyin veya yt-dlp'yi kendiniz kurun, sonra Yeniden dene'ye tıklayın",
  "dm found no video on this page": "dm bu sayfada video bulamadı",
  "dm cannot record this kind of encrypted stream": "dm bu tür şifreli yayını kaydedemez",
  "Getting ready for videos (first time only)…": "Videolar için hazırlanılıyor (yalnızca ilk kez)…",

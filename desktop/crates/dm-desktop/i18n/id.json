@@ -620,7 +620,7 @@
  "Its time ran out with pages still to read; these are the files found until then.": "Waktunya habis sementara masih ada halaman yang belum dibaca; inilah berkas yang ditemukan sampai saat itu.",
  "Error: the disk is full in {}": "Galat: disk penuh di {}",
  "Numbers only: the one before was kept": "Hanya angka: angka sebelumnya dipertahankan",
- "dm could not get ready for videos: check that you are online, then click Retry": "dm tidak dapat bersiap untuk video: pastikan Anda terhubung ke internet, lalu klik Coba lagi",
+ "dm could not get ready for videos: check that you are online or install yt-dlp yourself, then click Retry": "dm tidak dapat bersiap untuk video: pastikan Anda terhubung ke internet atau pasang yt-dlp sendiri, lalu klik Coba lagi",
  "dm found no video on this page": "dm tidak menemukan video di halaman ini",
  "dm cannot record this kind of encrypted stream": "dm tidak dapat merekam jenis siaran terenkripsi ini",
  "Getting ready for videos (first time only)…": "Menyiapkan video (hanya pertama kali)…",

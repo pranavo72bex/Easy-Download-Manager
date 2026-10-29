@@ -620,7 +620,7 @@
  "Its time ran out with pages still to read; these are the files found until then.": "읽을 페이지가 남은 채 시간이 다 되었습니다. 그때까지 찾은 파일입니다.",
  "Error: the disk is full in {}": "오류: {}의 디스크가 가득 찼습니다",
  "Numbers only: the one before was kept": "숫자만 입력: 이전 값을 유지했습니다",
- "dm could not get ready for videos: check that you are online, then click Retry": "dm이 동영상을 준비하지 못했습니다. 인터넷 연결을 확인한 뒤 다시 시도를 누르세요",
+ "dm could not get ready for videos: check that you are online or install yt-dlp yourself, then click Retry": "dm이 동영상을 준비하지 못했습니다. 인터넷 연결을 확인하거나 yt-dlp를 직접 설치한 뒤 다시 시도를 누르세요",
  "dm found no video on this page": "이 페이지에서 동영상을 찾지 못했습니다",
  "dm cannot record this kind of encrypted stream": "dm은 이런 종류의 암호화된 스트림을 녹화할 수 없습니다",
  "Getting ready for videos (first time only)…": "동영상 준비 중(처음 한 번만)…",

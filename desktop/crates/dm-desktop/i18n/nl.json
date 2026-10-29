@@ -620,7 +620,7 @@
  "Its time ran out with pages still to read; these are the files found until then.": "De tijd was op terwijl er nog pagina's te lezen waren; dit zijn de bestanden die tot dan zijn gevonden.",
  "Error: the disk is full in {}": "Fout: de schijf is vol in {}",
  "Numbers only: the one before was kept": "Alleen cijfers: het vorige getal is behouden",
- "dm could not get ready for videos: check that you are online, then click Retry": "dm kon zich niet voorbereiden op video's: controleer of je online bent en klik dan op Opnieuw proberen",
+ "dm could not get ready for videos: check that you are online or install yt-dlp yourself, then click Retry": "dm kon zich niet voorbereiden op video's: controleer of je online bent of installeer yt-dlp zelf, en klik dan op Opnieuw proberen",
  "dm found no video on this page": "dm heeft op deze pagina geen video gevonden",
  "dm cannot record this kind of encrypted stream": "dm kan dit soort versleutelde stream niet opnemen",
  "Getting ready for videos (first time only)…": "Video's worden voorbereid (alleen de eerste keer)…",

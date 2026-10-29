@@ -620,7 +620,7 @@
  "Its time ran out with pages still to read; these are the files found until then.": "Время вышло, а страницы ещё оставались; вот файлы, найденные до этого момента.",
  "Error: the disk is full in {}": "Ошибка: диск заполнен в {}",
  "Numbers only: the one before was kept": "Только числа: оставлено прежнее значение",
- "dm could not get ready for videos: check that you are online, then click Retry": "dm не смог подготовиться к загрузке видео: проверьте подключение к интернету и нажмите «Повторить»",
+ "dm could not get ready for videos: check that you are online or install yt-dlp yourself, then click Retry": "dm не смог подготовиться к загрузке видео: проверьте подключение к интернету или установите yt-dlp самостоятельно и нажмите «Повторить»",
  "dm found no video on this page": "dm не нашёл видео на этой странице",
  "dm cannot record this kind of encrypted stream": "dm не может записывать такой зашифрованный поток",
  "Getting ready for videos (first time only)…": "Подготовка к загрузке видео (только в первый раз)…",

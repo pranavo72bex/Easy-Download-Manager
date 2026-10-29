@@ -4,6 +4,7 @@
 mod common;
 
 use dm_core::tools::{fetch_into, Sources, Tool};
+use futures_util::StreamExt as _;
 use sha2::Digest as _;
 
 /// An installed yt-dlp was reported missing on Windows. Run by
@@ -224,4 +225,75 @@ async fn the_official_builds_are_fetched_and_run() {
                 .unwrap_or("")
         );
     }
+}
+
+/// While a tool is fetched, the bytes so far and the length are told, for
+/// the row's status to say (docs/gaps.md row 35).
+#[tokio::test(flavor = "multi_thread")]
+async fn the_bytes_of_a_fetch_are_told_while_it_runs() {
+    use axum::routing::get;
+    let program = b"#!/bin/sh\necho slow\n".to_vec();
+    let zip = build_zip(&program);
+    let digest = hex::encode(sha2::Sha256::digest(&zip));
+    let sums = format!("{digest}  yt-dlp_linux.zip\n");
+    let served = zip.clone();
+    let app = axum::Router::new()
+        .route("/y/SHA2-256SUMS", get(move || async move { sums }))
+        .route(
+            "/y/yt-dlp_linux.zip",
+            get(move || async move {
+                // In four pieces, a moment apart, as a large file comes.
+                let pieces: Vec<Vec<u8>> = served
+                    .chunks(served.len() / 4 + 1)
+                    .map(<[u8]>::to_vec)
+                    .collect();
+                let stream = futures_util::stream::iter(pieces).then(|piece| async move {
+                    tokio::time::sleep(std::time::Duration::from_millis(150)).await;
+                    Ok::<_, std::io::Error>(bytes::Bytes::from(piece))
+                });
+                axum::response::Response::builder()
+                    .header("Content-Length", served.len())
+                    .body(axum::body::Body::from_stream(stream))
+                    .unwrap()
+            }),
+        );
+    let base = format!("http://{}", common::serve(app).await);
+    let sources = Sources {
+        ytdlp: format!("{base}/y"),
+        quickjs: format!("{base}/q"),
+        quickjs_digests: vec![],
+    };
+    let dir = common::tempdir();
+    let folder = dir.path().to_path_buf();
+    let total = zip.len() as u64;
+    let fetching = tokio::spawn(async move {
+        fetch_into(
+            &dm_core::client(),
+            Tool::YtDlp,
+            &folder,
+            &sources,
+            "linux",
+            "x86_64",
+        )
+        .await
+    });
+    let mut seen = None;
+    for _ in 0..40 {
+        tokio::time::sleep(std::time::Duration::from_millis(50)).await;
+        if let Some((got, said_total)) = dm_core::tools::preparing_progress() {
+            if got > 0 {
+                seen = Some((got, said_total));
+                break;
+            }
+        }
+    }
+    fetching.await.unwrap().expect("the fetch");
+    let (got, said_total) = seen.expect("the bytes so far were never told");
+    assert!(got > 0 && got <= total, "{got} of {total}");
+    assert_eq!(said_total, Some(total));
+    assert_eq!(
+        dm_core::tools::preparing_progress(),
+        None,
+        "told as fetching after the fetch"
+    );
 }
