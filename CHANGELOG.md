@@ -35,6 +35,7 @@ the browser extension (`v*` tags) are versioned separately.
 - The popup has "Pause capturing on this site": that site's downloads stay with the browser, except a click with the take key held.
 - A new page script, in the page's own world, looks at the address of the page's `fetch` and `XMLHttpRequest` calls to find a player's `googlevideo.com` streams on sites no page reader knows. It changes no request and sends nothing off the computer (PRIVACY.md says so, under "YouTube's player requests"). The Chromium manifest gains that one content script and no permission; the Firefox manifest is unchanged.
 - The panel's icon is an SVG in a larger circle.
+- The panel's WebAssembly loads in Brave and other Chromium builds that refused the extension's per-session (`use_dynamic_url`) address with "Unsafe attempt to load URL chrome-extension://… Domains, protocols and ports must match", which left every video page with no panel. The Chromium manifest no longer asks for dynamic URLs.
 
 ## App 0.8.3
 
