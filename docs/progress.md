@@ -132,3 +132,31 @@ row 35 says, in all thirteen catalogs.
   before the fix, the new check failing), real YouTube in Edge 49 of 49
   twice, and `scripts/human-qa.py` whole, in sight: 38 of 38.
 
+## Measured on the release build, macOS (2026-10-30)
+
+`scripts/stress-check.py throughput concurrency edge` and
+`scripts/launch-latency.py`, release build, after the security fixes:
+
+- Throughput, 256 MB on loopback: 221 MB/s on 1 connection, 218 on 8, 231
+  on 16; peak 19-21 MB resident, byte-exact each time.
+- 150 files of 4 MB at once, 8 connections each, concurrency 32: all 150
+  complete in 8 s, 56 connections at the server's peak, 45 MB resident.
+- Microsoft Edge, 40 real clicks 80 ms apart: 40 of 40 in dm within 5 s,
+  byte-exact, Edge's own list empty; a small file from a server holding
+  each connection to 1 MB/s in 1.21 s on 9 connections; dm's first request
+  120-212 ms after the click (median 209 ms, through the doorbell).
+- From `download.start` to the server's first request: 50 ms with dm
+  closed (the host starts it), 47 ms with dm running (medians of five).
+- A ten-minute YouTube video (181 MB at 720p), release build, headless: 16.1 s
+  and 14.1 s with the slice cap from yt-dlp's reading, 44.2 s twice without
+  it (`DM_YTDLP_NO_CHUNK`); gaps.md row 22 closed.
+- `scripts/real-sites.py` on the release build: 13 of 13 sites as expected
+  in 30 s (YouTube through yt-dlp's reading, GitHub raw, Apple, Wikimedia,
+  an HLS test stream, a Creative Commons torrent; Reddit and a signed-in
+  Vimeo refused with a reason and nothing saved).
+- `scripts/human-qa.py` after these: a run straight after the full test
+  suite lost its first click (Add URL highlighted, no dialog; egui takes a
+  release more than 0.8 s after its press for a hold, and the press and
+  release went a frame apart), so `ui.click` now delivers both in one
+  frame; the run after that 38 of 38.
+

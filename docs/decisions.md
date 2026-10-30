@@ -2777,3 +2777,26 @@ from the files whether or not their browser is installed, so a manifest a
 person edited for a build of their own still counts. A `moz-extension://`
 origin is a profile's own name for an extension, not its id, and is let
 through. Refused, dm says so on stderr (the browser's log) and exits.
+
+## 2026-10-30: The slice cap timed on a long video over a real connection
+
+Row 22 asked for the slice size taken from yt-dlp's `http_chunk_size`
+(2026-10-28) to be timed on a long video against a server that actually
+throttles. Big Buck Bunny (10 minutes, 181 MB at 720p) through the release
+build, headless, on this connection: 16.1 s and 14.1 s with the cap (11.2
+and 12.9 MB/s), 44.2 s and 44.2 s without it (4.1 MB/s). The cap stays. It
+is switched off by `DM_YTDLP_NO_CHUNK` in the environment, kept so the
+measurement can be taken again (the scratch script drove dm over its
+control port, as `scripts/real-sites.py` does).
+
+## 2026-10-30: A scripted click is its press and release in one frame
+
+`ui.click` queued the pointer move, the press and the release as one step
+each, a frame apart. egui's `max_click_duration` is 0.8 s: a release later
+than that after its press is a hold. The QA list run straight after a full
+`cargo test --workspace` had its first click (Add URL, a debug build's first
+frames) highlight the button and open nothing, and the walk failed from
+there. Now the press and the release go in one frame (a double-click's two
+pairs likewise), which egui registers as a click whatever the frame took;
+the move keeps its own frame before them, for what reacts to hover. The
+window's own tests, which press every button this way, pass unchanged.

@@ -200,26 +200,24 @@ impl DmApp {
                 let m = egui::Modifiers::NONE;
                 step(&mut self.synthetic, vec![egui::Event::PointerMoved(pos)]);
                 step(&mut self.synthetic, Vec::new());
+                // The press and the release in one frame: egui takes a
+                // release more than 0.8 s after its press for a hold, not a
+                // click, and a frame can take longer than that on a busy
+                // computer (the QA's first click after a full test run
+                // highlighted Add URL and opened nothing). A double-click
+                // is both pairs in the frame, for the same reason.
+                let mut presses = Vec::new();
                 for _ in 0..if double { 2 } else { 1 } {
-                    step(
-                        &mut self.synthetic,
-                        vec![egui::Event::PointerButton {
+                    for pressed in [true, false] {
+                        presses.push(egui::Event::PointerButton {
                             pos,
                             button,
-                            pressed: true,
+                            pressed,
                             modifiers: m,
-                        }],
-                    );
-                    step(
-                        &mut self.synthetic,
-                        vec![egui::Event::PointerButton {
-                            pos,
-                            button,
-                            pressed: false,
-                            modifiers: m,
-                        }],
-                    );
+                        });
+                    }
                 }
+                step(&mut self.synthetic, presses);
                 step(&mut self.synthetic, Vec::new());
                 wake();
                 Ok(json!({ "clicked": target.text, "at": [pos.x, pos.y] }))

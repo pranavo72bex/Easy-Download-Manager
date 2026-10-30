@@ -266,6 +266,11 @@ impl Format {
     /// The most bytes one request for this format may ask for, where yt-dlp
     /// says its server holds each to that (`http_chunk_size`).
     fn chunk(&self) -> Option<u64> {
+        // `DM_YTDLP_NO_CHUNK` switches the cap off, for timing a long video
+        // with and without it on a real connection (gaps.md row 22).
+        if std::env::var_os("DM_YTDLP_NO_CHUNK").is_some() {
+            return None;
+        }
         self.downloader_options
             .as_ref()?
             .get("http_chunk_size")?
