@@ -378,6 +378,8 @@ const REPORTERS: &[&str] = &[
 /// they click "add dm to your browser".
 const ALLOWED_HOSTS: &[&str] = &[
     "github.com",
+    // Asked only for a YouTube video a person asked for (`youtube.rs`).
+    "youtube.com",
     "microsoftedge.microsoft.com",
     "addons.mozilla.org",
 ];

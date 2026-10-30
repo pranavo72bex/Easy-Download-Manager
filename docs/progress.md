@@ -159,4 +159,17 @@ row 35 says, in all thirteen catalogs.
   release more than 0.8 s after its press for a hold, and the press and
   release went a frame apart), so `ui.click` now delivers both in one
   frame; the run after that 38 of 38.
+- Reported: ".txt and .bin sometimes still download in Edge instead of
+  dm". Verified with 40 real clicks in Edge, dm set as installed (every
+  type): tiny, medium and big `.txt` and `.bin`, three rounds each, a
+  redirect, a `download` link, a server refusing dm's own agent, a wrong
+  content type, an inline `.txt` and eight clicks within a second all went
+  to dm (36 of 40). Left with the browser, each with its notice: a server
+  that did not answer dm's probe within 10 s (12 s and 25 s delays, both
+  types) and a `.txt` made on the page (a blob, which only the browser
+  holds). The probe's budget is now 16 of the extension's 20 s.
+- `scripts/stress-check.py` whole on the release build (2026-10-30): no
+  finding; 2 000 small files at 735 files/s, 150 × 4 MB at once in 8 s, a
+  kill with 24 unfinished and all 24 whole after the restart, the pause
+  storm with 0 control errors, every hostile name contained.
 

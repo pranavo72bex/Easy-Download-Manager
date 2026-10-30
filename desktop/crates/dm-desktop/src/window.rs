@@ -120,6 +120,7 @@ impl eframe::App for Window {
         }
         self.app.ui(ui);
         self.app.scan_screen(ui.ctx());
+        self.app.painted();
         // Links dragged in from a browser, where winit hands over files only.
         {
             use raw_window_handle::HasWindowHandle;

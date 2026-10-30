@@ -10,8 +10,11 @@
 //! produces like any other download.
 //!
 //! So this is deliberately a thin wrapper around a child process — no site
-//! logic, no token minting, no signature work of dm's own — and it is used
-//! only when the URL turned out to be a web page rather than a file.
+//! logic and no token minting of dm's own — and it is used only when the
+//! URL turned out to be a web page rather than a file. The one site dm
+//! reads itself is YouTube (`crate::youtube`, since 2026-10-30): the same
+//! few requests yt-dlp makes, and the public-domain solver scripts yt-dlp
+//! itself runs for the player's `n` values; yt-dlp stays behind it.
 
 use std::path::{Path, PathBuf};
 use std::process::Stdio;
@@ -507,7 +510,7 @@ fn windows_homes(h: &Homes) -> Vec<PathBuf> {
 }
 
 /// Writes `text` to `path` readable by this account alone.
-async fn write_private(path: &Path, text: &str) -> Result<(), Error> {
+pub(crate) async fn write_private(path: &Path, text: &str) -> Result<(), Error> {
     let _ = tokio::fs::remove_file(path).await;
     let mut open = tokio::fs::OpenOptions::new();
     open.write(true).create_new(true);
@@ -575,7 +578,7 @@ async fn cookies_by_file(
 
 /// Removes a file when it goes out of scope: a run's private cookies file,
 /// whichever way the run ends.
-struct RemoveOnDrop(PathBuf);
+pub(crate) struct RemoveOnDrop(pub(crate) PathBuf);
 
 impl Drop for RemoveOnDrop {
     fn drop(&mut self) {
@@ -597,18 +600,26 @@ pub fn is_page(content_type: Option<&str>) -> bool {
 ///
 /// The best picture and the best sound are usually separate streams, which
 /// dm joins itself (`mp4mux` into an MP4, `mkvmux` into a WebM): the
-/// tallest picture, MP4 preferred at a height, whatever its container, and
+/// biggest picture, MP4 preferred at a size, whatever its container, and
 /// a WebM picture and sound where WebM is asked for. A picture-only stream
 /// (`bv`), so one that carries its own sound is not joined with a second.
+///
+/// A quality names the picture's shorter side, as the sites name it: 720p
+/// is 1280×720 for a landscape video and 720×1280 for a portrait one (a
+/// Short, a phone's clip), so the portrait video is asked for by its width
+/// first (`aspect_ratio<1`, which a format with no width fails and so falls
+/// to the height clause), then any video by its height.
 fn format_for(quality: Quality, container: Option<&str>) -> String {
     let webm = container == Some("webm");
     let chosen = match quality {
         Quality::Best if webm => "bv[ext=webm]+ba[ext=webm]/b[ext=webm]/b".to_string(),
-        Quality::UpTo(height) if webm => format!(
-            "bv[ext=webm][height<={height}]+ba[ext=webm]/b[ext=webm][height<={height}]/b[height<={height}]/b"
+        Quality::UpTo(size) if webm => format!(
+            "bv[ext=webm][aspect_ratio<1][width<={size}]+ba[ext=webm]/bv[ext=webm][height<={size}]+ba[ext=webm]/b[ext=webm][aspect_ratio<1][width<={size}]/b[ext=webm][height<={size}]/b[aspect_ratio<1][width<={size}]/b[height<={size}]/b"
         ),
         Quality::Best => "bv+ba/b".to_string(),
-        Quality::UpTo(height) => format!("bv[height<={height}]+ba/b[height<={height}]/b"),
+        Quality::UpTo(size) => format!(
+            "bv[aspect_ratio<1][width<={size}]+ba/bv[height<={size}]+ba/b[aspect_ratio<1][width<={size}]/b[height<={size}]/b"
+        ),
         // The best audio-only stream — what "audio" means for a video site.
         Quality::Audio => return "ba/b".to_string(),
     };
@@ -1500,9 +1511,15 @@ mod tests {
         // picture-only stream (`bv`, never `bv*`), since one that carries
         // sound too would be joined with a second sound.
         assert_eq!(format_for(Quality::Best, None), "bv+ba/b");
+        // A portrait video by its width first (its shorter side), then any
+        // by its height.
         assert_eq!(
             format_for(Quality::UpTo(480), None),
-            "bv[height<=480]+ba/b[height<=480]/b"
+            "bv[aspect_ratio<1][width<=480]+ba/bv[height<=480]+ba/b[aspect_ratio<1][width<=480]/b[height<=480]/b"
+        );
+        assert_eq!(
+            format_for(Quality::UpTo(720), Some("webm")),
+            "bv[ext=webm][aspect_ratio<1][width<=720]+ba[ext=webm]/bv[ext=webm][height<=720]+ba[ext=webm]/b[ext=webm][aspect_ratio<1][width<=720]/b[ext=webm][height<=720]/b[aspect_ratio<1][width<=720]/b[height<=720]/b"
         );
         assert_eq!(format_for(Quality::Audio, None), "ba/b");
         assert_eq!(

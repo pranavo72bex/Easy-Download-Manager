@@ -861,6 +861,11 @@ pub const WARM_FLAG: &str = "--warm-reading";
 /// the download to use. The page and the session travel on its standard
 /// input, not on a command line anyone can read.
 fn warm_in_background(url: &str, referrer: &str, cookies: &str) {
+    // A YouTube page is read by dm itself at the download, in a second or
+    // two; a reading by yt-dlp made now would go unused.
+    if dm_core::youtube::video_id(url).is_some() {
+        return;
+    }
     let Ok(executable) = std::env::current_exe() else {
         return;
     };

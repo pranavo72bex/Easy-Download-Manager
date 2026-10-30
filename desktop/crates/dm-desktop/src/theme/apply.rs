@@ -137,6 +137,11 @@ pub fn apply_with_accent(ctx: &Context, theme: Theme, accent: Option<crate::acce
     };
     ctx.set_theme(which);
     ctx.set_visuals_of(which, v);
+    // A press let go late is still a click, as it is in every other
+    // program here: egui's own limit is 0.8 s, past which a release is a
+    // hold, and a frame on a busy computer came past it between a scripted
+    // press and its release (the QA's first click opened nothing).
+    ctx.options_mut(|options| options.input_options.max_click_duration = 10.0);
     let heading = bold(ctx);
     ctx.style_mut_of(which, |style| {
         // Labels are words to read, not text to select: the status bar,

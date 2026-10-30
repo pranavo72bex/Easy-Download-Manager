@@ -287,12 +287,15 @@ its next request.
 
 You do not need to install anything for video.
 
-- **The first video takes a little longer.** dm downloads the part of
-  itself that finds the video behind a site's player (about 35 MB, once,
-  checked before it is kept) and keeps it up to date by itself, since
-  video sites change often. The video's row says "Getting ready for videos
-  (first time only)" while this happens. Every video after that starts
-  straight away.
+- **YouTube needs nothing extra.** dm reads a YouTube page itself and
+  fetches the picture and the sound on its own connections.
+- **The first video from another site takes a little longer.** dm
+  downloads the part of itself that finds the video behind a site's player
+  (about 35 MB, once, checked before it is kept) and keeps it up to date by
+  itself, since video sites change often. The video's row says "Getting
+  ready for videos (first time only)" while this happens. Every video
+  after that starts straight away. It is also what dm falls back on for a
+  YouTube video it cannot read itself.
 - **Picture and sound in one file.** Sites send picture and sound
   separately. dm joins them into one file, in MP4 or WebM, at the quality
   you picked, 4K included. Live streams (`rtmp://`, `rtmpt://`, `rtsp://`,

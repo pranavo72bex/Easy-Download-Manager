@@ -43,8 +43,10 @@ pub async fn download_page(
 ) -> Result<Finished, Error> {
     let staging = &options.parts_dir;
     // An earlier run found dm's own fetch refused: yt-dlp's from the start,
-    // rather than reading the page twice to be refused again.
-    if binary().is_none() || tokio::fs::metadata(staging.join(REFUSED)).await.is_ok() {
+    // rather than reading the page twice to be refused again. A YouTube
+    // video is read by dm itself (`crate::youtube`), yt-dlp or none.
+    let own = crate::youtube::video_id(url).is_some();
+    if (binary().is_none() && !own) || tokio::fs::metadata(staging.join(REFUSED)).await.is_ok() {
         return download_ytdlp(url, options, report).await;
     }
     tokio::fs::create_dir_all(staging)
@@ -453,6 +455,32 @@ fn unnumbered(produced: PathBuf, info: &Info) -> PathBuf {
 /// from the page, or from a reading of it already made (`saved`).
 async fn resolve(url: &str, options: &Options, saved: Option<&Path>) -> Result<Read, Error> {
     let staging = &options.parts_dir;
+    // A YouTube video is read by dm itself first (`crate::youtube`), with
+    // yt-dlp behind it for what that cannot read; a reading the panel kept
+    // is used as it is, which costs no request at all.
+    if saved.is_none() && crate::youtube::video_id(url).is_some() {
+        let own = crate::download::or_stop(
+            &options.control,
+            crate::youtube::read_for(url, options, staging),
+        )
+        .await;
+        match own {
+            Ok(text) => match serde_json::from_str::<Info>(&text) {
+                Ok(info) => return Ok(Read { text, info }),
+                Err(e) => eprintln!(
+                    "dm: its own reading of the page could not be read ({e}); yt-dlp reads it"
+                ),
+            },
+            Err(stop @ (Error::Paused | Error::Cancelled)) => return Err(stop),
+            Err(why) => {
+                eprintln!("dm: could not read the YouTube page itself ({why}); yt-dlp reads it")
+            }
+        }
+        // The helper, fetched behind dm's own reading, is waited for now.
+        if binary().is_none() {
+            let _ = crate::tools::for_video(&crate::client()).await;
+        }
+    }
     let binary = binary()
         .ok_or_else(|| Error::Internal("dm's video helper is not available here".into()))?;
     let mut command = super::writable_to(&binary, &[staging]);

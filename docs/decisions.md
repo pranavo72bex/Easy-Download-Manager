@@ -2789,14 +2789,183 @@ is switched off by `DM_YTDLP_NO_CHUNK` in the environment, kept so the
 measurement can be taken again (the scratch script drove dm over its
 control port, as `scripts/real-sites.py` does).
 
-## 2026-10-30: A scripted click is its press and release in one frame
+## 2026-10-30: A scripted step goes to one painted pass, and the window comes to the front for it
 
 `ui.click` queued the pointer move, the press and the release as one step
-each, a frame apart. egui's `max_click_duration` is 0.8 s: a release later
-than that after its press is a hold. The QA list run straight after a full
-`cargo test --workspace` had its first click (Add URL, a debug build's first
-frames) highlight the button and open nothing, and the walk failed from
-there. Now the press and the release go in one frame (a double-click's two
-pairs likewise), which egui registers as a click whatever the frame took;
-the move keeps its own frame before them, for what reacts to hover. The
-window's own tests, which press every button this way, pass unchanged.
+each, given out one per call of eframe's raw-input hook, which was taken
+for one per frame. Since egui 0.37 (2026-10-17) eframe also runs passes
+that only run the app's logic, between paintings, calls the hook for each,
+and carries that pass's input over to the next painted one. A step given
+to each call piled up there: the move, the press and the release reached
+egui in one painted pass or many times over, and a dialog's button (OK,
+Start now) took the press and not the release. It showed only when the
+window was not being painted between steps, which on macOS is a window
+covered whole by another (mine, this afternoon; the QA passed in the
+morning with the window in the open) — the system sends such a window no
+redraw at all, so the steps waited in eframe's carried-over input for a
+painting that never came, and a screenshot, which forces one, let them
+all in at once. Traced with the hook's raw input printed per pass. Taken:
+a step is given out only once the window has been painted since the step
+before (`DmApp::painted`, counted where the window is drawn), and a step
+that has waited 400 ms for a painting asks the system to bring the window
+to the front (`ViewportCommand::Focus`), as a person driving the window
+would have it in sight. Also kept from the chase: each step finds its word
+where it is drawn when its pass comes (a dialog still settling, or one
+closing whose title also reads "Add URL", no longer takes the click), and
+egui's click-duration limit is 10 s rather than 0.8, as every other program
+here counts a press let go late as a click. Tried and dropped on the way:
+the press and the release in one frame (a dialog's button never took it);
+blaming the screenshot, the clipboard offer (a link the QA had put back on
+the clipboard did open its offer over the dialog, a separate confound) and
+the window's focus. The driver with the window covered and a screenshot
+before each click: ten of ten, from none of ten.
+
+## 2026-10-30: yt-dlp's legal position, and what the other managers do
+
+Asked for: whether using yt-dlp can affect this project, and how the
+reference managers get YouTube "legally".
+
+- **Licence.** yt-dlp, its `yt-dlp-ejs` challenge solver and QuickJS-NG
+  are published under the Unlicense (public domain) and the MIT licence;
+  nothing in them constrains dm's MIT licence, and dm could even carry
+  their code. dm fetches them at run time from their own releases rather
+  than shipping them, so dm's packages and repository distribute none of
+  that code at all; the licence question does not arise for a distribution
+  that has nothing to distribute.
+- **What the law is about** is not the tool but the use: YouTube's terms
+  forbid downloading without permission, and the 2020 takedown of
+  youtube-dl claimed circumvention of a technical measure (the "rolling
+  cipher"); GitHub restored it, finding that claim did not hold, and the
+  EFF's letter on it is the public record. yt-dlp solves the player's `n`
+  and signature puzzles, which YouTube serves in the clear to every
+  browser; it breaks no encryption (DRM-protected formats are not
+  downloaded by it, and dm leaves them alone too). Every download manager
+  that gets YouTube is in the same position: reference A documents reading
+  the player's requests and keeps a paid team shipping fixes; the other
+  macOS manager looked at today (1.1.10, installed on this computer) ships
+  yt-dlp 2026.10.26 inside its bundle with QuickJS, ffmpeg, ffprobe and
+  aria2, points yt-dlp at its QuickJS through a config file, and updates
+  yt-dlp to the latest release through its own manifest every four hours.
+  So none of them "does it legally" in a way dm does not; dm fetches the
+  same yt-dlp afresh and does not ship it.
+- **What dm keeps apart:** no YouTube code of its own to defend, the tool
+  fetched from its publisher and refreshed, the person's own session only
+  with their consent, no DRM, and the policy of each site's terms left to
+  the person, as with any downloader. The README's "Use it responsibly"
+  says so.
+
+## 2026-10-30: How YouTube is got today, watched, and what a reader of dm's own would be
+
+The maintainer asked for YouTube without yt-dlp, as the other macOS
+manager was believed to do it. It does not (above). What yt-dlp itself
+does today (2026.10.26, watched with `--print-traffic` on a public
+video; a public-domain tool, read as a black box): one GET of the watch
+page as a browser (for the visitor id, the player's script id and its
+signature timestamp), one POST to `/youtubei/v1/player` as a Samsung TV
+client (`TVHTML5` 5.20260707, client name 7; plain `https` DASH formats,
+no proof-of-origin token needed), one more as a visionOS client for HLS,
+one GET of the player script (`/s/player/<id>/player_ias.vflset/en_US/base.js`),
+and one run of the `yt-dlp-ejs` solver (v0.8.0, two scripts, Unlicense)
+in Deno or QuickJS, which turns each format's `n` value into the one the
+server accepts (and decodes a `signatureCipher` where a format carries
+one). Its own source marks the web client as SABR-only, the Android VR
+client refused since 2026-08-17, and the iOS and Android clients as
+needing a token: the TV client is the one that works without tokens, as
+of today. A reader of dm's own is therefore well defined: the same four
+requests, the same solver scripts fetched from their releases and run in
+the QuickJS dm already fetches, the result written in the shape of
+yt-dlp's reading so `download_page` and the panel's list consume it
+unchanged, and yt-dlp kept behind it for every other site and for the
+day YouTube changes the client. Its cost is the one already recorded
+(2026-10-29): the client's name and version, and the solver's version,
+are dm's to keep current, as yt-dlp keeps them for itself. Taken on, at
+the maintainer's word of 2026-10-30, as gaps.md row 41.
+
+What the other manager offers that dm does not, worth taking on the same
+evidence (its bundle and settings, not its code): a download of a part of
+a video (yt-dlp's `--download-sections`, which cuts with ffmpeg; dm has
+no ffmpeg and its own muxer joins whole streams, so a part would be its
+own fetch of the byte ranges the picture's and the sound's index names,
+row 42), and yt-dlp refreshed within hours rather than a week (dm already
+refetches a newer yt-dlp after a failure, once an hour).
+
+## 2026-10-30: YouTube read by dm itself, done
+
+Row 41 closed the same day: `youtube.rs` makes the four requests above
+and writes the reading in yt-dlp's shape; `download_page` takes it first
+on a watch page and yt-dlp behind it, the panel's list stays the page's
+own data, and the host no longer warms a yt-dlp reading of a YouTube page.
+A YouTube page does not wait for the helper's first fetch either: that
+goes on behind dm's own reading, for the videos it cannot read. Two
+things the stand-in could not show and the real video did: the TV
+client's answer names no title (the page's own is used) and a
+picture-with-sound format chosen beside a sound made a file with two
+sound tracks (the formats apart are the only candidates now, the muxed
+ones alone and only where nothing is apart). Checked: the stand-in test,
+the real video through `real-sites.py` (4 s, the right name, one picture
+and one sound) and the Edge check 49 of 49 with the panel's download
+through the reader. The solver's scripts are pinned to release 0.8.0 by
+digest; when YouTube's player changes past what that release solves,
+dm's reading fails in words and yt-dlp (which carries the newer solver)
+reads the page, so a stale pin costs the first request and nothing else;
+refreshing the pin is a release of dm, as QuickJS's is.
+
+## 2026-10-30: The other macOS manager watched at run time, and what dm takes from it
+
+Asked for: how the other macOS manager (1.1.10) gets YouTube and other
+sites, found by running it, and the same in dm without yt-dlp. Its engine
+is a Node program packed into one file with its code compiled, so it reads
+as nothing (a static JavaScript analysis tool was run on it and on its Edge
+extension; only the extension is source). What cost nothing was going
+round that: its engine listens on 127.0.0.1 with a token it writes to its
+own folder for its extension, so a script drove it over that interface as
+the extension does, and every process it started was recorded with its
+command line and the hosts it reached (`ps`, `lsof`).
+
+What it does, from the record:
+
+- **YouTube.** First `yt-dlp --dump-json --no-download --no-playlist
+  --ignore-errors --prefer-free-formats <url>` (its config file adds
+  `--js-runtimes quickjs:<its QuickJS>`), which ran its QuickJS for the
+  player's challenge: 7.6 s. Then, after the job had waited 36 s in its
+  queue, `yt-dlp --ffmpeg-location <its ffmpeg> -f <selector>
+  --merge-output-format mp4 -o <file> --no-playlist --no-warnings --newline
+  --retries 10 --fragment-retries 10 --retry-sleep http:exp=1:20
+  --retry-sleep fragment:exp=1:20 --abort-on-unavailable-fragments
+  --progress-template … --concurrent-fragments 8 --load-info-json <its
+  reading>`: yt-dlp fetches the two streams, one connection each (the
+  concurrent fragments are for streams in pieces), ffmpeg joins them, and
+  `ffprobe` reads the result. Its selector asks, per quality step from the
+  one chosen downwards, for H.264 first, then H.265, then any MP4, then
+  anything, with M4A sound; and it measures a quality by the picture's
+  shorter side (`[aspect_ratio<1][width<=720]` for a portrait video).
+- **Other video sites** (Dailymotion tried): the same yt-dlp download
+  with no reading first. **A plain file:** its aria2 over RPC, sixteen
+  connections (`--split=16 --max-connection-per-server=16
+  --min-split-size=1M`).
+- **Its extension:** a button on every `<video>`; on YouTube the quality
+  list is asked from the page's own player (`getAvailableQualityLevels`,
+  in the page's world) and elsewhere from its engine's reading; a site's
+  cookies go only for Vimeo and Instagram; a clip (a part of a video) is
+  cut by yt-dlp's `--download-sections` and ffmpeg (row 42).
+
+So it does not get YouTube without yt-dlp: it is yt-dlp, ffmpeg and aria2
+behind a window, and refreshes yt-dlp every four hours. dm, as of today,
+goes further than it on YouTube: the page is read by dm itself in four
+requests (`youtube.rs`, no yt-dlp run at all when the reading holds; proved
+by a run with `DM_YTDLP` naming a program that does not exist), the
+streams are fetched on dm's connections and joined by dm's own muxers, with
+no ffmpeg, and the same video that took it 45 s took dm 6 s from a cold
+start, dm's own reading included. yt-dlp stays behind dm's reading, as
+decided on 2026-10-29 (rows 6 and 32), for the videos the reader cannot
+read and for every other site, where the other manager uses it too.
+
+Taken from it: a quality is the picture's shorter side (`format_for`'s
+selector and `youtube::choose`), so a portrait video at 720p is 720×1280,
+not the 405×720 picture that is 720 tall; dm's own HLS and DASH picks
+still go by height (row 43). Not taken: aria2 (dm's engine fetches plain
+files on its own connections), ffmpeg and ffprobe (dm's muxers join without
+them), the four-hour refresh (dm refetches a newer yt-dlp after a failure
+it has no words for, within the hour), and `--prefer-free-formats` (dm
+chooses H.264 in MP4 by its own rule).
+

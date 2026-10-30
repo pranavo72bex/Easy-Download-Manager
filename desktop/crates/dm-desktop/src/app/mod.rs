@@ -409,7 +409,11 @@ pub struct DmApp {
     /// The words drawn on the last frame, for the control protocol's `ui.click`.
     screen: Vec<human::ScreenText>,
     /// Pointer and key events to give the window, a step a frame.
-    synthetic: std::collections::VecDeque<(Instant, Vec<egui::Event>)>,
+    synthetic: std::collections::VecDeque<(Instant, human::Step)>,
+    /// Painted passes so far, and the one the last step went to.
+    passes: u64,
+    delivered_at_pass: Option<u64>,
+    delivered_at: Option<Instant>,
     /// When a control client last clicked, typed or pressed a key: what is
     /// done within moments of it is a script's, not a person's.
     scripted_at: Option<Instant>,
@@ -580,6 +584,9 @@ impl DmApp {
             control: None,
             screen: Vec::new(),
             synthetic: Default::default(),
+            passes: 0,
+            delivered_at_pass: None,
+            delivered_at: None,
             scripted_at: None,
             title_search: false,
             mcp_only: false,

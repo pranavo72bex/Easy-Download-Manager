@@ -242,9 +242,11 @@ pub struct Start {
 }
 
 /// The longest the host spends asking a server about a caught download.
-/// Well inside the extension's wait for an answer (20 seconds), which also
-/// has to cover the host's own start.
-pub const PROBE_WITHIN_MS: u64 = 10_000;
+/// Inside the extension's wait for an answer (20 seconds), which also has
+/// to cover the host's own start (measured at 50 ms) and the answer's
+/// margin below. It was 10 s; a server slow to answer dm's first request
+/// (12 s, in a check) left its download with the browser, every time.
+pub const PROBE_WITHIN_MS: u64 = 16_000;
 
 /// Kept back from the extension's deadline for filing the download and
 /// sending the answer back.

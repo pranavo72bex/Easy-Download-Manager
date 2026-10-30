@@ -342,6 +342,16 @@ fn hex_of(bytes: &[u8]) -> String {
     hex::encode(Sha256::digest(bytes))
 }
 
+/// The SHA-256 digest of `bytes`, in hex: what a fetched file is held to.
+pub(crate) fn sha256_hex(bytes: &[u8]) -> String {
+    hex_of(bytes)
+}
+
+/// Fetches a small file of a tool's, with a tool's retries.
+pub(crate) async fn fetch_bytes(client: &reqwest::Client, url: &str) -> Result<Vec<u8>, Error> {
+    fetch(client, url).await
+}
+
 /// Writes `bytes` as an executable at `path`, whole or not at all.
 async fn place(path: &Path, bytes: &[u8]) -> Result<(), Error> {
     if let Some(dir) = path.parent() {

@@ -800,7 +800,17 @@ async fn fetch_reporting(
          * A watch address with no extension, or a script's (`.php?v=`), is
          * yt-dlp's alone: its HTML is never the download anyone meant. */
         let document = names_a_document(url);
-        if crate::tools::for_video(client).await.is_ok() {
+        // A YouTube page is read by dm itself (`crate::youtube`): it does
+        // not wait for the helper's first fetch, which goes on behind it
+        // for the videos dm cannot read.
+        let own = crate::youtube::video_id(url).is_some();
+        if own {
+            let client = client.clone();
+            tokio::spawn(async move {
+                let _ = crate::tools::for_video(&client).await;
+            });
+        }
+        if own || crate::tools::for_video(client).await.is_ok() {
             match crate::ytdlp::download_page(client, url, options, report.clone()).await {
                 Err(e)
                     if document

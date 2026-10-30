@@ -75,8 +75,37 @@ impl DmApp {
         self.screen = seen;
     }
 
-    /// Events for the frame about to run: one step of what was asked.
+    /// Counts a painted pass: what a step of a script waits for.
+    pub fn painted(&mut self) {
+        self.passes = self.passes.wrapping_add(1);
+    }
+
+    /// Events for the pass about to run: one step of what was asked, and
+    /// only once the window has been painted since the step before.
+    ///
+    /// eframe asks for these before every pass, the ones that only run the
+    /// app's logic included, and carries the input of such a pass over to
+    /// the next painted one. A step given to each call piled up there: the
+    /// move, the press and the release reached egui in one painted pass, or
+    /// many times over, and a button in a dialog took the press and not the
+    /// release (the QA lost OK and Start now, four runs of five, whenever
+    /// eframe ran its logic passes between paintings).
     pub fn synthetic_events(&mut self, ctx: &egui::Context) -> Vec<egui::Event> {
+        if !self.synthetic.is_empty() && self.delivered_at_pass == Some(self.passes) {
+            ctx.request_repaint();
+            // A window the system does not draw (covered whole by another,
+            // on macOS) gets no painted pass however often one is asked
+            // for, and a step waits for ever: brought to the front, as a
+            // person driving it would have it in sight.
+            if self
+                .delivered_at
+                .is_some_and(|at| at.elapsed() > Duration::from_millis(400))
+            {
+                self.delivered_at = None;
+                ctx.send_viewport_cmd(egui::ViewportCommand::Focus);
+            }
+            return Vec::new();
+        }
         // Steps that waited for frames that never came (a minimized window
         // draws none) are dropped, not replayed onto whatever is on screen
         // when it comes back.
@@ -87,11 +116,33 @@ impl DmApp {
         {
             self.synthetic.clear();
         }
-        let events = self
-            .synthetic
-            .pop_front()
-            .map(|(_, e)| e)
-            .unwrap_or_default();
+        if !self.synthetic.is_empty() {
+            self.delivered_at_pass = Some(self.passes);
+            self.delivered_at = Some(Instant::now());
+        }
+        let events = match self.synthetic.pop_front().map(|(_, step)| step) {
+            None => Vec::new(),
+            Some(Step::Events(events)) => events,
+            Some(Step::Pointer {
+                text,
+                nth,
+                button,
+                pressed,
+            }) => match self.find_text(&text, nth).map(|found| found.rect.center()) {
+                Some(pos) => vec![match pressed {
+                    None => egui::Event::PointerMoved(pos),
+                    Some(pressed) => egui::Event::PointerButton {
+                        pos,
+                        button,
+                        pressed,
+                        modifiers: egui::Modifiers::NONE,
+                    },
+                }],
+                // Gone from the screen between the asking and this frame:
+                // the step is dropped, as a pointer over nothing does nothing.
+                None => Vec::new(),
+            },
+        };
         // The moment an event is given to the window is the script's, not
         // the moment it was asked for.
         if !events.is_empty() {
@@ -156,26 +207,7 @@ impl DmApp {
                     ));
                 }
                 let nth = params.get("nth").and_then(Value::as_u64).unwrap_or(0) as usize;
-                let lower = wanted.to_lowercase();
-                let matching = |exact: bool| -> Vec<&ScreenText> {
-                    self.screen
-                        .iter()
-                        .rev()
-                        .filter(|t| {
-                            let have = t.text.trim().to_lowercase();
-                            if exact {
-                                have == lower
-                            } else {
-                                have.contains(&lower)
-                            }
-                        })
-                        .collect()
-                };
-                let mut found = matching(true);
-                if found.is_empty() {
-                    found = matching(false);
-                }
-                let target = found.get(nth).copied().ok_or_else(|| {
+                let target = self.find_text(wanted, nth).cloned().ok_or_else(|| {
                     let near: Vec<&str> = self
                         .screen
                         .iter()
@@ -197,27 +229,29 @@ impl DmApp {
                     .get("double")
                     .and_then(Value::as_bool)
                     .unwrap_or(false);
-                let m = egui::Modifiers::NONE;
-                step(&mut self.synthetic, vec![egui::Event::PointerMoved(pos)]);
+                // Each step finds the word where it is drawn when the step
+                // reaches a frame, not where it was when asked: a dialog
+                // that had just opened was still settling, and one closing
+                // still showed a title that read the same, so a click aimed
+                // at the frame before landed beside its button.
+                let at = |pressed: Option<bool>| Step::Pointer {
+                    text: wanted.to_string(),
+                    nth,
+                    button,
+                    pressed,
+                };
+                self.synthetic.push_back((Instant::now(), at(None)));
                 step(&mut self.synthetic, Vec::new());
-                // The press and the release in one frame: egui takes a
-                // release more than 0.8 s after its press for a hold, not a
-                // click, and a frame can take longer than that on a busy
-                // computer (the QA's first click after a full test run
-                // highlighted Add URL and opened nothing). A double-click
-                // is both pairs in the frame, for the same reason.
-                let mut presses = Vec::new();
+                // The press and the release a frame apart, as a pointer's
+                // are: in one frame, a button in a dialog took the press and
+                // not the release (the QA lost Start now and OK, three runs
+                // of four). A release that comes late is still a click: the
+                // window sets egui's click-duration limit high (`theme`),
+                // since a slow frame on a busy computer once came past it.
                 for _ in 0..if double { 2 } else { 1 } {
-                    for pressed in [true, false] {
-                        presses.push(egui::Event::PointerButton {
-                            pos,
-                            button,
-                            pressed,
-                            modifiers: m,
-                        });
-                    }
+                    self.synthetic.push_back((Instant::now(), at(Some(true))));
+                    self.synthetic.push_back((Instant::now(), at(Some(false))));
                 }
-                step(&mut self.synthetic, presses);
                 step(&mut self.synthetic, Vec::new());
                 wake();
                 Ok(json!({ "clicked": target.text, "at": [pos.x, pos.y] }))
@@ -275,11 +309,50 @@ impl DmApp {
 }
 
 /// One step for a frame, stamped with when it was asked for.
-fn step(
-    queue: &mut std::collections::VecDeque<(Instant, Vec<egui::Event>)>,
-    events: Vec<egui::Event>,
-) {
-    queue.push_back((Instant::now(), events));
+/// One step of what a script asked, for one frame.
+pub(super) enum Step {
+    /// Events as egui takes them.
+    Events(Vec<egui::Event>),
+    /// The pointer moved onto (`pressed` none), pressed on or released on
+    /// the `nth` word reading `text`, found where it is drawn when this
+    /// step reaches a frame.
+    Pointer {
+        text: String,
+        nth: usize,
+        button: egui::PointerButton,
+        pressed: Option<bool>,
+    },
+}
+
+fn step(queue: &mut std::collections::VecDeque<(Instant, Step)>, events: Vec<egui::Event>) {
+    queue.push_back((Instant::now(), Step::Events(events)));
+}
+
+impl DmApp {
+    /// The `nth` piece of text on screen reading `wanted` (whole, else as a
+    /// part), nearest the front first.
+    fn find_text(&self, wanted: &str, nth: usize) -> Option<&ScreenText> {
+        let lower = wanted.to_lowercase();
+        let matching = |exact: bool| -> Vec<&ScreenText> {
+            self.screen
+                .iter()
+                .rev()
+                .filter(|t| {
+                    let have = t.text.trim().to_lowercase();
+                    if exact {
+                        have == lower
+                    } else {
+                        have.contains(&lower)
+                    }
+                })
+                .collect()
+        };
+        let mut found = matching(true);
+        if found.is_empty() {
+            found = matching(false);
+        }
+        found.get(nth).copied()
+    }
 }
 
 fn collect(shape: &egui::Shape, clip: egui::Rect, out: &mut Vec<ScreenText>) {

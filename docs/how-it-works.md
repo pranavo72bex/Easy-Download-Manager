@@ -415,6 +415,7 @@ desktop/
     mp4mux.rs, mkvmux.rs  picture and sound joined into one MP4 or WebM (mp4mux/: read, write, text)
     live.rs, rtmp.rs, rtsp.rs, mms.rs   live streams recorded as they come (rtmp/: amf, wire,
                           recorder, connect, session)
+    youtube.rs            a YouTube page read by dm itself (the player API, the solver scripts)
     ytdlp.rs, tools.rs    pages handed to yt-dlp, and the tools dm fetches and checks
     ytdlp/fetch.rs        a page read by yt-dlp, its streams fetched by dm's engine
     ytdlp/choices.rs      the panel's list of qualities (page data first, yt-dlp as fallback)

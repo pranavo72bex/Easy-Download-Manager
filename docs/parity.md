@@ -231,6 +231,7 @@ the host and the extension.
 
 | Behaviour | Status | Evidence |
 |---|---|---|
+| A YouTube watch page read by dm itself, no video helper: the page, the player API as a TV client, the player script, the solver scripts fetched and pinned, run in QuickJS or Deno; the reading in yt-dlp's shape; yt-dlp behind it | PASS | `youtube.rs` unit tests (`a_video_id_is_read_from_every_address_shape`, `the_quality_asked_chooses_as_yt_dlp_would`, `an_address_is_unlocked_by_what_the_solver_answered`, `the_reading_is_in_yt_dlps_shape`); `tests/youtube_own.rs` `a_youtube_page_is_read_and_fetched_by_dm_with_no_video_helper` (a stand-in YouTube, streams served only once solved, no yt-dlp present); real YouTube in `real-sites.py` and `youtube-check.py` |
 | A stream that arrives as a transport stream is saved as an MP4 where dm can put it into one (`tsmux.rs`) (Options › Downloads, on by default); the `.ts` where not asked or not possible | PASS | `hls.rs` `a_transport_stream_is_saved_as_an_mp4_when_asked_and_as_ts_when_not`: a committed H.264 and AAC stream lands as `show.mp4` holding every picture and sound frame, read back by the test's own MP4 reader and matching, sample for sample, what a standard decoder played to the end, nothing left staged; off, the segments in order as `show.ts` |
 | Subtitles carried inside the video when asked (Options › Downloads): fetched as WebVTT and put in by dm (MP4 `tx3g`, WebM WebVTT tracks) | PASS | `subtitles_are_fetched_and_carried_in_the_video_by_dm` |
 | Direct media files | PASS | ordinary downloads |
