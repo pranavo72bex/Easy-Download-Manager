@@ -295,7 +295,9 @@ struct Format {
 fn range_of(text: Option<&str>) -> Option<(u64, u64)> {
     let (a, b) = text?.trim().split_once('-')?;
     let (a, b) = (a.parse::<u64>().ok()?, b.parse::<u64>().ok()?);
-    (b >= a).then_some((a, b))
+    // A stream's first boxes and its index are kilobytes: a range of more
+    // than a few megabytes is not one.
+    (b >= a && b - a < 8 << 20).then_some((a, b))
 }
 
 impl Format {

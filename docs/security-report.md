@@ -189,3 +189,30 @@ clean. Evidence: `evidence/cargo_audit_desktop.txt`, `evidence/cargo_audit_brows
 - Not tested dynamically (reasoned from source/tests): https->http downgrade (S4), and Cookie (vs
   Authorization) stripping specifically — both share the mechanism demonstrated in S5.
 - All dm and server processes started for this test were terminated at the end (verified: no listener).
+
+---
+
+## Review of the changes since 0.8.4, 2026-10-30
+
+A review of `desktop-v0.8.4..HEAD` (the YouTube and playlist readers, the
+clip fetcher, the shipped yt-dlp's adoption, the native host's new checks,
+the extension's page-world quality channel, the release workflows), with
+each candidate checked again for false positives. Critical, high, medium:
+none. Three low and four informational findings, all hardened before the
+release (CHANGELOG, "Security hardening from the pre-release review"):
+
+- The solver runs the player's code; QuickJS's command line lets a script
+  reach the OS. Attacker: only YouTube itself or a TLS interceptor the
+  user trusts (yt-dlp in 0.8.4 already did the same). Now: the player is
+  fetched only from YouTube's own player path, and Deno, run with no
+  permissions, is preferred.
+- The download-folder write check followed a planted symlink. Attacker: a
+  second local user with write access to this user's download folder.
+  Now `create_new` with an unguessable name.
+- Index ranges from the player API were unbounded before allocation; now
+  capped. Quarantine removal no longer follows links; adoption staging is
+  per process; the Mozilla source archive is written outside `dist/`.
+- Left: the test-only environment knobs (`DM_YOUTUBE_HOST`,
+  `DM_EJS_RELEASES`) are honoured in release builds; environment variables
+  are trusted by this report's model.
+

@@ -395,7 +395,9 @@ pub(crate) fn adopt(bundled: &Path) -> Option<PathBuf> {
     }
     let folder = folder()?;
     let into = folder.join(unpacked_dir(std::env::consts::OS));
-    let staging = into.with_extension("adopting");
+    // A staging folder of this process's own: another dm adopting at the
+    // same moment (a page reading started by the browser) cannot mix into it.
+    let staging = into.with_extension(format!("adopting-{}", std::process::id()));
     let _ = std::fs::remove_dir_all(&staging);
     std::fs::create_dir_all(folder).ok()?;
     if bundled.extension().is_some_and(|e| e == "zip") {
@@ -460,12 +462,12 @@ pub(crate) fn adopt(bundled: &Path) -> Option<PathBuf> {
 /// after removing any that does.
 fn unquarantined(dir: &Path) -> bool {
     let _ = std::process::Command::new("/usr/bin/xattr")
-        .args(["-d", "-r", "com.apple.quarantine"])
+        .args(["-d", "-r", "-s", "com.apple.quarantine"])
         .arg(dir)
         .stderr(std::process::Stdio::null())
         .status();
     std::process::Command::new("/usr/bin/xattr")
-        .args(["-r", "-l"])
+        .args(["-r", "-l", "-s"])
         .arg(dir)
         .output()
         .is_ok_and(|out| !String::from_utf8_lossy(&out.stdout).contains("com.apple.quarantine"))

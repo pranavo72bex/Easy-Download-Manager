@@ -864,8 +864,19 @@ pub fn answer(
 /// Why dm may not save into `folder`, or `None` where it may: made where
 /// it is missing, and a file written in it and taken away again.
 pub(crate) fn unwritable(folder: &Path) -> Option<String> {
-    let probe = folder.join(format!(".dm-write-check-{}", std::process::id()));
-    let tried = std::fs::create_dir_all(folder).and_then(|()| std::fs::write(&probe, b""));
+    // A new file of an unguessable name, never one already there: a link
+    // planted at the name is not followed (`create_new`).
+    let nanos = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map_or(0, |d| d.subsec_nanos());
+    let probe = folder.join(format!(".dm-write-check-{}-{nanos}", std::process::id()));
+    let tried = std::fs::create_dir_all(folder).and_then(|()| {
+        std::fs::OpenOptions::new()
+            .write(true)
+            .create_new(true)
+            .open(&probe)
+            .map(drop)
+    });
     let _ = std::fs::remove_file(&probe);
     tried.err().map(|e| {
         format!(

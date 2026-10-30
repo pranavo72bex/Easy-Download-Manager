@@ -479,6 +479,18 @@ fn page_facts(html: &str) -> PageFacts {
     facts
 }
 
+/// Whether `path` is YouTube's own player script, as its pages name it:
+/// `/s/player/<id>/…/<name>.js`, with nothing in it that leaves that path.
+fn player_path(path: &str) -> bool {
+    path.starts_with("/s/player/")
+        && path.ends_with(".js")
+        && !path.contains("..")
+        && !path.contains("//")
+        && path
+            .chars()
+            .all(|c| c.is_ascii_alphanumeric() || matches!(c, '/' | '_' | '-' | '.'))
+}
+
 /// The JSON object `text` starts with, by its braces (strings respected).
 fn json_object_at(text: &str) -> Option<&str> {
     if !text.starts_with('{') {
@@ -788,11 +800,19 @@ async fn read_within(
     let mut facts = page_facts(&page);
     // The player script, where its timestamp is wanted now (the page gave
     // none) and for the solver later.
-    let js_url = match &facts.player_js {
-        Some(path) if path.starts_with('/') => Some(format!("{origin}{path}")),
-        Some(full) => Some(full.clone()),
-        None => None,
-    };
+    // Only YouTube's own player path is fetched and run: the solver runs
+    // the player's code, so a page naming a script elsewhere is not
+    // followed there.
+    let js_url = facts
+        .player_js
+        .as_deref()
+        .map(|named| {
+            named
+                .strip_prefix("https://www.youtube.com")
+                .unwrap_or(named)
+        })
+        .filter(|path| player_path(path))
+        .map(|path| format!("{origin}{path}"));
     let fetch_script = |url: String| async move {
         let script = crate::redirects::send(
             client
@@ -1173,13 +1193,16 @@ async fn run_js(program: &str, staging: &Path) -> Result<String, Error> {
     let file = staging.join(format!(".dm-solver-{}.js", std::process::id()));
     crate::ytdlp::write_private(&file, program).await?;
     let _gone = crate::ytdlp::RemoveOnDrop(file.clone());
-    let mut command = match (quickjs, crate::ytdlp::deno()) {
-        (Some(qjs), _) => {
+    // Deno first where it is installed: run with no permissions it can
+    // reach neither files nor programs, which QuickJS's command line does
+    // not prevent.
+    let mut command = match (crate::ytdlp::deno(), quickjs) {
+        (None, Some(qjs)) => {
             let mut c = tokio::process::Command::new(qjs);
             c.arg(&file);
             c
         }
-        (None, Some(deno)) => {
+        (Some(deno), _) => {
             let mut c = tokio::process::Command::new(deno);
             c.args([
                 "run",
@@ -1389,6 +1412,17 @@ mod tests {
             .iter()
             .filter_map(Format::of)
             .collect()
+    }
+
+    #[test]
+    fn only_youtubes_own_player_script_is_fetched() {
+        assert!(player_path(
+            "/s/player/abcd1234/player_ias.vflset/en_US/base.js"
+        ));
+        assert!(!player_path("/s/player/../../evil.js"));
+        assert!(!player_path("//evil.example/s/player/x/base.js"));
+        assert!(!player_path("/elsewhere/base.js"));
+        assert!(!player_path("/s/player/x/base.js?y=1"));
     }
 
     #[test]

@@ -488,7 +488,7 @@ async fn get_range(
     if response.content_length().is_some_and(|len| len != expected) {
         return Err(Error::DishonestRanges);
     }
-    let mut bytes = Vec::with_capacity(expected as usize);
+    let mut bytes = Vec::with_capacity(expected.min(4 << 20) as usize);
     while let Some(chunk) = response.chunk().await? {
         if bytes.len() as u64 + chunk.len() as u64 > expected {
             return Err(Error::DishonestRanges);

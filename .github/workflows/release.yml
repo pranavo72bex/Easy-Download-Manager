@@ -75,12 +75,13 @@ jobs:
         continue-on-error: true
         run: |
           set -e
-          git archive --format=zip -o dist/source.zip HEAD
+          # Outside dist/: whatever happens below, the source archive is
+          # never among the release's files.
+          git archive --format=zip -o "$RUNNER_TEMP/source.zip" HEAD
           npx --yes web-ext@8.3.0 sign --channel=listed \
             --source-dir dist/firefox --artifacts-dir dist/signed \
-            --upload-source-code dist/source.zip \
+            --upload-source-code "$RUNNER_TEMP/source.zip" \
             --api-key "$AMO_JWT_ISSUER" --api-secret "$AMO_JWT_SECRET"
-          rm dist/source.zip
           # Mozilla names the file after the add-on; named as the README says.
           for x in dist/signed/*.xpi; do mv "$x" "dist/signed/dm-firefox-${GITHUB_REF_NAME#v}.xpi"; done
           ls dist/signed
