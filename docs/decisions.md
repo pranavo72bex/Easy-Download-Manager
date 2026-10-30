@@ -3107,3 +3107,22 @@ panel's "did not answer" note (harmless otherwise), and the packaged
 yt-dlp is not pinned to a digest in the repository (gaps row 50).
 Network drop (25 s, 100 s) and a 45 s freeze of dm complete byte-exact.
 
+## 2026-10-30: yt-dlp out of the box, as the clean-room specification recommends
+
+From `docs/clean-room-download-engine-spec.md`: the other macOS manager
+ships yt-dlp in its bundle, signed with its own Developer ID, and runs a
+copy in its support folder that carries no quarantine mark. dm now ships
+the pinned build in every package and copies it into its tools folder on
+first use (`tools::adopt`, `ditto --noextattr --noqtn` on macOS, then any
+quarantine attribute removed and its absence checked), running it from
+there. Found while checking it: `ditto --noqtn` alone kept the quarantine
+attribute, and the quarantined copy hung the download for four minutes;
+and the shipped-copy lookup missed the build's own program name
+(`yt-dlp_macos`) beside the program. A Developer ID for dm stays the
+maintainer's to buy; until then the copy is what keeps macOS from asking.
+
+Retry timing: 15 s apart after the fifth try instead of 30, with 15 tries
+by default instead of 10, so the give-up horizon stays near three minutes
+while a returning server is found within 15 s. Existing settings files
+keep the 10 they saved, which now outlasts about 90 s.
+

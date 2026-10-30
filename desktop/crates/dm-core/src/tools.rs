@@ -213,7 +213,7 @@ fn on_musl() -> bool {
 
 /// The program inside an unpacked build's folder: named as its archive is,
 /// except Windows's, which is `yt-dlp.exe`.
-fn unpacked_program(asset: &str) -> String {
+pub(crate) fn unpacked_program(asset: &str) -> String {
     if asset.starts_with("yt-dlp_win") {
         "yt-dlp.exe".into()
     } else {
@@ -376,6 +376,89 @@ fn unpacked_dir(os: &str) -> &'static str {
         "windows" => "yt-dlp-windows",
         _ => "yt-dlp-linux",
     }
+}
+
+/// The yt-dlp shipped inside dm's own package (`bundled`, the program in
+/// its unpacked folder) copied into dm's tools folder, where a fetched one
+/// would be, and that copy's program returned: whole or not at all, once.
+///
+/// The copy is dm's own writing, so it carries no quarantine mark however
+/// dm itself arrived, and it is where dm's updates replace it later; the
+/// shipped folder is never written to (an installed app's is read-only, or
+/// is translocated). `None` where there is no tools folder or the copy
+/// fails, and the caller runs the shipped one in place.
+pub(crate) fn adopt(bundled: &Path) -> Option<PathBuf> {
+    static ONE: std::sync::Mutex<()> = std::sync::Mutex::new(());
+    let _one = crate::lock(&ONE);
+    if let Some(done) = fetched("yt-dlp") {
+        return Some(done);
+    }
+    let folder = folder()?;
+    let source = bundled.parent()?;
+    let into = folder.join(unpacked_dir(std::env::consts::OS));
+    let staging = into.with_extension("adopting");
+    let _ = std::fs::remove_dir_all(&staging);
+    std::fs::create_dir_all(folder).ok()?;
+    let copied = if cfg!(target_os = "macos") {
+        // `ditto` with no extended attributes: the signatures are in the
+        // files themselves, and the quarantine mark a browser put on a
+        // downloaded dm (which `--noqtn` alone kept, seen 2026-10-30) is
+        // left behind, so macOS never stops the copy to ask.
+        std::process::Command::new("/usr/bin/ditto")
+            .args(["--noextattr", "--noqtn"])
+            .arg(source)
+            .arg(&staging)
+            .status()
+            .is_ok_and(|s| s.success())
+            && unquarantined(&staging)
+    } else {
+        copy_tree(source, &staging).is_ok()
+    };
+    let name = bundled.file_name()?;
+    if !copied || !staging.join(name).is_file() {
+        let _ = std::fs::remove_dir_all(&staging);
+        return None;
+    }
+    let _ = std::fs::remove_dir_all(&into);
+    if std::fs::rename(&staging, &into).is_err() {
+        let _ = std::fs::remove_dir_all(&staging);
+        return None;
+    }
+    fetched("yt-dlp")
+}
+
+/// Whether nothing under `dir` still carries macOS's quarantine mark,
+/// after removing any that does.
+fn unquarantined(dir: &Path) -> bool {
+    let _ = std::process::Command::new("/usr/bin/xattr")
+        .args(["-d", "-r", "com.apple.quarantine"])
+        .arg(dir)
+        .stderr(std::process::Stdio::null())
+        .status();
+    std::process::Command::new("/usr/bin/xattr")
+        .args(["-r", "-l"])
+        .arg(dir)
+        .output()
+        .is_ok_and(|out| !String::from_utf8_lossy(&out.stdout).contains("com.apple.quarantine"))
+}
+
+/// `from` copied whole into `to`, file modes kept.
+fn copy_tree(from: &Path, to: &Path) -> std::io::Result<()> {
+    std::fs::create_dir_all(to)?;
+    for entry in std::fs::read_dir(from)? {
+        let entry = entry?;
+        let target = to.join(entry.file_name());
+        let kind = entry.file_type()?;
+        if kind.is_dir() {
+            copy_tree(&entry.path(), &target)?;
+        } else if kind.is_symlink() {
+            #[cfg(unix)]
+            std::os::unix::fs::symlink(std::fs::read_link(entry.path())?, &target)?;
+        } else {
+            std::fs::copy(entry.path(), &target)?;
+        }
+    }
+    Ok(())
 }
 
 /// Whether `path` is a copy dm fetched (under its tools folder).
@@ -632,9 +715,12 @@ pub async fn for_video(client: &reqwest::Client) -> Result<(), String> {
         }
     };
     let (ytdlp, ()) = tokio::join!(ensure(client, Tool::YtDlp), engine);
-    ytdlp
-        .map(|_| ())
-        .map_err(|e| format!("dm's video helper could not be got ready ({e})"))
+    ytdlp.map(|_| ()).map_err(|e| {
+        format!(
+            "dm's video helper could not be fetched from yt-dlp's releases on GitHub ({e}): \
+                 check the connection or the proxy in Options › Proxy, or install yt-dlp yourself"
+        )
+    })
 }
 
 /// Whether yt-dlp is there, or dm would fetch it when a page needs it.
@@ -959,5 +1045,35 @@ mod tests {
         let into = dir.path().join("out");
         assert!(unpack_portable(&zip, &into).is_err());
         assert!(!dir.path().join("escaped").exists());
+    }
+}
+
+#[cfg(test)]
+mod adopt_tests {
+    use super::*;
+
+    #[test]
+    fn a_shipped_yt_dlp_is_copied_into_the_tools_folder_whole_once() {
+        let dir = tempfile::tempdir().unwrap();
+        let shipped = dir.path().join("Resources/yt-dlp");
+        std::fs::create_dir_all(shipped.join("_internal/lib")).unwrap();
+        let name = unpacked_program(
+            ytdlp_asset_for(std::env::consts::OS, std::env::consts::ARCH, on_musl())
+                .unwrap_or("yt-dlp_linux.zip"),
+        );
+        std::fs::write(shipped.join(&name), b"program").unwrap();
+        std::fs::write(shipped.join("_internal/lib/x.so"), b"library").unwrap();
+        set_folder(dir.path().join("tools"));
+        let adopted = adopt(&shipped.join(&name)).expect("copied");
+        assert!(adopted.starts_with(dir.path().join("tools")));
+        assert!(is_fetched(&adopted));
+        let unpacked = adopted.parent().unwrap();
+        assert_eq!(
+            std::fs::read(unpacked.join("_internal/lib/x.so")).unwrap(),
+            b"library"
+        );
+        // Asked again, the copy is used, not made twice.
+        std::fs::remove_file(shipped.join(&name)).unwrap();
+        assert_eq!(adopt(&shipped.join(&name)), Some(adopted));
     }
 }

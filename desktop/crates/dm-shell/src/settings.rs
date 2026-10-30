@@ -319,7 +319,7 @@ fn default_true() -> bool {
 }
 
 fn default_attempts() -> u32 {
-    10
+    15
 }
 
 fn default_read_timeout() -> u64 {

@@ -511,8 +511,8 @@ fn attempts_timeouts_and_site_limits_are_held_to_what_the_engine_takes() {
         0
     );
     let d = Settings::default();
-    assert_eq!((d.attempts, d.read_timeout), (10, 30));
-    assert_eq!(d.options(PathBuf::new(), Limiter::unlimited()).attempts, 10);
+    assert_eq!((d.attempts, d.read_timeout), (15, 30));
+    assert_eq!(d.options(PathBuf::new(), Limiter::unlimited()).attempts, 15);
 }
 
 #[test]

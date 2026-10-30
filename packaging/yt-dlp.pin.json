@@ -1,0 +1,10 @@
+{
+  "tag": "2026.10.26",
+  "sha256": {
+    "yt-dlp_macos.zip": "20d98fa608998eff87d1d35a6e9fb65e4b874639a6cc89addc19da3becde3ef1",
+    "yt-dlp_win.zip": "fd51b212cf8380c7a52ee08c0d6be7f3c59b2f2c832eaf7b45acfae6eab57419",
+    "yt-dlp_win_arm64.zip": "5eaa4c61f3c09189f3a551bf1855c13aad61fb865cc33f06012a6c2dbe287a45",
+    "yt-dlp_linux.zip": "f34053415136e55073dd64ba5326d161ecc23ce0e98c081d8752867b37809450",
+    "yt-dlp_linux_aarch64.zip": "74708e707e8fa8177c8347e58152337edf320149cd7b225defd453f7cde47822"
+  }
+}

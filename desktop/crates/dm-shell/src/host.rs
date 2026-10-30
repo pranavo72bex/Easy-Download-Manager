@@ -784,6 +784,13 @@ pub fn answer(
                     &id,
                     "dm downloads http(s) and ftp links, magnets and .torrent files only",
                 )
+            } else if let Some(why) = caught
+                .then(|| unwritable(&saved(home).download_dir))
+                .flatten()
+            {
+                // A download the browser holds is left with it when dm could
+                // not save it anyway: taken, it would sit paused in dm.
+                Reply::failed(&id, why)
             } else if let Some(why) = checked(
                 world,
                 // Not asked about first where the person said the site's
@@ -852,6 +859,21 @@ pub fn answer(
         Err(_) => return None,
     };
     Some(reply.to_frame())
+}
+
+/// Why dm may not save into `folder`, or `None` where it may: made where
+/// it is missing, and a file written in it and taken away again.
+pub(crate) fn unwritable(folder: &Path) -> Option<String> {
+    let probe = folder.join(format!(".dm-write-check-{}", std::process::id()));
+    let tried = std::fs::create_dir_all(folder).and_then(|()| std::fs::write(&probe, b""));
+    let _ = std::fs::remove_file(&probe);
+    tried.err().map(|e| {
+        format!(
+            "dm may not save into its download folder {} ({e}), so the browser keeps the \
+             download; choose another folder in dm's Options › Folders",
+            folder.display()
+        )
+    })
 }
 
 /// Why a hand-off must not be taken, or `None` when it can be filed.

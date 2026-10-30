@@ -4,15 +4,16 @@ release and unpacked into a folder, for packaging inside dm's installers:
 
     python3 scripts/fetch-ytdlp.py desktop/crates/dm-desktop/resources/yt-dlp
 
-dm looks there (`ytdlp::bundled`) after an installed or fetched copy, so
-the first video on a fresh install needs no fetch; a newer copy dm fetches
-after a failure takes its place. The build is the one dm would fetch itself
-(`tools::ytdlp_asset_for`), checked against the release's SHA2-256SUMS.
+dm copies it into its own tools folder on first use (`tools::adopt`), so
+the first video on a fresh install needs no fetch; newer releases dm
+fetches later take its place. The release and each build's SHA-256 are
+pinned in packaging/yt-dlp.pin.json, bumped by a commit: a build that does
+not match fails the packaging, rather than shipping whatever `latest` is.
 Standard library only.
 """
 import hashlib, io, json, pathlib, platform, shutil, stat, sys, urllib.request, zipfile
 
-RELEASE = "https://api.github.com/repos/yt-dlp/yt-dlp/releases/latest"
+PIN = pathlib.Path(__file__).resolve().parent.parent / "packaging" / "yt-dlp.pin.json"
 
 
 def asset_name():
@@ -32,19 +33,18 @@ def main():
         sys.exit(__doc__)
     dest = pathlib.Path(sys.argv[1])
     name = asset_name()
+    pin = json.loads(PIN.read_text())
+    tag, want = pin["tag"], pin["sha256"].get(name)
+    if not want:
+        sys.exit(f"{PIN} pins no digest for {name}")
     agent = {"User-Agent": "dm-packaging (+https://github.com/pranavo72bex/Easy-Download-Manager)"}
-    with urllib.request.urlopen(urllib.request.Request(RELEASE, headers=agent), timeout=60) as reply:
-        release = json.load(reply)
-    assets = {a["name"]: a["browser_download_url"] for a in release["assets"]}
-    if name not in assets:
-        sys.exit(f"release {release['tag_name']} has no {name}")
-    with urllib.request.urlopen(urllib.request.Request(assets["SHA2-256SUMS"], headers=agent), timeout=60) as reply:
-        sums = dict(line.split()[::-1] for line in reply.read().decode().splitlines() if len(line.split()) == 2)
-    print(f"fetching {name} from yt-dlp {release['tag_name']}", flush=True)
-    with urllib.request.urlopen(urllib.request.Request(assets[name], headers=agent), timeout=600) as reply:
+    url = f"https://github.com/yt-dlp/yt-dlp/releases/download/{tag}/{name}"
+    print(f"fetching {name} from yt-dlp {tag}", flush=True)
+    with urllib.request.urlopen(urllib.request.Request(url, headers=agent), timeout=600) as reply:
         data = reply.read()
-    if sums.get(name) != hashlib.sha256(data).hexdigest():
-        sys.exit(f"{name} does not match the release's checksum")
+    got = hashlib.sha256(data).hexdigest()
+    if got != want:
+        sys.exit(f"{name} from {tag} is {got}, not the pinned {want}")
     if dest.exists():
         shutil.rmtree(dest)
     dest.mkdir(parents=True)
@@ -60,8 +60,8 @@ def main():
     for program in dest.iterdir():
         if program.is_file() and program.name.startswith("yt-dlp"):
             program.chmod(program.stat().st_mode | stat.S_IXUSR | stat.S_IXGRP | stat.S_IXOTH)
-    (dest / "VERSION").write_text(release["tag_name"] + "\n")
-    print(f"unpacked into {dest} ({release['tag_name']})")
+    (dest / "VERSION").write_text(tag + "\n")
+    print(f"unpacked into {dest} ({tag})")
 
 
 if __name__ == "__main__":

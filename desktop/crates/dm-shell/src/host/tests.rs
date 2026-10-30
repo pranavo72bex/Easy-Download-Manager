@@ -1085,3 +1085,26 @@ fn the_page_reading_helper_ignores_what_is_not_a_page() {
         "a reading was made of what is not a page"
     );
 }
+
+#[cfg(unix)]
+#[test]
+fn a_folder_dm_may_not_write_to_is_said_before_a_download_is_taken() {
+    use std::os::unix::fs::PermissionsExt;
+    let dir = tempfile::tempdir().unwrap();
+    assert_eq!(
+        unwritable(&dir.path().join("made/now")),
+        None,
+        "a missing folder is made"
+    );
+    let locked = dir.path().join("locked");
+    std::fs::create_dir(&locked).unwrap();
+    std::fs::set_permissions(&locked, std::fs::Permissions::from_mode(0o555)).unwrap();
+    let said = unwritable(&locked);
+    std::fs::set_permissions(&locked, std::fs::Permissions::from_mode(0o755)).unwrap();
+    let said = said.expect("refused");
+    assert!(said.contains("the browser keeps the download"), "{said}");
+    assert!(
+        std::fs::read_dir(&locked).unwrap().next().is_none(),
+        "nothing left behind"
+    );
+}

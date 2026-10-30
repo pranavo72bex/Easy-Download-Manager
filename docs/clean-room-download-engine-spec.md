@@ -238,3 +238,26 @@ All **Observed** on this computer:
    does: fetched, then bundled).
 4. Say plainly in the window when neither copy can run, and why, instead
    of a generic failure.
+
+---
+
+## Side by side, after the recommendations were implemented (2026-10-30)
+
+Same computer, same local test servers, one manager after the other.
+
+| Case | dm | The other macOS manager | Better |
+|---|---|---|---|
+| 168 MB, each connection held to 1 MB/s | 21.1 s (8 connections, its default) | 40.6 s, 16 s of it waiting in its queue | dm |
+| A 19 s YouTube video | 3.9 s, no yt-dlp run | 45 s | dm |
+| Server gone 40 s at 30%, then back | bytes again 16.3 s after it returned | 21 s after | dm |
+| Download folder not writable, from the window | paused within 0.6 s, saying the folder and both ways on | refused at hand-off | equal |
+| Download folder not writable, caught in the browser | left with the browser, with words | left with the browser | equal |
+| First video on a computer with no yt-dlp and no network to GitHub | the shipped copy, adopted unquarantined: 41 s | its shipped copy | equal |
+| A file that is gone (404) | fails at once, in words | fails at once, in words | equal |
+
+**Observed** for every dm row in this run. The other manager's rows were
+recorded earlier the same day under the same setups: its engine stopped
+starting new jobs during this run (every new job stayed queued, starting
+just after the read-only folder test). Restarting it would have meant
+changing its state, which was declined, so it was left as it was.
+

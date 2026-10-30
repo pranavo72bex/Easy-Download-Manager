@@ -96,11 +96,14 @@ pub fn backoff(attempt: u32, retry_after: Option<Duration>) -> Duration {
     }
 
     let base = Duration::from_millis(500 * 2u64.saturating_pow(attempt).min(64));
-    // Quick at first, for a dropped connection; then half a minute apart,
-    // so the attempts a person allows outlast a router restarting or Wi-Fi
-    // coming back: five quick ones were spent in twenty seconds and the
-    // download failed for good.
-    let capped = base.min(Duration::from_secs(if attempt < 5 { 8 } else { 30 }));
+    // Quick at first, for a dropped connection; then fifteen seconds apart,
+    // so a server or a network that comes back is found within that (the
+    // other macOS manager resumed 21 s after a server returned, dm took 32
+    // at half a minute apart), while the fifteen attempts a person has by
+    // default still outlast a router restarting or Wi-Fi coming back: five
+    // quick ones were spent in twenty seconds and the download failed for
+    // good.
+    let capped = base.min(Duration::from_secs(if attempt < 5 { 8 } else { 15 }));
 
     // Deterministic jitter from the attempt number: no RNG dependency, and
     // enough spread to break the lockstep.
@@ -386,13 +389,14 @@ mod tests {
         let first = backoff(0, None);
         let later = backoff(3, None);
         assert!(later > first, "backoff should grow");
-        // Ten attempts outlast a couple of minutes without a network.
-        let waited: Duration = (1..10).map(|a| backoff(a, None)).sum();
+        // The fifteen attempts a person has by default outlast a couple of
+        // minutes without a network.
+        let waited: Duration = (1..15).map(|a| backoff(a, None)).sum();
         assert!(waited >= Duration::from_secs(120), "{waited:?}");
         assert!(backoff(4, None) <= Duration::from_secs(9), "quick at first");
         assert!(
-            backoff(20, None) <= Duration::from_secs(31),
-            "and then stop"
+            backoff(20, None) <= Duration::from_secs(16),
+            "and then stop, near enough to find the server back soon"
         );
     }
 

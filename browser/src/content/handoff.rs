@@ -225,16 +225,23 @@ pub(super) fn clicked() {
     // YouTube's own player lists its qualities in a moment: shown at once,
     // and the app's reading, with each one's size, takes the list's place
     // when it comes. A list already clicked is left alone.
+    // Whatever goes wrong behind the click (the background asleep, the app
+    // not answering, a helper that never returns), the panel does not stay
+    // on "Reading qualities…": past the longest the app may take, it says so
+    // and gives the click back. A list the player gave stays.
+    let answered = std::rc::Rc::new(std::cell::Cell::new(false));
     let fast = std::rc::Rc::new(std::cell::Cell::new(false));
     if let Some(id) = decide::youtube_video_id(&frame) {
         let (src, frame, fast) = (src.clone(), frame.clone(), std::rc::Rc::clone(&fast));
+        let answered = std::rc::Rc::clone(&answered);
         wasm_bindgen_futures::spawn_local(async move {
             let Ok(data) = JsFuture::from(player_answer()).await else {
                 return;
             };
             let heights = heights_answered(&data, &id);
-            // Still waiting on the app, and a choice worth making.
-            let waiting = with_panel(|p| p.settled).unwrap_or(false);
+            // Still waiting on the app (its answer not come, nothing handed
+            // over), and a choice worth making.
+            let waiting = !answered.get() && with_panel(|p| p.settled).unwrap_or(false);
             if heights.len() < 2 || !waiting {
                 return;
             }
@@ -246,11 +253,6 @@ pub(super) fn clicked() {
             list(&src, &frame, &lines_of_heights(&heights));
         });
     }
-    // Whatever goes wrong behind the click (the background asleep, the app
-    // not answering, a helper that never returns), the panel does not stay
-    // on "Reading qualities…": past the longest the app may take, it says so
-    // and gives the click back. A list the player gave stays.
-    let answered = std::rc::Rc::new(std::cell::Cell::new(false));
     {
         let answered = std::rc::Rc::clone(&answered);
         let fast = std::rc::Rc::clone(&fast);

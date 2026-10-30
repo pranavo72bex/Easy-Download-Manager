@@ -74,6 +74,28 @@ pub fn usable() -> bool {
     binary().is_some()
 }
 
+/// Why yt-dlp at `path` would not start, in words a person can act on:
+/// the system's own words kept in brackets.
+fn would_not_start(path: &Path, error: &std::io::Error) -> String {
+    let why = match error.kind() {
+        std::io::ErrorKind::NotFound => {
+            "its program is gone from dm's tools folder; dm fetches it again at the next video"
+        }
+        std::io::ErrorKind::PermissionDenied => {
+            "the system will not let it run: its folder may not allow programs (a noexec temporary \
+             folder), or the security software blocked it"
+        }
+        _ if error.raw_os_error() == Some(86) || error.raw_os_error() == Some(8) => {
+            "it is built for another kind of processor"
+        }
+        _ => "it would not start",
+    };
+    format!(
+        "dm's video helper (yt-dlp, at {}) {why} ({error})",
+        path.display()
+    )
+}
+
 /// Where yt-dlp actually is, resolved the same way `available` decides.
 pub(crate) fn binary() -> Option<PathBuf> {
     let found = which("yt-dlp");
@@ -90,7 +112,10 @@ pub(crate) fn binary() -> Option<PathBuf> {
             return Some(found);
         }
     }
-    crate::tools::fetched("yt-dlp").or_else(bundled)
+    // A shipped one is copied into the tools folder on first use and run
+    // from there (`tools::adopt`); in place only where that copy fails.
+    crate::tools::fetched("yt-dlp")
+        .or_else(|| bundled().map(|shipped| crate::tools::adopt(&shipped).unwrap_or(shipped)))
 }
 
 /// The yt-dlp shipped inside dm's own package, where the packaging put one
@@ -106,34 +131,39 @@ fn bundled() -> Option<PathBuf> {
 /// Where a shipped yt-dlp may be, for the program at `exe`.
 fn bundled_in(exe: &Path) -> Vec<PathBuf> {
     let dir = exe.parent().map(Path::to_path_buf).unwrap_or_default();
-    let name = if cfg!(windows) {
-        "yt-dlp.exe"
-    } else {
-        "yt-dlp"
-    };
-    let mut places = vec![
-        dir.join("yt-dlp").join(name),
-        dir.join("resources").join("yt-dlp").join(name),
-        dir.join("resources").join("yt-dlp").join("yt-dlp_macos"),
-    ];
+    // The folders a package puts it in: beside the program, under its
+    // resources (as cargo-packager lays them out, with or without the
+    // `resources/` it was given), in a macOS bundle's Resources, and in a
+    // Linux package's own folders.
+    let mut folders = vec![dir.join("yt-dlp"), dir.join("resources").join("yt-dlp")];
     if cfg!(target_os = "macos") {
-        // dm.app/Contents/MacOS/dm-desktop: the bundle's Resources.
-        let resources = dir.join("..").join("Resources").join("yt-dlp");
-        places.push(resources.join("yt-dlp_macos"));
-        places.push(resources.join(name));
+        let resources = dir.join("..").join("Resources");
+        folders.push(resources.join("yt-dlp"));
+        folders.push(resources.join("resources").join("yt-dlp"));
     } else if cfg!(target_os = "linux") {
-        // /usr/bin/dm-desktop: the package's own folders.
         for lib in ["lib", "share"] {
-            places.push(
-                dir.join("..")
-                    .join(lib)
-                    .join("dm")
-                    .join("yt-dlp")
-                    .join(name),
-            );
+            folders.push(dir.join("..").join(lib).join("dm").join("yt-dlp"));
         }
     }
-    places
+    // The program as yt-dlp's unpacked build for this computer names it
+    // (`yt-dlp_macos`), then the plain name.
+    let mut names: Vec<String> =
+        crate::tools::ytdlp_asset(std::env::consts::OS, std::env::consts::ARCH)
+            .map(crate::tools::unpacked_program)
+            .into_iter()
+            .collect();
+    names.push(
+        if cfg!(windows) {
+            "yt-dlp.exe"
+        } else {
+            "yt-dlp"
+        }
+        .to_string(),
+    );
+    folders
+        .iter()
+        .flat_map(|folder| names.iter().map(move |name| folder.join(name)))
+        .collect()
 }
 
 /// How old an installed yt-dlp may be before dm prefers its own: YouTube
@@ -953,7 +983,7 @@ async fn download_ytdlp_once(
 
     let mut child = command
         .spawn()
-        .map_err(|e| Error::Internal(format!("yt-dlp would not start: {e}")))?;
+        .map_err(|e| Error::Internal(would_not_start(&binary, &e)))?;
     // Declared after the child, so dropped before it: the group is ended
     // while yt-dlp, its leader, is still there to name it.
     let mut tree = Tree::of(child.id());
@@ -1585,19 +1615,20 @@ mod tests {
             Path::new("/usr/bin/dm-desktop")
         };
         let places = bundled_in(exe);
-        let name = if cfg!(windows) {
-            "yt-dlp.exe"
-        } else {
-            "yt-dlp"
-        };
-        assert_eq!(places[0], exe.parent().unwrap().join("yt-dlp").join(name));
+        // This computer's unpacked build's own name first, beside the program.
+        let own = crate::tools::ytdlp_asset(std::env::consts::OS, std::env::consts::ARCH)
+            .map(crate::tools::unpacked_program)
+            .unwrap_or_else(|| "yt-dlp".into());
+        assert_eq!(places[0], exe.parent().unwrap().join("yt-dlp").join(&own));
         if cfg!(target_os = "macos") {
             assert!(places
                 .iter()
                 .any(|p| p.ends_with("Resources/yt-dlp/yt-dlp_macos")));
         }
         if cfg!(target_os = "linux") {
-            assert!(places.iter().any(|p| p.ends_with("lib/dm/yt-dlp/yt-dlp")));
+            assert!(places
+                .iter()
+                .any(|p| p.starts_with("/usr/bin/../lib/dm/yt-dlp")));
         }
         assert!(bundled_in(Path::new("dm-desktop"))
             .iter()
@@ -1804,5 +1835,19 @@ tmpfs /tmp2 tmpfs rw,noexec 0 0
     fn no_table_is_no_noexec() {
         assert!(!on_noexec_mount("", Path::new("/tmp")));
         assert!(!on_noexec_mount("garbage", Path::new("/tmp")));
+    }
+}
+
+#[cfg(test)]
+mod start_words {
+    #[test]
+    fn a_helper_that_will_not_start_says_why() {
+        let path = std::path::Path::new("/tools/yt-dlp");
+        let denied = std::io::Error::from(std::io::ErrorKind::PermissionDenied);
+        assert!(super::would_not_start(path, &denied).contains("will not let it run"));
+        let gone = std::io::Error::from(std::io::ErrorKind::NotFound);
+        assert!(super::would_not_start(path, &gone).contains("fetches it again"));
+        let arch = std::io::Error::from_raw_os_error(86);
+        assert!(super::would_not_start(path, &arch).contains("another kind of processor"));
     }
 }
