@@ -949,7 +949,7 @@ async fn packed_audio_from_tokenised_addresses_is_saved_as_aac() {
             }),
         )
         .route(
-            "/radio/seg/:n",
+            "/radio/seg/{n}",
             axum::routing::get(
                 |axum::extract::Path(n): axum::extract::Path<u8>| async move {
                     ([("content-type", "application/octet-stream")], frames(n))

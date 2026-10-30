@@ -41,7 +41,7 @@ pub(super) async fn fetch_choices(
     proxy: Option<&str>,
     sign_in: Option<&crate::cookies::SignIn>,
 ) -> Option<Vec<Choice>> {
-    let mut builder = reqwest::Client::builder()
+    let mut builder = crate::with_tls(reqwest::Client::builder())
         .user_agent(
             "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 \
              (KHTML, like Gecko) Chrome/130.0.0.0 Safari/537.36",

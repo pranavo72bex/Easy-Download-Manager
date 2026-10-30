@@ -193,9 +193,9 @@ async fn relay_rtmpt(listener: tokio::net::TcpListener, rtmp_port: u16) {
     };
     let app = axum::Router::new()
         .route("/open/1", axum::routing::post(open))
-        .route("/send/:id/:n", axum::routing::post(send))
-        .route("/idle/:id/:n", axum::routing::post(idle))
-        .route("/close/:id/:n", axum::routing::post(|| async { "" }))
+        .route("/send/{id}/{n}", axum::routing::post(send))
+        .route("/idle/{id}/{n}", axum::routing::post(idle))
+        .route("/close/{id}/{n}", axum::routing::post(|| async { "" }))
         .with_state(shared);
     axum::serve(listener, app).await.unwrap();
 }

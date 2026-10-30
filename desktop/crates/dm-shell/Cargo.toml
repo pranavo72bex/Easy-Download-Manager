@@ -28,7 +28,7 @@ libc = "0.2"
 proptest = "1"
 tokio = { version = "1", features = ["full"] }
 tempfile = "3"
-axum = "0.7"
+axum = "0.8"
 
 # A browser's pipes to the native host, kept from the dm it starts
 # (`host::launch_desktop`): inherited, they held the host's answer open.

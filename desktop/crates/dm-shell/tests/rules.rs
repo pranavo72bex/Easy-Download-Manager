@@ -12,7 +12,7 @@ use dm_core::{Categories, Control, Limiter, Options, Queue, State};
 async fn a_held_download_goes_on_when_the_limit_lets_it() {
     let files = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
     let served = files.local_addr().unwrap();
-    let app = axum::Router::new().route("/:name", get(|| async { vec![7u8; 4096] }));
+    let app = axum::Router::new().route("/{name}", get(|| async { vec![7u8; 4096] }));
     tokio::spawn(async move { axum::serve(files, app).await.unwrap() });
 
     let dir = tempfile::tempdir().unwrap();

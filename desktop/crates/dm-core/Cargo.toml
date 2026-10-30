@@ -12,7 +12,10 @@ tokio = { version = "1", features = ["rt-multi-thread", "macros", "fs", "io-util
 # build on a machine without libssl headers is one nobody can package.
 # `socks`, or a SOCKS proxy in the settings failed every HTTP download with
 # "unsupported scheme".
-reqwest = { version = "0.12", default-features = false, features = ["stream", "rustls-tls", "system-proxy", "socks"] }
+# 0.13, as the torrent library has it, so one reqwest is built; its TLS is
+# handed the same rustls set-up as the stream protocols (`tls_backend`):
+# ring and the public roots, as 0.12's `rustls-tls` had it.
+reqwest = { version = "0.13", default-features = false, features = ["stream", "rustls-no-provider", "system-proxy", "socks"] }
 # FTP through a SOCKS proxy: the handshake, after which the connection is a
 # plain one. HTTP CONNECT is a few lines and is written here.
 tokio-socks = "0.5"
@@ -76,7 +79,7 @@ windows-sys = { version = "0.61", features = ["Win32_Storage_FileSystem"] }
 # on stable Rust inside cargo test.
 proptest = "1"
 tokio = { version = "1", features = ["full"] }
-axum = "0.7"
+axum = "0.8"
 rand = "0.8"
 # Cleans up after itself. The hand-rolled version left a directory of
 # downloaded parts behind on every run.

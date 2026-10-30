@@ -3186,3 +3186,18 @@ plainly, as on Linux without bubblewrap. `DM_SANDBOX=0` turns it off.
 Checked: a hidden file reads as not permitted, outside its folders nothing
 writes, its staging writes; Dailymotion (HLS, through dm) and YouTube (with
 Deno) downloads complete with both the Homebrew and the shipped build.
+
+## One reqwest and one axum (2026-10-31)
+
+`cargo tree --duplicates` listed crates twice, some from dm's own manifests.
+What reached the shipped binary was reqwest: 0.12 from `dm-core` beside the
+torrent library's 0.13. `dm-core` now asks for 0.13 built without a TLS
+provider of its own (`rustls-no-provider`), and every client is handed the
+set-up the stream protocols already use (`with_tls`, `rtmp::tls_config`):
+ring and the public roots, as 0.12's `rustls-tls` had them, so which
+certificates are trusted is unchanged. Release binary 24,687,328 to 24,405,792
+bytes (275 KB less); duplicate crates in a normal build 66 to 64; the 14 real
+sites pass. axum 0.7 was a test dependency only, beside the 0.8 the torrent
+library brings: the tests moved to 0.8 (`{capture}` paths), one axum built.
+`dirs` 6 comes from `auto-launch`, not from a manifest of dm's. Clean build
+time was not measured.

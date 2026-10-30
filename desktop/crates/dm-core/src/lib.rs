@@ -518,6 +518,17 @@ pub fn builder() -> reqwest::ClientBuilder {
     builder_with(READ_TIMEOUT, false)
 }
 
+/// `builder` given dm's TLS: rustls with ring and the public roots, the
+/// set-up the stream protocols use (`rtmp::tls_config`). Every
+/// client is built through this: reqwest is built without a TLS provider of
+/// its own, so one without it could not reach an `https://` address.
+pub fn with_tls(builder: reqwest::ClientBuilder) -> reqwest::ClientBuilder {
+    match crate::rtmp::tls_config() {
+        Ok(config) => builder.tls_backend_preconfigured((*config).clone()),
+        Err(_) => builder,
+    }
+}
+
 /// How long a connection may send nothing before it is given up on, unless
 /// a setting says otherwise. Long enough for a server assembling a file;
 /// short enough that a pause is honoured within it.
@@ -544,7 +555,7 @@ pub fn builder_with(
     read_timeout: std::time::Duration,
     system_proxy: bool,
 ) -> reqwest::ClientBuilder {
-    let builder = reqwest::Client::builder();
+    let builder = with_tls(reqwest::Client::builder());
     let builder = if system_proxy {
         builder
     } else {
@@ -843,8 +854,20 @@ mod redirect_tests {
         let plain = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
         let plain_port = plain.local_addr().unwrap().port();
         let (port, cert) = sending_on(format!("http://127.0.0.1:{plain_port}/f.bin")).await;
+        // dm's own set-up, but trusting this server's certificate alone.
+        let mut roots = rustls::RootCertStore::empty();
+        roots
+            .add(rustls::pki_types::CertificateDer::from(cert))
+            .unwrap();
+        let trusting = rustls::ClientConfig::builder_with_provider(std::sync::Arc::new(
+            rustls::crypto::ring::default_provider(),
+        ))
+        .with_safe_default_protocol_versions()
+        .unwrap()
+        .with_root_certificates(roots)
+        .with_no_client_auth();
         let client = super::builder()
-            .add_root_certificate(reqwest::Certificate::from_der(&cert).unwrap())
+            .tls_backend_preconfigured(trusting)
             .build()
             .unwrap();
         let refused = super::redirects::send(client.get(format!("https://localhost:{port}/f.bin")))
@@ -856,6 +879,24 @@ mod redirect_tests {
         let asked =
             tokio::time::timeout(std::time::Duration::from_millis(200), plain.accept()).await;
         assert!(asked.is_err(), "the plain address was fetched");
+    }
+
+    /// Every client dm builds has its TLS (reqwest is built without a
+    /// provider of its own): a secure server answers it, and one whose
+    /// certificate the public roots do not vouch for is refused.
+    #[tokio::test]
+    async fn a_client_dm_builds_speaks_tls_with_the_public_roots_alone() {
+        let (port, _) = sending_on("http://127.0.0.1:9/x".into()).await;
+        let client = super::builder().build().unwrap();
+        let said = format!(
+            "{:?}",
+            client
+                .get(format!("https://localhost:{port}/f.bin"))
+                .send()
+                .await
+                .unwrap_err()
+        );
+        assert!(said.contains("UnknownIssuer"), "{said}");
     }
 }
 

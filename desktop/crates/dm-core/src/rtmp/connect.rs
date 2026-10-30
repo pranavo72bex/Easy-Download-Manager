@@ -61,7 +61,7 @@ pub(super) async fn tunnel(target: &Target) -> Result<Box<dyn Io>, Error> {
         format!("http://{}:{}", target.host, target.port)
     };
     // No proxy: a stream is refused under one before it gets here.
-    let http = reqwest::Client::builder()
+    let http = crate::with_tls(reqwest::Client::builder())
         .no_proxy()
         .connect_timeout(Duration::from_secs(15))
         .timeout(Duration::from_secs(30))
