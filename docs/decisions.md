@@ -2348,6 +2348,16 @@ Windows was not measured.
 
 ## 2026-10-28: Routing `m3u8_native` to dm's own HLS (design only)
 
+Measured on 2026-10-31, and not built. Dailymotion's 1080p HLS stream
+(`hls-1080`, 47 segments, 80.7 MB, the same bytes both ways), three runs
+each from one reading of the page: yt-dlp with `--concurrent-fragments 8`
+and `--load-info-json` took 6.2 to 6.6 s; dm's `download_stream` on the same
+media playlist, 8 connections, 5.6 to 5.7 s. About 0.7 s (12 %), most of it
+yt-dlp's start, on a link that the stream fills either way: not the clear
+gain the route would need to pay for a second path, its fallback and the
+picture-and-sound join. Measured with a throwaway example that called
+`dm_core::download` on the playlist address; to repeat, build it again.
+
 Not built. yt-dlp already fetches HLS fragments concurrently (`--concurrent-
 fragments`, since 2026-10-27), so the gain over today is unmeasured and may be
 small; a measurement on a recorded run comes before code.
