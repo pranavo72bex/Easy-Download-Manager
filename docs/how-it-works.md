@@ -300,8 +300,11 @@ sides, where it used to be two languages kept in step by hand:
 
 **The host** is the desktop binary itself. A native messaging manifest names
 an executable and cannot pass it arguments, so the binary works out that a
-browser started it from what each browser passes as its first argument. It
-asks the server once (through the saved proxy, with the page as referrer)
+browser started it from what each browser passes as its first argument,
+and answers only an extension it knows: the ids built in and any a manifest
+it wrote allows (`shell::launcher_known`; the browser's own manifest check
+is the one that counts, this holds where something else started dm in a
+browser's name). It asks the server once (through the saved proxy, with the page as referrer)
 before taking a download the browser is holding (`caught`), writes the request into a directory the running app
 watches, starts the app if it is not running (or rings a running one's
 doorbell, a loopback port it wrote to `inbox/bell`, so the request is read

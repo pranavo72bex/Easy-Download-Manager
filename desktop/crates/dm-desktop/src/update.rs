@@ -188,9 +188,7 @@ pub fn check(
     *dm_core::lock(&into) = Update::Asking;
     runtime.spawn(async move {
         let outcome = async {
-            let res = client
-                .get(ENDPOINT)
-                .send()
+            let res = dm_core::redirects::send(client.get(ENDPOINT))
                 .await
                 .map_err(|e| e.to_string())?;
             if res.status() == dm_core::reqwest::StatusCode::NOT_FOUND {

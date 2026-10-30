@@ -8,10 +8,15 @@ of scope. What was done about each finding is noted under it.
 
 **Counts:** critical 0, high 0, medium 1, low 3.
 
-**Done the same day:** M1 (inward redirects refused: `lib.rs` `inward`,
-tested). **Recorded for the maintainer:** L1 and L2 as gaps.md rows 39 and
-40. **Accepted:** L3, the standard native-messaging model, in which the
-browser enforces which extension may start the host.
+**Done the same day:** M1 (inward redirects refused: `redirects.rs`
+`inward`, tested). **Done the next day, 2026-10-30:** L2 (dm follows
+redirects itself, `redirects.rs`; across hosts `Referer` goes as its origin
+alone and the ranges that follow carry the same; tested end to end), L1 (a
+row's login and cookies kept in `secrets.json` beside the queue file, never
+in it; tested; the keychain is gaps.md row 39), and L3 as defence in depth
+(the host answers only the extension ids built in or allowed by a manifest
+dm wrote, `shell::launcher_known`; tested). The browser's own check remains
+the one that counts for L3.
 
 ---
 

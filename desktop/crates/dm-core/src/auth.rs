@@ -339,7 +339,7 @@ pub async fn send(
     url: &str,
 ) -> Result<reqwest::Response, Error> {
     let Some((username, password)) = login_in(url) else {
-        return Ok(request.send().await?);
+        return crate::redirects::send(request).await;
     };
     let mut request = request.build()?;
     let ntlm_known = server_of(request.url())
@@ -357,9 +357,9 @@ pub async fn send(
     let mut rounds = 0;
     loop {
         let Some(mut again) = request.try_clone() else {
-            return Ok(client.execute(request).await?);
+            return crate::redirects::execute(client, request).await;
         };
-        let res = client.execute(request).await?;
+        let res = crate::redirects::execute(client, request).await?;
         if res.status() != reqwest::StatusCode::UNAUTHORIZED {
             return Ok(res);
         }
@@ -460,13 +460,13 @@ async fn ntlm_sign_in(
     loop {
         tries += 1;
         let Some(mut first) = request.try_clone() else {
-            return Ok(client.execute(request).await?);
+            return crate::redirects::execute(client, request).await;
         };
         set_authorization(
             &mut first,
             &format!("{scheme} {}", b64.encode(crate::ntlm::negotiate())),
         );
-        let res = client.execute(first).await?;
+        let res = crate::redirects::execute(client, first).await?;
         if res.status() != reqwest::StatusCode::UNAUTHORIZED {
             return Ok(res);
         }
@@ -486,10 +486,10 @@ async fn ntlm_sign_in(
             ));
         };
         let Some(mut last) = request.try_clone() else {
-            return Ok(client.execute(request).await?);
+            return crate::redirects::execute(client, request).await;
         };
         set_authorization(&mut last, &format!("{scheme} {}", b64.encode(answer)));
-        let res = client.execute(last).await?;
+        let res = crate::redirects::execute(client, last).await?;
         if res.status() != reqwest::StatusCode::UNAUTHORIZED || tries >= 2 {
             return Ok(res);
         }

@@ -47,6 +47,7 @@ impl Queue {
         let Ok(text) = std::fs::read_to_string(path) else {
             return Ok(());
         };
+        let secrets = self.read_secrets(path);
         let entries = match serde_json::from_str::<Vec<Entry>>(&text) {
             Ok(entries) => entries,
             Err(e) => {
@@ -80,6 +81,9 @@ impl Queue {
 
         for mut entry in entries {
             highest = highest.max(entry.id);
+            if let Some(secret) = secrets.get(&entry.id) {
+                secret.given_back(&mut entry);
+            }
             // Anything that was running when the app closed is put back in
             // line rather than left claiming to run. It resumes from its
             // part files, so this costs only what was in flight.
@@ -218,10 +222,24 @@ impl Queue {
     /// owed.
     async fn write_held(&self, path: &std::path::Path) {
         self.inner.saves.fetch_add(1, Ordering::Relaxed);
-        let entries = self.list().await;
+        let mut entries = self.list().await;
+        let secrets = Secret::taken_from(&mut entries);
         let began = std::time::Instant::now();
         let target = path.to_path_buf();
         let wrote = tokio::task::spawn_blocking(move || -> std::io::Result<()> {
+            // The secrets first: a stop between the two writes leaves a
+            // login the queue file no longer carries rather than one it
+            // carries twice.
+            let kept = secrets_file(&target);
+            if secrets.is_empty() {
+                if kept.exists() {
+                    std::fs::remove_file(&kept)?;
+                }
+            } else {
+                crate::write_atomic_with(&kept, |w| {
+                    serde_json::to_writer_pretty(w, &secrets).map_err(std::io::Error::from)
+                })?;
+            }
             crate::write_atomic_with(&target, |w| {
                 // Indented for a person reading a short list; a long one is
                 // written compact, a third of the bytes.
@@ -250,6 +268,24 @@ impl Queue {
             ));
         }
         self.save_quota(path);
+    }
+
+    /// The secrets saved beside the queue file, by row.
+    fn read_secrets(&self, queue_file: &std::path::Path) -> HashMap<Id, Secret> {
+        let kept = secrets_file(queue_file);
+        let Ok(text) = std::fs::read_to_string(&kept) else {
+            return HashMap::new();
+        };
+        match serde_json::from_str::<Vec<Secret>>(&text) {
+            Ok(secrets) => secrets.into_iter().map(|s| (s.id, s)).collect(),
+            Err(e) => {
+                self.note(format!(
+                    "the saved logins and cookies could not be read ({e}): the downloads \
+                     that had them will ask for them again"
+                ));
+                HashMap::new()
+            }
+        }
     }
 
     /// Writes what the download limit has used beside the queue file, so a
@@ -326,4 +362,69 @@ impl Queue {
     pub fn saves_written(&self) -> u64 {
         self.inner.saves.load(Ordering::Relaxed)
     }
+}
+
+/// What a row carries that is a secret: the login written into its address
+/// and the cookies the browser handed over. Kept out of the queue file, in
+/// `secrets.json` beside it (readable by this account alone, as the queue
+/// file is), so a queue file shown, sent with a report or backed up on its
+/// own carries no password and no session.
+#[derive(Debug, Default, serde::Serialize, serde::Deserialize)]
+struct Secret {
+    id: Id,
+    #[serde(default, skip_serializing_if = "String::is_empty")]
+    username: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    password: Option<String>,
+    #[serde(default, skip_serializing_if = "String::is_empty")]
+    cookies: String,
+}
+
+impl Secret {
+    /// Takes the secrets out of `entries`: each address is left without its
+    /// login and each row without its cookies. Rows with neither give none.
+    fn taken_from(entries: &mut [Entry]) -> Vec<Secret> {
+        entries
+            .iter_mut()
+            .filter_map(|entry| {
+                let mut secret = Secret {
+                    id: entry.id,
+                    cookies: std::mem::take(&mut entry.cookies),
+                    ..Secret::default()
+                };
+                if let Ok(mut url) = url::Url::parse(&entry.url) {
+                    if !url.username().is_empty() || url.password().is_some() {
+                        secret.username = url.username().to_string();
+                        secret.password = url.password().map(str::to_string);
+                        let _ = url.set_username("");
+                        let _ = url.set_password(None);
+                        entry.url = url.to_string();
+                    }
+                }
+                let any = !secret.username.is_empty()
+                    || secret.password.is_some()
+                    || !secret.cookies.is_empty();
+                any.then_some(secret)
+            })
+            .collect()
+    }
+
+    /// Puts this row's secrets back where they were.
+    fn given_back(&self, entry: &mut Entry) {
+        if !self.cookies.is_empty() {
+            entry.cookies = self.cookies.clone();
+        }
+        if !self.username.is_empty() || self.password.is_some() {
+            if let Ok(mut url) = url::Url::parse(&entry.url) {
+                let _ = url.set_username(&self.username);
+                let _ = url.set_password(self.password.as_deref());
+                entry.url = url.to_string();
+            }
+        }
+    }
+}
+
+/// Where the secrets of the queue at `queue_file` are kept.
+fn secrets_file(queue_file: &std::path::Path) -> PathBuf {
+    queue_file.with_file_name("secrets.json")
 }

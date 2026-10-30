@@ -42,6 +42,7 @@ pub mod progress;
 pub mod proxy;
 pub mod queue;
 pub mod quota;
+pub mod redirects;
 pub mod retry;
 pub mod rtmp;
 pub mod rtsp;
@@ -519,69 +520,12 @@ pub fn builder() -> reqwest::ClientBuilder {
 /// short enough that a pause is honoured within it.
 pub const READ_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(30);
 
-/// What a redirect is let do: ten at most, none from `https` to `http`,
-/// and none from a public address inward to this computer or its network
-/// (`inward`). (reqwest itself drops a sign-in or cookies sent by dm on a
-/// redirect to another server.)
-pub fn redirect_policy() -> reqwest::redirect::Policy {
-    reqwest::redirect::Policy::custom(|attempt| {
-        let downgrade = attempt.url().scheme() == "http"
-            && attempt
-                .previous()
-                .iter()
-                .any(|before| before.scheme() == "https");
-        if downgrade {
-            let to = attempt.url().to_string();
-            attempt.error(format!("{INSECURE_REDIRECT} ({to})"))
-        } else if attempt.previous().len() >= 10 {
-            attempt.error("too many redirects")
-        } else if inward(attempt.url(), attempt.previous()) {
-            let to = attempt.url().to_string();
-            attempt.error(format!("{INWARD_REDIRECT} ({to})"))
-        } else {
-            attempt.follow()
-        }
-    })
-}
-
 /// What a refused downgrade says.
 pub const INSECURE_REDIRECT: &str =
     "the secure address sent dm on to an insecure (http) one, where the file could be swapped on the way, so dm stopped";
 
 /// What a refused inward redirect says.
 pub const INWARD_REDIRECT: &str = "the address sent dm on to one inside this computer or its own network, which a public site has no business reaching, so dm stopped";
-
-/// Whether a redirect sends dm from a public address to one inside: this
-/// computer (loopback, `localhost`), its link (link-local, where cloud
-/// machines keep their metadata service) or its own network (the private
-/// ranges). A page out on the internet that sends dm to such an address is
-/// using dm to reach what it cannot reach itself; a download that started
-/// inside (a server at home, a test's) may go on to another inside address.
-/// Judged by the address as written, not by what a name resolves to.
-fn inward(to: &reqwest::Url, previous: &[reqwest::Url]) -> bool {
-    fn inside(url: &reqwest::Url) -> bool {
-        match url.host() {
-            Some(url::Host::Ipv4(ip)) => {
-                ip.is_loopback() || ip.is_link_local() || ip.is_private() || ip.is_unspecified()
-            }
-            Some(url::Host::Ipv6(ip)) => {
-                ip.is_loopback()
-                    || ip.is_unspecified()
-                    || ip.is_unique_local()
-                    || ip.is_unicast_link_local()
-                    || ip
-                        .to_ipv4_mapped()
-                        .is_some_and(|v4| v4.is_loopback() || v4.is_link_local() || v4.is_private())
-            }
-            Some(url::Host::Domain(name)) => {
-                let name = name.to_ascii_lowercase();
-                name == "localhost" || name.ends_with(".localhost")
-            }
-            None => false,
-        }
-    }
-    !previous.is_empty() && inside(to) && !previous.iter().any(inside)
-}
 
 /// [`builder`], with the read timeout a setting: a server that takes a
 /// minute to start sending a large archive is not a dead connection to the
@@ -604,11 +548,10 @@ pub fn builder_with(
         builder.no_proxy()
     };
     builder
-        // Redirects are followed, but not indefinitely: a loop is a server
-        // problem that should not become a hang. And never from a secure
-        // address to a plain one, where anyone on the way could swap the
-        // file, as browsers block such a download too.
-        .redirect(redirect_policy())
+        // Redirects are dm's to follow (`redirects`): reqwest wrote the
+        // address each hop came from into `Referer`, for another host too.
+        .redirect(reqwest::redirect::Policy::none())
+        .referer(false)
         // HTTP/1.1, on purpose, and this is the whole point of the program.
         //
         // Splitting a file into several ranges only beats a per-connection
@@ -852,44 +795,6 @@ pub fn file_error(e: &std::io::Error) -> String {
 
 #[cfg(test)]
 mod redirect_tests {
-    /// A public address may not send dm inward; an inside one may go on
-    /// to another inside address, and public to public is anyone's.
-    #[test]
-    fn a_redirect_inward_from_a_public_address_is_refused_and_no_other_is() {
-        let url = |s: &str| reqwest::Url::parse(s).unwrap();
-        let public = [url("https://cdn.example/file")];
-        let home = [url("http://192.168.1.4/file")];
-        for to in [
-            "http://127.0.0.1:9/",
-            "http://localhost/x",
-            "http://a.localhost/x",
-            "http://169.254.169.254/latest/meta-data/",
-            "http://10.0.0.5/f",
-            "http://172.16.3.3/f",
-            "http://192.168.1.5/f",
-            "http://[::1]/f",
-            "http://[fe80::1]/f",
-            "http://[fd00::5]/f",
-            "http://[::ffff:127.0.0.1]/f",
-            "http://0.0.0.0/f",
-        ] {
-            assert!(super::inward(&url(to), &public), "from public to {to}");
-            assert!(!super::inward(&url(to), &home), "from inside to {to}");
-        }
-        for to in [
-            "https://other.example/f",
-            "http://93.184.216.34/f",
-            "http://[2606:4700::1]/f",
-        ] {
-            assert!(!super::inward(&url(to), &public), "public to public: {to}");
-            assert!(!super::inward(&url(to), &home), "inside to public: {to}");
-        }
-        assert!(
-            !super::inward(&url("http://127.0.0.1:9/"), &[]),
-            "no hop before: not a redirect inward"
-        );
-    }
-
     use tokio::io::{AsyncReadExt, AsyncWriteExt};
     use tokio_rustls::rustls;
 
@@ -935,14 +840,11 @@ mod redirect_tests {
         let plain = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
         let plain_port = plain.local_addr().unwrap().port();
         let (port, cert) = sending_on(format!("http://127.0.0.1:{plain_port}/f.bin")).await;
-        let client = reqwest::Client::builder()
-            .redirect(super::redirect_policy())
+        let client = super::builder()
             .add_root_certificate(reqwest::Certificate::from_der(&cert).unwrap())
             .build()
             .unwrap();
-        let refused = client
-            .get(format!("https://localhost:{port}/f.bin"))
-            .send()
+        let refused = super::redirects::send(client.get(format!("https://localhost:{port}/f.bin")))
             .await
             .unwrap_err();
         let said = format!("{refused:?}");

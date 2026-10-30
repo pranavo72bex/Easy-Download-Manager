@@ -199,6 +199,13 @@ fn main() {
     // Launched by a browser rather than a person: framed JSON on stdin and
     // stdout, no window, nothing else printed.
     if shell::browser_launch(&args) {
+        // For an extension dm knows, or not at all: the browser's own check
+        // (its manifest names the extensions) is the one that counts, and
+        // this holds where something else started dm in a browser's name.
+        if !shell::launcher_known(&args) {
+            eprintln!("dm: not started for an extension dm knows ({})", args[0]);
+            return;
+        }
         host::run(&settings::home());
         return;
     }

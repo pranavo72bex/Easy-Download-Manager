@@ -889,7 +889,9 @@ async fn fetch_reporting(
         headers: stream_headers(),
         downloaded: Arc::new(AtomicU64::new(0)),
         control: options.control.clone(),
-        referrer: options.referrer.clone(),
+        // The ranges go straight to where the probe landed: past a redirect
+        // to another host they carry what the hop carried, the page's origin.
+        referrer: crate::redirects::referrer_for(options.referrer.as_deref(), url, &info.final_url),
         tries: options.tries(),
         sign_in: options.sign_in.clone(),
         report: report.clone(),

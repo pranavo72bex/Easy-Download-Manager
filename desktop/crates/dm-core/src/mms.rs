@@ -187,8 +187,7 @@ pub async fn record(
         .build()
         .map_err(|e| Error::Internal(e.to_string()))?;
     // First: the header alone, for the streams in it.
-    let described = request(&client, &address, 1, None)
-        .send()
+    let described = crate::redirects::send(request(&client, &address, 1, None))
         .await
         .map_err(|e| Error::Internal(format!("the MMS server: {e}")))?;
     if !described.status().is_success() {
@@ -212,8 +211,7 @@ pub async fn record(
     }
 
     // Then: every stream played.
-    let playing = request(&client, &address, 2, Some(&streams))
-        .send()
+    let playing = crate::redirects::send(request(&client, &address, 2, Some(&streams)))
         .await
         .map_err(|e| Error::Internal(format!("the MMS server: {e}")))?;
     if !playing.status().is_success() {

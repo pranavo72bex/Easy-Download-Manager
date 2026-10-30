@@ -59,7 +59,7 @@ pub(super) async fn starts_as_html(client: &reqwest::Client, url: &str, options:
         options.sign_in.as_ref(),
     )
     .header(reqwest::header::RANGE, "bytes=0-1023");
-    let Ok(res) = request.send().await else {
+    let Ok(res) = crate::redirects::send(request).await else {
         return false;
     };
     // An error page is not the file either, whatever it starts with.

@@ -510,6 +510,70 @@ async fn a_restored_row_does_not_claim_a_rate_from_before_the_restart() {
     );
 }
 
+/// A login written into an address, and the cookies a browser handed over,
+/// are not written into the queue file: it is shown, sent with a report and
+/// backed up on its own. They are kept beside it and come back with the row.
+#[tokio::test]
+async fn a_login_and_cookies_stay_out_of_the_queue_file_and_come_back() {
+    let dir = tempdir();
+    let store = dir.path().join("queue.json");
+    let first = queue(dir.path(), 0);
+    first.persist_to(store.clone()).await;
+    let url = common::with_login("http://127.0.0.1:9/private.bin", "me", "open sesame");
+    let id = first
+        .add_with(
+            &url,
+            dm_core::queue::AddOptions {
+                cookies: "session=given-by-the-browser".into(),
+                ..Default::default()
+            },
+        )
+        .await
+        .unwrap();
+    let plain = first.add("http://127.0.0.1:9/plain.bin").await.unwrap();
+    first.flush().await;
+
+    let written = std::fs::read_to_string(&store).unwrap();
+    for secret in ["sesame", "me@", "given-by-the-browser"] {
+        assert!(
+            !written.contains(secret),
+            "{secret} is in the queue file:\n{written}"
+        );
+    }
+    assert!(written.contains("/private.bin"), "{written}");
+    let kept = std::fs::read_to_string(dir.path().join("secrets.json")).unwrap();
+    assert!(
+        kept.contains("sesame") && kept.contains("given-by-the-browser"),
+        "{kept}"
+    );
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        let mode = std::fs::metadata(dir.path().join("secrets.json"))
+            .unwrap()
+            .permissions()
+            .mode();
+        assert_eq!(mode & 0o777, 0o600, "secrets.json is {mode:o}");
+    }
+
+    let second = queue(dir.path(), 0);
+    second.persist_to(store.clone()).await;
+    let row = second.get(id).await.unwrap();
+    assert_eq!(row.url, url, "the login did not come back with the row");
+    assert_eq!(row.cookies, "session=given-by-the-browser");
+    let plain_row = second.get(plain).await.unwrap();
+    assert_eq!(plain_row.url, "http://127.0.0.1:9/plain.bin");
+    assert!(plain_row.cookies.is_empty());
+
+    // Once no row has a secret, nothing is kept beside the queue.
+    second.remove(id).await;
+    second.flush().await;
+    assert!(
+        !dir.path().join("secrets.json").exists(),
+        "secrets.json outlived its row"
+    );
+}
+
 #[tokio::test]
 async fn the_queue_survives_the_app_closing() {
     /* Part files outlive the process; the row pointing at them did not. That

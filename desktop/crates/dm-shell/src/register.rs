@@ -739,20 +739,9 @@ pub fn ensure(
         if !allows_current {
             stale = true;
         }
-        for key in ["allowed_origins", "allowed_extensions"] {
-            let ids = manifest
-                .get(key)
-                .and_then(|v| v.as_array())
-                .into_iter()
-                .flatten();
-            for id in ids.filter_map(|v| v.as_str()) {
-                let id = id
-                    .trim_start_matches("chrome-extension://")
-                    .trim_end_matches('/')
-                    .to_string();
-                if !known.contains(&id) {
-                    known.push(id);
-                }
+        for id in ids_allowed_by(&manifest) {
+            if !known.contains(&id) {
+                known.push(id);
             }
         }
     }
@@ -786,6 +775,61 @@ pub fn ensure_this_copy() -> Result<Option<Vec<PathBuf>>, String> {
     }
     let home = dirs::home_dir().unwrap_or_default();
     ensure(&home, &exe, &Programs::here(&home))
+}
+
+/// The extension ids a manifest allows, as ids: a Chromium manifest names
+/// them as origins (`chrome-extension://<id>/`), a Firefox one as ids.
+fn ids_allowed_by(manifest: &serde_json::Value) -> Vec<String> {
+    ["allowed_origins", "allowed_extensions"]
+        .iter()
+        .flat_map(|key| {
+            manifest
+                .get(*key)
+                .and_then(|v| v.as_array())
+                .into_iter()
+                .flatten()
+        })
+        .filter_map(|v| v.as_str())
+        .map(|id| {
+            id.trim_start_matches("chrome-extension://")
+                .trim_end_matches('/')
+                .to_string()
+        })
+        .collect()
+}
+
+/// Every extension that may start dm's host: the ids built into this
+/// version, and any the manifests dm wrote allow (read from the files,
+/// whether or not their browser is installed, so a manifest a person edited
+/// to allow a build of their own counts).
+pub fn allowed_ids(home: &Path) -> Vec<String> {
+    let mut ids: Vec<String> = [CHROME_EXTENSION_ID, EDGE_EXTENSION_ID, FIREFOX_EXTENSION_ID]
+        .iter()
+        .map(|id| id.to_string())
+        .collect();
+    let files: Vec<PathBuf> = if cfg!(target_os = "windows") {
+        let data = windows_data(home);
+        [Family::Chromium, Family::Firefox]
+            .into_iter()
+            .map(|family| windows_manifest(&data, family))
+            .collect()
+    } else {
+        places(home)
+            .into_iter()
+            .map(|place| place.manifest())
+            .collect()
+    };
+    for file in files {
+        let manifest = std::fs::read_to_string(&file)
+            .ok()
+            .and_then(|text| serde_json::from_str::<serde_json::Value>(&text).ok());
+        for id in manifest.as_ref().map(ids_allowed_by).unwrap_or_default() {
+            if !ids.contains(&id) {
+                ids.push(id);
+            }
+        }
+    }
+    ids
 }
 
 /// Whether this copy of dm may write the browsers' registration: an

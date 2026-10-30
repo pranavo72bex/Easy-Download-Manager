@@ -263,6 +263,63 @@ fn each_browser_is_recognised_by_what_it_actually_passes() {
     assert!(!browser_launch(&args(&["/Users/x/notes.json"])));
 }
 
+/// The host answers the extensions dm knows: the ids built in, and any a
+/// manifest dm wrote allows. An origin made up by something else on this
+/// computer is not answered. Firefox's launch names no origin to check.
+#[test]
+fn the_host_is_started_for_an_extension_dm_knows_and_no_other() {
+    use dm_protocol::{CHROME_EXTENSION_ID, EDGE_EXTENSION_ID, FIREFOX_EXTENSION_ID};
+    let args = |v: &[&str]| v.iter().map(|s| s.to_string()).collect::<Vec<_>>();
+    let home = tempfile::tempdir().unwrap();
+    let home = home.path();
+    let manifest = "/home/x/.mozilla/native-messaging-hosts/com.dm.engine.json";
+
+    for id in [CHROME_EXTENSION_ID, EDGE_EXTENSION_ID] {
+        assert!(launcher_known_in(
+            &args(&[&format!("chrome-extension://{id}/"), "--parent-window=0"]),
+            home
+        ));
+    }
+    assert!(launcher_known_in(
+        &args(&[manifest, FIREFOX_EXTENSION_ID]),
+        home
+    ));
+    assert!(launcher_known_in(&args(&[manifest]), home));
+    assert!(launcher_known_in(&args(&["--native-host"]), home));
+    assert!(!launcher_known_in(
+        &args(&["chrome-extension://aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa/"]),
+        home
+    ));
+    assert!(!launcher_known_in(
+        &args(&[manifest, "other@example.org"]),
+        home
+    ));
+
+    // A manifest dm wrote that allows another id (an earlier version's,
+    // or one a person added) makes that id known.
+    #[cfg(not(windows))]
+    {
+        let place = crate::register::places(home)
+            .into_iter()
+            .find(|p| p.family == crate::register::Family::Chromium)
+            .unwrap();
+        std::fs::create_dir_all(&place.dir).unwrap();
+        std::fs::write(
+            place.manifest(),
+            r#"{"allowed_origins": ["chrome-extension://aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa/"]}"#,
+        )
+        .unwrap();
+        assert!(launcher_known_in(
+            &args(&["chrome-extension://aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa/"]),
+            home
+        ));
+        assert!(!launcher_known_in(
+            &args(&["chrome-extension://bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb/"]),
+            home
+        ));
+    }
+}
+
 /* A link or a name that merely ends like the manifest, or a link to an
  * extension's page, is a person's download: it used to make the launch
  * a host that read nothing and dropped the link. */

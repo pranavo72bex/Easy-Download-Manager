@@ -56,6 +56,33 @@ pub fn browser_launch(args: &[String]) -> bool {
     }
 }
 
+/// Whether the browser that started dm's host did so for an extension dm
+/// knows: the ids built into this version, and any the manifests dm wrote
+/// allow (`register::allowed_ids`). The browser itself lets only the
+/// extensions its manifest names start the host, so this refuses only what
+/// never went through a browser: a program on this computer starting dm
+/// with an origin of its own and speaking the extension's protocol to it.
+/// Firefox passes its manifest's path, with the extension's id after it in
+/// some versions and nothing in others; a `moz-extension://` origin is a
+/// profile's own name for an extension, not its id, and is not checked.
+pub fn launcher_known(args: &[String]) -> bool {
+    launcher_known_in(args, &dirs::home_dir().unwrap_or_default())
+}
+
+/// [`launcher_known`], with the manifests under `home`.
+pub fn launcher_known_in(args: &[String], home: &Path) -> bool {
+    let id = match args {
+        [origin, ..] if origin.starts_with("chrome-extension://") => origin
+            .trim_start_matches("chrome-extension://")
+            .trim_end_matches('/'),
+        [manifest, id] if is_host_manifest(manifest) => id.as_str(),
+        _ => return true,
+    };
+    crate::register::allowed_ids(home)
+        .iter()
+        .any(|known| known == id)
+}
+
 /// A path to dm's own app manifest, as Firefox gives it: a file path, not
 /// a link that happens to end the same way.
 fn is_host_manifest(arg: &str) -> bool {

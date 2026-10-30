@@ -31,7 +31,7 @@ the extension is Rust compiled to WebAssembly. Test paths are under
 | Paste a URL into the window | PASS | `dm-desktop/tests/window.rs` (byte-exact through the window); `app-check.py` |
 | Several URLs at once | PASS | `queue.rs` `add_all`; window driver |
 | Empty, malformed or unsupported URL refused | PASS | `queue::accepted`; host replies FAILED with the reason; a paste mixing links and other text queues the links and hands the rest back with a message (`window.rs`) |
-| Redirect chains followed, loops bounded | PASS | `Policy::limited(10)`; audit run: loop fails in 5 ms |
+| Redirect chains followed, loops bounded | PASS | dm's own following (`redirects.rs`, ten hops at most, never `https` to `http`, never public to inward, `Referer` cut to its origin across hosts): `across_a_redirect_to_another_host_the_page_goes_as_its_origin_and_the_login_not_at_all`, `a_digest_protected_file_behind_a_redirect_on_the_same_server_downloads`, `relative_entries_are_joined_against_where_a_redirect_landed`; audit run: loop fails in 5 ms |
 | A name from the address with no extension takes its Content-Type's | PASS | shared naming table; zoo `type-only` (a PDF at `/get` was saved as "get") |
 | Content-Disposition, RFC 5987 and URL names | PASS | `shared/naming-cases.json`, read by the engine's suite |
 | Query string and fragment kept out of the name | PASS | same table |

@@ -429,7 +429,9 @@ async fn fetch_page(
     page: &str,
     start: bool,
 ) -> Result<(String, String), String> {
-    let res = client.get(page).send().await.map_err(|e| e.to_string())?;
+    let res = dm_core::redirects::send(client.get(page))
+        .await
+        .map_err(|e| e.to_string())?;
     if !res.status().is_success() {
         return Err(format!("the page answered {}", res.status()));
     }

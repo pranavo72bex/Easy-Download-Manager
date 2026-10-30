@@ -1499,6 +1499,90 @@ fn walk(dir: &std::path::Path) -> Vec<std::path::PathBuf> {
     out
 }
 
+/// A redirect to another host gets the page's origin alone as `Referer`,
+/// not the page (its path and query are the first host's business), and
+/// no sign-in: the first host sees both, as before.
+#[tokio::test]
+async fn across_a_redirect_to_another_host_the_page_goes_as_its_origin_and_the_login_not_at_all() {
+    use axum::{routing::get, Router};
+    // Which host, the Referer it saw, whether it saw a login.
+    type Seen = Arc<std::sync::Mutex<Vec<(String, Option<String>, bool)>>>;
+    let seen: Seen = Default::default();
+    let record = {
+        let seen = seen.clone();
+        move |which: &'static str, headers: &HeaderMap| {
+            seen.lock().unwrap().push((
+                which.to_string(),
+                headers
+                    .get(axum::http::header::REFERER)
+                    .and_then(|v| v.to_str().ok())
+                    .map(str::to_string),
+                headers.contains_key(axum::http::header::AUTHORIZATION),
+            ));
+        }
+    };
+    let second = {
+        let record = record.clone();
+        Router::new().route(
+            "/landed.bin",
+            get(move |headers: HeaderMap| async move {
+                record("second", &headers);
+                Response::builder()
+                    .header(axum::http::header::ACCEPT_RANGES, "bytes")
+                    .header(axum::http::header::CONTENT_LENGTH, "6")
+                    .body(Body::from("landed"))
+                    .unwrap()
+            }),
+        )
+    };
+    let second_addr = common::serve(second).await;
+    // Another port is another host; `localhost` keeps the hop inside, so
+    // the inward rule does not refuse it.
+    let landed = format!("http://localhost:{}/landed.bin", second_addr.port());
+    let first = Router::new().route(
+        "/go.bin",
+        get(move |headers: HeaderMap| async move {
+            record("first", &headers);
+            Response::builder()
+                .status(302)
+                .header("location", landed.clone())
+                .body(Body::empty())
+                .unwrap()
+        }),
+    );
+    let first_addr = common::serve(first).await;
+    let dir = tempdir();
+    let url = common::with_login(&format!("http://{first_addr}/go.bin"), "me", "pw");
+    let opts = dm_core::Options {
+        referrer: Some("http://pages.example/private/page?token=1".to_string()),
+        ..options(dir.path())
+    };
+    let done = download(&client(), &url, &opts)
+        .await
+        .expect("the redirected download");
+    assert_eq!(std::fs::read(&done.path).unwrap(), b"landed");
+
+    let seen = seen.lock().unwrap().clone();
+    let firsts: Vec<_> = seen.iter().filter(|s| s.0 == "first").collect();
+    let seconds: Vec<_> = seen.iter().filter(|s| s.0 == "second").collect();
+    assert!(!firsts.is_empty() && !seconds.is_empty(), "{seen:?}");
+    for (_, referer, signed) in &firsts {
+        assert_eq!(
+            referer.as_deref(),
+            Some("http://pages.example/private/page?token=1")
+        );
+        assert!(signed, "the first host should see the login");
+    }
+    for (_, referer, signed) in &seconds {
+        assert_eq!(
+            referer.as_deref(),
+            Some("http://pages.example/"),
+            "{seen:?}"
+        );
+        assert!(!signed, "the login crossed to the other host");
+    }
+}
+
 /// A redirect to an address the client will not follow (a local file, an
 /// FTP server) is the download's failure, not an empty file that finished.
 #[tokio::test]

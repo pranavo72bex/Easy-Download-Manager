@@ -669,6 +669,26 @@ def browser():
           f"{len(said) - len(failed)} of {len(said)}" + (f"; failed: {failed[:3]}" if failed else ""))
 
 
+def clipboard_held():
+    """Empties the clipboard, and returns what it held, on macOS; None elsewhere."""
+    if sys.platform != "darwin" or not shutil.which("pbpaste"):
+        return None
+    try:
+        held = subprocess.run(["pbpaste"], capture_output=True, timeout=5).stdout
+        subprocess.run(["pbcopy"], input=b"", timeout=5)
+        return held
+    except (OSError, subprocess.SubprocessError):
+        return None
+
+
+def clipboard_restore(held):
+    if held:
+        try:
+            subprocess.run(["pbcopy"], input=held, timeout=5)
+        except (OSError, subprocess.SubprocessError):
+            pass
+
+
 def main():
     if not BINARY.exists():
         sys.exit(f"no dm at {BINARY}: cd desktop && cargo build -p dm-desktop")
@@ -679,6 +699,10 @@ def main():
     (home / "settings.json").write_text(json.dumps({"download_dir": str(home / "downloads"), "theme": "dark"}))
     origin = start_server()
     print(f"dm: {BINARY}\nthe contract: {len(rows)} rows\nserver: {origin}", flush=True)
+    # An address on the clipboard is offered in Add URL (as it should be), so
+    # a run that follows a copied link saw "OK with nothing typed" with an
+    # address typed. The clipboard is emptied for the walk and put back after.
+    held = clipboard_held()
     dm = Dm(home)
     dm.start()
     try:
@@ -690,6 +714,7 @@ def main():
             dm.quit()
         except Exception:
             dm.proc.kill()
+        clipboard_restore(held)
     browser()
 
     print("\nThe contract, row by row", flush=True)

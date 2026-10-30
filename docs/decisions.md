@@ -2725,3 +2725,55 @@ for a while), and its process tree is ended with "yt-dlp stopped answering".
 program. Dropped: a limit on the whole run, which a long video on a slow link
 would hit while working.
 
+
+## 2026-10-30: dm follows redirects itself
+
+reqwest followed a redirect with the request's headers, dropped the sign-in
+and cookies when the host changed, and wrote the address each hop came from
+into `Referer` on every hop (`referer(true)`, its default), which is how a
+page's path and query, or a signed link's, reached whatever other host a
+redirect led to (`docs/security-report.md`, L2). Its policy sees the hops
+and can refuse one but cannot change a header. So dm's clients follow
+nothing (`Policy::none()`, `referer(false)`) and every request goes through
+`redirects::send` or `redirects::execute`: ten hops at most, none from
+`https` to `http`, none from a public address inward, the sign-in and
+cookies dropped across hosts as reqwest dropped them, a 303 (and a 301 or
+302 to a POST) answered by a GET, and `Referer` cut to its origin across
+hosts, dropped from a secure page to a plain host. The ranges that go
+straight to where the probe landed carry the same (`referrer_for`). The
+first host still gets the page whole: the extension hands over the page,
+not what the browser sent, and a hotlink check that wants the page on the
+first request is the common one. Dropped: sending the origin alone from the
+first request (those checks), and a task-local flag read by reqwest's policy
+to stop on a cross-host hop and re-issue (the logic in two places, and the
+policy is per client). Clients built elsewhere with reqwest's own builder
+(a page read, RTMPT) are not affected and follow as before.
+
+## 2026-10-30: A row's secrets go beside the queue file, not yet in the keychain
+
+A login written into an address and the cookies the browser handed over were
+written into `queue.json` as the row carries them (L1). They now go to
+`secrets.json` beside it, by row id, taken out on every write and put back
+on restore, so the queue file can be shown or sent without them; both files
+are 0600, as the settings file holding the Sign-ins' and proxy's passwords
+already is (2026-10-17). The operating system's keychain was looked at and
+set aside for now: on macOS an item made by an unsigned or ad-hoc-signed
+build belongs to that build's code hash, so every rebuild is asked for the
+password in a dialog that the QA loops cannot answer, and on Linux the
+Secret Service needs a session daemon CI's containers do not run; a keyring
+dependency would also pull D-Bus into the Linux build. The row stays open
+for the signed release (gaps.md row 39). Dropped: encrypting the file with a
+key kept beside it, which hides nothing from whoever has the folder.
+
+## 2026-10-30: The host answers the extensions it knows
+
+The native host served any `chrome-extension://` origin (L3, accepted as the
+standard model: the browser lets only the extensions its manifest names
+start the host). Added as defence in depth, since it costs one file read:
+`shell::launcher_known` takes the id from the origin Chrome passes (or from
+the id Firefox passes after its manifest path, in the versions that do) and
+answers only the ids built in and those a manifest dm wrote allows, read
+from the files whether or not their browser is installed, so a manifest a
+person edited for a build of their own still counts. A `moz-extension://`
+origin is a profile's own name for an extension, not its id, and is let
+through. Refused, dm says so on stderr (the browser's log) and exits.

@@ -110,3 +110,16 @@ row 35 says, in all thirteen catalogs.
   maintainer's decision; neither is applied, as each changes existing behaviour.
 - A side-by-side run of reference A needs a Windows machine (the maintainer's
   laptop, once it can be reached).
+
+## QA before merging the security fixes (2026-10-30)
+
+- `scripts/human-qa.py` whole, in sight, twice on the same build (dm follows
+  redirects itself, a row's secrets beside the queue file, the host checks
+  the extension id): the first run 36 of 38, B01 and B25 failing because the
+  clipboard held a copied link and Add URL offered it, as it should (the
+  script now empties the clipboard for its walk and puts it back); the
+  second 36 of 38, B33 and B36 failing on real YouTube with the panel 51 px
+  past the player's right edge after the page re-laid itself (BUG-006's
+  shape again, after its fix), which held in the first run. Every row held
+  in one of the two runs; B33 is open again in `BUGLOG.md`.
+

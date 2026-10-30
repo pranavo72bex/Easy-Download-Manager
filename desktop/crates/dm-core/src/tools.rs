@@ -313,7 +313,7 @@ impl Drop for Counting {
 }
 
 async fn fetch_once(client: &reqwest::Client, url: &str) -> Result<Vec<u8>, Error> {
-    let res = client.get(url).send().await?;
+    let res = crate::redirects::send(client.get(url)).await?;
     if !res.status().is_success() {
         return Err(Error::Refused {
             status: res.status().as_u16(),
