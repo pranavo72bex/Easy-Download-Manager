@@ -3,7 +3,7 @@
 What changed in each release, newest first. The app (`desktop-v*` tags) and
 the browser extension (`v*` tags) are versioned separately.
 
-## Unreleased
+## App 0.8.5, extension 3.2.0
 
 - yt-dlp works out of the box from the installer: every package carries yt-dlp's build as its release's zip (54 MB on macOS; an unpacked build failed the macOS package, whose signing step refuses the build's embedded Python framework) (the release and each build's SHA-256 pinned in `packaging/yt-dlp.pin.json`; packaging fails without it or with another build), and on first use dm unpacks it into its own tools folder with no quarantine mark and runs it from there, so a dm downloaded in a browser never has macOS stop its helper, and needs no network to play its first video. dm's own updates replace that copy later. Checked: a fresh dm with nothing installed, tool fetching off and the shipped copy marked as a browser download read a non-YouTube video page in 41 s; before, the quarantined copy hung the row for four minutes.
 - When yt-dlp will not start, the row says why: its folder does not allow programs, it was removed, or it is built for another processor; and when it could not be fetched, that it is GitHub that could not be reached, with the proxy and installing it yourself as the ways on.
