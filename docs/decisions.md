@@ -3126,3 +3126,19 @@ by default instead of 10, so the give-up horizon stays near three minutes
 while a returning server is found within 15 s. Existing settings files
 keep the 10 they saved, which now outlasts about 90 s.
 
+## 2026-10-30: yt-dlp shipped as its zip, not unpacked
+
+Found by packaging a real dm.app before the release: cargo-packager signs
+every program in the bundle, and codesign refuses yt-dlp's embedded
+`Python.framework/Python` ("bundle format is ambiguous"), so the macOS
+package failed. The package now carries the release's zip as it is
+(`scripts/fetch-ytdlp.py`), which codesign leaves alone and the bundle's
+seal still covers; `tools::adopt` unpacks it into the tools folder on
+first use (`ditto -x -k` on macOS, then any quarantine mark removed; the
+zip crate elsewhere). The app is 75 MB (the dmg 62 MB) instead of about
+150 MB. Checked end to end: the packaged dm.app, marked as an Edge
+download and approved by a person (an ad-hoc-signed app downloaded by a
+browser is killed until it is: the known limit without a Developer ID),
+with nothing installed and fetching off, read a non-YouTube video page in
+34 s from its shipped zip.
+

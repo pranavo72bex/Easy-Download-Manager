@@ -163,12 +163,16 @@ once, listed or not: bump both manifests and `browser/Cargo.toml` first.
 ## yt-dlp inside the package
 
 The desktop workflow runs `scripts/fetch-ytdlp.py desktop/crates/dm-desktop/resources/yt-dlp`
-before `cargo packager`: yt-dlp's unpacked build for the platform, from
-its own latest release and checked against its SHA2-256SUMS, goes into the
-package as a resource (the macOS bundle's `Contents/Resources/yt-dlp`,
-`yt-dlp/` beside the program elsewhere). dm looks there after an installed
-or fetched copy (`ytdlp::bundled`), so a fresh install plays its first
-video with nothing to fetch, and a newer copy dm fetches after a failure
-takes its place. Packaging by hand: run the script first; without it the
-package is as before and dm fetches yt-dlp at the first video.
+before `cargo packager`. It fetches yt-dlp's build for the platform as its
+release's zip, the release and each zip's SHA-256 pinned in
+`packaging/yt-dlp.pin.json`, and the step fails on a mismatch. The zip goes
+into the package as it is (macOS: `Contents/Resources/yt-dlp/`): an
+unpacked build cannot be packaged on macOS, because codesign refuses its
+embedded Python framework. dm unpacks it into its tools folder on first use
+(`tools::adopt`), so a fresh install plays its first video with nothing to
+fetch, and newer copies dm fetches later take its place.
 
+To move to a newer yt-dlp: put its tag and the five zips' SHA-256 (from
+the release's `SHA2-256SUMS`) in `packaging/yt-dlp.pin.json` and commit.
+Packaging by hand: run the script first, or the package has no yt-dlp and
+dm fetches it at the first video.

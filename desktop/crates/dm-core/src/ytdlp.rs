@@ -114,13 +114,17 @@ pub(crate) fn binary() -> Option<PathBuf> {
     }
     // A shipped one is copied into the tools folder on first use and run
     // from there (`tools::adopt`); in place only where that copy fails.
-    crate::tools::fetched("yt-dlp")
-        .or_else(|| bundled().map(|shipped| crate::tools::adopt(&shipped).unwrap_or(shipped)))
+    crate::tools::fetched("yt-dlp").or_else(|| {
+        let shipped = bundled()?;
+        let zipped = shipped.extension().is_some_and(|e| e == "zip");
+        crate::tools::adopt(&shipped).or_else(|| (!zipped).then_some(shipped))
+    })
 }
 
 /// The yt-dlp shipped inside dm's own package, where the packaging put one
-/// (`docs/RELEASING.md`): the unpacked build under `yt-dlp/` beside the
-/// program, or in the macOS bundle's `Contents/Resources`. The first video
+/// (`docs/RELEASING.md`): the release's zip under `yt-dlp/` beside the
+/// program, or in the macOS bundle's `Contents/Resources` (an unpacked
+/// build there too, for an older package). The first video
 /// then needs no fetch; a newer one dm fetches after a failure takes its
 /// place (`tools::fetched` is looked at first).
 fn bundled() -> Option<PathBuf> {
@@ -145,13 +149,12 @@ fn bundled_in(exe: &Path) -> Vec<PathBuf> {
             folders.push(dir.join("..").join(lib).join("dm").join("yt-dlp"));
         }
     }
-    // The program as yt-dlp's unpacked build for this computer names it
-    // (`yt-dlp_macos`), then the plain name.
-    let mut names: Vec<String> =
-        crate::tools::ytdlp_asset(std::env::consts::OS, std::env::consts::ARCH)
-            .map(crate::tools::unpacked_program)
-            .into_iter()
-            .collect();
+    // The build's zip as its release names it (`yt-dlp_macos.zip`), which
+    // is how a package carries it; then the program as the unpacked build
+    // names it (`yt-dlp_macos`), then the plain name.
+    let asset = crate::tools::ytdlp_asset(std::env::consts::OS, std::env::consts::ARCH);
+    let mut names: Vec<String> = asset.map(str::to_string).into_iter().collect();
+    names.extend(asset.map(crate::tools::unpacked_program));
     names.push(
         if cfg!(windows) {
             "yt-dlp.exe"
@@ -1619,7 +1622,10 @@ mod tests {
         let own = crate::tools::ytdlp_asset(std::env::consts::OS, std::env::consts::ARCH)
             .map(crate::tools::unpacked_program)
             .unwrap_or_else(|| "yt-dlp".into());
-        assert_eq!(places[0], exe.parent().unwrap().join("yt-dlp").join(&own));
+        let zip = crate::tools::ytdlp_asset(std::env::consts::OS, std::env::consts::ARCH)
+            .unwrap_or("yt-dlp");
+        assert_eq!(places[0], exe.parent().unwrap().join("yt-dlp").join(zip));
+        assert_eq!(places[1], exe.parent().unwrap().join("yt-dlp").join(&own));
         if cfg!(target_os = "macos") {
             assert!(places
                 .iter()

@@ -1,17 +1,21 @@
 #!/usr/bin/env python3
 """yt-dlp's unpacked build for this computer's kind, fetched from its own
-release and unpacked into a folder, for packaging inside dm's installers:
+release as its zip, for packaging inside dm's installers:
 
     python3 scripts/fetch-ytdlp.py desktop/crates/dm-desktop/resources/yt-dlp
 
-dm copies it into its own tools folder on first use (`tools::adopt`), so
+The zip is kept as it is: the macOS packager re-signs every program in
+the bundle, and codesign refuses the build's embedded Python framework
+("bundle format is ambiguous"), so an unpacked build fails the package.
+dm unpacks the zip into its own tools folder on first use (`tools::adopt`), so
 the first video on a fresh install needs no fetch; newer releases dm
 fetches later take its place. The release and each build's SHA-256 are
 pinned in packaging/yt-dlp.pin.json, bumped by a commit: a build that does
 not match fails the packaging, rather than shipping whatever `latest` is.
 Standard library only.
 """
-import hashlib, io, json, pathlib, platform, shutil, stat, sys, urllib.request, zipfile
+
+import hashlib, json, pathlib, platform, shutil, sys, urllib.request
 
 PIN = pathlib.Path(__file__).resolve().parent.parent / "packaging" / "yt-dlp.pin.json"
 
@@ -37,10 +41,14 @@ def main():
     tag, want = pin["tag"], pin["sha256"].get(name)
     if not want:
         sys.exit(f"{PIN} pins no digest for {name}")
-    agent = {"User-Agent": "dm-packaging (+https://github.com/pranavo72bex/Easy-Download-Manager)"}
+    agent = {
+        "User-Agent": "dm-packaging (+https://github.com/pranavo72bex/Easy-Download-Manager)"
+    }
     url = f"https://github.com/yt-dlp/yt-dlp/releases/download/{tag}/{name}"
     print(f"fetching {name} from yt-dlp {tag}", flush=True)
-    with urllib.request.urlopen(urllib.request.Request(url, headers=agent), timeout=600) as reply:
+    with urllib.request.urlopen(
+        urllib.request.Request(url, headers=agent), timeout=600
+    ) as reply:
         data = reply.read()
     got = hashlib.sha256(data).hexdigest()
     if got != want:
@@ -48,20 +56,9 @@ def main():
     if dest.exists():
         shutil.rmtree(dest)
     dest.mkdir(parents=True)
-    with zipfile.ZipFile(io.BytesIO(data)) as archive:
-        archive.extractall(dest)
-    # The archive holds one folder (yt-dlp_macos/…): its contents are what
-    # dm wants, beside each other.
-    inner = [p for p in dest.iterdir() if p.is_dir()]
-    if len(inner) == 1 and not any(p.is_file() and p.name.startswith("yt-dlp") for p in dest.iterdir()):
-        for child in list(inner[0].iterdir()):
-            shutil.move(str(child), dest / child.name)
-        inner[0].rmdir()
-    for program in dest.iterdir():
-        if program.is_file() and program.name.startswith("yt-dlp"):
-            program.chmod(program.stat().st_mode | stat.S_IXUSR | stat.S_IXGRP | stat.S_IXOTH)
+    (dest / name).write_bytes(data)
     (dest / "VERSION").write_text(tag + "\n")
-    print(f"unpacked into {dest} ({tag})")
+    print(f"kept {name} ({len(data) / 1e6:.0f} MB) in {dest} ({tag})")
 
 
 if __name__ == "__main__":

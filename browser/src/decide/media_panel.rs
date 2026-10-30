@@ -292,7 +292,9 @@ pub fn panel_target(click: &PanelClick, tab_url: &str, private: bool) -> Result<
 /// The video's id in a YouTube watch or Shorts address: the pages whose
 /// own player lists its qualities for the panel. `None` elsewhere.
 pub fn youtube_video_id(url: &str) -> Option<String> {
-    let rest = url.strip_prefix("https://").or_else(|| url.strip_prefix("http://"))?;
+    let rest = url
+        .strip_prefix("https://")
+        .or_else(|| url.strip_prefix("http://"))?;
     let (host, path) = rest.split_once('/').unwrap_or((rest, ""));
     let host = host
         .strip_prefix("www.")
@@ -304,10 +306,10 @@ pub fn youtube_video_id(url: &str) -> Option<String> {
     let (path, query) = path.split_once('?').unwrap_or((path, ""));
     let id = if path == "watch" {
         query.split('&').find_map(|pair| pair.strip_prefix("v="))?
-    } else if let Some(rest) = path.strip_prefix("shorts/") {
-        rest.split(['/', '?', '#']).next()?
     } else {
-        return None;
+        path.strip_prefix("shorts/")?
+            .split(['/', '?', '#'])
+            .next()?
     };
     let id: String = id
         .chars()
@@ -339,4 +341,3 @@ pub fn player_heights(levels: &[String]) -> Vec<u32> {
     heights.dedup();
     heights
 }
-

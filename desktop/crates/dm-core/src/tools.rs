@@ -394,11 +394,40 @@ pub(crate) fn adopt(bundled: &Path) -> Option<PathBuf> {
         return Some(done);
     }
     let folder = folder()?;
-    let source = bundled.parent()?;
     let into = folder.join(unpacked_dir(std::env::consts::OS));
     let staging = into.with_extension("adopting");
     let _ = std::fs::remove_dir_all(&staging);
     std::fs::create_dir_all(folder).ok()?;
+    if bundled.extension().is_some_and(|e| e == "zip") {
+        // The build as its release ships it, unpacked here.
+        let program =
+            ytdlp_asset(std::env::consts::OS, std::env::consts::ARCH).map(unpacked_program)?;
+        let unpacked = if cfg!(target_os = "macos") {
+            std::process::Command::new("/usr/bin/ditto")
+                .args(["-x", "-k"])
+                .arg(bundled)
+                .arg(&staging)
+                .status()
+                .is_ok_and(|s| s.success())
+                && unquarantined(&staging)
+        } else {
+            std::fs::read(bundled)
+                .map_err(|e| e.to_string())
+                .and_then(|zip| unpack_portable(&zip, &staging))
+                .is_ok()
+        };
+        if !unpacked || !staging.join(&program).is_file() {
+            let _ = std::fs::remove_dir_all(&staging);
+            return None;
+        }
+        let _ = std::fs::remove_dir_all(&into);
+        if std::fs::rename(&staging, &into).is_err() {
+            let _ = std::fs::remove_dir_all(&staging);
+            return None;
+        }
+        return fetched("yt-dlp");
+    }
+    let source = bundled.parent()?;
     let copied = if cfg!(target_os = "macos") {
         // `ditto` with no extended attributes: the signatures are in the
         // files themselves, and the quarantine mark a browser put on a
@@ -1074,6 +1103,27 @@ mod adopt_tests {
         );
         // Asked again, the copy is used, not made twice.
         std::fs::remove_file(shipped.join(&name)).unwrap();
-        assert_eq!(adopt(&shipped.join(&name)), Some(adopted));
+        assert_eq!(adopt(&shipped.join(&name)), Some(adopted.clone()));
+
+        // As a package carries it: the release's zip, unpacked on first use.
+        std::fs::remove_dir_all(adopted.parent().unwrap()).unwrap();
+        let mut bytes = Vec::new();
+        {
+            let mut zip = zip::ZipWriter::new(std::io::Cursor::new(&mut bytes));
+            let opts = zip::write::SimpleFileOptions::default().unix_permissions(0o755);
+            zip.start_file(name.as_str(), opts).unwrap();
+            std::io::Write::write_all(&mut zip, b"program").unwrap();
+            zip.start_file("_internal/lib/x.so", opts).unwrap();
+            std::io::Write::write_all(&mut zip, b"library").unwrap();
+            zip.finish().unwrap();
+        }
+        let zipped = dir.path().join("Resources/yt-dlp/yt-dlp.zip");
+        std::fs::write(&zipped, &bytes).unwrap();
+        let unpacked = adopt(&zipped).expect("unpacked");
+        assert_eq!(std::fs::read(&unpacked).unwrap(), b"program");
+        assert_eq!(
+            std::fs::read(unpacked.parent().unwrap().join("_internal/lib/x.so")).unwrap(),
+            b"library"
+        );
     }
 }
