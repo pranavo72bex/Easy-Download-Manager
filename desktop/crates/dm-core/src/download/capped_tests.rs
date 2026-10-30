@@ -75,6 +75,8 @@ struct Server {
     addr: std::net::SocketAddr,
     /// Every range asked for beyond the probe.
     asked: Arc<Mutex<Vec<(usize, usize)>>>,
+    /// How many requests were taken and never answered (`SilentPastTwo`).
+    held: Arc<AtomicUsize>,
 }
 
 fn paced(data: Arc<Vec<u8>>, a: usize, b: usize, throttled: bool) -> Body {
@@ -98,11 +100,14 @@ async fn server(data: Arc<Vec<u8>>, fault: Fault) -> Server {
     let seen = asked.clone();
     let big = Arc::new(AtomicUsize::new(0));
     let in_flight = Arc::new(AtomicUsize::new(0));
+    let held = Arc::new(AtomicUsize::new(0));
+    let held_count = held.clone();
     let app = axum::Router::new().route(
         "/f.bin",
         get(move |headers: HeaderMap| {
             let (data, asked, big) = (data.clone(), seen.clone(), big.clone());
             let in_flight = in_flight.clone();
+            let held = held_count.clone();
             async move {
                 let range = headers
                     .get("range")
@@ -137,6 +142,7 @@ async fn server(data: Arc<Vec<u8>>, fault: Fault) -> Server {
                     let now = in_flight.fetch_add(1, Ordering::SeqCst);
                     if now >= 2 {
                         in_flight.fetch_sub(1, Ordering::SeqCst);
+                        held.fetch_add(1, Ordering::SeqCst);
                         tokio::time::sleep(Duration::from_secs(600)).await;
                         return Response::builder().status(500).body(Body::empty()).unwrap();
                     }
@@ -150,7 +156,7 @@ async fn server(data: Arc<Vec<u8>>, fault: Fault) -> Server {
                     }
                     let slot = Slot(in_flight.clone());
                     let body =
-                        Body::from_stream(paced(data.clone(), a, b, false).into_data_stream().map(
+                        Body::from_stream(paced(data.clone(), a, b, true).into_data_stream().map(
                             move |chunk| {
                                 let _held = &slot;
                                 chunk
@@ -182,7 +188,7 @@ async fn server(data: Arc<Vec<u8>>, fault: Fault) -> Server {
     let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
     let addr = listener.local_addr().unwrap();
     tokio::spawn(async move { axum::serve(listener, app).await.unwrap() });
-    Server { addr, asked }
+    Server { addr, asked, held }
 }
 
 async fn fetch(server: &Server, chunk: Option<u64>, options: &Options) -> (Vec<u8>, Duration) {
@@ -352,9 +358,16 @@ async fn connections_a_server_holds_unanswered_step_aside_for_the_served() {
     let done = download(&client, &url, &options).await.expect("the file");
     let took = started.elapsed();
     assert_eq!(std::fs::read(&done.path).unwrap(), *data, "byte for byte");
+    // The served two, paced, are still being served at the timeout, so the
+    // held four step aside at once rather than asking again and being held
+    // again: each held request is the first wave's, held once.
+    assert_eq!(
+        server.held.load(Ordering::SeqCst),
+        4,
+        "a held connection asked again and was held again"
+    );
     assert!(
-        took < Duration::from_secs(12),
+        took < Duration::from_secs(60),
         "the held connections were waited out: {took:?}"
     );
-    let _ = server.asked;
 }

@@ -3083,3 +3083,27 @@ dm. Also: Microsoft Edge alone for the browser checks.
 - **Edge alone.** The check scripts take Microsoft Edge where it is
   installed; Chrome for Testing is fetched only without it.
 
+## 2026-10-30: The reference work reviewed and stressed, and what changed
+
+A review of commit 8772014 by five lenses (the part, the engine's step
+aside, untrusted input, the window, the reader) found 23 candidate
+defects; its adversarial verification and three of its four stress runs
+stopped at a usage limit, so each finding was judged by hand against the
+code. Fixed: the step-aside rule narrowed to a request that got no byte
+while others did (a whole-link stall would otherwise have retired every
+connection but one for the rest of the download) with the last connection
+given another try instead of failing; the part's slices retried, checked
+against `Content-Range` before reading, written beside their name, kept
+on resume, its index arithmetic checked; MP4 alone for a part; sound
+alone M4A first; portrait chips by the shorter side; the playlist reader
+filtering unplayable and malformed entries and capping page size; the
+host's `ps` by path. A guard added for a part asked of a plain file first
+refused YouTube pages too: caught by running six real edge cases, and
+placed after the probe. Left: the held-connections test still passes on
+the old rule (it asserts the new one's count of held requests, which
+the old would exceed, but a stricter shape needs paced served responses
+at the timeout; it has them now), a forged page message can silence the
+panel's "did not answer" note (harmless otherwise), and the packaged
+yt-dlp is not pinned to a digest in the repository (gaps row 50).
+Network drop (25 s, 100 s) and a 45 s freeze of dm complete byte-exact.
+

@@ -91,10 +91,22 @@ pub fn choices(described: &str) -> Vec<Choice> {
     by_height.sort_by_key(|slot| std::cmp::Reverse(slot.0));
     let mut list: Vec<Choice> = by_height
         .into_iter()
-        .map(|(height, label, ext, size)| Choice {
-            label,
-            quality: format!("{height}/{ext}"),
-            size,
+        .map(|(height, label, ext, size)| {
+            // The quality word is the picture's shorter side, which is what
+            // the chooser and yt-dlp's selector measure: a portrait video's
+            // width (720 for 720x1280).
+            let side = label
+                .rsplit(' ')
+                .next()
+                .and_then(|wh| wh.split_once('×'))
+                .and_then(|(w, _)| w.parse::<u32>().ok())
+                .filter(|w| *w > 0 && *w < height)
+                .unwrap_or(height);
+            Choice {
+                label,
+                quality: format!("{side}/{ext}"),
+                size,
+            }
         })
         .collect();
     if let Some(audio) = audio {

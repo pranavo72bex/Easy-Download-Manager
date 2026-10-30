@@ -749,6 +749,19 @@ async fn fetch_reporting(
         other => other?,
     };
 
+    // A part of a video is cut from a video page's streams (`clip`); an
+    // address that is a file is not one, and is not fetched whole in its
+    // place without a word.
+    if options.span.is_some()
+        && !is_stream()
+        && !crate::ytdlp::is_page(info.content_type.as_deref())
+        && crate::youtube::video_id(url).is_none()
+    {
+        return Err(Error::Internal(
+            "a part can be cut only from a video page (YouTube's today); this address is a file"
+                .into(),
+        ));
+    }
     /* A manifest is not a file. It lists segments that concatenate into one,
      * with no length to split into ranges and no position to resume from, so
      * it takes a path of its own rather than being fetched as the few

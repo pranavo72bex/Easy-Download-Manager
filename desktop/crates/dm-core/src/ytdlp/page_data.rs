@@ -179,10 +179,22 @@ fn choices_of_player(player: &Value) -> Vec<Choice> {
     by_height.sort_by_key(|slot| std::cmp::Reverse(slot.0));
     let mut list: Vec<Choice> = by_height
         .into_iter()
-        .map(|(height, label, ext, size)| Choice {
-            label,
-            quality: format!("{height}/{ext}"),
-            size,
+        .map(|(height, label, ext, size)| {
+            // The quality word is the picture's shorter side, which is what
+            // the chooser and yt-dlp's selector measure: a portrait video's
+            // width (720 for 720x1280).
+            let side = label
+                .rsplit(' ')
+                .next()
+                .and_then(|wh| wh.split_once('×'))
+                .and_then(|(w, _)| w.parse::<u32>().ok())
+                .filter(|w| *w > 0 && *w < height)
+                .unwrap_or(height);
+            Choice {
+                label,
+                quality: format!("{side}/{ext}"),
+                size,
+            }
         })
         .collect();
     if let Some((_, ext)) = audio.and_then(kind) {
@@ -226,6 +238,22 @@ mod tests {
                 ("M4A audio", "audio/m4a", Some(500)),
             ]
         );
+    }
+
+    #[test]
+    fn a_portrait_videos_qualities_are_named_by_the_shorter_side() {
+        // A Short: 1080x1920 and 720x1280 are 1080 and 720, as the chooser
+        // reads them, so a click on the second fetches the 720-wide stream.
+        let short = r#"{"playabilityStatus":{"status":"OK"},"videoDetails":{"isLive":false},
+          "streamingData":{"adaptiveFormats":[
+            {"itag":1,"mimeType":"video/mp4; codecs=\"avc1\"","width":1080,"height":1920,"contentLength":"9000"},
+            {"itag":2,"mimeType":"video/mp4; codecs=\"avc1\"","width":720,"height":1280,"contentLength":"4000"},
+            {"itag":140,"mimeType":"audio/mp4; codecs=\"mp4a.40.2\"","averageBitrate":130000,"contentLength":"500"}]}}"#;
+        let words: Vec<String> = choices_of_page(&page(short))
+            .into_iter()
+            .map(|c| c.quality)
+            .collect();
+        assert_eq!(words, ["1080/mp4", "720/mp4", "audio/m4a"]);
     }
 
     #[test]

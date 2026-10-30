@@ -138,7 +138,7 @@ async fn read_playlist_within(
             .header(reqwest::header::COOKIE, &cookie),
     )
     .await?;
-    let page = Error::refused_or(page).await?.text().await?;
+    let page = text_capped(Error::refused_or(page).await?, PAGE_MOST).await?;
     let data = initial_data(&page).ok_or_else(|| {
         Error::Internal(
             "the playlist page holds no list (private, removed, or a sign-in wanted)".into(),
@@ -181,7 +181,7 @@ async fn read_playlist_within(
             playlist.cut_short = true;
             break;
         };
-        let Ok(text) = answer.text().await else {
+        let Ok(text) = text_capped(answer, PAGE_MOST).await else {
             playlist.cut_short = true;
             break;
         };
@@ -197,6 +197,24 @@ async fn read_playlist_within(
         }
     }
     Ok(playlist)
+}
+
+/// The most of a page or an API answer that is read: YouTube's are a
+/// megabyte or two; a body that goes on past this is not what was asked.
+const PAGE_MOST: usize = 16 << 20;
+
+/// The response's text, read no further than `most` bytes.
+async fn text_capped(mut response: reqwest::Response, most: usize) -> Result<String, Error> {
+    let mut bytes = Vec::new();
+    while let Some(chunk) = response.chunk().await? {
+        if bytes.len() + chunk.len() > most {
+            return Err(Error::Internal(
+                "the page is larger than any YouTube page".into(),
+            ));
+        }
+        bytes.extend_from_slice(&chunk);
+    }
+    Ok(String::from_utf8_lossy(&bytes).into_owned())
 }
 
 /// The page's `ytInitialData`.
@@ -264,6 +282,19 @@ fn playlist_title(data: &Value) -> Option<String> {
 /// where the data has one.
 fn gather(data: &Value, entries: &mut Vec<PlaylistEntry>) -> Option<String> {
     let mut token = None;
+    let mut seen: std::collections::HashSet<String> =
+        entries.iter().map(|e| e.id.clone()).collect();
+    // A video's id as YouTube writes them: eleven of these characters.
+    let sound_id = |id: &str| {
+        id.len() == 11
+            && id
+                .chars()
+                .all(|c| c.is_ascii_alphanumeric() || matches!(c, '-' | '_'))
+    };
+    // A video that cannot be played is not offered: private, deleted.
+    let unplayable = |title: &str, playable: Option<bool>| {
+        playable == Some(false) || matches!(title, "[Private video]" | "[Deleted video]")
+    };
     walk(data, &mut |key, value| {
         match key {
             // The page's newer shape (2026): each video a "lockup", its id
@@ -275,7 +306,7 @@ fn gather(data: &Value, entries: &mut Vec<PlaylistEntry>) -> Option<String> {
                     .get("contentType")
                     .and_then(Value::as_str)
                     .is_none_or(|t| t == "LOCKUP_CONTENT_TYPE_VIDEO");
-                if id.is_empty() || !video || entries.iter().any(|e| e.id == id) {
+                if !sound_id(id) || !video || seen.contains(id) {
                     return;
                 }
                 let title = value
@@ -296,6 +327,10 @@ fn gather(data: &Value, entries: &mut Vec<PlaylistEntry>) -> Option<String> {
                         }
                     });
                 }
+                if unplayable(&title, None) {
+                    return;
+                }
+                seen.insert(id.to_string());
                 entries.push(PlaylistEntry {
                     id: id.to_string(),
                     title: if title.is_empty() {
@@ -308,7 +343,10 @@ fn gather(data: &Value, entries: &mut Vec<PlaylistEntry>) -> Option<String> {
             }
             "playlistVideoRenderer" => {
                 let id = value.get("videoId").and_then(Value::as_str).unwrap_or("");
-                if id.is_empty() || entries.iter().any(|e| e.id == id) {
+                if !sound_id(id) || seen.contains(id) {
+                    return;
+                }
+                if value.get("isPlayable").and_then(Value::as_bool) == Some(false) {
                     return;
                 }
                 let title = value
@@ -321,6 +359,10 @@ fn gather(data: &Value, entries: &mut Vec<PlaylistEntry>) -> Option<String> {
                 let seconds = value
                     .get("lengthSeconds")
                     .and_then(|v| v.as_u64().or_else(|| v.as_str()?.parse().ok()));
+                if unplayable(&title, None) {
+                    return;
+                }
+                seen.insert(id.to_string());
                 entries.push(PlaylistEntry {
                     id: id.to_string(),
                     title: if title.is_empty() {
@@ -613,7 +655,13 @@ fn choose(formats: &[Format], quality: Quality, container: Option<&str>) -> Opti
             .max_by_key(|f| f.bitrate)
     };
     if quality == Quality::Audio {
-        return best_audio().map(|a| vec![a]);
+        // The sound alone in the container asked for, as the list offers
+        // it (M4A first); the best of the rest where that has none.
+        let preferred = match container {
+            Some("webm") => "webm",
+            _ => "m4a",
+        };
+        return audio_in(preferred).or_else(best_audio).map(|a| vec![a]);
     }
     let limit = match quality {
         Quality::UpTo(height) => height as u64,
@@ -673,7 +721,8 @@ pub async fn read_for(
     let client = builder.build()?;
     // A part is cut from MP4 streams, whose pieces are indexed; a WebM
     // line picked in the panel gives way to the MP4 at that height.
-    let container = if options.span.is_some() {
+    let part = options.span.is_some();
+    let container = if part {
         Some("mp4")
     } else {
         options.container.as_deref()
@@ -683,6 +732,7 @@ pub async fn read_for(
         url,
         options.quality,
         container,
+        part,
         options.sign_in.as_ref(),
         staging,
     )
@@ -696,13 +746,14 @@ pub async fn read(
     url: &str,
     quality: Quality,
     container: Option<&str>,
+    mp4_only: bool,
     sign_in: Option<&crate::cookies::SignIn>,
     staging: &Path,
 ) -> Result<String, Error> {
     let id = video_id(url).ok_or_else(|| Error::Internal("not a YouTube video address".into()))?;
     tokio::time::timeout(
         WITHIN,
-        read_within(client, &id, quality, container, sign_in, staging),
+        read_within(client, &id, quality, container, mp4_only, sign_in, staging),
     )
     .await
     .map_err(|_| Error::Internal("the page took too long to read".into()))?
@@ -713,6 +764,7 @@ async fn read_within(
     id: &str,
     quality: Quality,
     container: Option<&str>,
+    mp4_only: bool,
     sign_in: Option<&crate::cookies::SignIn>,
     staging: &Path,
 ) -> Result<String, Error> {
@@ -732,7 +784,7 @@ async fn read_within(
             .header(reqwest::header::COOKIE, &cookie),
     )
     .await?;
-    let page = Error::refused_or(page).await?.text().await?;
+    let page = text_capped(Error::refused_or(page).await?, PAGE_MOST).await?;
     let mut facts = page_facts(&page);
     // The player script, where its timestamp is wanted now (the page gave
     // none) and for the solver later.
@@ -748,7 +800,7 @@ async fn read_within(
                 .header(reqwest::header::USER_AGENT, PAGE_AGENT),
         )
         .await?;
-        let text = Error::refused_or(script).await?.text().await?;
+        let text = text_capped(Error::refused_or(script).await?, PAGE_MOST).await?;
         Ok::<String, Error>(text)
     };
     let mut script: Option<String> = None;
@@ -786,7 +838,7 @@ async fn read_within(
         ask = ask.header("X-Goog-Visitor-Id", visitor);
     }
     let answer = crate::redirects::send(ask.body(body.to_string())).await?;
-    let answered = Error::refused_or(answer).await?.text().await?;
+    let answered = text_capped(Error::refused_or(answer).await?, PAGE_MOST).await?;
     let player: Value = serde_json::from_str(&answered)
         .map_err(|e| Error::Internal(format!("the player API answered no JSON ({e})")))?;
     let status = player
@@ -851,13 +903,20 @@ async fn read_within(
         }
     }
 
+    // A part is cut from MP4 streams alone (their pieces are indexed): a
+    // height only WebM has gives way to the tallest MP4.
+    let cuttable: Vec<Format> = formats
+        .iter()
+        .filter(|f| !mp4_only || f.container == "mp4" || f.container == "m4a")
+        .cloned()
+        .collect();
     let chosen = if muxed {
-        choose(&formats, quality, container).map(|mut pair| {
+        choose(&cuttable, quality, container).map(|mut pair| {
             pair.truncate(1);
             pair
         })
     } else {
-        choose(&formats, quality, container)
+        choose(&cuttable, quality, container)
     }
     .ok_or_else(|| Error::Internal("no stream at that quality".into()))?;
     // The TV client's answer names no title; the page does.
@@ -1358,11 +1417,14 @@ mod tests {
     fn a_playlist_pages_videos_and_its_next_page_are_gathered() {
         let html = r#"<html><script>ytcfg.set({"INNERTUBE_CLIENT_VERSION":"2.20261001.01.00"});</script>
         <script>var ytInitialData = {"metadata":{"playlistMetadataRenderer":{"title":"Northern Series"}},
-        "contents":{"list":[{"playlistVideoRenderer":{"videoId":"vid1","title":{"runs":[{"text":"Northern Light"}]},"lengthSeconds":"634","index":{"simpleText":"1"}}},
-        {"playlistVideoRenderer":{"videoId":"vid2","title":{"simpleText":"Still Water"}}},
-        {"playlistVideoRenderer":{"videoId":"vid1","title":{"runs":[{"text":"again"}]}}},
-        {"lockupViewModel":{"contentId":"vid3","contentType":"LOCKUP_CONTENT_TYPE_VIDEO","contentImage":{"thumbnailViewModel":{"overlays":[{"thumbnailBottomOverlayViewModel":{"badges":[{"thumbnailBadgeViewModel":{"text":"12:15"}}]}}]}},"metadata":{"lockupMetadataViewModel":{"title":{"content":"Tears of Steel"}}}}},
-        {"lockupViewModel":{"contentId":"PLx","contentType":"LOCKUP_CONTENT_TYPE_PLAYLIST","metadata":{"lockupMetadataViewModel":{"title":{"content":"Another list"}}}}},
+        "contents":{"list":[{"playlistVideoRenderer":{"videoId":"vid1_______","title":{"runs":[{"text":"Northern Light"}]},"lengthSeconds":"634","index":{"simpleText":"1"}}},
+        {"playlistVideoRenderer":{"videoId":"vid2_______","title":{"simpleText":"Still Water"}}},
+        {"playlistVideoRenderer":{"videoId":"vid4_______","title":{"simpleText":"[Private video]"}}},
+        {"playlistVideoRenderer":{"videoId":"vid5_______","isPlayable":false,"title":{"simpleText":"Gone"}}},
+        {"playlistVideoRenderer":{"videoId":"abc&list=PL","title":{"simpleText":"Odd id"}}},
+        {"playlistVideoRenderer":{"videoId":"vid1_______","title":{"runs":[{"text":"again"}]}}},
+        {"lockupViewModel":{"contentId":"vid3_______","contentType":"LOCKUP_CONTENT_TYPE_VIDEO","contentImage":{"thumbnailViewModel":{"overlays":[{"thumbnailBottomOverlayViewModel":{"badges":[{"thumbnailBadgeViewModel":{"text":"12:15"}}]}}]}},"metadata":{"lockupMetadataViewModel":{"title":{"content":"Tears of Steel"}}}}},
+        {"lockupViewModel":{"contentId":"PLx________","contentType":"LOCKUP_CONTENT_TYPE_PLAYLIST","metadata":{"lockupMetadataViewModel":{"title":{"content":"Another list"}}}}},
         {"continuationItemViewModel":{"continuationCommand":{"innertubeCommand":{"continuationCommand":{"token":"NEXT-1"}}}}}]}};</script></html>"#;
         let data = initial_data(html).unwrap();
         assert_eq!(playlist_title(&data).as_deref(), Some("Northern Series"));
@@ -1374,23 +1436,26 @@ mod tests {
             entries,
             [
                 PlaylistEntry {
-                    id: "vid1".into(),
+                    id: "vid1_______".into(),
                     title: "Northern Light".into(),
                     seconds: Some(634)
                 },
                 PlaylistEntry {
-                    id: "vid2".into(),
+                    id: "vid2_______".into(),
                     title: "Still Water".into(),
                     seconds: None
                 },
                 PlaylistEntry {
-                    id: "vid3".into(),
+                    id: "vid3_______".into(),
                     title: "Tears of Steel".into(),
                     seconds: Some(735)
                 },
             ]
         );
-        assert_eq!(entries[0].url(), "https://www.youtube.com/watch?v=vid1");
+        assert_eq!(
+            entries[0].url(),
+            "https://www.youtube.com/watch?v=vid1_______"
+        );
         assert_eq!(initial_data("<html>nothing</html>"), None);
     }
 
@@ -1433,6 +1498,10 @@ mod tests {
         );
         assert_eq!(
             itags(choose(&formats, Quality::Audio, None)),
+            Some(vec![140])
+        );
+        assert_eq!(
+            itags(choose(&formats, Quality::Audio, Some("webm"))),
             Some(vec![251])
         );
         assert_eq!(itags(choose(&formats, Quality::UpTo(100), None)), None);
@@ -1537,7 +1606,7 @@ mod tests {
         assert_eq!(pair[1]["ext"], "m4a");
         assert_eq!(pair[1]["vcodec"], "none");
         assert_eq!(reading["formats"].as_array().unwrap().len(), 6);
-        let sound = choose(&formats, Quality::Audio, None).unwrap();
+        let sound = choose(&formats, Quality::Audio, Some("webm")).unwrap();
         let alone = reading_json("jNQXAC9IVRw", "x", None, &formats, &sound, Path::new("/s"));
         assert_eq!(alone["ext"], "webm");
         assert_eq!(alone["url"], "https://r1.example/x");

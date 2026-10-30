@@ -405,4 +405,6 @@ Evidence is `dm-desktop/tests/window.rs` unless it says otherwise.
 | The panel's list at once, from YouTube's own player | PASS | `decide/tests.rs` `youtubes_player_answers_for_watch_and_shorts_pages_alone`; `youtube-check.py` in Edge lists the qualities and the download lands (2026-10-30) |
 | Download details for a caught download: the browser's name, "Always save here without asking" | PASS | `host::parent_browser`, `file_info.rs`; checked by hand in Edge 2026-10-30 |
 | The side panel's switch in the toolbar | PASS | `menus.rs` `toolbar`; the baseline pictures taken again 2026-10-30 |
+| Downloads pick up after dropped Wi-Fi and sleep | PASS | 2026-10-30, the release candidate's debug build against a local server: 25 s and 100 s outages complete byte-exact on attempt 6 and 9 of 10 with nobody resuming; dm frozen 45 s (SIGSTOP), with and without the server restarted, bytes again 2 s after waking, byte-exact |
+| A part's edge cases | PASS | 2026-10-30 on real YouTube: 2 s, 0.5 s and 40 s parts play exactly that long; a span past the video says "nothing between"; an end before its start is refused at the control port; a part of a plain file fails in words |
 

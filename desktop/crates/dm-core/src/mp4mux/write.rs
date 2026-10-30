@@ -346,7 +346,10 @@ pub(super) fn moov(
     // Each track's wait and part, as its edit list will say.
     let placed = |track: &Track| match cut {
         Some((from, to)) => {
-            let start = start_ms(track).unwrap_or(earliest);
+            // A track that says when it starts (a stream's pieces, tfdt)
+            // is placed there; one that does not (subtitles, a plain file)
+            // starts at the video's own zero.
+            let start = start_ms(track).unwrap_or(0);
             let lead = start.saturating_sub(from);
             let skip = from.saturating_sub(start);
             (

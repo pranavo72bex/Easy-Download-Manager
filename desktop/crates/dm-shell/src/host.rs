@@ -79,7 +79,7 @@ pub fn parent_browser() -> Option<String> {
     #[cfg(unix)]
     {
         let parent = std::os::unix::process::parent_id();
-        let out = std::process::Command::new("ps")
+        let out = std::process::Command::new("/bin/ps")
             .args(["-o", "comm=", "-p", &parent.to_string()])
             .stdin(std::process::Stdio::null())
             .stderr(std::process::Stdio::null())
@@ -96,8 +96,8 @@ pub fn parent_browser() -> Option<String> {
             "Vivaldi" | "vivaldi" | "vivaldi-bin" => "Vivaldi",
             "Opera" | "opera" => "Opera",
             "Chromium" | "chromium" | "chromium-browser" => "Chromium",
-            "" => return None,
-            other => other,
+            // Anything else (a wrapper, a script) is no browser to name.
+            _ => return None,
         };
         Some(known.to_string())
     }

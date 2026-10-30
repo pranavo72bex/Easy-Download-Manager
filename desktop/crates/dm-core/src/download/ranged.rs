@@ -177,6 +177,8 @@ pub(super) async fn run(
             // A helper that has been let in: it is one of the active, to the
             // connection that steps aside for a server that limits them.
             let mut joined = false;
+            // Whether this connection, left alone, has had its second go.
+            let mut alone_again = false;
             if helper {
                 tokio::select! {
                     () = tokio::time::sleep(HELP_AFTER) => {}
@@ -229,8 +231,17 @@ pub(super) async fn run(
                         crate::lock(&orphans).push(index);
                         break;
                     }
+                    /* The others stepped aside between the judgement and
+                     * now, and this is the last connection: its range is
+                     * nobody else's to fetch, so it is tried once more
+                     * here, with the tries a connection alone gets. */
+                    Err(e) if crate::retry::transient(&e) && !alone_again => {
+                        alone_again = true;
+                        continue;
+                    }
                     Err(e) => return Err(e),
                 }
+                alone_again = false;
             }
             if !helper || joined {
                 active.fetch_sub(1, Ordering::SeqCst);
@@ -417,6 +428,10 @@ pub(super) async fn fetch_segment(
      * times over, that held most of the download for minutes at a seventh
      * of the speed one connection gets; stepping aside at once leaves the
      * range to those the server takes. */
+    // Where the whole download and this range stood when the attempt
+    // began, for telling a server that holds this connection from a link
+    // that has gone quiet for everyone.
+    let at_start = (AtomicU64::new(0), AtomicU64::new(0));
     let busy = |e: &Error| {
         let refused = matches!(
             e,
@@ -430,8 +445,18 @@ pub(super) async fn fetch_segment(
          * with proof.ovh.net at 16 connections, 2026-10-30). Waited out,
          * dm's tries on each held the download for minutes and then failed
          * it, where fewer connections finished it. Stepped aside while
-         * others are served, the range goes to them. */
-        let unanswered = matches!(e, Error::Network(e) if e.is_timeout());
+         * others are served, the range goes to them. Only where this
+         * request got no byte while the others did: a link gone quiet for
+         * everyone (the computer asleep, a router restarting) is retried
+         * on every connection as before, and a response that stalled after
+         * bytes came is this range's to try again. */
+        let (whole_before, own_before) = (
+            at_start.0.load(Ordering::Relaxed),
+            at_start.1.load(Ordering::Relaxed),
+        );
+        let unanswered = matches!(e, Error::Network(e) if e.is_timeout())
+            && on_disk() == own_before
+            && job.downloaded.load(Ordering::Relaxed) > whole_before;
         (refused || unanswered) && active.load(Ordering::SeqCst) > 1
     };
     // Only a capped stream is asked again slice by slice; without a cap the
@@ -449,6 +474,10 @@ pub(super) async fn fetch_segment(
                 // Counted before the attempt, so the next one picks a different
                 // mirror where there is one to pick.
                 job.attempts[index].fetch_add(1, Ordering::Relaxed);
+                at_start
+                    .0
+                    .store(job.downloaded.load(Ordering::Relaxed), Ordering::Relaxed);
+                at_start.1.store(on_disk(), Ordering::Relaxed);
                 attempt_segment(client, job, index, resumable)
             },
         )

@@ -238,7 +238,11 @@ pub fn covering(index: &Index, span: Span) -> Option<(usize, usize)> {
     let mut first = None;
     let mut last = None;
     for (i, piece) in index.pieces.iter().enumerate() {
-        let end = piece.start + piece.duration;
+        let end = piece.start.saturating_add(piece.duration);
+        // A piece with no bytes or no time is nothing to fetch.
+        if piece.size == 0 || piece.duration == 0 {
+            continue;
+        }
         if piece.start < to && end > from {
             first.get_or_insert(i);
             last = Some(i);
@@ -316,20 +320,42 @@ pub(crate) async fn fetch_part(
         ))
     })?;
     let pieces = &index.pieces[first..=last];
+    let odd = || Error::Internal("this stream's index does not add up".into());
     let begin = pieces[0].offset;
-    let end = pieces[pieces.len() - 1].offset + pieces[pieces.len() - 1].size - 1;
-    let total = init.len() as u64 + (end - begin + 1);
+    let last_piece = pieces[pieces.len() - 1];
+    let end = last_piece
+        .offset
+        .checked_add(last_piece.size)
+        .and_then(|e| e.checked_sub(1))
+        .filter(|e| *e >= begin)
+        .ok_or_else(odd)?;
+    let total = (init.len() as u64)
+        .checked_add(end - begin + 1)
+        .ok_or_else(odd)?;
     let scale = f64::from(index.timescale);
     let part = Part {
         bytes: total,
         starts: pieces[0].start as f64 / scale,
-        ends: (pieces[pieces.len() - 1].start + pieces[pieces.len() - 1].duration) as f64 / scale,
+        ends: last_piece.start.saturating_add(last_piece.duration) as f64 / scale,
     };
 
+    // A part already fetched whole (a resume after a pause) is not fetched
+    // again; one fetched in part is, from the start: a part is small.
+    if tokio::fs::metadata(&source.target)
+        .await
+        .is_ok_and(|m| m.len() == total)
+    {
+        return Ok(part);
+    }
     if let Some(dir) = source.target.parent() {
         tokio::fs::create_dir_all(dir).await.map_err(Error::Disk)?;
     }
-    let mut file = tokio::fs::File::create(&source.target)
+    // Written beside its name and moved there whole, so a part cut short
+    // never passes for one that is not.
+    let mut writing = source.target.as_os_str().to_owned();
+    writing.push(".part");
+    let writing = PathBuf::from(writing);
+    let mut file = tokio::fs::File::create(&writing)
         .await
         .map_err(Error::Disk)?;
     use tokio::io::AsyncWriteExt;
@@ -337,17 +363,23 @@ pub(crate) async fn fetch_part(
 
     // Slices no larger than the server's cap on one request (YouTube slows
     // a response past about ten megabytes) or four megabytes, fetched
-    // several at once and written in order.
+    // several at once and written in order; each slice asked again on a
+    // passing failure, as the engine asks a range again.
     let slice = source.chunk.unwrap_or(10 << 20).clamp(64 << 10, 4 << 20);
-    let ranges: Vec<(u64, u64)> = (begin..=end)
-        .step_by(slice as usize)
-        .map(|a| (a, (a + slice - 1).min(end)))
-        .collect();
+    let slices = (end - begin) / slice + 1;
+    let tries = if options.attempts == 0 {
+        10
+    } else {
+        options.attempts
+    };
     let at_once = options.connections.clamp(1, 16);
-    let mut fetched = futures_util::stream::iter(ranges)
-        .map(|(a, b)| get_range(client, source, a, b))
+    let mut fetched = futures_util::stream::iter(0..slices)
+        .map(|n| {
+            let a = begin + n * slice;
+            let b = (a + slice - 1).min(end);
+            get_range_again(client, source, a, b, tries, &options.control)
+        })
         .buffered(at_once);
-    let started = Instant::now();
     let mut meter = Meter::new(Some(total), 0);
     let mut downloaded = init.len() as u64;
     let mut last_said = Instant::now() - Duration::from_secs(1);
@@ -372,8 +404,51 @@ pub(crate) async fn fetch_part(
     }
     file.flush().await.map_err(Error::Disk)?;
     file.sync_all().await.map_err(Error::Disk)?;
-    let _ = started;
+    drop(file);
+    if downloaded != total {
+        let _ = tokio::fs::remove_file(&writing).await;
+        return Err(Error::Incomplete {
+            got: downloaded,
+            expected: total,
+        });
+    }
+    tokio::fs::rename(&writing, &source.target)
+        .await
+        .map_err(Error::Disk)?;
     Ok(part)
+}
+
+/// [`get_range`], asked again after a passing failure (a dropped
+/// connection, a 503, a timeout), with the engine's own backoff, up to
+/// `tries` times; a pause or cancel asked for meanwhile is answered at
+/// once.
+async fn get_range_again(
+    client: &reqwest::Client,
+    source: &Source,
+    from: u64,
+    to: u64,
+    tries: u32,
+    control: &crate::Control,
+) -> Result<bytes::Bytes, Error> {
+    let mut attempt = 0u32;
+    loop {
+        control.check()?;
+        match get_range(client, source, from, to).await {
+            Ok(bytes) => return Ok(bytes),
+            Err(e) => {
+                attempt += 1;
+                if attempt >= tries || !crate::retry::transient(&e) {
+                    return Err(e);
+                }
+                let wait = crate::retry::backoff(attempt, None);
+                crate::download::or_stop(control, async {
+                    tokio::time::sleep(wait).await;
+                    Ok::<(), Error>(())
+                })
+                .await?;
+            }
+        }
+    }
 }
 
 /// Bytes `from` to `to` of the stream, as one request.
@@ -391,19 +466,42 @@ async fn get_range(
     }
     request = source.headers.onto(request, false, false);
     let response = crate::redirects::send(request).await?;
-    let response = Error::refused_or(response).await?;
+    let mut response = Error::refused_or(response).await?;
     if response.status() != reqwest::StatusCode::PARTIAL_CONTENT {
         return Err(Error::RangesIgnored);
     }
-    let bytes = response.bytes().await?;
     let expected = to - from + 1;
+    // The answer must be the range asked for, said so before any of it is
+    // read: a server answering from another offset, or with more than was
+    // asked, is not read into memory and then found out.
+    let served = response
+        .headers()
+        .get(reqwest::header::CONTENT_RANGE)
+        .and_then(|v| v.to_str().ok())
+        .and_then(|v| v.strip_prefix("bytes "))
+        .and_then(|v| v.split_once('/'))
+        .and_then(|(span, _)| span.split_once('-'))
+        .and_then(|(a, b)| Some((a.trim().parse::<u64>().ok()?, b.trim().parse::<u64>().ok()?)));
+    if served != Some((from, to)) {
+        return Err(Error::DishonestRanges);
+    }
+    if response.content_length().is_some_and(|len| len != expected) {
+        return Err(Error::DishonestRanges);
+    }
+    let mut bytes = Vec::with_capacity(expected as usize);
+    while let Some(chunk) = response.chunk().await? {
+        if bytes.len() as u64 + chunk.len() as u64 > expected {
+            return Err(Error::DishonestRanges);
+        }
+        bytes.extend_from_slice(&chunk);
+    }
     if bytes.len() as u64 != expected {
         return Err(Error::Incomplete {
             got: bytes.len() as u64,
             expected,
         });
     }
-    Ok(bytes)
+    Ok(bytes::Bytes::from(bytes))
 }
 
 fn be16(data: &[u8], at: usize) -> Option<u16> {
@@ -546,6 +644,9 @@ mod tests {
             None,
             "past the end"
         );
+        // A piece with no bytes, or no time, is never taken.
+        let odd = parse_sidx(&sidx(1000, 0, &[(0, 5000), (5000, 0), (6000, 5000)]), 0).unwrap();
+        assert_eq!(covering(&odd, Span::new(0.0, 60.0).unwrap()), Some((2, 2)));
         // Not an index: another box, one cut short, one naming indexes.
         assert_eq!(parse_sidx(&boxed(b"moov", &[0; 40]), 0), None);
         assert_eq!(parse_sidx(&whole[..whole.len() - 1], 0), None);
