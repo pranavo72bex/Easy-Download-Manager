@@ -1594,9 +1594,13 @@ mod tests {
             &chosen,
             Path::new("/tmp/staging"),
         );
+        // Joined as the system joins paths (a backslash on Windows).
         assert_eq!(
             reading["filename"],
-            "/tmp/staging/Me at the zoo_ a _first_ _ video [jNQXAC9IVRw].mp4"
+            Path::new("/tmp/staging")
+                .join("Me at the zoo_ a _first_ _ video [jNQXAC9IVRw].mp4")
+                .display()
+                .to_string()
         );
         let pair = reading["requested_formats"].as_array().unwrap();
         assert_eq!(pair.len(), 2);
