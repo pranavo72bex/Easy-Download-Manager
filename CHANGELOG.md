@@ -5,6 +5,7 @@ the browser extension (`v*` tags) are versioned separately.
 
 ## App 0.8.6, extension 3.2.1
 
+- On macOS yt-dlp runs in the system's sandbox: it writes only to its own folders and caches, and cannot read the browsers' profiles, cookies, keychains or keys.
 - Download details names the browser a caught download came from on Windows too, from the process list, past the cmd Chrome and Edge start the host through (compile-checked for Windows by scripts/windows-modules-check.sh, its walk tested here; not yet run on a Windows computer).
 - Delete file after: a row's menu gives its finished file 10 minutes, an hour or a day, said in its status; then the file goes to the Trash and the row with it.
 - Another site's playlist page (a Vimeo channel, a SoundCloud set, a Dailymotion playlist) opens the Playlist dialog with its videos, read by yt-dlp as a flat list in 1 to 9 s; the quality read stops at the list instead of reading every video (24 s and more).

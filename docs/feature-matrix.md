@@ -27,7 +27,7 @@ stated by its maker), reported (third parties only), untested, unknown.
 | YouTube | reads the player's requests; a new build whenever YouTube changes | only through its yt-dlp add-on | the player's requests name no format today (SABR, measured 2026-10-29), so yt-dlp reads the page and dm fetches what it found; yt-dlp fetched by dm, current within a week | as now; a helper-free YouTube is a client of YouTube's protocol kept up by hand (gaps.md rows 6, 32) | differs, by decision |
 | yt-dlp only reads; the manager fetches the files | n/a | verified | yes: `ytdlp/fetch.rs` | as now | match |
 | Picture and sound joined | n/a | verified: ffmpeg, a required package | dm's own muxer, nothing to install | as now | dm needs less |
-| yt-dlp in a sandbox (Linux) | n/a | verified: bubblewrap, run plainly where none can be made | yes since 2026-10-29: `ytdlp/sandbox.rs`, checked in Docker with and without a sandbox | as now | match |
+| yt-dlp in a sandbox (Linux, macOS) | n/a | verified: bubblewrap, run plainly where none can be made | yes: Linux since 2026-10-29 (bubblewrap, checked in Docker with and without a sandbox), macOS since 2026-10-30 (`sandbox-exec`, `ytdlp/sandbox.rs`) | Windows too | match |
 | A page's only video named by the page | reported | verified: "Lab clip (1).mp4", yt-dlp's number kept | "Lab clip [watch].mp4" since 2026-10-29: `ytdlp/fetch.rs`; QA `video_page` | as now | dm better |
 | Reading the browser's whole cookie store | n/a | verified, when the page's cookies are not given | never; only the page's own session, from the extension | as now, by decision | different, kept |
 

@@ -43,6 +43,8 @@ CASES = [
     ("BitTorrent (.torrent, Sintel)", "https://webtorrent.io/torrents/sintel.torrent", "file", "video"),
     ("Reddit, anonymous (blocked)", "https://www.reddit.com/r/aww/top/", "refused", None),
     ("Vimeo, needs sign-in", "https://vimeo.com/76979871", "refused", None),
+    # Read and fetched by yt-dlp, which runs in the system's sandbox.
+    ("Dailymotion video (via yt-dlp)", "https://www.dailymotion.com/video/x9tdqqm", "file", "video"),
 ]
 
 

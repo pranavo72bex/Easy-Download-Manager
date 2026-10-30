@@ -3160,3 +3160,19 @@ hour, a day), as the other macOS manager's Auto-Delete does. Decided:
 * The window sweeps (`DmApp::delete_due_files`, from `logic`), so the time
   is kept while dm runs, hidden or not, to within its 30 s idle wake; a time
   that passed while dm was closed is acted on at the next start.
+
+## yt-dlp in macOS's own sandbox (2026-10-30)
+
+yt-dlp runs a site's player script, so on macOS it now starts under
+`sandbox-exec` with a profile made per run (`ytdlp/sandbox.rs`): everything
+allowed as usual but writing, which is allowed only in the run's staging
+folder, the temporary folder, `~/.cache` and `~/Library/Caches` (yt-dlp's
+and Deno's caches) and `/dev`; the browsers' profiles, Safari's and the
+system's cookies, the keychains, `~/.ssh`, `~/.gnupg` and the cloud logins
+are neither read nor written, listed last so a writable folder cannot
+uncover them. `sandbox-exec` is deprecated but present on every macOS; it
+is tried once a run, and where it cannot make a sandbox yt-dlp starts
+plainly, as on Linux without bubblewrap. `DM_SANDBOX=0` turns it off.
+Checked: a hidden file reads as not permitted, outside its folders nothing
+writes, its staging writes; Dailymotion (HLS, through dm) and YouTube (with
+Deno) downloads complete with both the Homebrew and the shipped build.
