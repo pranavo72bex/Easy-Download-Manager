@@ -86,11 +86,13 @@ async fn pieces_after_the_first_are_fetched_on_connections_already_open() {
         asked.load(Ordering::SeqCst),
     );
     eprintln!("{asked} requests on {accepted} connections");
-    // 32 MB over 4 connections is cut into 16 pieces: with reuse the pieces
-    // after the first few share sockets; without it, each one is a connect.
+    // 32 MB over 4 connections: more requests than connections means pieces
+    // after the first four were fetched (how many depends on how fast the
+    // machine is, since a piece is halved for a connection that is free:
+    // 7 on a busy CI runner, 16 or more on a quiet one, so no fixed count).
     assert!(
-        asked >= 8,
-        "only {asked} requests: the file was not cut into pieces"
+        asked > 4,
+        "only {asked} requests on 4 connections: the file was not cut into pieces"
     );
     // Fewer connections than requests: at least one carried a second
     // piece. (A fixed ceiling read as flaky on a slow machine, which opens
