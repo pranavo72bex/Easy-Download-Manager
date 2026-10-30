@@ -410,3 +410,4 @@ Evidence is `dm-desktop/tests/window.rs` unless it says otherwise.
 | HLS and DASH qualities by the shorter side | PASS | `stream/tests.rs` `a_portrait_playlist_is_picked_by_the_shorter_side`, `dash/tests.rs` `a_portrait_manifest_is_picked_by_the_shorter_side` |
 | Other sites' playlists listed to tick | PASS | ytdlp/playlist.rs tests; flat reads of Vimeo, SoundCloud and Dailymotion lists 2026-10-30 |
 | Delete file after (to the Trash) | PASS | window test a_file_given_a_time_goes_to_the_trash_when_it_comes; queue test a_row_keeps_when_its_file_is_to_be_deleted |
+| Browser named on Windows (process list) | PASS | host::parent tests the_browser_is_found_past_the_cmd_it_starts_the_host_through; scripts/windows-modules-check.sh |

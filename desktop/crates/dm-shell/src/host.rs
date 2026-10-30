@@ -72,40 +72,11 @@ pub struct Request {
     pub browser: Option<String>,
 }
 
+mod parent;
 /// The browser this host was started by, by its parent process's program
-/// name, in the words a person knows it by. `None` where it cannot be told
-/// (no parent to ask, or Windows, where the host does not look).
-pub fn parent_browser() -> Option<String> {
-    #[cfg(unix)]
-    {
-        let parent = std::os::unix::process::parent_id();
-        let out = std::process::Command::new("/bin/ps")
-            .args(["-o", "comm=", "-p", &parent.to_string()])
-            .stdin(std::process::Stdio::null())
-            .stderr(std::process::Stdio::null())
-            .output()
-            .ok()?;
-        let comm = String::from_utf8_lossy(&out.stdout).trim().to_string();
-        let name = comm.rsplit('/').next().unwrap_or("").trim();
-        let known = match name {
-            "Microsoft Edge" | "msedge" | "microsoft-edge" => "Microsoft Edge",
-            "Google Chrome" | "chrome" | "google-chrome" => "Google Chrome",
-            "Brave Browser" | "brave" | "brave-browser" => "Brave",
-            "firefox" | "firefox-bin" | "Firefox" => "Firefox",
-            "Arc" => "Arc",
-            "Vivaldi" | "vivaldi" | "vivaldi-bin" => "Vivaldi",
-            "Opera" | "opera" => "Opera",
-            "Chromium" | "chromium" | "chromium-browser" => "Chromium",
-            // Anything else (a wrapper, a script) is no browser to name.
-            _ => return None,
-        };
-        Some(known.to_string())
-    }
-    #[cfg(not(unix))]
-    {
-        None
-    }
-}
+/// name (past the `cmd` Chrome and Edge start it through on Windows), in the
+/// words a person knows it by. `None` where it cannot be told.
+pub use parent::parent_browser;
 
 /// Frames one message the way native messaging wants it.
 pub fn frame(value: &serde_json::Value) -> Vec<u8> {
