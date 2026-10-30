@@ -715,5 +715,11 @@
  "From {}": "Из {}",
  "Always save here without asking": "Всегда сохранять сюда, не спрашивая",
  "Hide the side panel": "Скрыть боковую панель",
- "Show the side panel": "Показать боковую панель"
+ "Show the side panel": "Показать боковую панель",
+ "Delete file after": "Удалить файл через",
+ "Never": "Никогда",
+ "10 minutes": "10 минут",
+ "1 hour": "1 час",
+ "1 day": "1 день",
+ "Complete · to the Trash in {}": "Готово · в корзину через {}"
 }

@@ -5,6 +5,7 @@ the browser extension (`v*` tags) are versioned separately.
 
 ## App 0.8.6, extension 3.2.1
 
+- Delete file after: a row's menu gives its finished file 10 minutes, an hour or a day, said in its status; then the file goes to the Trash and the row with it.
 - Another site's playlist page (a Vimeo channel, a SoundCloud set, a Dailymotion playlist) opens the Playlist dialog with its videos, read by yt-dlp as a flat list in 1 to 9 s; the quality read stops at the list instead of reading every video (24 s and more).
 - A quality asked of an HLS or DASH stream names the picture's shorter side too, as it already did for YouTube and yt-dlp: a portrait stream's 720p is its 720x1280 rendition, not the 405x720 one.
 - Security hardening from the pre-release review (no finding rated above low): YouTube's player script is fetched only from YouTube's own `/s/player/` path, whatever the page names; the solver runs in Deno, which has no access to files or programs, wherever Deno is installed, before QuickJS; a stream's index ranges larger than 8 MiB are refused and no range reserves more than 4 MiB at once; the download-folder write check creates a new file of an unguessable name and never follows a link already there; the quarantine removal on dm's copy of yt-dlp no longer follows links, and each dm process adopts into a staging folder of its own; the extension's source archive for Mozilla is kept outside the release's files.

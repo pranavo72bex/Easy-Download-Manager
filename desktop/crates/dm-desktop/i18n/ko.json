@@ -715,5 +715,11 @@
  "From {}": "{}에서",
  "Always save here without asking": "묻지 않고 항상 여기에 저장",
  "Hide the side panel": "사이드 패널 숨기기",
- "Show the side panel": "사이드 패널 보이기"
+ "Show the side panel": "사이드 패널 보이기",
+ "Delete file after": "다음 시간 후 파일 삭제",
+ "Never": "안 함",
+ "10 minutes": "10분",
+ "1 hour": "1시간",
+ "1 day": "1일",
+ "Complete · to the Trash in {}": "완료 · {} 후 휴지통으로"
 }

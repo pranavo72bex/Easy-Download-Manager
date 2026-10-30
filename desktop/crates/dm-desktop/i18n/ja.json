@@ -715,5 +715,11 @@
  "From {}": "{} から",
  "Always save here without asking": "次回から確認せずにここに保存",
  "Hide the side panel": "サイドパネルを隠す",
- "Show the side panel": "サイドパネルを表示"
+ "Show the side panel": "サイドパネルを表示",
+ "Delete file after": "ファイルを削除するまで",
+ "Never": "しない",
+ "10 minutes": "10 分",
+ "1 hour": "1 時間",
+ "1 day": "1 日",
+ "Complete · to the Trash in {}": "完了 · {} 後にゴミ箱へ"
 }

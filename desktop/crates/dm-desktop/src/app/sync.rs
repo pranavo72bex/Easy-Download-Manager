@@ -516,6 +516,7 @@ impl DmApp {
             self.show_asked = true;
         }
         self.countdown_tick();
+        self.delete_due_files();
         if let Some(why) = dm_core::lock(&self.opener_said).take() {
             self.said = why.into();
         }
@@ -653,6 +654,49 @@ impl DmApp {
             self.dialogs.forget(*id);
         }
         self.selected.clear();
+        self.refresh();
+    }
+
+    /// "Delete file after": each finished row whose time has come has its
+    /// file moved to the Trash and is removed. A file that could not be
+    /// moved stays, with its row, and is said; the row is not tried again.
+    pub fn delete_due_files(&mut self) {
+        let now = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .map_or(0, |d| d.as_secs());
+        let due: Vec<Entry> = self
+            .rows
+            .iter()
+            .filter(|r| r.delete_due_in(now) == Some(0))
+            .cloned()
+            .collect();
+        if due.is_empty() {
+            return;
+        }
+        let mut gone = Vec::new();
+        let mut failed = Vec::new();
+        for row in due {
+            // Its own file alone: one moved away or since written by another
+            // row is not this row's to delete.
+            let present = !row.path.is_empty() && !crate::table::gone(&row);
+            match present.then(|| self.backend.platform.trash(&row.path)) {
+                Some(Err(e)) => {
+                    failed.push(format!("{}: {e}", row.path));
+                    self.backend.set_delete_after(row.id, None);
+                }
+                _ => gone.push(row.id),
+            }
+        }
+        if !gone.is_empty() {
+            self.backend.remove_many(&gone);
+            for id in &gone {
+                self.dialogs.forget(*id);
+                self.selected.remove(id);
+            }
+        }
+        if !failed.is_empty() {
+            self.said = crate::i18n::Said::new("Could not delete {}", &[&failed.join("; ")]);
+        }
         self.refresh();
     }
 

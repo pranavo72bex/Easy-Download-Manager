@@ -409,3 +409,4 @@ Evidence is `dm-desktop/tests/window.rs` unless it says otherwise.
 | A part's edge cases | PASS | 2026-10-30 on real YouTube: 2 s, 0.5 s and 40 s parts play exactly that long; a span past the video says "nothing between"; an end before its start is refused at the control port; a part of a plain file fails in words |
 | HLS and DASH qualities by the shorter side | PASS | `stream/tests.rs` `a_portrait_playlist_is_picked_by_the_shorter_side`, `dash/tests.rs` `a_portrait_manifest_is_picked_by_the_shorter_side` |
 | Other sites' playlists listed to tick | PASS | ytdlp/playlist.rs tests; flat reads of Vimeo, SoundCloud and Dailymotion lists 2026-10-30 |
+| Delete file after (to the Trash) | PASS | window test a_file_given_a_time_goes_to_the_trash_when_it_comes; queue test a_row_keeps_when_its_file_is_to_be_deleted |

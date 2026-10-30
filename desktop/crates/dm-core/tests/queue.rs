@@ -2927,3 +2927,48 @@ async fn a_row_that_is_not_downloading_has_no_speed_or_time_left() {
     assert_eq!(row.progress.speed, 0.0, "a finished row kept its speed");
     assert_eq!(row.progress.eta, None, "a finished row kept its time left");
 }
+
+/// "Delete file after": kept on the row from the add and from the menu,
+/// across a restart, and due counted from when the row finished.
+#[tokio::test]
+async fn a_row_keeps_when_its_file_is_to_be_deleted() {
+    let dir = tempdir();
+    let store = dir.path().join("queue.json");
+    let first = queue(dir.path(), 1);
+    first.persist_to(store.clone()).await;
+    let id = first
+        .add_with(
+            "http://127.0.0.1:9/f.bin",
+            dm_core::AddOptions {
+                later: true,
+                delete_after: Some(600),
+                ..Default::default()
+            },
+        )
+        .await
+        .unwrap();
+    let row = |rows: Vec<dm_core::Entry>| rows.into_iter().find(|e| e.id == id).unwrap();
+    assert_eq!(row(first.list().await).delete_after, Some(600));
+    first.flush().await;
+
+    let second = queue(dir.path(), 1);
+    second.persist_to(store.clone()).await;
+    let mut kept = row(second.list().await);
+    assert_eq!(kept.delete_after, Some(600), "not kept across a restart");
+
+    // Not due before it has finished well, then counted from its finish.
+    assert_eq!(kept.delete_due_in(1_000), None, "due while not finished");
+    kept.state = DownloadState::Completed;
+    kept.finished_at = Some(1_000);
+    assert_eq!(kept.delete_due_in(1_100), Some(500));
+    assert_eq!(kept.delete_due_in(1_600), Some(0));
+    assert_eq!(kept.delete_due_in(9_999), Some(0));
+
+    // Turned off from the menu, and 0 is no time at all.
+    assert!(second.set_delete_after(id, Some(0)).await);
+    assert_eq!(row(second.list().await).delete_after, None);
+    assert!(second.set_delete_after(id, Some(3600)).await);
+    assert_eq!(row(second.list().await).delete_after, Some(3600));
+    assert!(second.set_delete_after(id, None).await);
+    assert_eq!(row(second.list().await).delete_after, None);
+}

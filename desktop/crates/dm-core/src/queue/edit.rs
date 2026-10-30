@@ -56,6 +56,7 @@ impl Queue {
                 .map(|s| s.trim().to_string())
                 .filter(|s| s.starts_with("https://") || s.starts_with("http://"));
             slot.entry.span = with.span;
+            slot.entry.delete_after = with.delete_after.filter(|s| *s > 0);
             slot.entry.cookies = with.cookies.trim().to_string();
             slot.entry.cookies_once = with.cookies_once && !slot.entry.cookies.is_empty();
             slot.entry.replaces = with.replaces.filter(|p| !p.trim().is_empty());
@@ -90,6 +91,18 @@ impl Queue {
         let text = text.to_string();
         self.edit(id, |slot| {
             slot.entry.description = text;
+            true
+        })
+        .await
+    }
+
+    /// "Delete file after": its file goes to the Trash, and the row with
+    /// it, `seconds` after it finished (at once, for one finished longer
+    /// ago); `None` keeps it.
+    pub async fn set_delete_after(&self, id: Id, seconds: Option<u64>) -> bool {
+        let seconds = seconds.filter(|s| *s > 0);
+        self.edit(id, |slot| {
+            slot.entry.delete_after = seconds;
             true
         })
         .await

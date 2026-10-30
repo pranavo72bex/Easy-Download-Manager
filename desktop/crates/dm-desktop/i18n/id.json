@@ -715,5 +715,11 @@
  "From {}": "Dari {}",
  "Always save here without asking": "Selalu simpan di sini tanpa bertanya",
  "Hide the side panel": "Sembunyikan panel samping",
- "Show the side panel": "Tampilkan panel samping"
+ "Show the side panel": "Tampilkan panel samping",
+ "Delete file after": "Hapus file setelah",
+ "Never": "Tidak pernah",
+ "10 minutes": "10 menit",
+ "1 hour": "1 jam",
+ "1 day": "1 hari",
+ "Complete · to the Trash in {}": "Selesai · ke Tempat Sampah dalam {}"
 }

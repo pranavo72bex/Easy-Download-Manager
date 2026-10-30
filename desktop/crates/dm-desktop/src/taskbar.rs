@@ -214,6 +214,7 @@ mod tests {
             quality: None,
             sound: None,
             span: None,
+            delete_after: None,
             parts_dir: String::new(),
             began_in: String::new(),
             cookies: String::new(),

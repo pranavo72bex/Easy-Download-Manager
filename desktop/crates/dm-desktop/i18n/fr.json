@@ -715,5 +715,11 @@
  "From {}": "De {}",
  "Always save here without asking": "Toujours enregistrer ici sans demander",
  "Hide the side panel": "Masquer le panneau latéral",
- "Show the side panel": "Afficher le panneau latéral"
+ "Show the side panel": "Afficher le panneau latéral",
+ "Delete file after": "Supprimer le fichier après",
+ "Never": "Jamais",
+ "10 minutes": "10 minutes",
+ "1 hour": "1 heure",
+ "1 day": "1 jour",
+ "Complete · to the Trash in {}": "Terminé · à la corbeille dans {}"
 }

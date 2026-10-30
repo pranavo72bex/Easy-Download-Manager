@@ -715,5 +715,11 @@
  "From {}": "Z {}",
  "Always save here without asking": "Zawsze zapisuj tutaj bez pytania",
  "Hide the side panel": "Ukryj panel boczny",
- "Show the side panel": "Pokaż panel boczny"
+ "Show the side panel": "Pokaż panel boczny",
+ "Delete file after": "Usuń plik po",
+ "Never": "Nigdy",
+ "10 minutes": "10 minutach",
+ "1 hour": "1 godzinie",
+ "1 day": "1 dniu",
+ "Complete · to the Trash in {}": "Ukończono · do kosza za {}"
 }

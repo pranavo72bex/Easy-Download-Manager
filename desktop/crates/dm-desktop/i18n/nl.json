@@ -715,5 +715,11 @@
  "From {}": "Van {}",
  "Always save here without asking": "Altijd hier opslaan zonder te vragen",
  "Hide the side panel": "Zijpaneel verbergen",
- "Show the side panel": "Zijpaneel tonen"
+ "Show the side panel": "Zijpaneel tonen",
+ "Delete file after": "Bestand verwijderen na",
+ "Never": "Nooit",
+ "10 minutes": "10 minuten",
+ "1 hour": "1 uur",
+ "1 day": "1 dag",
+ "Complete · to the Trash in {}": "Voltooid · naar de prullenbak over {}"
 }

@@ -744,6 +744,55 @@ fn remove_deletes_the_file_too_only_when_asked() {
     assert!(harness.state().rows().is_empty());
 }
 
+/// "Delete file after": the row says how long its file has left, and once
+/// the time comes the file goes to the Trash and the row with it.
+#[test]
+fn a_file_given_a_time_goes_to_the_trash_when_it_comes() {
+    let world = world();
+    let mut harness = world.harness();
+    add_url(&mut harness, &world.url("file.zip"), "Start now");
+    add_url(&mut harness, &world.url("other.pdf"), "Start now");
+    until(&mut harness, "both to complete", |app| {
+        app.rows().len() == 2 && app.rows().iter().all(|r| r.state == State::Completed)
+    });
+    let row_of = |h: &Harness<'_, DmApp>, name: &str| {
+        h.state()
+            .rows()
+            .iter()
+            .find(|r| r.filename == name)
+            .unwrap()
+            .clone()
+    };
+    let (zip, pdf) = (row_of(&harness, "file.zip"), row_of(&harness, "other.pdf"));
+    // An hour: said in the row, and the file stays.
+    harness.state().backend.set_delete_after(pdf.id, Some(3600));
+    harness.state_mut().refresh();
+    harness.run_steps(3);
+    let said = dm_desktop::app::status_of(&row_of(&harness, "other.pdf"));
+    assert!(said.contains("to the Trash in"), "{said}");
+    assert!(std::path::Path::new(&pdf.path).is_file());
+    // A second: gone to the Trash, the row with it; the other row stays.
+    harness.state().backend.set_delete_after(pdf.id, Some(1));
+    until(&mut harness, "the file to be deleted", |app| {
+        app.rows().iter().all(|r| r.id != pdf.id)
+    });
+    assert!(!std::path::Path::new(&pdf.path).exists(), "the file stayed");
+    assert!(
+        world
+            .fake
+            .opened
+            .lock()
+            .unwrap()
+            .contains(&format!("trash {}", pdf.path)),
+        "the file was erased, not put in the Trash"
+    );
+    assert!(
+        std::path::Path::new(&zip.path).is_file(),
+        "the other went too"
+    );
+    assert_eq!(harness.state().rows().len(), 1);
+}
+
 /// Add URL remembers the addresses added through it, never with a login,
 /// offers them again, and forgets them on Clear history.
 #[test]

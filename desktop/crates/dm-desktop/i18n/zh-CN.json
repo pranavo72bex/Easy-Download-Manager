@@ -715,5 +715,11 @@
  "From {}": "来自 {}",
  "Always save here without asking": "总是保存到这里，不再询问",
  "Hide the side panel": "隐藏侧边栏",
- "Show the side panel": "显示侧边栏"
+ "Show the side panel": "显示侧边栏",
+ "Delete file after": "此时间后删除文件",
+ "Never": "从不",
+ "10 minutes": "10 分钟",
+ "1 hour": "1 小时",
+ "1 day": "1 天",
+ "Complete · to the Trash in {}": "已完成 · {} 后移到废纸篓"
 }

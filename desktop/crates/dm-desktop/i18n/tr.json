@@ -715,5 +715,11 @@
  "From {}": "{} kaynaklı",
  "Always save here without asking": "Sormadan her zaman buraya kaydet",
  "Hide the side panel": "Yan paneli gizle",
- "Show the side panel": "Yan paneli göster"
+ "Show the side panel": "Yan paneli göster",
+ "Delete file after": "Dosyayı şu süre sonra sil",
+ "Never": "Asla",
+ "10 minutes": "10 dakika",
+ "1 hour": "1 saat",
+ "1 day": "1 gün",
+ "Complete · to the Trash in {}": "Tamamlandı · {} sonra çöp kutusuna"
 }

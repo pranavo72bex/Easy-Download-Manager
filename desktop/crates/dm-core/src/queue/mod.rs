@@ -153,6 +153,10 @@ pub struct Entry {
     /// another; `None` is the whole.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub span: Option<crate::clip::Span>,
+    /// Seconds after it finishes that its file goes to the Trash and the
+    /// row with it ("Delete file after"); `None` keeps it.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub delete_after: Option<u64>,
     /// Where this row's parts are staged, recorded when it first started,
     /// so the folder in the settings can change without stranding them.
     /// Empty until then.
@@ -209,6 +213,20 @@ pub struct Connection {
 
 /// What a row is added with, beyond its address: what the "Download details"
 /// dialog asks before a download starts.
+impl Entry {
+    /// Seconds until "Delete file after" is due for this row, as of `now`
+    /// (Unix seconds): 0 once it is; `None` for a row with none, or one not
+    /// finished well (a failed or cancelled row has no file to delete).
+    pub fn delete_due_in(&self, now: u64) -> Option<u64> {
+        let after = self.delete_after?;
+        if self.state != State::Completed {
+            return None;
+        }
+        let at = self.finished_at?.saturating_add(after);
+        Some(at.saturating_sub(now))
+    }
+}
+
 #[derive(Debug, Clone, Default)]
 pub struct AddOptions {
     pub referrer: String,
@@ -226,6 +244,8 @@ pub struct AddOptions {
     /// A part of the video rather than the whole, from one second to
     /// another (`crate::clip::Span`).
     pub span: Option<crate::clip::Span>,
+    /// "Delete file after", for the row it adds.
+    pub delete_after: Option<u64>,
     /// The browser's cookies for this download's site, as a `Cookie`
     /// header, where the person switched that on for the site.
     pub cookies: String,
@@ -553,6 +573,7 @@ impl Queue {
                 quality: None,
                 sound: None,
                 span: None,
+                delete_after: None,
                 parts_dir: String::new(),
                 began_in: String::new(),
                 cookies: String::new(),

@@ -612,6 +612,7 @@ pub(super) fn file_info(app: &mut DmApp, ctx: &egui::Context) {
         quality: d.quality.clone(),
         sound: d.sound.clone(),
         span: d.span,
+        delete_after: None,
         cookies: d.cookies.clone(),
         cookies_once: d.cookies_once,
         checksum: None,

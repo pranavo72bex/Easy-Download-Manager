@@ -281,6 +281,20 @@ pub(super) fn status_in(row: &Entry, words: fn(&'static str) -> &'static str) ->
         // control protocol too, as the list says it (Properties
         // said "Complete").
         State::Completed if crate::table::gone(row) => words("File missing").into(),
+        // "Delete file after": how long the file has left before it goes
+        // to the Trash, the row with it.
+        State::Completed if row.delete_after.is_some() => {
+            let now = std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .map_or(0, |d| d.as_secs());
+            match row.delete_due_in(now) {
+                Some(left) if left > 0 => crate::i18n::fill(
+                    words("Complete · to the Trash in {}"),
+                    &[&format::span(std::time::Duration::from_secs(left))],
+                ),
+                _ => words("Complete").into(),
+            }
+        }
         State::Completed => words("Complete").into(),
         // A server that wants a sign-in says where to give one: the plain
         // sentences for 401 and 403 do (`format::REASONS`); anything else
@@ -431,6 +445,7 @@ pub(super) mod status_tests {
             stalled: String::new(),
             sound: None,
             span: None,
+            delete_after: None,
         }
     }
 

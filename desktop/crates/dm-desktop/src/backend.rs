@@ -471,6 +471,11 @@ impl Backend {
         self.block_on(self.queue.set_description(id, text));
     }
 
+    /// "Delete file after" for a row; `None` keeps its file.
+    pub fn set_delete_after(&self, id: Id, seconds: Option<u64>) {
+        self.block_on(self.queue.set_delete_after(id, seconds));
+    }
+
     pub fn set_queue(&self, id: Id, queue: &str) {
         self.block_on(self.queue.set_queue(id, queue));
     }

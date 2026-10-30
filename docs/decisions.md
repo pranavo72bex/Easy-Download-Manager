@@ -3142,3 +3142,21 @@ browser is killed until it is: the known limit without a Developer ID),
 with nothing installed and fetching off, read a non-YouTube video page in
 34 s from its shipped zip.
 
+
+## "Delete file after" is the row's, and goes to the Trash (2026-10-30)
+
+A finished file can be given a time after which it goes (10 minutes, an
+hour, a day), as the other macOS manager's Auto-Delete does. Decided:
+
+* It is set from the row's menu ("Delete file after ▸"), before or after the
+  download finishes, and counts from the finish. Download details is left
+  as it is: its layout is in `docs/behaviour-baseline/download-details.png`,
+  and the row's menu reaches the same rows.
+* The file goes to the Trash or Recycle Bin (`Platform::trash`, as Delete
+  file does), never erased, and the row is removed with it. A file already
+  missing, or one a later row has written over, is not touched; its row goes.
+* A file that cannot be moved stays with its row, is said once in the status
+  line, and is not tried again (the time is taken off the row).
+* The window sweeps (`DmApp::delete_due_files`, from `logic`), so the time
+  is kept while dm runs, hidden or not, to within its 30 s idle wake; a time
+  that passed while dm was closed is acted on at the next start.
