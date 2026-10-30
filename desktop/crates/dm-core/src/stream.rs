@@ -78,7 +78,9 @@ pub struct Stream {
 #[derive(Debug, Clone, PartialEq)]
 pub struct Variant {
     pub url: String,
-    /// 0 where the playlist did not say, which is how audio-only is spotted.
+    /// The picture's shorter side, which is what a quality names: its
+    /// height, or a portrait video's width (720 for 720x1280). 0 where the
+    /// playlist did not say, which is how audio-only is spotted.
     pub height: u32,
     pub bandwidth: u64,
     /// The audio group it plays with (`AUDIO=`), where its sound is listed
@@ -306,7 +308,11 @@ pub fn variants(text: &str, base: &str) -> Vec<Variant> {
         out.push(Variant {
             url,
             height: attribute(row, "RESOLUTION")
-                .and_then(|r| r.split('x').nth(1).and_then(|h| h.parse().ok()))
+                .and_then(|r| {
+                    let (w, h) = r.split_once(['x', 'X'])?;
+                    let (w, h) = (w.trim().parse::<u32>().ok()?, h.trim().parse::<u32>().ok()?);
+                    Some(if w > 0 && w < h { w } else { h })
+                })
                 .unwrap_or(0),
             bandwidth: attribute(row, "BANDWIDTH")
                 .and_then(|b| b.parse().ok())

@@ -198,3 +198,22 @@ fn iso_durations_read() {
     assert_eq!(iso_seconds("P1DT1S"), Some(86401.0));
     assert_eq!(iso_seconds("nonsense"), None);
 }
+
+#[test]
+fn a_portrait_manifest_is_picked_by_the_shorter_side() {
+    // 720p of a vertical video is 720 wide and 1280 tall.
+    let portrait = TEMPLATED
+        .replace(r#"width="640" height="360""#, r#"width="405" height="720""#)
+        .replace(r#"width="1280" height="720""#, r#"width="720" height="1280""#)
+        .replace(r#"width="1920" height="1080""#, r#"width="1080" height="1920""#);
+    let p = |q| {
+        plan(&mpd(&portrait), URL, q, None)
+            .unwrap()
+            .video
+            .unwrap()
+            .id
+    };
+    assert_eq!(p(Quality::UpTo(720)), "v720");
+    assert_eq!(p(Quality::UpTo(1080)), "v1080");
+    assert_eq!(p(Quality::UpTo(480)), "v360");
+}

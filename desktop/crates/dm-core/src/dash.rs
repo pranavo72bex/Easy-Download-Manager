@@ -58,6 +58,8 @@ pub struct Track {
     pub medium: Medium,
     pub id: String,
     pub bandwidth: u64,
+    /// The picture's shorter side, which is what a quality names (a
+    /// portrait video's width); 0 for sound.
     pub height: u32,
     /// WebM (VP8, VP9, AV1 with Opus or Vorbis) rather than MP4.
     pub webm: bool,
@@ -552,7 +554,11 @@ fn candidates(root: &Node, url: &str) -> Result<Vec<Candidate>, Error> {
                     medium,
                     id: rep.attr("id").unwrap_or_default().to_string(),
                     bandwidth: rep.num("bandwidth").unwrap_or(0),
-                    height: rep.num("height").or_else(|| set.num("height")).unwrap_or(0) as u32,
+                    height: {
+                        let h = rep.num("height").or_else(|| set.num("height")).unwrap_or(0);
+                        let w = rep.num("width").or_else(|| set.num("width")).unwrap_or(0);
+                        (if w > 0 && w < h { w } else { h }) as u32
+                    },
                     webm,
                     pieces,
                 },
