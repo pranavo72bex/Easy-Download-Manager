@@ -64,12 +64,10 @@ pub(super) fn show(element: &Element) -> bool {
             .unwrap_or(0.0),
     );
     let rect = element.get_bounding_client_rect();
-    let spot = decide::panel_at(
-        (rect.left(), rect.top(), rect.width(), rect.height()),
-        PANEL_SIZE,
-        view,
-    );
+    let box_ = (rect.left(), rect.top(), rect.width(), rect.height());
+    let spot = decide::panel_at(box_, PANEL_SIZE, view);
     SPOT.with(|s| s.set(spot));
+    PLACED.with(|p| p.set(box_));
     // Where the person dragged it to, kept for the page.
     let (x, y) = decide::dragged(spot, NUDGE.with(|n| n.get()), PANEL_SIZE, view);
     with_panel(|p| {
@@ -290,14 +288,55 @@ thread_local! {
     /// Watches the player the panel sits over for a change of size.
     static RESIZED: std::cell::RefCell<Option<web_sys::ResizeObserver>> =
         const { std::cell::RefCell::new(None) };
+    /// The player's box the panel was last placed for.
+    static PLACED: std::cell::Cell<(f64, f64, f64, f64)> =
+        const { std::cell::Cell::new((0.0, 0.0, 0.0, 0.0)) };
+    /// The timer that looks, while the panel is shown, for a player that
+    /// moved without changing size.
+    static MOVING: std::cell::Cell<Option<i32>> = const { std::cell::Cell::new(None) };
+}
+
+/// How often a shown panel looks whether its player moved under it.
+const FOLLOW_EVERY_MS: i32 = 200;
+
+/// Puts the panel back on its player if the player's box is not the one
+/// it was placed for.
+fn follow_if_moved() {
+    let Some(Some(element)) = with_panel(|p| p.current.clone()) else {
+        return;
+    };
+    let rect = element.get_bounding_client_rect();
+    let now = (rect.left(), rect.top(), rect.width(), rect.height());
+    if now != PLACED.with(|p| p.get()) && !show(&element) {
+        hide();
+    }
 }
 
 /// Has the panel follow `element` when it changes size with the window
 /// unchanged: a page laying its player out late (YouTube's settles after
-/// the panel is up, a few hundred pixels narrower), a theatre mode. A
-/// scroll and a window resize already move it (`on_move`); this is the
-/// third way a player moves under a panel.
+/// the panel is up, a few hundred pixels narrower), a theatre mode; and
+/// when it moves without changing size, as it does when the page above
+/// it folds (YouTube's player goes 8 px left and 12 px up a second after
+/// its first layout, BUG-007), which no observer reports: the panel looks
+/// every [`FOLLOW_EVERY_MS`] while it is shown. A scroll and a window
+/// resize already move it (`on_move`).
 fn follow_size_of(element: &Element) {
+    MOVING.with(|timer| {
+        if timer.get().is_none() {
+            let look = Closure::<dyn Fn()>::new(follow_if_moved);
+            if let Some(window) = window() {
+                timer.set(
+                    window
+                        .set_interval_with_callback_and_timeout_and_arguments_0(
+                            look.as_ref().unchecked_ref(),
+                            FOLLOW_EVERY_MS,
+                        )
+                        .ok(),
+                );
+            }
+            look.forget();
+        }
+    });
     RESIZED.with(|watched| {
         let mut slot = watched.borrow_mut();
         if slot.is_none() {
@@ -318,11 +357,16 @@ fn follow_size_of(element: &Element) {
     });
 }
 
-/// Stops following the last player's size (`follow_size_of`).
+/// Stops following the last player's size and place (`follow_size_of`).
 fn stop_following_size() {
     RESIZED.with(|watched| {
         if let Some(observer) = watched.borrow().as_ref() {
             observer.disconnect();
+        }
+    });
+    MOVING.with(|timer| {
+        if let (Some(id), Some(window)) = (timer.take(), window()) {
+            window.clear_interval_with_handle(id);
         }
     });
 }

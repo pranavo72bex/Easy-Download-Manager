@@ -70,9 +70,21 @@ def youtube(base, origin, engine_dl, engine_home, worker):
              shown.get("title") == "Download video", str(shown))
     if not shown:
         return
-    inside = rect["x"] <= shown["x"] and shown["x"] + shown["w"] <= rect["x"] + rect["w"] + 1
-    cc.check("YouTube: it sits in the player's top corner",
-             inside and rect["y"] <= shown["y"] < rect["y"] + 60, f"{shown} over {rect}")
+    # Judged against where the player is now, once the panel has had a
+    # moment to follow: the page lays the player out again after the panel
+    # is up (YouTube's goes 8 px left and 12 px up, then widens, a second
+    # after its first layout), and a panel judged against the old box was
+    # called wrong while sitting on the player.
+    def in_corner():
+        r = tab.evaluate(RECT)
+        p = cc.panel(tab) or {}
+        ok = (r and p.get("shown") and r["x"] <= p["x"] and p["x"] + p["w"] <= r["x"] + r["w"] + 1
+              and r["y"] <= p["y"] < r["y"] + 60)
+        return ok and (p, r)
+    corner = cc.wait_for(in_corner, 4)
+    cc.check("YouTube: it sits in the player's top corner", bool(corner),
+             f"{cc.panel(tab)} over {tab.evaluate(RECT)}")
+    rect = tab.evaluate(RECT) or rect
     time.sleep(5)
     cc.check("YouTube: it stays while the pointer rests on the playing video",
              (cc.panel(tab) or {}).get("shown"), str(cc.panel(tab)))

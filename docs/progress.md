@@ -122,4 +122,13 @@ row 35 says, in all thirteen catalogs.
   past the player's right edge after the page re-laid itself (BUG-006's
   shape again, after its fix), which held in the first run. Every row held
   in one of the two runs; B33 is open again in `BUGLOG.md`.
+- The B33 failure was chased with a timeline of the real page (the player's
+  and the panel's boxes every 100 ms from the hover): the player lays out
+  twice, and between the two it moves 8 px left and 12 px up without
+  changing size, which nothing followed (BUG-007, fixed: a shown panel looks
+  every 200 ms whether its player moved); the check was also judging the
+  panel against a box measured before the hover (now against the box as it
+  is). With the fixed extension: the local browser check 71 of 71 (70 of 71
+  before the fix, the new check failing), real YouTube in Edge 49 of 49
+  twice, and `scripts/human-qa.py` whole, in sight: 38 of 38.
 

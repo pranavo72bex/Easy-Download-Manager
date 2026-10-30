@@ -654,6 +654,18 @@ def panel_checks(base, origin, engine_dl, engine_home, worker):
           bool(followed), f"panel {panel(tab)}; video now {shrunk}")
     tab.evaluate("(() => { const v = document.getElementById('v'); v.style.width = ''; v.style.height = ''; return 1; })()")
     wait_for(lambda: (tab.evaluate(VIDEO_RECT) or {}).get("w", 0) >= 500, 5)
+    # The player moves without changing size, as it does when the page
+    # above it folds (YouTube's goes 8 px left and 12 px up a second after
+    # its first layout): the panel follows, with no pointer move.
+    before = tab.evaluate(VIDEO_RECT) or {}
+    tab.evaluate("(() => { document.body.insertAdjacentHTML('afterbegin', '<div id=\"dm-shift\" style=\"height:50px\"></div>'); return 1; })()")
+    moved_to = wait_for(lambda: (tab.evaluate(VIDEO_RECT) or {}).get("y", 0) >= before.get("y", 0) + 49 and tab.evaluate(VIDEO_RECT), 5) or {}
+    followed = wait_for(lambda: (lambda p: p.get("shown") and moved_to.get("y", 0) <= p.get("y", -1) <= moved_to.get("y", 0) + 30
+                                 and moved_to.get("x", 0) <= p.get("x", -1) and p)(panel(tab) or {}), 5)
+    check("when the player moves without changing size, the panel follows, with no pointer move",
+          bool(followed), f"panel {panel(tab)}; video now {moved_to}, was {before}")
+    tab.evaluate("(() => { document.getElementById('dm-shift').remove(); return 1; })()")
+    wait_for(lambda: (tab.evaluate(VIDEO_RECT) or {}).get("y", 1e9) <= before.get("y", 0), 5)
     hover(tab, tab.evaluate(VIDEO_RECT))
     shown = wait_for(lambda: (panel(tab) or {}).get("shown") and panel(tab), 3) or panel(tab) or {}
     check("it says where the file comes from, on hover", shown.get("tip") == "127.0.0.1", shown.get("tip"))

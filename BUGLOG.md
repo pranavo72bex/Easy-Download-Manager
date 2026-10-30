@@ -9,12 +9,15 @@ The loop ended on 2026-10-29 after five full runs and three in a row with
 every scenario passing (37 of 37) and every browser check passing (69 of 69),
 with no flaky result in those three.
 
-- **Found and fixed: 5.** BUG-001 a range whose server overstates its length
+- **Found and fixed: 7.** BUG-001 a range whose server overstates its length
   was fetched for ever; BUG-002 an untrusted certificate was retried for two
   minutes; BUG-003 Brave refused the panel's WebAssembly on YouTube; BUG-004 a
   silent yt-dlp kept its row running for ever; BUG-005 the new panel loader
-  logged an error where WebAssembly is forbidden. Each has a regression test
-  that failed before its fix.
+  logged an error where WebAssembly is forbidden; BUG-006 the panel stayed
+  put when the player changed size; BUG-007 the panel stayed put when the
+  player moved without changing size (found by `scripts/human-qa.py` on real
+  YouTube, 2026-10-30). Each has a regression test that failed before its
+  fix.
 - **Open: 1.** BUG-003 is not yet confirmed on real YouTube
   (Google blocks the container's browser for now), and the Firefox live-page
   panel check has not been compared with the build before it.
@@ -174,6 +177,34 @@ Deviations from the brief, and why:
 - **Regression test**: `scripts/chrome-check.py`, "when the player changes
   size, the panel follows into its new corner, with no pointer move" (the
   player shrunk by script, no pointer event); failed before, passes after.
+
+### BUG-007 — the panel stayed put when the player moved without changing size
+
+- **Scenario**: `scripts/human-qa.py`, row B33 on a real YouTube page in
+  Edge (2026-10-30, twice in the day's runs it held, once it failed). A
+  timeline of the page (`getBoundingClientRect` of the player and the panel
+  every 100 ms from the hover): the player lays out at (24, 80) 742 × 557,
+  the panel is placed on it; about 0.8 s later the player is at (16, 68),
+  the same size, and the panel has not moved; at 1.1 s the player widens to
+  809 × 607 and the panel follows (BUG-006's observer). A page that moves
+  its player without resizing it (something above it folding) leaves the
+  panel where the player was, until the pointer moves.
+- **Root cause**: the panel followed a scroll, a window resize and a size
+  change (`ResizeObserver`), and nothing else. No observer reports a plain
+  move. The check was also judging the panel against a box measured before
+  the hover, so a panel that had followed the second layout was called
+  wrong against the first (that is what failed in the QA run; the 51 px
+  BUG-006 recorded as "past the new right edge" was the same stale box).
+- **Fix**: while the panel is shown, a timer every 200 ms compares the
+  player's box with the one the panel was placed for and places it again
+  when they differ (`show.rs` `follow_if_moved`, `FOLLOW_EVERY_MS`);
+  cleared when the panel hides. `youtube-check.py` judges the corner
+  against the player's box as it is now, with up to four seconds for the
+  panel to follow.
+- **Regression test**: `scripts/chrome-check.py`, "when the player moves
+  without changing size, the panel follows, with no pointer move" (a 50 px
+  block put in above the player by script, no pointer event); failed before,
+  passes after.
 
 ## Open, not fixed
 
