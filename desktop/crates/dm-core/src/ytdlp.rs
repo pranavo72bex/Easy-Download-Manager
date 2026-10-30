@@ -76,16 +76,64 @@ pub fn usable() -> bool {
 
 /// Where yt-dlp actually is, resolved the same way `available` decides.
 pub(crate) fn binary() -> Option<PathBuf> {
-    let found = which("yt-dlp")?;
+    let found = which("yt-dlp");
+    // One named outright (`DM_YTDLP`) is used as it is.
+    if std::env::var_os("DM_YTDLP").is_some() {
+        return found;
+    }
     // An installed yt-dlp months old fails on the sites that changed since
     // (Debian's and Ubuntu's own packages lag far behind): passed over for
-    // the copy dm keeps current, or for one fetched now (`tools::ensure`).
-    // One named outright (`DM_YTDLP`) is used as it is.
-    let named = std::env::var_os("DM_YTDLP").is_some();
-    if named || crate::tools::is_fetched(&found) || !stale(&found) {
-        return Some(found);
+    // the copy dm keeps current, or for one fetched now (`tools::ensure`),
+    // or for the one shipped inside dm's own package.
+    if let Some(found) = found {
+        if crate::tools::is_fetched(&found) || !stale(&found) {
+            return Some(found);
+        }
     }
-    crate::tools::fetched("yt-dlp")
+    crate::tools::fetched("yt-dlp").or_else(bundled)
+}
+
+/// The yt-dlp shipped inside dm's own package, where the packaging put one
+/// (`docs/RELEASING.md`): the unpacked build under `yt-dlp/` beside the
+/// program, or in the macOS bundle's `Contents/Resources`. The first video
+/// then needs no fetch; a newer one dm fetches after a failure takes its
+/// place (`tools::fetched` is looked at first).
+fn bundled() -> Option<PathBuf> {
+    let exe = std::env::current_exe().ok()?;
+    bundled_in(&exe).into_iter().find(|p| p.is_file())
+}
+
+/// Where a shipped yt-dlp may be, for the program at `exe`.
+fn bundled_in(exe: &Path) -> Vec<PathBuf> {
+    let dir = exe.parent().map(Path::to_path_buf).unwrap_or_default();
+    let name = if cfg!(windows) {
+        "yt-dlp.exe"
+    } else {
+        "yt-dlp"
+    };
+    let mut places = vec![
+        dir.join("yt-dlp").join(name),
+        dir.join("resources").join("yt-dlp").join(name),
+        dir.join("resources").join("yt-dlp").join("yt-dlp_macos"),
+    ];
+    if cfg!(target_os = "macos") {
+        // dm.app/Contents/MacOS/dm-desktop: the bundle's Resources.
+        let resources = dir.join("..").join("Resources").join("yt-dlp");
+        places.push(resources.join("yt-dlp_macos"));
+        places.push(resources.join(name));
+    } else if cfg!(target_os = "linux") {
+        // /usr/bin/dm-desktop: the package's own folders.
+        for lib in ["lib", "share"] {
+            places.push(
+                dir.join("..")
+                    .join(lib)
+                    .join("dm")
+                    .join("yt-dlp")
+                    .join(name),
+            );
+        }
+    }
+    places
 }
 
 /// How old an installed yt-dlp may be before dm prefers its own: YouTube
@@ -1064,6 +1112,9 @@ async fn finish_dm(
     options: &Options,
 ) -> Result<Finished, Error> {
     let produced = produced.to_path_buf();
+    // A part of the video: the pieces fetched hold a little around it, and
+    // the joined file's edit lists play the part alone (`clip`).
+    let cut = options.span.map(|span| span.millis());
     if !produced.is_file() {
         let parts = parts_of(&produced).await;
         if !parts.is_empty() {
@@ -1074,11 +1125,16 @@ async fn finish_dm(
                     p.extension()
                         .is_some_and(|e| e.eq_ignore_ascii_case("webm"))
                 });
+            if webm && cut.is_some() {
+                return Err(Error::Internal(
+                    "a part is cut from MP4 streams only, not WebM".into(),
+                ));
+            }
             let joined = produced.with_extension(if webm { "webm" } else { "mp4" });
             let joining = if webm {
                 crate::mkvmux::join_with_text_async(parts.clone(), texts, joined.clone()).await
             } else {
-                crate::mp4mux::join_with_text_async(parts.clone(), texts, joined.clone()).await
+                crate::mp4mux::join_cut_async(parts.clone(), texts, joined.clone(), cut).await
             };
             joining.map_err(|why| {
                 Error::Internal(format!("the picture and sound could not be joined: {why}"))
@@ -1088,6 +1144,20 @@ async fn finish_dm(
             }
             return place(&joined, options).await;
         }
+    } else if let Some(cut) = cut {
+        // One stream's part alone (the sound): rewritten with the cut.
+        let ext = produced
+            .extension()
+            .map(|e| e.to_string_lossy().into_owned())
+            .unwrap_or_else(|| "mp4".into());
+        let cut_file = produced.with_extension(format!("dm-cut.{ext}"));
+        crate::mp4mux::join_cut_async(vec![produced.clone()], texts, cut_file.clone(), Some(cut))
+            .await
+            .map_err(|why| Error::Internal(format!("the part could not be cut: {why}")))?;
+        tokio::fs::rename(&cut_file, &produced)
+            .await
+            .map_err(Error::Disk)?;
+        return place(&produced, options).await;
     }
     /* An HLS site's video, fetched by yt-dlp's own downloader, is the
      * stream's transport stream under an `.mp4` name: dm puts it right. */
@@ -1503,6 +1573,35 @@ mod tests {
         assert_eq!(container_sort(Some("webm")), ["-S", "ext:webm:webm"]);
         assert!(choices("not json").is_empty());
         assert!(choices("{}").is_empty());
+    }
+
+    #[test]
+    fn a_shipped_yt_dlp_is_looked_for_beside_the_program_and_in_the_bundle() {
+        let exe = if cfg!(target_os = "macos") {
+            Path::new("/Applications/dm.app/Contents/MacOS/dm-desktop")
+        } else if cfg!(windows) {
+            Path::new(r"C:\Program Files\dm\dm-desktop.exe")
+        } else {
+            Path::new("/usr/bin/dm-desktop")
+        };
+        let places = bundled_in(exe);
+        let name = if cfg!(windows) {
+            "yt-dlp.exe"
+        } else {
+            "yt-dlp"
+        };
+        assert_eq!(places[0], exe.parent().unwrap().join("yt-dlp").join(name));
+        if cfg!(target_os = "macos") {
+            assert!(places
+                .iter()
+                .any(|p| p.ends_with("Resources/yt-dlp/yt-dlp_macos")));
+        }
+        if cfg!(target_os = "linux") {
+            assert!(places.iter().any(|p| p.ends_with("lib/dm/yt-dlp/yt-dlp")));
+        }
+        assert!(bundled_in(Path::new("dm-desktop"))
+            .iter()
+            .all(|p| !p.as_os_str().is_empty()));
     }
 
     #[test]

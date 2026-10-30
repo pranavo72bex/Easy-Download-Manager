@@ -63,7 +63,7 @@ pub(crate) struct Track {
     pub(crate) start: Option<u64>,
 }
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) struct Edit {
     pub(crate) duration: u64,
     pub(crate) media_time: i64,
@@ -88,6 +88,19 @@ pub fn join_with_text(
     inputs: &[PathBuf],
     texts: &[crate::subtitles::Subtitle],
     out: &Path,
+) -> Result<u64, String> {
+    join_cut(inputs, texts, out, None)
+}
+
+/// [`join_with_text`], cut to a part: `cut` is where the part starts and
+/// ends, in milliseconds of the inputs' own timeline (a fragmented
+/// stream's pieces say when they play, `tfdt`). The output holds the
+/// pieces given and plays the part alone, by each track's edit list.
+pub fn join_cut(
+    inputs: &[PathBuf],
+    texts: &[crate::subtitles::Subtitle],
+    out: &Path,
+    cut: Option<(u64, u64)>,
 ) -> Result<u64, String> {
     let mut tracks = Vec::new();
     let mut files = Vec::new();
@@ -126,7 +139,7 @@ pub fn join_with_text(
         return Err("there is nothing to join".into());
     }
     if texts.is_empty() {
-        return write_output(&tracks, &mut files, out);
+        return write_output(&tracks, &mut files, out, cut);
     }
     // The subtitles' samples are written to a scratch file the writer copies
     // from, as it copies the inputs'.
@@ -140,10 +153,22 @@ pub fn join_with_text(
         }
         std::fs::write(&scratch, &data).map_err(|e| format!("subtitles: {e}"))?;
         files.push(File::open(&scratch).map_err(|e| format!("subtitles: {e}"))?);
-        write_output(&tracks, &mut files, out)
+        write_output(&tracks, &mut files, out, cut)
     })();
     let _ = std::fs::remove_file(&scratch);
     written
+}
+
+/// [`join_cut`], off the async runtime.
+pub async fn join_cut_async(
+    inputs: Vec<PathBuf>,
+    texts: Vec<crate::subtitles::Subtitle>,
+    out: PathBuf,
+    cut: Option<(u64, u64)>,
+) -> Result<u64, String> {
+    tokio::task::spawn_blocking(move || join_cut(&inputs, &texts, &out, cut))
+        .await
+        .map_err(|e| format!("joining stopped: {e}"))?
 }
 
 /// [`join`], off the async runtime.
@@ -242,6 +267,17 @@ pub(crate) mod tests {
     /// the second sample of each not a sync sample, data counted from its
     /// moof. Sample n of the file is n bytes of the byte n.
     pub(crate) fn fragmented(dir: &Path, name: &str, fragments: u32) -> (PathBuf, Vec<Vec<u8>>) {
+        fragmented_from(dir, name, fragments, 0)
+    }
+
+    /// [`fragmented`], its first fragment starting at `start` (`tfdt`,
+    /// written only where that is not zero).
+    pub(crate) fn fragmented_from(
+        dir: &Path,
+        name: &str,
+        fragments: u32,
+        start: u64,
+    ) -> (PathBuf, Vec<Vec<u8>>) {
         let mut file = boxed(b"ftyp", &[b"iso5", &[0u8; 4]]);
         file.extend(moov_of(1, b"vide", 90000, &empty_stbl(), true));
         let mut samples = Vec::new();
@@ -258,10 +294,16 @@ pub(crate) mod tests {
             let build = |offset: u32| {
                 let mfhd = full(b"mfhd", 0, 0, &(f + 1).to_be_bytes());
                 let tfhd = full(b"tfhd", 0, 0x2_0000, &1u32.to_be_bytes());
+                let decode_time = start + u64::from(f) * 9000;
+                let tfdt = full(b"tfdt", 1, 0, &decode_time.to_be_bytes());
                 let mut trun = 3u32.to_be_bytes().to_vec();
                 trun.extend_from_slice(&offset.to_be_bytes());
                 trun.extend_from_slice(&trun_entries);
-                let traf = boxed(b"traf", &[&tfhd, &full(b"trun", 0, 0x701, &trun)]);
+                let traf = if start > 0 {
+                    boxed(b"traf", &[&tfhd, &tfdt, &full(b"trun", 0, 0x701, &trun)])
+                } else {
+                    boxed(b"traf", &[&tfhd, &full(b"trun", 0, 0x701, &trun)])
+                };
                 boxed(b"moof", &[&mfhd, &traf])
             };
             let moof_len = build(0).len() as u32;
@@ -368,6 +410,64 @@ pub(crate) mod tests {
             .samples
             .iter()
             .all(|s| s.duration == 1024 && s.sync));
+    }
+
+    #[test]
+    fn a_cut_plays_the_part_alone_by_each_tracks_edit_list() {
+        // Four fragments of three samples, each sample 3000 of 90000 a
+        // second: 0.4 s in all. Cut to 0.15-0.35 s, the output holds every
+        // sample and its edit list starts 150 ms in for 200 ms. The plain
+        // sound (7 samples of 1024 at 48000: 0.149 s) ends before the cut
+        // does, so its edit is what it has left of it.
+        let dir = tempfile::tempdir().unwrap();
+        let (video, pictures) = fragmented(dir.path(), "v.mp4", 4);
+        let (audio, _) = plain(dir.path(), "a.m4a", 7, 200);
+        let out = dir.path().join("part.mp4");
+        join_cut(&[video, audio], &[], &out, Some((150, 350))).unwrap();
+        let data = std::fs::read(&out).unwrap();
+        let moov = read::child(&data, b"moov").unwrap();
+        let edits: Vec<Vec<Edit>> = read::boxes(moov)
+            .filter(|(k, _, _)| k == b"trak")
+            .map(|(_, trak, _)| {
+                let elst = read::child(read::child(trak, b"edts").unwrap(), b"elst").unwrap();
+                read::read_edits(elst)
+            })
+            .collect();
+        assert_eq!(edits.len(), 2);
+        // The picture: 150 ms at 90000 is 13500; 200 ms at the movie's
+        // 1000 is 200.
+        assert_eq!(edits[0][0].media_time, 13500);
+        assert_eq!(edits[0][0].duration, 200);
+        // The sound: 150 ms at 48000 is 7200, and what it has after that
+        // is nothing, which is written as the least an edit can be.
+        assert_eq!(edits[1][0].media_time, 7200);
+        assert!(edits[1][0].duration <= 1);
+        let back = read_back(&out);
+        assert_eq!(
+            back[0].samples.len(),
+            pictures.len(),
+            "every sample is kept"
+        );
+        // A cut starting before a track that begins late waits for it:
+        // the picture's fragments say they start at 0.2 s (tfdt).
+        let (late, _) = fragmented_from(dir.path(), "late.mp4", 4, 18000);
+        let out = dir.path().join("late.mp4.part");
+        join_cut(&[late], &[], &out, Some((100, 400))).unwrap();
+        let data = std::fs::read(&out).unwrap();
+        let moov = read::child(&data, b"moov").unwrap();
+        let trak = read::child(moov, b"trak").unwrap();
+        let elst = read::child(read::child(trak, b"edts").unwrap(), b"elst").unwrap();
+        let edits = read::read_edits(elst);
+        assert_eq!(
+            edits[0],
+            Edit {
+                duration: 100,
+                media_time: -1
+            },
+            "waits 100 ms"
+        );
+        assert_eq!(edits[1].media_time, 0);
+        assert_eq!(edits[1].duration, 200, "300 ms asked, less the wait");
     }
 
     #[test]

@@ -203,6 +203,12 @@ It appears in dm instead of in the browser, and downloads there.
   for videos; its row says so.
 - **Hide the video panel:** click its **×**: **Hide for now**, or **Never on
   this site**.
+- **Only a part of a video:** in dm, **Add URL** with the video's address,
+  and in Download details tick **Only a part of the video** and give from
+  and to, such as 4:10 and 4:45. Only that part is fetched, as the site's
+  own picture and sound, cut to the second. (YouTube today.)
+- **A playlist:** **Add URL** with a YouTube playlist address lists its
+  videos with a tick each; pick the quality, or sound alone, and start.
 - **The dm icon in the toolbar** opens a small menu: whether dm is
   connected, **Catch downloads** on or off, the video panel on this site on
   or off, and **Open dm**. It never downloads anything by itself.

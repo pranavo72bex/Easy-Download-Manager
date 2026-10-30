@@ -378,6 +378,21 @@ impl Backend {
         Ok(settings.clone())
     }
 
+    /// Whether a download the browser catches is asked about first
+    /// (Options › Browser), as "Always save here without asking" switches
+    /// it off from the dialog itself.
+    pub fn set_ask_caught_downloads(&self, ask: bool) -> Result<Settings, String> {
+        let (mut on_disk, _) = Settings::load();
+        on_disk.ask_caught_downloads = ask;
+        on_disk
+            .clamped()
+            .save()
+            .map_err(|e| format!("settings could not be saved: {e}"))?;
+        let mut settings = dm_core::lock(&self.settings);
+        settings.ask_caught_downloads = ask;
+        Ok(settings.clone())
+    }
+
     /// What went wrong that no row can carry, each handed over once.
     pub fn problems(&self) -> Vec<String> {
         let mut all = std::mem::take(&mut *dm_core::lock(&self.notices));

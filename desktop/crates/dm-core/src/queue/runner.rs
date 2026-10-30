@@ -272,6 +272,7 @@ impl Queue {
                     // For categories a person limited to sites.
                     options.categories.site = crate::category::host_of(&slot.entry.url);
                     options.sound = slot.entry.sound.clone();
+                    options.span = slot.entry.span;
                     // The quality picked in the browser's panel, over the setting.
                     if let Some(quality) = &slot.entry.quality {
                         options.quality = crate::stream::Quality::named(quality);

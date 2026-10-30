@@ -397,3 +397,12 @@ Evidence is `dm-desktop/tests/window.rs` unless it says otherwise.
 | Windows | PARTIAL | CI's windows-latest: the workspace tests on every push; the NSIS installer installed silently and `smoke.py` passed against the installed binary (2026-10-20); the whole of `app-check.py` against the real `dm-desktop.exe` (`windows-check.yml`, 2026-10-21). Not a real Windows desktop (GPU driver, tray, SmartScreen, login): `windows-checklist.md` |
 | Code signing and notarisation | BLOCKED | needs bought certificates |
 | Login item at a real login | NOT VERIFIED | the `--hidden` launch is checked; a real login is not |
+| A part of a video, from one moment to another | PASS | `clip.rs` (the index, the pieces for a span, the ranges), `mp4mux` `a_cut_plays_the_part_alone_by_each_tracks_edit_list`, `tests/youtube_own.rs` (a part of the stand-in's video: its first boxes, its index and only the pieces within the span asked for, the file named for the span, its edit lists 2000 ms); a real 30 s part of a ten-minute 720p YouTube video in 5.0 s, 8 MB (2026-10-30) |
+| A video page's qualities with sizes in Download details | PASS | `file_info.rs` (`default_choice`, `chip_words`): pictured 2026-10-30 with a YouTube video, eight qualities and the sound alone, the setting's picked |
+| YouTube playlists | PASS | `youtube.rs` `a_playlist_pages_videos_and_its_next_page_are_gathered` (the page's older and newer shapes, the next page's token); a real seven-video playlist listed with lengths, two ticked and downloaded at 480p (2026-10-30) |
+| A connection a server holds open past its limit steps aside | PASS | `capped_tests.rs` `connections_a_server_holds_unanswered_step_aside_for_the_served`: two served, four held, the file whole in seconds on a 2 s timeout |
+| yt-dlp shipped inside the package is used | PASS | `ytdlp.rs` `a_shipped_yt_dlp_is_looked_for_beside_the_program_and_in_the_bundle`; the packaging in `scripts/fetch-ytdlp.py` and the desktop workflow (not run here: CI's) |
+| The panel's list at once, from YouTube's own player | PASS | `decide/tests.rs` `youtubes_player_answers_for_watch_and_shorts_pages_alone`; `youtube-check.py` in Edge lists the qualities and the download lands (2026-10-30) |
+| Download details for a caught download: the browser's name, "Always save here without asking" | PASS | `host::parent_browser`, `file_info.rs`; checked by hand in Edge 2026-10-30 |
+| The side panel's switch in the toolbar | PASS | `menus.rs` `toolbar`; the baseline pictures taken again 2026-10-30 |
+

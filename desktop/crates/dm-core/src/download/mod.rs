@@ -76,6 +76,11 @@ pub struct Options {
     /// own address, which a player fetched apart from it: both are fetched at
     /// once and joined (`dash::download_media_pair`).
     pub sound: Option<String>,
+    /// A part of the video rather than the whole: from one second to
+    /// another, cut from the streams dm fetches itself (`crate::clip`).
+    /// A video that cannot be cut that way fails and says so; nothing
+    /// fetches the whole instead.
+    pub span: Option<crate::clip::Span>,
     /// Media was asked for (a player's video, from the browser's panel or
     /// media menu): a page yt-dlp cannot read fails, rather than being
     /// fetched as the document its address ends like (a
@@ -1092,6 +1097,7 @@ mod tests {
             checksum: None,
             quality: Quality::Best,
             sound: None,
+            span: None,
             media: false,
             referrer: None,
             proxy: None,

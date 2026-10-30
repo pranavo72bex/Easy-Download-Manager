@@ -341,6 +341,12 @@ pub(super) fn add_url(app: &mut DmApp, ctx: &egui::Context) {
         app.dialogs.duplicate = Some((address, id));
         return;
     }
+    // A playlist is its videos, each a download: listed to be ticked.
+    if dm_core::youtube::playlist_id(&address).is_some() {
+        let quality = app.applied.stream_quality.clone();
+        app.dialogs.open_playlist(address, &app.backend, quality);
+        return;
+    }
     app.dialogs.open_file_info(vec![address]);
 }
 

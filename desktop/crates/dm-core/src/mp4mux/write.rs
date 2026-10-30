@@ -105,9 +105,47 @@ pub(super) fn shown(track: &Track) -> (i64, i64) {
 /// none and its first frame shown a frame or two in, which played that
 /// much behind its sound: it is given one that starts it at that frame, as
 /// a joined file from any other tool would have.
-pub(super) fn edit_list(track: &Track, lead_ms: u64) -> Option<Vec<u8>> {
+/// A part's one edit for a track: from `skip_ms` into it (past its own
+/// start, an AAC track's priming), for `length_ms` or what is left of the
+/// track, whichever is shorter. The media time, and the length in
+/// milliseconds.
+pub(super) fn cut_edit(track: &Track, skip_ms: u64, length_ms: u64) -> (i64, u64) {
     let (first, last) = shown(track);
-    let mut edits = if track.edits.is_empty() {
+    let own = track
+        .edits
+        .iter()
+        .find(|e| e.media_time >= 0)
+        .map(|e| e.media_time)
+        .unwrap_or(first.max(0));
+    let media_time = own + scale(skip_ms, MOVIE_TIMESCALE, track.timescale) as i64;
+    let left = u64::try_from(last.saturating_sub(media_time)).unwrap_or(0);
+    let left_ms = scale_up(left, track.timescale, MOVIE_TIMESCALE);
+    (media_time, length_ms.min(left_ms))
+}
+
+/// How long a track plays for, in milliseconds: its wait and its part
+/// where it is cut, else all of it.
+pub(super) fn presented_ms(track: &Track, lead_ms: u64, trim: Option<(u64, u64)>) -> u64 {
+    match trim {
+        Some((skip_ms, length_ms)) => lead_ms + cut_edit(track, skip_ms, length_ms).1,
+        None => lead_ms + scale(media_duration(track), track.timescale, MOVIE_TIMESCALE),
+    }
+}
+
+pub(super) fn edit_list(track: &Track, lead_ms: u64, trim: Option<(u64, u64)>) -> Option<Vec<u8>> {
+    let (first, last) = shown(track);
+    let edits_scale = if track.edits_timescale > 0 {
+        track.edits_timescale
+    } else {
+        MOVIE_TIMESCALE
+    };
+    let mut edits = if let Some((skip_ms, length_ms)) = trim {
+        let (media_time, length_ms) = cut_edit(track, skip_ms, length_ms);
+        vec![Edit {
+            duration: scale(length_ms, MOVIE_TIMESCALE, edits_scale).max(1),
+            media_time,
+        }]
+    } else if track.edits.is_empty() {
         if first <= 0 && lead_ms == 0 {
             return None;
         }
@@ -236,9 +274,11 @@ pub(super) fn trak(
     offsets: &[u64],
     per_chunk: &[u32],
     lead_ms: u64,
+    trim: Option<(u64, u64)>,
 ) -> Vec<u8> {
     let media = media_duration(track);
-    let movie = scale(media, track.timescale, MOVIE_TIMESCALE);
+    // What it plays for, with its wait: a cut's part, else the whole.
+    let movie = presented_ms(track, lead_ms, trim);
     let mut tkhd = Vec::new();
     tkhd.extend_from_slice(&0u64.to_be_bytes());
     tkhd.extend_from_slice(&0u64.to_be_bytes());
@@ -265,11 +305,21 @@ pub(super) fn trak(
         ],
     );
     let mdia = boxed(b"mdia", &[&full(b"mdhd", 1, 0, &mdhd), &track.hdlr, &minf]);
-    let edts = edit_list(track, lead_ms).unwrap_or_default();
+    let edts = edit_list(track, lead_ms, trim).unwrap_or_default();
     boxed(b"trak", &[&full(b"tkhd", 1, 3, &tkhd), &edts, &mdia])
 }
 
-pub(super) fn moov(tracks: &[Track], layout: &[Chunk], data_at: u64) -> Vec<u8> {
+/// The index of the output: every track, laid out as `layout` says, its
+/// samples starting at `data_at`. With a `cut` (from and to, in
+/// milliseconds of the inputs' own timeline), each track's edit list
+/// starts it at `from` and ends it at `to`: the output plays that part
+/// alone, whatever its pieces hold around it.
+pub(super) fn moov(
+    tracks: &[Track],
+    layout: &[Chunk],
+    data_at: u64,
+    cut: Option<(u64, u64)>,
+) -> Vec<u8> {
     let mut offsets: Vec<Vec<u64>> = vec![Vec::new(); tracks.len()];
     let mut per_chunk: Vec<Vec<u32>> = vec![Vec::new(); tracks.len()];
     let mut at = data_at;
@@ -291,9 +341,27 @@ pub(super) fn moov(tracks: &[Track], layout: &[Chunk], data_at: u64) -> Vec<u8> 
             .map(|s| u64::from(s.size))
             .sum::<u64>();
     }
+    let start_ms = |t: &Track| t.start.map(|s| scale(s, t.timescale, MOVIE_TIMESCALE));
+    let earliest = tracks.iter().filter_map(start_ms).min().unwrap_or(0);
+    // Each track's wait and part, as its edit list will say.
+    let placed = |track: &Track| match cut {
+        Some((from, to)) => {
+            let start = start_ms(track).unwrap_or(earliest);
+            let lead = start.saturating_sub(from);
+            let skip = from.saturating_sub(start);
+            (
+                lead,
+                Some((skip, to.saturating_sub(from).saturating_sub(lead))),
+            )
+        }
+        None => (start_ms(track).map_or(0, |s| s - earliest), None),
+    };
     let duration = tracks
         .iter()
-        .map(|t| scale(media_duration(t), t.timescale, MOVIE_TIMESCALE))
+        .map(|t| {
+            let (lead, trim) = placed(t);
+            presented_ms(t, lead, trim)
+        })
         .max()
         .unwrap_or(0);
     let mut mvhd = Vec::new();
@@ -311,15 +379,16 @@ pub(super) fn moov(tracks: &[Track], layout: &[Chunk], data_at: u64) -> Vec<u8> 
     mvhd.extend_from_slice(&(tracks.len() as u32 + 1).to_be_bytes());
     let mut parts = vec![full(b"mvhd", 1, 0, &mvhd)];
     for (i, track) in tracks.iter().enumerate() {
-        let start_ms = |t: &Track| t.start.map(|s| scale(s, t.timescale, MOVIE_TIMESCALE));
-        let earliest = tracks.iter().filter_map(start_ms).min().unwrap_or(0);
-        let lead = start_ms(track).map_or(0, |s| s - earliest);
+        // The output starts at `from`: a track that begins before it is
+        // entered that far in, one that begins after it waits.
+        let (lead, trim) = placed(track);
         parts.push(trak(
             track,
             i as u32 + 1,
             offsets.get(i).map(Vec::as_slice).unwrap_or_default(),
             per_chunk.get(i).map(Vec::as_slice).unwrap_or_default(),
             lead,
+            trim,
         ));
     }
     let refs: Vec<&[u8]> = parts.iter().map(Vec::as_slice).collect();
@@ -330,6 +399,7 @@ pub(crate) fn write_output(
     tracks: &[Track],
     files: &mut [File],
     out: &Path,
+    cut: Option<(u64, u64)>,
 ) -> Result<u64, String> {
     let ftyp = boxed(
         b"ftyp",
@@ -338,9 +408,9 @@ pub(crate) fn write_output(
     let layout = chunks(tracks);
     // The index's length does not depend on the offsets in it (all 64-bit),
     // so it is laid out once to measure and once for real.
-    let measured = moov(tracks, &layout, 0).len() as u64;
+    let measured = moov(tracks, &layout, 0, cut).len() as u64;
     let data_at = ftyp.len() as u64 + measured + 16;
-    let index = moov(tracks, &layout, data_at);
+    let index = moov(tracks, &layout, data_at, cut);
     let data: u64 = tracks
         .iter()
         .flat_map(|t| t.samples.iter())

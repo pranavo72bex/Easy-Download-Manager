@@ -309,5 +309,5 @@ pub(super) fn build(streams: &mut [Elementary], out: &Path) -> Result<u64, Strin
                 .map_err(|e| format!("a scratch file could not be read: {e}"))?,
         );
     }
-    crate::mp4mux::write_output(&tracks, &mut files, out)
+    crate::mp4mux::write_output(&tracks, &mut files, out, None)
 }

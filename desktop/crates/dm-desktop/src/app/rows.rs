@@ -430,6 +430,7 @@ pub(super) mod status_tests {
             speed_limit: 0,
             stalled: String::new(),
             sound: None,
+            span: None,
         }
     }
 

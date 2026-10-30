@@ -27,6 +27,7 @@ mod file_info;
 mod frame;
 mod links;
 mod options;
+mod playlist;
 mod progress;
 mod properties;
 mod row_dialogs;
@@ -87,6 +88,25 @@ pub struct FileInfo {
     pub referrer: String,
     /// The quality picked in the browser's panel, and what its list said.
     pub quality: Option<String>,
+    /// A part of the video rather than the whole: from one second to
+    /// another, as typed in the dialog's Part fields (`part_from`,
+    /// `part_to`) and read when it starts.
+    pub span: Option<dm_core::Span>,
+    /// "Only a part of the video", and its ends as typed ("4:10").
+    pub part: bool,
+    pub part_from: String,
+    pub part_to: String,
+    /// A video page's qualities with their sizes, read as the dialog opens
+    /// (`dm_core::ytdlp::list_choices`): `None` until asked; an empty list
+    /// where the page gave none.
+    pub choices: Option<std::sync::Arc<std::sync::Mutex<Option<Vec<dm_core::ytdlp::Choice>>>>>,
+    /// The browser a handed-over download came from, where the host could
+    /// tell ("Microsoft Edge").
+    pub browser: Option<String>,
+    /// A download the browser caught (not one asked for from the panel or
+    /// a menu): offered "Always save here without asking".
+    pub caught: bool,
+    pub always_here: bool,
     /// A separate sound track for the first address, fetched and joined with it.
     pub sound: Option<String>,
     pub label: Option<String>,
@@ -303,6 +323,23 @@ fn join_login(address: &str, login: &str, password: &str) -> String {
         }
         _ => address.trim().to_string(),
     }
+}
+
+/// A playlist being read for the dialog: `None` until it is; the reading's
+/// own words where it could not be.
+pub type PlaylistRead =
+    std::sync::Arc<std::sync::Mutex<Option<Result<dm_core::youtube::Playlist, String>>>>;
+
+/// "Playlist": a YouTube playlist read by dm, its videos ticked to download.
+#[derive(Default)]
+pub struct PlaylistDialog {
+    pub url: String,
+    pub read: Option<PlaylistRead>,
+    /// Which videos are ticked, one for each.
+    pub picked: Vec<bool>,
+    /// The quality to take them at (`QUALITIES`' words).
+    pub quality: String,
+    pub says: String,
 }
 
 #[derive(Default)]
@@ -576,6 +613,8 @@ pub struct Dialogs {
     pub own_limits: std::collections::HashMap<Id, u64>,
     pub properties: BTreeMap<Id, Properties>,
     pub series: Option<Series>,
+    /// "Playlist": a YouTube playlist's videos, ticked to download.
+    pub playlist: Option<PlaylistDialog>,
     pub clip_links: Option<Vec<(String, bool)>>,
     /// The "Download links" import dialog, for a page's links.
     pub links: Option<LinksImport>,
@@ -699,6 +738,7 @@ pub fn show(app: &mut DmApp, ctx: &egui::Context) {
     complete(app, ctx);
     properties(app, ctx);
     series(app, ctx);
+    playlist::playlist(app, ctx);
     clip_links(app, ctx);
     site_files(app, ctx);
     update_link(app, ctx);

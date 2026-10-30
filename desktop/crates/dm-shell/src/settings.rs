@@ -682,6 +682,7 @@ impl Settings {
             checksum: None,
             quality: self.quality(),
             sound: None,
+            span: None,
             media: false,
             referrer: None,
             // For the tools dm runs; the client has its own copy.

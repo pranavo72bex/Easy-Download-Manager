@@ -24,7 +24,7 @@ Recorded 2026-10-29 from the merged `main`, where every row passed.
 | ID | A person does | What must happen | Reference A |
 |---|---|---|---|
 | B01 | Clicks Add URL and presses OK with nothing typed | The Add URL dialog stays, says "Type or paste the address of what to download." and nothing is added | same |
-| B02 | Types an address in Add URL and presses OK | The Download details dialog opens: the address, Category, Save to folder, Save as, Size, and Start now / Add for later / Cancel | same (its file information dialog) |
+| B02 | Types an address in Add URL and presses OK | The Download details dialog opens: the address, Category, Save to folder, Save as, Size, and Start now / Add for later / Cancel. For a video page it also lists Quality (each of the video's qualities with its size, the setting's one picked, sound alone among them) and, for a YouTube video, Part ("Only a part of the video", from and to). A YouTube playlist address opens the Playlist dialog instead: its videos listed with a tick each, Select all, Video quality, Start now / Add for later / Cancel. A download the browser caught also says which browser it came from ("From Microsoft Edge") and offers "Always save here without asking", which stops the asking for caught downloads (Options › Browser). (Added 2026-10-30 at the maintainer's request to take the other macOS manager's good things, as a clean-room implementation in Rust and egui.) | same (its file information dialog); the other macOS manager has the quality list and the part |
 | B03 | Presses Start now | The download starts at once and its row shows its progress | same |
 
 ## Stopping and resuming
@@ -83,7 +83,7 @@ Recorded 2026-10-29 from the merged `main`, where every row passed.
 
 | ID | Situation | What must happen | Reference A |
 |---|---|---|---|
-| B25 | The empty window, Add URL, and Download details | Each looks as in `docs/behaviour-baseline/` (on the machine those were taken on; no more than 1% of pixels differ, which the clock and an address account for) | n/a |
+| B25 | The empty window, Add URL, and Download details | Each looks as in `docs/behaviour-baseline/` (on the machine those were taken on; no more than 1% of pixels differ, which the clock and an address account for). Taken again on 2026-10-30 with the side panel's switch at the toolbar's left end, at the maintainer's request for that icon | n/a |
 
 ## The browser (Microsoft Edge with dm's extension)
 
@@ -103,6 +103,6 @@ Recorded 2026-10-29 from the merged `main`, where every row passed.
 | ID | A person does | What must happen | Reference A |
 |---|---|---|---|
 | B33 | Rests the pointer on a playing video | "Download video" appears in the player's top corner and stays | same |
-| B34 | Clicks it | The video's qualities are listed with their sizes | same |
+| B34 | Clicks it | The video's qualities are listed with their sizes (on YouTube the page's own player lists them in a moment, and the sizes follow with dm's reading of the page, which takes the list's place; added 2026-10-30 at the maintainer's request to take the other macOS manager's extension's way) | same |
 | B35 | Picks one | It says "Sent to dm"; the video lands in dm's folder whole, picture and sound | same |
 | B36 | Everything else the browser check covers | Every one of its checks passes | n/a |

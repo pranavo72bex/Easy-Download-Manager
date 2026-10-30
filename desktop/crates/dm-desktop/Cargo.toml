@@ -165,6 +165,11 @@ category = "Utility"
 beforePackagingCommand = "cargo build --release -p dm-desktop"
 outDir = "../../target/release/bundle"
 binaries = [{ path = "dm-desktop", main = true }]
+# yt-dlp's unpacked build, fetched into resources/yt-dlp by
+# scripts/fetch-ytdlp.py before packaging (the desktop workflow does), so a
+# fresh install plays its first video with nothing to fetch; absent, dm
+# fetches it at the first video as before (docs/RELEASING.md).
+resources = ["resources/yt-dlp"]
 icons = [
   "icons/32x32.png",
   "icons/128x128.png",

@@ -20,6 +20,7 @@
 pub mod auth;
 pub mod category;
 pub mod checksum;
+pub mod clip;
 pub mod control;
 pub mod cookies;
 pub mod dash;
@@ -65,6 +66,7 @@ pub use reqwest;
 
 pub use category::{Categories, Category, Custom};
 pub use checksum::Checksum;
+pub use clip::Span;
 pub use control::{Control, Wanted};
 pub use download::{download, download_reporting, Finished, HostLimit, Options, Room, Update};
 pub use limit::Limiter;

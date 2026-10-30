@@ -17,7 +17,9 @@ pub const HELLO_WITHIN_MS: f64 = 10_000.0;
 pub const SETTINGS_WITHIN_MS: f64 = 3_000.0;
 /// How long the host has to take a download. It files it and, if the app is
 /// closed, starts it; both are quick, but a slow disk is not an error.
-pub const TAKEN_WITHIN_MS: f64 = 20_000.0;
+/// Long enough for the host's own first request (`PROBE_WITHIN_MS`, 16 s),
+/// its margin for answering, and five seconds for the host to start.
+pub const TAKEN_WITHIN_MS: f64 = 24_000.0;
 /// How long a URL given back to the browser is left alone if it comes round
 /// again, which it does when the extension has to restart it.
 pub const RELEASED_FOR_MS: f64 = 60_000.0;

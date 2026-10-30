@@ -83,9 +83,24 @@ def executable(root, plat):
     }[plat]
 
 
+EDGE_PATHS = {
+    "Darwin": ["/Applications/Microsoft Edge.app/Contents/MacOS/Microsoft Edge"],
+    "Linux": ["/usr/bin/microsoft-edge", "/usr/bin/microsoft-edge-stable", "/opt/microsoft/msedge/msedge"],
+    "Windows": [r"C:\Program Files (x86)\Microsoft\Edge\Application\msedge.exe",
+                r"C:\Program Files\Microsoft\Edge\Application\msedge.exe"],
+}
+
+
 def find_chrome():
     if os.environ.get("CHROME_PATH"):
         return pathlib.Path(os.environ["CHROME_PATH"])
+    # Microsoft Edge, where it is installed: the browser these checks are
+    # run in (the maintainer's word, 2026-10-30); only without it is Chrome
+    # for Testing fetched.
+    for candidate in EDGE_PATHS.get(platform.system(), []):
+        if pathlib.Path(candidate).exists():
+            print(f"browser: Microsoft Edge at {candidate}", flush=True)
+            return pathlib.Path(candidate)
     plat = chrome_platform()
     with urllib.request.urlopen(ENDPOINT, timeout=60) as reply:
         stable = json.load(reply)["channels"]["Stable"]

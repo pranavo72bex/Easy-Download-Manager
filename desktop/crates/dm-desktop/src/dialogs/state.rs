@@ -40,6 +40,35 @@ impl Dialogs {
         });
     }
 
+    /// "Playlist" for a YouTube playlist address: read by dm itself as the
+    /// dialog opens, its videos to be ticked and taken at `quality`.
+    pub fn open_playlist(
+        &mut self,
+        url: String,
+        backend: &crate::backend::Backend,
+        quality: String,
+    ) {
+        self.focus_on("Playlist");
+        let slot: PlaylistRead = Default::default();
+        let client = dm_core::proxy::client_with(&backend.settings().proxy)
+            .unwrap_or_else(|_| dm_core::client());
+        let (page, read) = (url.clone(), slot.clone());
+        backend.runtime.spawn(async move {
+            let got = dm_core::youtube::read_playlist(&client, &page, None)
+                .await
+                .map_err(|e| e.to_string());
+            if let Ok(mut slot) = read.lock() {
+                *slot = Some(got);
+            }
+        });
+        self.playlist = Some(PlaylistDialog {
+            url,
+            read: Some(slot),
+            quality,
+            ..PlaylistDialog::default()
+        });
+    }
+
     /// The dialog for a video the browser's panel handed over.
     pub fn open_handed(&mut self, request: dm_shell::host::Request) {
         self.focus_on("Download details");
@@ -54,6 +83,8 @@ impl Dialogs {
             handed: true,
             cookies: request.cookies,
             cookies_once: request.cookies_once,
+            browser: request.browser,
+            caught: request.caught,
             ..FileInfo::default()
         });
     }

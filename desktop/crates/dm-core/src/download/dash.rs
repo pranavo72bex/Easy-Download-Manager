@@ -433,6 +433,7 @@ mod tests {
             checksum: None,
             quality: Quality::Best,
             sound: None,
+            span: None,
             media: false,
             referrer: None,
             proxy: None,

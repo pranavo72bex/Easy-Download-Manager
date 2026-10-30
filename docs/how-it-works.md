@@ -263,6 +263,14 @@ The file is `settings.json` under dm's home (`~/Library/Application
 Support/dm-engine` on macOS, `~/.local/share/dm-engine` on Linux), and
 Options › Browser edits them.
 
+The "Download video" panel's list on a YouTube page comes in two steps:
+the page's own player is asked for the qualities it lists
+(`extension/document.js`, in the page's world, answers a `dm-ask-qualities`
+message with the player's levels and the id of the video it is playing),
+which the panel shows in a moment, and dm's reading of the page, with each
+quality's size, takes that list's place when it arrives (`content/handoff.rs`).
+A line clicked on the first list is taken at its height.
+
 ## How the hand-off works
 
 **The extension** is Rust (`browser/`, crate `dm-catcher`) compiled to
@@ -415,7 +423,10 @@ desktop/
     mp4mux.rs, mkvmux.rs  picture and sound joined into one MP4 or WebM (mp4mux/: read, write, text)
     live.rs, rtmp.rs, rtsp.rs, mms.rs   live streams recorded as they come (rtmp/: amf, wire,
                           recorder, connect, session)
-    youtube.rs            a YouTube page read by dm itself (the player API, the solver scripts)
+    youtube.rs            a YouTube page read by dm itself (the player API, the solver scripts),
+                          and a playlist page's videos
+    clip.rs               a part of a video: a stream's index of pieces, the pieces for a span,
+                          fetched by ranges; the muxer cuts the joined file to the second
     ytdlp.rs, tools.rs    pages handed to yt-dlp, and the tools dm fetches and checks
     ytdlp/fetch.rs        a page read by yt-dlp, its streams fetched by dm's engine
     ytdlp/choices.rs      the panel's list of qualities (page data first, yt-dlp as fallback)

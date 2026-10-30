@@ -45,7 +45,9 @@ fn tools() -> Value {
             json!({ "urls": { "type": "array", "items": { "type": "string" } },
                      "later": { "type": "boolean" }, "again": { "type": "boolean" },
                      "folder": { "type": "string" },
-                     "name": { "type": "string" }, "description": { "type": "string" } }),
+                     "name": { "type": "string" }, "description": { "type": "string" },
+                     "from": { "type": "string", "description": "With `to`: only this part of a video, as 4:10 or seconds" },
+                     "to": { "type": "string" } }),
             vec!["urls"]
         ),
         tool(

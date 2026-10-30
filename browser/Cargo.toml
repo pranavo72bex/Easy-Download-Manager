@@ -35,7 +35,7 @@ web-sys = { version = "0.3", features = [
   "NodeList", "Selection", "console",
   "EventTarget", "Event", "MouseEvent", "KeyboardEvent", "DomRect", "CssStyleDeclaration",
   "ResizeObserver",
-  "ShadowRoot", "ShadowRootInit", "ShadowRootMode", "DocumentFragment", "Location",
+  "ShadowRoot", "ShadowRootInit", "ShadowRootMode", "DocumentFragment", "Location", "MessageEvent",
   # The toolbar popup's switches.
   "HtmlInputElement",
 ] }

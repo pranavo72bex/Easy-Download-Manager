@@ -331,6 +331,14 @@ impl DmApp {
                         ));
                     }
                 }
+                // A part of a video: both ends, as "4:10" or seconds.
+                let span = match (text("from"), text("to")) {
+                    (None, None) => None,
+                    (Some(from), Some(to)) => Some(dm_core::Span::parse(&from, &to).ok_or(
+                        "`from` and `to` are times such as 1:30 or 90, the end after the start",
+                    )?),
+                    _ => return Err("give both `from` and `to` for a part of a video".into()),
+                };
                 let with = dm_core::AddOptions {
                     later,
                     queue: if later {
@@ -341,6 +349,7 @@ impl DmApp {
                     save_dir: text("folder"),
                     save_name: text("name"),
                     description: text("description").unwrap_or_default(),
+                    span,
                     ..dm_core::AddOptions::default()
                 };
                 /* An address already listed is not added a second time

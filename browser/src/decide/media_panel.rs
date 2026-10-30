@@ -288,3 +288,55 @@ pub fn panel_target(click: &PanelClick, tab_url: &str, private: bool) -> Result<
     };
     menu_target(&menu, private)
 }
+
+/// The video's id in a YouTube watch or Shorts address: the pages whose
+/// own player lists its qualities for the panel. `None` elsewhere.
+pub fn youtube_video_id(url: &str) -> Option<String> {
+    let rest = url.strip_prefix("https://").or_else(|| url.strip_prefix("http://"))?;
+    let (host, path) = rest.split_once('/').unwrap_or((rest, ""));
+    let host = host
+        .strip_prefix("www.")
+        .or_else(|| host.strip_prefix("m."))
+        .unwrap_or(host);
+    if host != "youtube.com" {
+        return None;
+    }
+    let (path, query) = path.split_once('?').unwrap_or((path, ""));
+    let id = if path == "watch" {
+        query.split('&').find_map(|pair| pair.strip_prefix("v="))?
+    } else if let Some(rest) = path.strip_prefix("shorts/") {
+        rest.split(['/', '?', '#']).next()?
+    } else {
+        return None;
+    };
+    let id: String = id
+        .chars()
+        .take_while(|c| c.is_ascii_alphanumeric() || matches!(c, '-' | '_'))
+        .collect();
+    (!id.is_empty()).then_some(id)
+}
+
+/// The heights YouTube's player names its qualities by ("hd1080"), tallest
+/// first, each once; words it does not use are passed over.
+pub fn player_heights(levels: &[String]) -> Vec<u32> {
+    let mut heights: Vec<u32> = levels
+        .iter()
+        .filter_map(|level| match level.as_str() {
+            "highres" => Some(4320),
+            "hd2880" => Some(2880),
+            "hd2160" => Some(2160),
+            "hd1440" => Some(1440),
+            "hd1080" => Some(1080),
+            "hd720" => Some(720),
+            "large" => Some(480),
+            "medium" => Some(360),
+            "small" => Some(240),
+            "tiny" => Some(144),
+            _ => None,
+        })
+        .collect();
+    heights.sort_unstable_by(|a, b| b.cmp(a));
+    heights.dedup();
+    heights
+}
+

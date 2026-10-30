@@ -160,3 +160,15 @@ installed in ordinary Firefox (the README's Firefox step). Each version signs
 once, listed or not: bump both manifests and `browser/Cargo.toml` first.
 3.0.5 was signed this way on 2026-10-19 and attached to `desktop-v0.2.0`.
 
+## yt-dlp inside the package
+
+The desktop workflow runs `scripts/fetch-ytdlp.py desktop/crates/dm-desktop/resources/yt-dlp`
+before `cargo packager`: yt-dlp's unpacked build for the platform, from
+its own latest release and checked against its SHA2-256SUMS, goes into the
+package as a resource (the macOS bundle's `Contents/Resources/yt-dlp`,
+`yt-dlp/` beside the program elsewhere). dm looks there after an installed
+or fetched copy (`ytdlp::bundled`), so a fresh install plays its first
+video with nothing to fetch, and a newer copy dm fetches after a failure
+takes its place. Packaging by hand: run the script first; without it the
+package is as before and dm fetches yt-dlp at the first video.
+

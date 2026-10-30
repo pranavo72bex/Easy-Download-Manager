@@ -418,13 +418,21 @@ pub(super) async fn fetch_segment(
      * of the speed one connection gets; stepping aside at once leaves the
      * range to those the server takes. */
     let busy = |e: &Error| {
-        matches!(
+        let refused = matches!(
             e,
             Error::Refused {
                 status: 429 | 503,
                 ..
             }
-        ) && active.load(Ordering::SeqCst) > 1
+        );
+        /* A request the server took and never answered: a server that holds
+         * connections past its limit open rather than refusing them (seen
+         * with proof.ovh.net at 16 connections, 2026-10-30). Waited out,
+         * dm's tries on each held the download for minutes and then failed
+         * it, where fewer connections finished it. Stepped aside while
+         * others are served, the range goes to them. */
+        let unanswered = matches!(e, Error::Network(e) if e.is_timeout());
+        (refused || unanswered) && active.load(Ordering::SeqCst) > 1
     };
     // Only a capped stream is asked again slice by slice; without a cap the
     // ledger is not read here at all (it is a file, opened and read).

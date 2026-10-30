@@ -149,6 +149,10 @@ pub struct Entry {
     /// player that fetched them apart; both are fetched and joined.
     #[serde(default)]
     pub sound: Option<String>,
+    /// A part of the video rather than the whole, from one second to
+    /// another; `None` is the whole.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub span: Option<crate::clip::Span>,
     /// Where this row's parts are staged, recorded when it first started,
     /// so the folder in the settings can change without stranding them.
     /// Empty until then.
@@ -219,6 +223,9 @@ pub struct AddOptions {
     pub quality: Option<String>,
     /// See `Entry::sound`.
     pub sound: Option<String>,
+    /// A part of the video rather than the whole, from one second to
+    /// another (`crate::clip::Span`).
+    pub span: Option<crate::clip::Span>,
     /// The browser's cookies for this download's site, as a `Cookie`
     /// header, where the person switched that on for the site.
     pub cookies: String,
@@ -545,6 +552,7 @@ impl Queue {
                 validator: None,
                 quality: None,
                 sound: None,
+                span: None,
                 parts_dir: String::new(),
                 began_in: String::new(),
                 cookies: String::new(),

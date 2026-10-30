@@ -213,6 +213,7 @@ mod tests {
             validator: None,
             quality: None,
             sound: None,
+            span: None,
             parts_dir: String::new(),
             began_in: String::new(),
             cookies: String::new(),

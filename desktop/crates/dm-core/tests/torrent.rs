@@ -171,6 +171,7 @@ async fn a_torrent_is_fetched_from_a_real_swarm() {
         checksum: None,
         quality: dm_core::stream::Quality::Best,
         sound: None,
+        span: None,
         media: false,
         referrer: None,
         proxy: None,

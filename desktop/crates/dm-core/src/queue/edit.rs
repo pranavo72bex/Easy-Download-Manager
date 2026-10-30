@@ -55,6 +55,7 @@ impl Queue {
                 .sound
                 .map(|s| s.trim().to_string())
                 .filter(|s| s.starts_with("https://") || s.starts_with("http://"));
+            slot.entry.span = with.span;
             slot.entry.cookies = with.cookies.trim().to_string();
             slot.entry.cookies_once = with.cookies_once && !slot.entry.cookies.is_empty();
             slot.entry.replaces = with.replaces.filter(|p| !p.trim().is_empty());

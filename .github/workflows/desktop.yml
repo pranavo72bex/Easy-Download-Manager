@@ -180,6 +180,13 @@ jobs:
       - name: cargo-packager
         run: cargo install cargo-packager --version 0.11.8 --locked
 
+      # yt-dlp inside the package, the build dm would fetch itself, checked
+      # against its release's checksums; a release that cannot be reached
+      # leaves the package without it and dm fetching at the first video.
+      - name: yt-dlp for the package
+        continue-on-error: true
+        run: python3 scripts/fetch-ytdlp.py desktop/crates/dm-desktop/resources/yt-dlp
+
       # CI is set on every runner, which is what tells the .dmg step to skip
       # the Finder AppleScript a headless machine cannot run.
       - name: Build the installers

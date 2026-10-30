@@ -46,7 +46,13 @@ pub async fn download_page(
     // rather than reading the page twice to be refused again. A YouTube
     // video is read by dm itself (`crate::youtube`), yt-dlp or none.
     let own = crate::youtube::video_id(url).is_some();
-    if (binary().is_none() && !own) || tokio::fs::metadata(staging.join(REFUSED)).await.is_ok() {
+    // A part of the video is cut from streams dm fetches itself, never
+    // fetched whole by the helper: with a span, dm reads the page whatever
+    // an earlier run found.
+    let part = options.span.is_some();
+    if ((binary().is_none() && !own) || tokio::fs::metadata(staging.join(REFUSED)).await.is_ok())
+        && !part
+    {
         return download_ytdlp(url, options, report).await;
     }
     tokio::fs::create_dir_all(staging)
@@ -74,10 +80,22 @@ pub async fn download_page(
     let read = match read {
         Ok(read) => read,
         Err(stop @ (Error::Paused | Error::Cancelled)) => return Err(stop),
+        Err(why) if part => {
+            return Err(Error::Internal(format!(
+                "the page could not be read, so no part of its video can be cut ({why})"
+            )))
+        }
         // yt-dlp's own run says why in its own words.
         Err(_) => return download_ytdlp(url, options, report).await,
     };
     let Some(plan) = read.plan(staging) else {
+        if part {
+            return Err(Error::Internal(
+                "this video's streams are not plain files with an index, so a part of it \
+                 cannot be cut"
+                    .into(),
+            ));
+        }
         // Streams dm does not fetch itself: yt-dlp downloads this reading.
         return from_reading(url, &read, options, report).await;
     };
@@ -122,6 +140,9 @@ pub async fn download_page(
             remove_staging(staging).await;
             Err(Error::Cancelled)
         }
+        // A part that could not be cut is said as it is: the helper would
+        // fetch the whole video, which is not what was asked for.
+        Err(why) if part => Err(why),
         Err(why) => {
             eprintln!("dm: fetching {url} itself failed ({why}); the video helper downloads it");
             forget_streams(staging).await;
@@ -262,6 +283,19 @@ struct Format {
     /// The exact size, where the site stated it; the estimate is not one.
     #[serde(default)]
     filesize: Option<serde_json::Value>,
+    /// dm's own reading's word on where the stream's first boxes and its
+    /// index of pieces are ("start-end"), for cutting a part (`clip`).
+    #[serde(default)]
+    dm_init_range: Option<String>,
+    #[serde(default)]
+    dm_index_range: Option<String>,
+}
+
+/// A "start-end" byte range, both ends inclusive.
+fn range_of(text: Option<&str>) -> Option<(u64, u64)> {
+    let (a, b) = text?.trim().split_once('-')?;
+    let (a, b) = (a.parse::<u64>().ok()?, b.parse::<u64>().ok()?);
+    (b >= a).then_some((a, b))
 }
 
 impl Format {
@@ -297,7 +331,7 @@ struct Plan {
     produced: PathBuf,
 }
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, Clone, PartialEq)]
 struct Stream {
     url: String,
     /// The agent yt-dlp would ask with: a site can bind its addresses to the
@@ -316,6 +350,10 @@ struct Stream {
     /// The rest of what the reading says the server is asked with; kept to
     /// this stream's requests (`crate::download::Headers`).
     headers: crate::download::Headers,
+    /// Where its first boxes and its index of pieces are, where the
+    /// reading said, for cutting a part of it.
+    init: Option<(u64, u64)>,
+    index: Option<(u64, u64)>,
 }
 
 impl Stream {
@@ -414,9 +452,54 @@ impl Read {
                         .iter()
                         .filter_map(|(name, value)| Some((name.as_str(), value.as_str()?))),
                 ),
+                init: range_of(format.dm_init_range.as_deref()),
+                index: range_of(format.dm_index_range.as_deref()),
             });
         }
         Some(Plan { streams, produced })
+    }
+}
+
+impl Plan {
+    /// The plan for a part of the video: the file and each stream's part
+    /// named for the span ("Talk [id] (4m10s-4m45s).mp4"), so a part's
+    /// bytes never pass for the whole's, and the whole's parts are left
+    /// alone.
+    fn for_part(&self, span: crate::clip::Span) -> Plan {
+        let stem = self
+            .produced
+            .file_stem()
+            .map(|s| s.to_string_lossy().into_owned())
+            .unwrap_or_default();
+        let ext = self
+            .produced
+            .extension()
+            .map(|e| e.to_string_lossy().into_owned())
+            .unwrap_or_else(|| "mp4".into());
+        let stem = format!("{stem} ({})", span.words());
+        let produced = self.produced.with_file_name(format!("{stem}.{ext}"));
+        let joined = self.streams.len() > 1;
+        let streams = self
+            .streams
+            .iter()
+            .map(|stream| {
+                let target = if joined {
+                    let ext = stream
+                        .target
+                        .extension()
+                        .map(|e| e.to_string_lossy().into_owned())
+                        .unwrap_or_else(|| "mp4".into());
+                    produced.with_file_name(format!("{stem}.f{}.{ext}", stream.id))
+                } else {
+                    produced.clone()
+                };
+                Stream {
+                    target,
+                    ..stream.clone()
+                }
+            })
+            .collect();
+        Plan { streams, produced }
     }
 }
 
@@ -569,6 +652,10 @@ async fn fetch(
     options: &Options,
     report: Option<tokio::sync::mpsc::Sender<Update>>,
 ) -> Result<Finished, Error> {
+    // A part of the video: each stream's part, cut by its index, under
+    // names of their own.
+    let part = options.span.map(|span| plan.for_part(span));
+    let plan = part.as_ref().unwrap_or(plan);
     if let Some(tx) = &report {
         let name = plan
             .produced
@@ -587,7 +674,12 @@ async fn fetch(
         .streams
         .iter()
         .zip(senders)
-        .map(|(stream, tx)| fetch_stream(client, stream, options, tx));
+        .map(|(stream, tx)| async move {
+            match options.span {
+                Some(span) => fetch_part(client, stream, span, options, tx).await,
+                None => fetch_stream(client, stream, options, tx).await,
+            }
+        });
     let fetched = futures_util::future::try_join_all(fetching).await;
     if let Some(merging) = merging {
         let _ = merging.await;
@@ -651,6 +743,29 @@ async fn fetch_stream(
     tokio::fs::rename(&done.path, &stream.target).await?;
     let _ = tokio::fs::remove_dir_all(&own).await;
     Ok(())
+}
+
+/// The part of one stream within the span, cut by the stream's own index
+/// (`crate::clip`), to where the whole stream would have gone.
+async fn fetch_part(
+    client: &reqwest::Client,
+    stream: &Stream,
+    span: crate::clip::Span,
+    options: &Options,
+    report: Option<tokio::sync::mpsc::Sender<Update>>,
+) -> Result<(), Error> {
+    let source = crate::clip::Source {
+        url: stream.url.clone(),
+        init: stream.init,
+        index: stream.index,
+        agent: stream.agent.clone(),
+        headers: stream.headers.clone(),
+        chunk: stream.chunk,
+        target: stream.target.clone(),
+    };
+    crate::clip::fetch_part(client, &source, span, options, report)
+        .await
+        .map(|_| ())
 }
 
 /// The parts of streams dm was fetching itself, before yt-dlp takes over.

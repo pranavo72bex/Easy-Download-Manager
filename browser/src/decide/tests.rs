@@ -1314,3 +1314,21 @@ fn a_site_capturing_is_paused_for_keeps_its_downloads_wherever_they_are_served_f
     assert!(paused(&listed, "https://www.example.org/x.pdf"));
     assert!(!paused(&[], "https://example.org/x.pdf"));
 }
+
+#[test]
+fn youtubes_player_answers_for_watch_and_shorts_pages_alone() {
+    assert_eq!(
+        youtube_video_id("https://www.youtube.com/watch?v=jNQXAC9IVRw&t=3s").as_deref(),
+        Some("jNQXAC9IVRw")
+    );
+    assert_eq!(youtube_video_id("https://m.youtube.com/shorts/abc-_123?x=1").as_deref(), Some("abc-_123"));
+    assert_eq!(youtube_video_id("https://www.youtube.com/playlist?list=PL1"), None);
+    assert_eq!(youtube_video_id("https://www.video.example/watch?v=abc"), None);
+    assert_eq!(youtube_video_id("https://www.youtube.com/watch?list=PL1"), None);
+    let levels: Vec<String> = ["auto", "hd1080", "hd720", "hd1080", "large", "medium", "tiny", "odd"]
+        .iter()
+        .map(|s| s.to_string())
+        .collect();
+    assert_eq!(player_heights(&levels), [1080, 720, 480, 360, 144]);
+}
+

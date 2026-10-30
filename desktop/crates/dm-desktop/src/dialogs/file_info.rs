@@ -137,6 +137,48 @@ pub(super) fn file_info(app: &mut DmApp, ctx: &egui::Context) {
             d.name = name.clone();
         }
     }
+    // A video page's qualities, each with its size, read once as the
+    // dialog opens: a YouTube watch page's from its own data (under a
+    // second), any other's from yt-dlp's reading of it.
+    let first = d.urls.first().cloned().unwrap_or_default();
+    let youtube = d.urls.len() == 1 && dm_core::youtube::video_id(&first).is_some();
+    let video = d.urls.len() == 1 && (page || youtube);
+    if video && d.choices.is_none() {
+        let slot: std::sync::Arc<std::sync::Mutex<Option<Vec<dm_core::ytdlp::Choice>>>> =
+            Default::default();
+        d.choices = Some(slot.clone());
+        let url = first.clone();
+        let referrer = Some(d.referrer.clone()).filter(|r| !r.is_empty());
+        let proxy = app.backend.settings().proxy.url_for_tools();
+        let sign_in = dm_core::cookies::SignIn::new(&url, &d.cookies);
+        let ctx = ctx.clone();
+        app.backend.runtime.spawn(async move {
+            let listed = tokio::time::timeout(
+                std::time::Duration::from_secs(40),
+                dm_core::ytdlp::list_choices(
+                    &url,
+                    referrer.as_deref(),
+                    proxy.as_deref(),
+                    sign_in.as_ref(),
+                ),
+            )
+            .await;
+            let listed = match listed {
+                Ok(Ok(list)) => list,
+                _ => Vec::new(),
+            };
+            if let Ok(mut slot) = slot.lock() {
+                *slot = Some(listed);
+            }
+            ctx.request_repaint();
+        });
+    }
+    let choices: Option<Vec<dm_core::ytdlp::Choice>> = d
+        .choices
+        .as_ref()
+        .and_then(|slot| slot.lock().ok()?.clone());
+    // The quality the setting would choose, shown as picked until one is.
+    let setting = dm_core::stream::Quality::named(&app.applied.stream_quality);
     // The folder this kind of file went to last time, where it still is.
     if !d.folder_offered && d.urls.len() == 1 && !d.name.trim().is_empty() {
         d.folder_offered = true;
@@ -222,6 +264,10 @@ pub(super) fn file_info(app: &mut DmApp, ctx: &egui::Context) {
         .show(ctx, |ui| {
             let first = d.urls.first().cloned().unwrap_or_default();
             ui.label(RichText::new(format::shown_url(&first)).weak());
+            // Where a handed-over download came from, as the host saw it.
+            if let (true, Some(browser)) = (d.handed, &d.browser) {
+                ui.label(RichText::new(tf("From {}", &[browser])).weak());
+            }
             if d.urls.len() > 1 {
                 ui.label(tf("and {} more", &[&(d.urls.len() - 1)]));
             }
@@ -271,6 +317,14 @@ pub(super) fn file_info(app: &mut DmApp, ctx: &egui::Context) {
                         }
                     });
                     ui.end_row();
+                    // A download the browser caught: the next ones can go
+                    // straight to their folder (Options › Browser says so
+                    // afterwards).
+                    if d.caught {
+                        ui.label("");
+                        ui.checkbox(&mut d.always_here, t("Always save here without asking"));
+                        ui.end_row();
+                    }
                     if d.urls.len() == 1 {
                         let name = ui.label(t("Save as"));
                         let save_as = ui
@@ -299,6 +353,68 @@ pub(super) fn file_info(app: &mut DmApp, ctx: &egui::Context) {
                         }
                         ui.end_row();
                     }
+                    // A video's qualities, each with its size, to pick from:
+                    // the one the setting would take is shown picked until
+                    // another is. Sound alone is one of them.
+                    if video {
+                        ui.label(t("Quality"));
+                        match &choices {
+                            None => {
+                                ui.label(RichText::new(t("Reading the video's qualities…")).weak());
+                            }
+                            Some(list) if list.is_empty() => {
+                                ui.label(RichText::new("—").weak());
+                            }
+                            Some(list) => {
+                                let default = default_choice(list, setting);
+                                let picked = d.quality.clone().or(default);
+                                // Four to a row, each its height over its
+                                // size, as a person compares them.
+                                ui.vertical(|ui| {
+                                    for row in list.chunks(4) {
+                                        ui.horizontal(|ui| {
+                                            for choice in row {
+                                                let on = picked.as_deref()
+                                                    == Some(choice.quality.as_str());
+                                                if ui
+                                                    .selectable_label(on, chip_words(choice))
+                                                    .clicked()
+                                                {
+                                                    d.quality = Some(choice.quality.clone());
+                                                    d.label = Some(choice.label.clone());
+                                                }
+                                            }
+                                        });
+                                    }
+                                });
+                            }
+                        }
+                        ui.end_row();
+                    }
+                    // A part of the video, from one moment to another: cut
+                    // from the streams dm fetches itself, which today are a
+                    // YouTube video's.
+                    if youtube {
+                        ui.label(t("Part"));
+                        ui.horizontal(|ui| {
+                            ui.checkbox(&mut d.part, t("Only a part of the video"));
+                            if d.part {
+                                ui.label(t("part:from").trim_start_matches("part:"));
+                                ui.add(
+                                    egui::TextEdit::singleline(&mut d.part_from)
+                                        .hint_text(t("m:ss"))
+                                        .desired_width(64.0),
+                                );
+                                ui.label(t("part:to").trim_start_matches("part:"));
+                                ui.add(
+                                    egui::TextEdit::singleline(&mut d.part_to)
+                                        .hint_text(t("m:ss"))
+                                        .desired_width(64.0),
+                                );
+                            }
+                        });
+                        ui.end_row();
+                    }
                     // The size, once the server has said it: its
                     // line is there from the start, so the buttons below do
                     // not move when the answer comes.
@@ -325,7 +441,7 @@ pub(super) fn file_info(app: &mut DmApp, ctx: &egui::Context) {
                         chosen = Some(false);
                     }
                     ui.end_row();
-                    if let Some(label) = &d.label {
+                    if let (Some(label), false) = (&d.label, video) {
                         ui.label(t("Quality"));
                         ui.label(label);
                         ui.end_row();
@@ -434,6 +550,19 @@ pub(super) fn file_info(app: &mut DmApp, ctx: &egui::Context) {
     let Some(later) = chosen else {
         return;
     };
+    // The part's ends, where one was asked for; a pair that is not a span
+    // keeps the dialog, with the shape they take.
+    if d.part {
+        match dm_core::Span::parse(&d.part_from, &d.part_to) {
+            Some(span) => d.span = Some(span),
+            None => {
+                d.says = t("The part's start and end are minutes and seconds, such as 4:10 and 4:45, the end after the start.").to_string();
+                return;
+            }
+        }
+    } else {
+        d.span = None;
+    }
     let with = AddOptions {
         description: d.description.trim().to_string(),
         queue: if later {
@@ -451,6 +580,7 @@ pub(super) fn file_info(app: &mut DmApp, ctx: &egui::Context) {
         referrer: d.referrer.clone(),
         quality: d.quality.clone(),
         sound: d.sound.clone(),
+        span: d.span,
         cookies: d.cookies.clone(),
         cookies_once: d.cookies_once,
         checksum: None,
@@ -463,6 +593,7 @@ pub(super) fn file_info(app: &mut DmApp, ctx: &egui::Context) {
         },
     };
     let urls = d.urls.clone();
+    let always_here = d.caught && d.always_here;
     // Where this kind of file was put, for next time; the kind's own folder
     // chosen again forgets it.
     if urls.len() == 1 && !d.name.trim().is_empty() {
@@ -473,6 +604,14 @@ pub(super) fn file_info(app: &mut DmApp, ctx: &egui::Context) {
                 Ok(now) => app.applied.last_folders = now.last_folders,
                 Err(e) => app.said = e.into(),
             }
+        }
+    }
+    // "Always save here without asking": caught downloads go to their
+    // folder unasked from now on.
+    if always_here {
+        match app.backend.set_ask_caught_downloads(false) {
+            Ok(now) => app.applied.ask_caught_downloads = now.ask_caught_downloads,
+            Err(e) => app.said = e.into(),
         }
     }
     // The size the dialog showed stays on the row until the row learns its
@@ -509,5 +648,51 @@ pub(super) fn file_info(app: &mut DmApp, ctx: &egui::Context) {
                 d.says = e;
             }
         }
+    }
+}
+
+/// The choice the quality setting would take from a page's list (tallest
+/// first, the sound alone last): the tallest at or under the height asked,
+/// the first for "best", the sound for "audio"; `None` for an empty list.
+fn default_choice(
+    list: &[dm_core::ytdlp::Choice],
+    setting: dm_core::stream::Quality,
+) -> Option<String> {
+    use dm_core::stream::Quality;
+    let height = |choice: &dm_core::ytdlp::Choice| {
+        choice
+            .quality
+            .split('/')
+            .next()
+            .and_then(|h| h.parse::<u32>().ok())
+    };
+    let chosen = match setting {
+        Quality::Audio => list.iter().find(|c| c.quality.starts_with("audio")),
+        Quality::UpTo(limit) => list
+            .iter()
+            .find(|c| height(c).is_some_and(|h| h <= limit))
+            .or_else(|| list.iter().find(|c| height(c).is_some())),
+        Quality::Best => list.iter().find(|c| height(c).is_some()),
+    };
+    chosen.or(list.first()).map(|c| c.quality.clone())
+}
+
+/// A quality's chip: its height and container over its size ("1080p MP4"
+/// over "275.0 MB"), the sound alone said so.
+fn chip_words(choice: &dm_core::ytdlp::Choice) -> String {
+    let (head, ext) = choice
+        .quality
+        .split_once('/')
+        .unwrap_or((&choice.quality, ""));
+    let top = if head == "audio" {
+        format!("{} {}", t("Sound only"), ext.to_ascii_uppercase())
+    } else if head.chars().all(|c| c.is_ascii_digit()) {
+        format!("{head}p {}", ext.to_ascii_uppercase())
+    } else {
+        choice.label.clone()
+    };
+    match choice.size {
+        Some(size) => format!("{}\n{}", top.trim(), format::bytes(size)),
+        None => top.trim().to_string(),
     }
 }

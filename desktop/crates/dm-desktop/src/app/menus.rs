@@ -417,7 +417,8 @@ impl DmApp {
         // Pictures alone, at those widths, left most of it to be guessed.
         let t = crate::theme::Tokens::get(ui.ctx());
         let spacing = ui.spacing().item_spacing.x;
-        let room = ui.available_width();
+        // Less the side panel's switch at the left end.
+        let room = ui.available_width() - 20.0 - spacing;
         let width = |stacked: bool| -> f32 {
             buttons
                 .iter()
@@ -435,7 +436,29 @@ impl DmApp {
         // The classic look's buttons always wrap.
         let wrap = !modern || icons_only;
         let in_front = self.dialogs.in_front();
+        let show_categories = self.show_categories;
         let mut draw = |ui: &mut egui::Ui| {
+            // The side panel's switch at the toolbar's left end, as the
+            // other managers have it: the categories and queues folded
+            // away for a wide list and back again (View › Categories too).
+            let (glyph, words) = if show_categories {
+                ("‹", crate::i18n::t("Hide the side panel"))
+            } else {
+                ("›", crate::i18n::t("Show the side panel"))
+            };
+            let switch = ui.add(
+                egui::Button::new(egui::RichText::new(glyph).size(18.0))
+                    .frame(false)
+                    .min_size(egui::vec2(20.0, 28.0)),
+            );
+            let switch = if in_front {
+                switch
+            } else {
+                switch.on_hover_text(words)
+            };
+            if switch.clicked() {
+                self.queued.push(Command::ToggleCategories);
+            }
             for (command, icon, name, widest) in &buttons {
                 // The modern toolbar leads with one primary action.
                 let primary = *command == Command::AddUrl;

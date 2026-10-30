@@ -64,6 +64,103 @@ fn reading(src: &str, frame: &str) -> Promise {
     promise
 }
 
+thread_local! {
+    /// Who is waiting for the page's own player to list its qualities:
+    /// the ask's token and the promise's resolve.
+    static PLAYER_ASKED: RefCell<Option<(String, Function)>> = const { RefCell::new(None) };
+    /// Whether the page's answers are listened for yet.
+    static PLAYER_LISTENING: std::cell::Cell<bool> = const { std::cell::Cell::new(false) };
+}
+
+/// How long the page's player is given to answer: it answers in a frame.
+const PLAYER_PATIENCE_MS: i32 = 400;
+
+/// What YouTube's own player says of the video `id`, asked in the page's
+/// world (`document.js`): the heights it lists, in a moment, so the panel
+/// has a list before the app's reading with sizes arrives. Empty where the
+/// player is another video's, not YouTube's, or does not answer.
+pub(super) fn player_answer() -> Promise {
+    let Some(window) = window() else {
+        return Promise::resolve(&JsValue::NULL);
+    };
+    if !PLAYER_LISTENING.with(|l| l.replace(true)) {
+        listen(&window, "message", |event| {
+            let Ok(event) = event.dyn_into::<web_sys::MessageEvent>() else {
+                return;
+            };
+            let data = event.data();
+            if text_of(&data, "source") != "dm-player-qualities" {
+                return;
+            }
+            let token = text_of(&data, "token");
+            let waiting = PLAYER_ASKED.with(|a| {
+                let mut a = a.borrow_mut();
+                match a.as_ref() {
+                    Some((asked, _)) if *asked == token => a.take(),
+                    _ => None,
+                }
+            });
+            if let Some((_, resolve)) = waiting {
+                let _ = resolve.call1(&JsValue::NULL, &data);
+            }
+        });
+    }
+    let token = format!("q{}", js_sys::Date::now());
+    let origin = window.location().origin().unwrap_or_else(|_| "*".into());
+    Promise::new(&mut |resolve, _reject| {
+        PLAYER_ASKED.with(|a| *a.borrow_mut() = Some((token.clone(), resolve.clone())));
+        let ask = js_sys::Object::new();
+        let _ = Reflect::set(&ask, &"source".into(), &"dm-ask-qualities".into());
+        let _ = Reflect::set(&ask, &"token".into(), &token.clone().into());
+        let _ = window.post_message(&ask, &origin);
+        let token = token.clone();
+        set_timeout(
+            move || {
+                // Unanswered: nothing, and the next click asks afresh.
+                let late = PLAYER_ASKED.with(|a| {
+                    let mut a = a.borrow_mut();
+                    match a.as_ref() {
+                        Some((asked, _)) if *asked == token => a.take(),
+                        _ => None,
+                    }
+                });
+                if let Some((_, resolve)) = late {
+                    let _ = resolve.call1(&JsValue::NULL, &JsValue::NULL);
+                }
+            },
+            PLAYER_PATIENCE_MS,
+        );
+    })
+}
+
+/// The heights the player's answer names for the video `id`, tallest
+/// first; none where the answer is another video's (the player is reused
+/// for the next video, and for an advertisement) or never came.
+fn heights_answered(data: &JsValue, id: &str) -> Vec<u32> {
+    if text_of(data, "id") != id {
+        return Vec::new();
+    }
+    let levels: Vec<String> = Reflect::get(data, &"levels".into())
+        .ok()
+        .and_then(|v| v.dyn_into::<Array>().ok())
+        .map(|a| a.iter().filter_map(|l| l.as_string()).collect())
+        .unwrap_or_default();
+    decide::player_heights(&levels)
+}
+
+/// The panel's lines for heights the player named, before sizes are
+/// known: "1080p" each, fetched at that height.
+fn lines_of_heights(heights: &[u32]) -> Array {
+    let out = Array::new();
+    for height in heights {
+        let choice = js_sys::Object::new();
+        let _ = Reflect::set(&choice, &"line".into(), &format!("{height}p").into());
+        let _ = Reflect::set(&choice, &"quality".into(), &height.to_string().into());
+        out.push(&choice);
+    }
+    out
+}
+
 /// Asks for the page's qualities now, so they are there at the click.
 pub(super) fn read_ahead(src: &str) {
     let frame = window()
@@ -125,16 +222,41 @@ pub(super) fn clicked() {
         );
     });
     let pending = reading(&src, &frame);
+    // YouTube's own player lists its qualities in a moment: shown at once,
+    // and the app's reading, with each one's size, takes the list's place
+    // when it comes. A list already clicked is left alone.
+    let fast = std::rc::Rc::new(std::cell::Cell::new(false));
+    if let Some(id) = decide::youtube_video_id(&frame) {
+        let (src, frame, fast) = (src.clone(), frame.clone(), std::rc::Rc::clone(&fast));
+        wasm_bindgen_futures::spawn_local(async move {
+            let Ok(data) = JsFuture::from(player_answer()).await else {
+                return;
+            };
+            let heights = heights_answered(&data, &id);
+            // Still waiting on the app, and a choice worth making.
+            let waiting = with_panel(|p| p.settled).unwrap_or(false);
+            if heights.len() < 2 || !waiting {
+                return;
+            }
+            fast.set(true);
+            with_panel(|p| {
+                p.settled = false;
+                say(p, "");
+            });
+            list(&src, &frame, &lines_of_heights(&heights));
+        });
+    }
     // Whatever goes wrong behind the click (the background asleep, the app
     // not answering, a helper that never returns), the panel does not stay
     // on "Reading qualities…": past the longest the app may take, it says so
-    // and gives the click back.
+    // and gives the click back. A list the player gave stays.
     let answered = std::rc::Rc::new(std::cell::Cell::new(false));
     {
         let answered = std::rc::Rc::clone(&answered);
+        let fast = std::rc::Rc::clone(&fast);
         set_timeout(
             move || {
-                if !answered.replace(true) {
+                if !answered.replace(true) && !fast.get() {
                     failed("dm did not answer in time. Try again, or right-click the video and choose Download media with dm.");
                 }
             },
@@ -145,6 +267,10 @@ pub(super) fn clicked() {
         let reply = JsFuture::from(pending).await;
         // A reply after the watchdog spoke is the old click's: dropped.
         if answered.replace(true) {
+            return;
+        }
+        // The player's list was clicked already: the app has its hand-off.
+        if fast.get() && with_panel(|p| p.settled).unwrap_or(false) {
             return;
         }
         let reply = match reply {

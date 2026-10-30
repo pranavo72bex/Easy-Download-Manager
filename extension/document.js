@@ -14,6 +14,23 @@
       window.postMessage({ source: 'dm-media-seen', url: u.href }, location.origin);
     } catch { /* an address that is not one is not media */ }
   };
+  // The player's own list of qualities, for the panel's list: asked by
+  // the content script with a token, answered at once from the page's
+  // player with the id of the video it is playing, so the panel lists
+  // them before the app's reading (with sizes) arrives.
+  window.addEventListener('message', (event) => {
+    if (event.source !== window || event.data?.source !== 'dm-ask-qualities') return;
+    let levels = [];
+    let id = null;
+    try {
+      const player = document.querySelector('#movie_player');
+      if (player && typeof player.getAvailableQualityLevels === 'function') {
+        levels = player.getAvailableQualityLevels() || [];
+        id = (typeof player.getVideoData === 'function' && player.getVideoData()?.video_id) || null;
+      }
+    } catch { levels = []; }
+    window.postMessage({ source: 'dm-player-qualities', token: event.data.token, id, levels }, location.origin);
+  });
   const fetched = window.fetch;
   window.fetch = function (...args) {
     tell(args[0]);

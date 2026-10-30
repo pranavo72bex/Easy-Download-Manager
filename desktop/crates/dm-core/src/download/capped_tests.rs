@@ -37,6 +37,7 @@ fn options(dir: &Path) -> Options {
         checksum: None,
         quality: crate::stream::Quality::Best,
         sound: None,
+        span: None,
         media: false,
         referrer: None,
         proxy: None,
@@ -65,6 +66,9 @@ enum Fault {
     OneShortAnswer,
     /// Ranges are not served: the whole file, every time.
     NoRanges,
+    /// Two ranges are served at once; any more are taken and never
+    /// answered, as a server that holds connections past its limit does.
+    SilentPastTwo,
 }
 
 struct Server {
@@ -93,10 +97,12 @@ async fn server(data: Arc<Vec<u8>>, fault: Fault) -> Server {
     let asked = Arc::new(Mutex::new(Vec::new()));
     let seen = asked.clone();
     let big = Arc::new(AtomicUsize::new(0));
+    let in_flight = Arc::new(AtomicUsize::new(0));
     let app = axum::Router::new().route(
         "/f.bin",
         get(move |headers: HeaderMap| {
             let (data, asked, big) = (data.clone(), seen.clone(), big.clone());
+            let in_flight = in_flight.clone();
             async move {
                 let range = headers
                     .get("range")
@@ -126,6 +132,38 @@ async fn server(data: Arc<Vec<u8>>, fault: Fault) -> Server {
                 } else {
                     0
                 };
+                // Past two at once: taken, and never answered.
+                if matches!(fault, Fault::SilentPastTwo) && b > a {
+                    let now = in_flight.fetch_add(1, Ordering::SeqCst);
+                    if now >= 2 {
+                        in_flight.fetch_sub(1, Ordering::SeqCst);
+                        tokio::time::sleep(Duration::from_secs(600)).await;
+                        return Response::builder().status(500).body(Body::empty()).unwrap();
+                    }
+                    // The slot is given back when the response is dropped,
+                    // whether the client read it whole or hung up.
+                    struct Slot(Arc<AtomicUsize>);
+                    impl Drop for Slot {
+                        fn drop(&mut self) {
+                            self.0.fetch_sub(1, Ordering::SeqCst);
+                        }
+                    }
+                    let slot = Slot(in_flight.clone());
+                    let body =
+                        Body::from_stream(paced(data.clone(), a, b, false).into_data_stream().map(
+                            move |chunk| {
+                                let _held = &slot;
+                                chunk
+                            },
+                        ));
+                    return Response::builder()
+                        .status(206)
+                        .header("content-range", format!("bytes {a}-{b}/{SIZE}"))
+                        .header("content-length", b - a + 1)
+                        .header("etag", "\"f\"")
+                        .body(body)
+                        .unwrap();
+                }
                 // Short: promises everything, sends half, and ends.
                 let cut = matches!(fault, Fault::OneShortAnswer) && n == 2 && b - a > 1024;
                 let sent = if cut { a + (b - a) / 2 } else { b };
@@ -290,4 +328,33 @@ async fn a_cap_beats_a_server_that_throttles_every_response() {
         with < without,
         "the cap did not help: {with:?} vs {without:?}"
     );
+}
+
+/// A server that serves two connections and holds every further one open
+/// without a byte: the held ones step aside at their read timeout, their
+/// ranges go to the two being served, and the file comes whole in seconds
+/// rather than failing after every held connection's tries.
+#[tokio::test(flavor = "multi_thread")]
+async fn connections_a_server_holds_unanswered_step_aside_for_the_served() {
+    let data = data();
+    let server = server(data.clone(), Fault::SilentPastTwo).await;
+    let dir = tempfile::tempdir().unwrap();
+    let mut options = options(dir.path());
+    options.connections = 6;
+    options.attempts = 3;
+    // Two seconds, not the thirty of the default: the held connections are
+    // found out that much sooner.
+    let client = crate::builder_with(Duration::from_secs(2), false)
+        .build()
+        .unwrap();
+    let url = format!("http://{}/f.bin", server.addr);
+    let started = Instant::now();
+    let done = download(&client, &url, &options).await.expect("the file");
+    let took = started.elapsed();
+    assert_eq!(std::fs::read(&done.path).unwrap(), *data, "byte for byte");
+    assert!(
+        took < Duration::from_secs(12),
+        "the held connections were waited out: {took:?}"
+    );
+    let _ = server.asked;
 }

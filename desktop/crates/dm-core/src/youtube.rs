@@ -51,6 +51,317 @@ const CHUNK: u64 = 10 << 20;
 /// How long the whole reading may take.
 const WITHIN: std::time::Duration = std::time::Duration::from_secs(60);
 
+/// A playlist's id in a playlist address (`/playlist?list=…`). A watch
+/// address with a list beside its video is that video's: `None`.
+pub fn playlist_id(url: &str) -> Option<String> {
+    let parsed = url::Url::parse(url.trim()).ok()?;
+    let host = parsed.host_str()?.to_ascii_lowercase();
+    let host = host.strip_prefix("www.").unwrap_or(&host);
+    let host = host.strip_prefix("m.").unwrap_or(host);
+    if host != "youtube.com" || parsed.path() != "/playlist" {
+        return None;
+    }
+    parsed
+        .query_pairs()
+        .find(|(k, _)| k == "list")
+        .map(|(_, v)| v.into_owned())
+        .filter(|id| {
+            !id.is_empty()
+                && id.len() <= 64
+                && id
+                    .chars()
+                    .all(|c| c.is_ascii_alphanumeric() || c == '-' || c == '_')
+        })
+}
+
+/// One video of a playlist, as its page lists it.
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+pub struct PlaylistEntry {
+    pub id: String,
+    pub title: String,
+    /// How long it plays, where the list says.
+    pub seconds: Option<u64>,
+}
+
+impl PlaylistEntry {
+    /// The video's watch address.
+    pub fn url(&self) -> String {
+        format!("https://www.youtube.com/watch?v={}", self.id)
+    }
+}
+
+/// A playlist as its page lists it: its title and its videos, in order.
+/// `cut_short` says the list went on past what was read (a thousand
+/// videos, or a continuation YouTube would not answer).
+#[derive(Debug, Clone, PartialEq, Default, serde::Serialize, serde::Deserialize)]
+pub struct Playlist {
+    pub id: String,
+    pub title: String,
+    pub entries: Vec<PlaylistEntry>,
+    pub cut_short: bool,
+}
+
+/// The most videos read of one playlist: ten pages of a hundred.
+const PLAYLIST_MOST: usize = 1000;
+
+/// A playlist page read by dm itself: the page's own data lists its first
+/// hundred videos, and the browse API the rest, a hundred at a time, as
+/// the page itself asks for them.
+pub async fn read_playlist(
+    client: &reqwest::Client,
+    url: &str,
+    sign_in: Option<&crate::cookies::SignIn>,
+) -> Result<Playlist, Error> {
+    let id =
+        playlist_id(url).ok_or_else(|| Error::Internal("not a YouTube playlist address".into()))?;
+    tokio::time::timeout(WITHIN, read_playlist_within(client, &id, sign_in))
+        .await
+        .map_err(|_| Error::Internal("the playlist took too long to read".into()))?
+}
+
+async fn read_playlist_within(
+    client: &reqwest::Client,
+    id: &str,
+    sign_in: Option<&crate::cookies::SignIn>,
+) -> Result<Playlist, Error> {
+    let origin = origin();
+    let address = format!("{origin}/playlist?list={id}&hl=en");
+    let mut cookie = String::from("PREF=hl=en&tz=UTC; SOCS=CAI");
+    if let Some(theirs) = crate::cookies::header_with(sign_in, &address) {
+        cookie = format!("{theirs}; {cookie}");
+    }
+    let page = crate::redirects::send(
+        client
+            .get(&address)
+            .header(reqwest::header::USER_AGENT, PAGE_AGENT)
+            .header(reqwest::header::ACCEPT_LANGUAGE, "en-US,en;q=0.9")
+            .header(reqwest::header::COOKIE, &cookie),
+    )
+    .await?;
+    let page = Error::refused_or(page).await?.text().await?;
+    let data = initial_data(&page).ok_or_else(|| {
+        Error::Internal(
+            "the playlist page holds no list (private, removed, or a sign-in wanted)".into(),
+        )
+    })?;
+    let mut playlist = Playlist {
+        id: id.to_string(),
+        title: playlist_title(&data).unwrap_or_else(|| format!("Playlist {id}")),
+        ..Playlist::default()
+    };
+    let mut token = gather(&data, &mut playlist.entries);
+    if playlist.entries.is_empty() {
+        return Err(Error::Internal(
+            "the playlist page lists no videos (private, removed, or a sign-in wanted)".into(),
+        ));
+    }
+    // The page's own client version, for the browse API; a stand-in gives none.
+    let version = client_version(&page).unwrap_or_else(|| "2.20261020.00.00".to_string());
+    while let Some(next) = token.take() {
+        if playlist.entries.len() >= PLAYLIST_MOST {
+            playlist.cut_short = true;
+            break;
+        }
+        let body = json!({
+            "context": {"client": {"clientName": "WEB", "clientVersion": version, "hl": "en", "gl": "US"}},
+            "continuation": next,
+        });
+        let answer = crate::redirects::send(
+            client
+                .post(format!("{origin}/youtubei/v1/browse?prettyPrint=false"))
+                .header(reqwest::header::USER_AGENT, PAGE_AGENT)
+                .header(reqwest::header::COOKIE, &cookie)
+                .header("X-YouTube-Client-Name", "1")
+                .header("X-YouTube-Client-Version", &version)
+                .header(reqwest::header::CONTENT_TYPE, "application/json")
+                .body(body.to_string()),
+        )
+        .await;
+        let Ok(answer) = answer else {
+            playlist.cut_short = true;
+            break;
+        };
+        let Ok(text) = answer.text().await else {
+            playlist.cut_short = true;
+            break;
+        };
+        let Ok(more) = serde_json::from_str::<Value>(&text) else {
+            playlist.cut_short = true;
+            break;
+        };
+        let before = playlist.entries.len();
+        token = gather(&more, &mut playlist.entries);
+        if playlist.entries.len() == before {
+            // A page that adds nothing would loop for ever.
+            break;
+        }
+    }
+    Ok(playlist)
+}
+
+/// The page's `ytInitialData`.
+fn initial_data(html: &str) -> Option<Value> {
+    const MARK: &str = "ytInitialData = ";
+    let at = html.find(MARK)?;
+    let object = json_object_at(html[at + MARK.len()..].trim_start())?;
+    serde_json::from_str(object).ok()
+}
+
+/// The page's innertube client version (`ytcfg.set`), where it says.
+fn client_version(html: &str) -> Option<String> {
+    let mut rest = html;
+    while let Some(at) = rest.find("ytcfg.set(") {
+        let after = &rest[at + "ytcfg.set(".len()..];
+        if let Some(object) = json_object_at(after.trim_start()) {
+            if let Ok(cfg) = serde_json::from_str::<Value>(object) {
+                if let Some(version) = cfg
+                    .get("INNERTUBE_CLIENT_VERSION")
+                    .or_else(|| cfg.pointer("/INNERTUBE_CONTEXT/client/clientVersion"))
+                    .and_then(Value::as_str)
+                {
+                    return Some(version.to_string());
+                }
+            }
+        }
+        rest = after;
+    }
+    None
+}
+
+/// The playlist's title, from wherever the page's data keeps it.
+fn playlist_title(data: &Value) -> Option<String> {
+    let text = |v: &Value| -> Option<String> {
+        v.as_str()
+            .map(str::to_string)
+            .or_else(|| v.get("simpleText")?.as_str().map(str::to_string))
+            .or_else(|| {
+                let runs = v.get("runs")?.as_array()?;
+                let joined: String = runs
+                    .iter()
+                    .filter_map(|r| r.get("text")?.as_str())
+                    .collect();
+                (!joined.is_empty()).then_some(joined)
+            })
+            .or_else(|| text_of(v.get("content")?))
+    };
+    fn text_of(v: &Value) -> Option<String> {
+        v.as_str().map(str::to_string)
+    }
+    [
+        "/metadata/playlistMetadataRenderer/title",
+        "/header/playlistHeaderRenderer/title",
+        "/header/pageHeaderRenderer/pageTitle",
+        "/microformat/microformatDataRenderer/title",
+    ]
+    .iter()
+    .find_map(|path| data.pointer(path).and_then(text))
+    .map(|t| t.trim().to_string())
+    .filter(|t| !t.is_empty())
+}
+
+/// Every video the data lists, in order, added to `entries` (one a video,
+/// however often the data names it), and the token for the next page,
+/// where the data has one.
+fn gather(data: &Value, entries: &mut Vec<PlaylistEntry>) -> Option<String> {
+    let mut token = None;
+    walk(data, &mut |key, value| {
+        match key {
+            // The page's newer shape (2026): each video a "lockup", its id
+            // under `contentId`, its title in its metadata, its length the
+            // badge on its picture ("12:15").
+            "lockupViewModel" => {
+                let id = value.get("contentId").and_then(Value::as_str).unwrap_or("");
+                let video = value
+                    .get("contentType")
+                    .and_then(Value::as_str)
+                    .is_none_or(|t| t == "LOCKUP_CONTENT_TYPE_VIDEO");
+                if id.is_empty() || !video || entries.iter().any(|e| e.id == id) {
+                    return;
+                }
+                let title = value
+                    .pointer("/metadata/lockupMetadataViewModel/title/content")
+                    .and_then(Value::as_str)
+                    .unwrap_or("")
+                    .trim()
+                    .to_string();
+                let mut badge = None;
+                if let Some(image) = value.get("contentImage") {
+                    walk(image, &mut |k, v| {
+                        if k == "thumbnailBadgeViewModel" && badge.is_none() {
+                            badge = v
+                                .get("text")
+                                .and_then(Value::as_str)
+                                .filter(|t| t.contains(':'))
+                                .and_then(crate::clip::Span::seconds);
+                        }
+                    });
+                }
+                entries.push(PlaylistEntry {
+                    id: id.to_string(),
+                    title: if title.is_empty() {
+                        id.to_string()
+                    } else {
+                        title
+                    },
+                    seconds: badge.map(|s| s as u64),
+                });
+            }
+            "playlistVideoRenderer" => {
+                let id = value.get("videoId").and_then(Value::as_str).unwrap_or("");
+                if id.is_empty() || entries.iter().any(|e| e.id == id) {
+                    return;
+                }
+                let title = value
+                    .pointer("/title/runs/0/text")
+                    .or_else(|| value.pointer("/title/simpleText"))
+                    .and_then(Value::as_str)
+                    .unwrap_or("")
+                    .trim()
+                    .to_string();
+                let seconds = value
+                    .get("lengthSeconds")
+                    .and_then(|v| v.as_u64().or_else(|| v.as_str()?.parse().ok()));
+                entries.push(PlaylistEntry {
+                    id: id.to_string(),
+                    title: if title.is_empty() {
+                        id.to_string()
+                    } else {
+                        title
+                    },
+                    seconds,
+                });
+            }
+            // The next page's token, wherever the page's shape puts it.
+            "continuationCommand" if token.is_none() => {
+                token = value
+                    .get("token")
+                    .and_then(Value::as_str)
+                    .map(str::to_string);
+            }
+            _ => {}
+        }
+    });
+    token
+}
+
+/// Every object in `data`, depth first, with the key it hangs under.
+fn walk(data: &Value, seen: &mut dyn FnMut(&str, &Value)) {
+    match data {
+        Value::Object(map) => {
+            for (key, value) in map {
+                seen(key, value);
+                walk(value, seen);
+            }
+        }
+        Value::Array(items) => {
+            for item in items {
+                walk(item, seen);
+            }
+        }
+        _ => {}
+    }
+}
+
 /// The video's id in a watch, short, shorts, embed or live address.
 pub fn video_id(url: &str) -> Option<String> {
     let parsed = url::Url::parse(url.trim()).ok()?;
@@ -194,6 +505,10 @@ struct Format {
     /// A sound track that is not the video's own (a dub), or a loudness
     /// variant: never chosen, kept in the list.
     secondary: bool,
+    /// Where the stream's first boxes and its index of pieces are
+    /// (`initRange`, `indexRange`), for cutting a part of it (`clip`).
+    init: Option<(u64, u64)>,
+    index: Option<(u64, u64)>,
 }
 
 impl Format {
@@ -236,6 +551,15 @@ impl Format {
             .and_then(Value::as_bool)
             .is_some_and(|default| !default);
         let drc = f.get("isDrc").and_then(Value::as_bool).unwrap_or(false);
+        let range = |key: &str| {
+            let r = f.get(key)?;
+            let edge = |k: &str| {
+                r.get(k)
+                    .and_then(|v| v.as_u64().or_else(|| v.as_str()?.parse().ok()))
+            };
+            let (start, end) = (edge("start")?, edge("end")?);
+            (end >= start).then_some((start, end))
+        };
         Some(Format {
             itag: number("itag")?,
             url,
@@ -256,6 +580,8 @@ impl Format {
             size: number("contentLength"),
             fps: number("fps").unwrap_or(0),
             secondary: dubbed || drc,
+            init: range("initRange"),
+            index: range("indexRange"),
         })
     }
 
@@ -345,11 +671,18 @@ pub async fn read_for(
         builder = builder.proxy(reqwest::Proxy::all(proxy)?);
     }
     let client = builder.build()?;
+    // A part is cut from MP4 streams, whose pieces are indexed; a WebM
+    // line picked in the panel gives way to the MP4 at that height.
+    let container = if options.span.is_some() {
+        Some("mp4")
+    } else {
+        options.container.as_deref()
+    };
     read(
         &client,
         url,
         options.quality,
-        options.container.as_deref(),
+        container,
         options.sign_in.as_ref(),
         staging,
     )
@@ -855,6 +1188,10 @@ fn reading_json(
             "filesize": f.size,
             "http_headers": {"User-Agent": TV_AGENT},
             "downloader_options": {"http_chunk_size": CHUNK},
+            // dm's own, for cutting a part: where the stream's first boxes
+            // and its index are.
+            "dm_init_range": f.init.map(|(a, b)| format!("{a}-{b}")),
+            "dm_index_range": f.index.map(|(a, b)| format!("{a}-{b}")),
         })
     };
     let ext = chosen
@@ -993,6 +1330,68 @@ mod tests {
             .iter()
             .filter_map(Format::of)
             .collect()
+    }
+
+    #[test]
+    fn a_playlist_address_is_told_from_a_watch_address_with_a_list() {
+        assert_eq!(
+            playlist_id("https://www.youtube.com/playlist?list=PLabc-_123"),
+            Some("PLabc-_123".to_string())
+        );
+        assert_eq!(
+            playlist_id("https://m.youtube.com/playlist?list=PL1&hl=en"),
+            Some("PL1".into())
+        );
+        assert_eq!(
+            playlist_id("https://www.youtube.com/watch?v=abc&list=PL1"),
+            None
+        );
+        assert_eq!(playlist_id("https://www.youtube.com/playlist?list="), None);
+        assert_eq!(
+            playlist_id("https://www.youtube.com/playlist?list=a/b"),
+            None
+        );
+        assert_eq!(playlist_id("https://example.com/playlist?list=PL1"), None);
+    }
+
+    #[test]
+    fn a_playlist_pages_videos_and_its_next_page_are_gathered() {
+        let html = r#"<html><script>ytcfg.set({"INNERTUBE_CLIENT_VERSION":"2.20261001.01.00"});</script>
+        <script>var ytInitialData = {"metadata":{"playlistMetadataRenderer":{"title":"Northern Series"}},
+        "contents":{"list":[{"playlistVideoRenderer":{"videoId":"vid1","title":{"runs":[{"text":"Northern Light"}]},"lengthSeconds":"634","index":{"simpleText":"1"}}},
+        {"playlistVideoRenderer":{"videoId":"vid2","title":{"simpleText":"Still Water"}}},
+        {"playlistVideoRenderer":{"videoId":"vid1","title":{"runs":[{"text":"again"}]}}},
+        {"lockupViewModel":{"contentId":"vid3","contentType":"LOCKUP_CONTENT_TYPE_VIDEO","contentImage":{"thumbnailViewModel":{"overlays":[{"thumbnailBottomOverlayViewModel":{"badges":[{"thumbnailBadgeViewModel":{"text":"12:15"}}]}}]}},"metadata":{"lockupMetadataViewModel":{"title":{"content":"Tears of Steel"}}}}},
+        {"lockupViewModel":{"contentId":"PLx","contentType":"LOCKUP_CONTENT_TYPE_PLAYLIST","metadata":{"lockupMetadataViewModel":{"title":{"content":"Another list"}}}}},
+        {"continuationItemViewModel":{"continuationCommand":{"innertubeCommand":{"continuationCommand":{"token":"NEXT-1"}}}}}]}};</script></html>"#;
+        let data = initial_data(html).unwrap();
+        assert_eq!(playlist_title(&data).as_deref(), Some("Northern Series"));
+        assert_eq!(client_version(html).as_deref(), Some("2.20261001.01.00"));
+        let mut entries = Vec::new();
+        let token = gather(&data, &mut entries);
+        assert_eq!(token.as_deref(), Some("NEXT-1"));
+        assert_eq!(
+            entries,
+            [
+                PlaylistEntry {
+                    id: "vid1".into(),
+                    title: "Northern Light".into(),
+                    seconds: Some(634)
+                },
+                PlaylistEntry {
+                    id: "vid2".into(),
+                    title: "Still Water".into(),
+                    seconds: None
+                },
+                PlaylistEntry {
+                    id: "vid3".into(),
+                    title: "Tears of Steel".into(),
+                    seconds: Some(735)
+                },
+            ]
+        );
+        assert_eq!(entries[0].url(), "https://www.youtube.com/watch?v=vid1");
+        assert_eq!(initial_data("<html>nothing</html>"), None);
     }
 
     #[test]

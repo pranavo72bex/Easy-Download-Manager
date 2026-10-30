@@ -44,6 +44,7 @@ fn entry(state: State) -> Entry {
         speed_limit: 0,
         stalled: String::new(),
         sound: None,
+        span: None,
     }
 }
 

@@ -2969,3 +2969,117 @@ them), the four-hour refresh (dm refetches a newer yt-dlp after a failure
 it has no words for, within the hour), and `--prefer-free-formats` (dm
 chooses H.264 in MP4 by its own rule).
 
+## 2026-10-30: What was taken from the other macOS manager, and how it was measured
+
+Asked for: the other macOS manager's good things, its slick window, its
+settings and its paid tier's features, taken into dm as a clean-room
+implementation in Rust and egui, and dm made to perform as well. Its window
+is a native Swift app with a Tauri window beside it; none of its code or
+assets were read or copied (its engine is compiled bytecode, its window
+could not be captured here for want of screen-recording permission). What
+it does was taken from its public pages, its own words in its binaries
+(feature and setting names), and its engine driven over its local
+interface; dm's versions were written from that description alone.
+
+What it offers, and what became of each:
+
+- **A part of a video** (its "Clip", paid): taken, `clip.rs`. Its clip is
+  yt-dlp's `--download-sections` with ffmpeg re-encoding; dm's is the
+  streams' own pieces chosen by their index (`sidx`), fetched by ranges,
+  and cut to the second by the joined file's edit lists, with nothing
+  decoded. Its vertical, square and GIF clips re-encode, which dm has no
+  codec for: not taken.
+- **The quality list with sizes** in its save sheet: taken into Download
+  details for video pages, as chips four to a row.
+- **Playlists** (paid): taken for YouTube, read by dm itself from the
+  playlist page and the browse API; other sites' playlists are gaps.md
+  row 46 (yt-dlp's flat listing would give them).
+- **Connections per file up to 32, ten downloads at once** (paid): dm
+  already allows 32 and 10.
+- **Turbo Mode** (an iPhone's connection beside the Mac's): not built; the
+  design (a second client bound to the second interface by its address,
+  ranges shared by measured speed, tested on loopback against a second
+  interface) is gaps.md row 47.
+- **Auto-delete** of a file after a chosen time, **conversion** to MP3,
+  WAV, GIF, JPEG (needs codecs), **a Google Drive folder**, and its notch
+  (music, a shelf, clipboard history, AirDrop, weather, calendar, Messages
+  replies): not taken; auto-delete is row 48, the rest are outside a
+  download manager.
+- **Its settings** (connections per file, downloads at once, where to
+  save, ask where to save from the browser, sort into folders by kind,
+  notify when done, sounds, open at login, show in the menu bar, offer
+  copied links, auto-updates): dm has each of them already, and many it
+  has not (queues, schedules, proxies, sign-ins, site rules, host limits,
+  a speed limiter).
+
+Measured, the same files one after another:
+
+- A local server holding each connection to 1 MB/s, 168 MB: dm 8
+  connections 20.5 s (8.2 MB/s), 16 connections 10.1 s (16.6 MB/s), 32
+  connections 5.4 s (31.1 MB/s); the other manager at its own setting
+  (aria2, 16) 40.6 s, 16.4 s of it waiting in its queue.
+- A 100 MB file on a far server over this slow link: the other manager
+  failed once at 16.6 s and completed once in 167 s (0.6 MB/s); dm on 8
+  connections completed in 88 s (1.2 MB/s) and on 16 failed twice (362 s
+  and 496 s, "the server did not answer in time"): that server leaves
+  connections past its limit unanswered until dm's read timeout, and after
+  dm's tries the row fails where fewer connections would have finished it.
+  Row 44.
+- YouTube, a 19 s video: dm 3.9 s whole with no yt-dlp run; the other
+  manager 45 s (7.6 s of yt-dlp reading, 36 s in its queue, 1 s
+  fetching). A 30 s part of a ten-minute 720p video: dm 5.0 s, 8 MB.
+
+Also seen: its extension asks YouTube's player for the quality list in
+the page's own world (`getAvailableQualityLevels`); dm's panel reads the
+page's data instead, which gives the sizes too. Its yt-dlp is refreshed
+every four hours; dm refetches after a failure, within the hour.
+
+## 2026-10-30: The maintainer's later asks on the other macOS manager, and what was done with each
+
+Asked for, in turn: its window's close icons for the side and top panels
+and its popup dialog; how it ships yt-dlp, since dm's has given trouble;
+a core as good as its or better; the way its extension gets a video's
+qualities quickly, since dm's panel was slow to; and, last, to run IDA Pro
+through ida-pro-mcp on its app and implement its core and its extension in
+dm. Also: Microsoft Edge alone for the browser checks.
+
+- **IDA Pro is not on this computer** (nothing at the paths rea and the
+  shell look in), so ida-pro-mcp cannot run here; and decompiling its
+  binaries to re-implement them would not be the clean-room work asked
+  for earlier the same day. Its core is yt-dlp, aria2 and ffmpeg driven
+  by a Node program: there is no native engine in it to take, and dm's own
+  engine measured faster (the entry above). What was taken is behaviour,
+  observed: the items below.
+- **The instant quality list.** Its extension asks YouTube's player, in
+  the page's world, for `getAvailableQualityLevels()`. dm's panel now does
+  the same (`document.js` answers a `dm-ask-qualities` message with the
+  player's levels and its video id; `handoff.rs` lists the heights at
+  once) and lets dm's reading, with sizes, replace that list when it
+  comes. The contract's row B34 still ends with the sizes listed.
+- **How it ships yt-dlp.** Inside its bundle, the unpacked build, beside
+  QuickJS, ffmpeg and aria2, refreshed from its own manifest every four
+  hours. dm now looks for a yt-dlp shipped in its own package
+  (`ytdlp::bundled`) and the packaging fetches one (`scripts/fetch-ytdlp.py`,
+  the desktop workflow); dm's fetched copy still comes first, so the
+  after-failure refresh keeps working. The earlier note that dm's packages
+  distribute no yt-dlp no longer holds for packages built that way; the
+  Unlicense allows it, and the maintainer asked for it.
+- **The core.** The one measured shortfall (16 connections failing on a
+  server that holds extra connections open) is closed in the engine: a
+  timed-out request steps aside like a refused one while others are
+  served (`ranged.rs`, `busy`). The trade-off: on a link where timeouts
+  are random, a download settles to fewer connections rather than
+  retrying each; the range goes on either way.
+- **Its popup dialog** ("Save download", "From Edge", Save As, Where,
+  "Always save here without asking", Auto-Delete, Don't Download /
+  Download): dm's Download details for a caught download now says the
+  browser (the host names its parent process) and offers "Always save
+  here without asking" (Options › Browser's switch, from the dialog).
+  Auto-Delete stays row 48.
+- **The close icons.** dm's View menu already folded the categories
+  away; the toolbar now has the switch at its left end, as its window
+  has at top left. Its right-hand inspector toggle has no counterpart in
+  dm (the progress window is a window of its own).
+- **Edge alone.** The check scripts take Microsoft Edge where it is
+  installed; Chrome for Testing is fetched only without it.
+

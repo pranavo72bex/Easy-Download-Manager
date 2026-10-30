@@ -156,7 +156,7 @@ pub struct Installed {
 /// Each browser dm offers its extension to, its store, and where it is
 /// found: its app bundle on macOS, its program on Linux's `PATH`, its
 /// program under the program folders on Windows.
-const BROWSERS: [(&str, Store, &str, &[&str], &str); 7] = [
+const BROWSERS: [(&str, Store, &str, &[&str], &str); 8] = [
     (
         "Microsoft Edge",
         Store::Edge,
@@ -205,6 +205,13 @@ const BROWSERS: [(&str, Store, &str, &[&str], &str); 7] = [
         "Chromium.app",
         &["chromium", "chromium-browser"],
         r"Chromium\Application\chrome.exe",
+    ),
+    (
+        "Arc",
+        Store::Chrome,
+        "Arc.app",
+        &[],
+        r"Arc\Application\Arc.exe",
     ),
 ];
 
@@ -268,6 +275,7 @@ pub fn places(home: &Path) -> Vec<Place> {
                 ("Microsoft Edge", &["Microsoft Edge.app"]),
                 ("Vivaldi", &["Vivaldi.app"]),
                 ("com.operasoftware.Opera", &["Opera.app"]),
+                ("Arc/User Data", &["Arc.app"]),
             ]
             .iter()
             .map(|(b, programs)| (support.join(b).join("NativeMessagingHosts"), *programs))
