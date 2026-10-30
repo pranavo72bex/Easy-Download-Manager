@@ -1,7 +1,8 @@
 use super::*;
 
 /// "Playlist": a YouTube playlist read by dm itself (`dm_core::youtube`),
-/// its videos listed with a tick each, to download at one quality, as
+/// or another site's read by yt-dlp (`dm_core::ytdlp::read_playlist`): its
+/// videos listed with a tick each, to download at one quality, as
 /// video or as sound alone, now or for later.
 pub(super) fn playlist(app: &mut DmApp, ctx: &egui::Context) {
     let focus = app.dialogs.take_focus("Playlist");

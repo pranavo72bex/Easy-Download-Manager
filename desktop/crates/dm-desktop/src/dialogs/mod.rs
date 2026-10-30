@@ -100,6 +100,9 @@ pub struct FileInfo {
     /// (`dm_core::ytdlp::list_choices`): `None` until asked; an empty list
     /// where the page gave none.
     pub choices: Option<std::sync::Arc<std::sync::Mutex<Option<Vec<dm_core::ytdlp::Choice>>>>>,
+    /// Another site's page that turned out to list several videos, read by
+    /// yt-dlp as it did not list qualities: the Playlist dialog takes over.
+    pub playlist: std::sync::Arc<std::sync::Mutex<Option<dm_core::youtube::Playlist>>>,
     /// The browser a handed-over download came from, where the host could
     /// tell ("Microsoft Edge").
     pub browser: Option<String>,

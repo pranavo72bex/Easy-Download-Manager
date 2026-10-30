@@ -865,19 +865,38 @@ pub fn answer(
 /// it is missing, and a file written in it and taken away again.
 pub(crate) fn unwritable(folder: &Path) -> Option<String> {
     // A new file of an unguessable name, never one already there: a link
-    // planted at the name is not followed (`create_new`).
-    let nanos = std::time::SystemTime::now()
-        .duration_since(std::time::UNIX_EPOCH)
-        .map_or(0, |d| d.subsec_nanos());
-    let probe = folder.join(format!(".dm-write-check-{}-{nanos}", std::process::id()));
+    // planted at the name is not followed (`create_new`). The count keeps
+    // two checks at once (two hand-offs, threads of one process) apart; a
+    // name already taken is tried again under the next, and only a file
+    // this check made is removed.
+    static CHECKS: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
     let tried = std::fs::create_dir_all(folder).and_then(|()| {
-        std::fs::OpenOptions::new()
-            .write(true)
-            .create_new(true)
-            .open(&probe)
-            .map(drop)
+        let mut last = None;
+        for _ in 0..3 {
+            let nanos = std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .map_or(0, |d| d.subsec_nanos());
+            let count = CHECKS.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+            let probe = folder.join(format!(
+                ".dm-write-check-{}-{count}-{nanos}",
+                std::process::id()
+            ));
+            match std::fs::OpenOptions::new()
+                .write(true)
+                .create_new(true)
+                .open(&probe)
+            {
+                Ok(file) => {
+                    drop(file);
+                    let _ = std::fs::remove_file(&probe);
+                    return Ok(());
+                }
+                Err(e) if e.kind() == std::io::ErrorKind::AlreadyExists => last = Some(e),
+                Err(e) => return Err(e),
+            }
+        }
+        Err(last.unwrap_or_else(|| std::io::Error::other("no name to check with")))
     });
-    let _ = std::fs::remove_file(&probe);
     tried.err().map(|e| {
         format!(
             "dm may not save into its download folder {} ({e}), so the browser keeps the \

@@ -3,6 +3,19 @@ pub(super) fn file_info(app: &mut DmApp, ctx: &egui::Context) {
     if app.dialogs.file_info.is_none() {
         return;
     }
+    // A page that turned out to be a playlist: its videos are listed to be
+    // ticked, as a YouTube playlist's are, rather than one download refused.
+    let found = app
+        .dialogs
+        .file_info
+        .as_ref()
+        .and_then(|d| Some((d.urls.first()?.clone(), dm_core::lock(&d.playlist).take()?)));
+    if let Some((url, playlist)) = found {
+        app.dialogs.file_info = None;
+        let quality = app.applied.stream_quality.clone();
+        app.dialogs.open_playlist_read(url, playlist, quality);
+        return;
+    }
     let focus = app.dialogs.take_focus("Download details");
     let Some(d) = app.dialogs.file_info.as_mut() else {
         return;
@@ -152,6 +165,7 @@ pub(super) fn file_info(app: &mut DmApp, ctx: &egui::Context) {
         let proxy = app.backend.settings().proxy.url_for_tools();
         let sign_in = dm_core::cookies::SignIn::new(&url, &d.cookies);
         let ctx = ctx.clone();
+        let found = d.playlist.clone();
         app.backend.runtime.spawn(async move {
             let listed = tokio::time::timeout(
                 std::time::Duration::from_secs(40),
@@ -167,6 +181,23 @@ pub(super) fn file_info(app: &mut DmApp, ctx: &egui::Context) {
                 Ok(Ok(list)) => list,
                 _ => Vec::new(),
             };
+            // No qualities from another site's page: perhaps it lists
+            // several videos (a channel, a showcase, an album).
+            if listed.is_empty() && !youtube {
+                let read = dm_core::ytdlp::read_playlist(
+                    &url,
+                    referrer.as_deref(),
+                    proxy.as_deref(),
+                    sign_in.as_ref(),
+                );
+                if let Ok(Ok(Some(playlist))) =
+                    tokio::time::timeout(std::time::Duration::from_secs(40), read).await
+                {
+                    if playlist.entries.len() > 1 {
+                        *dm_core::lock(&found) = Some(playlist);
+                    }
+                }
+            }
             if let Ok(mut slot) = slot.lock() {
                 *slot = Some(listed);
             }

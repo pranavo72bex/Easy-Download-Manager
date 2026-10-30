@@ -81,12 +81,19 @@ pub struct PlaylistEntry {
     pub title: String,
     /// How long it plays, where the list says.
     pub seconds: Option<u64>,
+    /// Its own page, for another site's playlist; a YouTube video's is made
+    /// from its id.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub page: Option<String>,
 }
 
 impl PlaylistEntry {
-    /// The video's watch address.
+    /// The video's page: its own, or YouTube's watch address.
     pub fn url(&self) -> String {
-        format!("https://www.youtube.com/watch?v={}", self.id)
+        match &self.page {
+            Some(page) => page.clone(),
+            None => format!("https://www.youtube.com/watch?v={}", self.id),
+        }
     }
 }
 
@@ -339,6 +346,7 @@ fn gather(data: &Value, entries: &mut Vec<PlaylistEntry>) -> Option<String> {
                         title
                     },
                     seconds: badge.map(|s| s as u64),
+                    page: None,
                 });
             }
             "playlistVideoRenderer" => {
@@ -371,6 +379,7 @@ fn gather(data: &Value, entries: &mut Vec<PlaylistEntry>) -> Option<String> {
                         title
                     },
                     seconds,
+                    page: None,
                 });
             }
             // The next page's token, wherever the page's shape puts it.
@@ -1472,17 +1481,20 @@ mod tests {
                 PlaylistEntry {
                     id: "vid1_______".into(),
                     title: "Northern Light".into(),
-                    seconds: Some(634)
+                    seconds: Some(634),
+                    page: None
                 },
                 PlaylistEntry {
                     id: "vid2_______".into(),
                     title: "Still Water".into(),
-                    seconds: None
+                    seconds: None,
+                    page: None
                 },
                 PlaylistEntry {
                     id: "vid3_______".into(),
                     title: "Tears of Steel".into(),
-                    seconds: Some(735)
+                    seconds: Some(735),
+                    page: None
                 },
             ]
         );

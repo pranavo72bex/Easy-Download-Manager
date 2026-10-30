@@ -29,6 +29,7 @@ use crate::{category, Error};
 mod choices;
 mod fetch;
 mod page_data;
+mod playlist;
 mod process;
 mod readings;
 mod refusal;
@@ -36,6 +37,7 @@ mod sandbox;
 
 pub use choices::{choices, list_choices, list_choices_fast, read_choices, Choice};
 pub use fetch::download_page;
+pub use playlist::{playlist_of, read_playlist};
 pub use process::end_all;
 pub use readings::{keep_readings_in, kept_choices, mark_reading, warm_reading};
 /// Whether `url` is a YouTube page whose own data lists its qualities

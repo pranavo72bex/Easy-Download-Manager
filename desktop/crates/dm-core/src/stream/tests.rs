@@ -482,8 +482,10 @@ fn a_portrait_playlist_is_picked_by_the_shorter_side() {
 #EXT-X-STREAM-INF:BANDWIDTH=2500000,RESOLUTION=720x1280\nmid.m3u8\n\
 #EXT-X-STREAM-INF:BANDWIDTH=900000,RESOLUTION=405x720\nlo.m3u8\n";
     let found = variants(master, "https://e.example/master.m3u8");
-    assert_eq!(found.iter().map(|v| v.height).collect::<Vec<_>>(), [1080, 720, 405]);
+    assert_eq!(
+        found.iter().map(|v| v.height).collect::<Vec<_>>(),
+        [1080, 720, 405]
+    );
     let chosen = pick(found, Quality::UpTo(720)).unwrap();
     assert!(chosen.url.ends_with("mid.m3u8"), "{}", chosen.url);
 }
-

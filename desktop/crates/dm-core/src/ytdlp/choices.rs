@@ -221,6 +221,10 @@ async fn read_choices_once(
     command
         .arg("-J")
         .arg("--no-playlist")
+        // A page that is a playlist and no one video is said at once as a
+        // list of names (`playlist::read_playlist` then lists it), not
+        // read video by video: 2 s, not 24 s or minutes.
+        .arg("--flat-playlist")
         .arg("--no-warnings")
         // A list needs neither the HLS manifests (the same heights are in
         // the DASH ones) nor the translated subtitles: leaving them out
@@ -270,6 +274,9 @@ async fn read_choices_once(
     }
     // Kept, so the download a click on the list starts does not read the
     // page again (`fetch::download_page`).
-    remember_reading(url, &output.stdout).await;
+    // A playlist's names are no reading a download could use.
+    if super::playlist_of(&String::from_utf8_lossy(&output.stdout)).is_none() {
+        remember_reading(url, &output.stdout).await;
+    }
     Ok(choices(&String::from_utf8_lossy(&output.stdout)))
 }

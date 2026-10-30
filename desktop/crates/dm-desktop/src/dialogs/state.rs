@@ -53,14 +53,42 @@ impl Dialogs {
         let client = dm_core::proxy::client_with(&backend.settings().proxy)
             .unwrap_or_else(|_| dm_core::client());
         let (page, read) = (url.clone(), slot.clone());
+        let proxy = backend.settings().proxy.url_for_tools();
         backend.runtime.spawn(async move {
-            let got = dm_core::youtube::read_playlist(&client, &page, None)
-                .await
-                .map_err(|e| e.to_string());
+            // YouTube's read by dm itself; any other site's by yt-dlp.
+            let got = if dm_core::youtube::playlist_id(&page).is_some() {
+                dm_core::youtube::read_playlist(&client, &page, None)
+                    .await
+                    .map_err(|e| e.to_string())
+            } else {
+                match dm_core::ytdlp::read_playlist(&page, None, proxy.as_deref(), None).await {
+                    Ok(Some(list)) => Ok(list),
+                    Ok(None) => Err("That page is one video, not a playlist.".to_string()),
+                    Err(e) => Err(e.to_string()),
+                }
+            };
             if let Ok(mut slot) = read.lock() {
                 *slot = Some(got);
             }
         });
+        self.playlist = Some(PlaylistDialog {
+            url,
+            read: Some(slot),
+            quality,
+            ..PlaylistDialog::default()
+        });
+    }
+
+    /// "Playlist" for a playlist already read (another site's page that
+    /// Download details found lists several videos).
+    pub fn open_playlist_read(
+        &mut self,
+        url: String,
+        playlist: dm_core::youtube::Playlist,
+        quality: String,
+    ) {
+        self.focus_on("Playlist");
+        let slot: PlaylistRead = std::sync::Arc::new(std::sync::Mutex::new(Some(Ok(playlist))));
         self.playlist = Some(PlaylistDialog {
             url,
             read: Some(slot),

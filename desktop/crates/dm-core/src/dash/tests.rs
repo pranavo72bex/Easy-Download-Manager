@@ -204,8 +204,14 @@ fn a_portrait_manifest_is_picked_by_the_shorter_side() {
     // 720p of a vertical video is 720 wide and 1280 tall.
     let portrait = TEMPLATED
         .replace(r#"width="640" height="360""#, r#"width="405" height="720""#)
-        .replace(r#"width="1280" height="720""#, r#"width="720" height="1280""#)
-        .replace(r#"width="1920" height="1080""#, r#"width="1080" height="1920""#);
+        .replace(
+            r#"width="1280" height="720""#,
+            r#"width="720" height="1280""#,
+        )
+        .replace(
+            r#"width="1920" height="1080""#,
+            r#"width="1080" height="1920""#,
+        );
     let p = |q| {
         plan(&mpd(&portrait), URL, q, None)
             .unwrap()
