@@ -721,5 +721,7 @@
  "10 minutes": "10 menit",
  "1 hour": "1 jam",
  "1 day": "1 hari",
- "Complete · to the Trash in {}": "Selesai · ke Tempat Sampah dalam {}"
+ "Complete · to the Trash in {}": "Selesai · ke Tempat Sampah dalam {}",
+ "Second network": "Jaringan kedua",
+ "Another connection, such as a phone over USB or its hotspot: half of each download's connections go out on it. Not used while a proxy is on.": "Koneksi lain, seperti ponsel lewat USB atau hotspot-nya: separuh koneksi tiap unduhan lewat jalur ini. Tidak dipakai selama proxy aktif."
 }

@@ -721,5 +721,7 @@
  "10 minutes": "10분",
  "1 hour": "1시간",
  "1 day": "1일",
- "Complete · to the Trash in {}": "완료 · {} 후 휴지통으로"
+ "Complete · to the Trash in {}": "완료 · {} 후 휴지통으로",
+ "Second network": "두 번째 네트워크",
+ "Another connection, such as a phone over USB or its hotspot: half of each download's connections go out on it. Not used while a proxy is on.": "USB나 핫스팟으로 연결한 휴대전화 같은 다른 연결: 각 다운로드 연결의 절반이 이쪽으로 나갑니다. 프록시를 쓰는 동안에는 사용하지 않습니다."
 }

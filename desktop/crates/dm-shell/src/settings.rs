@@ -221,6 +221,11 @@ pub struct Settings {
     /// tries again.
     #[serde(default = "default_read_timeout")]
     pub read_timeout: u64,
+    /// A second network (an interface's name, such as `en5` for an iPhone
+    /// over USB) that every other connection of a download goes out on;
+    /// empty for none. Not used while a proxy is on: the proxy is the path.
+    #[serde(default)]
+    pub second_path: String,
     /// Sites that take fewer connections at once than `connections`.
     #[serde(default, deserialize_with = "lenient::host_limits")]
     pub host_limits: Vec<dm_core::HostLimit>,
@@ -410,6 +415,7 @@ impl Default for Settings {
         Settings {
             attempts: default_attempts(),
             read_timeout: default_read_timeout(),
+            second_path: String::new(),
             host_limits: Vec::new(),
             site_rules: Vec::new(),
             recheck_hours: 0,

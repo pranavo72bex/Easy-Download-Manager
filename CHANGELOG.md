@@ -5,6 +5,7 @@ the browser extension (`v*` tags) are versioned separately.
 
 ## App 0.8.6, extension 3.2.1
 
+- Second network (Options › Network): a download's connections are split between the usual network and another one, such as a phone over USB or its hotspot. Off while a proxy is on.
 - One HTTP library in the build instead of two (reqwest 0.13, with the same certificate trust as before): the app is 275 KB smaller.
 - On macOS yt-dlp runs in the system's sandbox: it writes only to its own folders and caches, and cannot read the browsers' profiles, cookies, keychains or keys.
 - Download details names the browser a caught download came from on Windows too, from the process list, past the cmd Chrome and Edge start the host through (compile-checked for Windows by scripts/windows-modules-check.sh, its walk tested here; not yet run on a Windows computer).

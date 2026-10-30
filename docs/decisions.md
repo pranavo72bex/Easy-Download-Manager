@@ -3201,3 +3201,16 @@ sites pass. axum 0.7 was a test dependency only, beside the 0.8 the torrent
 library brings: the tests moved to 0.8 (`{capture}` paths), one axum built.
 `dirs` 6 comes from `auto-launch`, not from a manifest of dm's. Clean build
 time was not measured.
+
+## A second network path (2026-10-31)
+
+Options › Network › Second network names an interface; every other
+connection of a ranged download goes out on it (`second_path.rs`). The
+client is dm's usual one, bound to the interface's address and, on macOS and
+Linux, to the interface itself (reqwest's `interface`, `IP_BOUND_IF` /
+`SO_BINDTODEVICE`), so it leaves by that network rather than the default
+route. No share is planned: connections take ranges as they free up and
+split the largest when none are left, so the faster path takes more on its
+own. Off while a proxy is on: a connection around the proxy would show the
+site this computer's own address. A chosen network that is not connected
+is said once and the download uses one path.

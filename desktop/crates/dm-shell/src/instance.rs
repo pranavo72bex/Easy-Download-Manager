@@ -143,7 +143,17 @@ mod tests {
             "a held lock says dm is running"
         );
         drop(held);
-        assert!(!running(home.path()).unwrap(), "a dropped lock is released");
+        // A process another test starts at that moment is forked holding
+        // the lock's file until it runs its program, which lets go of it:
+        // released within moments, not at once.
+        let released = (0..50).any(|_| {
+            let free = !running(home.path()).unwrap();
+            if !free {
+                std::thread::sleep(std::time::Duration::from_millis(20));
+            }
+            free
+        });
+        assert!(released, "a dropped lock is released");
     }
 
     #[test]

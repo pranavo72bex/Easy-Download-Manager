@@ -485,7 +485,14 @@ pub async fn apply(
             .set_client(&settings.proxy, settings.read_timeout())
             .await?;
     }
-    let problems: Vec<String> = use_cookies(settings).into_iter().collect();
+    let mut problems: Vec<String> = use_cookies(settings).into_iter().collect();
+    // The second network, where one is chosen and no proxy is on: through
+    // a proxy every connection must go by it, and one that did not would
+    // be seen by the site from this computer's own address.
+    let second = (!settings.proxy.enabled).then_some(settings.second_path.as_str());
+    if let Err(why) = dm_core::set_second_path(second) {
+        problems.push(format!("downloads use one network: {why}"));
+    }
 
     let current = queue.options().await;
     // The limiter belongs to the running queue. The parts folder is the

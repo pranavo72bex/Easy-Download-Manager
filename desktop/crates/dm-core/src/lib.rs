@@ -48,6 +48,7 @@ pub mod retry;
 pub mod rtmp;
 pub mod rtsp;
 pub mod schedule;
+pub mod second_path;
 pub mod stream;
 pub mod subtitles;
 /// The tests' logins and secrets, never written in the code.
@@ -55,6 +56,7 @@ pub mod subtitles;
 #[path = "../../../test-support/secrets.rs"]
 pub(crate) mod test_secrets;
 pub mod tools;
+pub use second_path::{interfaces, set_second_path, Interface};
 pub mod torrent;
 pub mod tsmux;
 pub mod youtube;

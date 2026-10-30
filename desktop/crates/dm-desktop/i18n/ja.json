@@ -721,5 +721,7 @@
  "10 minutes": "10 分",
  "1 hour": "1 時間",
  "1 day": "1 日",
- "Complete · to the Trash in {}": "完了 · {} 後にゴミ箱へ"
+ "Complete · to the Trash in {}": "完了 · {} 後にゴミ箱へ",
+ "Second network": "2つ目のネットワーク",
+ "Another connection, such as a phone over USB or its hotspot: half of each download's connections go out on it. Not used while a proxy is on.": "USB 接続やテザリングの電話など別の回線: 各ダウンロードの接続の半分がそこを通ります。プロキシ使用中は使いません。"
 }

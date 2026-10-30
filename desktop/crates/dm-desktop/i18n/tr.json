@@ -721,5 +721,7 @@
  "10 minutes": "10 dakika",
  "1 hour": "1 saat",
  "1 day": "1 gün",
- "Complete · to the Trash in {}": "Tamamlandı · {} sonra çöp kutusuna"
+ "Complete · to the Trash in {}": "Tamamlandı · {} sonra çöp kutusuna",
+ "Second network": "İkinci ağ",
+ "Another connection, such as a phone over USB or its hotspot: half of each download's connections go out on it. Not used while a proxy is on.": "USB ya da erişim noktası üzerinden bir telefon gibi başka bir bağlantı: her indirmenin bağlantılarının yarısı oradan gider. Proxy açıkken kullanılmaz."
 }

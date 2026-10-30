@@ -163,9 +163,17 @@ pub(super) async fn run(
     // a helper is not worth asking it for.
     let refused = Arc::new(std::sync::atomic::AtomicBool::new(false));
     let started = tokio::time::Instant::now();
+    // A second network path, where one is chosen: every other connection
+    // goes out on it (`second_path`). The ranges are taken as connections
+    // free up, so the faster path fetches more of them.
+    let second = crate::second_path::second_client();
     for ordinal in 0..workers.max(1) + helpers {
         let helper = ordinal >= workers.max(1);
-        let (client, job, next) = (client.clone(), Arc::clone(job), Arc::clone(&next));
+        let client = match &second {
+            Some(second) if ordinal % 2 == 1 => second.clone(),
+            _ => client.clone(),
+        };
+        let (job, next) = (Arc::clone(job), Arc::clone(&next));
         let (orphans, active) = (Arc::clone(&orphans), Arc::clone(&active));
         let refused = Arc::clone(&refused);
         let (first_wave, wave_over, mut wave_over_seen) = (

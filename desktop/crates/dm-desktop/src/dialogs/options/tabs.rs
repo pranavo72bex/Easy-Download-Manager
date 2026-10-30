@@ -639,6 +639,34 @@ pub(super) fn tab_connection(ui: &mut egui::Ui, d: &mut OptionsDialog, env: &Tab
                 .labelled_by(name);
         },
     );
+    // A second network beside the one the system routes by: every other
+    // connection of a download goes out on it.
+    setting_row(ui, t("Second network"), |ui, name| {
+        let now = if s.second_path.is_empty() {
+            t("None").to_string()
+        } else {
+            s.second_path.clone()
+        };
+        combo("second-network")
+            .selected_text(now)
+            .show_ui(ui, |ui| {
+                if option(ui, s.second_path.is_empty(), t("None")).clicked() {
+                    s.second_path.clear();
+                }
+                for found in dm_core::interfaces() {
+                    let words = format!("{} ({})", found.name, found.address);
+                    if option(ui, s.second_path == found.name, &words).clicked() {
+                        s.second_path = found.name;
+                    }
+                }
+            })
+            .response
+            .labelled_by(name);
+    });
+    hint(
+        ui,
+        t("Another connection, such as a phone over USB or its hotspot: half of each download's connections go out on it. Not used while a proxy is on."),
+    );
     ui.add_space(8.0);
     ui.label(t("Sites with their own connection limit:"));
     let mut remove = None;

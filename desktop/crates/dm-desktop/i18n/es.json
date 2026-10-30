@@ -721,5 +721,7 @@
  "10 minutes": "10 minutos",
  "1 hour": "1 hora",
  "1 day": "1 día",
- "Complete · to the Trash in {}": "Completado · a la papelera en {}"
+ "Complete · to the Trash in {}": "Completado · a la papelera en {}",
+ "Second network": "Segunda red",
+ "Another connection, such as a phone over USB or its hotspot: half of each download's connections go out on it. Not used while a proxy is on.": "Otra conexión, como un teléfono por USB o su punto de acceso: la mitad de las conexiones de cada descarga salen por ella. No se usa mientras haya un proxy activo."
 }

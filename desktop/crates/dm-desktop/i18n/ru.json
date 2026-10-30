@@ -721,5 +721,7 @@
  "10 minutes": "10 минут",
  "1 hour": "1 час",
  "1 day": "1 день",
- "Complete · to the Trash in {}": "Готово · в корзину через {}"
+ "Complete · to the Trash in {}": "Готово · в корзину через {}",
+ "Second network": "Вторая сеть",
+ "Another connection, such as a phone over USB or its hotspot: half of each download's connections go out on it. Not used while a proxy is on.": "Другое подключение, например телефон по USB или его точка доступа: половина соединений каждой загрузки идёт через него. Не используется, пока включён прокси."
 }

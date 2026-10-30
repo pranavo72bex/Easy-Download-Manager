@@ -721,5 +721,7 @@
  "10 minutes": "10 minuten",
  "1 hour": "1 uur",
  "1 day": "1 dag",
- "Complete · to the Trash in {}": "Voltooid · naar de prullenbak over {}"
+ "Complete · to the Trash in {}": "Voltooid · naar de prullenbak over {}",
+ "Second network": "Tweede netwerk",
+ "Another connection, such as a phone over USB or its hotspot: half of each download's connections go out on it. Not used while a proxy is on.": "Een andere verbinding, zoals een telefoon via USB of zijn hotspot: de helft van de verbindingen van elke download gaat erover. Niet gebruikt zolang een proxy aan staat."
 }
