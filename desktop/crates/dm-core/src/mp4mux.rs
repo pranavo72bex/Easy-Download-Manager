@@ -89,7 +89,7 @@ pub fn join_with_text(
     texts: &[crate::subtitles::Subtitle],
     out: &Path,
 ) -> Result<u64, String> {
-    join_cut(inputs, texts, out, None)
+    join_cut(inputs, texts, out, None, None)
 }
 
 /// [`join_with_text`], cut to a part: `cut` is where the part starts and
@@ -101,6 +101,7 @@ pub fn join_cut(
     texts: &[crate::subtitles::Subtitle],
     out: &Path,
     cut: Option<(u64, u64)>,
+    shape: Option<crate::shape::Shape>,
 ) -> Result<u64, String> {
     let mut tracks = Vec::new();
     let mut files = Vec::new();
@@ -138,6 +139,12 @@ pub fn join_cut(
     if tracks.is_empty() {
         return Err("there is nothing to join".into());
     }
+    // Vertical or square: the picture's crop, rewritten (`shape`).
+    if let Some(shape) = shape {
+        for track in &mut tracks {
+            crate::shape::apply(track, shape)?;
+        }
+    }
     if texts.is_empty() {
         return write_output(&tracks, &mut files, out, cut);
     }
@@ -165,8 +172,9 @@ pub async fn join_cut_async(
     texts: Vec<crate::subtitles::Subtitle>,
     out: PathBuf,
     cut: Option<(u64, u64)>,
+    shape: Option<crate::shape::Shape>,
 ) -> Result<u64, String> {
-    tokio::task::spawn_blocking(move || join_cut(&inputs, &texts, &out, cut))
+    tokio::task::spawn_blocking(move || join_cut(&inputs, &texts, &out, cut, shape))
         .await
         .map_err(|e| format!("joining stopped: {e}"))?
 }
@@ -423,7 +431,7 @@ pub(crate) mod tests {
         let (video, pictures) = fragmented(dir.path(), "v.mp4", 4);
         let (audio, _) = plain(dir.path(), "a.m4a", 7, 200);
         let out = dir.path().join("part.mp4");
-        join_cut(&[video, audio], &[], &out, Some((150, 350))).unwrap();
+        join_cut(&[video, audio], &[], &out, Some((150, 350)), None).unwrap();
         let data = std::fs::read(&out).unwrap();
         let moov = read::child(&data, b"moov").unwrap();
         let edits: Vec<Vec<Edit>> = read::boxes(moov)
@@ -452,7 +460,7 @@ pub(crate) mod tests {
         // the picture's fragments say they start at 0.2 s (tfdt).
         let (late, _) = fragmented_from(dir.path(), "late.mp4", 4, 18000);
         let out = dir.path().join("late.mp4.part");
-        join_cut(&[late], &[], &out, Some((100, 400))).unwrap();
+        join_cut(&[late], &[], &out, Some((100, 400)), None).unwrap();
         let data = std::fs::read(&out).unwrap();
         let moov = read::child(&data, b"moov").unwrap();
         let trak = read::child(moov, b"trak").unwrap();

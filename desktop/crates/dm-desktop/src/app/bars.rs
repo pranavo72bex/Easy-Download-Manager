@@ -129,6 +129,45 @@ impl DmApp {
         ui.separator();
     }
 
+    /// Downloads that failed, counted above the list with one button to try
+    /// them all again, so a failure further down is not missed. Hidden, it
+    /// stays away until another download fails.
+    pub(super) fn failed_bar(&mut self, ui: &mut egui::Ui) {
+        let failed: BTreeSet<Id> = self
+            .rows
+            .iter()
+            .filter(|r| matches!(r.state, State::Failed(_)))
+            .map(|r| r.id)
+            .collect();
+        if failed.is_empty() || failed.is_subset(&self.failed_hidden) {
+            return;
+        }
+        let room = ui.available_height() / ui.text_style_height(&egui::TextStyle::Body);
+        if room < 12.0 {
+            return;
+        }
+        ui.horizontal_wrapped(|ui| {
+            ui.label(
+                egui::RichText::new(crate::i18n::tn(
+                    "{} download didn't finish.||{} downloads didn't finish.",
+                    failed.len() as u64,
+                    &[&failed.len()],
+                ))
+                .color(ui.visuals().warn_fg_color),
+            );
+            if ui.button(t("Retry all")).clicked() {
+                for id in &failed {
+                    self.backend.retry(*id);
+                }
+                self.refresh();
+            }
+            if ui.button(t("Hide")).clicked() {
+                self.failed_hidden = failed.clone();
+            }
+        });
+        ui.separator();
+    }
+
     /// dm's update, downloaded and checked against its release's digest:
     /// installed from here, dm closing so the installer can replace it. An
     /// AppImage is not installed but put in place of this one by the person,
@@ -289,6 +328,7 @@ impl DmApp {
         let running: Vec<&Entry> = self
             .rows
             .iter()
+            .map(|r| &**r)
             .filter(|r| r.state == State::Running && !fetched_all(r))
             .collect();
         if running.is_empty() {
@@ -308,6 +348,7 @@ impl DmApp {
         let (finishing, running): (Vec<&Entry>, Vec<&Entry>) = self
             .rows
             .iter()
+            .map(|r| &**r)
             .filter(|r| r.state == State::Running)
             .partition(|r| fetched_all(r));
         let rate: f64 = running.iter().map(|r| r.progress.speed).sum();

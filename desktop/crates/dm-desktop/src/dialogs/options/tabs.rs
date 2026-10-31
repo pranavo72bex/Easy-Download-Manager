@@ -107,6 +107,10 @@ pub(super) fn tab_general(ui: &mut egui::Ui, d: &mut OptionsDialog, env: &TabEnv
     // Offered only where it can be drawn.
     if crate::chrome::mica_possible() {
         toggle_row(ui, &mut s.mica, t("Use the Mica backdrop"));
+        hint(
+            ui,
+            t("Lets the desktop show faintly through the window, as Windows' own apps do."),
+        );
     }
     section(ui, t("Pop-ups"));
     toggle_row(
@@ -231,26 +235,55 @@ pub(super) fn tab_general(ui: &mut egui::Ui, d: &mut OptionsDialog, env: &TabEnv
 pub(super) fn tab_file_types(ui: &mut egui::Ui, d: &mut OptionsDialog, env: &TabEnv<'_>) {
     let TabEnv { platform, .. } = *env;
     let s = &mut d.draft;
-    // The extension, for someone who said not now to the bar
-    // over the list, or has a second browser.
-    ui.horizontal_wrapped(|ui| {
-        ui.label(t("Add dm to your browser:"));
-        for (name, page) in [
-            ("Microsoft Edge", crate::app::EXTENSION_EDGE),
-            ("Firefox", crate::app::EXTENSION_FIREFOX),
-            (t("Chrome and others"), crate::app::EXTENSION_CHROME),
-        ] {
-            if ui.button(name).clicked() {
-                platform.open_later(page, Box::new(|_| {}));
+    // The extension, for someone who said not now to the bar over the
+    // list, or has a second browser: each browser with whether its
+    // extension has talked to dm, and Add where it has not.
+    ui.label(t("Add dm to your browser:"));
+    let seen = dm_shell::host::browsers_seen(&dm_shell::settings::home());
+    let tokens = crate::theme::Tokens::get(ui.ctx());
+    egui::Grid::new("browsers")
+        .num_columns(2)
+        .spacing([24.0, 6.0])
+        .show(ui, |ui| {
+            for (name, page, family) in [
+                (
+                    "Microsoft Edge",
+                    crate::app::EXTENSION_EDGE,
+                    &["Microsoft Edge"][..],
+                ),
+                ("Firefox", crate::app::EXTENSION_FIREFOX, &["Firefox"][..]),
+                (
+                    t("Chrome and others"),
+                    crate::app::EXTENSION_CHROME,
+                    &[
+                        "Google Chrome",
+                        "Brave",
+                        "Vivaldi",
+                        "Opera",
+                        "Arc",
+                        "Chromium",
+                    ][..],
+                ),
+            ] {
+                ui.label(name);
+                if seen.iter().any(|b| family.contains(&b.as_str())) {
+                    ui.label(RichText::new(t("Connected")).color(tokens.success));
+                } else if ui.button(t("Add")).clicked() {
+                    platform.open_later(page, Box::new(|_| {}));
+                }
+                ui.end_row();
             }
-        }
-    });
+        });
     ui.add_space(8.0);
     let c = &mut s.catch;
     toggle_row(
         ui,
         &mut c.enabled,
         t("Take these file types from the browser"),
+    );
+    hint(
+        ui,
+        t("Off: the browser keeps every download it starts. Its right-click menu still sends links to dm."),
     );
     ui.add_enabled_ui(c.enabled, |ui| {
                     let name = ui.label(t("File types"));
@@ -317,13 +350,17 @@ pub(super) fn tab_file_types(ui: &mut egui::Ui, d: &mut OptionsDialog, env: &Tab
         &mut c.video_panel,
         t("Show Download video on web videos"),
     );
+    hint(
+        ui,
+        t("A button over a video on a web page, to download it with dm."),
+    );
     toggle_row(
         ui,
         &mut c.sign_in_everywhere,
         t("Send the browser's sign-in with downloads"),
     );
-    ui.label(RichText::new(t("A file only a signed-in browser can fetch then comes to dm too. The cookies go with that download alone and are forgotten once it is done; without this, only the sites switched on in the extension's popup send them.")).small().weak());
-    ui.label(RichText::new(t("Read by the browser extension the next time it talks to dm: a download it catches, or its right-click menu. The right-click menu hands anything over regardless.")).small().weak());
+    ui.label(RichText::new(t("Files that need you signed in come to dm too. Your sign-in goes with that one download and is forgotten after it. Off: only the sites you turn on in the extension's menu send it.")).small().weak());
+    ui.label(RichText::new(t("Your browser picks this up the next time it sends dm a download. Its right-click menu sends any link either way.")).small().weak());
 }
 
 /// The SaveTo tab of Options.
@@ -400,7 +437,7 @@ pub(super) fn tab_save_to(ui: &mut egui::Ui, d: &mut OptionsDialog, env: &TabEnv
                         }
                     });
                     ui.separator();
-                    ui.label(t("Your categories, looked at first: a file of these types, from these sites (any when empty), goes in a folder of the category's name."));
+                    ui.label(t("Your own categories come first. A file of these types, from these sites (any site when empty), goes into a folder named after the category."));
                     let mut remove = None;
                     let count = d.custom.len();
                     for (i, [name, types, sites]) in d.custom.iter_mut().enumerate() {
@@ -460,15 +497,27 @@ pub(super) fn tab_downloads(ui: &mut egui::Ui, d: &mut OptionsDialog, env: &TabE
         &mut s.start_queue_on_launch,
         t("Start the Main queue when dm opens"),
     );
+    hint(
+        ui,
+        t("Downloads waiting in the Main queue start without a click."),
+    );
     toggle_row(
         ui,
         &mut s.subtitles,
         t("Embed subtitles in videos from player pages"),
     );
+    hint(
+        ui,
+        t("A video's subtitles are saved inside its file, to turn on in your player."),
+    );
     toggle_row(
         ui,
         &mut s.remux_ts,
         t("Save streams that arrive as .ts as MP4"),
+    );
+    hint(
+        ui,
+        t("Streamed videos are saved as MP4 files, which more players open."),
     );
     ui.add_space(4.0);
     ui.label(t("Queues with their own limit:"));
@@ -575,7 +624,7 @@ pub(super) fn tab_downloads(ui: &mut egui::Ui, d: &mut OptionsDialog, env: &TabE
     let mut watch = s.watch_folder.clone();
     folder_field(
         ui,
-        t("Watch a folder for links: a .url, .webloc or text file of links, or a .torrent saved there is added and moved to its \"done\" folder (empty is off)"),
+        t("Watch a folder: links (.url, .webloc or a text file of links) and .torrent files saved there are added, then moved to its \"done\" folder. Leave it empty to turn this off."),
         &mut watch,
         platform,
     );
@@ -593,7 +642,7 @@ pub(super) fn tab_downloads(ui: &mut egui::Ui, d: &mut OptionsDialog, env: &TabE
             .labelled_by(name);
     });
     ui.add_space(8.0);
-    ui.label(t("When a download finishes, run (a virus checker, a script); the file's path is added at the end:"));
+    ui.label(t("When a download finishes, run this command (a virus checker or a script). The file's path is added at the end:"));
     field(ui, t("Command"), &mut s.on_complete, 320.0);
     ui.add_space(8.0);
     toggle_row(
@@ -601,7 +650,7 @@ pub(super) fn tab_downloads(ui: &mut egui::Ui, d: &mut OptionsDialog, env: &TabE
         &mut s.fetch_tools,
         t("Get the video helper (yt-dlp) when needed"),
     );
-    ui.label(RichText::new(t("From its official GitHub release, checked against its published checksum, and kept current weekly. Off, only a yt-dlp installed on this computer is used.")).small().weak());
+    ui.label(RichText::new(t("Downloaded from its official GitHub release, checked, and kept up to date every week. Off: dm uses only a yt-dlp you installed yourself.")).small().weak());
 }
 
 /// The Connection tab of Options.
@@ -654,7 +703,12 @@ pub(super) fn tab_connection(ui: &mut egui::Ui, d: &mut OptionsDialog, env: &Tab
                     s.second_path.clear();
                 }
                 for found in dm_core::interfaces() {
-                    let words = format!("{} ({})", found.name, found.address);
+                    // The system's name for it where it has one ("iPhone
+                    // USB (en5)"), else its address.
+                    let words = match dm_core::second_path::system_name(&found.name) {
+                        Some(named) => format!("{named} ({})", found.name),
+                        None => format!("{} ({})", found.name, found.address),
+                    };
                     if option(ui, s.second_path == found.name, &words).clicked() {
                         s.second_path = found.name;
                     }
@@ -665,8 +719,21 @@ pub(super) fn tab_connection(ui: &mut egui::Ui, d: &mut OptionsDialog, env: &Tab
     });
     hint(
         ui,
-        t("Another connection, such as a phone over USB or its hotspot: half of each download's connections go out on it. Not used while a proxy is on."),
+        t("Use a second connection too, such as your phone over USB or its hotspot. Half of each download's connections go over it. Not used while a proxy is on."),
     );
+    // How to have a phone there, step by step.
+    egui::CollapsingHeader::new(t("How to use your phone"))
+        .id_salt("second-network-steps")
+        .default_open(false)
+        .show(ui, |ui| {
+            for step in [
+                t("1. Connect your phone to this computer with its USB cable. If it asks whether to trust this computer, say yes."),
+                t("2. Turn on its hotspot: on an iPhone, Settings › Personal Hotspot; on Android, USB tethering."),
+                t("3. Choose it above. Keep Wi-Fi as this computer's own connection, so only downloads use the phone's data."),
+            ] {
+                ui.label(RichText::new(step).small());
+            }
+        });
     ui.add_space(8.0);
     ui.label(t("Sites with their own connection limit:"));
     let mut remove = None;
@@ -759,6 +826,10 @@ pub(super) fn tab_proxy(ui: &mut egui::Ui, d: &mut OptionsDialog, _env: &TabEnv<
     use dm_core::proxy::Kind;
     let p = &mut s.proxy;
     toggle_row(ui, &mut p.enabled, t("Connect through a proxy"));
+    hint(
+        ui,
+        t("For a network that reaches the internet through a proxy server. Whoever runs the network can give you its address."),
+    );
     ui.add_enabled_ui(p.enabled, |ui| {
                     let kind_name = |kind: Kind| match kind {
                         Kind::System => t("The computer's proxy settings").to_string(),

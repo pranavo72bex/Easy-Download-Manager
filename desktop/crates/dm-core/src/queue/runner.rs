@@ -144,8 +144,8 @@ impl Queue {
                 .into_iter()
                 .filter_map(|id| {
                     let slot = slots.get_mut(&id)?;
-                    slot.entry.state = State::Running;
-                    slot.entry.paused_by_schedule = false;
+                    slot.entry_mut().state = State::Running;
+                    slot.entry_mut().paused_by_schedule = false;
                     Some((id, slot.entry.url.clone(), slot.control.clone()))
                 })
                 .collect()
@@ -250,11 +250,11 @@ impl Queue {
                 let mut slots = inner.slots.lock().await;
                 if let Some(slot) = slots.get_mut(&id) {
                     if slot.entry.parts_dir.is_empty() {
-                        slot.entry.parts_dir = own_parts.display().to_string();
+                        slot.entry_mut().parts_dir = own_parts.display().to_string();
                     }
                     options.parts_dir = PathBuf::from(&slot.entry.parts_dir);
                     if slot.entry.began_in.is_empty() {
-                        slot.entry.began_in = options.dest_dir.display().to_string();
+                        slot.entry_mut().began_in = options.dest_dir.display().to_string();
                     }
                     options.dest_dir = PathBuf::from(&slot.entry.began_in);
                     // The browser's cookies for this site, where handed
@@ -273,6 +273,7 @@ impl Queue {
                     options.categories.site = crate::category::host_of(&slot.entry.url);
                     options.sound = slot.entry.sound.clone();
                     options.span = slot.entry.span;
+                    options.shape = slot.entry.shape;
                     // The quality picked in the browser's panel, over the setting.
                     if let Some(quality) = &slot.entry.quality {
                         options.quality = crate::stream::Quality::named(quality);
@@ -310,8 +311,8 @@ impl Queue {
                             // Named once, as soon as the probe knows, so the
                             // row stops showing a URL people cannot read.
                             crate::download::Update::Named { name, category } => {
-                                slot.entry.filename = name;
-                                slot.entry.category = Some(category);
+                                slot.entry_mut().filename = name;
+                                slot.entry_mut().category = Some(category);
                             }
                             crate::download::Update::Progress(progress) => {
                                 // What arrived since the last sample counts
@@ -325,7 +326,7 @@ impl Queue {
                                 reported = Some(progress.downloaded);
                                 crate::lock(&queue.inner.quota)
                                     .add(arrived, std::time::SystemTime::now());
-                                slot.entry.progress = progress;
+                                slot.entry_mut().progress = progress;
                                 // A report that arrives after a pause or a
                                 // cancel (what was in flight) counts its bytes
                                 // but is not a speed.
@@ -337,7 +338,7 @@ impl Queue {
                                 continue;
                             }
                             crate::download::Update::Validator(validator) => {
-                                slot.entry.validator = Some(validator);
+                                slot.entry_mut().validator = Some(validator);
                             }
                             // The highest attempt of any range is the row's.
                             crate::download::Update::Retrying {
@@ -493,7 +494,7 @@ impl Queue {
             };
 
             slot.retrying = None;
-            slot.entry.stalled.clear();
+            slot.entry_mut().stalled.clear();
             // Out of room, or the folder's drive gone: paused, its parts
             // kept, rather than failed, to go on once there is room or
             // from another folder.
@@ -501,7 +502,7 @@ impl Queue {
                 Err(error) if replaces.is_none() => {
                     match out_of_room(&error, [&options.parts_dir, &options.dest_dir]) {
                         Some(why) => {
-                            slot.entry.stalled = why;
+                            slot.entry_mut().stalled = why;
                             Err(Error::Paused)
                         }
                         None => Err(error),
@@ -509,23 +510,23 @@ impl Queue {
                 }
                 other => other,
             };
-            slot.entry.state = match outcome {
+            slot.entry_mut().state = match outcome {
                 Ok(finished) => {
                     // Usually the name the probe already reported, but
                     // assembly has the last word: it is what avoided a
                     // collision with a file already on disk.
                     if let Some(name) = finished.path.file_name() {
-                        slot.entry.filename = name.to_string_lossy().into_owned();
+                        slot.entry_mut().filename = name.to_string_lossy().into_owned();
                     }
-                    slot.entry.path = finished.path.to_string_lossy().into_owned();
+                    slot.entry_mut().path = finished.path.to_string_lossy().into_owned();
                     // From the internet, as a browser's download says.
                     crate::motw::mark(&finished.path, &slot.entry.url, &slot.entry.referrer);
-                    slot.entry.category = Some(finished.category);
-                    slot.entry.verified = finished.verified;
-                    slot.entry.mirrors = finished.mirrors;
-                    slot.entry.replaces = None;
-                    if std::mem::take(&mut slot.entry.cookies_once) {
-                        slot.entry.cookies.clear();
+                    slot.entry_mut().category = Some(finished.category);
+                    slot.entry_mut().verified = finished.verified;
+                    slot.entry_mut().mirrors = finished.mirrors;
+                    slot.entry_mut().replaces = None;
+                    if std::mem::take(&mut slot.entry_mut().cookies_once) {
+                        slot.entry_mut().cookies.clear();
                     }
                     State::Completed
                 }
@@ -546,7 +547,7 @@ impl Queue {
             };
             // What turns a settled row into history.
             if slot.entry.state.settled() {
-                slot.entry.finished_at = Some(now_seconds());
+                slot.entry_mut().finished_at = Some(now_seconds());
             }
             // However the run ended, it is not running now.
             slot.stopped_moving();

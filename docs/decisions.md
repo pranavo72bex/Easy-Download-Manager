@@ -8,6 +8,110 @@ can see what it is undoing.
 
 
 
+## 2026-10-31: Vertical and square parts by the stream's own crop, no codec
+
+Asked for the other macOS manager's clip shapes (vertical, square, GIF,
+MP3), and, as there is no ffmpeg in dm, for dm's own code rather than an
+added package. Vertical and square need no codec: an H.264 stream's
+sequence parameter set names the rectangle of its coded picture to show
+(the frame cropping every decoder honours, the way 1080 lines are coded as
+1088), and dm rewrites it to the middle 9:16 or 1:1 of the picture, with
+the sample entry's and track header's sizes to match (`shape.rs`, applied
+to picture tracks in `mp4mux::join_cut`). Nothing is decoded or
+re-encoded, so it is instant and loses nothing; the file keeps the whole
+coded picture and is as large as the part as it is. Checked on a real
+YouTube part: macOS's own decoder (QuickLook) draws it 336x600 and 599x600.
+Only H.264 can be shaped (VP9 and AV1 are refused in words); a part is
+always MP4 already. In Download details, Shape (As it is, Vertical 9:16,
+Square 1:1) shows once Part is ticked.
+
+Left as gaps rows 53 and 54: MP3 needs an AAC decoder and an MP3 encoder
+of dm's own (written from the standards, several thousand lines); GIF needs
+decoded frames, which means a full H.264 decoder of dm's own (not taken:
+a project of its own) or the system's (VideoToolbox on macOS, Media
+Foundation on Windows; none on Linux), with a GIF writer of dm's own.
+
+## 2026-10-31: Ideas from the other macOS manager's window, kept within dm's own
+
+Asked for: run both side by side, take the other macOS manager's slick
+window as inspiration (the maintainer: "do not completely modify" dm,
+"just take good inspiration"), and better words. Its window could not be
+captured here (no screen-recording permission), so the maintainer took 17
+screenshots of it; dm's own were taken through its control port. Only
+what was seen was used; no code, asset or wording was copied.
+
+What it does better, and what dm took, each inside dm's own layout:
+
+- **A failed download is hard to miss.** It counts failures above the
+  list with one button to retry them all. dm now does the same
+  (`failed_bar`: "{} downloads didn't finish.", Retry all, Hide; hidden,
+  it stays away until another fails).
+- **A link copied at a moment** (`&t=34`) is offered as a clip from that
+  moment. dm's Download details now says "This link starts at 0:34." with
+  a "From 0:34" button that ticks Part and fills its start
+  (`youtube::start_of`).
+- **Turbo Mode explains itself in steps.** dm's Second network now has
+  "How to use your phone" (three steps) and names each interface as the
+  system does ("iPhone USB (en5)", `second_path::system_name`).
+- **Each browser says whether it is connected.** Options › Browser now
+  shows Connected or Add for Edge, Firefox and the Chrome family, from
+  the browsers whose extension has said hello (`host::browsers_seen`).
+- **Its words** are short, say what happened and what to do next, and
+  speak to the person. 42 of dm's messages were rewritten that way (the
+  longest settings lines and most failure reasons); the translations
+  kept their meaning and moved with them.
+
+Not taken, and why: its library layout (a sidebar of kinds, rows grouped
+by day with thumbnails, a paste bar and an inline card instead of a
+dialog), which would replace dm's window, pinned by the behaviour
+contract and declined by the maintainer; its conversions (vertical,
+square, GIF, MP3), which need codecs dm does not have; its notch, plans
+and invites, which are not a download manager's.
+
+## 2026-10-31: A long list saves only what changed, to a journal
+
+Gaps row 18. Every save wrote the whole list (9 MB at 20 000 rows), so
+saves were spaced to ten times a write's length, up to 5 s, and a dm
+killed in between lost what changed. Past 500 rows (the length written
+compact already) a save now appends the changed, added and removed rows to
+`queue.journal` (`queue/journal.rs`). A changed row is one that is not the
+same allocation as at the last write: the last write's list shares every
+row, so the queue copies a row before changing it (`Slot::entry_mut`).
+`queue.json` is written whole again when the journal would pass half its
+size, when rows are reordered, and at every start, which replays the
+journal and folds it in. The journal's first line names the file it was
+written over (its length and an FNV-1a hash), so a journal left beside a
+newer file is not replayed; a line cut by a stop ends the replay. Logins
+and sessions stay out of it, in `secrets.json`, written whole when one
+changes. A list of 500 rows or fewer is written whole at every save as
+before, which keeps `queue.json` complete for the check scripts that read
+it. Measured at 20 000 rows (release): killed 0-50 ms after five quick
+adds, 4 of 5 kept (1 of 5 before); small files 123/s (115/s); restart 1 s.
+Not done, the row's other half, "a smaller row": `queue.json` and the
+control protocol's `queue.list` are one shape (`tests/wire.rs`), and
+leaving empty fields out would change what outside readers get.
+
+## 2026-10-31: The queue's rows are shared with the window, not copied
+
+Gaps row 25. Each read of the list (four a second while anything moves)
+copied every row out of the queue, and the visible list copied every shown
+row again; `Backend::queues` took the queue's lock and walked every row
+several times a frame. Now a row is held as `Arc<Entry>`: the queue hands
+out the same allocation until the row changes (`Slot::entry_mut`, which
+copies it first if a list read earlier still holds it, so a list already
+read never changes under its reader), the window keeps those
+(`Queue::list_shared`), the visible list and its sort hold pointers, and a
+row whose pointer is the one seen before is not hashed again to decide
+whether to place it. The queue names are worked out once per read from the
+list the window holds (`DmApp::queues`, by the same `queue_names` the queue
+uses), with no lock. The control port's "is this queue known" check still
+asks the queue. Measured with a release build, 5000 rows waiting and 20
+downloads moving, the window thread's CPU time over 20 s (`ps -M`): busy
+4.5 % before, 3.3-3.4 % after; memory 312 MB before, 128 MB after (the
+copies a read made stayed resident). Not done: a read that returns only
+the rows that changed. With the rows shared, a read is a pointer copy per
+row under the lock, and the busy time left is drawing.
+
 ## 2026-10-29: The video helper fetched at the first start, its bytes told
 
 `tools::freshen`, which runs at every start, now also fetches yt-dlp (and

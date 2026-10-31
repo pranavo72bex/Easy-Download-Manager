@@ -49,6 +49,7 @@ pub mod rtmp;
 pub mod rtsp;
 pub mod schedule;
 pub mod second_path;
+pub mod shape;
 pub mod stream;
 pub mod subtitles;
 /// The tests' logins and secrets, never written in the code.
@@ -77,7 +78,9 @@ pub use plan::Segment;
 pub use probe::Probe;
 pub use progress::Progress;
 pub use proxy::Proxy;
-pub use queue::{AddOptions, Connection, Entry, Id, Queue, State, MAIN_QUEUE, RECHECK_QUEUE};
+pub use queue::{
+    queue_names, AddOptions, Connection, Entry, Id, Queue, State, MAIN_QUEUE, RECHECK_QUEUE,
+};
 pub use schedule::Schedule;
 pub use stream::Stream;
 pub use torrent::is_torrent;

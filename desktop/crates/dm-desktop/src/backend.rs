@@ -142,6 +142,11 @@ impl Backend {
         self.block_on(self.queue.list())
     }
 
+    /// The list shared with the queue, not copied: what the window reads.
+    pub fn list_shared(&self) -> Vec<Arc<Entry>> {
+        self.block_on(self.queue.list_shared())
+    }
+
     /// One row as the queue holds it now, not as the window last read it.
     pub fn row(&self, id: Id) -> Option<Entry> {
         self.block_on(self.queue.get(id))

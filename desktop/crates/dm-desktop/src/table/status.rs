@@ -33,7 +33,8 @@ thread_local! {
 
 /// Which finished rows another, later one has taken the file of, as the
 /// rows now stand.
-pub fn set_superseded(rows: &[Entry]) {
+pub fn set_superseded<R: std::borrow::Borrow<dm_core::Entry>>(rows: &[R]) {
+    let rows: Vec<&dm_core::Entry> = rows.iter().map(|r| r.borrow()).collect();
     let mut latest: std::collections::HashMap<&str, (u64, dm_core::Id)> =
         std::collections::HashMap::new();
     let finished = rows

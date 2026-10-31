@@ -38,6 +38,7 @@ fn options(dir: &Path) -> Options {
         quality: crate::stream::Quality::Best,
         sound: None,
         span: None,
+        shape: None,
         media: false,
         referrer: None,
         proxy: None,

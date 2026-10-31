@@ -26,7 +26,7 @@ pub(super) fn welcome(app: &mut DmApp, ctx: &egui::Context) {
                 Store::Chrome => crate::app::EXTENSION_CHROME,
             };
             if found.is_empty() {
-                ui.label(RichText::new(t("No browser was found; each one's page is here:")).weak());
+                ui.label(RichText::new(t("No browser found. Here is the page for each:")).weak());
                 for (name, store) in [
                     ("Microsoft Edge", Store::Edge),
                     ("Firefox", Store::Firefox),

@@ -874,7 +874,7 @@ fn a_row_is_dragged_to_another_place_in_the_queue() {
         h.state()
             .rows
             .iter()
-            .map(dm_desktop::app::name_of)
+            .map(|r| dm_desktop::app::name_of(r))
             .collect()
     };
     assert_eq!(order(&harness), ["file.zip", "other.pdf", "x.bin"]);

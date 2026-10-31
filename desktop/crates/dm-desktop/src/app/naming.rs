@@ -54,7 +54,7 @@ impl DmApp {
     /// same folder under the same name: what `name_it_will_get_after` is told.
     /// One pass, in the order the rows were added.
     pub fn earlier_of_the_same_name(&self) -> HashMap<Id, usize> {
-        let mut order: Vec<&Entry> = self.rows.iter().collect();
+        let mut order: Vec<&Entry> = self.rows.iter().map(|r| &**r).collect();
         order.sort_by_key(|r| r.id);
         let mut seen: HashMap<(Option<String>, String), usize> = HashMap::new();
         let mut before = HashMap::new();

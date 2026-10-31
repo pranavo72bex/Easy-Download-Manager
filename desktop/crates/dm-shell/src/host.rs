@@ -24,6 +24,7 @@ use dm_protocol::{
 /// A request the app will pick up.
 #[derive(serde::Serialize, serde::Deserialize, Debug, Default, PartialEq)]
 pub struct Request {
+    /// The address to download.
     pub url: String,
     /// The page it came from. Kept because a media URL alone is often not
     /// something anything can fetch twice.
@@ -172,7 +173,10 @@ pub fn deposit(home: &Path, id: &str, request: &Request) -> std::io::Result<File
 /// or found the very same one already waiting.
 #[derive(Debug, PartialEq)]
 pub struct Filed {
+    /// The request's file in the inbox.
     pub path: PathBuf,
+    /// Whether this hand-off wrote it; `false` when the same request was
+    /// already waiting there.
     pub new: bool,
 }
 
@@ -597,14 +601,40 @@ fn browser_seen_file(home: &Path) -> std::path::PathBuf {
     home.join("browser.seen")
 }
 
-/// Notes that an extension has said hello. Best effort: a home that cannot
+/// Notes that an extension has said hello, and which browser it is in
+/// where that can be told (a line each). Best effort: a home that cannot
 /// be written to only means the window goes on offering the extension.
 fn mark_browser_seen(home: &Path) {
+    note_browser(home, parent_browser().as_deref());
+}
+
+/// [`mark_browser_seen`] for a browser already named (or none).
+fn note_browser(home: &Path, browser: Option<&str>) {
     let file = browser_seen_file(home);
-    if !file.exists() {
-        let _ = std::fs::create_dir_all(home);
-        let _ = std::fs::write(file, b"");
+    let known = std::fs::read_to_string(&file).unwrap_or_default();
+    let fresh = browser.filter(|b| !known.lines().any(|line| line == *b));
+    if file.exists() && fresh.is_none() {
+        return;
     }
+    let _ = std::fs::create_dir_all(home);
+    let mut text = known;
+    if let Some(name) = fresh {
+        text.push_str(name);
+        text.push('\n');
+    }
+    let _ = std::fs::write(file, text);
+}
+
+/// The browsers whose extension has talked to this dm, by the names
+/// [`parent_browser`] gives ("Microsoft Edge", "Firefox", "Brave").
+pub fn browsers_seen(home: &Path) -> Vec<String> {
+    std::fs::read_to_string(browser_seen_file(home))
+        .unwrap_or_default()
+        .lines()
+        .map(str::trim)
+        .filter(|l| !l.is_empty())
+        .map(str::to_string)
+        .collect()
 }
 
 /// Whether any browser's extension has ever talked to this dm: until one
@@ -613,6 +643,10 @@ pub fn browser_seen(home: &Path) -> bool {
     browser_seen_file(home).exists()
 }
 
+/// The native host's reply to one frame from the browser's extension, as
+/// JSON: `None` for a frame it does not take (another version's, or one
+/// for the window, such as a pause). What the reply needs of the app (its
+/// settings, its inbox, a page's qualities) is asked of `world`.
 pub fn answer(
     home: &Path,
     frame: &serde_json::Value,

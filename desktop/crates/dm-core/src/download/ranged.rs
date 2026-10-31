@@ -169,8 +169,9 @@ pub(super) async fn run(
     let second = crate::second_path::second_client();
     for ordinal in 0..workers.max(1) + helpers {
         let helper = ordinal >= workers.max(1);
+        let on_second = second.is_some() && ordinal % 2 == 1;
         let client = match &second {
-            Some(second) if ordinal % 2 == 1 => second.clone(),
+            Some(second) if on_second => second.clone(),
             _ => client.clone(),
         };
         let (job, next) = (Arc::clone(job), Arc::clone(&next));
@@ -225,6 +226,7 @@ pub(super) async fn run(
                     active.fetch_add(1, Ordering::SeqCst);
                 }
                 crate::lock(&job.live[index]).taken = true;
+                crate::second_path::fetched_by(&job.parts, index, on_second);
                 match fetch_segment(&client, &job, index, resumable, &active).await {
                     Ok(()) => {}
                     /* The server would not take this connection (a 429 or

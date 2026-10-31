@@ -101,7 +101,10 @@ pub fn series(
 /// before they were kept, and is then nothing.
 #[derive(Debug, Clone, Default, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub struct Listed {
+    /// The address to download, without a login (Options › Sign-ins puts it
+    /// back on import).
     pub url: String,
+    /// The page it was found on, sent as the referrer; empty for none.
     #[serde(default, skip_serializing_if = "String::is_empty")]
     pub referrer: String,
     /// The named queue it waits in; empty for none.
@@ -266,6 +269,7 @@ pub async fn grab(page: &str, extensions: &[String]) -> Result<Vec<String>, Stri
 pub struct Search {
     /// Its name once saved; empty for one run once.
     pub name: String,
+    /// The page the search starts from.
     pub page: String,
     /// File types wanted, without dots; empty takes every file.
     pub types: Vec<String>,
@@ -377,6 +381,7 @@ pub const MAX_PAGES: usize = 100;
 /// What a search found.
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
 pub struct Crawled {
+    /// The files' addresses, each once, in the order they were found.
     pub files: Vec<String>,
     /// How many pages were read.
     pub pages: usize,

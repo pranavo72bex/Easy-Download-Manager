@@ -1108,3 +1108,18 @@ fn a_folder_dm_may_not_write_to_is_said_before_a_download_is_taken() {
         "nothing left behind"
     );
 }
+
+#[test]
+fn each_browser_that_said_hello_is_noted_once() {
+    let home = tempfile::tempdir().unwrap();
+    assert!(browsers_seen(home.path()).is_empty());
+    assert!(!browser_seen(home.path()));
+    // One that cannot be named still counts as a browser seen.
+    note_browser(home.path(), None);
+    assert!(browser_seen(home.path()));
+    assert!(browsers_seen(home.path()).is_empty());
+    note_browser(home.path(), Some("Microsoft Edge"));
+    note_browser(home.path(), Some("Firefox"));
+    note_browser(home.path(), Some("Microsoft Edge"));
+    assert_eq!(browsers_seen(home.path()), ["Microsoft Edge", "Firefox"]);
+}

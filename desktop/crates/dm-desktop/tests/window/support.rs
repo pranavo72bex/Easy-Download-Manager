@@ -260,6 +260,40 @@ pub(crate) fn world() -> World {
                     .unwrap()
             }),
         );
+        // 8 MiB served in ranges, each sending its first 64 KiB and then
+        // nothing: a download with several connections that stays under way.
+        let app = app.route(
+            "/ranges-stall.bin",
+            axum::routing::get(|headers: axum::http::HeaderMap| async move {
+                const SIZE: u64 = 8 << 20;
+                let (start, end) = headers
+                    .get("range")
+                    .and_then(|v| v.to_str().ok())
+                    .and_then(|v| v.strip_prefix("bytes="))
+                    .and_then(|v| v.split_once('-'))
+                    .and_then(|(a, b)| {
+                        let a = a.parse::<u64>().ok()?;
+                        let b = b.parse::<u64>().unwrap_or(SIZE - 1).min(SIZE - 1);
+                        Some((a, b))
+                    })
+                    .unwrap_or((0, SIZE - 1));
+                let length = end - start + 1;
+                let first = futures_util::stream::iter([Ok::<Vec<u8>, std::io::Error>(
+                    vec![5u8; length.min(64 * 1024) as usize],
+                )]);
+                let never = futures_util::stream::pending();
+                Response::builder()
+                    .status(206)
+                    .header("accept-ranges", "bytes")
+                    .header("etag", "\"ranges\"")
+                    .header("content-range", format!("bytes {start}-{end}/{SIZE}"))
+                    .header("content-length", length.to_string())
+                    .body(Body::from_stream(futures_util::StreamExt::chain(
+                        first, never,
+                    )))
+                    .unwrap()
+            }),
+        );
         // A connection that ends after a thousand bytes of a million, every
         // time, with no ranges to resume from: retried, then failed.
         let app = app.route(
@@ -369,9 +403,14 @@ impl World {
     }
 
     pub(crate) fn app(&self) -> DmApp {
+        self.app_with(self.settings())
+    }
+
+    /// The settings the tests' window starts with.
+    pub(crate) fn settings(&self) -> Settings {
         // Without the progress and complete windows unless a test asks:
         // most tests are about the list, not about windows over it.
-        self.app_with(Settings {
+        Settings {
             download_dir: self.dir.path().join("out"),
             connections: 1,
             show_progress: false,
@@ -384,7 +423,7 @@ impl World {
             categorize: false,
             start_on_login: false,
             ..Settings::default()
-        })
+        }
     }
 
     /// A window over these settings, as a launch that read them would be.
@@ -408,6 +447,14 @@ impl World {
         Harness::builder()
             .with_size(egui::vec2(1100.0, 720.0))
             .build_ui_state(|ui, app: &mut DmApp| app.ui(ui), self.app())
+    }
+
+    /// A harness over these settings (`tests/second_network.rs`).
+    #[allow(dead_code)]
+    pub(crate) fn harness_with(&self, settings: Settings) -> Harness<'static, DmApp> {
+        Harness::builder()
+            .with_size(egui::vec2(1100.0, 720.0))
+            .build_ui_state(|ui, app: &mut DmApp| app.ui(ui), self.app_with(settings))
     }
 
     /// A harness with 20 ms frames, so two clicks can land inside egui's
@@ -642,8 +689,8 @@ pub(crate) fn row(h: &Harness<'_, DmApp>, name: &str) -> dm_core::Entry {
         .rows()
         .iter()
         .find(|r| dm_desktop::app::name_of(r) == name)
+        .map(|r| dm_core::Entry::clone(r))
         .unwrap_or_else(|| panic!("no row {name}"))
-        .clone()
 }
 
 /// The bounding box of the last node of that name, in window points.

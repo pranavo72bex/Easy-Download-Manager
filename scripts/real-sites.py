@@ -40,6 +40,8 @@ CASES = [
     ("Apple DTD (compressed text, no ranges)", "https://www.apple.com/DTDs/PropertyList-1.0.dtd", "file", "same-as-curl"),
     ("Wikimedia Commons image", "https://upload.wikimedia.org/wikipedia/commons/3/3f/Fronalpstock_big.jpg", "file", "image"),
     ("HLS stream (Mux test stream)", "https://test-streams.mux.dev/x36xhzz/x36xhzz.m3u8", "file", "video"),
+    # A playable DASH stream, picture and sound in separate adaptation sets.
+    ("DASH stream (Shaka's Angel One)", "https://storage.googleapis.com/shaka-demo-assets/angel-one/dash.mpd", "file", "video"),
     ("BitTorrent (.torrent, Sintel)", "https://webtorrent.io/torrents/sintel.torrent", "file", "video"),
     ("Reddit, anonymous (blocked)", "https://www.reddit.com/r/aww/top/", "refused", None),
     ("Vimeo, needs sign-in", "https://vimeo.com/76979871", "refused", None),

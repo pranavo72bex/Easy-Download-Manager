@@ -262,9 +262,14 @@ pub struct Clipboard {
     pub polled: Option<Instant>,
 }
 
+/// The rows the table shows, shared between frames and with the queue.
+pub type SharedRows = std::rc::Rc<Vec<Arc<Entry>>>;
+
 pub struct DmApp {
     pub backend: Backend,
-    pub rows: Vec<Entry>,
+    /// The list as last read, each row shared with the queue: a row that
+    /// did not change since the read before is the same allocation.
+    pub rows: Vec<Arc<Entry>>,
     refreshed: Option<Instant>,
     /// What each row was at the last refresh, to notice a finish.
     last_state: HashMap<Id, State>,
@@ -396,6 +401,9 @@ pub struct DmApp {
     /// Handed-over downloads cancelled, by site, since one was accepted:
     /// at two, the site is offered to the browser.
     cancelled_hand_offs: std::collections::HashMap<String, u32>,
+    /// The failed downloads the failed bar was hidden over: it stays away
+    /// until another one fails.
+    failed_hidden: BTreeSet<Id>,
     /// What "When done" has seen since the queue last ran dry.
     dry: DryWatch,
     /// A sleep or shut down waiting out its countdown.
@@ -449,12 +457,17 @@ pub struct DmApp {
     /// The rows the table shows, in order, and what they were made from
     /// (`DmApp::visible_shared`): a frame with no new read of the list
     /// reuses them instead of copying and sorting every row again.
-    visible_cache: std::cell::RefCell<Option<(VisibleKey, std::rc::Rc<Vec<Entry>>)>>,
+    visible_cache: std::cell::RefCell<Option<(VisibleKey, SharedRows)>>,
     /// How many rows each place holds, for the generation it was counted at.
     counts_cache: std::cell::RefCell<(u64, HashMap<String, usize>)>,
+    /// The queues the list names, for the generation they were read at
+    /// ([`DmApp::queues`]).
+    queues_cache: std::cell::RefCell<Option<(u64, Vec<String>)>>,
     /// What each row's kind, own category and filter text were made from, so
     /// a read of the list makes them again only for a row that changed.
-    place_fingerprints: HashMap<Id, u64>,
+    /// With the row they were made from: the same allocation again means
+    /// the row did not change, and nothing of it is hashed.
+    place_fingerprints: HashMap<Id, (u64, Arc<Entry>)>,
     /// The categories of a person's own that `placed` was made under.
     place_rules: String,
     /// The language the places were last drawn in.
@@ -577,6 +590,7 @@ impl DmApp {
             focus_before: None,
             was_behind: false,
             cancelled_hand_offs: std::collections::HashMap::new(),
+            failed_hidden: BTreeSet::new(),
             dry: DryWatch::default(),
             countdown: None,
             headless: false,
@@ -599,6 +613,7 @@ impl DmApp {
             filter_words: Default::default(),
             rows_gen: 0,
             visible_cache: Default::default(),
+            queues_cache: Default::default(),
             counts_cache: Default::default(),
             place_fingerprints: HashMap::new(),
             place_rules: String::new(),
@@ -643,12 +658,27 @@ impl DmApp {
         }
     }
 
-    pub fn rows(&self) -> &[Entry] {
+    /// The queues, as the queue lists them, worked out from the list as
+    /// last read: once a read, and with no lock on the queue. The side
+    /// rail, the tree and the dialogs ask several times a frame.
+    pub fn queues(&self) -> Vec<String> {
+        let mut cache = self.queues_cache.borrow_mut();
+        match &*cache {
+            Some((generation, names)) if *generation == self.rows_gen => names.clone(),
+            _ => {
+                let names = dm_core::queue_names(self.rows.iter().map(|r| &**r));
+                *cache = Some((self.rows_gen, names.clone()));
+                names
+            }
+        }
+    }
+
+    pub fn rows(&self) -> &[Arc<Entry>] {
         &self.rows
     }
 
     pub fn row(&self, id: Id) -> Option<&Entry> {
-        self.rows.iter().find(|r| r.id == id)
+        self.rows.iter().find(|r| r.id == id).map(|r| &**r)
     }
 }
 
@@ -796,7 +826,12 @@ impl DryWatch {
     /// One look at the list, with each row's state at the last look. True
     /// once, when a stretch of downloading has just ended with something
     /// finished or failed and nothing left that dm will finish by itself.
-    fn look(&mut self, rows: &[Entry], last: &HashMap<Id, State>) -> bool {
+    fn look<R: std::borrow::Borrow<Entry>>(
+        &mut self,
+        rows: &[R],
+        last: &HashMap<Id, State>,
+    ) -> bool {
+        let rows: Vec<&Entry> = rows.iter().map(|r| r.borrow()).collect();
         let settled = rows.iter().any(|r| {
             matches!(r.state, State::Completed | State::Failed(_))
                 && last.get(&r.id).is_some_and(|was| *was != r.state)
@@ -960,7 +995,7 @@ mod disk_full_tests {
         );
         assert_eq!(
             status_in_english(&row),
-            "Error: dm could not get the video from this page (Requested format is not available)"
+            "Error: dm couldn't get the video from this page (Requested format is not available)"
         );
         // A failure with its own plain words is not given a second one.
         row.state = State::Failed(
@@ -968,7 +1003,7 @@ mod disk_full_tests {
         );
         assert_eq!(
             status_in_english(&row),
-            "Error: this video is not available: it may be private, removed or not shown in your country"
+            "Error: this video isn't available. It may be private, removed, or not shown in your country"
         );
     }
 

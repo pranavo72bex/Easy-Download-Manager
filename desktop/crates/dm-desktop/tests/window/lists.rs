@@ -104,7 +104,7 @@ fn a_row_shows_the_name_chosen_for_it_before_it_is_saved() {
         .state()
         .rows()
         .iter()
-        .map(dm_desktop::app::name_of)
+        .map(|r| dm_desktop::app::name_of(r))
         .collect();
     assert!(names.contains(&"mine.zip".to_string()), "{names:?}");
     assert!(names.contains(&"other.php".to_string()), "{names:?}");
@@ -207,7 +207,7 @@ fn clicking_a_heading_sorts_and_clicking_again_reverses() {
         h.state()
             .visible()
             .iter()
-            .map(dm_desktop::app::name_of)
+            .map(|r| dm_desktop::app::name_of(r))
             .collect()
     };
     assert_eq!(names(&harness), ["a.bin", "b.bin", "c.bin"]);
@@ -834,7 +834,7 @@ fn queued_rows_are_sorted_into_their_kind_by_name() {
         .state()
         .visible()
         .iter()
-        .map(dm_desktop::app::name_of)
+        .map(|r| dm_desktop::app::name_of(r))
         .collect();
     assert_eq!(shown, ["clip.mp4"]);
 }

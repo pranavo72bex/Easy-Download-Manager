@@ -29,7 +29,7 @@ pub(super) fn options(app: &mut DmApp, ctx: &egui::Context) {
     if app.dialogs.options.is_none() {
         return;
     }
-    let queues = app.backend.queues();
+    let queues = app.queues();
     let platform = std::sync::Arc::clone(&app.backend.platform);
     // One size for every tab, so the dialog and its buttons stay where they
     // are when another tab is picked; a tab longer than that scrolls.
@@ -298,7 +298,7 @@ pub(super) fn options(app: &mut DmApp, ctx: &egui::Context) {
             .find(|name| !portable_folder(name))
         {
             d.says = tf(
-                "\"{}\" cannot be a category: its name is also its folder, and that is not a folder name every computer can use (no / \\ : * ? \" < > |, no name like CON, nothing ending in a dot or space)",
+                "\"{}\" can't be a category, because its name is also its folder's. Leave out / \\ : * ? \" < > |, names like CON, and a dot or space at the end.",
                 &[&bad],
             );
             d.tab = Tab::SaveTo;

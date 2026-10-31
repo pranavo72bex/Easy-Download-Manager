@@ -110,6 +110,7 @@ pub fn launched_at_login(args: &[String]) -> bool {
 /// main queue.
 #[derive(Debug, Default, PartialEq)]
 pub struct Orders {
+    /// The addresses given, each as a request the inbox would hold.
     pub downloads: Vec<host::Request>,
     /// `--start-queue`: start the main queue.
     pub start_queue: bool,
@@ -336,11 +337,18 @@ pub fn hand_off(
 /// going direct beside a yt-dlp handed a proxy that does not parse is two
 /// routes disagreeing about one setting.
 pub struct Started {
+    /// The queue, its saved downloads read back and the settings applied.
     pub queue: Queue,
+    /// The settings it was started with, as read (or the defaults).
     pub settings: Settings,
+    /// What went wrong on the way and was put right, in words for the window.
     pub notices: Vec<String>,
 }
 
+/// Starts the engine for the window or the headless app: reads the
+/// settings, readies the tools folder, makes the queue, reads its saved
+/// downloads back and applies the settings to it, and adds what `orders`
+/// names.
 pub async fn start(orders: &Orders) -> Started {
     // yt-dlp and QuickJS, fetched into dm's own folder when a video page
     // needs them; a yt-dlp fetched before is kept current.
@@ -657,7 +665,9 @@ pub async fn add(queue: &Queue, text: &str) -> Result<Added, String> {
 /// What `add` added, and why any link was skipped.
 #[derive(Debug, Default)]
 pub struct Added {
+    /// The rows added, in the order asked.
     pub ids: Vec<Id>,
+    /// Each link not added, with why.
     pub skipped: Vec<String>,
 }
 

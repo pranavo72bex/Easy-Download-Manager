@@ -76,7 +76,7 @@ impl DmApp {
         };
         self.said = if unread > 0 {
             crate::i18n::Said::naming(
-                "Imported: {}. Lines skipped, with no address dm can read (one starts with http://, https://, ftp:// or magnet:): {}.",
+                "Imported {}. Skipped {} lines with no link in them (a link starts with http://, https://, ftp:// or magnet:).",
                 &[&added, &unread],
             )
         } else {

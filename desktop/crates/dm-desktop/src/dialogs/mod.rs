@@ -92,6 +92,8 @@ pub struct FileInfo {
     /// another, as typed in the dialog's Part fields (`part_from`,
     /// `part_to`) and read when it starts.
     pub span: Option<dm_core::Span>,
+    /// The part made vertical or square; `None` as it is.
+    pub shape: Option<dm_core::shape::Shape>,
     /// "Only a part of the video", and its ends as typed ("4:10").
     pub part: bool,
     pub part_from: String,

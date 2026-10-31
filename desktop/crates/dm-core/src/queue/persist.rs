@@ -1,7 +1,5 @@
 use super::*;
 
-/// Rows up to which the queue file is indented.
-const PRETTY_UP_TO: usize = 500;
 /// The least time between two writes of the queue file.
 const SAVE_EVERY: Duration = Duration::from_millis(150);
 
@@ -13,6 +11,8 @@ impl Queue {
     /// files survive on disk, so losing the row that points at them is the
     /// only reason the bytes would be wasted.
     pub async fn persist_to(&self, path: PathBuf) {
+        // Nothing is known of what is on disk there until it is written.
+        *crate::lock(&self.inner.saved) = None;
         if let Err(problem) = self.restore(&path).await {
             self.note(problem);
         }
@@ -49,7 +49,9 @@ impl Queue {
         };
         let secrets = self.read_secrets(path);
         let entries = match serde_json::from_str::<Vec<Entry>>(&text) {
-            Ok(entries) => entries,
+            // With what changed since, where the journal was written over
+            // this very file (`journal`).
+            Ok(entries) => super::journal::replayed(path, text.as_bytes(), entries),
             Err(e) => {
                 let aside = path.with_extension("json.unreadable");
                 return match std::fs::rename(path, &aside) {
@@ -109,7 +111,7 @@ impl Queue {
             slots.insert(
                 entry.id,
                 Slot {
-                    entry,
+                    entry: Arc::new(entry),
                     control: Control::new(),
                     task: None,
                     outside_schedule: false,
@@ -121,7 +123,7 @@ impl Queue {
 
         for mut slot in early {
             highest += 1;
-            slot.entry.id = highest;
+            slot.entry_mut().id = highest;
             order.push(highest);
             slots.insert(highest, slot);
         }
@@ -222,41 +224,27 @@ impl Queue {
     /// owed.
     async fn write_held(&self, path: &std::path::Path) {
         self.inner.saves.fetch_add(1, Ordering::Relaxed);
-        let mut entries = self.list().await;
-        let secrets = Secret::taken_from(&mut entries);
+        // Shared, not copied: what changed since the last write is the rows
+        // that are not the same allocation as then (`journal`).
+        let rows = self.list_shared().await;
+        let previous = crate::lock(&self.inner.saved).take();
         let began = std::time::Instant::now();
         let target = path.to_path_buf();
-        let wrote = tokio::task::spawn_blocking(move || -> std::io::Result<()> {
-            // The secrets first: a stop between the two writes leaves a
-            // login the queue file no longer carries rather than one it
-            // carries twice.
-            let kept = secrets_file(&target);
-            if secrets.is_empty() {
-                if kept.exists() {
-                    std::fs::remove_file(&kept)?;
-                }
-            } else {
-                crate::write_atomic_with(&kept, |w| {
-                    serde_json::to_writer_pretty(w, &secrets).map_err(std::io::Error::from)
-                })?;
-            }
-            crate::write_atomic_with(&target, |w| {
-                // Indented for a person reading a short list; a long one is
-                // written compact, a third of the bytes.
-                let done = if entries.len() <= PRETTY_UP_TO {
-                    serde_json::to_writer_pretty(w, &entries)
-                } else {
-                    serde_json::to_writer(w, &entries)
-                };
-                done.map_err(std::io::Error::from)
-            })
-        })
-        .await;
+        let wrote =
+            tokio::task::spawn_blocking(move || super::journal::write(&target, rows, previous))
+                .await;
         self.inner.last_write_ms.store(
             began.elapsed().as_millis().try_into().unwrap_or(u64::MAX),
             Ordering::Relaxed,
         );
         *crate::lock(&self.inner.written) = Some(std::time::Instant::now());
+        // What is on disk now, for the next write to add to; after a failed
+        // write nothing is known, and the next one writes the whole list.
+        let wrote = wrote.map(|w| {
+            w.map(|saved| {
+                *crate::lock(&self.inner.saved) = Some(saved);
+            })
+        });
         let failed = match wrote {
             Ok(Ok(())) => None,
             Ok(Err(e)) => Some(e.to_string()),
@@ -369,9 +357,9 @@ impl Queue {
 /// `secrets.json` beside it (readable by this account alone, as the queue
 /// file is), so a queue file shown, sent with a report or backed up on its
 /// own carries no password and no session.
-#[derive(Debug, Default, serde::Serialize, serde::Deserialize)]
-struct Secret {
-    id: Id,
+#[derive(Debug, Default, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+pub(super) struct Secret {
+    pub(super) id: Id,
     #[serde(default, skip_serializing_if = "String::is_empty")]
     username: String,
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -383,7 +371,7 @@ struct Secret {
 impl Secret {
     /// Takes the secrets out of `entries`: each address is left without its
     /// login and each row without its cookies. Rows with neither give none.
-    fn taken_from(entries: &mut [Entry]) -> Vec<Secret> {
+    pub(super) fn taken_from(entries: &mut [Entry]) -> Vec<Secret> {
         entries
             .iter_mut()
             .filter_map(|entry| {
@@ -425,6 +413,6 @@ impl Secret {
 }
 
 /// Where the secrets of the queue at `queue_file` are kept.
-fn secrets_file(queue_file: &std::path::Path) -> PathBuf {
+pub(super) fn secrets_file(queue_file: &std::path::Path) -> PathBuf {
     queue_file.with_file_name("secrets.json")
 }

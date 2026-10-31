@@ -5,12 +5,7 @@ impl DmApp {
     /// queues included, up to a third of the window. German and Russian
     /// queue names were cut short in a rail that had the room.
     pub(super) fn rail_width(&self, ui: &egui::Ui, least: f32) -> f32 {
-        let mut names: Vec<String> = self
-            .backend
-            .queues()
-            .iter()
-            .map(|q| crate::i18n::name(q))
-            .collect();
+        let mut names: Vec<String> = self.queues().iter().map(|q| crate::i18n::name(q)).collect();
         names.extend(
             Category::ALL
                 .iter()
@@ -96,7 +91,7 @@ impl DmApp {
         );
         place(ui, self, Place::Unfinished, t("In progress").into());
         place(ui, self, Place::Finished, t("Done").into());
-        let queues = self.backend.queues();
+        let queues = self.queues();
         let in_queues = matches!(self.place, Place::Queue(_));
         nav_group(ui, "tree-queues", t("Queues"), in_queues, &tokens, |ui| {
             for name in queues {
@@ -131,7 +126,7 @@ impl DmApp {
         }
         places.push((Place::Unfinished, t("In progress").into()));
         places.push((Place::Finished, t("Done").into()));
-        for queue in self.backend.queues() {
+        for queue in self.queues() {
             let label = crate::i18n::name(&queue);
             places.push((Place::Queue(queue), label));
         }

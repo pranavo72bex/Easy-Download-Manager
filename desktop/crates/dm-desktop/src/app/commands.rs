@@ -9,6 +9,7 @@ impl DmApp {
         let targets: Vec<&Entry> = self
             .rows
             .iter()
+            .map(|r| &**r)
             .filter(|r| self.selected.contains(&r.id) && self.shows(r))
             .collect();
         let any = |f: fn(&Entry) -> bool| targets.iter().any(|r| f(r));

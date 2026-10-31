@@ -29,6 +29,7 @@ async fn a_held_download_goes_on_when_the_limit_lets_it() {
             quality: dm_core::stream::Quality::Best,
             sound: None,
             span: None,
+            shape: None,
             media: false,
             referrer: None,
             proxy: None,

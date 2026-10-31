@@ -83,6 +83,7 @@ async fn a_download_goes_out_on_both_paths_and_is_whole() {
         connections: 4,
         ..options(dir.path())
     };
+    let parts = opts.parts_dir.clone();
     let done = dm_core::download(
         &dm_core::client(),
         &format!("http://127.0.0.1:{port}/f.bin"),
@@ -95,6 +96,11 @@ async fn a_download_goes_out_on_both_paths_and_is_whole() {
         std::fs::read(&done.path).unwrap(),
         body,
         "the file is not whole"
+    );
+    // What the progress window counts each path's share from.
+    assert!(
+        !dm_core::second_path::on_second(&parts).is_empty(),
+        "no range recorded as fetched on the second path"
     );
     let seen = seen.lock().unwrap().clone();
     assert!(

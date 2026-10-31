@@ -1063,7 +1063,128 @@ def p_realtorrent(ctx):
         shutil.rmtree(dm.out, ignore_errors=True)
 
 
-OPT_IN = {"realtorrent": p_realtorrent}
+
+def p_proxytls(ctx):
+    """HTTPS through an HTTP proxy (CONNECT): a real site's file, tunnelled, byte for byte as curl gets it directly; a proxy wanting a login refuses the tunnel without it."""
+    root = ctx["root"]
+    url = "https://proof.ovh.net/files/10Mb.dat"
+    expected = subprocess.run(["curl", "-sfL", url], capture_output=True, timeout=120).stdout
+    if not expected:
+        finding("low", "proxytls", "curl could not fetch the file directly; nothing to compare with")
+        return
+    proxy = start_proxy()
+    port = proxy.server_address[1]
+    try:
+        for n, (label, creds, user, pw, want) in enumerate((
+            ("open proxy", None, "", "", True),
+            ("proxy wanting a login, given it", "alice:s3cret", "alice", "s3cret", True),
+            ("proxy wanting a login, given a wrong one", "alice:s3cret", "alice", "nope", False),
+        )):
+            proxy.credentials = creds
+            proxy.log.clear()
+            name = f"proxytls{n}"
+            dm = DM(root, {"connections": 4, "retries": 1, "proxy": {"enabled": True, "type": "http", "host": "127.0.0.1", "port": port, "username": user, "password": pw, "bypass": []}}, name=name).start()
+            try:
+                dm.add([url])
+                wait_for(lambda: any(r["state"]["kind"] in ("completed", "failed") for r in dm.rows()), 180)
+                row = dm.rows()[0]
+                kind = row["state"]["kind"]
+                tunnels = [e for e in proxy.log if e[0] == "CONNECT"]
+                same = kind == "completed" and pathlib.Path(row["path"]).read_bytes() == expected
+                measure("proxytls", f"{label}: {kind}, {len(tunnels)} CONNECT tunnels to {sorted({e[1] for e in tunnels})}, same as curl's: {same}")
+                if want and not same:
+                    finding("high", "proxytls", f"{label}: the HTTPS file did not arrive whole through the proxy ({kind})")
+                if not want and kind == "completed":
+                    finding("high", "proxytls", f"{label}: the download completed though the proxy refused the tunnel")
+                if not tunnels:
+                    finding("critical", "proxytls", f"{label}: no CONNECT reached the proxy: the HTTPS download went around it")
+                if any(e[1] != "proof.ovh.net:443" for e in tunnels):
+                    finding("medium", "proxytls", f"{label}: a tunnel to somewhere else: {tunnels}")
+            finally:
+                dm.stop()
+                shutil.rmtree(dm.out, ignore_errors=True)
+    finally:
+        proxy.shutdown()
+
+
+def p_fulldisk(ctx):
+    """A full disk (macOS): the download folder a 30 MB disk image; a 50 MB file fails with a reason and dm goes on; a 5 MB one then lands."""
+    if sys.platform != "darwin":
+        finding("low", "fulldisk", "needs hdiutil (macOS); not run")
+        return
+    base, root = ctx["base"], ctx["root"]
+    image = root / "small.dmg"
+    mount = root / "small-volume"
+    made = subprocess.run(["hdiutil", "create", "-size", "30m", "-fs", "HFS+", "-volname", "dmfull", "-ov", str(image)], capture_output=True, text=True)
+    if made.returncode:
+        finding("low", "fulldisk", f"no disk image could be made: {made.stderr.strip()}")
+        return
+    mount.mkdir()
+    attached = subprocess.run(["hdiutil", "attach", "-nobrowse", "-mountpoint", str(mount), str(image)], capture_output=True, text=True)
+    if attached.returncode:
+        finding("low", "fulldisk", f"the disk image would not attach: {attached.stderr.strip()}")
+        return
+    try:
+        dm = DM(root, {"connections": 4, "retries": 1, "download_dir": str(mount)}, name="fulldisk").start()
+        try:
+            dm.add([f"{base}/f/big/{50 * MB}/big.bin"])
+            # Out of room, a row is paused with why (`stalled`), to resume
+            # once there is room, not failed.
+            wait_for(lambda: any(r["state"]["kind"] in ("completed", "failed", "paused") for r in dm.rows()), 120)
+            row = dm.rows()[0]
+            kind = row["state"]["kind"]
+            reason = row["state"].get("reason", "") or row.get("stalled", "")
+            measure("fulldisk", f"50 MB into a 30 MB volume: {kind}: {reason}")
+            if kind == "completed":
+                finding("critical", "fulldisk", "a 50 MB file was said to complete on a 30 MB volume")
+            elif kind == "running":
+                finding("high", "fulldisk", "a download that cannot fit is still said to be running")
+            elif not reason:
+                finding("medium", "fulldisk", f"it stopped ({kind}) without saying why")
+            left = [p.name for p in mount.iterdir() if not p.name.startswith(".")]
+            measure("fulldisk", f"left on the volume after the failure: {left}")
+            # Two that each fit the check before they start, and together do
+            # not: the disk fills while the second is being put in place.
+            dm.add([f"{base}/f/twoa/{20 * MB}/twoa.bin", f"{base}/f/twob/{20 * MB}/twob.bin"])
+            two = lambda: [r for r in dm.rows() if r["url"].endswith(("twoa.bin", "twob.bin"))]
+            wait_for(lambda: len(two()) == 2 and all(r["state"]["kind"] in ("completed", "failed", "paused") for r in two()), 180)
+            kinds = sorted(r["state"]["kind"] for r in two())
+            why = [r.get("stalled") or r["state"].get("reason", "") for r in two() if r["state"]["kind"] != "completed"]
+            on_volume = sorted((p.name, p.stat().st_size) for p in mount.iterdir() if not p.name.startswith("."))
+            measure("fulldisk", f"two of 20 MB into the 29 MB left: {kinds}; why: {why}; on the volume: {on_volume}")
+            if kinds.count("completed") != 1:
+                finding("high", "fulldisk", f"two files that do not fit together: {kinds}, not one in and one waiting")
+            if any(not w for w in why):
+                finding("medium", "fulldisk", "the one that did not fit says nothing of why")
+            done = [r for r in two() if r["state"]["kind"] == "completed"]
+            partial = [n for n, size in on_volume if size != 20 * MB]
+            if partial:
+                finding("medium", "fulldisk", f"a part-written file left in the download folder: {partial}")
+            # Room again, and the one waiting resumes into it.
+            for r in done:
+                pathlib.Path(r["path"]).unlink(missing_ok=True)
+            waiting = [r for r in two() if r["state"]["kind"] != "completed"]
+            for r in waiting:
+                dm.call("downloads.resume", ids=[r["id"]])
+            wait_for(lambda: all(r["state"]["kind"] in ("completed", "failed") for r in two()), 120)
+            kinds = sorted(r["state"]["kind"] for r in two())
+            measure("fulldisk", f"with room again, resumed: {kinds}")
+            if waiting and kinds != ["completed", "completed"]:
+                finding("high", "fulldisk", f"the download that waited for room did not finish once there was room: {kinds}")
+            # dm still answers, and a file that fits lands.
+            dm.add([f"{base}/f/fits/{5 * MB}/fits.bin"])
+            wait_for(lambda: any(r["url"].endswith("fits.bin") and r["state"]["kind"] in ("completed", "failed") for r in dm.rows()), 120)
+            fits = next(r for r in dm.rows() if r["url"].endswith("fits.bin"))
+            ok, bad = verify([fits], {"fits.bin": ("fits", 5 * MB)})
+            measure("fulldisk", f"then a 5 MB file: {fits['state']['kind']}, byte-exact: {ok == 1}")
+            if ok != 1:
+                finding("high", "fulldisk", f"after a full disk, a file that fits did not land whole: {fits['state']} {bad[:1]}")
+        finally:
+            dm.stop()
+    finally:
+        subprocess.run(["hdiutil", "detach", "-force", str(mount)], capture_output=True)
+
+OPT_IN = {"realtorrent": p_realtorrent, "proxytls": p_proxytls, "fulldisk": p_fulldisk}
 
 
 # ----------------------------------------------------------------- main

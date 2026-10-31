@@ -108,7 +108,7 @@ fn common_failures_have_plain_reasons() {
     let cut = "network: error decoding response body: error reading a body from connection";
     assert_eq!(
         reason(cut),
-        Some("the server ended the connection before the file was complete")
+        Some("the connection dropped before the file was complete. Try again")
     );
     assert_eq!(
         reason("network: connection reset by peer (os error 54)"),
@@ -139,7 +139,7 @@ fn common_failures_have_plain_reasons() {
     assert_eq!(retry_cause("disk: No space left on device"), None);
     assert_eq!(
         reason("network: error following redirect for url (http://a/loop): too many redirects"),
-        Some("the site sends the address round in a loop of redirects")
+        Some("the site keeps redirecting in a loop, so the file can't be reached")
     );
     assert_eq!(
         reason("disk: No space left on device (os error 28)"),
@@ -157,49 +157,49 @@ fn common_failures_have_plain_reasons() {
     );
     assert_eq!(
             reason("could not read the torrent file /home/a/x.torrent: No such file or directory (os error 2)"),
-            Some("the .torrent file could not be read")
+            Some("the .torrent file couldn't be read. It may be damaged")
         );
     assert_eq!(
             reason("network: error sending request for url (http://h/x) — SOCKS error: failed to create underlying connection"),
-            Some("the server could not be reached"),
+            Some("the server couldn't be reached. Check that you're online"),
             "only the words before the dash decide"
         );
     assert_eq!(
             reason("the server answered 401 Unauthorized for http://h/x"),
-            Some("the server wants a sign-in (Properties › Login, or Options › Sign-ins for the whole site)")
+            Some("the server wants you to sign in. Add the login in Properties › Login, or in Options › Sign-ins for the whole site")
         );
     assert_eq!(
         reason("the server answered 502 Bad Gateway for https://e.com/a — upstream timed out"),
-        Some("the server had a problem on its side: try again later"),
+        Some("the server had a problem on its end. Try again later"),
         "the server's status decides, not the page's \"timed out\""
     );
     assert_eq!(
         reason(
             "the server answered 500 Internal Server Error for http://127.0.0.1:1/broken-link.zip"
         ),
-        Some("the server had a problem on its side: try again later")
+        Some("the server had a problem on its end. Try again later")
     );
     assert_eq!(
             reason("the server answered 429 Too Many Requests for https://www.google.com/sorry/index — In order to continue"),
-            Some("the site is turning away too many requests just now: try again later")
+            Some("the site is busy and turning downloads away. Try again in a few minutes")
         );
     assert_eq!(
             reason("yt-dlp could not download that: ERROR: [youtube] x: Sign in to confirm you're not a bot"),
-            Some("the site wants to check you are not a bot: play the video in your browser, then use its Download video button")
+            Some("the site wants to check you're not a bot. Play the video in your browser, then use the Download video button on it")
         );
     assert_eq!(
         reason("yt-dlp could not download that: ERROR: [youtube] x: Video unavailable"),
         Some(
-            "this video is not available: it may be private, removed or not shown in your country"
+            "this video isn't available. It may be private, removed, or not shown in your country"
         )
     );
     assert_eq!(
         reason("yt-dlp could not download that: ERROR: Requested format is not available"),
-        Some("dm could not get the video from this page")
+        Some("dm couldn't get the video from this page")
     );
     assert_eq!(
             reason("dm's video helper could not be got ready (network: error sending request for url (https://github.com/x))"),
-            Some("dm could not get ready for videos: check that you are online or install yt-dlp yourself, then click Retry")
+            Some("dm couldn't get ready for videos. Check that you're online, or install yt-dlp yourself, then click Retry")
         );
     assert_eq!(
         reason("could not write C:\\Users\\me\\no space left\\a.zip"),
@@ -207,7 +207,7 @@ fn common_failures_have_plain_reasons() {
     );
     assert_eq!(
             reason("error sending request for url (https://e.com/a): invalid peer certificate: UnknownIssuer"),
-            Some("the server's security certificate could not be checked")
+            Some("the site's security certificate couldn't be checked, so dm didn't connect")
         );
 }
 

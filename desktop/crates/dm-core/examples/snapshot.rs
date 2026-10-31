@@ -48,6 +48,7 @@ async fn main() {
             quality: Quality::default(),
             sound: None,
             span: None,
+            shape: None,
             media: false,
             referrer: None,
             proxy: None,

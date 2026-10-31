@@ -404,7 +404,8 @@ desktop/
                           live), dash.rs (a DASH stream: fetch both tracks, join), assemble.rs, space.rs (free-disk accounting), files.rs (parts, names)
     queue/                several downloads, a limit, and the states between: mod.rs (the state),
                           runner.rs (what starts and when), actions.rs (pause, resume, cancel,
-                          remove), settings.rs, persist.rs, edit.rs, recheck.rs, queues.rs
+                          remove), settings.rs, persist.rs, journal.rs (a long list saves
+                          only what changed), edit.rs, recheck.rs, queues.rs
     plan.rs               how a file is cut into ranges
     probe.rs              size, name, and whether it can be resumed
     progress.rs           smoothed rate and time remaining

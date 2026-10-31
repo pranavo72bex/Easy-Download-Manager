@@ -28,7 +28,7 @@ impl DmApp {
         QUEUE_CHANGED.store(false, std::sync::atomic::Ordering::Release);
         self.take_when_done();
         self.take_new_download();
-        self.rows = self.backend.list();
+        self.rows = self.backend.list_shared();
         self.rows_gen += 1;
         self.place_rows();
         set_retrying(self.backend.retrying());
@@ -151,7 +151,7 @@ impl DmApp {
         // own download go, so there is nothing left to ask. Said, as Add
         // URL would have asked.
         if self.notify_ready {
-            let fresh = |row: &&Entry| {
+            let fresh = |row: &&Arc<Entry>| {
                 !self.last_state.contains_key(&row.id) && !self.own.contains(&row.id)
             };
             let again = self.rows.iter().filter(fresh).find(|row| {
@@ -213,8 +213,13 @@ impl DmApp {
                     _ => continue,
                 },
             };
-            row.progress.total = Some(size);
-            row.progress.downloaded = size;
+            // Copied only where the figures differ: an unchanged row stays
+            // the queue's own, which is how the next read knows it.
+            if row.progress.total != Some(size) || row.progress.downloaded != size {
+                let row = Arc::make_mut(row);
+                row.progress.total = Some(size);
+                row.progress.downloaded = size;
+            }
         }
     }
 
@@ -430,11 +435,11 @@ impl DmApp {
             .rows
             .iter()
             .find(|r| r.id == id)
-            .map(name_of)
+            .map(|r| name_of(r))
             .unwrap_or_default();
         ui.horizontal_wrapped(|ui| {
             ui.label(tf(
-                "Click the download again on the page in your browser: dm takes it as the new link for {}.",
+                "Click the download again on its page in your browser, and dm uses that as the new link for {}.",
                 &[&crate::bidi::visual(&name)],
             ));
             if ui.button(t("Cancel")).clicked() {
@@ -668,7 +673,7 @@ impl DmApp {
             .rows
             .iter()
             .filter(|r| r.delete_due_in(now) == Some(0))
-            .cloned()
+            .map(|r| Entry::clone(r))
             .collect();
         if due.is_empty() {
             return;

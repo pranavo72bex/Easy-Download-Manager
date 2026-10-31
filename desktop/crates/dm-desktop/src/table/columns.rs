@@ -57,12 +57,17 @@ pub(super) fn reorder(app: &mut DmApp, ui: &egui::Ui, clip: Option<egui::Rect>) 
     }
 }
 
-pub(super) fn files_to_drag(app: &DmApp, rows: &[Entry], i: usize) -> Vec<std::path::PathBuf> {
+pub(super) fn files_to_drag(
+    app: &DmApp,
+    rows: &[std::sync::Arc<Entry>],
+    i: usize,
+) -> Vec<std::path::PathBuf> {
     let Some(start) = rows.get(i) else {
         return Vec::new();
     };
     let carried: Vec<&Entry> = if app.selected.contains(&start.id) {
         rows.iter()
+            .map(|r| &**r)
             .filter(|r| app.selected.contains(&r.id))
             .collect()
     } else {

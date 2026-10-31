@@ -2972,3 +2972,110 @@ async fn a_row_keeps_when_its_file_is_to_be_deleted() {
     assert!(second.set_delete_after(id, None).await);
     assert_eq!(row(second.list().await).delete_after, None);
 }
+
+#[tokio::test]
+async fn a_shared_list_hands_back_an_unchanged_row_as_the_same_row() {
+    let dir = tempdir();
+    let q = queue(dir.path(), 1);
+    let mut ids = Vec::new();
+    for i in 0..3 {
+        let options = dm_core::AddOptions {
+            later: true,
+            ..Default::default()
+        };
+        let address = format!("http://127.0.0.1:9/f{i}.bin");
+        ids.push(q.add_with(&address, options).await.unwrap());
+    }
+    let before = q.list_shared().await;
+    assert!(q.set_description(ids[1], "changed").await);
+    let after = q.list_shared().await;
+    assert!(
+        std::sync::Arc::ptr_eq(&before[0], &after[0]),
+        "an unchanged row was copied"
+    );
+    assert!(
+        std::sync::Arc::ptr_eq(&before[2], &after[2]),
+        "an unchanged row was copied"
+    );
+    assert!(
+        !std::sync::Arc::ptr_eq(&before[1], &after[1]),
+        "a changed row came back as it was"
+    );
+    // The list read before the change still says what it said.
+    assert_eq!(before[1].description, "");
+    assert_eq!(after[1].description, "changed");
+    // And the copying list agrees with the shared one.
+    let copied = q.list().await;
+    assert_eq!(copied.len(), 3);
+    assert!(copied
+        .iter()
+        .zip(&after)
+        .all(|(c, s)| c.id == s.id && c.description == s.description));
+}
+
+/// A long list (past the length written whole at every save): what changed
+/// goes to the journal, and a restart that never wrote the whole list again
+/// (a dm killed) reads every change back.
+#[tokio::test]
+async fn a_long_list_comes_back_whole_from_its_file_and_journal() {
+    let dir = tempdir();
+    let store = dir.path().join("queue.json");
+    let first = queue(dir.path(), 1);
+    first.persist_to(store.clone()).await;
+    let mut ids = Vec::new();
+    for i in 0..600 {
+        let options = dm_core::AddOptions {
+            later: true,
+            ..Default::default()
+        };
+        let address = format!("http://127.0.0.1:9/f{i}.bin");
+        ids.push(first.add_with(&address, options).await.unwrap());
+    }
+    first.flush().await;
+    // A write of the whole list, so what follows is the journal's.
+    let whole = std::fs::metadata(&store).unwrap().len();
+    assert!(first.set_description(ids[3], "a note").await);
+    assert!(first.set_queue(ids[7], "Night").await);
+    first.remove(ids[11]).await;
+    let login = common::with_login("https://127.0.0.1:9/late.bin", "me", "open sesame");
+    let added = first
+        .add_with(
+            &login,
+            dm_core::AddOptions {
+                later: true,
+                ..Default::default()
+            },
+        )
+        .await
+        .unwrap();
+    first.flush().await;
+    let journal = dir.path().join("queue.journal");
+    assert!(journal.exists(), "no journal for a long list");
+    let written = std::fs::read_to_string(&journal).unwrap();
+    assert!(!written.contains("sesame"), "a password in the journal");
+    let expected = first.list().await;
+    // Killed: the queue file is the one written before the changes.
+    drop(first);
+    let second = queue(dir.path(), 1);
+    second.persist_to(store.clone()).await;
+    let back = second.list().await;
+    assert_eq!(back.len(), expected.len());
+    for (b, e) in back.iter().zip(&expected) {
+        assert_eq!(
+            (b.id, &b.url, &b.description, &b.queue),
+            (e.id, &e.url, &e.description, &e.queue)
+        );
+    }
+    assert!(
+        back.iter().any(|r| r.id == added && r.url == login),
+        "the login was lost"
+    );
+    assert!(
+        !back.iter().any(|r| r.id == ids[11]),
+        "a removed row came back"
+    );
+    // The start folded the journal into the file.
+    second.flush().await;
+    assert!(!journal.exists(), "the journal outlived a start");
+    assert!(std::fs::metadata(&store).unwrap().len() != whole);
+}

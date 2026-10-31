@@ -79,13 +79,13 @@ pub(super) fn update_link(app: &mut DmApp, ctx: &egui::Context) {
 
 pub(super) fn move_to_queue(app: &mut DmApp, ctx: &egui::Context) {
     let focus = app.dialogs.take_focus("Move to queue");
+    let known = app.queues();
     let Some((ids, queue, new)) = app.dialogs.move_to_queue.as_mut() else {
         return;
     };
     let mut open = true;
     let mut ok = false;
     let mut cancel = false;
-    let known = app.backend.queues();
     // The queue is held as shown, so the field reads in the language in
     // force, and taken back to dm's own name on OK: typing "Principal" in
     // Spanish is the Main queue, not a new one beside it. The pick and a

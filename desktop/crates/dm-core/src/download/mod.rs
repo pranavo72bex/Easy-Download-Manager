@@ -81,6 +81,8 @@ pub struct Options {
     /// A video that cannot be cut that way fails and says so; nothing
     /// fetches the whole instead.
     pub span: Option<crate::clip::Span>,
+    /// Vertical or square for a part of a video (`shape`); `None` as it is.
+    pub shape: Option<crate::shape::Shape>,
     /// Media was asked for (a player's video, from the browser's panel or
     /// media menu): a page yt-dlp cannot read fails, rather than being
     /// fetched as the document its address ends like (a
@@ -1111,6 +1113,7 @@ mod tests {
             quality: Quality::Best,
             sound: None,
             span: None,
+            shape: None,
             media: false,
             referrer: None,
             proxy: None,

@@ -81,6 +81,14 @@ impl DmApp {
         self.rows_gen += 1;
         for row in &self.rows {
             use std::hash::{Hash, Hasher};
+            if self
+                .place_fingerprints
+                .get(&row.id)
+                .is_some_and(|(_, seen)| Arc::ptr_eq(seen, row))
+                && self.placed.contains_key(&row.id)
+            {
+                continue;
+            }
             let mut hasher = std::collections::hash_map::DefaultHasher::new();
             (
                 &row.url,
@@ -91,9 +99,11 @@ impl DmApp {
             )
                 .hash(&mut hasher);
             let fingerprint = hasher.finish();
-            if self.place_fingerprints.get(&row.id) == Some(&fingerprint)
+            if self.place_fingerprints.get(&row.id).map(|(f, _)| *f) == Some(fingerprint)
                 && self.placed.contains_key(&row.id)
             {
+                self.place_fingerprints
+                    .insert(row.id, (fingerprint, Arc::clone(row)));
                 continue;
             }
             // Each row's name worked out once: from its address, for a row
@@ -111,7 +121,8 @@ impl DmApp {
             let kind = dm_core::category::by_name(&name).or(row.category);
             self.haystacks.insert(row.id, haystack_named(&name, row));
             self.placed.insert(row.id, (kind, custom));
-            self.place_fingerprints.insert(row.id, fingerprint);
+            self.place_fingerprints
+                .insert(row.id, (fingerprint, Arc::clone(row)));
         }
         // Rows that are gone.
         if self.placed.len() != self.rows.len() {
@@ -146,7 +157,7 @@ impl DmApp {
     }
 
     /// The rows the table shows, in the order it shows them.
-    pub fn visible(&self) -> Vec<Entry> {
+    pub fn visible(&self) -> Vec<Arc<Entry>> {
         self.visible_shared().as_ref().clone()
     }
 
@@ -155,7 +166,7 @@ impl DmApp {
     /// the filter, the sort or a size a dialog told. The table asks every
     /// frame, and a copy and a sort of every row cost a few milliseconds a
     /// frame at 5,000 rows, in every frame the pointer moved.
-    pub fn visible_shared(&self) -> std::rc::Rc<Vec<Entry>> {
+    pub fn visible_shared(&self) -> SharedRows {
         let key = VisibleKey {
             list: self.rows_gen,
             place: self.place.clone(),
@@ -168,7 +179,7 @@ impl DmApp {
                 return std::rc::Rc::clone(rows);
             }
         }
-        let rows: Vec<Entry> = self
+        let rows: Vec<Arc<Entry>> = self
             .rows
             .iter()
             .filter(|r| self.shows(r))
@@ -181,12 +192,13 @@ impl DmApp {
 
     /// `rows` as the table shows them: with the size a dialog learned until
     /// the row knows its own, and in the order it is sorted.
-    fn shaped(&self, mut rows: Vec<Entry>) -> Vec<Entry> {
-        // What a dialog learned of a row's size, until the row knows it.
+    fn shaped(&self, mut rows: Vec<Arc<Entry>>) -> Vec<Arc<Entry>> {
+        // What a dialog learned of a row's size, until the row knows it:
+        // that row alone is copied, the rest stay shared.
         for row in &mut rows {
             if row.progress.total.is_none() {
                 if let Some(size) = self.sizes_told.get(&row.id) {
-                    row.progress.total = Some(*size);
+                    Arc::make_mut(row).progress.total = Some(*size);
                 }
             }
         }
@@ -214,13 +226,16 @@ impl DmApp {
         if self.selected.is_empty() {
             return Vec::new();
         }
-        let rows: Vec<Entry> = self
+        let rows: Vec<Arc<Entry>> = self
             .rows
             .iter()
             .filter(|r| self.selected.contains(&r.id) && self.shows(r))
             .cloned()
             .collect();
         self.shaped(rows)
+            .into_iter()
+            .map(Arc::unwrap_or_clone)
+            .collect()
     }
 
     /// The queue a queue command means: the one shown, or the main one.

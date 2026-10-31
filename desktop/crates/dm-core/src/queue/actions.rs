@@ -35,9 +35,9 @@ impl Queue {
                 return Err("that download is no longer listed".into());
             };
             let folder = dir.display().to_string();
-            slot.entry.parts_dir = parts.display().to_string();
-            slot.entry.save_dir = Some(folder.clone());
-            slot.entry.began_in = folder;
+            slot.entry_mut().parts_dir = parts.display().to_string();
+            slot.entry_mut().save_dir = Some(folder.clone());
+            slot.entry_mut().began_in = folder;
             slot.requeue();
         }
         self.kick();
@@ -47,7 +47,7 @@ impl Queue {
 
     pub async fn set_checksum(&self, id: Id, checksum: Option<Checksum>) {
         if let Some(slot) = self.inner.slots.lock().await.get_mut(&id) {
-            slot.entry.checksum = checksum;
+            slot.entry_mut().checksum = checksum;
         }
         self.save().await;
     }
@@ -137,7 +137,7 @@ impl Queue {
                 return false;
             }
             slot.requeue();
-            slot.entry.state = State::Running;
+            slot.entry_mut().state = State::Running;
             slot.outside_schedule = true;
             (slot.entry.url.clone(), slot.control.clone())
         };
@@ -167,7 +167,7 @@ impl Queue {
                 // too: left the schedule's, the window opening started it
                 // again, undoing the "Pause all" that came after.
                 if slot.entry.state == State::Paused {
-                    if std::mem::take(&mut slot.entry.paused_by_schedule) {
+                    if std::mem::take(&mut slot.entry_mut().paused_by_schedule) {
                         paused += 1;
                     }
                     continue;
@@ -228,7 +228,7 @@ impl Queue {
             return false;
         }
         slot.requeue();
-        slot.entry.progress = Progress {
+        slot.entry_mut().progress = Progress {
             downloaded: 0,
             total: slot.entry.progress.total,
             speed: 0.0,
@@ -249,9 +249,9 @@ impl Queue {
             return;
         }
         slot.control.cancel();
-        slot.entry.state = State::Cancelled;
+        slot.entry_mut().state = State::Cancelled;
         slot.stopped_moving();
-        slot.entry.finished_at = Some(now_seconds());
+        slot.entry_mut().finished_at = Some(now_seconds());
         drop(slots);
         self.discard_parts(id).await;
         self.save().await;
@@ -285,7 +285,7 @@ impl Queue {
             .filter(|(_, id)| ids.contains(id))
             .filter_map(|(at, id)| {
                 let entry = &slots.get(id)?.entry;
-                (entry.state == State::Completed).then(|| (at, entry.clone()))
+                (entry.state == State::Completed).then(|| (at, Entry::clone(entry)))
             })
             .collect()
     }
@@ -308,7 +308,7 @@ impl Queue {
                 slots.insert(
                     id,
                     Slot {
-                        entry,
+                        entry: Arc::new(entry),
                         control: Control::new(),
                         task: None,
                         outside_schedule: false,

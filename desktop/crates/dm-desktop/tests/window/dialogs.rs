@@ -251,7 +251,10 @@ fn a_double_click_opens_properties_and_open_runs_a_finished_file() {
     harness.state_mut().applied.double_click = "open".into();
     double_click(&mut harness, "file.zip");
     harness.run_steps(3);
-    assert_eq!(*world.fake.opened.lock().unwrap(), [row.path]);
+    assert_eq!(
+        *world.fake.opened.lock().unwrap(),
+        *std::slice::from_ref(&row.path)
+    );
     assert!(
         harness.state().dialogs.properties.is_empty(),
         "Properties opened instead"
@@ -1572,8 +1575,7 @@ fn import_says_the_lines_it_could_not_read() {
     harness.state_mut().import_text(&text, false);
     harness.run_steps(2);
     let said = harness.state().said.shown();
-    assert!(said.starts_with("Imported: 2."), "{said}");
-    assert!(said.ends_with(": 1."), "{said}");
+    assert!(said.starts_with("Imported 2. Skipped 1 lines"), "{said}");
 }
 
 /// Several links copied at once are all offered, through the
@@ -1944,4 +1946,68 @@ fn a_dialog_with_the_deepest_shadow_still_stands_whole_in_a_tall_window() {
             "OK {ok:?} is off the {width}x{height} window"
         );
     }
+}
+
+/// A video link copied at a moment (`&t=34`) offers that moment as the
+/// part's start in Download details; one click ticks the part and fills it.
+#[test]
+fn a_link_copied_at_a_moment_offers_that_moment_as_the_part() {
+    let world = world();
+    let mut harness = world.harness();
+    let _file = settings_file();
+    click(&mut harness, "Add URL");
+    type_into(
+        &mut harness,
+        "Address",
+        "https://www.youtube.com/watch?v=jNQXAC9IVRw&t=34",
+    );
+    click(&mut harness, "OK");
+    harness.run_steps(2);
+    assert!(harness
+        .query_by_label("This link starts at 0:34.")
+        .is_some());
+    click(&mut harness, "From 0:34");
+    harness.run_steps(2);
+    let d = harness.state().dialogs.file_info.as_ref().unwrap();
+    assert!(d.part, "the part was not ticked");
+    assert_eq!(d.part_from, "0:34");
+    assert!(harness
+        .query_by_label("This link starts at 0:34.")
+        .is_none());
+    click(&mut harness, "Cancel");
+}
+
+/// A part can be made vertical or square in Download details: the choice
+/// shows once Part is ticked, and goes with the part to its row.
+#[test]
+fn a_part_can_be_made_vertical_or_square() {
+    let world = world();
+    let mut harness = world.harness();
+    let _file = settings_file();
+    click(&mut harness, "Add URL");
+    type_into(
+        &mut harness,
+        "Address",
+        "https://www.youtube.com/watch?v=jNQXAC9IVRw&t=4",
+    );
+    click(&mut harness, "OK");
+    harness.run_steps(2);
+    assert!(harness.query_by_label("Vertical 9:16").is_none());
+    click(&mut harness, "From 0:04");
+    harness.run_steps(2);
+    {
+        let d = harness.state_mut().dialogs.file_info.as_mut().unwrap();
+        d.part_to = "0:09".into();
+    }
+    click(&mut harness, "Vertical 9:16");
+    harness.run_steps(2);
+    assert_eq!(
+        harness.state().dialogs.file_info.as_ref().unwrap().shape,
+        Some(dm_core::shape::Shape::Vertical)
+    );
+    click(&mut harness, "Add for later");
+    harness.run_steps(2);
+    let row = harness.state().rows().last().cloned().unwrap();
+    assert_eq!(row.shape, Some(dm_core::shape::Shape::Vertical));
+    assert!(row.span.is_some());
 }

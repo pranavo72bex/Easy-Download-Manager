@@ -9,6 +9,7 @@ impl Queue {
             let Some(plan) = crate::plan::recorded(&parts) else {
                 return Vec::new();
             };
+            let second = crate::second_path::on_second(&parts);
             plan.ranges
                 .iter()
                 .enumerate()
@@ -23,6 +24,7 @@ impl Queue {
                         end,
                         done: on_disk.min(span),
                         started: ledger.is_some() || part.is_some(),
+                        second: second.contains(&i),
                     }
                 })
                 .collect()

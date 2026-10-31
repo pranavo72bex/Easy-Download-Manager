@@ -23,6 +23,10 @@ const SPEED_LIMIT_KB: (u64, u64) = (0, 1024 * 1024);
 const LIMIT_MB: u64 = 1024 * 1024 * 1024;
 const LIMIT_HOURS: u64 = 24 * 31;
 
+/// Everything a person sets in dm, as `settings.json` keeps it: the window's
+/// Options, the list's columns and sort, the side panel, and what the
+/// browser's extension is told. A field missing from the file takes its
+/// default, so an older file still reads.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(default)]
 pub struct Settings {
@@ -57,6 +61,7 @@ pub struct Settings {
     /// The download limit: no more than this many megabytes
     /// every `limit_hours` hours. Zero is none.
     pub limit_mb: u64,
+    /// The span the download limit counts over, in hours.
     pub limit_hours: u64,
 
     /// Sort finished files into folders by kind. On for a new install.
@@ -179,11 +184,13 @@ pub struct Settings {
     /// The download list's columns in the order chosen, and those turned
     /// off, by their keys; empty is the default order, all shown.
     pub column_order: Vec<String>,
+    /// The columns turned off, by key.
     pub columns_hidden: Vec<String>,
     /// The column the list is sorted by, by its key, and which way; empty
     /// for the order downloads were added in. Kept so the list is sorted
     /// the same way at the next launch.
     pub sort_column: String,
+    /// Whether `sort_column` runs from the smallest up.
     #[serde(default = "yes")]
     pub sort_ascending: bool,
     /// Toolbar buttons taken off, by command id.
@@ -287,6 +294,7 @@ pub struct Settings {
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(default)]
 pub struct QueueStart {
+    /// The queue's name.
     pub queue: String,
     /// `HH:MM`, local time.
     pub at: String,
@@ -296,7 +304,9 @@ pub struct QueueStart {
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(default)]
 pub struct QueueLimit {
+    /// The queue's name.
     pub queue: String,
+    /// How many of its downloads run at once.
     pub files: usize,
 }
 
@@ -306,6 +316,7 @@ pub struct QueueLimit {
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(default)]
 pub struct SiteRule {
+    /// The site, which covers its subdomains.
     pub host: String,
     /// Where its downloads are saved, instead of the folder their kind has;
     /// empty keeps the kind's.
@@ -395,7 +406,9 @@ pub struct SiteLogin {
     /// The host, exactly: `example.com` does not cover `dl.example.com`.
     /// A leading dot (`.example.com`) also covers its subdomains.
     pub host: String,
+    /// The user name sent to that host.
     pub username: String,
+    /// The password sent with it, kept in this account's own file (0600).
     pub password: String,
 }
 
@@ -689,6 +702,7 @@ impl Settings {
             quality: self.quality(),
             sound: None,
             span: None,
+            shape: None,
             media: false,
             referrer: None,
             // For the tools dm runs; the client has its own copy.
@@ -781,6 +795,7 @@ impl Settings {
         Quality::named(&self.stream_quality)
     }
 
+    /// Where the settings are kept: `settings.json` in dm's home.
     pub fn path() -> PathBuf {
         home().join("settings.json")
     }
@@ -905,6 +920,8 @@ impl Settings {
         (settings, notes)
     }
 
+    /// Writes the settings to [`Settings::path`] at once, readable by this
+    /// account alone; a stop mid-write leaves the file before it whole.
     pub fn save(&self) -> std::io::Result<()> {
         dm_core::write_atomic(
             &Self::path(),
@@ -950,6 +967,8 @@ impl Settings {
         with
     }
 
+    /// `url` with the login Options › Sign-ins keeps for its host, where it
+    /// has none of its own; else as it is.
     pub fn with_login(&self, url: &str) -> String {
         let Ok(mut parsed) = url::Url::parse(url) else {
             return url.to_string();

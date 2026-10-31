@@ -503,7 +503,7 @@ fn options_refuses_a_category_that_is_not_one_folder_and_a_relative_download_fol
     harness.run_steps(2);
     click(&mut harness, "OK");
     assert!(harness
-        .query_by_label_contains("cannot be a category")
+        .query_by_label_contains("can't be a category")
         .is_some());
     assert_eq!(
         harness.state().backend().settings().custom_categories,
@@ -600,7 +600,7 @@ fn options_holds_only_new_or_renamed_folders_to_every_computers_rules() {
     click(&mut harness, "OK");
     assert!(
         harness
-            .query_by_label_contains("not a folder name every computer can use")
+            .query_by_label_contains("because its name is also its folder")
             .is_some(),
         "{:?} {:?}",
         harness
@@ -1057,4 +1057,28 @@ fn restore_defaults_puts_a_tab_back_and_only_that_tab() {
     dialog.restore_defaults();
     assert_eq!(dialog.draft.catch.extensions, defaults.catch.extensions);
     assert_eq!(dialog.types, defaults.catch.extensions.join(" "));
+}
+
+/// Options › Network says how to have a phone as the second network, in
+/// steps folded away until asked for.
+#[test]
+fn the_second_network_says_how_to_use_a_phone_step_by_step() {
+    let world = world();
+    let mut harness = world.harness();
+    click(&mut harness, "Options");
+    click(&mut harness, "Network");
+    harness.run_steps(2);
+    assert!(harness
+        .query_by_label_contains("Turn on its hotspot")
+        .is_none());
+    click(&mut harness, "How to use your phone");
+    harness.run_steps(2);
+    for step in [
+        "1. Connect your phone",
+        "2. Turn on its hotspot",
+        "3. Choose it above",
+    ] {
+        assert!(harness.query_by_label_contains(step).is_some(), "{step}");
+    }
+    click(&mut harness, "Cancel");
 }

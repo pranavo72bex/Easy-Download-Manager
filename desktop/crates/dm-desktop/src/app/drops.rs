@@ -51,6 +51,7 @@ impl DmApp {
         let running: Vec<&dm_core::Entry> = self
             .rows
             .iter()
+            .map(|r| &**r)
             .filter(|r| r.state == dm_core::State::Running)
             .collect();
         let total: u64 = running.iter().filter_map(|r| r.progress.total).sum();

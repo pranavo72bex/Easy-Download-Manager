@@ -23,8 +23,13 @@ pub enum Mode {
 }
 
 /// What the rows say the button should show; `now` is seconds since 1970.
-pub fn mode_of(rows: &[Entry], now: u64) -> Mode {
-    let running: Vec<&Entry> = rows.iter().filter(|r| r.state == State::Running).collect();
+pub fn mode_of<R: std::borrow::Borrow<Entry>>(rows: &[R], now: u64) -> Mode {
+    let rows: Vec<&Entry> = rows.iter().map(|r| r.borrow()).collect();
+    let running: Vec<&Entry> = rows
+        .iter()
+        .copied()
+        .filter(|r| r.state == State::Running)
+        .collect();
     if !running.is_empty() {
         let (mut done, mut total) = (0u64, 0u64);
         for row in &running {
@@ -214,6 +219,7 @@ mod tests {
             quality: None,
             sound: None,
             span: None,
+            shape: None,
             delete_after: None,
             parts_dir: String::new(),
             began_in: String::new(),

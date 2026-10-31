@@ -8,7 +8,7 @@ impl DmApp {
         // that did nothing.
         if !self.backend.platform.can_choose_file() {
             self.said = crate::i18n::Said::new(
-                "No file chooser on this desktop to pick an application with; Open uses the file's usual one.",
+                "This desktop has no app picker, so Open uses the file's usual app.",
                 &[],
             );
         } else if let Some(app) = self.backend.platform.choose_app() {

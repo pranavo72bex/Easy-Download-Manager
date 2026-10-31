@@ -17,10 +17,10 @@ pub(super) fn file_info(app: &mut DmApp, ctx: &egui::Context) {
         return;
     }
     let focus = app.dialogs.take_focus("Download details");
+    let queues = app.queues();
     let Some(d) = app.dialogs.file_info.as_mut() else {
         return;
     };
-    let queues = app.backend.queues();
     let default_dir = app.applied.download_dir.display().to_string();
     // Each kind's folder, and each category a person made, to pick from:
     // a file can go to another kind's folder without typing its path.
@@ -427,8 +427,21 @@ pub(super) fn file_info(app: &mut DmApp, ctx: &egui::Context) {
                     // YouTube video's.
                     if youtube {
                         ui.label(t("Part"));
+                        let starts = dm_core::youtube::start_of(&first);
                         ui.horizontal(|ui| {
                             ui.checkbox(&mut d.part, t("Only a part of the video"));
+                            // A link copied at a moment of the video: that
+                            // moment offered as the part's start.
+                            if let (false, Some(at)) = (d.part, starts) {
+                                let at = clock(at);
+                                ui.label(
+                                    RichText::new(tf("This link starts at {}.", &[&at])).weak(),
+                                );
+                                if ui.button(tf("From {}", &[&at])).clicked() {
+                                    d.part = true;
+                                    d.part_from = at;
+                                }
+                            }
                             if d.part {
                                 ui.label(t("part:from").trim_start_matches("part:"));
                                 ui.add(
@@ -445,6 +458,24 @@ pub(super) fn file_info(app: &mut DmApp, ctx: &egui::Context) {
                             }
                         });
                         ui.end_row();
+                        // The part's shape: as it is, or the middle of the
+                        // picture made vertical or square, nothing re-encoded.
+                        if d.part {
+                            use dm_core::shape::Shape;
+                            ui.label(t("Shape"));
+                            ui.horizontal(|ui| {
+                                for (shape, words) in [
+                                    (None, t("As it is")),
+                                    (Some(Shape::Vertical), t("Vertical 9:16")),
+                                    (Some(Shape::Square), t("Square 1:1")),
+                                ] {
+                                    if ui.selectable_label(d.shape == shape, words).clicked() {
+                                        d.shape = shape;
+                                    }
+                                }
+                            });
+                            ui.end_row();
+                        }
                     }
                     // The size, once the server has said it: its
                     // line is there from the start, so the buttons below do
@@ -587,7 +618,7 @@ pub(super) fn file_info(app: &mut DmApp, ctx: &egui::Context) {
         match dm_core::Span::parse(&d.part_from, &d.part_to) {
             Some(span) => d.span = Some(span),
             None => {
-                d.says = t("The part's start and end are minutes and seconds, such as 4:10 and 4:45, the end after the start.").to_string();
+                d.says = t("Enter the start and end as minutes and seconds, such as 4:10 and 4:45. The end comes after the start.").to_string();
                 return;
             }
         }
@@ -612,6 +643,7 @@ pub(super) fn file_info(app: &mut DmApp, ctx: &egui::Context) {
         quality: d.quality.clone(),
         sound: d.sound.clone(),
         span: d.span,
+        shape: d.shape.filter(|_| d.span.is_some()),
         delete_after: None,
         cookies: d.cookies.clone(),
         cookies_once: d.cookies_once,
@@ -726,5 +758,26 @@ fn chip_words(choice: &dm_core::ytdlp::Choice) -> String {
     match choice.size {
         Some(size) => format!("{}\n{}", top.trim(), format::bytes(size)),
         None => top.trim().to_string(),
+    }
+}
+
+/// Seconds as a person writes a moment of a video: `0:34`, `12:05`,
+/// `1:02:03`.
+fn clock(seconds: u64) -> String {
+    let (h, m, s) = (seconds / 3600, seconds / 60 % 60, seconds % 60);
+    if h > 0 {
+        format!("{h}:{m:02}:{s:02}")
+    } else {
+        format!("{m}:{s:02}")
+    }
+}
+
+#[cfg(test)]
+mod clock_tests {
+    #[test]
+    fn a_moment_reads_as_a_player_shows_it() {
+        assert_eq!(super::clock(34), "0:34");
+        assert_eq!(super::clock(725), "12:05");
+        assert_eq!(super::clock(3723), "1:02:03");
     }
 }

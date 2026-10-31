@@ -51,6 +51,24 @@ const CHUNK: u64 = 10 << 20;
 /// How long the whole reading may take.
 const WITHIN: std::time::Duration = std::time::Duration::from_secs(60);
 
+/// The moment a video address starts at, in whole seconds: `t=` or
+/// `start=` in its query or its `#t=` fragment, as YouTube writes them
+/// ("34", "34s", "1m30s", "1h2m3s"). `None` without one, or at 0.
+pub fn start_of(url: &str) -> Option<u64> {
+    let parsed = url::Url::parse(url.trim()).ok()?;
+    let fragment = parsed.fragment().unwrap_or_default().to_string();
+    let from_fragment = url::form_urlencoded::parse(fragment.as_bytes())
+        .find(|(k, _)| k == "t")
+        .map(|(_, v)| v.into_owned());
+    let given = parsed
+        .query_pairs()
+        .find(|(k, _)| k == "t" || k == "start")
+        .map(|(_, v)| v.into_owned())
+        .or(from_fragment)?;
+    let seconds = crate::clip::Span::seconds(&given)?;
+    (seconds >= 1.0 && seconds.is_finite()).then_some(seconds as u64)
+}
+
 /// A playlist's id in a playlist address (`/playlist?list=…`). A watch
 /// address with a list beside its video is that video's: `None`.
 pub fn playlist_id(url: &str) -> Option<String> {
@@ -1343,6 +1361,21 @@ fn safe_title(title: &str) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn a_link_says_where_it_starts_in_each_of_youtubes_ways() {
+        let at = |u: &str| start_of(u);
+        assert_eq!(at("https://www.youtube.com/watch?v=abc&t=34"), Some(34));
+        assert_eq!(at("https://youtu.be/abc?t=1m30s"), Some(90));
+        assert_eq!(
+            at("https://www.youtube.com/watch?v=abc#t=1h2m3s"),
+            Some(3723)
+        );
+        assert_eq!(at("https://www.youtube.com/embed/abc?start=75"), Some(75));
+        assert_eq!(at("https://www.youtube.com/watch?v=abc&t=0"), None);
+        assert_eq!(at("https://www.youtube.com/watch?v=abc"), None);
+        assert_eq!(at("https://www.youtube.com/watch?v=abc&t=soon"), None);
+    }
 
     #[test]
     fn a_video_id_is_read_from_every_address_shape() {

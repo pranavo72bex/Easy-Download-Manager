@@ -33,7 +33,7 @@ impl Queue {
                     slot.hold(false);
                     stopped += 1;
                 } else if slot.entry.state == State::Paused
-                    && std::mem::take(&mut slot.entry.paused_by_schedule)
+                    && std::mem::take(&mut slot.entry_mut().paused_by_schedule)
                 {
                     // Held by the schedule, now stopped by a person: not
                     // started again when the window opens.
@@ -59,11 +59,11 @@ impl Queue {
         };
         let to = rename_free(&path, name).await.map_err(|e| e.to_string())?;
         self.edit(id, |slot| {
-            slot.entry.filename = to
+            slot.entry_mut().filename = to
                 .file_name()
                 .map(|n| n.to_string_lossy().into_owned())
                 .unwrap_or_default();
-            slot.entry.path = to.to_string_lossy().into_owned();
+            slot.entry_mut().path = to.to_string_lossy().into_owned();
             true
         })
         .await;
@@ -104,11 +104,11 @@ impl Queue {
             let _ = tokio::fs::remove_file(&from).await;
         }
         self.edit(id, |slot| {
-            slot.entry.filename = to
+            slot.entry_mut().filename = to
                 .file_name()
                 .map(|n| n.to_string_lossy().into_owned())
                 .unwrap_or_default();
-            slot.entry.path = to.to_string_lossy().into_owned();
+            slot.entry_mut().path = to.to_string_lossy().into_owned();
             true
         })
         .await;
@@ -121,13 +121,24 @@ impl Queue {
         // every row to read one name from each was most of what it cost.
         let slots = self.inner.slots.lock().await;
         let order = self.inner.order.lock().await;
-        let mut names = vec![MAIN_QUEUE.to_string(), RECHECK_QUEUE.to_string()];
-        for slot in order.iter().filter_map(|id| slots.get(id)) {
-            let queue = &slot.entry.queue;
-            if !queue.is_empty() && !names.contains(queue) {
-                names.push(queue.clone());
-            }
-        }
-        names
+        queue_names(
+            order
+                .iter()
+                .filter_map(|id| slots.get(id))
+                .map(|s| &*s.entry),
+        )
     }
+}
+
+/// The queues `rows` name, as [`Queue::queues`] lists them: the main queue
+/// and the recheck queue first, then each other one where it first appears.
+/// For a reader holding the list already (the window), with no lock.
+pub fn queue_names<'a>(rows: impl IntoIterator<Item = &'a Entry>) -> Vec<String> {
+    let mut names = vec![MAIN_QUEUE.to_string(), RECHECK_QUEUE.to_string()];
+    for row in rows {
+        if !row.queue.is_empty() && !names.contains(&row.queue) {
+            names.push(row.queue.clone());
+        }
+    }
+    names
 }

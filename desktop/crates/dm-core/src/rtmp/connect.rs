@@ -6,6 +6,15 @@ pub(super) trait Io: AsyncRead + AsyncWrite + Unpin + Send {}
 impl<T: AsyncRead + AsyncWrite + Unpin + Send> Io for T {}
 
 pub(super) async fn open(target: &Target) -> Result<Box<dyn Io>, Error> {
+    open_with(target, tls_config).await
+}
+
+/// [`open`], with the TLS `config` an `rtmps://` address is checked by
+/// (a test's own root, where a test needs one).
+async fn open_with(
+    target: &Target,
+    config: impl FnOnce() -> Result<Arc<tokio_rustls::rustls::ClientConfig>, Error>,
+) -> Result<Box<dyn Io>, Error> {
     if target.tunnel {
         return tunnel(target).await;
     }
@@ -21,7 +30,7 @@ pub(super) async fn open(target: &Target) -> Result<Box<dyn Io>, Error> {
     }
     let name = tokio_rustls::rustls::pki_types::ServerName::try_from(target.host.clone())
         .map_err(|e| Error::Internal(format!("{}: {e}", target.host)))?;
-    let tls = tokio_rustls::TlsConnector::from(tls_config()?)
+    let tls = tokio_rustls::TlsConnector::from(config()?)
         .connect(name, tcp)
         .await?;
     Ok(Box::new(tls))
@@ -164,4 +173,89 @@ pub(super) async fn handshake(io: &mut dyn Io) -> Result<(), Error> {
     let mut s2 = vec![0u8; 1536];
     io.read_exact(&mut s2).await?;
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use tokio_rustls::rustls;
+
+    /// A TLS server on loopback with a certificate made here: what it read
+    /// first, once a client has written to it.
+    async fn tls_server() -> (
+        u16,
+        rustls::pki_types::CertificateDer<'static>,
+        tokio::task::JoinHandle<Vec<u8>>,
+    ) {
+        let made = rcgen::generate_simple_self_signed(vec!["localhost".into()]).unwrap();
+        let cert = made.cert.der().clone();
+        let key =
+            rustls::pki_types::PrivateKeyDer::try_from(made.signing_key.serialize_der()).unwrap();
+        let server = rustls::ServerConfig::builder_with_provider(Arc::new(
+            rustls::crypto::ring::default_provider(),
+        ))
+        .with_safe_default_protocol_versions()
+        .unwrap()
+        .with_no_client_auth()
+        .with_single_cert(vec![cert.clone()], key)
+        .unwrap();
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let port = listener.local_addr().unwrap().port();
+        let acceptor = tokio_rustls::TlsAcceptor::from(Arc::new(server));
+        let served = tokio::spawn(async move {
+            let (tcp, _) = listener.accept().await.unwrap();
+            let Ok(mut tls) = acceptor.accept(tcp).await else {
+                return Vec::new();
+            };
+            let mut first = vec![0u8; 1];
+            match tls.read_exact(&mut first).await {
+                Ok(_) => first,
+                Err(_) => Vec::new(),
+            }
+        });
+        (port, cert, served)
+    }
+
+    fn rtmps(port: u16) -> Target {
+        super::super::target(&format!("rtmps://localhost:{port}/live/show")).unwrap()
+    }
+
+    #[tokio::test]
+    async fn an_rtmps_address_is_carried_over_tls() {
+        let (port, cert, served) = tls_server().await;
+        let mut roots = rustls::RootCertStore::empty();
+        roots.add(cert).unwrap();
+        let config = rustls::ClientConfig::builder_with_provider(Arc::new(
+            rustls::crypto::ring::default_provider(),
+        ))
+        .with_safe_default_protocol_versions()
+        .unwrap()
+        .with_root_certificates(roots)
+        .with_no_client_auth();
+        let target = rtmps(port);
+        assert!(target.tls && !target.tunnel);
+        let mut io = open_with(&target, || Ok(Arc::new(config))).await.unwrap();
+        // RTMP's C0: the version byte, the handshake's first.
+        io.write_all(&[3]).await.unwrap();
+        io.flush().await.unwrap();
+        assert_eq!(
+            served.await.unwrap(),
+            vec![3],
+            "the server did not read it over TLS"
+        );
+    }
+
+    #[tokio::test]
+    async fn an_rtmps_server_the_public_roots_do_not_vouch_for_is_refused() {
+        let (port, _cert, served) = tls_server().await;
+        let refused = open(&rtmps(port)).await;
+        assert!(
+            refused.is_err(),
+            "a certificate nobody vouches for was taken"
+        );
+        assert!(
+            served.await.unwrap().is_empty(),
+            "bytes went to an unchecked server"
+        );
+    }
 }

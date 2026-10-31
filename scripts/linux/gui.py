@@ -556,7 +556,7 @@ def finished_files_by_hand(home, base, site, good, evil):
     # A folder to watch, set in Options and used at once.
     watched = home / "watched-by-hand"
     watched.mkdir(exist_ok=True)
-    label = 'Watch a folder for links: a .url, .webloc or text file of links, or a .torrent saved there is added and moved to its "done" folder (empty is off)'
+    label = 'Watch a folder: links (.url, .webloc or a text file of links) and .torrent files saved there are added, then moved to its "done" folder. Leave it empty to turn this off.'
     key("ctrl+comma")
     wait_for(lambda: where("*", "General"), 10)
     check("Options › Downloads has the watched folder's field",

@@ -434,6 +434,7 @@ mod tests {
             quality: Quality::Best,
             sound: None,
             span: None,
+            shape: None,
             media: false,
             referrer: None,
             proxy: None,

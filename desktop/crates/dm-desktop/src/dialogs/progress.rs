@@ -184,7 +184,7 @@ pub(super) fn progress(app: &mut DmApp, ctx: &egui::Context) {
                                         t("No — the server refused it")
                                     }
                                     None if matches!(row.state, State::Failed(_)) => {
-                                        t("Not yet known: it failed before the server said")
+                                        t("Not known: it failed before the server answered")
                                     }
                                     None => t("Unknown until the server answers"),
                                 });
@@ -271,6 +271,25 @@ pub(super) fn progress(app: &mut DmApp, ctx: &egui::Context) {
                                             "{} of {} piece done||{} of {} pieces done",
                                             connections.len() as u64,
                                             &[&finished, &connections.len()],
+                                        ))
+                                        .weak(),
+                                    );
+                                }
+                                // Each path's share, where a second network is
+                                // in use (Options › Network): the pieces it
+                                // took, by what they hold now.
+                                if connections.iter().any(|c| c.second) {
+                                    let came: u64 = held.iter().sum();
+                                    let over_second: u64 = connections
+                                        .iter()
+                                        .zip(&held)
+                                        .filter(|(c, _)| c.second)
+                                        .map(|(_, &done)| done)
+                                        .sum();
+                                    ui.label(
+                                        RichText::new(tf(
+                                            "{} of {} came over the second network",
+                                            &[&format::bytes(over_second), &format::bytes(came)],
                                         ))
                                         .weak(),
                                     );

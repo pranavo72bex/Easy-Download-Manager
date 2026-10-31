@@ -445,6 +445,7 @@ pub(super) mod status_tests {
             stalled: String::new(),
             sound: None,
             span: None,
+            shape: None,
             delete_after: None,
         }
     }

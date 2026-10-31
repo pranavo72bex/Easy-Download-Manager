@@ -319,7 +319,7 @@ fn downloads_finishing_under_the_exit_question_never_quit_dm() {
     until(&mut harness, "one to stop", |app| app.downloading() == 1);
     harness.run_steps(3);
     assert!(harness
-        .query_by_label_contains("Exiting stops it; it goes on")
+        .query_by_label_contains("Exiting pauses it. It picks up")
         .is_some());
     assert_eq!(at(&harness), before, "Exit moved under the pointer");
 

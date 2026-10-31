@@ -102,7 +102,7 @@ pub(super) fn site_files(app: &mut DmApp, ctx: &egui::Context) {
                     if *stopped {
                         ui.label(
                             RichText::new(t(
-                                "Its time ran out with pages still to read; these are the files found until then.",
+                                "It ran out of time before reading every page. These are the files it found.",
                             ))
                             .weak(),
                         );

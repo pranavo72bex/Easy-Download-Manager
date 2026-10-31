@@ -43,25 +43,27 @@ impl Queue {
         let mut own_limit = None;
         if let Some(slot) = self.inner.slots.lock().await.get_mut(&id) {
             if with.speed_limit > 0 {
-                slot.entry.speed_limit = with.speed_limit;
+                slot.entry_mut().speed_limit = with.speed_limit;
                 own_limit = Some(slot.own_limit.clone());
             }
-            slot.entry.description = with.description;
-            slot.entry.queue = with.queue;
-            slot.entry.save_dir = with.save_dir.filter(|d| !d.trim().is_empty());
-            slot.entry.save_name = with.save_name.filter(|n| !n.trim().is_empty());
-            slot.entry.quality = with.quality.filter(|q| !q.trim().is_empty());
-            slot.entry.sound = with
+            slot.entry_mut().description = with.description;
+            slot.entry_mut().queue = with.queue;
+            slot.entry_mut().save_dir = with.save_dir.filter(|d| !d.trim().is_empty());
+            slot.entry_mut().save_name = with.save_name.filter(|n| !n.trim().is_empty());
+            slot.entry_mut().quality = with.quality.filter(|q| !q.trim().is_empty());
+            slot.entry_mut().sound = with
                 .sound
                 .map(|s| s.trim().to_string())
                 .filter(|s| s.starts_with("https://") || s.starts_with("http://"));
-            slot.entry.span = with.span;
-            slot.entry.delete_after = with.delete_after.filter(|s| *s > 0);
-            slot.entry.cookies = with.cookies.trim().to_string();
-            slot.entry.cookies_once = with.cookies_once && !slot.entry.cookies.is_empty();
-            slot.entry.replaces = with.replaces.filter(|p| !p.trim().is_empty());
+            slot.entry_mut().span = with.span;
+            // A shape only for a part, which is cut from MP4 streams.
+            slot.entry_mut().shape = with.shape.filter(|_| with.span.is_some());
+            slot.entry_mut().delete_after = with.delete_after.filter(|s| *s > 0);
+            slot.entry_mut().cookies = with.cookies.trim().to_string();
+            slot.entry_mut().cookies_once = with.cookies_once && !slot.entry.cookies.is_empty();
+            slot.entry_mut().replaces = with.replaces.filter(|p| !p.trim().is_empty());
             if with.checksum.is_some() {
-                slot.entry.checksum = with.checksum;
+                slot.entry_mut().checksum = with.checksum;
             }
             if with.later {
                 slot.hold(false);
@@ -90,7 +92,7 @@ impl Queue {
     pub async fn set_description(&self, id: Id, text: &str) -> bool {
         let text = text.to_string();
         self.edit(id, |slot| {
-            slot.entry.description = text;
+            slot.entry_mut().description = text;
             true
         })
         .await
@@ -102,7 +104,7 @@ impl Queue {
     pub async fn set_delete_after(&self, id: Id, seconds: Option<u64>) -> bool {
         let seconds = seconds.filter(|s| *s > 0);
         self.edit(id, |slot| {
-            slot.entry.delete_after = seconds;
+            slot.entry_mut().delete_after = seconds;
             true
         })
         .await
@@ -112,7 +114,7 @@ impl Queue {
     pub async fn set_queue(&self, id: Id, queue: &str) -> bool {
         let queue = queue.trim().to_string();
         self.edit(id, |slot| {
-            slot.entry.queue = queue;
+            slot.entry_mut().queue = queue;
             true
         })
         .await
@@ -137,9 +139,9 @@ impl Queue {
                 .and_then(|s| s.for_url(&url).map(|_| ()))
                 .is_some();
             if !same_server {
-                slot.entry.cookies.clear();
+                slot.entry_mut().cookies.clear();
             }
-            slot.entry.url = url;
+            slot.entry_mut().url = url;
             true
         })
         .await
@@ -160,15 +162,15 @@ impl Queue {
                 Some(slot) => {
                     slot.control.cancel();
                     slot.requeue();
-                    slot.entry.progress = Progress {
+                    slot.entry_mut().progress = Progress {
                         downloaded: 0,
                         total: None,
                         speed: 0.0,
                         eta: None,
                     };
-                    slot.entry.path = replacing.clone().unwrap_or_default();
-                    slot.entry.replaces = replacing;
-                    slot.entry.verified = false;
+                    slot.entry_mut().path = replacing.clone().unwrap_or_default();
+                    slot.entry_mut().replaces = replacing;
+                    slot.entry_mut().verified = false;
                     true
                 }
                 None => false,

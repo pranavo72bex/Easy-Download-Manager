@@ -2,7 +2,12 @@
 
 use super::*;
 
-pub(super) fn select(app: &mut DmApp, rows: &[Entry], i: usize, modifiers: egui::Modifiers) {
+pub(super) fn select(
+    app: &mut DmApp,
+    rows: &[std::sync::Arc<Entry>],
+    i: usize,
+    modifiers: egui::Modifiers,
+) {
     let ids: Vec<Id> = rows.iter().map(|r| r.id).collect();
     (app.selected, app.anchor) = selection(&ids, &app.selected, app.anchor, i, modifiers);
     app.cursor = ids.get(i).copied();

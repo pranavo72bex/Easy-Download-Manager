@@ -162,7 +162,7 @@ impl Queue {
             let Some(slot) = slots.get_mut(&id) else {
                 return;
             };
-            slot.entry.speed_limit = kb_per_second;
+            slot.entry_mut().speed_limit = kb_per_second;
             slot.own_limit.clone()
         };
         limiter.set_rate(kb_per_second.saturating_mul(1024)).await;

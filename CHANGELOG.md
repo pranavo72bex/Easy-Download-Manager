@@ -5,6 +5,17 @@ the browser extension (`v*` tags) are versioned separately.
 
 ## App 0.8.6, extension 3.2.1
 
+- A part of a video can be saved vertical (9:16) or square (1:1), instantly and with no loss: dm sets the video's own crop rather than re-encoding it.
+- Failed downloads are counted above the list, with Retry all.
+- A YouTube link copied at a moment (`&t=34`) offers that moment as the start of a part in Download details.
+- Options › Network explains how to use a phone as the second network, and names each connection as the system does ("iPhone USB").
+- Options › Browser shows which browsers are connected.
+- Clearer messages: 42 failure reasons and settings lines say what happened and what to do next, in plain words.
+- Stress-tested: a full disk (a download that cannot fit waits with the reason and resumes once there is room), HTTPS through an HTTP proxy, and a real DASH stream.
+- With a second network on, the progress window's Connections section says how much came over it.
+- Options says what seven more settings do, in a line under each: the Mica backdrop, taking file types from the browser, the Download video button, starting the Main queue, subtitles inside videos, .ts saved as MP4, and the proxy.
+- A list longer than 500 rows saves only what changed: the rows changed, added or removed go to queue.journal beside queue.json, which is written whole again when the journal reaches half its size, when rows are reordered, and at every start. Killed 0-50 ms after five quick changes at 20 000 rows, dm kept 4 of them (1 before).
+- A long list costs the window less: the queue hands it its rows shared, not copied, and the queue names come from the list it holds. With 5000 rows and 20 downloads moving the window's thread is busy 3.3 % of the time (4.5 % before) and dm holds 128 MB (312 MB before).
 - Second network (Options › Network): a download's connections are split between the usual network and another one, such as a phone over USB or its hotspot. Off while a proxy is on.
 - One HTTP library in the build instead of two (reqwest 0.13, with the same certificate trust as before): the app is 275 KB smaller.
 - On macOS yt-dlp runs in the system's sandbox: it writes only to its own folders and caches, and cannot read the browsers' profiles, cookies, keychains or keys.

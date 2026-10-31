@@ -411,3 +411,5 @@ Evidence is `dm-desktop/tests/window.rs` unless it says otherwise.
 | Other sites' playlists listed to tick | PASS | ytdlp/playlist.rs tests; flat reads of Vimeo, SoundCloud and Dailymotion lists 2026-10-30 |
 | Delete file after (to the Trash) | PASS | window test a_file_given_a_time_goes_to_the_trash_when_it_comes; queue test a_row_keeps_when_its_file_is_to_be_deleted |
 | Browser named on Windows (process list) | PASS | host::parent tests the_browser_is_found_past_the_cmd_it_starts_the_host_through; scripts/windows-modules-check.sh |
+| The window's read of a long list | PASS | the queue's rows shared (`Queue::list_shared`, `tests/queue.rs` a_shared_list_hands_back_an_unchanged_row_as_the_same_row); 5000 rows, 20 moving: window thread 4.5 % → 3.3 %, 312 → 128 MB |
+| Saving a very long list | PASS | `queue/journal.rs` (four unit tests: changes only, short list whole, a cut or foreign journal not replayed, secrets out of the journal) and `tests/queue.rs` a_long_list_comes_back_whole_from_its_file_and_journal; 20 000 rows: kill 0-50 ms after 5 changes keeps 4 (1 before), no stress finding |

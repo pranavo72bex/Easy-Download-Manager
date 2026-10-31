@@ -45,6 +45,7 @@ fn entry(state: State) -> Entry {
         stalled: String::new(),
         sound: None,
         span: None,
+        shape: None,
         delete_after: None,
     }
 }

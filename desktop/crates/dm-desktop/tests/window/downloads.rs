@@ -387,7 +387,7 @@ fn open_with_asks_for_an_application_and_opens_the_file_with_it() {
         .state()
         .said
         .english()
-        .starts_with("No file chooser on this desktop to pick an application"));
+        .starts_with("This desktop has no app picker"));
     assert_eq!(world.fake.opened.lock().unwrap().len(), 1);
     *world.fake.no_chooser.lock().unwrap() = false;
 }
@@ -1419,7 +1419,7 @@ fn a_cut_connection_is_said_plainly() {
     let row = harness.state().rows()[0].clone();
     let status = dm_desktop::app::status_of(&row);
     assert_eq!(
-        status, "Error: the server ended the connection before the file was complete",
+        status, "Error: the connection dropped before the file was complete. Try again",
         "{:?}",
         row.state
     );
@@ -2219,7 +2219,9 @@ fn a_very_big_download_is_told_about_the_scheduler_once() {
     until(&mut harness, "it to run", |app| app.downloading() == 1);
     harness.state_mut().big_download_hint();
     assert!(!harness.state().applied.hinted_big, "said for a small file");
-    harness.state_mut().rows[0].progress.total = Some(6 << 30);
+    std::sync::Arc::make_mut(&mut harness.state_mut().rows[0])
+        .progress
+        .total = Some(6 << 30);
     harness.state_mut().big_download_hint();
     assert!(harness.state().applied.hinted_big);
     harness.run_steps(2);
@@ -2364,4 +2366,42 @@ fn the_progress_window_of_a_finished_download_closes() {
         !harness.state().applied.show_complete,
         "this checks the default, where there is no complete window"
     );
+}
+
+/// A download that failed is counted above the list, with one button to
+/// try every failed one again; hidden, the bar stays away until another
+/// fails.
+#[test]
+fn failed_downloads_are_counted_above_the_list_with_retry_all() {
+    let world = world();
+    let mut harness = world.harness();
+    add_url(&mut harness, &world.url("secret.zip"), "Start now");
+    until(&mut harness, "the failure", |app| {
+        app.rows()
+            .iter()
+            .any(|r| matches!(r.state, State::Failed(_)))
+    });
+    harness.run_steps(2);
+    assert!(harness
+        .query_by_label("1 download didn't finish.")
+        .is_some());
+    click(&mut harness, "Retry all");
+    // Tried again: it leaves Failed, then fails again, as that server
+    // still wants a sign-in.
+    assert!(harness
+        .state()
+        .rows()
+        .iter()
+        .all(|r| !matches!(r.state, State::Failed(_))));
+    until(&mut harness, "the second failure", |app| {
+        app.rows()
+            .iter()
+            .any(|r| matches!(r.state, State::Failed(_)))
+    });
+    harness.run_steps(2);
+    click(&mut harness, "Hide");
+    harness.run_steps(2);
+    assert!(harness
+        .query_by_label("1 download didn't finish.")
+        .is_none());
 }

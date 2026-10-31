@@ -1169,7 +1169,14 @@ async fn finish_dm(
             let joining = if webm {
                 crate::mkvmux::join_with_text_async(parts.clone(), texts, joined.clone()).await
             } else {
-                crate::mp4mux::join_cut_async(parts.clone(), texts, joined.clone(), cut).await
+                crate::mp4mux::join_cut_async(
+                    parts.clone(),
+                    texts,
+                    joined.clone(),
+                    cut,
+                    options.shape,
+                )
+                .await
             };
             joining.map_err(|why| {
                 Error::Internal(format!("the picture and sound could not be joined: {why}"))
@@ -1186,9 +1193,15 @@ async fn finish_dm(
             .map(|e| e.to_string_lossy().into_owned())
             .unwrap_or_else(|| "mp4".into());
         let cut_file = produced.with_extension(format!("dm-cut.{ext}"));
-        crate::mp4mux::join_cut_async(vec![produced.clone()], texts, cut_file.clone(), Some(cut))
-            .await
-            .map_err(|why| Error::Internal(format!("the part could not be cut: {why}")))?;
+        crate::mp4mux::join_cut_async(
+            vec![produced.clone()],
+            texts,
+            cut_file.clone(),
+            Some(cut),
+            options.shape,
+        )
+        .await
+        .map_err(|why| Error::Internal(format!("the part could not be cut: {why}")))?;
         tokio::fs::rename(&cut_file, &produced)
             .await
             .map_err(Error::Disk)?;

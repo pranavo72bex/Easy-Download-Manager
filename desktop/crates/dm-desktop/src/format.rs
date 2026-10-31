@@ -299,47 +299,47 @@ pub const REASONS: [(&[&str], &str); 32] = [
             "the connection ended after",
             "incomplete message",
         ],
-        "the server ended the connection before the file was complete",
+        "the connection dropped before the file was complete. Try again",
     ),
     (
         &["the server sent ", "bytes of a file it said was"],
-        "the server sent less than the whole file",
+        "the server sent only part of the file. Try again",
     ),
     (
         &["too many redirects"],
-        "the site sends the address round in a loop of redirects",
+        "the site keeps redirecting in a loop, so the file can't be reached",
     ),
     (
         &["the server's name could not be found"],
-        "the server's name could not be found (check the address)",
+        "the site couldn't be found. Check the address, and that you're online",
     ),
     (
         &["the server refused the connection"],
-        "the server refused the connection",
+        "the server refused the connection. Check the address, or try again later",
     ),
     (
         &["the server did not answer in time", "timed out"],
-        "the server did not answer in time",
+        "the server took too long to answer. Try again in a moment",
     ),
     (
         &["certificate"],
-        "the server's security certificate could not be checked",
+        "the site's security certificate couldn't be checked, so dm didn't connect",
     ),
     (
         &["video helper is not fetched"],
-        "a video page needs dm's video helper, which Options › Downloads says not to fetch: install yt-dlp, or let dm fetch it",
+        "this video needs dm's video helper, which is turned off in Options › Downloads. Turn it on there, or install yt-dlp yourself",
     ),
     (
         &["cannot be reached (was its drive"],
-        "its folder's drive cannot be reached; plug it back in, or choose another folder",
+        "its folder's drive isn't connected. Plug it back in, or choose another folder",
     ),
     (
         &["insecure (http)"],
-        "the secure address sent dm on to an insecure one, where the file could be swapped on the way, so dm stopped",
+        "the secure link led to an insecure one, where the file could be tampered with on the way, so dm stopped",
     ),
     (
         &["copy-protected", "drm protected"],
-        "this video is copy-protected (DRM); only the site's own player can play it, and dm does not download it",
+        "this video is copy-protected (DRM), so only the site's own player can play it",
     ),
     (
         &["no space left", "os error 28", "disk full"],
@@ -347,11 +347,11 @@ pub const REASONS: [(&[&str], &str); 32] = [
     ),
     (
         &["too large for this drive"],
-        "the file is too large for this drive, which holds no file over 4 GB (FAT32): choose a folder on another drive",
+        "the file is too big for this drive, which can't hold files over 4 GB (FAT32). Choose a folder on another drive",
     ),
     (
         &["disk: permission denied", "os error 13"],
-        "dm may not write to that folder",
+        "dm isn't allowed to save in that folder. Choose another one",
     ),
     (
         &["the server answered 404"],
@@ -363,12 +363,12 @@ pub const REASONS: [(&[&str], &str); 32] = [
     ),
     (
         &["could not read the torrent file"],
-        "the .torrent file could not be read",
+        "the .torrent file couldn't be read. It may be damaged",
     ),
     // Raw engine text shown for these.
     (
         &["the server answered 401"],
-        "the server wants a sign-in (Properties › Login, or Options › Sign-ins for the whole site)",
+        "the server wants you to sign in. Add the login in Properties › Login, or in Options › Sign-ins for the whole site",
     ),
     (
         &[
@@ -377,7 +377,7 @@ pub const REASONS: [(&[&str], &str); 32] = [
             "error connecting to proxy",
             "proxy server",
         ],
-        "the proxy could not be reached",
+        "the proxy couldn't be reached. Check its address in Options › Proxy",
     ),
     // A file's own errors, as `dm_core::file_error` words them.
     (&["it is not there"], "it is not there"),
@@ -398,21 +398,21 @@ pub const REASONS: [(&[&str], &str); 32] = [
             "the server answered 503",
             "the server answered 504",
         ],
-        "the server had a problem on its side: try again later",
+        "the server had a problem on its end. Try again later",
     ),
     (
         &["the server answered 429"],
-        "the site is turning away too many requests just now: try again later",
+        "the site is busy and turning downloads away. Try again in a few minutes",
     ),
     (
         &["the server answered 403"],
-        "the site would not give dm the file: it may need you signed in (Properties › Login)",
+        "the site wouldn't give dm the file. It may need you to sign in (Properties › Login)",
     ),
     // Video pages: yt-dlp and QuickJS are "dm's video helper" to a person,
     // who never installs them (dm fetches them).
     (
         &["video helper"],
-        "dm could not get ready for videos: check that you are online or install yt-dlp yourself, then click Retry",
+        "dm couldn't get ready for videos. Check that you're online, or install yt-dlp yourself, then click Retry",
     ),
     (
         &[
@@ -424,7 +424,7 @@ pub const REASONS: [(&[&str], &str); 32] = [
     // What yt-dlp says most, from YouTube and the like.
     (
         &["confirm you're not a bot", "confirm you’re not a bot", "sign in to confirm"],
-        "the site wants to check you are not a bot: play the video in your browser, then use its Download video button",
+        "the site wants to check you're not a bot. Play the video in your browser, then use the Download video button on it",
     ),
     (
         &[
@@ -434,23 +434,23 @@ pub const REASONS: [(&[&str], &str); 32] = [
             "has been removed",
             "not available in your country",
         ],
-        "this video is not available: it may be private, removed or not shown in your country",
+        "this video isn't available. It may be private, removed, or not shown in your country",
     ),
     (&["yt-dlp could not download that"], VIDEO_NOT_GOT),
     (
         &["an encrypted stream dm cannot record"],
-        "dm cannot record this kind of encrypted stream",
+        "dm can't record this kind of encrypted stream",
     ),
     // Last: the specific failures above say more.
     (
         &["error sending request"],
-        "the server could not be reached",
+        "the server couldn't be reached. Check that you're online",
     ),
 ];
 
 /// What a video page that yt-dlp failed on is said to be when nothing more
 /// specific is known (`REASONS`), whatever yt-dlp's own words were.
-pub const VIDEO_NOT_GOT: &str = "dm could not get the video from this page";
+pub const VIDEO_NOT_GOT: &str = "dm couldn't get the video from this page";
 
 /// yt-dlp's own words for why it could not download a page, for the status to
 /// say after [`VIDEO_NOT_GOT`]: its last `ERROR:` line, without the extractor
@@ -506,13 +506,17 @@ pub fn retry_cause(raw: &str) -> Option<&'static str> {
         return Some("Too many requests");
     }
     match reason(raw)? {
-        "the server ended the connection before the file was complete" => {
+        "the connection dropped before the file was complete. Try again" => {
             Some("Connection dropped")
         }
-        "the server's name could not be found (check the address)" => Some("Server not found"),
-        "the server refused the connection" => Some("Connection refused"),
-        "the server did not answer in time" => Some("No answer"),
-        "the server could not be reached" => Some("Server unreachable"),
+        "the site couldn't be found. Check the address, and that you're online" => {
+            Some("Server not found")
+        }
+        "the server refused the connection. Check the address, or try again later" => {
+            Some("Connection refused")
+        }
+        "the server took too long to answer. Try again in a moment" => Some("No answer"),
+        "the server couldn't be reached. Check that you're online" => Some("Server unreachable"),
         _ => None,
     }
 }

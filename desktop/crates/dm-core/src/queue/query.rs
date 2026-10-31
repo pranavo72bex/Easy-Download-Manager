@@ -22,6 +22,19 @@ impl Queue {
         let order = self.inner.order.lock().await;
         order
             .iter()
+            .filter_map(|id| slots.get(id).map(|s| Entry::clone(&s.entry)))
+            .collect()
+    }
+
+    /// The rows in order, shared rather than copied: a row unchanged since
+    /// the last read is the same allocation (`Arc::ptr_eq`), so a reader
+    /// can keep what it worked out from it. What the window reads four
+    /// times a second while anything moves.
+    pub async fn list_shared(&self) -> Vec<Arc<Entry>> {
+        let slots = self.inner.slots.lock().await;
+        let order = self.inner.order.lock().await;
+        order
+            .iter()
             .filter_map(|id| slots.get(id).map(|s| s.entry.clone()))
             .collect()
     }
@@ -32,6 +45,6 @@ impl Queue {
             .lock()
             .await
             .get(&id)
-            .map(|s| s.entry.clone())
+            .map(|s| Entry::clone(&s.entry))
     }
 }

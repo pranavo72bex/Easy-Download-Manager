@@ -326,7 +326,7 @@ pub(super) fn confirm_exit(app: &mut DmApp, ctx: &egui::Context) {
     if !finished {
         // As plural as the count it speaks of.
         said.push(crate::i18n::tn(
-            "Exiting stops it; it goes on from where it was the next time dm opens.||Exiting stops them; each goes on from where it was the next time dm opens.",
+            "Exiting pauses it. It picks up where it left off the next time you open dm.||Exiting pauses them. They pick up where they left off the next time you open dm.",
             (busy + waiting) as u64,
             &[],
         ));
@@ -398,7 +398,7 @@ pub(super) fn confirm_close(app: &mut DmApp, ctx: &egui::Context) {
         ui.set_width(width);
         ui.add(
             egui::Label::new(t(
-                "Closing the window can leave dm running in the tray, so your downloads go on and your browser can still hand it links. Or exit dm now. You can change this in Options.",
+                "Keep dm in the tray and your downloads carry on, and your browser can still send it links. Or exit dm now. You can change this later in Options.",
             ))
             .wrap(),
         );

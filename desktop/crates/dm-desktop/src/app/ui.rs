@@ -233,6 +233,7 @@ impl DmApp {
                     self.awaiting_bar(ui);
                     self.update_bar(ui);
                     self.stalled_bar(ui);
+                    self.failed_bar(ui);
                     self.browser_bar(ui);
                     self.clipboard_bar(ui);
                     self.filter_bar(ui);

@@ -7,6 +7,8 @@
 //! downloads through. It knows nothing about any window toolkit, so the
 //! window can be replaced without any of this being written twice.
 
+// Every public item says what it is for (gaps row 27), as dm-protocol's do.
+#![warn(missing_docs)]
 // Never crash on what comes from outside: no unwrap, expect or panic in
 // shipped code (tests may), checked by clippy in CI.
 #![cfg_attr(

@@ -25,9 +25,11 @@ use crate::Error;
 mod actions;
 mod edit;
 mod inspect;
+mod journal;
 mod persist;
 mod query;
 mod queues;
+pub use queues::queue_names;
 mod recheck;
 mod runner;
 mod settings;
@@ -153,6 +155,9 @@ pub struct Entry {
     /// another; `None` is the whole.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub span: Option<crate::clip::Span>,
+    /// The part made vertical or square (`crate::shape`); `None` as it is.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub shape: Option<crate::shape::Shape>,
     /// Seconds after it finishes that its file goes to the Trash and the
     /// row with it ("Delete file after"); `None` keeps it.
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -209,6 +214,10 @@ pub struct Connection {
     /// Its part file is there: the server has answered for this range, so
     /// it is under way though its first bytes may still be in a buffer.
     pub started: bool,
+    /// Last fetched over the second network path (`second_path`), in this
+    /// run of dm.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub second: bool,
 }
 
 /// What a row is added with, beyond its address: what the "Download details"
@@ -244,6 +253,8 @@ pub struct AddOptions {
     /// A part of the video rather than the whole, from one second to
     /// another (`crate::clip::Span`).
     pub span: Option<crate::clip::Span>,
+    /// The part made vertical or square (`crate::shape`).
+    pub shape: Option<crate::shape::Shape>,
     /// "Delete file after", for the row it adds.
     pub delete_after: Option<u64>,
     /// The browser's cookies for this download's site, as a `Cookie`
@@ -270,7 +281,9 @@ struct QueueStarts {
 }
 
 struct Slot {
-    entry: Entry,
+    /// Shared with the lists handed out ([`Queue::list_shared`]): a change
+    /// copies the row first if a list still holds it ([`Slot::entry_mut`]).
+    entry: Arc<Entry>,
     control: Control,
     /// The task running this download's last start, until it has written
     /// its outcome. A row is not started again while it is still there: a
@@ -292,13 +305,19 @@ struct Slot {
 }
 
 impl Slot {
+    /// The row, to change: copied first where a list handed out still
+    /// shares it, so a list already read never changes under its reader.
+    fn entry_mut(&mut self) -> &mut Entry {
+        Arc::make_mut(&mut self.entry)
+    }
+
     /// A row that is not downloading has no speed and no time left: the
     /// figures of its last run stayed on it (a finished download read as
     /// moving at 1.1 MB/s to `queue.list`, the command line and an AI
     /// client), as `persist` already says of a restored one.
     fn stopped_moving(&mut self) {
-        self.entry.progress.speed = 0.0;
-        self.entry.progress.eta = None;
+        self.entry_mut().progress.speed = 0.0;
+        self.entry_mut().progress.eta = None;
     }
 
     /// Whether a previous run is still winding down.
@@ -311,9 +330,9 @@ impl Slot {
     /// copies of the same three lines, until one of them drifted.
     fn hold(&mut self, by_schedule: bool) {
         self.control.pause();
-        self.entry.state = State::Paused;
+        self.entry_mut().state = State::Paused;
         self.stopped_moving();
-        self.entry.paused_by_schedule = by_schedule;
+        self.entry_mut().paused_by_schedule = by_schedule;
         self.outside_schedule = false;
     }
 }
@@ -327,11 +346,11 @@ impl Slot {
     /// on; and no longer the schedule's, because a person asked.
     fn requeue(&mut self) {
         self.control = Control::new();
-        self.entry.state = State::Queued;
+        self.entry_mut().state = State::Queued;
         self.stopped_moving();
-        self.entry.finished_at = None;
-        self.entry.paused_by_schedule = false;
-        self.entry.stalled.clear();
+        self.entry_mut().finished_at = None;
+        self.entry_mut().paused_by_schedule = false;
+        self.entry_mut().stalled.clear();
         self.outside_schedule = false;
     }
 }
@@ -408,6 +427,9 @@ struct Inner {
     /// How many times the queue file has been written, for a test to hold
     /// a batch to one save.
     saves: AtomicU64,
+    /// What the queue file and its journal hold, for the next write to add
+    /// only what changed (`journal`); `None` until a write has been made.
+    saved: std::sync::Mutex<Option<journal::Saved>>,
     /// Told whenever the queue changes, so a window that is not polling
     /// draws the change: a hand-off arriving, the schedule starting a row, a
     /// row finishing.
@@ -471,6 +493,7 @@ impl Queue {
                 starts: std::sync::Mutex::new(QueueStarts::default()),
                 client: Mutex::new(client),
                 saves: AtomicU64::new(0),
+                saved: std::sync::Mutex::new(None),
                 changed: std::sync::Mutex::new(None),
             }),
         }
@@ -546,7 +569,7 @@ impl Queue {
     async fn insert(&self, url: &str, referrer: String) -> Id {
         let id = self.inner.next_id.fetch_add(1, Ordering::SeqCst);
         let slot = Slot {
-            entry: Entry {
+            entry: Arc::new(Entry {
                 id,
                 url: url.to_string(),
                 state: State::Queued,
@@ -573,6 +596,7 @@ impl Queue {
                 quality: None,
                 sound: None,
                 span: None,
+                shape: None,
                 delete_after: None,
                 parts_dir: String::new(),
                 began_in: String::new(),
@@ -581,7 +605,7 @@ impl Queue {
                 replaces: None,
                 speed_limit: 0,
                 stalled: String::new(),
-            },
+            }),
             control: Control::new(),
             task: None,
             outside_schedule: false,

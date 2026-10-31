@@ -9,7 +9,7 @@ use crate::icons::{self, Icon};
 pub(super) fn actions(
     app: &mut DmApp,
     ui: &mut egui::Ui,
-    rows: &[Entry],
+    rows: &[std::sync::Arc<Entry>],
     clip: Option<egui::Rect>,
 ) {
     let Some(clip) = clip else { return };

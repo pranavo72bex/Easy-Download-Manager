@@ -22,14 +22,18 @@ use dm_protocol::{CHROME_EXTENSION_ID, EDGE_EXTENSION_ID, FIREFOX_EXTENSION_ID, 
 /// Which kind of manifest a directory wants.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Family {
+    /// Chrome, Edge, Brave, Vivaldi, Opera and Chromium: `allowed_origins`.
     Chromium,
+    /// Firefox: `allowed_extensions`.
     Firefox,
 }
 
 /// A directory one browser reads host manifests from.
 #[derive(Debug, Clone, PartialEq)]
 pub struct Place {
+    /// The directory the browser reads host manifests from.
     pub dir: PathBuf,
+    /// Which kind of manifest it wants there.
     pub family: Family,
     /// What says the browser is installed though it has never been opened:
     /// its programs on `PATH` (Linux), or its bundles in an Applications
@@ -132,6 +136,7 @@ impl Place {
                     .is_some_and(|home| home.join("snap/firefox").is_dir()))
     }
 
+    /// Where dm's host manifest goes in this directory.
     pub fn manifest(&self) -> PathBuf {
         self.dir.join(format!("{NATIVE_HOST}.json"))
     }
@@ -140,7 +145,9 @@ impl Place {
 /// Where a browser's extension comes from.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Store {
+    /// Microsoft Edge Add-ons.
     Edge,
+    /// Firefox Browser Add-ons (addons.mozilla.org).
     Firefox,
     /// The Chrome Web Store, which Brave, Vivaldi, Opera and Chromium use.
     Chrome,
@@ -149,7 +156,9 @@ pub enum Store {
 /// A browser found on this computer, to offer it dm's extension.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Installed {
+    /// The browser's name as people know it ("Brave").
     pub name: &'static str,
+    /// Where its extension is installed from.
     pub store: Store,
 }
 
@@ -483,11 +492,16 @@ fn windows_data(home: &Path) -> PathBuf {
 /// signed Firefox add-on's.
 #[derive(Debug, Clone, PartialEq)]
 pub struct Allowed {
+    /// The `chrome-extension://…/` origins Chromium browsers may connect from.
     pub chromium: Vec<String>,
+    /// The add-on ids Firefox may connect from.
     pub firefox: Vec<String>,
 }
 
 impl Allowed {
+    /// The extensions built here and the Edge listing's, and those `named`:
+    /// a 32-letter Chrome Web Store id or a Firefox add-on id (`name@host` or
+    /// a `{uuid}`). Anything else is refused in words.
     pub fn with(named: &[String]) -> Result<Self, String> {
         let mut allowed = Allowed {
             chromium: vec![
