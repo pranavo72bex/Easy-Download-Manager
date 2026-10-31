@@ -767,8 +767,13 @@ fn chip_words(choice: &dm_core::ytdlp::Choice) -> String {
         .unwrap_or((&choice.quality, ""));
     let top = if head == "audio" {
         format!("{} {}", t("Sound only"), ext.to_ascii_uppercase())
-    } else if head.chars().all(|c| c.is_ascii_digit()) {
-        format!("{head}p {}", ext.to_ascii_uppercase())
+    } else if let Ok(side) = head.parse::<u32>() {
+        // By its class, as the panel's list says it: "4K MP4", "1080p MP4".
+        format!(
+            "{} {}",
+            dm_core::ytdlp::class_name(0, side),
+            ext.to_ascii_uppercase()
+        )
     } else {
         choice.label.clone()
     };

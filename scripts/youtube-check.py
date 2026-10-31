@@ -109,7 +109,9 @@ def youtube(base, origin, engine_dl, engine_home, worker):
     played = cc.plays(got[0]) if got else None
     cc.check("YouTube: the downloaded video is whole (media_check)", bool(played and played[0] > 0 and played[1]),
              f"{played[0]}s, {played[1]}p" if played else "not a playable video")
-    picked = (listed.get("lines") or [""])[0].split(" ")[0].lower()
+    # The line names its container ("240p MP4 — 744 KB"), wherever the word is.
+    first = (listed.get("lines") or [""])[0].lower().split()
+    picked = next((w for w in first if w in ("mp4", "webm", "mkv")), "")
     cc.check("YouTube: in the container its line named", bool(got) and got[0].suffix == f".{picked}",
              f"picked {picked}, got {got[0].name if got else None}")
     errors = [e for e in tab.logged("error") if "dm" in e.lower()]

@@ -103,7 +103,7 @@ pub fn choices(described: &str) -> Vec<Choice> {
                 .filter(|w| *w > 0 && *w < height)
                 .unwrap_or(height);
             Choice {
-                label,
+                label: shown_label(&label, &ext, height),
                 quality: format!("{side}/{ext}"),
                 size,
             }
@@ -118,6 +118,47 @@ pub fn choices(described: &str) -> Vec<Choice> {
         });
     }
     list
+}
+
+/// A picture's line as a person reads it: its class ("4K", "1080p") and
+/// its container, from the "EXT WxH" (or "EXT Hp") the list is built with.
+pub(crate) fn shown_label(built: &str, ext: &str, height: u32) -> String {
+    let width = built
+        .rsplit(' ')
+        .next()
+        .and_then(|wh| wh.split_once('×'))
+        .and_then(|(w, _)| w.parse::<u32>().ok())
+        .unwrap_or(0);
+    format!("{} {}", class_name(width, height), ext.to_ascii_uppercase())
+}
+
+/// The class a picture is known by: the larger of its shorter side and its
+/// longer side's 16:9 height, snapped to the nearest of 144p ... 4K, 8K
+/// (3840x2026 is 4K, a portrait 720x1280 is 720p); else its own lines.
+pub fn class_name(width: u32, height: u32) -> String {
+    let (short, long) = if width == 0 {
+        (height, height * 16 / 9)
+    } else {
+        (width.min(height), width.max(height))
+    };
+    let value = f64::from(short.max(long * 9 / 16));
+    let classes = [144u32, 240, 360, 480, 720, 1080, 1440, 2160, 4320];
+    let nearest = classes
+        .iter()
+        .copied()
+        .min_by(|a, b| {
+            let d = |c: u32| (f64::from(c) - value).abs();
+            d(*a).total_cmp(&d(*b))
+        })
+        .unwrap_or(0);
+    if (f64::from(nearest) - value).abs() > value * 0.1 {
+        return format!("{short}p");
+    }
+    match nearest {
+        2160 => "4K".into(),
+        4320 => "8K".into(),
+        n => format!("{n}p"),
+    }
 }
 
 /// What a page offers, for the panel's list. A YouTube watch page is read
@@ -325,5 +366,19 @@ mod mp3_tests {
         // No M4A sound, no MP3 line.
         let only = vec![list[0].clone()];
         assert_eq!(with_mp3(only.clone()), only);
+    }
+
+    #[test]
+    fn a_picture_is_named_by_its_class_whatever_its_shape() {
+        assert_eq!(class_name(3840, 2026), "4K");
+        assert_eq!(class_name(2560, 1350), "1440p");
+        assert_eq!(class_name(1920, 1014), "1080p");
+        assert_eq!(class_name(1920, 1080), "1080p");
+        assert_eq!(class_name(720, 1280), "720p");
+        assert_eq!(class_name(426, 224), "240p");
+        assert_eq!(class_name(7680, 4320), "8K");
+        assert_eq!(class_name(0, 720), "720p");
+        // Nothing near a class: its own lines.
+        assert_eq!(class_name(1000, 900), "900p");
     }
 }

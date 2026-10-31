@@ -5,6 +5,7 @@ the browser extension (`v*` tags) are versioned separately.
 
 ## App 0.8.6, extension 3.2.1
 
+- Video qualities are named as people know them: 4K, 1440p, 1080p (with the container), in the browser's panel and in Download details.
 - A part of a video can be saved as a GIF (macOS), as it is, vertical or square: Part as: GIF in Download details.
 - A video's sound can be saved as MP3 (macOS): "MP3 audio" in the quality list, in the browser's panel too, made by dm's own encoder.
 - When YouTube refuses the addresses of dm's own reading, dm tries yt-dlp's reading on its own fast engine before handing the download to yt-dlp.

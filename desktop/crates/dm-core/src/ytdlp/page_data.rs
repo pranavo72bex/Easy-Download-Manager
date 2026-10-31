@@ -191,7 +191,7 @@ fn choices_of_player(player: &Value) -> Vec<Choice> {
                 .filter(|w| *w > 0 && *w < height)
                 .unwrap_or(height);
             Choice {
-                label,
+                label: super::choices::shown_label(&label, &ext, height),
                 quality: format!("{side}/{ext}"),
                 size,
             }
@@ -233,8 +233,8 @@ mod tests {
         assert_eq!(
             said,
             [
-                ("MP4 1920×1080", "1080/mp4", Some(8500)),
-                ("MP4 1280×720", "720/mp4", Some(2500)),
+                ("1080p MP4", "1080/mp4", Some(8500)),
+                ("720p MP4", "720/mp4", Some(2500)),
                 ("M4A audio", "audio/m4a", Some(500)),
             ]
         );

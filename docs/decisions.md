@@ -8,6 +8,19 @@ can see what it is undoing.
 
 
 
+## 2026-10-31: Qualities named by their class, as people know them
+
+From the comparison with the other macOS manager: its list says "4K,
+1440p, 1080p" where dm said "MP4 3840×2026", the exact picture of a film
+not shot 16:9. Each picture is now named by its class and its container
+("4K MP4", "1080p MP4", "720p WEBM"): the larger of its shorter side and
+its longer side's 16:9 height, snapped to the nearest of 144p ... 4K, 8K,
+or its own lines where it is not near one (`ytdlp::class_name`). The
+quality word a line carries ("2026/mp4") is as before, so nothing
+downloads differently; the panel's list and Download details' chips say
+the same. `youtube-check.py` reads the container from the line wherever
+the word is.
+
 ## 2026-10-31: A part as a GIF: the system's decoder, dm's GIF writer
 
 Gaps row 54, with no package and no ffmpeg. The part's H.264 samples

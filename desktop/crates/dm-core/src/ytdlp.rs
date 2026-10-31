@@ -35,7 +35,9 @@ mod readings;
 mod refusal;
 mod sandbox;
 
-pub use choices::{choices, list_choices, list_choices_fast, read_choices, with_mp3, Choice};
+pub use choices::{
+    choices, class_name, list_choices, list_choices_fast, read_choices, with_mp3, Choice,
+};
 pub use fetch::download_page;
 pub use playlist::{playlist_of, read_playlist};
 pub use process::end_all;
@@ -1574,7 +1576,7 @@ mod tests {
         .to_string();
         let list = choices(&described);
         let labels: Vec<&str> = list.iter().map(|c| c.label.as_str()).collect();
-        assert_eq!(labels, ["WEBM 3840×2160", "MP4 1920×1080", "M4A audio"]);
+        assert_eq!(labels, ["4K WEBM", "1080p MP4", "M4A audio"]);
         assert_eq!(list[1].quality, "1080/mp4");
         assert_eq!(list[1].size, Some(10_000), "joined with the M4A sound");
     }
@@ -1592,7 +1594,7 @@ mod tests {
         .to_string();
         let list = choices(&described);
         let labels: Vec<&str> = list.iter().map(|c| c.label.as_str()).collect();
-        assert_eq!(labels, ["MP4 1280×720", "MP4 640×360", "M4A audio"]);
+        assert_eq!(labels, ["720p MP4", "360p MP4", "M4A audio"]);
         assert_eq!(list[0].quality, "720/mp4");
         assert_eq!(
             list[0].size,

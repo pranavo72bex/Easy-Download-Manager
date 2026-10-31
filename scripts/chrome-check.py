@@ -759,7 +759,7 @@ def panel_checks(base, origin, engine_dl, engine_home, worker):
     # The qualities the video comes in, each with its size.
     listed = wait_for(lambda: len((panel(tab) or {}).get("lines") or []) >= 2 and panel(tab), 40) or panel(tab) or {}
     check("its click lists the qualities the app's yt-dlp found, with sizes",
-          listed.get("lines") == ["MP4 1280×720 — 9.5 MB", "M4A audio — 977 KB"], str(listed))
+          listed.get("lines") == ["720p MP4 — 9.5 MB", "M4A audio — 977 KB"], str(listed))
     if listed.get("at"):
         x, y = listed["at"][0]
         mouse(tab, "mouseMoved", x, y)
@@ -795,7 +795,7 @@ def panel_checks(base, origin, engine_dl, engine_home, worker):
     listed = wait_for(lambda: len((panel(tab) or {}).get("lines") or []) >= 3 and panel(tab), 40) or panel(tab) or {}
     lines = listed.get("lines") or []
     check("where yt-dlp reads the page, its qualities and the page's stream are listed together",
-          lines == ["MP4 1280×720 — 9.5 MB", "M4A audio — 977 KB", "HLS stream"], str(lines))
+          lines == ["720p MP4 — 9.5 MB", "M4A audio — 977 KB", "HLS stream"], str(lines))
     if "HLS stream" in lines and listed.get("at"):
         x, y = listed["at"][lines.index("HLS stream")]
         mouse(tab, "mouseMoved", x, y)
