@@ -3,7 +3,9 @@
 What changed in each release, newest first. The app (`desktop-v*` tags) and
 the browser extension (`v*` tags) are versioned separately.
 
-## App 0.8.6, extension 3.2.1
+## App 0.8.7, extension 3.2.1
+
+The first app release since 0.8.4: 0.8.5 and 0.8.6 were tagged, but their installers were never built (the packaging step looked for its yt-dlp script in the wrong folder), so everything since 0.8.4 is listed here.
 
 - Download details offers Delete file after (Never, 10 minutes, 1 hour, 1 day) as a download is saved.
 - YouTube streams that came slowly through the video helper now come on dm's own engine: dm waits the few seconds YouTube asks before serving them (a song's sound: 46 s to 10 s).
