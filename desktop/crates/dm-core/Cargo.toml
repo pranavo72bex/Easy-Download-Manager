@@ -61,7 +61,7 @@ zip = { version = "9", default-features = false, features = ["deflate"] }
 # gives no count of the bytes on the wire: with it the expansion is held to a
 # ratio (`decode.rs`), as a decompression bomb needs.
 flate2 = "1"
-brotli-decompressor = "5"
+brotli-decompressor = "6"
 
 # `killpg`, to end yt-dlp's process group without running a `kill` program
 # that a minimal `PATH` may not find. Already in the tree through tokio.
