@@ -35,6 +35,7 @@ pub mod metalink;
 pub mod mkvmux;
 pub mod mms;
 pub mod motw;
+pub mod mp3;
 pub mod mp4mux;
 pub mod ntlm;
 pub mod plan;

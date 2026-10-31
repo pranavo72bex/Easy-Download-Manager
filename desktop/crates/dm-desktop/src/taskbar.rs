@@ -220,6 +220,7 @@ mod tests {
             sound: None,
             span: None,
             shape: None,
+            mp3: false,
             delete_after: None,
             parts_dir: String::new(),
             began_in: String::new(),

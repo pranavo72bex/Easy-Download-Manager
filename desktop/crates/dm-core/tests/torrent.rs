@@ -173,6 +173,7 @@ async fn a_torrent_is_fetched_from_a_real_swarm() {
         sound: None,
         span: None,
         shape: None,
+        mp3: false,
         media: false,
         referrer: None,
         proxy: None,

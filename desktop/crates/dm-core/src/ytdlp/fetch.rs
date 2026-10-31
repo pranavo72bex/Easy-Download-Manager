@@ -132,7 +132,26 @@ pub async fn download_page(
             Err(stop) => outcome = Err(stop),
         }
     }
-    let read = current.1;
+    let mut read = current.1;
+    /* dm's own reading refused (YouTube answers 403 to some videos' addresses
+     * for the client dm asks as): yt-dlp's reading, from its other clients,
+     * fetched by dm's engine on many connections before yt-dlp downloads it
+     * on its own few. A video that took 46 s through yt-dlp alone. */
+    let refused = matches!(&outcome, Err(Error::Refused { .. }));
+    if refused && !part && read.info.read_by.as_deref() == Some("dm") {
+        eprintln!("dm: its own reading of {url} was refused; yt-dlp's reading is fetched instead");
+        forget_streams(staging).await;
+        match resolve_as(url, options, None, false).await {
+            Ok(theirs) => {
+                if let Some(plan) = theirs.plan(staging) {
+                    outcome = fetch(client, &plan, &theirs, options, report.clone()).await;
+                }
+                read = theirs;
+            }
+            Err(stop @ (Error::Paused | Error::Cancelled)) => outcome = Err(stop),
+            Err(_) => {}
+        }
+    }
     match outcome {
         Ok(done) => Ok(done),
         Err(Error::Paused) => Err(Error::Paused),
@@ -251,6 +270,9 @@ struct Info {
     id: Option<String>,
     #[serde(default)]
     n_entries: Option<u64>,
+    /// "dm" for dm's own reading of a YouTube page (`crate::youtube`).
+    #[serde(default)]
+    read_by: Option<String>,
     /// A picture and a sound to be joined, where it chose two.
     #[serde(default)]
     requested_formats: Option<Vec<Format>>,
@@ -539,11 +561,21 @@ fn unnumbered(produced: PathBuf, info: &Info) -> PathBuf {
 /// name, sign-in and proxy its own download makes, and downloads nothing:
 /// from the page, or from a reading of it already made (`saved`).
 async fn resolve(url: &str, options: &Options, saved: Option<&Path>) -> Result<Read, Error> {
+    resolve_as(url, options, saved, true).await
+}
+
+/// [`resolve`], with dm's own YouTube reader first (`own`) or yt-dlp's alone.
+async fn resolve_as(
+    url: &str,
+    options: &Options,
+    saved: Option<&Path>,
+    own: bool,
+) -> Result<Read, Error> {
     let staging = &options.parts_dir;
     // A YouTube video is read by dm itself first (`crate::youtube`), with
     // yt-dlp behind it for what that cannot read; a reading the panel kept
     // is used as it is, which costs no request at all.
-    if saved.is_none() && crate::youtube::video_id(url).is_some() {
+    if own && saved.is_none() && crate::youtube::video_id(url).is_some() {
         let own = crate::download::or_stop(
             &options.control,
             crate::youtube::read_for(url, options, staging),

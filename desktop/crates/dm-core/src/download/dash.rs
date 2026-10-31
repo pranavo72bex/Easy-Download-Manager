@@ -435,6 +435,7 @@ mod tests {
             sound: None,
             span: None,
             shape: None,
+            mp3: false,
             media: false,
             referrer: None,
             proxy: None,

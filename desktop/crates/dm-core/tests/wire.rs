@@ -46,6 +46,7 @@ fn entry(state: State) -> Entry {
         sound: None,
         span: None,
         shape: None,
+        mp3: false,
         delete_after: None,
     }
 }

@@ -274,10 +274,16 @@ impl Queue {
                     options.sound = slot.entry.sound.clone();
                     options.span = slot.entry.span;
                     options.shape = slot.entry.shape;
+                    options.mp3 = slot.entry.mp3;
                     // The quality picked in the browser's panel, over the setting.
                     if let Some(quality) = &slot.entry.quality {
                         options.quality = crate::stream::Quality::named(quality);
                         options.container = crate::stream::Quality::container_of(quality);
+                        // MP3: the M4A sound fetched, then made an MP3 by dm.
+                        if options.container.as_deref() == Some("mp3") {
+                            options.container = Some("m4a".into());
+                            options.mp3 = true;
+                        }
                         // Media was asked for, from the panel or the media
                         // menu: never the page's own HTML instead.
                         options.media = true;

@@ -35,7 +35,7 @@ mod readings;
 mod refusal;
 mod sandbox;
 
-pub use choices::{choices, list_choices, list_choices_fast, read_choices, Choice};
+pub use choices::{choices, list_choices, list_choices_fast, read_choices, with_mp3, Choice};
 pub use fetch::download_page;
 pub use playlist::{playlist_of, read_playlist};
 pub use process::end_all;
@@ -1483,7 +1483,12 @@ mod tests {
             "did not wait"
         );
         let said: Vec<&str> = list.iter().map(|c| c.quality.as_str()).collect();
-        assert_eq!(said, ["720/mp4", "audio/m4a"]);
+        // The sound as MP3 after it, where dm can make one.
+        let mut expected = vec!["720/mp4", "audio/m4a"];
+        if crate::mp3::possible() {
+            expected.push("audio/mp3");
+        }
+        assert_eq!(said, expected);
         writer.await.unwrap();
     }
 

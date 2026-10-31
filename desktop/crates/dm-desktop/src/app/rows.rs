@@ -446,6 +446,7 @@ pub(super) mod status_tests {
             sound: None,
             span: None,
             shape: None,
+            mp3: false,
             delete_after: None,
         }
     }

@@ -703,6 +703,7 @@ impl Settings {
             sound: None,
             span: None,
             shape: None,
+            mp3: false,
             media: false,
             referrer: None,
             // For the tools dm runs; the client has its own copy.

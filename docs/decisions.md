@@ -8,6 +8,40 @@ can see what it is undoing.
 
 
 
+## 2026-10-31: MP3 by an encoder of dm's own; the system's AAC decoder in front
+
+Asked for MP3 as dm's own code, with no ffmpeg and no added package.
+`mp3.rs` is an MPEG-1 Layer III encoder (32, 44.1, 48 kHz; 192 kbit/s
+stereo, 128 mono; constant bit rate): the standard's polyphase analysis
+filterbank, a 36-point MDCT (over 9, which the decoder's unnormalized
+inverse multiplies back: measured exactly 9.00 at five frequencies),
+alias reduction, a binary search on the global gain for the finest
+quantization that fits, Huffman tables chosen per region. No
+psychoacoustic model and no bit reservoir. Its tables (`mp3/tables.rs`)
+are generated from PDMP3's (public domain, Unlicense), read as data: each
+decoding tree walked to its codes, every table checked to be a complete
+prefix code. minimp3 (CC0) was tried first; compiling it here to probe
+its window was refused by the session's permissions, and PDMP3 holds the
+window in its natural order. The AAC is read by the system's own decoder
+(`mp3/decode.rs`: AudioToolbox's ExtAudioFile on macOS, linked directly;
+Windows and Linux are gaps row 53). Checked: tones through the system's
+MP3 decoder at over 30 dB SNR, an AAC made by the system converted and
+played back at its level, and a real video's sound (3:33) saved as a
+valid 192 kbit/s MP3. Offered as "MP3 audio" after "M4A audio" in every
+quality list dm hands out (`ytdlp::with_mp3`), so the browser's panel and
+Download details show it with no change to the extension; its quality
+`audio/mp3` fetches the M4A and converts it.
+
+Also from the comparison with the other macOS manager's screenshots: its
+4K and 1440p files are twice dm's (414 against 209 MB) because it takes
+YouTube's VP9 where dm takes the MP4 stream, which there is AV1, as sharp
+at half the bits; from 1080p down the sizes match. When YouTube refuses
+the addresses of dm's own reading, dm now fetches yt-dlp's reading on its
+own engine before yt-dlp downloads on its few connections. For one video
+(dQw4w9WgXcQ's sound, itag 140) both readings' addresses are refused to
+any fetch dm or curl makes, and yt-dlp's own download succeeds; finding
+why was stopped by the session's permissions (gaps row 55).
+
 ## 2026-10-31: Vertical and square parts by the stream's own crop, no codec
 
 Asked for the other macOS manager's clip shapes (vertical, square, GIF,

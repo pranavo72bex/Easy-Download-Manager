@@ -83,6 +83,8 @@ pub struct Options {
     pub span: Option<crate::clip::Span>,
     /// Vertical or square for a part of a video (`shape`); `None` as it is.
     pub shape: Option<crate::shape::Shape>,
+    /// The finished sound saved as MP3 (`crate::mp3`).
+    pub mp3: bool,
     /// Media was asked for (a player's video, from the browser's panel or
     /// media menu): a page yt-dlp cannot read fails, rather than being
     /// fetched as the document its address ends like (a
@@ -548,6 +550,33 @@ pub enum Update {
 /// A separate entry point rather than a field on `Options`: a channel is not
 /// configuration, and `Options` stays something a caller can clone and debug.
 pub async fn download_reporting(
+    client: &reqwest::Client,
+    url: &str,
+    options: &Options,
+    report: Option<tokio::sync::mpsc::Sender<Update>>,
+) -> Result<Finished, Error> {
+    let mut done = fetched(client, url, options, report).await?;
+    // Its sound as an MP3, where that was asked for: an M4A (or an MP4's
+    // sound) read by the system's decoder and encoded by dm (`mp3`).
+    let ext = done
+        .path
+        .extension()
+        .map(|e| e.to_string_lossy().to_ascii_lowercase())
+        .unwrap_or_default();
+    if options.mp3 && matches!(ext.as_str(), "m4a" | "mp4" | "aac") {
+        let target = done.path.with_extension("mp3");
+        let bytes = crate::mp3::convert_async(done.path.clone(), target.clone())
+            .await
+            .map_err(|why| Error::Internal(format!("the MP3 could not be made: {why}")))?;
+        let _ = tokio::fs::remove_file(&done.path).await;
+        done.path = target;
+        done.bytes = bytes;
+    }
+    Ok(done)
+}
+
+/// [`download_reporting`] before any conversion.
+async fn fetched(
     client: &reqwest::Client,
     url: &str,
     options: &Options,
@@ -1114,6 +1143,7 @@ mod tests {
             sound: None,
             span: None,
             shape: None,
+            mp3: false,
             media: false,
             referrer: None,
             proxy: None,

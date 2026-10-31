@@ -176,5 +176,5 @@ pub async fn kept_choices(url: &str) -> Option<Vec<super::Choice>> {
         .ok()?;
     let text = tokio::fs::read_to_string(fresh_reading(url)?).await.ok()?;
     let list = super::choices(&text);
-    (!list.is_empty()).then_some(list)
+    (!list.is_empty()).then(|| super::with_mp3(list))
 }

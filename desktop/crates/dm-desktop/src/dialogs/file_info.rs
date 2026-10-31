@@ -644,6 +644,8 @@ pub(super) fn file_info(app: &mut DmApp, ctx: &egui::Context) {
         sound: d.sound.clone(),
         span: d.span,
         shape: d.shape.filter(|_| d.span.is_some()),
+        // An MP3 is asked for by its quality ("audio/mp3").
+        mp3: false,
         delete_after: None,
         cookies: d.cookies.clone(),
         cookies_once: d.cookies_once,
