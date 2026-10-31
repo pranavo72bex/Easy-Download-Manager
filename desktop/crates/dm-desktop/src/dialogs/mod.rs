@@ -92,6 +92,8 @@ pub struct FileInfo {
     /// another, as typed in the dialog's Part fields (`part_from`,
     /// `part_to`) and read when it starts.
     pub span: Option<dm_core::Span>,
+    /// "Delete file after": seconds after it finishes; `None` keeps it.
+    pub delete_after: Option<u64>,
     /// The part made vertical or square; `None` as it is.
     pub shape: Option<dm_core::shape::Shape>,
     /// The part saved as a GIF.

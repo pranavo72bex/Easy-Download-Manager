@@ -5,6 +5,7 @@ the browser extension (`v*` tags) are versioned separately.
 
 ## App 0.8.6, extension 3.2.1
 
+- Download details offers Delete file after (Never, 10 minutes, 1 hour, 1 day) as a download is saved.
 - YouTube streams that came slowly through the video helper now come on dm's own engine: dm waits the few seconds YouTube asks before serving them (a song's sound: 46 s to 10 s).
 - Saving as MP3 is about twenty times faster, on every core (3:33 of sound in about 2.5 s).
 - Video qualities are named as people know them: 4K, 1440p, 1080p (with the container), in the browser's panel and in Download details.

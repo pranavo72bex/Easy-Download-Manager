@@ -593,8 +593,14 @@ def walk(dm, origin):
           f"asked: {'This download isn' + chr(39) + 't finished' in ' '.join(asked)}; kept after Keep it: {bool(still)}")
     paths = [pathlib.Path(x["path"]) for x in dm.rows() if x["state"]["kind"] == "completed"]
     dm.click("Clear finished")
-    pause(1)
-    said = dm.call("ui.inspect")["result"].get("said", "")
+    # Its own line, not the one before it ("Put back 1 download." from the
+    # Undo above), which a fixed pause sometimes read (gaps row 56).
+    said = ""
+    for _ in range(25):
+        pause(0.2)
+        said = dm.call("ui.inspect")["result"].get("said", "")
+        if said.startswith("Deleted"):
+            break
     left = [x for x in dm.rows() if x["state"]["kind"] == "completed"]
     check("B24", "Clear finished empties the finished rows, every file stays",
           not left and said.startswith("Deleted") and all(p.is_file() for p in paths), f"'{said}'")

@@ -2046,3 +2046,24 @@ fn a_part_can_be_saved_as_a_gif() {
     assert!(row.gif, "the row does not carry the GIF");
     assert!(row.span.is_some());
 }
+
+/// "Delete file after" is chosen as a download is saved, in Download
+/// details, and goes with it to its row.
+#[test]
+fn delete_file_after_is_chosen_when_saving() {
+    let world = world();
+    let mut harness = world.harness();
+    let _file = settings_file();
+    click(&mut harness, "Add URL");
+    type_into(&mut harness, "Address", &world.url("file.zip"));
+    click(&mut harness, "OK");
+    settle_details(&mut harness);
+    click(&mut harness, "Delete file after");
+    harness.run_steps(2);
+    click(&mut harness, "1 hour");
+    harness.run_steps(2);
+    click(&mut harness, "Add for later");
+    harness.run_steps(2);
+    let row = harness.state().rows().last().cloned().unwrap();
+    assert_eq!(row.delete_after, Some(3600));
+}

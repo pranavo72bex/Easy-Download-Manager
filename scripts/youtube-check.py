@@ -111,7 +111,8 @@ def youtube(base, origin, engine_dl, engine_home, worker):
              f"{played[0]}s, {played[1]}p" if played else "not a playable video")
     # The line names its container ("240p MP4 — 744 KB"), wherever the word is.
     first = (listed.get("lines") or [""])[0].lower().split()
-    picked = next((w for w in first if w in ("mp4", "webm", "mkv")), "")
+    # The player's own instant list ("240p") names none: dm saves those as MP4.
+    picked = next((w for w in first if w in ("mp4", "webm", "mkv")), "mp4")
     cc.check("YouTube: in the container its line named", bool(got) and got[0].suffix == f".{picked}",
              f"picked {picked}, got {got[0].name if got else None}")
     errors = [e for e in tab.logged("error") if "dm" in e.lower()]

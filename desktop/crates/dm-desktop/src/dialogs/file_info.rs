@@ -517,6 +517,24 @@ pub(super) fn file_info(app: &mut DmApp, ctx: &egui::Context) {
                         chosen = Some(false);
                     }
                     ui.end_row();
+                    // Chosen as it is saved, as the row's menu offers it
+                    // after: the file to the Trash that long after it finishes.
+                    let times = crate::table::delete_after_times();
+                    let name = ui.label(t("Delete file after"));
+                    let now = times
+                        .iter()
+                        .find(|(_, s)| *s == d.delete_after)
+                        .map_or(times[0].0, |(label, _)| *label);
+                    crate::dialogs::combo("delete-after")
+                        .selected_text(now)
+                        .show_ui(ui, |ui| {
+                            for (label, seconds) in times {
+                                ui.selectable_value(&mut d.delete_after, seconds, label);
+                            }
+                        })
+                        .response
+                        .labelled_by(name.id);
+                    ui.end_row();
                     if let (Some(label), false) = (&d.label, video) {
                         ui.label(t("Quality"));
                         ui.label(label);
@@ -661,7 +679,7 @@ pub(super) fn file_info(app: &mut DmApp, ctx: &egui::Context) {
         // An MP3 is asked for by its quality ("audio/mp3").
         mp3: false,
         gif: d.gif && d.span.is_some(),
-        delete_after: None,
+        delete_after: d.delete_after,
         cookies: d.cookies.clone(),
         cookies_once: d.cookies_once,
         checksum: None,
