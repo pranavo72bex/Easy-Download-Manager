@@ -59,6 +59,7 @@ impl Queue {
             // A shape only for a part, which is cut from MP4 streams.
             slot.entry_mut().shape = with.shape.filter(|_| with.span.is_some());
             slot.entry_mut().mp3 = with.mp3;
+            slot.entry_mut().gif = with.gif && with.span.is_some();
             slot.entry_mut().delete_after = with.delete_after.filter(|s| *s > 0);
             slot.entry_mut().cookies = with.cookies.trim().to_string();
             slot.entry_mut().cookies_once = with.cookies_once && !slot.entry.cookies.is_empty();

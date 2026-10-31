@@ -78,6 +78,17 @@ struct Defaults {
     flags: u32,
 }
 
+/// The tracks of the MP4 at `path`, as the muxer reads them.
+pub(crate) fn tracks_in_file(path: &Path) -> Result<Vec<Track>, String> {
+    let mut file =
+        File::open(path).map_err(|e| format!("{} could not be read: {e}", path.display()))?;
+    let length = file
+        .metadata()
+        .map_err(|e| format!("{} could not be read: {e}", path.display()))?
+        .len();
+    read_input(&mut file, length, 0)
+}
+
 /// Joins `inputs`' tracks into one MP4 at `out`. Returns its length.
 pub fn join(inputs: &[PathBuf], out: &Path) -> Result<u64, String> {
     join_with_text(inputs, &[], out)

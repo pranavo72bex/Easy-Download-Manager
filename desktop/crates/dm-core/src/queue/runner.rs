@@ -275,6 +275,7 @@ impl Queue {
                     options.span = slot.entry.span;
                     options.shape = slot.entry.shape;
                     options.mp3 = slot.entry.mp3;
+                    options.gif = slot.entry.gif;
                     // The quality picked in the browser's panel, over the setting.
                     if let Some(quality) = &slot.entry.quality {
                         options.quality = crate::stream::Quality::named(quality);

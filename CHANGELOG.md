@@ -5,6 +5,7 @@ the browser extension (`v*` tags) are versioned separately.
 
 ## App 0.8.6, extension 3.2.1
 
+- A part of a video can be saved as a GIF (macOS), as it is, vertical or square: Part as: GIF in Download details.
 - A video's sound can be saved as MP3 (macOS): "MP3 audio" in the quality list, in the browser's panel too, made by dm's own encoder.
 - When YouTube refuses the addresses of dm's own reading, dm tries yt-dlp's reading on its own fast engine before handing the download to yt-dlp.
 - A part of a video can be saved vertical (9:16) or square (1:1), instantly and with no loss: dm sets the video's own crop rather than re-encoding it.

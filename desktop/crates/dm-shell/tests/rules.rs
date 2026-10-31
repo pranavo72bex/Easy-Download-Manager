@@ -31,6 +31,7 @@ async fn a_held_download_goes_on_when_the_limit_lets_it() {
             span: None,
             shape: None,
             mp3: false,
+            gif: false,
             media: false,
             referrer: None,
             proxy: None,

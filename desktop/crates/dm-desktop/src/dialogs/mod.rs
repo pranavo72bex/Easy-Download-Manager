@@ -94,6 +94,8 @@ pub struct FileInfo {
     pub span: Option<dm_core::Span>,
     /// The part made vertical or square; `None` as it is.
     pub shape: Option<dm_core::shape::Shape>,
+    /// The part saved as a GIF.
+    pub gif: bool,
     /// "Only a part of the video", and its ends as typed ("4:10").
     pub part: bool,
     pub part_from: String,

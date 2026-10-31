@@ -161,6 +161,9 @@ pub struct Entry {
     /// Its sound saved as MP3 when it finishes (`crate::mp3`).
     #[serde(default, skip_serializing_if = "std::ops::Not::not")]
     pub mp3: bool,
+    /// Its part saved as a GIF when it finishes (`crate::gif`).
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub gif: bool,
     /// Seconds after it finishes that its file goes to the Trash and the
     /// row with it ("Delete file after"); `None` keeps it.
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -260,6 +263,8 @@ pub struct AddOptions {
     pub shape: Option<crate::shape::Shape>,
     /// Its sound saved as MP3 when it finishes.
     pub mp3: bool,
+    /// Its part saved as a GIF when it finishes.
+    pub gif: bool,
     /// "Delete file after", for the row it adds.
     pub delete_after: Option<u64>,
     /// The browser's cookies for this download's site, as a `Cookie`
@@ -603,6 +608,7 @@ impl Queue {
                 span: None,
                 shape: None,
                 mp3: false,
+                gif: false,
                 delete_after: None,
                 parts_dir: String::new(),
                 began_in: String::new(),

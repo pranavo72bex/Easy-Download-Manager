@@ -161,6 +161,7 @@ fn options(out: &Path) -> Options {
         span: None,
         shape: None,
         mp3: false,
+        gif: false,
         media: false,
         referrer: None,
         proxy: None,

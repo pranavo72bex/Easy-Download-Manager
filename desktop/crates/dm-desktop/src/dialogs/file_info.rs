@@ -475,6 +475,20 @@ pub(super) fn file_info(app: &mut DmApp, ctx: &egui::Context) {
                                 }
                             });
                             ui.end_row();
+                            // As a GIF: moving pictures with no sound,
+                            // decoded by the system (macOS so far).
+                            if dm_core::gif::possible() {
+                                ui.label(t("Part as"));
+                                ui.horizontal(|ui| {
+                                    if ui.selectable_label(!d.gif, t("Video")).clicked() {
+                                        d.gif = false;
+                                    }
+                                    if ui.selectable_label(d.gif, "GIF").clicked() {
+                                        d.gif = true;
+                                    }
+                                });
+                                ui.end_row();
+                            }
                         }
                     }
                     // The size, once the server has said it: its
@@ -646,6 +660,7 @@ pub(super) fn file_info(app: &mut DmApp, ctx: &egui::Context) {
         shape: d.shape.filter(|_| d.span.is_some()),
         // An MP3 is asked for by its quality ("audio/mp3").
         mp3: false,
+        gif: d.gif && d.span.is_some(),
         delete_after: None,
         cookies: d.cookies.clone(),
         cookies_once: d.cookies_once,

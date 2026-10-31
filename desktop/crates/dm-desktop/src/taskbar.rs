@@ -221,6 +221,7 @@ mod tests {
             span: None,
             shape: None,
             mp3: false,
+            gif: false,
             delete_after: None,
             parts_dir: String::new(),
             began_in: String::new(),

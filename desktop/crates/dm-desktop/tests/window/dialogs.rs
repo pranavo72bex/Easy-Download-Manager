@@ -2011,3 +2011,38 @@ fn a_part_can_be_made_vertical_or_square() {
     assert_eq!(row.shape, Some(dm_core::shape::Shape::Vertical));
     assert!(row.span.is_some());
 }
+
+/// A part can be saved as a GIF where dm can make one: the choice shows
+/// with the part, and goes with it to its row.
+#[cfg(target_os = "macos")]
+#[test]
+fn a_part_can_be_saved_as_a_gif() {
+    let world = world();
+    let mut harness = world.harness();
+    let _file = settings_file();
+    click(&mut harness, "Add URL");
+    type_into(
+        &mut harness,
+        "Address",
+        "https://www.youtube.com/watch?v=jNQXAC9IVRw&t=4",
+    );
+    click(&mut harness, "OK");
+    harness.run_steps(2);
+    assert!(harness.query_by_label("GIF").is_none());
+    click(&mut harness, "From 0:04");
+    harness.run_steps(2);
+    harness
+        .state_mut()
+        .dialogs
+        .file_info
+        .as_mut()
+        .unwrap()
+        .part_to = "0:09".into();
+    click(&mut harness, "GIF");
+    harness.run_steps(2);
+    click(&mut harness, "Add for later");
+    harness.run_steps(2);
+    let row = harness.state().rows().last().cloned().unwrap();
+    assert!(row.gif, "the row does not carry the GIF");
+    assert!(row.span.is_some());
+}

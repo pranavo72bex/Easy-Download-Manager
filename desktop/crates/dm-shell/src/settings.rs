@@ -704,6 +704,7 @@ impl Settings {
             span: None,
             shape: None,
             mp3: false,
+            gif: false,
             media: false,
             referrer: None,
             // For the tools dm runs; the client has its own copy.

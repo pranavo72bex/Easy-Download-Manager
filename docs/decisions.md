@@ -8,6 +8,23 @@ can see what it is undoing.
 
 
 
+## 2026-10-31: A part as a GIF: the system's decoder, dm's GIF writer
+
+Gaps row 54, with no package and no ffmpeg. The part's H.264 samples
+(read by dm's MP4 reader) are decoded by VideoToolbox, called directly
+(`frames.rs`), twelve pictures a second kept, each made at most 480 across
+and as tall as it is decoded (box averaging), within the part its edit
+list plays and inside the stream's crop, so a vertical or square part
+gives a vertical or square GIF. `gif.rs` writes them: one 256-colour
+palette by median cut over a sample of their pixels (every pixel of small
+pictures, else every seventh: every eighth missed a four-pixel pattern),
+Floyd–Steinberg dithering, GIF's LZW (tested against a reader written to
+the format), and a GIF89a that loops, its delays rounded so the whole
+keeps time (8, 8, 9 hundredths for twelve a second). Checked on real
+YouTube parts: 10 s at 480x270 and 270x480, 120 frames each, 10 MB, made
+in under 3 s; a 6 s part downloaded square and saved as a 480x480 GIF.
+In Download details, "Part as: Video / GIF" shows with Part, on macOS.
+
 ## 2026-10-31: MP3 by an encoder of dm's own; the system's AAC decoder in front
 
 Asked for MP3 as dm's own code, with no ffmpeg and no added package.

@@ -85,6 +85,8 @@ pub struct Options {
     pub shape: Option<crate::shape::Shape>,
     /// The finished sound saved as MP3 (`crate::mp3`).
     pub mp3: bool,
+    /// The finished part saved as a GIF (`crate::gif`).
+    pub gif: bool,
     /// Media was asked for (a player's video, from the browser's panel or
     /// media menu): a page yt-dlp cannot read fails, rather than being
     /// fetched as the document its address ends like (a
@@ -568,6 +570,16 @@ pub async fn download_reporting(
         let bytes = crate::mp3::convert_async(done.path.clone(), target.clone())
             .await
             .map_err(|why| Error::Internal(format!("the MP3 could not be made: {why}")))?;
+        let _ = tokio::fs::remove_file(&done.path).await;
+        done.path = target;
+        done.bytes = bytes;
+    }
+    // A part as a GIF: its pictures decoded by the system, written by dm.
+    if options.gif && options.span.is_some() && ext == "mp4" {
+        let target = done.path.with_extension("gif");
+        let bytes = crate::gif::from_video_async(done.path.clone(), target.clone())
+            .await
+            .map_err(|why| Error::Internal(format!("the GIF could not be made: {why}")))?;
         let _ = tokio::fs::remove_file(&done.path).await;
         done.path = target;
         done.bytes = bytes;
@@ -1144,6 +1156,7 @@ mod tests {
             span: None,
             shape: None,
             mp3: false,
+            gif: false,
             media: false,
             referrer: None,
             proxy: None,
