@@ -71,13 +71,12 @@ async fn a_download_goes_out_on_both_paths_and_is_whole() {
         .unwrap()
     });
 
-    // As Options sets it: by the interface's name.
-    let name = dm_core::interfaces()
-        .into_iter()
-        .find(|i| i.address == other)
-        .unwrap()
-        .name;
-    dm_core::set_second_path(Some(&name)).unwrap();
+    // Bound to that address alone: bound to its interface too, as Options
+    // sets it by name, a Linux socket cannot reach the loopback server at
+    // all (macOS's can), and the split between two paths is what is tested.
+    dm_core::second_path::set_second_client(Some(
+        dm_core::builder().local_address(other).build().unwrap(),
+    ));
     let dir = tempdir();
     let opts = dm_core::Options {
         connections: 4,

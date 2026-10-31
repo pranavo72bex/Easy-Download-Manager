@@ -26,7 +26,14 @@ fn a_progress_window_says_what_came_over_the_second_network() {
             dm_core::second_path::set_second_client(None);
         }
     }
-    dm_core::set_second_path(Some(&network.name)).unwrap();
+    // Bound to its address alone (by its name, a Linux socket cannot reach
+    // the loopback server; `dm-core/tests/second_path.rs`).
+    dm_core::second_path::set_second_client(Some(
+        dm_core::builder()
+            .local_address(network.address)
+            .build()
+            .unwrap(),
+    ));
     let _off = Off;
     let world = world();
     // Two connections or more: the second goes out on the second network.
