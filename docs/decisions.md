@@ -8,6 +8,24 @@ can see what it is undoing.
 
 
 
+## 2026-10-31: dm and the other macOS manager, run side by side again
+
+Asked to run both and make dm equal or better. The same cases, one app
+after the other, on this Mac (the other through its local interface, dm
+headless, release build of baa0972); the person's files and jobs in the
+other app left as they were (only what the run added was removed):
+
+| Case | Other macOS manager | dm |
+|---|---|---|
+| 168 MB, each connection held to 1 MB/s | 68.3 s | 21.2 s |
+| Server down 40 s at 30% | moving 21.4 s after it returned, done at 41.3 s | moving 16.4 s after, done at 38.1 s |
+| A 19 s YouTube video | 21.8 s | 3.6 s |
+
+The folder-not-writable case was left out: on the other app's side it
+needs the person's own download folder made read-only. Its clip, GIF,
+MP3 and vertical modes are reached only through its window, so dm's were
+checked on real YouTube videos instead (decisions above).
+
 ## 2026-10-31: YouTube's streams are asked for when YouTube serves them; MP3 on every core
 
 Gaps row 55. A song's sound (dQw4w9WgXcQ, itag 140) was refused (403) to
