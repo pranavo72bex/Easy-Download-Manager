@@ -19,7 +19,7 @@ needed. What this R&D adds is mostly *process*:
 - port notes on each ported function.
 
 A new crate is not needed (see [architecture.md](architecture.md),
-"Decisions to make").
+"Decisions").
 
 Measured today on three real videos (method at the end):
 
@@ -209,9 +209,9 @@ dm's memory or files.
 
 - **dm:** a throwaway example called `dm_core::youtube::read` on each
   address with a scratch tools folder; `/usr/bin/time -l` and `getrusage`
-  measured it, three rounds. The example is not in the repo. It becomes
-  the proposed `dm-core/examples/extract_bench.rs` if the health check in
-  [architecture.md](architecture.md) is approved.
+  measured it, three rounds. The example is not kept in the repo (the
+  scheduled health check that would use it was not taken); it is the call
+  above, timed, with `tools::set_folder` pointed at an empty folder.
 - **yt-dlp:** `yt-dlp -J --no-playlist`, two rounds each, using the
   Homebrew yt-dlp 2026.10.21 with Deno.
 - **Formats:** the `format_id` sets of HTTPS formats were compared between

@@ -3,8 +3,8 @@
 Findings and measurements are in
 [extractor-research.md](extractor-research.md); risks in
 [risks.md](risks.md). The first part of this page describes what is
-built. "Proposed" marks what is not built, and needs the maintainer's
-yes first.
+built; the maintainer's choices are at the end. "Proposed" marks what
+is not built.
 
 ## What is built
 
@@ -59,12 +59,16 @@ yt-dlp is always the safer second reader. **Show an error only when the
 last reader has failed.** A person never sees "dm's reader failed" on its
 own.
 
-## Proposed: keeping up without rediscovering fixes
+## Keeping up without rediscovering fixes
 
-### 1. Mirrored upstream files (`docs/rnd/upstream.toml`)
+The maintainer decided on 2026-10-31: §1 is built; §2-§4 are not built
+for now, and are kept here in case they are wanted later.
 
-The file pins the yt-dlp commit last reviewed, and the files whose
-changes we port:
+### 1. Mirrored upstream files ([upstream.toml](upstream.toml), built)
+
+The file pins the yt-dlp commit last reviewed (2026.10.21, checked
+2026-10-31: dm's client constants and solver scripts are the same as
+yt-dlp's at that release), and the files whose changes we port:
 
 | yt-dlp file | What dm takes from it | dm code |
 |---|---|---|
@@ -75,7 +79,7 @@ changes we port:
 | `yt_dlp/extractor/youtube/jsc/_builtin/vendor/_info.py` | The solver version and allowed hashes | `SOLVER_VERSION`, `SOLVER_LIB`, `SOLVER_CORE` |
 | `yt-dlp/ejs` releases | The solver scripts themselves | fetched and pinned by digest |
 
-### 2. Upstream watcher (GitHub Action, weekly)
+### 2. Upstream watcher (GitHub Action, weekly; not built)
 
 `.github/workflows/upstream-watch.yml`, about 40 lines, run weekly and
 by hand:
@@ -93,7 +97,7 @@ by hand:
 It needs only the default `GITHUB_TOKEN` with `issues: write`. It reads a
 public repo, and runs no code from it.
 
-### 3. Port notes in the code
+### 3. Port notes in the code (not built)
 
 Each ported function gets one line, so the next reader can diff it against
 upstream:
@@ -107,7 +111,7 @@ A test in `xtask` checks that every `Ported from yt-dlp … at <commit>`
 names a commit that exists in `upstream.toml`'s history, so stale notes
 are found.
 
-### 4. Health check against real sites (scheduled CI)
+### 4. Health check against real sites (scheduled CI; not built)
 
 `scripts/real-sites.py` already does the check by hand (14 sites, about
 220 MB). Proposed `.github/workflows/real-sites.yml`, daily on macOS:
@@ -139,20 +143,20 @@ merge" pick is wanted, ask the `visionos` client too: it needs no player
 JS, and its answer has itag 18. That costs one more request, ~0.3 s. Not
 needed for dm's current choices, which always merge a better pair.
 
-## Decisions to make (maintainer)
+## Decisions (maintainer, 2026-10-31)
 
-1. **No new `crates/extractor` crate, no feature flag.** The brief asked
-   for a prototype behind a flag. The native YouTube reader has been on
-   `main` since 2026-10-30, and passes the real-site check. A second copy
-   behind a flag would split the upkeep in two. Recommended: keep the one
-   in `dm-core`, and move it into its own crate only when a second native
-   site is added.
-2. **Build the upkeep pieces (§1-§4)?** Recommended: §1, §2 and §3 now
-   (small, no risk to the app), and §4 on a one-week trial.
-3. **A second native site?** Not recommended now. yt-dlp's other ~940
-   extractors are what it is for, and dm already fetches their streams on
-   its own engine. Only a site with high use *and* simple pages would pay
-   off.
-4. **The JS engine stays a separate, sandboxed process** (QuickJS fetched
-   by dm, or Deno). Embedding rquickjs would save the sidecar but run the
-   player's JS inside dm. Recommended: keep the separate process.
+0. **Direction: yt-dlp is to be removed.** Only what dm needs of it is
+   kept, ported into Rust; the whole package is not wanted. yt-dlp stays
+   the fallback for each part until that part is ported, so nothing that
+   downloads today stops working on the way. `upstream.toml` lists what
+   has been ported so far and where it came from.
+1. **No new `crates/extractor` crate and no feature flag.** The native
+   YouTube reader stays in `dm-core`, where it has been on `main` since
+   2026-10-30. It moves into its own crate, behind a trait, only when a
+   second site gets a native reader.
+2. **Upkeep:** only the list of tracked files (§1). Without the watcher,
+   the review is by hand: before a release, and whenever the log shows
+   "could not read the YouTube page itself".
+3. **Not decided, and not proposed now:** a second native site, and
+   embedding the JS engine. The recommendation stays: keep the engine as
+   a separate, sandboxed process.

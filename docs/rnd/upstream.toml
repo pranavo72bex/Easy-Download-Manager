@@ -1,0 +1,58 @@
+# The yt-dlp files dm's own Rust is ported from, and the yt-dlp release
+# they were last checked against. yt-dlp is to be removed from dm in time:
+# what dm needs of it is ported into Rust and listed here; the package is
+# not kept. dm ports yt-dlp's fixes, and does not invent its own.
+# Process: docs/rnd/architecture.md, "Mirrored upstream files".
+#
+# To review: compare `pinned` with yt-dlp master for the files below,
+#   https://github.com/yt-dlp/yt-dlp/compare/<pinned>...master
+# port what changed into the dm code named, then move `pinned` (and each
+# file's `last_change`) forward in the same commit.
+#
+# yt-dlp is the Unlicense (public domain); the solver's built scripts
+# bundle meriyah (ISC) and astring (MIT), whose notices must ship with the
+# scripts if dm ever bundles them (dm fetches them at run time today).
+
+[yt-dlp]
+repo = "https://github.com/yt-dlp/yt-dlp"
+release = "2026.10.21"
+pinned = "6ccd977303412151ee23352c6257dd658ffc1987"
+checked = "2026-10-31"
+
+[ejs]
+repo = "https://github.com/yt-dlp/ejs"
+release = "0.8.0"   # newest on 2026-10-31 (published 2026-03-17)
+# dm pins SHA-256 (youtube.rs SOLVER_LIB, SOLVER_CORE); yt-dlp pins
+# SHA3-512 (vendor/_info.py). Checked 2026-10-31: both name the same files.
+dm_code = "dm-core/src/youtube.rs: SOLVER_VERSION, SOLVER_LIB, SOLVER_CORE"
+
+[[file]]
+path = "yt_dlp/extractor/youtube/_base.py"
+last_change = "12ac9aca7967"   # 2026-10-21
+takes = "INNERTUBE_CLIENTS['tv_samsung']: clientName, clientVersion, userAgent, INNERTUBE_CONTEXT_CLIENT_NAME"
+dm_code = "dm-core/src/youtube.rs: TV_CLIENT_NAME, TV_CLIENT_VERSION, TV_CLIENT_ID, TV_AGENT"
+matches = "2026-10-31: TVHTML5, 5.20260707, 7, the Tizen agent"
+
+[[file]]
+path = "yt_dlp/extractor/youtube/_video.py"
+last_change = "a51ef56c03e6"   # 2026-10-21
+takes = "_DEFAULT_CLIENTS, the player request, format fields, playability statuses, challenge collection"
+dm_code = "dm-core/src/youtube.rs: read_within and the format reading"
+
+[[file]]
+path = "yt_dlp/extractor/youtube/_tab.py"
+last_change = "cf68b8f43f14"   # 2026-08-19
+takes = "playlist pages and the browse continuation"
+dm_code = "dm-core/src/youtube.rs: read_playlist"
+
+[[file]]
+path = "yt_dlp/extractor/youtube/jsc/_builtin/ejs.py"
+last_change = "57528faa3613"   # 2026-06-26
+takes = "how the solver script is put together, its input and its answer"
+dm_code = "dm-core/src/youtube.rs: solve"
+
+[[file]]
+path = "yt_dlp/extractor/youtube/jsc/_builtin/vendor/_info.py"
+last_change = "5f6a214616f6"   # 2026-04-06
+takes = "the solver version and the scripts' digests"
+dm_code = "dm-core/src/youtube.rs: SOLVER_VERSION, SOLVER_LIB, SOLVER_CORE"

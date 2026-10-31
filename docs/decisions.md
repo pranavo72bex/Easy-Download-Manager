@@ -8,6 +8,25 @@ can see what it is undoing.
 
 
 
+## 2026-10-31: One native YouTube reader; yt-dlp to be removed, its needed parts ported
+
+Asked to research a minimal Rust extraction layer with yt-dlp as the
+fallback (`docs/rnd/`). It was mostly built already: `youtube.rs` reads
+YouTube itself, with yt-dlp behind it (1.5-1.8 s per video against
+yt-dlp's 2.7-4.1 s, the same titles and durations, every plain-HTTPS
+format but itags 18 and 139, about 98 KB of code). The maintainer's
+direction: yt-dlp is to be removed in time, and only what dm needs of it
+kept, ported into dm's own Rust; the whole package is not wanted. Until
+each part is ported, yt-dlp stays the fallback for it (YouTube's hard
+cases, live streams, every other site). The maintainer chose:
+no second, flagged prototype crate (two copies would need every fix
+twice), and, of the upkeep proposed, only `docs/rnd/upstream.toml`: the
+yt-dlp files dm ports from, pinned at release 2026.10.21, whose client
+constants and solver scripts were checked to be the same as dm's. Not
+taken for now: a weekly watcher on those files, port notes checked by a
+test, a scheduled check against real sites. No YouTube crate was taken:
+each is stale, GPL, or both.
+
 ## 2026-10-29: The video helper fetched at the first start, its bytes told
 
 `tools::freshen`, which runs at every start, now also fetches yt-dlp (and
