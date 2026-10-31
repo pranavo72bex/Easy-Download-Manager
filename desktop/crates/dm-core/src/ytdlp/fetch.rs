@@ -24,6 +24,7 @@
 
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
+use std::time::Duration;
 
 use super::{
     binary, container_sort, cookies_by_file, download_ytdlp, download_ytdlp_from, finish_dm,
@@ -115,7 +116,22 @@ pub async fn download_page(
     };
 
     let mut current = (plan, read);
+    wait_until_available(&current.1, options).await?;
     let mut outcome = fetch(client, &current.0, &current.1, options, report.clone()).await;
+    /* Refused within seconds of the reading: YouTube serves a TV client's
+     * streams a few seconds after handing out their addresses (4 s, seen
+     * in yt-dlp's `available_at`), and dm can ask sooner. The rest of six
+     * seconds waited out, and asked once more. */
+    let young = current.1.made.elapsed() < Duration::from_secs(10);
+    if young && matches!(&outcome, Err(Error::Refused { status: 403, .. })) {
+        let left = Duration::from_secs(6).saturating_sub(current.1.made.elapsed());
+        crate::download::or_stop(&options.control, async {
+            tokio::time::sleep(left).await;
+            Ok(())
+        })
+        .await?;
+        outcome = fetch(client, &current.0, &current.1, options, report.clone()).await;
+    }
     if matches!(
         &outcome,
         Err(Error::Refused {
@@ -144,6 +160,7 @@ pub async fn download_page(
         match resolve_as(url, options, None, false).await {
             Ok(theirs) => {
                 if let Some(plan) = theirs.plan(staging) {
+                    wait_until_available(&theirs, options).await?;
                     outcome = fetch(client, &plan, &theirs, options, report.clone()).await;
                 }
                 read = theirs;
@@ -254,6 +271,49 @@ async fn from_reading(
 struct Read {
     text: String,
     info: Info,
+    /// When it was made: YouTube serves a TV client's streams a few seconds
+    /// after it hands out their addresses.
+    made: std::time::Instant,
+}
+
+impl Read {
+    fn new(text: String, info: Info) -> Read {
+        Read {
+            text,
+            info,
+            made: std::time::Instant::now(),
+        }
+    }
+
+    /// The latest `available_at` of what it would fetch (Unix seconds):
+    /// the moment the site serves it, which yt-dlp waits for.
+    fn available_at(&self) -> Option<u64> {
+        let formats = self.info.requested_formats.iter().flatten();
+        formats
+            .filter_map(|f| f.available_at)
+            .chain(self.info.available_at)
+            .max()
+    }
+}
+
+/// Waits until `read`'s streams are served, as the site asks (at most ten
+/// seconds; a pause or cancel ends the wait).
+async fn wait_until_available(read: &Read, options: &Options) -> Result<(), Error> {
+    let Some(at) = read.available_at() else {
+        return Ok(());
+    };
+    let now = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map_or(0, |d| d.as_secs());
+    if at <= now {
+        return Ok(());
+    }
+    let wait = Duration::from_secs((at - now).min(10));
+    crate::download::or_stop(&options.control, async {
+        tokio::time::sleep(wait).await;
+        Ok(())
+    })
+    .await
 }
 
 #[derive(Debug, Default, serde::Deserialize)]
@@ -273,6 +333,9 @@ struct Info {
     /// "dm" for dm's own reading of a YouTube page (`crate::youtube`).
     #[serde(default)]
     read_by: Option<String>,
+    /// When the site serves the one format chosen (Unix seconds).
+    #[serde(default)]
+    available_at: Option<u64>,
     /// A picture and a sound to be joined, where it chose two.
     #[serde(default)]
     requested_formats: Option<Vec<Format>>,
@@ -290,6 +353,9 @@ struct Info {
 struct Format {
     #[serde(default)]
     url: Option<String>,
+    /// When the site serves it (Unix seconds), where it says.
+    #[serde(default)]
+    available_at: Option<u64>,
     #[serde(default)]
     protocol: Option<String>,
     #[serde(default)]
@@ -583,7 +649,7 @@ async fn resolve_as(
         .await;
         match own {
             Ok(text) => match serde_json::from_str::<Info>(&text) {
-                Ok(info) => return Ok(Read { text, info }),
+                Ok(info) => return Ok(Read::new(text, info)),
                 Err(e) => eprintln!(
                     "dm: its own reading of the page could not be read ({e}); yt-dlp reads it"
                 ),
@@ -674,7 +740,7 @@ async fn resolve_as(
         .to_string();
     let info: Info = serde_json::from_str(&text)
         .map_err(|e| Error::Internal(format!("yt-dlp's reading could not be read: {e}")))?;
-    Ok(Read { text, info })
+    Ok(Read::new(text, info))
 }
 
 /// Every stream fetched by dm's own engine at once, then joined and placed
@@ -937,10 +1003,22 @@ mod tests {
     use super::*;
 
     fn read(json: &str) -> Read {
-        Read {
-            text: json.to_string(),
-            info: serde_json::from_str(json).unwrap(),
-        }
+        Read::new(json.to_string(), serde_json::from_str(json).unwrap())
+    }
+
+    #[test]
+    fn a_reading_says_when_its_streams_are_served() {
+        let none = read(r#"{"url": "https://e.com/v"}"#);
+        assert_eq!(none.available_at(), None);
+        let one = read(r#"{"url": "https://e.com/v", "available_at": 1700000004}"#);
+        assert_eq!(one.available_at(), Some(1_700_000_004));
+        let pair = read(
+            r#"{"requested_formats": [
+                {"url": "https://e.com/a", "available_at": 1700000002},
+                {"url": "https://e.com/b", "available_at": 1700000005}
+            ]}"#,
+        );
+        assert_eq!(pair.available_at(), Some(1_700_000_005));
     }
 
     #[test]

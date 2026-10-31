@@ -38,12 +38,83 @@ pub fn convert(source: &std::path::Path, target: &std::path::Path) -> Result<u64
     if pcm.samples.is_empty() {
         return Err("the file has no sound to save as MP3".into());
     }
-    let mut encoder = Encoder::new(pcm.channels, pcm.rate)?;
-    let mut bytes = encoder.push(&pcm.samples);
-    bytes.extend(encoder.finish());
+    let bytes = encode_all(&pcm.samples, pcm.channels, pcm.rate)?;
     crate::write_atomic(target, &bytes)
         .map_err(|e| format!("the MP3 could not be written: {e}"))?;
     Ok(bytes.len() as u64)
+}
+
+/// The whole of `samples` as an MP3, on every core: the same bytes as one
+/// [`Encoder`] fed them all. Each frame carries its own bits (no
+/// reservoir), so the frames are cut into runs, one a core; each run's
+/// encoder first takes the two frames before it, whose output is dropped,
+/// so its filterbank and MDCT carry what one long run's would, and it
+/// counts frames from where its run starts, so the padding falls where
+/// one run puts it.
+pub fn encode_all(samples: &[i16], channels: usize, rate: u32) -> Result<Vec<u8>, String> {
+    let probe = Encoder::new(channels, rate)?;
+    let whole = FRAME * channels;
+    let frames = samples.len().div_ceil(whole);
+    let cores = std::thread::available_parallelism()
+        .map_or(1, |n| n.get())
+        .min(8);
+    if cores < 2 || frames < 64 {
+        let mut encoder = probe;
+        let mut out = encoder.push(samples);
+        out.extend(encoder.finish());
+        return Ok(out);
+    }
+    const LEAD: usize = 2;
+    let per = frames.div_ceil(cores);
+    let runs: Vec<(usize, usize)> = (0..frames)
+        .step_by(per)
+        .map(|first| (first, (first + per).min(frames)))
+        .collect();
+    let slots = 144 * u64::from(probe.bitrate) * 1000;
+    let rate_hz = u64::from(probe.rate);
+    let pieces: Vec<Result<Vec<u8>, String>> = std::thread::scope(|scope| {
+        let handles: Vec<_> = runs
+            .iter()
+            .map(|&(first, last)| {
+                scope.spawn(move || -> Result<Vec<u8>, String> {
+                    let mut encoder = Encoder::new(channels, rate)?;
+                    let lead = LEAD.min(first);
+                    let from = first - lead;
+                    encoder.frames = from as u64;
+                    encoder.written = from as u64 * slots / rate_hz;
+                    let mut out = Vec::new();
+                    let mut frame = vec![0i16; whole];
+                    for index in from..last {
+                        let at = index * whole;
+                        let have = samples.len().saturating_sub(at).min(whole);
+                        frame[..have].copy_from_slice(&samples[at..at + have]);
+                        frame[have..].fill(0);
+                        let bytes = encoder.frame(&frame);
+                        if index >= first {
+                            out.extend(bytes);
+                        }
+                    }
+                    // The filterbank's delay, after the last run.
+                    if last == frames {
+                        out.extend(encoder.frame(&vec![0; whole]));
+                    }
+                    Ok(out)
+                })
+            })
+            .collect();
+        handles
+            .into_iter()
+            .map(|h| {
+                h.join()
+                    .unwrap_or_else(|_| Err("the MP3 encoder stopped".into()))
+            })
+            .collect()
+    });
+    let mut out = Vec::new();
+    for piece in pieces {
+        out.extend(piece?);
+    }
+    Ok(out)
 }
 
 /// [`convert`], off the async runtime.
@@ -79,6 +150,9 @@ pub struct Encoder {
     history: Vec<[f64; 512]>,
     /// Each channel's last granule of band samples, for the MDCT's overlap.
     overlap: Vec<[[f64; 18]; 32]>,
+    /// Each channel's last global gain, where the next granule's search
+    /// starts.
+    gains: Vec<Option<u32>>,
     /// Bytes written so far, to keep the padding even.
     written: u64,
     frames: u64,
@@ -130,6 +204,7 @@ impl Encoder {
             bitrate,
             history: vec![[0.0; 512]; channels],
             overlap: vec![[[0.0; 18]; 32]; channels],
+            gains: vec![None; channels],
             written: 0,
             frames: 0,
             pending: Vec::new(),
@@ -181,7 +256,9 @@ impl Encoder {
             let mut chans = Vec::with_capacity(self.channels);
             for ch in 0..self.channels {
                 let lines = self.lines(samples, gr, ch);
-                chans.push(quantize(&lines, budget, self.rate_index as usize));
+                let g = quantize(&lines, budget, self.rate_index as usize, self.gains[ch]);
+                self.gains[ch] = Some(g.global_gain);
+                chans.push(g);
             }
             granules.push(chans);
         }
@@ -317,14 +394,21 @@ struct Granule {
     bits: u32,
 }
 
-/// The finest quantization of `lines` whose coding fits `budget` bits.
-fn quantize(lines: &[f64; 576], budget: usize, rate: usize) -> Granule {
+/// The finest quantization of `lines` whose coding fits `budget` bits:
+/// searched from `hint` (the channel's last gain) where there is one, a
+/// step or two each way, else by halves over the whole range.
+fn quantize(lines: &[f64; 576], budget: usize, rate: usize, hint: Option<u32>) -> Granule {
     let budget = budget.min(4095);
+    // Each line's magnitude to the 3/4, once: each gain tried only scales it.
+    let mut powered = [0f64; 576];
+    for (p, x) in powered.iter_mut().zip(lines) {
+        *p = x.abs().powf(0.75);
+    }
     let fits = |gain: u32| -> Option<Granule> {
         let step = 2f64.powf(-0.1875 * (f64::from(gain) - 210.0));
         let mut values = [0i32; 576];
-        for (v, x) in values.iter_mut().zip(lines) {
-            let q = (x.abs().powf(0.75) * step - 0.0946 + 0.5).floor().max(0.0);
+        for ((v, x), p) in values.iter_mut().zip(lines).zip(&powered) {
+            let q = (p * step - 0.0946 + 0.5).floor().max(0.0);
             if q > f64::from(MAX_VALUE) {
                 return None;
             }
@@ -337,6 +421,34 @@ fn quantize(lines: &[f64; 576], budget: usize, rate: usize) -> Granule {
         (g.bits as usize <= budget).then_some(g)
     };
     // The smallest gain (finest step) that fits: bits fall as gain rises.
+    if let Some(hint) = hint {
+        let mut found = None;
+        if let Some(g) = fits(hint) {
+            // Finer while it still fits.
+            found = Some(g);
+            let mut gain = hint;
+            while gain > 0 {
+                match fits(gain - 1) {
+                    Some(g) => {
+                        found = Some(g);
+                        gain -= 1;
+                    }
+                    None => break,
+                }
+            }
+        } else {
+            // Coarser until it fits.
+            for gain in hint + 1..=255 {
+                if let Some(g) = fits(gain) {
+                    found = Some(g);
+                    break;
+                }
+            }
+        }
+        if let Some(best) = found {
+            return coded(best.values, best.global_gain, rate, false);
+        }
+    }
     let (mut low, mut high) = (0u32, 255u32);
     let mut best = fits(255).unwrap_or_else(|| coded([0; 576], 255, rate, true));
     while low < high {
@@ -372,6 +484,10 @@ fn coded(values: [i32; 576], global_gain: u32, rate: usize, quick: bool) -> Gran
     }
     let count1 = (end - big) / 4;
     let (count1_table, count1_bits) = count1_cost(&values[big..end]);
+    // Each table's bits for each scalefactor band's pairs, worked out once;
+    // a split's cost is then sums of them (it was every pair under every
+    // table for each of 128 splits).
+    let costs = BandCosts::new(&values, bands, big);
     // Regions: the split at band edges with the fewest bits.
     let mut best: Option<Split> = None;
     let (r0s, r1s) = if quick { (7..8, 7..8) } else { (0..16, 0..8) };
@@ -382,9 +498,9 @@ fn coded(values: [i32; 576], global_gain: u32, rate: usize, quick: bool) -> Gran
             }
             let a = usize::from(bands[r0 + 1]).min(big);
             let b = usize::from(bands[r0 + r1 + 2]).min(big);
-            let (t0, c0) = best_table(&values[..a]);
-            let (t1, c1) = best_table(&values[a..b]);
-            let (t2, c2) = best_table(&values[b..big]);
+            let (t0, c0) = costs.best(0, r0 + 1);
+            let (t1, c1) = costs.best(r0 + 1, r0 + r1 + 2);
+            let (t2, c2) = costs.best(r0 + r1 + 2, 22);
             let cost = c0 + c1 + c2;
             if best.is_none_or(|(_, _, _, c, _)| cost < c) {
                 best = Some(([t0, t1, t2], r0 as u32, r1 as u32, cost, (a, b)));
@@ -410,33 +526,105 @@ fn coded(values: [i32; 576], global_gain: u32, rate: usize, quick: bool) -> Gran
     }
 }
 
-/// A table that codes `values` (pairs) in the fewest bits, and those bits.
-fn best_table(values: &[i32]) -> (u32, u32) {
-    let most = values.iter().map(|v| v.abs()).max().unwrap_or(0);
-    if most == 0 {
-        return (0, 0);
-    }
-    let mut best = (0, u32::MAX);
-    let candidates: Vec<u32> = if most <= 15 {
-        [1, 2, 3, 5, 6, 7, 8, 9, 10, 11, 12, 13, 15]
-            .into_iter()
-            .filter(|t| table_size(*t) as i32 > most)
-            .collect()
-    } else {
-        (16..32)
-            .filter(|t| 15 + (1i32 << tables::LINBITS[*t as usize]) > most)
-            .collect()
-    };
-    for table in candidates {
-        let cost: u32 = values
-            .chunks(2)
-            .map(|p| pair_bits(table, p[0], p.get(1).copied().unwrap_or(0)))
-            .sum();
-        if cost < best.1 {
-            best = (table, cost);
+/// The tables with no linbits a region can be coded with.
+const SMALL: [u32; 13] = [1, 2, 3, 5, 6, 7, 8, 9, 10, 11, 12, 13, 15];
+/// The two families with linbits, by their first table: 16 to 23 share
+/// table 16's codes, 24 to 31 table 24's, and differ only in linbits.
+const FAMILIES: [u32; 2] = [16, 24];
+
+/// Bits from band 0 up to each band, so a run of bands costs two lookups:
+/// for each small table (with how many bands it cannot code), for each
+/// family the codes' bits (values over 15 coded as 15, sign bits counted)
+/// and how many values need linbits; and each band's largest value.
+struct BandCosts {
+    small: Vec<[(u64, u32); 23]>,
+    family: [[(u64, u64); 23]; 2],
+    most: [i32; 23],
+}
+
+impl BandCosts {
+    fn new(values: &[i32; 576], bands: &[u16; 23], big: usize) -> BandCosts {
+        let mut small = vec![[(0u64, 0u32); 23]; SMALL.len()];
+        let mut family = [[(0u64, 0u64); 23]; 2];
+        let mut most = [0i32; 23];
+        for band in 0..22 {
+            let lo = usize::from(bands[band]).min(big);
+            let hi = usize::from(bands[band + 1]).min(big);
+            let pairs = &values[lo..hi];
+            let top = pairs.iter().map(|v| v.abs()).max().unwrap_or(0);
+            most[band + 1] = top;
+            let pair = |p: &[i32]| (p[0], p.get(1).copied().unwrap_or(0));
+            for (i, table) in SMALL.iter().enumerate() {
+                let (bits, bad) = small[i][band];
+                // Zeros cost bits too under a real table: only a region of
+                // zeros alone is free (table 0, in `best`).
+                small[i][band + 1] = if (table_size(*table) as i32) > top {
+                    let cost: u32 = pairs
+                        .chunks(2)
+                        .map(|p| {
+                            let (x, y) = pair(p);
+                            pair_bits(*table, x, y)
+                        })
+                        .sum();
+                    (bits + u64::from(cost), bad)
+                } else {
+                    (bits, bad + 1)
+                };
+            }
+            for (f, first) in FAMILIES.iter().enumerate() {
+                let mut codes = 0u64;
+                let mut long = 0u64;
+                for p in pairs.chunks(2) {
+                    let (x, y) = pair(p);
+                    // Without linbits: the code and its signs.
+                    codes += u64::from(pair_code(*first, x, y).1)
+                        + u64::from(x != 0)
+                        + u64::from(y != 0);
+                    long += u64::from(x.abs() >= 15) + u64::from(y.abs() >= 15);
+                }
+                let (c, l) = family[f][band];
+                family[f][band + 1] = (c + codes, l + long);
+            }
+        }
+        BandCosts {
+            small,
+            family,
+            most,
         }
     }
-    best
+
+    /// The table that codes bands `from..to` in the fewest bits, and those.
+    fn best(&self, from: usize, to: usize) -> (u32, u32) {
+        let to = to.min(22);
+        let top = self.most[from + 1..=to].iter().copied().max().unwrap_or(0);
+        if from >= to || top == 0 {
+            return (0, 0);
+        }
+        let mut best = (0, u32::MAX);
+        for (i, table) in SMALL.iter().enumerate() {
+            let bits = self.small[i][to].0 - self.small[i][from].0;
+            let bad = self.small[i][to].1 - self.small[i][from].1;
+            if bad == 0 && (bits as u32) < best.1 {
+                best = (*table, bits as u32);
+            }
+        }
+        for (f, first) in FAMILIES.iter().enumerate() {
+            // The fewest linbits that hold the largest value.
+            let Some(table) =
+                (*first..*first + 8).find(|t| 15 + (1i32 << tables::LINBITS[*t as usize]) > top)
+            else {
+                continue;
+            };
+            let linbits = u64::from(tables::LINBITS[table as usize]);
+            let codes = self.family[f][to].0 - self.family[f][from].0;
+            let long = self.family[f][to].1 - self.family[f][from].1;
+            let bits = codes + linbits * long;
+            if (bits as u32) < best.1 {
+                best = (table, bits as u32);
+            }
+        }
+        best
+    }
 }
 
 fn table_size(table: u32) -> usize {
@@ -766,5 +954,19 @@ mod tests {
         }
         let level = 2.0 * (c * c + s * s).sqrt() / (seg.len() / 2) as f64;
         assert!((10_000.0..14_000.0).contains(&level), "{level}");
+    }
+
+    #[test]
+    fn encoding_on_every_core_gives_the_bytes_one_run_gives() {
+        // Long enough to be cut into runs: ten seconds of the tones.
+        let mut samples = tones(44100);
+        samples.extend(tones(44100));
+        samples.extend(tones(44100));
+        samples.extend(tones(44100));
+        samples.extend(tones(44100));
+        assert_eq!(
+            encode_all(&samples, 2, 44100).unwrap(),
+            encode(&samples, 2, 44100)
+        );
     }
 }

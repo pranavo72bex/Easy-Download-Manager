@@ -8,6 +8,28 @@ can see what it is undoing.
 
 
 
+## 2026-10-31: YouTube's streams are asked for when YouTube serves them; MP3 on every core
+
+Gaps row 55. A song's sound (dQw4w9WgXcQ, itag 140) was refused (403) to
+dm's engine for both dm's reading and yt-dlp's, and came only through
+yt-dlp's own slow download (46 s). Watched with yt-dlp's own
+`--print-traffic`: it asks with the same TV-client address and no token,
+and is answered. The reading says why: `available_at`, four seconds after
+it is made; yt-dlp waits for it, dm asked sooner. dm now waits for a
+reading's `available_at` (at most 10 s), and a stream refused within ten
+seconds of its reading (dm's own reading carries no such field) is asked
+for once more when six seconds have passed. The song's sound: 10 s.
+
+The MP3 of it then took 46 s of encoding. Now: each table's bits counted
+once per band (a split's cost is sums), the families with linbits priced
+by their base codes and the values needing linbits, each granule's gain
+searched from the last, the lines' 3/4 powers worked out once, and the
+frames encoded on every core (no bit reservoir, so frames stand alone;
+each run's encoder takes the two frames before it first and counts from
+its start, and the bytes are the same as one run's, which a test holds).
+3:33 of sound to MP3 in about 2.5 s; the song from link to MP3 in 12.4 s
+(57 s before).
+
 ## 2026-10-31: Qualities named by their class, as people know them
 
 From the comparison with the other macOS manager: its list says "4K,
