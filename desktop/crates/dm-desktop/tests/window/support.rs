@@ -327,7 +327,7 @@ pub(crate) fn world() -> World {
                         .unwrap();
                 }
                 // The engine's first look: one byte, and the size.
-                if headers.get("range").is_some_and(|r| r == "bytes=0-0") {
+                if headers.get("range").is_some_and(|r| r == "bytes=0-0" || r == "bytes=0-") {
                     return Response::builder()
                         .status(206)
                         .header("content-range", "bytes 0-0/1000000")

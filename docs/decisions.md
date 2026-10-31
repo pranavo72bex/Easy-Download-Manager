@@ -4,9 +4,24 @@ Decisions that shape dm and are not obvious from the code, newest first. Each sa
 can see what it is undoing.
 
 
+## 2026-10-31: yt-dlp removed; videos as reference A gets them
 
-
-
+Decided by the maintainer on 2026-10-31, asked which way to replace
+yt-dlp: "exactly like reference A". Measured the same day (reference A
+6.43 build 16 on Windows 11): handed a YouTube watch address on its command
+line, reference A made one connection, saved the page itself (6 KB) and
+stopped; it read no video. Reference A reads no page: it gets a video only
+from the requests the browser's player makes, caught by its extension.
+dm already does that (`tests/caught_pair.rs`, no yt-dlp present). So
+yt-dlp goes entirely: YouTube is read by dm's own reader (`youtube.rs`),
+every other site only through the player's caught requests, and a site
+only yt-dlp could read is no longer offered, as reference A does not offer
+it. What reference A does on a playing YouTube page, where the player's
+requests are SABR and carry no plain address (2026-10-29), is to be watched
+from outside (its connections and the files it writes), not by opening its
+binaries, which its licence forbids. This replaces gaps row 52's "the
+maintainer names the sites" and the 2026-10-26 decision to keep yt-dlp
+behind the player's requests.
 
 ## 2026-10-31: dm and the other macOS manager, run side by side again
 
@@ -3422,3 +3437,32 @@ split the largest when none are left, so the faster path takes more on its
 own. Off while a proxy is on: a connection around the proxy would show the
 site this computer's own address. A chosen network that is not connected
 is said once and the download uses one path.
+
+## The probe's response kept as the first piece (2026-10-31)
+
+The probe now sends `Range: bytes=0-` (`probe_get`) instead of `bytes=0-0`,
+and its response body is threaded through to segment 0's first attempt
+rather than drained. This reverses the decision of 2026-10-24 ("Weighed and
+not done"), asked for by the maintainer on 2026-10-31 as part of matching
+reference A's engine behaviour (gaps row 54).
+
+The Wikimedia concern (a server answering 200 to `bytes=0-`) is handled:
+the probe reads the status code, and a 200 sets `resumable = false`, so the
+download falls to one connection and the response body is that connection's
+stream. A server that limits connections: the probe's response is kept
+open only on the connection that carries segment 0; every other segment
+makes its own request, the same as before. On a resume where segment 0
+already has bytes on disk, the probe body is dropped and a fresh range
+request is made. On a capped stream (HLS/DASH chunks), the probe body is
+also dropped because each chunk makes its own small request. It is dropped
+too under a speed limit when the file is planned into several ranges: kept,
+the shown speed overshot the limit near the end of the file
+(`tests/speed.rs`, `the_shown_speed_keeps_to_the_limit_from_the_first_second`);
+with one range it is kept, so a limited small file still uses one connection.
+The excess-bytes check (`DishonestRanges`) is skipped for the probe body only,
+since it legitimately carries the whole file and is clipped at the range's end.
+
+Found on the way, on Windows, with the same `HEAD`: the control port closed a
+connection that had been idle for the authentication limit (5 s), because the
+longer timeout was set on a clone of the socket and did not reach the
+reader's own. It is now set on the reader (`control.rs`).

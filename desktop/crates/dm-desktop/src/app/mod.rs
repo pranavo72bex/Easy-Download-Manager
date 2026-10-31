@@ -984,8 +984,8 @@ mod superseded_tests {
 mod disk_full_tests {
     use super::*;
 
-    /// A video page yt-dlp failed on says what yt-dlp said, after the sentence
-    /// that was all a person had; the specific failures keep their own words.
+    /// A video page that failed says why after the sentence that was all a
+    /// person had; the specific failures keep their own words.
     #[test]
     fn a_video_page_that_failed_says_why_after_the_sentence() {
         let mut row = rows::status_tests::paused(false);

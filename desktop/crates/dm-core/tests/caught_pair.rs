@@ -74,10 +74,6 @@ async fn a_pair_the_player_fetched_apart_is_fetched_and_joined_with_no_yt_dlp_at
     // No yt-dlp anywhere: not installed, none fetched, none to fetch into.
     std::env::set_var("DM_YTDLP", "");
     std::env::set_var("DM_HOME", dir.path());
-    assert!(
-        !dm_core::ytdlp::available(),
-        "the test is not without yt-dlp"
-    );
 
     let seen = Arc::new(Mutex::new(Vec::new()));
     let app = axum::Router::new()

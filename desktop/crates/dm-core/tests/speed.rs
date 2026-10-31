@@ -380,9 +380,19 @@ async fn a_connection_gone_silent_is_asked_again_before_the_read_timeout() {
                     .and_then(|v| v.to_str().ok())
                     .and_then(|v| v.strip_prefix("bytes="))
                     .and_then(|v| v.split_once('-'))
-                    .map(|(a, b)| (a.parse::<usize>().unwrap(), b.parse::<usize>().unwrap()))
+                    .map(|(a, b)| {
+                        (
+                            a.parse::<usize>().unwrap(),
+                            b.parse::<usize>().unwrap_or(SIZE - 1),
+                        )
+                    })
                     .unwrap();
-                let silent = b > a && counter.fetch_add(1, Ordering::SeqCst) == SLOW_REQUEST;
+                let open_ended = headers
+                    .get("range")
+                    .and_then(|v| v.to_str().ok())
+                    .is_some_and(|v| v.ends_with("-"));
+                let silent =
+                    b > a && !open_ended && counter.fetch_add(1, Ordering::SeqCst) == SLOW_REQUEST;
                 let body = if silent {
                     // One chunk, then nothing for a minute.
                     let first = bytes::Bytes::copy_from_slice(&data[a..a + 64 * 1024]);

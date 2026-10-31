@@ -198,9 +198,10 @@ async fn a_server_that_wants_a_digest_login_gets_one_and_the_file_downloads() {
         1,
         "ranges were challenged one by one"
     );
-    // The probe and each of the two 1 MiB ranges the planner makes of it.
+    // The probe, which carries the first piece, and the second 1 MiB range
+    // the planner makes of it.
     assert!(
-        g.authorized.load(Ordering::SeqCst) >= 3,
+        g.authorized.load(Ordering::SeqCst) >= 2,
         "{} authorized",
         g.authorized.load(Ordering::SeqCst)
     );

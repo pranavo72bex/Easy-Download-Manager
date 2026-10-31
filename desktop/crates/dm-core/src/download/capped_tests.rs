@@ -112,15 +112,16 @@ async fn server(data: Arc<Vec<u8>>, fault: Fault) -> Server {
             let in_flight = in_flight.clone();
             let held = held_count.clone();
             async move {
-                let range = headers
+                let range_str = headers
                     .get("range")
                     .and_then(|v| v.to_str().ok())
                     .and_then(|v| v.strip_prefix("bytes="))
-                    .and_then(|v| v.split_once('-'))
-                    .map(|(a, b)| {
-                        let a: usize = a.parse().unwrap();
-                        (a, b.parse::<usize>().unwrap_or(SIZE - 1).min(SIZE - 1))
-                    });
+                    .and_then(|v| v.split_once('-'));
+                let open_ended = range_str.map(|(_, b)| b.is_empty()).unwrap_or(false);
+                let range = range_str.map(|(a, b)| {
+                    let a: usize = a.parse().unwrap();
+                    (a, b.parse::<usize>().unwrap_or(SIZE - 1).min(SIZE - 1))
+                });
                 let whole = || {
                     Response::builder()
                         .status(200)
@@ -132,16 +133,16 @@ async fn server(data: Arc<Vec<u8>>, fault: Fault) -> Server {
                 let Some((a, b)) = range.filter(|_| !matches!(fault, Fault::NoRanges)) else {
                     return whole();
                 };
-                if b > a {
+                if b > a && !open_ended {
                     asked.lock().unwrap().push((a, b));
                 }
-                let n = if b > a {
+                let n = if b > a && !open_ended {
                     big.fetch_add(1, Ordering::SeqCst)
                 } else {
                     0
                 };
                 // Past two at once: taken, and never answered.
-                if matches!(fault, Fault::SilentPastTwo) && b > a {
+                if matches!(fault, Fault::SilentPastTwo) && b > a && !open_ended {
                     let now = in_flight.fetch_add(1, Ordering::SeqCst);
                     if now >= 2 {
                         in_flight.fetch_sub(1, Ordering::SeqCst);

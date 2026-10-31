@@ -665,8 +665,8 @@ pub fn prefer_agent(url: &str, agent: &'static str) {
 }
 
 /// On Windows, starts a helper program without a console window: dm's
-/// release build has none of its own, so each `powershell`, `reg` or
-/// yt-dlp it ran flashed one up. On Linux, takes the AppImage's own
+/// release build has none of its own, so each `powershell` or `reg` it
+/// ran flashed one up. On Linux, takes the AppImage's own
 /// folders out of what the helper inherits ([`appimage_env`]).
 pub fn no_window(command: &mut std::process::Command) -> &mut std::process::Command {
     for (name, value) in appimage_env() {
@@ -703,7 +703,7 @@ pub fn no_window_async(command: &mut tokio::process::Command) -> &mut tokio::pro
 /// The variables the AppImage's start program (`AppRun`) points into the
 /// AppImage, as a helper should have them: without the AppImage's folders,
 /// or unset where nothing else is left. `PYTHONHOME` set to the AppImage
-/// made a person's own yt-dlp, a script run by the system's Python, stop
+/// made a person's own tools, scripts run by the system's Python, stop
 /// with "Fatal Python error: Failed to import encodings module … <no Python
 /// frame>"; `LD_LIBRARY_PATH` would hand it the AppImage's libraries.
 /// The AppImage's folder is `APPDIR`, which its runtime sets, or else the

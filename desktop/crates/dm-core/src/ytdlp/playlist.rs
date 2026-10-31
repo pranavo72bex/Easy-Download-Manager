@@ -1,6 +1,5 @@
-//! Another site's playlist page, read by yt-dlp as a list of its videos
-//! (`--flat-playlist`: each video named, none of them read), so the
-//! Playlist dialog lists it as it does a YouTube one.
+//! A playlist page: YouTube's read by dm itself, others not read (their
+//! videos come from the browser extension's caught player requests).
 
 use super::*;
 use crate::youtube::{Playlist, PlaylistEntry};
@@ -92,57 +91,22 @@ pub fn playlist_of(described: &str) -> Option<Playlist> {
     })
 }
 
-/// `url` read by yt-dlp as a playlist: `Ok(None)` where it is a page of one
-/// video, the playlist's videos where it lists several.
+/// `url` read as a playlist: YouTube playlists are read by dm itself;
+/// `Ok(None)` for other sites.
 pub async fn read_playlist(
     url: &str,
-    referrer: Option<&str>,
-    proxy: Option<&str>,
-    sign_in: Option<&crate::cookies::SignIn>,
+    _referrer: Option<&str>,
+    _proxy: Option<&str>,
+    _sign_in: Option<&crate::cookies::SignIn>,
 ) -> Result<Option<Playlist>, Error> {
-    let binary = binary()
-        .ok_or_else(|| Error::Internal("dm's video helper is not available here".into()))?;
-    let mut command = super::writable_to(&binary, &[]);
-    crate::no_window_async(&mut command);
-    js_runtime(&mut command);
-    unpack_where_programs_run(&mut command);
-    command
-        .arg("-J")
-        .arg("--flat-playlist")
-        .arg("--playlist-items")
-        .arg(format!("1:{MOST}"))
-        .arg("--no-warnings")
-        .arg("--socket-timeout")
-        .arg("15")
-        .stdout(Stdio::piped())
-        .stderr(Stdio::piped())
-        .kill_on_drop(true);
-    let _proxied = match proxy {
-        Some(proxy) => Some(proxy_by_file(&mut command, &std::env::temp_dir(), proxy).await?),
-        None => None,
-    };
-    if let Some(referrer) = referrer {
-        command.arg("--referer").arg(referrer);
+    if crate::youtube::playlist_id(url).is_some() {
+        let client = crate::client();
+        let sign_in = _sign_in.cloned();
+        return crate::youtube::read_playlist(&client, url, sign_in.as_ref())
+            .await
+            .map(Some);
     }
-    static RUNS: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
-    let run = RUNS.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
-    let path = std::env::temp_dir().join(format!(
-        "dm-playlist-{}-{run}.cookies.txt",
-        std::process::id()
-    ));
-    let _signed = cookies_by_file(&mut command, &path, sign_in, url).await?;
-    command.arg("--").arg(url);
-    let output = tokio::time::timeout(std::time::Duration::from_secs(30), command.output())
-        .await
-        .map_err(|_| Error::Internal("yt-dlp took too long to read the playlist".into()))?
-        .map_err(|e| Error::Internal(format!("yt-dlp would not start: {e}")))?;
-    if !output.status.success() {
-        return Err(Error::Internal(said_by(
-            &String::from_utf8_lossy(&output.stderr),
-            "yt-dlp could not read that playlist",
-        )));
-    }
-    Ok(playlist_of(&String::from_utf8_lossy(&output.stdout)))
+    Ok(None)
 }
 
 #[cfg(test)]

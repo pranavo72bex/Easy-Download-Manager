@@ -1,127 +1,59 @@
-//! A video page read by yt-dlp, its files fetched by dm.
+//! A YouTube page read by dm itself, its streams fetched by dm's engine.
 //!
-//! yt-dlp is what reads a video site's page: YouTube's player answers with
-//! challenges that change week to week and are worked out by running its
-//! own JavaScript, and yt-dlp is kept current against them by the many who
-//! maintain it (`docs/decisions.md`, "No separate video tool"). What it does
-//! not do well is the part dm is for: it fetches each stream on one
-//! connection, so the picture of a long video came at the speed one
-//! connection gets while dm's engine sat idle.
+//! YouTube is read by dm's own reader (`crate::youtube`): the same few
+//! requests the reference managers make, and the public-domain solver
+//! scripts for the player's `n` values. The result is a list of plain
+//! `https` addresses for each stream, which dm fetches on every connection
+//! set, with resume, splitting and the speed ceiling as any download has
+//! them, and joins picture and sound itself.
 //!
-//! So yt-dlp is asked only what to fetch (`--print`, nothing downloaded):
-//! the address of each stream, the headers it must be asked with, and the
-//! name it would have saved under. dm fetches each stream with its own
-//! engine, on every connection set, with resume, splitting and the speed
-//! ceiling as any download has them, and joins picture and sound itself as
-//! it already did. The same page, the same streams, the same file name.
-//!
-//! Only plain files (`http`, `https`) are taken. A stream in pieces (HLS,
-//! DASH fragments), a live one, or a site's own protocol is yt-dlp's to
-//! download, as before. And where dm's own fetch is refused (a server that
-//! will not answer it, a range it will not serve), yt-dlp downloads the
-//! same reading (`--load-info-json`), so nothing that downloaded before
-//! fails now: this route can only be faster or the same.
+//! Every other site's video comes from the player's own requests, caught
+//! by the browser extension and handed to dm as a regular download.
 
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 use std::time::Duration;
 
-use super::{
-    binary, container_sort, cookies_by_file, download_ytdlp, download_ytdlp_from, finish_dm,
-    format_for, fresh_reading, js_runtime, proxy_by_file, remove_staging, said_by,
-    unpack_where_programs_run, write_private, RemoveOnDrop,
-};
+use super::{finish_dm, remove_staging};
 use crate::download::{Finished, Options, Update};
 use crate::{category, Error};
 
-/// A page handed to the video helper: read by yt-dlp, fetched by dm where
-/// its streams are plain files, by yt-dlp otherwise.
+/// A YouTube page read by dm itself, its streams fetched by dm's engine.
 pub async fn download_page(
     client: &reqwest::Client,
     url: &str,
     options: &Options,
     report: Option<tokio::sync::mpsc::Sender<Update>>,
 ) -> Result<Finished, Error> {
-    let staging = &options.parts_dir;
-    // An earlier run found dm's own fetch refused: yt-dlp's from the start,
-    // rather than reading the page twice to be refused again. A YouTube
-    // video is read by dm itself (`crate::youtube`), yt-dlp or none.
-    let own = crate::youtube::video_id(url).is_some();
-    // A part of the video is cut from streams dm fetches itself, never
-    // fetched whole by the helper: with a span, dm reads the page whatever
-    // an earlier run found.
-    let part = options.span.is_some();
-    if ((binary().is_none() && !own) || tokio::fs::metadata(staging.join(REFUSED)).await.is_ok())
-        && !part
-    {
-        return download_ytdlp(url, options, report).await;
+    if crate::youtube::video_id(url).is_none() {
+        return Err(Error::Internal(
+            "that is a web page; its video, if any, comes from the browser's \
+             Download video button when the page plays"
+                .into(),
+        ));
     }
+    let staging = &options.parts_dir;
+    let part = options.span.is_some();
     tokio::fs::create_dir_all(staging)
         .await
         .map_err(Error::Disk)?;
 
-    /* The panel's list read this page moments ago, most likely: its
-     * reading chooses the format without yt-dlp asking the site again
-     * (a fifth of a second against seconds on YouTube). One that no longer
-     * serves is passed over for a fresh reading. */
-    super::wait_for_reading(url, &options.control).await?;
-    let kept = match fresh_reading(url) {
-        Some(saved) => match resolve(url, options, Some(&saved)).await {
-            Ok(read) => Some(read),
-            Err(stop @ (Error::Paused | Error::Cancelled)) => return Err(stop),
-            Err(_) => None,
-        },
-        None => None,
-    };
-    let from_saved = kept.is_some();
-    let read = match kept {
-        Some(read) => Ok(read),
-        None => resolve(url, options, None).await,
-    };
-    let read = match read {
-        Ok(read) => read,
-        Err(stop @ (Error::Paused | Error::Cancelled)) => return Err(stop),
-        Err(why) if part => {
-            return Err(Error::Internal(format!(
-                "the page could not be read, so no part of its video can be cut ({why})"
-            )))
-        }
-        // yt-dlp's own run says why in its own words.
-        Err(_) => return download_ytdlp(url, options, report).await,
-    };
+    let read = resolve(url, options).await?;
     let Some(plan) = read.plan(staging) else {
         if part {
             return Err(Error::Internal(
-                "this video's streams are not plain files with an index, so a part of it \
-                 cannot be cut"
+                "this video's streams are not plain files with an index, so a part of it cannot be cut"
                     .into(),
             ));
         }
-        // Streams dm does not fetch itself: yt-dlp downloads this reading.
-        return from_reading(url, &read, options, report).await;
-    };
-    /* A reading kept from earlier whose addresses have lapsed is read
-     * again now, rather than found out stream by stream. */
-    let (plan, read) = if from_saved && plan.streams.iter().any(Stream::expired) {
-        match resolve(url, options, None).await {
-            Ok(fresh) => match fresh.plan(staging) {
-                Some(again) => (again, fresh),
-                None => (plan, read),
-            },
-            Err(stop @ (Error::Paused | Error::Cancelled)) => return Err(stop),
-            Err(_) => (plan, read),
-        }
-    } else {
-        (plan, read)
+        return Err(Error::Internal(
+            "this video's streams cannot be fetched by dm's own engine".into(),
+        ));
     };
 
     let mut current = (plan, read);
     wait_until_available(&current.1, options).await?;
     let mut outcome = fetch(client, &current.0, &current.1, options, report.clone()).await;
-    /* Refused within seconds of the reading: YouTube serves a TV client's
-     * streams a few seconds after handing out their addresses (4 s, seen
-     * in yt-dlp's `available_at`), and dm can ask sooner. The rest of six
-     * seconds waited out, and asked once more. */
     let young = current.1.made.elapsed() < Duration::from_secs(10);
     if young && matches!(&outcome, Err(Error::Refused { status: 403, .. })) {
         let left = Duration::from_secs(6).saturating_sub(current.1.made.elapsed());
@@ -148,27 +80,6 @@ pub async fn download_page(
             Err(stop) => outcome = Err(stop),
         }
     }
-    let mut read = current.1;
-    /* dm's own reading refused (YouTube answers 403 to some videos' addresses
-     * for the client dm asks as): yt-dlp's reading, from its other clients,
-     * fetched by dm's engine on many connections before yt-dlp downloads it
-     * on its own few. A video that took 46 s through yt-dlp alone. */
-    let refused = matches!(&outcome, Err(Error::Refused { .. }));
-    if refused && !part && read.info.read_by.as_deref() == Some("dm") {
-        eprintln!("dm: its own reading of {url} was refused; yt-dlp's reading is fetched instead");
-        forget_streams(staging).await;
-        match resolve_as(url, options, None, false).await {
-            Ok(theirs) => {
-                if let Some(plan) = theirs.plan(staging) {
-                    wait_until_available(&theirs, options).await?;
-                    outcome = fetch(client, &plan, &theirs, options, report.clone()).await;
-                }
-                read = theirs;
-            }
-            Err(stop @ (Error::Paused | Error::Cancelled)) => outcome = Err(stop),
-            Err(_) => {}
-        }
-    }
     match outcome {
         Ok(done) => Ok(done),
         Err(Error::Paused) => Err(Error::Paused),
@@ -176,15 +87,7 @@ pub async fn download_page(
             remove_staging(staging).await;
             Err(Error::Cancelled)
         }
-        // A part that could not be cut is said as it is: the helper would
-        // fetch the whole video, which is not what was asked for.
-        Err(why) if part => Err(why),
-        Err(why) => {
-            eprintln!("dm: fetching {url} itself failed ({why}); the video helper downloads it");
-            forget_streams(staging).await;
-            let _ = tokio::fs::write(staging.join(REFUSED), why.to_string()).await;
-            from_reading(url, &read, options, report).await
-        }
+        Err(why) => Err(why),
     }
 }
 
@@ -199,7 +102,7 @@ async fn renewed(url: &str, plan: &Plan, options: &Options) -> Result<Option<(Pl
     if !plan.streams.iter().any(Stream::expired) && !fetched_any(staging).await {
         return Ok(None);
     }
-    let read = match resolve(url, options, None).await {
+    let read = match resolve(url, options).await {
         Ok(read) => read,
         Err(stop @ (Error::Paused | Error::Cancelled)) => return Err(stop),
         Err(_) => return Ok(None),
@@ -236,39 +139,10 @@ async fn fetched_any(staging: &Path) -> bool {
     false
 }
 
-/// Left in the staging folder when dm's own fetch was refused.
-const REFUSED: &str = ".dm-own-fetch-refused";
-
-/// yt-dlp's reading of the page, saved so yt-dlp can download from it.
-const READING: &str = ".dm-reading.json";
-
-/// How long yt-dlp may take to read a page.
-const READ_WITHIN: std::time::Duration = std::time::Duration::from_secs(120);
-
-/// yt-dlp downloading from its reading, and from the page again should the
-/// reading no longer serve (its addresses expire after some hours).
-async fn from_reading(
-    url: &str,
-    read: &Read,
-    options: &Options,
-    report: Option<tokio::sync::mpsc::Sender<Update>>,
-) -> Result<Finished, Error> {
-    let path = options.parts_dir.join(READING);
-    // It can carry the site's cookies: this account's alone, and gone after.
-    if write_private(&path, &read.text).await.is_err() {
-        return download_ytdlp(url, options, report).await;
-    }
-    let _gone = RemoveOnDrop(path.clone());
-    match download_ytdlp_from(url, Some(&path), options, report.clone()).await {
-        Ok(done) => Ok(done),
-        Err(stop @ (Error::Paused | Error::Cancelled)) => Err(stop),
-        Err(_) => download_ytdlp(url, options, report).await,
-    }
-}
-
-/// What yt-dlp said about a page: the whole reading as it printed it, and
-/// the parts of it dm reads.
+/// What dm's reader said about a page: the reading as JSON, and the parts
+/// dm reads from it.
 struct Read {
+    #[allow(dead_code)]
     text: String,
     info: Info,
     /// When it was made: YouTube serves a TV client's streams a few seconds
@@ -330,8 +204,8 @@ struct Info {
     id: Option<String>,
     #[serde(default)]
     n_entries: Option<u64>,
-    /// "dm" for dm's own reading of a YouTube page (`crate::youtube`).
     #[serde(default)]
+    #[allow(dead_code)]
     read_by: Option<String>,
     /// When the site serves the one format chosen (Unix seconds).
     #[serde(default)]
@@ -424,11 +298,10 @@ struct Plan {
 #[derive(Debug, Clone, PartialEq)]
 struct Stream {
     url: String,
-    /// The agent yt-dlp would ask with: a site can bind its addresses to the
-    /// client that was given them.
+    /// The agent the reading says to ask with: a site can bind its addresses
+    /// to the client that was given them.
     agent: Option<String>,
-    /// Where the stream is put whole: beside `produced`, named as yt-dlp
-    /// names the halves it leaves for dm to join.
+    /// Where the stream is put whole: beside `produced`, named by format id.
     target: PathBuf,
     /// The format's name, which keeps one stream's parts apart from
     /// another's across a pause.
@@ -623,124 +496,26 @@ fn unnumbered(produced: PathBuf, info: &Info) -> PathBuf {
     }
 }
 
-/// Asks yt-dlp what it would download, with the same choices of format,
-/// name, sign-in and proxy its own download makes, and downloads nothing:
-/// from the page, or from a reading of it already made (`saved`).
-async fn resolve(url: &str, options: &Options, saved: Option<&Path>) -> Result<Read, Error> {
-    resolve_as(url, options, saved, true).await
-}
-
-/// [`resolve`], with dm's own YouTube reader first (`own`) or yt-dlp's alone.
-async fn resolve_as(
-    url: &str,
-    options: &Options,
-    saved: Option<&Path>,
-    own: bool,
-) -> Result<Read, Error> {
+/// Reads a YouTube page by dm's own YouTube reader (`crate::youtube`).
+async fn resolve(url: &str, options: &Options) -> Result<Read, Error> {
     let staging = &options.parts_dir;
-    // A YouTube video is read by dm itself first (`crate::youtube`), with
-    // yt-dlp behind it for what that cannot read; a reading the panel kept
-    // is used as it is, which costs no request at all.
-    if own && saved.is_none() && crate::youtube::video_id(url).is_some() {
-        let own = crate::download::or_stop(
-            &options.control,
-            crate::youtube::read_for(url, options, staging),
-        )
-        .await;
-        match own {
-            Ok(text) => match serde_json::from_str::<Info>(&text) {
-                Ok(info) => return Ok(Read::new(text, info)),
-                Err(e) => eprintln!(
-                    "dm: its own reading of the page could not be read ({e}); yt-dlp reads it"
-                ),
-            },
-            Err(stop @ (Error::Paused | Error::Cancelled)) => return Err(stop),
-            Err(why) => {
-                eprintln!("dm: could not read the YouTube page itself ({why}); yt-dlp reads it")
-            }
-        }
-        // The helper, fetched behind dm's own reading, is waited for now.
-        if binary().is_none() {
-            let _ = crate::tools::for_video(&crate::client()).await;
-        }
-    }
-    let binary = binary()
-        .ok_or_else(|| Error::Internal("dm's video helper is not available here".into()))?;
-    let mut command = super::writable_to(&binary, &[staging]);
-    crate::no_window_async(&mut command);
-    js_runtime(&mut command);
-    unpack_where_programs_run(&mut command);
-    command
-        .arg("--no-playlist")
-        .arg("--no-warnings")
-        .arg("-o")
-        .arg(staging.join("%(title).200B [%(id)s].%(ext)s"))
-        .arg("-f")
-        .arg(format_for(options.quality, options.container.as_deref()))
-        .args(container_sort(options.container.as_deref()))
-        .arg("--socket-timeout")
-        .arg("15")
-        // What dm does not fetch from YouTube: its HLS manifests (the same
-        // heights are in the DASH ones) and machine-translated subtitles.
-        // About a third of the time a reading takes there; others ignore it.
-        .arg("--extractor-args")
-        .arg("youtube:skip=hls,translated_subs")
-        // The whole reading, which yt-dlp can download from as it is.
-        .arg("-O")
-        .arg("%()j")
-        .stdin(std::process::Stdio::null())
-        .stdout(std::process::Stdio::piped())
-        .stderr(std::process::Stdio::piped())
-        .kill_on_drop(true);
-    if options.subtitles {
-        command.args(["--write-subs", "--sub-langs", "all", "--sub-format", "vtt"]);
-    }
-    let _proxied = match options.proxy_for(url) {
-        Some(proxy) => Some(proxy_by_file(&mut command, staging, proxy).await?),
-        None => None,
-    };
-    if let Some(referrer) = &options.referrer {
-        command.arg("--referer").arg(referrer);
-    }
-    let _signed = cookies_by_file(
-        &mut command,
-        &staging.join("sign-in.read.cookies.txt"),
-        options.sign_in.as_ref(),
-        url,
+    let own = crate::download::or_stop(
+        &options.control,
+        crate::youtube::read_for(url, options, staging),
     )
-    .await?;
-    match saved {
-        Some(saved) => {
-            command.arg("--load-info-json").arg(saved);
+    .await;
+    match own {
+        Ok(text) => {
+            let info: Info = serde_json::from_str(&text).map_err(|e| {
+                Error::Internal(format!(
+                    "dm's own reading of the page could not be read ({e})"
+                ))
+            })?;
+            Ok(Read::new(text, info))
         }
-        None => {
-            command.arg("--").arg(url);
-        }
+        Err(stop @ (Error::Paused | Error::Cancelled)) => Err(stop),
+        Err(why) => Err(why),
     }
-
-    let output = crate::download::or_stop(&options.control, async {
-        tokio::time::timeout(READ_WITHIN, command.output())
-            .await
-            .map_err(|_| Error::Internal("yt-dlp took too long to read the page".into()))?
-            .map_err(|e| Error::Internal(format!("yt-dlp would not start: {e}")))
-    })
-    .await?;
-    if !output.status.success() {
-        let stderr = String::from_utf8_lossy(&output.stderr);
-        return Err(Error::Internal(said_by(
-            &stderr,
-            "yt-dlp could not read that page",
-        )));
-    }
-    let text = String::from_utf8_lossy(&output.stdout)
-        .lines()
-        .rev()
-        .find(|line| line.trim_start().starts_with('{'))
-        .unwrap_or("")
-        .to_string();
-    let info: Info = serde_json::from_str(&text)
-        .map_err(|e| Error::Internal(format!("yt-dlp's reading could not be read: {e}")))?;
-    Ok(Read::new(text, info))
 }
 
 /// Every stream fetched by dm's own engine at once, then joined and placed
@@ -868,19 +643,7 @@ async fn fetch_part(
         .map(|_| ())
 }
 
-/// The parts of streams dm was fetching itself, before yt-dlp takes over.
-async fn forget_streams(staging: &Path) {
-    let Ok(mut listing) = tokio::fs::read_dir(staging).await else {
-        return;
-    };
-    while let Ok(Some(entry)) = listing.next_entry().await {
-        if entry.file_name().to_string_lossy().starts_with(".dm-f") {
-            let _ = tokio::fs::remove_dir_all(entry.path()).await;
-        }
-    }
-}
-
-/// The subtitles yt-dlp's reading names, fetched and left beside the video
+/// The subtitles the reading names, fetched and left beside the video
 /// as yt-dlp leaves them (`name.<language>.vtt`). One that cannot be had is
 /// passed over: subtitles are not worth the video.
 async fn subtitles(client: &reqwest::Client, read: &Read, produced: &Path, options: &Options) {
@@ -1131,7 +894,7 @@ mod tests {
     }
 
     #[test]
-    fn streams_in_pieces_live_ones_and_names_elsewhere_stay_with_ytdlp() {
+    fn streams_in_pieces_live_ones_and_names_elsewhere_are_not_planned() {
         let pieces = read(
             r#"{"filename": "/s/a.mp4", "requested_formats": [
                 {"format_id": "1", "protocol": "https", "url": "https://x/1"},

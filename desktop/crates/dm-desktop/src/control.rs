@@ -299,6 +299,11 @@ fn serve(
                     return Ok(());
                 }
                 authenticated = true;
+                // On the reader's own socket: on Windows a clone does not carry the
+                // option back, and a connection idle for the authentication limit was cut.
+                reader
+                    .get_ref()
+                    .set_read_timeout(Some(Duration::from_secs(300)))?;
                 out.set_read_timeout(Some(Duration::from_secs(300)))?;
                 write_reply(&mut out, &id, Ok(json!({ "authenticated": true })))?;
                 continue;

@@ -1,9 +1,8 @@
 //! A link to a document that is itself a page — `notes.html`, `feed.xml` —
-//! is that document, whether or not yt-dlp is installed; a watch page with
-//! no extension is still yt-dlp's.
+//! is that document; a watch page with no extension that is not YouTube is
+//! refused (its video comes from the browser's caught player requests).
 //!
-//! One test at a time: whether yt-dlp is there is said by an environment
-//! variable, which is process-wide.
+//! One test at a time: the environment variable check is process-wide.
 
 mod common;
 
@@ -43,7 +42,7 @@ async fn a_page_named_as_a_document_is_saved_without_yt_dlp() {
     assert_eq!(done.path.file_name().unwrap(), "notes.html");
 
     // A watch page, with no extension or a script's, is not a document:
-    // without yt-dlp it is refused, not saved as its HTML.
+    // it is refused, not saved as its HTML.
     for watch in ["watch", "view.php?v=1"] {
         let dir = tempdir();
         let err = dm_core::download(
@@ -53,7 +52,10 @@ async fn a_page_named_as_a_document_is_saved_without_yt_dlp() {
         )
         .await
         .unwrap_err();
-        assert!(err.to_string().contains("video helper"), "{watch}: {err}");
+        assert!(
+            err.to_string().contains("web page") || err.to_string().contains("video"),
+            "{watch}: {err}"
+        );
     }
 }
 

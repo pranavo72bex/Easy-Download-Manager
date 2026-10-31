@@ -645,12 +645,8 @@ pub(super) fn tab_downloads(ui: &mut egui::Ui, d: &mut OptionsDialog, env: &TabE
     ui.label(t("When a download finishes, run this command (a virus checker or a script). The file's path is added at the end:"));
     field(ui, t("Command"), &mut s.on_complete, 320.0);
     ui.add_space(8.0);
-    toggle_row(
-        ui,
-        &mut s.fetch_tools,
-        t("Get the video helper (yt-dlp) when needed"),
-    );
-    ui.label(RichText::new(t("Downloaded from its official GitHub release, checked, and kept up to date every week. Off: dm uses only a yt-dlp you installed yourself.")).small().weak());
+    toggle_row(ui, &mut s.fetch_tools, t("Get the video tools when needed"));
+    ui.label(RichText::new(t("Downloaded from their official releases, checked, and kept up to date. Off: dm uses only tools you installed yourself.")).small().weak());
 }
 
 /// The Connection tab of Options.
@@ -872,7 +868,7 @@ pub(super) fn tab_proxy(ui: &mut egui::Ui, d: &mut OptionsDialog, _env: &TabEnv<
                         ui.add(egui::TextEdit::singleline(&mut p.password).password(true).desired_width(ui.available_width().min(200.0))).labelled_by(name.id);
                         field(ui, t("Not for these sites (fetched directly)"), &mut d.bypass, 260.0);
                     });
-                    ui.label(RichText::new(t("Every download of dm's own, yt-dlp and a torrent's SOCKS5 connections go through it; FTP through SOCKS or HTTP CONNECT.")).small().weak());
+                    ui.label(RichText::new(t("Every download, the video tools and a torrent's SOCKS5 connections go through it; FTP through SOCKS or HTTP CONNECT.")).small().weak());
                 });
 }
 

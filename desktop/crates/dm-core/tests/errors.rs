@@ -84,7 +84,7 @@ async fn a_file_larger_than_the_disk_is_refused_before_it_is_fetched() {
                 .and_then(|v| v.to_str().ok())
                 .unwrap_or_default()
                 .to_string();
-            if range != "bytes=0-0" {
+            if range != "bytes=0-0" && range != "bytes=0-" {
                 counter.fetch_add(1, Ordering::SeqCst);
             }
             axum::response::Response::builder()
@@ -118,7 +118,11 @@ async fn a_file_too_large_for_the_drive_is_refused_before_it_is_fetched() {
     let handler = move |headers: axum::http::HeaderMap| {
         let counter = Arc::clone(&counter);
         async move {
-            if headers.get("range").and_then(|v| v.to_str().ok()) != Some("bytes=0-0") {
+            if headers
+                .get("range")
+                .and_then(|v| v.to_str().ok())
+                .is_some_and(|r| r != "bytes=0-0" && r != "bytes=0-")
+            {
                 counter.fetch_add(1, Ordering::SeqCst);
             }
             axum::response::Response::builder()

@@ -1408,7 +1408,7 @@ async fn serve_metalink(body: Vec<u8>) -> (SocketAddr, Mirrors) {
                  * probes would have said all three mirrors were in use even
                  * when every byte came from the first — which is exactly what
                  * an earlier version of this test did say. */
-                if end > start {
+                if end > start && !to.is_empty() {
                     s.hits.lock().unwrap().push(path.clone());
                 }
                 let slice = served[start as usize..=end as usize].to_vec();
@@ -1654,9 +1654,10 @@ async fn serve_stalled_counting() -> (SocketAddr, Arc<AtomicUsize>, Arc<Open>) {
     let app = axum::Router::new().fallback(axum::routing::get(move |headers: HeaderMap| {
         let (hits, open) = (Arc::clone(&counted), Arc::clone(&held));
         async move {
-            let probe = headers
-                .get("range")
-                .is_some_and(|r| r.to_str().unwrap_or("") == "bytes=0-0");
+            let probe = headers.get("range").is_some_and(|r| {
+                let r = r.to_str().unwrap_or("");
+                r == "bytes=0-0" || r == "bytes=0-"
+            });
             if !probe {
                 hits.fetch_add(1, Ordering::SeqCst);
             }
@@ -2305,7 +2306,7 @@ async fn the_stalled_server_sees_a_dropped_response_let_go() {
     let (addr, _, open) = serve_stalled_counting().await;
     let res = client()
         .get(format!("http://{addr}/x.bin"))
-        .header("range", "bytes=0-")
+        .header("range", "bytes=0-4194303")
         .send()
         .await
         .unwrap();

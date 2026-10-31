@@ -334,7 +334,7 @@ pub fn hand_off(
 /// that must not go out directly. A proxy that cannot be built is said out
 /// loud rather than quietly bypassed, and turned off for everything — the
 /// tools dm runs are told the proxy from the same settings, and a client
-/// going direct beside a yt-dlp handed a proxy that does not parse is two
+/// going direct beside a tool handed a proxy that does not parse is two
 /// routes disagreeing about one setting.
 pub struct Started {
     /// The queue, its saved downloads read back and the settings applied.
@@ -350,11 +350,8 @@ pub struct Started {
 /// downloads back and applies the settings to it, and adds what `orders`
 /// names.
 pub async fn start(orders: &Orders) -> Started {
-    // yt-dlp and QuickJS, fetched into dm's own folder when a video page
-    // needs them; a yt-dlp fetched before is kept current.
+    // Video tools (QuickJS), fetched into dm's own folder when needed.
     dm_core::tools::set_folder(settings::home().join("tools"));
-    // Readings of video pages the browser's host made, for downloads to reuse.
-    dm_core::ytdlp::keep_readings_in(settings::home().join("readings"));
     let (mut saved, unreadable) = Settings::load();
     dm_core::tools::allow_fetching(saved.fetch_tools);
     let mut notices: Vec<String> = unreadable.into_iter().collect();
@@ -377,8 +374,6 @@ pub async fn start(orders: &Orders) -> Started {
             dm_core::client()
         }
     };
-    // A yt-dlp dm fetched itself, a week old, is fetched afresh.
-    tokio::spawn(dm_core::tools::freshen(client.clone()));
     // The cookies file, read now rather than at the first change of a
     // setting: before, a download that needed it failed until then.
     notices.extend(use_cookies(&saved));

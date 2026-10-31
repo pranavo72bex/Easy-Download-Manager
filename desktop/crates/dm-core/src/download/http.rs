@@ -125,10 +125,32 @@ pub(crate) fn get(
     if let Some(cookies) = crate::cookies::header_with(sign_in, url) {
         request = request.header(reqwest::header::COOKIE, cookies);
     }
-    if let Some(referrer) = referrer {
-        request = request.header(reqwest::header::REFERER, referrer);
+    match referrer {
+        Some(referrer) => request = request.header(reqwest::header::REFERER, referrer),
+        None => {
+            if let Some(folder) = folder_referer(url) {
+                request = request.header(reqwest::header::REFERER, folder);
+            }
+        }
     }
     request
+}
+
+/// The folder an address lives in, as the page a request with none of its own
+/// is said to come from (`http://host/files/` for `http://host/files/a.bin?x`).
+/// The same host the request goes to, so it tells that server nothing new.
+pub(crate) fn folder_referer(url: &str) -> Option<String> {
+    let parsed = reqwest::Url::parse(url).ok()?;
+    if !matches!(parsed.scheme(), "http" | "https") {
+        return None;
+    }
+    let path = parsed.path();
+    let folder = &path[..=path.rfind('/')?];
+    let mut origin = format!("{}://{}", parsed.scheme(), parsed.host_str()?);
+    if let Some(port) = parsed.port() {
+        origin.push_str(&format!(":{port}"));
+    }
+    Some(format!("{origin}{folder}"))
 }
 
 /// Fetches something small enough to hold: a manifest, a mirror list, a key.

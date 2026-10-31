@@ -30,7 +30,9 @@ was removed on 2026-10-12 and is in git history.
       last byte that agrees (`download.rs`, whole and half parts). The queue
       and settings are synced to disk before they replace the old copy. A
       real `kill -9` mid-download, restarted, completes byte-exact
-- [x] Range request support
+- [x] Range request support — the probe sends `Range: bytes=0-` and its
+      response body streams as the download's first piece, saving a round trip
+      before the first byte (`probe.rs` `probe_get`, `ranged.rs` `first_body`)
 - [x] Automatic retry
 - [x] Connection failure recovery — with a connect and a read timeout on the
       one client, because a server that sent its headers and then nothing

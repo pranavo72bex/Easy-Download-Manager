@@ -29,47 +29,68 @@ pub struct Probe {
     pub modified: Option<String>,
 }
 
-/// Learns a URL's length, name and whether it can be resumed.
+/// Learns a URL's length, name and whether it can be resumed, draining the
+/// body so the connection goes back to the pool.
 ///
-/// A one-byte ranged GET rather than HEAD: many servers answer HEAD
-/// inaccurately or not at all, and the status code a range request comes back
-/// with is the only honest answer to "will you serve ranges". A 206 means
-/// yes, from the one party whose opinion counts.
+/// For callers that do not need the body (mirror probes, rechecks). The
+/// main download path calls [`probe_get`] instead and keeps the body
+/// streaming as its first piece.
 pub async fn probe(
     client: &reqwest::Client,
     url: &str,
     referrer: Option<&str>,
     sign_in: Option<&crate::cookies::SignIn>,
 ) -> Result<Probe, Error> {
+    let ProbeWithBody { probe, response } = probe_get(client, url, referrer, sign_in).await?;
+    if response.content_length().is_some_and(|n| n <= REUSE_BELOW) {
+        let _ = tokio::time::timeout(REUSE_WITHIN, response.bytes()).await;
+    }
+    Ok(probe)
+}
+
+/// A probe whose response body has not been read yet.
+pub struct ProbeWithBody {
+    pub probe: Probe,
+    pub response: reqwest::Response,
+}
+
+/// Learns a URL's length, name and whether it can be resumed, keeping the
+/// body streaming so the caller can read it as the download's first piece.
+///
+/// Sends `Range: bytes=0-` rather than `bytes=0-0`: a 206 confirms ranges
+/// honestly while delivering every byte from the start, and the connection
+/// that learned about the file is the one that fetches its first piece —
+/// no round trip wasted. A 200 (ranges not supported) delivers the whole
+/// file on one connection.
+pub async fn probe_get(
+    client: &reqwest::Client,
+    url: &str,
+    referrer: Option<&str>,
+    sign_in: Option<&crate::cookies::SignIn>,
+) -> Result<ProbeWithBody, Error> {
     let ask = |agent: &str| {
         let mut request = client
             .get(url)
-            .header(reqwest::header::RANGE, "bytes=0-0")
+            .header(reqwest::header::RANGE, "bytes=0-")
             .header(reqwest::header::USER_AGENT, agent)
-            // The length of the file itself, as the download will ask for it.
             .header(reqwest::header::ACCEPT_ENCODING, crate::download::IDENTITY);
         let cookies = crate::cookies::header_with(sign_in, url);
-        // What a video site's reading asks one of its streams with, if this
-        // is one; below dm's own `Cookie` and `Referer`.
         request =
             crate::download::stream_headers().onto(request, cookies.is_some(), referrer.is_some());
         if let Some(cookies) = cookies {
             request = request.header(reqwest::header::COOKIE, cookies);
         }
-        // A hotlink-protected server serves the file only to a request that
-        // names the page it came from. Fetch cannot set Referer from a
-        // browser, so the extension records it and hands it over; here it
-        // goes on the wire.
-        if let Some(referrer) = referrer {
-            request = request.header(reqwest::header::REFERER, referrer);
+        match referrer {
+            Some(referrer) => request = request.header(reqwest::header::REFERER, referrer),
+            None => {
+                if let Some(folder) = crate::download::folder_referer(url) {
+                    request = request.header(reqwest::header::REFERER, folder);
+                }
+            }
         }
-        // Signed in as the server asks, where the address carries a login.
         crate::auth::send(client, request, url)
     };
     let mut res = ask(crate::agent_for(url)).await?;
-    // Refused for how dm named itself? Asked once more by its name alone,
-    // then as a browser asks; the first that answers is that site's agent
-    // for the rest of the download (see FALLBACK_AGENTS).
     if res.status() == reqwest::StatusCode::FORBIDDEN && crate::agent_for(url) == crate::USER_AGENT
     {
         for agent in crate::FALLBACK_AGENTS {
@@ -84,8 +105,6 @@ pub async fn probe(
     }
 
     let status = res.status();
-    // `bytes=0-0` of an empty file is unsatisfiable, and the 416 says so
-    // with `Content-Range: bytes */0`. That is a length, not a refusal.
     let empty = status == reqwest::StatusCode::RANGE_NOT_SATISFIABLE
         && res
             .headers()
@@ -106,9 +125,6 @@ pub async fn probe(
             .map(str::to_owned)
     };
 
-    // 206 carries the real length in Content-Range's total, past the slash.
-    // Content-Length on a partial response describes the one byte we asked
-    // for, so reading that instead would report every file as one byte long.
     let (size, resumable) = if empty {
         (Some(0), false)
     } else if status == reqwest::StatusCode::PARTIAL_CONTENT {
@@ -123,8 +139,6 @@ pub async fn probe(
         )
     };
 
-    // A body in a coding is undone as it comes (`decode.rs`): its length is
-    // that of the encoded bytes, and says nothing of the file's.
     let (size, resumable) = if crate::decode::coding_of(&headers).is_some() {
         (None, false)
     } else {
@@ -133,19 +147,6 @@ pub async fn probe(
 
     let validator =
         header(reqwest::header::ETAG).or_else(|| header(reqwest::header::LAST_MODIFIED));
-
-    /* The byte asked for is read, so the connection goes back to the pool.
-     *
-     * A response dropped with its body unread is a connection closed: the
-     * download's first range then opened a new one, a TCP and a TLS
-     * handshake — two or three round trips to a distant server — before its
-     * first byte, beside a connection already open to the same server. Only
-     * a small answer, and only for so long: a server that ignored the range
-     * and is sending the whole file is not read here, and its connection
-     * goes as before. */
-    if res.content_length().is_some_and(|n| n <= REUSE_BELOW) {
-        let _ = tokio::time::timeout(REUSE_WITHIN, res.bytes()).await;
-    }
 
     let content_type = header(reqwest::header::CONTENT_TYPE);
     let modified = header(reqwest::header::LAST_MODIFIED);
@@ -158,14 +159,17 @@ pub async fn probe(
         content_type.as_deref(),
     );
 
-    Ok(Probe {
-        modified,
-        size,
-        resumable,
-        filename,
-        validator,
-        final_url,
-        content_type,
+    Ok(ProbeWithBody {
+        probe: Probe {
+            modified,
+            size,
+            resumable,
+            filename,
+            validator,
+            final_url,
+            content_type,
+        },
+        response: res,
     })
 }
 

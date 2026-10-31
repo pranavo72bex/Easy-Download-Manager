@@ -81,7 +81,6 @@ the extension is Rust compiled to WebAssembly. Test paths are under
 | Parts with no plan beside them | PASS | `parts_staged_under_no_known_plan_are_not_trusted` |
 | A power cut that lost more than the end checked at resume | PASS | `download.rs` `a_power_cut_that_lost_more_than_the_checked_end_is_repaired_whole` (256 KiB of zeros: byte-exact, not fetched from the start); a repair steps back at most 4 MiB at a time without spending a retry, so a file's own zeros before a torn end are not all fetched again: `a_torn_end_after_a_files_own_zeros_is_not_followed_back_through_them` |
 | Pause or cancel of a magnet whose metadata never comes | PASS | `torrent.rs` `a_magnet_with_no_peers_stops_when_paused` |
-| Pause of yt-dlp ends what it started (its JavaScript runtime) | PASS (unix) | `ytdlp_tree.rs` `a_pause_ends_what_yt_dlp_started_not_only_yt_dlp`, `a_pause_ends_the_tree_under_a_path_with_no_kill_on_it` (`killpg`, no `kill` program); Windows uses `taskkill /T`, started and not waited for, not run |
 
 ## D. Multiple connections
 
@@ -242,7 +241,6 @@ the host and the extension.
 | yt-dlp is given the proxy in a 0600 config file of the run's own, never on its command line | PASS | `dash.rs` `a_page_is_handed_to_ytdlp_with_the_proxy_and_the_referrer` (no password in argv; the file gone after the run); a real yt-dlp 2026.08.19 read the file's quoting (`--verbose` proxy map) |
 | A torrent's own name is cleaned before its folder is made | PASS | `torrent.rs` `a_torrents_own_name_cannot_lead_out_of_the_download_folder` (`../.config/autostart`) |
 | A cleared row's run still winding down counts against the limit | PASS | `queue.rs` `a_cleared_row_holds_its_slot_until_its_run_lets_go` |
-| yt-dlp progress over picture then sound only goes forward | PASS | `ytdlp_tree.rs` `progress_across_picture_and_sound_only_goes_forward`; `ytdlp.rs` unit tests (float estimates) |
 | A link to a page named as a document (`notes.html`) goes to yt-dlp first, where some video sites end a watch page in `.html`; whatever yt-dlp cannot do with it, dm's own client fetches with the row's referrer and cookies, and without yt-dlp it is fetched directly | PASS | `pages.rs` (`a_page_named_as_a_document_is_fetched_by_dm_when_yt_dlp_is_refused`: a referrer-gated `report.html`, the stand-in yt-dlp never run) |
 | DASH | PASS | read and joined by dm itself, no yt-dlp (`dash.rs` tests, `download/dash.rs` tests); a manifest is never handed to yt-dlp (`a_dash_manifest_is_read_by_dm_and_never_handed_to_ytdlp`) |
 | Player pages | PASS | handed to the user's yt-dlp; `ytdlp.rs` against a loopback server |
@@ -401,7 +399,6 @@ Evidence is `dm-desktop/tests/window.rs` unless it says otherwise.
 | A video page's qualities with sizes in Download details | PASS | `file_info.rs` (`default_choice`, `chip_words`): pictured 2026-10-30 with a YouTube video, eight qualities and the sound alone, the setting's picked |
 | YouTube playlists | PASS | `youtube.rs` `a_playlist_pages_videos_and_its_next_page_are_gathered` (the page's older and newer shapes, the next page's token); a real seven-video playlist listed with lengths, two ticked and downloaded at 480p (2026-10-30) |
 | A connection a server holds open past its limit steps aside | PASS | `capped_tests.rs` `connections_a_server_holds_unanswered_step_aside_for_the_served`: two served, four held, the file whole in seconds on a 2 s timeout |
-| yt-dlp shipped inside the package is used | PASS | `ytdlp.rs` `a_shipped_yt_dlp_is_looked_for_beside_the_program_and_in_the_bundle`; the packaging in `scripts/fetch-ytdlp.py` and the desktop workflow (not run here: CI's) |
 | The panel's list at once, from YouTube's own player | PASS | `decide/tests.rs` `youtubes_player_answers_for_watch_and_shorts_pages_alone`; `youtube-check.py` in Edge lists the qualities and the download lands (2026-10-30) |
 | Download details for a caught download: the browser's name, "Always save here without asking" | PASS | `host::parent_browser`, `file_info.rs`; checked by hand in Edge 2026-10-30 |
 | The side panel's switch in the toolbar | PASS | `menus.rs` `toolbar`; the baseline pictures taken again 2026-10-30 |

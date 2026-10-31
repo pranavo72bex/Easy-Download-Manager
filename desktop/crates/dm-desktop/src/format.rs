@@ -327,7 +327,7 @@ pub const REASONS: [(&[&str], &str); 32] = [
     ),
     (
         &["video helper is not fetched"],
-        "this video needs dm's video helper, which is turned off in Options › Downloads. Turn it on there, or install yt-dlp yourself",
+        "this video needs dm's video tools, which are turned off in Options › Downloads. Turn them on there",
     ),
     (
         &["cannot be reached (was its drive"],
@@ -408,22 +408,19 @@ pub const REASONS: [(&[&str], &str); 32] = [
         &["the server answered 403"],
         "the site wouldn't give dm the file. It may need you to sign in (Properties › Login)",
     ),
-    // Video pages: yt-dlp and QuickJS are "dm's video helper" to a person,
-    // who never installs them (dm fetches them).
     (
-        &["video helper"],
-        "dm couldn't get ready for videos. Check that you're online, or install yt-dlp yourself, then click Retry",
+        &["video helper", "video tools"],
+        "dm couldn't get ready for videos. Check that you're online, then click Retry",
     ),
     (
         &[
-            "yt-dlp does not know this site",
-            "yt-dlp could not read that page",
+            "that is a web page",
+            "dm found no video",
         ],
         "dm found no video on this page",
     ),
-    // What yt-dlp says most, from YouTube and the like.
     (
-        &["confirm you're not a bot", "confirm you’re not a bot", "sign in to confirm"],
+        &["confirm you're not a bot", "sign in to confirm"],
         "the site wants to check you're not a bot. Play the video in your browser, then use the Download video button on it",
     ),
     (
@@ -448,15 +445,14 @@ pub const REASONS: [(&[&str], &str); 32] = [
     ),
 ];
 
-/// What a video page that yt-dlp failed on is said to be when nothing more
-/// specific is known (`REASONS`), whatever yt-dlp's own words were.
+/// What a video page that failed is said to be when nothing more
+/// specific is known (`REASONS`).
 pub const VIDEO_NOT_GOT: &str = "dm couldn't get the video from this page";
 
-/// yt-dlp's own words for why it could not download a page, for the status to
-/// say after [`VIDEO_NOT_GOT`]: its last `ERROR:` line, without the extractor
-/// and video id it starts with and without any address (one may be signed),
-/// and short enough for a row. `None` for a failure that is not yt-dlp's or
-/// that said nothing.
+/// The video reader's own words for why it could not download a page, for the
+/// status to say after [`VIDEO_NOT_GOT`]: its last `ERROR:` line, without the
+/// extractor and video id it starts with and without any address (one may be
+/// signed), and short enough for a row. `None` for a failure that said nothing.
 pub fn ytdlp_said(raw: &str) -> Option<String> {
     let rest = raw.strip_prefix("yt-dlp could not download that:")?;
     let line = rest

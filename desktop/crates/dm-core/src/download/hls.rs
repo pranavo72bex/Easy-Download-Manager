@@ -24,14 +24,9 @@ pub(super) async fn download_stream(
         Resolved::Live(playlist) => {
             return record_live(client, &playlist, url, options, report).await
         }
-        // As a DASH stream is: yt-dlp reads these shapes properly; without
-        // it the stream is refused rather than saved wrong and called done.
-        Resolved::Beyond(_) if crate::tools::for_video(client).await.is_ok() => {
-            return crate::ytdlp::download_ytdlp(url, options, report).await;
-        }
         Resolved::Beyond(why) => {
             return Err(Error::Internal(format!(
-                "{why}, which needs dm's video helper, and it could not be got ready"
+                "{why}: this stream shape is not supported yet"
             )));
         }
     };

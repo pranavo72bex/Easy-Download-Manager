@@ -687,19 +687,24 @@ async fn a_failed_download_leaves_no_connection_still_fetching() {
     let data = Arc::new(body(8 * 1024 * 1024, 3));
     let sent = Arc::new(AtomicUsize::new(0));
     let (served, counted) = (data.clone(), sent.clone());
+    let poisoned = Arc::new(std::sync::atomic::AtomicBool::new(false));
+    let poison_flag = poisoned.clone();
     let app = axum::Router::new().route(
         "/f.bin",
         get(move |h: HeaderMap| {
             let (data, counted) = (served.clone(), counted.clone());
+            let poisoned = poison_flag.clone();
             async move {
                 let range = h
                     .get("range")
                     .and_then(|v| v.to_str().ok())
                     .unwrap_or("")
                     .to_string();
-                // The first connection's range, awaited first, is answered
-                // as another version of the file: a failure for good.
-                if range.starts_with("bytes=0-") && range != "bytes=0-0" {
+                let is_probe = range == "bytes=0-0" || range == "bytes=0-";
+                // Every non-probe data request is answered as another
+                // version of the file: a failure for good, retries included.
+                if !is_probe && range.starts_with("bytes=") {
+                    poisoned.store(true, Ordering::SeqCst);
                     return Response::builder()
                         .status(200)
                         .header("etag", "\"other\"")
@@ -708,7 +713,7 @@ async fn a_failed_download_leaves_no_connection_still_fetching() {
                         .unwrap();
                 }
                 let resp = ranged(&data, "\"v\"", &h);
-                if resp.status() != 206 || range == "bytes=0-0" {
+                if resp.status() != 206 || is_probe {
                     return resp;
                 }
                 let (parts, b) = resp.into_parts();

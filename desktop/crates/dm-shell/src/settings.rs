@@ -208,8 +208,7 @@ pub struct Settings {
     pub catch: dm_protocol::CatchRules,
 
     /// A `cookies.txt` (Netscape format) whose cookies dm sends with its own
-    /// requests and hands to yt-dlp, for downloads that need a signed-in
-    /// session. Empty for none.
+    /// requests, for downloads that need a signed-in session. Empty for none.
     #[serde(default)]
     pub cookies_file: String,
 
@@ -250,7 +249,7 @@ pub struct Settings {
     /// at the next launch without a click.
     #[serde(default)]
     pub start_queue_on_launch: bool,
-    /// Have yt-dlp fetch a video's subtitles, carried inside the video.
+    /// Carry a video's subtitles inside it.
     #[serde(default)]
     pub subtitles: bool,
     /// "Site files" searches saved to run again, by hand or on a timer.
@@ -268,9 +267,9 @@ pub struct Settings {
     /// driver can draw black.
     #[serde(default)]
     pub mica: bool,
-    /// Fetch yt-dlp and QuickJS from their GitHub releases the first time a
-    /// video page needs them (and keep the fetched yt-dlp current). Off,
-    /// only a yt-dlp the person installed is used.
+    /// Fetch video tools (QuickJS) from their GitHub releases the first
+    /// time a video page needs them. Off, only tools the person installed
+    /// are used.
     #[serde(default = "yes")]
     pub fetch_tools: bool,
     /// Queues that start on their own each day at a time of their own.

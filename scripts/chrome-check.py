@@ -951,9 +951,15 @@ def main():
     }))
 
     # The app, copied out of the checkout, with a home and settings of its own.
-    host = engine_home / "dm-desktop"
+    host = engine_home / ("dm-desktop.exe" if sys.platform == "win32" else "dm-desktop")
     shutil.copy2(BINARY, host)
     host.chmod(0o755)
+    if sys.platform == "win32":
+        # A freshly copied program is scanned the first time Windows runs it,
+        # which took 8 s here; the first click's host would then outlast the
+        # extension's wait and the browser would keep that download. Run once
+        # now so the scan is not part of the check.
+        subprocess.run([str(host), "--version"], capture_output=True, timeout=120)
     (engine_home / "settings.json").write_text(json.dumps({
         "download_dir": str(engine_dl), "categorize": False,
         "catch": {"enabled": True, "extensions": ["bin", "pdf"], "defaultsVersion": 1},
@@ -984,14 +990,23 @@ def main():
         f'exec "{real_ytdlp}" "$@"\n'
     )
     stand_in.chmod(0o755)
-    shim = engine_home / "host.sh"
-    shim.write_text(
-        "#!/bin/sh\n"
-        f"export DM_HOME='{engine_home}'\n"
-        f"export DM_YTDLP='{stand_in}'\n"
-        f"exec '{host}' \"$@\" 2>>'{engine_home}/host-stderr.txt'\n"
-    )
-    shim.chmod(0o755)
+    if sys.platform == "win32":
+        shim = engine_home / "host.bat"
+        shim.write_text(
+            "@echo off\r\n"
+            f"set DM_HOME={engine_home}\r\n"
+            f"set DM_YTDLP={stand_in}\r\n"
+            f'"{host}" %* 2>>"{engine_home / "host-stderr.txt"}"\r\n'
+        )
+    else:
+        shim = engine_home / "host.sh"
+        shim.write_text(
+            "#!/bin/sh\n"
+            f"export DM_HOME='{engine_home}'\n"
+            f"export DM_YTDLP='{stand_in}'\n"
+            f"exec '{host}' \"$@\" 2>>'{engine_home}/host-stderr.txt'\n"
+        )
+        shim.chmod(0o755)
     hosts = profile / "NativeMessagingHosts"
     hosts.mkdir()
     registration = hosts / "com.dm.engine.json"
@@ -1018,6 +1033,32 @@ def main():
         folders.append(home / ("Library/Application Support/Microsoft Edge" if mac else ".config/microsoft-edge"))
         # Edge falls back to Chrome's folder for a host it does not find in its own.
         folders.append(home / ("Library/Application Support/Google/Chrome" if mac else ".config/google-chrome"))
+    # Windows browsers find a host only through the registry: the key's
+    # default value names the manifest. What was there (an installed dm's)
+    # is read now and put back after.
+    registry_keys = []
+    if sys.platform == "win32":
+        import winreg
+        subkeys = []
+        if "edge" in where:
+            subkeys.append(r"Software\Microsoft\Edge\NativeMessagingHosts\com.dm.engine")
+        if "brave" in where:
+            subkeys.append(r"Software\BraveSoftware\Brave-Browser\NativeMessagingHosts\com.dm.engine")
+        if "chrome" in where and "edge" not in where:
+            subkeys.append(r"Software\Google\Chrome\NativeMessagingHosts\com.dm.engine")
+        for subkey in subkeys:
+            try:
+                with winreg.OpenKey(winreg.HKEY_CURRENT_USER, subkey) as k:
+                    was_value = winreg.QueryValueEx(k, "")[0]
+            except OSError:
+                was_value = None
+            # An earlier run stopped before it could put things back left our own.
+            if was_value and "dm-chrome-check" in was_value:
+                was_value = None
+            registry_keys.append((subkey, was_value))
+            with winreg.CreateKey(winreg.HKEY_CURRENT_USER, subkey) as k:
+                winreg.SetValueEx(k, "", 0, winreg.REG_SZ, str(registration))
+        folders = []
     for folder in folders:
         path = folder / "NativeMessagingHosts/com.dm.engine.json"
         was = path.read_bytes() if path.exists() else None
@@ -1079,8 +1120,12 @@ def main():
         if pipe:
             os.dup2(pipe[2], 3)
             os.dup2(pipe[3], 4)
-    browser = subprocess.Popen(args, stdout=subprocess.DEVNULL, stderr=log, preexec_fn=fds,
-                               pass_fds=(3, 4, pipe[2], pipe[3]) if pipe else ())
+    if sys.platform == "win32":
+        browser = subprocess.Popen(args, stdout=subprocess.DEVNULL, stderr=log,
+                                   creationflags=subprocess.CREATE_NEW_PROCESS_GROUP)
+    else:
+        browser = subprocess.Popen(args, stdout=subprocess.DEVNULL, stderr=log, preexec_fn=fds,
+                                   pass_fds=(3, 4, pipe[2], pipe[3]) if pipe else ())
     if pipe:
         os.close(pipe[2])
         os.close(pipe[3])
@@ -1241,7 +1286,7 @@ def main():
                   done and len(ports) <= 2, f"{len(ports)} of dm's connections")
         starts.sort()
         check("dm's first request comes soon after the click (the doorbell, not the half-second poll)",
-              starts[1] < 700, f"{', '.join(f'{s:.0f} ms' for s in starts)} (median {starts[1]:.0f} ms)")
+              starts[1] < (1000 if sys.platform == "win32" else 700), f"{', '.join(f'{s:.0f} ms' for s in starts)} (median {starts[1]:.0f} ms)")
 
         # 3. Not a type the app catches.
         click(base, origin, "notes.txt")
@@ -1428,18 +1473,39 @@ def main():
         for line in worker.logged("log", "info", "warning", "error", "debug"):
             print(f"    {line[:200]}")
     finally:
-        os.killpg(os.getpgid(browser.pid), signal.SIGTERM)
-        try:
-            browser.wait(timeout=10)
-        except subprocess.TimeoutExpired:
-            os.killpg(os.getpgid(browser.pid), signal.SIGKILL)
+        if sys.platform == "win32":
+            subprocess.run(["taskkill", "/PID", str(browser.pid), "/T", "/F"], capture_output=True, check=False)
+            browser.wait(timeout=30)
+            import winreg
+            for subkey, was_value in registry_keys:
+                if was_value is not None:
+                    with winreg.CreateKey(winreg.HKEY_CURRENT_USER, subkey) as k:
+                        winreg.SetValueEx(k, "", 0, winreg.REG_SZ, was_value)
+                else:
+                    try:
+                        winreg.DeleteKey(winreg.HKEY_CURRENT_USER, subkey)
+                    except OSError:
+                        pass
+        else:
+            os.killpg(os.getpgid(browser.pid), signal.SIGTERM)
+            try:
+                browser.wait(timeout=10)
+            except subprocess.TimeoutExpired:
+                os.killpg(os.getpgid(browser.pid), signal.SIGKILL)
         for path, was in borrowed:
             if was is not None:
                 path.write_bytes(was)
             else:
                 path.unlink(missing_ok=True)
         # The app the host started outlives the browser by design.
-        subprocess.run(["pkill", "-f", str(host)], check=False)
+        if sys.platform == "win32":
+            ours = str(host).replace("'", "''")
+            subprocess.run(["powershell", "-NoProfile", "-Command",
+                            "Get-CimInstance Win32_Process | Where-Object { $_.ExecutablePath -eq '" + ours
+                            + "' } | ForEach-Object { Stop-Process -Id $_.ProcessId -Force }"],
+                           capture_output=True, check=False)
+        else:
+            subprocess.run(["pkill", "-f", str(host)], check=False)
         server.shutdown()
         stderr = (engine_home / "host-stderr.txt")
         if stderr.exists() and stderr.read_text().strip():

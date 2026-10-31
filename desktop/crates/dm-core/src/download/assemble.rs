@@ -181,7 +181,7 @@ pub(super) async fn assemble(
 /// Everything that happens once the bytes are all on disk.
 ///
 /// Shared by every route that ends in a file: ranged downloads, streams, FTP,
-/// live recordings, yt-dlp's output and a torrent of one file. Ranged
+/// live recordings, video downloads and a torrent of one file. Ranged
 /// downloads and streams used to carry their own copy of this, including the checksum block —
 /// directly under a comment claiming there was one place that decided
 /// whether a file is the file.

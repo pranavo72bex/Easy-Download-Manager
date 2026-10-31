@@ -2,8 +2,8 @@
 //!
 //! A video site serves its better qualities as two files, the picture alone
 //! and the sound alone, each an MP4 — fragmented, as DASH serves them, or
-//! plain. yt-dlp fetches both and leaves the joining to a separate tool,
-//! which a person would have to install (or dm fetch, 40–80 MB). This
+//! plain. Other tools fetch both and leave the joining to a separate
+//! program; this
 //! does the joining itself: each input's samples are read from its own index
 //! (the `moov` sample tables, or the `moof` fragments after an empty one),
 //! and written as one plain MP4, the index first so it plays while it is

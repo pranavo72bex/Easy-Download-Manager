@@ -150,9 +150,8 @@ pub(super) fn file_info(app: &mut DmApp, ctx: &egui::Context) {
             d.name = name.clone();
         }
     }
-    // A video page's qualities, each with its size, read once as the
-    // dialog opens: a YouTube watch page's from its own data (under a
-    // second), any other's from yt-dlp's reading of it.
+    // A YouTube video's qualities, each with its size, read once as the
+    // dialog opens from its own data (under a second).
     let first = d.urls.first().cloned().unwrap_or_default();
     let youtube = d.urls.len() == 1 && dm_core::youtube::video_id(&first).is_some();
     let video = d.urls.len() == 1 && (page || youtube);

@@ -6,8 +6,8 @@
 //! leave the link usable for something else, and that is a statement about
 //! the link, not about any one transfer.
 //!
-//! A torrent and a yt-dlp run are fetched by engines dm cannot meter chunk
-//! by chunk; each can only be handed a rate. So while one runs it holds a
+//! A torrent is fetched by an engine dm cannot meter chunk by chunk; it
+//! can only be handed a rate. So while one runs it holds a
 //! [`Share`]: with `n` of them running, the ceiling is split `n + 1` ways,
 //! one part each and one for every download dm fetches itself, and the
 //! total stays under the ceiling.

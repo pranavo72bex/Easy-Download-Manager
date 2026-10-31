@@ -238,7 +238,7 @@ fn a_double_click_opens_properties_and_open_runs_a_finished_file() {
     harness
         .get_by_role_and_label(egui::accesskit::Role::Button, "Open")
         .click();
-    harness.run_steps(2);
+    harness.run_steps(4);
     assert_eq!(
         *world.fake.opened.lock().unwrap(),
         std::slice::from_ref(&row.path)

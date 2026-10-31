@@ -356,7 +356,7 @@ pub trait World {
         cookies: &str,
         within_ms: u64,
     ) -> Result<String, String>;
-    /// The qualities a page's video comes in, as yt-dlp reads them.
+    /// The qualities a page's video comes in.
     fn formats(&mut self, url: &str, referrer: &str, cookies: &str) -> Result<Vec<Choice>, String>;
     /// Milliseconds since the Unix epoch, the clock the extension's
     /// deadline is read against.
@@ -445,13 +445,12 @@ impl World for Here<'_> {
         })
     }
 
-    /// yt-dlp's reading of the page, through the saved proxy, bounded.
+    /// The qualities a page offers: YouTube from its own player data.
     fn formats(&mut self, url: &str, referrer: &str, cookies: &str) -> Result<Vec<Choice>, String> {
         if !(url.starts_with("http://") || url.starts_with("https://")) {
             return Err("only a web page has qualities to list".into());
         }
-        // What was read a few minutes ago, by this very host or another the
-        // browser started since, is not read again: yt-dlp takes seconds.
+        // What was read a few minutes ago is not read again.
         let key = formats_key(url, cookies);
         if let Some(listed) = recalled_formats(self.home, &key, now_secs()) {
             return Ok(listed);
@@ -462,40 +461,17 @@ impl World for Here<'_> {
             .build()
             .map_err(|e| e.to_string())?;
         let referrer = (!referrer.is_empty()).then_some(referrer);
-        let settings = saved(self.home);
         let sign_in = dm_core::cookies::SignIn::new(url, cookies);
-        // A YouTube watch page lists its own qualities: no yt-dlp for that,
-        // which can take seconds and, where dm has none yet, a fetch of it.
-        // yt-dlp reads the page for the download at the same time, not after
-        // the list: it takes about three seconds, and a click on a quality
-        // is likely sooner than that after the list.
-        let watch = dm_core::ytdlp::is_watch_page(url);
-        if watch {
-            dm_core::ytdlp::mark_reading(url);
-            warm_in_background(url, referrer.unwrap_or(""), cookies);
-        }
         let fast = runtime.block_on(dm_core::ytdlp::list_choices_fast(
             url,
             proxy.as_deref(),
             sign_in.as_ref(),
         ));
-        // Where the page gave no list, the reading being made gives one: the
-        // same yt-dlp run, not a second.
-        let fast = match fast {
-            Some(listed) => Some(listed),
-            None if watch => runtime.block_on(dm_core::ytdlp::kept_choices(url)),
-            None => None,
-        };
         let listed = if let Some(listed) = fast {
             listed
         } else {
-            // yt-dlp found, or fetched now by dm where the computer has
-            // none, through the same proxy the download will take.
-            if let Ok(client) = dm_core::proxy::client_with(&settings.proxy) {
-                runtime.block_on(dm_core::tools::for_video(&client))?;
-            }
             runtime
-                .block_on(dm_core::ytdlp::read_choices(
+                .block_on(dm_core::ytdlp::list_choices(
                     url,
                     referrer,
                     proxy.as_deref(),
@@ -653,9 +629,7 @@ pub fn answer(
     world: &mut dyn World,
 ) -> Option<serde_json::Value> {
     let reply = match Asked::from_frame(frame) {
-        // What this app can do, said up front: a player page handed to an
-        // app with no yt-dlp fails in the app, where the browser never hears
-        // of it. Told now, the extension can say so.
+        // What this app can do, said up front.
         Ok(Asked::Hello) => {
             // Remembered, so the window stops offering the extension to
             // someone who has it (`browser_seen`).
@@ -952,46 +926,7 @@ fn checked(
 /// (`warm_main`).
 pub const WARM_FLAG: &str = "--warm-reading";
 
-/// Has yt-dlp read a page behind the panel's list, for the download a click
-/// on it starts, in a process of its own. The browser ends this host soon
-/// after it has its answer (seen: within three seconds, with yt-dlp still
-/// reading), and a reading made inside it was ended too and never there for
-/// the download to use. The page and the session travel on its standard
-/// input, not on a command line anyone can read.
-fn warm_in_background(url: &str, referrer: &str, cookies: &str) {
-    // A YouTube page is read by dm itself at the download, in a second or
-    // two; a reading by yt-dlp made now would go unused.
-    if dm_core::youtube::video_id(url).is_some() {
-        return;
-    }
-    let Ok(executable) = std::env::current_exe() else {
-        return;
-    };
-    let start = |breakaway: bool| {
-        let mut command = Command::new(&executable);
-        command
-            .arg(WARM_FLAG)
-            .stdin(Stdio::piped())
-            .stdout(Stdio::null())
-            .stderr(Stdio::null());
-        detach(&mut command, breakaway);
-        command.spawn()
-    };
-    let Ok(mut child) = start(true).or_else(|_| start(false)) else {
-        return;
-    };
-    if let Some(mut input) = child.stdin.take() {
-        let said = serde_json::json!({ "url": url, "referrer": referrer, "cookies": cookies });
-        let _ = input.write_all(said.to_string().as_bytes());
-    }
-    // Not waited for: it outlives this host, which is the point. Reaped by
-    // the system once this process is gone.
-    drop(child);
-}
-
-/// Makes `command` outlive its parent: in a process group of its own where
-/// the browser ends only the host's, and outside a job where Firefox on
-/// Windows ends the host's whole job (as `launch_desktop` does for the app).
+#[allow(dead_code)]
 fn detach(command: &mut Command, breakaway: bool) {
     #[cfg(unix)]
     {
@@ -1012,61 +947,13 @@ fn detach(command: &mut Command, breakaway: bool) {
     }
 }
 
-/// What `--warm-reading` does: reads the page and session on standard input
-/// and has yt-dlp read the page into dm's readings, then ends.
-pub fn warm_main(home: &Path) {
-    let mut said = String::new();
-    if std::io::stdin().read_to_string(&mut said).is_ok() {
-        warm_page(home, &said);
-    }
-}
-
-/// The page and session `said` names (JSON: `url`, `referrer`, `cookies`),
-/// read by yt-dlp into dm's readings. Anything that is not an http(s) page
-/// is left alone.
-fn warm_page(home: &Path, said: &str) {
-    let Ok(said) = serde_json::from_str::<serde_json::Value>(said) else {
-        return;
-    };
-    let text = |key: &str| said.get(key).and_then(|v| v.as_str()).unwrap_or("");
-    let (url, referrer, cookies) = (text("url"), text("referrer"), text("cookies"));
-    if !(url.starts_with("http://") || url.starts_with("https://")) {
-        return;
-    }
-    dm_core::tools::set_folder(home.join("tools"));
-    dm_core::ytdlp::keep_readings_in(home.join("readings"));
-    let settings = saved(home);
-    dm_core::tools::allow_fetching(settings.fetch_tools);
-    let _ = dm_core::cookies::use_file(std::path::Path::new(settings.cookies_file.trim()));
-    let Ok(runtime) = tokio::runtime::Builder::new_current_thread()
-        .enable_all()
-        .build()
-    else {
-        return;
-    };
-    if let Ok(client) = dm_core::proxy::client_with(&settings.proxy) {
-        if runtime
-            .block_on(dm_core::tools::for_video(&client))
-            .is_err()
-        {
-            return;
-        }
-    }
-    let proxy = settings.proxy.url_for_tools();
-    let sign_in = dm_core::cookies::SignIn::new(url, cookies);
-    runtime.block_on(dm_core::ytdlp::warm_reading(
-        url,
-        (!referrer.is_empty()).then_some(referrer),
-        proxy.as_deref(),
-        sign_in.as_ref(),
-    ));
-}
+/// What `--warm-reading` does: no longer needed since YouTube is read by
+/// dm itself and non-YouTube sites have no page reader.
+pub fn warm_main(_home: &Path) {}
 
 /// Runs as the browser's native messaging host until the browser closes it.
 pub fn run(home: &Path) {
     dm_core::tools::set_folder(home.join("tools"));
-    // The panel's readings of pages, kept for the app's download of them.
-    dm_core::ytdlp::keep_readings_in(home.join("readings"));
     dm_core::tools::allow_fetching(saved(home).fetch_tools);
     let mut input = std::io::stdin();
     let mut output = std::io::stdout();

@@ -4,9 +4,9 @@
 //! ways. The browser hands a site's sign-in over with the download, where
 //! the person asked it to (`SignIn`, carried by that download alone). Or a
 //! person exports a `cookies.txt` (the Netscape format every "get
-//! cookies.txt" add-on writes, and that curl and yt-dlp's `--cookies` read)
+//! cookies.txt" add-on writes, and that curl reads)
 //! and points dm at it; dm then sends the matching cookies with each
-//! request of its own, and hands the same file to yt-dlp.
+//! request of its own.
 //!
 //! The file is read when it is chosen and whenever the settings are applied;
 //! nothing is written back, and the cookies never leave this machine except
@@ -130,7 +130,7 @@ pub fn use_file(file: &Path) -> Result<usize, String> {
     Ok(count)
 }
 
-/// The cookies file in use, for a tool dm runs (yt-dlp's `--cookies`).
+/// The cookies file in use.
 pub fn file() -> Option<PathBuf> {
     in_use()
         .read()
@@ -178,8 +178,7 @@ impl SignIn {
         (host_of(url).as_deref() == Some(self.host.as_str())).then_some(self.header.as_str())
     }
 
-    /// The cookies as `cookies.txt` lines for that server, for a tool that
-    /// reads that format (yt-dlp).
+    /// The cookies as `cookies.txt` lines for that server.
     pub fn netscape_lines(&self) -> String {
         let domain = self
             .host

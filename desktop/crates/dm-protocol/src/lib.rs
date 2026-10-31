@@ -171,7 +171,7 @@ pub struct Choice {
     pub label: String,
     /// The quality to fetch it at: "audio", a height such as "720", or "best".
     pub quality: String,
-    /// Its size in bytes, where yt-dlp's reading of the page says.
+    /// Its size in bytes, where the reading of the page says.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub size: Option<u64>,
 }
@@ -192,7 +192,7 @@ pub struct Start {
     /// that dm can fetch it before taking it, because a refusal now leaves
     /// it with the browser and a failure later loses it. A file asked for
     /// from the panel or a menu is checked too: refused, the extension has
-    /// the browser download it instead. A page for yt-dlp is not checked.
+    /// the browser download it instead. A video page is not checked.
     #[serde(default, skip_serializing_if = "std::ops::Not::not")]
     pub caught: bool,
     /// The quality picked in the panel's list; absent is the app's setting.
@@ -214,7 +214,7 @@ pub struct Start {
     #[serde(default, skip_serializing_if = "String::is_empty")]
     pub cookies: String,
     /// The cookies are for this download alone: a video page's session,
-    /// handed over with every video so the site lets yt-dlp in, rather than
+    /// handed over with every video so the site lets dm in, rather than
     /// a sign-in the person asked dm to keep. The row drops them once it
     /// finishes. False from an extension that sends only kept ones.
     #[serde(default, skip_serializing_if = "std::ops::Not::not")]
@@ -323,7 +323,7 @@ pub enum Reply {
         failure: Option<Failure>,
     },
     /// The qualities on offer, best first; empty with a `reason` when the
-    /// page could not be read (no yt-dlp, an unsupported site).
+    /// page could not be read.
     #[serde(rename = "media.formats")]
     Formats {
         /// The qualities, best first.
@@ -348,8 +348,8 @@ pub struct Hello {
     /// The app's version, such as "0.8.4".
     #[serde(rename = "engineVersion", default)]
     pub engine_version: String,
-    /// Whether the app has a yt-dlp to hand a player page to. Absent from a
-    /// host too old to say, which is not the same as `false`.
+    /// Whether the app can read a video page. Absent from a host too old
+    /// to say, which is not the same as `false`.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub ytdlp: Option<bool>,
     /// The newest protocol version the app reads. Absent from an app of

@@ -185,7 +185,7 @@ where
         wait: every,
     } = tries.into();
     let limit = if attempts == 0 { u32::MAX } else { attempts };
-    let mut attempt: u32 = 0;
+    let mut pace = Pace::default();
     loop {
         control.check()?;
         let before = progress();
@@ -193,20 +193,104 @@ where
             Ok(value) => return Ok(value),
             Err(error) => {
                 if progress() > before {
-                    attempt = 0;
+                    pace = Pace::default();
                 }
-                attempt = attempt.saturating_add(1);
-                if attempt >= limit || !transient(&error) || give_up(&error) {
+                if !transient(&error) || give_up(&error) {
                     return Err(error);
                 }
+                let Some(nap) = pace.failed(&error, limit, every) else {
+                    return Err(error);
+                };
                 // Said with how long it waits, so a row can tell a retry that
                 // comes in a moment from one that comes in half a minute.
-                let nap = pause(attempt, error.retry_after(), every);
-                retrying(attempt.saturating_add(1), attempts, &error, nap);
+                retrying(pace.attempt.saturating_add(1), attempts, &error, nap);
                 wait(control, nap).await?;
             }
         }
     }
+}
+
+/// Where a run of failed attempts stands.
+///
+/// A server that answered (a 503, a 429) is asked again on `backoff`'s
+/// pace. A connection that failed or dropped is asked again at once, then
+/// at most two seconds apart: reference A was back on every connection
+/// within 0.04 s of a cut and within 0.01 s of a forty-second outage
+/// ending, where `backoff` left dm 1.2 s and 22 s behind
+/// (`docs/reference-behavior.md`, measured 2026-10-31). Its own pace there,
+/// about 205 attempts a second, is not copied. The quick attempts are not
+/// what is counted against the person's number of tries: `attempt` is
+/// how far into `backoff`'s schedule the failing has run, so "attempt 5 of
+/// 15" means what it did and a download outlasts an outage as long as it did.
+#[derive(Debug, Default)]
+struct Pace {
+    /// The attempt a row shows, and the one the limit is held against.
+    attempt: u32,
+    /// Quick attempts made since the failing began.
+    quick: u32,
+    /// When the failing began.
+    since: Option<tokio::time::Instant>,
+}
+
+impl Pace {
+    /// Counts a failed attempt: the wait before the next one, or `None`
+    /// when the attempts are spent.
+    fn failed(&mut self, error: &Error, limit: u32, every: Option<Duration>) -> Option<Duration> {
+        self.failed_at(tokio::time::Instant::now(), error, limit, every)
+    }
+
+    fn failed_at(
+        &mut self,
+        now: tokio::time::Instant,
+        error: &Error,
+        limit: u32,
+        every: Option<Duration>,
+    ) -> Option<Duration> {
+        let since = *self.since.get_or_insert(now);
+        let retry_after = error.retry_after();
+        if every.is_none() && retry_after.is_none() && dropped(error) {
+            self.quick = self.quick.saturating_add(1);
+            self.attempt = self.attempt.max(schedule_reached(now - since, limit));
+            (self.attempt < limit).then(|| quick_nap(self.quick))
+        } else {
+            self.attempt = self.attempt.saturating_add(1);
+            (self.attempt < limit).then(|| pause(self.attempt, retry_after, every))
+        }
+    }
+}
+
+/// Whether the attempt failed for want of a connection, not on a server's
+/// answer: refused, reset, timed out or cut off mid-body.
+fn dropped(error: &Error) -> bool {
+    matches!(
+        error,
+        Error::Network(_) | Error::Connection(_) | Error::Incomplete { .. }
+    )
+}
+
+/// The attempt `backoff`'s schedule would be on after `failing` of failed
+/// attempts: 1 at first, one more each time its waits add up to `failing`.
+fn schedule_reached(failing: Duration, limit: u32) -> u32 {
+    let mut attempt = 1;
+    let mut spent = Duration::ZERO;
+    while attempt < limit {
+        spent += backoff(attempt, None);
+        if failing < spent {
+            break;
+        }
+        attempt += 1;
+    }
+    attempt
+}
+
+/// The wait before quick attempt `n` (the first is 1): none, then a
+/// quarter, a half and a whole second, then two seconds apart, spread a
+/// little so that connections do not come back in step.
+fn quick_nap(n: u32) -> Duration {
+    const STEPS_MS: [u64; 5] = [0, 250, 500, 1000, 2000];
+    let step = STEPS_MS[(n.saturating_sub(1) as usize).min(STEPS_MS.len() - 1)];
+    let jitter = if n > 1 { u64::from(n) * 137 % 250 } else { 0 };
+    Duration::from_millis(step + jitter)
 }
 
 /// As [`run`], with the number of attempts a setting rather than a
@@ -243,20 +327,21 @@ where
         wait: every,
     } = tries.into();
     let limit = if attempts == 0 { u32::MAX } else { attempts };
-    let mut attempt: u32 = 0;
+    let mut pace = Pace::default();
     loop {
         control.check()?;
         match op().await {
             Ok(value) => return Ok(value),
             Err(error) => {
-                attempt = attempt.saturating_add(1);
-                if attempt >= limit || !transient(&error) {
+                if !transient(&error) {
                     return Err(error);
                 }
+                let Some(nap) = pace.failed(&error, limit, every) else {
+                    return Err(error);
+                };
                 // Said with how long it waits, so a row can tell a retry that
                 // comes in a moment from one that comes in half a minute.
-                let nap = pause(attempt, error.retry_after(), every);
-                retrying(attempt.saturating_add(1), attempts, &error, nap);
+                retrying(pace.attempt.saturating_add(1), attempts, &error, nap);
                 wait(control, nap).await?;
             }
         }
@@ -335,6 +420,59 @@ mod tests {
             body: String::new(),
             retry_after: None,
         }
+    }
+
+    #[test]
+    fn a_dropped_connection_is_asked_again_at_once_then_within_two_seconds() {
+        let mut pace = Pace::default();
+        let cut = Error::Connection("reset".into());
+        assert_eq!(pace.failed(&cut, 15, None), Some(Duration::ZERO));
+        let naps: Vec<Duration> = (0..20)
+            .map(|_| pace.failed(&cut, 15, None).expect("tries left"))
+            .collect();
+        assert!(
+            naps.iter().all(|n| *n <= Duration::from_millis(2250)),
+            "{naps:?}"
+        );
+    }
+
+    #[test]
+    fn quick_attempts_spend_the_tries_no_faster_than_backoff_did() {
+        // Fifteen tries outlast a couple of minutes without a network, as
+        // they did when each one waited out `backoff`.
+        let cut = Error::Connection("refused".into());
+        let mut pace = Pace::default();
+        let start = tokio::time::Instant::now();
+        let mut now = start;
+        let mut shown = Vec::new();
+        while let Some(nap) = pace.failed_at(now, &cut, 15, None) {
+            shown.push(pace.attempt);
+            now += nap.max(Duration::from_millis(1));
+        }
+        let lasted = now - start;
+        let paced: Duration = (1..15).map(|a| backoff(a, None)).sum();
+        assert!(
+            lasted + Duration::from_secs(3) >= paced,
+            "{lasted:?} against {paced:?}"
+        );
+        assert!(lasted >= Duration::from_secs(120), "{lasted:?}");
+        assert!(shown.windows(2).all(|w| w[0] <= w[1]), "{shown:?}");
+        assert!(shown.iter().all(|a| *a < 15), "{shown:?}");
+    }
+
+    #[test]
+    fn a_server_that_answers_no_is_still_asked_on_backoffs_pace() {
+        let mut pace = Pace::default();
+        assert_eq!(pace.failed(&refused(503), 15, None), Some(backoff(1, None)));
+        assert_eq!(pace.failed(&refused(503), 15, None), Some(backoff(2, None)));
+        let mut fixed = Pace::default();
+        let every = Some(Duration::from_secs(20));
+        let cut = Error::Connection("reset".into());
+        assert_eq!(
+            fixed.failed(&cut, 15, every),
+            Some(Duration::from_secs(20)),
+            "a person's fixed wait is kept"
+        );
     }
 
     #[test]
@@ -474,8 +612,13 @@ mod tests {
         )
         .await;
         assert!(matches!(outcome, Err(Error::Incomplete { .. })));
-        assert_eq!(tries.load(std::sync::atomic::Ordering::Relaxed), 3);
-        assert_eq!(*heard.lock().unwrap(), [(2, 3), (3, 3)]);
+        // A connection that stops short is asked again quickly, so there
+        // are more requests than tries; a row still hears attempt 2 of 3,
+        // then 3 of 3, and no number past the person's.
+        assert!(tries.load(std::sync::atomic::Ordering::Relaxed) >= 3);
+        let mut told = heard.lock().unwrap().clone();
+        told.dedup();
+        assert_eq!(told, [(2, 3), (3, 3)]);
     }
 
     #[test]

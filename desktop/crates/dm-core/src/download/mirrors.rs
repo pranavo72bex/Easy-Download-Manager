@@ -1,4 +1,5 @@
 use super::*;
+use crate::probe::probe;
 
 /// The ranges this download is fetched in: the plan its staged parts were
 /// fetched under where there are any, a fresh one otherwise.

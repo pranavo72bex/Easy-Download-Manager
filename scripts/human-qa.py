@@ -20,7 +20,7 @@ extension (`sh scripts/package.sh`) and Microsoft Edge. DM_BINARY and
 DM_QA_EDGE name others. The download folder and dm's home are made under
 /tmp/dm-human-qa and removed at the end. Standard library only.
 """
-import hashlib, json, os, pathlib, re, shutil, signal, socket, struct, subprocess, sys, threading, time, zlib
+import hashlib, json, os, pathlib, re, shutil, signal, socket, struct, subprocess, sys, threading, time, traceback, zlib
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 CONTRACT = ROOT / "docs" / "behaviour-contract.md"
@@ -35,7 +35,8 @@ VIDEO = os.environ.get("DM_QA_VIDEO", "https://www.youtube.com/watch?v=jNQXAC9IV
 PACE = float(os.environ.get("DM_QA_PACE", "1.0"))   # how long each step stays on screen
 SAVE_BASELINE = "--save-baseline" in sys.argv
 MiB = 1024 * 1024
-WORK = pathlib.Path("/tmp/dm-human-qa")
+PROBES = ("bytes=0-0", "bytes=0-")   # the engine's first look at a file
+WORK = pathlib.Path(os.environ.get("DM_QA_WORK") or "/tmp/dm-human-qa")
 
 
 def pause(seconds):
@@ -111,7 +112,7 @@ def serve(c, n):
                 c.sendall(b"HTTP/1.1 404 Not Found\r\nContent-Length: 0\r\n\r\n")
                 continue
             size, rate, kind = FILES[name]
-            counted = kind == "limited" and rng != "bytes=0-0" and method != "HEAD"
+            counted = kind == "limited" and rng not in PROBES and method != "HEAD"
             if counted:
                 with LOCK:
                     busy = ACTIVE.get(name, 0)
@@ -219,7 +220,7 @@ class Dm:
         self.proc.wait(20)
 
     def kill(self):
-        os.kill(self.proc.pid, signal.SIGKILL)
+        os.kill(self.proc.pid, getattr(signal, "SIGKILL", signal.SIGTERM))
         self.proc.wait()
 
     def rows(self):
@@ -389,11 +390,11 @@ def walk(dm, origin):
     mark = len(LOG)
     dm.click("Resume")
     r = dm.wait("big.bin", {"completed", "failed"}, 180)
-    starts = sorted(int(e["range"][6:].split("-")[0]) for e in requests("big.bin", mark) if e["range"] and e["range"] != "bytes=0-0")
+    starts = sorted(int(e["range"][6:].split("-")[0]) for e in requests("big.bin", mark) if e["range"] and e["range"] not in PROBES)
     ok, d = whole(r, "big.bin")
     check("B05", "Resume goes on from what it had and the file is whole", starts and starts[0] > 0 and ok,
           f"first range after Resume at byte {starts[0] if starts else None}; {d}")
-    halves = [e["range"] for e in requests("big.bin") if e["range"] and e["range"] != "bytes=0-0"]
+    halves = [e["range"] for e in requests("big.bin") if e["range"] and e["range"] not in PROBES]
     check("B06", "several connections, the file split while it runs", len(connections("big.bin")) >= 4,
           f"{len(connections('big.bin'))} connections, {len(halves)} ranges")
 
@@ -418,7 +419,7 @@ def walk(dm, origin):
     ok, d = whole(done["limited.bin"], "limited.bin")
     check("B09", "a server allowing two at once: refusals absorbed, file complete", ok,
           f"{refused} connections refused with 503; {d}")
-    ranged = [e for e in requests("norange.bin") if e["range"] not in (None, "bytes=0-0")]
+    ranged = [e for e in requests("norange.bin") if e["range"] not in (None, *PROBES)]
     ok, d = whole(done["norange.bin"], "norange.bin")
     check("B10", "no ranges: one connection, whole", ok and not ranged, d)
     ok, d = whole(done["lie.bin"], "lie.bin")
@@ -541,7 +542,7 @@ def walk(dm, origin):
         dm.call("ui.select", ids=[r["id"]])
         dm.click("Resume")
     r = dm.wait("crash.bin", {"completed", "failed"}, 180)
-    starts = sorted(int(e["range"][6:].split("-")[0]) for e in requests("crash.bin", mark) if e["range"] and e["range"] != "bytes=0-0")
+    starts = sorted(int(e["range"][6:].split("-")[0]) for e in requests("crash.bin", mark) if e["range"] and e["range"] not in PROBES)
     ok, d = whole(r, "crash.bin")
     check("B21", "killed mid-download, it goes on after reopening and is whole",
           0 < had < FILES["crash.bin"][0] and starts and starts[0] > 0 and ok, f"killed at {had} bytes; {d}")
@@ -714,7 +715,8 @@ def main():
     try:
         walk(dm, origin)
     except Exception as e:   # a step that broke is a failure of its row, and the rest still run
-        check("WALK", "the walk through the window ran to its end", False, repr(e))
+        (WORK / "walk-trace.txt").write_text(traceback.format_exc())
+        check("WALK", "the walk through the window ran to its end", False, repr(e) + f" dm_exit={dm.proc.poll()} " + traceback.format_exc().replace(chr(10), " | ")[-700:])
     finally:
         try:
             dm.quit()

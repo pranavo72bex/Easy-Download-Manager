@@ -2,13 +2,17 @@
 
 dm's engine is compared with two other download managers: Reference A, a
 commercial one for Windows, and reference B, a free one for Windows, macOS
-and Linux. Neither is installed on the development machine (reference A
-runs only on Windows), so what they do is taken from their public pages,
-and each claim says where it comes from. Nothing of either program's code is
-used; dm's behaviour is written and tested independently.
+and Linux. What they do is taken from their public pages and, since
+2026-10-31, from reference A run normally on a Windows test machine against
+a local test server (its section below); each claim says where it comes
+from. No binary of either program is opened, disassembled or decompiled:
+reference A's licence forbids it, and dm is written clean-room. Nothing of
+either program's code is used; dm's behaviour is written and tested
+independently.
 
 Labels: **Verified** (the reference's own page states it), **Reported**
-(third-party guides only), **Unknown** (not documented anywhere found).
+(third-party guides only), **Observed** (seen from outside, by running it),
+**Unknown** (not documented anywhere found).
 
 ## Dynamic segmentation (reference A, Verified)
 
@@ -122,7 +126,8 @@ Reference B 6.35.2 (emulated x86-64) and dm (native) downloaded the same
 request, in Docker; the lab is kept outside the repository.
 
 - **First request**: a plain `GET` with no `Range`, left streaming as the
-  first piece while its New download dialog waits. dm asks `bytes=0-0` first.
+  first piece while its New download dialog waits. dm sends `bytes=0-` and
+  keeps that response streaming as the first piece.
 - **Ranges**: open-ended (`bytes=N-`); it closes a connection itself when it
   reaches the next piece. dm asks closed ranges (`bytes=a-b`).
 - **Splitting**: halves of what is left (offsets near 1/2, 1/4, 3/4, 1/8 ...).
@@ -135,3 +140,44 @@ request, in Docker; the lab is kept outside the repository.
 - **A page's only video**: it proposes "Lab clip (1).mp4", yt-dlp's numbering.
 - **Sandbox**: in Docker, where `bwrap` cannot make namespaces, it ran the
   add-on's yt-dlp outside one, without a word.
+
+## Reference A's download engine, measured (Observed, 2026-10-31)
+
+Reference A 6.43 build 16, run normally on Windows 11 and started from its
+documented command line (`/d URL /p folder /f name /n`), against a local
+HTTP server on 127.0.0.1 that logs every connection, request and byte sent.
+The file's content is a known pattern, so every saved file was checked byte
+by byte. dm 0.8.3 was run the same way (a portable copy, `--headless`, its own
+data folder) for the dm column. Only the server's side was watched: no
+packet capture, no look inside either program. Not covered: pause and resume
+from the window, the browser, video sites, and a server that honours
+`If-Range` (the test server ignores it, so dm's own `If-Range` check is not
+measured here).
+
+| What happened | Reference A | dm 0.8.3 |
+|---|---|---|
+| First request | A plain `GET` with no `Range`, kept as the first piece | `bytes=0-`, kept streaming as the first piece; closed ranges for the rest |
+| Pieces | Halves of what is left, from the start: the second connection takes `N-` (N = what the first had), then halves of the largest piece; 8 connections within 1.3 s | 8 equal pieces at once; halves of the largest when a connection frees |
+| Seam between pieces | Each range ends 64 bytes into the next piece; a resumed range starts 64 bytes back | 1 byte |
+| Smallest piece | A 100 KB file on 4 connections, pieces down to about 14 KB | A 100 KB file on 1 connection (pieces at least 128 KiB) |
+| Validators | No `If-Range` or `If-Match`, though the server sent an ETag; an ETag changed during a cut was not noticed (all 8 pieces resumed) | `If-Range` with the ETag |
+| Content changed under the same ETag, then a cut | Every resumed connection closed after its first 16 KB; about 6 s later the whole file again, from byte 0, on 1 connection | Caught on the first chunk of each resumed range; the whole file again at once, on 8 connections; file correct |
+| All connections cut | Back on all 8 within 0.04 s | Back within 1.2 s |
+| Server accepting and dropping every connection for 40 s | About 205 attempts a second, never gave up; resumed within 0.01 s of the server's return; file correct | Attempts 1, 2, 4, 8 and 16 s apart; resumed 22 s after the server's return; file correct |
+| Server stopped for 30 s (connection refused) | 8 connection attempts open the whole time; back within 0.1 s of the server's return; file correct | Not run |
+| Server with no `Range` support | 1 connection, file correct | 1 connection, file correct |
+| Same, connection cut at 3 s | Asked `Range` again, got 200, closed it; nothing more within 20 s, no file | The whole file again from byte 0; file correct |
+| No `Content-Length` | 1 connection, file correct | Not run |
+| 302 redirect | Every piece asked of the final address | Not run |
+| 503 for 12 s, then 200 | 2 attempts 6 ms apart, then stopped; nothing after the server recovered | Attempts 1, 2, 4 and 8 s apart, then the download, on 8 connections; file correct |
+| 404 | 2 attempts, then stopped | 1 attempt, then stopped |
+| Headers | An old browser's User-Agent (Trident 7.0), `Accept-Encoding: identity`, `Accept-Language`, `Accept-Charset`, and a `Referer` of the address's own folder when none was given | dm's own User-Agent, `Accept-Encoding: identity` |
+
+Where reference A is ahead: smaller
+pieces (small files go faster), a wider seam check, and almost no time lost
+after a dropped connection or an outage. Where dm is ahead: a changed file
+is fetched again at once on all connections, a server without ranges
+recovers from a cut, and a 503 is waited out rather than ending the
+download. Reference A's 205 attempts a second against a failing server is
+not something to copy as it is: the fast return it buys can be had with a
+short, bounded wait.

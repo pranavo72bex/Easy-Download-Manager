@@ -149,7 +149,9 @@ pub(super) async fn run(
     workers: usize,
     helpers: usize,
     resumable: bool,
+    first_body: Option<reqwest::Response>,
 ) -> Result<(), Error> {
+    let mut first_body = first_body;
     let next = Arc::new(std::sync::atomic::AtomicUsize::new(0));
     // Ranges a connection gave up on, for the others to take.
     let orphans = Arc::new(std::sync::Mutex::new(Vec::<usize>::new()));
@@ -174,6 +176,11 @@ pub(super) async fn run(
             Some(second) if on_second => second.clone(),
             _ => client.clone(),
         };
+        let body = if ordinal == 0 {
+            first_body.take()
+        } else {
+            None
+        };
         let (job, next) = (Arc::clone(job), Arc::clone(&next));
         let (orphans, active) = (Arc::clone(&orphans), Arc::clone(&active));
         let refused = Arc::clone(&refused);
@@ -183,6 +190,7 @@ pub(super) async fn run(
             wave_over_seen.clone(),
         );
         running.spawn(async move {
+            let mut body = body;
             // A helper that has been let in: it is one of the active, to the
             // connection that steps aside for a server that limits them.
             let mut joined = false;
@@ -227,7 +235,8 @@ pub(super) async fn run(
                 }
                 crate::lock(&job.live[index]).taken = true;
                 crate::second_path::fetched_by(&job.parts, index, on_second);
-                match fetch_segment(&client, &job, index, resumable, &active).await {
+                let first = if index == 0 { body.take() } else { None };
+                match fetch_segment(&client, &job, index, resumable, &active, first).await {
                     Ok(()) => {}
                     /* The server would not take this connection (a 429 or
                      * 503 at once, a refused connect after its retries)
@@ -317,7 +326,7 @@ pub(super) async fn run(
     let left: Vec<usize> = std::mem::take(&mut *crate::lock(&orphans));
     for index in left {
         crate::lock(&job.live[index]).taken = true;
-        fetch_segment(client, job, index, resumable, &AtomicUsize::new(1)).await?;
+        fetch_segment(client, job, index, resumable, &AtomicUsize::new(1), None).await?;
     }
     Ok(())
 }
@@ -404,6 +413,7 @@ pub(super) async fn fetch_segment(
     index: usize,
     resumable: bool,
     active: &AtomicUsize,
+    first_body: Option<reqwest::Response>,
 ) -> Result<(), Error> {
     // A part found whole on a resume is still checked at its end where the
     // server can be asked for it, since a power cut can tear a whole part
@@ -472,6 +482,7 @@ pub(super) async fn fetch_segment(
     // Only a capped stream is asked again slice by slice; without a cap the
     // ledger is not read here at all (it is a file, opened and read).
     let sliced = job.chunk.is_some() && resumable;
+    let mut first_body = first_body;
     let outcome = loop {
         let before = if sliced { on_disk() } else { 0 };
         let outcome = retry::run_making_progress_unless(
@@ -488,7 +499,7 @@ pub(super) async fn fetch_segment(
                     .0
                     .store(job.downloaded.load(Ordering::Relaxed), Ordering::Relaxed);
                 at_start.1.store(on_disk(), Ordering::Relaxed);
-                attempt_segment(client, job, index, resumable)
+                attempt_segment(client, job, index, resumable, first_body.take())
             },
         )
         .await;
@@ -530,6 +541,7 @@ pub(super) async fn attempt_segment(
     job: &Job,
     index: usize,
     resumable: bool,
+    first_body: Option<reqwest::Response>,
 ) -> Result<(), Error> {
     // Read at each attempt: a split may have shortened the range since.
     let (start, end) = {
@@ -592,42 +604,47 @@ pub(super) async fn attempt_segment(
         None => end,
     };
     let source = job.source(index);
-    let mut request = get(
-        client,
-        &source.url,
-        job.referrer.as_deref(),
-        job.sign_in.as_ref(),
-    );
-    request = job.headers.onto(
-        request,
-        crate::cookies::header_with(job.sign_in.as_ref(), &source.url).is_some(),
-        job.referrer.is_some(),
-    );
-    if resumable {
-        request = request.header(reqwest::header::RANGE, format!("bytes={from}-{asked_end}"));
-        // Only ever alongside a range: it is a condition on the range, and a
-        // republished file answers 200 instead, which is how a changed file
-        // is noticed rather than spliced into the old one. The validator is
-        // this mirror's own — another server's would simply not match.
-        // Never a weak ETag (`W/"…"`): `If-Range` takes only a strong one
-        // (RFC 9110), and a strict server answers a weak one with the whole
-        // file, every range, so the download fell back to one connection
-        // and a resume failed as though ranges had stopped. Without the
-        // condition, a changed file is still caught: by the validator the
-        // answer carries, and by the bytes the resume compares.
-        if let Some(validator) = source.validator.as_ref().filter(|v| !v.starts_with("W/")) {
-            request = request.header(reqwest::header::IF_RANGE, validator);
+    let is_probe_body = first_body.is_some() && from == 0 && already == 0;
+    let res = if let Some(res) = first_body.filter(|_| from == 0 && already == 0) {
+        res
+    } else {
+        let mut request = get(
+            client,
+            &source.url,
+            job.referrer.as_deref(),
+            job.sign_in.as_ref(),
+        );
+        request = job.headers.onto(
+            request,
+            crate::cookies::header_with(job.sign_in.as_ref(), &source.url).is_some(),
+            job.referrer.is_some(),
+        );
+        if resumable {
+            request = request.header(reqwest::header::RANGE, format!("bytes={from}-{asked_end}"));
+            // Only ever alongside a range: it is a condition on the range, and a
+            // republished file answers 200 instead, which is how a changed file
+            // is noticed rather than spliced into the old one. The validator is
+            // this mirror's own — another server's would simply not match.
+            // Never a weak ETag (`W/"…"`): `If-Range` takes only a strong one
+            // (RFC 9110), and a strict server answers a weak one with the whole
+            // file, every range, so the download fell back to one connection
+            // and a resume failed as though ranges had stopped. Without the
+            // condition, a changed file is still caught: by the validator the
+            // answer carries, and by the bytes the resume compares.
+            if let Some(validator) = source.validator.as_ref().filter(|v| !v.starts_with("W/")) {
+                request = request.header(reqwest::header::IF_RANGE, validator);
+            }
         }
-    }
 
-    let res = Error::refused_or(
-        or_stop(
-            &job.control,
-            crate::auth::send(client, request, &source.url),
+        Error::refused_or(
+            or_stop(
+                &job.control,
+                crate::auth::send(client, request, &source.url),
+            )
+            .await?,
         )
-        .await?,
-    )
-    .await?;
+        .await?
+    };
     let status = res.status();
     let stated = res.content_length();
     if resumable && status != reqwest::StatusCode::PARTIAL_CONTENT {
@@ -776,7 +793,7 @@ pub(super) async fn attempt_segment(
                      * long loss is getting somewhere, and spending the
                      * retry budget on it failed the range part-way. Each
                      * step leaves the part shorter, so it ends. */
-                    return Box::pin(attempt_segment(client, job, index, resumable)).await;
+                    return Box::pin(attempt_segment(client, job, index, resumable, None)).await;
                 }
             }
         }
@@ -891,7 +908,7 @@ pub(super) async fn attempt_segment(
             return Err(stopped);
         }
 
-        if written + chunk.len() as u64 > span {
+        if !is_probe_body && written + chunk.len() as u64 > span {
             /* More bytes than the range asked for.
              *
              * A server holding a compressed representation ranges over the
@@ -900,7 +917,11 @@ pub(super) async fn attempt_segment(
              * here is what makes that silent: every part ends up exactly as
              * long as planned, assembled in order, and wrong all the way
              * through. A file of the right size and the wrong contents is the
-             * one thing a download manager must never produce. */
+             * one thing a download manager must never produce.
+             *
+             * Skipped for a probe body: the probe asked for bytes=0- (the
+             * whole file) and the server is legitimately sending all of it;
+             * the clipping below stops at this segment's boundary. */
             file.flush().await?;
             put(&mut ledger, written).await?;
             return Err(Error::DishonestRanges);

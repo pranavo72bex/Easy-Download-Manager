@@ -107,20 +107,17 @@ async fn handler(State(s): State<Server>, headers: HeaderMap) -> Response {
             .unwrap();
     }
 
-    let range = headers
+    let range_str = headers
         .get("range")
         .and_then(|v| v.to_str().ok())
         .and_then(|v| v.strip_prefix("bytes="))
-        .map(|v| {
-            let mut parts = v.splitn(2, '-');
-            let a: usize = parts.next().unwrap_or("0").parse().unwrap_or(0);
-            let b = parts
-                .next()
-                .unwrap_or("")
-                .parse::<usize>()
-                .unwrap_or(total - 1);
-            (a, b.min(total - 1))
-        });
+        .and_then(|v| v.split_once('-'));
+    let open_ended = range_str.map(|(_, b)| b.is_empty()).unwrap_or(false);
+    let range = range_str.map(|(a, b)| {
+        let a: usize = a.parse().unwrap_or(0);
+        let b: usize = b.parse().unwrap_or(total - 1).min(total - 1);
+        (a, b)
+    });
 
     // No range asked for, or a server that does not do them: the whole body.
     let Some((a, b)) = range.filter(|_| s.mode != Mode::NoRanges) else {
@@ -131,7 +128,9 @@ async fn handler(State(s): State<Server>, headers: HeaderMap) -> Response {
             .unwrap();
     };
 
-    s.asked.lock().unwrap().push((a, b));
+    if !open_ended {
+        s.asked.lock().unwrap().push((a, b));
+    }
 
     // Only the bytes differ between the modes, so only the bytes are chosen
     // here — the response around them is built once.
@@ -832,12 +831,11 @@ async fn serve_stalled() -> (SocketAddr, Arc<AtomicUsize>) {
             let hits = Arc::clone(&counted);
             async move {
                 hits.fetch_add(1, Ordering::SeqCst);
-                // The probe asks for one byte and gets it; every range after
-                // it gets headers and then silence.
-                if headers
+                let is_probe = headers
                     .get("range")
-                    .is_some_and(|r| r.to_str().unwrap_or("") == "bytes=0-0")
-                {
+                    .and_then(|r| r.to_str().ok())
+                    .is_some_and(|r| r == "bytes=0-0" || r == "bytes=0-");
+                if is_probe {
                     return Response::builder()
                         .status(StatusCode::PARTIAL_CONTENT)
                         .header("content-range", "bytes 0-0/8388608")
@@ -1699,4 +1697,62 @@ async fn a_compressed_body_that_unpacks_to_far_more_than_it_sent_is_stopped() {
         .await
         .expect("a compressed page of text was refused");
     assert_eq!(std::fs::read(&done.path).unwrap(), plain);
+}
+
+/// A download with no page of its own is asked for as from its own folder,
+/// `http://host/files/` for `http://host/files/a.bin?x`, as reference A does;
+/// a page that was given is used as it was.
+#[tokio::test]
+async fn a_download_with_no_page_names_its_own_folder_as_the_referer() {
+    let seen: Arc<std::sync::Mutex<Vec<String>>> = Default::default();
+    let log = seen.clone();
+    let app = axum::Router::new().fallback(get(move |headers: HeaderMap| {
+        let log = log.clone();
+        async move {
+            log.lock().unwrap().push(
+                headers
+                    .get(axum::http::header::REFERER)
+                    .and_then(|v| v.to_str().ok())
+                    .unwrap_or("(none)")
+                    .to_string(),
+            );
+            Response::builder()
+                .header(axum::http::header::CONTENT_LENGTH, "4")
+                .body(Body::from("data"))
+                .unwrap()
+        }
+    }));
+    let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let addr = listener.local_addr().unwrap();
+    tokio::spawn(async move { axum::serve(listener, app).await.unwrap() });
+
+    let dir = tempdir();
+    download(
+        &client(),
+        &format!("http://{addr}/files/deep/a.bin?token=1"),
+        &options(dir.path()),
+    )
+    .await
+    .expect("download");
+    let opts = dm_core::Options {
+        referrer: Some("https://example.com/page".to_string()),
+        ..options(dir.path())
+    };
+    download(&client(), &format!("http://{addr}/files/b.bin"), &opts)
+        .await
+        .expect("download with a page");
+    let seen = seen.lock().unwrap();
+    assert!(
+        seen.iter()
+            .all(|r| r == &format!("http://{addr}/files/deep/") || r == "https://example.com/page"),
+        "{seen:?}"
+    );
+    assert!(
+        seen.contains(&format!("http://{addr}/files/deep/")),
+        "{seen:?}"
+    );
+    assert!(
+        seen.contains(&"https://example.com/page".to_string()),
+        "{seen:?}"
+    );
 }

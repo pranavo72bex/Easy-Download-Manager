@@ -97,7 +97,7 @@ impl Proxy {
 
 impl Proxy {
     /// The same address, with the credentials inline, for a program dm runs
-    /// that takes its proxy as one argument — yt-dlp does. Each part is
+    /// that takes its proxy as one argument. Each part is
     /// percent-encoded, so a password holding `@` or `:` still names the
     /// right host, which is the reason `url` keeps them out.
     pub fn url_for_tools(&self) -> Option<String> {
