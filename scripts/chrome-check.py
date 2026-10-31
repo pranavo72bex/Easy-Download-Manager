@@ -484,8 +484,15 @@ def whole(folder, name):
 
 def devtools(profile):
     port_file = profile / "DevToolsActivePort"
-    port = wait_for(lambda: port_file.exists() and port_file.read_text().split("\n")[0], 30)
+    # A fresh CI runner's first start of the browser sets its profile up
+    # and has taken over 30 s (Edge, ubuntu-latest, 2026-10-31).
+    within = 90 if os.environ.get("CI") else 30
+    port = wait_for(lambda: port_file.exists() and port_file.read_text().split("\n")[0], within)
     if not port:
+        said = profile.parent / "chrome-stderr.txt"
+        if said.exists():
+            print("the browser's last words:", file=sys.stderr)
+            print(said.read_text(errors="replace")[-3000:], file=sys.stderr)
         sys.exit("Chrome never opened its DevTools port")
     return f"http://127.0.0.1:{port}"
 

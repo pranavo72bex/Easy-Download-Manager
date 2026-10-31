@@ -78,7 +78,9 @@ struct Defaults {
     flags: u32,
 }
 
-/// The tracks of the MP4 at `path`, as the muxer reads them.
+/// The tracks of the MP4 at `path`, as the muxer reads them (for the
+/// system's video decoder, `frames`; macOS so far).
+#[cfg_attr(not(target_os = "macos"), allow(dead_code))]
 pub(crate) fn tracks_in_file(path: &Path) -> Result<Vec<Track>, String> {
     let mut file =
         File::open(path).map_err(|e| format!("{} could not be read: {e}", path.display()))?;
