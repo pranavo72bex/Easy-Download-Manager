@@ -183,7 +183,10 @@ jobs:
       # yt-dlp inside every package, the release and digest pinned in
       # packaging/yt-dlp.pin.json: a package without it, or with another
       # build, is not made.
+      # From the checkout's root: the job's default directory is desktop/,
+      # where scripts/ is not (desktop-v0.8.5 failed here, every platform).
       - name: yt-dlp for the package
+        working-directory: .
         run: python3 scripts/fetch-ytdlp.py desktop/crates/dm-desktop/resources/yt-dlp
 
       # CI is set on every runner, which is what tells the .dmg step to skip
