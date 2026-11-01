@@ -124,7 +124,7 @@ pub fn sites(words: &[String]) -> Vec<String> {
 /// is there.
 pub fn local_torrent(text: &str) -> Option<String> {
     let text = text.trim();
-    let path = match dm_core::torrent::local_file(text) {
+    let path = match dm_core::local_file(text) {
         Some(path) => path,
         None if !text.contains("://") => dm_shell::settings::full_path(text)?,
         None => return None,
@@ -132,7 +132,7 @@ pub fn local_torrent(text: &str) -> Option<String> {
     if !dm_core::is_torrent(&path.to_string_lossy()) || !path.is_file() {
         return None;
     }
-    dm_core::torrent::file_url(&path)
+    dm_core::file_url(&path)
 }
 
 /// Where Export offers to write the list when its path is typed.

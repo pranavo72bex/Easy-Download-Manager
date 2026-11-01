@@ -1341,7 +1341,7 @@ async fn a_full_disk_pauses_and_another_folder_finishes_it() {
         row.path
     );
     assert_eq!(std::fs::read(&row.path).unwrap().len(), 1024);
-    assert!(!roomy.join(dm_core::queue::UNFINISHED).exists());
+    assert!(!roomy.join(dm_core::UNFINISHED).exists());
 }
 
 /* ------------------------------------------------------------- metalink */

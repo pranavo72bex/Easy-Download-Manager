@@ -168,7 +168,7 @@ pub fn dropped_links(file: &dyn egui::DroppedFile) -> Vec<String> {
     if kind.as_deref() == Some("torrent") && path.is_file() {
         return std::path::absolute(path)
             .ok()
-            .and_then(|full| dm_core::torrent::file_url(&full))
+            .and_then(|full| dm_core::file_url(&full))
             .into_iter()
             .collect();
     }

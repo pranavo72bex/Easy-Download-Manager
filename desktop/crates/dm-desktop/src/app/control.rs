@@ -48,7 +48,7 @@ impl DmApp {
                     .and_then(|n| n.as_str())
                     .unwrap_or("dm")
                     .to_string();
-                let name = dm_core::probe::sanitize(&name);
+                let name = dm_core::sanitize_name(&name);
                 let name = if name.is_empty() { "dm".into() } else { name };
                 let path = dm_shell::home()
                     .join("screenshots")

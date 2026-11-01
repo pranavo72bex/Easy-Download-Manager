@@ -99,6 +99,6 @@ fn still_being_written(meta: &std::fs::Metadata) -> bool {
 fn move_aside(dir: &std::path::Path, path: &std::path::Path, name: &str) -> std::io::Result<()> {
     let done = dir.join(DONE);
     std::fs::create_dir_all(&done)?;
-    let target = done.join(dm_core::download::free_name(&done, name));
+    let target = done.join(dm_core::free_name(&done, name));
     std::fs::rename(path, target)
 }

@@ -67,7 +67,7 @@ pub(super) fn file_info(app: &mut DmApp, ctx: &egui::Context) {
         // showed as the download's.
         if (url.starts_with("http://") || url.starts_with("https://")) && !dm_core::is_torrent(&url)
         {
-            let client = dm_core::proxy::client_with(&app.backend.settings().proxy)
+            let client = dm_core::client_with(&app.backend.settings().proxy)
                 .unwrap_or_else(|_| dm_core::client());
             let sign_in = dm_core::cookies::SignIn::new(&url, &d.cookies);
             let referrer = d.referrer.clone();
@@ -75,7 +75,7 @@ pub(super) fn file_info(app: &mut DmApp, ctx: &egui::Context) {
             app.backend.runtime.spawn(async move {
                 let asked = tokio::time::timeout(
                     std::time::Duration::from_secs(20),
-                    dm_core::probe::probe(
+                    dm_core::probe(
                         &client,
                         &url,
                         Some(&referrer)
@@ -96,7 +96,7 @@ pub(super) fn file_info(app: &mut DmApp, ctx: &egui::Context) {
                         }
                     } else if dm_core::videopage::is_page(kind) {
                         Probed {
-                            page: !dm_core::download::names_a_document(&url),
+                            page: !dm_core::names_a_document(&url),
                             ..Probed::default()
                         }
                     } else {
@@ -119,7 +119,7 @@ pub(super) fn file_info(app: &mut DmApp, ctx: &egui::Context) {
                             status: 403 | 429,
                             ..
                         }
-                    ) && !dm_core::download::names_a_document(&url);
+                    ) && !dm_core::names_a_document(&url);
                     *dm_core::lock(&slot) = Some(if refused_page {
                         Probed {
                             page: true,
@@ -163,7 +163,7 @@ pub(super) fn file_info(app: &mut DmApp, ctx: &egui::Context) {
         && zip_list::is_zip_address(&first)
         && (first.starts_with("http://") || first.starts_with("https://"))
     {
-        let client = dm_core::proxy::client_with(&app.backend.settings().proxy)
+        let client = dm_core::client_with(&app.backend.settings().proxy)
             .unwrap_or_else(|_| dm_core::client());
         let referrer = Some(d.referrer.clone()).filter(|r| !r.is_empty());
         let sign_in = dm_core::cookies::SignIn::new(&first, &d.cookies);
@@ -230,7 +230,7 @@ pub(super) fn file_info(app: &mut DmApp, ctx: &egui::Context) {
         .as_ref()
         .and_then(|slot| slot.lock().ok()?.clone());
     // The quality the setting would choose, shown as picked until one is.
-    let setting = dm_core::stream::Quality::named(&app.applied.stream_quality);
+    let setting = dm_core::Quality::named(&app.applied.stream_quality);
     // The folder this kind of file went to last time, where it still is.
     if !d.folder_offered && d.urls.len() == 1 && !d.name.trim().is_empty() {
         d.folder_offered = true;
@@ -263,8 +263,8 @@ pub(super) fn file_info(app: &mut DmApp, ctx: &egui::Context) {
             } else {
                 let mut categories = app.applied.categories();
                 if categories.enabled {
-                    categories.site = dm_core::category::host_of(url);
-                    let kind = dm_core::category::by_name(name).unwrap_or(dm_core::Category::Other);
+                    categories.site = dm_core::host_of(url);
+                    let kind = dm_core::by_name(name).unwrap_or(dm_core::Category::Other);
                     categories.place(&app.applied.download_dir, kind, name)
                 } else {
                     app.applied.download_dir.clone()
@@ -285,11 +285,11 @@ pub(super) fn file_info(app: &mut DmApp, ctx: &egui::Context) {
                             .is_none_or(|s| s.trim().is_empty() || std::path::Path::new(s) == dir)
                 })
                 .count();
-            let free = dm_core::download::nth_free_name(&dir, name, waiting);
+            let free = dm_core::nth_free_name(&dir, name, waiting);
             let taken = dir.join(name);
             if free == name {
                 None
-            } else if dm_core::download::free_name(&dir, name) == name {
+            } else if dm_core::free_name(&dir, name) == name {
                 // Free on disk: it is the list that has the name.
                 Some(Clash::Listed)
             } else if waiting == 0 && taken.is_file() {
@@ -669,7 +669,7 @@ pub(super) fn file_info(app: &mut DmApp, ctx: &egui::Context) {
             .as_ref()
             .filter(|d| d.handed)
             .and_then(|d| d.urls.first())
-            .map(|url| dm_core::category::host_of(url))
+            .map(|url| dm_core::host_of(url))
             .filter(|host| !host.is_empty());
         app.dialogs.file_info = None;
         if let Some(site) = site {
@@ -794,9 +794,9 @@ pub(super) fn file_info(app: &mut DmApp, ctx: &egui::Context) {
 /// the first for "best", the sound for "audio"; `None` for an empty list.
 fn default_choice(
     list: &[dm_core::videopage::Choice],
-    setting: dm_core::stream::Quality,
+    setting: dm_core::Quality,
 ) -> Option<String> {
-    use dm_core::stream::Quality;
+    use dm_core::Quality;
     let height = |choice: &dm_core::videopage::Choice| {
         choice
             .quality

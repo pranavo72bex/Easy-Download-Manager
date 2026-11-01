@@ -185,13 +185,13 @@ pub struct Probed {
 /// as a transport stream, and as an MP4 where `remux` puts it into one.
 /// `None` for an address that is not a stream.
 pub fn stream_name(url: &str, content_type: Option<&str>, remux: bool) -> Option<String> {
-    if dm_core::stream::kind_of(url, content_type) != Some(dm_core::stream::Kind::Hls) {
+    if dm_core::kind_of(url, content_type) != Some(dm_core::StreamKind::Hls) {
         return None;
     }
     // The engine names a stream from its address and what its segments
     // are; asked with one transport-stream segment, it names it as one.
     let one = "#EXTM3U\n#EXTINF:1,\nsegment.ts\n#EXT-X-ENDLIST\n";
-    let named = dm_core::stream::media_playlist(one, url, url, Default::default())
+    let named = dm_core::media_playlist(one, url, url, Default::default())
         .ok()?
         .filename;
     match named.strip_suffix(".ts") {

@@ -151,13 +151,13 @@ pub fn from_list(text: &str) -> Vec<Listed> {
             return file
                 .downloads
                 .into_iter()
-                .filter(|row| dm_core::queue::accepted(&row.url))
+                .filter(|row| dm_core::accepted(&row.url))
                 .collect();
         }
     }
     text.split_whitespace()
         .map(link_in)
-        .filter(|word| dm_core::queue::accepted(word))
+        .filter(|word| dm_core::accepted(word))
         .map(|word| Listed {
             url: word.to_string(),
             ..Listed::default()
@@ -220,7 +220,7 @@ pub fn links_on_page(base: &str, html: &str) -> Vec<String> {
                 let mut link = link;
                 link.set_fragment(None);
                 let link = link.to_string();
-                if dm_core::queue::accepted(&link) && !found.contains(&link) {
+                if dm_core::accepted(&link) && !found.contains(&link) {
                     found.push(link);
                 }
             }
@@ -392,7 +392,7 @@ pub struct Crawled {
 /// A link's path, for the filters: lower-cased, decoded.
 fn path_of(link: &str) -> String {
     url::Url::parse(link)
-        .map(|u| dm_core::probe::decode(u.path()).to_ascii_lowercase())
+        .map(|u| dm_core::decode_percent(u.path()).to_ascii_lowercase())
         .unwrap_or_default()
 }
 
@@ -444,7 +444,7 @@ async fn fetch_page(
         .headers()
         .get(dm_core::reqwest::header::CONTENT_TYPE)
         .and_then(|v| v.to_str().ok())
-        .map(|v| dm_core::probe::mime_essence(Some(v)))
+        .map(|v| dm_core::mime_essence(Some(v)))
         .unwrap_or_default();
     // Past the start page, an answer that does not say it is a page is not
     // read as one: a bare `/download/123` is usually the file itself.

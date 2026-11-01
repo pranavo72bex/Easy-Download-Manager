@@ -249,8 +249,8 @@ async fn a_download_resumes_from_what_is_already_staged() {
     // A previous run that got the first range and stopped, under the plan
     // it wrote down when it started.
     std::fs::create_dir_all(&opts.parts_dir).unwrap();
-    let planned = dm_core::plan::plan(Some(body.len() as u64), 8, true);
-    dm_core::plan::record(
+    let planned = dm_core::plan(Some(body.len() as u64), 8, true);
+    dm_core::record_plan(
         &opts.parts_dir,
         Some(body.len() as u64),
         true,
@@ -285,8 +285,8 @@ async fn a_download_resumes_from_what_is_already_staged() {
 /// A previous run's plan and staged parts, as it left them at a power cut.
 fn staged(opts: &dm_core::Options, body: &[u8], parts: &[(usize, Vec<u8>)]) {
     std::fs::create_dir_all(&opts.parts_dir).unwrap();
-    let planned = dm_core::plan::plan(Some(body.len() as u64), 8, true);
-    dm_core::plan::record(
+    let planned = dm_core::plan(Some(body.len() as u64), 8, true);
+    dm_core::record_plan(
         &opts.parts_dir,
         Some(body.len() as u64),
         true,
@@ -458,8 +458,8 @@ async fn a_changed_connection_setting_does_not_corrupt_a_resumed_download() {
     let mut opts = options(dir);
 
     std::fs::create_dir_all(&opts.parts_dir).unwrap();
-    let planned = dm_core::plan::plan(Some(body.len() as u64), 8, true);
-    dm_core::plan::record(
+    let planned = dm_core::plan(Some(body.len() as u64), 8, true);
+    dm_core::record_plan(
         &opts.parts_dir,
         Some(body.len() as u64),
         true,

@@ -652,7 +652,7 @@ pub(super) fn tab_downloads(ui: &mut egui::Ui, d: &mut OptionsDialog, env: &TabE
             let name = ui.label(t("Starts at (HH:MM)"));
             ui.add(egui::TextEdit::singleline(&mut start.at).desired_width(60.0))
                 .labelled_by(name.id);
-            if !dm_core::schedule::is_time(&start.at) {
+            if !dm_core::is_time(&start.at) {
                 ui.colored_label(warn(ui), t("Not a time"));
             }
             if ui.button(t("Delete start time")).clicked() {
@@ -788,7 +788,7 @@ fn tab_connection(ui: &mut egui::Ui, d: &mut OptionsDialog, env: &TabEnv<'_>) {
                 for found in dm_core::interfaces() {
                     // The system's name for it where it has one ("iPhone
                     // USB (en5)"), else its address.
-                    let words = match dm_core::second_path::system_name(&found.name) {
+                    let words = match dm_core::system_name(&found.name) {
                         Some(named) => format!("{named} ({})", found.name),
                         None => format!("{} ({})", found.name, found.address),
                     };
@@ -897,7 +897,7 @@ fn tab_connection(ui: &mut egui::Ui, d: &mut OptionsDialog, env: &TabEnv<'_>) {
 /// The proxy settings, the second part of the Advanced page.
 fn tab_proxy(ui: &mut egui::Ui, d: &mut OptionsDialog, _env: &TabEnv<'_>) {
     let s = &mut d.draft;
-    use dm_core::proxy::Kind;
+    use dm_core::ProxyKind;
     let p = &mut s.proxy;
     toggle_row(ui, &mut p.enabled, t("Connect through a proxy"));
     hint(

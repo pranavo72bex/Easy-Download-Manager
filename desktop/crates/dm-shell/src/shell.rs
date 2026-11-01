@@ -150,7 +150,7 @@ fn is_link(arg: &str) -> bool {
         || arg.starts_with("https://")
         || arg.starts_with("magnet:")
         || dm_core::ftp::is_ftp(arg)
-        || dm_core::torrent::local_file(arg).is_some() && dm_core::is_torrent(arg)
+        || dm_core::local_file(arg).is_some() && dm_core::is_torrent(arg)
 }
 
 /// A `.torrent` on this computer named by its path, as a shell gives it,
@@ -162,7 +162,7 @@ fn local_torrent(arg: &str) -> Option<String> {
         return None;
     }
     let full = std::path::absolute(path).ok()?;
-    dm_core::torrent::file_url(&full)
+    dm_core::file_url(&full)
 }
 
 /// Reads the command line: links, each taking the options given before it,
@@ -356,7 +356,7 @@ pub async fn start(orders: &Orders) -> Started {
     dm_core::tools::allow_fetching(saved.fetch_tools);
     let mut notices: Vec<String> = unreadable.into_iter().collect();
 
-    let client = match dm_core::proxy::client_with_timeout(&saved.proxy, saved.read_timeout()) {
+    let client = match dm_core::client_with_timeout(&saved.proxy, saved.read_timeout()) {
         Ok(client) => client,
         Err(why) => {
             notices.push(format!(
@@ -437,7 +437,7 @@ pub fn check(settings: &Settings, previous: Option<&Settings>) -> Result<(), Str
         return Err(why);
     }
     if new_client(settings, previous) {
-        dm_core::proxy::client_with_timeout(&settings.proxy, settings.read_timeout())?;
+        dm_core::client_with_timeout(&settings.proxy, settings.read_timeout())?;
     }
     Ok(())
 }
@@ -536,7 +536,7 @@ pub fn watch_rules(queue: &Queue) {
                 queue.run().await;
             }
             // Queues that start on their own at a time of day.
-            let (day, minute) = dm_core::schedule::now_local();
+            let (day, minute) = dm_core::now_local();
             for name in queue.starts_due(day, minute) {
                 if queue.start_queue(&name).await > 0 {
                     wake(&queue);

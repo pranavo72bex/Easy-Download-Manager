@@ -62,7 +62,7 @@ pub fn name_of(row: &Entry) -> String {
 /// first, a file renamed to "report (1).pdf" stayed under Other.
 /// One named "get.php" is still known by what the server sent.
 pub fn kind_of(row: &Entry) -> Option<Category> {
-    dm_core::category::by_name(&name_of(row)).or(row.category)
+    dm_core::by_name(&name_of(row)).or(row.category)
 }
 
 /// Why a row paused by itself, in plain words: a full disk names its

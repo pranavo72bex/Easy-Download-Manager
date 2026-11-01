@@ -419,7 +419,7 @@ impl World for Here<'_> {
         // Never around the proxy: a proxy that cannot be built here must
         // not turn into a direct request, which is the server seeing the
         // address the person set a proxy to hide. The browser keeps it.
-        let client = dm_core::proxy::client_with(&settings.proxy).map_err(|e| {
+        let client = dm_core::client_with(&settings.proxy).map_err(|e| {
             format!("dm's proxy setting cannot be used ({e}), so it did not ask the server")
         })?;
         let runtime = tokio::runtime::Builder::new_current_thread()
@@ -430,7 +430,7 @@ impl World for Here<'_> {
         runtime.block_on(async {
             match tokio::time::timeout(
                 std::time::Duration::from_millis(within_ms),
-                dm_core::probe::probe(
+                dm_core::probe(
                     &client,
                     // A site's saved sign-in (Options › Sign-ins), as the
                     // app will use it: asked without it, such a link was
@@ -667,7 +667,7 @@ pub fn answer(
             let links: Vec<String> = urls
                 .into_iter()
                 .map(|u| u.trim().to_string())
-                .filter(|u| dm_core::queue::accepted(u))
+                .filter(|u| dm_core::accepted(u))
                 .take(2000)
                 .collect();
             if links.is_empty() {
@@ -762,7 +762,7 @@ pub fn answer(
             let url = url.trim().to_string();
             if url.is_empty() {
                 Reply::failed(&id, "no URL was given")
-            } else if !dm_core::queue::accepted(&url)
+            } else if !dm_core::accepted(&url)
                 // A file on this computer is dm's to read only when the
                 // person opens it with dm, never at a web page's word.
                 || url.get(..5).is_some_and(|s| s.eq_ignore_ascii_case("file:"))

@@ -1166,7 +1166,7 @@ fn ok_keeps_every_setting_of_the_advanced_page() {
         d.draft.retry_wait = 9;
         d.draft.read_timeout = 45;
         d.draft.proxy.enabled = true;
-        d.draft.proxy.kind = dm_core::proxy::Kind::Http;
+        d.draft.proxy.kind = dm_core::ProxyKind::Http;
         d.draft.proxy.host = "proxy.example".into();
         d.draft.proxy.port = 3128;
         d.draft.proxy.username = "someone".into();

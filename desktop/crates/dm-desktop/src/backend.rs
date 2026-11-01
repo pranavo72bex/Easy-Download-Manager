@@ -494,7 +494,7 @@ impl Backend {
 
     pub fn set_url(&self, id: Id, url: &str) -> Result<(), String> {
         let url = self.settings().with_login(url.trim());
-        if !dm_core::queue::accepted(&url) {
+        if !dm_core::accepted(&url) {
             return Err("it must be a link dm can download".into());
         }
         // A download retrying between attempts is the one most likely to

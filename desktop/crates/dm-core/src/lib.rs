@@ -19,14 +19,14 @@
 #![warn(clippy::string_add, clippy::needless_for_each)]
 pub mod aac;
 pub mod auth;
-pub mod category;
-pub mod checksum;
+mod category;
+mod checksum;
 mod clip;
 mod control;
 pub mod cookies;
 pub mod dash;
 mod decode;
-pub mod download;
+mod download;
 pub mod extract;
 pub mod fmp4;
 pub mod frames;
@@ -43,29 +43,31 @@ pub mod motw;
 pub mod mp3;
 pub mod mp4mux;
 pub mod ntlm;
-pub mod plan;
-pub mod probe;
+mod plan;
+mod probe;
 mod progress;
-pub mod proxy;
-pub mod queue;
+mod proxy;
+mod queue;
 pub mod quota;
 pub mod redirects;
 pub mod retry;
 pub mod rtmp;
 pub mod rtsp;
-pub mod schedule;
-pub mod second_path;
+mod schedule;
+mod second_path;
 pub mod secretstore;
 pub mod shape;
-pub mod stream;
+mod stream;
 pub mod subtitles;
 /// The tests' logins and secrets, never written in the code.
 #[cfg(test)]
 #[path = "../../../test-support/secrets.rs"]
 pub(crate) mod test_secrets;
 pub mod tools;
-pub use second_path::{interfaces, set_second_path, Interface};
-pub mod torrent;
+pub use second_path::{
+    interfaces, on_second, set_second_client, set_second_path, system_name, Interface,
+};
+mod torrent;
 pub mod tsmux;
 pub mod videopage;
 pub mod youtube;
@@ -75,26 +77,36 @@ mod zipinfo;
 /// engine's kind without a dependency of their own.
 pub use reqwest;
 
-pub use category::{Categories, Category, Custom};
-pub use checksum::Checksum;
+pub use category::{
+    by_name, classify, host_of, one_folder, portable_folder, Categories, Category, Custom,
+};
+pub use checksum::{digest, Algorithm, Checksum};
 pub use clip::Span;
 pub use control::{Control, Wanted};
 pub use download::{
-    download, download_reporting, free_space, Finished, HostLimit, Options, Room, Update,
+    download, download_reporting, free_name, free_space, names_a_document, nth_free_name, Finished,
+    HostLimit, Options, Room, Update,
 };
 pub use limit::Limiter;
-pub use metalink::Metalink;
-pub use plan::Segment;
-pub use probe::Probe;
-pub use progress::Progress;
-pub use proxy::Proxy;
-pub use queue::{
-    queue_names, AddOptions, Connection, Entry, Id, Queue, State, LINK_EXPIRED, MAIN_QUEUE,
-    RECHECK_QUEUE,
+pub use metalink::{is_metalink, parse as parse_metalink, Metalink};
+pub use plan::{plan, record as record_plan, Segment, MAX_CONNECTIONS};
+pub use probe::{
+    decode as decode_percent, filename_for, mime_essence, probe, sanitize as sanitize_name, Probe,
 };
-pub use schedule::Schedule;
-pub use stream::Stream;
-pub use torrent::is_torrent;
+pub use progress::Progress;
+pub use proxy::{client_with, client_with_timeout, Kind as ProxyKind, Proxy};
+pub use queue::{
+    accepted, queue_names, AddOptions, Connection, Entry, Id, Queue, State, LINK_EXPIRED,
+    MAIN_QUEUE, RECHECK_QUEUE, UNFINISHED,
+};
+pub use schedule::{
+    is_time, minutes as minutes_of, minutes_until_next_start, now_local, weekday_now, Schedule,
+};
+pub use stream::{
+    kind_of, media_playlist, pick as pick_quality, variants as stream_variants, Kind as StreamKind,
+    Quality, Stream, Variant,
+};
+pub use torrent::{download_torrent, file_url, is_torrent, local_file};
 pub use zipinfo::{zip_contents, zip_contents_of_file, ZipEntry};
 
 /// Why a download stopped.

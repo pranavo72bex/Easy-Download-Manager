@@ -14,7 +14,7 @@
 use std::path::PathBuf;
 use std::time::Duration;
 
-use dm_core::stream::Quality;
+use dm_core::Quality;
 use dm_core::{client, Categories, Control, Limiter, Options, Queue};
 
 #[tokio::main]

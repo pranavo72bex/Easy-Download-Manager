@@ -212,7 +212,7 @@ async fn a_connection_that_sends_nothing_is_given_up_on_within_the_timeout_set()
         ..options(dir.path())
     };
     let quick =
-        dm_core::proxy::client_with_timeout(&Default::default(), Duration::from_secs(1)).unwrap();
+        dm_core::client_with_timeout(&Default::default(), Duration::from_secs(1)).unwrap();
     let started = Instant::now();
     let outcome = download(&quick, &format!("http://{addr}/s.bin"), &once).await;
     assert!(outcome.is_err(), "a silent server was called a download");

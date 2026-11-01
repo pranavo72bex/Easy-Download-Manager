@@ -409,7 +409,7 @@ fn a_torrent_on_this_computer_is_taken_by_path_or_file_address() {
     let dir = tempfile::tempdir().unwrap();
     let file = dir.path().join("a b.torrent");
     std::fs::write(&file, b"d4:infod4:name1:xee").unwrap();
-    let address = dm_core::torrent::file_url(&file).unwrap();
+    let address = dm_core::file_url(&file).unwrap();
     let other = dir.path().join("notes.txt");
     std::fs::write(&other, b"x").unwrap();
     let got: Vec<String> = orders(&argv(&[

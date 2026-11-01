@@ -478,8 +478,8 @@ fn main() {
                 .into_iter()
                 .map(|(_, at)| at)
                 .collect();
-            let (weekday, minute) = dm_core::schedule::weekday_now();
-            dm_core::schedule::minutes_until_next_start(&now.schedule, &starts, weekday, minute)
+            let (weekday, minute) = dm_core::weekday_now();
+            dm_core::minutes_until_next_start(&now.schedule, &starts, weekday, minute)
         });
     }
     backend.handed = handed;

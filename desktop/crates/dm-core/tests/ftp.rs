@@ -446,7 +446,7 @@ async fn a_sign_in_comes_from_the_address_and_a_wrong_one_is_said() {
 
 #[test]
 fn the_queue_takes_ftp_addresses() {
-    assert!(dm_core::queue::accepted(
+    assert!(dm_core::accepted(
         "ftp://ftp.gnu.org/gnu/hello/hello-2.12.tar.gz"
     ));
 }

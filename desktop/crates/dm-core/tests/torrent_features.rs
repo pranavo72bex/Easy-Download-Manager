@@ -7,7 +7,7 @@ use std::path::{Path, PathBuf};
 use std::time::{Duration, Instant};
 
 use dm_core::{Options, Update};
-use dm_core::torrent::download_torrent;
+use dm_core::download_torrent;
 use dm_core::{client, Categories, Control, Limiter, Queue, State};
 use librqbit::spawn_utils::BlockingSpawner;
 use librqbit::{
@@ -166,7 +166,7 @@ fn options(dir: &Path) -> Options {
         limiter: Limiter::unlimited(),
         categories: Categories::default(),
         checksum: None,
-        quality: dm_core::stream::Quality::Best,
+        quality: dm_core::Quality::Best,
         sound: None,
         span: None,
         shape: None,

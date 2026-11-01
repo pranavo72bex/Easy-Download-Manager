@@ -106,7 +106,7 @@ pub(super) fn scheduler(app: &mut DmApp, ctx: &egui::Context) {
         *says = t("Tick at least one day.").to_string();
     } else if apply
         && schedule.enabled
-        && !(dm_core::schedule::is_time(&schedule.from) && dm_core::schedule::is_time(&schedule.to))
+        && !(dm_core::is_time(&schedule.from) && dm_core::is_time(&schedule.to))
     {
         // Refused here, where it was typed: saved, "25:00" or "1am" turned
         // the schedule off without a word.

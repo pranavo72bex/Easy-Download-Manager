@@ -60,7 +60,7 @@ impl DmApp {
         let categories = self.applied.categories();
         let name = name_of(row);
         categories
-            .custom_for(&name, &dm_core::category::host_of(&row.url))
+            .custom_for(&name, &dm_core::host_of(&row.url))
             .map(|c| c.name.clone())
     }
 
@@ -115,10 +115,10 @@ impl DmApp {
                 None
             } else {
                 categories
-                    .custom_for(&name, &dm_core::category::host_of(&row.url))
+                    .custom_for(&name, &dm_core::host_of(&row.url))
                     .map(|c| c.name.clone())
             };
-            let kind = dm_core::category::by_name(&name).or(row.category);
+            let kind = dm_core::by_name(&name).or(row.category);
             self.haystacks.insert(row.id, haystack_named(&name, row));
             self.placed.insert(row.id, (kind, custom));
             self.place_fingerprints

@@ -9,8 +9,11 @@
 //! a name never becomes a path, a plan covers every byte exactly once.
 
 use dm_core::Checksum;
-use dm_core::stream::{self, Quality};
-use dm_core::{metalink, plan, probe, Schedule};
+use dm_core::Schedule;
+use dm_core::{
+    decode_percent, filename_for, kind_of, media_playlist, mime_essence, parse_metalink,
+    pick_quality, plan, sanitize_name, stream_variants, Quality, MAX_CONNECTIONS,
+};
 use proptest::prelude::*;
 
 /// Strings that look like what servers send, mixed with anything at all.
@@ -103,22 +106,22 @@ proptest! {
         url in texty(),
         mime in proptest::option::of(texty()),
     ) {
-        let name = probe::filename_for(disposition.as_deref(), &url, mime.as_deref());
+        let name = filename_for(disposition.as_deref(), &url, mime.as_deref());
         prop_assert!(!name.contains('/') && !name.contains('\\'), "{name:?}");
         prop_assert!(name != "." && name != "..");
         prop_assert!(!name.contains('\0'));
         prop_assert!(name.len() <= 240, "{} bytes", name.len());
-        let _ = probe::mime_essence(mime.as_deref());
-        let _ = probe::decode(&url);
+        let _ = mime_essence(mime.as_deref());
+        let _ = decode_percent(&url);
     }
 
     #[test]
     fn sanitize_is_safe_and_settles(name in texty()) {
-        let once = probe::sanitize(&name);
+        let once = sanitize_name(&name);
         prop_assert!(!once.contains('/') && !once.contains('\\'));
         prop_assert!(once.len() <= 240);
         // Cleaning a clean name changes nothing.
-        prop_assert_eq!(probe::sanitize(&once), once.clone());
+        prop_assert_eq!(sanitize_name(&once), once.clone());
     }
 
     /// A long name cut to length could end on a space or a dot,
@@ -127,10 +130,10 @@ proptest! {
     fn a_long_name_cut_to_length_settles(
         name in "[a-z\u{4e2d}]{100,230}[ .\u{3000}]{0,6}[a-z .]{0,40}(\\.[a-z]{1,30})?",
     ) {
-        let once = probe::sanitize(&name);
+        let once = sanitize_name(&name);
         prop_assert!(once.len() <= 240);
         prop_assert!(!once.ends_with([' ', '.']), "{once:?}");
-        prop_assert_eq!(probe::sanitize(&once), once.clone());
+        prop_assert_eq!(sanitize_name(&once), once.clone());
     }
 
     #[test]
@@ -138,7 +141,7 @@ proptest! {
         any::<String>(),
         "<metalink[^>]{0,20}><file name=\"[^\"]{0,20}\"><size>[0-9]{0,22}</size>(<url>[^<]{0,30}</url>){0,3}(<hash type=\"[a-z0-9-]{0,8}\">[0-9a-f]{0,70}</hash>)?</file></metalink>",
     ]) {
-        if let Some(found) = metalink::parse(&xml) {
+        if let Some(found) = parse_metalink(&xml) {
             for url in &found.mirrors {
                 prop_assert!(url.starts_with("http://") || url.starts_with("https://"), "{url}");
             }
@@ -147,11 +150,11 @@ proptest! {
 
     #[test]
     fn a_playlist_of_anything_is_read_or_refused(text in playlist(), base in texty()) {
-        let offered = stream::variants(&text, &base);
-        let _ = stream::pick(offered, Quality::UpTo(720));
-        let _ = stream::media_playlist(&text, &base, "name", Quality::Best);
-        let _ = stream::media_playlist(&text, "https://e.com/v/index.m3u8", "x", Quality::Audio);
-        let _ = stream::kind_of(&base, Some(&text));
+        let offered = stream_variants(&text, &base);
+        let _ = pick_quality(offered, Quality::UpTo(720));
+        let _ = media_playlist(&text, &base, "name", Quality::Best);
+        let _ = media_playlist(&text, "https://e.com/v/index.m3u8", "x", Quality::Audio);
+        let _ = kind_of(&base, Some(&text));
     }
 
     #[test]
@@ -180,7 +183,7 @@ proptest! {
         connections in any::<usize>(),
         resumable in any::<bool>(),
     ) {
-        let planned = plan::plan(size, connections, resumable);
+        let planned = plan(size, connections, resumable);
         prop_assert!(!planned.is_empty());
         if let Some(size) = size.filter(|s| *s > 0) {
             prop_assert_eq!(planned[0].start, 0);
@@ -190,7 +193,7 @@ proptest! {
             }
             let covered: u64 = planned.iter().map(|s| s.span()).sum();
             prop_assert_eq!(covered, size);
-            prop_assert!(planned.len() <= plan::MAX_CONNECTIONS);
+            prop_assert!(planned.len() <= MAX_CONNECTIONS);
         }
     }
 }

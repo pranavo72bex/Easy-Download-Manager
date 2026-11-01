@@ -665,7 +665,7 @@ impl DmApp {
     /// A client built the way the settings say: through the proxy, with
     /// the timeout. For the window's own fetches, which are not downloads.
     pub fn client(&self) -> dm_core::reqwest::Client {
-        dm_core::proxy::client_with_timeout(&self.applied.proxy, self.applied.read_timeout())
+        dm_core::client_with_timeout(&self.applied.proxy, self.applied.read_timeout())
             .unwrap_or_else(|_| dm_core::client())
     }
 

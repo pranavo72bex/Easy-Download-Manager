@@ -724,7 +724,7 @@ mod toolbar_tests {
         let torrent = dir.path().join("a set.torrent");
         std::fs::write(&torrent, b"d4:infodee").unwrap();
         let taken = dropped_links(&Dropped(torrent.clone()));
-        assert_eq!(taken, [dm_core::torrent::file_url(&torrent).unwrap()]);
-        assert!(dm_core::is_torrent(&taken[0]) && dm_core::queue::accepted(&taken[0]));
+        assert_eq!(taken, [dm_core::file_url(&torrent).unwrap()]);
+        assert!(dm_core::is_torrent(&taken[0]) && dm_core::accepted(&taken[0]));
     }
 }

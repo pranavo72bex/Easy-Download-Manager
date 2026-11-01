@@ -36,10 +36,10 @@ fn the_host_refuses_what_the_queue_would_drop() {
         "file:///etc/passwd",
         "data:text/plain,x",
     ] {
-        assert!(!dm_core::queue::accepted(refused), "{refused}");
+        assert!(!dm_core::accepted(refused), "{refused}");
     }
-    assert!(dm_core::queue::accepted("https://e.com/f.bin"));
-    assert!(dm_core::queue::accepted("ftps://e.com/f.bin"));
+    assert!(dm_core::accepted("https://e.com/f.bin"));
+    assert!(dm_core::accepted("ftps://e.com/f.bin"));
 }
 
 #[test]

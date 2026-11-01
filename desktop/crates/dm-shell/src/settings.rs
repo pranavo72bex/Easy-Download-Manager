@@ -9,7 +9,7 @@
 #![cfg_attr(not(test), deny(clippy::indexing_slicing))]
 use std::path::PathBuf;
 
-use dm_core::stream::Quality;
+use dm_core::Quality;
 use dm_core::{AddOptions, Categories, Category, Limiter, Options, Proxy, Schedule};
 use serde::{Deserialize, Serialize};
 
@@ -617,8 +617,8 @@ impl Settings {
     pub fn refusal(&self, previous: &Settings) -> Option<String> {
         if self.schedule != previous.schedule
             && self.schedule.enabled
-            && !(dm_core::schedule::is_time(&self.schedule.from)
-                && dm_core::schedule::is_time(&self.schedule.to))
+            && !(dm_core::is_time(&self.schedule.from)
+                && dm_core::is_time(&self.schedule.to))
         {
             return Some(format!(
                 "the schedule's times must be HH:MM in 24 hours, not {:?} and {:?}",
@@ -629,7 +629,7 @@ impl Settings {
             if let Some(bad) = self
                 .queue_starts
                 .iter()
-                .find(|s| !dm_core::schedule::is_time(&s.at))
+                .find(|s| !dm_core::is_time(&s.at))
             {
                 return Some(format!(
                     "a queue's start time must be HH:MM in 24 hours, not {:?}",
@@ -661,7 +661,7 @@ impl Settings {
             if previous.custom_categories.iter().any(|p| p.name == c.name) {
                 continue;
             }
-            if let Err(why) = dm_core::category::portable_folder(&c.name) {
+            if let Err(why) = dm_core::portable_folder(&c.name) {
                 return Some(format!(
                     "a category's name is also its folder, so it cannot be {:?}: {why}",
                     c.name
@@ -672,7 +672,7 @@ impl Settings {
             if folder.trim().is_empty() || previous.category_folders.get(at) == Some(folder) {
                 continue;
             }
-            if let Err(why) = dm_core::category::portable_folder(folder) {
+            if let Err(why) = dm_core::portable_folder(folder) {
                 return Some(format!("a folder cannot be called {folder:?}: {why}"));
             }
         }
@@ -734,7 +734,7 @@ impl Settings {
             sign_in: None,
             save_name: None,
             accept_page: false,
-            system_proxy: self.proxy.enabled && self.proxy.kind == dm_core::proxy::Kind::System,
+            system_proxy: self.proxy.enabled && self.proxy.kind == dm_core::ProxyKind::System,
             proxy_bypass: if self.proxy.enabled {
                 self.proxy.bypass.clone()
             } else {
@@ -762,7 +762,7 @@ impl Settings {
     pub fn queue_start_list(&self) -> Vec<(String, u32)> {
         self.queue_starts
             .iter()
-            .filter_map(|s| Some((s.queue.clone(), dm_core::schedule::minutes(&s.at)?)))
+            .filter_map(|s| Some((s.queue.clone(), dm_core::minutes_of(&s.at)?)))
             .collect()
     }
 
@@ -916,8 +916,8 @@ impl Settings {
         let mut notes = Vec::new();
         let schedule = &mut settings.schedule;
         if schedule.enabled
-            && !(dm_core::schedule::is_time(&schedule.from)
-                && dm_core::schedule::is_time(&schedule.to))
+            && !(dm_core::is_time(&schedule.from)
+                && dm_core::is_time(&schedule.to))
         {
             schedule.enabled = false;
             notes.push(format!(
@@ -928,7 +928,7 @@ impl Settings {
         }
         let (kept, bad): (Vec<_>, Vec<_>) = std::mem::take(&mut settings.custom_categories)
             .into_iter()
-            .partition(|c| dm_core::category::one_folder(&c.name));
+            .partition(|c| dm_core::one_folder(&c.name));
         settings.custom_categories = kept;
         if !bad.is_empty() {
             let names: Vec<String> = bad.iter().map(|c| format!("{:?}", c.name)).collect();
@@ -944,7 +944,7 @@ impl Settings {
         let unusable: Vec<String> = settings
             .category_folders
             .iter()
-            .filter(|f| !f.trim().is_empty() && !dm_core::category::one_folder(f))
+            .filter(|f| !f.trim().is_empty() && !dm_core::one_folder(f))
             .map(|f| format!("{f:?}"))
             .collect();
         if !unusable.is_empty() {
@@ -991,7 +991,7 @@ impl Settings {
     /// The rule of the site `url` is on, the most specific host that covers
     /// it.
     pub fn site_rule_for(&self, url: &str) -> Option<&SiteRule> {
-        let host = dm_core::category::host_of(url);
+        let host = dm_core::host_of(url);
         self.site_rules
             .iter()
             .filter(|rule| {

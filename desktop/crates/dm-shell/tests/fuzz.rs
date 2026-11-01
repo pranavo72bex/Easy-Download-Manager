@@ -117,7 +117,7 @@ proptest! {
         ], 0..20).prop_map(|l| l.join("\r\n")),
     ]) {
         for row in lists::from_list(&text) {
-            prop_assert!(dm_core::queue::accepted(&row.url), "{}", row.url);
+            prop_assert!(dm_core::accepted(&row.url), "{}", row.url);
         }
         // What is written reads back as itself.
         let rows = lists::from_list(&text);
@@ -139,7 +139,7 @@ proptest! {
         base in prop_oneof![Just("https://e.com/dir/page.html".to_string()), any::<String>()],
     ) {
         for link in lists::links_on_page(&base, &html) {
-            prop_assert!(dm_core::queue::accepted(&link), "{link}");
+            prop_assert!(dm_core::accepted(&link), "{link}");
             let _ = lists::has_extension(&link, &["zip".into()]);
         }
     }

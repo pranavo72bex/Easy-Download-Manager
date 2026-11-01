@@ -159,7 +159,7 @@ async fn serve_for(
     (addr, asked)
 }
 
-fn options(dir: &std::path::Path, quality: dm_core::stream::Quality) -> Options {
+fn options(dir: &std::path::Path, quality: dm_core::Quality) -> Options {
     Options {
         quality,
         ..common::options(dir)
@@ -174,7 +174,7 @@ async fn a_playlist_is_saved_as_one_file_in_the_right_order() {
     let done = download(
         &client(),
         &format!("http://{addr}/v/master.m3u8"),
-        &options(dir.path(), dm_core::stream::Quality::Best),
+        &options(dir.path(), dm_core::Quality::Best),
     )
     .await
     .expect("the stream failed");
@@ -208,7 +208,7 @@ async fn a_cap_takes_the_rendition_under_it() {
     download(
         &client(),
         &format!("http://{addr}/v/master.m3u8"),
-        &options(dir.path(), dm_core::stream::Quality::UpTo(720)),
+        &options(dir.path(), dm_core::Quality::UpTo(720)),
     )
     .await
     .expect("the stream failed");
@@ -229,7 +229,7 @@ async fn an_encrypted_playlist_is_decrypted_segment_by_segment() {
     let done = download(
         &client(),
         &format!("http://{addr}/v/master.m3u8"),
-        &options(dir.path(), dm_core::stream::Quality::Best),
+        &options(dir.path(), dm_core::Quality::Best),
     )
     .await
     .expect("the encrypted stream failed");
@@ -261,7 +261,7 @@ async fn a_stream_served_only_to_its_page_downloads_with_the_referrer() {
     let dir = tempdir();
     let options = Options {
         referrer: Some(page.to_string()),
-        ..options(dir.path(), dm_core::stream::Quality::Best)
+        ..options(dir.path(), dm_core::Quality::Best)
     };
     let url = format!("http://{addr}/v/master.m3u8");
 
@@ -281,7 +281,7 @@ async fn a_rendition_change_does_not_splice_two_streams_together() {
     // Completed. The staged ones belong to another rendition and go.
     let (addr, asked) = serve(false).await;
     let dir = tempdir();
-    let options = options(dir.path(), dm_core::stream::Quality::UpTo(480));
+    let options = options(dir.path(), dm_core::Quality::UpTo(480));
     let url = format!("http://{addr}/v/master.m3u8");
 
     std::fs::create_dir_all(&options.parts_dir).unwrap();
@@ -312,7 +312,7 @@ async fn a_stream_resumes_from_the_segments_it_already_has() {
      * segments are given their real name. */
     let (addr, asked) = serve(false).await;
     let dir = tempdir();
-    let options = options(dir.path(), dm_core::stream::Quality::Best);
+    let options = options(dir.path(), dm_core::Quality::Best);
     let url = format!("http://{addr}/v/master.m3u8");
 
     // Stand in for a run that stopped after two segments, plus a half-written
@@ -670,7 +670,7 @@ async fn a_remux_that_fails_keeps_the_stream_whole_as_ts() {
     let asked = Options {
         room: Default::default(),
         remux: true,
-        ..options(dir.path(), dm_core::stream::Quality::Best)
+        ..options(dir.path(), dm_core::Quality::Best)
     };
     let done = download(&client(), &format!("http://{addr}/show.m3u8"), &asked).await;
     let done = done.expect("a failed remux failed the download");
@@ -700,7 +700,7 @@ async fn a_transport_stream_is_saved_as_an_mp4_when_asked_and_as_ts_when_not() {
     let as_mp4 = Options {
         room: Default::default(),
         remux: true,
-        ..options(dir.path(), dm_core::stream::Quality::Best)
+        ..options(dir.path(), dm_core::Quality::Best)
     };
     let done = download(&client(), &url, &as_mp4)
         .await
@@ -717,7 +717,7 @@ async fn a_transport_stream_is_saved_as_an_mp4_when_asked_and_as_ts_when_not() {
 
     // Not asked: the transport stream, as it came.
     let dir = tempdir();
-    let as_ts = options(dir.path(), dm_core::stream::Quality::Best);
+    let as_ts = options(dir.path(), dm_core::Quality::Best);
     let kept = download(&client(), &url, &as_ts).await.expect("the stream");
     assert_eq!(
         kept.path.file_name().and_then(|n| n.to_str()),
@@ -754,7 +754,7 @@ async fn an_hls_stream_becomes_an_mp4_dm_makes_itself() {
     let asked = Options {
         room: Default::default(),
         remux: true,
-        ..options(dir.path(), dm_core::stream::Quality::Best)
+        ..options(dir.path(), dm_core::Quality::Best)
     };
     let done = download(
         &client(),
@@ -780,7 +780,7 @@ async fn an_mp4_left_from_an_earlier_run_is_not_placed_when_the_remux_is_off() {
     let site = stream("h264");
     let addr = serve_folder(site.clone()).await;
     let dir = tempdir();
-    let off = options(dir.path(), dm_core::stream::Quality::Best);
+    let off = options(dir.path(), dm_core::Quality::Best);
     // What a pause after an earlier, remuxing run left behind.
     std::fs::create_dir_all(&off.parts_dir).unwrap();
     std::fs::write(off.parts_dir.join("joined.mp4"), b"an earlier run's mp4").unwrap();
@@ -804,7 +804,7 @@ async fn a_gather_cut_short_by_a_crash_is_cleared_when_the_stream_is_placed() {
     // not remux: placed from its segments, and the leftover goes.
     let (addr, _) = serve(false).await;
     let dir = tempdir();
-    let opts = options(dir.path(), dm_core::stream::Quality::Best);
+    let opts = options(dir.path(), dm_core::Quality::Best);
     std::fs::create_dir_all(&opts.parts_dir).unwrap();
     std::fs::write(opts.parts_dir.join("joined.ts.partial"), vec![0u8; 4096]).unwrap();
     let done = download(&client(), &format!("http://{addr}/v/master.m3u8"), &opts)
@@ -860,7 +860,7 @@ async fn a_stream_cut_from_one_file_by_byte_ranges_is_fetched_by_range_and_joine
     let outcome = download(
         &client(),
         &format!("http://{addr}/show.m3u8"),
-        &options(dir.path(), dm_core::stream::Quality::Best),
+        &options(dir.path(), dm_core::Quality::Best),
     )
     .await;
     let done = outcome.expect("a byte-range stream was refused");
@@ -907,10 +907,10 @@ async fn relative_entries_are_joined_against_where_a_redirect_landed() {
         .route("/edge/x/seg1.ts", get(|| async { segment(1) }));
     let addr = common::serve(app).await;
     let dir = tempdir();
-    let done = download::download(
+    let done = download(
         &client(),
         &format!("http://{addr}/short/show.m3u8"),
-        &options(dir.path(), dm_core::stream::Quality::Best),
+        &options(dir.path(), dm_core::Quality::Best),
     )
     .await
     .unwrap();
@@ -1011,7 +1011,7 @@ async fn a_live_stream_is_recorded_as_it_goes_each_segment_once() {
     let done = download(
         &client(),
         &format!("http://{addr}/live.m3u8"),
-        &options(dir.path(), dm_core::stream::Quality::Best),
+        &options(dir.path(), dm_core::Quality::Best),
     )
     .await
     .unwrap();
@@ -1025,7 +1025,7 @@ async fn a_live_recording_stopped_keeps_what_it_recorded() {
     // A stream that would run for a long time.
     let addr = serve_live(10_000).await;
     let dir = tempdir();
-    let opts = options(dir.path(), dm_core::stream::Quality::Best);
+    let opts = options(dir.path(), dm_core::Quality::Best);
     let control = opts.control.clone();
     let stop = tokio::spawn(async move {
         tokio::time::sleep(std::time::Duration::from_millis(1800)).await;
@@ -1073,7 +1073,7 @@ async fn a_master_playlist_that_names_itself_fails_instead_of_being_watched_for_
         download(
             &client(),
             &format!("http://{addr}/nest/x.m3u8"),
-            &options(dir.path(), dm_core::stream::Quality::Best),
+            &options(dir.path(), dm_core::Quality::Best),
         ),
     )
     .await
@@ -1106,7 +1106,7 @@ async fn an_empty_playlist_fails_instead_of_being_watched_for_ever() {
         download(
             &client(),
             &format!("http://{addr}/empty.m3u8"),
-            &options(dir.path(), dm_core::stream::Quality::Best),
+            &options(dir.path(), dm_core::Quality::Best),
         ),
     )
     .await
@@ -1147,7 +1147,7 @@ async fn segments_from_a_distant_server_are_fetched_together_and_joined_in_order
     let done = download(
         &client(),
         &format!("http://{addr}/v/index.m3u8"),
-        &options(dir.path(), dm_core::stream::Quality::Best),
+        &options(dir.path(), dm_core::Quality::Best),
     )
     .await
     .expect("the stream failed");

@@ -23,12 +23,12 @@ fn a_progress_window_says_what_came_over_the_second_network() {
     struct Off;
     impl Drop for Off {
         fn drop(&mut self) {
-            dm_core::second_path::set_second_client(None);
+            dm_core::set_second_client(None);
         }
     }
     // Bound to its address alone (by its name, a Linux socket cannot reach
     // the loopback server; `dm-core/tests/second_path.rs`).
-    dm_core::second_path::set_second_client(Some(
+    dm_core::set_second_client(Some(
         dm_core::builder()
             .local_address(network.address)
             .build()

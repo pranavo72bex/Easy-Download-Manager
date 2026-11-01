@@ -15,7 +15,7 @@ use std::net::{Ipv4Addr, SocketAddr, TcpListener};
 use std::time::Duration;
 
 use dm_core::Options;
-use dm_core::torrent::download_torrent;
+use dm_core::download_torrent;
 use dm_core::{client, Categories, Control, Limiter};
 
 use librqbit::spawn_utils::BlockingSpawner;
@@ -169,7 +169,7 @@ async fn a_torrent_is_fetched_from_a_real_swarm() {
         limiter: Limiter::unlimited(),
         categories: Categories::default(),
         checksum: None,
-        quality: dm_core::stream::Quality::Best,
+        quality: dm_core::Quality::Best,
         sound: None,
         span: None,
         shape: None,
@@ -225,8 +225,8 @@ async fn a_torrent_is_fetched_from_a_real_swarm() {
     let here = tempdir();
     let file = here.path().join("payload copy.torrent");
     std::fs::write(&file, &torrent_bytes).unwrap();
-    let local = dm_core::torrent::file_url(&file).unwrap();
-    assert!(dm_core::is_torrent(&local) && dm_core::queue::accepted(&local));
+    let local = dm_core::file_url(&file).unwrap();
+    assert!(dm_core::is_torrent(&local) && dm_core::accepted(&local));
     let out2 = tempdir();
     let options = Options {
         control: Control::new(),

@@ -143,7 +143,7 @@ pub(super) fn series(app: &mut DmApp, ctx: &egui::Context) {
 
 /// The key a file's kind is remembered under in `last_folders`.
 pub(super) fn kind_key(name: &str) -> &'static str {
-    dm_core::category::by_name(name)
+    dm_core::by_name(name)
         .unwrap_or(dm_core::Category::Other)
         .folder()
 }

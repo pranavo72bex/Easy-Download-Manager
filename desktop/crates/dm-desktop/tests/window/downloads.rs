@@ -44,9 +44,9 @@ fn a_newer_release_offers_its_installer_as_a_download_in_dm() {
     std::fs::write(&sample, payload()).unwrap();
     let sha256 = tokio::runtime::Runtime::new()
         .unwrap()
-        .block_on(dm_core::checksum::digest(
+        .block_on(dm_core::digest(
             &sample,
-            dm_core::checksum::Algorithm::Sha256,
+            dm_core::Algorithm::Sha256,
         ))
         .unwrap();
     let offer = |harness: &mut Harness<'_, DmApp>, url: String, sha256: String| {
@@ -1630,7 +1630,7 @@ fn add_url_takes_a_torrent_on_this_computer() {
         .as_ref()
         .map(|d| d.urls.clone())
         .expect("Download details did not open");
-    assert_eq!(urls, [dm_core::torrent::file_url(&file).unwrap()]);
+    assert_eq!(urls, [dm_core::file_url(&file).unwrap()]);
 }
 
 /// A stream server's address goes in through Add URL like any other, is

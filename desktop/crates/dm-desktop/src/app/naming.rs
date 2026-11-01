@@ -35,8 +35,8 @@ impl DmApp {
         } else {
             row.filename.clone()
         };
-        categories.site = dm_core::category::host_of(&row.url);
-        let kind = match kind_of(row).or_else(|| dm_core::category::by_name(&name)) {
+        categories.site = dm_core::host_of(&row.url);
+        let kind = match kind_of(row).or_else(|| dm_core::by_name(&name)) {
             Some(kind) => kind,
             None if categories.custom_for(&name, &categories.site).is_some() => {
                 dm_core::Category::Other
@@ -124,7 +124,7 @@ impl DmApp {
                     .count()
             });
             let said =
-                dm_core::download::nth_free_name(std::path::Path::new(&folder), &name, before);
+                dm_core::nth_free_name(std::path::Path::new(&folder), &name, before);
             free.insert(key, (Instant::now(), said.clone()));
             said
         })

@@ -74,7 +74,7 @@ async fn a_download_goes_out_on_both_paths_and_is_whole() {
     // Bound to that address alone: bound to its interface too, as Options
     // sets it by name, a Linux socket cannot reach the loopback server at
     // all (macOS's can), and the split between two paths is what is tested.
-    dm_core::second_path::set_second_client(Some(
+    dm_core::set_second_client(Some(
         dm_core::builder().local_address(other).build().unwrap(),
     ));
     let dir = tempdir();
@@ -89,7 +89,7 @@ async fn a_download_goes_out_on_both_paths_and_is_whole() {
         &opts,
     )
     .await;
-    dm_core::second_path::set_second_client(None);
+    dm_core::set_second_client(None);
     let done = done.unwrap();
     assert_eq!(
         std::fs::read(&done.path).unwrap(),
@@ -98,7 +98,7 @@ async fn a_download_goes_out_on_both_paths_and_is_whole() {
     );
     // What the progress window counts each path's share from.
     assert!(
-        !dm_core::second_path::on_second(&parts).is_empty(),
+        !dm_core::on_second(&parts).is_empty(),
         "no range recorded as fetched on the second path"
     );
     let seen = seen.lock().unwrap().clone();

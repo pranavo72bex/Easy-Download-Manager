@@ -333,7 +333,7 @@ fn start_sum(
     runtime: &tokio::runtime::Handle,
     sums: &Sums,
     path: &str,
-    algorithm: dm_core::checksum::Algorithm,
+    algorithm: dm_core::Algorithm,
 ) {
     let name = algorithm.name();
     {
@@ -345,7 +345,7 @@ fn start_sum(
     }
     let (sums, path) = (Arc::clone(sums), std::path::PathBuf::from(path));
     runtime.spawn(async move {
-        let found = dm_core::checksum::digest(&path, algorithm)
+        let found = dm_core::digest(&path, algorithm)
             .await
             .map_err(|e| e.to_string());
         dm_core::lock(&sums).insert(name, Some(found));
@@ -353,7 +353,7 @@ fn start_sum(
 }
 
 /// What has been found for `algorithm`: still working, the digest, or why not.
-fn sum_of(sums: &Sums, algorithm: dm_core::checksum::Algorithm) -> Option<Result<String, String>> {
+fn sum_of(sums: &Sums, algorithm: dm_core::Algorithm) -> Option<Result<String, String>> {
     dm_core::lock(sums).get(algorithm.name()).cloned().flatten()
 }
 
@@ -367,7 +367,7 @@ fn digest_rows(
     d: &mut Properties,
     value: f32,
 ) {
-    use dm_core::{checksum::Algorithm, Checksum};
+    use dm_core::{Algorithm, Checksum};
     let waiting = |ui: &mut egui::Ui| {
         ui.label(RichText::new(t("Working it out…")).weak());
         ctx.request_repaint_after(std::time::Duration::from_millis(200));

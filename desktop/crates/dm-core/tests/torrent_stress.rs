@@ -14,7 +14,7 @@ use std::path::{Path, PathBuf};
 use std::time::{Duration, Instant};
 
 use dm_core::Options;
-use dm_core::torrent::download_torrent;
+use dm_core::download_torrent;
 use dm_core::{client, Categories, Control, Limiter};
 
 use librqbit::spawn_utils::BlockingSpawner;
@@ -156,7 +156,7 @@ fn options(out: &Path) -> Options {
         limiter: Limiter::unlimited(),
         categories: Categories::default(),
         checksum: None,
-        quality: dm_core::stream::Quality::Best,
+        quality: dm_core::Quality::Best,
         sound: None,
         span: None,
         shape: None,
@@ -186,7 +186,7 @@ fn file_url(bytes: &[u8]) -> (tempfile::TempDir, String) {
     let dir = tempdir();
     let file = dir.path().join("t.torrent");
     std::fs::write(&file, bytes).unwrap();
-    let url = dm_core::torrent::file_url(&file).unwrap();
+    let url = dm_core::file_url(&file).unwrap();
     (dir, url)
 }
 
@@ -320,7 +320,7 @@ async fn paths_outside_the_folder() {
             .unwrap()
             .to_string_lossy()
             .into_owned();
-        let url = dm_core::torrent::file_url(&torrent_file).unwrap();
+        let url = dm_core::file_url(&torrent_file).unwrap();
         let base = tempdir();
         let out = base.path().join("out");
         std::fs::create_dir_all(&out).unwrap();

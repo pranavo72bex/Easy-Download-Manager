@@ -24,7 +24,7 @@ pub fn options(dir: &Path) -> Options {
         limiter: Limiter::unlimited(),
         categories: Categories::default(),
         checksum: None,
-        quality: dm_core::stream::Quality::Best,
+        quality: dm_core::Quality::Best,
         sound: None,
         span: None,
         shape: None,
