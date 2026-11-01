@@ -379,6 +379,8 @@ Evidence is `dm-desktop/tests/window.rs` unless it says otherwise.
 | Only Exit quits from the Exit question; finished meanwhile, it asks again; its buttons never move | PASS | `downloads_finishing_under_the_exit_question_never_quit_dm` |
 | Add numbered series speaks its errors in the language in force, after both ends are typed | PASS | `the_series_error_waits_for_both_ends_and_speaks_german` |
 | The progress window's pieces add up to Downloaded, each within its range | PASS | `pieces_add_up_to_downloaded_and_stay_in_their_ranges` |
+| Each piece in the progress window's Connections section shows its own speed beside its bar; a piece done or waiting shows none (B53) | NOT VERIFIED | `progress.rs` `a_piece_has_no_rate_until_it_has_been_seen_twice`, `a_frame_too_soon_keeps_the_rates_it_has`, `a_piece_that_went_back_starts_again`; written 2026-11-01, not yet run in a visible window |
+| A failed download's window and Properties say one plain next step under the reason for known failures; a failure whose reason already says what to do has none (B54) | NOT VERIFIED | `format/tests.rs` `a_failure_that_only_says_what_went_wrong_says_what_to_do`; `human-qa.py` B54; written 2026-11-01, not yet run in a visible window |
 | A row added for later says it waits for Start queue, is counted, and shows its size and folder | PASS | `a_row_added_for_later_says_what_it_waits_for_with_its_size_and_folder` |
 | Shortcut keys in the language's names; `.bin` sorted as Other | PASS | `a_shortcut_names_its_keys_in_the_language_in_force`, `a_bin_file_is_other_unless_its_name_says_it_installs` |
 | The window comes back from the tray where it was | NOT VERIFIED | position kept on hide and sent on show (`main.rs`); not watched with a real window manager |
