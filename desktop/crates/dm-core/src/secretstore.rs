@@ -175,30 +175,24 @@ mod tools {
 
         fn put(&self, name: &str, value: &[u8]) -> Result<(), String> {
             let text = base64::engine::general_purpose::STANDARD.encode(value);
-            // `secret-tool store` reads the secret from standard input. `security` can only take
-            // it on its command line (`-w`), where another program of the same account can see
-            // it for the moment the command runs; the value is a key or a password of this
-            // account's own.
+            // `secret-tool store` reads the secret from standard input. So does `security -i`
+            // (its interactive mode reads commands from standard input), so the secret never
+            // appears in a command line, where any program of the account could read it.
             #[cfg(target_os = "linux")]
             let out = run(
                 &["store", "--label=dm", "service", "dm", "name", name].map(String::from),
                 Some(text.as_bytes()),
             )?;
             #[cfg(target_os = "macos")]
-            let out = run(
-                &[
-                    "add-generic-password",
-                    "-U",
-                    "-a",
-                    "dm",
-                    "-s",
-                    name,
-                    "-w",
-                    text.as_str(),
-                ]
-                .map(String::from),
-                None,
-            )?;
+            let out = {
+                // The line is split on spaces and quotes by `security`; dm's names and the base64
+                // text have none, and anything else is refused rather than mis-split.
+                if name.chars().any(|c| c.is_whitespace() || "\"'\\".contains(c)) {
+                    return Err("a secret name dm does not use".to_string());
+                }
+                let line = format!("add-generic-password -U -a dm -s {name} -w {text}\n");
+                run(&["-i".to_string()], Some(line.as_bytes()))?
+            };
             if out.status.success() {
                 Ok(())
             } else {
