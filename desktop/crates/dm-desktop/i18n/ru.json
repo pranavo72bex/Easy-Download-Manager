@@ -776,5 +776,7 @@
  "If a firewall or security program asks about dm, allow it, then click Retry": "Если брандмауэр или программа безопасности спрашивает о dm, разрешите ему доступ и нажмите «Повторить»",
  "Open the page in your browser and download from there, which hands dm the real link": "Откройте страницу в браузере и скачайте оттуда: dm получит настоящую ссылку",
  "Choose another name or folder with Move/Rename, or remove the other file": "Выберите другое имя или папку через «Переместить/Переименовать» или удалите другой файл",
- "Check that the computer's date and time are right, then click Retry": "Проверьте, что дата и время на компьютере верны, затем нажмите «Повторить»"
+ "Check that the computer's date and time are right, then click Retry": "Проверьте, что дата и время на компьютере верны, затем нажмите «Повторить»",
+ "Copy details": "Копировать подробности",
+ "Copied the details of {} download.||Copied the details of {} downloads.": "Скопированы подробности {} загрузки.||Скопированы подробности {} загрузок.||Скопированы подробности {} загрузок."
 }

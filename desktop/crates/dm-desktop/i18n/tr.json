@@ -776,5 +776,7 @@
  "If a firewall or security program asks about dm, allow it, then click Retry": "Bir güvenlik duvarı veya güvenlik programı dm hakkında sorarsa izin verin, sonra Yeniden dene düğmesine tıklayın",
  "Open the page in your browser and download from there, which hands dm the real link": "Sayfayı tarayıcınızda açıp oradan indirin; böylece dm gerçek bağlantıyı alır",
  "Choose another name or folder with Move/Rename, or remove the other file": "Taşı/Yeniden adlandır ile başka bir ad veya klasör seçin ya da diğer dosyayı kaldırın",
- "Check that the computer's date and time are right, then click Retry": "Bilgisayarın tarih ve saatinin doğru olduğunu denetleyin, sonra Yeniden dene düğmesine tıklayın"
+ "Check that the computer's date and time are right, then click Retry": "Bilgisayarın tarih ve saatinin doğru olduğunu denetleyin, sonra Yeniden dene düğmesine tıklayın",
+ "Copy details": "Ayrıntıları kopyala",
+ "Copied the details of {} download.||Copied the details of {} downloads.": "{} indirmenin ayrıntıları kopyalandı."
 }

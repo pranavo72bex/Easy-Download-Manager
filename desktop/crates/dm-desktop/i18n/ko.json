@@ -776,5 +776,7 @@
  "If a firewall or security program asks about dm, allow it, then click Retry": "방화벽이나 보안 프로그램이 dm에 대해 물으면 허용한 다음 다시 시도을(를) 누르세요",
  "Open the page in your browser and download from there, which hands dm the real link": "페이지를 브라우저에서 열고 거기서 다운로드하세요. 그러면 dm이 실제 링크를 받습니다",
  "Choose another name or folder with Move/Rename, or remove the other file": "이동/이름 바꾸기(으)로 다른 이름이나 폴더를 선택하거나 다른 파일을 삭제하세요",
- "Check that the computer's date and time are right, then click Retry": "컴퓨터의 날짜와 시간이 맞는지 확인한 다음 다시 시도을(를) 누르세요"
+ "Check that the computer's date and time are right, then click Retry": "컴퓨터의 날짜와 시간이 맞는지 확인한 다음 다시 시도을(를) 누르세요",
+ "Copy details": "세부 정보 복사",
+ "Copied the details of {} download.||Copied the details of {} downloads.": "다운로드 {}개의 세부 정보를 복사했습니다."
 }

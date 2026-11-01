@@ -31,6 +31,7 @@ pub mod cli;
 pub mod commands;
 pub mod contrast;
 pub mod control;
+pub mod details;
 pub mod dialogs;
 pub mod drops;
 pub mod format;

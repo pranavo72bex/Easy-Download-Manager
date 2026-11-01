@@ -661,6 +661,16 @@ def walk(dm, origin):
     said = " ".join(dm.dialog_texts())
     check("B54", "a failed download's window says what a person can do next",
           "Open the page it came from in your browser" in said, said[-200:])
+    # B55: "Copy details" puts a block with no secret in it on the clipboard.
+    dm.call("ui.click", text="Copy details")
+    pause(0.8)
+    held = ""
+    if sys.platform == "win32":
+        held = subprocess.run(["powershell", "-NoProfile", "-Command", "Get-Clipboard -Raw"],
+                              capture_output=True, text=True, timeout=10).stdout
+    check("B55", "Copy details puts the host, the status and the setup on the clipboard, no path or query",
+          "State: failed" in held and "Host: " in held and "Headers sent:" in held and "?" not in held
+          and "/missing.bin" not in held, held[:200])
     dm.call("ui.key", key="Escape")
     pause(0.6)
     finished = [x for x in dm.rows() if x["state"]["kind"] == "completed"]

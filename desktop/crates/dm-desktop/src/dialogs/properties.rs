@@ -45,7 +45,7 @@ pub(super) fn properties(app: &mut DmApp, ctx: &egui::Context) {
         } else {
             row.path.clone()
         };
-        let (mut ok, mut cancel, mut open_file) = (false, false, false);
+        let (mut ok, mut cancel, mut open_file, mut copy_details) = (false, false, false, false);
         let focus = app.dialogs.take_focus("File properties");
         let runtime = app.backend.runtime.clone();
         let Some(d) = app.dialogs.properties.get_mut(&id) else {
@@ -256,6 +256,11 @@ pub(super) fn properties(app: &mut DmApp, ctx: &egui::Context) {
                     open_file = ui
                         .add_enabled(can_open, egui::Button::new(t("Open")))
                         .clicked();
+                    // For a row that failed: what a person can paste to whoever helps, with
+                    // nothing secret in it.
+                    if matches!(row.state, State::Failed(_)) {
+                        copy_details = ui.button(t("Copy details")).clicked();
+                    }
                     cancel = ui.button(t("Cancel")).clicked();
                 });
             });
@@ -263,6 +268,20 @@ pub(super) fn properties(app: &mut DmApp, ctx: &egui::Context) {
         if open_file {
             if let Err(e) = app.backend.platform.open(&row.path) {
                 d.says = e;
+            }
+        }
+        if copy_details {
+            if let Some((text, count)) = crate::details::blocks_for(
+                &[dm_core::Entry::clone(&row)],
+                app.applied.connections,
+                &app.applied.download_dir,
+            ) {
+                app.copied = Some(text);
+                app.said = crate::i18n::Said::counting(
+                    "Copied the details of {} download.||Copied the details of {} downloads.",
+                    count as u64,
+                    &[&count],
+                );
             }
         }
         let (description, address) = (

@@ -40,6 +40,7 @@ impl DmApp {
                 matches!(r.state, State::Completed | State::Cancelled) || r.progress.downloaded > 0
             }),
             Command::CopyLink => !targets.is_empty(),
+            Command::CopyDetails => any(|r| matches!(r.state, State::Failed(_))),
             Command::UpdateLink => {
                 targets.len() == 1
                     && (!matches!(targets[0].state, State::Running | State::Completed)
@@ -255,6 +256,7 @@ impl DmApp {
                     &[&links.len()],
                 );
             }
+            Command::CopyDetails => self.copy_details_of(&targets),
             Command::UpdateLink => {
                 self.dialogs.focus_on("Update download link");
                 self.dialogs.update_link = Some((targets[0].id, String::new(), String::new()))
@@ -470,5 +472,24 @@ impl DmApp {
             }
         }
         self.refresh();
+    }
+}
+
+impl DmApp {
+    /// "Copy details": the support block of each failed row among `rows` (`crate::details`), onto
+    /// the clipboard: what a person can paste to somebody who is helping them, with nothing secret
+    /// in it.
+    pub fn copy_details_of(&mut self, rows: &[Entry]) {
+        let Some((text, count)) =
+            crate::details::blocks_for(rows, self.applied.connections, &self.applied.download_dir)
+        else {
+            return;
+        };
+        self.copied = Some(text);
+        self.said = crate::i18n::Said::counting(
+            "Copied the details of {} download.||Copied the details of {} downloads.",
+            count as u64,
+            &[&count],
+        );
     }
 }

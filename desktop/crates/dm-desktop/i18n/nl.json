@@ -776,5 +776,7 @@
  "If a firewall or security program asks about dm, allow it, then click Retry": "Als een firewall of beveiligingsprogramma naar dm vraagt, sta het toe en klik op Opnieuw proberen",
  "Open the page in your browser and download from there, which hands dm the real link": "Open de pagina in uw browser en download vanaf daar, zodat dm de echte link krijgt",
  "Choose another name or folder with Move/Rename, or remove the other file": "Kies een andere naam of map met Verplaatsen/Hernoemen, of verwijder het andere bestand",
- "Check that the computer's date and time are right, then click Retry": "Controleer of de datum en tijd van de computer kloppen en klik op Opnieuw proberen"
+ "Check that the computer's date and time are right, then click Retry": "Controleer of de datum en tijd van de computer kloppen en klik op Opnieuw proberen",
+ "Copy details": "Details kopiëren",
+ "Copied the details of {} download.||Copied the details of {} downloads.": "Details van {} download gekopieerd.||Details van {} downloads gekopieerd."
 }

@@ -182,6 +182,7 @@ impl DmApp {
                         Command::Redownload,
                         Command::UpdateLink,
                         Command::CopyLink,
+                        Command::CopyDetails,
                         Command::MoveRename,
                     ] {
                         self.item(ui, c);

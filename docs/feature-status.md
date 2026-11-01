@@ -24,6 +24,7 @@ was removed on 2026-10-12 and is in git history.
 - [x] Options › Advanced shows the name dm sends to servers with an Identify as dm only switch (`dm_core::set_identify_as_dm`; `dm-core/tests/identify_as.rs`; contract row B51)
 - [x] The tray's Speed menu has Settings… (contract row B52); the Downloads menu's Speed limiter On/Off and Settings… already existed
 - [x] A running download's Connections section names each piece's own speed (contract row B53), and a failed download's window and Properties say one next step under the reason where the reason stops at what went wrong (row B54). Written 2026-11-01, not yet built or run.
+- [x] "Copy details" on a failed download puts a support block with no secret in it on the clipboard (contract row B55). Evidence: unit tests in `desktop/crates/dm-desktop/src/details.rs` (`a_row_carrying_a_login_and_a_token_gives_away_neither`, `the_block_says_the_version_the_system_the_state_and_the_disk`, `a_status_is_read_from_the_words_and_not_from_an_address`, `an_address_in_a_reason_is_cut_to_its_host`, `a_finished_or_running_row_has_no_reason_line`); the clipboard check is `scripts/human-qa.py` B55. Written, not yet built or tested.
 - [x] Find previous, Shift-F3, in the Downloads menu beside Find next, wrapping round from the first row to the last (`app/search.rs` `next_match`, five unit tests; `tests/window/lists.rs`; contract row B48)
 - [x] HTTP/HTTPS downloading
 - [x] Multi-connection downloading — and a limit of a site's own (Options ›

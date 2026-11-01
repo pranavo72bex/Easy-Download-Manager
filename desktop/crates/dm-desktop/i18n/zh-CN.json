@@ -776,5 +776,7 @@
  "If a firewall or security program asks about dm, allow it, then click Retry": "如果防火墙或安全程序询问 dm，请允许它，然后点击“重试”",
  "Open the page in your browser and download from there, which hands dm the real link": "请在浏览器中打开该页面并从那里下载，dm 就会得到真实的链接",
  "Choose another name or folder with Move/Rename, or remove the other file": "请用“移动/重命名”选择其他名称或文件夹，或删除另一个文件",
- "Check that the computer's date and time are right, then click Retry": "请检查计算机的日期和时间是否正确，然后点击“重试”"
+ "Check that the computer's date and time are right, then click Retry": "请检查计算机的日期和时间是否正确，然后点击“重试”",
+ "Copy details": "复制详细信息",
+ "Copied the details of {} download.||Copied the details of {} downloads.": "已复制 {} 个下载的详细信息。"
 }

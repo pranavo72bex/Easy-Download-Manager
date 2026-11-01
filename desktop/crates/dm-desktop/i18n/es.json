@@ -776,5 +776,7 @@
  "If a firewall or security program asks about dm, allow it, then click Retry": "Si un cortafuegos o un programa de seguridad pregunta por dm, permítalo y haga clic en Reintentar",
  "Open the page in your browser and download from there, which hands dm the real link": "Abra la página en el navegador y descargue desde allí; así dm recibe el enlace real",
  "Choose another name or folder with Move/Rename, or remove the other file": "Elija otro nombre o carpeta con Mover/Renombrar, o elimine el otro archivo",
- "Check that the computer's date and time are right, then click Retry": "Compruebe que la fecha y la hora del equipo sean correctas y haga clic en Reintentar"
+ "Check that the computer's date and time are right, then click Retry": "Compruebe que la fecha y la hora del equipo sean correctas y haga clic en Reintentar",
+ "Copy details": "Copiar detalles",
+ "Copied the details of {} download.||Copied the details of {} downloads.": "Se copiaron los detalles de {} descarga.||Se copiaron los detalles de {} descargas."
 }
