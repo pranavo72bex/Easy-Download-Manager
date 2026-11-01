@@ -208,12 +208,14 @@ pub async fn join_with_text_async(
         .map_err(|e| format!("joining stopped: {e}"))?
 }
 
+mod part;
 mod read;
 mod text;
 mod write;
 
 use read::*;
 use text::*;
+pub(crate) use part::*;
 pub(crate) use write::*;
 
 #[cfg(test)]

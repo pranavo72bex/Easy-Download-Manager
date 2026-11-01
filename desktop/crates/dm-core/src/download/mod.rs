@@ -34,6 +34,7 @@ mod files;
 mod hls;
 mod http;
 mod mirrors;
+mod plain;
 mod ranged;
 mod space;
 
@@ -787,16 +788,21 @@ async fn fetch_reporting(
         }
     };
 
-    // A part of a video is cut from a video page's streams (`clip`); an
-    // address that is a file is not one, and is not fetched whole in its
-    // place without a word.
+    // A part of a video is cut from a video page's streams (`clip`), from an
+    // HLS or DASH stream's segments, or from a plain MP4 by its sample
+    // tables (`plain`); any other file is not fetched whole in its place
+    // without a word.
     if options.span.is_some()
         && !is_stream()
         && !crate::videopage::is_page(info.content_type.as_deref())
         && crate::youtube::video_id(url).is_none()
+        && stream::kind_of(url, info.content_type.as_deref()).is_none()
     {
+        if plain::is_mp4(&info.filename, info.content_type.as_deref()) {
+            return plain::download_mp4_part(client, url, &info, options, report).await;
+        }
         return Err(Error::Internal(
-            "a part can be cut only from a video page (YouTube's today); this address is a file"
+            "a part can be cut only from a video page, an HLS or DASH stream or an MP4 file;              this address is another kind of file"
                 .into(),
         ));
     }
