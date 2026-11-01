@@ -1483,3 +1483,41 @@ fn youtubes_player_answers_for_watch_and_shorts_pages_alone() {
     .collect();
     assert_eq!(player_heights(&levels), [1080, 720, 480, 360, 144]);
 }
+
+#[test]
+fn media_on_the_built_in_exclusion_list_is_not_offered_but_an_ordinary_file_is() {
+    // An ad server naming itself, an ad network's host, an ad stub in
+    // Windows media: all left alone.
+    assert!(stream_seen(&seen(
+        "https://cdn.e.com/promo.mp4",
+        "media",
+        &[
+            ("Content-Type", "video/mp4"),
+            ("Server", "DCLK-AdSvr"),
+            ("Content-Length", "9000000")
+        ],
+    ))
+    .is_none());
+    assert!(stream_seen(&seen(
+        "https://ad.doubleclick.net/spot.mp4",
+        "media",
+        &[("Content-Type", "video/mp4"), ("Content-Length", "9000000")],
+    ))
+    .is_none());
+    assert!(stream_seen(&seen(
+        "https://cdn.e.com/stub.asf",
+        "media",
+        &[
+            ("Content-Type", "video/x-ms-asf"),
+            ("Content-Length", "50000")
+        ],
+    ))
+    .is_none());
+    // A file a page plays that nothing on the list names is still found.
+    let found = stream_seen(&seen(
+        "https://cdn.e.com/clip.mp4",
+        "media",
+        &[("Content-Type", "video/mp4"), ("Content-Length", "9000000")],
+    ));
+    assert!(found.is_some(), "an ordinary media file was left out");
+}

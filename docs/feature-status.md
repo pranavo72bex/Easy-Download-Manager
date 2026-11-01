@@ -13,6 +13,9 @@ can load. The JavaScript extension (popup, options, in-browser downloader)
 was removed on 2026-10-12 and is in git history.
 
 ## Core downloader
+- [x] A browser download whose signed address expired waits for a fresh one (`Entry::fresh_link`, saved with the row) and the browser's next hand-over of the same file, matched by name, exact size and family of servers, takes its place and resumes from the staged parts (`Queue::adopt_fresh_link`; `fresh_link.rs`)
+- [x] The seams between ranges are fetched again over fresh requests and compared (up to eight, 2 KiB a side); bytes that differ restart the file on one connection and the row says why (`download/assemble.rs`; `seam_check.rs`)
+- [x] The files of a ZIP listed from its end by range requests, without the archive (`zipinfo.rs`; `zip_contents.rs`); no window for it yet
 - [x] HTTP/HTTPS downloading
 - [x] Multi-connection downloading — and a limit of a site's own (Options ›
       Network) for a server that refuses a second connection, never above
@@ -60,6 +63,7 @@ was removed on 2026-10-12 and is in git history.
       directory and fails at anything approaching 2x
 
 ## Browser integration
+- [x] A built-in exclusion list the extension never catches: advert and tracker hosts, beacons, a page's own sounds and furniture, an ad server named in its `Server` header, Windows media of 100 KB or less, a player under 15 by 10 pixels (`browser/src/decide/excluded.rs`)
 State of the Rust extension, 2026-10-12. What the JavaScript one had
 verified (Firefox 145 install, its own Chrome suite) was of different code
 and is not carried over.

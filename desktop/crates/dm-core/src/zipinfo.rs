@@ -1,0 +1,324 @@
+//! What is inside a ZIP, from its end alone: a ZIP lists its files in a
+//! central directory at the very end, so a few range requests learn the names
+//! and sizes without fetching the archive, as reference A shows a ZIP's
+//! contents before the download is done. Only for a server that serves
+//! ranges; anything else, and anything that is not a ZIP, is `None`.
+
+/// One file of an archive, as its central directory lists it.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ZipEntry {
+    /// The path inside the archive; a folder ends in `/`.
+    pub name: String,
+    /// Its size once unpacked.
+    pub size: u64,
+    /// Its size as stored in the archive.
+    pub packed: u64,
+}
+
+impl ZipEntry {
+    /// Whether this is a folder.
+    pub fn is_folder(&self) -> bool {
+        self.name.ends_with('/')
+    }
+}
+
+/// The end of a ZIP is read from this much: the end-of-directory record is 22
+/// bytes and may be followed by a comment of up to 65,535.
+const TAIL: u64 = 22 + 65_535 + 20;
+
+/// A central directory larger than this is not read: the list of a ZIP with
+/// hundreds of thousands of files is not worth a transfer of megabytes.
+const MOST_DIRECTORY: u64 = 8 * 1024 * 1024;
+
+const END_OF_DIRECTORY: u32 = 0x0605_4b50;
+const END_LOCATOR64: u32 = 0x0706_4b50;
+const END_OF_DIRECTORY64: u32 = 0x0606_4b50;
+const ENTRY: u32 = 0x0201_4b50;
+
+/// Where the central directory is, from the end-of-directory record.
+#[derive(Debug, PartialEq, Eq)]
+struct Directory {
+    entries: u64,
+    size: u64,
+    offset: u64,
+    /// The values were all ones: they are in the ZIP64 record.
+    needs64: bool,
+}
+
+fn u16_at(bytes: &[u8], at: usize) -> Option<u16> {
+    Some(u16::from_le_bytes(bytes.get(at..at + 2)?.try_into().ok()?))
+}
+
+fn u32_at(bytes: &[u8], at: usize) -> Option<u32> {
+    Some(u32::from_le_bytes(bytes.get(at..at + 4)?.try_into().ok()?))
+}
+
+fn u64_at(bytes: &[u8], at: usize) -> Option<u64> {
+    Some(u64::from_le_bytes(bytes.get(at..at + 8)?.try_into().ok()?))
+}
+
+/// The end-of-directory record in the tail of a file, searched from the back
+/// because a comment may follow it; and where in `tail` it starts.
+fn end_of_directory(tail: &[u8]) -> Option<(usize, Directory)> {
+    let last = tail.len().checked_sub(22)?;
+    for at in (0..=last).rev() {
+        if u32_at(tail, at)? != END_OF_DIRECTORY {
+            continue;
+        }
+        let comment = usize::from(u16_at(tail, at + 20)?);
+        // The comment must run to the end of the file, or this is bytes
+        // inside a file that look like the record.
+        if at + 22 + comment != tail.len() {
+            continue;
+        }
+        let entries = u64::from(u16_at(tail, at + 10)?);
+        let size = u64::from(u32_at(tail, at + 12)?);
+        let offset = u64::from(u32_at(tail, at + 16)?);
+        let needs64 = entries == 0xFFFF || size == 0xFFFF_FFFF || offset == 0xFFFF_FFFF;
+        return Some((
+            at,
+            Directory {
+                entries,
+                size,
+                offset,
+                needs64,
+            },
+        ));
+    }
+    None
+}
+
+/// The ZIP64 directory location, from the locator that stands just before the
+/// end-of-directory record: where the 64-bit record is.
+fn locator64(tail: &[u8], end_at: usize) -> Option<u64> {
+    let at = end_at.checked_sub(20)?;
+    if u32_at(tail, at)? != END_LOCATOR64 {
+        return None;
+    }
+    u64_at(tail, at + 8)
+}
+
+/// The directory from a ZIP64 end record (read from its own range).
+fn directory64(record: &[u8]) -> Option<Directory> {
+    if u32_at(record, 0)? != END_OF_DIRECTORY64 {
+        return None;
+    }
+    Some(Directory {
+        entries: u64_at(record, 32)?,
+        size: u64_at(record, 40)?,
+        offset: u64_at(record, 48)?,
+        needs64: false,
+    })
+}
+
+/// The files a central directory lists. `None` where it is cut off or is not
+/// one.
+fn entries_of(directory: &[u8], count: u64) -> Option<Vec<ZipEntry>> {
+    let mut entries = Vec::new();
+    let mut at = 0usize;
+    while (entries.len() as u64) < count {
+        if u32_at(directory, at)? != ENTRY {
+            return None;
+        }
+        let flags = u16_at(directory, at + 8)?;
+        let mut packed = u64::from(u32_at(directory, at + 20)?);
+        let mut size = u64::from(u32_at(directory, at + 24)?);
+        let name_length = usize::from(u16_at(directory, at + 28)?);
+        let extra_length = usize::from(u16_at(directory, at + 30)?);
+        let comment_length = usize::from(u16_at(directory, at + 32)?);
+        let name_at = at + 46;
+        let name_bytes = directory.get(name_at..name_at + name_length)?;
+        let extra = directory.get(name_at + name_length..name_at + name_length + extra_length)?;
+        // The real sizes of a big file are in the ZIP64 field of its extra
+        // data, in the order of the values that were all ones.
+        if size == 0xFFFF_FFFF || packed == 0xFFFF_FFFF {
+            let mut field = 0usize;
+            while field + 4 <= extra.len() {
+                let id = u16_at(extra, field)?;
+                let length = usize::from(u16_at(extra, field + 2)?);
+                if id == 1 {
+                    let mut value = field + 4;
+                    if size == 0xFFFF_FFFF {
+                        size = u64_at(extra, value)?;
+                        value += 8;
+                    }
+                    if packed == 0xFFFF_FFFF {
+                        packed = u64_at(extra, value)?;
+                    }
+                    break;
+                }
+                field += 4 + length;
+            }
+        }
+        // With the UTF-8 flag (bit 11) the name is UTF-8; without it, it is in
+        // the old DOS code page, of which ASCII is nearly every name and the
+        // rest is shown as well as it can be.
+        let _ = flags;
+        let name = String::from_utf8_lossy(name_bytes).into_owned();
+        entries.push(ZipEntry { name, size, packed });
+        at = name_at + name_length + extra_length + comment_length;
+    }
+    Some(entries)
+}
+
+/// The bytes `low..=high` of `url`, as an exact range answer or `None`.
+async fn range(
+    client: &reqwest::Client,
+    url: &str,
+    referrer: Option<&str>,
+    sign_in: Option<&crate::cookies::SignIn>,
+    low: u64,
+    high: u64,
+) -> Option<Vec<u8>> {
+    let request = crate::download::get(client, url, referrer, sign_in)
+        .header(reqwest::header::RANGE, format!("bytes={low}-{high}"));
+    let res = crate::auth::send(client, request, url).await.ok()?;
+    if res.status() != reqwest::StatusCode::PARTIAL_CONTENT {
+        return None;
+    }
+    let wanted = high - low + 1;
+    if res.content_length().is_some_and(|n| n != wanted) {
+        return None;
+    }
+    let bytes = tokio::time::timeout(std::time::Duration::from_secs(20), res.bytes())
+        .await
+        .ok()?
+        .ok()?;
+    (bytes.len() as u64 == wanted).then(|| bytes.to_vec())
+}
+
+/// The length of the file at `url`, from one byte of it: only a server that
+/// answers a range as a range (206 with the whole length after the slash)
+/// can be asked for the end of a file, so anything else is `None`.
+async fn total_size(
+    client: &reqwest::Client,
+    url: &str,
+    referrer: Option<&str>,
+    sign_in: Option<&crate::cookies::SignIn>,
+) -> Option<u64> {
+    let request = crate::download::get(client, url, referrer, sign_in)
+        .header(reqwest::header::RANGE, "bytes=0-0");
+    let res = crate::auth::send(client, request, url).await.ok()?;
+    if res.status() != reqwest::StatusCode::PARTIAL_CONTENT {
+        return None;
+    }
+    res.headers()
+        .get(reqwest::header::CONTENT_RANGE)?
+        .to_str()
+        .ok()?
+        .rsplit('/')
+        .next()?
+        .trim()
+        .parse::<u64>()
+        .ok()
+}
+
+/// The files of the ZIP at `url`, learned from its end with range requests
+/// (two or three small ones), without fetching the archive. `None` where
+/// the server does not serve ranges, the file is not a ZIP, or its directory
+/// is too large to be worth reading.
+pub async fn zip_contents(
+    client: &reqwest::Client,
+    url: &str,
+    referrer: Option<&str>,
+    sign_in: Option<&crate::cookies::SignIn>,
+) -> Option<Vec<ZipEntry>> {
+    let size = total_size(client, url, referrer, sign_in).await?;
+    if size < 22 {
+        return None;
+    }
+    let tail_from = size.saturating_sub(TAIL);
+    let tail = range(client, url, referrer, sign_in, tail_from, size - 1).await?;
+    let (end_at, mut directory) = end_of_directory(&tail)?;
+    if directory.needs64 {
+        let record_at = locator64(&tail, end_at)?;
+        let record = range(client, url, referrer, sign_in, record_at, record_at + 55).await?;
+        directory = directory64(&record)?;
+    }
+    if directory.size > MOST_DIRECTORY || directory.offset.checked_add(directory.size)? > size {
+        return None;
+    }
+    if directory.entries == 0 {
+        return Some(Vec::new());
+    }
+    // Usually the directory is within the tail already; only a very large
+    // one (or a long comment after a small one) needs its own request.
+    let bytes = if directory.offset >= tail_from {
+        let from = usize::try_from(directory.offset - tail_from).ok()?;
+        tail.get(from..from + usize::try_from(directory.size).ok()?)?
+            .to_vec()
+    } else {
+        range(
+            client,
+            url,
+            referrer,
+            sign_in,
+            directory.offset,
+            directory.offset + directory.size - 1,
+        )
+        .await?
+    };
+    entries_of(&bytes, directory.entries)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// A ZIP with a folder and two files, stored, built by the writer.
+    fn archive() -> Vec<u8> {
+        use std::io::Write;
+        let mut buffer = std::io::Cursor::new(Vec::new());
+        {
+            let mut zip = zip::ZipWriter::new(&mut buffer);
+            let stored = zip::write::SimpleFileOptions::default()
+                .compression_method(zip::CompressionMethod::Stored);
+            zip.add_directory("docs/", stored).unwrap();
+            zip.start_file("docs/readme.txt", stored).unwrap();
+            zip.write_all(&vec![b'a'; 1000]).unwrap();
+            zip.start_file("setup.exe", stored).unwrap();
+            zip.write_all(&vec![b'b'; 5000]).unwrap();
+            zip.set_comment("a comment after the directory").unwrap();
+            zip.finish().unwrap();
+        }
+        buffer.into_inner()
+    }
+
+    #[test]
+    fn the_directory_is_found_through_a_comment_and_its_files_are_listed() {
+        let bytes = archive();
+        let (at, directory) = end_of_directory(&bytes).expect("an end record");
+        assert!(at > 0);
+        assert_eq!(directory.entries, 3);
+        let start = usize::try_from(directory.offset).unwrap();
+        let end = start + usize::try_from(directory.size).unwrap();
+        let entries = entries_of(&bytes[start..end], directory.entries).unwrap();
+        assert_eq!(entries.len(), 3);
+        assert_eq!(entries[0].name, "docs/");
+        assert!(entries[0].is_folder());
+        assert_eq!(
+            entries[1],
+            ZipEntry {
+                name: "docs/readme.txt".into(),
+                size: 1000,
+                packed: 1000
+            }
+        );
+        assert_eq!(entries[2].name, "setup.exe");
+        assert_eq!(entries[2].size, 5000);
+    }
+
+    #[test]
+    fn bytes_that_are_not_a_zip_or_are_cut_off_list_nothing() {
+        assert!(end_of_directory(b"just some text, not an archive at all").is_none());
+        // A record whose comment does not reach the end is not the record.
+        let mut bytes = archive();
+        bytes.push(0);
+        assert!(end_of_directory(&bytes).is_none());
+        // A directory cut short is not read.
+        let good = archive();
+        let (_, directory) = end_of_directory(&good).unwrap();
+        let start = usize::try_from(directory.offset).unwrap();
+        assert!(entries_of(&good[start..start + 30], 3).is_none());
+    }
+}

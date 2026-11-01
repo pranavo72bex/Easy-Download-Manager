@@ -160,7 +160,16 @@ pub(super) fn hide_soon(ms: i32) {
 /// whose box holds the point is the one.
 pub(super) fn media_at(document: &Document, x: f64, y: f64) -> Option<Element> {
     let root: JsValue = document.clone().into();
-    media_in(&root, x, y, 0)
+    media_in(&root, x, y, 0).filter(big_enough)
+}
+
+/// Whether a player is a player: one smaller than 15 by 10 pixels is a
+/// decoration or a beacon, which reference A passes by as well
+/// (`SMALLEST_PLAYER`).
+fn big_enough(element: &Element) -> bool {
+    let (wide, high) = crate::decide::excluded::SMALLEST_PLAYER;
+    let rect = element.get_bounding_client_rect();
+    rect.width() >= wide && rect.height() >= high
 }
 
 pub(super) fn is_media(element: &Element) -> bool {

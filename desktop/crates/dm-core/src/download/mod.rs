@@ -1038,7 +1038,33 @@ async fn fetch_reporting(
         checksum,
         ..options.clone()
     };
-    let (path, bytes, category) = assemble(&job, &info, options).await?;
+    let assembled = assemble(client, &job, &info, options).await;
+    /* Bytes that differ across a seam when asked for a second time: the
+     * connections did not all get the same file, or a server answers ranges
+     * with other bytes. The parts are gone (`assemble` removed them); the
+     * file is fetched again from the start on one connection, where there
+     * is no seam, and the row says why. */
+    if matches!(assembled, Err(Error::DishonestRanges)) && options.connections > 1 && workers > 1 {
+        if let Some(to) = &again {
+            let _ = to
+                .send(Update::Retrying {
+                    attempt: 1,
+                    of: 1,
+                    why: "the pieces fetched over several connections did not agree when \
+                          checked again, so the file is fetched again over one"
+                        .into(),
+                    wait: std::time::Duration::ZERO,
+                })
+                .await;
+        }
+        let one = Options {
+            connections: 1,
+            ..options.clone()
+        };
+        drop(claimed);
+        return Box::pin(download_reporting(client, url, &one, again)).await;
+    }
+    let (path, bytes, category) = assembled?;
     // The server's date on the file, where asked: a file a person sorts by
     // date then sorts by when it was made, not when it was fetched.
     if options.server_dates {

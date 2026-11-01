@@ -12,6 +12,7 @@ use serde_json::Value;
 
 mod app;
 mod download;
+pub mod excluded;
 mod media_panel;
 mod menu;
 mod sites;

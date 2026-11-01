@@ -286,7 +286,13 @@ pub fn titled(word: &str) -> String {
 /// one for what the network library says in its own terms ("error decoding
 /// response body" is a connection cut mid-file). The first that matches
 /// wins; anything else is shown as the engine said it.
-pub const REASONS: [(&[&str], &str); 32] = [
+pub const REASONS: [(&[&str], &str); 33] = [
+    // First: the failure text of a row waiting for a fresh address also names
+    // the refusal that expired it (`dm_core::LINK_EXPIRED`).
+    (
+        &["dm is waiting for the browser to hand over a new one"],
+        "this link has expired. dm is waiting for the browser to hand over a new one for the same file",
+    ),
     (
         &[
             "error decoding response body",

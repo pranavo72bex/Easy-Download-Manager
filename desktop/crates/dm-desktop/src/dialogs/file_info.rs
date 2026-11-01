@@ -683,6 +683,9 @@ pub(super) fn file_info(app: &mut DmApp, ctx: &egui::Context) {
         cookies_once: d.cookies_once,
         checksum: None,
         speed_limit: 0,
+        // Added from Download details, by a person: not a hand-over that
+        // may take a waiting row's place.
+        fresh_link_ok: false,
         replaces: match &clash {
             Some(Clash::OnDisk { taken, .. }) if d.replace => {
                 Some(taken.to_string_lossy().into_owned())
