@@ -778,5 +778,10 @@
  "Choose another name or folder with Move/Rename, or remove the other file": "Pilih nama atau folder lain dengan Pindah/Ganti nama, atau hapus berkas yang lain",
  "Check that the computer's date and time are right, then click Retry": "Periksa apakah tanggal dan waktu komputer sudah benar, lalu klik Coba lagi",
  "Copy details": "Salin detail",
- "Copied the details of {} download.||Copied the details of {} downloads.": "Detail {} unduhan disalin."
+ "Copied the details of {} download.||Copied the details of {} downloads.": "Detail {} unduhan disalin.",
+ "Presets:": "Preset:",
+ "Slow (2)": "Lambat (2)",
+ "Normal (8)": "Normal (8)",
+ "Fast (16)": "Cepat (16)",
+ "Maximum (32)": "Maksimum (32)"
 }

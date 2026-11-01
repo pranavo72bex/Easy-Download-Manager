@@ -778,5 +778,10 @@
  "Choose another name or folder with Move/Rename, or remove the other file": "移動／名前の変更 で別の名前かフォルダーを選ぶか、もう一方のファイルを削除してください",
  "Check that the computer's date and time are right, then click Retry": "コンピューターの日付と時刻が正しいか確認し、再試行 をクリックします",
  "Copy details": "詳細をコピー",
- "Copied the details of {} download.||Copied the details of {} downloads.": "{} 件のダウンロードの詳細をコピーしました。"
+ "Copied the details of {} download.||Copied the details of {} downloads.": "{} 件のダウンロードの詳細をコピーしました。",
+ "Presets:": "プリセット:",
+ "Slow (2)": "低速 (2)",
+ "Normal (8)": "標準 (8)",
+ "Fast (16)": "高速 (16)",
+ "Maximum (32)": "最大 (32)"
 }

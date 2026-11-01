@@ -778,5 +778,10 @@
  "Choose another name or folder with Move/Rename, or remove the other file": "请用“移动/重命名”选择其他名称或文件夹，或删除另一个文件",
  "Check that the computer's date and time are right, then click Retry": "请检查计算机的日期和时间是否正确，然后点击“重试”",
  "Copy details": "复制详细信息",
- "Copied the details of {} download.||Copied the details of {} downloads.": "已复制 {} 个下载的详细信息。"
+ "Copied the details of {} download.||Copied the details of {} downloads.": "已复制 {} 个下载的详细信息。",
+ "Presets:": "预设:",
+ "Slow (2)": "慢 (2)",
+ "Normal (8)": "标准 (8)",
+ "Fast (16)": "快 (16)",
+ "Maximum (32)": "最大 (32)"
 }

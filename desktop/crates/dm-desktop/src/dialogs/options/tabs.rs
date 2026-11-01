@@ -510,6 +510,19 @@ pub(super) fn tab_downloads(ui: &mut egui::Ui, d: &mut OptionsDialog, env: &TabE
             .labelled_by(name);
     });
     hint(ui, t("How many parts of a file dm fetches at once. More is faster on most sites, but some limit it."));
+    ui.horizontal_wrapped(|ui| {
+        ui.label(RichText::new(t("Presets:")).small());
+        for (label, count) in [
+            (t("Slow (2)"), 2),
+            (t("Normal (8)"), 8),
+            (t("Fast (16)"), 16),
+            (t("Maximum (32)"), 32),
+        ] {
+            if ui.selectable_label(s.connections == count, label).clicked() {
+                s.connections = count;
+            }
+        }
+    });
     number_row(ui, t("Files at once"), |ui, name| {
         ui.add(number_box(&mut s.concurrency).range(1..=10))
             .labelled_by(name);
@@ -733,6 +746,10 @@ fn tab_connection(ui: &mut egui::Ui, d: &mut OptionsDialog, env: &TabEnv<'_>) {
                 .labelled_by(name);
         },
     );
+    hint(
+        ui,
+        t("How many times dm tries again after a connection fails."),
+    );
     number_row(
         ui,
         t("Wait between attempts (seconds, 0 for automatic)"),
@@ -741,6 +758,7 @@ fn tab_connection(ui: &mut egui::Ui, d: &mut OptionsDialog, env: &TabEnv<'_>) {
                 .labelled_by(name);
         },
     );
+    hint(ui, t("How long dm waits before it tries again."));
     number_row(
         ui,
         t("Time out a silent connection after (seconds)"),
@@ -748,6 +766,10 @@ fn tab_connection(ui: &mut egui::Ui, d: &mut OptionsDialog, env: &TabEnv<'_>) {
             ui.add(number_box(&mut s.read_timeout).range(5..=600))
                 .labelled_by(name);
         },
+    );
+    hint(
+        ui,
+        t("How long a connection may say nothing before dm gives up on it."),
     );
     // A second network beside the one the system routes by: every other
     // connection of a download goes out on it.
@@ -809,15 +831,6 @@ fn tab_connection(ui: &mut egui::Ui, d: &mut OptionsDialog, env: &TabEnv<'_>) {
                 remove = Some(i);
             }
         });
-        hint(
-            ui,
-            t("How long a connection may say nothing before dm gives up on it."),
-        );
-        hint(ui, t("How long dm waits before it tries again."));
-        hint(
-            ui,
-            t("How many times dm tries again after a connection fails."),
-        );
     }
     if let Some(i) = remove {
         s.host_limits.remove(i);

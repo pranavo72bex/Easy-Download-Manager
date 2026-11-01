@@ -778,5 +778,10 @@
  "Choose another name or folder with Move/Rename, or remove the other file": "Kies een andere naam of map met Verplaatsen/Hernoemen, of verwijder het andere bestand",
  "Check that the computer's date and time are right, then click Retry": "Controleer of de datum en tijd van de computer kloppen en klik op Opnieuw proberen",
  "Copy details": "Details kopiëren",
- "Copied the details of {} download.||Copied the details of {} downloads.": "Details van {} download gekopieerd.||Details van {} downloads gekopieerd."
+ "Copied the details of {} download.||Copied the details of {} downloads.": "Details van {} download gekopieerd.||Details van {} downloads gekopieerd.",
+ "Presets:": "Voorinstellingen:",
+ "Slow (2)": "Langzaam (2)",
+ "Normal (8)": "Normaal (8)",
+ "Fast (16)": "Snel (16)",
+ "Maximum (32)": "Maximaal (32)"
 }

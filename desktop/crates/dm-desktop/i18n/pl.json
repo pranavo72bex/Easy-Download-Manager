@@ -778,5 +778,10 @@
  "Choose another name or folder with Move/Rename, or remove the other file": "Wybierz inną nazwę lub folder przez Przenieś/Zmień nazwę albo usuń drugi plik",
  "Check that the computer's date and time are right, then click Retry": "Sprawdź, czy data i godzina komputera są poprawne, a potem kliknij Ponów",
  "Copy details": "Kopiuj szczegóły",
- "Copied the details of {} download.||Copied the details of {} downloads.": "Skopiowano szczegóły {} pobierania.||Skopiowano szczegóły {} pobrań.||Skopiowano szczegóły {} pobrań."
+ "Copied the details of {} download.||Copied the details of {} downloads.": "Skopiowano szczegóły {} pobierania.||Skopiowano szczegóły {} pobrań.||Skopiowano szczegóły {} pobrań.",
+ "Presets:": "Ustawienia wstępne:",
+ "Slow (2)": "Wolno (2)",
+ "Normal (8)": "Normalnie (8)",
+ "Fast (16)": "Szybko (16)",
+ "Maximum (32)": "Maksymalnie (32)"
 }

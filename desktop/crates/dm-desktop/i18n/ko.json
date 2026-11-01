@@ -778,5 +778,10 @@
  "Choose another name or folder with Move/Rename, or remove the other file": "이동/이름 바꾸기(으)로 다른 이름이나 폴더를 선택하거나 다른 파일을 삭제하세요",
  "Check that the computer's date and time are right, then click Retry": "컴퓨터의 날짜와 시간이 맞는지 확인한 다음 다시 시도을(를) 누르세요",
  "Copy details": "세부 정보 복사",
- "Copied the details of {} download.||Copied the details of {} downloads.": "다운로드 {}개의 세부 정보를 복사했습니다."
+ "Copied the details of {} download.||Copied the details of {} downloads.": "다운로드 {}개의 세부 정보를 복사했습니다.",
+ "Presets:": "프리셋:",
+ "Slow (2)": "느림 (2)",
+ "Normal (8)": "보통 (8)",
+ "Fast (16)": "빠름 (16)",
+ "Maximum (32)": "최대 (32)"
 }

@@ -778,5 +778,10 @@
  "Choose another name or folder with Move/Rename, or remove the other file": "Taşı/Yeniden adlandır ile başka bir ad veya klasör seçin ya da diğer dosyayı kaldırın",
  "Check that the computer's date and time are right, then click Retry": "Bilgisayarın tarih ve saatinin doğru olduğunu denetleyin, sonra Yeniden dene düğmesine tıklayın",
  "Copy details": "Ayrıntıları kopyala",
- "Copied the details of {} download.||Copied the details of {} downloads.": "{} indirmenin ayrıntıları kopyalandı."
+ "Copied the details of {} download.||Copied the details of {} downloads.": "{} indirmenin ayrıntıları kopyalandı.",
+ "Presets:": "Hazır ayarlar:",
+ "Slow (2)": "Yavaş (2)",
+ "Normal (8)": "Normal (8)",
+ "Fast (16)": "Hızlı (16)",
+ "Maximum (32)": "Maksimum (32)"
 }

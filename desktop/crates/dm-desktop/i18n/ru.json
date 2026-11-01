@@ -778,5 +778,10 @@
  "Choose another name or folder with Move/Rename, or remove the other file": "Выберите другое имя или папку через «Переместить/Переименовать» или удалите другой файл",
  "Check that the computer's date and time are right, then click Retry": "Проверьте, что дата и время на компьютере верны, затем нажмите «Повторить»",
  "Copy details": "Копировать подробности",
- "Copied the details of {} download.||Copied the details of {} downloads.": "Скопированы подробности {} загрузки.||Скопированы подробности {} загрузок.||Скопированы подробности {} загрузок."
+ "Copied the details of {} download.||Copied the details of {} downloads.": "Скопированы подробности {} загрузки.||Скопированы подробности {} загрузок.||Скопированы подробности {} загрузок.",
+ "Presets:": "Шаблоны:",
+ "Slow (2)": "Медленно (2)",
+ "Normal (8)": "Обычно (8)",
+ "Fast (16)": "Быстро (16)",
+ "Maximum (32)": "Максимум (32)"
 }
