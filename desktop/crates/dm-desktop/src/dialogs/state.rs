@@ -30,6 +30,7 @@ impl Dialogs {
         });
     }
 
+    /// Opens Download details for these addresses.
     pub fn open_file_info(&mut self, urls: Vec<String>) {
         // The keyboard comes off the list behind it.
         self.focus_on("Download details");
@@ -212,6 +213,7 @@ impl Dialogs {
         });
     }
 
+    /// Opens Properties for this row.
     pub fn open_properties(&mut self, row: &dm_core::Entry) {
         self.focus_on("File properties");
         if self.properties.contains_key(&row.id) {
@@ -245,6 +247,7 @@ impl Dialogs {
         open
     }
 
+    /// Opens the Series dialog.
     pub fn open_series(&mut self) {
         self.focus_on("Add numbered series");
         if !self.keep("Add numbered series", self.series.is_some()) {
@@ -252,6 +255,7 @@ impl Dialogs {
         }
     }
 
+    /// Opens the Site files dialog.
     pub fn open_site_files(&mut self) {
         self.focus_on("Site files");
         if !self.keep("Site files", self.site_files.is_some()) {
@@ -374,6 +378,7 @@ impl Dialogs {
             .collect()
     }
 
+    /// Opens the scheduler, over these settings.
     pub fn open_scheduler(&mut self, settings: &Settings) {
         if self.keep("Scheduler", self.scheduler.is_some()) {
             return;
@@ -386,6 +391,7 @@ impl Dialogs {
         self.scheduler = Some((schedule, String::new()));
     }
 
+    /// Opens the speed limiter's settings, over these settings.
     pub fn open_limiter(&mut self, settings: &Settings) {
         self.focus_on("Speed limiter");
         if self.keep("Speed limiter", self.limiter.is_some()) {
@@ -399,6 +405,7 @@ impl Dialogs {
         ));
     }
 
+    /// Opens Options, over these settings.
     pub fn open_options(&mut self, settings: &Settings) {
         if self.keep("Options", self.options.is_some()) {
             return;

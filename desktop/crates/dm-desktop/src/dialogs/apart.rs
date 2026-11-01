@@ -60,9 +60,11 @@ fn shared() -> MutexGuard<'static, Shared> {
 /// Where a dialog's window stands, as the system last said.
 #[derive(Clone, Debug)]
 pub struct WindowInfo {
+    /// The window's title.
     pub title: String,
     /// With its title bar and frame, in screen points.
     pub outer: Option<egui::Rect>,
+    /// The window without its title bar and frame, in screen points.
     pub inner: Option<egui::Rect>,
 }
 

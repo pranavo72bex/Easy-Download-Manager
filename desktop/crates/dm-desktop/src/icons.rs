@@ -9,31 +9,57 @@ use egui::{pos2, vec2, Color32, Painter, Rect, Shape, Stroke};
 /// The Fluent icons dm draws, as the characters `fonts/FluentSystemIcons-dm.ttf`
 /// holds them at (each `ic_fluent_<name>_20_regular`).
 pub mod fluent {
+    /// The Fluent add icon.
     pub const ADD: char = '\u{f109}';
+    /// The Fluent play icon.
     pub const PLAY: char = '\u{f605}';
+    /// The Fluent stop icon.
     pub const STOP: char = '\u{f72a}';
+    /// The Fluent record stop icon.
     pub const RECORD_STOP: char = '\u{f75a}';
+    /// The Fluent delete icon.
     pub const DELETE: char = '\u{f34c}';
+    /// The Fluent broom icon.
     pub const BROOM: char = '\u{f201}';
+    /// The Fluent settings icon.
     pub const SETTINGS: char = '\u{f6a9}';
+    /// The Fluent calendar clock icon.
     pub const CALENDAR_CLOCK: char = '\u{f21d}';
+    /// The Fluent play circle icon.
     pub const PLAY_CIRCLE: char = '\u{e994}';
+    /// The Fluent pause circle icon.
     pub const PAUSE_CIRCLE: char = '\u{f6bc}';
+    /// The Fluent globe icon.
     pub const GLOBE: char = '\u{f45a}';
+    /// The Fluent apps list icon.
     pub const APPS_LIST: char = '\u{f8cb}';
+    /// The Fluent video icon.
     pub const VIDEO: char = '\u{f84c}';
+    /// The Fluent music icon.
     pub const MUSIC: char = '\u{e854}';
+    /// The Fluent document icon.
     pub const DOCUMENT: char = '\u{f378}';
+    /// The Fluent apps icon.
     pub const APPS: char = '\u{f133}';
+    /// The Fluent folder zip icon.
     pub const FOLDER_ZIP: char = '\u{f435}';
+    /// The Fluent image icon.
     pub const IMAGE: char = '\u{f488}';
+    /// The Fluent folder icon.
     pub const FOLDER: char = '\u{f418}';
+    /// The Fluent arrow download icon.
     pub const ARROW_DOWNLOAD: char = '\u{f150}';
+    /// The Fluent checkmark circle icon.
     pub const CHECKMARK_CIRCLE: char = '\u{f298}';
+    /// The Fluent list icon.
     pub const LIST: char = '\u{ecd9}';
+    /// The Fluent arrow sync icon.
     pub const ARROW_SYNC: char = '\u{f190}';
+    /// The Fluent chevron down icon.
     pub const CHEVRON_DOWN: char = '\u{f2a3}';
+    /// The Fluent chevron up icon.
     pub const CHEVRON_UP: char = '\u{f2b6}';
+    /// The Fluent chevron right icon.
     pub const CHEVRON_RIGHT: char = '\u{f2b0}';
 }
 
@@ -77,18 +103,30 @@ fn fluent_of(icon: Icon) -> char {
     }
 }
 
+/// A toolbar button's icon.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Icon {
+    /// The Add button.
     Add,
+    /// The Resume button.
     Resume,
+    /// The Stop button.
     Stop,
+    /// The Stop All button.
     StopAll,
+    /// The Delete button.
     Delete,
+    /// The Delete Completed button.
     DeleteCompleted,
+    /// The Options button.
     Options,
+    /// The Scheduler button.
     Scheduler,
+    /// The Start Queue button.
     StartQueue,
+    /// The Stop Queue button.
     StopQueue,
+    /// The Site files button.
     SiteFiles,
     /// Open the folder a file is in (a row's own button, not the toolbar's).
     Folder,

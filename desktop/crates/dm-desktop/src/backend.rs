@@ -104,12 +104,15 @@ pub fn chooser_here(portal: bool, path: Option<&std::ffi::OsStr>) -> bool {
 /// The queue, the settings in force, and the problems no row can carry.
 #[derive(Clone)]
 pub struct Backend {
+    /// The runtime the engine's work runs on.
     pub runtime: tokio::runtime::Handle,
+    /// The download queue.
     pub queue: Queue,
     settings: Arc<Mutex<Settings>>,
     /// What went wrong at startup — a saved proxy that could not be used, a
     /// login item that could not be written — handed to the window once.
     notices: Arc<Mutex<Vec<String>>>,
+    /// What the operating system is asked to do for dm: notifications, opening files, power.
     pub platform: Arc<dyn Platform>,
     /// Videos the browser's panel handed over to be asked about: the window
     /// opens "Download details" for each before it starts.
@@ -117,6 +120,7 @@ pub struct Backend {
 }
 
 impl Backend {
+    /// Creates the backend over a queue, the settings in force, the start-up notices and the platform.
     pub fn new(
         runtime: tokio::runtime::Handle,
         queue: Queue,
@@ -138,6 +142,8 @@ impl Backend {
         self.runtime.block_on(work)
     }
 
+    /// Every row, copied from the queue.
+    #[must_use]
     pub fn list(&self) -> Vec<Entry> {
         self.block_on(self.queue.list())
     }
@@ -160,10 +166,12 @@ impl Backend {
         self.block_on(self.queue.retrying())
     }
 
+    /// Adds the downloads that `text` names (addresses, one to a line).
     pub fn add(&self, text: &str) -> Result<shell::Added, String> {
         self.block_on(shell::add(&self.queue, text))
     }
 
+    /// Pauses a download.
     pub fn pause(&self, id: Id) {
         self.block_on(self.queue.pause(id));
     }
@@ -184,6 +192,7 @@ impl Backend {
         }
     }
 
+    /// Resumes a stopped download.
     pub fn resume(&self, id: Id) {
         self.login_now(id);
         self.block_on(async {
@@ -203,6 +212,7 @@ impl Backend {
         })
     }
 
+    /// Starts a failed download again.
     pub fn retry(&self, id: Id) {
         self.login_now(id);
         self.block_on(async {
@@ -219,10 +229,12 @@ impl Backend {
         self.retry(id);
     }
 
+    /// Cancels a download.
     pub fn cancel(&self, id: Id) {
         self.block_on(self.queue.cancel(id));
     }
 
+    /// Removes a row from the list.
     pub fn remove(&self, id: Id) {
         self.block_on(self.queue.remove(id));
     }
@@ -254,6 +266,7 @@ impl Backend {
         self.block_on(self.queue.pause_all())
     }
 
+    /// Resumes every stopped download and gives how many started.
     pub fn resume_all(&self) -> usize {
         self.block_on(async {
             let resumed = self.queue.resume_all().await;
@@ -264,6 +277,7 @@ impl Backend {
         })
     }
 
+    /// Removes every finished download from the list and gives how many.
     pub fn clear_finished(&self) -> usize {
         self.block_on(self.queue.clear_finished())
     }
@@ -283,12 +297,15 @@ impl Backend {
         self.block_on(self.queue.set_own_limit(id, kb_per_second));
     }
 
+    /// Sets the checksum a finished download is checked against, from the text typed.
     pub fn set_checksum(&self, id: Id, text: &str) -> Result<(), String> {
         let checksum = shell::checksum(text)?;
         self.block_on(self.queue.set_checksum(id, checksum));
         Ok(())
     }
 
+    /// The settings in force.
+    #[must_use]
     pub fn settings(&self) -> Settings {
         dm_core::lock(&self.settings).clone()
     }
@@ -418,6 +435,7 @@ impl Backend {
         Arc::clone(&self.notices)
     }
 
+    /// Leaves a problem for the banner.
     pub fn note(&self, problem: String) {
         dm_core::lock(&self.notices).push(problem);
     }
@@ -479,6 +497,7 @@ impl Backend {
             .collect()
     }
 
+    /// Sets a download's description.
     pub fn set_description(&self, id: Id, text: &str) {
         self.block_on(self.queue.set_description(id, text));
     }
@@ -488,10 +507,12 @@ impl Backend {
         self.block_on(self.queue.set_delete_after(id, seconds));
     }
 
+    /// Puts a download in the queue of this name.
     pub fn set_queue(&self, id: Id, queue: &str) {
         self.block_on(self.queue.set_queue(id, queue));
     }
 
+    /// Gives a download a new address.
     pub fn set_url(&self, id: Id, url: &str) -> Result<(), String> {
         let url = self.settings().with_login(url.trim());
         if !dm_core::accepted(&url) {
@@ -529,6 +550,7 @@ impl Backend {
         }
     }
 
+    /// Downloads a file again from the start.
     pub fn redownload(&self, id: Id) {
         self.block_on(async {
             if self.queue.redownload(id).await {
@@ -537,10 +559,12 @@ impl Backend {
         });
     }
 
+    /// Moves a download up or down its queue by this many places.
     pub fn shift(&self, id: Id, by: isize) {
         self.block_on(self.queue.shift(id, by));
     }
 
+    /// Starts a queue and gives how many downloads it started.
     pub fn start_queue(&self, queue: &str) -> usize {
         self.block_on(async {
             let started = self.queue.start_queue(queue).await;
@@ -551,10 +575,12 @@ impl Backend {
         })
     }
 
+    /// Stops a queue and gives how many downloads it stopped.
     pub fn stop_queue(&self, queue: &str) -> usize {
         self.block_on(self.queue.stop_queue(queue))
     }
 
+    /// Renames a finished download's file.
     pub fn rename(&self, id: Id, name: &str) -> Result<(), String> {
         self.block_on(self.queue.rename(id, name))
     }
@@ -569,14 +595,20 @@ impl Backend {
         self.block_on(self.queue.preview(id))
     }
 
+    /// A download's connections, each with its state.
+    #[must_use]
     pub fn connections(&self, id: Id) -> Vec<Connection> {
         self.block_on(self.queue.connections(id))
     }
 
+    /// Whether a download can resume, if that is known yet.
+    #[must_use]
     pub fn resumable(&self, id: Id) -> Option<bool> {
         self.block_on(self.queue.resumable(id))
     }
 
+    /// The names of the queues.
+    #[must_use]
     pub fn queues(&self) -> Vec<String> {
         self.block_on(self.queue.queues())
     }
