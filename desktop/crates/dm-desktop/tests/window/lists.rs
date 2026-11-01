@@ -390,6 +390,56 @@ fn find_next_selects_the_next_row_with_the_name() {
     assert_eq!(picked(&harness), ["alphabet.bin"]);
 }
 
+/// Find previous goes back from the selection and wraps round; Shift-F3 is
+/// its key, and the Downloads menu has it beside Find next.
+#[test]
+fn find_previous_selects_the_row_before_and_wraps_round() {
+    let world = world();
+    let mut harness = world.harness();
+    for name in ["alpha.bin", "beta.bin", "alphabet.bin"] {
+        harness
+            .state()
+            .backend()
+            .add_with(
+                &world.url(name),
+                dm_core::AddOptions {
+                    later: true,
+                    ..Default::default()
+                },
+            )
+            .unwrap();
+    }
+    harness.state_mut().refresh();
+    harness.state_mut().run(Command::Find);
+    harness.run_steps(2);
+    type_into(&mut harness, "Find what", "alpha");
+    let picked = |h: &Harness<'_, DmApp>| {
+        h.state()
+            .targets()
+            .iter()
+            .map(dm_desktop::app::name_of)
+            .collect::<Vec<_>>()
+    };
+    // With nothing selected it starts at the bottom of the list.
+    harness.state_mut().run(Command::FindPrevious);
+    assert_eq!(picked(&harness), ["alphabet.bin"]);
+    harness.state_mut().run(Command::FindPrevious);
+    assert_eq!(picked(&harness), ["alpha.bin"]);
+    harness.state_mut().run(Command::FindPrevious);
+    assert_eq!(picked(&harness), ["alphabet.bin"], "wraps round");
+    // Its key, from Find's own field: Shift-F3 types nothing and goes back.
+    harness.key_press_modifiers(egui::Modifiers::SHIFT, egui::Key::F3);
+    harness.run_steps(3);
+    assert_eq!(picked(&harness), ["alpha.bin"]);
+    // And F3 forward again.
+    harness.key_press(egui::Key::F3);
+    harness.run_steps(3);
+    assert_eq!(picked(&harness), ["alphabet.bin"]);
+    // In the Downloads menu, with its key shown.
+    assert!(Command::FindPrevious.shortcut().is_some());
+    assert_eq!(Command::FindPrevious.label(), "Find previous");
+}
+
 #[test]
 fn the_toolbar_is_customized_from_the_view_menu_and_remembered() {
     use egui::accesskit::Role;

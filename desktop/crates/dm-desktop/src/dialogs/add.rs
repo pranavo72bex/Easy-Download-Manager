@@ -199,9 +199,33 @@ pub(super) fn duplicate(app: &mut DmApp, ctx: &egui::Context) {
     }
 }
 
+/// Whether an address's query carries something secret: a token, a signature,
+/// a key, a password or a session. Such an address is not remembered for Add
+/// URL's list of recent ones (the list is kept in the settings file in the
+/// clear, and a signed link has expired by the next time), and one already
+/// remembered is not offered.
+pub(crate) fn query_carries_a_secret(address: &str) -> bool {
+    const SECRET: [&str; 8] = [
+        "token", "sig", "key", "auth", "pass", "pwd", "secret", "session",
+    ];
+    let Ok(url) = url::Url::parse(address) else {
+        return false;
+    };
+    url.query_pairs().any(|(name, _)| {
+        let name = name.to_ascii_lowercase();
+        SECRET.iter().any(|word| name.contains(word)) || name.contains("credential")
+    })
+}
+
 pub(super) fn add_url(app: &mut DmApp, ctx: &egui::Context) {
     let focus = app.dialogs.take_focus("Add URL");
-    let recent = app.applied.recent_urls.clone();
+    let recent: Vec<String> = app
+        .applied
+        .recent_urls
+        .iter()
+        .filter(|url| !query_carries_a_secret(url))
+        .cloned()
+        .collect();
     let Some(d) = app.dialogs.add_url.as_mut() else {
         return;
     };
@@ -327,7 +351,8 @@ pub(super) fn add_url(app: &mut DmApp, ctx: &egui::Context) {
     app.dialogs.add_url = None;
     // Remembered for Add URL's list, without any login.
     let remembered = bare(&address);
-    if app.applied.recent_urls.first() != Some(&remembered) {
+    if !query_carries_a_secret(&remembered) && app.applied.recent_urls.first() != Some(&remembered)
+    {
         let mut recent = app.applied.recent_urls.clone();
         recent.retain(|u| *u != remembered);
         recent.insert(0, remembered);
@@ -348,6 +373,27 @@ pub(super) fn add_url(app: &mut DmApp, ctx: &egui::Context) {
         return;
     }
     app.dialogs.open_file_info(vec![address]);
+}
+
+#[cfg(test)]
+mod recent_tests {
+    use super::query_carries_a_secret as secret;
+
+    /// A signed or token-bearing address is not kept in the settings file for
+    /// Add URL's list; a plain one is.
+    #[test]
+    fn an_address_with_a_secret_in_its_query_is_not_remembered() {
+        assert!(secret("https://cdn.example/f.zip?token=abc"));
+        assert!(secret(
+            "https://cdn.example/f.zip?X-Amz-Signature=1&X-Amz-Credential=2"
+        ));
+        assert!(secret("https://example.com/get?id=7&api_key=9"));
+        assert!(secret("https://example.com/get?Password=x"));
+        assert!(secret("https://example.com/get?sessionid=x"));
+        assert!(!secret("https://example.com/files/a.zip"));
+        assert!(!secret("https://example.com/get?id=7&name=report"));
+        assert!(!secret("not an address"));
+    }
 }
 
 #[cfg(test)]

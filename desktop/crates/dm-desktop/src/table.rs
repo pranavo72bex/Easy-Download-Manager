@@ -493,13 +493,20 @@ pub fn show(app: &mut DmApp, ui: &mut egui::Ui) {
         app.anchor = Some(id);
         // What Options › General says a double-click does: Properties by
         // default, for any download; Open or its folder for a finished
-        // one, Properties still for one that is not.
+        // one. A download that is running, waiting or stopped shows its
+        // progress window instead, which is what a person looking at one
+        // that is still going wants to see; Properties for a failed or
+        // cancelled one, as before.
         let finished = rows
             .iter()
             .any(|r| r.id == id && r.state == State::Completed);
+        let going = rows.iter().any(|r| {
+            r.id == id && matches!(r.state, State::Running | State::Queued | State::Paused)
+        });
         app.queued.push(match app.applied.double_click.as_str() {
             "open" if finished => Command::OpenFile,
             "folder" if finished => Command::OpenFolder,
+            _ if going => Command::ShowProgress,
             _ => Command::Properties,
         });
     }
