@@ -39,7 +39,7 @@ was removed on 2026-10-12 and is in git history.
       held a task forever with the pause flag never read; the backoff
       between attempts is cut short by a pause or a cancel rather than sat out.
       The attempts (0 to keep trying) and the read timeout are settings
-      (Options › Network, `limits.rs`)
+      (Options › Advanced › Network, `limits.rs`)
 - [x] Speed calculation
 - [x] Download queue
 - [x] Pause/resume
@@ -117,7 +117,7 @@ and is not carried over.
       `tests/auth.rs`), and NTLMv2 where it asks for NTLM or for Negotiate
       (a `DOMAIN\user` login; `ntlm.rs` checked against MS-NLMP's worked
       example, `tests/ntlm.rs` against a server that signs each connection
-      in, the file fetched over several). Kerberos is not offered; a `cookies.txt` chosen in Options › Network is sent
+      in, the file fetched over several). Kerberos is not offered; a `cookies.txt` chosen in Options › Advanced › Network is sent
       to the site it belongs to. The browser's own cookies stay with the browser
       unless the popup's "Hand over this site's sign-in" is on for the site,
       when they travel with the hand-off and the row keeps them

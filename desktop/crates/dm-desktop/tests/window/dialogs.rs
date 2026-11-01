@@ -1675,7 +1675,7 @@ fn a_number_box_says_when_what_was_typed_is_not_a_number() {
     let world = world();
     let mut harness = world.harness();
     click(&mut harness, "Options");
-    click(&mut harness, "Network");
+    click(&mut harness, "Advanced");
     let label = "Time out a silent connection after (seconds)";
     let before = harness
         .state()

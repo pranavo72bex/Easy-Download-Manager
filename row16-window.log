@@ -1,0 +1,348 @@
+   Compiling dm-desktop v0.8.6 (C:\Users\prana\Downloads\Easy-Download-Manager\.claude\worktrees\agent-aeedcc55d0f1d29d0\desktop\crates\dm-desktop)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 4m 34s
+     Running tests\i18n.rs (D:/dm-target-row16\debug\deps\i18n-f4530b3797386c6f.exe)
+
+running 4 tests
+test everything_and_all_are_two_words_in_every_language ... ok
+test no_catalog_keeps_words_the_window_no_longer_says ... ok
+test every_translated_word_is_in_every_catalog ... ok
+test every_translation_is_drawn_in_the_windows_fonts ... ok
+
+test result: ok. 4 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.76s
+
+     Running tests\window.rs (D:/dm-target-row16\debug\deps\window-d4e9dbafa3a682e8.exe)
+
+running 256 tests
+test asks::a_name_the_server_sent_is_asked_about_and_yes_keeps_it ... ok
+test asks::a_web_page_for_a_file_is_saved_as_html_on_yes ... ok
+test asks::a_404_is_told_once_in_a_window_of_its_own ... ok
+test asks::a_name_the_server_sent_is_given_up_for_the_addresss_on_no ... ok
+test commands::command_shift_n_opens_the_numbered_series_not_add_url ... ok
+test asks::a_web_page_for_a_file_leaves_nothing_on_no ... ok
+test commands::every_command_runs_against_rows_in_every_state ... ok
+test commands::every_column_is_reached_at_the_default_window_size ... ok
+test commands::every_control_has_a_name_a_screen_reader_can_say ... ok
+test commands::every_dialog_in_every_language_is_translated has been running for over 60 seconds
+test commands::every_menu_item_clicked_does_what_it_says ... ok
+test commands::every_row_menu_item_clicked_does_what_it_says ... ok
+test commands::every_dialog_keeps_its_title_and_buttons_on_screen_at_large_text has been running for over 60 seconds
+test commands::every_toolbar_button_clicked_does_what_it_says ... ok
+test control::a_batch_runs_its_steps_in_order ... ok
+test control::a_port_opened_for_assistants_alone_refuses_other_clients ... ok
+test control::a_resume_straight_after_a_pause_is_not_refused_by_a_stale_list ... ok
+test control::opening_a_file_is_refused_over_the_control_protocol ... ok
+test control::shots ... ok
+test control::ai_assistants_are_answered_only_while_the_setting_is_on ... ok
+test control::steps_waiting_for_frames_are_capped_and_refused_while_hidden ... ok
+test control::the_command_line_pauses_resumes_and_cancels_by_number_and_leaves_the_selection_alone ... ok
+test control::the_command_lines_when_done_is_taken_up ... ok
+test control::the_control_protocol_does_not_add_an_address_twice_unless_asked ... ok
+test control::the_control_protocol_refuses_nothing_to_add_and_a_queue_that_is_not_there ... ok
+test control::the_control_protocol_runs_commands_and_reads_the_window_back ... ok
+test control::the_mcp_bridge_gives_an_agent_dm_as_tools ... ok
+test dialogs::a_browsers_hand_off_opens_its_progress_window ... ok
+test dialogs::a_clipboard_link_already_listed_is_offered_unticked ... ok
+test commands::every_dialog_keeps_its_title_and_buttons_on_screen_at_large_text ... ok
+test dialogs::a_dialog_asked_for_while_open_keeps_what_was_typed_in_it ... ok
+test dialogs::a_fresh_link_is_taken_from_the_browser ... ok
+test dialogs::a_handed_over_videos_sign_in_survives_download_details ... ok
+test dialogs::a_dialog_with_the_deepest_shadow_still_stands_whole_in_a_tall_window ... ok
+test dialogs::a_link_copied_at_a_moment_offers_that_moment_as_the_part ... ok
+test dialogs::a_list_that_cannot_be_written_keeps_its_dialog_open ... ok
+test dialogs::a_new_download_order_opens_add_url_and_brings_the_window_forward ... ok
+test dialogs::a_double_click_opens_properties_and_open_runs_a_finished_file ... FAILED
+test dialogs::a_pages_links_open_the_download_links_dialog ... ok
+test dialogs::a_new_user_is_shown_how_to_add_dm_to_their_browser ... ok
+test dialogs::a_number_box_says_when_what_was_typed_is_not_a_number ... ok
+test dialogs::a_part_can_be_made_vertical_or_square ... ok
+test dialogs::a_sign_in_saved_in_properties_retries_the_download ... ok
+test commands::every_dialog_in_every_language_is_translated ... ok
+test dialogs::a_video_from_the_browsers_panel_opens_download_file_info_with_its_quality ... ok
+test dialogs::a_site_search_reads_pages_deep_and_a_saved_one_runs_on_its_own ... ok
+test dialogs::browse_with_no_folder_chooser_says_to_type_the_path ... ok
+test dialogs::browse_picks_the_folder_a_download_goes_to ... ok
+test dialogs::an_address_already_in_the_list_is_asked_about_before_it_is_added_again ... ok
+test dialogs::delete_file_after_is_chosen_when_saving ... ok
+test dialogs::download_details_category_picks_the_folder ... ok
+test dialogs::download_details_can_replace_a_file_of_the_same_name ... ok
+test dialogs::download_details_offers_the_folder_last_used_for_that_kind ... ok
+test dialogs::find_closes_with_its_close_button ... ok
+test dialogs::export_and_import_carry_the_list_as_a_dmlist_file ... ok
+test dialogs::help_opens_the_documentation ... ok
+test dialogs::import_says_the_lines_it_could_not_read ... ok
+test dialogs::download_details_says_the_name_it_will_get_and_a_server_refusal ... ok
+test dialogs::import_asks_about_addresses_already_listed ... ok
+test dialogs::import_and_export_take_a_typed_path_without_a_file_chooser ... ok
+test dialogs::links_on_the_clipboard_are_picked_and_put_in_the_main_queue ... ok
+test dialogs::links_on_the_clipboard_can_start_now_or_be_cancelled ... ok
+test dialogs::no_field_is_outlined_in_the_selection_stroke_where_the_look_draws_its_own ... ok
+test dialogs::move_rename_moves_several_finished_files_together ... ok
+test dialogs::move_to_queue_makes_the_queue_named ... ok
+test dialogs::properties_keep_the_login_out_of_the_address_box ... ok
+test dialogs::properties_change_the_description_and_refresh_an_expired_address ... ok
+test dialogs::the_clipboard_bar_keeps_its_buttons_in_the_window ... ok
+test dialogs::the_clipboard_watcher_offers_every_link_copied_together ... ok
+test dialogs::the_clipboard_watcher_offers_only_new_links_and_only_when_on ... ok
+test dialogs::the_menus_do_not_open_dialogs_over_a_dialog ... ok
+test dialogs::the_close_question_is_asked_once_and_the_answer_is_kept ... ok
+test dialogs::the_series_error_from_start_goes_when_the_range_is_fixed ... ok
+test dialogs::the_site_file_finder_finds_the_files_a_page_links_to ... ok
+test dialogs::the_default_double_click_opens_a_finished_file_and_shows_properties_for_the_rest ... ok
+test dialogs::the_file_info_dialog_puts_the_file_where_and_as_what_it_says ... ok
+test dialogs::the_welcome_offers_the_extension_for_each_browser ... ok
+test dialogs::the_window_behind_a_dialog_takes_no_clicks ... ok
+test dialogs::the_welcome_confirms_where_downloads_go_and_ends_with_done ... ok
+test downloads::a_batch_adds_every_address_the_star_makes ... ok
+test downloads::a_caught_download_of_a_listed_address_asks_before_fetching_again ... ok
+test downloads::a_caught_download_asks_where_to_save_by_its_own_setting ... ok
+test dialogs::two_cancelled_hand_offs_from_a_site_offer_to_leave_it_to_the_browser ... ok
+test downloads::a_cut_connection_is_said_plainly ... ok
+test downloads::a_drop_with_no_link_says_how_to_add_one ... ok
+test downloads::a_failed_download_plays_the_failure_sound_when_asked ... ok
+test downloads::a_failed_download_is_announced_with_why ... ok
+test downloads::a_file_given_a_time_goes_to_the_trash_when_it_comes ... ok
+test downloads::a_finished_file_deleted_since_says_so_and_is_not_offered_to_open ... ok
+test downloads::a_file_added_again_is_listed_under_the_name_it_will_get ... ok
+test downloads::a_finished_row_says_when_it_finished ... ok
+test downloads::a_finished_rows_buttons_open_the_file_and_its_folder ... ok
+test downloads::a_hand_over_that_asks_brings_the_window_forward_and_one_that_starts_does_not ... ok
+test downloads::a_finished_zip_is_extracted_beside_itself_and_a_hostile_one_is_refused ... ok
+test downloads::a_new_install_opens_a_finished_file_on_a_double_click ... ok
+test downloads::a_link_that_runs_out_part_way_asks_for_a_fresh_one ... ok
+test downloads::a_newer_release_offers_its_installer_as_a_download_in_dm ... ok
+test downloads::a_link_saved_in_the_watched_folder_is_added_and_its_file_put_aside ... ok
+test downloads::a_hand_off_of_a_listed_address_is_said_to_be_added_again ... ok
+test downloads::a_pages_link_already_listed_is_offered_unticked_and_said ... ok
+test downloads::a_progress_window_shows_each_connection ... ok
+test downloads::a_retry_says_its_attempt ... ok
+test downloads::a_started_download_says_once_where_its_progress_is ... ok
+test downloads::a_refused_sign_in_says_where_to_give_one ... ok
+test downloads::a_very_big_download_is_told_about_the_scheduler_once ... ok
+test downloads::a_stream_servers_address_is_taken_through_add_url ... ok
+test downloads::add_url_downloads_the_file_announces_it_once_and_says_it_is_complete ... ok
+test downloads::add_url_selects_its_link_and_refuses_two_run_together ... ok
+test downloads::add_url_remembers_addresses_without_their_login_and_clears_them ... ok
+test downloads::add_url_takes_a_torrent_on_this_computer ... ok
+test downloads::an_unreachable_folder_pauses_and_another_folder_finishes_it ... ok
+test downloads::a_video_half_fetched_is_previewed_from_what_is_on_disk ... ok
+test downloads::copy_link_copies_the_address_without_its_sign_in ... ok
+test downloads::cancel_download_in_the_progress_window_asks_first ... ok
+test downloads::copies_waiting_in_the_list_each_get_their_own_name ... ok
+test downloads::describing_a_long_list_takes_a_moment_not_seconds ... ok
+test downloads::download_complete_offers_open_with_and_not_again ... ok
+test downloads::downloads_finishing_together_share_one_complete_window ... ok
+test downloads::delete_waits_for_a_download_to_stop ... ok
+test downloads::download_later_waits_in_the_main_queue_until_start_queue ... ok
+test downloads::five_links_pasted_into_add_url_are_one_batch ... ok
+test downloads::escape_keeps_a_ticked_dont_show_again_as_close_does ... ok
+test downloads::failed_downloads_are_counted_above_the_list_with_retry_all ... ok
+test downloads::open_with_asks_for_an_application_and_opens_the_file_with_it ... ok
+test downloads::properties_show_the_files_sha256_and_check_a_given_digest ... ok
+test downloads::retry_uses_a_sign_in_saved_since_it_failed ... ok
+test downloads::removing_a_finished_download_is_undone_from_the_status_bar ... ok
+test downloads::save_as_takes_the_servers_name ... ok
+test downloads::renaming_onto_a_taken_name_says_what_it_is_called ... ok
+test downloads::remove_deletes_the_file_too_only_when_asked ... ok
+test downloads::settings_are_saved_to_a_file_without_passwords_and_loaded_back ... ok
+test downloads::several_finished_files_are_named_by_a_pattern_and_keep_their_endings ... ok
+test downloads::the_hovered_row_offers_stop_and_remove_on_itself ... ok
+test downloads::the_hovered_rows_buttons_stay_off_a_window_in_front_of_the_list ... ok
+test downloads::the_list_behind_the_remove_question_takes_no_clicks ... ok
+test downloads::the_same_address_handed_twice_at_once_is_taken_once ... ok
+test downloads::the_progress_window_limits_its_own_download ... ok
+test downloads::the_progress_window_of_a_finished_download_closes ... ok
+test keyboard::a_dialog_is_typed_in_at_once_and_enter_presses_its_default_button ... ok
+test keyboard::a_right_click_moves_the_keyboards_place ... ok
+test downloads::the_small_things_of_round_eight ... ok
+test keyboard::a_text_field_has_cut_copy_and_paste_on_a_right_click ... ok
+test keyboard::closing_a_dialog_gives_the_keyboard_back_to_its_opener ... ok
+test downloads::view_drop_target_shows_and_hides_the_floating_target ... ok
+test downloads::time_left_says_calculating_until_there_is_a_rate ... ok
+test keyboard::enter_starts_the_links_dialogs ... ok
+test keyboard::enter_shows_the_row_when_already_listed ... ok
+test keyboard::escape_cancels_the_when_done_countdown ... ok
+test keyboard::escape_closes_the_window_in_front ... ok
+test keyboard::f3_finds_the_next_one_while_find_is_open ... ok
+test keyboard::escape_closes_the_menu_or_the_dialog_in_front_and_nothing_behind_it ... ok
+test keyboard::menus_open_from_the_keyboard ... ok
+test keyboard::page_keys_move_a_page_and_end_shows_the_last_row_whole ... ok
+test keyboard::remove_says_one_thing_enter_keeps_and_the_next_row_is_selected ... ok
+test keyboard::tab_stays_in_the_dialog_and_enter_presses_its_default ... ok
+test keyboard::the_arrow_keys_move_the_selection_and_the_focus_shows ... ok
+test keyboard::the_delete_key_asks_and_the_limiter_takes_enter ... ok
+test keyboard::the_complete_window_scrolls_cuts_long_names_and_closes_on_escape ... ok
+test keyboard::the_category_tree_has_right_click_menus ... ok
+test keyboard::the_list_narrows_as_a_filter_is_typed ... ok
+test keyboard::the_search_box_is_level_with_the_menus ... ok
+test keyboard::the_lists_keys_do_not_reach_it_from_behind_a_dialog ... ok
+test keyboard::the_toolbar_keeps_its_names_narrow_and_in_german ... ok
+test layout::a_list_with_room_for_one_row_stays_where_it_was_scrolled ... ok
+test layout::a_column_is_widened_by_dragging_its_edge has been running for over 60 seconds
+test layout::a_dialog_at_the_edge_of_scrolling_still_takes_clicks ... ok
+test layout::a_finished_file_dragged_out_of_the_list_is_handed_to_the_systems_drag has been running for over 60 seconds
+test layout::a_row_shows_at_230_percent_in_the_smallest_window ... ok
+test layout::a_finished_file_dragged_out_of_the_list_is_handed_to_the_systems_drag ... ok
+test layout::a_row_is_dragged_to_another_place_in_the_queue ... ok
+test layout::dialogs_keep_their_place_and_show_the_size ... ok
+test layout::an_arabic_name_is_drawn_in_reading_order ... ok
+test layout::download_details_starts_afresh_and_its_warning_wraps ... ok
+test layout::a_column_is_widened_by_dragging_its_edge ... ok
+test layout::long_status_text_wraps_and_stays_on_screen ... ok
+test layout::properties_fit_a_small_window_and_close_from_the_title_bar ... ok
+test layout::properties_open_in_the_middle ... ok
+test layout::five_hundred_rows_draw_inside_a_frame_budget ... FAILED
+test layout::the_columns_follow_the_window_until_one_is_dragged ... ok
+test layout::the_kinds_folder_fields_fit_their_names ... ok
+test layout::the_columns_start_in_one_place_whatever_the_rows_queues ... ok
+test layout::the_lists_bar_stays_in_view_when_the_columns_run_past_it ... ok
+test layout::the_lists_sideways_bar_is_dragged ... ok
+test layout::the_places_are_reachable_when_they_give_way_at_large_text ... ok
+test layout::the_last_row_can_be_reached_at_large_text ... ok
+test layout::the_pointer_is_the_same_kind_over_the_same_kind_of_thing ... ok
+test layout::the_progress_window_is_as_tall_as_what_it_holds ... ok
+test layout::the_series_error_waits_for_both_ends_and_speaks_german ... ok
+test layout::view_language_puts_the_window_in_another_language_and_back ... ok
+test layout::view_text_size_zooms_the_window ... ok
+test layout::windows_a_download_opens_keep_clear_of_the_toolbar_and_questions ... ok
+test lists::a_column_turned_off_is_gone_and_comes_back ... ok
+test lists::a_group_of_places_shuts_and_opens_from_its_row ... ok
+test lists::a_finished_rows_size_is_its_files ... ok
+test lists::a_row_added_for_later_shows_its_folder_without_owning_it ... ok
+test lists::a_row_added_for_later_says_what_it_waits_for_with_its_size_and_folder ... ok
+test lists::a_row_of_no_known_kind_is_under_other ... ok
+test layout::the_progress_bar_keeps_its_width_in_the_classic_look ... ok
+test lists::a_row_shows_the_name_chosen_for_it_before_it_is_saved ... ok
+test lists::a_rows_handed_over_sign_in_is_never_read_back_out ... ok
+test lists::clicking_a_heading_sorts_and_clicking_again_reverses ... ok
+test lists::each_queue_has_at_most_one_limit ... ok
+test lists::a_rows_progress_bar_says_how_far_it_has_come ... ok
+test lists::frame_cost_of_a_long_list ... ignored, a timing, run by hand: cargo test -p dm-desktop --test window frame_cost -- --ignored --nocapture
+test lists::new_installs_sort_by_kind_and_start_at_login ... ok
+test lists::find_next_selects_the_next_row_with_the_name ... ok
+test lists::clear_finished_is_greyed_with_only_failed_rows ... ok
+test lists::find_stays_clear_of_the_row_it_found ... ok
+test lists::queued_rows_are_sorted_into_their_kind_by_name ... ok
+test lists::properties_of_a_row_added_for_later_says_where_it_will_go ... ok
+test lists::resume_on_a_held_row_offers_to_start_it_outside_the_schedule ... ok
+test lists::the_pieces_bar_says_how_far_and_in_how_many_pieces ... ok
+test lists::statuses_and_counts_say_what_is_so ... ok
+test lists::the_rows_a_command_acts_on_are_the_selected_ones_in_table_order ... ok
+test lists::remove_says_when_finished_and_unfinished_rows_are_mixed ... ok
+test lists::the_status_bars_folder_never_covers_what_it_says ... ok
+test lists::the_status_bar_says_the_schedule_holds_downloads_and_until_when ... ok
+test lists::the_category_tree_filters_the_one_list ... ok
+test lists::the_toolbar_acts_on_the_selected_row ... ok
+test lists::the_toolbar_is_customized_from_the_view_menu_and_remembered ... ok
+test lists::the_tray_says_how_many_downloads_run_and_how_fast ... ok
+test options::a_bad_category_options_opened_with_does_not_fail_an_unrelated_ok ... ok
+test options::a_category_made_in_options_takes_its_files_into_its_own_folder ... ok
+test options::a_proxy_that_is_wrong_opens_advanced_at_the_proxy_section ... FAILED
+test options::a_queues_own_file_limit_and_the_parts_folder_are_set_in_options ... ok
+test options::a_queues_start_time_is_set_in_options ... ok
+test lists::when_the_queue_runs_dry_dm_chimes_and_counts_down_to_what_was_chosen has been running for over 60 seconds
+test options::a_site_rule_set_in_options_sends_that_sites_downloads_to_its_folder_at_its_speed ... ok
+test options::advanced_holds_the_connection_and_the_proxy_settings_on_one_page ... ok
+test lists::when_the_queue_runs_dry_dm_chimes_and_counts_down_to_what_was_chosen ... ok
+test options::an_option_that_cannot_be_applied_is_said_and_what_was_typed_is_kept ... ok
+test options::appearance_sets_the_theme_and_the_size_of_text_for_the_whole_window ... ok
+test options::ok_keeps_every_setting_of_the_advanced_page ... ok
+test options::options_are_put_into_force_on_ok_and_written_down ... ok
+test options::every_options_tab_stays_put_inside_the_window_at_large_text has been running for over 60 seconds
+test options::options_fits_the_window_at_large_text ... ok
+test options::every_options_tab_stays_put_inside_the_window_at_large_text ... ok
+test options::options_holds_only_new_or_renamed_folders_to_every_computers_rules ... ok
+test options::options_refuses_a_category_that_is_not_one_folder_and_a_relative_download_folder ... ok
+test options::restore_defaults_puts_a_tab_back_and_only_that_tab ... ok
+test options::options_opens_at_its_top_wherever_it_was_left ... ok
+test options::options_tabs_fit_at_150_percent ... ok
+test options::options_refuses_a_proxy_with_no_host ... ok
+test options::site_limits_attempts_and_the_timeout_are_set_in_options_and_reach_the_queue ... ok
+test options::the_command_line_setting_is_in_options_off_by_default_and_saved ... ok
+test options::the_second_network_says_how_to_use_a_phone_step_by_step ... ok
+test options::the_file_types_the_browser_hands_over_are_set_in_options ... ok
+test speed_schedule::a_sleep_the_system_refuses_is_said_in_the_problems ... ok
+test options::the_proxys_bypass_list_and_the_recheck_timer_are_set_in_options ... ok
+test speed_schedule::downloads_finishing_under_the_exit_question_never_quit_dm ... ok
+test options::the_recording_limit_is_set_in_options_and_reaches_the_queue ... ok
+test options::the_sort_survives_a_restart_and_options_keeps_its_place ... ok
+test speed_schedule::start_now_under_a_shut_schedule_offers_to_start_outside_it ... ok
+test speed_schedule::exit_while_downloading_asks_first ... ok
+test speed_schedule::the_download_limit_is_set_in_the_speed_limiter_and_reaches_the_queue ... ok
+test speed_schedule::the_scheduler_refuses_a_time_that_is_not_one_and_says_why ... ok
+test speed_schedule::the_speed_limit_last_turned_off_comes_back_after_a_restart ... ok
+test speed_schedule::the_speed_limiter_item_shows_whether_it_is_on ... ok
+test speed_schedule::the_speed_limiter_turns_off_and_back_on_to_its_last_value ... ok
+test speed_schedule::the_speed_presets_set_and_lift_the_limit ... ok
+test speed_schedule::the_weekly_update_check_asks_nothing_when_off_or_not_yet_due ... ok
+test speed_schedule::when_done_does_not_fire_on_a_stopped_or_schedule_held_queue ... ok
+
+failures:
+
+---- dialogs::a_double_click_opens_properties_and_open_runs_a_finished_file stdout ----
+
+thread 'dialogs::a_double_click_opens_properties_and_open_runs_a_finished_file' (532) panicked at crates\dm-desktop\tests\window\dialogs.rs:242:5:
+assertion `left == right` failed
+  left: []
+ right: ["C:\\Users\\prana\\AppData\\Local\\Temp\\.tmpYV9Kay\\out\\file.zip"]
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+
+---- layout::five_hundred_rows_draw_inside_a_frame_budget stdout ----
+500 rows: 87.00595ms a frame
+500 rows, filtered: 175.89212ms a frame
+
+thread 'layout::five_hundred_rows_draw_inside_a_frame_budget' (13756) panicked at crates\dm-desktop\tests\window\layout.rs:466:5:
+175.89212ms a frame
+
+---- options::a_proxy_that_is_wrong_opens_advanced_at_the_proxy_section stdout ----
+
+thread 'options::a_proxy_that_is_wrong_opens_advanced_at_the_proxy_section' (9488) panicked at crates\dm-desktop\tests\window\support.rs:513:13:
+Found two or more nodes matching the query: 
+By {
+    label: "Downloads",
+}
+
+First node:
+Node {
+    id: FullNodeId(
+        TreeIndex(
+            0,
+        ),
+        #12415620862207118555,
+    ),
+    role: Button,
+    label: "Downloads",
+    focused: false,
+    hidden: false,
+    disabled: true,
+    children: [],
+}
+
+Second node: Node {
+    id: FullNodeId(
+        TreeIndex(
+            0,
+        ),
+        #4339417024239153620,
+    ),
+    role: Button,
+    label: "Downloads",
+    focused: false,
+    hidden: false,
+    disabled: false,
+    toggled: False,
+    children: [],
+}
+
+If you were expecting multiple nodes, use query_all instead of query.
+
+
+failures:
+    dialogs::a_double_click_opens_properties_and_open_runs_a_finished_file
+    layout::five_hundred_rows_draw_inside_a_frame_budget
+    options::a_proxy_that_is_wrong_opens_advanced_at_the_proxy_section
+
+test result: FAILED. 252 passed; 3 failed; 1 ignored; 0 measured; 0 filtered out; finished in 860.58s
+
+error: test failed, to rerun pass `-p dm-desktop --test window`
+error: 1 target failed:
+    `-p dm-desktop --test window`

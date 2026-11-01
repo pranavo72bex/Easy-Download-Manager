@@ -135,7 +135,7 @@ fn escape_closes_the_menu_or_the_dialog_in_front_and_nothing_behind_it() {
     assert!(harness.state().dialogs.options.is_some());
 
     // A combo box dropped down in the dialog, the same.
-    click(&mut harness, "Proxy");
+    click(&mut harness, "Advanced");
     click(&mut harness, "Connect through a proxy");
     harness
         .get_by_role_and_label(Role::ComboBox, "Proxy type")

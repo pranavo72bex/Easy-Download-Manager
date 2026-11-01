@@ -649,8 +649,21 @@ pub(super) fn tab_downloads(ui: &mut egui::Ui, d: &mut OptionsDialog, env: &TabE
     ui.label(RichText::new(t("Downloaded from their official releases, checked, and kept up to date. Off: dm uses only tools you installed yourself.")).small().weak());
 }
 
-/// The Connection tab of Options.
-pub(super) fn tab_connection(ui: &mut egui::Ui, d: &mut OptionsDialog, env: &TabEnv<'_>) {
+/// The Advanced page of Options: the settings the Connection and Proxy tabs
+/// held, one after the other, each with the words it always had.
+pub(super) fn tab_advanced(ui: &mut egui::Ui, d: &mut OptionsDialog, env: &TabEnv<'_>) {
+    section(ui, t("Network"));
+    tab_connection(ui, d, env);
+    // Where a proxy that cannot be one was said, the page opens at it.
+    if std::mem::take(&mut d.to_proxy) {
+        ui.scroll_to_cursor(Some(egui::Align::TOP));
+    }
+    section(ui, t("Proxy"));
+    tab_proxy(ui, d, env);
+}
+
+/// The connection's settings, the first part of the Advanced page.
+fn tab_connection(ui: &mut egui::Ui, d: &mut OptionsDialog, env: &TabEnv<'_>) {
     let TabEnv {
         first, platform, ..
     } = *env;
@@ -816,8 +829,8 @@ pub(super) fn tab_connection(ui: &mut egui::Ui, d: &mut OptionsDialog, env: &Tab
     }
 }
 
-/// The Proxy tab of Options.
-pub(super) fn tab_proxy(ui: &mut egui::Ui, d: &mut OptionsDialog, _env: &TabEnv<'_>) {
+/// The proxy settings, the second part of the Advanced page.
+fn tab_proxy(ui: &mut egui::Ui, d: &mut OptionsDialog, _env: &TabEnv<'_>) {
     let s = &mut d.draft;
     use dm_core::proxy::Kind;
     let p = &mut s.proxy;
