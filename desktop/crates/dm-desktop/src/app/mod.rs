@@ -706,7 +706,7 @@ pub fn worded_problem(problem: &str) -> String {
         .and_then(|rest| rest.split_once("), so it is turned off"));
     match proxy {
         Some((why, _)) => crate::i18n::tf(
-            "The proxy can't be used ({}) and is off. Fix it in Options › Proxy.",
+            "The proxy can't be used ({}) and is off. Fix it in Options › Advanced.",
             &[&why],
         ),
         None => problem.to_string(),

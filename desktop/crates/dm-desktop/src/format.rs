@@ -377,7 +377,7 @@ pub const REASONS: [(&[&str], &str); 32] = [
             "error connecting to proxy",
             "proxy server",
         ],
-        "the proxy couldn't be reached. Check its address in Options › Proxy",
+        "the proxy couldn't be reached. Check its address in Options › Advanced",
     ),
     // A file's own errors, as `dm_core::file_error` words them.
     (&["it is not there"], "it is not there"),

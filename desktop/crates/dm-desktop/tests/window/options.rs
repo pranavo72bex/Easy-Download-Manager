@@ -127,7 +127,7 @@ fn site_limits_attempts_and_the_timeout_are_set_in_options_and_reach_the_queue()
     let world = world();
     let mut harness = world.harness();
     click(&mut harness, "Options");
-    click(&mut harness, "Network");
+    click(&mut harness, "Advanced");
     assert!(harness
         .query_by_label("Attempts per connection (0 to keep trying)")
         .is_some());
@@ -172,7 +172,7 @@ fn site_limits_attempts_and_the_timeout_are_set_in_options_and_reach_the_queue()
     assert_eq!(saved["host_limits"][0]["host"], "slow.example");
     // The limit can be taken off again.
     click(&mut harness, "Options");
-    click(&mut harness, "Network");
+    click(&mut harness, "Advanced");
     click(&mut harness, "Delete site limit");
     click(&mut harness, "OK");
     assert!(harness.state().backend().settings().host_limits.is_empty());
@@ -216,7 +216,7 @@ fn the_proxys_bypass_list_and_the_recheck_timer_are_set_in_options() {
     let world = world();
     let mut harness = world.harness();
     click(&mut harness, "Options");
-    click(&mut harness, "Proxy");
+    click(&mut harness, "Advanced");
     click(&mut harness, "Connect through a proxy");
     type_into(&mut harness, "Host", "proxy.example");
     type_into(
@@ -244,7 +244,7 @@ fn the_proxys_bypass_list_and_the_recheck_timer_are_set_in_options() {
     assert!(options.proxy_for("http://outside.example/a").is_some());
     // Put back, so the other tests' downloads do not go looking for it.
     click(&mut harness, "Options");
-    click(&mut harness, "Proxy");
+    click(&mut harness, "Advanced");
     click(&mut harness, "Connect through a proxy");
     click(&mut harness, "OK");
     assert!(!harness.state().backend().settings().proxy.enabled);
@@ -677,7 +677,7 @@ fn the_sort_survives_a_restart_and_options_keeps_its_place() {
             .bounding_box()
     };
     let first = ok(&harness);
-    for tab in ["Folders", "Network", "Sign-ins", "Downloads", "General"] {
+    for tab in ["Folders", "Advanced", "Sign-ins", "Downloads", "General"] {
         // The tab, not the menu of that name: Options is drawn after it.
         harness.query_all_by_label(tab).last().unwrap().click();
         harness.run_steps(3);
@@ -689,14 +689,14 @@ fn the_sort_survives_a_restart_and_options_keeps_its_place() {
 }
 
 /// OK refuses a proxy turned on with no host, or with an address
-/// where its host goes, and says why on the Proxy tab; nothing is put in force.
+/// where its host goes, and says why on the Advanced page, at its proxy section; nothing is put in force.
 #[test]
 fn options_refuses_a_proxy_with_no_host() {
     let _file = settings_file();
     let world = world();
     let mut harness = world.harness();
     click(&mut harness, "Options");
-    click(&mut harness, "Proxy");
+    click(&mut harness, "Advanced");
     click(&mut harness, "Connect through a proxy");
     click(&mut harness, "OK");
     assert!(
@@ -927,7 +927,7 @@ fn the_command_line_setting_is_in_options_off_by_default_and_saved() {
     assert_eq!(saved["allow_command_line"], true);
 }
 
-/// Options › Network: a site's rule gives its downloads a folder and a speed
+/// Options › Advanced: a site's rule gives its downloads a folder and a speed
 /// limit of their own, from the moment they are added by any way in.
 #[test]
 fn a_site_rule_set_in_options_sends_that_sites_downloads_to_its_folder_at_its_speed() {
@@ -936,7 +936,7 @@ fn a_site_rule_set_in_options_sends_that_sites_downloads_to_its_folder_at_its_sp
     let mut harness = world.harness();
     let folder = tempfile::tempdir().unwrap();
     click(&mut harness, "Options");
-    click(&mut harness, "Network");
+    click(&mut harness, "Advanced");
     assert!(harness.query_by_label("Add a site rule").is_some());
     click(&mut harness, "Add a site rule");
     if let Some(d) = harness.state_mut().dialogs.options.as_mut() {
@@ -966,7 +966,7 @@ fn a_site_rule_set_in_options_sends_that_sites_downloads_to_its_folder_at_its_sp
 
     // The rule can be deleted again.
     click(&mut harness, "Options");
-    click(&mut harness, "Network");
+    click(&mut harness, "Advanced");
     click(&mut harness, "Delete site rule");
     click(&mut harness, "OK");
     assert!(harness.state().backend().settings().site_rules.is_empty());
@@ -1043,6 +1043,7 @@ fn restore_defaults_puts_a_tab_back_and_only_that_tab() {
         custom: Vec::new(),
         fresh: false,
         fresh_tab: 0,
+        to_proxy: false,
     };
     dialog.restore_defaults();
     let defaults = dm_shell::settings::Settings::default();
@@ -1059,14 +1060,14 @@ fn restore_defaults_puts_a_tab_back_and_only_that_tab() {
     assert_eq!(dialog.types, defaults.catch.extensions.join(" "));
 }
 
-/// Options › Network says how to have a phone as the second network, in
+/// Options › Advanced says how to have a phone as the second network, in
 /// steps folded away until asked for.
 #[test]
 fn the_second_network_says_how_to_use_a_phone_step_by_step() {
     let world = world();
     let mut harness = world.harness();
     click(&mut harness, "Options");
-    click(&mut harness, "Network");
+    click(&mut harness, "Advanced");
     harness.run_steps(2);
     assert!(harness
         .query_by_label_contains("Turn on its hotspot")
@@ -1081,4 +1082,117 @@ fn the_second_network_says_how_to_use_a_phone_step_by_step() {
         assert!(harness.query_by_label_contains(step).is_some(), "{step}");
     }
     click(&mut harness, "Cancel");
+}
+
+/// Options has one Advanced page for what were the Connection and Proxy tabs:
+/// both groups of settings are on it, and neither tab is in the list any more.
+#[test]
+fn advanced_holds_the_connection_and_the_proxy_settings_on_one_page() {
+    use dm_desktop::dialogs::{Tab, TABS};
+    assert!(TABS.iter().any(|(tab, _)| *tab == Tab::Advanced));
+    assert!(
+        !TABS
+            .iter()
+            .any(|(_, name)| *name == "Network" || *name == "Proxy"),
+        "the Connection and Proxy tabs are still in the list"
+    );
+    let _file = settings_file();
+    let world = world();
+    let mut harness = world.harness();
+    click(&mut harness, "Options");
+    click(&mut harness, "Advanced");
+    for name in [
+        "Speed limit, KB/s (0 for none)",
+        "Attempts per connection (0 to keep trying)",
+        "Wait between attempts (seconds, 0 for automatic)",
+        "Time out a silent connection after (seconds)",
+        "Second network",
+        "Connect through a proxy",
+    ] {
+        assert!(
+            harness.query_by_label(name).is_some(),
+            "{name:?} is not on the Advanced page"
+        );
+    }
+    click(&mut harness, "Cancel");
+}
+
+/// A proxy that cannot be one, found by OK on another tab, is shown where it
+/// is said: Advanced opens at its proxy section.
+#[test]
+fn a_proxy_that_is_wrong_opens_advanced_at_the_proxy_section() {
+    use dm_desktop::dialogs::Tab;
+    let _file = settings_file();
+    let world = world();
+    let mut harness = world.harness();
+    click(&mut harness, "Options");
+    // Another tab, as a person leaves the proxy for another page and presses OK.
+    if let Some(d) = harness.state_mut().dialogs.options.as_mut() {
+        d.tab = Tab::Downloads;
+        d.draft.proxy.enabled = true;
+        d.draft.proxy.host = String::new();
+    }
+    harness.run_steps(2);
+    click(&mut harness, "OK");
+    let options = harness
+        .state()
+        .dialogs
+        .options
+        .as_ref()
+        .expect("OK took a proxy with no host");
+    assert_eq!(options.tab, Tab::Advanced);
+    assert!(
+        !options.to_proxy,
+        "the page did not scroll to the proxy section"
+    );
+    assert!(harness
+        .query_by_label_contains("Enter the proxy's host")
+        .is_some());
+    assert!(harness.query_by_label("Connect through a proxy").is_some());
+    click(&mut harness, "Cancel");
+}
+
+/// OK keeps every setting the Advanced page holds, as the two tabs did.
+#[test]
+fn ok_keeps_every_setting_of_the_advanced_page() {
+    let _file = settings_file();
+    let world = world();
+    let mut harness = world.harness();
+    click(&mut harness, "Options");
+    click(&mut harness, "Advanced");
+    if let Some(d) = harness.state_mut().dialogs.options.as_mut() {
+        d.draft.speed_limit = 321;
+        d.draft.attempts = 7;
+        d.draft.retry_wait = 9;
+        d.draft.read_timeout = 45;
+        d.draft.proxy.enabled = true;
+        d.draft.proxy.kind = dm_core::proxy::Kind::Http;
+        d.draft.proxy.host = "proxy.example".into();
+        d.draft.proxy.port = 3128;
+        d.draft.proxy.username = "someone".into();
+    }
+    harness.run_steps(2);
+    click(&mut harness, "OK");
+    assert!(
+        harness.state().dialogs.options.is_none(),
+        "OK did not close Options"
+    );
+    let s = harness.state().backend().settings();
+    assert_eq!(
+        (s.speed_limit, s.attempts, s.retry_wait, s.read_timeout),
+        (321, 7, 9, 45)
+    );
+    assert!(s.proxy.enabled);
+    assert_eq!(
+        (
+            s.proxy.host.as_str(),
+            s.proxy.port,
+            s.proxy.username.as_str()
+        ),
+        ("proxy.example", 3128, "someone")
+    );
+    let saved: serde_json::Value =
+        serde_json::from_str(&std::fs::read_to_string(Settings::path()).unwrap()).unwrap();
+    assert_eq!(saved["speed_limit"], 321);
+    assert_eq!(saved["proxy"]["host"], "proxy.example");
 }

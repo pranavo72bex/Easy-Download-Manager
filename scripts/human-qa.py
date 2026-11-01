@@ -948,6 +948,28 @@ def walk(dm, origin):
     dm.click("Cancel")
     pause(0.6)
 
+    # Options' tabs: the connection's and the proxy's settings are one Advanced page.
+    dm.click("Options")
+    for _ in range(40):
+        if "Options" in dm.dialogs():
+            break
+        time.sleep(0.1)
+    pause(0.8)
+    dm.click("Advanced")
+    pause(0.8)
+    words = dm.dialog_texts()
+    first = "Speed limit, KB/s (0 for none)"
+    # What is drawn before the first setting: the tabs, then the page's first heading.
+    before = words[:words.index(first)] if first in words else []
+    tabs = ("General", "Browser", "Folders", "Downloads", "Advanced", "Sign-ins")
+    check("B43", "Options has six tabs with Advanced among them, and no Network or Proxy tab",
+          bool(before) and all(tab in before for tab in tabs) and before.count("Network") == 1 and "Proxy" not in before,
+          f"{before}")
+    check("B43", "Advanced opens on the connection's settings, under their heading",
+          first in words and "Attempts per connection (0 to keep trying)" in words, f"{words[:14]}")
+    dm.click("Cancel")
+    pause(0.6)
+
     print("\nHow the window looks", flush=True)
     for name in ("empty-window", "add-url", "download-details"):
         now = WORK / "pictures" / f"{name}.png"
