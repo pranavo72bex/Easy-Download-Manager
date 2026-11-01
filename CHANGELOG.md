@@ -5,6 +5,9 @@ the browser extension (`v*` tags) are versioned separately.
 
 ## App 0.8.6, extension 3.2.1
 
+- After each download segment finishes on a multi-connection download, dm re-fetches its last 4 KB from the server and compares it byte-for-byte with what is on disk (ENG-D12, clean-room); a difference clears the staged file and restarts the download.
+- Two unit-test bugs fixed: the AAC fixture `sound.f140.m4a` is mono, so the channel assertion now says 1; `plan_plain_part` now refuses a time range whose start is entirely past the track's end.
+
 - Six `dm_core` modules (`clip`, `control`, `limit`, `metalink`, `progress`, `zipinfo`) are private so their items have one path, the crate root; users that reached root items by a module path now use the root (gaps row 28; written without a build).
 - The other eleven (`category`, `checksum`, `download`, `plan`, `probe`, `proxy`, `queue`, `schedule`, `stream`, `torrent`, `second_path`) are private too: every item callers used by a module path is re-exported at the crate root (a few renamed where two modules shared a name: `ProxyKind`, `StreamKind`, `record_plan`, `sanitize_name`, `decode_percent`, `minutes_of`, `pick_quality`, `stream_variants`, `parse_metalink`), and the callers use the root path. Gaps row 28 is closed (written without a build).
 
