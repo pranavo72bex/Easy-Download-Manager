@@ -18,6 +18,24 @@ pub fn served(home: &Path) -> Rules {
     Rules::newest(shipped, found(home))
 }
 
+/// Keeps `text`, a rules document fetched by the update check, in the home folder when it is one
+/// this side reads and newer than what is served now (the shipped document being the floor).
+/// `Ok(true)` when it was kept, `Ok(false)` when it is not newer; the previous file is untouched
+/// on any error. Written whole under another name and moved into place.
+pub fn adopt(home: &Path, text: &str) -> Result<bool, String> {
+    let rules = Rules::parse(text)?;
+    if rules.revision <= served(home).revision {
+        return Ok(false);
+    }
+    let temp = home.join(format!("{FILE}.new"));
+    std::fs::write(&temp, text).map_err(|why| why.to_string())?;
+    std::fs::rename(&temp, home.join(FILE)).map_err(|why| {
+        let _ = std::fs::remove_file(&temp);
+        why.to_string()
+    })?;
+    Ok(true)
+}
+
 /// The home folder's document, if it is there and is one.
 fn found(home: &Path) -> Option<Rules> {
     let path = home.join(FILE);
@@ -84,6 +102,41 @@ mod tests {
         let huge = vec![b' '; dm_protocol::MAX_RULES_BYTES + 1];
         std::fs::write(dir.join(FILE), huge).expect("written");
         assert_eq!(served(&dir), shipped);
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn adopting_keeps_only_a_newer_document_and_leaves_the_old_file_on_any_refusal() {
+        let dir = home();
+        let shipped = Rules::parse(SHIPPED).expect("shipped");
+        let doc = |revision: u64, host: &str| {
+            format!(
+                r#"{{ "format": 1, "revision": {revision}, "exclude": {{ "advert_hosts": ["{host}"] }} }}"#
+            )
+        };
+        // Not newer than the shipped floor: not kept.
+        assert_eq!(adopt(&dir, &doc(shipped.revision, "a.example")), Ok(false));
+        assert!(!dir.join(FILE).exists());
+        // Newer: kept and served.
+        assert_eq!(
+            adopt(&dir, &doc(shipped.revision + 5, "b.example")),
+            Ok(true)
+        );
+        assert_eq!(served(&dir).exclude.advert_hosts, vec!["b.example"]);
+        // Older than the kept one: not kept, the kept one stays.
+        assert_eq!(
+            adopt(&dir, &doc(shipped.revision + 2, "c.example")),
+            Ok(false)
+        );
+        assert_eq!(served(&dir).exclude.advert_hosts, vec!["b.example"]);
+        // Garbage, a format not read, too large: refused, the kept one stays.
+        for bad in ["not json", r#"{ "format": 9, "revision": 99 }"#] {
+            assert!(adopt(&dir, bad).is_err(), "{bad:?}");
+        }
+        let huge = " ".repeat(dm_protocol::MAX_RULES_BYTES + 1);
+        assert!(adopt(&dir, &huge).is_err());
+        assert_eq!(served(&dir).exclude.advert_hosts, vec!["b.example"]);
+        assert!(!dir.join(format!("{FILE}.new")).exists());
         let _ = std::fs::remove_dir_all(&dir);
     }
 }

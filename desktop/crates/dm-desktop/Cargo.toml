@@ -63,6 +63,8 @@ image = { version = "0.25", default-features = false, features = ["png"] }
 # since an app opened from the Dock or a login item has no LANG.
 sys-locale = "0.3"
 trash = "5.2.9"
+# The digest of a rules document the update manifest lists (update.rs).
+sha2 = "0.11.0"
 
 # Dragging a finished file out of the window, into Finder, Explorer, a mail
 # or a chat. It starts the drag from the window's native handle, which it

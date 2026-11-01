@@ -3648,3 +3648,7 @@ in place by a file and not a release. Decisions:
   signed update manifests.
 * Considered and not chosen: serving the document through `settings.get`. The hello is answered first and once per
   handshake, and the decisions that need the rules (the never-caught list) run before the settings arrive.
+
+## 2026-11-01: Site rules ride in the update manifest, checked by digest
+
+`latest.json` may carry `rules`: `{url, sha256, size}`, the address under dm's own releases, size at most 256 KiB. The weekly or manual update check fetches it, requires the exact size and digest, parses it as `Rules` and keeps it as `rules.json` in dm's home only when its `revision` beats what is served (the shipped document is the floor); anything else is passed over silently and the check itself does not fail. Trust rests on the manifest being fetched over TLS from the project's releases plus the digest; this tree has no separate signature check on `latest.json` to lean on (the 2026-10-25 entry describes one), so none is claimed here.

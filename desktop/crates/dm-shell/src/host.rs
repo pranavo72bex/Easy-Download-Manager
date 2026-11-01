@@ -74,7 +74,7 @@ pub struct Request {
 }
 
 mod parent;
-mod served;
+pub mod served;
 /// The browser this host was started by, by its parent process's program
 /// name (past the `cmd` Chrome and Edge start it through on Windows), in the
 /// words a person knows it by. `None` where it cannot be told.
