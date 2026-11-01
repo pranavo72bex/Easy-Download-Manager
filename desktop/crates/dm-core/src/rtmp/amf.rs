@@ -12,11 +12,17 @@ pub(super) fn be(b: &[u8], n: usize) -> u32 {
 /// An AMF0 value, as much of one as a player reads.
 #[derive(Debug, Clone, PartialEq)]
 pub enum Amf {
+    /// A number.
     Number(f64),
+    /// A true or false.
     Bool(bool),
+    /// A text.
     String(String),
+    /// An object: names and values, in order.
     Object(Vec<(String, Amf)>),
+    /// Nothing.
     Null,
+    /// Any other kind, which dm does not read.
     Other,
 }
 

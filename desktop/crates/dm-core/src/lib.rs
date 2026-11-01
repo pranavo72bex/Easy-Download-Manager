@@ -116,6 +116,7 @@ pub use zipinfo::{zip_contents, zip_contents_of_file, ZipEntry};
 /// said, because "it failed" sends people looking in the wrong place.
 #[derive(Debug, thiserror::Error)]
 pub enum Error {
+    /// The server answered with a status that is not a success.
     #[error("the server answered {} for {url}{}", status_line(*.status), if .body.is_empty() { String::new() } else { format!(" — {body}") })]
     Refused {
         status: u16,
@@ -154,6 +155,7 @@ pub enum Error {
     #[error("paused")]
     Paused,
 
+    /// The download was cancelled.
     #[error("cancelled")]
     Cancelled,
 
@@ -172,6 +174,7 @@ pub enum Error {
     #[error("network: {0}")]
     Connection(String),
 
+    /// The disk refused a read or a write.
     #[error("disk: {0}")]
     Disk(#[from] std::io::Error),
 
@@ -707,6 +710,8 @@ pub fn first_agent() -> &'static str {
     }
 }
 
+/// The identity (`User-Agent`) dm presents to `url`'s host.
+#[must_use]
 pub fn agent_for(url: &str) -> &'static str {
     host_of(url)
         .and_then(|host| lock(plain_hosts()).get(&host).copied())

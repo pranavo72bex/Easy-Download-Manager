@@ -352,7 +352,9 @@ where
 /// pace (`backoff`), or a person's fixed wait from Options › Advanced.
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
 pub struct Tries {
+    /// How many tries before giving up.
     pub attempts: u32,
+    /// The wait between tries; `None` is dm's own pace.
     pub wait: Option<Duration>,
 }
 

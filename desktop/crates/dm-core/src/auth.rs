@@ -34,9 +34,13 @@ use crate::Error;
 /// The hash a challenge names.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Algorithm {
+    /// MD5, the algorithm a server names when it says none.
     Md5,
+    /// MD5 with the session variant, whose first hash is made once per session.
     Md5Sess,
+    /// SHA-256.
     Sha256,
+    /// SHA-256 with the session variant.
     Sha256Sess,
 }
 
@@ -81,12 +85,16 @@ impl Algorithm {
 /// What a server's `WWW-Authenticate: Digest` asked for.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Challenge {
+    /// The protection space the server named, which the answer repeats.
     pub realm: String,
+    /// The server's one-time value, which the answer is computed from.
     pub nonce: String,
+    /// The server's opaque string, sent back unchanged where it gave one.
     pub opaque: Option<String>,
     /// Whether `qop=auth` was offered; the older form without it is still
     /// answered, as RFC 2069 servers want.
     pub qop: bool,
+    /// The hash the server asked the answer to be made with.
     pub algorithm: Algorithm,
     /// The server said the nonce it was given has expired, and the login
     /// itself was fine.

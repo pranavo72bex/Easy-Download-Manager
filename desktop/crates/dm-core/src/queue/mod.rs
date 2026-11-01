@@ -56,13 +56,18 @@ pub type Id = u64;
 #[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
 #[serde(tag = "kind", content = "reason", rename_all = "lowercase")]
 pub enum State {
+    /// Waiting for its turn.
     Queued,
+    /// Being downloaded now.
     Running,
+    /// Stopped by the person, to be resumed.
     Paused,
+    /// Finished and in its place.
     Completed,
     /// Carries the reason, because a row saying only "failed" sends people
     /// looking in the wrong place.
     Failed(String),
+    /// Stopped by the person for good.
     Cancelled,
 }
 
@@ -89,9 +94,13 @@ pub const LINK_EXPIRED: &str =
 /// One row.
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct Entry {
+    /// The row's number, never reused.
     pub id: Id,
+    /// The address it is downloaded from.
     pub url: String,
+    /// Where it has got to.
     pub state: State,
+    /// How much of it is done, and how fast.
     pub progress: Progress,
     /// Empty until the probe has learned one.
     pub filename: String,
@@ -231,8 +240,11 @@ fn is_zero(n: &u64) -> bool {
 /// it costs the transfer nothing.
 #[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub struct Connection {
+    /// The first byte of the connection's range.
     pub start: u64,
+    /// The last byte of the range, inclusive.
     pub end: u64,
+    /// How many bytes of the range are on disk.
     pub done: u64,
     /// Its part file is there: the server has answered for this range, so
     /// it is under way though its first bytes may still be in a buffer.
@@ -259,12 +271,18 @@ impl Entry {
     }
 }
 
+/// What a caller may say when it adds a download.
 #[derive(Debug, Clone, Default)]
 pub struct AddOptions {
+    /// The page the link was found on, where known.
     pub referrer: String,
+    /// The person's note on the download.
     pub description: String,
+    /// The queue to add it to; empty is the main queue.
     pub queue: String,
+    /// The folder to save in, in place of the default.
     pub save_dir: Option<String>,
+    /// The name to save under, in place of the one found.
     pub save_name: Option<String>,
     /// "Add for later": added paused, waiting for its queue to start.
     pub later: bool,
@@ -498,6 +516,7 @@ pub fn accepted(url: &str) -> bool {
 }
 
 impl Queue {
+    /// A queue that downloads with `client` and `options`, `concurrency` files at a time.
     pub fn new(client: reqwest::Client, options: Options, concurrency: usize) -> Self {
         Queue {
             inner: Arc::new(Inner {

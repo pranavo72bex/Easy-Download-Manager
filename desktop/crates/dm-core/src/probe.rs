@@ -12,7 +12,9 @@ use crate::Error;
 pub struct Probe {
     /// `None` where the server would not say, which is not the same as zero.
     pub size: Option<u64>,
+    /// Whether the server answers range requests.
     pub resumable: bool,
+    /// The name the server suggested, or the one in the address; empty if none.
     pub filename: String,
     /// ETag or Last-Modified, whichever the server offered. Sent back as
     /// `If-Range` so a file republished mid-download is noticed rather than
@@ -50,7 +52,9 @@ pub async fn probe(
 
 /// A probe whose response body has not been read yet.
 pub struct ProbeWithBody {
+    /// What the first request taught.
     pub probe: Probe,
+    /// The answer, its body not yet read.
     pub response: reqwest::Response,
 }
 
@@ -358,6 +362,8 @@ fn header_text(bytes: &[u8]) -> String {
     }
 }
 
+/// A name made safe to use as a file name: its folder part cut off and characters the disk refuses replaced.
+#[must_use]
 pub fn sanitize(name: &str) -> String {
     let last = name.rsplit(['/', '\\']).next().unwrap_or(name);
     let cleaned: String = last

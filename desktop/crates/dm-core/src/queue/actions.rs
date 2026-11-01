@@ -45,6 +45,7 @@ impl Queue {
         Ok(())
     }
 
+    /// Sets the hash the finished file is checked against, or clears it.
     pub async fn set_checksum(&self, id: Id, checksum: Option<Checksum>) {
         if let Some(slot) = self.inner.slots.lock().await.get_mut(&id) {
             slot.entry_mut().checksum = checksum;
@@ -240,6 +241,7 @@ impl Queue {
         true
     }
 
+    /// Cancels the download for good.
     pub async fn cancel(&self, id: Id) {
         let mut slots = self.inner.slots.lock().await;
         let Some(slot) = slots.get_mut(&id) else {

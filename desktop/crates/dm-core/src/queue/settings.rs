@@ -47,6 +47,7 @@ impl Queue {
         due
     }
 
+    /// Sets how many downloads each named queue may run at once.
     pub fn set_queue_limits(&self, limits: HashMap<String, usize>) {
         *crate::lock(&self.inner.queue_limits) = limits
             .into_iter()
@@ -55,10 +56,13 @@ impl Queue {
             .collect();
     }
 
+    /// How many downloads each named queue may run at once.
+    #[must_use]
     pub fn queue_limits(&self) -> HashMap<String, usize> {
         crate::lock(&self.inner.queue_limits).clone()
     }
 
+    /// Sets how many downloads may run at once.
     pub fn set_concurrency(&self, limit: usize) {
         self.inner
             .concurrency
@@ -98,6 +102,8 @@ impl Queue {
         limiter.set_rate(bytes_per_second).await;
     }
 
+    /// The schedule now in force.
+    #[must_use]
     pub fn schedule(&self) -> Schedule {
         crate::lock(&self.inner.schedule).clone()
     }
@@ -111,6 +117,7 @@ impl Queue {
         crate::lock(&self.inner.schedule).open()
     }
 
+    /// Sets the schedule.
     pub fn set_schedule(&self, schedule: Schedule) {
         *crate::lock(&self.inner.schedule) = schedule;
     }

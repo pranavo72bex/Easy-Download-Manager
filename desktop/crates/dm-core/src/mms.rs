@@ -99,7 +99,9 @@ pub fn header_facts(header: &[u8]) -> (Option<u32>, Vec<u16>) {
 
 /// One MMSH chunk: its kind (`b'H'`, `b'D'`, `b'E'` …) and body.
 pub struct Chunk {
+    /// The chunk's kind letter.
     pub kind: u8,
+    /// The chunk's bytes.
     pub body: Vec<u8>,
 }
 

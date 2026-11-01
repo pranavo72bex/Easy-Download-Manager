@@ -30,6 +30,7 @@ const MOST_PIECES: usize = 200_000;
 /// One request: an address, and the bytes of it where it is part of a file.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Piece {
+    /// The address to fetch.
     pub url: String,
     /// First and last byte, inclusive.
     pub range: Option<(u64, u64)>,
@@ -44,28 +45,36 @@ pub struct Piece {
 /// An AES-128 key and the initialisation vector one piece is scrambled with.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Lock {
+    /// The AES-128 key, 16 bytes.
     pub key: Vec<u8>,
+    /// The initialisation vector, 16 bytes.
     pub iv: [u8; 16],
 }
 
 /// Whether a track carries picture or sound.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Medium {
+    /// A picture track.
     Video,
+    /// A sound track.
     Audio,
 }
 
 /// One quality of one medium, as the pieces to fetch in order.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Track {
+    /// Whether the track is picture or sound.
     pub medium: Medium,
+    /// The id the manifest gave the track.
     pub id: String,
+    /// Bits per second the manifest says the track needs.
     pub bandwidth: u64,
     /// The picture's shorter side, which is what a quality names (a
     /// portrait video's width); 0 for sound.
     pub height: u32,
     /// WebM (VP8, VP9, AV1 with Opus or Vorbis) rather than MP4.
     pub webm: bool,
+    /// The pieces to fetch, in playing order.
     pub pieces: Vec<Piece>,
     /// Set where the track is one file whose own index (`sidx`) says where its
     /// pieces lie: a part of it is then cut by that index, not by the list.
@@ -76,14 +85,18 @@ pub struct Track {
 /// manifest said (otherwise they are looked for at the file's start).
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Indexed {
+    /// The bytes of the file's first boxes (`init`), first and last, inclusive.
     pub init: Option<(u64, u64)>,
+    /// The bytes of the file's index, first and last, inclusive.
     pub index: Option<(u64, u64)>,
 }
 
 /// What to fetch for a wanted quality.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Plan {
+    /// The picture track to fetch, where the quality has one.
     pub video: Option<Track>,
+    /// The sound track to fetch, where it is listed apart from the picture.
     pub audio: Option<Track>,
 }
 

@@ -11,8 +11,11 @@ mod win;
 
 /// Interleaved 16-bit samples, their channels and their rate.
 pub struct Pcm {
+    /// The samples, left and right interleaved.
     pub samples: Vec<i16>,
+    /// How many channels the samples have.
     pub channels: usize,
+    /// Samples per second, per channel.
     pub rate: u32,
 }
 

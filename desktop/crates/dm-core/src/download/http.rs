@@ -225,11 +225,15 @@ pub(crate) async fn fetch_capped(
 
 /// Something small fetched whole, and where it was finally served from.
 pub(crate) struct Fetched {
+    /// What the server sent.
     pub body: Vec<u8>,
+    /// The address it was finally served from, after redirects.
     pub landed: String,
 }
 
 impl Fetched {
+    /// The body read as text; bytes that are not UTF-8 become replacement characters.
+    #[must_use]
     pub fn text(&self) -> String {
         String::from_utf8_lossy(&self.body).into_owned()
     }

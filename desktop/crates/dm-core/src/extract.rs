@@ -29,6 +29,7 @@ pub struct Limits {
     /// Extracted size over stored size, for an archive past `ratio_floor`
     /// bytes (a small file may compress very well without being a bomb).
     pub max_ratio: u64,
+    /// Bytes an archive may have before the ratio limit is applied.
     pub ratio_floor: u64,
 }
 
@@ -46,27 +47,39 @@ impl Default for Limits {
 /// What an extraction made.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Extracted {
+    /// The new folder the files were put in.
     pub folder: PathBuf,
+    /// How many files were extracted.
     pub files: usize,
+    /// How many bytes they came to.
     pub bytes: u64,
 }
 
+/// Why an archive was not extracted.
 #[derive(Debug, thiserror::Error)]
 pub enum Error {
+    /// The file is not a ZIP archive dm can read.
     #[error("this is not a ZIP archive that can be read: {0}")]
     Unreadable(String),
+    /// An entry would land outside the folder.
     #[error("the archive has an entry that would leave its folder: {0}")]
     Escapes(String),
+    /// An entry is a link or a special file.
     #[error("the archive holds a link or special file, which dm does not extract: {0}")]
     Special(String),
+    /// An entry is protected by a password.
     #[error("the archive is password-protected, which dm does not extract: {0}")]
     Encrypted(String),
+    /// Two entries have the same name.
     #[error("the archive lists the same name twice: {0}")]
     Duplicate(String),
+    /// The archive is past a limit; the text names which.
     #[error("the archive is larger than dm will extract ({0})")]
     TooBig(&'static str),
+    /// The person stopped it.
     #[error("the archive was stopped")]
     Cancelled,
+    /// The disk refused; the text says how.
     #[error("{0}")]
     Io(String),
 }

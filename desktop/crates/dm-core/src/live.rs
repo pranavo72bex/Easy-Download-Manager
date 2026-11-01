@@ -81,6 +81,7 @@ pub fn name_for(url: &str) -> String {
     format!("{stem}.{ext}")
 }
 
+/// Records a live stream into the folder in `options` until it ends or is stopped; returns what came of it.
 pub async fn download_live(
     url: &str,
     options: &Options,

@@ -57,7 +57,9 @@ pub fn negotiate() -> Vec<u8> {
 /// The server's challenge, as read from its message.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Challenge {
+    /// The negotiation flags the server set.
     pub flags: u32,
+    /// The 8 random bytes the answer is computed from.
     pub server_challenge: [u8; 8],
     /// Its target info, sent back inside the answer as it came.
     pub target_info: Vec<u8>,

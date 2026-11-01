@@ -49,6 +49,7 @@ pub use space::*;
 /// How a download should be carried out.
 #[derive(Debug, Clone)]
 pub struct Options {
+    /// How many connections one file may use at most.
     pub connections: usize,
     /// Somewhere to ask this download to stop. Shared, so a caller keeps its
     /// own clone; the default never stops anything.
@@ -152,7 +153,9 @@ pub struct Options {
 /// (`example.com` covers `dl.example.com`), and how many it takes.
 #[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub struct HostLimit {
+    /// The host, or a suffix of it, the limit is for.
     pub host: String,
+    /// How many connections that site takes.
     pub connections: usize,
 }
 
@@ -222,8 +225,11 @@ impl Options {
 /// What happened, once it stopped happening.
 #[derive(Debug)]
 pub struct Finished {
+    /// Where the finished file is.
     pub path: PathBuf,
+    /// Its size in bytes.
     pub bytes: u64,
+    /// How many connections it used.
     pub connections: usize,
     /// What it was sorted as, whether or not sorting was on.
     pub category: category::Category,
@@ -509,6 +515,7 @@ fn is_stream() -> bool {
     STREAM.try_with(|()| ()).is_ok()
 }
 
+/// Downloads `url` into the folder in `options`, reporting through `updates`; returns what came of it.
 pub async fn download(
     client: &reqwest::Client,
     url: &str,
@@ -534,6 +541,7 @@ pub enum Update {
         name: String,
         category: category::Category,
     },
+    /// How far the download has got.
     Progress(Progress),
     /// The server's ETag or Last-Modified for the file being fetched.
     Validator(String),

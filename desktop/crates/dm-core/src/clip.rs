@@ -28,7 +28,9 @@ use crate::Error;
 /// A part of a video: from one second to another.
 #[derive(Debug, Clone, Copy, PartialEq, serde::Serialize, serde::Deserialize)]
 pub struct Span {
+    /// Where the part begins, in seconds of the video.
     pub from: f64,
+    /// Where the part ends, in seconds of the video.
     pub to: f64,
 }
 
@@ -138,16 +140,22 @@ impl Span {
 /// and when it plays, in the index's timescale.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Piece {
+    /// Where the piece starts in the file, in bytes.
     pub offset: u64,
+    /// How many bytes the piece takes.
     pub size: u64,
+    /// When the piece starts playing, in the index's timescale.
     pub start: u64,
+    /// How long the piece plays, in the index's timescale.
     pub duration: u64,
 }
 
 /// A fragmented file's index (`sidx`): its pieces, in order.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Index {
+    /// How many ticks make a second in this file.
     pub timescale: u32,
+    /// The pieces the index names, in order.
     pub pieces: Vec<Piece>,
 }
 

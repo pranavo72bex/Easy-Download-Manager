@@ -17,8 +17,11 @@ const CANCEL: u8 = 2;
 /// What a running download has been asked to do.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Wanted {
+    /// Keep going.
     Run,
+    /// Stop for now and keep what is done.
     Pause,
+    /// Stop for good.
     Cancel,
 }
 
@@ -31,10 +34,13 @@ pub enum Wanted {
 pub struct Control(Arc<AtomicU8>);
 
 impl Control {
+    /// A handle that asks for nothing yet.
+    #[must_use]
     pub fn new() -> Self {
         Control::default()
     }
 
+    /// Asks the download to pause; a cancelled download stays cancelled.
     pub fn pause(&self) {
         // Never over a cancellation: a download being torn down should not be
         // talked back into merely pausing.
@@ -43,6 +49,7 @@ impl Control {
             .compare_exchange(RUN, PAUSE, Ordering::SeqCst, Ordering::SeqCst);
     }
 
+    /// Asks a paused download to run again.
     pub fn resume(&self) {
         let _ = self
             .0
@@ -61,10 +68,13 @@ impl Control {
     /// the task that was stopped still holds the old one, and what it has
     /// to say when it finally returns is about a run the row has moved on
     /// from.
+    #[must_use]
     pub fn is(&self, other: &Control) -> bool {
         Arc::ptr_eq(&self.0, &other.0)
     }
 
+    /// What the download has been asked to do now.
+    #[must_use]
     pub fn wanted(&self) -> Wanted {
         match self.0.load(Ordering::Relaxed) {
             PAUSE => Wanted::Pause,

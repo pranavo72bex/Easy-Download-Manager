@@ -340,6 +340,7 @@ pub fn largest_file(dir: &Path) -> Option<u64> {
     matches!(name.as_str(), "FAT32" | "FAT").then_some(FAT32_MOST)
 }
 
+/// The largest file the folder's disk allows; unknown on this system.
 #[cfg(not(any(target_os = "linux", target_os = "macos", windows)))]
 pub fn largest_file(_dir: &Path) -> Option<u64> {
     None
@@ -375,6 +376,7 @@ pub fn free_space(dir: &Path) -> Option<u64> {
     reported_free(free, total)
 }
 
+/// The free space of the folder's disk; unknown on this system.
 #[cfg(not(any(unix, windows)))]
 pub fn free_space(_dir: &Path) -> Option<u64> {
     None

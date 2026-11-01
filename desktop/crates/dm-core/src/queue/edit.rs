@@ -157,6 +157,7 @@ impl Queue {
         changed
     }
 
+    /// Sets the row's description; false if there is no such row.
     pub async fn set_description(&self, id: Id, text: &str) -> bool {
         let text = text.to_string();
         self.edit(id, |slot| {

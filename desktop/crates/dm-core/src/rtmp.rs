@@ -30,8 +30,11 @@ use crate::Error;
 /// The parts of an `rtmp://` address a player uses.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Target {
+    /// The server's host.
     pub host: String,
+    /// The server's port.
     pub port: u16,
+    /// Whether the connection is encrypted (`rtmps`).
     pub tls: bool,
     /// RTMPT: the same conversation carried in HTTP requests, for networks
     /// that let only the web through.
@@ -40,6 +43,7 @@ pub struct Target {
     pub app: String,
     /// The stream's name: the last part, with its query.
     pub play: String,
+    /// The `tcUrl` the server is told: the address up to the application.
     pub tc_url: String,
 }
 

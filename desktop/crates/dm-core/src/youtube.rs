@@ -95,7 +95,9 @@ pub fn playlist_id(url: &str) -> Option<String> {
 /// One video of a playlist, as its page lists it.
 #[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
 pub struct PlaylistEntry {
+    /// The video's id.
     pub id: String,
+    /// The video's title.
     pub title: String,
     /// How long it plays, where the list says.
     pub seconds: Option<u64>,
@@ -120,9 +122,13 @@ impl PlaylistEntry {
 /// videos, or a continuation YouTube would not answer).
 #[derive(Debug, Clone, PartialEq, Default, serde::Serialize, serde::Deserialize)]
 pub struct Playlist {
+    /// The playlist's id.
     pub id: String,
+    /// The playlist's title.
     pub title: String,
+    /// Its videos, in the playlist's order.
     pub entries: Vec<PlaylistEntry>,
+    /// Whether the list went on past what was read.
     pub cut_short: bool,
 }
 

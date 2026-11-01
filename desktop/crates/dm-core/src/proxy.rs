@@ -11,9 +11,13 @@
 #[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 #[serde(rename_all = "lowercase")]
 pub enum Kind {
+    /// A plain HTTP proxy.
     Http,
+    /// An HTTP proxy reached over TLS.
     Https,
+    /// A SOCKS4 proxy.
     Socks4,
+    /// A SOCKS5 proxy.
     Socks5,
     /// Whatever the computer is set to: the environment's `HTTP_PROXY`,
     /// `HTTPS_PROXY`, `ALL_PROXY` and `NO_PROXY`, and on macOS the system's
@@ -39,15 +43,20 @@ impl Kind {
 /// Where downloads connect through, if anywhere.
 #[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
 pub struct Proxy {
+    /// Whether the proxy is used.
     pub enabled: bool,
+    /// What kind of proxy it is.
     #[serde(rename = "type")]
     pub kind: Kind,
+    /// The proxy's host name or address.
     pub host: String,
+    /// The proxy's port.
     pub port: u16,
     /// Optional, and empty when not in use. Stored beside the host because
     /// that is where a proxy that needs them is configured.
     #[serde(default)]
     pub username: String,
+    /// The password for the proxy, empty if none.
     #[serde(default)]
     pub password: String,
     /// Sites the proxy is not used for: a host, a domain with its

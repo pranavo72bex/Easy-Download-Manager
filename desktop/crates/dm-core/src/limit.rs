@@ -136,6 +136,7 @@ impl Limiter {
             || self.also.as_ref().is_some_and(|own| own.is_limited())
     }
 
+    /// The rate now in force, in bytes per second; 0 is no limit.
     pub async fn rate(&self) -> u64 {
         self.inner.lock().await.rate
     }

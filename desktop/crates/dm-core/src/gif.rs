@@ -50,6 +50,7 @@ pub async fn from_video_async(
 
 /// One picture: `width` by `height` pixels, RGB, row by row.
 pub struct Frame {
+    /// The pixels: three bytes (red, green, blue) each, row by row.
     pub rgb: Vec<u8>,
     /// How long it shows, in hundredths of a second.
     pub delay: u16,

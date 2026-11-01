@@ -13,7 +13,9 @@ use std::sync::RwLock;
 /// its address.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Interface {
+    /// The interface's name.
     pub name: String,
+    /// The interface's address.
     pub address: IpAddr,
 }
 

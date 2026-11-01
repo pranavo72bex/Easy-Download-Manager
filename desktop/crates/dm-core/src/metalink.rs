@@ -81,6 +81,7 @@ pub fn parse(xml: &str) -> Option<Metalink> {
     /// A tuple carried a rank only `url` used and a name only `hash` used,
     /// so two of the three slots were dead in every arm.
     enum Collecting {
+        /// The next text is the file's size.
         Size,
         Hash(String),
         Url(i64),

@@ -15,7 +15,9 @@ use std::path::{Path, PathBuf};
 /// One cue: when it shows and hides, in milliseconds, and its text.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Cue {
+    /// When the cue shows, in milliseconds.
     pub start: u64,
+    /// When the cue hides, in milliseconds.
     pub end: u64,
     /// As written, tags and all (WebM carries WebVTT as WebVTT).
     pub text: String,
@@ -26,6 +28,7 @@ pub struct Cue {
 pub struct Subtitle {
     /// The code in the file's name: `en`, `pt-BR`, `de`.
     pub language: String,
+    /// The cues, in time order.
     pub cues: Vec<Cue>,
 }
 

@@ -17,6 +17,7 @@ const STALE_AHEAD: Duration = Duration::from_secs(3600);
 pub struct Allowance {
     /// Bytes per period; zero is no cap.
     pub bytes: u64,
+    /// The length of the period.
     pub period: Duration,
 }
 
@@ -33,10 +34,13 @@ pub struct Meter {
 }
 
 impl Meter {
+    /// Sets the allowance; what is used so far stays counted.
     pub fn set(&mut self, allowance: Allowance) {
         self.allowance = allowance;
     }
 
+    /// The allowance now in force.
+    #[must_use]
     pub fn allowance(&self) -> Allowance {
         self.allowance
     }
@@ -84,6 +88,8 @@ impl Meter {
         })
     }
 
+    /// Bytes used in the current period.
+    #[must_use]
     pub fn used(&self) -> u64 {
         self.used
     }

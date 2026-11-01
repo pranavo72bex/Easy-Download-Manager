@@ -39,6 +39,7 @@ impl Queue {
             .collect()
     }
 
+    /// The row with this id, if it is still there.
     pub async fn get(&self, id: Id) -> Option<Entry> {
         self.inner
             .slots

@@ -53,7 +53,9 @@ pub(super) async fn describe(target: &Target) -> Result<Described, Error> {
 /// One thing in an FTP folder.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Listed {
+    /// The entry's name.
     pub name: String,
+    /// Whether the entry is a folder.
     pub folder: bool,
 }
 

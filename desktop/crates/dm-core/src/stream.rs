@@ -16,7 +16,9 @@ use crate::Error;
 /// What a manifest URL turns out to be.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Kind {
+    /// An HLS playlist (`.m3u8`).
     Hls,
+    /// A DASH manifest (`.mpd`).
     Dash,
 }
 
@@ -45,6 +47,7 @@ pub fn kind_of(url: &str, content_type: Option<&str>) -> Option<Kind> {
 /// The AES-128 key every segment of a playlist needs.
 #[derive(Debug, Clone, PartialEq)]
 pub struct Key {
+    /// Where the key is fetched from.
     pub uri: String,
     /// The playlist's own IV, where it declared one. Hex, `0x` optional.
     pub iv: Option<String>,
@@ -53,6 +56,7 @@ pub struct Key {
 /// One piece of the stream.
 #[derive(Debug, Clone, PartialEq)]
 pub struct Part {
+    /// The piece's address.
     pub url: String,
     /// An initialisation segment, which must lead the file or nothing decodes.
     pub init: bool,
@@ -70,21 +74,26 @@ pub struct Part {
 /// Everything needed to fetch a stream as one file.
 #[derive(Debug, Clone, PartialEq)]
 pub struct Stream {
+    /// The pieces, in playing order.
     pub parts: Vec<Part>,
+    /// The key they are locked with, if any.
     pub key: Option<Key>,
     /// `ts`, `mp4`, `m4a` or `aac` — what the concatenation will actually be.
     pub container: String,
+    /// The name to save the stream under.
     pub filename: String,
 }
 
 /// One rendition a master playlist offers.
 #[derive(Debug, Clone, PartialEq)]
 pub struct Variant {
+    /// The playlist of this rendition.
     pub url: String,
     /// The picture's shorter side, which is what a quality names: its
     /// height, or a portrait video's width (720 for 720x1280). 0 where the
     /// playlist did not say, which is how audio-only is spotted.
     pub height: u32,
+    /// Bits per second the rendition needs.
     pub bandwidth: u64,
     /// The audio group it plays with (`AUDIO=`), where its sound is listed
     /// apart from it.

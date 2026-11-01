@@ -18,9 +18,11 @@ use chrono::{Datelike, Local, Timelike};
 #[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
 #[serde(default)]
 pub struct Schedule {
+    /// Whether the schedule is used at all.
     pub enabled: bool,
     /// `HH:MM`, local time.
     pub from: String,
+    /// `HH:MM`, local time; the window ends here.
     pub to: String,
     /// Days the window applies on, 0 = Sunday through 6 = Saturday. None
     /// listed means every day, which is what the Scheduler says under its

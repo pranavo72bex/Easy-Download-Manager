@@ -18,8 +18,11 @@ use std::path::Path;
 /// number.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Segment {
+    /// The first byte of the range, inclusive.
     pub start: u64,
+    /// The last byte of the range, inclusive.
     pub end: u64,
+    /// How many of its bytes are on disk, from the start.
     pub done: u64,
 }
 
@@ -35,10 +38,13 @@ impl Segment {
     }
 
     /// Where the next request for this range should begin.
+    #[must_use]
     pub fn cursor(&self) -> u64 {
         self.start + self.done
     }
 
+    /// Whether the whole range is on disk.
+    #[must_use]
     pub fn finished(&self) -> bool {
         self.done >= self.span()
     }
@@ -163,7 +169,9 @@ pub fn pieces(size: Option<u64>, connections: usize, resumable: bool) -> Vec<Seg
 /// one the settings now suggest.
 #[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub struct Recorded {
+    /// The file's size, where the server said.
     pub size: Option<u64>,
+    /// Whether the server answered range requests.
     pub resumable: bool,
     /// `(start, end)` of each range, in part-file order.
     pub ranges: Vec<(u64, u64)>,

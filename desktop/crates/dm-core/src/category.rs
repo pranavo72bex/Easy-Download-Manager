@@ -12,17 +12,24 @@ use std::path::{Path, PathBuf};
 #[serde(rename_all = "lowercase")]
 pub enum Category {
     // Rows saved before the categories had these names still read.
+    /// Video files.
     #[serde(alias = "video")]
     Videos,
+    /// Sound files.
     #[serde(alias = "music")]
     Audio,
+    /// Documents: text, office files, books.
     Documents,
+    /// Programs and installers.
     #[serde(alias = "programs")]
     Apps,
+    /// Compressed archives.
     #[serde(alias = "compressed")]
     Archives,
+    /// Pictures.
     #[serde(alias = "images")]
     Pictures,
+    /// Anything the other kinds do not take.
     Other,
 }
 
@@ -40,6 +47,7 @@ impl Category {
         }
     }
 
+    /// Every kind, in the order the lists and the folder names use.
     pub const ALL: [Category; 7] = [
         Category::Videos,
         Category::Audio,
@@ -180,6 +188,7 @@ fn extension_of(filename: &str) -> String {
 #[derive(Debug, Clone, PartialEq, Default, serde::Serialize, serde::Deserialize)]
 #[serde(default)]
 pub struct Custom {
+    /// The name the person gave the kind; also its folder.
     pub name: String,
     /// Without the dot. Empty means any type, from the sites below.
     pub extensions: Vec<String>,
@@ -269,6 +278,7 @@ pub fn host_of(url: &str) -> String {
 /// Whether to sort at all, and what to call each folder.
 #[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
 pub struct Categories {
+    /// Whether finished files are sorted into folders by kind at all.
     pub enabled: bool,
     /// One name per category, in the order of `Category::ALL`. An empty name
     /// means that category is not nested — a way to say "sort videos out but

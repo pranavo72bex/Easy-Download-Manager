@@ -22,12 +22,15 @@ pub struct Cookie {
     pub domain: String,
     /// Sent to the host's subdomains too.
     pub subdomains: bool,
+    /// The path the cookie is sent for, and below it.
     pub path: String,
     /// Sent only over https.
     pub secure: bool,
     /// Seconds since 1970; 0 for a session cookie.
     pub expires: u64,
+    /// The cookie's name.
     pub name: String,
+    /// The cookie's value.
     pub value: String,
 }
 

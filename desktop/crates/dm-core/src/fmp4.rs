@@ -21,9 +21,13 @@ pub struct Spec {
     /// The whole sample entry: `avc1` with its `avcC`, `mp4a` with its
     /// `esds`, and so on.
     pub entry: Vec<u8>,
+    /// Ticks per second of the track's times.
     pub timescale: u32,
+    /// Whether the track is picture (otherwise sound).
     pub video: bool,
+    /// The picture's width in pixels; 0 for sound.
     pub width: u32,
+    /// The picture's height in pixels; 0 for sound.
     pub height: u32,
 }
 
@@ -52,6 +56,7 @@ pub struct Writer {
     sequence: u32,
     /// The earliest time of any track, which all start from.
     origin: Option<i64>,
+    /// Bytes written to the file so far.
     pub written: u64,
 }
 
