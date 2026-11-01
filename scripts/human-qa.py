@@ -844,6 +844,14 @@ def walk(dm, origin):
           f"{dm.dialogs()}")
 
     print("\nThe list, a running download's window, recent addresses and Find", flush=True)
+    # B45: each row has a small picture of its file's kind, told apart by shape.
+    # big.bin (plain), Report 2026.pdf (document) and pack.zip (archive) are in
+    # the list now; the screenshot shows whether their icons differ by shape.
+    shot45 = dm.picture("b45-icons")
+    check("B45", "each row in the list has a file-kind icon told apart by shape (screenshot: b45-icons.png)",
+          shot45 is not None,
+          f"screenshot {'saved to ' + str(shot45) if shot45 else 'not taken'}")
+
     # B46: a double-click on a download still going opens its progress window,
     # whose title starts with how far it is.
     dm.add(f"{files}/ui.bin")
