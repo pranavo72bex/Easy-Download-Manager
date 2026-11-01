@@ -269,7 +269,9 @@ impl Queue {
         };
         // Sealed under a key the operating system's store keeps, or in clear as ever.
         let (text, in_clear) = match crate::secretstore::opened(&bytes) {
-            crate::secretstore::Opened::Plain => (String::from_utf8_lossy(&bytes).into_owned(), true),
+            crate::secretstore::Opened::Plain => {
+                (String::from_utf8_lossy(&bytes).into_owned(), true)
+            }
             crate::secretstore::Opened::Opened(plain) => {
                 (String::from_utf8_lossy(&plain).into_owned(), false)
             }

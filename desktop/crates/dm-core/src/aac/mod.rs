@@ -125,7 +125,8 @@ fn audio_track(path: &Path) -> Result<(Track, Config), String> {
         .into_iter()
         .find(|t| t.hdlr.get(16..20) == Some(b"soun"))
         .ok_or("the file has no sound track")?;
-    let (name, esds) = sample_entry(&track.stsd).ok_or("the sound track's description is unreadable")?;
+    let (name, esds) =
+        sample_entry(&track.stsd).ok_or("the sound track's description is unreadable")?;
     if &name != b"mp4a" {
         return Err(format!(
             "sound coded as {}, not AAC",
@@ -141,7 +142,8 @@ fn audio_track(path: &Path) -> Result<(Track, Config), String> {
 pub fn read(path: &Path) -> Result<Pcm, String> {
     let (track, config) = audio_track(path)?;
     let mut decoder = decoder::Decoder::new(config.rate_index, config.channels)?;
-    let mut file = File::open(path).map_err(|e| format!("{} could not be read: {e}", path.display()))?;
+    let mut file =
+        File::open(path).map_err(|e| format!("{} could not be read: {e}", path.display()))?;
     let mut samples: Vec<i16> = Vec::new();
     for sample in &track.samples {
         let mut data = vec![0u8; sample.size as usize];
@@ -161,8 +163,8 @@ pub fn read(path: &Path) -> Result<Pcm, String> {
     if let Some(edit) = track.edits.first() {
         let skip = usize::try_from(edit.media_time.max(0)).unwrap_or(0) * per_frame;
         let keep = if edit.duration > 0 && track.edits_timescale > 0 {
-            (edit.duration.saturating_mul(u64::from(config.rate)) / u64::from(track.edits_timescale))
-                as usize
+            (edit.duration.saturating_mul(u64::from(config.rate))
+                / u64::from(track.edits_timescale)) as usize
                 * per_frame
         } else {
             usize::MAX
@@ -199,19 +201,23 @@ mod tests {
     #[test]
     fn other_object_types_and_channel_counts_are_refused_with_a_reason() {
         // HE-AAC (object 5), 6 channels (config 6).
-        assert!(parse_config(&[0x2b, 0x11]).unwrap_err().contains("only AAC-LC"));
-        assert!(parse_config(&[0x11, 0xb0]).unwrap_err().contains("mono and stereo"));
+        assert!(parse_config(&[0x2b, 0x11])
+            .unwrap_err()
+            .contains("only AAC-LC"));
+        assert!(parse_config(&[0x11, 0xb0])
+            .unwrap_err()
+            .contains("mono and stereo"));
         assert!(parse_config(&[0x12]).is_err());
     }
 
     #[test]
     fn the_decoder_specific_info_is_found_in_an_esds() {
         let esds: Vec<u8> = [
-            &[0u8, 0, 0, 0][..],               // version and flags
-            &[0x03, 0x16, 0, 1, 0],            // ES_Descr, id 1, no flags
+            &[0u8, 0, 0, 0][..],                // version and flags
+            &[0x03, 0x16, 0, 1, 0],             // ES_Descr, id 1, no flags
             &[0x04, 0x11, 0x40, 0x15, 0, 0, 0], // DecoderConfig: AAC, audio stream
-            &[0, 0, 0, 0, 0, 0, 0, 0],         // max and average bit rate
-            &[0x05, 0x02, 0x12, 0x10],         // DecSpecificInfo
+            &[0, 0, 0, 0, 0, 0, 0, 0],          // max and average bit rate
+            &[0x05, 0x02, 0x12, 0x10],          // DecSpecificInfo
         ]
         .concat();
         assert_eq!(descriptor_info(&esds), Some(&[0x12u8, 0x10][..]));
@@ -230,7 +236,8 @@ mod tests {
 
     #[test]
     fn the_fixture_m4a_is_read_up_to_the_missing_tables() {
-        let fixture = Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/mp4/sound.f140.m4a");
+        let fixture =
+            Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/mp4/sound.f140.m4a");
         let (track, config) = audio_track(&fixture).unwrap();
         assert_eq!(config.channels, 2);
         assert!(config.rate >= 8000);

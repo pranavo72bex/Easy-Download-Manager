@@ -118,14 +118,17 @@ pub(super) async fn download_mp4_part(
         .map_err(|e| Error::Internal(format!("building the part stopped: {e}")))?;
         if let Err(why) = written {
             let _ = fs::remove_file(&partial).await;
-            return Err(Error::Internal(format!("the part could not be built: {why}")));
+            return Err(Error::Internal(format!(
+                "the part could not be built: {why}"
+            )));
         }
         fs::rename(&partial, &made).await?;
         let _ = fs::remove_file(&data).await;
         let _ = fs::remove_file(&index_file).await;
     }
 
-    let (path, bytes, category) = finish(&name, info.content_type.as_deref(), &[made], options).await?;
+    let (path, bytes, category) =
+        finish(&name, info.content_type.as_deref(), &[made], options).await?;
     Ok(Finished {
         left_behind: None,
         path,
@@ -151,8 +154,9 @@ async fn find_index(
         if at + 8 > size {
             break;
         }
-        let head = hls::fetch_segment_range(client, url, Some((at, (at + 15).min(size - 1))), options)
-            .await?;
+        let head =
+            hls::fetch_segment_range(client, url, Some((at, (at + 15).min(size - 1))), options)
+                .await?;
         let small = head
             .get(0..4)
             .and_then(|b| <[u8; 4]>::try_from(b).ok())

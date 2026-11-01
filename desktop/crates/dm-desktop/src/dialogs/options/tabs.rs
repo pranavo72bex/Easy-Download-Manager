@@ -897,7 +897,7 @@ fn tab_connection(ui: &mut egui::Ui, d: &mut OptionsDialog, env: &TabEnv<'_>) {
 /// The proxy settings, the second part of the Advanced page.
 fn tab_proxy(ui: &mut egui::Ui, d: &mut OptionsDialog, _env: &TabEnv<'_>) {
     let s = &mut d.draft;
-    use dm_core::ProxyKind;
+    use dm_core::ProxyKind as Kind;
     let p = &mut s.proxy;
     toggle_row(ui, &mut p.enabled, t("Connect through a proxy"));
     hint(

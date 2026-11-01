@@ -47,6 +47,21 @@ pub const WINDOWS_MEDIA_FLOOR: u64 = 100 * 1024;
 /// beacon, not a video (reference A's floor).
 pub const SMALLEST_PLAYER: (f64, f64) = (15.0, 10.0);
 
+/// Hosts whose downloads should never be caught: OS update servers and
+/// content-delivery networks that serve only GIF stickers and image embeds.
+/// A file from these hosts is never the file a person is looking for.
+const NEVER_CATCH_HOSTS: &[&str] = &[
+    "update.microsoft.com",
+    "download.windowsupdate.com",
+    "windowsupdate.com",
+    "gstatic.com",
+    "media.tenor.com",
+    "media.tenor.co",
+    "giphy.com",
+    "media.giphy.com",
+    "cdninstagram.com",
+];
+
 /// Advertising networks and trackers by the end of their host name: a host
 /// matches when it is the name or a sub-domain of it.
 const ADVERT_HOSTS: &[&str] = &[
@@ -181,6 +196,10 @@ pub fn address(url: &str) -> Option<Excluded> {
 /// [`address`] against the built-in list and `served`.
 pub fn address_with(url: &str, served: &ExcludeRules) -> Option<Excluded> {
     let host = dm_protocol::host_of(url);
+    // OS update servers and sticker/GIF CDNs are never the file a person wants.
+    if host_is(&host, NEVER_CATCH_HOSTS) {
+        return Some(Excluded::Advert);
+    }
     if host_is(&host, ADVERT_HOSTS) || served_host(&host, &served.advert_hosts) {
         return Some(Excluded::Advert);
     }
@@ -482,5 +501,22 @@ mod tests {
     #[test]
     fn the_smallest_player_is_the_one_the_notes_give() {
         assert_eq!(SMALLEST_PLAYER, (15.0, 10.0));
+    }
+
+    #[test]
+    fn os_update_servers_and_sticker_cdns_are_never_caught() {
+        for url in [
+            "https://update.microsoft.com/windowsupdate/v6/v5controls/en/x86/client/wuwebv.cab",
+            "https://download.windowsupdate.com/c/msdownload/update/software/secu/2024/x.msu",
+            "https://gstatic.com/a.mp4",
+            "https://media.tenor.com/abc123/sticker.mp4",
+            "https://media.tenor.co/abc123.mp4",
+            "https://media.giphy.com/media/abc/giphy.mp4",
+        ] {
+            assert!(
+                address(url).is_some(),
+                "{url} should be excluded but was not"
+            );
+        }
     }
 }

@@ -269,7 +269,8 @@ impl Decoder {
         }
         // Spectral data, quantized.
         let windows: usize = info.groups.iter().sum();
-        let mut quantized = vec![0i32; windows * (info.edges.last().copied().unwrap_or(0) as usize)];
+        let mut quantized =
+            vec![0i32; windows * (info.edges.last().copied().unwrap_or(0) as usize)];
         let width = info.edges.last().copied().unwrap_or(0) as usize;
         let mut first_window = 0;
         for (group, &count) in info.groups.iter().enumerate() {
@@ -292,7 +293,12 @@ impl Decoder {
             first_window += count;
         }
         if let Some((start, pulses)) = pulse {
-            let mut at = usize::from(*info.edges.get(start).ok_or("an AAC pulse start past the bands")?);
+            let mut at = usize::from(
+                *info
+                    .edges
+                    .get(start)
+                    .ok_or("an AAC pulse start past the bands")?,
+            );
             for (offset, amplitude) in pulses {
                 at += offset;
                 let slot = quantized.get_mut(at).ok_or("an AAC pulse past the lines")?;
@@ -309,7 +315,8 @@ impl Decoder {
                     for line in usize::from(info.edges[band])..usize::from(info.edges[band + 1]) {
                         let at = window * width + line;
                         let q = quantized[at];
-                        lines[at] = f64::from(q.signum()) * f64::from(q.abs()).powf(4.0 / 3.0) * gain;
+                        lines[at] =
+                            f64::from(q.signum()) * f64::from(q.abs()).powf(4.0 / 3.0) * gain;
                     }
                 }
             }
@@ -344,7 +351,11 @@ impl Decoder {
             for slot in chunk.iter_mut().rev() {
                 let digit = (index % base) as i32;
                 index /= base;
-                *slot = if signed { digit - (base as i32 - 1) / 2 } else { digit };
+                *slot = if signed {
+                    digit - (base as i32 - 1) / 2
+                } else {
+                    digit
+                };
             }
             if !signed {
                 for slot in chunk.iter_mut() {
@@ -380,10 +391,15 @@ impl Decoder {
 /// Mid/side to left/right on the bands the mask names.
 fn mid_side(left: &mut [f64], right: &mut [f64], info: &Info, mask: &[Vec<bool>]) {
     let width = info.edges.last().copied().unwrap_or(0) as usize;
-    let mut first_window = 0;
+    let first_window = 0;
     for (group, &count) in info.groups.iter().enumerate() {
         for band in 0..info.max_sfb {
-            if !mask.get(group).and_then(|r| r.get(band)).copied().unwrap_or(false) {
+            if !mask
+                .get(group)
+                .and_then(|r| r.get(band))
+                .copied()
+                .unwrap_or(false)
+            {
                 continue;
             }
             for window in first_window..first_window + count {
@@ -431,7 +447,11 @@ fn read_tns(bits: &mut Bits, short: bool) -> Result<Vec<Filter>, String> {
                 let size = if high_resolution { 4 } else { 3 };
                 for _ in 0..order {
                     let raw = bits.bits(size)? as i32;
-                    let index = if raw >= 1 << (size - 1) { raw - (1 << size) } else { raw };
+                    let index = if raw >= 1 << (size - 1) {
+                        raw - (1 << size)
+                    } else {
+                        raw
+                    };
                     let half = f64::from(1 << (size - 1));
                     let scale = if index >= 0 { half - 0.5 } else { half + 0.5 };
                     parcor.push((f64::from(index) * (std::f64::consts::FRAC_PI_2 / scale)).sin());

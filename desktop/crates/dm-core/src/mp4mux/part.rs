@@ -143,9 +143,8 @@ pub(crate) fn write_plain_part(
             crate::shape::apply(track, shape)?;
         }
     }
-    let mut files = vec![
-        File::open(data).map_err(|e| format!("{} could not be read: {e}", data.display()))?
-    ];
+    let mut files =
+        vec![File::open(data).map_err(|e| format!("{} could not be read: {e}", data.display()))?];
     write_output(&plan.tracks, &mut files, out, Some(cut))
 }
 

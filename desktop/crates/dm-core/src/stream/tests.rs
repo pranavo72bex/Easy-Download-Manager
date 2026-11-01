@@ -493,11 +493,24 @@ fn a_portrait_playlist_is_picked_by_the_shorter_side() {
 #[test]
 fn a_span_picks_the_segments_whose_lengths_overlap_it() {
     let text = "#EXTM3U\n#EXT-X-MAP:URI=\"init.mp4\"\n#EXTINF:4.0,\na.m4s\n#EXTINF:4.0,\nb.m4s\n#EXTINF:4.0,\nc.m4s\n#EXTINF:4.0,\nd.m4s\n#EXT-X-ENDLIST\n";
-    let read = media_playlist(text, "http://h/a/index.m3u8", "http://h/s/m.m3u8", Quality::Best).unwrap();
+    let read = media_playlist(
+        text,
+        "http://h/a/index.m3u8",
+        "http://h/s/m.m3u8",
+        Quality::Best,
+    )
+    .unwrap();
     // 5s..9s lies in the second and third segments (4..12s); the init comes first.
     let (picked, starts, ends) = cover(&read, 5.0, 9.0).unwrap();
     let urls: Vec<&str> = picked.parts.iter().map(|p| p.url.as_str()).collect();
-    assert_eq!(urls, ["http://h/a/init.mp4", "http://h/a/b.m4s", "http://h/a/c.m4s"]);
+    assert_eq!(
+        urls,
+        [
+            "http://h/a/init.mp4",
+            "http://h/a/b.m4s",
+            "http://h/a/c.m4s"
+        ]
+    );
     assert_eq!((starts, ends), (4.0, 12.0));
     // A span on a boundary does not drag in the neighbour; one past the end finds nothing.
     let (picked, _, _) = cover(&read, 4.0, 8.0).unwrap();

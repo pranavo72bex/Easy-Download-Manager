@@ -213,9 +213,9 @@ mod read;
 mod text;
 mod write;
 
+pub(crate) use part::*;
 use read::*;
 use text::*;
-pub(crate) use part::*;
 pub(crate) use write::*;
 
 #[cfg(test)]

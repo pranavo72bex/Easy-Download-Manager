@@ -34,3 +34,7 @@ Thumbs.db
 
 # What `make build` made
 /build/
+engine/
+
+# Local-only engine requirements (never committed)
+docs/engine-local/

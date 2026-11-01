@@ -246,9 +246,15 @@ fn a_one_file_track_is_marked_to_be_cut_by_its_own_index() {
     let body = r#"<Period><AdaptationSet mimeType="video/mp4"><Representation id="v" bandwidth="1" height="240">
       <BaseURL>https://other.example/v.mp4</BaseURL><SegmentBase indexRange="800-1200"><Initialization range="0-799"/></SegmentBase>
       </Representation></AdaptationSet></Period>"#;
-    let track = plan(&mpd(body), URL, Quality::Best, None).unwrap().video.unwrap();
+    let track = plan(&mpd(body), URL, Quality::Best, None)
+        .unwrap()
+        .video
+        .unwrap();
     assert_eq!(
         track.indexed,
-        Some(Indexed { init: Some((0, 799)), index: Some((800, 1200)) })
+        Some(Indexed {
+            init: Some((0, 799)),
+            index: Some((800, 1200))
+        })
     );
 }

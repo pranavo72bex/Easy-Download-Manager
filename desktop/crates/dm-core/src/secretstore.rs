@@ -187,7 +187,10 @@ mod tools {
             let out = {
                 // The line is split on spaces and quotes by `security`; dm's names and the base64
                 // text have none, and anything else is refused rather than mis-split.
-                if name.chars().any(|c| c.is_whitespace() || "\"'\\".contains(c)) {
+                if name
+                    .chars()
+                    .any(|c| c.is_whitespace() || "\"'\\".contains(c))
+                {
                     return Err("a secret name dm does not use".to_string());
                 }
                 let line = format!("add-generic-password -U -a dm -s {name} -w {text}\n");

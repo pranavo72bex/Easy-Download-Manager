@@ -129,11 +129,7 @@ pub(super) fn frame_samples(spec: &[f64], sequence: u8, previous: u8, current: u
             let samples = imdct(lines);
             let left = if block == 0 { &first } else { &later };
             for (i, sample) in samples.iter().enumerate() {
-                let w = if i < 128 {
-                    left.get(i)
-                } else {
-                    right.get(i)
-                };
+                let w = if i < 128 { left.get(i) } else { right.get(i) };
                 if let (Some(slot), Some(w)) = (out.get_mut(448 + block * 128 + i), w) {
                     *slot += sample * w;
                 }

@@ -673,7 +673,7 @@ fn plain_hosts() -> &'static std::sync::Mutex<std::collections::HashMap<String, 
 
 /// The server a URL names, host and port: two servers on one host are two
 /// servers, each with its own answer about which agent it takes.
-fn host_of(url: &str) -> Option<String> {
+fn server_of(url: &str) -> Option<String> {
     let url = reqwest::Url::parse(url).ok()?;
     let host = url.host_str()?.to_ascii_lowercase();
     Some(match url.port_or_known_default() {
@@ -713,7 +713,7 @@ pub fn first_agent() -> &'static str {
 /// The identity (`User-Agent`) dm presents to `url`'s host.
 #[must_use]
 pub fn agent_for(url: &str) -> &'static str {
-    host_of(url)
+    server_of(url)
         .and_then(|host| lock(plain_hosts()).get(&host).copied())
         .unwrap_or_else(first_agent)
 }
@@ -723,7 +723,7 @@ pub const FALLBACK_AGENTS: [&str; 3] = [USER_AGENT, PLAIN_AGENT, BROWSER_AGENT];
 
 /// From now on, `url`'s site is asked with `agent`.
 pub fn prefer_agent(url: &str, agent: &'static str) {
-    if let Some(host) = host_of(url) {
+    if let Some(host) = server_of(url) {
         lock(plain_hosts()).insert(host, agent);
     }
 }

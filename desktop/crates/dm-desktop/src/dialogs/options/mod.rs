@@ -248,7 +248,7 @@ pub(super) fn options(app: &mut DmApp, ctx: &egui::Context) {
         // A proxy turned on with nowhere to connect to was taken, and every
         // download then went out directly without a word.
         {
-            use dm_core::ProxyKind;
+            use dm_core::ProxyKind as Kind;
             let p = &wanted.proxy;
             if p.enabled && p.kind != Kind::System {
                 let host = p.host.trim();
