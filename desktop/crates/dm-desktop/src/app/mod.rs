@@ -105,25 +105,38 @@ struct VisibleKey {
 /// A place in the category tree: a filter over the one list.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Place {
+    /// Every download.
     All,
+    /// One built-in category.
     Kind(Category),
     /// A category a person made, by name.
     Custom(String),
+    /// The downloads not yet finished.
     Unfinished,
+    /// The finished downloads.
     Finished,
+    /// The downloads in the queue of this name.
     Queue(String),
 }
 
 /// A column of the download table, in its default order.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum Column {
+    /// The file's name.
     Name,
+    /// The queue the download is in.
     Queue,
+    /// The size.
     Size,
+    /// The status.
     Status,
+    /// The time left.
     TimeLeft,
+    /// The transfer rate.
     Rate,
+    /// The time of the last try.
     LastTry,
+    /// The description.
     Description,
     /// The page a browser handed the download over from.
     Referrer,
@@ -164,6 +177,8 @@ impl Column {
         }
     }
 
+    /// The column saved under `key`, if there is one.
+    #[must_use]
     pub fn from_key(key: &str) -> Option<Column> {
         Column::ALL.into_iter().find(|c| c.key() == key)
     }
@@ -224,7 +239,9 @@ const HANDED_TWICE_WITHIN: std::time::Duration = std::time::Duration::from_secs(
 /// listed, otherwise the README's steps for loading it.
 pub const EXTENSION_EDGE: &str =
     "https://microsoftedge.microsoft.com/addons/detail/ooafpfjpliofcdlnbdkjhonaoebcpnej";
+/// Where the add-on is listed for Firefox.
 pub const EXTENSION_FIREFOX: &str = "https://addons.mozilla.org/firefox/addon/dm-download-manager/";
+/// Where the add-on is listed for Chrome.
 pub const EXTENSION_CHROME: &str =
     "https://github.com/pranavo72bex/Easy-Download-Manager#chrome-brave-vivaldi-and-opera";
 
@@ -253,20 +270,27 @@ pub fn drop_hint() -> &'static str {
 /// and nothing offered for what was copied before it was turned on.
 #[derive(Default)]
 pub struct Clipboard {
+    /// Whether the watch is on.
     pub on: bool,
+    /// The last text seen on the clipboard.
     pub last: Option<String>,
+    /// The address now offered to the person, if any.
     pub offered: Option<String>,
     /// Every link offered, when the clipboard holds several and nothing
     /// else: only the first was offered and the rest dropped.
     pub offered_all: Vec<String>,
+    /// The addresses the person turned away.
     pub dismissed: HashSet<String>,
+    /// When the clipboard was last read.
     pub polled: Option<Instant>,
 }
 
 /// The rows the table shows, shared between frames and with the queue.
 pub type SharedRows = std::rc::Rc<Vec<Arc<Entry>>>;
 
+/// The window's state: the list, the selection, the dialogs and the settings in force.
 pub struct DmApp {
+    /// The engine the window works through.
     pub backend: Backend,
     /// The list as last read, each row shared with the queue: a row that
     /// did not change since the read before is the same allocation.
@@ -275,7 +299,9 @@ pub struct DmApp {
     /// What each row was at the last refresh, to notice a finish.
     last_state: HashMap<Id, State>,
 
+    /// The place in the category tree the list is filtered to.
     pub place: Place,
+    /// The rows selected.
     pub selected: BTreeSet<Id>,
     /// The row a shift-click extends the selection from: the last one
     /// clicked without shift.
@@ -289,8 +315,11 @@ pub struct DmApp {
     pub keyboard: bool,
     /// Where the focus ring was drawn last frame, if anywhere.
     pub focus_ring: Option<egui::Rect>,
+    /// The column sorted by and whether the order is ascending.
     pub sort: Option<(Column, bool)>,
+    /// Whether the category list is shown.
     pub show_categories: bool,
+    /// Whether the toolbar is shown.
     pub show_toolbar: bool,
     /// Columns turned off under View › Columns. The file name always shows.
     pub hidden_columns: HashSet<Column>,
@@ -337,21 +366,26 @@ pub struct DmApp {
     pub list_drawn: bool,
     /// How many rows Page Up and Page Down move: a screenful, less one.
     pub list_page: usize,
+    /// The dialogs that are open.
     pub dialogs: Dialogs,
 
+    /// Problems found at start-up, said in the window.
     pub problems: Vec<String>,
     /// Completions already announced, so a notification fires once as each
     /// finishes — and never for the history there when the window opened.
     notified: HashSet<Id>,
     notify_ready: bool,
 
+    /// The settings as last applied to the window.
     pub applied: Settings,
+    /// The clipboard watcher's memory.
     pub clipboard: Clipboard,
     /// When the watched folder was last read (Options › Downloads).
     watched_at: Option<Instant>,
     /// Files in it left where they lie, because no link was found in them or
     /// they could not be moved aside: not read again every few seconds.
     watch_skip: HashSet<std::path::PathBuf>,
+    /// What the update check has found.
     pub update: Arc<Mutex<Update>>,
     /// A weekly check is waiting for its answer, to open About on a newer dm.
     weekly_pending: bool,
@@ -365,6 +399,7 @@ pub struct DmApp {
     pub copied: Option<String>,
     /// Whether the look drawn last was dark, for the control protocol.
     pub dark: bool,
+    /// Whether a quit was asked for (by the control port or when all downloads finished): the window closes.
     pub quit_asked: bool,
     /// The look last put in force, so a change in Options is applied once.
     theme_in_force: Option<crate::theme::Theme>,
@@ -527,6 +562,7 @@ const SAID_FOR: Duration = Duration::from_secs(12);
 const UNDO_FOR: Duration = Duration::from_secs(5);
 
 impl DmApp {
+    /// Creates the window's state over `backend`, reading the settings in force.
     pub fn new(backend: Backend) -> Self {
         let settings = backend.settings();
         crate::i18n::set(crate::i18n::chosen(&settings.language));
@@ -658,6 +694,8 @@ impl DmApp {
         app
     }
 
+    /// The engine the window works through.
+    #[must_use]
     pub fn backend(&self) -> &Backend {
         &self.backend
     }
@@ -692,10 +730,14 @@ impl DmApp {
         }
     }
 
+    /// The rows as last read.
+    #[must_use]
     pub fn rows(&self) -> &[Arc<Entry>] {
         &self.rows
     }
 
+    /// The row with this id, if it is in the list.
+    #[must_use]
     pub fn row(&self, id: Id) -> Option<&Entry> {
         self.rows.iter().find(|r| r.id == id).map(|r| &**r)
     }
@@ -731,6 +773,7 @@ pub fn as_shown(problem: &str) -> String {
 /// What a right-click on a place in the category tree can ask for.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum TreeAction {
+    /// Runs this command.
     Run(Command),
     /// Options › Folders, where categories are added, edited and deleted.
     EditCategories,

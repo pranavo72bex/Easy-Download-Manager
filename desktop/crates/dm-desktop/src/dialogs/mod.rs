@@ -67,8 +67,11 @@ fn warn(ui: &egui::Ui) -> Color32 {
 /// one, and the folder they go to.
 #[derive(Debug, Clone, Default)]
 pub struct MoveRename {
+    /// The finished downloads to move.
     pub ids: Vec<Id>,
+    /// The new name, where one download is moved.
     pub name: String,
+    /// The folder they go to.
     pub folder: String,
     /// For several files: how to name them. Empty keeps their names;
     /// `{n}` counts from 1 in the order they are listed, `{name}` is the
@@ -76,18 +79,25 @@ pub struct MoveRename {
     pub pattern: String,
 }
 
+/// The Add URL dialog: an address, and a login if it needs one.
 #[derive(Default)]
 pub struct AddUrl {
+    /// The address typed.
     pub address: String,
+    /// Whether the address needs a login (Authorization ticked).
     pub authorize: bool,
+    /// The user name for that login.
     pub login: String,
+    /// The password for that login.
     pub password: String,
+    /// What went wrong, said in the dialog; empty when nothing did.
     pub says: String,
 }
 
 /// "Download details": where and how, before a download starts.
 #[derive(Default)]
 pub struct FileInfo {
+    /// The addresses to download.
     pub urls: Vec<String>,
     /// The page a handed-over video came from, sent as Referer.
     pub referrer: String,
@@ -105,7 +115,9 @@ pub struct FileInfo {
     pub gif: bool,
     /// "Only a part of the video", and its ends as typed ("4:10").
     pub part: bool,
+    /// The start of the part, as typed.
     pub part_from: String,
+    /// The end of the part, as typed.
     pub part_to: String,
     /// A video page's qualities with their sizes, read as the dialog opens
     /// (`dm_core::videopage::list_choices`): `None` until asked; an empty list
@@ -123,14 +135,21 @@ pub struct FileInfo {
     /// A download the browser caught (not one asked for from the panel or
     /// a menu): offered "Always save here without asking".
     pub caught: bool,
+    /// Whether "Always save here without asking" is ticked.
     pub always_here: bool,
     /// A separate sound track for the first address, fetched and joined with it.
     pub sound: Option<String>,
+    /// The quality's name, shown beside the file when the choice came from a video's list.
     pub label: Option<String>,
+    /// The folder to save into, as typed.
     pub folder: String,
+    /// The name to save as, as typed.
     pub name: String,
+    /// The description typed for the download.
     pub description: String,
+    /// The queue to put the download in, as shown.
     pub queue: String,
+    /// What went wrong, said in the dialog; empty when nothing did.
     pub says: String,
     /// Handed over by the browser, rather than typed in: cancelling it is
     /// a word against that site's downloads being handed over.
@@ -145,6 +164,7 @@ pub struct FileInfo {
     /// The name the server gives the file, once asked, and
     /// whether a person typed in Save as since, which it then leaves alone.
     pub probed: Option<std::sync::Arc<std::sync::Mutex<Option<Probed>>>>,
+    /// Whether a person typed in Save as.
     pub name_typed: bool,
     /// The folder last used for this kind of file has been offered (once
     /// the name says the kind), so clearing it is not undone.
@@ -170,7 +190,9 @@ enum Clash {
 /// will have, where it gives one, and its size, where it says.
 #[derive(Debug, Clone, Default, PartialEq)]
 pub struct Probed {
+    /// The name the file will have.
     pub name: Option<String>,
+    /// The file's size in bytes.
     pub size: Option<u64>,
     /// Why the server would not give the file, where it said: a 404 was
     /// found only once the download had failed.
@@ -203,9 +225,13 @@ pub fn stream_name(url: &str, content_type: Option<&str>, remux: bool) -> Option
 /// What dm learned of one link by asking its server.
 #[derive(Debug, Clone, PartialEq, Default)]
 pub struct Found {
+    /// The name the server gave the link.
     pub name: String,
+    /// The kind of file it is, as its server says.
     pub kind: String,
+    /// The size in bytes, where the server said.
     pub size: Option<u64>,
+    /// Whether it is a web page rather than a file.
     pub html: bool,
     /// Why the server could not be asked about it.
     pub failed: Option<String>,
@@ -214,11 +240,14 @@ pub struct Found {
 /// The import dialog for a page's links: each checked or not, with its
 /// name, kind and size as its server tells them.
 pub struct LinksImport {
+    /// The page the links came from.
     pub page: String,
     /// The sign-in the browser handed over for the page's own server, and
     /// that server's address: given to the links on that server only.
     pub sign_in: Option<dm_core::cookies::SignIn>,
+    /// The cookies the browser handed over, given to the links on the page's own server.
     pub cookies: String,
+    /// Each link's address, and whether it is ticked.
     pub items: Vec<(String, bool)>,
     /// Those already in dm's list (bare addresses): offered unticked and
     /// said so, rather than fetched again as `name (1).zip` without a word.
@@ -226,9 +255,11 @@ pub struct LinksImport {
     /// Links unticked when their server refused them, once, so a person
     /// can tick one again (they were added and failed).
     pub refused: std::collections::HashSet<String>,
+    /// Whether web pages are left out of the list.
     pub hide_html: bool,
     /// File types to list alone, as typed ("zip pdf"); empty lists all.
     pub types: String,
+    /// What each link's server said, by address.
     pub found: std::sync::Arc<std::sync::Mutex<std::collections::HashMap<String, Found>>>,
 }
 
@@ -292,13 +323,19 @@ impl LinksImport {
     }
 }
 
+/// The Properties dialog of one download: its name, address, login and checks.
 pub struct Properties {
+    /// The name, as edited.
     pub name: String,
+    /// The description, as edited.
     pub description: String,
     /// The address without its login, which has fields of its own.
     pub address: String,
+    /// The login's user name, as edited.
     pub login: String,
+    /// The login's password, as edited.
     pub password: String,
+    /// What went wrong, said in the dialog; empty when nothing did.
     pub says: String,
     /// Digests of the finished file, worked out in the background, by the
     /// algorithm's name; `None` while one is still being worked out.
@@ -356,49 +393,69 @@ pub type PlaylistRead =
 /// "Playlist": a YouTube playlist read by dm, its videos ticked to download.
 #[derive(Default)]
 pub struct PlaylistDialog {
+    /// The playlist's address.
     pub url: String,
+    /// The reading of the playlist, once started.
     pub read: Option<PlaylistRead>,
     /// Which videos are ticked, one for each.
     pub picked: Vec<bool>,
     /// The quality to take them at (`QUALITIES`' words).
     pub quality: String,
+    /// What went wrong, said in the dialog; empty when nothing did.
     pub says: String,
 }
 
+/// The Series dialog: an address with a changing number, and the range to count over.
 #[derive(Default)]
 pub struct Series {
+    /// The address with the place of the number marked.
     pub template: String,
+    /// The first number.
     pub from: String,
+    /// The last number.
     pub to: String,
+    /// How many digits the number is padded to.
     pub width: usize,
+    /// What went wrong, said in the dialog; empty when nothing did.
     pub says: String,
 }
 
+/// How the search of a site for files is going.
 #[derive(Default, Debug)]
 pub enum Grab {
+    /// Not started.
     #[default]
     Idle,
+    /// Pages are being read.
     Looking,
     /// The links found, each with whether it is ticked; how many pages were
     /// read; and whether the run's time ran out.
     Found(Vec<(String, bool)>, usize, bool),
+    /// The search failed, with the reason.
     Failed(String),
 }
 
+/// The Site files dialog: a page to search for files, and how far to follow its links.
 pub struct SiteFiles {
+    /// The page to start from, as typed.
     pub page: String,
+    /// The file types to list, as typed.
     pub types: String,
     /// Pages past the start page to read.
     pub depth: u8,
     /// Path filters, as typed: words separated by spaces.
     pub include: String,
+    /// Paths to leave out, as typed.
     pub exclude: String,
     /// The name to save this search under, and how often it runs.
     pub name: String,
+    /// How often a saved search runs, in hours.
     pub every_hours: u64,
     /// Minutes a run reads pages for; 0 is no limit.
     pub stop_after_minutes: u64,
+    /// What went wrong, said in the dialog; empty when nothing did.
     pub says: String,
+    /// How the running search is going.
     pub state: Arc<Mutex<Grab>>,
 }
 
@@ -443,14 +500,20 @@ impl SiteFiles {
     }
 }
 
+/// The pages of Options.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum Tab {
+    /// The General page.
     General,
+    /// The File types page.
     FileTypes,
+    /// The Save to page.
     SaveTo,
+    /// The Downloads page.
     Downloads,
     /// The expert settings, in one page: the connection's and the proxy's.
     Advanced,
+    /// The Sign-ins page.
     SiteLogins,
 }
 
@@ -547,6 +610,7 @@ impl OptionsDialog {
     }
 }
 
+/// Every page of Options, with the name it shows.
 pub const TABS: [(Tab, &str); 6] = [
     (Tab::General, "General"),
     (Tab::FileTypes, "Browser"),
@@ -573,17 +637,22 @@ pub const QUALITIES: [(&str, &str); 5] = [
     ("audio", "Audio only"),
 ];
 
+/// The Options dialog: a draft of the settings, edited until OK.
 pub struct OptionsDialog {
+    /// The page open.
     pub tab: Tab,
+    /// The settings as they are being edited.
     pub draft: Settings,
     /// The settings as they were when the dialog opened: OK writes only
     /// what differs from these, so a change made elsewhere meanwhile (View ›
     /// Language, the Scheduler, the columns) is not undone.
     pub opened: Settings,
+    /// What went wrong, said in the dialog; empty when nothing did.
     pub says: String,
     /// File types and skipped hosts, as typed: words separated by spaces,
     /// read into the draft on OK.
     pub types: String,
+    /// The hosts to skip, as typed.
     pub skip: String,
     /// Sites whose links work once, as typed.
     pub once: String,
@@ -604,9 +673,11 @@ pub struct OptionsDialog {
 
 /// A list to import, some of whose addresses are already rows.
 pub struct ImportAsk {
+    /// The addresses of the list, as read.
     pub text: String,
     /// How many of its addresses are already rows, and how many it holds.
     pub already: usize,
+    /// How many addresses the list holds.
     pub total: usize,
 }
 
@@ -616,17 +687,24 @@ pub struct ImportAsk {
 pub struct ListFile {
     /// Export (true) or Import.
     pub save: bool,
+    /// The path typed.
     pub path: String,
+    /// What went wrong, said in the dialog; empty when nothing did.
     pub says: String,
 }
 
+/// Every dialog dm can have open, with what it is showing.
 #[derive(Default)]
 pub struct Dialogs {
+    /// The Add URL dialog.
     pub add_url: Option<AddUrl>,
+    /// The Download details dialog.
     pub file_info: Option<FileInfo>,
+    /// The progress windows open, by download.
     pub progress: BTreeSet<Id>,
     /// Progress windows a person closed: Resume does not open them again.
     pub progress_closed: BTreeSet<Id>,
+    /// The Download complete windows open, by download.
     pub complete: BTreeSet<Id>,
     /// "Don't show this window again" ticked in the Download complete
     /// window: kept ticked while it is open and saved when it closes.
@@ -639,28 +717,40 @@ pub struct Dialogs {
     /// The KB/s typed for a download's own limit in its progress window,
     /// kept while the limit is off so ticking it again brings it back.
     pub own_limits: std::collections::HashMap<Id, u64>,
+    /// The Properties dialogs open, by download.
     pub properties: BTreeMap<Id, Properties>,
+    /// The Series dialog.
     pub series: Option<Series>,
     /// "Playlist": a YouTube playlist's videos, ticked to download.
     pub playlist: Option<PlaylistDialog>,
+    /// The addresses found on the clipboard, each with whether it is ticked.
     pub clip_links: Option<Vec<(String, bool)>>,
     /// The "Download links" import dialog, for a page's links.
     pub links: Option<LinksImport>,
+    /// The Site files dialog.
     pub site_files: Option<SiteFiles>,
+    /// The download whose address is being replaced, the new address typed and what went wrong.
     pub update_link: Option<(Id, String, String)>,
     /// The rows, the queue picked (as shown) and a new queue's name typed.
     pub move_to_queue: Option<(Vec<Id>, String, String)>,
+    /// The Move/Rename dialog.
     pub rename: Option<MoveRename>,
     /// Whether a dialog was in front last frame, and what had the keyboard
     /// before it opened.
     pub was_open: bool,
+    /// What had the keyboard before a dialog opened.
     pub focus_before: Option<egui::Id>,
+    /// Whether the search box is open.
     pub find_open: bool,
+    /// What is typed in the search box.
     pub find_text: String,
+    /// The scheduler being edited and what went wrong.
     pub scheduler: Option<(Schedule, String)>,
     /// The speed limit, what went wrong, and the download limit (MB, hours).
     pub limiter: Option<(u64, String, u64, u64)>,
+    /// The Options dialog.
     pub options: Option<OptionsDialog>,
+    /// Whether About is open.
     pub about_open: bool,
     /// A new install's "Add dm to your browser", with the browsers found.
     pub welcome: Option<Vec<dm_shell::register::Installed>>,
@@ -716,6 +806,7 @@ pub struct Dialogs {
     pub focus: Option<&'static str>,
 }
 
+/// Draws every dialog that is open.
 pub fn show(app: &mut DmApp, ctx: &egui::Context) {
     apart::begin_frame(ctx);
     // The keyboard goes back to what opened a dialog once it closes: it
