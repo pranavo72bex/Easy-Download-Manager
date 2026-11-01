@@ -3656,3 +3656,16 @@ in place by a file and not a release. Decisions:
 ## 2026-11-01: The Linux AAC decoder is written but gated off until its tables are supplied
 
 `dm-core/src/aac/` holds everything of an AAC-LC decoder that is logic (bit reader, config, frame syntax, dequantisation, pulses, mid/side, TNS, FFT-based IMDCT, windows, overlap-add), tested against the defining formulas. It holds none of the standard's Huffman books (121 scale-factor and eleven spectral codebooks) nor band layouts beyond 44.1/48 kHz: they could not be reproduced reliably, copying them from another decoder is not allowed, and a wrong code word yields noise with no error. `tables::COMPLETE` is false, so `aac::decoder_ready()` is false and Linux offers no MP3 exactly as before. Dropped: guessing the tables, and returning a short or silent file. To finish: supply the tables from the standard, set `COMPLETE`, decode `sound.f140.m4a` and compare with a reference decode.
+
+## The settings passwords go to the same store; macOS and Linux reach theirs through the system's tools (2026-11-01)
+
+The Sign-ins' and the proxy's passwords (gaps row 39) are kept in memory as before; `Settings::save` puts each
+into the store under its own name (`dm:login:<home>:<host>\n<user>`, `dm:proxy:<home>`, the home being the
+short hash `secretstore::namespace` gives) and writes the field empty, and `Settings::load` fills an empty field from
+the store. A password still in the file in clear is moved in on its first read and the file written again. A
+store that refuses leaves the password in the file, as before, with a notice. A login removed in Options leaves
+its stored password behind (no listing of the store); an emptied password is deleted. macOS uses `security`
+and Linux `secret-tool`, started as processes (no new crate, no linking to libsecret, which a build on CI would
+need): a value is base64 text; `secret-tool` takes it on standard input, `security` only on its command line,
+which is said in the code. A missing tool is no store. Written without a Mac or Linux computer to compile or
+run on: proved by hand at the final QA.

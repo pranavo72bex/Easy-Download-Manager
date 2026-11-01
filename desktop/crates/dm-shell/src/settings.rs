@@ -830,6 +830,28 @@ impl Settings {
     }
 
     fn load_from(path: &std::path::Path) -> (Self, Option<String>) {
+        let (mut settings, mut notice) = Self::load_file(path);
+        if let Some(store) = secrets::store() {
+            let ns = dm_core::secretstore::namespace(path);
+            let (moved, note) = settings.take_passwords_from(store, &ns);
+            if moved {
+                // Passwords the file held in clear are in the store now: write it again
+                // without them.
+                if let Err(io) = settings.save_to(path) {
+                    notice = Some(join_notice(
+                        notice,
+                        format!("the passwords moved to the store are still in the settings file ({io})"),
+                    ));
+                }
+            }
+            if let Some(note) = note {
+                notice = Some(join_notice(notice, note));
+            }
+        }
+        (settings, notice)
+    }
+
+    fn load_file(path: &std::path::Path) -> (Self, Option<String>) {
         let Ok(text) = std::fs::read_to_string(path) else {
             return (Settings::default().clamped(), None);
         };
@@ -938,10 +960,26 @@ impl Settings {
     /// Writes the settings to [`Settings::path`] at once, readable by this
     /// account alone; a stop mid-write leaves the file before it whole.
     pub fn save(&self) -> std::io::Result<()> {
-        dm_core::write_atomic(
-            &Self::path(),
-            serde_json::to_string_pretty(self)?.as_bytes(),
-        )
+        self.save_to(&Self::path())
+    }
+
+    /// [`Settings::save`] to `path`. Where the operating system's store works the Sign-ins' and
+    /// the proxy's passwords go there and the file keeps them empty (`secrets.rs`).
+    fn save_to(&self, path: &std::path::Path) -> std::io::Result<()> {
+        let mut file = self.clone();
+        if let Some(store) = secrets::store() {
+            // A refusal leaves the password in the file, as before; the next read says so.
+            let _ = file.move_passwords_to(store, &dm_core::secretstore::namespace(path));
+        }
+        dm_core::write_atomic(path, serde_json::to_string_pretty(&file)?.as_bytes())
+    }
+}
+
+/// `more` after what was already to be said.
+fn join_notice(first: Option<String>, more: String) -> String {
+    match first {
+        Some(first) => format!("{first}; {more}"),
+        None => more,
     }
 }
 
@@ -1279,6 +1317,8 @@ pub fn enter_portable() -> Option<PathBuf> {
     std::env::set_var("DM_HOME", &home);
     Some(home)
 }
+
+mod secrets;
 
 #[cfg(test)]
 mod tests;

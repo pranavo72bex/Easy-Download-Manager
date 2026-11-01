@@ -744,3 +744,83 @@ fn pop_ups_saved_on_before_they_were_off_by_default_are_turned_off_once() {
     let fresh = Settings::default();
     assert!(!fresh.show_progress && !fresh.show_complete);
 }
+
+/// A store that refuses everything, for the fallback.
+struct Refusing;
+
+impl dm_core::secretstore::SecretStore for Refusing {
+    fn get(&self, _: &str) -> Result<Option<Vec<u8>>, String> {
+        Err("locked".into())
+    }
+    fn put(&self, _: &str, _: &[u8]) -> Result<(), String> {
+        Err("locked".into())
+    }
+    fn delete(&self, _: &str) -> Result<(), String> {
+        Err("locked".into())
+    }
+}
+
+fn with_passwords() -> Settings {
+    let mut settings = Settings::default();
+    settings.site_logins = vec![SiteLogin {
+        host: "example.com".into(),
+        username: "ann".into(),
+        password: "s3cret".into(),
+    }];
+    settings.proxy.username = "bob".into();
+    settings.proxy.password = "p4ss".into();
+    settings
+}
+
+#[test]
+fn passwords_go_to_the_store_and_the_file_keeps_none() {
+    let store = dm_core::secretstore::MemoryStore::default();
+    let mut file = with_passwords();
+    assert_eq!(file.move_passwords_to(&store, "ns"), None);
+    assert!(file.site_logins[0].password.is_empty() && file.proxy.password.is_empty());
+    let text = serde_json::to_string(&file).unwrap();
+    assert!(!text.contains("s3cret") && !text.contains("p4ss"));
+
+    // Read back: an empty field is looked up in the store.
+    let mut read: Settings = serde_json::from_str(&text).unwrap();
+    assert_eq!(read.take_passwords_from(&store, "ns"), (false, None));
+    assert_eq!(read.site_logins[0].password, "s3cret");
+    assert_eq!(read.proxy.password, "p4ss");
+
+    // Another home's names are not this one's.
+    let mut other: Settings = serde_json::from_str(&text).unwrap();
+    other.take_passwords_from(&store, "elsewhere");
+    assert!(other.site_logins[0].password.is_empty());
+}
+
+#[test]
+fn a_file_with_clear_passwords_is_moved_into_the_store_on_its_first_read() {
+    let store = dm_core::secretstore::MemoryStore::default();
+    let mut read = with_passwords();
+    let (moved, note) = read.take_passwords_from(&store, "ns");
+    assert!(moved && note.is_none());
+    assert_eq!(
+        read.site_logins[0].password, "s3cret",
+        "in memory as before"
+    );
+    // What is written next carries none, and a later read finds them in the store.
+    let mut next = read.clone();
+    next.move_passwords_to(&store, "ns");
+    let mut later: Settings = serde_json::from_str(&serde_json::to_string(&next).unwrap()).unwrap();
+    later.take_passwords_from(&store, "ns");
+    assert_eq!(later.proxy.password, "p4ss");
+}
+
+#[test]
+fn a_store_that_refuses_leaves_the_passwords_in_the_file_and_says_so() {
+    let mut file = with_passwords();
+    let note = file.move_passwords_to(&Refusing, "ns").expect("a notice");
+    assert!(note.contains("locked") && note.contains("settings file"));
+    assert_eq!(file.site_logins[0].password, "s3cret");
+    assert_eq!(file.proxy.password, "p4ss");
+
+    let mut read = with_passwords();
+    let (moved, note) = read.take_passwords_from(&Refusing, "ns");
+    assert!(!moved && note.is_some());
+    assert_eq!(read.proxy.password, "p4ss", "nothing is lost");
+}
