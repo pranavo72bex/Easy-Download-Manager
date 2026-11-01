@@ -747,5 +747,13 @@
  "Square 1:1": "正方形 1:1",
  "Part as": "部分の形式",
  "Video": "動画",
- "this video needs dm's video tools, which are turned off in Options › Downloads. Turn them on there": "動画ページには dm の動画ヘルパーが必要ですが、オプション › ダウンロードで取得しない設定になっています。 をインストールするか、dm に取得させてください"
+ "this video needs dm's video tools, which are turned off in Options › Downloads. Turn them on there": "動画ページには dm の動画ヘルパーが必要ですが、オプション › ダウンロードで取得しない設定になっています。 をインストールするか、dm に取得させてください",
+ "Name sent by the server": "サーバーから送られた名前",
+ "The name to save the file was {}, but the server sent {}. Save the file with the name received from the server?": "ファイルの保存名は {} でしたが、サーバーは {} を送ってきました。サーバーから受け取った名前でファイルを保存しますか?",
+ "No": "いいえ",
+ "Web page instead of the file": "ファイルではなくWebページ",
+ "The requested file looks like an HTML web page. Would you like to continue downloading it and save it as an HTML page?": "要求されたファイルはHTMLのWebページのようです。ダウンロードを続けてHTMLページとして保存しますか?",
+ "The file doesn't exist": "ファイルが存在しません",
+ "The requested file doesn't exist.": "要求されたファイルは存在しません。",
+ "Details:": "詳細:"
 }

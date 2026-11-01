@@ -747,5 +747,13 @@
  "Square 1:1": "正方形 1:1",
  "Part as": "片段格式",
  "Video": "视频",
- "this video needs dm's video tools, which are turned off in Options › Downloads. Turn them on there": "视频页面需要 dm 的视频助手，但 选项 › 下载 中设置为不获取：请安装 ，或允许 dm 获取它"
+ "this video needs dm's video tools, which are turned off in Options › Downloads. Turn them on there": "视频页面需要 dm 的视频助手，但 选项 › 下载 中设置为不获取：请安装 ，或允许 dm 获取它",
+ "Name sent by the server": "服务器发送的名称",
+ "The name to save the file was {}, but the server sent {}. Save the file with the name received from the server?": "文件原定的保存名称是 {},但服务器发送的是 {}。要用服务器发送的名称保存文件吗?",
+ "No": "否",
+ "Web page instead of the file": "网页而非文件",
+ "The requested file looks like an HTML web page. Would you like to continue downloading it and save it as an HTML page?": "请求的文件看起来是一个 HTML 网页。要继续下载并将其保存为 HTML 页面吗?",
+ "The file doesn't exist": "文件不存在",
+ "The requested file doesn't exist.": "请求的文件不存在。",
+ "Details:": "详细信息:"
 }

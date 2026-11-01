@@ -3444,7 +3444,7 @@ The probe now sends `Range: bytes=0-` (`probe_get`) instead of `bytes=0-0`,
 and its response body is threaded through to segment 0's first attempt
 rather than drained. This reverses the decision of 2026-10-24 ("Weighed and
 not done"), asked for by the maintainer on 2026-10-31 as part of matching
-reference A's engine behaviour (gaps row 54).
+reference A's engine behaviour (gaps row 61).
 
 The Wikimedia concern (a server answering 200 to `bytes=0-`) is handled:
 the probe reads the status code, and a 200 sets `resumable = false`, so the
@@ -3466,3 +3466,28 @@ Found on the way, on Windows, with the same `HEAD`: the control port closed a
 connection that had been idle for the authentication limit (5 s), because the
 longer timeout was set on a clone of the socket and did not reach the
 reader's own. It is now set on the reader (`control.rs`).
+
+## Video from other sites comes from what the browser's player loaded (2026-11-01)
+
+With yt-dlp gone, a site other than YouTube is downloaded from the requests its
+player made, which the extension hears (`webRequest.onResponseStarted`): HLS and
+DASH manifests, whole media files, and, for Facebook's and Instagram's CDN
+(`fbcdn.net`, `cdninstagram.com`), a file asked for in pieces. Checked live in a
+visible Edge with no sign-in on Vimeo, Instagram, TikTok and X.
+
+- A piece of that CDN is named by `bytestart` and `byteend`; the file is the
+  address without them. Which pieces are the picture and which the sound is in
+  the `efg` parameter's `vencode_tag` (`…dash_ln_heaac_vbr3_audio` is sound).
+  Their size is not known from pieces, so the latest picture seen is the line's.
+- A `<video>`'s own fetch of a small whole file is offered above 64 KB, not the
+  1 MB floor of what a script fetches: X's GIF-style clips are the post's media.
+- A stream picked from the panel carries the page's cookies for that download
+  alone, as a video page's session does: TikTok's CDN answers 403 to a signed
+  address without them (tested with every agent and referer; only a session
+  was missing).
+- The panel's hit-test accepts a layer of the player's own size up to eight
+  ancestors out, not four: TikTok's and Instagram's overlays hang off a
+  container five levels up and hid the panel. The size bound
+  (`layer_fits`) still refuses a dialog over the page.
+- An HLS playlist is named by the height in its address and a sound-only one is
+  not listed beside a picture, so no line saves the sound alone.

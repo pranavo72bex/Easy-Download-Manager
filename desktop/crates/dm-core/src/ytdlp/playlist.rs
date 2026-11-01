@@ -7,8 +7,8 @@ use crate::youtube::{Playlist, PlaylistEntry};
 /// The most videos listed of one playlist, as for YouTube's.
 const MOST: usize = 1000;
 
-/// The playlist in yt-dlp's flat `-J` description of a page, `None` where
-/// the page is one video (or nothing yt-dlp could read). An entry without
+/// The playlist in a reader's flat JSON description of a page, `None` where
+/// the page is one video (or nothing a reader could read). An entry without
 /// a web address of its own is passed over; a playlist none of whose
 /// entries has one is no playlist.
 pub fn playlist_of(described: &str) -> Option<Playlist> {

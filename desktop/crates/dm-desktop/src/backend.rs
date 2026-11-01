@@ -212,6 +212,13 @@ impl Backend {
         });
     }
 
+    /// A person said yes to saving the web page that answered for this file as
+    /// an HTML page: the row is tried again as one.
+    pub fn accept_page(&self, id: Id) {
+        self.block_on(self.queue.accept_page(id));
+        self.retry(id);
+    }
+
     pub fn cancel(&self, id: Id) {
         self.block_on(self.queue.cancel(id));
     }

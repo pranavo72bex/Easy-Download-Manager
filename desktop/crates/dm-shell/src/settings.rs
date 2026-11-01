@@ -720,6 +720,7 @@ impl Settings {
                 .then(|| std::time::Duration::from_secs(self.record_minutes * 60)),
             sign_in: None,
             save_name: None,
+            accept_page: false,
             system_proxy: self.proxy.enabled && self.proxy.kind == dm_core::proxy::Kind::System,
             proxy_bypass: if self.proxy.enabled {
                 self.proxy.bypass.clone()

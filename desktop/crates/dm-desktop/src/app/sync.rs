@@ -35,6 +35,8 @@ impl DmApp {
         crate::table::set_superseded(&self.rows);
         set_limit_holds(self.backend.queue.allowance_spent().is_some());
         self.saved_sizes();
+        self.watch_asks();
+        self.apply_pending_renames();
         self.refreshed = Some(Instant::now());
         let ids: HashSet<Id> = self.rows.iter().map(|r| r.id).collect();
         self.selected.retain(|id| ids.contains(id));
@@ -934,4 +936,169 @@ impl DmApp {
     }
 
     /* ---------------------------------------------------------- drawing */
+}
+
+/// A question a row raised, waiting for the dialogs to be free.
+pub(crate) enum Ask {
+    /// The server sent another name than the address's.
+    Name(crate::dialogs::NameAsk),
+    /// A web page answered for a file.
+    Page(Id),
+    /// A server said the file is not there.
+    NotFound(Id),
+}
+
+impl DmApp {
+    /// Looks at the rows as just read for what reference A asks about
+    /// (maintainer, 2026-11-01): a name the server sent that is not the
+    /// address's, a web page where a file was asked for, a 404. Only what is
+    /// new since the last read is asked about, and the first read only
+    /// notes what is there: rows of an earlier run are not asked about.
+    pub(super) fn watch_asks(&mut self) {
+        let first = !self.asks_primed;
+        self.asks_primed = true;
+        let mut seen = std::mem::take(&mut self.ask_seen);
+        // Several rows new at once are a batch (Download all links), which
+        // is not asked about names one by one.
+        let fresh = self
+            .rows
+            .iter()
+            .filter(|r| !seen.contains_key(&r.id))
+            .count();
+        for row in &self.rows {
+            let failed = match &row.state {
+                State::Failed(why) => Some(why.as_str()),
+                _ => None,
+            };
+            let before = seen.insert(row.id, (row.filename.clone(), failed.is_some()));
+            if first {
+                continue;
+            }
+            let was_unnamed = before.as_ref().is_none_or(|(name, _)| name.is_empty());
+            let chosen = row
+                .save_name
+                .as_deref()
+                .is_some_and(|name| !name.trim().is_empty());
+            // A download the browser handed over comes with the name the browser
+            // gives it (and has a page it came from): not asked about. Nor one a
+            // person has said yes to saving as an HTML page, which is named so.
+            let typed_in = row.referrer.is_empty() && !row.accept_page;
+            if was_unnamed && !row.filename.is_empty() && !chosen && typed_in && fresh < 2 {
+                let address_name = crate::format::provisional(&row.url);
+                if row.filename != address_name
+                    && without_copy_number(&row.filename) != address_name
+                {
+                    self.asks.push_back(Ask::Name(crate::dialogs::NameAsk {
+                        id: row.id,
+                        address_name,
+                        server_name: row.filename.clone(),
+                    }));
+                }
+            }
+            let newly_failed = before.as_ref().is_none_or(|(_, was)| !*was);
+            if let (true, Some(why)) = (newly_failed, failed) {
+                if why.contains("answered with a web page rather than the file") && !row.accept_page
+                {
+                    self.asks.push_back(Ask::Page(row.id));
+                } else if why.contains("answered 404") {
+                    self.asks.push_back(Ask::NotFound(row.id));
+                }
+            }
+        }
+        let ids: HashSet<Id> = self.rows.iter().map(|r| r.id).collect();
+        seen.retain(|id, _| ids.contains(id));
+        self.ask_seen = seen;
+        self.promote_asks();
+    }
+
+    /// Opens the next waiting question, when no other is being asked: one at
+    /// a time, in the order they came, and none for a row that is gone.
+    pub(crate) fn promote_asks(&mut self) {
+        if self.dialogs.asking() {
+            return;
+        }
+        while let Some(ask) = self.asks.pop_front() {
+            match ask {
+                Ask::Name(n) if self.row(n.id).is_some() => {
+                    self.dialogs.name_ask = Some(n);
+                    return;
+                }
+                Ask::Page(id) if self.row(id).is_some() => {
+                    self.dialogs.page_ask = Some(id);
+                    return;
+                }
+                Ask::NotFound(id) if self.row(id).is_some() => {
+                    self.dialogs.not_found = Some(id);
+                    return;
+                }
+                _ => {}
+            }
+        }
+    }
+
+    /// A person said no to the server's name: the file is given the
+    /// address's, at once if it is finished, else as it finishes.
+    pub(crate) fn use_address_name(&mut self, id: Id, name: &str) {
+        match self.row(id).map(|r| r.state.clone()) {
+            Some(State::Completed) => {
+                let _ = self.backend.rename(id, name);
+            }
+            Some(State::Failed(_) | State::Cancelled) | None => {}
+            Some(_) => {
+                self.pending_renames.insert(id, name.to_string());
+            }
+        }
+    }
+
+    /// Renames what finished since a person said no to the server's name.
+    pub(super) fn apply_pending_renames(&mut self) {
+        let ids: Vec<Id> = self.pending_renames.keys().copied().collect();
+        for id in ids {
+            match self.row(id).map(|r| r.state.clone()) {
+                Some(State::Completed) => {
+                    if let Some(name) = self.pending_renames.remove(&id) {
+                        let _ = self.backend.rename(id, &name);
+                    }
+                }
+                Some(State::Failed(_) | State::Cancelled) | None => {
+                    self.pending_renames.remove(&id);
+                }
+                Some(_) => {}
+            }
+        }
+    }
+}
+
+/// `name` without the " (2)" dm puts before the extension to keep two copies
+/// of one file apart: that number is dm's, not something the server sent.
+fn without_copy_number(name: &str) -> String {
+    let (stem, ext) = match name.rfind('.') {
+        Some(dot) if dot > 0 => (&name[..dot], &name[dot..]),
+        _ => (name, ""),
+    };
+    if let Some(open) = stem.rfind(" (") {
+        if let Some(digits) = stem[open + 2..].strip_suffix(')') {
+            if !digits.is_empty() && digits.chars().all(|c| c.is_ascii_digit()) {
+                return format!("{}{}", &stem[..open], ext);
+            }
+        }
+    }
+    name.to_string()
+}
+
+#[cfg(test)]
+mod copy_number_tests {
+    use super::without_copy_number;
+
+    #[test]
+    fn the_number_dm_adds_to_a_second_copy_is_not_the_servers() {
+        assert_eq!(without_copy_number("again (2).bin"), "again.bin");
+        assert_eq!(without_copy_number("again (12)"), "again");
+        assert_eq!(
+            without_copy_number("Report (final).pdf"),
+            "Report (final).pdf"
+        );
+        assert_eq!(without_copy_number("a.b (1).tar.gz"), "a.b (1).tar.gz");
+        assert_eq!(without_copy_number("plain.bin"), "plain.bin");
+    }
 }

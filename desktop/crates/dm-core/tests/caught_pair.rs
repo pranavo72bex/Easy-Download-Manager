@@ -1,6 +1,6 @@
 //! A picture and a sound a page's player fetched apart (what the extension
 //! catches: `browser/src/decide/streams.rs` `track_of`) are fetched by dm
-//! itself and joined into one file, with no yt-dlp on the computer at all.
+//! itself and joined into one file, with no helper program on the computer at all.
 //! Its own test binary: it says through the environment that there is no
 //! yt-dlp, and a home of its own so nothing could be fetched into a real one.
 
@@ -110,7 +110,7 @@ async fn a_pair_the_player_fetched_apart_is_fetched_and_joined_with_no_yt_dlp_at
     let seen = seen.lock().unwrap();
     assert!(seen.len() >= 2, "both streams were asked for: {seen:?}");
     assert!(
-        seen.iter().all(|agent| agent.starts_with("dm/")),
+        seen.iter().all(|agent| agent == dm_core::IE_AGENT),
         "fetched by dm itself, not a helper: {seen:?}"
     );
 }

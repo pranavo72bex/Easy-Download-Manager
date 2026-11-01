@@ -747,5 +747,13 @@
  "Square 1:1": "Kare 1:1",
  "Part as": "Bölüm biçimi",
  "Video": "Video",
- "this video needs dm's video tools, which are turned off in Options › Downloads. Turn them on there": "bir video sayfası dm'nin video yardımcısına ihtiyaç duyuyor, ancak Seçenekler › İndirmeler onu getirmemeyi söylüyor: kurun ya da dm'nin getirmesine izin verin"
+ "this video needs dm's video tools, which are turned off in Options › Downloads. Turn them on there": "bir video sayfası dm'nin video yardımcısına ihtiyaç duyuyor, ancak Seçenekler › İndirmeler onu getirmemeyi söylüyor: kurun ya da dm'nin getirmesine izin verin",
+ "Name sent by the server": "Sunucunun gönderdiği ad",
+ "The name to save the file was {}, but the server sent {}. Save the file with the name received from the server?": "Dosyanın kaydedileceği ad {} idi, ancak sunucu {} gönderdi. Dosya sunucudan alınan adla kaydedilsin mi?",
+ "No": "Hayır",
+ "Web page instead of the file": "Dosya yerine web sayfası",
+ "The requested file looks like an HTML web page. Would you like to continue downloading it and save it as an HTML page?": "İstenen dosya bir HTML web sayfasına benziyor. İndirmeye devam edip HTML sayfası olarak kaydetmek ister misiniz?",
+ "The file doesn't exist": "Dosya yok",
+ "The requested file doesn't exist.": "İstenen dosya yok.",
+ "Details:": "Ayrıntılar:"
 }

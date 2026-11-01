@@ -91,8 +91,7 @@ pub async fn probe_get(
         crate::auth::send(client, request, url)
     };
     let mut res = ask(crate::agent_for(url)).await?;
-    if res.status() == reqwest::StatusCode::FORBIDDEN && crate::agent_for(url) == crate::USER_AGENT
-    {
+    if res.status() == reqwest::StatusCode::FORBIDDEN && crate::agent_for(url) == crate::IE_AGENT {
         for agent in crate::FALLBACK_AGENTS {
             let again = ask(agent).await?;
             if again.status() != reqwest::StatusCode::FORBIDDEN {
@@ -102,6 +101,11 @@ pub async fn probe_get(
                 break;
             }
         }
+    }
+
+    // A 404 is asked for a second time before it is said, as reference A does.
+    if res.status() == reqwest::StatusCode::NOT_FOUND {
+        res = ask(crate::agent_for(url)).await?;
     }
 
     let status = res.status();

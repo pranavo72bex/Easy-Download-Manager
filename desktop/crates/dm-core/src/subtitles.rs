@@ -1,7 +1,7 @@
 //! Subtitles read from WebVTT, for dm to put into a video itself.
 //!
-//! yt-dlp fetches a video's subtitles as WebVTT files beside it,
-//! `name.en.vtt`, and leaves putting them into the video to dm. dm reads
+//! A video's subtitles are fetched as WebVTT files beside it,
+//! `name.en.vtt`, and put into the video by dm. dm reads
 //! their cues here and the MP4 and WebM writers carry them as text tracks
 //! (`mp4mux`, `mkvmux`), one per language, so a player offers them.
 //!
@@ -177,7 +177,7 @@ pub fn iso639_2(language: &str) -> [u8; 3] {
         .map_or(*b"und", |(_, three)| **three)
 }
 
-/// The subtitle files yt-dlp left beside a video named `video`
+/// The subtitle files left beside a video named `video`
 /// (`name.<language>.vtt`), read. Unreadable ones are skipped.
 pub fn beside(video: &Path) -> Vec<(PathBuf, Subtitle)> {
     let (Some(dir), Some(stem)) = (video.parent(), video.file_stem()) else {

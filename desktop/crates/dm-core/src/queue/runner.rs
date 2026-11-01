@@ -263,6 +263,7 @@ impl Queue {
                         crate::cookies::SignIn::new(&slot.entry.url, &slot.entry.cookies);
                     options.checksum = slot.entry.checksum.clone();
                     options.save_name = slot.entry.save_name.clone();
+                    options.accept_page = slot.entry.accept_page;
                     // Its own limit as well as the one every download shares.
                     options.limiter = options.limiter.chained(&slot.own_limit);
                     // Sent as Referer where the row carries one, which is the
@@ -410,7 +411,7 @@ impl Queue {
                     }
                 }
                 // The cancel removed the parts while this run still held
-                // some open — a helper's, such as yt-dlp's — and on Windows an
+                // some open — a helper's — and on Windows an
                 // open file cannot be deleted. Now the run has let go,
                 // whatever is left goes.
                 let leftover = PathBuf::from(&slot.entry.parts_dir);

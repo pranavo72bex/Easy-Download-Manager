@@ -139,6 +139,10 @@ pub struct Entry {
     /// The name to save it under, if a person chose one over the server's.
     #[serde(default)]
     pub save_name: Option<String>,
+    /// Whether a person said yes to saving a web page that answered for the
+    /// file as an HTML page (`Options::accept_page`).
+    #[serde(default)]
+    pub accept_page: bool,
     /// The server's ETag or Last-Modified for the file fetched, which the
     /// recheck queue compares against to tell whether it changed.
     #[serde(default)]
@@ -602,6 +606,7 @@ impl Queue {
                 queue: String::new(),
                 save_dir: None,
                 save_name: None,
+                accept_page: false,
                 validator: None,
                 quality: None,
                 sound: None,
@@ -797,7 +802,7 @@ pub fn differs(row: &Entry, now: &crate::Probe) -> bool {
 /// What an earlier run left under `dir` that the download limit counted
 /// then: the bytes of its part files; none for a folder that is empty or
 /// missing; and `None` for one holding only another route's files (a
-/// torrent's pieces, yt-dlp's `.part`), whose own first report says how
+/// torrent's pieces), whose own first report says how
 /// much of them there is.
 async fn staged_bytes(dir: &std::path::Path) -> Option<u64> {
     let Ok(mut listing) = tokio::fs::read_dir(dir).await else {

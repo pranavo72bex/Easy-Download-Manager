@@ -407,7 +407,7 @@ mod tests {
         // One of dm's own downloads taking bytes: halves.
         limiter.take(1).await;
         assert_eq!(limiter.part().await, 450, "a torrent and dm's own, halves");
-        let ytdlp = limiter.share();
+        let video = limiter.share();
         assert_eq!(
             limiter.part().await,
             300,
@@ -415,7 +415,7 @@ mod tests {
         );
         drop(torrent);
         assert_eq!(limiter.part().await, 450);
-        drop(ytdlp);
+        drop(video);
         assert_eq!(limiter.part().await, 900, "every share given back");
 
         let unlimited = Limiter::unlimited();

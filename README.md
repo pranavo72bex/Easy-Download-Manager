@@ -341,7 +341,7 @@ checks you are not a bot lets the download through.
   a video says to sign in or prove you are not a bot). Export your
   browser's cookies as `cookies.txt` with any "Get cookies.txt" add-on, then
   in dm choose it under **Options › Network › Cookies file**. dm then
-  sends those cookies itself, and gives them to yt-dlp.
+  sends those cookies itself, to the site they belong to.
 
 ## Uninstall
 
@@ -452,7 +452,7 @@ The Docker QA stack: dm built from this checkout, run headless against a
 server that misbehaves on request (ranges or none, lying lengths, redirects,
 hostile file names, files replaced mid-download, 4xx/5xx and Retry-After,
 stalls, bad certificates, logins and cookies), a link that drops and slows
-(toxiproxy), a small disk, video pages for yt-dlp, and Chromium with the
+(toxiproxy), a small disk, video pages, and Chromium with the
 extension. Everything is on a Docker network with no way out:
 
 ```sh

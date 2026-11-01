@@ -156,7 +156,7 @@ why. Install to `/Applications` (or `make install`) and register that copy.
 |---|---|
 | **Click a download link** | If it is one of the file types dm catches, the browser's download is paused, handed to dm, and removed from the browser's list once dm has it. dm's window shows it. |
 | **Right-click a link** | *Download link with dm* — any link, whatever its type, and magnets. |
-| **Right-click a video or audio** | *Download media with dm*. A player that streams from a `blob:` address has no file to fetch; its page is handed over instead, and dm resolves it with yt-dlp. |
+| **Right-click a video or audio** | *Download media with dm*. A player that streams from a `blob:` address has no file to fetch; its page is handed over instead; dm reads a YouTube page itself, and for any other site the extension's caught player requests are what is offered. |
 | **Right-click a page** | *Download all links with dm*: the page's links, in dm's list to pick from. |
 | **The toolbar button** | A popup: whether the dm app answers, a switch for catching downloads, a switch for the "Download video" panel on this site, and **Open dm**. It downloads nothing. |
 | **No app** | A caught download stays with the browser as if dm were not there. The menus and the button say, in a notification, that dm isn't connected to this browser yet and to open dm (again, if it is open), with `--register` for advanced users; the popup says the same and hides Open dm. |
@@ -302,7 +302,7 @@ sides, where it used to be two languages kept in step by hand:
 
 | extension sends | host answers |
 |---|---|
-| `engine.hello` | `engine.hello` with the app's version and whether it has yt-dlp |
+| `engine.hello` | `engine.hello` with the app's version and whether it reads video pages (the field is still named `ytdlp` on the wire) |
 | `settings.get` | `settings.get` with the `catch` rules |
 | `download.start` `{id, url, referrer, caught}` | `download.started`, or `download.failed` with the reason |
 
@@ -428,13 +428,12 @@ desktop/
                           and a playlist page's videos
     clip.rs               a part of a video: a stream's index of pieces, the pieces for a span,
                           fetched by ranges; the muxer cuts the joined file to the second
-    ytdlp.rs, tools.rs    pages handed to yt-dlp, and the tools dm fetches and checks
-    ytdlp/fetch.rs        a page read by yt-dlp, its streams fetched by dm's engine
-    ytdlp/choices.rs      the panel's list of qualities (page data first, yt-dlp as fallback)
+    ytdlp.rs, tools.rs    a video page's streams fetched and joined (the module keeps its old
+                          name), and the tools dm fetches and checks (QuickJS)
+    ytdlp/fetch.rs        a page's reading, its streams fetched by dm's engine
+    ytdlp/choices.rs      the panel's list of qualities, from the page's own data
     ytdlp/page_data.rs    a YouTube watch page's own player data, read as that list
-    ytdlp/readings.rs     yt-dlp's readings kept for the download, and the marker while one is made
-    ytdlp/refusal.rs      a failed yt-dlp run said in words a person can act on
-    ytdlp/process.rs      yt-dlp's process trees, ended with everything under them
+    ytdlp/playlist.rs     a playlist page's videos, listed to tick
     extract.rs            a ZIP extracted into a folder of its own, refusing hostile entries
     control.rs, cookies.rs, auth.rs, ftp.rs   the stop flag, sign-ins, FTP (ftp/: transport,
                           target, reply, session, listing, transfer)

@@ -47,6 +47,16 @@ impl Queue {
         stopped
     }
 
+    /// A person said yes to saving the web page that answered for this file as
+    /// an HTML page: the row goes on from the next try as one.
+    pub async fn accept_page(&self, id: Id) -> bool {
+        self.edit(id, |slot| {
+            slot.entry_mut().accept_page = true;
+            true
+        })
+        .await
+    }
+
     /// "Move/Rename" for a finished file: renamed where it lies, never
     /// over another file.
     pub async fn rename(&self, id: Id, name: &str) -> Result<(), String> {

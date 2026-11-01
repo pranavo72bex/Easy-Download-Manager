@@ -259,6 +259,12 @@ LONG = "very" + "long" * 61 + ".bin"
 ARRIVING = ("early1.bin", "early2.bin", "early3.bin")
 
 
+def is_dm(agent):
+    """Whether a request was dm's own and not the browser's: dm asks as
+    Internet Explorer 11 first (the agent reference A sends), or by its name."""
+    return agent.startswith("dm/") or "Trident/7.0" in agent
+
+
 def body(name):
     seed = hashlib.sha256(name.encode()).digest()
     # A few files of the sizes that small ones are: 3 MB, which a server that
@@ -433,7 +439,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
         self.end_headers()
         # The browser is served slowly, the way a large file arrives, so a
         # download is still running when the extension holds it; dm is not.
-        slow = not agent.startswith("dm/") and not name.startswith("small")
+        slow = not is_dm(agent) and not name.startswith("small")
         # "paced": every connection, dm's too, held to about a megabyte a
         # second, as a server that limits each one does.
         paced = name.startswith("paced")
@@ -487,7 +493,13 @@ def devtools(profile):
     # A fresh CI runner's first start of the browser sets its profile up
     # and has taken over 30 s (Edge, ubuntu-latest, 2026-10-31).
     within = 90 if os.environ.get("CI") else 30
-    port = wait_for(lambda: port_file.exists() and port_file.read_text().split("\n")[0], within)
+    def written():
+        # On Windows the browser still holds the file while it writes it.
+        try:
+            return port_file.exists() and port_file.read_text().split("\n")[0]
+        except OSError:
+            return False
+    port = wait_for(written, within)
     if not port:
         said = profile.parent / "chrome-stderr.txt"
         if said.exists():
@@ -763,21 +775,14 @@ def panel_checks(base, origin, engine_dl, engine_home, worker):
     check("a streaming (blob:) player is offered too, as a page with qualities to list",
           "through the dm app" in shown.get("tip", "") and shown.get("caret"), str(shown))
     click_panel(tab)
-    # The qualities the video comes in, each with its size.
-    listed = wait_for(lambda: len((panel(tab) or {}).get("lines") or []) >= 2 and panel(tab), 40) or panel(tab) or {}
-    check("its click lists the qualities the app's yt-dlp found, with sizes",
-          listed.get("lines") == ["720p MP4 — 9.5 MB", "M4A audio — 977 KB"], str(listed))
-    if listed.get("at"):
-        x, y = listed["at"][0]
-        mouse(tab, "mouseMoved", x, y)
-        mouse(tab, "mousePressed", x, y)
-        mouse(tab, "mouseReleased", x, y)
+    # Only YouTube's page is read for qualities (by dm itself); another
+    # site's blob player with no stream loaded is handed over as the page.
     player = f"{origin}/player.html"
-    row = wait_for(lambda: next((r for r in queue_rows(engine_home) if r.get("url") == player), None), 15) or {}
-    check("a line picked hands dm the page, not a blob: address, at that quality",
-          row.get("quality") == "720/mp4", str(row)[:300])
+    row = wait_for(lambda: next((r for r in queue_rows(engine_home) if r.get("url") == player), None), 20) or {}
+    check("a streaming (blob:) player's click hands dm the page when no stream of it was loaded",
+          bool(row), str(row)[:300])
 
-    # A player whose page loads an HLS playlist that yt-dlp cannot read: the
+    # A player whose page loads an HLS playlist: the
     # stream the page's traffic showed is what the panel offers. One
     # choice goes at once.
     tab = panel_page(base, origin, "/stream.html")
@@ -788,30 +793,22 @@ def panel_checks(base, origin, engine_dl, engine_home, worker):
     stream = wait_for(lambda: next((r for r in queue_rows(engine_home)
                                     if r.get("url", "").endswith("/files/stream.m3u8")
                                     and r["state"]["kind"] in ("completed", "failed")), None), 40) or {}
-    check("on a site yt-dlp cannot read, the panel hands dm the HLS stream the page loaded",
+    check("when a page loaded an HLS playlist, the panel hands dm that stream",
           stream.get("state", {}).get("kind") == "completed"
-          and any(r["path"] == "/files/seg-1.ts" and r["agent"].startswith("dm/") for r in requests),
+          and any(r["path"] == "/files/seg-1.ts" and is_dm(r["agent"]) for r in requests),
           str(stream.get("state")))
 
-    # Where yt-dlp reads the page too, both are offered in one list.
+    # A page that loads one playlist: its click hands the stream over at once,
+    # and no list of qualities is read from the page.
     tab = panel_page(base, origin, "/both.html")
     wait_for(lambda: any(r["path"] == "/files/both.m3u8" for r in requests), 10)
     hover(tab, tab.evaluate(VIDEO_RECT))
     wait_for(lambda: (panel(tab) or {}).get("shown"), 5)
     click_panel(tab)
-    listed = wait_for(lambda: len((panel(tab) or {}).get("lines") or []) >= 3 and panel(tab), 40) or panel(tab) or {}
-    lines = listed.get("lines") or []
-    check("where yt-dlp reads the page, its qualities and the page's stream are listed together",
-          lines == ["720p MP4 — 9.5 MB", "M4A audio — 977 KB", "HLS stream"], str(lines))
-    if "HLS stream" in lines and listed.get("at"):
-        x, y = listed["at"][lines.index("HLS stream")]
-        mouse(tab, "mouseMoved", x, y)
-        mouse(tab, "mousePressed", x, y)
-        mouse(tab, "mouseReleased", x, y)
     both = wait_for(lambda: next((r for r in queue_rows(engine_home)
                                   if r.get("url", "").endswith("/files/both.m3u8")
-                                  and r["state"]["kind"] in ("completed", "failed")), None), 30) or {}
-    check("and the stream's line hands dm the stream", both.get("state", {}).get("kind") == "completed",
+                                  and r["state"]["kind"] in ("completed", "failed")), None), 40) or {}
+    check("a page whose stream was loaded hands dm the stream", both.get("state", {}).get("kind") == "completed",
           str(both.get("state")))
 
     # Decoration is left alone.
@@ -1173,6 +1170,11 @@ def main():
         except RuntimeError as e:
             check("the WebAssembly loads and its handlers are there", False, str(e))
             return
+        # A check of real sites only (sites-check.py): the loopback checks
+        # below are the usual run's.
+        if os.environ.get("DM_SKIP_LOCAL"):
+            panel_checks(base, origin, engine_dl, engine_home, worker)
+            return
         # Each named, not counted: a run reading "6 of 7" could not say which.
         # An event the browser lacks counts as missing.
         names = ["downloads.onCreated", "downloads.onDeterminingFilename", "contextMenus.onClicked",
@@ -1190,7 +1192,7 @@ def main():
         landed = wait_for(lambda: whole(engine_dl, "caught.bin"), 60)
         check("a clicked download is fetched by dm into its own folder", landed,
               f"{engine_dl / 'caught.bin'}")
-        dm_asked = [r for r in requests if r["path"] == "/files/caught.bin" and r["agent"].startswith("dm/")]
+        dm_asked = [r for r in requests if r["path"] == "/files/caught.bin" and is_dm(r["agent"])]
         check("dm fetched it with the page as referrer",
               bool(dm_asked) and all(r["referer"] == page for r in dm_asked),
               f"{len(dm_asked)} request(s) from dm, referer {sorted({r['referer'] for r in dm_asked})}")
@@ -1267,7 +1269,7 @@ def main():
         done = wait_for(lambda: whole(engine_dl, "paced.bin"), 40)
         took = time.monotonic() - began
         ports = {r["port"] for r in requests[mark:]
-                 if r["path"].endswith("/paced.bin") and r["agent"].startswith("dm/")}
+                 if r["path"].endswith("/paced.bin") and is_dm(r["agent"])}
         check("a small file from a server that holds each connection to 1 MB/s is fetched on helping connections",
               done and took < 2.8 and len(ports) >= 4, f"{took:.2f} s on {len(ports)} of dm's connections")
         # The same size from a fast server: no connection is opened that it
@@ -1279,7 +1281,7 @@ def main():
             began = time.monotonic()
             human_click(base, origin, name)
             done = wait_for(lambda: whole(engine_dl, name), 40)
-            asked = [r for r in requests[mark:] if r["path"].endswith("/" + name) and r["agent"].startswith("dm/")]
+            asked = [r for r in requests[mark:] if r["path"].endswith("/" + name) and is_dm(r["agent"])]
             ports = {r["port"] for r in asked}
             starts.append((min(r["t"] for r in asked) - began) * 1000 if asked else 9999)
             check(f"{name}, from a fast server, is fetched on no more connections than it needs",

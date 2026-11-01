@@ -646,16 +646,23 @@ fn host_of(url: &str) -> Option<String> {
     })
 }
 
+/// The agent a download goes out with first: Internet Explorer 11's, as
+/// reference A sends it (maintainer, 2026-11-01), so a site that takes only
+/// browsers answers the first request. A site that refuses it is asked again
+/// with dm's own agents ([`FALLBACK_AGENTS`]), which the sites that refuse
+/// browsers' (Wikimedia asks for a contact address) take.
+pub const IE_AGENT: &str = "Mozilla/5.0 (Windows NT 6.1; Trident/7.0; rv:11.0) like Gecko";
+
 /// The agent a request to `url` goes out with: the one its site last
-/// answered, else [`USER_AGENT`].
+/// answered, else [`IE_AGENT`].
 pub fn agent_for(url: &str) -> &'static str {
     host_of(url)
         .and_then(|host| lock(plain_hosts()).get(&host).copied())
-        .unwrap_or(USER_AGENT)
+        .unwrap_or(IE_AGENT)
 }
 
-/// The agents a refused probe tries, in order, after [`USER_AGENT`].
-pub const FALLBACK_AGENTS: [&str; 2] = [PLAIN_AGENT, BROWSER_AGENT];
+/// The agents a refused probe tries, in order, after [`IE_AGENT`].
+pub const FALLBACK_AGENTS: [&str; 3] = [USER_AGENT, PLAIN_AGENT, BROWSER_AGENT];
 
 /// From now on, `url`'s site is asked with `agent`.
 pub fn prefer_agent(url: &str, agent: &'static str) {

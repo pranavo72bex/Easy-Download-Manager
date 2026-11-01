@@ -2,7 +2,7 @@
 //! megabytes every so many hours.
 //!
 //! Counted by the queue from every row's progress, so a torrent and a
-//! yt-dlp run count as much as dm's own transfers. When the allowance is
+//! video run count as much as dm's own transfers. When the allowance is
 //! spent the queue holds its downloads, as the scheduler does outside its
 //! window, and puts them back when the period rolls over.
 

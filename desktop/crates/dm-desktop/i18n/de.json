@@ -747,5 +747,13 @@
  "Square 1:1": "Quadrat 1:1",
  "Part as": "Teil als",
  "Video": "Video",
- "this video needs dm's video tools, which are turned off in Options › Downloads. Turn them on there": "eine Videoseite braucht dms Video-Helfer, den Optionen › Downloads nicht holen lässt: installieren Sie oder lassen Sie dm ihn holen"
+ "this video needs dm's video tools, which are turned off in Options › Downloads. Turn them on there": "eine Videoseite braucht dms Video-Helfer, den Optionen › Downloads nicht holen lässt: installieren Sie oder lassen Sie dm ihn holen",
+ "Name sent by the server": "Vom Server gesendeter Name",
+ "The name to save the file was {}, but the server sent {}. Save the file with the name received from the server?": "Die Datei sollte unter dem Namen {} gespeichert werden, aber der Server hat {} gesendet. Die Datei unter dem vom Server erhaltenen Namen speichern?",
+ "No": "Nein",
+ "Web page instead of the file": "Webseite statt der Datei",
+ "The requested file looks like an HTML web page. Would you like to continue downloading it and save it as an HTML page?": "Die angeforderte Datei sieht aus wie eine HTML-Webseite. Möchten Sie den Download fortsetzen und sie als HTML-Seite speichern?",
+ "The file doesn't exist": "Die Datei existiert nicht",
+ "The requested file doesn't exist.": "Die angeforderte Datei existiert nicht.",
+ "Details:": "Details:"
 }

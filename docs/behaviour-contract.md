@@ -45,8 +45,11 @@ Recorded 2026-10-29 from the merged `main`, where every row passed.
 | B10 | A server that does not take ranges | Fetched on one connection, whole | same |
 | B11 | A server that says the file is longer than it sends | The file completes; it does not stay "running" | not documented |
 | B12 | An address that redirects | Followed; saved under the name of what it reached | same |
-| B13 | A server that names the file (Content-Disposition) | Saved under that name ("Report 2026.pdf") | same |
-| B14 | An address that answers 404 | The row fails and says "This link no longer works", with the server's answer | same |
+| B13 | A server that names the file (Content-Disposition) | Saved under that name ("Report 2026.pdf") unless the person says No to the question of B39 | same |
+| B39 | A server names the file differently from the address (`/dl?id=7` answered with "Report 2026.pdf") | A question, "Name sent by the server": "The name to save the file was dl, but the server sent Report 2026.pdf. Save the file with the name received from the server?", Yes / No. Yes saves it as "Report 2026.pdf"; No saves it under the address's name. Not asked when the names agree, for a name the person typed in Download details, or for links added together by "Download all links". Added 2026-11-01 at the maintainer's word | same |
+| B40 | An address that ends like a file (`.zip`) answers with a web page | A question, "Web page instead of the file": "The requested file looks like an HTML web page. Would you like to continue downloading it and save it as an HTML page?", Yes / No. Yes saves the page as `<name>.html`; No removes the row and keeps nothing. Where nothing can ask (the command line, an AI client) the row fails with "web page rather than the file", as before. Added 2026-11-01 at the maintainer's word | same |
+| B14 | An address that answers 404 | The row fails and says "This link no longer works", with the server's answer, and a window tells it once (B41) | same |
+| B41 | An address that answers 404, the row having failed | Once, a window "The file doesn't exist": "The requested file doesn't exist.", Details: "HTTP/1.1 404 Not Found", OK. It does not come back for the same row. Added 2026-11-01 at the maintainer's word | same |
 | B15 | Every download that completes | Its bytes are exactly the server's | same |
 
 ## Where files go

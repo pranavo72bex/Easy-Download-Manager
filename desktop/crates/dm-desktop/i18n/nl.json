@@ -747,5 +747,13 @@
  "Square 1:1": "Vierkant 1:1",
  "Part as": "Deel als",
  "Video": "Video",
- "this video needs dm's video tools, which are turned off in Options › Downloads. Turn them on there": "een videopagina heeft de videohulp van dm nodig, die Opties › Downloads niet laat ophalen: installeer of laat dm hem ophalen"
+ "this video needs dm's video tools, which are turned off in Options › Downloads. Turn them on there": "een videopagina heeft de videohulp van dm nodig, die Opties › Downloads niet laat ophalen: installeer of laat dm hem ophalen",
+ "Name sent by the server": "Door de server verzonden naam",
+ "The name to save the file was {}, but the server sent {}. Save the file with the name received from the server?": "De naam om het bestand onder op te slaan was {}, maar de server stuurde {}. Het bestand opslaan onder de naam die de server stuurde?",
+ "No": "Nee",
+ "Web page instead of the file": "Webpagina in plaats van het bestand",
+ "The requested file looks like an HTML web page. Would you like to continue downloading it and save it as an HTML page?": "Het gevraagde bestand lijkt een HTML-webpagina. Wilt u doorgaan met downloaden en het opslaan als HTML-pagina?",
+ "The file doesn't exist": "Het bestand bestaat niet",
+ "The requested file doesn't exist.": "Het gevraagde bestand bestaat niet.",
+ "Details:": "Details:"
 }

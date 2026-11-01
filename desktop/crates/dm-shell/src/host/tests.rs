@@ -228,7 +228,7 @@ impl World for Pretend {
         _cookies: &str,
     ) -> Result<Vec<Choice>, String> {
         if url.contains("unreadable") {
-            return Err("yt-dlp could not read that page".into());
+            return Err("dm could not read that page".into());
         }
         Ok(vec![
             Choice {
@@ -351,7 +351,7 @@ fn the_panel_is_told_the_qualities_a_page_comes_in_or_why_not() {
         panic!("no formats answer");
     };
     assert!(choices.is_empty());
-    assert_eq!(reason.as_deref(), Some("yt-dlp could not read that page"));
+    assert_eq!(reason.as_deref(), Some("dm could not read that page"));
 }
 
 #[test]

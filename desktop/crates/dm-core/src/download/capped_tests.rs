@@ -51,6 +51,7 @@ fn options(dir: &Path) -> Options {
         subtitles: false,
         sign_in: None,
         save_name: None,
+        accept_page: false,
         system_proxy: false,
         remux: false,
         server_dates: false,

@@ -72,6 +72,9 @@ FILES = {
     "lie.bin": (4 * MiB, 0, "lie"),               # says 1 MiB more than it sends
     "target.bin": (6 * MiB, 0, "plain"),          # reached through /go/target
     "report": (3 * MiB, 0, "named"),              # "Report 2026.pdf"
+    "second": (1 * MiB, 0, "named"),              # named by its server; asked about, answered No
+    "pageyes.zip": (2048, 0, "page"),             # a web page where a file was asked for; Yes
+    "pageno.zip": (2048, 0, "page"),              # the same; No
     "again.bin": (4 * MiB, 0, "plain"),           # added twice
     "later.bin": (4 * MiB, 0, "plain"),           # Add for later, then Start queue
     "limit.bin": (3 * MiB, 0, "plain"),           # fetched under Low speed
@@ -122,6 +125,11 @@ def serve(c, n):
                     log(ev="refused", conn=n, name=name)
                     c.sendall(b"HTTP/1.1 503 Service Unavailable\r\nRetry-After: 1\r\nContent-Length: 0\r\n\r\n")
                     continue
+            if kind == "page":
+                page = b"<html><title>Sign in</title><body>expired</body></html>"
+                c.sendall(b"HTTP/1.1 200 OK\r\nContent-Type: text/html; charset=utf-8\r\nContent-Length: "
+                          + str(len(page)).encode() + b"\r\n\r\n" + (b"" if method == "HEAD" else page))
+                continue
             if kind == "norange":
                 rng = None
             first, last = 0, size - 1
@@ -280,6 +288,8 @@ class Dm:
                 self.click(then)
                 return True
             time.sleep(0.25)
+        print(f"  (Add URL did not reach Download details for {url}: dialogs {self.dialogs()}, "
+              f"words {self.texts()[:14]})", flush=True)
         return False
 
 
@@ -341,6 +351,32 @@ def differing(a, b):
 
 # ---------------------------------------------------------------- the walk
 
+def answer(dm, title, button, seconds=40):
+    """Waits for the question `title`, returns the words on it, and presses `button`."""
+    end = time.time() + seconds
+    while time.time() < end:
+        if title in dm.dialogs():
+            pause(0.5)
+            said = dm.texts()
+            dm.click(button)
+            return said
+        time.sleep(0.25)
+    return None
+
+
+def drain(dm, seconds, buttons, said):
+    """Answers, as a person does, every question in `buttons` (title -> button) that
+    comes within `seconds`, keeping the words on each in `said[title]`."""
+    end = time.time() + seconds
+    while time.time() < end:
+        for title in dm.dialogs():
+            if title in buttons:
+                pause(0.4)
+                said.setdefault(title, []).append(dm.texts())
+                dm.click(buttons[title])
+        time.sleep(0.25)
+
+
 def walk(dm, origin):
     files = f"{origin}/files"
 
@@ -401,9 +437,13 @@ def walk(dm, origin):
     print("\nHow a file is fetched", flush=True)
     for name in ("fast.bin", "slowconn.bin", "limited.bin", "norange.bin", "lie.bin"):
         dm.add(f"{files}/{name}")
-    dm.add(f"{origin}/go/target")
-    dm.add(f"{files}/report")
-    dm.add(f"{files}/missing.bin")
+    # The questions a server's answer raises (B39, B41) are answered as a person does,
+    # as they come: each blocks the window until it is.
+    questions = {}
+    asked = {"Name sent by the server": "Yes", "The file doesn't exist": "OK"}
+    for url in (f"{origin}/go/target", f"{files}/report", f"{files}/missing.bin"):
+        dm.add(url)
+        drain(dm, 4, asked, questions)
     pause(2)
     done = {}
     for name in ("fast.bin", "slowconn.bin", "limited.bin", "norange.bin", "lie.bin"):
@@ -488,6 +528,46 @@ def walk(dm, origin):
     names = sorted(pathlib.Path(x.get("path") or "").name for x in copies)
     check("B17", "Download again saves a second copy beside the first as 'name (1)'",
           names == ["again (1).bin", "again.bin"] and not dm.dialogs(), f"{names}")
+
+    print("\nWhat a server's answer raises (added 2026-11-01 at the maintainer's word)", flush=True)
+    drain(dm, 3, asked, questions)
+    # The sentence wraps into several labels, so it is read from all of them.
+    named = [t for t in questions.get("Name sent by the server", [])
+             if any("The name to save the file was report, but the server sent" in x for x in t)
+             and any("Report 2026.pdf. Save the file with the name received from the" in x for x in t)]
+    check("B39", "a server's name that differs from the address's is asked about, Yes and No offered",
+          bool(named) and "Yes" in named[0] and "No" in named[0],
+          f"{len(questions.get('Name sent by the server', []))} question(s): {questions.get('Name sent by the server', [])}"[:600])
+    check("B39", "Yes saves it under the server's name",
+          pathlib.Path(report["path"]).name == "Report 2026.pdf", pathlib.Path(report["path"]).name)
+    dm.add(f"{files}/second")
+    said = answer(dm, "Name sent by the server", "No")
+    second = dm.wait("files/second", {"completed", "failed"}, 60)
+    check("B39", "No saves it under the address's name",
+          said is not None and bool(second) and second["state"]["kind"] == "completed"
+          and pathlib.Path(second["path"]).name == "second",
+          pathlib.Path(second["path"]).name if second and second.get("path") else str(second and second["state"]))
+    gone = questions.get("The file doesn't exist", [])
+    check("B41", "a 404 is told once in a window: the file doesn't exist, HTTP/1.1 404 Not Found, OK",
+          len(gone) == 1 and "The requested file doesn't exist." in gone[0]
+          and "HTTP/1.1 404 Not Found" in gone[0] and "OK" in gone[0], f"{len(gone)} window(s)")
+    pause(3)
+    check("B41", "it does not come back for the same row", "The file doesn't exist" not in dm.dialogs(), "")
+    dm.add(f"{files}/pageyes.zip")
+    said = answer(dm, "Web page instead of the file", "Yes")
+    page = dm.wait("pageyes.zip", {"completed", "failed"}, 60)
+    saved = pathlib.Path(page["path"]) if page and page.get("path") else None
+    check("B40", "a web page for a file is asked about; Yes saves it as an HTML page",
+          said is not None and "Yes" in said and "No" in said and saved is not None
+          and saved.name == "pageyes.html" and saved.read_bytes().startswith(b"<html>"),
+          saved.name if saved else str(page and page["state"]))
+    dm.add(f"{files}/pageno.zip")
+    said = answer(dm, "Web page instead of the file", "No")
+    pause(2)
+    left = list((WORK / "home" / "downloads").rglob("pageno*"))
+    check("B40", "No removes the row and keeps nothing",
+          said is not None and dm.row("pageno.zip") is None and not left,
+          f"row kept: {dm.row('pageno.zip') is not None}, files: {left}")
 
     print("\nThe queue and speed", flush=True)
     dm.call("downloads.add", urls=[f"{files}/q{i}.bin" for i in range(1, 6)])

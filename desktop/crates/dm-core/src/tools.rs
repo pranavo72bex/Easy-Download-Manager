@@ -329,7 +329,7 @@ pub async fn fetch_into(
 
 /// `tool`, found or fetched. Found first (one the person installed, or one
 /// dm fetched before); fetched only where dm has a tools folder and no
-/// test or person has named the program outright (`DM_YTDLP`, `DM_QJS`,
+/// test or person has named the program outright (`DM_DENO`, `DM_QJS`,
 /// which is how a test pins down what dm does without one).
 pub async fn ensure(client: &reqwest::Client, tool: Tool) -> Result<PathBuf, Error> {
     let find = || match tool {

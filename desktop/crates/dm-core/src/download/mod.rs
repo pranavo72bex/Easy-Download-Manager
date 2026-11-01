@@ -122,6 +122,10 @@ pub struct Options {
     /// it held that name for a moment and pushed a download of the same
     /// file finishing then to "name (1)".
     pub save_name: Option<String>,
+    /// A page that answers for a file (a sign-in, an expired link) is saved as
+    /// an HTML page, named `<name>.html`, rather than failing the download:
+    /// what a person who was asked and said yes has chosen (reference A asks).
+    pub accept_page: bool,
     /// The proxy is the computer's own settings. dm's HTTP client reads
     /// them, but where they name no address the environment carries (the
     /// macOS and Windows network settings), FTP and BitTorrent, which
@@ -831,11 +835,15 @@ async fn fetch_reporting(
     }
     if page && names_a_file(url) {
         if starts_as_html(client, url, options).await {
-            return Err(Error::Internal(
-                "that link answered with a web page rather than the file — it may have expired, \
-                 or need a sign-in"
-                    .into(),
-            ));
+            if options.accept_page {
+                info.filename = html_name(&info.filename);
+            } else {
+                return Err(Error::Internal(
+                    "that link answered with a web page rather than the file — it may have \
+                     expired, or need a sign-in"
+                        .into(),
+                ));
+            }
         }
     } else if page {
         /* A YouTube page is read by dm itself; every other site's video
@@ -1165,6 +1173,7 @@ mod tests {
             record_limit: None,
             sign_in: None,
             save_name: None,
+            accept_page: false,
             system_proxy: false,
         }
     }
@@ -1215,5 +1224,20 @@ mod tests {
         let outcome = join_parts(&parts, &into).await;
         assert!(outcome.is_err(), "a missing part was skipped");
         assert!(!into.exists(), "a short file was left under the name");
+    }
+}
+
+/// `name` as an HTML page's: its extension replaced by `.html`, so a `.zip`
+/// that was a page is saved as the page it is.
+pub(crate) fn html_name(name: &str) -> String {
+    let path = std::path::Path::new(name);
+    match path.extension().and_then(|e| e.to_str()) {
+        Some(ext) if ext.eq_ignore_ascii_case("html") || ext.eq_ignore_ascii_case("htm") => {
+            name.to_string()
+        }
+        _ => {
+            let stem = path.file_stem().and_then(|s| s.to_str()).unwrap_or(name);
+            format!("{stem}.html")
+        }
     }
 }

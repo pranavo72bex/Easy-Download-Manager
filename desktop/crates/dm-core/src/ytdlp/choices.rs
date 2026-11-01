@@ -10,12 +10,12 @@ pub struct Choice {
     pub label: String,
     /// The quality to download it at, in `Quality::named`'s words.
     pub quality: String,
-    /// Bytes, where yt-dlp knows or estimates them.
+    /// Bytes, where the reader knows or estimates them.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub size: Option<u64>,
 }
 
-/// The choices in yt-dlp's `-J` description of a page: one per picture
+/// The choices in a reader's JSON description of a page: one per picture
 /// height, tallest first, each with the biggest file at that height (and the
 /// sound it would be joined with), then the best sound alone. Nothing it
 /// cannot read is listed; garbage gives an empty list, not an error.
@@ -57,7 +57,7 @@ pub fn choices(described: &str) -> Vec<Choice> {
         let Some(height) = f.get("height").and_then(|v| v.as_u64()).map(|h| h as u32) else {
             continue;
         };
-        // A picture where it has a height, unless yt-dlp says it has none:
+        // A picture where it has a height, unless the reading says it has none:
         // an HLS master's renditions list no codecs, and come as
         // `vcodec: null`, which left a stream with no list.
         let no_picture = f.get("vcodec").and_then(|v| v.as_str()) == Some("none");
@@ -93,7 +93,7 @@ pub fn choices(described: &str) -> Vec<Choice> {
         .into_iter()
         .map(|(height, label, ext, size)| {
             // The quality word is the picture's shorter side, which is what
-            // the chooser and yt-dlp's selector measure: a portrait video's
+            // the chooser and the selector measure: a portrait video's
             // width (720 for 720x1280).
             let side = label
                 .rsplit(' ')
@@ -189,7 +189,7 @@ pub fn with_mp3(mut list: Vec<Choice>) -> Vec<Choice> {
 }
 
 /// The panel's list from a YouTube watch page's own player data, with no
-/// yt-dlp run: `None` for another site or a page that does not give one.
+/// a reader run: `None` for another site or a page that does not give one.
 pub async fn list_choices_fast(
     url: &str,
     proxy: Option<&str>,

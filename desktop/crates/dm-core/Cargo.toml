@@ -63,8 +63,7 @@ zip = { version = "9", default-features = false, features = ["deflate"] }
 flate2 = "1"
 brotli-decompressor = "5"
 
-# `killpg`, to end yt-dlp's process group without running a `kill` program
-# that a minimal `PATH` may not find. Already in the tree through tokio.
+# Calls into the C library that std does not wrap. Already in the tree through tokio.
 [target.'cfg(unix)'.dependencies]
 libc = "0.2"
 

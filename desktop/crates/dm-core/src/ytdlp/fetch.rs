@@ -94,7 +94,7 @@ pub async fn download_page(
 /// The page read again, after a stream's address was refused (403 or 410),
 /// where that is what an address that has run out looks like: the plan's
 /// own `expire` has passed, or bytes were already fetched, so the address
-/// served once. One refused at the first ask never did, and is yt-dlp's as
+/// served once. One refused at the first ask never did, and is not read as
 /// before. `None` where the fresh reading is not the same streams (another
 /// format, name or size): what is staged belongs to the old ones.
 async fn renewed(url: &str, plan: &Plan, options: &Options) -> Result<Option<(Plan, Read)>, Error> {
@@ -160,7 +160,7 @@ impl Read {
     }
 
     /// The latest `available_at` of what it would fetch (Unix seconds):
-    /// the moment the site serves it, which yt-dlp waits for.
+    /// the moment the site serves it, which a player waits for.
     fn available_at(&self) -> Option<u64> {
         let formats = self.info.requested_formats.iter().flatten();
         formats
@@ -192,11 +192,11 @@ async fn wait_until_available(read: &Read, options: &Options) -> Result<(), Erro
 
 #[derive(Debug, Default, serde::Deserialize)]
 struct Info {
-    /// The path yt-dlp would have saved under (the picture and sound
+    /// The path the video would be saved under (the picture and sound
     /// joined), from the same template its own download uses.
     #[serde(default)]
     filename: Option<String>,
-    /// Which of yt-dlp's readers made this reading, its id for the video,
+    /// Which reader made this reading, its id for the video,
     /// and how many videos the page held (`unnumbered`).
     #[serde(default)]
     extractor_key: Option<String>,
@@ -263,8 +263,8 @@ fn range_of(text: Option<&str>) -> Option<(u64, u64)> {
 }
 
 impl Format {
-    /// The most bytes one request for this format may ask for, where yt-dlp
-    /// says its server holds each to that (`http_chunk_size`).
+    /// The most bytes one request for this format may ask for, where the reading
+    /// says its server holds each to that.
     fn chunk(&self) -> Option<u64> {
         // `DM_YTDLP_NO_CHUNK` switches the cap off, for timing a long video
         // with and without it on a real connection (gaps.md row 22).
@@ -387,7 +387,7 @@ impl Read {
                 .take(40)
                 .collect();
             let ext = format.ext.as_deref().unwrap_or("mp4");
-            // `unknown_video` is yt-dlp's for a type it cannot name.
+            // `unknown_video` is the reader's for a type it cannot name.
             if ext.is_empty() || !ext.chars().all(|c| c.is_ascii_alphanumeric() || c == '_') {
                 return None;
             }
@@ -466,15 +466,15 @@ impl Plan {
     }
 }
 
-/// The name of a page's only `<video>` without the number yt-dlp gives it.
+/// The name of a page's only `<video>` without the number a reader gives it.
 ///
-/// yt-dlp's reader of a plain page's media (`HTML5MediaEmbed`) numbers every
+/// the reader of a plain page's media (`HTML5MediaEmbed`) numbers every
 /// video it finds, one or several: a page titled "Talk" with one video was
 /// saved as "Talk (1) [watch-1].mp4". Other download managers name it by the page alone,
 /// and a number with nothing to tell apart says there is another.
 fn unnumbered(produced: PathBuf, info: &Info) -> PathBuf {
     let only_one = info.extractor_key.as_deref() == Some("HTML5MediaEmbed")
-        // One video: yt-dlp leaves the playlist fields out (several: `n_entries`).
+        // One video: the reader leaves the playlist fields out (several: `n_entries`).
         && info.n_entries.unwrap_or(1) == 1
         && info.id.as_deref().is_some_and(|id| id.ends_with("-1"));
     let (true, Some(stem), Some(ext)) = (
@@ -484,7 +484,7 @@ fn unnumbered(produced: PathBuf, info: &Info) -> PathBuf {
     ) else {
         return produced;
     };
-    // Matched in the name as written, not against `id`: yt-dlp writes the
+    // Matched in the name as written, not against `id`: the reader writes the
     // characters a name cannot hold as others ("watch?v=ok" became
     // "watch？v=ok").
     let Some((title, rest)) = stem.rsplit_once(" (1) [") else {
@@ -519,7 +519,7 @@ async fn resolve(url: &str, options: &Options) -> Result<Read, Error> {
 }
 
 /// Every stream fetched by dm's own engine at once, then joined and placed
-/// as yt-dlp's own output would have been.
+/// as a reader's own output would have been.
 async fn fetch(
     client: &reqwest::Client,
     plan: &Plan,
@@ -561,7 +561,7 @@ async fn fetch(
     }
     fetched?;
 
-    // Left beside the video as yt-dlp leaves them, and read back as its are.
+    // Left beside the video as they are left, and read back as its are.
     subtitles(client, read, &plan.produced, options).await;
     let found = crate::subtitles::beside(&plan.produced);
     let (files, texts): (Vec<PathBuf>, Vec<crate::subtitles::Subtitle>) = found.into_iter().unzip();
@@ -576,7 +576,7 @@ async fn fetch(
 }
 
 /// One stream, by dm's engine, into its own parts folder, then moved to
-/// where yt-dlp would have left it.
+/// where it would have been left.
 async fn fetch_stream(
     client: &reqwest::Client,
     stream: &Stream,
@@ -644,7 +644,7 @@ async fn fetch_part(
 }
 
 /// The subtitles the reading names, fetched and left beside the video
-/// as yt-dlp leaves them (`name.<language>.vtt`). One that cannot be had is
+/// as they are left (`name.<language>.vtt`). One that cannot be had is
 /// passed over: subtitles are not worth the video.
 async fn subtitles(client: &reqwest::Client, read: &Read, produced: &Path, options: &Options) {
     let Some(asked) = read.info.requested_subtitles.as_ref() else {

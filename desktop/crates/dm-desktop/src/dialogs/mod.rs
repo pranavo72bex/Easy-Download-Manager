@@ -20,6 +20,7 @@ use crate::format;
 
 mod about;
 mod add;
+mod asks;
 mod complete;
 mod confirm;
 mod controls;
@@ -38,6 +39,8 @@ mod state;
 
 use about::*;
 pub use add::*;
+pub use asks::NameAsk;
+use asks::*;
 use complete::*;
 use confirm::*;
 pub(crate) use controls::*;
@@ -667,6 +670,13 @@ pub struct Dialogs {
     pub confirm_cancel: Option<Id>,
     /// An address typed in that is already a row: the address and the row.
     pub duplicate: Option<(String, Id)>,
+    /// The server sent another name than the address's: asked which to save
+    /// the file under (reference A asks).
+    pub name_ask: Option<NameAsk>,
+    /// A web page answered for a file: asked whether to save it as an HTML page.
+    pub page_ask: Option<Id>,
+    /// A server said the file is not there: told once, with the row it was.
+    pub not_found: Option<Id>,
     /// A list being imported that holds addresses already in the list:
     /// asked once, for all of them, whether to skip them or add them again.
     pub import_ask: Option<ImportAsk>,
@@ -729,6 +739,7 @@ pub fn show(app: &mut DmApp, ctx: &egui::Context) {
     for id in std::mem::take(&mut app.dialogs.raise) {
         ctx.move_to_top(egui::LayerId::new(egui::Order::Middle, id));
     }
+    app.promote_asks();
     countdown(app, ctx);
     confirm_exit(app, ctx);
     confirm_close(app, ctx);
@@ -737,6 +748,9 @@ pub fn show(app: &mut DmApp, ctx: &egui::Context) {
     confirm_outside(app, ctx);
     confirm_cancel(app, ctx);
     duplicate(app, ctx);
+    name_ask(app, ctx);
+    page_ask(app, ctx);
+    not_found(app, ctx);
     import_ask(app, ctx);
     list_file(app, ctx);
     skip_offer(app, ctx);

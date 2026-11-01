@@ -196,8 +196,8 @@ fn lines(text: &str) -> Vec<&str> {
 /// Why dm should not assemble this stream itself, where it should not: a
 /// shape whose segments, joined in order, are not the file. Each of these
 /// was saved as the wrong file and reported Completed — the whole source
-/// repeated, a silent film, ciphertext — so they go to yt-dlp, which reads
-/// them properly, or are refused. `master` is the master playlist where
+/// repeated, a silent film, ciphertext — so they are refused, not saved
+/// as a file that is not one. `master` is the master playlist where
 /// there was one; `media` the media playlist that would be fetched, and
 /// `media_url` where it was served from, which its entries are relative to.
 pub fn beyond_dm(
@@ -496,7 +496,7 @@ pub fn media_playlist(
             if let Some(uri) = attribute(row, "URI") {
                 // Restated, it is the same one: `beyond_dm` has already
                 // sent a stream whose initialisation segment changes to
-                // yt-dlp, so the first is the only one.
+                // refused, so the first is the only one.
                 if init.is_none() {
                     let range = match attribute(row, "BYTERANGE") {
                         Some(text) => match byte_range(&text)? {

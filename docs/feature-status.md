@@ -118,7 +118,7 @@ and is not carried over.
       (a `DOMAIN\user` login; `ntlm.rs` checked against MS-NLMP's worked
       example, `tests/ntlm.rs` against a server that signs each connection
       in, the file fetched over several). Kerberos is not offered; a `cookies.txt` chosen in Options › Network is sent
-      and handed to yt-dlp. The browser's own cookies stay with the browser
+      to the site it belongs to. The browser's own cookies stay with the browser
       unless the popup's "Hand over this site's sign-in" is on for the site,
       when they travel with the hand-off and the row keeps them
       (`tests/cookies.rs`, `host.rs`); a hand-off
@@ -134,18 +134,18 @@ and is not carried over.
 ## Media
 - [x] Video detection — the extension extracts no video. "Download media with
       dm" on a `blob:` (Media Source) player hands the page to the client,
-      which runs yt-dlp. The toolbar button only brings dm's window up
+      which reads a YouTube page itself. The toolbar button only brings dm's window up
       (2026-10-14: it used to hand the page over too, downloading a video
       nobody asked for)
       (driven in `app-check.py`). With no app the notification names the fix;
-      an app that said it has no yt-dlp gets the page and a notification
+      an app that said it cannot read video pages gets the page and a notification
       saying a video page needs it. "No app" is believed for ten seconds, so
       an app registered since is found without a browser restart. The
       "Download video" panel shows over players, specified line by line
       with its tests in `docs/video-panel.md`. It
       is a compact bar (dm's mark, "Download video", ▾ on a player page,
       ? and ×) in the player's top corner. A click on a player page lists the
-      qualities the app's yt-dlp finds (`media.formats`, `yt-dlp -J`), one
+      qualities dm reads from the page (`media.formats`), one
       line per height with its size, then the sound alone. The line picked
       reaches the app with its quality and container, so an "MP4" line
       arrives as .mp4. The app then opens "Download details"
@@ -156,13 +156,13 @@ and is not carried over.
       pages (an overlay over the video, a MediaSource player, a 96px clip
       that gets none). `scripts/youtube-check.py` drives it by hand on a real
       YouTube watch page: hover, rest five seconds, click, and the video is
-      in dm's folder through yt-dlp. That run found the panel vanishing
+      in dm's folder. That run found the panel vanishing
       under a resting pointer, because YouTube puts `pointer-events: none`
       on its player as the controls fade. A site whose CSP forbids
       WebAssembly gets no panel; its right-click menu still works
 - [x] Generic media downloads — a direct media file still downloads directly
 - [x] Playlist handling where technically supported — HLS in the client;
-      a player page's stream is resolved by the client's yt-dlp
+      a YouTube page's streams are read by dm itself
 - [x] Filename detection — the client's, held to the cases in
       `shared/naming-cases.json`. The extension names nothing any more
 
@@ -280,6 +280,13 @@ and is not carried over.
       save
 - [x] Download history — the client keeps finished rows with the time they
       finished, persisted, filterable and clearable
+- [x] Three questions as reference A asks them (maintainer's word, 2026-11-01; contract rows B39 to B41):
+      the server's name when it is not the address's (Yes keeps it, No gives the address's,
+      renamed as the file finishes), a web page that answered for a file (Yes saves `<name>.html`
+      through `Options::accept_page`, No removes the row), and a 404 told once in a window of its
+      own. Asked one at a time, in order (`app/sync.rs` `watch_asks`, `dialogs/asks.rs`); not asked
+      for rows already in the list at start, for a name a person typed, or for links added together.
+      Where nothing can ask (the command line, an AI client) a page for a file still fails as before
 
 ## Reliability
 - [x] Unit tests — all Rust: the desktop workspace and the extension's host
@@ -400,10 +407,10 @@ of them.
 - [x] Speed limiting — client. One ceiling shared by every connection of
       every download dm fetches itself, and a limit of a download's own,
       set in its progress window and kept with its row, held beside it.
-      A torrent or yt-dlp run, which dm cannot meter chunk by chunk, holds a
+      A torrent or a video run, which dm cannot meter chunk by chunk, holds a
       share while it runs: with n of them the ceiling is split n+1 ways, one
       part for dm's own downloads (`limit.rs` tests). A torrent re-reads its
-      part every tick; a yt-dlp run keeps the part it started with
+      part every tick; a video run keeps the part it started with
 - [x] Scheduler (download between set hours) — client. Local time, wraps past
       midnight, and does not restart what a person paused on purpose; and
       a named queue can start on its own each day at a time of its own
@@ -414,7 +421,7 @@ of them.
       or the computer's own settings; a list of sites fetched directly. FTP
       goes through SOCKS or HTTP CONNECT (`tests/ftp.rs`); an HTTPS proxy
       refuses FTP rather than being gone around.
-      Every request of dm's own, yt-dlp's connections, and a torrent's
+      Every request of dm's own, and a torrent's
       trackers and peers over SOCKS5; a torrent under any other kind of proxy
       is refused with the reason rather than sent out around it. A saved
       proxy that no longer parses is turned off for every route at startup,
@@ -438,7 +445,7 @@ of them.
       are discarded rather than spliced in after a quality change. The page's
       referrer goes on every request of the stream, not only the probe; a
       test serves a stream only to its page and gets it. DASH is read by dm itself
-      (2026-10-25, `dash.rs`, `download/dash.rs`): templates (number, time,
+      (2026-10-25, `download/dash.rs`): templates (number, time,
       timeline), segment lists with byte ranges, and single files; the picture
       and sound are chosen by the quality and container asked for, each fetched
       piece by piece (a byte range a server does not honour is an error, not
@@ -490,33 +497,11 @@ of them.
       fetched over HTTP carries the page's referrer. A test stands up a
       one-seeder swarm on loopback and fetches a file through it, so the
       bytes really cross a BitTorrent connection rather than being copied
-- [x] Player-only sites via yt-dlp — the client hands a page it cannot fetch
-      itself (a video site's watch URL, where the media address is minted by
-      the site's own player) to an installed yt-dlp, the sanctioned way:
-      dm runs the tool the user installed and places what it produces like
-      any other download — no site logic, token minting or signature work of
-      dm's own. Routed only when the probe found a web page rather than a
-      file and a yt-dlp is on the machine. Progress, quality and the shared
-      speed limit are passed through, and so are the proxy and the page's
-      referrer, which every request of dm's own already carried and yt-dlp's
-      own connections did not; a row's checksum is checked over what it
-      produced like any other download; a test drives the real yt-dlp
-      against a loopback server end to end. The packaging already listed yt-dlp as an
-      optional dependency; now the client actually uses it. Found even when
-      launched from the Dock or by a browser's native host, whose minimal
-      `PATH` hides `/opt/homebrew/bin` and `~/.local/bin` — the usual homes
-      are searched and the tool is spawned by its resolved path. yt-dlp
-      (and QuickJS, its JavaScript engine) are fetched by dm, an MP4 picture and M4A sound
-      are joined by dm itself (`mp4mux.rs`) and an HLS transport stream put
-      into an MP4 by dm (`tsmux.rs`; with packed-AAC sound kept apart, `tsmux/packed.rs`, 2026-10-26, shown by a test with `DM_YTDLP` empty); a real 720p YouTube video arrived that
-      way, decoded identical (2026-10-21). Proven under `PATH=/usr/bin:/bin`: a real watch URL completes
-      as one merged file. Before this, that same launch quietly saved the
-      page's HTML as a "completed" download named `watch`. Since 2026-10-21 nothing has to be installed:
-      with no yt-dlp on the computer, dm fetches the official yt-dlp and
-      QuickJS builds from GitHub into its own folder the first time a video
-      page needs them, checked against their checksums, and fetches yt-dlp
-      afresh weekly (`tools.rs`); the row says "Getting ready for videos
-      (first time only)" meanwhile. Since 2026-10-22 picture, sound and
-      subtitles are joined by dm itself on every computer alike, with no
-      other tool, an installed one included; a page
-      refused to dm's own request (a 429 bot check) is yt-dlp's to try
+- [x] Player-only sites — a YouTube watch page is read by dm itself
+      (`youtube.rs`): the page, the player API as a TV client and the player
+      script, whose challenges run in QuickJS or Deno, and its picture and
+      sound are fetched by dm's own engine and joined by dm (`mp4mux.rs`; an
+      HLS transport stream is put into an MP4 by `tsmux.rs`). Another site's
+      video comes from the browser extension's caught player requests.
+      yt-dlp was used here until 2026-10-31, when it was removed
+      (`docs/decisions.md`).

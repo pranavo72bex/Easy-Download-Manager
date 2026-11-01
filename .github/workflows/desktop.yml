@@ -92,19 +92,6 @@ jobs:
       - name: Test the engine, the shell and the window
         run: cargo nextest run --workspace --locked --profile ci
 
-      # A yt-dlp the person installed is found (and used rather
-      # than one dm fetches) though pip's Scripts folder is off the PATH, as
-      # for a dm started by a browser or the Start menu.
-      - name: yt-dlp where a Windows install puts it
-        if: runner.os == 'Windows'
-        shell: pwsh
-        run: |
-          python -m pip install --user --quiet yt-dlp
-          $env:PATH = ($env:PATH -split ';' | Where-Object { $_ -and ($_ -notlike '*Python*') -and ($_ -notlike '*yt-dlp*') }) -join ';'
-          if (Get-Command yt-dlp -ErrorAction SilentlyContinue) { throw 'yt-dlp is still on the PATH: the check would prove nothing' }
-          $env:DM_EXPECT_YTDLP = '1'
-          cargo test -p dm-core --test tools --locked an_installed_yt_dlp_is_found
-
       - name: Doctests
         run: cargo test --doc --workspace --locked
 
@@ -179,12 +166,6 @@ jobs:
 
       - name: cargo-packager
         run: cargo install cargo-packager --version 0.11.8 --locked
-
-      # yt-dlp inside every package, the release and digest pinned in
-      # packaging/yt-dlp.pin.json: a package without it, or with another
-      # build, is not made.
-      - name: yt-dlp for the package
-        run: python3 scripts/fetch-ytdlp.py desktop/crates/dm-desktop/resources/yt-dlp
 
       # CI is set on every runner, which is what tells the .dmg step to skip
       # the Finder AppleScript a headless machine cannot run.

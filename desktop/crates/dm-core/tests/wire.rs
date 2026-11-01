@@ -34,6 +34,7 @@ fn entry(state: State) -> Entry {
         queue: String::new(),
         save_dir: None,
         save_name: None,
+        accept_page: false,
         validator: None,
         quality: None,
         parts_dir: String::new(),

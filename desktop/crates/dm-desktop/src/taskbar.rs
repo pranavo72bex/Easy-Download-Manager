@@ -215,6 +215,7 @@ mod tests {
             queue: String::new(),
             save_dir: None,
             save_name: None,
+            accept_page: false,
             validator: None,
             quality: None,
             sound: None,

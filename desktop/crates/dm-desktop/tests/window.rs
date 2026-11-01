@@ -9,6 +9,8 @@
 #[path = "../../../test-support/secrets.rs"]
 mod test_secrets;
 
+#[path = "window/asks.rs"]
+mod asks;
 #[path = "window/commands.rs"]
 mod commands;
 #[path = "window/control.rs"]

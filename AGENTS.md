@@ -28,7 +28,7 @@ extension that hands it the browser's downloads.
 
 - `desktop/` is the product. `crates/dm-core` is the engine (probe, plan,
   ranged fetch, resume, assembly, queue, HLS, DASH, Metalink, BitTorrent,
-  yt-dlp hand-off for player pages). `crates/dm-shell` is everything around the window that is not
+  video-page handling). `crates/dm-shell` is everything around the window that is not
   the window: settings, the native messaging host, the one-instance lock,
   startup and the inbox. `crates/dm-desktop` is the window, drawn in Rust
   with egui, no web view, plus the
@@ -128,7 +128,7 @@ There is no Node, npm or JavaScript test suite; do not add one.
 4. Tests use their own temporary directories. Nothing touches a real
    Downloads folder, browser profile or credential.
 5. No DRM, paywall, login or CAPTCHA circumvention, and no site-specific
-   extraction: player pages go to the user's own yt-dlp.
+   extraction: YouTube pages are read by dm itself, other sites by the browser extension.
 6. Free means free: no paid service, no analytics, no crash reporting, no
    telemetry. `cargo xtask privacy` enforces it; do not weaken it.
 7. Shipped code does not `unwrap`, `expect` or `panic`; a new reader of

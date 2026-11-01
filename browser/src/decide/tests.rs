@@ -410,6 +410,145 @@ fn pieces_of_something_else_are_not_streams() {
     assert!(stream_seen(&refused).is_none());
 }
 
+/// A response from a social site's CDN: a piece, as the player asked for it.
+fn cdn_piece(host: &str, id: &str, efg: &str, from: u64, to: u64, mime: &str) -> Seen {
+    seen(
+        &format!(
+            "https://{host}/o1/v/t2/f2/{id}.mp4?_nc_cat=1&efg={efg}&oh=sig&bytestart={from}&byteend={to}"
+        ),
+        "media",
+        &[("Content-Type", mime), ("Content-Length", &(to - from + 1).to_string())],
+    )
+}
+
+#[test]
+fn a_social_sites_pieces_are_one_picture_and_one_sound_each_whole() {
+    const VIDEO: &str =
+        "eyJ2ZW5jb2RlX3RhZyI6ICJpZy14cHZkcy5jbGlwcy5pZ3d3dy1DMy5kYXNoX2Jhc2VsaW5lXzFfdjEifQ";
+    const AUDIO: &str = "eyJ2ZW5jb2RlX3RhZyI6ICJpZy14cHZkcy5jbGlwcy5pZ3d3dy1DMy5kYXNoX2xuX2hlYWFjX3ZicjNfYXVkaW8ifQ";
+    let mut streams = Streams::default();
+    // The player asks for each file in pieces, picture and sound apart, each
+    // piece far under the size of anything worth offering.
+    for (from, to) in [(0, 891), (892, 1031), (1032, 296_383), (296_384, 1_002_715)] {
+        streams.absorb(&cdn_piece(
+            "instagram.fktm18-1.fna.fbcdn.net",
+            "AQvid",
+            VIDEO,
+            from,
+            to,
+            "video/mp4",
+        ));
+    }
+    for (from, to) in [(0, 823), (824, 1107), (1108, 20_467)] {
+        streams.absorb(&cdn_piece(
+            "instagram.fktm18-1.fna.fbcdn.net",
+            "AQaud",
+            AUDIO,
+            from,
+            to,
+            "video/mp4",
+        ));
+    }
+    let list = streams.of(7);
+    assert_eq!(list.len(), 1, "{list:?}");
+    let line = &list[0];
+    assert_eq!(line.label, "video + sound");
+    // The files are asked for whole: the piece's two parameters are gone,
+    // the rest (which carry the signature) is kept.
+    assert_eq!(
+        line.url,
+        format!("https://instagram.fktm18-1.fna.fbcdn.net/o1/v/t2/f2/AQvid.mp4?_nc_cat=1&efg={VIDEO}&oh=sig")
+    );
+    assert_eq!(
+        line.sound.as_deref(),
+        Some(format!("https://instagram.fktm18-1.fna.fbcdn.net/o1/v/t2/f2/AQaud.mp4?_nc_cat=1&efg={AUDIO}&oh=sig").as_str())
+    );
+}
+
+#[test]
+fn a_social_sites_picture_says_its_height_and_a_missing_tag_falls_back_to_the_type() {
+    const FB: &str = "eyJ2ZW5jb2RlX3RhZyI6ICJkYXNoX2gyNjQtYmFzaWMtZ2VuMl83MjBwIn0";
+    let picture = stream_seen(&cdn_piece(
+        "video-sjc.xx.fbcdn.net",
+        "v",
+        FB,
+        0,
+        99,
+        "video/mp4",
+    ))
+    .unwrap();
+    assert_eq!(
+        (picture.kind, picture.label.as_str()),
+        (StreamKind::Picture, "720p video")
+    );
+    // No tag: what the server called the piece decides.
+    let no_tag = |mime: &str| {
+        stream_seen(&seen(
+            "https://scontent.cdninstagram.com/v/x.mp4?bytestart=0&byteend=99",
+            "media",
+            &[("Content-Type", mime)],
+        ))
+        .unwrap()
+        .kind
+    };
+    assert_eq!(no_tag("audio/mp4"), StreamKind::Sound);
+    assert_eq!(no_tag("video/mp4"), StreamKind::Picture);
+    // Only the social CDNs name their pieces this way.
+    assert!(pieces_of(
+        "https://notfbcdn.net/v.mp4?bytestart=0&byteend=9",
+        "video/mp4"
+    )
+    .is_none());
+    assert!(pieces_of("https://a.fbcdn.net/v.mp4?x=1", "video/mp4").is_none());
+}
+
+#[test]
+fn a_clip_the_browser_plays_is_offered_under_the_floor_a_script_fetch_is_not() {
+    // X's GIF-style clips are ~100 KB: the post's own media.
+    let clip = |kind: &str| {
+        stream_seen(&seen(
+            "https://video.twimg.com/tweet_video/Gi.mp4",
+            kind,
+            &[
+                ("Content-Type", "video/mp4"),
+                ("Content-Range", "bytes 0-80763/103807"),
+            ],
+        ))
+    };
+    assert_eq!(clip("media").map(|s| s.size), Some(Some(103_807)));
+    assert!(clip("xmlhttprequest").is_none());
+}
+
+#[test]
+fn a_playlists_address_names_its_height_and_sound_alone_is_not_offered_beside_a_picture() {
+    let playlist = |path: &str| {
+        seen(
+            &format!("https://video.e.com{path}?tag=1"),
+            "xmlhttprequest",
+            &[("Content-Type", "application/x-mpegURL")],
+        )
+    };
+    let mut streams = Streams::default();
+    for path in [
+        "/pl/Ab12.m3u8",
+        "/pl/avc1/1280x720/Ab12.m3u8",
+        "/pl/avc1/640x360/Ab12.m3u8",
+        "/pl/mp4a/128000/Ab12.m3u8",
+    ] {
+        streams.absorb(&playlist(path));
+    }
+    let labels: Vec<String> = streams.of(7).into_iter().map(|s| s.label).collect();
+    assert_eq!(
+        labels,
+        ["HLS stream", "720p HLS stream", "360p HLS stream"],
+        "the master first; no line that would save a sound alone"
+    );
+    // A tab with only a sound playlist still offers it.
+    let mut only = Streams::default();
+    only.absorb(&playlist("/pl/mp4a/128000/Ab12.m3u8"));
+    assert_eq!(only.of(7).len(), 1);
+}
+
 #[test]
 fn a_tab_keeps_its_streams_until_it_loads_another_page() {
     let mut streams = Streams::default();

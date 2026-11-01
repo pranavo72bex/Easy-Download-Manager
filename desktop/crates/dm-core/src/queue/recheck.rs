@@ -6,7 +6,7 @@ impl Queue {
     /// there: a different ETag or Last-Modified, or a different length.
     /// Returns how many were checked and which are being fetched again. A
     /// server that cannot be reached, or says nothing to compare, leaves its
-    /// row alone; a row whose address is a page yt-dlp read or a stream's
+    /// row alone; a row whose address is a video page read by dm or a stream's
     /// playlist has nothing to compare and is not counted as checked.
     pub async fn synchronize(&self, queue: &str) -> (usize, Vec<Id>) {
         // One at a time: a second check over the same rows, from a click
@@ -83,8 +83,8 @@ impl Queue {
     /// counted as checked.
     ///
     /// What the row recorded is of the file, and the address is not always
-    /// the file's: a Metalink row's address is the mirror list, a yt-dlp
-    /// row's is a web page, a stream's is its playlist. Compared with the
+    /// the file's: a Metalink row's address is the mirror list, a video
+    /// page row's is a web page, a stream's is its playlist. Compared with the
     /// file's length and ETag, the document always differed, and every such
     /// row was fetched again on every check.
     pub(super) async fn compare(
@@ -96,7 +96,7 @@ impl Queue {
         sign_in: Option<&crate::cookies::SignIn>,
     ) -> Option<bool> {
         let kind = now.content_type.as_deref();
-        // A page yt-dlp made a video of, or a playlist of segments: what the
+        // A page made into a video, or a playlist of segments: what the
         // address serves says nothing about the file made from it.
         if crate::ytdlp::is_page(kind) || crate::stream::kind_of(&row.url, kind).is_some() {
             return None;

@@ -59,6 +59,12 @@ pub struct Stream {
 /// beacon, not something a person came to download.
 pub const STREAM_FLOOR: u64 = 1024 * 1024;
 
+/// The floor for a file the browser itself reports a `<video>` or `<audio>`
+/// element fetching (`media`): a short clip a site plays as its post (X's
+/// GIF-style `tweet_video`) is the thing a person came for, where the same
+/// size loaded by a script is a beacon.
+pub const MEDIA_FLOOR: u64 = 64 * 1024;
+
 /// The media in a response, if it is a stream or a whole media file worth
 /// offering. Pieces are not: an HLS or DASH segment, and a range of a
 /// longer file that does not start at its beginning (a player fetching a
@@ -94,12 +100,15 @@ pub fn stream_seen(seen: &Seen) -> Option<Stream> {
     if let Some(track) = track_of(&seen.url) {
         return Some(track);
     }
+    if let Some(track) = pieces_of(&seen.url, &mime) {
+        return Some(track);
+    }
     if mime.contains("mpegurl") || ext == "m3u8" {
         return Some(Stream {
             url: seen.url.clone(),
             kind: StreamKind::Hls,
             size: None,
-            label: "HLS stream".into(),
+            label: hls_label(&path),
             sound: None,
         });
     }
@@ -136,7 +145,12 @@ pub fn stream_seen(seen: &Seen) -> Option<Stream> {
         }
         None => header("content-length").and_then(|v| v.parse::<u64>().ok()),
     };
-    if size.is_some_and(|bytes| bytes < STREAM_FLOOR) {
+    let floor = if seen.kind == "media" {
+        MEDIA_FLOOR
+    } else {
+        STREAM_FLOOR
+    };
+    if size.is_some_and(|bytes| bytes < floor) {
         return None;
     }
     let format = if ext.is_empty() || ext.len() > 5 {
@@ -229,6 +243,129 @@ pub fn track_of(url: &str) -> Option<Stream> {
         url: whole,
         kind,
         size: param(url, "clen").and_then(|v| v.parse().ok()),
+        label,
+        sound: None,
+    })
+}
+
+/// What a playlist's address says of it, for its line in the list: the
+/// height of a rendition named in the path (`/pl/avc1/1280x720/x.m3u8`, a
+/// portrait clip's smaller side), or that it carries only sound (`/mp4a/`,
+/// `/audio/`). A master playlist, or one that says nothing, is just a stream.
+fn hls_label(path: &str) -> String {
+    let mut height = None;
+    for part in path.split('/') {
+        if part == "mp4a" || part == "audio" || part.starts_with("audio_") {
+            return HLS_SOUND.into();
+        }
+        if let Some((w, h)) = part.split_once('x') {
+            if let (Ok(w), Ok(h)) = (w.parse::<u32>(), h.parse::<u32>()) {
+                if (100..=8000).contains(&w) && (100..=8000).contains(&h) {
+                    height = Some(w.min(h));
+                }
+            }
+        }
+    }
+    match height {
+        Some(h) => format!("{h}p HLS stream"),
+        None => "HLS stream".into(),
+    }
+}
+
+/// The label of a playlist that carries only sound.
+const HLS_SOUND: &str = "HLS sound";
+
+/// Standard base64, either alphabet, padding or none.
+fn unbase64(text: &str) -> Option<Vec<u8>> {
+    let mut out = Vec::with_capacity(text.len() * 3 / 4);
+    let (mut bits, mut have) = (0u32, 0u32);
+    for c in text.trim_end_matches('=').bytes() {
+        let v = match c {
+            b'A'..=b'Z' => c - b'A',
+            b'a'..=b'z' => c - b'a' + 26,
+            b'0'..=b'9' => c - b'0' + 52,
+            b'+' | b'-' => 62,
+            b'/' | b'_' => 63,
+            _ => return None,
+        };
+        bits = (bits << 6) | u32::from(v);
+        have += 6;
+        if have >= 8 {
+            have -= 8;
+            out.push((bits >> have) as u8);
+            bits &= (1 << have) - 1;
+        }
+    }
+    Some(out)
+}
+
+/// A picture or a sound of a player that asks a social site's CDN
+/// (`fbcdn.net`, `cdninstagram.com`: Facebook, Instagram, Threads) for each
+/// as a file in pieces, each piece named in the address by `bytestart` and
+/// `byteend`. The file is the address without those two, which the CDN
+/// answers whole. What a piece is — picture or sound, and at what height —
+/// is in the `efg` parameter, a base64 JSON with the encoder's tag
+/// (`…dash_ln_heaac_vbr3_audio`, `…dash_h264-basic-gen2_720p_…`); the
+/// response's type is the fallback.
+///
+/// The size is left unknown (the pieces seen so far are not the file), so
+/// of several renditions the latest seen is the line's picture.
+pub fn pieces_of(url: &str, mime: &str) -> Option<Stream> {
+    let (authority, rest) = url.split_once("://")?.1.split_once('/')?;
+    let host = authority.split(':').next().unwrap_or(authority);
+    if !(host.ends_with(".fbcdn.net")
+        || host == "fbcdn.net"
+        || host.ends_with(".cdninstagram.com")
+        || host == "cdninstagram.com")
+    {
+        return None;
+    }
+    let (path, query) = rest.split_once('?')?;
+    let query = query.split('#').next().unwrap_or("");
+    let names = |pair: &str| pair.split('=').next().unwrap_or("").to_string();
+    if !query
+        .split('&')
+        .any(|p| matches!(names(p).as_str(), "bytestart" | "byteend"))
+    {
+        return None;
+    }
+    let tag = param(url, "efg")
+        .and_then(|efg| unbase64(&efg))
+        .and_then(|json| serde_json::from_slice::<serde_json::Value>(&json).ok())
+        .and_then(|v| {
+            v.get("vencode_tag")
+                .and_then(|t| t.as_str().map(str::to_owned))
+        })
+        .unwrap_or_default()
+        .to_ascii_lowercase();
+    let sound = if tag.is_empty() {
+        mime.starts_with("audio/")
+    } else {
+        tag.contains("audio") || tag.contains("heaac") || tag.ends_with("_aac")
+    };
+    let height = tag
+        .split(|c: char| !c.is_ascii_alphanumeric())
+        .filter_map(|word| word.strip_suffix('p'))
+        .filter_map(|n| n.parse::<u32>().ok())
+        .find(|h| (144..=4320).contains(h));
+    let kept: Vec<&str> = query
+        .split('&')
+        .filter(|pair| !matches!(names(pair).as_str(), "bytestart" | "byteend"))
+        .collect();
+    let whole = if kept.is_empty() {
+        format!("https://{authority}/{path}")
+    } else {
+        format!("https://{authority}/{path}?{}", kept.join("&"))
+    };
+    let (kind, label) = match (sound, height) {
+        (true, _) => (StreamKind::Sound, "sound".to_string()),
+        (false, Some(h)) => (StreamKind::Picture, format!("{h}p video")),
+        (false, None) => (StreamKind::Picture, "video".to_string()),
+    };
+    Some(Stream {
+        url: whole,
+        kind,
+        size: None,
         label,
         sound: None,
     })
@@ -399,6 +536,14 @@ impl Streams {
             largest(&list, StreamKind::Sound),
         );
         list.retain(|s| !matches!(s.kind, StreamKind::Picture | StreamKind::Sound));
+        // A playlist of sound alone is not offered beside a stream with a
+        // picture: it would save the sound and nothing else.
+        if list
+            .iter()
+            .any(|s| s.kind == StreamKind::Hls && s.label != HLS_SOUND)
+        {
+            list.retain(|s| !(s.kind == StreamKind::Hls && s.label == HLS_SOUND));
+        }
         if let (Some(picture), Some(sound)) = (picture, sound) {
             list.push(Stream {
                 url: picture.url,

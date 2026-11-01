@@ -554,7 +554,7 @@ async fn a_site_that_refuses_dms_agent_is_asked_again_by_its_name_alone() {
                     .get("user-agent")
                     .and_then(|v| v.to_str().ok())
                     .unwrap_or("");
-                if agent.to_ascii_lowercase().contains("github") {
+                if agent.to_ascii_lowercase().contains("github") || agent.contains("Trident") {
                     counted.fetch_add(1, Ordering::SeqCst);
                     return Response::builder()
                         .status(403)
@@ -574,8 +574,8 @@ async fn a_site_that_refuses_dms_agent_is_asked_again_by_its_name_alone() {
     assert_eq!(std::fs::read(&done.path).unwrap(), *data);
     assert_eq!(
         refused.load(Ordering::SeqCst),
-        1,
-        "asked with the refused agent more than once"
+        2,
+        "asked with each refused agent (the browser's, then dm's full one) more than once"
     );
 }
 
@@ -595,7 +595,7 @@ async fn a_site_that_takes_only_browsers_is_asked_as_a_browser_last() {
                     .get("user-agent")
                     .and_then(|v| v.to_str().ok())
                     .unwrap_or("");
-                if !agent.starts_with("Mozilla/") {
+                if !agent.starts_with("Mozilla/") || agent.contains("Trident") {
                     return Response::builder()
                         .status(403)
                         .body(Body::from("browsers only"))
@@ -795,4 +795,40 @@ async fn a_weak_etag_is_not_sent_as_a_range_condition() {
         "a weak ETag was sent as If-Range"
     );
     assert!(done.connections > 1, "it fell back to one connection");
+}
+
+#[tokio::test]
+async fn a_web_page_that_answered_for_a_file_is_saved_as_html_when_asked_to() {
+    /* Reference A asks whether to save it as an HTML page; a person who said
+     * yes (`Options::accept_page`) has the page kept as `<name>.html`. */
+    let page = "<html><head><title>Sign in</title></head><body>expired</body></html>";
+    let app = axum::Router::new().route(
+        "/files/report.zip",
+        get(move || async move {
+            Response::builder()
+                .header("content-type", "text/html; charset=utf-8")
+                .body(Body::from(page))
+                .unwrap()
+        }),
+    );
+    let at = serve(app).await;
+    let dir = tempdir();
+    let url = format!("http://{at}/files/report.zip");
+
+    let refused = download(&client(), &url, &options(dir.path()))
+        .await
+        .expect_err("a page was saved as the zip without being asked");
+    assert!(refused
+        .to_string()
+        .contains("web page rather than the file"));
+
+    let asked = dm_core::Options {
+        accept_page: true,
+        ..options(dir.path())
+    };
+    let done = download(&client(), &url, &asked)
+        .await
+        .expect("the page was not saved");
+    assert_eq!(done.path.file_name().unwrap(), "report.html");
+    assert_eq!(std::fs::read_to_string(&done.path).unwrap(), page);
 }

@@ -1,17 +1,17 @@
 //! A YouTube watch page read by dm itself, with no video helper.
 //!
-//! What yt-dlp does for such a page today, watched request by request
+//! What a browser-like client does for such a page, watched request by request
 //! (`docs/decisions.md`, "How YouTube is got today"): the watch page as a
 //! browser, for the visitor id, the player script's address and its
 //! signature timestamp; the player API as a TV client, which answers with
 //! plain `https` addresses for every picture and sound; the player script;
-//! and one run of the `yt-dlp-ejs` solver scripts (public domain, fetched
-//! from their releases and pinned by digest) in the QuickJS dm fetches,
-//! which turns each address's `n` value into the one the server accepts.
-//! The result is written in the shape of yt-dlp's own reading, so
-//! `ytdlp::download_page` fetches and joins the streams as it does for one
-//! of yt-dlp's. Anything this cannot read (a video wanting a sign-in, a
-//! live stream, a changed client) goes to yt-dlp as before.
+//! and one run of the solver scripts (public domain, fetched from their
+//! releases and pinned by digest) in the QuickJS dm fetches, which turns each
+//! address's `n` value into the one the server accepts.
+//! The result is written as the JSON a reader of a page prints, so
+//! `ytdlp::download_page` fetches and joins the streams from it. Anything this
+//! cannot read (a video wanting a sign-in, a live stream, a changed client) is
+//! failed, with the reason said in words.
 //!
 //! Test knobs: `DM_YOUTUBE_HOST` names a stand-in for `www.youtube.com`
 //! (a test's server), and `DM_EJS_RELEASES` a stand-in for the solver's
@@ -36,7 +36,7 @@ const SOLVER_CORE: (&str, &str) = (
     "18da6ce0758b416e7ae645084f4f8801f9f9d59d6c477c05eaa0ff94ebd8cc00",
 );
 
-/// The TV client yt-dlp reads with today: its answers carry plain
+/// The TV client this reads with today: its answers carry plain
 /// addresses and want no proof-of-origin token.
 const TV_CLIENT_NAME: &str = "TVHTML5";
 const TV_CLIENT_VERSION: &str = "5.20260707";
@@ -45,7 +45,7 @@ const TV_AGENT: &str = "Mozilla/5.0 (SMART-TV; Linux; Tizen 2.4.0) AppleWebKit/5
 /// The browser the watch page is asked as.
 const PAGE_AGENT: &str =
     "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/147.0.0.0 Safari/537.36";
-/// The most one request for a stream asks for, as yt-dlp sets it for
+/// The most one request for a stream asks for, as a player does for
 /// these addresses (`http_chunk_size`): the server slows a response past it.
 const CHUNK: u64 = 10 << 20;
 /// How long the whole reading may take.
@@ -666,14 +666,14 @@ impl Format {
         })
     }
 
-    /// Its name in yt-dlp's words, which the row and the parts carry.
+    /// Its name, which the row and the parts carry.
     fn ext(&self) -> &str {
         &self.container
     }
 }
 
 /// The picture and the sound (or the sound alone) for the quality asked,
-/// chosen as `format_for` has yt-dlp choose: the biggest picture at or
+/// chosen as `format_for` chooses: the biggest picture at or
 /// under the quality, measured by its shorter side (a portrait video's
 /// width: 720p is 720×1280 for a Short), in the container asked for where
 /// there is one that size, with the best sound in the same container.
@@ -779,7 +779,7 @@ pub async fn read_for(
 }
 
 /// A YouTube watch page read, as `ytdlp::download_page` wants a reading:
-/// the JSON yt-dlp would have printed for it, chosen at `quality`.
+/// the JSON a reader of the page prints for it, chosen at `quality`.
 pub async fn read(
     client: &reqwest::Client,
     url: &str,
@@ -906,7 +906,7 @@ async fn read_within(
     {
         return Err(Error::Internal("a live stream".into()));
     }
-    // The picture and the sound apart (`adaptiveFormats`), as yt-dlp's
+    // The picture and the sound apart (`adaptiveFormats`), as a player
     // `bv+ba` takes them; the formats with both in one file only where
     // there is nothing apart, and then one alone (a picture with its own
     // sound and a sound beside it made a file with two sound tracks).
@@ -1270,7 +1270,7 @@ async fn run_js(program: &str, staging: &Path) -> Result<String, Error> {
     Ok(String::from_utf8_lossy(&output.stdout).into_owned())
 }
 
-/// The reading in yt-dlp's shape: what `ytdlp::download_page` reads of one
+/// The reading as JSON: what `ytdlp::download_page` reads of one
 /// (`filename`, `requested_formats` or the one format, each with its
 /// address, type, agent, chunk and size) and what the panel's list reads
 /// (`formats` with heights, codecs and sizes).
@@ -1335,7 +1335,7 @@ fn reading_json(
     reading
 }
 
-/// The title as yt-dlp's `%(title).200B` writes it in a file name: the
+/// The title as it is written in a file name: the
 /// characters a file name cannot hold replaced, cut to 200 bytes whole.
 fn safe_title(title: &str) -> String {
     let mut out = String::new();

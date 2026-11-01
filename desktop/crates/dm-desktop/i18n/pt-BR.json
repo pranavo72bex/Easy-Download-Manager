@@ -747,5 +747,13 @@
  "Square 1:1": "Quadrado 1:1",
  "Part as": "Parte como",
  "Video": "Vídeo",
- "this video needs dm's video tools, which are turned off in Options › Downloads. Turn them on there": "uma página de vídeo precisa do assistente de vídeo do dm, que Opções › Downloads diz para não baixar: instale o ou deixe o dm baixá-lo"
+ "this video needs dm's video tools, which are turned off in Options › Downloads. Turn them on there": "uma página de vídeo precisa do assistente de vídeo do dm, que Opções › Downloads diz para não baixar: instale o ou deixe o dm baixá-lo",
+ "Name sent by the server": "Nome enviado pelo servidor",
+ "The name to save the file was {}, but the server sent {}. Save the file with the name received from the server?": "O nome para salvar o arquivo era {}, mas o servidor enviou {}. Salvar o arquivo com o nome recebido do servidor?",
+ "No": "Não",
+ "Web page instead of the file": "Página da web em vez do arquivo",
+ "The requested file looks like an HTML web page. Would you like to continue downloading it and save it as an HTML page?": "O arquivo solicitado parece uma página da web HTML. Deseja continuar o download e salvá-lo como página HTML?",
+ "The file doesn't exist": "O arquivo não existe",
+ "The requested file doesn't exist.": "O arquivo solicitado não existe.",
+ "Details:": "Detalhes:"
 }

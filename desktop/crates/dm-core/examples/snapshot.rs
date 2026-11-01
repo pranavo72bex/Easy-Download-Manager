@@ -66,6 +66,7 @@ async fn main() {
             record_limit: None,
             sign_in: None,
             save_name: None,
+            accept_page: false,
             system_proxy: false,
         },
         3,

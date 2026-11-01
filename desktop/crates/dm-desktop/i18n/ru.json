@@ -747,5 +747,13 @@
  "Square 1:1": "Квадрат 1:1",
  "Part as": "Фрагмент как",
  "Video": "Видео",
- "this video needs dm's video tools, which are turned off in Options › Downloads. Turn them on there": "странице с видео нужен помощник dm, загрузку которого запрещают Параметры › Загрузки: установите или разрешите dm его загрузить"
+ "this video needs dm's video tools, which are turned off in Options › Downloads. Turn them on there": "странице с видео нужен помощник dm, загрузку которого запрещают Параметры › Загрузки: установите или разрешите dm его загрузить",
+ "Name sent by the server": "Имя, присланное сервером",
+ "The name to save the file was {}, but the server sent {}. Save the file with the name received from the server?": "Файл нужно было сохранить под именем {}, но сервер прислал {}. Сохранить файл под именем, полученным от сервера?",
+ "No": "Нет",
+ "Web page instead of the file": "Веб-страница вместо файла",
+ "The requested file looks like an HTML web page. Would you like to continue downloading it and save it as an HTML page?": "Запрошенный файл похож на веб-страницу HTML. Продолжить загрузку и сохранить её как страницу HTML?",
+ "The file doesn't exist": "Файл не существует",
+ "The requested file doesn't exist.": "Запрошенный файл не существует.",
+ "Details:": "Подробности:"
 }

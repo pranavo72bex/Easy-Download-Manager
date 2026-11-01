@@ -1,13 +1,13 @@
 //! The qualities a YouTube watch page lists in its own player data.
 //!
-//! yt-dlp takes seconds over a page (the player's script, its challenge,
+//! a full reading takes seconds over a page (the player's script, its challenge,
 //! several API calls), and the panel's list waits for it. The page itself
 //! already holds every picture and sound the video comes in, with sizes, in
 //! `ytInitialPlayerResponse`: one request of under a second. Only the list
 //! is read this way. The addresses are not there (the player streams by
-//! SABR), so what is downloaded is still yt-dlp's reading of the page. Where
+//! SABR), so what is downloaded is still the full reading of the page. Where
 //! the data is missing or says anything but "playable", nothing is returned
-//! and the caller asks yt-dlp, as before.
+//! and the caller fails the download, saying why.
 
 use serde_json::Value;
 
@@ -34,7 +34,7 @@ pub(super) fn is_watch_page(url: &str) -> bool {
 }
 
 /// Fetches the page and lists what it holds, or `None` for anything that
-/// should go to yt-dlp instead: no connection in time, a consent or sign-in
+/// should be failed instead: no connection in time, a consent or sign-in
 /// page, a live stream, a video the page does not play.
 pub(super) async fn fetch_choices(
     url: &str,
@@ -73,7 +73,7 @@ pub(super) async fn fetch_choices(
 }
 
 /// The choices in a watch page's HTML, in the same shape and order as
-/// [`super::choices`] gives from yt-dlp's reading: one per picture height,
+/// [`super::choices`] gives from a full reading: one per picture height,
 /// tallest first, MP4 where there is one, then the best sound alone. Empty
 /// where the page's data is absent, unplayable or live.
 pub(super) fn choices_of_page(html: &str) -> Vec<Choice> {
@@ -112,7 +112,7 @@ fn choices_of_player(player: &Value) -> Vec<Choice> {
         return Vec::new();
     };
     // "video/mp4; codecs=\"avc1.640028\"" is an MP4 picture, "audio/mp4" an
-    // M4A sound; WebM is WebM, as yt-dlp names them.
+    // M4A sound; WebM is WebM, as players name them.
     let kind = |f: &Value| -> Option<(bool, String)> {
         let mime = f.get("mimeType")?.as_str()?;
         let (kind, rest) = mime.split_once('/')?;
@@ -181,7 +181,7 @@ fn choices_of_player(player: &Value) -> Vec<Choice> {
         .into_iter()
         .map(|(height, label, ext, size)| {
             // The quality word is the picture's shorter side, which is what
-            // the chooser and yt-dlp's selector measure: a portrait video's
+            // the chooser and the selector measure: a portrait video's
             // width (720 for 720x1280).
             let side = label
                 .rsplit(' ')

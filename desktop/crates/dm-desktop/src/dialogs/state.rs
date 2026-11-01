@@ -55,7 +55,7 @@ impl Dialogs {
         let (page, read) = (url.clone(), slot.clone());
         let proxy = backend.settings().proxy.url_for_tools();
         backend.runtime.spawn(async move {
-            // YouTube's read by dm itself; any other site's by yt-dlp.
+            // YouTube's read by dm itself; no other site is read from its page.
             let got = if dm_core::youtube::playlist_id(&page).is_some() {
                 dm_core::youtube::read_playlist(&client, &page, None)
                     .await
@@ -262,6 +262,9 @@ impl Dialogs {
             || self.confirm_outside.is_some()
             || self.confirm_cancel.is_some()
             || self.duplicate.is_some()
+            || self.name_ask.is_some()
+            || self.page_ask.is_some()
+            || self.not_found.is_some()
             || self.import_ask.is_some()
             || self.skip_offer.is_some()
     }
@@ -278,6 +281,9 @@ impl Dialogs {
             ),
             (self.confirm_cancel.is_some(), "Cancel this download?"),
             (self.duplicate.is_some(), "Already in the list"),
+            (self.name_ask.is_some(), "Name sent by the server"),
+            (self.page_ask.is_some(), "Web page instead of the file"),
+            (self.not_found.is_some(), "The file doesn't exist"),
             (self.import_ask.is_some(), "Some are already in the list"),
             (self.skip_offer.is_some(), "Leave this site to the browser?"),
         ]
@@ -317,6 +323,9 @@ impl Dialogs {
             ),
             (self.confirm_cancel.is_some(), "Cancel this download?"),
             (self.duplicate.is_some(), "Already in the list"),
+            (self.name_ask.is_some(), "Name sent by the server"),
+            (self.page_ask.is_some(), "Web page instead of the file"),
+            (self.not_found.is_some(), "The file doesn't exist"),
             (self.import_ask.is_some(), "Some are already in the list"),
             (
                 self.list_file.as_ref().is_some_and(|f| !f.save),
@@ -429,6 +438,9 @@ impl Dialogs {
         // Every dialog by its title (this one was never named).
         say(self.links.is_some(), "Download links");
         say(self.duplicate.is_some(), "Already in the list");
+        say(self.name_ask.is_some(), "Name sent by the server");
+        say(self.page_ask.is_some(), "Web page instead of the file");
+        say(self.not_found.is_some(), "The file doesn't exist");
         say(self.import_ask.is_some(), "Some are already in the list");
         say(
             self.list_file.as_ref().is_some_and(|f| !f.save),
@@ -471,6 +483,9 @@ impl Dialogs {
             || self.confirm_outside.take().is_some()
             || self.confirm_cancel.take().is_some()
             || self.duplicate.take().is_some()
+            || self.name_ask.take().is_some()
+            || self.page_ask.take().is_some()
+            || self.not_found.take().is_some()
             || self.import_ask.take().is_some()
             || self.skip_offer.take().is_some()
         {

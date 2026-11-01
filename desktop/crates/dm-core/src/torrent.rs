@@ -612,7 +612,7 @@ fn swarm_proxy(proxy: Option<&str>) -> Result<Option<librqbit::ConnectionOptions
 /// The shared download ceiling, in the shape librqbit wants it.
 ///
 /// This torrent's part of the limiter every HTTP download shares, re-read
-/// every tick, so one ceiling governs files, torrents and yt-dlp runs
+/// every tick, so one ceiling governs files, torrents and video runs
 /// together as they start and stop. Zero
 /// — no limit — becomes `None`, which is librqbit's word for the same thing.
 async fn download_cap(options: &Options) -> Option<NonZeroU32> {

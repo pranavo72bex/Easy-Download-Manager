@@ -445,6 +445,12 @@ fn properties_change_the_description_and_refresh_an_expired_address() {
             .iter()
             .any(|r| matches!(r.state, State::Failed(_)))
     });
+    // A 404 is told in a window of its own (B41), answered before the list is used.
+    until(&mut harness, "the 404 window", |app| {
+        app.dialogs.not_found.is_some()
+    });
+    harness.run_steps(3);
+    click(&mut harness, "OK");
     select(&mut harness, "gone.bin");
     harness.state_mut().run(Command::Properties);
     harness.run_steps(3);

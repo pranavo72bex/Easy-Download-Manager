@@ -7,7 +7,7 @@ pub(super) static SIGNALLED: AtomicBool = AtomicBool::new(false);
 
 /// Ends dm as Program › Exit does when the system asks, rather than being
 /// cut off where it stood: its downloads were stopped by nothing, a
-/// yt-dlp run under it went on alone, and `control.port` was left naming a
+/// video run under it went on alone, and `control.port` was left naming a
 /// port nobody listened on. A second signal while closing ends it at once.
 pub(super) fn on_signal(
     runtime: &tokio::runtime::Runtime,

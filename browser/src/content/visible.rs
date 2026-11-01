@@ -62,12 +62,13 @@ pub(super) fn seen(window: &Window, element: &Element) -> bool {
     if host.is_some_and(|h| within(&h, &top)) {
         return true;
     }
-    // The player's own layers: inside the few elements around the video
+    // The player's own layers: inside the elements around the video (eight
+    // levels: TikTok's and Instagram's overlays hang off a container five up)
     // that make up a player (not the page itself), and about the player's
     // size — a dialog over the whole page is not one of them. The player's
     // box, not the video's: a vertical clip is letterboxed in a wide one.
     let around: Vec<Element> = std::iter::successors(composed_parent(element), composed_parent)
-        .take(4)
+        .take(8)
         .take_while(|e| {
             let tag = e.tag_name().to_ascii_lowercase();
             tag != "body" && tag != "html"

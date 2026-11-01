@@ -235,6 +235,16 @@ pub(crate) fn world() -> World {
                 }),
             )
             .route(
+                "/pagefile.zip",
+                axum::routing::get(|| async {
+                    // A sign-in page where a file was asked for.
+                    Response::builder()
+                        .header("content-type", "text/html; charset=utf-8")
+                        .body(Body::from("<html><title>Sign in</title><body>expired</body></html>"))
+                        .unwrap()
+                }),
+            )
+            .route(
                 "/stalled.bin",
                 axum::routing::get(|| async {
                     let never = futures_util::stream::pending::<Result<Vec<u8>, std::io::Error>>();

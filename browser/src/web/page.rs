@@ -57,7 +57,11 @@ pub(super) async fn hand_chosen(
         }
         App::Present { hello, .. } => hello,
     };
-    let (cookies, cookies_once) = sign_in_for(&target.url, store.as_deref(), target.page).await;
+    // A stream chosen from the panel (`ask`) is a video the page is playing:
+    // its session goes with it, for this download alone, as a video page's
+    // does. TikTok's and others' CDN refuse a signed address without it.
+    let (cookies, cookies_once) =
+        sign_in_for(&target.url, store.as_deref(), target.page || ask).await;
     let start = Start {
         id: hand_id("m", 0, now()),
         url: target.url.clone(),

@@ -747,5 +747,13 @@
  "Square 1:1": "Persegi 1:1",
  "Part as": "Bagian sebagai",
  "Video": "Video",
- "this video needs dm's video tools, which are turned off in Options › Downloads. Turn them on there": "halaman video membutuhkan pembantu video dm, yang menurut Opsi › Unduhan tidak diambil: pasang , atau izinkan dm mengambilnya"
+ "this video needs dm's video tools, which are turned off in Options › Downloads. Turn them on there": "halaman video membutuhkan pembantu video dm, yang menurut Opsi › Unduhan tidak diambil: pasang , atau izinkan dm mengambilnya",
+ "Name sent by the server": "Nama yang dikirim server",
+ "The name to save the file was {}, but the server sent {}. Save the file with the name received from the server?": "Nama untuk menyimpan file adalah {}, tetapi server mengirim {}. Simpan file dengan nama yang diterima dari server?",
+ "No": "Tidak",
+ "Web page instead of the file": "Halaman web, bukan file",
+ "The requested file looks like an HTML web page. Would you like to continue downloading it and save it as an HTML page?": "File yang diminta tampaknya halaman web HTML. Lanjutkan mengunduh dan simpan sebagai halaman HTML?",
+ "The file doesn't exist": "File tidak ada",
+ "The requested file doesn't exist.": "File yang diminta tidak ada.",
+ "Details:": "Detail:"
 }

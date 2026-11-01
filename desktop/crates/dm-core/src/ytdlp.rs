@@ -19,7 +19,6 @@ mod choices;
 mod fetch;
 mod page_data;
 mod playlist;
-mod refusal;
 
 pub use choices::{choices, class_name, list_choices, list_choices_fast, with_mp3, Choice};
 pub use fetch::download_page;
@@ -30,36 +29,29 @@ pub fn is_watch_page(url: &str) -> bool {
     page_data::is_watch_page(url)
 }
 
-pub use refusal::{refusal, said_by, UNKNOWN_SITE};
-
-/// A Deno yt-dlp can run a site's player challenges in, if any: one the
-/// person installed (or one an earlier dm fetched).
+/// A Deno that can run YouTube's player challenges, if any: one the person
+/// installed (or one an earlier dm fetched).
 pub(crate) fn deno() -> Option<PathBuf> {
     which("deno")
 }
 
-/// The QuickJS yt-dlp can run a site's player challenges in, if any: the
-/// one dm fetched, or one installed.
+/// The QuickJS that can run YouTube's player challenges, if any: the one dm
+/// fetched, or one installed.
 pub(crate) fn quickjs() -> Option<PathBuf> {
     which("qjs")
 }
 
-/// The first `yt-dlp` on `PATH`, or in the places package managers put it.
+/// The first `program` on `PATH`, or in the places package managers put it.
 ///
-/// `PATH` alone is not enough, and this is the bug that made "YouTube does
-/// not download" true on a machine with yt-dlp installed. A program launched
-/// from the Dock, a desktop entry, or by a browser's native messaging host
-/// inherits the session's minimal `PATH` — `/usr/bin:/bin` and little else —
-/// not the shell's, so `/opt/homebrew/bin` and `~/.local/bin` are invisible to
-/// it even though `which yt-dlp` at a terminal finds it fine. The usual homes
-/// are searched after `PATH`, so the tool a person installed is the tool the
-/// app finds.
+/// `PATH` alone is not enough: a program launched from the Dock, a desktop
+/// entry, or by a browser's native messaging host inherits the session's
+/// minimal `PATH` (`/usr/bin:/bin` and little else), so `/opt/homebrew/bin`
+/// and `~/.local/bin` are invisible to it. The usual homes are searched after
+/// `PATH`, so the tool a person installed is the tool the app finds.
 ///
-/// `DM_` and the program's name (`DM_YTDLP`, `DM_DENO`, `DM_QJS`) name the
-/// binary outright, for an install in none of those places; set to nothing,
-/// they say there is no such tool,
-/// which is how a test pins down what dm does without one on a machine that
-/// has one.
+/// `DM_` and the program's name (`DM_DENO`, `DM_QJS`) name the binary
+/// outright; set to nothing, they say there is no such tool, which is how a
+/// test pins down what dm does without one on a machine that has one.
 fn which(program: &str) -> Option<PathBuf> {
     let override_var = format!("DM_{}", program.replace('-', "").to_ascii_uppercase());
     if let Some(named) = std::env::var_os(&override_var) {
@@ -90,11 +82,8 @@ fn which(program: &str) -> Option<PathBuf> {
         let var = |name: &str| std::env::var_os(name).map(PathBuf::from);
         windows_homes(&Homes {
             local: var("LOCALAPPDATA"),
-            roaming: var("APPDATA"),
             home: home.clone(),
             program_data: var("ProgramData"),
-            program_files: var("ProgramFiles"),
-            system_drive: var("SystemDrive"),
         })
     } else {
         Vec::new()
@@ -110,7 +99,7 @@ fn which(program: &str) -> Option<PathBuf> {
 
 /// The file names a program goes by: on Windows its `.exe` (and `.com`),
 /// which is what is on disk. The bare name was looked for there and never
-/// found, so an installed yt-dlp was reported missing (issue 10).
+/// found, so an installed tool was reported missing (issue 10).
 fn names(program: &str, windows: bool) -> Vec<String> {
     if windows {
         vec![format!("{program}.exe"), format!("{program}.com")]
@@ -135,11 +124,8 @@ fn find_in(dirs: impl Iterator<Item = PathBuf>, names: &[String]) -> Option<Path
 /// The folders a Windows account's own environment names.
 struct Homes {
     local: Option<PathBuf>,
-    roaming: Option<PathBuf>,
     home: PathBuf,
     program_data: Option<PathBuf>,
-    program_files: Option<PathBuf>,
-    system_drive: Option<PathBuf>,
 }
 
 /// The folders in `dir` whose names start with `prefix` (any case), newest
@@ -165,12 +151,10 @@ fn children(dir: &Path, prefix: &str) -> Vec<PathBuf> {
     found
 }
 
-/// Where Windows installs put yt-dlp, beside `PATH`: winget's links and its
-/// package folders (a build that keeps its program in a `bin` one level
-/// down), pip's Scripts folders for python.org's and the Store's Pythons,
-/// Scoop's shims, pipx's folder, Chocolatey's bin, and the folders people
-/// unpack tools into by hand. A dm started by a browser or from the
-/// Start menu has a `PATH` that may name none of them.
+/// Where Windows installs put Deno and QuickJS, beside `PATH`: winget's links
+/// and its package folders (a build that keeps its program in a `bin` one level
+/// down), Scoop's shims and Chocolatey's bin. A dm started by a browser or from
+/// the Start menu has a `PATH` that may name none of them.
 fn windows_homes(h: &Homes) -> Vec<PathBuf> {
     let mut dirs = Vec::new();
     if let Some(local) = &h.local {
@@ -184,31 +168,11 @@ fn windows_homes(h: &Homes) -> Vec<PathBuf> {
             }
             dirs.push(package);
         }
-        for python in children(&local.join("Programs").join("Python"), "python") {
-            dirs.push(python.join("Scripts"));
-        }
-        for store in children(&local.join("Packages"), "pythonsoftwarefoundation.python") {
-            for python in children(&store.join("LocalCache").join("local-packages"), "python") {
-                dirs.push(python.join("Scripts"));
-            }
-        }
-    }
-    if let Some(roaming) = &h.roaming {
-        for python in children(&roaming.join("Python"), "python") {
-            dirs.push(python.join("Scripts"));
-        }
     }
     dirs.push(h.home.join("scoop").join("shims"));
     dirs.push(h.home.join(".local").join("bin"));
     if let Some(data) = &h.program_data {
         dirs.push(data.join("chocolatey").join("bin"));
-    }
-    if let Some(files) = &h.program_files {
-        dirs.push(files.join("yt-dlp"));
-    }
-    if let Some(drive) = &h.system_drive {
-        let root = PathBuf::from(format!("{}\\", drive.display()));
-        dirs.push(root.join("yt-dlp"));
     }
     dirs
 }
@@ -239,14 +203,13 @@ impl Drop for RemoveOnDrop {
 ///
 /// A file has a body dm can range over; a web page does not, and saving the
 /// page's HTML as though it were the download is the wrong answer whether or
-/// not a yt-dlp is there to do better. So this is decided on the content type
-/// alone, and the caller decides between handing it to yt-dlp and refusing.
+/// not a reader is there to do better. So this is decided on the content type
+/// alone, and the caller decides between reading it as a video page and refusing.
 pub fn is_page(content_type: Option<&str>) -> bool {
     crate::probe::mime_essence(content_type) == "text/html"
 }
 
-/// What yt-dlp leaves where it does not join them itself: the picture and
-/// the sound beside the name it would have joined them under,
+/// The picture and the sound left apart, beside the name they are joined under,
 /// `name.f137.mp4` and `name.f140.m4a`, picture first.
 async fn parts_of(joined: &Path) -> Vec<PathBuf> {
     let (Some(dir), Some(stem)) = (joined.parent(), joined.file_stem()) else {
@@ -274,7 +237,7 @@ async fn parts_of(joined: &Path) -> Vec<PathBuf> {
     parts
 }
 
-/// What dm does with yt-dlp's output: joins the picture and sound it left
+/// What dm does with a page's fetched streams: joins the picture and sound left
 /// apart, puts a transport stream into an MP4, carries the subtitles
 /// inside, and places the result.
 async fn finish_dm(
@@ -343,7 +306,7 @@ async fn finish_dm(
             .map_err(Error::Disk)?;
         return place(&produced, options).await;
     }
-    /* An HLS site's video, fetched by yt-dlp's own downloader, is the
+    /* An HLS site's video, fetched by a stream downloader, is the
      * stream's transport stream under an `.mp4` name: dm puts it right. */
     if is_transport_stream(&produced).await {
         let fixed = produced.with_extension("dm-remux.mp4");
@@ -390,14 +353,14 @@ async fn is_transport_stream(path: &Path) -> bool {
     file.read_exact(&mut head).await.is_ok() && head[0] == 0x47 && head[188] == 0x47
 }
 
-/// Moves a finished yt-dlp file into its category folder under the download
+/// Moves a finished video file into its category folder under the download
 /// directory, the same placement every other download gets.
 async fn place(produced: &Path, options: &Options) -> Result<Finished, Error> {
-    // yt-dlp names the file it meant to leave; if it is not there, the usual
+    // The fetch names the file it meant to leave; if it is not there, the usual
     // cause is a join that never happened, and "No such file" says nothing.
     if !produced.is_file() {
         return Err(Error::Internal(
-            "yt-dlp finished but the file it named is missing".into(),
+            "the video was fetched but the file it named is missing".into(),
         ));
     }
     let name = produced
@@ -417,7 +380,7 @@ async fn place(produced: &Path, options: &Options) -> Result<Finished, Error> {
         left_behind: None,
         path: dest,
         bytes,
-        // yt-dlp manages its own connections; the column would be guessing.
+        // The streams manage their own connections; the column would be guessing.
         connections: 1,
         category,
         verified: options.checksum.is_some(),
@@ -443,10 +406,8 @@ async fn remove_staging(dir: &Path) {
 
 #[cfg(test)]
 mod tests {
-    use super::{refusal, said_by};
-
     #[cfg(unix)]
-    /// A stream whose renditions name no codecs, as yt-dlp
+    /// A stream whose renditions name no codecs, as a player
     /// reads an HLS master playlist without CODECS, still lists its heights.
     #[test]
     fn renditions_without_codecs_are_listed_by_height() {
@@ -471,61 +432,6 @@ mod tests {
         let at = std::time::Instant::now();
         super::remove_staging(&staging).await;
         assert!(at.elapsed() < std::time::Duration::from_millis(150));
-    }
-
-    #[test]
-    fn a_sites_refusal_is_said_in_words_a_person_can_act_on() {
-        let limited = "WARNING: [youtube] got redirected to https://www.google.com/sorry/index\n\
-                       ERROR: [youtube] jNQXAC9IVRw: Unable to download webpage: HTTP Error 429: Too Many Requests";
-        assert!(refusal(limited).unwrap().contains("try again later"));
-        assert!(
-            refusal("ERROR: Sign in to confirm you're not a bot. Use --cookies")
-                .unwrap()
-                .contains("not a bot")
-        );
-        assert!(
-            refusal("ERROR: [vimeo] 1: The web client only works when logged-in")
-                .unwrap()
-                .contains("signed in")
-        );
-        assert_eq!(
-            refusal("ERROR: [youtube] x: Private video").as_deref(),
-            Some("that video is private")
-        );
-        assert!(refusal("ERROR: Unsupported URL: https://e.com/")
-            .unwrap()
-            .contains("does not know"));
-        assert!(refusal(
-            "ERROR: This format is DRM protected; Try selecting another format with --format"
-        )
-        .is_some_and(|said| said.contains("copy-protected")));
-        assert_eq!(refusal("ERROR: something else entirely"), None);
-        // YouTube's player script, which a cookie does not stand in for.
-        for stderr in [
-            "WARNING: [youtube] x: n challenge solving failed: Some formats may be missing.\nERROR: [youtube] x: Only images are available for download.",
-            "WARNING: [youtube] No supported JavaScript runtime could be found.",
-        ] {
-            assert!(refusal(stderr).unwrap().contains("player script"), "{stderr}");
-        }
-        // A sign-in stays a sign-in even where the format is missing too.
-        assert!(refusal(
-            "ERROR: Sign in to confirm your age\nERROR: Requested format is not available"
-        )
-        .unwrap()
-        .contains("signed in"));
-        // Unknown refusals keep yt-dlp's own words, the site named, not a
-        // bare failure; the video's id and yt-dlp's advice are left out.
-        assert_eq!(
-            said_by(
-                "WARNING: x\nERROR: [e] 1: a thing went wrong; please report this issue on https://x\n",
-                "could not read"
-            ),
-            "could not read on E (yt-dlp: a thing went wrong)"
-        );
-        assert_eq!(
-            said_by("nothing useful", "could not read"),
-            "could not read"
-        );
     }
 
     use super::*;
@@ -590,65 +496,56 @@ mod windows_homes_tests {
     use super::{find_in, names, windows_homes, Homes};
     use std::path::PathBuf;
 
-    /// On Windows the program is `yt-dlp.exe`, installed where
-    /// pip, winget, Scoop or Chocolatey put it, none of them on the `PATH`
-    /// a dm started by a browser has. Each is found there, laid out as a
-    /// Windows profile is under a folder of this test's.
+    /// On Windows the program is `qjs.exe`, installed where winget, Scoop or
+    /// Chocolatey put it, none of them on the `PATH` a dm started by a
+    /// browser has. Each is found there, laid out as a Windows profile is
+    /// under a folder of this test's.
     #[test]
     fn windows_installs_are_found_by_their_exe() {
         let root = std::env::temp_dir().join(format!("dm-win-homes-{}", std::process::id()));
         let _ = std::fs::remove_dir_all(&root);
-        let (local, roaming, home, data) = (
+        let (local, home, data) = (
             root.join("Local"),
-            root.join("Roaming"),
             root.join("me"),
             root.join("ProgramData"),
         );
         let homes = Homes {
             local: Some(local.clone()),
-            roaming: Some(roaming.clone()),
             home: home.clone(),
             program_data: Some(data.clone()),
-            program_files: None,
-            system_drive: None,
         };
         let put = |dir: PathBuf, name: &str| {
             std::fs::create_dir_all(&dir).unwrap();
             std::fs::write(dir.join(name), b"MZ").unwrap();
             dir.join(name)
         };
-        let exe = names("yt-dlp", true);
-        assert_eq!(exe[0], "yt-dlp.exe");
+        let exe = names("qjs", true);
+        assert_eq!(exe[0], "qjs.exe");
         let find = |h: &Homes| find_in(windows_homes(h).into_iter(), &exe);
         assert_eq!(find(&homes), None);
 
-        // pip install --user, with python.org's Python 3.13.
-        let pip = put(
-            roaming.join("Python").join("Python313").join("Scripts"),
-            "yt-dlp.exe",
-        );
-        assert_eq!(find(&homes), Some(pip.clone()));
-        std::fs::remove_file(&pip).unwrap();
         // winget's link, then its package folder alone.
         let winget = local.join("Microsoft").join("WinGet");
-        let link = put(winget.join("Links"), "yt-dlp.exe");
+        let link = put(winget.join("Links"), "qjs.exe");
         assert_eq!(find(&homes), Some(link.clone()));
         std::fs::remove_file(&link).unwrap();
         let package = put(
-            winget.join("Packages").join("yt-dlp.yt-dlp_8wekyb3d8bbwe"),
-            "yt-dlp.exe",
+            winget
+                .join("Packages")
+                .join("quickjs-ng.quickjs_8wekyb3d8bbwe"),
+            "qjs.exe",
         );
         assert_eq!(find(&homes), Some(package.clone()));
         std::fs::remove_file(&package).unwrap();
         // Scoop, then Chocolatey.
-        let scoop = put(home.join("scoop").join("shims"), "yt-dlp.exe");
+        let scoop = put(home.join("scoop").join("shims"), "qjs.exe");
         assert_eq!(find(&homes), Some(scoop.clone()));
         std::fs::remove_file(&scoop).unwrap();
-        let choco = put(data.join("chocolatey").join("bin"), "yt-dlp.exe");
+        let choco = put(data.join("chocolatey").join("bin"), "qjs.exe");
         assert_eq!(find(&homes), Some(choco));
 
         // Elsewhere the bare name, as before.
-        assert_eq!(names("yt-dlp", false), ["yt-dlp"]);
+        assert_eq!(names("qjs", false), ["qjs"]);
         let _ = std::fs::remove_dir_all(&root);
     }
 }

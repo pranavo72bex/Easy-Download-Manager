@@ -22,7 +22,7 @@ use common::tempdir;
 struct Server {
     live: Arc<AtomicUsize>,
     peak: Arc<AtomicUsize>,
-    /// How often `flaky` has been asked for: the first time is refused.
+    /// How often `flaky` has been asked for: the first two times are refused (dm asks a 404 twice).
     flaky: Arc<AtomicUsize>,
     /// Every path asked for, so a test can say what was never fetched.
     asked: Arc<std::sync::Mutex<Vec<String>>>,
@@ -55,7 +55,7 @@ async fn serve_recording() -> (
         // Gone the first time and there after: what a retry is for. A 404,
         // which the engine's own retries do not cover, so only a person's
         // Retry gets it the second look.
-        let gone_once = uri.path().contains("flaky") && s.flaky.fetch_add(1, Ordering::SeqCst) == 0;
+        let gone_once = uri.path().contains("flaky") && s.flaky.fetch_add(1, Ordering::SeqCst) < 2;
         if uri.path().contains("missing") || gone_once {
             return Response::builder()
                 .status(StatusCode::NOT_FOUND)
@@ -3079,4 +3079,72 @@ async fn a_long_list_comes_back_whole_from_its_file_and_journal() {
     second.flush().await;
     assert!(!journal.exists(), "the journal outlived a start");
     assert!(std::fs::metadata(&store).unwrap().len() != whole);
+}
+
+#[tokio::test]
+async fn a_download_named_by_its_server_can_be_given_the_addresss_name_after() {
+    /* What a person who said no to the server's name gets: the finished file
+     * renamed to the name the address gave, never over another file. */
+    use axum::routing::get;
+    let app = axum::Router::new().route(
+        "/dl",
+        get(|| async {
+            Response::builder()
+                .header(
+                    "content-disposition",
+                    "attachment; filename=\"Report 2026.pdf\"",
+                )
+                .body(Body::from(vec![7u8; 4096]))
+                .unwrap()
+        }),
+    );
+    let addr = common::serve(app).await;
+    let dir = tempdir();
+    let q = queue(dir.path(), 1);
+    let id = q.add(&format!("http://{addr}/dl")).await.unwrap();
+    q.run().await;
+    let row = q.get(id).await.unwrap();
+    assert_eq!(row.state, DownloadState::Completed);
+    assert_eq!(row.filename, "Report 2026.pdf");
+
+    q.rename(id, "dl").await.unwrap();
+    let row = q.get(id).await.unwrap();
+    assert_eq!(row.filename, "dl");
+    assert!(std::path::Path::new(&row.path).is_file());
+    assert_eq!(std::fs::read(&row.path).unwrap(), vec![7u8; 4096]);
+}
+
+#[tokio::test]
+async fn a_page_for_a_file_is_saved_as_html_after_a_person_says_yes() {
+    use axum::routing::get;
+    let page = "<html><title>Sign in</title></html>";
+    let app = axum::Router::new().route(
+        "/files/report.zip",
+        get(move || async move {
+            Response::builder()
+                .header("content-type", "text/html")
+                .body(Body::from(page))
+                .unwrap()
+        }),
+    );
+    let addr = common::serve(app).await;
+    let dir = tempdir();
+    let q = queue(dir.path(), 1);
+    let id = q
+        .add(&format!("http://{addr}/files/report.zip"))
+        .await
+        .unwrap();
+    q.run().await;
+    assert!(matches!(
+        q.get(id).await.unwrap().state,
+        DownloadState::Failed(ref why) if why.contains("web page rather than the file")
+    ));
+
+    assert!(q.accept_page(id).await);
+    assert!(q.retry(id).await);
+    q.run().await;
+    let row = q.get(id).await.unwrap();
+    assert_eq!(row.state, DownloadState::Completed);
+    assert_eq!(row.filename, "report.html");
+    assert_eq!(std::fs::read_to_string(&row.path).unwrap(), page);
 }
