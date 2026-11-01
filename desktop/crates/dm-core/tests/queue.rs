@@ -523,7 +523,7 @@ async fn a_login_and_cookies_stay_out_of_the_queue_file_and_come_back() {
     let id = first
         .add_with(
             &url,
-            dm_core::queue::AddOptions {
+            dm_core::AddOptions {
                 cookies: "session=given-by-the-browser".into(),
                 ..Default::default()
             },
@@ -1313,7 +1313,7 @@ async fn a_full_disk_pauses_and_another_folder_finishes_it() {
         dm_core::Options {
             connections: 1,
             dest_dir: full.clone(),
-            room: dm_core::download::Room::with_free_space(move |at| {
+            room: dm_core::Room::with_free_space(move |at| {
                 (at.starts_with(&watched) || at.starts_with(&parts)).then_some(10)
             }),
             ..base

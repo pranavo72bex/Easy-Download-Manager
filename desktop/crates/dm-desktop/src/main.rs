@@ -461,7 +461,7 @@ fn main() {
             handle
                 .block_on(queue.list())
                 .iter()
-                .any(|row| row.state == dm_core::queue::State::Running)
+                .any(|row| row.state == dm_core::State::Running)
         });
     }
     let mut backend = Backend::new(runtime.handle().clone(), queue, saved, notices, platform);

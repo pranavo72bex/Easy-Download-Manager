@@ -13,7 +13,7 @@ use std::net::{Ipv4Addr, SocketAddr, TcpListener};
 use std::path::{Path, PathBuf};
 use std::time::{Duration, Instant};
 
-use dm_core::download::Options;
+use dm_core::Options;
 use dm_core::torrent::download_torrent;
 use dm_core::{client, Categories, Control, Limiter};
 

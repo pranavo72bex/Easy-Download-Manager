@@ -367,7 +367,7 @@ fn digest_rows(
     d: &mut Properties,
     value: f32,
 ) {
-    use dm_core::checksum::{Algorithm, Checksum};
+    use dm_core::{checksum::Algorithm, Checksum};
     let waiting = |ui: &mut egui::Ui| {
         ui.label(RichText::new(t("Working it out…")).weak());
         ctx.request_repaint_after(std::time::Duration::from_millis(200));

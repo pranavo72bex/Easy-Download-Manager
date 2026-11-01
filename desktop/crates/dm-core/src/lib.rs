@@ -21,8 +21,8 @@ pub mod aac;
 pub mod auth;
 pub mod category;
 pub mod checksum;
-pub mod clip;
-pub mod control;
+mod clip;
+mod control;
 pub mod cookies;
 pub mod dash;
 mod decode;
@@ -32,9 +32,9 @@ pub mod fmp4;
 pub mod frames;
 pub mod ftp;
 pub mod gif;
-pub mod limit;
+mod limit;
 pub mod live;
-pub mod metalink;
+mod metalink;
 #[cfg(windows)]
 pub(crate) mod mf;
 pub mod mkvmux;
@@ -45,7 +45,7 @@ pub mod mp4mux;
 pub mod ntlm;
 pub mod plan;
 pub mod probe;
-pub mod progress;
+mod progress;
 pub mod proxy;
 pub mod queue;
 pub mod quota;
@@ -69,7 +69,7 @@ pub mod torrent;
 pub mod tsmux;
 pub mod videopage;
 pub mod youtube;
-pub mod zipinfo;
+mod zipinfo;
 
 /// The HTTP client crate, for callers that take or build a client of the
 /// engine's kind without a dependency of their own.

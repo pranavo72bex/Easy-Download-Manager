@@ -15,7 +15,8 @@ static ONE_AT_A_TIME: tokio::sync::Mutex<()> = tokio::sync::Mutex::const_new(())
 use axum::body::Body;
 use axum::response::Response;
 use axum::routing::get;
-use dm_core::proxy::{client_with, Kind, Proxy};
+use dm_core::proxy::{client_with, Kind};
+use dm_core::Proxy;
 use dm_core::{download, Options};
 use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader};
 use tokio::net::TcpListener;

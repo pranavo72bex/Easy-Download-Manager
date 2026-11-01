@@ -8,7 +8,7 @@
 //! Beyond "does not panic", each holds what must stay true whatever arrives:
 //! a name never becomes a path, a plan covers every byte exactly once.
 
-use dm_core::checksum::Checksum;
+use dm_core::Checksum;
 use dm_core::stream::{self, Quality};
 use dm_core::{metalink, plan, probe, Schedule};
 use proptest::prelude::*;

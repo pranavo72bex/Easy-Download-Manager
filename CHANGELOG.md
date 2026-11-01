@@ -5,6 +5,8 @@ the browser extension (`v*` tags) are versioned separately.
 
 ## App 0.8.6, extension 3.2.1
 
+- Six `dm_core` modules (`clip`, `control`, `limit`, `metalink`, `progress`, `zipinfo`) are private so their items have one path, the crate root; users that reached root items by a module path now use the root (gaps row 28; written without a build).
+
 - The Sign-ins' and the proxy's passwords go to the operating system's store and the settings file keeps them empty, with the macOS Keychain and Linux Secret Service reached through `security` and `secret-tool` (gaps row 39; written, not built or tested; settings from before are moved in on their first read).
 - The app serves site rules to the extension (gaps rows 68 and 69; written, to be proven in the final build): a versioned document (`format`, `revision`) shipped in the app (`dm-shell/resources/rules.json`) or a newer `rules.json` in dm's home rides in the hello, and the extension adds what it lists (hosts, folders, names and sounds never caught) to its built-in tables, never taking one away, so a fix for a site no longer needs a store release. The same rules can name a site's requests whose JSON answers hold the streams the page builds itself; the page script passes those answers (1 MiB at most) on and the extension finds the media addresses in them. Both start empty: no site has a rule yet.
 - A pure-Rust AAC-LC decoder for Linux (`dm-core/src/aac/`, gaps row 53; written, not built or tested; gated off until the standard's Huffman books are supplied, so Linux still offers no MP3): the config out of the M4A's `esds`, frame syntax, pulses, mid/side, TNS, FFT-based IMDCT with sine and Kaiser-Bessel windows, overlap-add, the edit list for priming.

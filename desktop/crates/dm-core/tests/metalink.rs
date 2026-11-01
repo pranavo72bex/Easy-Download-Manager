@@ -33,7 +33,7 @@ async fn the_documents_length_outranks_a_stale_first_mirror() {
     .await;
 
     let dir = tempdir();
-    let done = dm_core::download::download(
+    let done = dm_core::download(
         &dm_core::client(),
         &format!("http://{listing}/f.meta4"),
         &options(dir.path()),
@@ -67,7 +67,7 @@ async fn no_mirror_agreeing_with_the_document_is_refused() {
     ))
     .await;
     let dir = tempdir();
-    let err = dm_core::download::download(
+    let err = dm_core::download(
         &dm_core::client(),
         &format!("http://{listing}/f.meta4"),
         &options(dir.path()),
@@ -146,7 +146,7 @@ async fn a_mirror_serving_other_bytes_is_passed_over_for_one_that_matches_the_di
         connections: 6,
         ..options(dir.path())
     };
-    let done = dm_core::download::download(
+    let done = dm_core::download(
         &dm_core::client(),
         &format!("http://{listing_addr}/f.meta4"),
         &opts,
@@ -166,7 +166,7 @@ async fn a_mirror_serving_other_bytes_is_passed_over_for_one_that_matches_the_di
         connections: 6,
         ..options(dir.path())
     };
-    let refused = dm_core::download::download(
+    let refused = dm_core::download(
         &dm_core::client(),
         &format!("http://{listing_addr}/f.meta4"),
         &opts,
