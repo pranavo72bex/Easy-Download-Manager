@@ -219,6 +219,10 @@ FILES = {
     "limit.bin": (3 * MiB, 0, "plain"),           # fetched under Low speed
     "crash.bin": (64 * MiB, 512 * 1024, "plain"),
     "stopme.bin": (64 * MiB, 512 * 1024, "plain"),    # stopped, then Remove
+    "ui.bin": (48 * MiB, 512 * 1024, "plain"),        # running while its progress window is looked at (B46)
+    "ui-alpha.bin": (1 * MiB, 0, "plain"),            # Find / Find previous (B48)
+    "ui-beta.bin": (1 * MiB, 0, "plain"),
+    "ui-alphabet.bin": (1 * MiB, 0, "plain"),
     **{f"q{i}.bin": (8 * MiB, 256 * 1024, "plain") for i in range(1, 6)},
 }
 DATA = {n: body(n, s) for n, (s, _, _) in FILES.items()}
@@ -820,6 +824,57 @@ def walk(dm, origin):
           and not any(e.get("ev") == "done" and e.get("name") == "pack.zip" and e.get("bytes", 0) > MiB
                       for e in LOG[mark:]),
           f"{dm.dialogs()}")
+
+    print("\nThe list, a running download's window, recent addresses and Find", flush=True)
+    # B46: a double-click on a download still going opens its progress window,
+    # whose title starts with how far it is.
+    dm.add(f"{files}/ui.bin")
+    dm.wait("ui.bin", {"running"}, 20)
+    pause(3)
+    dm.call("ui.click", text="ui.bin", double=True)
+    pause(1.5)
+    titles = [w.get("title", "") for w in (dm.windows().get("dialogs") or [])]
+    first = next((t for t in titles if "ui.bin" in t), "")
+    check("B46", "a double-click on a running download opens its progress window",
+          bool(first) and "File properties" not in titles, f"{titles}")
+    check("B46", "its title starts with how far it is",
+          bool(re.match(r"^\d+% ", first)), f"{first!r}")
+    pause(3)
+    later = next((w.get("title", "") for w in (dm.windows().get("dialogs") or []) if "ui.bin" in w.get("title", "")), "")
+    check("B46", "and the number goes on counting as it runs",
+          bool(re.match(r"^\d+% ", later)) and int(re.match(r"^(\d+)%", later).group(1)) >= int(re.match(r"^(\d+)%", first).group(1)) if re.match(r"^\d+% ", first) and re.match(r"^\d+% ", later) else False,
+          f"{first!r} then {later!r}")
+    dm.call("ui.key", key="Escape")
+    pause(0.6)
+    r = dm.row("ui.bin")
+    if r:
+        dm.call("ui.select", ids=[r["id"]])
+        dm.click("Stop")
+        dm.wait("ui.bin", {"paused"}, 10)
+    # B47: an address with a token in its query is not kept for Add URL's list.
+    dm.add(f"{files}/ui-alpha.bin?token=secret123abc")
+    dm.wait("ui-alpha.bin", {"completed", "failed"}, 30)
+    kept = (home / "settings.json").read_text(encoding="utf-8", errors="replace") if (home / "settings.json").exists() else ""
+    check("B47", "an address with a token in its query is added but not kept for Add URL's Recent list",
+          dm.row("ui-alpha.bin") is not None and "secret123abc" not in kept, f"settings mention it: {'secret123abc' in kept}")
+    # B48: Find previous goes back, wrapping from the first row to the last.
+    for name in ("ui-beta.bin", "ui-alphabet.bin"):
+        dm.add(f"{files}/{name}")
+        dm.wait(name, {"completed", "failed"}, 30)
+    dm.call("ui.key", key="F", ctrl=True)
+    pause(0.8)
+    dm.call("ui.type", text="alpha")
+    pause(0.4)
+    dm.call("ui.key", key="F3", shift=True)
+    pause(0.8)
+    one = [x["url"].rsplit("/", 1)[-1] for x in dm.rows() if x["id"] in (dm.call("ui.inspect").get("result", {}).get("selected") or [])]
+    dm.call("ui.key", key="F3", shift=True)
+    pause(0.8)
+    two = [x["url"].rsplit("/", 1)[-1] for x in dm.rows() if x["id"] in (dm.call("ui.inspect").get("result", {}).get("selected") or [])]
+    check("B48", "Shift-F3 selects the previous row whose name has the text, and goes on back",
+          len(one) == 1 and len(two) == 1 and one != two and all("alpha" in n for n in one + two), f"{one} then {two}")
+    dm.click("Cancel")
+    pause(0.6)
 
     print("\nWhen things go wrong", flush=True)
     dm.add(f"{files}/crash.bin")

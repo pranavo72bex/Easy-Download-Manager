@@ -97,7 +97,7 @@ impl DmApp {
                 .iter()
                 .any(|r| matches!(r.state, State::Running | State::Queued)),
             Command::DeleteCompleted => self.rows.iter().any(|r| r.state.clearable()),
-            Command::FindNext => !self.dialogs.find_text.is_empty(),
+            Command::FindNext | Command::FindPrevious => !self.dialogs.find_text.is_empty(),
             _ => true,
         }
     }
@@ -347,6 +347,7 @@ impl DmApp {
                 self.dialogs.focus_on("Find");
             }
             Command::FindNext => self.find_next(),
+            Command::FindPrevious => self.find_previous(),
             Command::Scheduler => self.dialogs.open_scheduler(&self.applied),
             Command::StartQueue => {
                 let queue = self.current_queue();

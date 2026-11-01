@@ -49,6 +49,7 @@ pub enum Command {
     DeleteCompleted,
     Find,
     FindNext,
+    FindPrevious,
     Scheduler,
     StartQueue,
     StopQueue,
@@ -117,6 +118,7 @@ impl Command {
         Command::DeleteCompleted,
         Command::Find,
         Command::FindNext,
+        Command::FindPrevious,
         Command::Scheduler,
         Command::StartQueue,
         Command::StopQueue,
@@ -183,6 +185,7 @@ impl Command {
             Command::DeleteCompleted => "downloads.clear_finished",
             Command::Find => "downloads.find",
             Command::FindNext => "downloads.find_next",
+            Command::FindPrevious => "downloads.find_previous",
             Command::Scheduler => "downloads.scheduler",
             Command::StartQueue => "downloads.start_queue",
             Command::StopQueue => "downloads.stop_queue",
@@ -292,6 +295,7 @@ impl Command {
             Command::DeleteCompleted => "Clear finished",
             Command::Find => "Find",
             Command::FindNext => "Find next",
+            Command::FindPrevious => "Find previous",
             Command::Scheduler => "Scheduler",
             Command::StartQueue => "Start queue",
             Command::StopQueue => "Stop queue",
@@ -343,6 +347,7 @@ impl Command {
             )],
             Command::Find => cmd(Key::F),
             Command::FindNext => plain(Key::F3),
+            Command::FindPrevious => vec![KeyboardShortcut::new(Modifiers::SHIFT, Key::F3)],
             Command::SelectAll => cmd(Key::A),
             Command::Remove if cfg!(target_os = "macos") => vec![
                 KeyboardShortcut::new(Modifiers::COMMAND, Key::Backspace),
@@ -371,6 +376,7 @@ impl Command {
                 | Command::DownloadNow
                 | Command::StopDownload
                 | Command::FindNext
+                | Command::FindPrevious
         )
     }
 

@@ -216,6 +216,80 @@ pub fn file(painter: &Painter, rect: Rect, kind: Option<dm_core::Category>) {
     painter.rect_stroke(r, 1.5, Stroke::new(1.0, color), egui::StrokeKind::Inside);
     let band = Rect::from_min_max(pos2(r.min.x, r.max.y - 5.0), r.max);
     painter.rect_filled(band, 1.0, color);
+    painter.extend(kind_shapes(kind, r, color));
+}
+
+/// The small picture on a file's sheet that tells its kind by shape, so the
+/// kinds are told apart without relying on colour alone (a play mark, a note,
+/// lines of text, a window, a zip, a hill and a sun). A file of no known kind
+/// has a plain sheet.
+pub fn kind_shapes(kind: Option<dm_core::Category>, sheet: Rect, color: Color32) -> Vec<Shape> {
+    use dm_core::Category as K;
+    // The white part of the sheet, above the coloured band.
+    let area = Rect::from_min_max(
+        pos2(sheet.min.x + 2.5, sheet.min.y + 2.5),
+        pos2(sheet.max.x - 2.5, sheet.max.y - 6.5),
+    );
+    let c = area.center();
+    let line = Stroke::new(1.0, color);
+    match kind {
+        Some(K::Videos) => vec![Shape::convex_polygon(
+            vec![
+                pos2(c.x - 1.5, area.top()),
+                pos2(c.x - 1.5, area.bottom()),
+                pos2(c.x + 2.0, c.y),
+            ],
+            color,
+            Stroke::NONE,
+        )],
+        Some(K::Audio) => vec![
+            Shape::circle_filled(pos2(c.x - 1.0, area.bottom() - 0.8), 1.2, color),
+            Shape::line_segment(
+                [
+                    pos2(c.x + 0.2, area.bottom() - 0.8),
+                    pos2(c.x + 0.2, area.top()),
+                ],
+                line,
+            ),
+        ],
+        Some(K::Documents) => [area.top() + 0.5, c.y, area.bottom() - 0.5]
+            .into_iter()
+            .map(|y| Shape::line_segment([pos2(area.left(), y), pos2(area.right(), y)], line))
+            .collect(),
+        Some(K::Apps) => vec![
+            Shape::rect_stroke(area, 0.5, line, egui::StrokeKind::Inside),
+            Shape::line_segment(
+                [
+                    pos2(area.left(), area.top() + 1.8),
+                    pos2(area.right(), area.top() + 1.8),
+                ],
+                line,
+            ),
+        ],
+        Some(K::Archives) => [area.top(), area.top() + 2.5, area.top() + 5.0]
+            .into_iter()
+            .map(|y| {
+                Shape::rect_filled(
+                    Rect::from_min_size(pos2(c.x - 0.8, y), vec2(1.6, 1.4)),
+                    0.0,
+                    color,
+                )
+            })
+            .collect(),
+        Some(K::Pictures) => vec![
+            Shape::convex_polygon(
+                vec![
+                    pos2(area.left(), area.bottom()),
+                    pos2(c.x - 0.5, area.top() + 1.5),
+                    pos2(area.right(), area.bottom()),
+                ],
+                color,
+                Stroke::NONE,
+            ),
+            Shape::circle_filled(pos2(area.right() - 0.8, area.top() + 0.8), 0.9, color),
+        ],
+        _ => Vec::new(),
+    }
 }
 
 /// A folder drawn in outline, as the modern look's icons are.
@@ -230,4 +304,56 @@ pub fn folder_outline(painter: &Painter, rect: Rect, color: Color32) {
     ];
     painter.add(Shape::line(tab.to_vec(), stroke));
     painter.rect_stroke(r, 1.5, stroke, egui::StrokeKind::Inside);
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use dm_core::Category as K;
+
+    const KINDS: [K; 6] = [
+        K::Videos,
+        K::Audio,
+        K::Documents,
+        K::Apps,
+        K::Archives,
+        K::Pictures,
+    ];
+
+    fn sheet() -> Rect {
+        Rect::from_min_size(pos2(0.0, 0.0), vec2(11.0, 14.0))
+    }
+
+    #[test]
+    fn each_kind_of_file_has_a_shape_of_its_own() {
+        let drawn: Vec<String> = KINDS
+            .iter()
+            .map(|k| format!("{:?}", kind_shapes(Some(*k), sheet(), Color32::BLACK)))
+            .collect();
+        for (i, a) in drawn.iter().enumerate() {
+            assert!(a.len() > 5, "{:?} draws nothing", KINDS[i]);
+            for b in &drawn[i + 1..] {
+                assert_ne!(a, b, "two kinds draw the same shape");
+            }
+        }
+        assert!(kind_shapes(Some(K::Other), sheet(), Color32::BLACK).is_empty());
+        assert!(kind_shapes(None, sheet(), Color32::BLACK).is_empty());
+    }
+
+    #[test]
+    fn a_shape_stays_on_the_white_of_the_sheet() {
+        let sheet = sheet();
+        for kind in KINDS {
+            for shape in kind_shapes(Some(kind), sheet, Color32::BLACK) {
+                let at = shape.visual_bounding_rect();
+                assert!(
+                    at.min.x >= sheet.min.x + 1.0
+                        && at.max.x <= sheet.max.x - 1.0
+                        && at.min.y >= sheet.min.y + 1.0
+                        && at.max.y <= sheet.max.y - 5.0,
+                    "{kind:?} leaves the sheet: {at:?}"
+                );
+            }
+        }
+    }
 }

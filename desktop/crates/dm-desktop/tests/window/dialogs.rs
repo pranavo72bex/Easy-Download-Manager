@@ -216,13 +216,24 @@ fn a_double_click_opens_properties_and_open_runs_a_finished_file() {
     });
     harness.run_steps(2);
 
-    // An unfinished one: Properties, with nothing yet to open.
+    // One still going: its progress window, and not Properties.
     double_click(&mut harness, "stalled.bin");
+    harness.run_steps(3);
+    assert!(harness
+        .query_by_label_contains("Download progress")
+        .is_some());
+    assert!(
+        harness.state().dialogs.properties.is_empty(),
+        "Properties opened as well"
+    );
+    // Its Properties are still there from the menu, with nothing yet to open.
+    harness.state_mut().run(Command::Properties);
     harness.run_steps(3);
     assert!(harness.query_by_label("File properties").is_some());
     let open = harness.get_by_role_and_label(egui::accesskit::Role::Button, "Open");
     assert!(open.accesskit_node().is_disabled(), "nothing to open yet");
     harness.state_mut().dialogs.properties.clear();
+    harness.state_mut().dialogs.progress.clear();
     harness.run_steps(2);
 
     // A finished one: Properties, whose Open runs the file.
@@ -245,7 +256,7 @@ fn a_double_click_opens_properties_and_open_runs_a_finished_file() {
     );
 
     // Options › General's "opens the file": the double-click opens a
-    // finished one straight away; one not finished still shows Properties.
+    // finished one straight away; one still going shows its progress.
     harness.state_mut().dialogs.properties.clear();
     world.fake.opened.lock().unwrap().clear();
     harness.state_mut().applied.double_click = "open".into();
@@ -261,7 +272,9 @@ fn a_double_click_opens_properties_and_open_runs_a_finished_file() {
     );
     double_click(&mut harness, "stalled.bin");
     harness.run_steps(3);
-    assert!(harness.query_by_label("File properties").is_some());
+    assert!(harness
+        .query_by_label_contains("Download progress")
+        .is_some());
 }
 
 /// Download details offers the folder a kind of file was last put in, and
@@ -1797,9 +1810,10 @@ fn no_field_is_outlined_in_the_selection_stroke_where_the_look_draws_its_own() {
 }
 
 /// The new install's double-click opens a finished file, as a file manager's
-/// does; one that is not finished shows its Properties.
+/// does; one that is still going shows its progress window, and its title
+/// says how far it is.
 #[test]
-fn the_default_double_click_opens_a_finished_file_and_shows_properties_for_the_rest() {
+fn the_default_double_click_opens_a_finished_file_and_shows_progress_for_one_still_going() {
     let world = world();
     let mut harness = world.quick_harness();
     add_url(&mut harness, &world.url("file.zip"), "Start now");
@@ -1814,7 +1828,23 @@ fn the_default_double_click_opens_a_finished_file_and_shows_properties_for_the_r
     assert_eq!(*world.fake.opened.lock().unwrap(), [path]);
     double_click(&mut harness, "stalled.bin");
     harness.run_steps(3);
-    assert!(harness.query_by_label("File properties").is_some());
+    assert!(harness
+        .query_by_label_contains("Download progress")
+        .is_some());
+    assert!(
+        harness.query_by_label("File properties").is_none(),
+        "Properties opened instead of the progress window"
+    );
+    // The title says how far it is, first: a running download's own size
+    // and progress, read as the progress window reads them.
+    let id = harness
+        .state()
+        .rows()
+        .iter()
+        .find(|r| r.url.contains("stalled.bin"))
+        .map(|r| r.id)
+        .unwrap();
+    assert!(harness.state().dialogs.progress.contains(&id));
 }
 
 /// The close button asks once whether dm keeps running in the tray, and what

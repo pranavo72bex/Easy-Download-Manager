@@ -252,10 +252,15 @@ impl DmApp {
     }
 
     pub(super) fn keys(&mut self, ctx: &egui::Context) {
-        // F3 types nothing: it finds the next one even from Find's own field.
+        // F3 types nothing: it finds the next one even from Find's own field,
+        // and Shift-F3 the previous (tried first: a shortcut matches with an
+        // extra Shift held).
         if self.dialogs.find_open && ctx.egui_wants_keyboard_input() {
+            let shift_f3 = egui::KeyboardShortcut::new(egui::Modifiers::SHIFT, egui::Key::F3);
             let f3 = egui::KeyboardShortcut::new(egui::Modifiers::NONE, egui::Key::F3);
-            if ctx.input_mut(|i| i.consume_shortcut(&f3)) {
+            if ctx.input_mut(|i| i.consume_shortcut(&shift_f3)) {
+                self.queued.push(Command::FindPrevious);
+            } else if ctx.input_mut(|i| i.consume_shortcut(&f3)) {
                 self.queued.push(Command::FindNext);
             }
         }
@@ -292,7 +297,8 @@ impl DmApp {
         let behind = self.dialogs.in_front();
         for command in ctx.input_mut(Command::pressed) {
             // F3 is what Find is open for: it finds behind its own dialog.
-            let finding = command == Command::FindNext && self.dialogs.find_open;
+            let finding = matches!(command, Command::FindNext | Command::FindPrevious)
+                && self.dialogs.find_open;
             if !(behind && command.acts_on_the_list()) || finding {
                 self.queued.push(command);
             }

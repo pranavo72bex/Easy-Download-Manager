@@ -48,9 +48,13 @@ pub(super) fn progress(app: &mut DmApp, ctx: &egui::Context) {
         // link were both "big.zip" until they had begun.
         let mut categories = app.applied.categories();
         let named = app.name_it_will_get(&row, &mut categories);
-        Dialog::new(tf(
-            "Download progress — {}",
-            &[&crate::bidi::visual(&named)],
+        Dialog::new(title_with_percent(
+            tf(
+                "Download progress — {}",
+                &[&crate::bidi::visual(&named)],
+            ),
+            row.progress.downloaded,
+            row.progress.total,
         ))
         .id(egui::Id::unique(("progress", id)))
         .collapsible(false)
@@ -412,5 +416,53 @@ pub(super) fn progress(app: &mut DmApp, ctx: &egui::Context) {
         if pause || resume || cancel {
             app.refresh();
         }
+    }
+}
+
+/// How far a download is, in whole percent: none while its size is unknown.
+fn percent_of(downloaded: u64, total: Option<u64>) -> Option<u64> {
+    let total = total.filter(|total| *total > 0)?;
+    Some((u128::from(downloaded) * 100 / u128::from(total)).min(100) as u64)
+}
+
+/// A progress window's title with how far it is first (`37% Download
+/// progress — name`), so a row of taskbar buttons or a window list tells the
+/// downloads apart and how they are going; the title alone while the size is
+/// unknown.
+fn title_with_percent(title: String, downloaded: u64, total: Option<u64>) -> String {
+    match percent_of(downloaded, total) {
+        Some(percent) => format!("{percent}% {title}"),
+        None => title,
+    }
+}
+
+#[cfg(test)]
+mod title_tests {
+    use super::*;
+
+    #[test]
+    fn the_percentage_comes_first_and_follows_the_download() {
+        assert_eq!(
+            title_with_percent("Download progress — a.bin".into(), 370, Some(1000)),
+            "37% Download progress — a.bin"
+        );
+        assert_eq!(
+            title_with_percent("t".into(), 0, Some(1000)),
+            "0% t",
+            "a download that has not begun is at 0%"
+        );
+        assert_eq!(title_with_percent("t".into(), 1000, Some(1000)), "100% t");
+    }
+
+    #[test]
+    fn no_size_means_no_percentage() {
+        assert_eq!(title_with_percent("t".into(), 500, None), "t");
+        assert_eq!(title_with_percent("t".into(), 500, Some(0)), "t");
+    }
+
+    #[test]
+    fn more_than_the_size_is_a_hundred_not_more() {
+        assert_eq!(percent_of(2_000, Some(1_000)), Some(100));
+        assert_eq!(percent_of(u64::MAX, Some(1)), Some(100));
     }
 }

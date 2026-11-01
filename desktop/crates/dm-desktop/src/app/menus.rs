@@ -220,6 +220,7 @@ impl DmApp {
                     ui.separator();
                     self.item(ui, Command::Find);
                     self.item(ui, Command::FindNext);
+                    self.item(ui, Command::FindPrevious);
                     ui.separator();
                     for c in [Command::Scheduler, Command::StartQueue, Command::StopQueue] {
                         self.item(ui, c);
