@@ -186,6 +186,20 @@ def body(name, size):
     return (block * (size // 65536 + 1))[:size]
 
 
+def make_zip():
+    """A real ZIP, stored: a folder, a small file in it and a 6 MiB one, so
+    that listing its files from its end is far less than fetching it."""
+    import io, zipfile
+    out = io.BytesIO()
+    with zipfile.ZipFile(out, "w", zipfile.ZIP_STORED) as z:
+        z.writestr("docs/", b"")
+        z.writestr("docs/readme.txt", b"a" * 1000)
+        z.writestr("setup.exe", body("setup.exe", 6 * MiB))
+    return out.getvalue()
+
+
+PACK = make_zip()
+
 # name: (size, bytes a second per connection or 0, kind)
 FILES = {
     "big.bin": (96 * MiB, 1 * MiB, "plain"),
@@ -201,12 +215,14 @@ FILES = {
     "pageno.zip": (2048, 0, "page"),              # the same; No
     "again.bin": (4 * MiB, 0, "plain"),           # added twice
     "later.bin": (4 * MiB, 0, "plain"),           # Add for later, then Start queue
+    "pack.zip": (len(PACK), 0, "plain"),          # a real ZIP: its files are listed from its end
     "limit.bin": (3 * MiB, 0, "plain"),           # fetched under Low speed
     "crash.bin": (64 * MiB, 512 * 1024, "plain"),
     "stopme.bin": (64 * MiB, 512 * 1024, "plain"),    # stopped, then Remove
     **{f"q{i}.bin": (8 * MiB, 256 * 1024, "plain") for i in range(1, 6)},
 }
 DATA = {n: body(n, s) for n, (s, _, _) in FILES.items()}
+DATA["pack.zip"] = PACK
 LOG, LOCK, ACTIVE, CONNS = [], threading.Lock(), {}, [0]
 T0 = time.time()
 
@@ -767,6 +783,43 @@ def walk(dm, origin):
           said == "Speed limiter on: 256 KB/s." and 180 <= rate <= 320 and r["state"]["kind"] == "completed"
           and free and free["state"]["kind"] == "completed" and free_took < 4,
           f"'{said}'; {rate:.0f} KB/s under it, {free_took:.1f} s for 4 MiB without")
+
+    print("\nA ZIP's contents", flush=True)
+    mark = len(LOG)
+    dm.open_add_url()
+    for _ in range(3):
+        dm.call("ui.type", text=f"{files}/pack.zip")
+        pause(0.4)
+        if any(f"{files}/pack.zip" in t for t in dm.texts()):
+            break
+    dm.click("OK")
+    for _ in range(40):
+        if "Download details" in dm.dialogs():
+            break
+        time.sleep(0.25)
+    seen = []
+    for _ in range(80):
+        seen = dm.texts()
+        if any("setup.exe" in t for t in seen):
+            break
+        time.sleep(0.25)
+    pause(1)
+    listed = (any(t.strip() == "Contents" for t in seen) and any("docs/readme.txt" in t for t in seen)
+              and any("setup.exe" in t for t in seen))
+    asked = requests("pack.zip", mark)
+    # Only the end of the archive is asked for: every request names a range,
+    # and none starts at the beginning but the one-byte first look.
+    partial = bool(asked) and all(e["range"] and (e["range"] in PROBES or not e["range"].startswith("bytes=0-"))
+                                  for e in asked)
+    check("B44", "Download details for a .zip lists its files, with sizes, before the archive is fetched",
+          listed and partial, f"listed: {listed}; ranges asked: {[e['range'] for e in asked]}")
+    dm.click("Cancel")
+    pause(0.8)
+    check("B44", "closing it fetched nothing and left no row",
+          "Download details" not in dm.dialogs() and dm.row("pack.zip") is None
+          and not any(e.get("ev") == "done" and e.get("name") == "pack.zip" and e.get("bytes", 0) > MiB
+                      for e in LOG[mark:]),
+          f"{dm.dialogs()}")
 
     print("\nWhen things go wrong", flush=True)
     dm.add(f"{files}/crash.bin")

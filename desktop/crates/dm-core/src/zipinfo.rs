@@ -261,6 +261,51 @@ pub async fn zip_contents(
     entries_of(&bytes, directory.entries)
 }
 
+/// The files of a ZIP on disk, read from its end alone as [`zip_contents`]
+/// reads one at an address: for a finished download's Properties, which has
+/// the file and needs no server. `None` where the file is no ZIP, is cut
+/// off, or its directory is too large to be worth listing.
+pub fn zip_contents_of_file(path: &std::path::Path) -> Option<Vec<ZipEntry>> {
+    use std::io::{Read, Seek, SeekFrom};
+    let mut file = std::fs::File::open(path).ok()?;
+    let size = file.metadata().ok()?.len();
+    if size < 22 {
+        return None;
+    }
+    let read_at = |file: &mut std::fs::File, from: u64, to: u64| -> Option<Vec<u8>> {
+        file.seek(SeekFrom::Start(from)).ok()?;
+        let mut bytes = vec![0u8; usize::try_from(to.checked_sub(from)? + 1).ok()?];
+        file.read_exact(&mut bytes).ok()?;
+        Some(bytes)
+    };
+    let tail_from = size.saturating_sub(TAIL);
+    let tail = read_at(&mut file, tail_from, size - 1)?;
+    let (end_at, mut directory) = end_of_directory(&tail)?;
+    if directory.needs64 {
+        let record_at = locator64(&tail, end_at)?;
+        let record = read_at(&mut file, record_at, record_at + 55)?;
+        directory = directory64(&record)?;
+    }
+    if directory.size > MOST_DIRECTORY || directory.offset.checked_add(directory.size)? > size {
+        return None;
+    }
+    if directory.entries == 0 {
+        return Some(Vec::new());
+    }
+    let bytes = if directory.offset >= tail_from {
+        let from = usize::try_from(directory.offset - tail_from).ok()?;
+        tail.get(from..from + usize::try_from(directory.size).ok()?)?
+            .to_vec()
+    } else {
+        read_at(
+            &mut file,
+            directory.offset,
+            directory.offset + directory.size - 1,
+        )?
+    };
+    entries_of(&bytes, directory.entries)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -320,5 +365,25 @@ mod tests {
         let (_, directory) = end_of_directory(&good).unwrap();
         let start = usize::try_from(directory.offset).unwrap();
         assert!(entries_of(&good[start..start + 30], 3).is_none());
+    }
+
+    #[test]
+    fn a_zip_on_disk_is_listed_from_its_end_and_a_file_that_is_not_one_is_not() {
+        let dir = tempfile::tempdir().unwrap();
+        let zip = dir.path().join("pack.zip");
+        std::fs::write(&zip, archive()).unwrap();
+        let entries = zip_contents_of_file(&zip).expect("the entries");
+        assert_eq!(entries.len(), 3);
+        assert_eq!(entries[1].name, "docs/readme.txt");
+        assert_eq!(entries[2].size, 5000);
+
+        let text = dir.path().join("notes.zip");
+        std::fs::write(
+            &text,
+            b"just some text that is long enough to be read, but no archive",
+        )
+        .unwrap();
+        assert!(zip_contents_of_file(&text).is_none());
+        assert!(zip_contents_of_file(&dir.path().join("missing.zip")).is_none());
     }
 }

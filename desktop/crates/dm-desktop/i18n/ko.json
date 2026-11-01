@@ -757,5 +757,7 @@
  "The requested file looks like an HTML web page. Would you like to continue downloading it and save it as an HTML page?": "요청한 파일이 HTML 웹 페이지처럼 보입니다. 계속 다운로드하여 HTML 페이지로 저장하시겠습니까?",
  "The file doesn't exist": "파일이 없습니다",
  "The requested file doesn't exist.": "요청한 파일이 없습니다.",
- "Details:": "자세히:"
+ "Details:": "자세히:",
+ "Contents": "내용",
+ "Reading the contents…": "내용을 읽는 중…"
 }

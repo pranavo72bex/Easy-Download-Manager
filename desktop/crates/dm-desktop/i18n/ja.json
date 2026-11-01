@@ -757,5 +757,7 @@
  "The requested file looks like an HTML web page. Would you like to continue downloading it and save it as an HTML page?": "要求されたファイルはHTMLのWebページのようです。ダウンロードを続けてHTMLページとして保存しますか?",
  "The file doesn't exist": "ファイルが存在しません",
  "The requested file doesn't exist.": "要求されたファイルは存在しません。",
- "Details:": "詳細:"
+ "Details:": "詳細:",
+ "Contents": "内容",
+ "Reading the contents…": "内容を読み込んでいます…"
 }

@@ -757,5 +757,7 @@
  "The requested file looks like an HTML web page. Would you like to continue downloading it and save it as an HTML page?": "İstenen dosya bir HTML web sayfasına benziyor. İndirmeye devam edip HTML sayfası olarak kaydetmek ister misiniz?",
  "The file doesn't exist": "Dosya yok",
  "The requested file doesn't exist.": "İstenen dosya yok.",
- "Details:": "Ayrıntılar:"
+ "Details:": "Ayrıntılar:",
+ "Contents": "İçerik",
+ "Reading the contents…": "İçerik okunuyor…"
 }

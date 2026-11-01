@@ -757,5 +757,7 @@
  "The requested file looks like an HTML web page. Would you like to continue downloading it and save it as an HTML page?": "Le fichier demandé ressemble à une page web HTML. Voulez-vous poursuivre le téléchargement et l'enregistrer comme page HTML ?",
  "The file doesn't exist": "Le fichier n'existe pas",
  "The requested file doesn't exist.": "Le fichier demandé n'existe pas.",
- "Details:": "Détails :"
+ "Details:": "Détails :",
+ "Contents": "Contenu",
+ "Reading the contents…": "Lecture du contenu…"
 }

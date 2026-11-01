@@ -757,5 +757,7 @@
  "The requested file looks like an HTML web page. Would you like to continue downloading it and save it as an HTML page?": "File yang diminta tampaknya halaman web HTML. Lanjutkan mengunduh dan simpan sebagai halaman HTML?",
  "The file doesn't exist": "File tidak ada",
  "The requested file doesn't exist.": "File yang diminta tidak ada.",
- "Details:": "Detail:"
+ "Details:": "Detail:",
+ "Contents": "Isi",
+ "Reading the contents…": "Membaca isi…"
 }

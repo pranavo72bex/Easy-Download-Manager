@@ -393,7 +393,7 @@
  "Yes, delete": "是，删除",
  "You cancelled two downloads from {}. Leave its downloads to the browser?": "你取消了两个来自 {} 的下载。今后将其下载交给浏览器？",
  "Your own categories come first. A file of these types, from these sites (any site when empty), goes into a folder named after the category.": "你的类别，优先匹配：这些类型的文件、来自这些网站（留空为任意网站），会放入以类别命名的文件夹。",
- "and {} more": "以及另外 {} 个",
+ "and {} more": "另有 {} 项",
  "dm will {} in {} seconds.": "dm 将在 {1} 秒后{0}。",
  "dm {} is out (this is {}). It is on the project's releases page.": "dm {} 已发布（当前为 {}）。可在项目的发布页面获取。",
  "dm {} is available (you have {}). Download its installer here.": "dm {} 已发布（当前为 {}）。可在此下载其安装程序。",
@@ -757,5 +757,7 @@
  "The requested file looks like an HTML web page. Would you like to continue downloading it and save it as an HTML page?": "请求的文件看起来是一个 HTML 网页。要继续下载并将其保存为 HTML 页面吗?",
  "The file doesn't exist": "文件不存在",
  "The requested file doesn't exist.": "请求的文件不存在。",
- "Details:": "详细信息:"
+ "Details:": "详细信息:",
+ "Contents": "内容",
+ "Reading the contents…": "正在读取内容…"
 }

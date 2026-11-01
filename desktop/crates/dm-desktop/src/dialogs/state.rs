@@ -222,6 +222,7 @@ impl Dialogs {
                 says: String::new(),
                 sums: Default::default(),
                 check: String::new(),
+                zip: None,
             },
         );
     }

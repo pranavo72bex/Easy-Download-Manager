@@ -37,6 +37,7 @@ mod series;
 mod site_files;
 mod speed_schedule;
 mod state;
+mod zip_list;
 
 use about::*;
 pub use add::*;
@@ -110,6 +111,10 @@ pub struct FileInfo {
     /// (`dm_core::videopage::list_choices`): `None` until asked; an empty list
     /// where the page gave none.
     pub choices: Option<std::sync::Arc<std::sync::Mutex<Option<Vec<dm_core::videopage::Choice>>>>>,
+    /// A ZIP's files, read from its end as the dialog opens
+    /// (`dm_core::zip_contents`): `None` until asked; an empty list where the
+    /// server or the file gave none.
+    pub zip: Option<ZipSlot>,
     /// A YouTube playlist page: the Playlist dialog takes over.
     pub playlist: std::sync::Arc<std::sync::Mutex<Option<dm_core::youtube::Playlist>>>,
     /// The browser a handed-over download came from, where the host could
@@ -300,7 +305,13 @@ pub struct Properties {
     pub sums: Sums,
     /// A digest the person was given, to check the file against.
     pub check: String,
+    /// A finished ZIP's files, read from the file in the background.
+    pub zip: Option<ZipSlot>,
 }
+
+/// The files of a ZIP, as a background reading leaves them: `None` while it
+/// is under way, an empty list where there was nothing to list.
+pub type ZipSlot = Arc<Mutex<Option<Vec<dm_core::ZipEntry>>>>;
 
 /// What the background hashing of a finished file has found so far.
 pub type Sums = Arc<Mutex<HashMap<&'static str, Option<Result<String, String>>>>>;
