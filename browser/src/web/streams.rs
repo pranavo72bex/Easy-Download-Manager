@@ -56,6 +56,39 @@ pub async fn on_response_started(details: JsValue) {
     if let Err(why) = kept {
         log("debug", &format!("a tab's streams were not kept: {why}"));
     }
+    // Only a new line reaches here (the other answers returned above): a
+    // playlist that says nothing of its quality is read for it.
+    describe_playlist(tab, &seen.url).await;
+}
+
+/// A playlist or manifest the tab just loaded that is named by nothing but
+/// its kind: read once, within a few seconds and a few hundred kilobytes,
+/// with the browser's own session; what it says of its renditions names the
+/// line, and a master playlist's renditions stop being lines of their own.
+/// A failure leaves the line as it was.
+async fn describe_playlist(tab: i64, url: &str) {
+    if !STREAMS.with(|s| s.borrow_mut().wants_description(tab, url)) {
+        return;
+    }
+    let page = PAGES.with(|p| p.borrow().now(tab));
+    let body = match fetch_text(url, decide::PLAYLIST_READ_CAP, 4000.0).await {
+        Ok(body) => body,
+        Err(why) => {
+            log("debug", &format!("a playlist was not read: {why}"));
+            return;
+        }
+    };
+    // The tab moved on while it was read: the playlist is the old page's.
+    if !PAGES.with(|p| p.borrow().still(tab, page)) {
+        return;
+    }
+    if STREAMS.with(|s| s.borrow_mut().describe(tab, url, &body)) {
+        let after = STREAMS.with(|s| s.borrow().raw(tab));
+        let item = to_js(&serde_json::json!({ streams_key(tab): after }));
+        if let Err(why) = call("storage.session", "set", &[item]).await {
+            log("debug", &format!("a tab's streams were not kept: {why}"));
+        }
+    }
 }
 
 /// A tab's streams as kept in the session's storage.

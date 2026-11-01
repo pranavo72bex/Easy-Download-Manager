@@ -507,6 +507,13 @@ of them.
       script, whose challenges run in QuickJS or Deno, and its picture and
       sound are fetched by dm's own engine and joined by dm (`mp4mux.rs`; an
       HLS transport stream is put into an MP4 by `tsmux.rs`). Another site's
-      video comes from the browser extension's caught player requests.
+      video comes from the browser extension's caught player requests; the
+      panel names such a stream by what its playlist says (a master playlist
+      is one line, named by its best picture and frame rate or bandwidth, and
+      its renditions are no lines of their own; a DASH manifest by its tallest
+      picture; the list is tallest first, and a small clip beside a video is
+      left out): `decide/streams.rs`, `web/streams.rs`, offline tests in
+      `decide/tests.rs`; the playlist read runs in a browser and is looked at
+      on real pages in the final QA (gaps row 64).
       The external video tool was used here until 2026-10-31, when it was removed
       (`docs/decisions.md`).

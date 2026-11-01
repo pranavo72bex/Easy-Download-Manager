@@ -53,6 +53,11 @@ pub struct Stream {
     /// picture at `url` and joins.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub sound: Option<String>,
+    /// For a playlist or manifest read: the addresses of the renditions and
+    /// sound tracks it lists, which a player fetches one by one and which are
+    /// not lines of their own beside it.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub members: Vec<String>,
 }
 
 /// A whole file smaller than this is a thumbnail, a sound effect or an ad
@@ -116,6 +121,7 @@ pub fn stream_seen(seen: &Seen) -> Option<Stream> {
             size: None,
             label: hls_label(&path),
             sound: None,
+            members: Vec::new(),
         });
     }
     if mime.contains("dash+xml") || ext == "mpd" {
@@ -125,6 +131,7 @@ pub fn stream_seen(seen: &Seen) -> Option<Stream> {
             size: None,
             label: "DASH stream".into(),
             sound: None,
+            members: Vec::new(),
         });
     }
 
@@ -178,6 +185,7 @@ pub fn stream_seen(seen: &Seen) -> Option<Stream> {
         size,
         label: format!("{format} {kind} file"),
         sound: None,
+        members: Vec::new(),
     })
 }
 
@@ -251,6 +259,7 @@ pub fn track_of(url: &str) -> Option<Stream> {
         size: param(url, "clen").and_then(|v| v.parse().ok()),
         label,
         sound: None,
+        members: Vec::new(),
     })
 }
 
@@ -280,6 +289,339 @@ fn hls_label(path: &str) -> String {
 
 /// The label of a playlist that carries only sound.
 const HLS_SOUND: &str = "HLS sound";
+
+/// The label of a manifest that carries only sound.
+const DASH_SOUND: &str = "DASH sound";
+
+/// The labels of a playlist or manifest nothing is known of yet; the ones
+/// [`Streams::wants_description`] asks to have read.
+const HLS_PLAIN: &str = "HLS stream";
+const DASH_PLAIN: &str = "DASH stream";
+
+/// The most of a playlist or manifest that is read for its qualities.
+pub const PLAYLIST_READ_CAP: usize = 256 * 1024;
+
+/// A file smaller than this, beside something larger, is a sign-in page's
+/// clip, an advert or a preview, not the video the person came for.
+pub const CLIP_FLOOR: u64 = 512 * 1024;
+
+/// One rendition a master playlist lists: a picture with its sound, or a
+/// sound track alone.
+#[derive(Debug, Clone, PartialEq)]
+pub struct Rendition {
+    /// Its playlist's address, made absolute against the master's.
+    pub url: String,
+    /// The picture's height (a portrait clip's smaller side), if it says.
+    pub height: Option<u32>,
+    /// Frames a second, rounded, if it says.
+    pub frame_rate: Option<u32>,
+    /// Bits a second, if it says.
+    pub bandwidth: Option<u64>,
+    /// A track with no picture.
+    pub sound_only: bool,
+}
+
+/// The text of a tag after its name, if the line is that tag (the name in
+/// any case).
+fn after_tag<'a>(line: &'a str, tag: &str) -> Option<&'a str> {
+    let n = tag.len();
+    (line.len() >= n && line.is_char_boundary(n) && line[..n].eq_ignore_ascii_case(tag))
+        .then(|| &line[n..])
+}
+
+/// The attributes of a playlist tag (`BANDWIDTH=1,CODECS="a,b"`): names
+/// upper-cased, values without their quotes; a comma inside quotes stays.
+fn tag_attributes(text: &str) -> Vec<(String, String)> {
+    let mut pieces = Vec::new();
+    let mut current = String::new();
+    let mut quoted = false;
+    for c in text.chars() {
+        match c {
+            '"' => {
+                quoted = !quoted;
+                current.push(c);
+            }
+            ',' if !quoted => pieces.push(std::mem::take(&mut current)),
+            _ => current.push(c),
+        }
+    }
+    pieces.push(current);
+    pieces
+        .into_iter()
+        .filter_map(|piece| {
+            let (name, value) = piece.split_once('=')?;
+            Some((
+                name.trim().to_ascii_uppercase(),
+                value.trim().trim_matches('"').to_string(),
+            ))
+        })
+        .collect()
+}
+
+/// An address a playlist names, made absolute against the playlist's own.
+fn resolve_against(base: &str, reference: &str) -> String {
+    let reference = reference.trim();
+    if reference.starts_with("http://") || reference.starts_with("https://") {
+        return reference.to_string();
+    }
+    let Some((scheme, rest)) = base.split_once("://") else {
+        return reference.to_string();
+    };
+    let rest = rest.split('#').next().unwrap_or(rest);
+    let (authority, path_query) = match rest.split_once('/') {
+        Some((a, p)) => (a, format!("/{p}")),
+        None => (rest, "/".to_string()),
+    };
+    if let Some(r) = reference.strip_prefix("//") {
+        return format!("{scheme}://{r}");
+    }
+    if reference.starts_with('/') {
+        return format!("{scheme}://{authority}{reference}");
+    }
+    let path = path_query.split('?').next().unwrap_or("/");
+    let dir = &path[..=path.rfind('/').unwrap_or(0)];
+    let mut segments: Vec<&str> = dir.split('/').filter(|s| !s.is_empty()).collect();
+    let (ref_path, ref_query) = match reference.split_once('?') {
+        Some((p, q)) => (p, Some(q)),
+        None => (reference, None),
+    };
+    for part in ref_path.split('/') {
+        match part {
+            "." | "" => {}
+            ".." => {
+                segments.pop();
+            }
+            other => segments.push(other),
+        }
+    }
+    let mut out = format!("{scheme}://{authority}/{}", segments.join("/"));
+    if ref_path.ends_with('/') && !out.ends_with('/') {
+        out.push('/');
+    }
+    if let Some(q) = ref_query {
+        out.push('?');
+        out.push_str(q);
+    }
+    out
+}
+
+/// Whether a codec list names no picture.
+fn only_sound(codecs: &str) -> bool {
+    let codecs = codecs.to_ascii_lowercase();
+    !codecs.trim().is_empty()
+        && codecs.split(',').all(|c| {
+            let c = c.trim();
+            ![
+                "avc", "hvc", "hev", "vp0", "vp8", "vp9", "av01", "dvh", "dva",
+            ]
+            .iter()
+            .any(|video| c.starts_with(video))
+        })
+}
+
+/// The renditions a master playlist lists, in its order: each
+/// `EXT-X-STREAM-INF` with the address on the line after it, and each
+/// `EXT-X-MEDIA` sound track with an address. A media playlist (segments, no
+/// renditions) lists none.
+pub fn hls_renditions(master_url: &str, body: &str) -> Vec<Rendition> {
+    let mut out = Vec::new();
+    let mut lines = body.lines().map(str::trim);
+    while let Some(line) = lines.next() {
+        if let Some(rest) = after_tag(line, "#EXT-X-STREAM-INF:") {
+            let attrs = tag_attributes(rest);
+            let get = |name: &str| {
+                attrs
+                    .iter()
+                    .find(|(n, _)| n == name)
+                    .map(|(_, v)| v.as_str())
+            };
+            let uri = lines
+                .by_ref()
+                .find(|l| !l.is_empty() && !l.starts_with('#'));
+            let Some(uri) = uri else { break };
+            let height = get("RESOLUTION")
+                .and_then(|r| r.split_once(['x', 'X']))
+                .and_then(|(w, h)| {
+                    Some((w.trim().parse::<u32>().ok()?, h.trim().parse::<u32>().ok()?))
+                })
+                .filter(|(w, h)| *w > 0 && *h > 0 && *w <= 16000 && *h <= 16000)
+                .map(|(w, h)| w.min(h));
+            out.push(Rendition {
+                url: resolve_against(master_url, uri),
+                height,
+                frame_rate: get("FRAME-RATE")
+                    .and_then(|f| f.parse::<f64>().ok())
+                    .filter(|f| *f > 0.0)
+                    .map(|f| f.round() as u32),
+                bandwidth: get("AVERAGE-BANDWIDTH")
+                    .or_else(|| get("BANDWIDTH"))
+                    .and_then(|b| b.parse().ok()),
+                sound_only: height.is_none() && only_sound(get("CODECS").unwrap_or("")),
+            });
+        } else if let Some(rest) = after_tag(line, "#EXT-X-MEDIA:") {
+            let attrs = tag_attributes(rest);
+            let get = |name: &str| {
+                attrs
+                    .iter()
+                    .find(|(n, _)| n == name)
+                    .map(|(_, v)| v.as_str())
+            };
+            if get("TYPE").is_some_and(|t| t.eq_ignore_ascii_case("AUDIO")) {
+                if let Some(uri) = get("URI").filter(|u| !u.is_empty()) {
+                    out.push(Rendition {
+                        url: resolve_against(master_url, uri),
+                        height: None,
+                        frame_rate: None,
+                        bandwidth: None,
+                        sound_only: true,
+                    });
+                }
+            }
+        }
+    }
+    out
+}
+
+/// Bits a second as megabits, one decimal (`2.5 Mbps`).
+fn megabits(bandwidth: u64) -> String {
+    let tenths = (bandwidth + 50_000) / 100_000;
+    format!("{}.{} Mbps", tenths / 10, tenths % 10)
+}
+
+/// The line of a master playlist: named by the best picture it lists (its
+/// height, with the frame rate when it is 50 or more), or by its bandwidth
+/// where no height is said, or as sound where it lists no picture at all.
+/// `None` for a playlist that lists nothing (a media playlist).
+pub fn hls_master_label(renditions: &[Rendition]) -> Option<String> {
+    if renditions.is_empty() {
+        return None;
+    }
+    let best = renditions.iter().filter(|r| !r.sound_only).max_by_key(|r| {
+        (
+            r.height.unwrap_or(0),
+            r.frame_rate.unwrap_or(0),
+            r.bandwidth.unwrap_or(0),
+        )
+    });
+    let Some(best) = best else {
+        return Some(HLS_SOUND.into());
+    };
+    Some(match (best.height, best.bandwidth) {
+        (Some(h), _) => {
+            let fps = best
+                .frame_rate
+                .filter(|f| *f >= 50)
+                .map(|f| f.to_string())
+                .unwrap_or_default();
+            format!("{h}p{fps} HLS stream")
+        }
+        (None, Some(b)) => format!("{} HLS stream", megabits(b)),
+        _ => HLS_PLAIN.into(),
+    })
+}
+
+/// The attributes of the XML tags of a manifest, with the tag's name first
+/// (`Representation`, `height`, `1080`, …): enough to read a DASH manifest's
+/// renditions without an XML library.
+fn xml_tags(body: &str) -> Vec<(String, Vec<(String, String)>)> {
+    let mut out = Vec::new();
+    let mut rest = body;
+    while let Some(start) = rest.find('<') {
+        rest = &rest[start + 1..];
+        let Some(end) = rest.find('>') else { break };
+        let tag = &rest[..end];
+        rest = &rest[end + 1..];
+        if tag.starts_with('/') || tag.starts_with('!') || tag.starts_with('?') {
+            continue;
+        }
+        let tag = tag.trim_end_matches('/');
+        let name_end = tag.find(|c: char| c.is_whitespace()).unwrap_or(tag.len());
+        let name = tag[..name_end].rsplit(':').next().unwrap_or("").to_string();
+        let mut attrs = Vec::new();
+        let mut text = &tag[name_end..];
+        while let Some(eq) = text.find('=') {
+            let key = text[..eq].trim().to_string();
+            let after = text[eq + 1..].trim_start();
+            let Some(quote) = after.chars().next().filter(|q| *q == '"' || *q == '\'') else {
+                break;
+            };
+            let Some(close) = after[1..].find(quote) else {
+                break;
+            };
+            attrs.push((key, after[1..1 + close].to_string()));
+            text = &after[close + 2..];
+        }
+        out.push((name, attrs));
+    }
+    out
+}
+
+/// The line of a DASH manifest: named by the tallest picture it lists, or
+/// as sound where it lists no picture, `None` where it says neither.
+pub fn dash_label(body: &str) -> Option<String> {
+    let mut set_is_sound = false;
+    let (mut any, mut picture) = (false, false);
+    let (mut height, mut bandwidth) = (0u32, 0u64);
+    for (name, attrs) in xml_tags(body) {
+        let get = |key: &str| {
+            attrs
+                .iter()
+                .find(|(k, _)| k == key)
+                .map(|(_, v)| v.to_ascii_lowercase())
+        };
+        let sound_word = |v: &str| v.starts_with("audio");
+        match name.as_str() {
+            "AdaptationSet" => {
+                set_is_sound = get("contentType").is_some_and(|v| sound_word(&v))
+                    || get("mimeType").is_some_and(|v| sound_word(&v));
+            }
+            "Representation" => {
+                any = true;
+                let own = get("mimeType");
+                let sound = match own.as_deref() {
+                    Some(v) if v.starts_with("video") => false,
+                    Some(v) if sound_word(v) => true,
+                    _ => set_is_sound || get("codecs").is_some_and(|c| only_sound(&c)),
+                };
+                if sound {
+                    continue;
+                }
+                picture = true;
+                height = height.max(get("height").and_then(|h| h.parse().ok()).unwrap_or(0));
+                bandwidth =
+                    bandwidth.max(get("bandwidth").and_then(|b| b.parse().ok()).unwrap_or(0));
+            }
+            _ => {}
+        }
+    }
+    if !any {
+        None
+    } else if !picture {
+        Some(DASH_SOUND.into())
+    } else if height > 0 {
+        Some(format!("{height}p DASH stream"))
+    } else if bandwidth > 0 {
+        Some(format!("{} DASH stream", megabits(bandwidth)))
+    } else {
+        None
+    }
+}
+
+/// The picture height a line's label names (`720p HLS stream`, `1080p60 …`),
+/// for sorting the best first.
+fn label_height(label: &str) -> u32 {
+    // A manifest named by nothing but its kind is not known to be less than
+    // the renditions named beside it: it is usually their master.
+    if label == HLS_PLAIN || label == DASH_PLAIN {
+        return u32::MAX;
+    }
+    let digits: String = label.chars().take_while(|c| c.is_ascii_digit()).collect();
+    if label[digits.len()..].starts_with('p') {
+        digits.parse().unwrap_or(0)
+    } else {
+        0
+    }
+}
 
 /// Standard base64, either alphabet, padding or none.
 fn unbase64(text: &str) -> Option<Vec<u8>> {
@@ -374,6 +716,7 @@ pub fn pieces_of(url: &str, mime: &str) -> Option<Stream> {
         size: None,
         label,
         sound: None,
+        members: Vec::new(),
     })
 }
 
@@ -459,6 +802,22 @@ impl Pages {
 #[derive(Default, Debug)]
 pub struct Streams {
     by_tab: std::collections::HashMap<i64, Vec<Stream>>,
+    /// The playlists and manifests already asked to be read for their
+    /// qualities, each once: a live playlist is fetched again every few
+    /// seconds by its player.
+    described: std::collections::HashSet<(i64, String)>,
+}
+
+/// A master playlist's renditions are not lines beside it: what a list holds
+/// of them is taken out.
+fn drop_members(list: &mut Vec<Stream>) {
+    let members: std::collections::HashSet<String> = list
+        .iter()
+        .flat_map(|s| s.members.iter().cloned())
+        .collect();
+    if !members.is_empty() {
+        list.retain(|s| !members.contains(&s.url));
+    }
 }
 
 /// How many streams a tab keeps: a page that loads more is cycling through
@@ -470,14 +829,19 @@ impl Streams {
     /// streams, and media is remembered once per address.
     pub fn absorb(&mut self, seen: &Seen) {
         if new_page(seen) {
-            self.by_tab.remove(&seen.tab_id);
+            self.forget(seen.tab_id);
             return;
         }
         let Some(stream) = stream_seen(seen) else {
             return;
         };
         let list = self.by_tab.entry(seen.tab_id).or_default();
-        if list.iter().any(|known| known.url == stream.url) {
+        // Once a master playlist is read, the renditions it lists are its,
+        // not lines of their own.
+        if list
+            .iter()
+            .any(|known| known.url == stream.url || known.members.contains(&stream.url))
+        {
             return;
         }
         list.push(stream);
@@ -490,6 +854,60 @@ impl Streams {
 
     pub fn forget(&mut self, tab: i64) {
         self.by_tab.remove(&tab);
+        self.described.retain(|(t, _)| *t != tab);
+    }
+
+    /// Whether the playlist or manifest at `url` is to be read now for its
+    /// qualities: it is one of this tab's lines, named by nothing but its
+    /// kind, and has not been asked about before. Asking marks it, so a
+    /// player that fetches it again does not have it read again.
+    pub fn wants_description(&mut self, tab: i64, url: &str) -> bool {
+        let plain = self
+            .by_tab
+            .get(&tab)
+            .and_then(|list| list.iter().find(|s| s.url == url))
+            .is_some_and(|s| {
+                (s.kind == StreamKind::Hls && s.label == HLS_PLAIN)
+                    || (s.kind == StreamKind::Dash && s.label == DASH_PLAIN)
+            });
+        plain && self.described.insert((tab, url.to_string()))
+    }
+
+    /// What the playlist or manifest at `url` says of itself, read: a master
+    /// playlist is named by its best rendition and takes its renditions (and
+    /// sound tracks) out of the list, which are not lines of their own; a
+    /// DASH manifest is named by its tallest picture. A media playlist, or
+    /// text that says nothing, changes nothing. Whether the list changed.
+    pub fn describe(&mut self, tab: i64, url: &str, body: &str) -> bool {
+        let Some(list) = self.by_tab.get_mut(&tab) else {
+            return false;
+        };
+        let Some(stream) = list.iter_mut().find(|s| s.url == url) else {
+            return false;
+        };
+        let (label, members) = match stream.kind {
+            StreamKind::Hls => {
+                let renditions = hls_renditions(url, body);
+                let Some(label) = hls_master_label(&renditions) else {
+                    return false;
+                };
+                (
+                    label,
+                    renditions.into_iter().map(|r| r.url).collect::<Vec<_>>(),
+                )
+            }
+            StreamKind::Dash => {
+                let Some(label) = dash_label(body) else {
+                    return false;
+                };
+                (label, Vec::new())
+            }
+            _ => return false,
+        };
+        stream.label = label;
+        stream.members = members;
+        drop_members(list);
+        true
     }
 
     /// Whether this worker has heard anything of a tab since it started.
@@ -516,6 +934,7 @@ impl Streams {
                 list.remove(1);
             }
         }
+        drop_members(&mut list);
         self.by_tab.insert(tab, list);
     }
 
@@ -550,6 +969,12 @@ impl Streams {
         {
             list.retain(|s| !(s.kind == StreamKind::Hls && s.label == HLS_SOUND));
         }
+        if list
+            .iter()
+            .any(|s| s.kind == StreamKind::Dash && s.label != DASH_SOUND)
+        {
+            list.retain(|s| !(s.kind == StreamKind::Dash && s.label == DASH_SOUND));
+        }
         if let (Some(picture), Some(sound)) = (picture, sound) {
             list.push(Stream {
                 url: picture.url,
@@ -557,12 +982,28 @@ impl Streams {
                 size: picture.size.zip(sound.size).map(|(a, b)| a + b),
                 label: format!("{} + sound", picture.label),
                 sound: Some(sound.url),
+                members: Vec::new(),
             });
         }
+        // A small clip beside something larger (a sign-in page's, an advert,
+        // a preview) is not what the person came for. Alone, it is the post.
+        let snapshot = list.clone();
+        list.retain(|s| {
+            let small = s.kind == StreamKind::File && s.size.is_some_and(|z| z < CLIP_FLOOR);
+            !small
+                || !snapshot.iter().any(|other| {
+                    other.url != s.url
+                        && (other.kind != StreamKind::File
+                            || other.size.is_none_or(|z| z >= CLIP_FLOOR))
+                })
+        });
+        // Manifests first (whole videos), the tallest picture first among
+        // them, then files, the largest first.
         list.sort_by_key(|s| {
             (
                 s.kind == StreamKind::File,
                 std::cmp::Reverse(s.size.unwrap_or(0)),
+                std::cmp::Reverse(label_height(&s.label)),
             )
         });
         let labels: Vec<String> = list.iter().map(|s| s.label.clone()).collect();

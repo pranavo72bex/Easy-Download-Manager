@@ -96,6 +96,73 @@ pub(super) async fn sleep(ms: f64) {
     let _ = JsFuture::from(promise).await;
 }
 
+/// A text the worker fetches with the browser's own session (the host's
+/// cookies, by the host permission): at most `cap` bytes and `ms`
+/// milliseconds. The body is read as it arrives and cut at the cap, never
+/// whole; `Err` says why there is no text.
+pub(super) async fn fetch_text(url: &str, cap: usize, ms: f64) -> Result<String, String> {
+    let global: JsValue = js_sys::global().into();
+    let controller = Reflect::get(&global, &"AbortController".into())
+        .ok()
+        .and_then(|c| c.dyn_into::<Function>().ok())
+        .and_then(|ctor| Reflect::construct(&ctor, &Array::new()).ok());
+    let init = to_js(&serde_json::json!({ "credentials": "include", "cache": "no-store" }));
+    if let Some(signal) = controller.as_ref().map(|c| field(c, "signal")) {
+        if signal.is_object() {
+            let _ = Reflect::set(&init, &"signal".into(), &signal);
+        }
+    }
+    let fetcher = global.clone();
+    let work = async move {
+        let promise = call_on(&fetcher, "fetch", &[url.into(), init])?;
+        let promise = promise
+            .dyn_into::<Promise>()
+            .map_err(|_| "the browser's fetch gave no promise".to_string())?;
+        let response = JsFuture::from(promise).await.map_err(|e| say(&e))?;
+        if field(&response, "ok").as_bool() != Some(true) {
+            return Err(format!(
+                "the server answered {}",
+                field(&response, "status").as_f64().unwrap_or(0.0)
+            ));
+        }
+        let headers = field(&response, "headers");
+        let stated = call_on(&headers, "get", &["content-length".into()])
+            .ok()
+            .and_then(|v| v.as_string())
+            .and_then(|v| v.parse::<usize>().ok());
+        if stated.is_some_and(|len| len > cap) {
+            return Err("longer than a playlist".into());
+        }
+        let reader = call_on(&field(&response, "body"), "getReader", &[])?;
+        let mut bytes: Vec<u8> = Vec::new();
+        loop {
+            let read = call_on(&reader, "read", &[])?
+                .dyn_into::<Promise>()
+                .map_err(|_| "the body gave no promise".to_string())?;
+            let chunk = JsFuture::from(read).await.map_err(|e| say(&e))?;
+            if field(&chunk, "done").as_bool() == Some(true) {
+                break;
+            }
+            let part = js_sys::Uint8Array::new(&field(&chunk, "value")).to_vec();
+            if bytes.len() + part.len() > cap {
+                let _ = call_on(&reader, "cancel", &[]);
+                return Err("longer than a playlist".into());
+            }
+            bytes.extend_from_slice(&part);
+        }
+        Ok(String::from_utf8_lossy(&bytes).into_owned())
+    };
+    match select(Box::pin(work), Box::pin(sleep(ms))).await {
+        Either::Left((done, _)) => done,
+        Either::Right(_) => {
+            if let Some(controller) = &controller {
+                let _ = call_on(controller, "abort", &[]);
+            }
+            Err("timed out".into())
+        }
+    }
+}
+
 pub(super) fn add_listener(event: &JsValue, listener: &JsValue) -> Result<(), String> {
     call_on(event, "addListener", std::slice::from_ref(listener)).map(|_| ())
 }

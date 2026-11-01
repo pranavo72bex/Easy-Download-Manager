@@ -592,6 +592,230 @@ fn a_tab_keeps_its_streams_until_it_loads_another_page() {
     );
 }
 
+/// A master playlist shaped like Vimeo's: renditions and a sound track on
+/// addresses relative to the playlist's own.
+const VIMEO_MASTER: &str = r#"#EXTM3U
+#EXT-X-INDEPENDENT-SEGMENTS
+#EXT-X-MEDIA:TYPE=AUDIO,GROUP-ID="audio-high",NAME="Original",LANGUAGE="en",DEFAULT=YES,URI="../../a/audio-high/playlist.m3u8?pathsig=8c"
+#EXT-X-STREAM-INF:BANDWIDTH=3500000,AVERAGE-BANDWIDTH=3200000,RESOLUTION=1920x1080,FRAME-RATE=29.970,CODECS="avc1.640028,mp4a.40.2",AUDIO="audio-high"
+../../v/1080p/playlist.m3u8?pathsig=8c
+#EXT-X-STREAM-INF:BANDWIDTH=1800000,RESOLUTION=1280x720,FRAME-RATE=29.970,CODECS="avc1.64001f,mp4a.40.2",AUDIO="audio-high"
+../../v/720p/playlist.m3u8?pathsig=8c
+#EXT-X-STREAM-INF:BANDWIDTH=900000,RESOLUTION=640x360,CODECS="avc1.4d401e,mp4a.40.2",AUDIO="audio-high"
+../../v/360p/playlist.m3u8?pathsig=8c
+"#;
+
+const VIMEO_URL: &str = "https://vod.example.net/p/x/y/playlist.m3u8?pathsig=9";
+
+/// One shaped like TikTok's: portrait pictures on absolute addresses, and a
+/// rendition that is sound alone.
+const TIKTOK_MASTER: &str = r#"#EXTM3U
+#EXT-X-STREAM-INF:BANDWIDTH=1400000,RESOLUTION=576x1024,CODECS="avc1.4d401f,mp4a.40.2"
+https://v16.example-cdn.com/a/576.m3u8
+#EXT-X-STREAM-INF:BANDWIDTH=2600000,RESOLUTION=720x1280,CODECS="avc1.64001f,mp4a.40.2"
+https://v16.example-cdn.com/a/720.m3u8
+#EXT-X-STREAM-INF:BANDWIDTH=64000,CODECS="mp4a.40.2"
+https://v16.example-cdn.com/a/audio.m3u8
+"#;
+
+#[test]
+fn a_master_playlist_is_named_by_the_best_picture_it_lists() {
+    let renditions = hls_renditions(VIMEO_URL, VIMEO_MASTER);
+    assert_eq!(renditions.len(), 4, "three pictures and a sound track");
+    assert_eq!(
+        renditions[1].url, "https://vod.example.net/p/v/1080p/playlist.m3u8?pathsig=8c",
+        "relative addresses are made absolute against the playlist's own"
+    );
+    assert_eq!(
+        (
+            renditions[1].height,
+            renditions[1].frame_rate,
+            renditions[1].bandwidth
+        ),
+        (Some(1080), Some(30), Some(3_200_000)),
+        "the average bandwidth where it is said"
+    );
+    assert!(renditions[0].sound_only, "the EXT-X-MEDIA sound track");
+    assert_eq!(
+        hls_master_label(&renditions).as_deref(),
+        Some("1080p HLS stream")
+    );
+
+    // A portrait clip is named by its smaller side, as the address rule does.
+    let tiktok = hls_renditions("https://v16.example-cdn.com/a/master.m3u8", TIKTOK_MASTER);
+    assert_eq!(tiktok.len(), 3);
+    assert!(tiktok[2].sound_only, "no picture and only an AAC codec");
+    assert_eq!(
+        hls_master_label(&tiktok).as_deref(),
+        Some("720p HLS stream")
+    );
+}
+
+#[test]
+fn a_playlist_says_its_frame_rate_bandwidth_or_that_it_is_sound() {
+    let master = |inf: &str| format!("#EXTM3U\n{inf}\nhttps://e.com/x.m3u8\n");
+    let label = |text: &str| hls_master_label(&hls_renditions("https://e.com/m.m3u8", text));
+    // 50 frames a second or more is part of the name; 30 is not.
+    let both = format!(
+        "{}{}",
+        master("#EXT-X-STREAM-INF:BANDWIDTH=6000000,RESOLUTION=1920x1080,FRAME-RATE=60.000"),
+        master("#EXT-X-STREAM-INF:BANDWIDTH=4000000,RESOLUTION=1920x1080,FRAME-RATE=30.000"),
+    );
+    assert_eq!(label(&both).as_deref(), Some("1080p60 HLS stream"));
+    // No resolution: the bandwidth names it.
+    assert_eq!(
+        label(&master(
+            "#EXT-X-STREAM-INF:BANDWIDTH=2500000,CODECS=\"avc1.4d401e,mp4a.40.2\""
+        ))
+        .as_deref(),
+        Some("2.5 Mbps HLS stream")
+    );
+    // Nothing but sound.
+    assert_eq!(
+        label(&master(
+            "#EXT-X-STREAM-INF:BANDWIDTH=64000,CODECS=\"mp4a.40.2\""
+        ))
+        .as_deref(),
+        Some("HLS sound")
+    );
+    // A media playlist lists no renditions: nothing to name it by.
+    let media = "#EXTM3U\n#EXT-X-TARGETDURATION:6\n#EXTINF:6.0,\nseg0.ts\n#EXTINF:6.0,\nseg1.ts\n#EXT-X-ENDLIST\n";
+    assert!(hls_renditions("https://e.com/media.m3u8", media).is_empty());
+    assert_eq!(label(media), None);
+    // Tags in any case, and a quoted comma, do not confuse the reading.
+    assert_eq!(
+        label("#ext-x-stream-inf:CODECS=\"avc1.4d401e,mp4a.40.2\",RESOLUTION=1280x720,BANDWIDTH=1\nv.m3u8\n")
+            .as_deref(),
+        Some("720p HLS stream")
+    );
+}
+
+#[test]
+fn a_dash_manifest_is_named_by_its_tallest_picture() {
+    let mpd = r#"<?xml version="1.0"?>
+<MPD xmlns="urn:mpeg:dash:schema:mpd:2011" type="static"><Period>
+<AdaptationSet contentType="video" mimeType="video/mp4">
+<Representation id="v1" bandwidth="800000" width="640" height="360" codecs="avc1.4d401e"/>
+<Representation id="v2" bandwidth="3000000" width="1920" height="1080" codecs="avc1.640028"/>
+</AdaptationSet>
+<AdaptationSet contentType="audio" mimeType="audio/mp4">
+<Representation id="a1" bandwidth="128000" codecs="mp4a.40.2"/>
+</AdaptationSet></Period></MPD>"#;
+    assert_eq!(dash_label(mpd).as_deref(), Some("1080p DASH stream"));
+    let sound = r#"<MPD><Period><AdaptationSet mimeType="audio/mp4"><Representation id="a" bandwidth="96000" codecs="mp4a.40.2"/></AdaptationSet></Period></MPD>"#;
+    assert_eq!(dash_label(sound).as_deref(), Some("DASH sound"));
+    assert_eq!(dash_label("<MPD><Period/></MPD>"), None);
+    assert_eq!(dash_label("not a manifest"), None);
+}
+
+fn playlist_seen(url: &str) -> Seen {
+    seen(
+        url,
+        "xmlhttprequest",
+        &[("Content-Type", "application/vnd.apple.mpegurl")],
+    )
+}
+
+#[test]
+fn a_read_master_playlist_is_the_line_and_its_renditions_are_not() {
+    let variant = "https://vod.example.net/p/v/720p/playlist.m3u8?pathsig=8c";
+    let mut streams = Streams::default();
+    // The player fetched the master, then the rendition it chose.
+    streams.absorb(&playlist_seen(VIMEO_URL));
+    streams.absorb(&playlist_seen(variant));
+    assert_eq!(streams.of(7).len(), 2, "before it is read: a line each");
+
+    assert!(streams.wants_description(7, VIMEO_URL));
+    assert!(
+        !streams.wants_description(7, VIMEO_URL),
+        "once: a player that fetches it again does not have it read again"
+    );
+    assert!(streams.describe(7, VIMEO_URL, VIMEO_MASTER));
+    let listed = streams.of(7);
+    assert_eq!(listed.len(), 1, "the rendition is no line of its own");
+    assert_eq!(listed[0].label, "1080p HLS stream");
+    assert_eq!(listed[0].url, VIMEO_URL);
+
+    // A rendition heard after the master is not a line either.
+    streams.absorb(&playlist_seen(
+        "https://vod.example.net/p/v/360p/playlist.m3u8?pathsig=8c",
+    ));
+    streams.absorb(&playlist_seen(
+        "https://vod.example.net/p/a/audio-high/playlist.m3u8?pathsig=8c",
+    ));
+    assert_eq!(streams.of(7).len(), 1);
+
+    // What is kept for a sleeping worker keeps it so, in either order of
+    // hearing the two.
+    let kept = streams.raw(7);
+    let mut woken = Streams::default();
+    woken.absorb(&playlist_seen(variant));
+    woken.restore(7, kept);
+    let listed = woken.of(7);
+    assert_eq!(listed.len(), 1, "{listed:?}");
+    assert_eq!(listed[0].label, "1080p HLS stream");
+
+    // A line already named by its address, or a media playlist, is not read
+    // or changed.
+    let mut other = Streams::default();
+    other.absorb(&playlist_seen("https://e.com/pl/avc1/1280x720/a.m3u8"));
+    assert!(!other.wants_description(7, "https://e.com/pl/avc1/1280x720/a.m3u8"));
+    other.absorb(&playlist_seen("https://e.com/media.m3u8"));
+    assert!(other.wants_description(7, "https://e.com/media.m3u8"));
+    assert!(!other.describe(7, "https://e.com/media.m3u8", "#EXTM3U\n#EXTINF:6,\ns.ts\n"));
+    assert!(other.of(7).iter().any(|s| s.label == "HLS stream"));
+
+    // A new page forgets what was asked, with the streams.
+    streams.forget(7);
+    streams.absorb(&playlist_seen(VIMEO_URL));
+    assert!(streams.wants_description(7, VIMEO_URL));
+}
+
+#[test]
+fn a_dash_manifest_line_takes_its_name_from_the_manifest() {
+    let mut streams = Streams::default();
+    let manifest = seen(
+        "https://cdn.e.com/v/manifest.mpd",
+        "xmlhttprequest",
+        &[("Content-Type", "application/dash+xml")],
+    );
+    streams.absorb(&manifest);
+    assert!(streams.wants_description(7, "https://cdn.e.com/v/manifest.mpd"));
+    let mpd = r#"<MPD><Period><AdaptationSet contentType="video"><Representation height="720" bandwidth="2000000"/></AdaptationSet></Period></MPD>"#;
+    assert!(streams.describe(7, "https://cdn.e.com/v/manifest.mpd", mpd));
+    assert_eq!(streams.of(7)[0].label, "720p DASH stream");
+}
+
+#[test]
+fn the_list_is_best_first_and_a_small_clip_beside_a_video_is_not_in_it() {
+    let mut streams = Streams::default();
+    streams.absorb(&playlist_seen("https://e.com/pl/avc1/640x360/a.m3u8"));
+    streams.absorb(&playlist_seen("https://e.com/pl/avc1/1920x1080/a.m3u8"));
+    streams.absorb(&playlist_seen("https://e.com/pl/avc1/1280x720/a.m3u8"));
+    let labels: Vec<String> = streams.of(7).into_iter().map(|s| s.label).collect();
+    assert_eq!(
+        labels,
+        ["1080p HLS stream", "720p HLS stream", "360p HLS stream"],
+        "the tallest picture first"
+    );
+
+    // TikTok's own sign-in clip (193 KB) beside the video (4 MB).
+    let file = |url: &str, bytes: &str| {
+        seen(
+            url,
+            "media",
+            &[("Content-Type", "video/mp4"), ("Content-Length", bytes)],
+        )
+    };
+    let mut tab = Streams::default();
+    tab.absorb(&file("https://v.example.com/playback1.mp4", "197632"));
+    assert_eq!(tab.of(7).len(), 1, "alone, a small clip is the post");
+    tab.absorb(&file("https://v.example.com/video.mp4", "4194304"));
+    let listed = tab.of(7);
+    assert_eq!(listed.len(), 1, "{listed:?}");
+    assert!(listed[0].url.ends_with("video.mp4"));
+}
+
 #[test]
 fn a_new_page_forgets_the_kept_copy_and_a_woken_worker_merges_rather_than_overwrites() {
     // The worker slept; the tab navigated. Its memory is empty, but the
