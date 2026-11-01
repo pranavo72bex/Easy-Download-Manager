@@ -69,8 +69,7 @@ pub(super) fn options(app: &mut DmApp, ctx: &egui::Context) {
             Tab::FileTypes => tab_file_types(ui, d, &env),
             Tab::SaveTo => tab_save_to(ui, d, &env),
             Tab::Downloads => tab_downloads(ui, d, &env),
-            Tab::Connection => tab_connection(ui, d, &env),
-            Tab::Proxy => tab_proxy(ui, d, &env),
+            Tab::Advanced => tab_advanced(ui, d, &env),
             Tab::SiteLogins => tab_site_logins(ui, d, &env),
         }
         // Each tab's own settings back to a new install's, in the draft: OK
@@ -274,7 +273,8 @@ pub(super) fn options(app: &mut DmApp, ctx: &egui::Context) {
                 };
                 if let Some(why) = why {
                     d.says = why;
-                    d.tab = Tab::Proxy;
+                    d.tab = Tab::Advanced;
+                    d.to_proxy = true;
                     return;
                 }
             }

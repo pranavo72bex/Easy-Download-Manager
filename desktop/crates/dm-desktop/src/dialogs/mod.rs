@@ -438,8 +438,8 @@ pub enum Tab {
     FileTypes,
     SaveTo,
     Downloads,
-    Connection,
-    Proxy,
+    /// The expert settings, in one page: the connection's and the proxy's.
+    Advanced,
     SiteLogins,
 }
 
@@ -490,16 +490,16 @@ pub fn tab_settings(tab: Tab) -> &'static [&'static str] {
             "subtitles",
             "watch_folder",
         ],
-        Tab::Connection => &[
+        Tab::Advanced => &[
             "attempts",
             "cookies_file",
             "host_limits",
+            "proxy",
             "read_timeout",
             "retry_wait",
             "site_rules",
             "speed_limit",
         ],
-        Tab::Proxy => &["proxy"],
         Tab::SiteLogins => &[],
     }
 }
@@ -536,13 +536,12 @@ impl OptionsDialog {
     }
 }
 
-pub const TABS: [(Tab, &str); 7] = [
+pub const TABS: [(Tab, &str); 6] = [
     (Tab::General, "General"),
     (Tab::FileTypes, "Browser"),
     (Tab::SaveTo, "Folders"),
     (Tab::Downloads, "Downloads"),
-    (Tab::Connection, "Network"),
-    (Tab::Proxy, "Proxy"),
+    (Tab::Advanced, "Advanced"),
     (Tab::SiteLogins, "Sign-ins"),
 ];
 
@@ -587,6 +586,9 @@ pub struct OptionsDialog {
     /// Frames left in which the dialog is brought to its top, as it opens:
     /// one was not enough, being egui's discarded sizing pass.
     pub fresh_tab: u8,
+    /// Advanced is to open at its proxy section, where a proxy that is
+    /// wrong was said (OK on a host that cannot be one).
+    pub to_proxy: bool,
 }
 
 /// A list to import, some of whose addresses are already rows.

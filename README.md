@@ -225,7 +225,7 @@ It appears in dm instead of in the browser, and downloads there.
   watch. A `.url`, `.webloc` or text file of links, or a `.torrent`, saved
   there is added to dm and moved into a `done` folder inside it (nothing is
   deleted). Leave it empty to turn it off.
-- **Give a site its own folder and speed:** **Options › Network › Sites
+- **Give a site its own folder and speed:** **Options › Advanced › Network › Sites
   whose downloads go to a folder of their own** (the site's subdomains are
   covered). A folder or speed you pick for one download still wins.
 - **Check a finished file:** **Properties** shows its SHA-256 and a box to
@@ -340,7 +340,7 @@ checks you are not a bot lets the download through.
 - **A download needs you to be signed in** (it finishes in the browser, or
   a video says to sign in or prove you are not a bot). Export your
   browser's cookies as `cookies.txt` with any "Get cookies.txt" add-on, then
-  in dm choose it under **Options › Network › Cookies file**. dm then
+  in dm choose it under **Options › Advanced › Network › Cookies file**. dm then
   sends those cookies itself, to the site they belong to.
 
 ## Uninstall

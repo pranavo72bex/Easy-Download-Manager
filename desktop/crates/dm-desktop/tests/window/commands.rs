@@ -86,8 +86,7 @@ fn every_dialog_in_every_language_is_translated() {
             dm_desktop::dialogs::Tab::FileTypes,
             dm_desktop::dialogs::Tab::SaveTo,
             dm_desktop::dialogs::Tab::Downloads,
-            dm_desktop::dialogs::Tab::Connection,
-            dm_desktop::dialogs::Tab::Proxy,
+            dm_desktop::dialogs::Tab::Advanced,
             dm_desktop::dialogs::Tab::SiteLogins,
         ] {
             if let Some(options) = harness.state_mut().dialogs.options.as_mut() {

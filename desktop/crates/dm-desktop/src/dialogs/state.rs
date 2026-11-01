@@ -410,6 +410,7 @@ impl Dialogs {
                 .collect(),
             fresh: false,
             fresh_tab: 3,
+            to_proxy: false,
         });
     }
 

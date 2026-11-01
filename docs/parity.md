@@ -93,13 +93,13 @@ the extension is Rust compiled to WebAssembly. Test paths are under
 | Small files not split | PASS | `MIN_SEGMENT`, `plan.rs` tests |
 | Mirrors (Metalink) each carry ranges | PASS | Metalink tests in `download.rs` and `metalink.rs` |
 | Metalink: the document's size is the reference, a stale mirror is dropped; a piece's hash is not the file's | PASS | `tests/metalink.rs`; `metalink.rs` `a_digest_of_one_piece_is_not_taken_for_the_whole_file` |
-| A site's own connection limit (Options › Network), by host or suffix, never above the setting | PASS | `limits.rs` `a_site_with_a_limit_of_its_own_is_fetched_on_that_many_connections` (a counting server sees at most the limit); `window.rs` `site_limits_attempts_and_the_timeout_are_set_in_options_and_reach_the_queue` |
+| A site's own connection limit (Options › Advanced › Network), by host or suffix, never above the setting | PASS | `limits.rs` `a_site_with_a_limit_of_its_own_is_fetched_on_that_many_connections` (a counting server sees at most the limit); `window.rs` `site_limits_attempts_and_the_timeout_are_set_in_options_and_reach_the_queue` |
 
 ## E. Retry
 
 | Behaviour | Status | Evidence |
 |---|---|---|
-| Bounded, with jittered backoff; the bound a setting (Options › Network), zero keeps trying | PASS | `retry.rs`; `limits.rs` `attempts_are_as_many_as_asked_and_zero_keeps_trying` |
+| Bounded, with jittered backoff; the bound a setting (Options › Advanced › Network), zero keeps trying | PASS | `retry.rs`; `limits.rs` `attempts_are_as_many_as_asked_and_zero_keeps_trying` |
 | The read timeout a setting, held to | PASS | `limits.rs` `a_connection_that_sends_nothing_is_given_up_on_within_the_timeout_set` |
 | Retry-After (seconds), capped at 60 s | PASS | `retry.rs` tests |
 | Retry-After as an HTTP date | PASS | measured against the response's own `Date`, so a wrong local clock cannot skew it; ignored without one (`retry_after_reads_only_what_it_can_trust`) |
@@ -212,7 +212,7 @@ the host and the extension.
 | Chrome end to end | PASS | `python3 scripts/chrome-check.py` (Chrome for Testing; checks are named in the script) |
 | Firefox end to end | PASS | `scripts/firefox-check.py native`, Firefox 157 fetched into `~/.cache/dm-firefox` (not installed), 2026-10-12: installs with no warnings; a caught download and "Download link with dm" land in dm's folder; the panel shows over a video and its click hands the file. The run found the panel's click broken in Firefox, now fixed |
 | Windows registration | PARTIAL | `register.rs` writes both manifests under `%LOCALAPPDATA%\dm` and a key per browser (Chrome, Chromium, Edge, Brave, Vivaldi, Firefox) through `reg.exe`; the arguments are unit-tested on every OS and the code compiles for Windows (`scripts/windows-check.sh`). Run on CI's Windows machines, not on a person's Windows desktop |
-| Cookies | PASS | a video page's session goes with every video handed over and with the panel's quality list, for that download alone: the row drops it once complete (`decide.rs` `cookies_sent`; `host.rs` `a_sites_cookies_handed_over_reach_the_app_and_the_probe`; `tests/cookies.rs`). Otherwise the browser's stay with it unless "Hand over this site's sign-in" is on for the site (toolbar popup): then its cookies go with the hand-off, the host probes with them and the row keeps them (`dm-protocol` round trip; `host.rs` `a_sites_cookies_handed_over_reach_the_app_and_the_probe`; `tests/cookies.rs` `a_handed_over_sign_in_is_its_downloads_alone_and_for_its_server_alone`). A `cookies.txt` chosen in Options › Network is sent on dm's requests; without either, a cookie-gated link is refused by dm and finishes in the browser (`chrome-check.py`). The popup switch itself is not browser-driven here |
+| Cookies | PASS | a video page's session goes with every video handed over and with the panel's quality list, for that download alone: the row drops it once complete (`decide.rs` `cookies_sent`; `host.rs` `a_sites_cookies_handed_over_reach_the_app_and_the_probe`; `tests/cookies.rs`). Otherwise the browser's stay with it unless "Hand over this site's sign-in" is on for the site (toolbar popup): then its cookies go with the hand-off, the host probes with them and the row keeps them (`dm-protocol` round trip; `host.rs` `a_sites_cookies_handed_over_reach_the_app_and_the_probe`; `tests/cookies.rs` `a_handed_over_sign_in_is_its_downloads_alone_and_for_its_server_alone`). A `cookies.txt` chosen in Options › Advanced › Network is sent on dm's requests; without either, a cookie-gated link is refused by dm and finishes in the browser (`chrome-check.py`). The popup switch itself is not browser-driven here |
 
 ## O. Network and proxy
 

@@ -3558,3 +3558,24 @@ fills a height it is given (`fixed_size`), which is now passed through
 bottom of the screen is kept above the taskbar (`on_screen`). The control port
 chooses, among words that two dialog windows share, the one in the window that has
 the keyboard (`apart::windows`).
+
+## Options: one Advanced page for the connection and the proxy (2026-11-01)
+
+The maintainer asked for the UI improvements of gaps.md ("make the UI improvements in gaps.md") and
+row 16 had waited for that word: the expert tabs behind one Advanced page. Options now has six tabs:
+General, Browser, Folders, Downloads, Advanced, Sign-ins. Advanced is the old Network tab's body
+under a "Network" heading, then the old Proxy tab's body under a "Proxy" heading, on one scrolling
+page; every setting, its explanation line and the settings file's keys are as they were
+(`dialogs/options/tabs.rs`, `tab_advanced`). Restore defaults on it puts back every setting of
+both (`tab_settings(Tab::Advanced)`). The one new word, "Advanced", is in all thirteen
+catalogs; the two sentences that sent a person to "Options › Proxy" (the proxy that could not be
+reached, and the saved proxy turned off at launch) say "Options › Advanced" now, their
+translations changed in the tab's name only.
+
+Where OK refuses a proxy (no host, an address where the host goes, port 0) Advanced is opened at
+its proxy section (`OptionsDialog::to_proxy`, consumed by the page with `scroll_to_cursor`), where
+the Proxy tab was selected before. Behaviour contract row B43; tests in `tests/window/options.rs`.
+
+Not changed, as they are other crates' words: the English notices of dm-core and dm-shell that
+still say "Options › Proxy" or "Options › Network" (`download/mod.rs`, `live.rs`, `shell.rs`);
+they are shown to a person only through the window's own sentences above, or as they are.
