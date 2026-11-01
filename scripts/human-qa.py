@@ -1099,6 +1099,9 @@ def walk(dm, origin):
           f"{before}")
     check("B43", "Advanced opens on the connection's settings, under their heading",
           first in words and "Attempts per connection (0 to keep trying)" in words, f"{words[:14]}")
+    # B57: the site-limit list is there with its Add button.
+    check("B57", "Advanced has a site connection-limit list with Add a site limit",
+          "Sites with their own connection limit:" in words and "Add a site limit" in words, f"{words}")
     # B51: the page says how dm identifies itself, with the switch.
     check("B51", "Advanced shows the name dm sends to servers and the Identify as dm only switch",
           "dm identifies itself to servers as:" in words and "Identify as dm only" in words, f"{words}")
