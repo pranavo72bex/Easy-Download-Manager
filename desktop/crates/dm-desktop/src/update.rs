@@ -17,9 +17,12 @@ pub const HELP: &str = "https://github.com/pranavo72bex/Easy-Download-Manager#re
 /// The project's source, licence, privacy statement and code signing
 /// policy, as About dm links them.
 pub const SOURCE: &str = "https://github.com/pranavo72bex/Easy-Download-Manager";
+/// The project's licence.
 pub const LICENCE: &str = "https://github.com/pranavo72bex/Easy-Download-Manager/blob/main/LICENSE";
+/// The project's privacy statement.
 pub const PRIVACY: &str =
     "https://github.com/pranavo72bex/Easy-Download-Manager/blob/main/PRIVACY.md";
+/// The project's code signing policy.
 pub const SIGNING: &str =
     "https://github.com/pranavo72bex/Easy-Download-Manager#code-signing-policy";
 
@@ -42,13 +45,18 @@ pub fn notes_in(manifest: &str) -> Option<String> {
 pub const RELEASES: &str =
     "https://github.com/pranavo72bex/Easy-Download-Manager/releases/download/";
 
+/// Where the update check reads the latest release's manifest (`latest.json`).
 pub const ENDPOINT: &str =
     "https://github.com/pranavo72bex/Easy-Download-Manager/releases/latest/download/latest.json";
 
+/// What the update check has found so far.
 #[derive(Debug, Clone, PartialEq)]
 pub enum Update {
+    /// The check has not been asked yet.
     NotAsked,
+    /// The check is under way.
     Asking,
+    /// This is the newest version.
     Current,
     /// A later version, and the installer for this machine when the
     /// release lists one with its digest.
@@ -56,6 +64,7 @@ pub enum Update {
     /// The update server answered that it has no release at all: nothing
     /// to update to, which is not a failure to reach it.
     NoRelease,
+    /// The check failed, with the reason.
     Failed(String),
 }
 
@@ -102,7 +111,9 @@ pub fn newer(published: &str, running: &str) -> bool {
 /// file that does not match is removed, never offered to open.
 #[derive(Debug, Clone, PartialEq)]
 pub struct Installer {
+    /// The installer's address, always under [`RELEASES`].
     pub url: String,
+    /// The SHA-256 the release published for the installer, in lower-case hex.
     pub sha256: String,
 }
 
@@ -172,14 +183,18 @@ pub fn installer_in(manifest: &str, os: &str, arch: &str, appimage: bool) -> Opt
 /// never larger than [`RULES_CAP`].
 #[derive(Debug, Clone, PartialEq)]
 pub struct RulesEntry {
+    /// The rules document's address, under the project's releases.
     pub url: String,
+    /// The SHA-256 the document must have, in lower-case hex.
     pub sha256: String,
+    /// The document's size in bytes.
     pub size: u64,
 }
 
 /// The most bytes of a rules document the update check fetches (the same cap the document has).
 pub const RULES_CAP: u64 = 256 * 1024;
 
+/// Reads the optional `rules` entry of a `latest.json`, giving it only if it is under `prefix`, has a whole digest and a size within [`RULES_CAP`].
 pub fn rules_in(manifest: &str, prefix: &str) -> Option<RulesEntry> {
     let value: serde_json::Value = serde_json::from_str(manifest).ok()?;
     let entry = value.get("rules")?;

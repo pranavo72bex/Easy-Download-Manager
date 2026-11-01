@@ -21,7 +21,9 @@ use std::sync::{Mutex, OnceLock};
 /// What a drop handed over: text (a link, or lines of links), or a file.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Dropped {
+    /// Text, holding a link or lines of links.
     Text(String),
+    /// A file's path.
     File(PathBuf),
 }
 

@@ -9,13 +9,17 @@
 /// The action taken when the last download settles.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub enum WhenDone {
+    /// Do nothing.
     #[default]
     Nothing,
+    /// Close dm.
     Quit,
+    /// Put the computer to sleep.
     Sleep,
     /// To disk and off: Linux and Windows have it; macOS does not offer it
     /// as a command, so the menu greys it there.
     Hibernate,
+    /// Shut the computer down.
     ShutDown,
 }
 
@@ -23,6 +27,7 @@ pub enum WhenDone {
 pub const COUNTDOWN_SECS: u64 = 30;
 
 impl WhenDone {
+    /// Every choice, in the order the menus list them.
     pub const ALL: [WhenDone; 5] = [
         WhenDone::Nothing,
         WhenDone::Quit,
@@ -210,7 +215,9 @@ fn watch(
 /// ear tells them apart across the room.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Sound {
+    /// The sound of a download finishing.
     Finished,
+    /// The sound of a download failing.
     Failed,
 }
 

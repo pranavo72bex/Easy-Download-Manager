@@ -7,79 +7,144 @@
 /// The speed presets, in KB/s: one click from the tray or Downloads ›
 /// Speed limiter, beside the exact limit Speed limiter settings keeps.
 pub const SPEED_LOW: u64 = 256;
+/// The middle speed preset, in KB/s.
 pub const SPEED_MEDIUM: u64 = 1024;
+/// The highest speed preset, in KB/s.
 pub const SPEED_HIGH: u64 = 4096;
 
 /// One action, as the menu, toolbar, keyboard or control protocol asks for it.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum Command {
     // Program
+    /// Opens the dialog to add a download by its address.
     AddUrl,
+    /// Opens the dialog to add a numbered series of addresses.
     AddSeries,
+    /// Adds the addresses on the clipboard.
     AddFromClipboard,
+    /// Reads a list of downloads from a file.
     Import,
+    /// Writes the list of downloads to a file.
     Export,
+    /// Opens the dialog to download the files a web page links to.
     SiteFiles,
+    /// Closes dm.
     Quit,
     // File (the selected rows)
+    /// Starts the selected downloads at once.
     DownloadNow,
+    /// Stops the selected downloads.
     StopDownload,
+    /// Removes the selected rows from the list, keeping their files.
     Remove,
+    /// Removes the selected rows and deletes their files.
     DeleteFile,
+    /// Downloads the selected files again from the start.
     Redownload,
+    /// Gives the selected download a new address.
     UpdateLink,
+    /// Copies the selected download's address.
     CopyLink,
+    /// Copies the selected download's details, for a support request.
     CopyDetails,
+    /// Moves the selected downloads into a queue.
     MoveToQueue,
+    /// Takes the selected downloads out of their queue.
     RemoveFromQueue,
+    /// Moves the selected downloads one place up in their queue.
     MoveUp,
+    /// Moves the selected downloads one place down in their queue.
     MoveDown,
+    /// Opens the selected download's properties.
     Properties,
+    /// Opens the selected download's progress window.
     ShowProgress,
+    /// Opens the finished file.
     OpenFile,
+    /// Opens the finished file with a program the person picks.
     OpenWith,
+    /// Opens a preview of the file.
     Preview,
+    /// Opens the folder the file is in.
     OpenFolder,
+    /// Extracts an archive into its own folder.
     ExtractHere,
+    /// Extracts an archive into a folder the person picks.
     ExtractTo,
+    /// Moves or renames the finished file.
     MoveRename,
+    /// Selects every row.
     SelectAll,
     // Downloads
+    /// Resumes every stopped download.
     ResumeAll,
+    /// Stops every running download.
     StopAll,
+    /// Removes every finished download from the list.
     DeleteCompleted,
+    /// Opens the search box.
     Find,
+    /// Goes to the next row that matches the search.
     FindNext,
+    /// Goes to the previous row that matches the search.
     FindPrevious,
+    /// Opens the scheduler for queues.
     Scheduler,
+    /// Starts the selected queue.
     StartQueue,
+    /// Stops the selected queue.
     StopQueue,
+    /// Turns the speed limit on or off.
     SpeedLimiterToggle,
+    /// Opens the speed limiter's settings.
     SpeedLimiterSettings,
+    /// Sets the speed limit to the low preset.
     SpeedLow,
+    /// Sets the speed limit to the middle preset.
     SpeedMedium,
+    /// Sets the speed limit to the high preset.
     SpeedHigh,
+    /// Removes the speed limit.
     SpeedUnlimited,
+    /// Does nothing when all downloads are finished.
     WhenDoneNothing,
+    /// Closes dm when all downloads are finished.
     WhenDoneQuit,
+    /// Puts the computer to sleep when all downloads are finished.
     WhenDoneSleep,
+    /// Hibernates the computer when all downloads are finished.
     WhenDoneHibernate,
+    /// Shuts the computer down when all downloads are finished.
     WhenDoneShutDown,
+    /// Opens Options.
     Options,
     // View
+    /// Shows or hides the category list.
     ToggleCategories,
+    /// Shows or hides the toolbar.
     ToggleToolbar,
+    /// Shows or hides the drop target.
     ToggleDropTarget,
+    /// Sorts the list by name.
     SortByName,
+    /// Sorts the list by size.
     SortBySize,
+    /// Sorts the list by status.
     SortByStatus,
+    /// Sorts the list by time left.
     SortByTimeLeft,
+    /// Sorts the list by transfer rate.
     SortByRate,
+    /// Sorts the list by date.
     SortByDate,
+    /// Sorts the list by description.
     SortByDescription,
     // Help
+    /// Opens the help.
     Help,
+    /// Opens About.
     About,
+    /// Checks whether a newer version exists.
     CheckForUpdates,
 }
 

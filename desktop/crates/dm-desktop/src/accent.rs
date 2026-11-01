@@ -18,12 +18,19 @@ use crate::theme::Tokens;
 /// The accent and the shades the accent brushes are drawn from.
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct Palette {
+    /// The palest tint, three steps lighter than `base`.
     pub light3: Color32,
+    /// A tint two steps lighter than `base`.
     pub light2: Color32,
+    /// A tint one step lighter than `base`.
     pub light1: Color32,
+    /// The accent itself.
     pub base: Color32,
+    /// A shade one step darker than `base`.
     pub dark1: Color32,
+    /// A shade two steps darker than `base`.
     pub dark2: Color32,
+    /// The darkest shade, three steps darker than `base`.
     pub dark3: Color32,
 }
 

@@ -11,14 +11,20 @@ const RED_FOR: u64 = 60;
 /// What the button shows.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Mode {
+    /// Nothing to show.
     Nothing,
     /// Running, with no total to measure against.
     Unknown,
+    /// Running, with a total to measure against.
     Running {
+        /// Bytes done so far.
         done: u64,
+        /// Bytes in all.
         total: u64,
     },
+    /// Downloads are paused.
     Paused,
+    /// A download failed lately: the button stays red for a while.
     Failed,
 }
 

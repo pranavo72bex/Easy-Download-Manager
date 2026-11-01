@@ -24,8 +24,11 @@ use crate::mcp::{finder, Control};
 /// What was asked for.
 #[derive(Debug, PartialEq)]
 pub enum Ask {
+    /// Lists the downloads.
     List,
+    /// Asks for one download's status, by its id.
     Status(u64),
+    /// Applies a named action to the downloads with these ids.
     Act(&'static str, Vec<u64>),
 }
 

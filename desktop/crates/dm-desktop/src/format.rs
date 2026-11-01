@@ -128,6 +128,7 @@ pub fn copyable_url(url: &str) -> String {
     }
 }
 
+/// A download's address as a window shows it: a password in it is replaced by dots, the rest kept.
 pub fn shown_url(url: &str) -> String {
     match url::Url::parse(url) {
         Ok(mut parsed) if parsed.password().is_some() => {

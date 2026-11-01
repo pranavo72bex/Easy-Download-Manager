@@ -20,7 +20,10 @@ impl ConnRates {
     pub fn sample(&mut self, now: std::time::Instant, pieces: &[(u64, u64)]) {
         let Some(last) = self.at else {
             self.at = Some(now);
-            self.pieces = pieces.iter().map(|&(start, done)| (start, (done, 0.0))).collect();
+            self.pieces = pieces
+                .iter()
+                .map(|&(start, done)| (start, (done, 0.0)))
+                .collect();
             return;
         };
         let secs = now.saturating_duration_since(last);

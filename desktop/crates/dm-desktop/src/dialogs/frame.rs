@@ -364,6 +364,7 @@ pub(super) struct Layout {
     /// Whether it carries its own title (and close button): not in a window
     /// of its own, whose title bar does.
     pub titled: bool,
+    /// Whether it has a close button.
     pub closable: bool,
 }
 

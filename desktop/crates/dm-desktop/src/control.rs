@@ -32,8 +32,11 @@ pub struct Request {
     /// Sent by `dm-desktop mcp` (it says so when it authenticates), so the
     /// window can refuse it while Options says AI assistants are off.
     pub via_mcp: bool,
+    /// The command's name, as the control port received it.
     pub method: String,
+    /// The command's arguments.
     pub params: Value,
+    /// Where the answer, or the reason the command failed, is sent back.
     pub reply: mpsc::Sender<Result<Value, String>>,
 }
 

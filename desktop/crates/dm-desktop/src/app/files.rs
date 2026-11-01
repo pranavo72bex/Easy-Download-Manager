@@ -62,6 +62,7 @@ impl DmApp {
         }
     }
 
+    /// Shows `path` in the system's file manager.
     pub fn reveal_file(&self, path: &str) {
         let said = Arc::clone(&self.opener_said);
         let report: crate::power::Report = Box::new(move |why| *dm_core::lock(&said) = Some(why));

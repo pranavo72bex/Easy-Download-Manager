@@ -3,6 +3,7 @@ use super::*;
 /// The server sent another name than the address's: what reference A asks
 /// about, and so dm does (maintainer, 2026-11-01).
 pub struct NameAsk {
+    /// Which dialog this is.
     pub id: Id,
     /// The name the address gave.
     pub address_name: String,

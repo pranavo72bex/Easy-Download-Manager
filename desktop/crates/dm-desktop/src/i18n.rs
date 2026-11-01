@@ -546,6 +546,7 @@ impl Said {
         }
     }
 
+    /// Whether the text is empty.
     pub fn is_empty(&self) -> bool {
         match &self.0 {
             Sentence::Plain(plain) => plain.is_empty(),

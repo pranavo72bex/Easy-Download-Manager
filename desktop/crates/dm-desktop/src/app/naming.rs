@@ -69,6 +69,8 @@ impl DmApp {
         before
     }
 
+    /// The name the row's file will get in its folder.
+    #[must_use]
     pub fn name_it_will_get(&self, row: &Entry, categories: &mut dm_core::Categories) -> String {
         self.name_it_will_get_after(row, categories, None)
     }

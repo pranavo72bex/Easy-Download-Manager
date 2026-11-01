@@ -20,7 +20,9 @@ const STEP_EXPIRES: Duration = Duration::from_secs(5);
 /// One piece of text drawn this frame.
 #[derive(Clone, Debug)]
 pub struct ScreenText {
+    /// The text drawn.
     pub text: String,
+    /// Where it is drawn, in points.
     pub rect: egui::Rect,
     /// The window it is drawn in: the main window, or a dialog's own.
     pub viewport: egui::ViewportId,

@@ -105,7 +105,9 @@ impl<T> Hold<T> {
 /// A toast dm wanted to show.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Note {
+    /// The toast's heading.
     pub title: String,
+    /// The toast's text.
     pub body: String,
     /// The finished file a click opens, when there is one.
     pub path: Option<String>,

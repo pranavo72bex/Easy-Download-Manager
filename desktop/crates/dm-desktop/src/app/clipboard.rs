@@ -1,6 +1,7 @@
 use super::*;
 
 impl DmApp {
+    /// Turns the clipboard watch on or off.
     pub fn set_clipboard_watch(&mut self, on: bool) {
         self.clipboard.on = on;
         if !on {
@@ -51,6 +52,8 @@ impl DmApp {
         self.clipboard.offered_all = links;
     }
 
+    /// The address on the clipboard that dm offers to download, if any.
+    #[must_use]
     pub fn clipboard_offer(&self) -> Option<&str> {
         self.clipboard.offered.as_deref()
     }

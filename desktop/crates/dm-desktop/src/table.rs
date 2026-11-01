@@ -15,6 +15,7 @@ use crate::app::{status_of, Column, DmApp};
 use crate::commands::Command;
 use crate::format;
 
+/// Draws the downloads table into `ui`.
 pub fn show(app: &mut DmApp, ui: &mut egui::Ui) {
     // A click on a row's text selects the row. Selectable text took the
     // click for itself, so clicking a file's name selected nothing.

@@ -329,6 +329,7 @@ impl Control {
         stream.set_nonblocking(false).is_ok() && open
     }
 
+    /// Sends one request to the running window and returns its answer, reconnecting first if the window was restarted.
     pub fn call(&mut self, method: &str, params: Value) -> Result<Value, String> {
         if !self.alive() {
             self.reconnect()?;

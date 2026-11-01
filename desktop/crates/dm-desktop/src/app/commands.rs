@@ -1,6 +1,8 @@
 use super::*;
 
 impl DmApp {
+    /// Whether `command` applies to the rows selected now.
+    #[must_use]
     pub fn enabled(&self, command: Command) -> bool {
         // The selected rows as they stand, neither copied nor sorted: asked
         // for every button and menu item each frame, `targets` copied and

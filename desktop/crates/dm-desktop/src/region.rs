@@ -20,8 +20,11 @@ pub enum Order {
 /// How numbers and dates are written where this computer is set up.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Region {
+    /// The character that separates a number's whole part from its fraction.
     pub decimal: char,
+    /// The order a date's day, month and year are written in.
     pub order: Order,
+    /// Whether the clock shows 12 hours with am and pm rather than 24.
     pub hour12: bool,
 }
 

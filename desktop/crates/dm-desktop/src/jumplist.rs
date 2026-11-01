@@ -22,6 +22,7 @@ pub fn publish(new_download: &str, open_folder: &str, folder: &std::path::Path) 
         });
 }
 
+/// Does nothing: only Windows has a jump list.
 #[cfg(not(windows))]
 pub fn publish(_new_download: &str, _open_folder: &str, _folder: &std::path::Path) {}
 

@@ -1,6 +1,8 @@
 use super::*;
 
 impl DmApp {
+    /// Whether the list shows `row` in the place chosen and under the filter typed.
+    #[must_use]
     pub fn shows(&self, row: &Entry) -> bool {
         self.within(&self.place, row) && self.matches_filter(row)
     }

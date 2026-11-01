@@ -12,6 +12,8 @@ pub fn kind(state: &State) -> &'static str {
     }
 }
 
+/// A category's name as the settings and the control protocol write it.
+#[must_use]
 pub fn category_word(c: Category) -> String {
     serde_json::to_value(c)
         .ok()

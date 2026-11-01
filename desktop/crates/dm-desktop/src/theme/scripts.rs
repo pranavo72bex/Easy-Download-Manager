@@ -10,14 +10,20 @@ use super::*;
 pub enum Script {
     /// Chinese characters, and Japanese with its kana.
     Cjk,
+    /// Korean Hangul.
     Hangul,
+    /// Arabic script.
     Arabic,
+    /// Hebrew script.
     Hebrew,
+    /// Thai script.
     Thai,
+    /// Devanagari script.
     Devanagari,
 }
 
 impl Script {
+    /// Every script dm loads a font for, in a fixed order.
     pub const ALL: [Script; 6] = [
         Script::Cjk,
         Script::Hangul,
