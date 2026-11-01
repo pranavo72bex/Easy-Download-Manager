@@ -34,6 +34,8 @@ pub mod gif;
 pub mod limit;
 pub mod live;
 pub mod metalink;
+#[cfg(windows)]
+pub(crate) mod mf;
 pub mod mkvmux;
 pub mod mms;
 pub mod motw;

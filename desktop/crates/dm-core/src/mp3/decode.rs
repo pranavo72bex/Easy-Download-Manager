@@ -1,9 +1,13 @@
 //! A sound file read to 16-bit samples by the system's own decoder, for the
-//! MP3 encoder: on macOS AudioToolbox's ExtAudioFile, which reads AAC in an
-//! M4A or MP4 (and turns another sample rate into one MP3 has). Elsewhere
-//! there is none dm can use yet, and that is said in words.
+//! MP3 encoder: on macOS AudioToolbox's ExtAudioFile, on Windows Media
+//! Foundation's source reader (`win.rs`), which both read AAC in an M4A or
+//! MP4 (and turn another sample rate into one MP3 has). Elsewhere there is
+//! none dm can use yet, and that is said in words.
 
 use std::path::Path;
+
+#[cfg(windows)]
+mod win;
 
 /// Interleaved 16-bit samples, their channels and their rate.
 pub struct Pcm {
@@ -18,11 +22,15 @@ pub fn read(path: &Path) -> Result<Pcm, String> {
     {
         mac::read(path)
     }
-    #[cfg(not(target_os = "macos"))]
+    #[cfg(windows)]
+    {
+        win::read(path)
+    }
+    #[cfg(not(any(target_os = "macos", windows)))]
     {
         let _ = path;
         Err(
-            "saving as MP3 needs the system's sound decoder, which dm uses on macOS only so far"
+            "saving as MP3 needs the system's sound decoder, which dm uses on macOS and Windows only so far"
                 .into(),
         )
     }
