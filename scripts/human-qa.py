@@ -1105,6 +1105,13 @@ def walk(dm, origin):
     # B51: the page says how dm identifies itself, with the switch.
     check("B51", "Advanced shows the name dm sends to servers and the Identify as dm only switch",
           "dm identifies itself to servers as:" in words and "Identify as dm only" in words, f"{words}")
+    # B56: the Downloads tab has the Connections per file box with its Presets.
+    dm.click("Downloads")
+    pause(0.8)
+    dl = dm.dialog_texts()
+    check("B56", "Downloads has Connections per file with Presets: Slow (2) Normal (8) Fast (16) Maximum (32)",
+          "Connections per file" in dl and "Presets:" in dl and "Slow (2)" in dl and "Normal (8)" in dl
+          and "Fast (16)" in dl and "Maximum (32)" in dl, f"{dl}")
     dm.click("General")
     pause(0.8)
     general = dm.dialog_texts()
