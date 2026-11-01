@@ -192,7 +192,7 @@ impl Options {
         (self.system_proxy && self.proxy.is_none() && !bypassed).then(|| {
             format!(
                 "dm cannot send {what} through the computer's proxy settings, and does not go \
-                 around them — name the proxy's address in Options › Proxy"
+                 around them — name the proxy's address in Options › Advanced"
             )
         })
     }

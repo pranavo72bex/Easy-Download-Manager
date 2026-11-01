@@ -1,4 +1,4 @@
-//! The progress window with a second network path (Options › Network), in
+//! The progress window with a second network path (Options › Advanced), in
 //! a test binary of its own: the second path is the process's, and the
 //! window tests beside it apply settings that turn it off as they go.
 

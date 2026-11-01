@@ -92,7 +92,7 @@ pub async fn download_live(
     {
         return Err(Error::Internal(format!(
             "a {scheme}:// stream cannot go through a proxy, and dm does not send it around one: \
-             turn the proxy off for this site (Options › Proxy) to fetch it"
+             turn the proxy off for this site (Options › Advanced) to fetch it"
         )));
     }
     // RTMPE is not dm's: Flash's encrypted RTMP, a protection dm does not

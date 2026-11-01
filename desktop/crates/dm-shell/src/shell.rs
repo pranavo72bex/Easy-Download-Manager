@@ -361,7 +361,7 @@ pub async fn start(orders: &Orders) -> Started {
         Err(why) => {
             notices.push(format!(
                 "the saved proxy could not be used ({why}), so it is turned off and downloads \
-                 go out directly. Fix it under Options › Proxy and tick it again."
+                 go out directly. Fix it under Options › Advanced and tick it again."
             ));
             saved.proxy.enabled = false;
             // Saved turned off, as the notice says: the browser's native
@@ -463,7 +463,7 @@ pub fn use_cookies(settings: &Settings) -> Option<String> {
             *said = Some(why.clone());
             Some(format!(
                 "{why}; downloads go without its cookies until it is back or another is \
-                 chosen in Options › Network"
+                 chosen in Options › Advanced"
             ))
         }
     }

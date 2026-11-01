@@ -241,7 +241,7 @@ mod two_addresses_tests {
     fn the_saved_proxy_turned_off_at_launch_is_said_in_the_windows_words() {
         let said = worded_problem(
             "the saved proxy could not be used (the proxy has no host), so it is turned off and downloads \
-             go out directly. Fix it under Options › Proxy and tick it again.",
+             go out directly. Fix it under Options › Advanced and tick it again.",
         );
         assert!(
             said.starts_with("The proxy can't be used (the proxy has no host)"),

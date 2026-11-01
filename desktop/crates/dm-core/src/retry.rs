@@ -349,7 +349,7 @@ where
 }
 
 /// How many attempts, and how long between them: `None` for dm's own
-/// pace (`backoff`), or a person's fixed wait from Options › Network.
+/// pace (`backoff`), or a person's fixed wait from Options › Advanced.
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
 pub struct Tries {
     pub attempts: u32,

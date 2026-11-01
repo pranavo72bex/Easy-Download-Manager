@@ -276,7 +276,7 @@ pub(super) fn progress(app: &mut DmApp, ctx: &egui::Context) {
                                     );
                                 }
                                 // Each path's share, where a second network is
-                                // in use (Options › Network): the pieces it
+                                // in use (Options › Advanced): the pieces it
                                 // took, by what they hold now.
                                 if connections.iter().any(|c| c.second) {
                                     let came: u64 = held.iter().sum();

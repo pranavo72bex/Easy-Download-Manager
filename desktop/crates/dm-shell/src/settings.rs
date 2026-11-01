@@ -235,7 +235,7 @@ pub struct Settings {
     /// Sites that take fewer connections at once than `connections`.
     #[serde(default, deserialize_with = "lenient::host_limits")]
     pub host_limits: Vec<dm_core::HostLimit>,
-    /// A folder and a speed limit for a site's downloads (Options › Network).
+    /// A folder and a speed limit for a site's downloads (Options › Advanced).
     #[serde(default, deserialize_with = "lenient::site_rules")]
     pub site_rules: Vec<SiteRule>,
     /// Hours between the recheck queue asking its servers again on its
