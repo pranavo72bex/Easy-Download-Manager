@@ -538,7 +538,9 @@ pub enum Update {
     /// list that can be filtered by kind has to know the kind of every row,
     /// not only the finished ones.
     Named {
+        /// The filename the server or URL gives to the file.
         name: String,
+        /// Which category the file falls into.
         category: category::Category,
     },
     /// How far the download has got.
@@ -549,7 +551,9 @@ pub enum Update {
     /// (the first try is 1) of `of`, 0 being "keep trying". Over once bytes
     /// arrive again.
     Retrying {
+        /// Which attempt this is; the first try is 1.
         attempt: u32,
+        /// Total attempts allowed; 0 means keep trying indefinitely.
         of: u32,
         /// What failed, in the engine's words, so the row can say why.
         why: String,

@@ -15,6 +15,7 @@
 // is sound (`// SAFETY:`, on every platform, Windows included), and a string is
 // built with `format!` rather than `+`, and a loop is a loop rather than
 // `for_each`.
+#![warn(missing_docs)]
 #![warn(clippy::undocumented_unsafe_blocks)]
 #![warn(clippy::string_add, clippy::needless_for_each)]
 pub mod aac;
@@ -84,8 +85,8 @@ pub use checksum::{digest, Algorithm, Checksum};
 pub use clip::Span;
 pub use control::{Control, Wanted};
 pub use download::{
-    download, download_reporting, free_name, free_space, names_a_document, nth_free_name, Finished,
-    HostLimit, Options, Room, Update,
+    download, download_reporting, download_video_stream, free_name, free_space, names_a_document,
+    nth_free_name, Finished, HostLimit, Options, Room, Update,
 };
 pub use limit::Limiter;
 pub use metalink::{is_metalink, parse as parse_metalink, Metalink};
@@ -119,8 +120,11 @@ pub enum Error {
     /// The server answered with a status that is not a success.
     #[error("the server answered {} for {url}{}", status_line(*.status), if .body.is_empty() { String::new() } else { format!(" — {body}") })]
     Refused {
+        /// The HTTP status code.
         status: u16,
+        /// The URL that was refused.
         url: String,
+        /// The body of the error response, if any.
         body: String,
         /// What the server asked us to wait, where it said.
         retry_after: Option<std::time::Duration>,
@@ -130,7 +134,12 @@ pub enum Error {
     /// which is worth another attempt; a server that does it every time is
     /// caught by the length check instead.
     #[error("the connection ended after {got} of {expected} bytes")]
-    Incomplete { got: u64, expected: u64 },
+    Incomplete {
+        /// How many bytes arrived before the connection dropped.
+        got: u64,
+        /// How many bytes were expected.
+        expected: u64,
+    },
 
     /// The file was republished while it was being fetched. Everything staged
     /// belongs to the version that is gone.
@@ -161,7 +170,12 @@ pub enum Error {
 
     /// The parts add up to less than the length the server stated.
     #[error("the server sent {got} bytes of a file it said was {expected}")]
-    ShortFile { got: u64, expected: u64 },
+    ShortFile {
+        /// How many bytes the server actually sent.
+        got: u64,
+        /// How many bytes the server said the file was.
+        expected: u64,
+    },
 
     /// The common causes in plain words, with what the system said after
     /// them; anything else with its causes, since reqwest's own message is
@@ -183,8 +197,11 @@ pub enum Error {
     /// digests rather than saying the file is bad.
     #[error("{algorithm} was {got}, but {expected} was published")]
     Checksum {
+        /// The name of the hash algorithm (e.g. `"SHA-256"`).
         algorithm: &'static str,
+        /// The digest that was published alongside the file.
         expected: String,
+        /// The digest computed from the bytes that arrived.
         got: String,
     },
 

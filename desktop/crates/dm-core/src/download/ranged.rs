@@ -587,7 +587,7 @@ async fn spot_check_segment(
             reqwest::header::RANGE,
             format!("bytes={check_start}-{check_end}"),
         );
-    let Ok(res) = crate::redirects::send(request).await else {
+    let Ok(res) = crate::auth::send(client, request, &source.url).await else {
         return Ok(());
     };
     if res.status() != reqwest::StatusCode::PARTIAL_CONTENT {
