@@ -15,9 +15,21 @@ pub mod decode;
 mod tables;
 
 /// Whether dm can make an MP3 here: the system has a decoder dm reads
-/// AAC with (macOS for now).
+/// AAC with (AudioToolbox on macOS; on Windows Media Foundation's, which a
+/// Windows "N" edition lacks until the Media Feature Pack is added).
 pub fn possible() -> bool {
-    cfg!(target_os = "macos")
+    #[cfg(target_os = "macos")]
+    {
+        true
+    }
+    #[cfg(windows)]
+    {
+        crate::mf::aac_decoder()
+    }
+    #[cfg(not(any(target_os = "macos", windows)))]
+    {
+        false
+    }
 }
 
 /// The list line for the sound as MP3, offered after an M4A's: its size
@@ -954,6 +966,118 @@ mod tests {
         }
         let level = 2.0 * (c * c + s * s).sqrt() / (seg.len() / 2) as f64;
         assert!((10_000.0..14_000.0).contains(&level), "{level}");
+    }
+
+    /// A real AAC sound (the fixture) saved as MP3 through `convert`, on
+    /// Windows: Media Foundation's decoder reads it, dm encodes it, and the
+    /// file is a run of whole MPEG-1 Layer III frames as long as the sound.
+    #[cfg(windows)]
+    #[test]
+    fn a_real_aac_sound_is_saved_as_an_mp3_as_long_as_it_is() {
+        if !possible() {
+            eprintln!("no AAC decoder on this Windows (an N edition): nothing to check");
+            return;
+        }
+        let m4a = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("tests/fixtures/mp4/sound.f140.m4a");
+        let dir = tempfile::tempdir().unwrap();
+        let mp3 = dir.path().join("sound.mp3");
+        let length = convert(&m4a, &mp3).unwrap();
+        let bytes = std::fs::read(&mp3).unwrap();
+        assert_eq!(bytes.len() as u64, length);
+        let pcm = decode::read(&m4a).unwrap();
+        let seconds = pcm.samples.len() as f64 / (pcm.channels as f64 * f64::from(pcm.rate));
+        assert!(seconds > 0.5, "{seconds} s of sound");
+        let bitrate: u64 = if pcm.channels == 2 { 192_000 } else { 128_000 };
+        let rate = u64::from(pcm.rate);
+        let (mut at, mut frames) = (0usize, 0u64);
+        while at + 4 <= bytes.len() {
+            assert_eq!(bytes[at], 0xFF, "no sync at {at}");
+            assert_eq!(bytes[at + 1] & 0xE0, 0xE0, "no sync at {at}");
+            assert_eq!((bytes[at + 1] >> 3) & 3, 3, "not MPEG-1 at {at}");
+            assert_eq!((bytes[at + 1] >> 1) & 3, 1, "not Layer III at {at}");
+            let padding = usize::from((bytes[at + 2] >> 1) & 1);
+            at += (144 * bitrate / rate) as usize + padding;
+            frames += 1;
+        }
+        assert_eq!(at, bytes.len(), "frames do not tile the file");
+        let made = frames as f64 * FRAME as f64 / f64::from(pcm.rate);
+        assert!(
+            (made - seconds).abs() < 0.1,
+            "{made} s of MP3 for {seconds} s of sound"
+        );
+    }
+
+    /// Decoded by Media Foundation's own MP3 decoder, the sound is the sound
+    /// that went in: aligned, its signal-to-noise ratio is high (the check
+    /// the macOS build makes with the system's decoder).
+    #[cfg(windows)]
+    #[test]
+    fn the_windows_decoder_plays_back_what_went_in() {
+        use windows::Win32::Media::MediaFoundation::{
+            MFAudioFormat_MP3, MFMediaType_Audio, MFT_CATEGORY_AUDIO_DECODER,
+        };
+        if !crate::mf::decoder_present(
+            MFT_CATEGORY_AUDIO_DECODER,
+            MFMediaType_Audio,
+            MFAudioFormat_MP3,
+        ) {
+            eprintln!("no MP3 decoder on this Windows: nothing to check");
+            return;
+        }
+        let dir = tempfile::tempdir().unwrap();
+        for (channels, rate) in [(2usize, 44100u32), (1, 48000), (2, 32000)] {
+            let input: Vec<i16> = if channels == 2 {
+                tones(rate)
+            } else {
+                tones(rate).chunks(2).map(|p| p[0]).collect()
+            };
+            let mp3 = dir.path().join(format!("t{channels}{rate}.mp3"));
+            std::fs::write(&mp3, encode(&input, channels, rate)).unwrap();
+            let heard = decode::read(&mp3).unwrap();
+            assert_eq!((heard.channels, heard.rate), (channels, rate));
+            let out = heard.samples;
+            // The encoder and decoder's delay: the shift that matches best.
+            let left = |s: &[i16], i: usize| f64::from(s[i * channels]);
+            let span = rate as usize / 2;
+            let start = rate as usize / 4;
+            let mut best = (0usize, f64::MAX);
+            for shift in 0..3000 {
+                if (start + span + shift) * channels > out.len() {
+                    break;
+                }
+                let err: f64 = (start..start + span)
+                    .map(|i| (left(&out, i + shift) - left(&input, i)).powi(2))
+                    .sum();
+                if err < best.1 {
+                    best = (shift, err);
+                }
+            }
+            let signal: f64 = (start..start + span).map(|i| left(&input, i).powi(2)).sum();
+            let snr = 10.0 * (signal / best.1.max(1e-9)).log10();
+            assert!(
+                snr > 30.0,
+                "{channels} ch at {rate} Hz: {snr:.1} dB at a delay of {}",
+                best.0
+            );
+        }
+    }
+
+    /// A file that is not sound is refused in words, by name or without one
+    /// the reader knows, and never panics.
+    #[cfg(windows)]
+    #[test]
+    fn a_file_that_is_not_sound_is_refused_in_words() {
+        let dir = tempfile::tempdir().unwrap();
+        for name in ["not-sound.m4a", "not-sound.mp4", "not-sound.part"] {
+            let source = dir.path().join(name);
+            std::fs::write(&source, b"this is text, not a sound").unwrap();
+            let target = dir.path().join("out.mp3");
+            let said = convert(&source, &target).unwrap_err();
+            assert!(!said.is_empty(), "{name}");
+            assert!(!target.exists(), "{name} left an MP3");
+        }
+        assert!(convert(&dir.path().join("missing.m4a"), &dir.path().join("o.mp3")).is_err());
     }
 
     #[test]

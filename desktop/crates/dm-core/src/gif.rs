@@ -6,9 +6,21 @@
 //! and the frames are written as a GIF89a that loops for ever.
 
 /// Whether dm can make a GIF here: the system has a video decoder dm
-/// reads H.264 with (macOS for now).
+/// reads H.264 with (VideoToolbox on macOS; on Windows Media Foundation's,
+/// which a Windows "N" edition lacks until the Media Feature Pack is added).
 pub fn possible() -> bool {
-    cfg!(target_os = "macos")
+    #[cfg(target_os = "macos")]
+    {
+        true
+    }
+    #[cfg(windows)]
+    {
+        crate::mf::h264_decoder()
+    }
+    #[cfg(not(any(target_os = "macos", windows)))]
+    {
+        false
+    }
 }
 
 /// Frames a second, and the most pixels across, of a GIF made of a part.
