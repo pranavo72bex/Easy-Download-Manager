@@ -3593,3 +3593,20 @@ would still need the same attribution and the same upkeep, and a script that no 
 player is the most likely reason YouTube stops working. The way to notice is a weekly run of
 `scripts/real-sites.py` (a real YouTube video); the cure is a new version and digest. Writing dm's own
 solver was declined as upkeep (the YouTube proof-of-origin gap, gaps row 37, is the same kind).
+
+### The pin is kept current by a weekly pull request (2026-11-01)
+
+`.github/workflows/solver-update.yml` runs every Monday (and on demand): `scripts/update-solver.py`
+reads the project's address out of `youtube.rs`, asks its releases for the latest tag, and if it is
+newer downloads both scripts, refuses anything that is not a script, works out their SHA-256 and
+rewrites `SOLVER_VERSION` and the two digests; the offline YouTube tests run with the new pin and a
+pull request is opened. It never merges: the offline tests use stand-in scripts, so a person runs a
+real video (`SITES=youtube python3 scripts/real-sites.py`) before merging, and a checksum only
+protects if somebody looks at the change. `scripts/test-update-solver.py` tests the script against a
+stand-in releases server (a newer release, the same or an older one, a missing script, an error page
+in place of a script, a server that is down, a changed layout of `youtube.rs`).
+
+The repository needs "Allow GitHub Actions to create and approve pull requests" switched on in
+Settings > Actions > General; a pull request opened with the workflow's own token does not start the
+other workflows, which is why the YouTube tests run inside this one. A failed run (the release
+page unreachable, a script that is not one) is the signal that something needs a person.
