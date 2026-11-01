@@ -91,8 +91,13 @@ pub async fn probe_get(
         crate::auth::send(client, request, url)
     };
     let mut res = ask(crate::agent_for(url)).await?;
-    if res.status() == reqwest::StatusCode::FORBIDDEN && crate::agent_for(url) == crate::IE_AGENT {
-        for agent in crate::FALLBACK_AGENTS {
+    if res.status() == reqwest::StatusCode::FORBIDDEN
+        && crate::agent_for(url) == crate::first_agent()
+    {
+        for agent in crate::FALLBACK_AGENTS
+            .into_iter()
+            .filter(|a| *a != crate::first_agent())
+        {
             let again = ask(agent).await?;
             if again.status() != reqwest::StatusCode::FORBIDDEN {
                 crate::prefer_agent(url, agent);

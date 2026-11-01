@@ -760,5 +760,15 @@
  "The requested file doesn't exist.": "请求的文件不存在。",
  "Details:": "详细信息:",
  "Contents": "内容",
- "Reading the contents…": "正在读取内容…"
+ "Reading the contents…": "正在读取内容…",
+ "When the scheduled downloads are done": "计划的下载完成后",
+ "Try a failed download again this many times (0 for none)": "失败的下载重试此次数（0 表示不重试）",
+ "The schedule has set what dm does when the downloads are done: {}.": "计划已设定下载完成后 dm 的操作：{}。",
+ "Remember my choice": "记住我的选择",
+ "Replace the old file": "替换旧文件",
+ "Resume it": "继续下载",
+ "When an address is already in the list": "当地址已在列表中时",
+ "dm identifies itself to servers as:": "dm 向服务器表明的身份：",
+ "Identify as dm only": "仅以 dm 标识",
+ "Sends dm's own name first. A site that refuses it is asked again with another name.": "先发送 dm 自己的名称。拒绝它的网站会用另一个名称再次请求。"
 }

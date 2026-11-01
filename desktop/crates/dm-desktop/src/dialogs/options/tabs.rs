@@ -74,6 +74,45 @@ pub(super) fn tab_general(ui: &mut egui::Ui, d: &mut OptionsDialog, env: &TabEnv
             .response
             .labelled_by(name);
     });
+    // What a caught or typed address already in the list does, asked once
+    // and remembered from the question's tick: undone here.
+    setting_row(
+        ui,
+        t("When an address is already in the list"),
+        |ui, name| {
+            let shown = match s.duplicate_choice.as_str() {
+                "show" => t("Show it"),
+                "again" => t("Download again"),
+                "replace" => t("Replace the old file"),
+                _ => t("Ask me"),
+            };
+            combo("duplicate-choice")
+                .selected_text(shown)
+                .show_ui(ui, |ui| {
+                    pick(ui, &mut s.duplicate_choice, String::new(), t("Ask me"));
+                    pick(
+                        ui,
+                        &mut s.duplicate_choice,
+                        "show".to_string(),
+                        t("Show it"),
+                    );
+                    pick(
+                        ui,
+                        &mut s.duplicate_choice,
+                        "again".to_string(),
+                        t("Download again"),
+                    );
+                    pick(
+                        ui,
+                        &mut s.duplicate_choice,
+                        "replace".to_string(),
+                        t("Replace the old file"),
+                    );
+                })
+                .response
+                .labelled_by(name);
+        },
+    );
     toggle_row(
         ui,
         &mut s.allow_command_line,
@@ -654,6 +693,19 @@ pub(super) fn tab_downloads(ui: &mut egui::Ui, d: &mut OptionsDialog, env: &TabE
 pub(super) fn tab_advanced(ui: &mut egui::Ui, d: &mut OptionsDialog, env: &TabEnv<'_>) {
     section(ui, t("Network"));
     tab_connection(ui, d, env);
+    // The name dm gives servers first, and the switch for dm's own.
+    ui.label(t("dm identifies itself to servers as:"));
+    let agent = if d.draft.identify_as_dm {
+        dm_core::USER_AGENT
+    } else {
+        dm_core::IE_AGENT
+    };
+    ui.label(egui::RichText::new(agent).monospace().weak());
+    toggle_row(ui, &mut d.draft.identify_as_dm, t("Identify as dm only"));
+    hint(
+        ui,
+        t("Sends dm's own name first. A site that refuses it is asked again with another name."),
+    );
     // Where a proxy that cannot be one was said, the page opens at it.
     if std::mem::take(&mut d.to_proxy) {
         ui.scroll_to_cursor(Some(egui::Align::TOP));

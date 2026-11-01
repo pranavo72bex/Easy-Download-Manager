@@ -45,6 +45,44 @@ pub(super) fn scheduler(app: &mut DmApp, ctx: &egui::Context) {
                     t("Wake the computer from sleep to start"),
                 );
             }
+            // What dm does when the scheduled downloads are done: through the
+            // countdown that can be cancelled, as Downloads › When done is.
+            ui.label(t("When the scheduled downloads are done"));
+            ui.horizontal_wrapped(|ui| {
+                use crate::commands::Command;
+                use crate::power::WhenDone;
+                let now = WhenDone::from_word(&schedule.when_done);
+                for (w, command) in [
+                    (WhenDone::Nothing, Command::WhenDoneNothing),
+                    (WhenDone::Quit, Command::WhenDoneQuit),
+                    (WhenDone::Sleep, Command::WhenDoneSleep),
+                    (WhenDone::Hibernate, Command::WhenDoneHibernate),
+                    (WhenDone::ShutDown, Command::WhenDoneShutDown),
+                ] {
+                    // As the Downloads menu greys them: only what this
+                    // computer can do.
+                    let can = matches!(w, WhenDone::Nothing | WhenDone::Quit)
+                        || crate::power::available(w);
+                    ui.add_enabled_ui(can, |ui| {
+                        if radio_flag(ui, now == w, command.title()).clicked() {
+                            schedule.when_done = w.word().to_string();
+                        }
+                    });
+                }
+            });
+            ui.horizontal(|ui| {
+                let mut tries = u64::from(schedule.retries);
+                let name = ui.label(t(
+                    "Try a failed download again this many times (0 for none)",
+                ));
+                if ui
+                    .add(number_box(&mut tries).range(0..=5))
+                    .labelled_by(name.id)
+                    .changed()
+                {
+                    schedule.retries = tries.min(5) as u8;
+                }
+            });
             // The days are shown as they are kept, all ticked for every
             // day; the hint said no tick meant every day beside seven ticks.
             ui.label(

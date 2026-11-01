@@ -19,6 +19,10 @@ was removed on 2026-10-12 and is in git history.
 - [x] A small picture of the file's kind before each row's name, told apart by shape (play mark, note, lines, window, zip, hill and sun; none for other files) and not by colour alone (`icons.rs` `kind_shapes`; two unit tests; contract row B45)
 - [x] A double-click on a download that is running, waiting or stopped opens its progress window, whose title starts with how far it is (`37% Download progress — name`) and counts as it runs (`table.rs`; `dialogs/progress.rs` `title_with_percent`, three unit tests; `tests/window/dialogs.rs`; contract row B46)
 - [x] Add URL's Recent list keeps no address that carries a token, signature, key, password or session in its query, and offers none already kept (`dialogs/add.rs` `query_carries_a_secret`; contract row B47)
+- [x] The Scheduler chooses what dm does when the scheduled downloads are done (nothing, exit, sleep, hibernate, shut down, through the cancellable countdown) and how many times a failed download is tried again (`app/scheduled.rs`, four unit tests; `tests/window/choices.rs`; contract row B49)
+- [x] A listed address asks Show it / Resume it, Download again, Replace the old file, Cancel, with Remember my choice kept in Options › General (`dialogs/add.rs` `Dup`; `tests/window/choices.rs`; contract row B50)
+- [x] Options › Advanced shows the name dm sends to servers with an Identify as dm only switch (`dm_core::set_identify_as_dm`; `dm-core/tests/identify_as.rs`; contract row B51)
+- [x] The tray's Speed menu has Settings… (contract row B52); the Downloads menu's Speed limiter On/Off and Settings… already existed
 - [x] Find previous, Shift-F3, in the Downloads menu beside Find next, wrapping round from the first row to the last (`app/search.rs` `next_match`, five unit tests; `tests/window/lists.rs`; contract row B48)
 - [x] HTTP/HTTPS downloading
 - [x] Multi-connection downloading — and a limit of a site's own (Options ›

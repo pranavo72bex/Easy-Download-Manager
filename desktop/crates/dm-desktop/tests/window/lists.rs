@@ -582,6 +582,8 @@ fn the_status_bar_says_the_schedule_holds_downloads_and_until_when() {
     let mut wanted = harness.state().applied.clone();
     wanted.schedule = dm_core::Schedule {
         wake: false,
+        when_done: String::new(),
+        retries: 0,
         enabled: true,
         from: from.clone(),
         to,
@@ -650,6 +652,8 @@ fn resume_on_a_held_row_offers_to_start_it_outside_the_schedule() {
     let mut wanted = harness.state().applied.clone();
     wanted.schedule = dm_core::Schedule {
         wake: false,
+        when_done: String::new(),
+        retries: 0,
         enabled: true,
         from: format!("{:02}:{:02}", (now.hour() + 2) % 24, now.minute()),
         to: format!("{:02}:{:02}", (now.hour() + 3) % 24, now.minute()),

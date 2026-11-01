@@ -671,11 +671,30 @@ fn host_of(url: &str) -> Option<String> {
 pub const IE_AGENT: &str = "Mozilla/5.0 (Windows NT 6.1; Trident/7.0; rv:11.0) like Gecko";
 
 /// The agent a request to `url` goes out with: the one its site last
-/// answered, else [`IE_AGENT`].
+/// answered, else [`first_agent`].
+static IDENTIFY_AS_DM: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
+
+/// Whether dm sends its own name first, not the browser-like one: Options ›
+/// Advanced › Identify as dm only. A site that refused the first name is still
+/// asked again with the others (`prefer_agent`).
+pub fn set_identify_as_dm(only: bool) {
+    IDENTIFY_AS_DM.store(only, std::sync::atomic::Ordering::Relaxed);
+}
+
+/// The agent a request goes out with before any site has refused it:
+/// [`IE_AGENT`], or dm's own name where the person asked for that.
+pub fn first_agent() -> &'static str {
+    if IDENTIFY_AS_DM.load(std::sync::atomic::Ordering::Relaxed) {
+        USER_AGENT
+    } else {
+        IE_AGENT
+    }
+}
+
 pub fn agent_for(url: &str) -> &'static str {
     host_of(url)
         .and_then(|host| lock(plain_hosts()).get(&host).copied())
-        .unwrap_or(IE_AGENT)
+        .unwrap_or_else(first_agent)
 }
 
 /// The agents a refused probe tries, in order, after [`IE_AGENT`].

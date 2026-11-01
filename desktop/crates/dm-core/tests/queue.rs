@@ -977,6 +977,8 @@ fn closed_now() -> dm_core::Schedule {
         to: "00:01".into(),
         days: vec![],
         wake: false,
+        when_done: String::new(),
+        retries: 0,
     }
 }
 

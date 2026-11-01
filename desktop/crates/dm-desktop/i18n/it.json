@@ -760,5 +760,15 @@
  "The requested file doesn't exist.": "Il file richiesto non esiste.",
  "Details:": "Dettagli:",
  "Contents": "Contenuto",
- "Reading the contents…": "Lettura del contenuto…"
+ "Reading the contents…": "Lettura del contenuto…",
+ "When the scheduled downloads are done": "Quando i download pianificati sono finiti",
+ "Try a failed download again this many times (0 for none)": "Riprova un download fallito questo numero di volte (0 per nessuna)",
+ "The schedule has set what dm does when the downloads are done: {}.": "La pianificazione ha stabilito cosa fa dm al termine dei download: {}.",
+ "Remember my choice": "Ricorda la mia scelta",
+ "Replace the old file": "Sostituisci il vecchio file",
+ "Resume it": "Riprendilo",
+ "When an address is already in the list": "Quando un indirizzo è già nell'elenco",
+ "dm identifies itself to servers as:": "dm si presenta ai server come:",
+ "Identify as dm only": "Presentati solo come dm",
+ "Sends dm's own name first. A site that refuses it is asked again with another name.": "Invia prima il nome proprio di dm. Un sito che lo rifiuta viene interrogato di nuovo con un altro nome."
 }

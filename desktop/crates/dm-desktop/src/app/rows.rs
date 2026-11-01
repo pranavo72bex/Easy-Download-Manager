@@ -461,6 +461,8 @@ pub(super) mod status_tests {
             to: "07:00".into(),
             days: vec![1],
             wake: false,
+            when_done: String::new(),
+            retries: 0,
         };
         // Monday 00:30: later today. Monday 08:00: next Monday.
         assert_eq!(opens_after(&schedule, 1, 30), Some((0, 60)));

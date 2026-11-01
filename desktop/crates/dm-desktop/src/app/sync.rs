@@ -100,6 +100,7 @@ impl DmApp {
         if self.applied.sound_on_failure && !failed.is_empty() {
             self.backend.platform.alert();
         }
+        self.schedule_hooks();
         self.when_queue_dry();
         for id in finished {
             /* Over, so its progress window is: left open it said "Complete"
@@ -327,7 +328,13 @@ impl DmApp {
         // chooses "Download again". Only with a window to ask in.
         if request.caught && !self.headless {
             if let Some(id) = crate::dialogs::worth_keeping(self, &request.url) {
-                self.dialogs.duplicate = Some((request.url.clone(), id));
+                // Answered at once where the person ticked "Remember my choice".
+                match crate::dialogs::Dup::from_word(&self.applied.duplicate_choice) {
+                    Some(how) => {
+                        crate::dialogs::answer_duplicate(self, request.url.clone(), id, how)
+                    }
+                    None => self.dialogs.duplicate = Some((request.url.clone(), id)),
+                }
                 self.taken_from_browser(&request.url);
                 return;
             }

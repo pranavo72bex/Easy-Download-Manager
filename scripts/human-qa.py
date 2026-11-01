@@ -1075,8 +1075,35 @@ def walk(dm, origin):
           f"{before}")
     check("B43", "Advanced opens on the connection's settings, under their heading",
           first in words and "Attempts per connection (0 to keep trying)" in words, f"{words[:14]}")
+    # B51: the page says how dm identifies itself, with the switch.
+    check("B51", "Advanced shows the name dm sends to servers and the Identify as dm only switch",
+          "dm identifies itself to servers as:" in words and "Identify as dm only" in words, f"{words}")
+    dm.click("General")
+    pause(0.8)
+    general = dm.dialog_texts()
+    check("B50", "General has the row for what happens when an address is already in the list",
+          "When an address is already in the list" in general, f"{general}")
     dm.click("Cancel")
     pause(0.6)
+    # B49: the Scheduler offers what to do when the scheduled downloads are done.
+    dm.click("Scheduler")
+    for _ in range(40):
+        if "Scheduler" in dm.dialogs():
+            break
+        time.sleep(0.1)
+    pause(0.8)
+    sched = dm.dialog_texts()
+    check("B49", "the Scheduler asks what dm does when the scheduled downloads are done, and how many tries again",
+          "When the scheduled downloads are done" in sched
+          and "Try a failed download again this many times (0 for none)" in sched, f"{sched}")
+    dm.click("Cancel")
+    pause(0.6)
+    # B52: the tray's Speed menu has Settings…, which the tray cannot be driven
+    # here to click: its menu is built from the same command as Downloads ›
+    # Speed limiter › Settings…, which a person tries by hand in the tray.
+    tray_src = (ROOT / "desktop" / "crates" / "dm-desktop" / "src" / "tray.rs").read_text(encoding="utf-8")
+    check("B52", "the tray's Speed menu is built with the limiter's Settings… command",
+          "Command::SpeedLimiterSettings" in tray_src, "tray.rs does not name the command")
 
     print("\nHow the window looks", flush=True)
     for name in ("empty-window", "add-url", "download-details"):

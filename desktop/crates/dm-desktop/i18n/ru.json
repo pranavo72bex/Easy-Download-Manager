@@ -760,5 +760,15 @@
  "The requested file doesn't exist.": "Запрошенный файл не существует.",
  "Details:": "Подробности:",
  "Contents": "Содержимое",
- "Reading the contents…": "Чтение содержимого…"
+ "Reading the contents…": "Чтение содержимого…",
+ "When the scheduled downloads are done": "Когда запланированные загрузки завершены",
+ "Try a failed download again this many times (0 for none)": "Повторять неудавшуюся загрузку столько раз (0 — не повторять)",
+ "The schedule has set what dm does when the downloads are done: {}.": "Расписание задало действие dm по окончании загрузок: {}.",
+ "Remember my choice": "Запомнить мой выбор",
+ "Replace the old file": "Заменить старый файл",
+ "Resume it": "Продолжить",
+ "When an address is already in the list": "Когда адрес уже есть в списке",
+ "dm identifies itself to servers as:": "dm представляется серверам как:",
+ "Identify as dm only": "Представляться только как dm",
+ "Sends dm's own name first. A site that refuses it is asked again with another name.": "Сначала отправляется собственное имя dm. Сайт, который его отклоняет, опрашивается снова под другим именем."
 }

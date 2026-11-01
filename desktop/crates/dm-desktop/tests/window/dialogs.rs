@@ -733,7 +733,9 @@ fn an_address_already_in_the_list_is_asked_about_before_it_is_added_again() {
         "a second row was made without asking"
     );
     assert!(harness.query_by_label("Download details").is_none());
-    click(&mut harness, "Show it");
+    // The row is stopped ("Add for later"), so the question offers to go
+    // on with it as well as to show it.
+    click(&mut harness, "Resume it");
     assert!(harness.query_by_label("Already in the list").is_none());
     assert!(
         harness.state().selected.contains(&id),
