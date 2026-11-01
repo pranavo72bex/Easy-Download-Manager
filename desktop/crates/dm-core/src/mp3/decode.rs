@@ -28,11 +28,7 @@ pub fn read(path: &Path) -> Result<Pcm, String> {
     }
     #[cfg(not(any(target_os = "macos", windows)))]
     {
-        let _ = path;
-        Err(
-            "saving as MP3 needs the system's sound decoder, which dm uses on macOS and Windows only so far"
-                .into(),
-        )
+        crate::aac::read(path)
     }
 }
 

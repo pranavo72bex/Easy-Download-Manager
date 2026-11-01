@@ -28,7 +28,7 @@ pub fn possible() -> bool {
     }
     #[cfg(not(any(target_os = "macos", windows)))]
     {
-        false
+        crate::aac::decoder_ready()
     }
 }
 

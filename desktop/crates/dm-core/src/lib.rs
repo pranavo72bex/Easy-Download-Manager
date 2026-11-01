@@ -17,6 +17,7 @@
 // `for_each`.
 #![warn(clippy::undocumented_unsafe_blocks)]
 #![warn(clippy::string_add, clippy::needless_for_each)]
+pub mod aac;
 pub mod auth;
 pub mod category;
 pub mod checksum;
