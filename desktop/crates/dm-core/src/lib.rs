@@ -89,7 +89,7 @@ pub use queue::{
 pub use schedule::Schedule;
 pub use stream::Stream;
 pub use torrent::is_torrent;
-pub use zipinfo::{zip_contents, ZipEntry};
+pub use zipinfo::{zip_contents, zip_contents_of_file, ZipEntry};
 
 /// Why a download stopped.
 ///

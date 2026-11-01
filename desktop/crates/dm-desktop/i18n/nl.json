@@ -757,5 +757,7 @@
  "The requested file looks like an HTML web page. Would you like to continue downloading it and save it as an HTML page?": "Het gevraagde bestand lijkt een HTML-webpagina. Wilt u doorgaan met downloaden en het opslaan als HTML-pagina?",
  "The file doesn't exist": "Het bestand bestaat niet",
  "The requested file doesn't exist.": "Het gevraagde bestand bestaat niet.",
- "Details:": "Details:"
+ "Details:": "Details:",
+ "Contents": "Inhoud",
+ "Reading the contents…": "Inhoud wordt gelezen…"
 }

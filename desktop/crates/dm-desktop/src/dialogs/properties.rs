@@ -207,6 +207,32 @@ pub(super) fn properties(app: &mut DmApp, ctx: &egui::Context) {
                                 // one the person was given.
                                 if row.state == State::Completed && !crate::table::gone(&row) {
                                     digest_rows(ui, ctx, &runtime, &row.path, d, value);
+                                    // A finished ZIP's files, by name and
+                                    // size, read from the file beside the
+                                    // window: text only, never opened.
+                                    if zip_list::is_zip_address(&row.path) {
+                                        zip_list::read_file(
+                                            &runtime,
+                                            ctx,
+                                            &mut d.zip,
+                                            std::path::PathBuf::from(&row.path),
+                                        );
+                                    }
+                                    match zip_list::listing(&d.zip) {
+                                        zip_list::Listing::Nothing => {}
+                                        zip_list::Listing::Reading => {
+                                            ui.label(t("Contents"));
+                                            ui.label(
+                                                RichText::new(zip_list::reading_words()).weak(),
+                                            );
+                                            ui.end_row();
+                                        }
+                                        zip_list::Listing::Files(files, more) => {
+                                            ui.label(t("Contents"));
+                                            ui.vertical(|ui| zip_list::show(ui, &files, more));
+                                            ui.end_row();
+                                        }
+                                    }
                                 }
                             });
                     });

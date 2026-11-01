@@ -31,3 +31,5 @@ mod options;
 mod speed_schedule;
 #[path = "window/support.rs"]
 mod support;
+#[path = "window/zip.rs"]
+mod zip;

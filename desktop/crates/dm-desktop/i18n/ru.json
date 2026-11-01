@@ -757,5 +757,7 @@
  "The requested file looks like an HTML web page. Would you like to continue downloading it and save it as an HTML page?": "Запрошенный файл похож на веб-страницу HTML. Продолжить загрузку и сохранить её как страницу HTML?",
  "The file doesn't exist": "Файл не существует",
  "The requested file doesn't exist.": "Запрошенный файл не существует.",
- "Details:": "Подробности:"
+ "Details:": "Подробности:",
+ "Contents": "Содержимое",
+ "Reading the contents…": "Чтение содержимого…"
 }

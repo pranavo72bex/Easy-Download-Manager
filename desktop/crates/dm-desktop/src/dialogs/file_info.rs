@@ -155,6 +155,28 @@ pub(super) fn file_info(app: &mut DmApp, ctx: &egui::Context) {
     let first = d.urls.first().cloned().unwrap_or_default();
     let youtube = d.urls.len() == 1 && dm_core::youtube::video_id(&first).is_some();
     let video = d.urls.len() == 1 && (page || youtube);
+    // A ZIP's files, read once from the end of the archive as the dialog
+    // opens, and listed below, so a person sees what the download holds
+    // before it is fetched (`zip_list`).
+    if d.urls.len() == 1
+        && !page
+        && zip_list::is_zip_address(&first)
+        && (first.starts_with("http://") || first.starts_with("https://"))
+    {
+        let client = dm_core::proxy::client_with(&app.backend.settings().proxy)
+            .unwrap_or_else(|_| dm_core::client());
+        let referrer = Some(d.referrer.clone()).filter(|r| !r.is_empty());
+        let sign_in = dm_core::cookies::SignIn::new(&first, &d.cookies);
+        zip_list::read_address(
+            &app.backend.runtime,
+            ctx,
+            &mut d.zip,
+            client,
+            first.clone(),
+            referrer,
+            sign_in,
+        );
+    }
     if video && d.choices.is_none() {
         let slot: std::sync::Arc<std::sync::Mutex<Option<Vec<dm_core::videopage::Choice>>>> =
             Default::default();
@@ -420,6 +442,21 @@ pub(super) fn file_info(app: &mut DmApp, ctx: &egui::Context) {
                             }
                         }
                         ui.end_row();
+                    }
+                    // A ZIP's files, by name and size: text only, never opened.
+                    // Nothing where the server or the file gave none.
+                    match zip_list::listing(&d.zip) {
+                        zip_list::Listing::Nothing => {}
+                        zip_list::Listing::Reading => {
+                            ui.label(t("Contents"));
+                            ui.label(RichText::new(zip_list::reading_words()).weak());
+                            ui.end_row();
+                        }
+                        zip_list::Listing::Files(files, more) => {
+                            ui.label(t("Contents"));
+                            ui.vertical(|ui| zip_list::show(ui, &files, more));
+                            ui.end_row();
+                        }
                     }
                     // A part of the video, from one moment to another: cut
                     // from the streams dm fetches itself, which today are a

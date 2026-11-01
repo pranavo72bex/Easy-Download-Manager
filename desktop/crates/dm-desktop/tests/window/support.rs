@@ -159,6 +159,52 @@ pub(crate) fn payload() -> Vec<u8> {
     (0..PAYLOAD).map(|i| (i * 7 % 251) as u8).collect()
 }
 
+/// A small ZIP, stored: a folder, a 1,000-byte file in it and a 5,000-byte one.
+pub(crate) fn tiny_zip() -> Vec<u8> {
+    use std::io::Write;
+    let mut buffer = std::io::Cursor::new(Vec::new());
+    {
+        let mut zip = zip::ZipWriter::new(&mut buffer);
+        let stored = zip::write::SimpleFileOptions::default()
+            .compression_method(zip::CompressionMethod::Stored);
+        zip.add_directory("docs/", stored).unwrap();
+        zip.start_file("docs/readme.txt", stored).unwrap();
+        zip.write_all(&[b'a'; 1000]).unwrap();
+        zip.start_file("setup.exe", stored).unwrap();
+        zip.write_all(&[b'b'; 5000]).unwrap();
+        zip.finish().unwrap();
+    }
+    buffer.into_inner()
+}
+
+/// `data` as a server that serves ranges answers for it.
+fn ranged(headers: &axum::http::HeaderMap, data: Vec<u8>) -> Response {
+    let total = data.len();
+    let asked = headers
+        .get("range")
+        .and_then(|v| v.to_str().ok())
+        .and_then(|v| v.strip_prefix("bytes="))
+        .and_then(|v| v.split_once('-'));
+    match asked {
+        Some((from, to)) => {
+            let from: usize = from.parse().unwrap_or(0);
+            let to: usize = to.parse().unwrap_or(total - 1).min(total - 1);
+            Response::builder()
+                .status(206)
+                .header("content-range", format!("bytes {from}-{to}/{total}"))
+                .header("accept-ranges", "bytes")
+                .header("content-length", to - from + 1)
+                .body(Body::from(data[from..=to].to_vec()))
+                .unwrap()
+        }
+        None => Response::builder()
+            .header("accept-ranges", "bytes")
+            .header("content-length", total)
+            .body(Body::from(data))
+            .unwrap(),
+    }
+}
+
 /// A server with one file that arrives at once and one that never does.
 pub(crate) fn world() -> World {
     home();
@@ -168,6 +214,22 @@ pub(crate) fn world() -> World {
             .route(
                 "/file.zip",
                 axum::routing::get(|| async { Response::new(Body::from(payload())) }),
+            )
+            // A ZIP from a server that serves ranges, one from a server that
+            // does not, and a file named .zip that is none.
+            .route(
+                "/pack.zip",
+                axum::routing::get(|h: axum::http::HeaderMap| async move { ranged(&h, tiny_zip()) }),
+            )
+            .route(
+                "/plain.zip",
+                axum::routing::get(|| async { Response::new(Body::from(tiny_zip())) }),
+            )
+            .route(
+                "/notzip.zip",
+                axum::routing::get(|h: axum::http::HeaderMap| async move {
+                    ranged(&h, b"this is only text, long enough to be read from its end".to_vec())
+                }),
             )
             .route(
                 "/page.html",
