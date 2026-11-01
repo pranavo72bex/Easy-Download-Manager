@@ -572,6 +572,47 @@ pub fn reason(raw: &str) -> Option<&'static str> {
         .map(|(_, plain)| *plain)
 }
 
+/// What a person can do about a failure whose plain words (`REASONS`) stop at
+/// what went wrong: one sentence each, keyed by those words. The failures
+/// whose sentence already says what to do (try again, check the address, add
+/// the login) have none here.
+pub const NEXT_STEPS: [(&str, &str); 6] = [
+    (
+        "the disk is full",
+        "Free some space, or choose a folder on another drive (Options › Folders), then click Retry",
+    ),
+    (
+        "this link no longer works",
+        "Open the page it came from in your browser and download from there, which gives dm a new link",
+    ),
+    (
+        "the server refused the connection. Check the address, or try again later",
+        "If a firewall or security program asks about dm, allow it, then click Retry",
+    ),
+    (
+        "the site keeps redirecting in a loop, so the file can't be reached",
+        "Open the page in your browser and download from there, which hands dm the real link",
+    ),
+    (
+        "something of that name is already there",
+        "Choose another name or folder with Move/Rename, or remove the other file",
+    ),
+    (
+        "the site's security certificate couldn't be checked, so dm didn't connect",
+        "Check that the computer's date and time are right, then click Retry",
+    ),
+];
+
+/// The next step for a failure, in English (look it up with `t`); `None`
+/// where its plain words already say what to do, or are not known.
+pub fn next_step(raw: &str) -> Option<&'static str> {
+    let plain = reason(raw)?;
+    NEXT_STEPS
+        .iter()
+        .find(|(said, _)| *said == plain)
+        .map(|(_, step)| *step)
+}
+
 /// A key shortcut as a menu shows it: the modifiers as egui names them
 /// (symbols on a Mac), and the key by its symbol where it has one — "." and
 /// "," rather than "Period" and "Comma", which no keyboard prints and no

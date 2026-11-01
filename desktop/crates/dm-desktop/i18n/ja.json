@@ -770,5 +770,11 @@
  "When an address is already in the list": "アドレスがすでに一覧にあるとき",
  "dm identifies itself to servers as:": "dm がサーバーに名乗る名前:",
  "Identify as dm only": "dm としてのみ名乗る",
- "Sends dm's own name first. A site that refuses it is asked again with another name.": "まず dm 自身の名前を送ります。拒否するサイトには別の名前で再度問い合わせます。"
+ "Sends dm's own name first. A site that refuses it is asked again with another name.": "まず dm 自身の名前を送ります。拒否するサイトには別の名前で再度問い合わせます。",
+ "Free some space, or choose a folder on another drive (Options › Folders), then click Retry": "空き容量を増やすか、別のドライブのフォルダーを選んでください（オプション › フォルダー）。そのあと 再試行 をクリックします",
+ "Open the page it came from in your browser and download from there, which gives dm a new link": "元のページをブラウザーで開き、そこからダウンロードしてください。dm に新しいリンクが渡されます",
+ "If a firewall or security program asks about dm, allow it, then click Retry": "ファイアウォールやセキュリティ プログラムが dm について確認してきたら許可し、再試行 をクリックします",
+ "Open the page in your browser and download from there, which hands dm the real link": "ページをブラウザーで開き、そこからダウンロードしてください。dm に本当のリンクが渡されます",
+ "Choose another name or folder with Move/Rename, or remove the other file": "移動／名前の変更 で別の名前かフォルダーを選ぶか、もう一方のファイルを削除してください",
+ "Check that the computer's date and time are right, then click Retry": "コンピューターの日付と時刻が正しいか確認し、再試行 をクリックします"
 }

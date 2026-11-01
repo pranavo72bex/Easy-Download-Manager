@@ -770,5 +770,11 @@
  "When an address is already in the list": "주소가 이미 목록에 있을 때",
  "dm identifies itself to servers as:": "dm이 서버에 밝히는 이름:",
  "Identify as dm only": "dm으로만 밝히기",
- "Sends dm's own name first. A site that refuses it is asked again with another name.": "먼저 dm 자신의 이름을 보냅니다. 이를 거부하는 사이트에는 다른 이름으로 다시 요청합니다."
+ "Sends dm's own name first. A site that refuses it is asked again with another name.": "먼저 dm 자신의 이름을 보냅니다. 이를 거부하는 사이트에는 다른 이름으로 다시 요청합니다.",
+ "Free some space, or choose a folder on another drive (Options › Folders), then click Retry": "공간을 확보하거나 다른 드라이브의 폴더를 선택하세요(옵션 › 폴더). 그런 다음 다시 시도을(를) 누르세요",
+ "Open the page it came from in your browser and download from there, which gives dm a new link": "원래 페이지를 브라우저에서 열고 거기서 다운로드하세요. 그러면 dm이 새 링크를 받습니다",
+ "If a firewall or security program asks about dm, allow it, then click Retry": "방화벽이나 보안 프로그램이 dm에 대해 물으면 허용한 다음 다시 시도을(를) 누르세요",
+ "Open the page in your browser and download from there, which hands dm the real link": "페이지를 브라우저에서 열고 거기서 다운로드하세요. 그러면 dm이 실제 링크를 받습니다",
+ "Choose another name or folder with Move/Rename, or remove the other file": "이동/이름 바꾸기(으)로 다른 이름이나 폴더를 선택하거나 다른 파일을 삭제하세요",
+ "Check that the computer's date and time are right, then click Retry": "컴퓨터의 날짜와 시간이 맞는지 확인한 다음 다시 시도을(를) 누르세요"
 }

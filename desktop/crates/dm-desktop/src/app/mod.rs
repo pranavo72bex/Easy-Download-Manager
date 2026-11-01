@@ -765,6 +765,7 @@ pub fn run_time_words() -> Vec<&'static str> {
     words.extend(crate::format::MONTHS);
     words.push(DROP_HINT);
     words.extend(format::REASONS.iter().map(|(_, plain)| *plain));
+    words.extend(format::NEXT_STEPS.iter().map(|(_, step)| *step));
     words.extend(format::RETRY_CAUSES);
     for place in [
         Place::All,

@@ -770,5 +770,11 @@
  "When an address is already in the list": "Jika alamat sudah ada di daftar",
  "dm identifies itself to servers as:": "dm memperkenalkan diri ke server sebagai:",
  "Identify as dm only": "Kenali hanya sebagai dm",
- "Sends dm's own name first. A site that refuses it is asked again with another name.": "Mengirim nama dm sendiri lebih dulu. Situs yang menolaknya ditanya lagi dengan nama lain."
+ "Sends dm's own name first. A site that refuses it is asked again with another name.": "Mengirim nama dm sendiri lebih dulu. Situs yang menolaknya ditanya lagi dengan nama lain.",
+ "Free some space, or choose a folder on another drive (Options › Folders), then click Retry": "Kosongkan ruang atau pilih folder di drive lain (Opsi › Folder), lalu klik Coba lagi",
+ "Open the page it came from in your browser and download from there, which gives dm a new link": "Buka halaman asalnya di peramban dan unduh dari sana, sehingga dm mendapat tautan baru",
+ "If a firewall or security program asks about dm, allow it, then click Retry": "Jika firewall atau program keamanan menanyakan dm, izinkan, lalu klik Coba lagi",
+ "Open the page in your browser and download from there, which hands dm the real link": "Buka halaman itu di peramban dan unduh dari sana, sehingga dm mendapat tautan yang asli",
+ "Choose another name or folder with Move/Rename, or remove the other file": "Pilih nama atau folder lain dengan Pindah/Ganti nama, atau hapus berkas yang lain",
+ "Check that the computer's date and time are right, then click Retry": "Periksa apakah tanggal dan waktu komputer sudah benar, lalu klik Coba lagi"
 }

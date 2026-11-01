@@ -137,6 +137,15 @@ pub(super) fn properties(app: &mut DmApp, ctx: &egui::Context) {
                                     None => said(ui, &status),
                                 }
                                 ui.end_row();
+                                // What a person can do, under a failure that
+                                // only says what went wrong.
+                                if let State::Failed(why) = &row.state {
+                                    if let Some(step) = format::next_step(why) {
+                                        ui.label("");
+                                        said(ui, t(step));
+                                        ui.end_row();
+                                    }
+                                }
                                 ui.label(t("Size"));
                                 said(ui, &size);
                                 ui.end_row();

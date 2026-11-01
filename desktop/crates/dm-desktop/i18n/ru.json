@@ -770,5 +770,11 @@
  "When an address is already in the list": "Когда адрес уже есть в списке",
  "dm identifies itself to servers as:": "dm представляется серверам как:",
  "Identify as dm only": "Представляться только как dm",
- "Sends dm's own name first. A site that refuses it is asked again with another name.": "Сначала отправляется собственное имя dm. Сайт, который его отклоняет, опрашивается снова под другим именем."
+ "Sends dm's own name first. A site that refuses it is asked again with another name.": "Сначала отправляется собственное имя dm. Сайт, который его отклоняет, опрашивается снова под другим именем.",
+ "Free some space, or choose a folder on another drive (Options › Folders), then click Retry": "Освободите место или выберите папку на другом диске (Параметры › Папки), затем нажмите «Повторить»",
+ "Open the page it came from in your browser and download from there, which gives dm a new link": "Откройте в браузере страницу, откуда пришла ссылка, и скачайте оттуда: dm получит новую ссылку",
+ "If a firewall or security program asks about dm, allow it, then click Retry": "Если брандмауэр или программа безопасности спрашивает о dm, разрешите ему доступ и нажмите «Повторить»",
+ "Open the page in your browser and download from there, which hands dm the real link": "Откройте страницу в браузере и скачайте оттуда: dm получит настоящую ссылку",
+ "Choose another name or folder with Move/Rename, or remove the other file": "Выберите другое имя или папку через «Переместить/Переименовать» или удалите другой файл",
+ "Check that the computer's date and time are right, then click Retry": "Проверьте, что дата и время на компьютере верны, затем нажмите «Повторить»"
 }

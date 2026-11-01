@@ -770,5 +770,11 @@
  "When an address is already in the list": "Cuando una dirección ya está en la lista",
  "dm identifies itself to servers as:": "dm se identifica ante los servidores como:",
  "Identify as dm only": "Identificarse solo como dm",
- "Sends dm's own name first. A site that refuses it is asked again with another name.": "Envía primero el nombre propio de dm. Si un sitio lo rechaza, se vuelve a preguntar con otro nombre."
+ "Sends dm's own name first. A site that refuses it is asked again with another name.": "Envía primero el nombre propio de dm. Si un sitio lo rechaza, se vuelve a preguntar con otro nombre.",
+ "Free some space, or choose a folder on another drive (Options › Folders), then click Retry": "Libere espacio o elija una carpeta en otra unidad (Opciones › Carpetas) y haga clic en Reintentar",
+ "Open the page it came from in your browser and download from there, which gives dm a new link": "Abra en el navegador la página de la que vino y descargue desde allí; así dm recibe un enlace nuevo",
+ "If a firewall or security program asks about dm, allow it, then click Retry": "Si un cortafuegos o un programa de seguridad pregunta por dm, permítalo y haga clic en Reintentar",
+ "Open the page in your browser and download from there, which hands dm the real link": "Abra la página en el navegador y descargue desde allí; así dm recibe el enlace real",
+ "Choose another name or folder with Move/Rename, or remove the other file": "Elija otro nombre o carpeta con Mover/Renombrar, o elimine el otro archivo",
+ "Check that the computer's date and time are right, then click Retry": "Compruebe que la fecha y la hora del equipo sean correctas y haga clic en Reintentar"
 }

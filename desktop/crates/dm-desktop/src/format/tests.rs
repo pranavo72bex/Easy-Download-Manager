@@ -366,3 +366,17 @@ fn dms_own_words_follow_the_vague_video_sentence() {
     assert!(cut.chars().count() <= 121 && cut.ends_with('…'), "{cut}");
     assert_eq!(video_said(""), None);
 }
+
+#[test]
+fn a_failure_that_only_says_what_went_wrong_says_what_to_do() {
+    // Every next step is keyed by plain words that exist, and the steps are
+    // found from the raw message.
+    for (plain, step) in NEXT_STEPS {
+        assert!(REASONS.iter().any(|(_, said)| *said == plain), "{plain}");
+        assert!(!step.is_empty());
+    }
+    let step = next_step("No space left on device (os error 28)");
+    assert_eq!(step, Some(NEXT_STEPS[0].1));
+    // A failure that already says what to do, and one not known, have none.
+    assert_eq!(next_step("something nobody has seen before"), None);
+}

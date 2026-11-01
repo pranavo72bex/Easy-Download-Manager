@@ -655,6 +655,14 @@ def walk(dm, origin):
     check("B14", "a 404 fails with words a person reads",
           r and r["state"]["kind"] == "failed" and "404" in r["state"].get("reason", "") and "no longer works" in status,
           f"{status} / {r['state'].get('reason', '') if r else ''}")
+    # B54: a failure that only says what went wrong also says what a person can do about it.
+    dm.call("ui.click", text="missing.bin", double=True)
+    pause(1.5)
+    said = " ".join(dm.dialog_texts())
+    check("B54", "a failed download's window says what a person can do next",
+          "Open the page it came from in your browser" in said, said[-200:])
+    dm.call("ui.key", key="Escape")
+    pause(0.6)
     finished = [x for x in dm.rows() if x["state"]["kind"] == "completed"]
     exact = []
     for x in finished:
@@ -844,6 +852,12 @@ def walk(dm, origin):
     check("B46", "and the number goes on counting as it runs",
           bool(re.match(r"^\d+% ", later)) and int(re.match(r"^(\d+)%", later).group(1)) >= int(re.match(r"^(\d+)%", first).group(1)) if re.match(r"^\d+% ", first) and re.match(r"^\d+% ", later) else False,
           f"{first!r} then {later!r}")
+    # B53: the Connections section of that window names each piece's own speed.
+    dm.click("Connections")
+    pause(2.5)
+    rates = [w for w in dm.dialog_texts() if re.search(r"\d\s?(KB|MB|GB|B)/s$", w)]
+    check("B53", "a running download's Connections section names a speed beside its pieces",
+          len(rates) >= 2, f"{rates}")
     dm.call("ui.key", key="Escape")
     pause(0.6)
     r = dm.row("ui.bin")

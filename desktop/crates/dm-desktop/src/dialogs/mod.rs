@@ -633,6 +633,9 @@ pub struct Dialogs {
     pub complete_never: bool,
     /// Whether each download could resume, as last read while it ran.
     pub resumable_seen: std::collections::HashMap<Id, bool>,
+    /// What each progress window has seen of its connections' speeds, to work
+    /// out each one's rate (`ConnRates`).
+    pub conn_rates: std::collections::HashMap<Id, ConnRates>,
     /// The KB/s typed for a download's own limit in its progress window,
     /// kept while the limit is off so ticking it again brings it back.
     pub own_limits: std::collections::HashMap<Id, u64>,

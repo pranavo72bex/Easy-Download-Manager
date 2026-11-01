@@ -770,5 +770,11 @@
  "When an address is already in the list": "Bir adres listede zaten varsa",
  "dm identifies itself to servers as:": "dm sunuculara şöyle tanıtılır:",
  "Identify as dm only": "Yalnızca dm olarak tanıt",
- "Sends dm's own name first. A site that refuses it is asked again with another name.": "Önce dm'nin kendi adını gönderir. Bunu reddeden site başka bir adla yeniden sorulur."
+ "Sends dm's own name first. A site that refuses it is asked again with another name.": "Önce dm'nin kendi adını gönderir. Bunu reddeden site başka bir adla yeniden sorulur.",
+ "Free some space, or choose a folder on another drive (Options › Folders), then click Retry": "Yer açın veya başka bir sürücüde bir klasör seçin (Seçenekler › Klasörler), sonra Yeniden dene düğmesine tıklayın",
+ "Open the page it came from in your browser and download from there, which gives dm a new link": "Bağlantının geldiği sayfayı tarayıcınızda açıp oradan indirin; böylece dm yeni bir bağlantı alır",
+ "If a firewall or security program asks about dm, allow it, then click Retry": "Bir güvenlik duvarı veya güvenlik programı dm hakkında sorarsa izin verin, sonra Yeniden dene düğmesine tıklayın",
+ "Open the page in your browser and download from there, which hands dm the real link": "Sayfayı tarayıcınızda açıp oradan indirin; böylece dm gerçek bağlantıyı alır",
+ "Choose another name or folder with Move/Rename, or remove the other file": "Taşı/Yeniden adlandır ile başka bir ad veya klasör seçin ya da diğer dosyayı kaldırın",
+ "Check that the computer's date and time are right, then click Retry": "Bilgisayarın tarih ve saatinin doğru olduğunu denetleyin, sonra Yeniden dene düğmesine tıklayın"
 }

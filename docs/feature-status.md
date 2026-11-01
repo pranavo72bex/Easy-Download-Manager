@@ -23,6 +23,7 @@ was removed on 2026-10-12 and is in git history.
 - [x] A listed address asks Show it / Resume it, Download again, Replace the old file, Cancel, with Remember my choice kept in Options › General (`dialogs/add.rs` `Dup`; `tests/window/choices.rs`; contract row B50)
 - [x] Options › Advanced shows the name dm sends to servers with an Identify as dm only switch (`dm_core::set_identify_as_dm`; `dm-core/tests/identify_as.rs`; contract row B51)
 - [x] The tray's Speed menu has Settings… (contract row B52); the Downloads menu's Speed limiter On/Off and Settings… already existed
+- [x] A running download's Connections section names each piece's own speed (contract row B53), and a failed download's window and Properties say one next step under the reason where the reason stops at what went wrong (row B54). Written 2026-11-01, not yet built or run.
 - [x] Find previous, Shift-F3, in the Downloads menu beside Find next, wrapping round from the first row to the last (`app/search.rs` `next_match`, five unit tests; `tests/window/lists.rs`; contract row B48)
 - [x] HTTP/HTTPS downloading
 - [x] Multi-connection downloading — and a limit of a site's own (Options ›

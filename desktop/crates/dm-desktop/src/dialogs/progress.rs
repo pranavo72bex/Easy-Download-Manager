@@ -1,4 +1,63 @@
 use super::*;
+
+/// How fast each piece of one download is coming in, worked out from where it
+/// stood at the last two samples: the Connections section of its progress
+/// window names a rate beside each piece under way.
+#[derive(Default)]
+pub struct ConnRates {
+    at: Option<std::time::Instant>,
+    /// By the piece's first byte: what it held at the last sample, and its
+    /// rate since, bytes a second, smoothed.
+    pieces: std::collections::HashMap<u64, (u64, f64)>,
+}
+
+impl ConnRates {
+    /// The least time between two samples; any frame in between keeps the
+    /// rates it has, so a rate is not worked out from a few bytes.
+    const EVERY: std::time::Duration = std::time::Duration::from_millis(400);
+
+    /// Takes a sample of `pieces`, as (first byte, bytes held).
+    pub fn sample(&mut self, now: std::time::Instant, pieces: &[(u64, u64)]) {
+        let Some(last) = self.at else {
+            self.at = Some(now);
+            self.pieces = pieces.iter().map(|&(start, done)| (start, (done, 0.0))).collect();
+            return;
+        };
+        let secs = now.saturating_duration_since(last);
+        if secs < Self::EVERY {
+            return;
+        }
+        let secs = secs.as_secs_f64();
+        let mut next = std::collections::HashMap::new();
+        for &(start, done) in pieces {
+            let rate = match self.pieces.get(&start) {
+                // A piece that went on from where it was: half of what it
+                // did just now and half of what it did before, as the
+                // download's own speed is smoothed.
+                Some(&(before, old)) if done >= before => {
+                    let fresh = (done - before) as f64 / secs;
+                    if old > 0.0 {
+                        old * 0.5 + fresh * 0.5
+                    } else {
+                        fresh
+                    }
+                }
+                // A piece not seen before, or one that went back (a repair):
+                // nothing to say yet.
+                _ => 0.0,
+            };
+            next.insert(start, (done, rate));
+        }
+        self.pieces = next;
+        self.at = Some(now);
+    }
+
+    /// The piece's rate in bytes a second, `0.0` where it has none yet.
+    pub fn rate(&self, start: u64) -> f64 {
+        self.pieces.get(&start).map_or(0.0, |&(_, rate)| rate)
+    }
+}
+
 pub(super) fn progress(app: &mut DmApp, ctx: &egui::Context) {
     let mut ids: Vec<Id> = app.dialogs.progress.iter().copied().collect();
     ids.sort_unstable();
@@ -13,6 +72,19 @@ pub(super) fn progress(app: &mut DmApp, ctx: &egui::Context) {
             row.progress.total = app.sizes_told.get(&id).copied();
         }
         let connections = app.backend.connections(id);
+        // Each piece's own speed, sampled here so the section below only reads
+        // them.
+        let conn_speeds: Vec<f64> = {
+            let rates = app.dialogs.conn_rates.entry(id).or_default();
+            rates.sample(
+                std::time::Instant::now(),
+                &connections
+                    .iter()
+                    .map(|c| (c.start, c.done))
+                    .collect::<Vec<_>>(),
+            );
+            connections.iter().map(|c| rates.rate(c.start)).collect()
+        };
         // While its parts are joined the plan they are read from is gone:
         // the last answer stands, and nothing reads as unknown or unstarted
         // with every byte in.
@@ -119,6 +191,15 @@ pub(super) fn progress(app: &mut DmApp, ctx: &egui::Context) {
                                 status.on_hover_text(raw);
                             }
                             ui.end_row();
+                            // What a person can do, under a failure that
+                            // only says what went wrong.
+                            if let State::Failed(why) = &row.state {
+                                if let Some(step) = format::next_step(why) {
+                                    ui.label("");
+                                    ui.add(egui::Label::new(RichText::new(t(step)).weak()).wrap());
+                                    ui.end_row();
+                                }
+                            }
                             ui.label(t("File size"));
                             ui.label(
                                 p.total
@@ -361,6 +442,14 @@ pub(super) fn progress(app: &mut DmApp, ctx: &egui::Context) {
                                                 &widest,
                                             );
                                         }
+                                        // Its own speed, while it is at work: the
+                                        // pieces are read together above, and a
+                                        // slow server shows as the one piece
+                                        // that is slow.
+                                        let rate = conn_speeds.get(n).copied().unwrap_or(0.0);
+                                        if rate > 0.0 && done < span && row.state == State::Running {
+                                            ui.label(crate::table::digits(ui, format::rate(rate)).weak());
+                                        }
                                     });
                                 }
                             });
@@ -412,6 +501,7 @@ pub(super) fn progress(app: &mut DmApp, ctx: &egui::Context) {
         if !open && !asking {
             app.dialogs.progress.remove(&id);
             app.dialogs.progress_closed.insert(id);
+            app.dialogs.conn_rates.remove(&id);
         }
         if pause || resume || cancel {
             app.refresh();
@@ -464,5 +554,42 @@ mod title_tests {
     fn more_than_the_size_is_a_hundred_not_more() {
         assert_eq!(percent_of(2_000, Some(1_000)), Some(100));
         assert_eq!(percent_of(u64::MAX, Some(1)), Some(100));
+    }
+}
+
+#[cfg(test)]
+mod conn_rate_tests {
+    use super::*;
+    use std::time::{Duration, Instant};
+
+    #[test]
+    fn a_piece_has_no_rate_until_it_has_been_seen_twice() {
+        let t0 = Instant::now();
+        let mut rates = ConnRates::default();
+        rates.sample(t0, &[(0, 100)]);
+        assert_eq!(rates.rate(0), 0.0);
+        rates.sample(t0 + Duration::from_secs(1), &[(0, 1_100)]);
+        assert!((rates.rate(0) - 1_000.0).abs() < 1.0);
+        assert_eq!(rates.rate(99), 0.0);
+    }
+
+    #[test]
+    fn a_frame_too_soon_keeps_the_rates_it_has() {
+        let t0 = Instant::now();
+        let mut rates = ConnRates::default();
+        rates.sample(t0, &[(0, 0)]);
+        rates.sample(t0 + Duration::from_secs(1), &[(0, 1_000)]);
+        rates.sample(t0 + Duration::from_millis(1_100), &[(0, 9_999)]);
+        assert!((rates.rate(0) - 1_000.0).abs() < 1.0);
+    }
+
+    #[test]
+    fn a_piece_that_went_back_starts_again() {
+        let t0 = Instant::now();
+        let mut rates = ConnRates::default();
+        rates.sample(t0, &[(0, 5_000)]);
+        rates.sample(t0 + Duration::from_secs(1), &[(0, 6_000)]);
+        rates.sample(t0 + Duration::from_secs(2), &[(0, 100)]);
+        assert_eq!(rates.rate(0), 0.0);
     }
 }

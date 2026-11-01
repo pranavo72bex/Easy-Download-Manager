@@ -666,6 +666,7 @@ impl Dialogs {
         self.complete.remove(&id);
         self.properties.remove(&id);
         self.resumable_seen.remove(&id);
+        self.conn_rates.remove(&id);
     }
 }
 
