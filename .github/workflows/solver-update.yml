@@ -31,7 +31,7 @@ jobs:
       - name: Run the offline YouTube tests with the new pin
         working-directory: desktop
         run: |
-          if git diff --quiet -- desktop/crates/dm-core/src/youtube.rs; then echo "the pin is current"; exit 0; fi
+          if git diff --quiet -- crates/dm-core/src/youtube.rs; then echo "the pin is current"; exit 0; fi
           cargo test -p dm-core youtube
       - name: Open a pull request
         env:
