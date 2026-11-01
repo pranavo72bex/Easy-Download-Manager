@@ -9,6 +9,9 @@ downloading, and a browser extension that catches downloads and hands them
 to it. Both are Rust — the app natively, the extension compiled to
 WebAssembly.
 
+The engine's blueprint (what it must do, what is built, what is not, and how
+each part is tested) is in [engine/README.md](engine/README.md).
+
 dm splits a file across several connections, resumes what was interrupted,
 keeps a queue, and takes the downloads you start by clicking a link — the
 things a download manager is used for.
