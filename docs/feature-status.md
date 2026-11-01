@@ -172,6 +172,7 @@ and is not carried over.
       on 2026-10-11. It calls the queue directly, and `tests/window.rs` drives
       every control through its accessibility tree against a real queue on
       loopback
+- [x] Every dialog is a window of its own (maintainer, 2026-11-01): the system's title bar with the dialog's title and its close button, over the middle of dm's window to begin with and movable anywhere on the screen; a dialog that keeps the clicks to itself holds dm's window until it is answered; dm's close ends them. One place does it for all (`dialogs/apart.rs`, `Dialog::show`); the control port's `ui.texts`, `ui.click`, `ui.type` and `ui.key` reach them, `ui.windows` says where they stand and `ui.move_window` moves one (`app/human.rs`; a vendored `egui-winit`, `desktop/vendor/README.md`). Contract row B42.
 - [x] The window — menu bar (Program, File, Downloads, View, Help),
       toolbar, category tree with Everything, In progress, Done and Queues,
       a sortable table (Name, Queue, Size, Status, Time left, Speed, Date,

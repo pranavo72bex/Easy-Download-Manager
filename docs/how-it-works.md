@@ -446,7 +446,10 @@ desktop/
                           sync.rs (queue ↔ rows), commands.rs (enabled/run), control.rs (the control protocol),
                           places.rs, ui.rs, menus.rs, tree.rs, bars.rs, drops.rs, search.rs, lists.rs, files.rs…
     src/dialogs/          one file per dialog (add.rs, options.rs, file_info.rs…); frame.rs and
-                          controls.rs are the toolkit they share; state.rs holds the open dialogs
+                          controls.rs are the toolkit they share; state.rs holds the open dialogs;
+                          apart.rs opens each as a window of its own (an egui viewport, sized to
+                          what the body measures), and hands the control port's clicks and keys
+                          to it (the input hook in vendor/egui-winit)
     src/commands.rs       the command registry every menu, key and script runs
     src/cli.rs, mcp.rs, control.rs   the command line, the MCP server, the control protocol
     tests/window.rs       indexes tests/window/*.rs, grouped by what they check (options, dialogs,

@@ -599,6 +599,9 @@ fn main() {
             browsers_said,
         }
     };
+    // The dialogs' own windows take the clicks and keys a control client sends
+    // (`dialogs/apart.rs`; `vendor/egui-winit`).
+    let _ = egui_winit::OTHER_WINDOWS_INPUT.set(dm_desktop::dialogs::apart::feed);
     let result = if hidden {
         run_hidden(options, make)
     } else {

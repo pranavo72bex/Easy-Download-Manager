@@ -28,3 +28,18 @@ connection from the window under the pointer, with the press's serial,
 which only that connection holds, and hands the target `text/uri-list`;
 `dm_take_drag_ended` tells dm the button is up. Checked with a real
 Wayland drag both ways: `scripts/linux-wayland-drag-check.sh`.
+
+## egui-winit 0.37.0
+
+Licence MIT OR Apache-2.0 (its `Cargo.toml`); the version eframe 0.37.0 uses.
+The `Cargo.lock` of the published package is left out; `src/lib.rs` is the
+only file changed.
+
+`src/lib.rs` (`OTHER_WINDOWS_INPUT`, searched for `dm:`): a function the
+application sets once, called with the input of every window but the first as
+`State::take_egui_input` hands it to egui. eframe offers the first window's
+input to the app (`App::raw_input_hook`) and the others' to nobody; dm draws
+each dialog as a window of its own (`dialogs/frame.rs`), and the clicks, keys
+and typing a control client sends (`ui.click`, `ui.key`, `ui.type`) have to
+reach them as a person's would, through the input of the window they are for
+(`app/human.rs`). Nothing else is changed.

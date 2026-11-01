@@ -20,6 +20,7 @@ use crate::format;
 
 mod about;
 mod add;
+pub mod apart;
 mod asks;
 mod complete;
 mod confirm;
@@ -700,6 +701,7 @@ pub struct Dialogs {
 }
 
 pub fn show(app: &mut DmApp, ctx: &egui::Context) {
+    apart::begin_frame(ctx);
     // The keyboard goes back to what opened a dialog once it closes: it
     // was left nowhere, and the next Tab started from the window's top (a
     // design review). Only where the keyboard had a place to begin with.
@@ -737,7 +739,12 @@ pub fn show(app: &mut DmApp, ctx: &egui::Context) {
         );
     }
     for id in std::mem::take(&mut app.dialogs.raise) {
-        ctx.move_to_top(egui::LayerId::new(egui::Order::Middle, id));
+        if apart::separate(ctx) {
+            // A window of its own comes forward by being given the keyboard.
+            apart::raise(id);
+        } else {
+            ctx.move_to_top(egui::LayerId::new(egui::Order::Middle, id));
+        }
     }
     app.promote_asks();
     countdown(app, ctx);
@@ -783,16 +790,49 @@ pub fn show(app: &mut DmApp, ctx: &egui::Context) {
         let order: Vec<egui::Id> = ctx.memory(|m| m.layer_ids().map(|layer| layer.id).collect());
         app.dialogs.close_top(&order);
     }
+    // The windows of dialogs that were closed with their own close button or
+    // Escape, which the dialogs' windows asked for while they were drawn.
+    for id in apart::take_closing() {
+        app.dialogs.close_window(id);
+    }
     app.popup_was_open = ctx.any_popup_open();
     // The topmost of the dialogs in front keeps the keyboard and the
     // clicks: egui takes the highest layer given.
     // A question is kept on top: a progress window opened by the same
     // click covered "Start outside the schedule?".
+    if apart::separate(ctx) {
+        hold_the_window(app, ctx);
+        return;
+    }
     for title in app.dialogs.questions() {
         ctx.move_to_top(egui::LayerId::new(egui::Order::Middle, window_id(title)));
     }
     for layer in app.dialogs.modal_layers() {
         ctx.memory_mut(|m| m.set_modal_layer(layer));
+    }
+}
+
+/// While a dialog that keeps the clicks to itself is open in a window of its
+/// own, the main window takes none, nor the keyboard: a layer over all of it
+/// is the one egui lets through, and a click on it brings the dialog forward,
+/// as a click on the window that owns a dialog does.
+fn hold_the_window(app: &DmApp, ctx: &egui::Context) {
+    if !app.dialogs.modal() {
+        return;
+    }
+    let room = ctx.content_rect();
+    let held = egui::Area::new(egui::Id::unique("dm-dialogs-hold-the-window"))
+        .order(egui::Order::Foreground)
+        .fixed_pos(room.min)
+        .show(ctx, |ui| {
+            ui.allocate_exact_size(room.size(), egui::Sense::click_and_drag())
+                .1
+        });
+    ctx.memory_mut(|m| m.set_modal_layer(held.response.layer_id));
+    if held.inner.is_pointer_button_down_on() {
+        if let Some((window, _)) = apart::windows().last() {
+            ctx.send_viewport_cmd_to(*window, egui::ViewportCommand::Focus);
+        }
     }
 }
 

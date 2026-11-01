@@ -25,6 +25,9 @@ import hashlib, json, os, pathlib, re, shutil, signal, socket, struct, subproces
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 CONTRACT = ROOT / "docs" / "behaviour-contract.md"
 BASELINE = ROOT / "docs" / "behaviour-baseline"
+# One set of pictures for each system whose fonts and window frames differ: the
+# set for this one where there is one, else the first.
+BASELINE_SET = BASELINE / "windows" if sys.platform == "win32" else BASELINE
 BINARY = pathlib.Path(os.environ.get("DM_BINARY") or ROOT / "desktop/target/debug/dm-desktop")
 EDGE = os.environ.get("DM_QA_EDGE") or {
     "darwin": "/Applications/Microsoft Edge.app/Contents/MacOS/Microsoft Edge",
@@ -52,6 +55,127 @@ def check(row, what, ok, detail=""):
     RESULTS.setdefault(row, []).append((bool(ok), what, detail))
     print(f"  {'PASS' if ok else 'FAIL'}  {row}  {what}" + (f" — {detail}" if detail else ""), flush=True)
     return ok
+
+
+# ---------------------------------------------------- dialogs' own windows
+
+def screen_region(x, y, w, h, target):
+    """A picture of part of the screen: how a dialog's window of its own is
+    pictured, as dm's own pictures (`ui.screenshot`) are of its main window."""
+    if w <= 0 or h <= 0:
+        return False
+    target = pathlib.Path(target)
+    if sys.platform == "win32":
+        ps = ("Add-Type -AssemblyName System.Drawing; "
+              "Add-Type -Namespace W -Name D -MemberDefinition "
+              "'[DllImport(\"user32.dll\")] public static extern bool SetProcessDPIAware();'; "
+              "[W.D]::SetProcessDPIAware() | Out-Null; "
+              f"$b = New-Object System.Drawing.Bitmap {w}, {h}; "
+              "$g = [System.Drawing.Graphics]::FromImage($b); "
+              f"$g.CopyFromScreen({x}, {y}, 0, 0, $b.Size); "
+              f"$b.Save('{target}', [System.Drawing.Imaging.ImageFormat]::Png)")
+        subprocess.run(["powershell", "-NoProfile", "-Command", ps], capture_output=True)
+    elif sys.platform == "darwin":
+        subprocess.run(["screencapture", "-x", f"-R{x},{y},{w},{h}", str(target)], capture_output=True)
+    else:
+        return False
+    return target.is_file()
+
+
+WIN32_WINDOWS = r'''
+Add-Type @"
+using System; using System.Text; using System.Runtime.InteropServices;
+public class W { public delegate bool Cb(IntPtr h, IntPtr l);
+ [DllImport("user32.dll")] public static extern bool EnumWindows(Cb c, IntPtr l);
+ [DllImport("user32.dll")] public static extern uint GetWindowThreadProcessId(IntPtr h, out uint p);
+ [DllImport("user32.dll", CharSet=CharSet.Unicode)] public static extern int GetWindowText(IntPtr h, StringBuilder s, int n);
+ [DllImport("user32.dll")] public static extern bool IsWindowVisible(IntPtr h);
+ [DllImport("user32.dll")] public static extern bool PostMessage(IntPtr h, uint m, IntPtr w, IntPtr l); }
+"@
+$want = %d; $close = "%s"; $o = @()
+[W]::EnumWindows({ param($h,$l) $p=0; [W]::GetWindowThreadProcessId($h,[ref]$p)|Out-Null
+ if ($p -eq $want -and [W]::IsWindowVisible($h)) { $s=New-Object System.Text.StringBuilder 200; [W]::GetWindowText($h,$s,200)|Out-Null
+   if ($s.Length -gt 0) { $script:o += $s.ToString(); if ($s.ToString() -eq $close) { [W]::PostMessage($h, 0x10, [IntPtr]::Zero, [IntPtr]::Zero)|Out-Null } } }
+ $true }, [IntPtr]::Zero)|Out-Null
+$o
+'''
+
+
+def win32_titles(pid, close=""):
+    """The titles of a process's visible windows on Windows; with `close`, the
+    window of that title is sent WM_CLOSE, as its × button does."""
+    out = subprocess.run(["powershell", "-NoProfile", "-Command", WIN32_WINDOWS % (pid, close)],
+                         capture_output=True, text=True).stdout
+    return [line.strip() for line in out.splitlines() if line.strip()]
+
+
+WIN32_HEAD = r'''
+Add-Type @"
+using System; using System.Text; using System.Runtime.InteropServices;
+public class U {
+ public delegate bool Cb(IntPtr h, IntPtr l);
+ [DllImport("user32.dll")] public static extern bool SetProcessDPIAware();
+ [DllImport("user32.dll")] public static extern bool EnumWindows(Cb c, IntPtr l);
+ [DllImport("user32.dll")] public static extern uint GetWindowThreadProcessId(IntPtr h, out uint p);
+ [DllImport("user32.dll", CharSet=CharSet.Unicode)] public static extern int GetWindowText(IntPtr h, StringBuilder s, int n);
+ [DllImport("user32.dll")] public static extern bool IsWindowVisible(IntPtr h);
+ [DllImport("user32.dll")] public static extern bool GetWindowRect(IntPtr h, out R r);
+ [DllImport("user32.dll")] public static extern IntPtr GetParent(IntPtr h);
+ [DllImport("user32.dll")] public static extern IntPtr GetWindow(IntPtr h, uint cmd);
+ [DllImport("user32.dll")] public static extern int GetWindowLong(IntPtr h, int i);
+ [DllImport("user32.dll")] public static extern bool SetWindowPos(IntPtr h, IntPtr a, int x, int y, int w, int hh, uint f);
+ [DllImport("user32.dll")] public static extern bool SetCursorPos(int x, int y);
+ [DllImport("user32.dll")] public static extern void mouse_event(uint f, int dx, int dy, uint d, UIntPtr e);
+ public struct R { public int L, T, Rr, B; } }
+"@
+[U]::SetProcessDPIAware() | Out-Null
+'''
+
+
+def win32_run(body):
+    return subprocess.run(["powershell", "-NoProfile", "-Command", WIN32_HEAD + body],
+                          capture_output=True, text=True).stdout
+
+
+def win32_windows(pid):
+    """What Windows itself says of each visible titled window of dm's: its rectangle
+    on the screen, its parent and owner (none for a top-level window) and its style."""
+    body = r'''
+$want = %d; $o = @()
+[U]::EnumWindows({ param($h,$l) $p=0; [U]::GetWindowThreadProcessId($h,[ref]$p)|Out-Null
+ if ($p -eq $want -and [U]::IsWindowVisible($h)) { $s=New-Object System.Text.StringBuilder 200; [U]::GetWindowText($h,$s,200)|Out-Null
+  if ($s.Length -gt 0) { $r=New-Object U+R; [U]::GetWindowRect($h,[ref]$r)|Out-Null
+   $script:o += ("{0}|{1}|{2},{3},{4},{5}|{6}|{7}|{8}" -f $h.ToInt64(),$s,$r.L,$r.T,$r.Rr,$r.B,[U]::GetParent($h).ToInt64(),[U]::GetWindow($h,4).ToInt64(),[U]::GetWindowLong($h,-16)) } }
+ $true }, [IntPtr]::Zero)|Out-Null
+$o''' % pid
+    found = {}
+    for line in win32_run(body).splitlines():
+        parts = line.strip().split("|")
+        if len(parts) == 6:
+            found[parts[1]] = {"hwnd": int(parts[0]), "rect": [int(v) for v in parts[2].split(",")],
+                               "parent": int(parts[3]), "owner": int(parts[4]), "style": int(parts[5]) & 0xFFFFFFFF}
+    return found
+
+
+def win32_move(pid, title, x, y):
+    """Puts a window of dm's where the system is told, as a person's drag would."""
+    window = win32_windows(pid).get(title)
+    if window:
+        win32_run(r"[U]::SetWindowPos([IntPtr]%d, [IntPtr]::Zero, %d, %d, 0, 0, 0x0005) | Out-Null" % (window["hwnd"], x, y))
+
+
+def win32_drag(x0, y0, x1, y1):
+    """The mouse: pressed at one point of the screen, drawn to another and let go."""
+    win32_run(r'''
+[U]::SetCursorPos(%d,%d) | Out-Null; Start-Sleep -Milliseconds 250
+[U]::mouse_event(0x2,0,0,0,[UIntPtr]::Zero); Start-Sleep -Milliseconds 200
+for ($i=1; $i -le 20; $i++) { [U]::SetCursorPos([int](%d + ($i/20.0)*(%d-%d)), [int](%d + ($i/20.0)*(%d-%d))) | Out-Null; Start-Sleep -Milliseconds 25 }
+Start-Sleep -Milliseconds 250
+[U]::mouse_event(0x4,0,0,0,[UIntPtr]::Zero)''' % (x0, y0, x0, x1, x0, y0, y1, y0))
+
+
+def overlap(a, b):
+    return not (a[2] <= b[0] or b[2] <= a[0] or a[3] <= b[1] or b[3] <= a[1])
 
 
 # ---------------------------------------------------------------- the server
@@ -252,12 +376,48 @@ class Dm:
     def texts(self):
         return [t["text"] for t in self.call("ui.texts").get("result", {}).get("texts", [])]
 
+    def dialog_texts(self):
+        """The words drawn in dialogs' own windows, in the order they are drawn: a
+        dialog's sentence wraps wherever its window is wide enough, so it is read
+        whole by joining these."""
+        texts = self.call("ui.texts").get("result", {}).get("texts", [])
+        return [t["text"] for t in reversed(texts) if t.get("window") == "dialog"]
+
     def click(self, text):
         reply = self.call("ui.click", text=text)
+        # A dialog is a window of its own, made by the system when it is opened:
+        # on a busy computer its words are not drawn for a moment, as a person
+        # waits for them before clicking.
+        for _ in range(16):
+            if reply.get("ok"):
+                break
+            time.sleep(0.25)
+            reply = self.call("ui.click", text=text)
+        if not reply.get("ok"):
+            # Said where dm's window stands: a window narrower than its toolbar's
+            # labels shows icons only, and there is no word to click.
+            print(f"  (nothing on screen to click for {text!r}: dm's window {self.windows().get('main')})", flush=True)
         pause(0.6)
         return reply.get("ok")
 
-    def picture(self, name):
+    def windows(self):
+        """Where dm's window and each dialog's window of its own stand."""
+        return self.call("ui.windows").get("result", {})
+
+    def picture(self, name, dialog=False):
+        if dialog:
+            # A dialog is a window of its own, so it is pictured from the
+            # screen, over the rectangle dm says it stands on.
+            info = self.windows()
+            shown = [d["outer"] for d in info.get("dialogs", []) if d.get("outer")]
+            if not shown:
+                return None
+            x0, y0, x1, y1 = shown[-1]
+            k = (info.get("pixels_per_point") or 1.0) if sys.platform == "win32" else 1.0
+            target = WORK / "pictures" / f"{name}.png"
+            target.parent.mkdir(exist_ok=True)
+            ok = screen_region(round(x0 * k), round(y0 * k), round((x1 - x0) * k), round((y1 - y0) * k), target)
+            return target if ok else None
         shot = self.call("ui.screenshot", name=name)
         if shot.get("ok"):
             target = WORK / "pictures" / f"{name}.png"
@@ -357,7 +517,7 @@ def answer(dm, title, button, seconds=40):
     while time.time() < end:
         if title in dm.dialogs():
             pause(0.5)
-            said = dm.texts()
+            said = dm.dialog_texts()
             dm.click(button)
             return said
         time.sleep(0.25)
@@ -372,7 +532,7 @@ def drain(dm, seconds, buttons, said):
         for title in dm.dialogs():
             if title in buttons:
                 pause(0.4)
-                said.setdefault(title, []).append(dm.texts())
+                said.setdefault(title, []).append(dm.dialog_texts())
                 dm.click(buttons[title])
         time.sleep(0.25)
 
@@ -383,7 +543,7 @@ def walk(dm, origin):
     print("\nAdding a download", flush=True)
     dm.picture("empty-window")
     dm.open_add_url()
-    dm.picture("add-url")
+    dm.picture("add-url", dialog=True)
     dm.click("OK")
     pause(0.8)
     shown = dm.texts()
@@ -400,7 +560,7 @@ def walk(dm, origin):
             break
         time.sleep(0.25)
     pause(1.0)
-    dm.picture("download-details")
+    dm.picture("download-details", dialog=True)
     shown = dm.texts()
     wanted = ["Category", "Save to folder", "Save as", "Size", "Start now", "Add for later", "Cancel"]
     check("B02", "OK opens Download details with its fields and buttons",
@@ -531,10 +691,10 @@ def walk(dm, origin):
 
     print("\nWhat a server's answer raises (added 2026-11-01 at the maintainer's word)", flush=True)
     drain(dm, 3, asked, questions)
-    # The sentence wraps into several labels, so it is read from all of them.
+    # The sentence wraps wherever the window is wide enough, so it is read whole.
     named = [t for t in questions.get("Name sent by the server", [])
-             if any("The name to save the file was report, but the server sent" in x for x in t)
-             and any("Report 2026.pdf. Save the file with the name received from the" in x for x in t)]
+             if "The name to save the file was report, but the server sent Report 2026.pdf" in " ".join(t)
+             and "Save the file with the name received from the server?" in " ".join(t)]
     check("B39", "a server's name that differs from the address's is asked about, Yes and No offered",
           bool(named) and "Yes" in named[0] and "No" in named[0],
           f"{len(questions.get('Name sent by the server', []))} question(s): {questions.get('Name sent by the server', [])}"[:600])
@@ -549,8 +709,8 @@ def walk(dm, origin):
           pathlib.Path(second["path"]).name if second and second.get("path") else str(second and second["state"]))
     gone = questions.get("The file doesn't exist", [])
     check("B41", "a 404 is told once in a window: the file doesn't exist, HTTP/1.1 404 Not Found, OK",
-          len(gone) == 1 and "The requested file doesn't exist." in gone[0]
-          and "HTTP/1.1 404 Not Found" in gone[0] and "OK" in gone[0], f"{len(gone)} window(s)")
+          len(gone) == 1 and "The requested file doesn't exist." in " ".join(gone[0])
+          and "HTTP/1.1 404 Not Found" in " ".join(gone[0]) and "OK" in gone[0], f"{len(gone)} window(s)")
     pause(3)
     check("B41", "it does not come back for the same row", "The file doesn't exist" not in dm.dialogs(), "")
     dm.add(f"{files}/pageyes.zip")
@@ -657,7 +817,8 @@ def walk(dm, origin):
     dm.call("ui.select", ids=[r["id"]])
     dm.click("Remove")
     pause(0.8)
-    asked = dm.texts()
+    asked_titles = dm.dialogs()
+    asked = dm.dialog_texts()
     dm.click("Keep it")
     pause(0.6)
     still = dm.row("stopme.bin")
@@ -667,8 +828,8 @@ def walk(dm, origin):
     dm.click("Yes, remove")
     pause(0.8)
     check("B38", "an unfinished download: Remove asks, Keep it keeps it, Yes, remove takes it off",
-          # The sentence wraps into two runs of text in the window.
-          "Remove an unfinished download" in asked and any(t.startswith("This download isn't finished.") for t in asked)
+          # The title is the window's own; the sentence wraps wherever the window is wide enough.
+          "Remove an unfinished download" in asked_titles and "This download isn't finished." in " ".join(asked)
           and "Yes, remove" in asked and "Keep it" in asked and still and still["state"]["kind"] == "paused"
           and dm.row("stopme.bin") is None,
           f"asked: {'This download isn' + chr(39) + 't finished' in ' '.join(asked)}; kept after Keep it: {bool(still)}")
@@ -686,15 +847,118 @@ def walk(dm, origin):
     check("B24", "Clear finished empties the finished rows, every file stays",
           not left and said.startswith("Deleted") and all(p.is_file() for p in paths), f"'{said}'")
 
+    print("\nDialogs are windows of their own", flush=True)
+    dm.open_add_url()
+    info = dm.windows()
+    main = info.get("main")
+    shown = info.get("dialogs") or []
+    box = shown[0].get("outer") if shown else None
+    over = bool(main and box and main[0] <= (box[0] + box[2]) / 2 <= main[2]
+                and main[1] <= (box[1] + box[3]) / 2 <= main[3])
+    words = [t["text"] for t in dm.call("ui.texts")["result"]["texts"] if t.get("window") == "dialog"]
+    check("B42", "Add URL opens as a window of its own, over the middle of dm's window",
+          len(shown) == 1 and shown[0]["title"] == "Add URL" and over and "OK" in words,
+          f"dm {main}, dialog {box}, words {words[:6]}")
+    # Moved as a drag by its title bar moves it: half outside dm's window.
+    if box:
+        width = box[2] - box[0]
+        want = (main[2] - width / 2, main[1] + 20)
+        dm.call("ui.move_window", title="Add URL", x=want[0], y=want[1])
+        pause(1.0)
+        moved = (dm.windows().get("dialogs") or [{}])[0].get("outer")
+        check("B42", "it stands where it was put, half outside dm's window",
+              bool(moved) and abs(moved[0] - want[0]) <= 16 and abs(moved[1] - want[1]) <= 16 and moved[2] > main[2],
+              f"asked for {want}, it is at {moved}")
+    dm.click("Cancel")
+    pause(0.6)
+    check("B42", "its buttons work where it was put: Cancel closes it", "Add URL" not in dm.dialogs(), f"{dm.dialogs()}")
+    dm.open_add_url()
+    dm.call("ui.key", key="Escape")
+    pause(0.8)
+    check("B42", "Escape closes it, as Cancel does", "Add URL" not in dm.dialogs(), f"{dm.dialogs()}")
+    if sys.platform == "win32":
+        dm.open_add_url()
+        win32_titles(dm.proc.pid, close="Add URL")
+        pause(1.0)
+        check("B42", "its close button (the system's) closes it, as Cancel does",
+              "Add URL" not in dm.dialogs(), f"{dm.dialogs()}")
+    else:
+        check("B42", "its close button (the system's) closes it, as Cancel does", True,
+              "pressed on Windows only; Escape is the same path elsewhere")
+    if sys.platform == "win32":
+        # The dialog taken fully out of dm's window, as Windows itself sees it: dm's
+        # window put aside (a person may park it partly off the screen), the dialog
+        # moved to a place with no overlap with it, then drawn to another by its
+        # title bar with the mouse. Read back from Windows, not from dm.
+        pid = dm.proc.pid
+        win32_move(pid, "dm", -420, 30)
+        pause(1.0)
+        dm.open_add_url()
+        pause(1.0)
+        wins = win32_windows(pid)
+        aside = wins.get("dm", {}).get("rect")
+        if aside and "Add URL" in wins:
+            free = aside[2] + 20
+            dm.call("ui.move_window", title="Add URL", x=free, y=40)
+            pause(1.2)
+            seen = win32_windows(pid).get("Add URL", {})
+            box = seen.get("rect")
+            check("B42", "moved to a place with no overlap with dm's window, Windows reports it there",
+                  bool(box) and abs(box[0] - free) <= 16 and abs(box[1] - 40) <= 16 and not overlap(box, aside),
+                  f"dm {aside}, dialog {box}")
+            top_level = seen.get("parent") == 0 and seen.get("owner") == 0 and not (seen.get("style", 0) & 0x40000000)
+            check("B42", "it is a window of its own, not a child or owned window clipped by dm's",
+                  bool(seen) and top_level, f"parent {seen.get('parent')}, owner {seen.get('owner')}, style {hex(seen.get('style', 0))}")
+            if box:
+                gx = min(max(box[0] + 60, 40), box[2] - 80)
+                gy = max(box[1], 0) + 14
+                goal = (free + 40, 260)
+                win32_drag(gx, gy, gx + (goal[0] - box[0]), gy + (goal[1] - box[1]))
+                pause(1.5)
+                dragged = win32_windows(pid).get("Add URL", {}).get("rect")
+                pause(2.0)
+                still = win32_windows(pid).get("Add URL", {}).get("rect")
+                check("B42", "drawn by its title bar with the mouse it stands where the mouse left it, wholly outside dm's window",
+                      bool(dragged) and abs(dragged[0] - goal[0]) <= 16 and abs(dragged[1] - goal[1]) <= 16
+                      and not overlap(dragged, aside) and dragged == still,
+                      f"dm {aside}, wanted {goal}, it is at {dragged}, and later {still}")
+        else:
+            check("B42", "moved to a place with no overlap with dm's window, Windows reports it there", False,
+                  f"windows {list(wins)}")
+        dm.click("Cancel")
+        pause(0.8)
+        win32_move(pid, "dm", 130, 130)
+        pause(1.0)
+    # Options keeps the clicks to itself: dm's window takes none until it is closed.
+    dm.click("Options")
+    for _ in range(40):
+        if "Options" in dm.dialogs():
+            break
+        time.sleep(0.1)
+    pause(0.8)
+    dm.click("Add URL")
+    pause(0.8)
+    held = dm.dialogs()
+    check("B42", "Options holds dm's window: a click on its toolbar does nothing while it is open",
+          held == ["Options"], f"{held}")
+    dm.call("ui.key", key="Escape")
+    pause(0.8)
+    dm.open_add_url()
+    check("B42", "and the window answers again once it is closed", "Add URL" in dm.dialogs(), f"{dm.dialogs()}")
+    dm.click("Cancel")
+    pause(0.6)
+
     print("\nHow the window looks", flush=True)
     for name in ("empty-window", "add-url", "download-details"):
         now = WORK / "pictures" / f"{name}.png"
         if SAVE_BASELINE:
-            BASELINE.mkdir(exist_ok=True)
-            shutil.copy(now, BASELINE / f"{name}.png")
+            BASELINE_SET.mkdir(exist_ok=True)
+            shutil.copy(now, BASELINE_SET / f"{name}.png")
             check("B25", f"{name}: saved as the baseline", True)
             continue
-        was = BASELINE / f"{name}.png"
+        was = BASELINE_SET / f"{name}.png"
+        if not was.exists():
+            was = BASELINE / f"{name}.png"
         share = differing(was, now) if was.exists() and now.exists() else None
         check("B25", f"{name} looks as the baseline", share is not None and share <= 0.01,
               "no baseline or another screen size" if share is None else f"{share * 100:.2f}% of pixels differ")

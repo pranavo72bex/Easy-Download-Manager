@@ -22,6 +22,8 @@ const STEP_EXPIRES: Duration = Duration::from_secs(5);
 pub struct ScreenText {
     pub text: String,
     pub rect: egui::Rect,
+    /// The window it is drawn in: the main window, or a dialog's own.
+    pub viewport: egui::ViewportId,
 }
 
 /// Words a script or an AI client may not click: they run a downloaded file,
@@ -59,19 +61,12 @@ impl DmApp {
         if self.control.is_none() {
             return;
         }
-        let mut layers = vec![egui::LayerId::background()];
-        layers.extend(ctx.memory(|m| m.layer_ids().collect::<Vec<_>>()));
-        let mut seen = Vec::new();
-        ctx.graphics(|graphics| {
-            for layer in &layers {
-                let Some(list) = graphics.get(*layer) else {
-                    continue;
-                };
-                for clipped in list.all_entries() {
-                    collect(&clipped.shape, clipped.clip_rect, &mut seen);
-                }
-            }
-        });
+        let mut seen = scan_viewport(ctx, egui::ViewportId::ROOT);
+        // The dialogs' windows are in front of the main window, and read in
+        // the order they were drawn.
+        for (viewport, _) in crate::dialogs::apart::windows() {
+            seen.extend(crate::dialogs::apart::screen_of(viewport));
+        }
         self.screen = seen;
     }
 
@@ -120,27 +115,35 @@ impl DmApp {
             self.delivered_at_pass = Some(self.passes);
             self.delivered_at = Some(Instant::now());
         }
-        let events = match self.synthetic.pop_front().map(|(_, step)| step) {
-            None => Vec::new(),
-            Some(Step::Events(events)) => events,
+        let (viewport, events) = match self.synthetic.pop_front().map(|(_, step)| step) {
+            None => (egui::ViewportId::ROOT, Vec::new()),
+            // Typing and keys go where the keyboard is: the dialog that has
+            // it, else the main window.
+            Some(Step::Events(events)) => (crate::dialogs::apart::typing_target(), events),
             Some(Step::Pointer {
                 text,
                 nth,
                 button,
                 pressed,
-            }) => match self.find_text(&text, nth).map(|found| found.rect.center()) {
-                Some(pos) => vec![match pressed {
-                    None => egui::Event::PointerMoved(pos),
-                    Some(pressed) => egui::Event::PointerButton {
-                        pos,
-                        button,
-                        pressed,
-                        modifiers: egui::Modifiers::NONE,
-                    },
-                }],
+            }) => match self
+                .find_text(&text, nth)
+                .map(|found| (found.viewport, found.rect.center()))
+            {
+                Some((viewport, pos)) => (
+                    viewport,
+                    vec![match pressed {
+                        None => egui::Event::PointerMoved(pos),
+                        Some(pressed) => egui::Event::PointerButton {
+                            pos,
+                            button,
+                            pressed,
+                            modifiers: egui::Modifiers::NONE,
+                        },
+                    }],
+                ),
                 // Gone from the screen between the asking and this frame:
                 // the step is dropped, as a pointer over nothing does nothing.
-                None => Vec::new(),
+                None => (egui::ViewportId::ROOT, Vec::new()),
             },
         };
         // The moment an event is given to the window is the script's, not
@@ -148,6 +151,14 @@ impl DmApp {
         if !events.is_empty() {
             self.scripted_at = Some(Instant::now());
         }
+        // A dialog's own window takes its input when it is drawn, a moment
+        // later in this frame (`dialogs::apart::feed`).
+        let events = if viewport == egui::ViewportId::ROOT {
+            events
+        } else {
+            crate::dialogs::apart::queue_input(viewport, events);
+            Vec::new()
+        };
         if !self.synthetic.is_empty() {
             ctx.request_repaint();
         }
@@ -190,7 +201,7 @@ impl DmApp {
                     .iter()
                     .rev()
                     .map(|t| {
-                        json!({ "text": t.text, "rect": [t.rect.min.x, t.rect.min.y, t.rect.max.x, t.rect.max.y] })
+                        json!({ "text": t.text, "rect": [t.rect.min.x, t.rect.min.y, t.rect.max.x, t.rect.max.y], "window": if t.viewport == egui::ViewportId::ROOT { "main" } else { "dialog" } })
                     })
                     .collect();
                 Ok(json!({ "texts": texts, "note": "nearest the front first" }))
@@ -303,6 +314,42 @@ impl DmApp {
                 wake();
                 Ok(json!({ "pressed": name }))
             })(),
+            "ui.windows" => {
+                let (main, dialogs) = crate::dialogs::apart::placement();
+                let rect =
+                    |r: Option<egui::Rect>| r.map(|r| json!([r.min.x, r.min.y, r.max.x, r.max.y]));
+                Ok(json!({
+                    // Points on the screen are this many pixels each.
+                    "pixels_per_point": ctx.map(|c| c.pixels_per_point()),
+                    "main": rect(main),
+                    "dialogs": dialogs
+                        .iter()
+                        .map(|(_, w)| json!({ "title": w.title, "outer": rect(w.outer), "inner": rect(w.inner) }))
+                        .collect::<Vec<_>>(),
+                }))
+            }
+            "ui.move_window" => (|| {
+                let ctx = ctx.ok_or("there is no window to move")?;
+                let title = params
+                    .get("title")
+                    .and_then(Value::as_str)
+                    .ok_or("give `title`: the dialog's title, or part of it")?
+                    .to_lowercase();
+                let at = |key: &str| {
+                    params
+                        .get(key)
+                        .and_then(Value::as_f64)
+                        .ok_or("give `x` and `y`: where its top-left corner goes, in screen points")
+                };
+                let to = egui::pos2(at("x")? as f32, at("y")? as f32);
+                let (_, dialogs) = crate::dialogs::apart::placement();
+                let (window, found) = dialogs
+                    .into_iter()
+                    .find(|(_, w)| w.title.to_lowercase().contains(&title))
+                    .ok_or("no dialog window with that title is open")?;
+                ctx.send_viewport_cmd_to(window, egui::ViewportCommand::OuterPosition(to));
+                Ok(json!({ "moved": found.title, "to": [to.x, to.y] }))
+            })(),
             _ => return None,
         })
     }
@@ -355,9 +402,38 @@ impl DmApp {
     }
 }
 
-fn collect(shape: &egui::Shape, clip: egui::Rect, out: &mut Vec<ScreenText>) {
+/// The words drawn so far in the window being drawn, back to front.
+pub(crate) fn scan_viewport(ctx: &egui::Context, viewport: egui::ViewportId) -> Vec<ScreenText> {
+    let mut layers = vec![egui::LayerId::background()];
+    // Each layer once: a window's panel is the background layer, which the
+    // memory lists too.
+    for layer in ctx.memory(|m| m.layer_ids().collect::<Vec<_>>()) {
+        if !layers.contains(&layer) {
+            layers.push(layer);
+        }
+    }
+    let mut seen = Vec::new();
+    ctx.graphics(|graphics| {
+        for layer in &layers {
+            let Some(list) = graphics.get(*layer) else {
+                continue;
+            };
+            for clipped in list.all_entries() {
+                collect(&clipped.shape, clipped.clip_rect, viewport, &mut seen);
+            }
+        }
+    });
+    seen
+}
+
+fn collect(
+    shape: &egui::Shape,
+    clip: egui::Rect,
+    viewport: egui::ViewportId,
+    out: &mut Vec<ScreenText>,
+) {
     match shape {
-        egui::Shape::Vec(inner) => inner.iter().for_each(|s| collect(s, clip, out)),
+        egui::Shape::Vec(inner) => inner.iter().for_each(|s| collect(s, clip, viewport, out)),
         egui::Shape::Text(text) => {
             for row in &text.galley.rows {
                 let words = row.text();
@@ -371,6 +447,7 @@ fn collect(shape: &egui::Shape, clip: egui::Rect, out: &mut Vec<ScreenText>) {
                     out.push(ScreenText {
                         text: words.trim().to_string(),
                         rect,
+                        viewport,
                     });
                 }
             }

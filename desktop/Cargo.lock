@@ -1681,6 +1681,7 @@ dependencies = [
  "drag",
  "eframe",
  "egui",
+ "egui-winit",
  "egui_extras",
  "egui_kittest",
  "embed-resource",
@@ -1905,8 +1906,6 @@ dependencies = [
 [[package]]
 name = "egui-winit"
 version = "0.37.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e4e449f4c4a2a60c7ccb4ba7fa4078417bfe1f9ddc03b5e05ce75748e33a70de"
 dependencies = [
  "accesskit_winit",
  "arboard",

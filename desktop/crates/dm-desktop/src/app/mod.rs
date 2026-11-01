@@ -28,7 +28,7 @@ mod commands;
 mod control;
 mod drops;
 mod files;
-mod human;
+pub(crate) mod human;
 mod links;
 mod lists;
 mod menus;

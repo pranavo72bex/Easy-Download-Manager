@@ -521,7 +521,12 @@ pub(super) fn entered(field: &egui::Response) -> bool {
 /// own that has the keyboard takes Enter for itself instead.
 pub(super) fn enter_free(ui: &egui::Ui) -> bool {
     let ctx = ui.ctx();
-    let in_front = ctx.memory(|m| m.top_modal_layer()) == Some(ui.layer_id());
+    // In a window of its own, the dialog the system says has the keyboard.
+    let in_front = if super::apart::in_own_window(ctx) {
+        ctx.input(|i| i.viewport().focused) != Some(false)
+    } else {
+        ctx.memory(|m| m.top_modal_layer()) == Some(ui.layer_id())
+    };
     let own = ctx
         .memory(|m| m.focused())
         .and_then(|id| ctx.read_response(id))

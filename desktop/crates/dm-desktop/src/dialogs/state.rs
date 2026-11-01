@@ -491,6 +491,51 @@ impl Dialogs {
         {
             return true;
         }
+        self.close_front(back_to_front, false)
+    }
+
+    /// Closes the dialog whose window has `id`, as its close button and Escape
+    /// do when it is a window of its own; true if one closed.
+    pub fn close_window(&mut self, id: egui::Id) -> bool {
+        if id == window_id("Exit dm?") {
+            return std::mem::take(&mut self.confirm_exit);
+        }
+        if id == window_id("Keep running in the tray?") {
+            return std::mem::take(&mut self.confirm_close);
+        }
+        if id == window_id("Delete unfinished downloads") {
+            return self.confirm_remove.take().is_some();
+        }
+        if id == window_id("Start outside the schedule?") {
+            return self.confirm_outside.take().is_some();
+        }
+        if id == window_id("Cancel this download?") {
+            return self.confirm_cancel.take().is_some();
+        }
+        if id == window_id("Already in the list") {
+            return self.duplicate.take().is_some();
+        }
+        if id == window_id("Name sent by the server") {
+            return self.name_ask.take().is_some();
+        }
+        if id == window_id("Web page instead of the file") {
+            return self.page_ask.take().is_some();
+        }
+        if id == window_id("The file doesn't exist") {
+            return self.not_found.take().is_some();
+        }
+        if id == window_id("Some are already in the list") {
+            return self.import_ask.take().is_some();
+        }
+        if id == window_id("Leave this site to the browser?") {
+            return self.skip_offer.take().is_some();
+        }
+        self.close_front(&[id], true)
+    }
+
+    /// Closes the window in front of the ones open beside each other; with
+    /// `strict`, only one that `back_to_front` names.
+    fn close_front(&mut self, back_to_front: &[egui::Id], strict: bool) -> bool {
         /* Then the window in front. Find opens over Download details, and
          * Download complete and the progress windows stand beside the
          * rest, so a fixed order closed one behind the window in front.
@@ -570,7 +615,7 @@ impl Dialogs {
             open.push((egui::Id::unique(("progress", *id)), Shut::Progress(*id)));
         }
         let place = |id: &egui::Id| back_to_front.iter().position(|w| w == id);
-        let Some((_, front)) = open
+        let Some((front_id, front)) = open
             .into_iter()
             .enumerate()
             .max_by_key(|(n, (id, _))| (place(id), std::cmp::Reverse(*n)))
@@ -578,6 +623,9 @@ impl Dialogs {
         else {
             return false;
         };
+        if strict && place(&front_id).is_none() {
+            return false;
+        }
         match front {
             Shut::Find => self.find_open = false,
             Shut::Limiter => self.limiter = None,
@@ -616,5 +664,43 @@ impl Dialogs {
         self.complete.remove(&id);
         self.properties.remove(&id);
         self.resumable_seen.remove(&id);
+    }
+}
+
+#[cfg(test)]
+mod close_window_tests {
+    use super::*;
+
+    /// A dialog's own window, closed with its close button or Escape, closes
+    /// that dialog and no other.
+    #[test]
+    fn a_dialog_is_closed_by_its_own_window_and_no_other() {
+        let mut dialogs = Dialogs {
+            find_open: true,
+            about_open: true,
+            ..Dialogs::default()
+        };
+        assert!(dialogs.close_window(window_id("About dm")));
+        assert!(!dialogs.about_open);
+        assert!(dialogs.find_open, "Find was not the window closed");
+        // A window that is not open closes nothing.
+        assert!(!dialogs.close_window(window_id("About dm")));
+        assert!(dialogs.find_open);
+    }
+
+    /// A question open beside another window keeps asking when that window
+    /// is closed: only its own window answers it, as Cancel.
+    #[test]
+    fn a_question_is_answered_by_its_own_window_only() {
+        let mut dialogs = Dialogs {
+            confirm_exit: true,
+            about_open: true,
+            ..Dialogs::default()
+        };
+        assert!(dialogs.close_window(window_id("About dm")));
+        assert!(dialogs.confirm_exit, "closing About answered the question");
+        assert!(dialogs.close_window(window_id("Exit dm?")));
+        assert!(!dialogs.confirm_exit);
+        assert!(!dialogs.close_window(window_id("Exit dm?")));
     }
 }

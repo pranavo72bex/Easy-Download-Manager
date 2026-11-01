@@ -3491,3 +3491,70 @@ visible Edge with no sign-in on Vimeo, Instagram, TikTok and X.
   (`layer_fits`) still refuses a dialog over the page.
 - An HLS playlist is named by the height in its address and a sound-only one is
   not listed beside a picture, so no line saves the sound alone.
+
+## Each dialog a window of its own, and the vendored egui-winit (2026-11-01)
+
+The maintainer asked (2026-11-01, "make the UI improvements in gaps.md"; the
+request of 2026-10-31 that dm behave like reference A, whose dialogs are
+windows of their own that a person drags anywhere on the screen) for the
+dialogs to stop being drawn inside the main window. `Dialog::show`
+(`dialogs/frame.rs`) now hands its body to `dialogs/apart.rs`, which opens it
+in an egui immediate viewport, as `app/drops.rs` opens the drop target: the
+system's title bar with the dialog's title and close button, placed over the
+middle of the main window to begin with and left wherever the person puts it,
+sized to what the body measures. Immediate, not deferred, because the dialogs'
+bodies are closures over `&mut DmApp`. Where the backend has no window but the
+first (`Context::embed_viewports`, which the test harness is), the dialog stays
+a window in the main window, as it was, so `tests/window` keeps its tests. A
+dialog that keeps the clicks to itself holds the main window through a layer
+over it that egui treats as the modal one (`dialogs/mod.rs`, `hold_the_window`).
+Closing a dialog's window, like Escape, closes that dialog and no other
+(`Dialogs::close_window`, `state.rs`).
+
+How the control port reaches them. `ui.click`, `ui.key` and `ui.type` are
+how the QA and AI clients drive dm: events fed to egui as a person's pointer
+and keyboard would. eframe 0.37 offers the app the first window's input
+(`App::raw_input_hook`, `epi_integration.rs`) and no other window's: an
+immediate viewport's input is taken by egui-winit and handed straight to egui.
+So a dialog's own window could not be clicked. Weighed and not done: keeping
+the dialogs embedded whenever a control client is attached
+(`set_embed_viewports(true)`), which would have the QA check a look nobody
+sees and make B42 impossible to check; and the system's own input
+(`SendInput` and its kin), which is a different program for each system and
+moves the person's real pointer. A plain setting does not do it; there is none.
+
+So `desktop/vendor/egui-winit` is the published crate **egui-winit 0.37.0**, the
+version eframe 0.37.0 depends on, licence **MIT OR Apache-2.0** (its
+`Cargo.toml`; the published package carries no licence text of its own, the
+project does: github.com/emilk/egui), used through `[patch.crates-io]` as
+`vendor/winit` is. The one change is in `src/lib.rs` (search `dm:`): a
+`pub static OTHER_WINDOWS_INPUT: OnceLock<fn(&mut egui::RawInput)>` before
+`State`, and `State::take_egui_input` calls it with the input of every window
+whose viewport is not the first, just before returning it. Its `Cargo.lock` is
+left out, as a path dependency uses the workspace's. dm sets the function once
+at start (`main.rs`) to `dialogs::apart::feed`, which gives a window the events
+a control client queued for it (`app/human.rs`). Nothing else differs from the
+published crate (`desktop/vendor/README.md`); carry the change over when eframe
+is upgraded, or drop the copy when eframe offers a hook of its own.
+
+Also found: eframe's glow integration answers screenshot commands for the first
+window only, so a dialog's own window is pictured from the screen, over the
+rectangle `ui.windows` reports (`scripts/human-qa.py`, `screen_region`), and
+the Windows set of pictures for B25 is kept beside the macOS one
+(`docs/behaviour-baseline/windows/`, the maintainer's approval of 2026-11-01).
+
+Found by the maintainer's report that they still could not drag a dialog out of
+dm's window (2026-11-01), and by dragging every kind of dialog with the system's
+mouse (`SetCursorPos`, `mouse_event`) and reading its window back from Windows
+(`GetWindowRect`, `GetParent`, `GetWindow`): a dialog window was put back over
+the middle of dm's window whenever its measured size changed, so one whose body
+changes (Properties, a progress window, Download details) was pulled back while
+it was dragged. Placement is now latched once the size has settled (`Own::placed`).
+Sizing had two faults of its own: a panel's `min_rect` is the whole room it was
+given before anything is drawn, so a window could never measure smaller than its
+first guess (the body's height is now read from the layout's cursor), and Options
+fills a height it is given (`fixed_size`), which is now passed through
+(`Spec::height`). A dialog that opens centred on a dm window that reaches past the
+bottom of the screen is kept above the taskbar (`on_screen`). The control port
+chooses, among words that two dialog windows share, the one in the window that has
+the keyboard (`apart::windows`).
