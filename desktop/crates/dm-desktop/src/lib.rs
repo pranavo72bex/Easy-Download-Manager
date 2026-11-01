@@ -18,6 +18,7 @@
 // is sound (`// SAFETY:`, on every platform, Windows included), and a string is
 // built with `format!` rather than `+`, and a loop is a loop rather than
 // `for_each`.
+#![warn(missing_docs)]
 #![warn(clippy::undocumented_unsafe_blocks)]
 #![warn(clippy::string_add, clippy::needless_for_each)]
 pub mod accent;
