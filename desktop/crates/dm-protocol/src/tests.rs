@@ -610,3 +610,21 @@ fn an_unchosen_list_from_an_earlier_edition_becomes_every_type_and_a_chosen_one_
     again.bring_up_to_date();
     assert_eq!(again.extensions, ["zip"]);
 }
+
+#[test]
+fn a_start_carries_the_part_of_a_video_and_an_older_one_has_none() {
+    let start = Start {
+        id: "p".into(),
+        url: "https://e.com/v".into(),
+        from: "1:30".into(),
+        to: "90".into(),
+        ..Start::default()
+    };
+    let text = serde_json::to_string(&start).unwrap();
+    let back: Start = serde_json::from_str(&text).unwrap();
+    assert_eq!((back.from.as_str(), back.to.as_str()), ("1:30", "90"));
+    let plain = serde_json::to_string(&Start::default()).unwrap();
+    assert!(!plain.contains("from") && !plain.contains("\"to\""), "{plain}");
+    let old: Start = serde_json::from_str(r#"{"id":"x","url":"https://e.com/v"}"#).unwrap();
+    assert!(old.from.is_empty() && old.to.is_empty());
+}

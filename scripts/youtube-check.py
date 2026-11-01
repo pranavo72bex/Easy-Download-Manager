@@ -94,6 +94,12 @@ def youtube(base, origin, engine_dl, engine_home, worker):
     cc.check("YouTube: its click lists the video's qualities with their sizes",
              bool(listed.get("lines")), str(cc.panel(tab)))
     print("  listed:", listed.get("lines"))
+    # The list's Part line takes a start and an end; left empty again so the whole video is fetched.
+    part = tab.evaluate("(() => { const r = document.querySelector('dm-panel')?.shadowRoot;"
+                        " const a = r?.querySelector('.part .from'), b = r?.querySelector('.part .to');"
+                        " if (!a || !b) return 'none'; a.value = '0:02'; b.value = '0:06';"
+                        " const typed = a.value + '-' + b.value; a.value = ''; b.value = ''; return typed; })()")
+    cc.check("YouTube: its list has a Part line that takes a start and an end", part == "0:02-0:06", str(part))
     if SHOT:
         SHOT.write_bytes(base64.b64decode(tab.call("Page.captureScreenshot", format="png")["data"]))
     if listed.get("at"):

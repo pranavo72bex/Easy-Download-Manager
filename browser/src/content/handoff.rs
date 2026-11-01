@@ -315,6 +315,7 @@ pub(super) fn list(src: &str, frame: &str, choices: &Array) {
     let first = with_panel(|p| {
         set_title(p, "Download video");
         close_list(p);
+        part_line(&document, p);
         for choice in choices.iter() {
             let Ok(item) = document.create_element("button") else {
                 continue;
@@ -334,6 +335,59 @@ pub(super) fn list(src: &str, frame: &str, choices: &Array) {
     })
     .flatten();
     focus(first);
+}
+
+/// The list's "Part" line: where a part of the video starts and ends, both
+/// optional, as "1:30" or seconds. Whichever line is clicked is handed over
+/// with them; the app opens "Download details" with the part filled in.
+fn part_line(document: &web_sys::Document, p: &Panel) {
+    let Ok(row) = document.create_element("div") else {
+        return;
+    };
+    row.set_class_name("part");
+    let mut fields = Vec::new();
+    for (word, class, name) in [("Part", "from", "Part start"), ("to", "to", "Part end")] {
+        let Ok(label) = document.create_element("span") else {
+            return;
+        };
+        label.set_text_content(Some(word));
+        let Ok(input) = document.create_element("input") else {
+            return;
+        };
+        input.set_class_name(class);
+        let _ = input.set_attribute("type", "text");
+        let _ = input.set_attribute("placeholder", "m:ss");
+        let _ = input.set_attribute("aria-label", name);
+        let _ = input.set_attribute("autocomplete", "off");
+        let _ = input.set_attribute("spellcheck", "false");
+        let _ = input.set_attribute("maxlength", "16");
+        // A page's shortcuts (a player's space, arrows, f, m) must not take
+        // what is typed here.
+        for event in ["keydown", "keyup", "keypress"] {
+            listen(&input, event, |event| event.stop_propagation());
+        }
+        fields.push((label, input));
+    }
+    for (label, input) in fields {
+        let _ = row.append_child(&label);
+        let _ = row.append_child(&input);
+    }
+    let _ = p.list.append_child(&row);
+}
+
+/// What the "Part" line holds, as typed, cleaned of anything but a time.
+fn part_typed(class: &str) -> Option<String> {
+    with_panel(|p| {
+        let input = p
+            .list
+            .query_selector(&format!(".part .{class}"))
+            .ok()
+            .flatten()?
+            .dyn_into::<web_sys::HtmlInputElement>()
+            .ok()?;
+        Some(decide::part_text(&input.value())).filter(|s| !s.is_empty())
+    })
+    .flatten()
 }
 
 /// One line of the list, handed over: a quality of the page the app's
@@ -383,6 +437,12 @@ pub(super) fn hand_with(
     }
     if let Some(label) = &label {
         let _ = Reflect::set(&message, &"label".into(), &label.into());
+    }
+    // Read before the list closes: the "Part" line is part of it.
+    for (key, class) in [("from", "from"), ("to", "to")] {
+        if let Some(text) = part_typed(class) {
+            let _ = Reflect::set(&message, &key.into(), &text.into());
+        }
     }
     with_panel(|p| {
         p.settled = true;

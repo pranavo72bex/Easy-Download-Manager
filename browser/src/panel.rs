@@ -57,6 +57,11 @@ button:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
 .item { display: block; width: 100%; padding: 8px 12px; text-align: left; font-size: 13px; white-space: nowrap; color: var(--text);
   overflow: hidden; text-overflow: ellipsis; border-top: 1px solid var(--line); }
 .item:first-child { border-top: 0; }
+.part { display: flex; align-items: center; gap: 6px; padding: 8px 12px; font-size: 13px; color: var(--text2);
+  border-bottom: 1px solid var(--line); }
+.part input { width: 64px; min-width: 0; padding: 4px 6px; font-size: 13px; color: var(--text); background: var(--surface);
+  border: 1px solid var(--line); border-radius: var(--radius); }
+.part input:focus-visible { outline: 2px solid var(--accent); outline-offset: 0; }
 .item:hover, .item:focus-visible { background: var(--accent); color: var(--on-accent); outline: none; }
 .sub { margin-top: 4px; padding: 8px 8px; border-radius: var(--radius); background: var(--surface);
   color: var(--text2); font-size: 12px; line-height: 1.4; max-width: 100%; max-height: 160px; overflow-y: auto;

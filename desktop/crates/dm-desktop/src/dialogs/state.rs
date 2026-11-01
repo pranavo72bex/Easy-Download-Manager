@@ -113,6 +113,14 @@ impl Dialogs {
             cookies_once: request.cookies_once,
             browser: request.browser,
             caught: request.caught,
+            // The panel's "Part" line: the dialog opens with the part on.
+            part: !(request.from.is_empty() && request.to.is_empty()),
+            part_from: if request.from.is_empty() && !request.to.is_empty() {
+                "0:00".to_string()
+            } else {
+                request.from
+            },
+            part_to: request.to,
             ..FileInfo::default()
         });
     }

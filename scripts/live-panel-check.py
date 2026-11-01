@@ -80,6 +80,13 @@ def live(base, origin, engine_dl, engine_home, worker):
                 return float("inf")
         pick = min(range(len(listed["lines"])), key=lambda i: size(listed["lines"][i]))
         cc.check("its click lists the video's qualities with their sizes", True, str(listed["lines"]))
+        # The list's Part line takes a start and an end; left empty for this run, so
+        # the whole video is fetched and checked below.
+        part = tab.evaluate("(() => { const r = document.querySelector('dm-panel')?.shadowRoot;"
+                            " const a = r?.querySelector('.part .from'), b = r?.querySelector('.part .to');"
+                            " if (!a || !b) return 'none'; a.value = '0:02'; b.value = '0:06';"
+                            " const typed = a.value + '-' + b.value; a.value = ''; b.value = ''; return typed; })()")
+        cc.check("its list has a Part line that takes a start and an end", part == "0:02-0:06", str(part))
         cc.click_at(tab, *listed["at"][pick])
     said = cc.wait_for(lambda: (cc.panel(tab) or {}).get("title") == "Sent to dm" and cc.panel(tab), 30)
     cc.check("its click is taken by the app", bool(said), str(cc.panel(tab)))

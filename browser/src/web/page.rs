@@ -35,7 +35,7 @@ pub(super) async fn in_browser_instead(target: &Target, why: &str) -> Result<Str
 /// Hands something a person asked for. `Ok` carries a word for whoever
 /// asked; `Err` why it could not be done.
 pub(super) async fn hand_target(target: Target, store: Option<String>) -> Result<String, String> {
-    hand_chosen(target, store, None, None, None, false).await
+    hand_chosen(target, store, None, None, None, false, (None, None)).await
 }
 
 /// Hands one download over, with the quality picked from the panel's list
@@ -48,6 +48,7 @@ pub(super) async fn hand_chosen(
     label: Option<String>,
     sound: Option<String>,
     ask: bool,
+    part: (Option<String>, Option<String>),
 ) -> Result<String, String> {
     let (app, port) = app().await;
     let hello = match app {
@@ -80,6 +81,9 @@ pub(super) async fn hand_chosen(
         label,
         sound: sound.filter(|s| s.starts_with("https://") || s.starts_with("http://")),
         ask,
+        // The panel's "Part" line; the app checks what was typed.
+        from: part.0.map(|s| decide::part_text(&s)).unwrap_or_default(),
+        to: part.1.map(|s| decide::part_text(&s)).unwrap_or_default(),
         ..Start::default()
     };
     if let Err(why) = hand(port, start).await {
@@ -447,6 +451,7 @@ pub async fn on_page_message(message: JsValue, sender: JsValue) -> JsValue {
         click.label,
         click.sound,
         true,
+        (click.from, click.to),
     )
     .await
     {

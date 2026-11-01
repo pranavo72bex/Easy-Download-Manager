@@ -2105,3 +2105,52 @@ fn delete_file_after_is_chosen_when_saving() {
     let row = harness.state().rows().last().cloned().unwrap();
     assert_eq!(row.delete_after, Some(3600));
 }
+
+/// The part the browser panel's "Part" line asked for: Download details
+/// opens with "Only a part of the video" on and its ends filled in, and a
+/// part given only an end starts from the beginning.
+#[test]
+fn a_part_asked_for_in_the_browsers_panel_fills_download_details() {
+    let world = world();
+    let mut harness = world.harness();
+    harness.state_mut().applied.ask_panel_downloads = true;
+    for (from, to, shown_from) in [("1:30", "2:00", "1:30"), ("", "45", "0:00")] {
+        harness
+            .state()
+            .backend()
+            .handed
+            .lock()
+            .unwrap()
+            .push_back(dm_shell::host::Request {
+                url: world.url("file.zip"),
+                referrer: "https://video.example/watch".into(),
+                ask: true,
+                from: from.into(),
+                to: to.into(),
+                ..Default::default()
+            });
+        harness.state_mut().take_handed();
+        harness.run_steps(3);
+        let d = harness.state().dialogs.file_info.as_ref().unwrap();
+        assert!(d.part, "the part was not switched on");
+        assert_eq!((d.part_from.as_str(), d.part_to.as_str()), (shown_from, to));
+        assert!(harness.query_by_label("Only a part of the video").is_some());
+        click(&mut harness, "Cancel");
+    }
+    // No part asked for: the dialog is as it was.
+    harness
+        .state()
+        .backend()
+        .handed
+        .lock()
+        .unwrap()
+        .push_back(dm_shell::host::Request {
+            url: world.url("file.zip"),
+            ask: true,
+            ..Default::default()
+        });
+    harness.state_mut().take_handed();
+    harness.run_steps(3);
+    let d = harness.state().dialogs.file_info.as_ref().unwrap();
+    assert!(!d.part && d.part_from.is_empty() && d.part_to.is_empty());
+}

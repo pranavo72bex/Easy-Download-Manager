@@ -1158,6 +1158,7 @@ BROWSER_ROWS = {
     "B34": ["YouTube: its click lists the video's qualities with their sizes"],
     "B35": ["YouTube: its click is taken by the app", "YouTube: the video lands in dm's folder, fetched by dm itself",
             "YouTube: the downloaded video is whole (media_check)"],
+    "B59": ["YouTube: its list has a Part line that takes a start and an end"],
 }
 
 

@@ -461,7 +461,7 @@ pub(super) fn file_info(app: &mut DmApp, ctx: &egui::Context) {
                     // A part of the video, from one moment to another: cut
                     // from the streams dm fetches itself, which today are a
                     // YouTube video's.
-                    if youtube {
+                    if youtube || d.handed || d.part {
                         ui.label(t("Part"));
                         let starts = dm_core::youtube::start_of(&first);
                         ui.horizontal(|ui| {

@@ -1746,3 +1746,22 @@ fn media_on_the_built_in_exclusion_list_is_not_offered_but_an_ordinary_file_is()
     ));
     assert!(found.is_some(), "an ordinary media file was left out");
 }
+
+#[test]
+fn the_panels_part_line_hands_over_a_time_and_nothing_else() {
+    use super::part_text;
+    assert_eq!(part_text(" 1:30 "), "1:30");
+    assert_eq!(part_text("90"), "90");
+    assert_eq!(part_text("1m30s"), "1m30s");
+    assert_eq!(part_text("1:02:03.5"), "1:02:03.5");
+    assert_eq!(part_text("<b>x</b>"), "");
+    assert_eq!(part_text("1:30; rm -rf /"), "1:30m");
+    assert_eq!(part_text("   "), "");
+    assert_eq!(part_text(&"1".repeat(40)).len(), 16);
+    // What the page script sends is read, a Part line or not.
+    let click: PanelClick =
+        serde_json::from_str(r#"{"type":"dm.panel","src":"u","from":"1:00","to":"2:00"}"#).unwrap();
+    assert_eq!((click.from.as_deref(), click.to.as_deref()), (Some("1:00"), Some("2:00")));
+    let plain: PanelClick = serde_json::from_str(r#"{"type":"dm.panel","src":"u"}"#).unwrap();
+    assert!(plain.from.is_none() && plain.to.is_none());
+}

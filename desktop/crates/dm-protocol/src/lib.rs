@@ -211,6 +211,14 @@ pub struct Start {
     /// A video from the panel: the app opens "Download details" for it, to name it and choose where it goes, before starting.
     #[serde(default, skip_serializing_if = "std::ops::Not::not")]
     pub ask: bool,
+    /// A part of the video rather than the whole, as the panel's "Part"
+    /// line has it: where it starts and where it ends, as typed ("1:30",
+    /// "90"), either left empty. The app opens "Download details" with
+    /// them filled; an older app ignores them.
+    #[serde(default, skip_serializing_if = "String::is_empty")]
+    pub from: String,
+    #[serde(default, skip_serializing_if = "String::is_empty")]
+    pub to: String,
     /// The browser's cookies for the download's site, as the `Cookie`
     /// header it would send, where the person switched "hand over this
     /// site's sign-in" on in the toolbar popup. Empty otherwise.

@@ -52,6 +52,12 @@ pub struct Request {
     /// video from the browser's panel.
     #[serde(default, skip_serializing_if = "std::ops::Not::not")]
     pub ask: bool,
+    /// The part of a video the panel's "Part" line asked for: its start and
+    /// end as typed, either empty. "Download details" opens with them filled.
+    #[serde(default, skip_serializing_if = "String::is_empty")]
+    pub from: String,
+    #[serde(default, skip_serializing_if = "String::is_empty")]
+    pub to: String,
     /// Caught by the browser extension, rather than asked for from its
     /// panel or menu: which of Options' two "ask" settings governs it.
     #[serde(default, skip_serializing_if = "std::ops::Not::not")]
@@ -745,6 +751,8 @@ pub fn answer(
             sound,
             label,
             ask,
+            from,
+            to,
             cookies,
             cookies_once,
             mime,
@@ -804,6 +812,9 @@ pub fn answer(
                         label,
                         // A caught download asks too, where Options says so.
                         ask: ask || (caught && saved(home).ask_caught_downloads),
+                        // Only a video asked for from the panel has a part.
+                        from: if caught { String::new() } else { from.trim().to_string() },
+                        to: if caught { String::new() } else { to.trim().to_string() },
                         caught,
                         cookies: cookies.trim().to_string(),
                         cookies_once: cookies_once && !cookies.trim().is_empty(),

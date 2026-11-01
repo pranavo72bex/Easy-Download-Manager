@@ -118,7 +118,9 @@ pub struct PanelClick {
     pub quality: Option<String>,
     pub label: Option<String>,
     /// A sound the player fetched apart from the picture at `src`.
-    pub sound: Option<String>,
+    /// The panel's "Part" line: where the part starts and ends, as typed.
+    pub from: Option<String>,
+    pub to: Option<String>,
 }
 
 /// How long the panel waits for the list of qualities before it gives up
@@ -131,6 +133,19 @@ pub const MEDIA_SEEN_MESSAGE: &str = "dm.media-seen";
 
 /// The page script asking what qualities a player's video comes in.
 pub const FORMATS_MESSAGE: &str = "dm.formats";
+
+/// What the panel's "Part" line was typed as, ready to hand over: only a
+/// short run of digits, colons, dots and the letters h, m, s ("1:30",
+/// "90", "1m30s") is kept, so nothing else a page might have put in the box
+/// travels to the app.
+pub fn part_text(typed: &str) -> String {
+    typed
+        .trim()
+        .chars()
+        .filter(|c| c.is_ascii_digit() || matches!(c, ':' | '.' | 'h' | 'm' | 's' | 'H' | 'M' | 'S'))
+        .take(16)
+        .collect()
+}
 
 /// One line of the panel's list: the format and size.
 pub fn choice_line(label: &str, size: Option<u64>) -> String {

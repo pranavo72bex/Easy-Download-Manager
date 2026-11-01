@@ -1136,3 +1136,36 @@ fn each_browser_that_said_hello_is_noted_once() {
     note_browser(home.path(), Some("Microsoft Edge"));
     assert_eq!(browsers_seen(home.path()), ["Microsoft Edge", "Firefox"]);
 }
+
+#[test]
+fn the_part_asked_for_in_the_panel_reaches_the_app_and_a_caught_download_has_none() {
+    let dir = tempfile::tempdir().unwrap();
+    let frame = Asked::Start(Start {
+        id: "part-1".into(),
+        url: "https://video.example/stream.m3u8".into(),
+        ask: true,
+        from: " 1:30 ".into(),
+        to: "2:00".into(),
+        ..Start::default()
+    })
+    .to_frame();
+    let (_, _) = ask(dir.path(), frame, true, Ok(()));
+    let filed: Request = serde_json::from_str(
+        &std::fs::read_to_string(inbox(dir.path()).join("part-1.json")).unwrap(),
+    )
+    .unwrap();
+    assert_eq!((filed.from.as_str(), filed.to.as_str()), ("1:30", "2:00"));
+    // None asked for: nothing is written, and an older file reads as none.
+    let frame = Asked::Start(Start {
+        id: "part-2".into(),
+        url: "https://video.example/b.mp4".into(),
+        ask: true,
+        ..Start::default()
+    })
+    .to_frame();
+    let (_, _) = ask(dir.path(), frame, true, Ok(()));
+    let text = std::fs::read_to_string(inbox(dir.path()).join("part-2.json")).unwrap();
+    assert!(!text.contains("\"from\"") && !text.contains("\"to\""), "{text}");
+    let old: Request = serde_json::from_str(r#"{"url":"https://e.com/a"}"#).unwrap();
+    assert!(old.from.is_empty() && old.to.is_empty());
+}
