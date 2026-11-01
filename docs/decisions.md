@@ -19,7 +19,7 @@ only the external video tool could read is no longer offered, as reference A doe
 it. What reference A does on a playing YouTube page, where the player's
 requests are SABR and carry no plain address (2026-10-29), is to be watched
 from outside (its connections and the files it writes), not by opening its
-binaries, which its licence forbids. This replaces gaps row 52's "the
+binaries, which its licence forbids. This replaces the earlier gaps entry's "the
 maintainer names the sites" and the 2026-10-26 decision to keep the external video tool
 behind the player's requests.
 
@@ -3444,7 +3444,7 @@ The probe now sends `Range: bytes=0-` (`probe_get`) instead of `bytes=0-0`,
 and its response body is threaded through to segment 0's first attempt
 rather than drained. This reverses the decision of 2026-10-24 ("Weighed and
 not done"), asked for by the maintainer on 2026-10-31 as part of matching
-reference A's engine behaviour (gaps row 61).
+reference A's engine behaviour (the engine gap of 2026-10-31, now closed).
 
 The Wikimedia concern (a server answering 200 to `bytes=0-`) is handled:
 the probe reads the status code, and a 200 sets `resumable = false`, so the
@@ -3579,3 +3579,17 @@ the Proxy tab was selected before. Behaviour contract row B43; tests in `tests/w
 Not changed, as they are other crates' words: the English notices of dm-core and dm-shell that
 still say "Options › Proxy" or "Options › Network" (`download/mod.rs`, `live.rs`, `shell.rs`);
 they are shown to a person only through the window's own sentences above, or as they are.
+
+## The YouTube challenge scripts stay fetched from their project's release page (2026-11-01)
+
+dm reads YouTube itself (`youtube.rs`). To answer the signature and speed-limit checks in YouTube's
+player it runs two small scripts in QuickJS or Deno, pinned by version and digest (`SOLVER_VERSION`,
+`SOLVER_LIB`, `SOLVER_CORE`) and fetched once from the release page of the project that publishes
+them; the address is the one place the old external video tool's name is left in the repository.
+dm does not run that tool.
+
+The maintainer chose on 2026-11-01 to keep it so. Copying the scripts into dm's own release assets
+would still need the same attribution and the same upkeep, and a script that no longer matches the
+player is the most likely reason YouTube stops working. The way to notice is a weekly run of
+`scripts/real-sites.py` (a real YouTube video); the cure is a new version and digest. Writing dm's own
+solver was declined as upkeep (the YouTube proof-of-origin gap, gaps row 37, is the same kind).
