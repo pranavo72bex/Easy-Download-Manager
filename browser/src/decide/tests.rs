@@ -1281,6 +1281,7 @@ fn a_host_too_old_to_send_rules_gets_the_defaults_and_no_host_is_absent() {
             hello: Hello {
                 engine_version: "0.1.0".into(),
                 protocol: None,
+                rules: None,
             },
             rules: CatchRules::default(),
         }

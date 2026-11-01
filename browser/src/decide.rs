@@ -10,15 +10,18 @@ use dm_protocol::{Candidate, CatchRules, Hello, Reply, CHROME_EXTENSION_ID, EDGE
 use serde::Deserialize;
 use serde_json::Value;
 
+mod answers;
 mod app;
 mod download;
 pub mod excluded;
 mod media_panel;
 mod menu;
+pub mod rules;
 mod sites;
 mod streams;
 mod timing;
 
+pub use answers::*;
 pub use app::*;
 pub use download::*;
 pub use media_panel::*;

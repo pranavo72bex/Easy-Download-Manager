@@ -6,6 +6,8 @@
 //! piece of a page's furniture, so no file a person wants is lost to them. A
 //! person's own sites to leave alone stay in dm's settings (`CatchRules`).
 
+use dm_protocol::ExcludeRules;
+
 /// Why an address or a response is never caught.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Excluded {
@@ -140,6 +142,18 @@ fn host_is(host: &str, names: &[&str]) -> bool {
         .any(|name| host == *name || host.ends_with(&format!(".{name}")))
 }
 
+/// Whether `host` is one of the names the app served, or a sub-domain of one.
+fn served_host(host: &str, names: &[String]) -> bool {
+    names
+        .iter()
+        .any(|name| host == name || host.ends_with(&format!(".{name}")))
+}
+
+/// Whether `item` is in the built-in list or in the one the app served.
+fn has(builtin: &[&str], served: &[String], item: &str) -> bool {
+    builtin.contains(&item) || served.iter().any(|name| name == item)
+}
+
 fn path_and_file(url: &str) -> (Vec<String>, String, String) {
     let path = url
         .split_once("://")
@@ -157,14 +171,20 @@ fn path_and_file(url: &str) -> (Vec<String>, String, String) {
     (segments, stem, ext)
 }
 
-/// Whether an address is on the built-in list, by what it is: its host, its
-/// folders, its name. Nothing is asked of the network.
+/// Whether an address is on the built-in list or the one the app served
+/// (see [`super::rules`]), by what it is: its host, its folders, its name.
+/// Nothing is asked of the network.
 pub fn address(url: &str) -> Option<Excluded> {
+    super::rules::with_served(|served| address_with(url, &served.exclude))
+}
+
+/// [`address`] against the built-in list and `served`.
+pub fn address_with(url: &str, served: &ExcludeRules) -> Option<Excluded> {
     let host = dm_protocol::host_of(url);
-    if host_is(&host, ADVERT_HOSTS) {
+    if host_is(&host, ADVERT_HOSTS) || served_host(&host, &served.advert_hosts) {
         return Some(Excluded::Advert);
     }
-    if host_is(&host, TRACKER_HOSTS) {
+    if host_is(&host, TRACKER_HOSTS) || served_host(&host, &served.tracker_hosts) {
         return Some(Excluded::Tracker);
     }
     let (segments, stem, ext) = path_and_file(url);
@@ -174,24 +194,26 @@ pub fn address(url: &str) -> Option<Excluded> {
         .unwrap_or_default();
     if folders
         .iter()
-        .any(|s| ADVERT_SEGMENTS.contains(&s.as_str()))
+        .any(|s| has(ADVERT_SEGMENTS, &served.advert_segments, s))
     {
         return Some(Excluded::Advert);
     }
-    if TRACKER_FILES.contains(&file) {
+    if has(TRACKER_FILES, &served.tracker_files, file) {
         return Some(Excluded::Tracker);
     }
-    if SOUND_EXTENSIONS.contains(&ext.as_str())
-        && (SOUND_NAMES.contains(&stem.as_str())
-            || folders.iter().any(|s| SOUND_FOLDERS.contains(&s.as_str())))
+    if has(SOUND_EXTENSIONS, &served.sound_extensions, &ext)
+        && (has(SOUND_NAMES, &served.sound_names, &stem)
+            || folders
+                .iter()
+                .any(|s| has(SOUND_FOLDERS, &served.sound_folders, s)))
     {
         return Some(Excluded::SiteSound);
     }
     if IMAGE_EXTENSIONS.contains(&ext.as_str())
-        && (FURNITURE_NAMES.contains(&stem.as_str())
+        && (has(FURNITURE_NAMES, &served.furniture_names, &stem)
             || folders
                 .iter()
-                .any(|s| FURNITURE_FOLDERS.contains(&s.as_str())))
+                .any(|s| has(FURNITURE_FOLDERS, &served.furniture_folders, s)))
     {
         return Some(Excluded::InterfaceImage);
     }
@@ -206,16 +228,36 @@ pub fn response(
     server: Option<&str>,
     size: Option<u64>,
 ) -> Option<Excluded> {
-    if let Some(found) = address(url) {
+    super::rules::with_served(|served| response_with(url, mime, server, size, &served.exclude))
+}
+
+/// [`response`] against the built-in list and `served`.
+pub fn response_with(
+    url: &str,
+    mime: &str,
+    server: Option<&str>,
+    size: Option<u64>,
+    served: &ExcludeRules,
+) -> Option<Excluded> {
+    if let Some(found) = address_with(url, served) {
         return Some(found);
     }
-    if server.is_some_and(|s| s.to_ascii_lowercase().contains("dclk-adsvr")) {
+    if server.is_some_and(|s| {
+        let named = s.to_ascii_lowercase();
+        named.contains("dclk-adsvr")
+            || served
+                .ad_server_names
+                .iter()
+                .any(|word| named.contains(word.as_str()))
+    }) {
         return Some(Excluded::AdServer);
     }
     let (_, _, ext) = path_and_file(url);
     let windows_media = WINDOWS_MEDIA_EXTENSIONS.contains(&ext.as_str())
         || WINDOWS_MEDIA_TYPES.contains(&mime.trim().to_ascii_lowercase().as_str());
-    if windows_media && size.is_some_and(|bytes| bytes <= WINDOWS_MEDIA_FLOOR) {
+    // A served floor can raise the built-in one and never lower it.
+    let floor = WINDOWS_MEDIA_FLOOR.max(served.windows_media_floor.unwrap_or(0));
+    if windows_media && size.is_some_and(|bytes| bytes <= floor) {
         return Some(Excluded::TinyWindowsMedia);
     }
     None
@@ -340,6 +382,101 @@ mod tests {
         ] {
             assert_eq!(address(url), None, "{url}");
         }
+    }
+
+    fn served(json: &str) -> ExcludeRules {
+        serde_json::from_str(json).expect("served rules")
+    }
+
+    #[test]
+    fn what_the_app_served_is_added_to_the_built_in_list() {
+        let extra = served(
+            r#"{ "advert_hosts": ["promo.example"], "tracker_hosts": ["stats.example"],
+                 "advert_segments": ["sponsor"], "tracker_files": ["hit.gif"],
+                 "sound_names": ["blip"], "sound_folders": ["jingles"], "sound_extensions": ["ogg"],
+                 "furniture_folders": ["chrome"], "furniture_names": ["divider"],
+                 "ad_server_names": ["adsrv"] }"#,
+        );
+        let cases = [
+            ("https://cdn.promo.example/a/clip.mp4", Excluded::Advert),
+            ("https://stats.example/c.mp3", Excluded::Tracker),
+            ("https://site.example/sponsor/clip.mp4", Excluded::Advert),
+            ("https://site.example/t/hit.gif", Excluded::Tracker),
+            ("https://site.example/a/blip.ogg", Excluded::SiteSound),
+            ("https://site.example/jingles/one.ogg", Excluded::SiteSound),
+            (
+                "https://site.example/chrome/a.png",
+                Excluded::InterfaceImage,
+            ),
+            (
+                "https://site.example/i/divider.gif",
+                Excluded::InterfaceImage,
+            ),
+        ];
+        for (url, why) in cases {
+            assert_eq!(address_with(url, &extra), Some(why), "{url}");
+            // Without what was served the same address is an ordinary one.
+            assert_eq!(address_with(url, &ExcludeRules::default()), None, "{url}");
+        }
+        assert_eq!(
+            response_with(
+                "https://a.example/x.mp4",
+                "video/mp4",
+                Some("MyAdSrv/2"),
+                None,
+                &extra
+            ),
+            Some(Excluded::AdServer)
+        );
+        // The built-in list still holds when the served one is empty.
+        assert_eq!(
+            address_with("https://ad.doubleclick.net/x.mp4", &ExcludeRules::default()),
+            Some(Excluded::Advert)
+        );
+    }
+
+    #[test]
+    fn a_served_floor_raises_the_stub_size_and_never_lowers_it() {
+        let raised = served(r#"{ "windows_media_floor": 300000 }"#);
+        let lowered = served(r#"{ "windows_media_floor": 10 }"#);
+        let url = "https://a.example/promo.wmv";
+        let mime = "video/x-ms-wmv";
+        assert_eq!(
+            response_with(url, mime, None, Some(200_000), &raised),
+            Some(Excluded::TinyWindowsMedia)
+        );
+        assert_eq!(
+            response_with(url, mime, None, Some(200_000), &ExcludeRules::default()),
+            None
+        );
+        assert_eq!(
+            response_with(url, mime, None, Some(WINDOWS_MEDIA_FLOOR), &lowered),
+            Some(Excluded::TinyWindowsMedia)
+        );
+    }
+
+    #[test]
+    fn the_rules_installed_from_a_hello_are_the_ones_address_uses() {
+        use super::super::rules;
+        let list = dm_protocol::Rules {
+            format: dm_protocol::RULES_FORMAT,
+            revision: 2,
+            exclude: served(r#"{ "advert_hosts": ["Promo.Example"] }"#),
+            sites: Vec::new(),
+        };
+        rules::install(Some(list));
+        assert_eq!(
+            address("https://promo.example/a.mp4"),
+            Some(Excluded::Advert)
+        );
+        // A document in a format this side does not read is not used.
+        rules::install(Some(dm_protocol::Rules {
+            format: 99,
+            ..dm_protocol::Rules::default()
+        }));
+        assert_eq!(address("https://promo.example/a.mp4"), None);
+        rules::install(None);
+        assert!(!rules::installed());
     }
 
     #[test]

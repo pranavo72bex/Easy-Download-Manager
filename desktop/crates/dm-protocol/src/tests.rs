@@ -51,6 +51,7 @@ fn the_wire_names_are_the_ones_the_host_has_always_used() {
     let hello = Reply::Hello(Hello {
         engine_version: "1.2".into(),
         protocol: None,
+        rules: None,
     })
     .to_frame();
     assert_eq!(hello["engineVersion"], "1.2");

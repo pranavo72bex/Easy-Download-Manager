@@ -59,6 +59,7 @@ pub async fn on_download_created(item: JsValue) {
     // whatever the settings: nobody came for it. A click with the take key
     // held is a person asking for this one.
     if !clicked {
+        ensure_served().await;
         if let Some(why) = decide::excluded::address(&found.url) {
             return log("debug", &format!("left with the browser: {}", why.reason()));
         }

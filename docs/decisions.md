@@ -3623,3 +3623,28 @@ store switched off by `DM_NO_SECRET_STORE`, any other system) the file is exactl
 notice says so. A file that cannot be opened (a copy made on another account) is not guessed at: the
 downloads that had logins or cookies ask for them again. Not done: the Sign-ins' and the proxy's passwords
 in the settings file, and the macOS and Linux stores (the row says why).
+
+## Site rules are served by the app and added to the extension's tables (2026-11-01)
+
+A fix for one site (a host to leave alone, a request whose answer names the stream) used to need a new
+extension in the browser stores, because the tables were compiled into it (gaps rows 68 and 69). The hello
+now carries an optional `rules` document, `Rules` in `dm-protocol`: `format` (how it is written, 1) and
+`revision` (how new it is), the lists `exclude` adds to `excluded.rs`, and `sites`, each with the requests
+whose JSON answers hold streams (`url_contains`, and the `keys` whose strings are addresses). The app serves
+the newer of `dm-shell/resources/rules.json` (built in) and a `rules.json` in dm's home, so a fix can be put
+in place by a file and not a release. Decisions:
+
+* Additive only. The extension adds what it is served to its own tables and nothing served removes a built-in
+  rule, so a missing, older, oversize (256 KiB, one native-messaging frame holds 1 MiB), malformed or
+  other-format document costs nothing: the extension decides as it was built to.
+* The served rules are kept in the extension's storage (`dm.rules`) and put back when the worker wakes, since
+  waking is when a download arrives and asking the app takes longer than a small download.
+* The page hook reads only JSON, at most 1 MiB, only for requests the rules of the page's site name, and
+  the extension re-checks the site and the request before it finds anything, so a page cannot make the
+  extension read an answer the rules do not name. What counts as a stream (an `http(s)` address ending in a
+  media extension, not on the never-caught list) is decided in Rust (`decide/answers.rs`), not in the page.
+* The shipped document is empty. The profiles are written from what the real pages show at the final QA; guessing
+  at sites' answers from memory would add rules nobody checked. Not done: carrying `rules.json` in the app's
+  signed update manifests.
+* Considered and not chosen: serving the document through `settings.get`. The hello is answered first and once per
+  handshake, and the decisions that need the rules (the never-caught list) run before the settings arrive.

@@ -538,6 +538,39 @@ fn a_hello_says_what_this_app_is() {
 }
 
 #[test]
+fn a_hello_serves_the_site_rules_and_a_newer_file_in_the_home_replaces_them() {
+    let dir = tempfile::tempdir().unwrap();
+    let asked = |dir: &std::path::Path| {
+        let (reply, _) = ask(dir, dm_protocol::Request::Hello.to_frame(), true, Ok(()));
+        let Some(Reply::Hello(hello)) = reply else {
+            panic!("no hello")
+        };
+        hello.rules.expect("a hello carries the rules")
+    };
+    let shipped = asked(dir.path());
+    assert_eq!(shipped.format, dm_protocol::RULES_FORMAT);
+    std::fs::write(
+        dir.path().join("rules.json"),
+        format!(
+            r#"{{ "format": 1, "revision": {}, "exclude": {{ "tracker_hosts": ["beacon.example"] }} }}"#,
+            shipped.revision + 1
+        ),
+    )
+    .unwrap();
+    let newer = asked(dir.path());
+    assert_eq!(newer.exclude.tracker_hosts, vec!["beacon.example"]);
+    // The frame the extension reads names the field `rules`.
+    let (reply, _) = ask(
+        dir.path(),
+        dm_protocol::Request::Hello.to_frame(),
+        true,
+        Ok(()),
+    );
+    let frame = reply.expect("a hello").to_frame();
+    assert_eq!(frame["rules"]["revision"], shipped.revision + 1);
+}
+
+#[test]
 fn a_caught_hand_off_at_the_new_version_is_answered_at_the_old() {
     // The extension sends a caught download at version 2; the answer
     // goes back at 1, which an older extension also reads.

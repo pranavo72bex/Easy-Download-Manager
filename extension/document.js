@@ -2,6 +2,10 @@
 // script's isolated world cannot see the player's requests. It only reads:
 // the address a video site's player asks for is passed on to content.js,
 // which tells the background; the request itself goes on untouched.
+// On the sites the app's rules name, the JSON answer of the requests the rules
+// list is passed on too (at most 1 MiB of it), because a page that builds its
+// own stream puts the address in an answer and not in a request of its own.
+// What is a stream in it is decided in Rust (browser/src/decide/answers.rs).
 (() => {
   if (globalThis.__dmHook) return;
   globalThis.__dmHook = true;
@@ -31,14 +35,72 @@
     } catch { levels = []; }
     window.postMessage({ source: 'dm-player-qualities', token: event.data.token, id, levels }, location.origin);
   });
+  // The parts of an address that mark a request whose answer is read: told by
+  // content.js from the app's rules for this site; empty on every other site.
+  let reading = [];
+  const MAX_ANSWER = 1024 * 1024;
+  window.addEventListener('message', (event) => {
+    if (event.source !== window || event.data?.source !== 'dm-page-rules'
+      || !Array.isArray(event.data.urls)) return;
+    reading = event.data.urls
+      .filter((part) => typeof part === 'string' && part)
+      .map((part) => part.toLowerCase())
+      .slice(0, 64);
+  });
+  const watched = (asked) => {
+    if (!reading.length) return null;
+    try {
+      const text = typeof asked === 'string' ? asked : asked?.url ?? String(asked);
+      const href = new URL(text, location.href).href;
+      const lower = href.toLowerCase();
+      return reading.some((part) => lower.includes(part)) ? href : null;
+    } catch { return null; }
+  };
+  const tellAnswer = (href, body) => {
+    if (typeof body !== 'string' || !body || body.length > MAX_ANSWER) return;
+    window.postMessage({ source: 'dm-page-answer', url: href, body }, location.origin);
+  };
+  // A fetch answer is read from a copy, in pieces, and given up on past the cap.
+  const readFetched = async (href, response) => {
+    try {
+      if (!response?.ok || !(response.headers.get('content-type') || '').toLowerCase().includes('json')) return;
+      if (Number(response.headers.get('content-length')) > MAX_ANSWER) return;
+      const reader = response.clone().body?.getReader();
+      if (!reader) return;
+      const parts = [];
+      let total = 0;
+      for (;;) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        total += value.length;
+        if (total > MAX_ANSWER) { reader.cancel().catch(() => {}); return; }
+        parts.push(value);
+      }
+      tellAnswer(href, await new Blob(parts).text());
+    } catch { /* an answer that cannot be read is not read */ }
+  };
   const fetched = window.fetch;
   window.fetch = function (...args) {
     tell(args[0]);
-    return fetched.apply(this, args);
+    const pending = fetched.apply(this, args);
+    const href = watched(args[0]);
+    if (href) pending.then((response) => readFetched(href, response), () => {});
+    return pending;
   };
   const opened = XMLHttpRequest.prototype.open;
   XMLHttpRequest.prototype.open = function (method, url, ...rest) {
     tell(url);
+    const href = watched(url);
+    if (href) {
+      this.addEventListener('load', () => {
+        try {
+          if (this.status < 200 || this.status > 299) return;
+          if (this.responseType !== '' && this.responseType !== 'text') return;
+          if (!(this.getResponseHeader('content-type') || '').toLowerCase().includes('json')) return;
+          tellAnswer(href, this.responseText);
+        } catch { /* an answer that cannot be read is not read */ }
+      });
+    }
     return opened.call(this, method, url, ...rest);
   };
 })();

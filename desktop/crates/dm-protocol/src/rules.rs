@@ -1,0 +1,310 @@
+//! The rules the app serves to the extension in its hello, so that a fix for one site needs a new
+//! app (or a new `rules.json` in dm's home) and not a new release in a browser store.
+//!
+//! The document is versioned twice: `format` says how it is written (a side that does not read the
+//! format ignores the document and keeps its compiled tables), and `revision` says how new it is
+//! (the app serves the newest of the one it ships and the one in its home folder). The extension
+//! adds what it is served to what it was built with; nothing served can take a compiled rule away,
+//! so a bad or old document costs nothing.
+
+use serde::{Deserialize, Serialize};
+
+/// The format of the rules document this side reads.
+pub const RULES_FORMAT: u64 = 1;
+
+/// The largest rules document read, in bytes: the hello travels in one native-messaging frame,
+/// which a browser limits to 1 MiB, and this leaves the rest of the frame room.
+pub const MAX_RULES_BYTES: usize = 256 * 1024;
+
+/// The most entries kept in any one list of a document.
+const MAX_ENTRIES: usize = 2000;
+/// The most site profiles, answer rules and keys kept.
+const MAX_PROFILES: usize = 500;
+const MAX_ANSWERS: usize = 64;
+const MAX_KEYS: usize = 64;
+/// The largest floor for a Windows media stub a document may set: 10 MiB.
+const MAX_MEDIA_FLOOR: u64 = 10 * 1024 * 1024;
+
+/// A versioned set of rules: what is never caught, and what to read on which site.
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Default)]
+#[serde(default)]
+pub struct Rules {
+    /// How the document is written; [`RULES_FORMAT`] is the one this side reads.
+    pub format: u64,
+    /// How new the document is: the larger revision wins.
+    pub revision: u64,
+    /// Addresses and responses nobody came to download.
+    pub exclude: ExcludeRules,
+    /// Sites whose pages build their streams from the answers of their own requests.
+    pub sites: Vec<SiteProfile>,
+}
+
+/// Names added to the extension's built-in list of what is never caught (the same classes; see the
+/// extension's `excluded.rs`). Every entry is lower case.
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Default)]
+#[serde(default)]
+pub struct ExcludeRules {
+    /// Advertising networks, by the end of their host name.
+    pub advert_hosts: Vec<String>,
+    /// Measuring and tracking services, by the end of their host name.
+    pub tracker_hosts: Vec<String>,
+    /// Whole path segments that mean an advert wherever they stand.
+    pub advert_segments: Vec<String>,
+    /// File names of tracking pixels.
+    pub tracker_files: Vec<String>,
+    /// Names a page's interface sounds go by.
+    pub sound_names: Vec<String>,
+    /// Folders a page keeps its interface sounds in.
+    pub sound_folders: Vec<String>,
+    /// Extensions of those sounds.
+    pub sound_extensions: Vec<String>,
+    /// Folders a page keeps its furniture in.
+    pub furniture_folders: Vec<String>,
+    /// Names of a page's furniture.
+    pub furniture_names: Vec<String>,
+    /// Words in a `Server` header that name an ad server.
+    pub ad_server_names: Vec<String>,
+    /// A Windows media file of this many bytes or fewer is an ad's stub, where the built-in floor
+    /// is not the right one. Never lowers the built-in floor.
+    pub windows_media_floor: Option<u64>,
+}
+
+/// What to read on one site: its host, and which of its requests answer with streams.
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Default)]
+#[serde(default)]
+pub struct SiteProfile {
+    /// The site, such as `example.com`; it covers its sub-domains.
+    pub host: String,
+    /// The requests whose answers are read.
+    pub answers: Vec<AnswerRule>,
+}
+
+/// One kind of request a site's player makes whose answer names a stream.
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Default)]
+#[serde(default)]
+pub struct AnswerRule {
+    /// A request is read when its address contains this (compared in lower case).
+    pub url_contains: String,
+    /// The JSON keys whose strings are addresses (compared exactly); empty means every string of
+    /// the answer.
+    pub keys: Vec<String>,
+}
+
+impl Rules {
+    /// The rules of a document, or why it is not one. Reads JSON only, nothing over
+    /// [`MAX_RULES_BYTES`], and only the format this side reads; the lists are tidied (see
+    /// [`Rules::tidied`]).
+    pub fn parse(text: &str) -> Result<Rules, String> {
+        if text.len() > MAX_RULES_BYTES {
+            return Err(format!("more than {MAX_RULES_BYTES} bytes"));
+        }
+        let rules: Rules =
+            serde_json::from_str(text).map_err(|why| format!("not a rules document: {why}"))?;
+        if rules.format != RULES_FORMAT {
+            return Err(format!(
+                "format {} is not one this side reads (it reads {RULES_FORMAT})",
+                rules.format
+            ));
+        }
+        Ok(rules.tidied())
+    }
+
+    /// The newer of the rules an app ships and the ones found beside it; the shipped ones when the
+    /// found ones are not newer, or are not there.
+    pub fn newest(shipped: Rules, found: Option<Rules>) -> Rules {
+        match found {
+            Some(found) if found.revision > shipped.revision => found,
+            _ => shipped,
+        }
+    }
+
+    /// The rules with every list trimmed, lower-cased where a name is compared in lower case,
+    /// stripped of entries that cannot be what they claim to be (empty, with a space, a host with
+    /// a slash) and cut to a sane length.
+    pub fn tidied(mut self) -> Rules {
+        let hosts = |list: &mut Vec<String>| {
+            tidy(list, |entry| {
+                !entry.contains(['/', ':', '?', '#', '@']) && !entry.starts_with('.')
+            })
+        };
+        hosts(&mut self.exclude.advert_hosts);
+        hosts(&mut self.exclude.tracker_hosts);
+        let plain = |list: &mut Vec<String>| tidy(list, |entry| !entry.contains(['?', '#']));
+        plain(&mut self.exclude.advert_segments);
+        plain(&mut self.exclude.tracker_files);
+        plain(&mut self.exclude.sound_names);
+        plain(&mut self.exclude.sound_folders);
+        plain(&mut self.exclude.sound_extensions);
+        plain(&mut self.exclude.furniture_folders);
+        plain(&mut self.exclude.furniture_names);
+        plain(&mut self.exclude.ad_server_names);
+        self.exclude.windows_media_floor = self
+            .exclude
+            .windows_media_floor
+            .map(|floor| floor.min(MAX_MEDIA_FLOOR));
+        self.sites.truncate(MAX_PROFILES);
+        for site in &mut self.sites {
+            site.host = site.host.trim().trim_matches('.').to_ascii_lowercase();
+            site.answers.truncate(MAX_ANSWERS);
+            for answer in &mut site.answers {
+                answer.url_contains = answer.url_contains.trim().to_ascii_lowercase();
+                answer.keys.retain(|key| !key.is_empty());
+                answer.keys.truncate(MAX_KEYS);
+            }
+            site.answers
+                .retain(|answer| !answer.url_contains.is_empty());
+        }
+        self.sites.retain(|site| {
+            !site.host.is_empty()
+                && !site.host.contains(['/', ':', ' '])
+                && !site.answers.is_empty()
+        });
+        self
+    }
+
+    /// The answer rules of the site a page on `host` belongs to: those of every profile whose host
+    /// is `host` or one `host` is a sub-domain of.
+    pub fn answers_for(&self, host: &str) -> Vec<&AnswerRule> {
+        let host = host.trim_matches('.').to_ascii_lowercase();
+        self.sites
+            .iter()
+            .filter(|site| {
+                host == site.host
+                    || host
+                        .strip_suffix(site.host.as_str())
+                        .is_some_and(|before| before.ends_with('.'))
+            })
+            .flat_map(|site| site.answers.iter())
+            .collect()
+    }
+}
+
+/// Lower-cases, trims, drops what is empty, has whitespace or fails `fits`, drops repeats and cuts
+/// to [`MAX_ENTRIES`].
+fn tidy(list: &mut Vec<String>, fits: impl Fn(&str) -> bool) {
+    for entry in list.iter_mut() {
+        *entry = entry.trim().to_ascii_lowercase();
+    }
+    list.retain(|entry| {
+        !entry.is_empty() && !entry.contains(char::is_whitespace) && fits(entry.as_str())
+    });
+    let mut seen = std::collections::HashSet::new();
+    list.retain(|entry| seen.insert(entry.clone()));
+    list.truncate(MAX_ENTRIES);
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn document(extra: &str) -> String {
+        format!(r#"{{ "format": 1, "revision": 3, {extra} }}"#)
+    }
+
+    #[test]
+    fn a_document_is_read_and_its_lists_tidied() {
+        let text = document(
+            r#""exclude": { "advert_hosts": [" Ads.Example.COM ", "", "a b", "bad/host", "ads.example.com", ".lead.dot"],
+                             "windows_media_floor": 999999999999 },
+               "sites": [ { "host": " Video.Example ", "answers": [
+                    { "url_contains": " /API/Play ", "keys": ["hlsUrl", ""] },
+                    { "url_contains": "   " } ] },
+                  { "host": "", "answers": [ { "url_contains": "x" } ] },
+                  { "host": "no.answers.example" } ]"#,
+        );
+        let rules = Rules::parse(&text).expect("a document");
+        assert_eq!(rules.revision, 3);
+        assert_eq!(rules.exclude.advert_hosts, vec!["ads.example.com"]);
+        assert_eq!(rules.exclude.windows_media_floor, Some(MAX_MEDIA_FLOOR));
+        assert_eq!(rules.sites.len(), 1);
+        assert_eq!(rules.sites[0].host, "video.example");
+        assert_eq!(rules.sites[0].answers.len(), 1);
+        assert_eq!(rules.sites[0].answers[0].url_contains, "/api/play");
+        assert_eq!(rules.sites[0].answers[0].keys, vec!["hlsUrl"]);
+    }
+
+    #[test]
+    fn a_document_that_is_not_one_is_refused() {
+        assert!(Rules::parse("not json").is_err());
+        assert!(Rules::parse("[1, 2]").is_err());
+        assert!(Rules::parse("{}").is_err(), "no format");
+        assert!(
+            Rules::parse(r#"{ "format": 2, "revision": 9 }"#).is_err(),
+            "a format this side does not read"
+        );
+        let huge = format!(
+            r#"{{ "format": 1, "revision": 1, "exclude": {{ "advert_hosts": ["{}"] }} }}"#,
+            "a".repeat(MAX_RULES_BYTES)
+        );
+        assert!(Rules::parse(&huge).is_err(), "over the size cap");
+    }
+
+    #[test]
+    fn a_field_this_side_does_not_know_is_ignored() {
+        let rules = Rules::parse(&document(r#""future": { "x": 1 }"#)).expect("a document");
+        assert_eq!(rules.revision, 3);
+        assert!(rules.sites.is_empty());
+    }
+
+    #[test]
+    fn the_newer_revision_wins_and_a_tie_keeps_the_shipped_one() {
+        let shipped = Rules {
+            format: 1,
+            revision: 5,
+            ..Rules::default()
+        };
+        let newer = Rules {
+            revision: 6,
+            ..shipped.clone()
+        };
+        let older = Rules {
+            revision: 4,
+            ..shipped.clone()
+        };
+        let same = Rules {
+            exclude: ExcludeRules {
+                advert_hosts: vec!["x.example".into()],
+                ..ExcludeRules::default()
+            },
+            ..shipped.clone()
+        };
+        assert_eq!(Rules::newest(shipped.clone(), Some(newer.clone())), newer);
+        assert_eq!(Rules::newest(shipped.clone(), Some(older)), shipped);
+        assert_eq!(Rules::newest(shipped.clone(), Some(same)), shipped);
+        assert_eq!(Rules::newest(shipped.clone(), None), shipped);
+    }
+
+    #[test]
+    fn a_page_gets_the_answer_rules_of_its_site_and_the_sites_it_is_part_of() {
+        let rules = Rules::parse(&document(
+            r#""sites": [ { "host": "video.example", "answers": [ { "url_contains": "/play" } ] },
+                          { "host": "other.example", "answers": [ { "url_contains": "/o" } ] } ]"#,
+        ))
+        .expect("a document");
+        assert_eq!(rules.answers_for("video.example").len(), 1);
+        assert_eq!(rules.answers_for("WWW.video.example").len(), 1);
+        assert_eq!(rules.answers_for("m.video.example").len(), 1);
+        assert!(rules.answers_for("notvideo.example").is_empty());
+        assert!(rules.answers_for("example").is_empty());
+    }
+
+    #[test]
+    fn a_hello_carries_the_rules_and_an_old_hello_has_none() {
+        let hello: crate::Hello =
+            serde_json::from_str(r#"{ "engineVersion": "1.0.0" }"#).expect("an old hello");
+        assert_eq!(hello.rules, None);
+        let with = crate::Hello {
+            rules: Some(Rules {
+                format: 1,
+                revision: 2,
+                ..Rules::default()
+            }),
+            ..crate::Hello::default()
+        };
+        let text = serde_json::to_string(&with).expect("text");
+        let back: crate::Hello = serde_json::from_str(&text).expect("a hello");
+        assert_eq!(back, with);
+        let none = serde_json::to_string(&crate::Hello::default()).expect("text");
+        assert!(!none.contains("rules"), "{none}");
+    }
+}

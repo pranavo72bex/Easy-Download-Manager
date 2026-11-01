@@ -184,6 +184,40 @@ pub async fn on_page_message(message: JsValue, sender: JsValue) -> JsValue {
         }
         return answer(true, "noted");
     }
+    // The page script asking which requests of its site have answers to read
+    // (the app's rules for the site; none for most sites).
+    if get(&message, "type").as_string().as_deref() == Some(decide::PAGE_RULES_MESSAGE) {
+        ensure_served().await;
+        let page = get(&sender, "url").as_string().unwrap_or_default();
+        return to_js(
+            &serde_json::json!({ "ok": true, "urls": decide::rules::watched_for(&page) }),
+        );
+    }
+    // The answer to one of those requests: read for the streams a page builds
+    // itself, only where the app's rules for the page's site name the request,
+    // and only as JSON, so a page that sends anything else gets nothing taken.
+    if get(&message, "type").as_string().as_deref() == Some(decide::PAGE_ANSWER_MESSAGE) {
+        ensure_served().await;
+        let tab = get(&sender, "tab.id").as_f64().unwrap_or(-1.0);
+        let page = get(&sender, "url").as_string().unwrap_or_default();
+        let asked = get(&message, "url").as_string().unwrap_or_default();
+        let body = get(&message, "body").as_string().unwrap_or_default();
+        if tab >= 0.0 {
+            if let Some(keys) = decide::rules::keys_for(&page, &asked) {
+                for address in decide::addresses_in(&body, &keys) {
+                    let details = to_js(&serde_json::json!({
+                        "url": address,
+                        "tabId": tab,
+                        "type": "xmlhttprequest",
+                        "statusCode": 200,
+                        "responseHeaders": [],
+                    }));
+                    on_response_started(details).await;
+                }
+            }
+        }
+        return answer(true, "noted");
+    }
     // The toolbar popup: how the app is, and bringing it up.
     match get(&message, "type").as_string().as_deref() {
         Some(decide::STATUS_MESSAGE) => {

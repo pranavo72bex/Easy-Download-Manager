@@ -20,6 +20,7 @@ pub async fn on_response_started(details: JsValue) {
     if tab < 0 {
         return;
     }
+    ensure_served().await;
     let kept = match decide::keep(&seen) {
         decide::Keep::Nothing => return,
         // A new page: the old one's streams go from memory and from the

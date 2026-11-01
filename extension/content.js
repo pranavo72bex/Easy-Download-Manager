@@ -28,6 +28,26 @@
     } catch { /* the extension was updated under this page */ }
   });
 
+  // On a site the app's rules name, the requests whose JSON answers hold the
+  // streams its page builds: the page script is told which, and what it reads
+  // comes back here to the background, which finds the streams (in Rust, only
+  // where the rules for the site name that request). Only from this page.
+  try {
+    ext.runtime.sendMessage({ type: 'dm.page-rules' }).then((answer) => {
+      if (answer?.ok && Array.isArray(answer.urls) && answer.urls.length) {
+        window.postMessage({ source: 'dm-page-rules', urls: answer.urls }, location.origin);
+      }
+    }).catch(() => {});
+  } catch { /* the extension was updated under this page */ }
+  window.addEventListener('message', (event) => {
+    const data = event.data;
+    if (event.source !== window || data?.source !== 'dm-page-answer'
+      || typeof data.url !== 'string' || typeof data.body !== 'string') return;
+    try {
+      ext.runtime.sendMessage({ type: 'dm.page-answer', url: data.url, body: data.body }).catch(() => {});
+    } catch { /* the extension was updated under this page */ }
+  });
+
   // A click with a key held: the app's rules (Options › Browser) name the
   // key that leaves a download with the browser (Alt unless changed) and
   // the one that hands it to dm whatever its type or size (Shift unless

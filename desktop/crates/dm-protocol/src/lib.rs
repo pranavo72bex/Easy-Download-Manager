@@ -58,6 +58,9 @@
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
+mod rules;
+pub use rules::{AnswerRule, ExcludeRules, Rules, SiteProfile, MAX_RULES_BYTES, RULES_FORMAT};
+
 /// The newest version this side reads and writes. A frame of a version
 /// outside [`OLDEST_PROTOCOL`]`..=PROTOCOL_VERSION` is not read.
 pub const PROTOCOL_VERSION: u64 = 2;
@@ -352,6 +355,11 @@ pub struct Hello {
     /// version 1, which said nothing of it.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub protocol: Option<u64>,
+    /// The site rules the app serves (what is never caught, and which answers of a site's own
+    /// requests name streams), which the extension adds to the tables it was built with. Absent
+    /// from an app that serves none.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub rules: Option<Rules>,
 }
 
 impl Hello {

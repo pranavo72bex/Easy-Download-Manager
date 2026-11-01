@@ -18,6 +18,47 @@ pub(super) async fn remember_rules(rules: &CatchRules) {
     }
 }
 
+/// Where the site rules the app served in its hello are kept between the worker's naps.
+pub(super) const SERVED_KEY: &str = "dm.rules";
+
+thread_local! {
+    /// Whether the kept site rules were looked for in this worker's life.
+    static SERVED_RESTORED: std::cell::Cell<bool> = const { std::cell::Cell::new(false) };
+}
+
+/// Keeps the site rules the app last served (or that it served none), so a worker woken by a
+/// download decides with them at once.
+pub(super) async fn remember_served(rules: Option<&dm_protocol::Rules>) {
+    SERVED_RESTORED.with(|r| r.set(true));
+    let Ok(value) = serde_json::to_value(rules) else {
+        return;
+    };
+    let item = to_js(&serde_json::json!({ SERVED_KEY: value }));
+    if let Err(why) = call("storage.local", "set", &[item]).await {
+        log("debug", &format!("the site rules were not kept: {why}"));
+    }
+}
+
+/// Puts the kept site rules back into force once per worker life, unless the app has served
+/// some since. Nothing kept, or a document this side does not read, leaves the built-in tables.
+pub(super) async fn ensure_served() {
+    if decide::rules::installed() || SERVED_RESTORED.with(|r| r.replace(true)) {
+        return;
+    }
+    let Ok(got) = call("storage.local", "get", &[JsValue::from_str(SERVED_KEY)]).await else {
+        return;
+    };
+    // The app may have answered while this was read: what it served is newer.
+    if decide::rules::installed() {
+        return;
+    }
+    if let Ok(rules) =
+        serde_json::from_value::<Option<dm_protocol::Rules>>(from_js(&field(&got, SERVED_KEY)))
+    {
+        decide::rules::install(rules);
+    }
+}
+
 /// The catch rules the app last sent, if any were kept.
 pub(super) async fn remembered_rules() -> Option<CatchRules> {
     let got = call("storage.local", "get", &[JsValue::from_str(RULES_KEY)])
