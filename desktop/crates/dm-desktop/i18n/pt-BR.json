@@ -1,4 +1,5 @@
 {
+ "this link has expired. dm is waiting for the browser to hand over a new one for the same file": "este link expirou. O dm está esperando o navegador entregar um novo para o mesmo arquivo",
  "\"{}\" can't be a category, because its name is also its folder's. Leave out / \\ : * ? \" < > |, names like CON, and a dot or space at the end.": "\"{}\" não pode ser uma categoria: o nome também é a pasta, e esse não é um nome de pasta que todo computador possa usar (sem / \\ : * ? \" < > |, sem nomes como CON, nada terminando em ponto ou espaço)",
  "\"{}\" to \"{}\": times are HH:MM in 24 hours, such as 01:00 or 23:30.": "\"{}\" a \"{}\": os horários são HH:MM em 24 horas, como 01:00 ou 23:30.",
  "A download already begun keeps the folder it began in.": "Um download já iniciado mantém a pasta em que começou.",

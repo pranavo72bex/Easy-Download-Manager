@@ -1,4 +1,5 @@
 {
+ "this link has expired. dm is waiting for the browser to hand over a new one for the same file": "此链接已过期。dm 正在等待浏览器为同一文件交来新的链接",
  "\"{}\" can't be a category, because its name is also its folder's. Leave out / \\ : * ? \" < > |, names like CON, and a dot or space at the end.": "“{}”不能作为类别：类别名也是它的文件夹名，而这不是每台电脑都能用的文件夹名（不能含 / \\ : * ? \" < > |，不能是 CON 之类的名称，也不能以点或空格结尾）",
  "\"{}\" to \"{}\": times are HH:MM in 24 hours, such as 01:00 or 23:30.": "“{}”至“{}”：时间为 24 小时制的 HH:MM，例如 01:00 或 23:30。",
  "A download already begun keeps the folder it began in.": "已开始的下载仍保存在开始时的文件夹中。",

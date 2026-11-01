@@ -1,4 +1,5 @@
 {
+ "this link has expired. dm is waiting for the browser to hand over a new one for the same file": "tautan ini telah kedaluwarsa. dm menunggu browser menyerahkan tautan baru untuk berkas yang sama",
  "\"{}\" can't be a category, because its name is also its folder's. Leave out / \\ : * ? \" < > |, names like CON, and a dot or space at the end.": "\"{}\" tidak bisa menjadi kategori: namanya juga nama foldernya, dan itu bukan nama folder yang bisa dipakai semua komputer (tanpa / \\ : * ? \" < > |, bukan nama seperti CON, tidak diakhiri titik atau spasi)",
  "\"{}\" to \"{}\": times are HH:MM in 24 hours, such as 01:00 or 23:30.": "\"{}\" sampai \"{}\": waktu ditulis JJ:MM dalam format 24 jam, misalnya 01:00 atau 23:30.",
  "A download already begun keeps the folder it began in.": "Unduhan yang sudah dimulai tetap di folder tempat ia dimulai.",

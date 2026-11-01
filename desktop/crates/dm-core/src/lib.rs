@@ -65,6 +65,7 @@ pub mod torrent;
 pub mod tsmux;
 pub mod videopage;
 pub mod youtube;
+pub mod zipinfo;
 
 /// The HTTP client crate, for callers that take or build a client of the
 /// engine's kind without a dependency of their own.
@@ -82,11 +83,13 @@ pub use probe::Probe;
 pub use progress::Progress;
 pub use proxy::Proxy;
 pub use queue::{
-    queue_names, AddOptions, Connection, Entry, Id, Queue, State, MAIN_QUEUE, RECHECK_QUEUE,
+    queue_names, AddOptions, Connection, Entry, Id, Queue, State, LINK_EXPIRED, MAIN_QUEUE,
+    RECHECK_QUEUE,
 };
 pub use schedule::Schedule;
 pub use stream::Stream;
 pub use torrent::is_torrent;
+pub use zipinfo::{zip_contents, ZipEntry};
 
 /// Why a download stopped.
 ///
@@ -209,6 +212,18 @@ impl Error {
             )));
         }
         Ok(res)
+    }
+
+    /// Whether this says the address itself has run out: the server refused it
+    /// (403, or 410 Gone), or a web page answered where the file should be. A
+    /// signed address from a browser stops working after a while, and what
+    /// is staged under it is still good (`Queue::adopt_fresh_link`).
+    pub fn link_expired(&self) -> bool {
+        match self {
+            Error::Refused { status, .. } => matches!(status, 403 | 410),
+            Error::Internal(said) => said.contains("web page rather than the file"),
+            _ => false,
+        }
     }
 
     /// Turns a refused response into an error that says what refused and why.

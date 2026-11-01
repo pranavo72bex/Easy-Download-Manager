@@ -1,3 +1,4 @@
+use super::family::same_family;
 use super::*;
 
 /* --------------------------------------------------------------------- row verbs
@@ -10,12 +11,77 @@ use super::*;
 impl Queue {
     /// Adds a download with what the "Download details" dialog chose.
     pub async fn add_with(&self, url: &str, with: AddOptions) -> Option<Id> {
+        if with.fresh_link_ok {
+            if let Some(id) = self.adopt_fresh_link(url, &with).await {
+                return Some(id);
+            }
+        }
         let id = self.add_unsaved(url, with).await;
         if id.is_some() {
             self.kick();
             self.save().await;
         }
         id
+    }
+
+    /// A fresh address from the browser for a file whose row waits for one
+    /// (`Entry::fresh_link`): the row takes the new address and goes on from
+    /// the parts it has, instead of the same file being added as another
+    /// row. It must be the same file: the same name, the very same size
+    /// (a name alone is not enough: another build of a program has the
+    /// name), and a server of the same family as the old address. Nothing is
+    /// asked of the network while no row waits. `None` where nothing matched;
+    /// the caller adds the address as it would have.
+    pub async fn adopt_fresh_link(&self, url: &str, with: &AddOptions) -> Option<Id> {
+        let url = url.trim();
+        if !accepted(url) {
+            return None;
+        }
+        let waiting: Vec<(Id, String, String, u64)> = {
+            let slots = self.inner.slots.lock().await;
+            slots
+                .values()
+                .filter(|s| s.entry.fresh_link && matches!(s.entry.state, State::Failed(_)))
+                .filter_map(|s| {
+                    Some((
+                        s.entry.id,
+                        s.entry.url.clone(),
+                        s.entry.filename.clone(),
+                        s.entry.progress.total?,
+                    ))
+                })
+                .filter(|(_, old, name, _)| !name.is_empty() && same_family(old, url))
+                .collect()
+        };
+        if waiting.is_empty() {
+            return None;
+        }
+        let client = self.inner.client.lock().await.clone();
+        let sign_in = (!with.cookies.is_empty())
+            .then(|| crate::cookies::SignIn::new(url, &with.cookies))
+            .flatten();
+        let referrer = Some(with.referrer.trim()).filter(|r| !r.is_empty());
+        let probed = crate::probe::probe(&client, url, referrer, sign_in.as_ref())
+            .await
+            .ok()?;
+        let (id, ..) = waiting.into_iter().find(|(_, _, name, total)| {
+            name.eq_ignore_ascii_case(&probed.filename) && probed.size == Some(*total)
+        })?;
+        if !self.set_url(id, url).await {
+            return None;
+        }
+        self.edit(id, |slot| {
+            if !with.referrer.trim().is_empty() {
+                slot.entry_mut().referrer = with.referrer.trim().to_string();
+            }
+            if !with.cookies.is_empty() {
+                slot.entry_mut().cookies = with.cookies.clone();
+            }
+            slot.entry_mut().fresh_link = false;
+            true
+        })
+        .await;
+        self.retry(id).await.then_some(id)
     }
 
     /// Adds every one of `items`, each with its own options, and writes the

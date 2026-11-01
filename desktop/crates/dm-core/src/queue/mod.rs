@@ -24,6 +24,7 @@ use crate::Error;
 
 mod actions;
 mod edit;
+mod family;
 mod inspect;
 mod journal;
 mod persist;
@@ -78,6 +79,12 @@ impl State {
         matches!(self, State::Completed | State::Cancelled)
     }
 }
+
+/// What a row says when its address has expired and it waits for the browser to
+/// hand over a fresh one (`Entry::fresh_link`); the window words it in plain
+/// sentences.
+pub const LINK_EXPIRED: &str =
+    "the link has expired: dm is waiting for the browser to hand over a new one";
 
 /// One row.
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
@@ -207,6 +214,12 @@ pub struct Entry {
     /// has, once there is room, or from another folder (`relocate`).
     #[serde(default, skip_serializing_if = "String::is_empty")]
     pub stalled: String,
+    /// A row from the browser whose address has expired (a signed link that
+    /// ran out): failed, but waiting for the browser to hand over a fresh
+    /// address for the same file, which takes its place and goes on from the
+    /// parts already staged (`Queue::adopt_fresh_link`).
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub fresh_link: bool,
 }
 
 fn is_zero(n: &u64) -> bool {
@@ -284,6 +297,10 @@ pub struct AddOptions {
     pub checksum: Option<crate::checksum::Checksum>,
     /// This download's own speed limit, in KB/s; zero for none.
     pub speed_limit: u64,
+    /// Handed over by the browser: it may take the place of a row waiting
+    /// for a fresh address for the same file (`Queue::adopt_fresh_link`)
+    /// instead of being added as another row.
+    pub fresh_link_ok: bool,
 }
 
 /// Named queues that start on their own each day: each with its minute of
@@ -365,6 +382,7 @@ impl Slot {
         self.entry_mut().finished_at = None;
         self.entry_mut().paused_by_schedule = false;
         self.entry_mut().stalled.clear();
+        self.entry_mut().fresh_link = false;
         self.outside_schedule = false;
     }
 }
@@ -622,6 +640,7 @@ impl Queue {
                 replaces: None,
                 speed_limit: 0,
                 stalled: String::new(),
+                fresh_link: false,
             }),
             control: Control::new(),
             task: None,
