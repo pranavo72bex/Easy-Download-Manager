@@ -181,3 +181,45 @@ recovers from a cut, and a 503 is waited out rather than ending the
 download. Reference A's 205 attempts a second against a failing server is
 not something to copy as it is: the fast return it buys can be had with a
 short, bounded wait.
+
+## Reference A's FTP engine, measured (Observed, 2026-11-02)
+
+Reference A 6.43 and dm 0.8.6, same method as above, against a minimal FTP
+server on 127.0.0.1 (8 MiB file). FTP commands logged per control session.
+
+| What happened | Reference A | dm |
+|---|---|---|
+| Connections | 6 FTP control sessions for an 8 MiB file | 9 FTP control sessions |
+| Probe | First session: `USER PASS TYPE PASV RETR QUIT` — receives file start; second session: `USER PASS TYPE SIZE PASV TYPE LIST QUIT` — reads directory listing | First session: `USER PASS TYPE SIZE MDTM REST QUIT` — probes with SIZE, MDTM, and REST 0 to check resumability; no LIST |
+| Segmentation via REST | Subsequent sessions use REST to seek to a position (REST 116800, 4252703 … — halving the remaining file) | Fixed 1 MiB pieces (REST 0, 1048576, 2097152, 3145728, 4194304, 5242880, 6291456, 7340032) |
+| EPSV | Not seen | Tries EPSV first, falls back to PASV |
+| NOOP | Sent in some sessions | Not sent |
+| Strategy | Dynamic halving, same as HTTP | Fixed-size chunks, same as HTTP |
+
+## Segmentation of a 64 MiB file (Observed, 2026-11-02)
+
+| What | Reference A | dm |
+|---|---|---|
+| Connections | 20 | 13 (+ spot-check requests) |
+| Total requests | 20 | 25 |
+| First range | `bytes=236230-67108863` (after ~230 KB probe) | `bytes=0-` (open-ended probe kept as piece 1) |
+| Split strategy | Halves of the largest remaining piece | Fixed 8 MiB pieces; halves of the largest when a connection frees |
+| Time (loopback) | 36 s | 2.6 s |
+
+Reference A's time disadvantage on loopback is because it opens connections one at a time after the probe, waiting for each piece to arrive before splitting it; on a real internet connection the network latency is the bottleneck and the difference narrows.
+
+## Connection cut mid-transfer (Observed, 2026-11-02)
+
+Server cuts TCP connection after sending 512 KB of each range's first attempt; retries go through cleanly. A 16 MiB file.
+
+| What | Reference A | dm |
+|---|---|---|
+| Result | Failed (1 request, did not retry) | Completed |
+| Requests | 1 | 34 |
+| Note | Reference A's probe (no-Range GET) received 512 KB of a 16 MiB file, connection cut. Reference A did not issue range requests to recover. dm retried each cut range and completed the file. |
+
+This is a difference to watch: reference A does not retry a partial 200-response.
+
+## HTTP proxy test (dm only, 2026-11-02)
+
+FTP and proxy tests via the harness (`D:\compare\compare2.mjs`). SOCKS5 proxy test for dm pending (proxy settings not loading from DM_HOME/settings.json in the harness; to be verified in the human QA). HTTP CONNECT proxy: dm issues `CONNECT host:port HTTP/1.1` to the proxy and downloads over the tunnel — verified working.
