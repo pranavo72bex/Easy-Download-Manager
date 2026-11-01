@@ -125,8 +125,7 @@ impl DmApp {
                     })
                     .count()
             });
-            let said =
-                dm_core::nth_free_name(std::path::Path::new(&folder), &name, before);
+            let said = dm_core::nth_free_name(std::path::Path::new(&folder), &name, before);
             free.insert(key, (Instant::now(), said.clone()));
             said
         })

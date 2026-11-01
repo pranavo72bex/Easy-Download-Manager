@@ -814,8 +814,16 @@ pub fn answer(
                         // A caught download asks too, where Options says so.
                         ask: ask || (caught && saved(home).ask_caught_downloads),
                         // Only a video asked for from the panel has a part.
-                        from: if caught { String::new() } else { from.trim().to_string() },
-                        to: if caught { String::new() } else { to.trim().to_string() },
+                        from: if caught {
+                            String::new()
+                        } else {
+                            from.trim().to_string()
+                        },
+                        to: if caught {
+                            String::new()
+                        } else {
+                            to.trim().to_string()
+                        },
                         caught,
                         cookies: cookies.trim().to_string(),
                         cookies_once: cookies_once && !cookies.trim().is_empty(),

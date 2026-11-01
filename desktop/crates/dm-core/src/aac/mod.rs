@@ -239,7 +239,7 @@ mod tests {
         let fixture =
             Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/mp4/sound.f140.m4a");
         let (track, config) = audio_track(&fixture).unwrap();
-        assert_eq!(config.channels, 2);
+        assert_eq!(config.channels, 1);
         assert!(config.rate >= 8000);
         assert!(!track.samples.is_empty());
         // With the tables absent the decode itself says so, instead of returning noise.

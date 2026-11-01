@@ -531,8 +531,77 @@ pub(super) async fn fetch_segment(
          * so one place decides whether a file is complete rather than two
          * disagreeing about it. */
         Err(Error::Incomplete { .. }) => Ok(()),
+        Ok(()) if resumable => spot_check_segment(client, job, index).await,
         other => other,
     }
+}
+
+/// How many bytes are re-fetched from the server after a segment finishes, to
+/// confirm the bytes on disk are the ones the server sent.
+const DATA_CHECK_SIZE: u64 = 4 * 1024;
+
+/// After a segment completes, re-fetches its last [`DATA_CHECK_SIZE`] bytes
+/// and compares them against what is on disk. Returns [`Error::Changed`] if
+/// they differ — the staged file is corrupt and the download should restart.
+/// Network errors during the check are ignored: only a clear byte mismatch
+/// fails the segment.
+async fn spot_check_segment(
+    client: &reqwest::Client,
+    job: &Job,
+    index: usize,
+) -> Result<(), Error> {
+    let (start, end) = {
+        let l = crate::lock(&job.live[index]);
+        (l.start, l.end)
+    };
+    let span = end - start + 1;
+    if span < DATA_CHECK_SIZE {
+        return Ok(());
+    }
+    let check_start = start + span - DATA_CHECK_SIZE;
+    let check_end = end;
+
+    // What is on disk.
+    let mut on_disk = vec![0u8; DATA_CHECK_SIZE as usize];
+    let open = tokio::fs::File::open(job.staged()).await;
+    let Ok(mut file) = open else {
+        return Ok(());
+    };
+    use tokio::io::{AsyncReadExt, AsyncSeekExt};
+    if file
+        .seek(std::io::SeekFrom::Start(check_start))
+        .await
+        .is_err()
+    {
+        return Ok(());
+    }
+    if file.read_exact(&mut on_disk).await.is_err() {
+        return Ok(());
+    }
+    drop(file);
+
+    // Ask the server for the same bytes.
+    let source = job.source(index);
+    let request = get(client, &source.url, job.referrer.as_deref(), job.sign_in.as_ref())
+        .header(
+            reqwest::header::RANGE,
+            format!("bytes={check_start}-{check_end}"),
+        );
+    let Ok(res) = crate::redirects::send(request).await else {
+        return Ok(());
+    };
+    if res.status() != reqwest::StatusCode::PARTIAL_CONTENT {
+        return Ok(());
+    }
+    let from_server = match res.bytes().await {
+        Ok(b) if b.len() as u64 == DATA_CHECK_SIZE => b,
+        _ => return Ok(()),
+    };
+
+    if from_server[..] != on_disk[..] {
+        return Err(Error::Changed);
+    }
+    Ok(())
 }
 
 /// One attempt at one range.

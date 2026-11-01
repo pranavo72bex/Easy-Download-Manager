@@ -217,6 +217,7 @@ pub struct Start {
     /// them filled; an older app ignores them.
     #[serde(default, skip_serializing_if = "String::is_empty")]
     pub from: String,
+    /// Where the wanted part ends, as typed ("2:00"), left empty for the end of the video.
     #[serde(default, skip_serializing_if = "String::is_empty")]
     pub to: String,
     /// The browser's cookies for the download's site, as the `Cookie`

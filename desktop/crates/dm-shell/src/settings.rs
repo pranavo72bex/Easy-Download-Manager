@@ -617,8 +617,7 @@ impl Settings {
     pub fn refusal(&self, previous: &Settings) -> Option<String> {
         if self.schedule != previous.schedule
             && self.schedule.enabled
-            && !(dm_core::is_time(&self.schedule.from)
-                && dm_core::is_time(&self.schedule.to))
+            && !(dm_core::is_time(&self.schedule.from) && dm_core::is_time(&self.schedule.to))
         {
             return Some(format!(
                 "the schedule's times must be HH:MM in 24 hours, not {:?} and {:?}",
@@ -626,11 +625,7 @@ impl Settings {
             ));
         }
         if self.queue_starts != previous.queue_starts {
-            if let Some(bad) = self
-                .queue_starts
-                .iter()
-                .find(|s| !dm_core::is_time(&s.at))
-            {
+            if let Some(bad) = self.queue_starts.iter().find(|s| !dm_core::is_time(&s.at)) {
                 return Some(format!(
                     "a queue's start time must be HH:MM in 24 hours, not {:?}",
                     bad.at
@@ -915,9 +910,7 @@ impl Settings {
         let mut settings = self.clamped();
         let mut notes = Vec::new();
         let schedule = &mut settings.schedule;
-        if schedule.enabled
-            && !(dm_core::is_time(&schedule.from)
-                && dm_core::is_time(&schedule.to))
+        if schedule.enabled && !(dm_core::is_time(&schedule.from) && dm_core::is_time(&schedule.to))
         {
             schedule.enabled = false;
             notes.push(format!(

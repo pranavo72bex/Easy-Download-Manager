@@ -44,10 +44,7 @@ fn a_newer_release_offers_its_installer_as_a_download_in_dm() {
     std::fs::write(&sample, payload()).unwrap();
     let sha256 = tokio::runtime::Runtime::new()
         .unwrap()
-        .block_on(dm_core::digest(
-            &sample,
-            dm_core::Algorithm::Sha256,
-        ))
+        .block_on(dm_core::digest(&sample, dm_core::Algorithm::Sha256))
         .unwrap();
     let offer = |harness: &mut Harness<'_, DmApp>, url: String, sha256: String| {
         *harness.state().update.lock().unwrap() = dm_desktop::update::Update::Newer(

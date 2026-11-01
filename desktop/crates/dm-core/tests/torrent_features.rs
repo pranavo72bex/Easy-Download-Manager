@@ -6,9 +6,9 @@ use std::net::{Ipv4Addr, SocketAddr, TcpListener};
 use std::path::{Path, PathBuf};
 use std::time::{Duration, Instant};
 
-use dm_core::{Options, Update};
 use dm_core::download_torrent;
 use dm_core::{client, Categories, Control, Limiter, Queue, State};
+use dm_core::{Options, Update};
 use librqbit::spawn_utils::BlockingSpawner;
 use librqbit::{
     AddTorrent, AddTorrentOptions, CreateTorrentOptions, ListenerMode, ListenerOptions, Session,

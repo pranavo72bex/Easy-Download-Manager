@@ -51,8 +51,8 @@ impl Dialogs {
     ) {
         self.focus_on("Playlist");
         let slot: PlaylistRead = Default::default();
-        let client = dm_core::client_with(&backend.settings().proxy)
-            .unwrap_or_else(|_| dm_core::client());
+        let client =
+            dm_core::client_with(&backend.settings().proxy).unwrap_or_else(|_| dm_core::client());
         let (page, read) = (url.clone(), slot.clone());
         let proxy = backend.settings().proxy.url_for_tools();
         backend.runtime.spawn(async move {
@@ -135,8 +135,8 @@ impl Dialogs {
     ) {
         let found: std::sync::Arc<std::sync::Mutex<std::collections::HashMap<String, Found>>> =
             Default::default();
-        let client = dm_core::client_with(&backend.settings().proxy)
-            .unwrap_or_else(|_| dm_core::client());
+        let client =
+            dm_core::client_with(&backend.settings().proxy).unwrap_or_else(|_| dm_core::client());
         let gate = std::sync::Arc::new(tokio::sync::Semaphore::new(6));
         let sign_in = dm_core::cookies::SignIn::new(&request.url, &request.cookies);
         for url in request.links.clone() {
@@ -172,8 +172,7 @@ impl Dialogs {
                         },
                     );
                 } else if let Ok(Ok(probe)) = asked {
-                    let kind =
-                        dm_core::classify(&probe.filename, probe.content_type.as_deref());
+                    let kind = dm_core::classify(&probe.filename, probe.content_type.as_deref());
                     dm_core::lock(&found).insert(
                         url,
                         Found {

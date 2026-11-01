@@ -10,6 +10,7 @@ use std::path::Path;
 mod win;
 
 /// Interleaved 16-bit samples, their channels and their rate.
+#[derive(Debug)]
 pub struct Pcm {
     /// The samples, left and right interleaved.
     pub samples: Vec<i16>,

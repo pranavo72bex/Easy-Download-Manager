@@ -624,7 +624,10 @@ fn a_start_carries_the_part_of_a_video_and_an_older_one_has_none() {
     let back: Start = serde_json::from_str(&text).unwrap();
     assert_eq!((back.from.as_str(), back.to.as_str()), ("1:30", "90"));
     let plain = serde_json::to_string(&Start::default()).unwrap();
-    assert!(!plain.contains("from") && !plain.contains("\"to\""), "{plain}");
+    assert!(
+        !plain.contains("from") && !plain.contains("\"to\""),
+        "{plain}"
+    );
     let old: Start = serde_json::from_str(r#"{"id":"x","url":"https://e.com/v"}"#).unwrap();
     assert!(old.from.is_empty() && old.to.is_empty());
 }

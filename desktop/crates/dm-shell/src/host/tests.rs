@@ -1165,7 +1165,10 @@ fn the_part_asked_for_in_the_panel_reaches_the_app_and_a_caught_download_has_non
     .to_frame();
     let (_, _) = ask(dir.path(), frame, true, Ok(()));
     let text = std::fs::read_to_string(inbox(dir.path()).join("part-2.json")).unwrap();
-    assert!(!text.contains("\"from\"") && !text.contains("\"to\""), "{text}");
+    assert!(
+        !text.contains("\"from\"") && !text.contains("\"to\""),
+        "{text}"
+    );
     let old: Request = serde_json::from_str(r#"{"url":"https://e.com/a"}"#).unwrap();
     assert!(old.from.is_empty() && old.to.is_empty());
 }

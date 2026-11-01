@@ -62,6 +62,12 @@ pub(crate) fn plan_plain_part(index: &Path, from_ms: u64, to_ms: u64) -> Result<
         // sample (a picture can only start at one); to the last that
         // starts before B.
         let at_from = starts.iter().rposition(|t| *t <= from_t).unwrap_or(0);
+        // If the sample at at_from ends before from_t, the whole track is past the end.
+        let at_from_end =
+            starts[at_from] + u64::from(track.samples[at_from].duration);
+        if at_from_end <= from_t {
+            continue;
+        }
         let first = track
             .samples
             .get(..=at_from)
