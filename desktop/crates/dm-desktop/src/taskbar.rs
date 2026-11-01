@@ -231,6 +231,7 @@ mod tests {
             replaces: None,
             speed_limit: 0,
             stalled: String::new(),
+            fresh_link: false,
         }
     }
 

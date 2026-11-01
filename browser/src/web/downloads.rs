@@ -55,6 +55,17 @@ pub async fn on_download_created(item: JsValue) {
         let mut taken = t.borrow_mut();
         taken.take(&found.url, now()) || taken.take(&asked_for, now())
     });
+    // An advert, a beacon, a page's own sound or furniture is never taken,
+    // whatever the settings: nobody came for it. A click with the take key
+    // held is a person asking for this one.
+    if !clicked {
+        if let Some(why) = decide::excluded::address(&found.url) {
+            return log(
+                "debug",
+                &format!("left with the browser: {}", why.reason()),
+            );
+        }
+    }
     // A site the popup has paused is the browser's, unless a click with the
     // take key held asked for this one.
     if !clicked && decide::paused_download(&paused_sites().await, &found) {

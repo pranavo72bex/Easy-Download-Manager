@@ -550,6 +550,10 @@ impl Queue {
                         "the new version could not be fetched, so the old one is kept at {old}: \
                          {error}"
                     )),
+                    None if error.link_expired() && (!slot.entry.referrer.is_empty() || !slot.entry.cookies.is_empty()) => {
+                        slot.entry_mut().fresh_link = true;
+                        State::Failed(format!("{LINK_EXPIRED} ({error})"))
+                    }
                     None => State::Failed(error.to_string()),
                 },
             };

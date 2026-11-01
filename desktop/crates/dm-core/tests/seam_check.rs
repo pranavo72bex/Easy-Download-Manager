@@ -1,0 +1,130 @@
+//! The seams between ranges fetched on several connections are fetched a
+//! second time over a fresh request and compared, as reference A does; bytes
+//! that differ restart the download on one connection.
+
+use std::sync::atomic::{AtomicUsize, Ordering};
+use std::sync::Arc;
+
+use axum::body::Body;
+use axum::extract::State;
+use axum::http::{HeaderMap, StatusCode};
+use axum::response::Response;
+use dm_core::{client, download};
+
+mod common;
+use common::{options, tempdir};
+
+const MB: usize = 1024 * 1024;
+
+fn pattern(n: usize) -> Vec<u8> {
+    (0..n).map(|i| (i % 251) as u8).collect()
+}
+
+#[derive(Clone)]
+struct Site {
+    body: Arc<Vec<u8>>,
+    /// A small range (a re-check of a seam) is answered with other bytes.
+    corrupt_checks: bool,
+    /// How many small ranges were asked for.
+    checks: Arc<AtomicUsize>,
+}
+
+async fn answer(State(site): State<Site>, headers: HeaderMap) -> Response {
+    let total = site.body.len();
+    let (a, b) = headers
+        .get("range")
+        .and_then(|v| v.to_str().ok())
+        .and_then(|v| v.strip_prefix("bytes="))
+        .and_then(|v| v.split_once('-'))
+        .map(|(a, b)| {
+            (
+                a.parse::<usize>().unwrap_or(0),
+                b.parse::<usize>().unwrap_or(total - 1).min(total - 1),
+            )
+        })
+        .unwrap_or((0, total - 1));
+    let mut bytes = site.body[a..=b].to_vec();
+    // A check of a seam is a few kilobytes from the middle of the file;
+    // the pieces themselves are whole megabytes.
+    if a > 0 && b - a < 8192 {
+        site.checks.fetch_add(1, Ordering::SeqCst);
+        if site.corrupt_checks {
+            for byte in bytes.iter_mut() {
+                *byte = byte.wrapping_add(1);
+            }
+        }
+    }
+    Response::builder()
+        .status(StatusCode::PARTIAL_CONTENT)
+        .header("accept-ranges", "bytes")
+        .header("content-range", format!("bytes {a}-{b}/{total}"))
+        .header("content-length", b - a + 1)
+        .header("etag", "\"s\"")
+        .body(Body::from(bytes))
+        .unwrap()
+}
+
+async fn serve(corrupt_checks: bool) -> (String, Arc<AtomicUsize>) {
+    let checks = Arc::new(AtomicUsize::new(0));
+    let site = Site {
+        body: Arc::new(pattern(8 * MB)),
+        corrupt_checks,
+        checks: checks.clone(),
+    };
+    let app = axum::Router::new().fallback(answer).with_state(site);
+    let addr = common::serve(app).await;
+    (format!("http://{addr}/f.bin"), checks)
+}
+
+#[tokio::test]
+async fn honest_ranges_pass_the_second_look_and_stay_on_several_connections() {
+    let (url, checks) = serve(false).await;
+    let dir = tempdir();
+    let opts = dm_core::Options {
+        connections: 4,
+        ..options(dir.path())
+    };
+    let done = download(&client(), &url, &opts).await.expect("download");
+    assert_eq!(std::fs::read(&done.path).unwrap(), pattern(8 * MB));
+    assert!(done.connections > 1, "{} connection", done.connections);
+    let looked = checks.load(Ordering::SeqCst);
+    assert!(
+        (1..=8).contains(&looked),
+        "{looked} seams were looked at again"
+    );
+}
+
+#[tokio::test]
+async fn seams_that_differ_when_asked_for_again_restart_the_file_on_one_connection() {
+    let (url, checks) = serve(true).await;
+    let dir = tempdir();
+    let opts = dm_core::Options {
+        connections: 4,
+        ..options(dir.path())
+    };
+    let (tx, mut rx) = tokio::sync::mpsc::channel(256);
+    let seen = tokio::spawn(async move {
+        let mut said = Vec::new();
+        while let Some(update) = rx.recv().await {
+            if let dm_core::Update::Retrying { why, .. } = update {
+                said.push(why);
+            }
+        }
+        said
+    });
+    let done = dm_core::download_reporting(&client(), &url, &opts, Some(tx))
+        .await
+        .expect("the download failed instead of going on with one connection");
+    assert_eq!(
+        std::fs::read(&done.path).unwrap(),
+        pattern(8 * MB),
+        "the file is not the one served"
+    );
+    assert_eq!(done.connections, 1, "it did not fall back to one connection");
+    assert!(checks.load(Ordering::SeqCst) >= 1);
+    let said = seen.await.unwrap();
+    assert!(
+        said.iter().any(|why| why.contains("did not agree")),
+        "the row was not told why: {said:?}"
+    );
+}

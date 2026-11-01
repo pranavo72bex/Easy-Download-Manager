@@ -97,6 +97,12 @@ pub fn stream_seen(seen: &Seen) -> Option<Stream> {
         .map(|(_, e)| e.to_string())
         .unwrap_or_default();
 
+    // On the built-in list (an ad network, a beacon, a page's own sound, an
+    // ad server by name, a Windows media stub): not offered, whatever it is.
+    let declared = header("content-length").and_then(|v| v.parse::<u64>().ok());
+    if super::excluded::response(&seen.url, &mime, header("server"), declared).is_some() {
+        return None;
+    }
     if let Some(track) = track_of(&seen.url) {
         return Some(track);
     }
