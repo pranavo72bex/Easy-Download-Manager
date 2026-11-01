@@ -62,6 +62,9 @@ pub struct Part {
     /// The bytes of `url` this piece is, first and last, both included, where
     /// the stream is cut from one file by `#EXT-X-BYTERANGE`.
     pub range: Option<(u64, u64)>,
+    /// How long the piece plays, in seconds, as the playlist's `#EXTINF`
+    /// says; 0 for an initialisation segment or where it said nothing.
+    pub duration: f64,
 }
 
 /// Everything needed to fetch a stream as one file.
@@ -408,6 +411,8 @@ pub fn media_playlist(
     // where it starts unless it goes on from the last piece of the same file.
     let mut cut: Option<(u64, Option<u64>)> = None;
     let mut ended_at: std::collections::HashMap<String, u64> = std::collections::HashMap::new();
+    // `#EXTINF`'s seconds, for the segment that follows it.
+    let mut pending = 0.0f64;
 
     for row in lines(text) {
         /* Segment URLs are the overwhelming majority of a media playlist and
@@ -433,6 +438,7 @@ pub fn media_playlist(
             parts.push(Part {
                 url,
                 range,
+                duration: std::mem::take(&mut pending),
                 init: false,
                 /* Numbered by media segments only.
                  *
@@ -445,6 +451,16 @@ pub fn media_playlist(
             continue;
         }
         let upper = row.to_ascii_uppercase();
+
+        if upper.starts_with("#EXTINF") {
+            pending = row
+                .split_once(':')
+                .and_then(|(_, rest)| rest.split(',').next())
+                .and_then(|seconds| seconds.trim().parse::<f64>().ok())
+                .filter(|seconds| seconds.is_finite() && *seconds >= 0.0)
+                .unwrap_or(0.0);
+            continue;
+        }
 
         if upper.starts_with("#EXT-X-MEDIA-SEQUENCE") {
             sequence = row
@@ -514,6 +530,7 @@ pub fn media_playlist(
                         init: true,
                         sequence: 0,
                         range,
+                        duration: 0.0,
                     });
                 }
                 container = "mp4";
@@ -566,6 +583,42 @@ pub fn media_playlist(
         parts,
         key,
         container: container.to_string(),
+    })
+}
+
+/// The part of `stream` that plays between `from` and `to` seconds: its
+/// initialisation segments, then every segment whose playing time overlaps
+/// the span, in order. With the second where the first segment taken
+/// begins and the second where the last ends (a segment is taken whole, so
+/// a part is cut at the nearest pieces unless the container can be trimmed
+/// afterwards). `None` where no segment overlaps, or the playlist gave no
+/// lengths (`#EXTINF`) to place them by.
+pub fn cover(stream: &Stream, from: f64, to: f64) -> Option<(Stream, f64, f64)> {
+    let mut parts: Vec<Part> = stream.parts.iter().filter(|p| p.init).cloned().collect();
+    let (mut at, mut starts, mut ends, mut any) = (0.0f64, 0.0f64, 0.0f64, false);
+    for part in stream.parts.iter().filter(|p| !p.init) {
+        let end = at + part.duration;
+        if part.duration > 0.0 && at < to && end > from {
+            if !any {
+                starts = at;
+                any = true;
+            }
+            ends = end;
+            parts.push(part.clone());
+        }
+        at = end;
+    }
+    any.then(|| {
+        (
+            Stream {
+                parts,
+                key: stream.key.clone(),
+                container: stream.container.clone(),
+                filename: stream.filename.clone(),
+            },
+            starts,
+            ends,
+        )
     })
 }
 
