@@ -63,8 +63,8 @@ pub mod tools;
 pub use second_path::{interfaces, set_second_path, Interface};
 pub mod torrent;
 pub mod tsmux;
+pub mod videopage;
 pub mod youtube;
-pub mod ytdlp;
 
 /// The HTTP client crate, for callers that take or build a client of the
 /// engine's kind without a dependency of their own.

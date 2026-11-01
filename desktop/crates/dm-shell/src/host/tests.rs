@@ -531,7 +531,6 @@ fn a_hello_says_what_this_app_is() {
         panic!("no hello")
     };
     assert_eq!(hello.engine_version, env!("CARGO_PKG_VERSION"));
-    assert!(hello.ytdlp.is_some(), "the extension is told either way");
     // Said, so the extension hands this app the downloads the browser
     // holds: it judges a sign-in page served in the file's place.
     assert!(hello.judges_pages());

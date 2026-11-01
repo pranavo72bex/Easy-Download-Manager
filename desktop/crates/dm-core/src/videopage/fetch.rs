@@ -266,9 +266,9 @@ impl Format {
     /// The most bytes one request for this format may ask for, where the reading
     /// says its server holds each to that.
     fn chunk(&self) -> Option<u64> {
-        // `DM_YTDLP_NO_CHUNK` switches the cap off, for timing a long video
+        // `DM_NO_CHUNK` switches the cap off, for timing a long video
         // with and without it on a real connection (gaps.md row 22).
-        if std::env::var_os("DM_YTDLP_NO_CHUNK").is_some() {
+        if std::env::var_os("DM_NO_CHUNK").is_some() {
             return None;
         }
         self.downloader_options
@@ -812,7 +812,7 @@ mod tests {
     }
 
     #[test]
-    fn a_pages_only_video_is_named_without_the_number_ytdlp_gives_it() {
+    fn a_pages_only_video_is_named_without_a_number() {
         let one = read(
             r#"{"filename": "/s/QA clip (1) [watch-1].mp4", "ext": "mp4",
                 "extractor_key": "HTML5MediaEmbed", "id": "watch-1",
@@ -844,7 +844,7 @@ mod tests {
     }
 
     #[test]
-    fn a_numbered_name_is_matched_as_ytdlp_wrote_it() {
+    fn a_numbered_name_is_matched_as_it_is_written() {
         let r = read(
             r#"{"filename": "/s/QA clip (1) [watch\uff1fv=ok-1].mp4", "ext": "mp4",
                 "extractor_key": "HTML5MediaEmbed", "id": "watch?v=ok-1",
@@ -874,7 +874,7 @@ mod tests {
     }
 
     #[test]
-    fn a_type_ytdlp_cannot_name_is_still_fetched_by_dm() {
+    fn a_type_dm_cannot_name_is_still_fetched_by_dm() {
         let r = read(
             r#"{"filename": "/s/file [file].unknown_video", "format_id": "0",
                 "ext": "unknown_video", "protocol": "http", "url": "http://h/file.bin"}"#,

@@ -302,7 +302,7 @@ sides, where it used to be two languages kept in step by hand:
 
 | extension sends | host answers |
 |---|---|
-| `engine.hello` | `engine.hello` with the app's version and whether it reads video pages (the field is still named `ytdlp` on the wire) |
+| `engine.hello` | `engine.hello` with the app's version and whether it reads video pages (the field is still named `videopage` on the wire) |
 | `settings.get` | `settings.get` with the `catch` rules |
 | `download.start` `{id, url, referrer, caught}` | `download.started`, or `download.failed` with the reason |
 
@@ -428,12 +428,12 @@ desktop/
                           and a playlist page's videos
     clip.rs               a part of a video: a stream's index of pieces, the pieces for a span,
                           fetched by ranges; the muxer cuts the joined file to the second
-    ytdlp.rs, tools.rs    a video page's streams fetched and joined (the module keeps its old
+    videopage.rs, tools.rs    a video page's streams fetched and joined (the module keeps its old
                           name), and the tools dm fetches and checks (QuickJS)
-    ytdlp/fetch.rs        a page's reading, its streams fetched by dm's engine
-    ytdlp/choices.rs      the panel's list of qualities, from the page's own data
-    ytdlp/page_data.rs    a YouTube watch page's own player data, read as that list
-    ytdlp/playlist.rs     a playlist page's videos, listed to tick
+    videopage/fetch.rs        a page's reading, its streams fetched by dm's engine
+    videopage/choices.rs      the panel's list of qualities, from the page's own data
+    videopage/page_data.rs    a YouTube watch page's own player data, read as that list
+    videopage/playlist.rs     a playlist page's videos, listed to tick
     extract.rs            a ZIP extracted into a folder of its own, refusing hostile entries
     control.rs, cookies.rs, auth.rs, ftp.rs   the stop flag, sign-ins, FTP (ftp/: transport,
                           target, reply, session, listing, transfer)

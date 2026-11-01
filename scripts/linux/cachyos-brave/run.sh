@@ -1,8 +1,8 @@
 #!/bin/sh
 # Builds the CachyOS + Brave image and runs the video hand-off three ways:
 # with /tmp as a default system has it, with /tmp mounted noexec (hardened and
-# tuned systems), with CachyOS's own yt-dlp, with noexec and TMPDIR pointed at a folder programs may
-# run from, and with noexec and a single-file yt-dlp of the person's own. Needs docker and a network. Prints what dm recorded and what its
+# tuned systems), and with noexec and TMPDIR pointed at a folder programs may
+# run from. Needs docker and a network. Prints what dm recorded and what its
 # window says in the Status column for each.
 #
 #   sh scripts/linux/cachyos-brave/run.sh
@@ -18,16 +18,12 @@ touch "$here/local/.keep"
 rm -f "$here/local/dm.AppImage"
 if [ -n "${DM_APPIMAGE:-}" ]; then cp "$DM_APPIMAGE" "$here/local/dm.AppImage"; fi
 docker build --platform linux/amd64 --build-arg "DM=$dm" -t dm-cachyos-brave "$here"
-for scenario in ${SCENARIOS:-"exec" "noexec" "noexec-tmpdir" "noexec-single-file" "system-ytdlp"}; do
+for scenario in ${SCENARIOS:-"exec" "noexec" "noexec-tmpdir"}; do
   echo
   case "$scenario" in
     exec)          opts="rw,exec,nosuid"; extra="" ;;
     noexec)        opts="rw,noexec,nosuid"; extra="" ;;
     noexec-tmpdir) opts="rw,noexec,nosuid"; extra="-e TMPDIR=/root/exec-tmp" ;;
-    # yt-dlp as a person installs it: the one file, which unpacks itself into /tmp.
-    noexec-single-file) opts="rw,noexec,nosuid"; extra="-e DM_YTDLP=/root/yt-dlp-one" ;;
-    # CachyOS's own yt-dlp (pacman), a script the system's Python runs.
-    system-ytdlp) opts="rw,exec,nosuid"; extra="-e PACMAN_YTDLP=1" ;;
   esac
   echo "######## $scenario"
   # shellcheck disable=SC2086
@@ -35,6 +31,6 @@ for scenario in ${SCENARIOS:-"exec" "noexec" "noexec-tmpdir" "noexec-single-file
   # shellcheck disable=SC2086
   docker run --rm --platform linux/amd64 $bin -e PAGE="${PAGE:-}" --tmpfs "/tmp:$opts,size=1g" $extra \
     -v "$here:/scripts:ro" dm-cachyos-brave \
-    sh -c 'mkdir -p /root/exec-tmp && { [ -z "${PACMAN_YTDLP:-}" ] || pacman -Sy --noconfirm yt-dlp >/dev/null 2>&1; } && { [ -z "${DM_YTDLP:-}" ] || { curl -fsSL -o "$DM_YTDLP" https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp_linux && chmod +x "$DM_YTDLP"; }; } && python3 /scripts/repro.py' 2>&1 \
+    sh -c 'mkdir -p /root/exec-tmp && python3 /scripts/repro.py' 2>&1 \
     | grep -E "== /tmp|hands the page|\] (running|completed|failed)|what dm recorded|Status column|the file"
 done

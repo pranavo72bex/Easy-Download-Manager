@@ -6,7 +6,7 @@ FROM ubuntu:22.04
 ENV DEBIAN_FRONTEND=noninteractive
 RUN apt-get update && apt-get install -y --no-install-recommends \
       build-essential pkg-config curl file ca-certificates \
-      xvfb xauth x11-utils dbus procps python3 yt-dlp \
+      xvfb xauth x11-utils dbus procps python3 \
       libxkbcommon-x11-0 libegl1 libgl1 libgl1-mesa-dri \
       # What winit opens at run time, as the .deb declares: GTK brought
       # these along until the tray moved to D-Bus.

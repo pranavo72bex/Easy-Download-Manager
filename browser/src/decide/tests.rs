@@ -906,7 +906,7 @@ fn media_with_a_real_source_is_a_file_and_a_blob_source_is_its_page() {
     click.src_url = Some("blob:https://e.com/5c1d".into());
     let page = menu_target(&click, false).unwrap();
     assert_eq!(page.url, "https://e.com/watch?v=1");
-    assert!(page.page, "a player page goes to the app's yt-dlp");
+    assert!(page.page, "a player page goes to the app");
 
     // In a frame, the frame is the player's page.
     click.frame_url = Some("https://player.e.com/embed/1".into());
@@ -1027,7 +1027,7 @@ fn an_answer_about_the_app_lasts_as_long_as_it_should() {
 }
 
 fn hello() -> Value {
-    json!({ "protocolVersion": 1, "type": "engine.hello", "engineVersion": "0.1.0", "ytdlp": true })
+    json!({ "protocolVersion": 1, "type": "engine.hello", "engineVersion": "0.1.0" })
 }
 
 #[test]
@@ -1043,7 +1043,7 @@ fn a_handshake_is_whole_with_a_hello_and_the_rules() {
     let Some(App::Present { hello, rules }) = probe.finished() else {
         panic!("not present")
     };
-    assert_eq!(hello.ytdlp, Some(true));
+    assert_eq!(hello.engine_version, "0.1.0");
     assert_eq!(rules.extensions, vec!["bin".to_string()]);
 }
 
@@ -1056,7 +1056,6 @@ fn a_host_too_old_to_send_rules_gets_the_defaults_and_no_host_is_absent() {
         App::Present {
             hello: Hello {
                 engine_version: "0.1.0".into(),
-                ytdlp: Some(true),
                 protocol: None,
             },
             rules: CatchRules::default(),
@@ -1112,14 +1111,14 @@ fn a_download_the_browser_holds_goes_only_to_an_app_that_judges_pages() {
     let mut probe = Probe::default();
     probe.absorb(&json!({
         "protocolVersion": 1, "type": "engine.hello", "engineVersion": "3.0.1",
-        "ytdlp": false, "protocol": 2,
+        "protocol": 2,
     }));
     let App::Present { hello: new, .. } = probe.give_up("no rules") else {
         panic!("not present")
     };
     assert_eq!(takes_caught(&new), Ok(()));
     let (line, bad) = status_line(&new);
-    assert!(!bad && line.contains("update the dm app"), "{line}");
+    assert!(!bad && !line.contains("update the dm app"), "{line}");
 }
 
 #[test]

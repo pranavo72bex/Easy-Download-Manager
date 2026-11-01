@@ -22,8 +22,8 @@ pub fn possible() -> bool {
 
 /// The list line for the sound as MP3, offered after an M4A's: its size
 /// about half as much again (192 kbit/s against AAC's usual 128).
-pub fn choice_after(m4a_size: Option<u64>) -> Option<crate::ytdlp::Choice> {
-    possible().then(|| crate::ytdlp::Choice {
+pub fn choice_after(m4a_size: Option<u64>) -> Option<crate::videopage::Choice> {
+    possible().then(|| crate::videopage::Choice {
         label: "MP3 audio".into(),
         quality: "audio/mp3".into(),
         size: m4a_size.map(|s| s * 3 / 2),

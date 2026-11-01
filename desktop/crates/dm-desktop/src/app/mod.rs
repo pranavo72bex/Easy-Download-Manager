@@ -1004,18 +1004,13 @@ mod disk_full_tests {
     #[test]
     fn a_video_page_that_failed_says_why_after_the_sentence() {
         let mut row = rows::status_tests::paused(false);
-        row.state = State::Failed(
-            "yt-dlp could not download that: ERROR: [youtube] x: Requested format is not available"
-                .into(),
-        );
+        row.state = State::Failed("no stream at that quality".into());
         assert_eq!(
             status_in_english(&row),
-            "Error: dm couldn't get the video from this page (Requested format is not available)"
+            "Error: dm couldn't get the video from this page (no stream at that quality)"
         );
         // A failure with its own plain words is not given a second one.
-        row.state = State::Failed(
-            "yt-dlp could not download that: ERROR: [youtube] x: Video unavailable".into(),
-        );
+        row.state = State::Failed("YouTube says: Video unavailable".into());
         assert_eq!(
             status_in_english(&row),
             "Error: this video isn't available. It may be private, removed, or not shown in your country"

@@ -4,23 +4,23 @@ Decisions that shape dm and are not obvious from the code, newest first. Each sa
 can see what it is undoing.
 
 
-## 2026-10-31: yt-dlp removed; videos as reference A gets them
+## 2026-10-31: The external video tool removed; videos as reference A gets them
 
 Decided by the maintainer on 2026-10-31, asked which way to replace
-yt-dlp: "exactly like reference A". Measured the same day (reference A
+the external video tool: "exactly like reference A". Measured the same day (reference A
 6.43 build 16 on Windows 11): handed a YouTube watch address on its command
 line, reference A made one connection, saved the page itself (6 KB) and
 stopped; it read no video. Reference A reads no page: it gets a video only
 from the requests the browser's player makes, caught by its extension.
-dm already does that (`tests/caught_pair.rs`, no yt-dlp present). So
-yt-dlp goes entirely: YouTube is read by dm's own reader (`youtube.rs`),
+dm already does that (`tests/caught_pair.rs`, no the external video tool present). So
+the external video tool goes entirely: YouTube is read by dm's own reader (`youtube.rs`),
 every other site only through the player's caught requests, and a site
-only yt-dlp could read is no longer offered, as reference A does not offer
+only the external video tool could read is no longer offered, as reference A does not offer
 it. What reference A does on a playing YouTube page, where the player's
 requests are SABR and carry no plain address (2026-10-29), is to be watched
 from outside (its connections and the files it writes), not by opening its
 binaries, which its licence forbids. This replaces gaps row 52's "the
-maintainer names the sites" and the 2026-10-26 decision to keep yt-dlp
+maintainer names the sites" and the 2026-10-26 decision to keep the external video tool
 behind the player's requests.
 
 ## 2026-10-31: dm and the other macOS manager, run side by side again
@@ -44,11 +44,11 @@ checked on real YouTube videos instead (decisions above).
 ## 2026-10-31: YouTube's streams are asked for when YouTube serves them; MP3 on every core
 
 Gaps row 55. A song's sound (dQw4w9WgXcQ, itag 140) was refused (403) to
-dm's engine for both dm's reading and yt-dlp's, and came only through
-yt-dlp's own slow download (46 s). Watched with yt-dlp's own
+dm's engine for both dm's reading and the external video tool's, and came only through
+the external video tool's own slow download (46 s). Watched with the external video tool's own
 `--print-traffic`: it asks with the same TV-client address and no token,
 and is answered. The reading says why: `available_at`, four seconds after
-it is made; yt-dlp waits for it, dm asked sooner. dm now waits for a
+it is made; the external video tool waits for it, dm asked sooner. dm now waits for a
 reading's `available_at` (at most 10 s), and a stream refused within ten
 seconds of its reading (dm's own reading carries no such field) is asked
 for once more when six seconds have passed. The song's sound: 10 s.
@@ -70,7 +70,7 @@ From the comparison with the other macOS manager: its list says "4K,
 not shot 16:9. Each picture is now named by its class and its container
 ("4K MP4", "1080p MP4", "720p WEBM"): the larger of its shorter side and
 its longer side's 16:9 height, snapped to the nearest of 144p ... 4K, 8K,
-or its own lines where it is not near one (`ytdlp::class_name`). The
+or its own lines where it is not near one (`videopage::class_name`). The
 quality word a line carries ("2026/mp4") is as before, so nothing
 downloads differently; the panel's list and Download details' chips say
 the same. `youtube-check.py` reads the container from the line wherever
@@ -113,7 +113,7 @@ Windows and Linux are gaps row 53). Checked: tones through the system's
 MP3 decoder at over 30 dB SNR, an AAC made by the system converted and
 played back at its level, and a real video's sound (3:33) saved as a
 valid 192 kbit/s MP3. Offered as "MP3 audio" after "M4A audio" in every
-quality list dm hands out (`ytdlp::with_mp3`), so the browser's panel and
+quality list dm hands out (`videopage::with_mp3`), so the browser's panel and
 Download details show it with no change to the extension; its quality
 `audio/mp3` fetches the M4A and converts it.
 
@@ -121,10 +121,10 @@ Also from the comparison with the other macOS manager's screenshots: its
 4K and 1440p files are twice dm's (414 against 209 MB) because it takes
 YouTube's VP9 where dm takes the MP4 stream, which there is AV1, as sharp
 at half the bits; from 1080p down the sizes match. When YouTube refuses
-the addresses of dm's own reading, dm now fetches yt-dlp's reading on its
-own engine before yt-dlp downloads on its few connections. For one video
+the addresses of dm's own reading, dm now fetches the external video tool's reading on its
+own engine before the external video tool downloads on its few connections. For one video
 (dQw4w9WgXcQ's sound, itag 140) both readings' addresses are refused to
-any fetch dm or curl makes, and yt-dlp's own download succeeds; finding
+any fetch dm or curl makes, and the external video tool's own download succeeds; finding
 why was stopped by the session's permissions (gaps row 55).
 
 ## 2026-10-31: Vertical and square parts by the stream's own crop, no codec
@@ -233,11 +233,11 @@ row under the lock, and the busy time left is drawing.
 
 ## 2026-10-29: The video helper fetched at the first start, its bytes told
 
-`tools::freshen`, which runs at every start, now also fetches yt-dlp (and
+`tools::freshen`, which runs at every start, now also fetches the external video tool (and
 QuickJS where no Deno is installed) when neither is installed nor fetched:
 twenty seconds after the start (`DM_PREFETCH_AFTER` for tests), so a dm
 that runs for a moment does not fetch 36 MB, and never for a named
-`DM_YTDLP`. `tools::preparing_progress` tells the bytes so far of what is
+its environment switch. `tools::preparing_progress` tells the bytes so far of what is
 being fetched (`Counting` in `fetch_once`); the row's "Getting ready for
 videos" status appends them in units alone, so no catalog gained a string.
 The one string that changed, the failure's, names both ways out in all
@@ -245,63 +245,63 @@ thirteen catalogs. Weighed and not done: a fetch at install time (the
 installers are the same for every system, and fetching is the person's
 setting to turn off).
 
-## 2026-10-29: yt-dlp's portable build where the release has no standalone one
+## 2026-10-29: The external video tool's portable build where the release has no standalone one
 
 `tools::fetch_into` reads the release's checksums first and takes the
 standalone build only where the release lists one for this computer; else
-the portable build (`yt-dlp`, one file of Python) checked the same way,
-with the Python to run it noted beside it (`yt-dlp.python`), which
-`ytdlp::writable_to` starts it through. `ytdlp::python3` is `DM_PYTHON`, or
+the portable build (its file, one file of Python) checked the same way,
+with the Python to run it noted beside it (its file), which
+`videopage::writable_to` starts it through. `videopage::python3` is `DM_PYTHON`, or
 the first `python3` on `PATH` or in the usual places that says it is 3.10
 or newer, asked once a run. Unix only in practice: every Windows has a
-standalone build. `tests/ytdlp_portable.rs` publishes only the portable
+standalone build. `tests/videopage_portable.rs` publishes only the portable
 build and downloads through it.
 
-## 2026-10-29: yt-dlp's failures in dm's words, from a corpus of its lines
+## 2026-10-29: The external video tool's failures in dm's words, from a corpus of its lines
 
-`tests/fixtures/ytdlp-errors.txt` holds yt-dlp's error lines as its readers
+its file holds the external video tool's error lines as its readers
 print them (YouTube's, Vimeo's, X's, Instagram's, TikTok's, the generic
-one, the downloader's), each with the sentence dm says; `tests/ytdlp_words.rs`
-checks every line is rewritten and that none of yt-dlp's advice (flags,
-its issue tracker, `yt-dlp -U`, links) reaches a person. A line with no
+one, the downloader's), each with the sentence dm says; `tests/videopage_words.rs`
+checks every line is rewritten and that none of the external video tool's advice (flags,
+its issue tracker, `the external video tool -U`, links) reaches a person. A line with no
 sentence of its own says the fallback, the site named as people write it
-(`site_name`) and yt-dlp's words in brackets, cut before its advice
+(`site_name`) and the external video tool's words in brackets, cut before its advice
 (`last_error`). The download's own failure line keeps its old shape,
-"yt-dlp could not download that: …", because the window's `format.rs`
-reads yt-dlp's words out of it to show after its own sentence; the window
+"the external video tool could not download that: …", because the window's `format.rs`
+reads the external video tool's words out of it to show after its own sentence; the window
 was not changed. Private and age-restricted are judged before the sign-in
-catch-all: yt-dlp's words for both carry "Sign in".
+catch-all: The external video tool's words for both carry "Sign in".
 
-## 2026-10-29: A failed yt-dlp run fetches the newest yt-dlp once and tries again
+## 2026-10-29: A failed the external video tool run fetches the newest the external video tool once and tries again
 
-yt-dlp's fix for a site change is usually out within days; dm's weekly
+the external video tool's fix for a site change is usually out within days; dm's weekly
 `freshen` left everyone waiting up to a week. Now a run that fails in words
-that are not a known refusal (`ytdlp/refusal.rs`) asks the release's
+that are not a known refusal (`videopage/refusal.rs`) asks the release's
 `SHA2-256SUMS` whether a build other than the one dm noted at its fetch
-(`yt-dlp.digest`) is published, fetches it if so, and runs once more
-(`tools::newer_ytdlp`, used by `download_ytdlp_from` and `read_choices_as`).
+(its file) is published, fetches it if so, and runs once more
+(its file, used by its file and `read_choices_as`).
 Once an hour at most, so a site that stays broken does not have dm asking
-GitHub at every download; never for a yt-dlp the person installed, which is
+GitHub at every download; never for an external video tool the person installed, which is
 theirs to update; never where fetching is off. Stable releases only:
-nightly carries breakages of its own. `DM_YTDLP_RELEASES` names a test's
-server as the release (`tests/ytdlp_heals.rs`: a broken build, then the
+nightly carries breakages of its own. its environment switch names a test's
+server as the release (`tests/videopage_heals.rs`: a broken build, then the
 fix, then nothing more within the hour).
 
-## 2026-10-29: Like reference A without yt-dlp, asked again and measured
+## 2026-10-29: Like reference A without the external video tool, asked again and measured
 
-Asked for: videos the way reference A gets them, with no yt-dlp, and no
+Asked for: videos the way reference A gets them, with no the external video tool, and no
 upkeep. dm already does what reference A is documented to do: the
 extension reads the player's own requests, takes the picture's and the
 sound's addresses, fetches both on many connections and joins them itself,
-with no helper (`tests/caught_pair.rs` proves it with no yt-dlp present).
+with no helper (`tests/caught_pair.rs` proves it with no the external video tool present).
 On YouTube that finds nothing today: in Edge 156 on a playing watch page,
 13 of 13 media requests were `POST videoplayback?sabr=1` with a binary body
-and no `itag`, `mime` or `range`. So "no yt-dlp on YouTube" means a client
+and no `itag`, `mime` or `range`. So "no the external video tool on YouTube" means a client
 of YouTube's SABR protocol (protobuf requests, UMP answers, proof-of-origin
 tokens) written into dm and kept in step with YouTube, which is the upkeep
 asked to be avoided; reference A does it with a paid team and a new build
 each time, reference B does not do it at all. Kept as decided on
-2026-10-26: the player's requests first on every site, yt-dlp reading the
+2026-10-26: the player's requests first on every site, the external video tool reading the
 page only where they cannot be used, fetched by dm and current within a
 week, so dm itself has nothing to keep up. Weighed again and not taken:
 saving what the player plays through the browser's media source (only the
@@ -325,14 +325,14 @@ each write on a very long list.
 
 Measured in Edge with the video file's real size on disk (not the space
 reserved, which an earlier measurement counted). After a click with a reading
-ready, 4-5 s went on: yt-dlp runs for each of the two streams dm's own
+ready, 4-5 s went on: The external video tool runs for each of the two streams dm's own
 request is refused for (YouTube answers dm 403; the refusal was handed to
-yt-dlp as a page, `download::is_stream` now stops that), and then yt-dlp
+the external video tool as a page, `download::is_stream` now stops that), and then the external video tool
 *sleeping*: formats from YouTube's tv client carry an `available_at` four
-seconds after the read, which yt-dlp waits for ("as required by the site")
+seconds after the read, which the external video tool waits for ("as required by the site")
 and which is not shortened here. The default read merges that client with
 visionos; asking for visionos alone (`FAST_YOUTUBE_CLIENT`) lists the same
-heights and no wait. It is yt-dlp's own, documented client choice, and falls
+heights and no wait. It is the external video tool's own, documented client choice, and falls
 back to the default read where it gives nothing. The read for the download
 starts when the list is asked for, in parallel with the page's own data
 (`mark_reading` before the helper starts, `kept_choices` where the page data
@@ -358,18 +358,18 @@ stale after YouTube's in-page navigation).
 ## 2026-10-27: What a failed YouTube read says; cookies stay the browser's session
 
 Checked against a report that YouTube downloads fail in dm: dm already runs
-the yt-dlp it finds only if under 120 days old (else its own fetched copy,
-refreshed weekly), hands yt-dlp a JavaScript engine by path (Deno, else the
+theexternal video tool it finds only if under 120 days old (else its own fetched copy,
+refreshed weekly), hands the external video tool a JavaScript engine by path (Deno, else the
 QuickJS dm fetched) on every read and download, and sends the page's session
-or a chosen cookies file. What was wrong: the list read dropped yt-dlp's
+or a chosen cookies file. What was wrong: the list read dropped the external video tool's
 stderr, so no failure could be told from another. Now `said_by` gives a known
-refusal in words, else yt-dlp's last `ERROR:` line. Only yt-dlp's own words
+refusal in words, else the external video tool's last `ERROR:` line. Only the external video tool's own words
 for a failed player script ("solving failed", "challenge solver", "no
 supported JavaScript runtime", "only images are available") are called that;
 "Requested format is not available" is not, as it has many causes. Not done:
 `--cookies-from-browser` (dm passes the extension's session for that page
 alone, so no browser profile is read and no cookie is kept) and
-`--remote-components` (it has yt-dlp fetch code from GitHub to run).
+`--remote-components` (it has the external video tool fetch code from GitHub to run).
 
 ## 2026-10-27: Every type is caught out of the box
 
@@ -383,48 +383,48 @@ the size floor and a private window still leave a download with the browser.
 
 ## 2026-10-27: The panel's list for YouTube is read from the page's data
 
-Measured: yt-dlp takes 2.6-4.5 s over a watch page (its `player_skip=js` saves
+Measured: The external video tool takes 2.6-4.5 s over a watch page (its `player_skip=js` saves
 about a second but drops the addresses the download needs; `android_vr`,
 `tv_simply` and `mweb` list one to five formats, and `web` and `tv` fail with
 "page needs to be reloaded"). The watch page's own `ytInitialPlayerResponse`
 carries every picture and sound with its size, in one request of 0.8 s. The
-panel's list is read from that (`ytdlp/page_data.rs`, same labels, qualities
-and order as `choices`, checked against yt-dlp on three videos); the SABR
-streams carry no addresses, so the download is still yt-dlp's reading of the
+panel's list is read from that (`videopage/page_data.rs`, same labels, qualities
+and order as `choices`, checked against the external video tool on three videos); the SABR
+streams carry no addresses, so the download is still the external video tool's reading of the
 page, started behind the list (`warm_reading`). Any page that is not
-`status: OK`, is live or lacks the data goes to yt-dlp as before. Dropped: a
-`player_client` pick for yt-dlp (fewer formats, and fails by video).
+`status: OK`, is live or lacks the data goes to the external video tool as before. Dropped: a
+`player_client` pick for the external video tool (fewer formats, and fails by video).
 
-## 2026-10-26: yt-dlp reads a video page, dm fetches it
+## 2026-10-26: The external video tool reads a video page, dm fetches it
 
-yt-dlp downloaded what it read on one connection a stream, so a video ran at
+the external video tool downloaded what it read on one connection a stream, so a video ran at
 one connection's speed (1 MB/s from a server holding each connection to
-that) while dm's engine sat idle. Now `ytdlp::download_page` asks yt-dlp
+that) while dm's engine sat idle. Now `videopage::download_page` asks the external video tool
 only what it would fetch (`-O "%()j"`, nothing downloaded, with the same
 format choice, name template, sign-in and proxy as its own download) and
 dm fetches each stream that is a plain file (`http`/`https`) with its own
-engine, with the agent yt-dlp gave it (`prefer_agent`; a site can bind its
+engine, with the agent the external video tool gave it (`prefer_agent`; a site can bind its
 addresses to the client it gave them to), and joins picture and sound as
-before (`finish_dm`). Measured with the real yt-dlp against that server,
+before (`finish_dm`). Measured with the real the external video tool against that server,
 40 ms away: 8 MB 8.69 s → 1.78 s, 32 MB 32.69 s → 4.77 s, the page's
 reading included (`tests/throughput.rs`, `video_helper`).
 
 Nothing that downloaded before can fail now. Streams in pieces (HLS, DASH
-fragments), live ones and a site's own protocols stay yt-dlp's; where dm's
-fetch is refused, yt-dlp downloads the same reading (`--load-info-json`),
+fragments), live ones and a site's own protocols stay the external video tool's; where dm's
+fetch is refused, the external video tool downloads the same reading (`--load-info-json`),
 so the page is not read twice, and from the page again if that reading no
 longer serves. A refusal is remembered in the staging folder, so a resume
-goes to yt-dlp at once. A pause keeps each stream's parts under its format
+goes to the external video tool at once. A pause keeps each stream's parts under its format
 id; a resume reads the page again (addresses expire after hours) and the
 engine adopts them by size and validator. Subtitles are fetched from the
 reading's addresses and carried in as before. The reading can hold the
 site's cookies: written for this account alone and removed after.
 
 The page is read once, not twice. The panel's list (`list_choices`, in the
-browser's host) keeps yt-dlp's whole `-J` reading for ten minutes in
+browser's host) keeps the external video tool's whole `-J` reading for ten minutes in
 `<home>/readings` (a file per page, named by a hash of its address, for
 this account alone, the stale ones deleted at each write), and the
-download a click starts has yt-dlp choose its format from it
+download a click starts has the external video tool choose its format from it
 (`--load-info-json`, 0.23 s here with the server gone) instead of reading
 the site again (1.7 to 6 s on YouTube, measured 2026-10-22/25). A reading
 that no longer serves is passed over for a fresh one. A fresh reading
@@ -435,7 +435,7 @@ A picture and sound the extension caught from a player and that refuse dm
 (YouTube's 403 after about a megabyte without the player's token) now fall
 back to their page through the same route, rather than failing the row.
 
-Why not without yt-dlp, as some download managers are: they read the player's own requests in
+Why not without the external video tool, as some download managers are: they read the player's own requests in
 the browser, which dm's extension already does (2026-10-25), and keeps up
 with each site by shipping fixes every week or two (30-odd builds in a
 year, most "resolved video recognition problems"). YouTube's web player
@@ -443,7 +443,7 @@ has since moved to SABR, whose requests name no format and cannot be
 fetched by range; taking it over would mean writing YouTube's streaming
 protocol (protobuf requests, UMP answers, its redirects and policies) into
 dm, using the page's proof-of-origin token, and keeping it working alone.
-yt-dlp is kept current by many and fetched afresh by dm weekly. Recording
+The external video tool is kept current by many and fetched afresh by dm weekly. Recording
 what the player plays was weighed too: only the quality the player picks,
 and only as fast as it plays.
 
@@ -611,7 +611,7 @@ bidirectional ordering inside its layout and a mirrored window); the "Download
 video" panel on a site whose security policy forbids WebAssembly (inherent:
 the menu still works); telling an advertisement from the programme on a
 player (needs a site's own knowledge, which dm does not keep); rewriting
-yt-dlp's site extractors and QuickJS (site logic is not dm's to write); a
+the external video tool's site extractors and QuickJS (site logic is not dm's to write); a
 browser that fetches a file again when it keeps a download dm refused
 (Firefox's pause drops the connection); the one-name-for-every-package
 command (`dm-desktop` in the .deb, `dm` elsewhere; the README says which).
@@ -777,7 +777,7 @@ own AES-128 scrambling, whose key the server hands to any player that asks
 (as every player and standard decoder reads it). A stream whose key belongs to a rights
 system is refused as copy-protected: SAMPLE-AES, any `KEYFORMAT` other than
 `identity` (FairPlay, Widevine, PlayReady), or a key address dm could only
-reach through one (`skd://`, a `data:` licence). yt-dlp is never given
+reach through one (`skd://`, a `data:` licence). The external video tool is never given
 `--allow-unplayable-formats`, and its own "DRM protected" refusal reaches the
 row in plain words. In the browser, a player the page plays through EME (its
 `mediaKeys` set) gets a "Protected video" bar that says dm does not download
@@ -865,7 +865,7 @@ them, and an address edited onto another server drops them. A row keeps its sign
 when the download finished was tried and broke Redownload, and left the
 recheck queue probing signed out, where a sign-in page of another length
 reads as a changed file. dm's files are written readable by the account
-alone instead. yt-dlp gets
+alone instead. The external video tool gets
 them in a private cookies file of its run (mode 0600, removed after),
 not as a command-line header any local `ps` could read. The control
 protocol and MCP say only whether a row has a sign-in.
@@ -1047,7 +1047,7 @@ finishes" true. Halves stop at 256 KiB, and a download has at most 256 ranges.
 
 ## 2026-10-15: A video is an MP4 unless WebM is asked for
 
-Left to itself, yt-dlp picks YouTube's best stream, which is AV1 or VP9
+Left to itself, the external video tool picks YouTube's best stream, which is AV1 or VP9
 in WebM with Opus sound: files many players (QuickTime, Windows' Films &
 TV, phones) open badly or not at all. dm now
 asks for MP4 picture and M4A sound, H.264 ahead of AV1 at the same height,
@@ -1076,7 +1076,7 @@ from the panel or a menu was not: dm was refused (W3Schools' 403 on one
 Linux network) and the person got nothing. Such a hand-off is now checked
 the same way, and when dm is refused or absent the extension starts the
 browser's own download of it and the panel says so. A player page (handed
-to yt-dlp) is not sent back: the browser cannot download a page as a video.
+to the external video tool) is not sent back: the browser cannot download a page as a video.
 The probe also tries a browser's agent, with `dm/<version>` after it, as a
 last rung after dm's own and the plain `dm/<version>`: it is still named.
 
@@ -1135,14 +1135,14 @@ From the window's thread, each finished download froze the window that long.
 ## 2026-10-12: A video from the panel asks first
 
 The app opens "Download details" for a panel video (`ask_panel_downloads`,
-on by default). The picked quality travels with its container, and yt-dlp is
+on by default). The picked quality travels with its container, and the external video tool is
 told to prefer that container, so an "MP4" line arrives as .mp4.
 
 ## 2026-10-12: One speed ceiling for everything
 
 A limit per download would let N downloads use N times the limit. dm's
 is one ceiling, shared by every connection and split with torrents and
-yt-dlp runs. A limit is set to leave the link usable, and that is a
+the external video tool runs. A limit is set to leave the link usable, and that is a
 statement about the link, not about one download.
 
 ## 2026-10-12: The browser extension is Rust compiled to WebAssembly
@@ -1157,10 +1157,10 @@ dm's window is drawn in Rust. A Tauri
 web view was replaced: one language, one process, and a window the tests
 drive through its accessibility tree.
 
-## 2026-10-11: Player pages go to the user's yt-dlp
+## 2026-10-11: Player pages go to the user's the external video tool
 
 dm writes no site logic, token minting or signature work of its own. It runs
-the yt-dlp the person installed and places what it produces. Nothing behind
+theexternal video tool the person installed and places what it produces. Nothing behind
 DRM is attempted.
 
 ## Always: free, with nothing reported
@@ -1186,14 +1186,14 @@ old, which the row keeps pointing at (`replaces`), and moves it over the
 old one only once it is whole; a failure leaves the old file and says so.
 Deleting first, a server that failed halfway left nothing. What is compared
 is what the row was fetched from: a Metalink row by the file's length
-alone, since its ETag is one mirror's of many; a yt-dlp or stream row not
+alone, since its ETag is one mirror's of many; an external video tool or stream row not
 at all, because its address is a page or a playlist and nothing it serves
 describes the file made from it.
 
 ## 2026-10-17: SOCKS5 resolves names at the proxy; FTP paths are the login's
 
 A SOCKS5 proxy is handed out as `socks5h://`, to dm's client and to
-yt-dlp, so a name is resolved by the proxy: resolved locally, a name only
+the external video tool, so a name is resolved by the proxy: resolved locally, a name only
 the proxy's network knows cannot be reached, and every site is told to the
 local resolver. librqbit reads only `socks5://`, so the swarm is given that
 spelling; its peers are addresses already. An FTP address's path is relative
@@ -1203,12 +1203,12 @@ to the login directory, as RFC 1738 has it, and `%2F` reaches the root.
 
 A link whose last segment names a document (`.html`, `.xml`, `.txt`, not a
 script's `.php` or `.aspx`) is fetched by dm's own client, with the row's
-referrer and cookies, and never handed to yt-dlp. It used to go to yt-dlp
+referrer and cookies, and never handed to the external video tool. It used to go to the external video tool
 first, falling back only on "unknown site"; any other refusal (a 403 to a
 request without the page's sign-in, a 429) failed a page dm could save.
 Some video sites do end watch pages in `.html`: a quality picked in the
-browser's video panel (which carries a container) still goes to yt-dlp. A
-watch address with no extension, or a script's, is yt-dlp's or refused.
+browser's video panel (which carries a container) still goes to the external video tool. A
+watch address with no extension, or a script's, is the external video tool's or refused.
 
 ## 2026-10-17: How far a power-cut repair looks back
 
@@ -1228,9 +1228,9 @@ TS, fMP4 or packed ADTS audio; the playlist's addresses decide only where
 the bytes say nothing or are encrypted. Tokenised segment addresses have no
 extension, and ADTS from them was called `.ts` and sent to the remux. A
 changed initialisation segment is decided once, in `beyond_dm`, on resolved
-addresses, and goes to yt-dlp.
+addresses, and goes to the external video tool.
 
-## 2026-10-17: Secrets stay off yt-dlp's command line
+## 2026-10-17: Secrets stay off the external video tool's command line
 
 The proxy (with any user name and password) goes in a 0600 config file of
 the run's own, passed with `--config-locations` and removed when the run
@@ -1697,7 +1697,7 @@ altogether, as before.
 
 A torrent shares the whole speed ceiling while none of dm's own downloads
 is running; with one running, the ceiling is split as before, one part for
-dm's own downloads and one for each torrent or yt-dlp run.
+dm's own downloads and one for each torrent or the external video tool run.
 
 ## The modern looks follow WinUI 3's Fluent 2 (2026-10-19)
 
@@ -1832,19 +1832,19 @@ stream has no length and no position to resume from: progress is the
 bytes written, and a resume starts it again. That converter cannot go through
 dm's proxy for these, so with one in force the download is refused.
 
-## yt-dlp and a video tool fetched by dm itself (2026-10-21)
+## The external video tool and a video tool fetched by dm itself (2026-10-21)
 
 YouTube is to work out of the box, with nothing installed by hand. dm still
-writes no site logic of its own: it runs yt-dlp. Where the computer has no
-yt-dlp (or converter), the first video page that needs one has dm fetch it
-into `<dm home>/tools`, through dm's proxy like any download: yt-dlp's own
+writes no site logic of its own: it runs the external video tool. Where the computer has no
+the external video tool (or converter), the first video page that needs one has dm fetch it
+into `<dm home>/tools`, through dm's proxy like any download: The external video tool's own
 standalone build from its GitHub releases, checked against the
 `SHA2-256SUMS` published with it (on macOS the unpacked build, which starts
 in 0.3 s where the single-file one took 8–14); the converter as one file from
 a static-build project's b6.1.1 release on GitHub, checked against digests written
-into dm, since that project publishes none. Fetched yt-dlp is fetched
+into dm, since that project publishes none. Fetched the external video tool is fetched
 afresh once a week. One the person installed is preferred, wherever it is.
-Not bundled in the installers: a bundled yt-dlp goes stale between dm
+Not bundled in the installers: a bundled the external video tool goes stale between dm
 releases, and both would add 100–150 MB to every installer. Not written as
 dm's own extractor: that is the site logic this project does not write.
 
@@ -1852,14 +1852,14 @@ dm's own extractor: that is the site logic this project does not write.
 
 Measured on 2026-10-21: YouTube's streams stop with a 403 after about 1 MB
 unless the client holds a proof-of-origin token, and an address that has
-asked too often is told "Sign in to confirm you're not a bot". yt-dlp gets
+asked too often is told "Sign in to confirm you're not a bot". The external video tool gets
 past both with a JavaScript runtime (Deno, now fetched with it) and the
 browser's session. So the extension sends the page's cookies with every
 video handed over (the panel, "Download media with dm") and with the
 panel's quality list, whether or not the site is in the popup's sign-in
 list, and the `cookies` permission moved from optional to required (it
 carries no install warning in Chrome or Firefox). Bounded the way a kept
-sign-in is: to the page's own server, in a private file of yt-dlp's run
+sign-in is: to the page's own server, in a private file of the external video tool's run
 removed when it ends, and — unlike a kept one — dropped from the row once
 the video is downloaded (`Start.cookies_once`, `Entry.cookies_once`).
 Nothing from a private window. Dropped: writing a token generator of dm's
@@ -1868,16 +1868,16 @@ own, which is the site logic this project does not write.
 ## dm joins a video's picture and sound itself (2026-10-21)
 
 A separate video tool was fetched (40–80 MB) for every video page only to join a picture
-and a sound that yt-dlp had already fetched. `mp4mux.rs` does that join in
+and a sound that the external video tool had already fetched. `mp4mux.rs` does that join in
 Rust: each input's samples are read from its index — a plain `moov`, or the
 `moof` fragments a DASH server's files carry — and written as one plain MP4
 with its index first and picture and sound interleaved a second at a time,
 the samples copied byte for byte. A DASH picture with B-frames and no edit
 list is given one that starts it at its first shown frame, as the converter's own
-join does (it played 67 ms behind its sound without). With no converter, yt-dlp
+join does (it played 67 ms behind its sound without). With no converter, the external video tool
 is asked for an MP4 picture and an M4A sound (`bv[ext=mp4]+ba[ext=m4a]`),
 leaves them side by side (its default `ignoreerrors='only_download'` turns
-the missing merger into a warning), and dm joins them under the name yt-dlp
+the missing merger into a warning), and dm joins them under the name the external video tool
 reported. Measured: 120 MB joined in 96 ms where the converter's stream copy took
 174 ms; the decoded frames and sound match the inputs' (`tests/mp4mux.rs`),
 and AVFoundation reads the result. The converter is still fetched where dm does not
@@ -1888,13 +1888,13 @@ Later the same day, the HLS side: `tsmux.rs` reads a transport stream's
 tables, its H.264 pictures (start codes turned into lengths, the picture
 size read from the SPS) and its ADTS AAC frames, and hands them to the same
 writer, picture and sound kept the distance apart they had in the stream.
-It runs before the converter for dm's own HLS downloads, and on a file yt-dlp saved
-as `.mp4` that is a transport stream (yt-dlp's HLS downloader leaves that to
+It runs before the converter for dm's own HLS downloads, and on a file the external video tool saved
+as `.mp4` that is a transport stream (the external video tool's HLS downloader leaves that to
 its converter's fix-up). A stream with any other picture or sound kind (HEVC, MP3,
 AC-3…) is refused whole, so nothing is dropped from it: a converter does it
-where there is one, else the `.ts` is kept. When dm joins, yt-dlp's joiner-location option is
+where there is one, else the `.ts` is kept. When dm joins, the external video tool's joiner-location option is
 pointed at nothing, so it never uses a converter dm
-did not choose. Tests that would pass with a converter yt-dlp found itself
+did not choose. Tests that would pass with a converter the external video tool found itself
 were checked to fail with dm's join turned off.
 
 ## WebM joined by dm too (2026-10-21)
@@ -1910,7 +1910,7 @@ to its halves. Reads move within one megabyte buffer rather than seeking
 
 ## Subtitles put in by dm (2026-10-21)
 
-With no converter, yt-dlp is asked for subtitles as WebVTT beside the video
+With no converter, the external video tool is asked for subtitles as WebVTT beside the video
 (`--sub-format vtt`, no `--embed-subs`), and dm carries them inside what it
 writes: in an MP4 as `tx3g` text tracks, one per language in one alternate
 group, each cue a sample and each gap an empty one, with a closing empty
@@ -1984,7 +1984,7 @@ Part 2.
 
 ## The same formats as the converter route (2026-10-21)
 
-Without the converter dm had asked yt-dlp for an MP4 picture and M4A sound, which
+Without the converter dm had asked the external video tool for an MP4 picture and M4A sound, which
 would have given a lower picture for a video whose tallest came only as
 WebM. `mkvmux::mp4_tracks` now reads a WebM's VP9 (`vp09`, its `vpcC` from
 the first key frame's header), AV1 (`av01`, WebM's `av1C`) and Opus (`Opus`,
@@ -1992,7 +1992,7 @@ the first key frame's header), AV1 (`av01`, WebM's `av1C`) and Opus (`Opus`,
 MP4 ones, so dm asks for what the converter route asked for (`bv+ba/b` and its height
 forms, with the same sort) and puts it into an MP4 as the converter did; a WebM is
 made only when one is asked for. Checked: on six YouTube videos at best and
-at 720p, yt-dlp picks the same format IDs for the old and the new selector,
+at 720p, the external video tool picks the same format IDs for the old and the new selector,
 and `scripts/out-of-box-check.py` gets a 4K video's best (format 625, 2160p
 VP9 over HLS) as one MP4 with its AAC sound that plays.
 
@@ -2026,7 +2026,7 @@ dm no longer fetches a separate video tool for anything. What it was still fetch
 dm's own now, or refused: RTMPT through an HTTP tunnel in `rtmp.rs`, RTSPS
 through a loopback TLS bridge in front of retina (which speaks plain RTSP
 only: patching it was the alternative, and the bridge needs no vendored
-copy), and a video in a container dm does not join asked of yt-dlp as one
+copy), and a video in a container dm does not join asked of the external video tool as one
 file that needs no joining. RTMPE is refused: it is Flash's encrypted RTMP,
 a protection dm does not undo. A converter the person installed is still
 used where it helps.
@@ -2039,10 +2039,10 @@ which retina sends only on its own connection, and dm's recording would
 then fail rather than go anywhere else. Accepted, as a program already
 running as the person can read dm's files anyway.
 
-yt-dlp stays the one thing fetched, with Deno. Written into dm instead it
+The external video tool stays the one thing fetched, with Deno. Written into dm instead it
 would be the site logic this project does not write (see "Player pages go
-to the user's yt-dlp"): YouTube's player code changes weekly and is answered
-by running it, which is why yt-dlp needs a JavaScript runtime, and yt-dlp's
+to the user's the external video tool"): YouTube's player code changes weekly and is answered
+by running it, which is why the external video tool needs a JavaScript runtime, and the external video tool's
 thousands of sites are kept working by hundreds of people. Fetched and kept
 current is what makes video work for someone who installs nothing; the row
 says "Getting ready for videos (first time only)" while it happens.
@@ -2051,19 +2051,19 @@ Someone who installed only the app is shown how to add the extension: a bar
 over the list, until a browser connects (the native host leaves
 `browser.seen` in dm's home on the extension's hello) or they say not now,
 with the same buttons in Options › Browser. Messages never say "install
-yt-dlp" or tell the person to install a converter: a failed video says dm could not get ready for
+the external video tool" or tell the person to install a converter: a failed video says dm could not get ready for
 videos and to check the connection, and an extension talking to an older
 app says to update the app. The two store addresses are allowed in shipped
 code by `cargo xtask privacy`, since they open in the person's browser only
 when clicked.
 
-## yt-dlp may use a joiner the person installed (2026-10-22, later)
+## The external video tool may use a joiner the person installed (2026-10-22, later)
 
-The option that pointed yt-dlp at a joiner that is not there was removed:
+The option that pointed the external video tool at a joiner that is not there was removed:
 it was the last place dm named a tool it does not use, and the owner chose
-to drop it. On a computer with no joiner of its own nothing changes: yt-dlp
+to drop it. On a computer with no joiner of its own nothing changes: The external video tool
 leaves picture and sound apart and dm joins them. Where one is installed,
-yt-dlp may join them itself and dm takes the one file as it is (putting
+the external video tool may join them itself and dm takes the one file as it is (putting
 subtitles inside where it can, as it does for any single file). The cost:
 the file can differ from computer to computer, and that route is tested
 only where the test machine has such a joiner. dm still fetches nothing
@@ -2073,27 +2073,27 @@ of the kind and runs nothing of the kind itself.
 
 dm joins picture and sound (`mp4mux`, `mkvmux`), carries subtitles, puts
 transport streams into MP4 (`tsmux`) and records live streams itself, so a
-converter on the computer is no longer used for any of it either: yt-dlp is
+converter on the computer is no longer used for any of it either: The external video tool is
 pointed at a joiner that is not there and always leaves picture and sound
 for dm, an HLS stream dm cannot convert (MPEG-2 pictures) is kept as the
 `.ts` it came as, and RTMPE is refused. The same file on every computer,
 whatever is installed, and one route to test instead of two.
 
-yt-dlp stays, and is not rewritten inside dm. It is what reads a video
+The external video tool stays, and is not rewritten inside dm. It is what reads a video
 site's page: YouTube's player answers with signatures and throttling codes
 that change week to week and are worked out by running the player's own
-JavaScript (which is why yt-dlp needs Deno), and yt-dlp covers well over a
+JavaScript (which is why the external video tool needs Deno), and the external video tool covers well over a
 thousand sites, kept working by the many people who maintain it. dm's own
 version would be site logic this project does not write (see "Player
-pages go to the user's yt-dlp"), would break within weeks of being
-written, and could not behave as yt-dlp does across its sites. The
+pages go to the user's the external video tool"), would break within weeks of being
+written, and could not behave as the external video tool does across its sites. The
 person never installs it: dm fetches it, checked, and keeps it current.
 User-facing words call it dm's video helper; PRIVACY.md names it and Deno,
 since people are owed knowing what program dm downloads and from where.
 
-## QuickJS rather than Deno for yt-dlp's JavaScript (2026-10-22)
+## QuickJS rather than Deno for the external video tool's JavaScript (2026-10-22)
 
-yt-dlp answers YouTube's player challenges by running JavaScript, with
+the external video tool answers YouTube's player challenges by running JavaScript, with
 Deno, Node, QuickJS or Bun. dm fetched Deno (85 MB) for it; it now fetches
 QuickJS-ng 0.17.0 (1–3 MB), pinned, each build checked against the digest
 written into dm since the release publishes no checksums file. Measured
@@ -2103,7 +2103,7 @@ first on 2026-10-22: the same formats chosen at every quality, a 108 MB
 now waits on about 36 MB instead of 120. A Deno the person installed is
 still used, as it reads a page a little faster.
 
-Not shipped in the installers: with 36 MB fetched once, bundling yt-dlp and
+Not shipped in the installers: with 36 MB fetched once, bundling the external video tool and
 QuickJS would add OS-specific programs to six installer formats (the Arch
 package builds from source), invite antivirus false alarms on Windows, and
 go stale between releases, for a few seconds saved once.
@@ -2162,9 +2162,9 @@ shell; `swaymsg kill` in `linux-wayland-close-check.sh` sets no desktop name,
 so it still checks the minimize path. Considered: a setting for what closing
 does, dropped until someone needs the other choice.
 
-## 2026-10-25 DASH is dm's own; yt-dlp is left the pages
+## 2026-10-25 DASH is dm's own; the external video tool is left the pages
 
-A DASH manifest went to yt-dlp, so a stream whose address was a plain `.mpd`
+A DASH manifest went to the external video tool, so a stream whose address was a plain `.mpd`
 needed a 40–80 MB helper fetched first. A manifest is a published format with
 no site logic in it: it says where the pieces are. So `dash.rs` reads it
 (templates with `$Number$`/`$Time$`/`$RepresentationID$`/`$Bandwidth$` and
@@ -2179,7 +2179,7 @@ named if nothing else remains; a byte range answered with anything but
 and sends the file would be written in as a piece. Sound is a main-role track
 over a louder commentary, in the picture's container where there is one.
 
-Not changed: a *page* (a video site's watch address) still goes to yt-dlp,
+Not changed: a *page* (a video site's watch address) still goes to the external video tool,
 because the media's address is minted by the site's own player and reading
 it is site logic, which this project does not write (2026-10-11, 2026-10-21).
 The way past that without site logic is to take the address from the player
@@ -2218,7 +2218,7 @@ page script is registered for every page and itself ignores any host but
 
 ## Reading a page's qualities faster (2026-10-25)
 
-The panel's list took 2 to 39 seconds, nearly all of it yt-dlp reading the
+The panel's list took 2 to 39 seconds, nearly all of it the external video tool reading the
 page. Three things, kept in this order of effect:
 
 1. The extension asks as soon as the panel is raised over a player (on
@@ -2254,14 +2254,14 @@ picture with packed-AAC sound (gaps.md row 7).
 ## 2026-10-26: A transport-stream picture with packed-AAC sound is joined by dm
 
 An HLS master that keeps its sound in `.aac` segments beside a `.ts` picture
-went to yt-dlp. dm now reads the ADTS frames as `tsmux` reads a transport
+went to the external video tool. dm now reads the ADTS frames as `tsmux` reads a transport
 stream's, takes the sound's start from the first segment's ID3
 `transportStreamTimestamp` (the picture's 90 kHz clock), and writes both as the
 two tracks of one MP4 (`tsmux::join_packed`). The join is chosen by sniffing
 the gathered files (0x47 sync byte; ID3 or ADTS), not by a new flag on the
 track, so the DASH and fMP4 paths are untouched. A stream `tsmux` refuses
 (HEVC with odd sound, MPEG-2 picture) fails the join with the reason rather
-than falling back; dropped: asking yt-dlp after the fetch, which would fetch
+than falling back; dropped: asking the external video tool after the fetch, which would fetch
 the stream twice.
 
 ## 2026-10-26: A browser hand-off starts at once; "Download details" is opt-in
@@ -2501,7 +2501,7 @@ Tried and dropped: handing freed memory back to the system on a timer
 ## 2026-10-28: Speed audit, what was changed and what was not
 
 Changed: a low-speed drop for ranged connections (`ranged/helping.rs`
-`Window`), concurrent HLS segments, DASH pieces by a shared counter, yt-dlp
+`Window`), concurrent HLS segments, DASH pieces by a shared counter, the external video tool
 `--concurrent-fragments`. Measured with `tests/speed.rs` and `tests/hls.rs`.
 Not changed: the 16 KiB write buffer (loopback 512 MB runs at 480-640 MB/s, so
 the disk write is not the limit here; Windows/NTFS and 10 GbE are unmeasured),
@@ -2511,10 +2511,10 @@ windows per range). The stall drop is limited to a range's first two tries so
 a server that serves one range slowly for good is waited out, not retried to a
 failure.
 
-## 2026-10-28: The video route follows what yt-dlp's reading says, per stream
+## 2026-10-28: The video route follows what the external video tool's reading says, per stream
 
 Four changes to the route that fetches a video page's streams itself
-(`ytdlp/fetch.rs`), each driven by a field of yt-dlp's reading and none by a
+(`videopage/fetch.rs`), each driven by a field of the external video tool's reading and none by a
 site's name.
 
 **A request is as long as the reading says a server allows.** A format's
@@ -2532,7 +2532,7 @@ slows each response after 1 MiB: 16 MiB in 6.4 s without, 0.55 s with.
 its `expire` has passed or bytes were already fetched, reads the page again and
 continues if the streams are the same (format id, name, stated size). The saved
 plan holds no address, so nothing on disk changes. A refusal at the first ask
-on a live address keeps the old route (the `REFUSED` marker, yt-dlp downloads),
+on a live address keeps the old route (the `REFUSED` marker, the external video tool downloads),
 so a site that refuses dm does not cost a second reading. Pause and cancel
 during the second reading stop the download, as anywhere.
 
@@ -2544,21 +2544,21 @@ as the server keeps it), the connection's own headers and `Authorization`;
 `Cookie` and `Referer` only where dm has none of its own. Values are never
 printed (`Headers` has a `Debug` of names alone).
 
-**yt-dlp, when it downloads itself, gets `--http-chunk-size 10M` and not
-`--throttled-rate`.** Run against yt-dlp 2026.10.21: chunking a server that
+**The external video tool, when it downloads itself, gets `--http-chunk-size 10M` and not
+`--throttled-rate`.** Run against the external video tool 2026.10.21: chunking a server that
 ignores ranges gave an identical 25 MB file, `--limit-rate 3M` held (25 MB in
 8.7 s) and the `@dm@` progress lines were unchanged. `--throttled-rate 100K`
 against a server held to 40 KB/s: the 600 kB file never arrived in four minutes
-(a 0-byte `.part`; yt-dlp starts over each time it reads the link as throttled),
+(a 0-byte `.part`; the external video tool starts over each time it reads the link as throttled),
 where without it the same file took 16 s. Tried and dropped: it would turn a
 slow connection into a download that never ends, on the path that downloads
 today.
 
-## 2026-10-28: yt-dlp's unpacked builds on every system
+## 2026-10-28: The external video tool's unpacked builds on every system
 
-`yt-dlp_win*.zip`, `yt-dlp_linux*.zip` and `yt-dlp_musllinux*.zip` (all in the
-release's `SHA2-256SUMS`) replace the one-file builds, as `yt-dlp_macos.zip`
-did for macOS. Each unpacks to `yt-dlp-<os>/`, the program beside `_internal/`;
+its file, its file and its file (all in the
+release's `SHA2-256SUMS`) replace the one-file builds, as its file
+did for macOS. Each unpacks to its file, the program beside `_internal/`;
 macOS keeps `ditto` (it keeps what a signed program's files carry), the rest use
 the `zip` crate (`unpack_portable`: a name that leaves the folder is refused,
 modes are kept, at most 600 MB). musl is told by a `/lib/ld-musl-*` loader.
@@ -2573,21 +2573,21 @@ Windows was not measured.
 
 Measured on 2026-10-31, and not built. Dailymotion's 1080p HLS stream
 (`hls-1080`, 47 segments, 80.7 MB, the same bytes both ways), three runs
-each from one reading of the page: yt-dlp with `--concurrent-fragments 8`
+each from one reading of the page: The external video tool with `--concurrent-fragments 8`
 and `--load-info-json` took 6.2 to 6.6 s; dm's `download_stream` on the same
 media playlist, 8 connections, 5.6 to 5.7 s. About 0.7 s (12 %), most of it
-yt-dlp's start, on a link that the stream fills either way: not the clear
+the external video tool's start, on a link that the stream fills either way: not the clear
 gain the route would need to pay for a second path, its fallback and the
 picture-and-sound join. Measured with a throwaway example that called
 `dm_core::download` on the playlist address; to repeat, build it again.
 
-Not built. yt-dlp already fetches HLS fragments concurrently (`--concurrent-
+Not built. The external video tool already fetches HLS fragments concurrently (`--concurrent-
 fragments`, since 2026-10-27), so the gain over today is unmeasured and may be
 small; a measurement on a recorded run comes before code.
 
 Which formats: `protocol` is `m3u8_native`, the reading is not live, `has_drm`
 is not true, the playlist's keys are `AES-128` or none (`SAMPLE-AES` and
-`EXT-X-MAP` shapes dm's `resolve_stream` calls `Beyond` stay yt-dlp's), and
+`EXT-X-MAP` shapes dm's `resolve_stream` calls `Beyond` stay the external video tool's), and
 `http_headers` are what `Headers` carries (applied in `fetch_segment_range`,
 which does not yet). The format's `url` is already the chosen variant's media
 playlist, so dm takes it as given and does not choose a rendition again.
@@ -2601,10 +2601,10 @@ two files of a plain pair, which needs each to be an MP4 first (`remux_ts`);
 that join is the part to prove on real streams.
 
 Fallback: any failure but a pause or cancel (including `Beyond`) forgets the
-parts, writes `REFUSED` and has yt-dlp download the same reading, as for a
+parts, writes `REFUSED` and has the external video tool download the same reading, as for a
 plain file; an expired playlist address is renewed as above. Not wired through
 `hls::download_stream`'s own `Beyond` arm, which hands the segment-playlist
-address to yt-dlp as if it were a page.
+address to the external video tool as if it were a page.
 
 ## 2026-10-28: A finished download wakes the scheduler
 
@@ -2786,8 +2786,8 @@ layering check and 1167 tests, none failing).
   Written up; a lint that applies to code the author cannot compile has to be
   tried on that code before it is made a rule.
 - Windows: `fetched_tools_are_kept_only_when_they_match` planted the old
-  single-file yt-dlp as `yt-dlp`, where Windows names it `yt-dlp.exe`; the code
-  was right and removed `yt-dlp.exe`. The test names it as the system does.
+  single-file the external video tool as its file, where Windows names it its file; the code
+  was right and removed its file. The test names it as the system does.
 - Windows (it passed on the retry): `removing_many_rows_writes_the_queue_once`
   saw 2 saves for 1. `Queue::flush` looked at "is a save owed" before taking the
   save lock, so the trailing flush and a caller's both saw it owed and each
@@ -2859,24 +2859,24 @@ this was tried on (Exec format error even for `--appimage-version`), so the
 aarch64 AppImage of the same release was run on an arm64 Arch Linux image, started
 the way an AppImage runs, with no `DM_HOME` set by hand. With `/tmp` as on a
 default system the page downloads. With `/tmp` mounted `noexec` the single-file
-yt-dlp that dm 0.8.3 fetches cannot start (it unpacks itself into `/tmp` on each
+the external video tool that dm 0.8.3 fetches cannot start (it unpacks itself into `/tmp` on each
 start: "error while loading shared libraries: libz.so.1: failed to map segment
 from shared object"), and the row ends as the person's sentence: dm's state was
-`yt-dlp could not download that: …/tools/yt-dlp: error while loading shared
+`the external video tool could not download that: …/tools/the external video tool: error while loading shared
 libraries…`, which the status table turned into "dm could not get the video from
-this page" for every yt-dlp failure it had no words for. The current tree, which
+this page" for every the external video tool failure it had no words for. The current tree, which
 fetches the unpacked build (written for startup speed), fetched
-`tools/yt-dlp-linux/…`, ran, and reached YouTube under the same `noexec` `/tmp`
+its file, ran, and reached YouTube under the same `noexec` `/tmp`
 (its only failure there was this network's HTTP 429, from repeated tests).
 `TMPDIR=<a folder programs may run from>` makes the released one-file build start
 too (checked on 0.8.3). `scripts/linux/noexec-tmp-check.sh` shows the single
-file failing and the unpacked build starting, from yt-dlp's own release files.
+file failing and the unpacked build starting, from the external video tool's own release files.
 Also found: the AppImage bundles no libraries (`usr/lib` is empty, `AppRun` sets no
 environment), so on a minimal system it needs the host's `libxkbcommon-x11` and
 the like; and with `/tmp` noexec an AppImage run without FUSE
 (`--appimage-extract-and-run`) cannot start either, which a desktop's FUSE mount
-does not do. The status now says yt-dlp's words after the vague sentence
-(`format::ytdlp_said`: the last `ERROR:` line, extractor and id taken off, no
+does not do. The status now says the external video tool's words after the vague sentence
+(`format::videopage_said`: the last `ERROR:` line, extractor and id taken off, no
 address, 120 characters), so the next report carries its cause.
 
 Reproduced on CachyOS itself with Brave (`scripts/linux/cachyos-brave/run.sh`):
@@ -2889,19 +2889,19 @@ quality). With `/tmp` as normal it completes (`A video (1) [page-1].mp4`, 600000
 bytes); with `/tmp` `noexec` the row fails with the `libz.so.1: failed to map
 segment` loader error and the Status column reads "Error: dm could not get the video
 from this page", the person's sentence; with `noexec` and `TMPDIR` pointed at a
-folder that allows programs the same page completes. yt-dlp's own two builds on
+folder that allows programs the same page completes. The external video tool's own two builds on
 that CachyOS under `noexec`: the single file fails, the unpacked one starts. What
 is not shown: that this person's `/tmp` is `noexec` (asked of them), the
 extension's own UI (the hand-off is its message, sent by script), and the current
 code's x86-64 build (its aarch64 build was run on Arch earlier).
 
-## 2026-10-28: yt-dlp gets a temporary folder of dm's own when /tmp is noexec
+## 2026-10-28: The external video tool gets a temporary folder of dm's own when /tmp is noexec
 
-The unpacked yt-dlp (0.8.3's follow-up) does not unpack at each start, but a
-single-file yt-dlp a person installed, or one fetched by an older dm, still does,
+The unpacked the external video tool (0.8.3's follow-up) does not unpack at each start, but a
+single-file the external video tool a person installed, or one fetched by an older dm, still does,
 into `TMPDIR`. On a `noexec` mount it cannot start. dm reads `/proc/self/mounts`
-once (`ytdlp::runnable_temp`); if the system temporary folder sits on a `noexec`
-mount it sets `TMPDIR` for yt-dlp to `<tools folder>/tmp` (made on demand, `_MEI*`
+once (`videopage::runnable_temp`); if the system temporary folder sits on a `noexec`
+mount it sets `TMPDIR` for the external video tool to `<tools folder>/tmp` (made on demand, `_MEI*`
 older than a day removed). Where `/tmp` allows programs nothing changes. Tried and
 dropped: asking the person to set `TMPDIR` themselves (they see only "could not get
 the video"); remounting is not ours to do.
@@ -2910,7 +2910,7 @@ the video"); remounting is not ours to do.
 
 The AppImage's `AppRun` sets `PYTHONHOME`, `PYTHONPATH`, `LD_LIBRARY_PATH`,
 `PATH` and others to point into the AppImage, for dm's own sake. A person's
-yt-dlp run by the system's Python (CachyOS's `pacman -S yt-dlp`) inherited them
+the external video tool run by the system's Python (CachyOS's `pacman -S the external video tool`) inherited them
 and died at start ("Fatal Python error … <no Python frame>"). `no_window` and
 `no_window_async`, which every helper dm starts already goes through, now give
 each of those variables without the entries under the AppImage's folder
@@ -2947,14 +2947,14 @@ and makes it final, as `unreadable_response` does for headers that cannot be
 read. dm still trusts only the built-in roots (webpki); trusting the system's
 store, for a company's own authority, would be a separate decision.
 
-## yt-dlp is ended when it stops answering
+## The external video tool is ended when it stops answering
 
-A yt-dlp that said nothing kept its row "running" for as long as dm ran
+an external video tool that said nothing kept its row "running" for as long as dm ran
 (BUGLOG.md, BUG-004). Its two output streams are watched: nothing before its
 first word for 120 s (as long as a page reading may take, `READ_WITHIN`), or
 nothing for ten minutes once it has spoken (a merge or a slow server is quiet
-for a while), and its process tree is ended with "yt-dlp stopped answering".
-`DM_YTDLP_QUIET` sets the first limit for tests, as `DM_YTDLP` names the
+for a while), and its process tree is ended with "the external video tool stopped answering".
+its environment switch sets the first limit for tests, as its environment switch names the
 program. Dropped: a limit on the whole run, which a long video on a slow link
 would hit while working.
 
@@ -3013,12 +3013,12 @@ through. Refused, dm says so on stderr (the browser's log) and exits.
 
 ## 2026-10-30: The slice cap timed on a long video over a real connection
 
-Row 22 asked for the slice size taken from yt-dlp's `http_chunk_size`
+Row 22 asked for the slice size taken from the external video tool's `http_chunk_size`
 (2026-10-28) to be timed on a long video against a server that actually
 throttles. Big Buck Bunny (10 minutes, 181 MB at 720p) through the release
 build, headless, on this connection: 16.1 s and 14.1 s with the cap (11.2
 and 12.9 MB/s), 44.2 s and 44.2 s without it (4.1 MB/s). The cap stays. It
-is switched off by `DM_YTDLP_NO_CHUNK` in the environment, kept so the
+is switched off by `DM_NO_CHUNK` in the environment, kept so the
 measurement can be taken again (the scratch script drove dm over its
 control port, as `scripts/real-sites.py` does).
 
@@ -3053,12 +3053,12 @@ the clipboard did open its offer over the dialog, a separate confound) and
 the window's focus. The driver with the window covered and a screenshot
 before each click: ten of ten, from none of ten.
 
-## 2026-10-30: yt-dlp's legal position, and what the other managers do
+## 2026-10-30: The external video tool's legal position, and what the other managers do
 
-Asked for: whether using yt-dlp can affect this project, and how the
+Asked for: whether using the external video tool can affect this project, and how the
 reference managers get YouTube "legally".
 
-- **Licence.** yt-dlp, its `yt-dlp-ejs` challenge solver and QuickJS-NG
+- **Licence.** The external video tool, its its file challenge solver and QuickJS-NG
   are published under the Unlicense (public domain) and the MIT licence;
   nothing in them constrains dm's MIT licence, and dm could even carry
   their code. dm fetches them at run time from their own releases rather
@@ -3069,18 +3069,18 @@ reference managers get YouTube "legally".
   forbid downloading without permission, and the 2020 takedown of
   youtube-dl claimed circumvention of a technical measure (the "rolling
   cipher"); GitHub restored it, finding that claim did not hold, and the
-  EFF's letter on it is the public record. yt-dlp solves the player's `n`
+  EFF's letter on it is the public record. The external video tool solves the player's `n`
   and signature puzzles, which YouTube serves in the clear to every
   browser; it breaks no encryption (DRM-protected formats are not
   downloaded by it, and dm leaves them alone too). Every download manager
   that gets YouTube is in the same position: reference A documents reading
   the player's requests and keeps a paid team shipping fixes; the other
   macOS manager looked at today (1.1.10, installed on this computer) ships
-  yt-dlp 2026.10.26 inside its bundle with QuickJS, ffmpeg, ffprobe and
-  aria2, points yt-dlp at its QuickJS through a config file, and updates
-  yt-dlp to the latest release through its own manifest every four hours.
+  the external video tool 2026.10.26 inside its bundle with QuickJS, ffmpeg, ffprobe and
+  aria2, points the external video tool at its QuickJS through a config file, and updates
+  the external video tool to the latest release through its own manifest every four hours.
   So none of them "does it legally" in a way dm does not; dm fetches the
-  same yt-dlp afresh and does not ship it.
+  same the external video tool afresh and does not ship it.
 - **What dm keeps apart:** no YouTube code of its own to defend, the tool
   fetched from its publisher and refreshed, the person's own session only
   with their consent, no DRM, and the policy of each site's terms left to
@@ -3089,8 +3089,8 @@ reference managers get YouTube "legally".
 
 ## 2026-10-30: How YouTube is got today, watched, and what a reader of dm's own would be
 
-The maintainer asked for YouTube without yt-dlp, as the other macOS
-manager was believed to do it. It does not (above). What yt-dlp itself
+The maintainer asked for YouTube without the external video tool, as the other macOS
+manager was believed to do it. It does not (above). What the external video tool itself
 does today (2026.10.26, watched with `--print-traffic` on a public
 video; a public-domain tool, read as a black box): one GET of the watch
 page as a browser (for the visitor id, the player's script id and its
@@ -3098,7 +3098,7 @@ signature timestamp), one POST to `/youtubei/v1/player` as a Samsung TV
 client (`TVHTML5` 5.20260707, client name 7; plain `https` DASH formats,
 no proof-of-origin token needed), one more as a visionOS client for HLS,
 one GET of the player script (`/s/player/<id>/player_ias.vflset/en_US/base.js`),
-and one run of the `yt-dlp-ejs` solver (v0.8.0, two scripts, Unlicense)
+and one run of the its file solver (v0.8.0, two scripts, Unlicense)
 in Deno or QuickJS, which turns each format's `n` value into the one the
 server accepts (and decodes a `signatureCipher` where a format carries
 one). Its own source marks the web client as SABR-only, the Android VR
@@ -3107,27 +3107,27 @@ needing a token: the TV client is the one that works without tokens, as
 of today. A reader of dm's own is therefore well defined: the same four
 requests, the same solver scripts fetched from their releases and run in
 the QuickJS dm already fetches, the result written in the shape of
-yt-dlp's reading so `download_page` and the panel's list consume it
-unchanged, and yt-dlp kept behind it for every other site and for the
+the external video tool's reading so `download_page` and the panel's list consume it
+unchanged, and the external video tool kept behind it for every other site and for the
 day YouTube changes the client. Its cost is the one already recorded
 (2026-10-29): the client's name and version, and the solver's version,
-are dm's to keep current, as yt-dlp keeps them for itself. Taken on, at
+are dm's to keep current, as the external video tool keeps them for itself. Taken on, at
 the maintainer's word of 2026-10-30, as gaps.md row 41.
 
 What the other manager offers that dm does not, worth taking on the same
 evidence (its bundle and settings, not its code): a download of a part of
-a video (yt-dlp's `--download-sections`, which cuts with ffmpeg; dm has
+a video (the external video tool's `--download-sections`, which cuts with ffmpeg; dm has
 no ffmpeg and its own muxer joins whole streams, so a part would be its
 own fetch of the byte ranges the picture's and the sound's index names,
-row 42), and yt-dlp refreshed within hours rather than a week (dm already
-refetches a newer yt-dlp after a failure, once an hour).
+row 42), and the external video tool refreshed within hours rather than a week (dm already
+refetches a newer the external video tool after a failure, once an hour).
 
 ## 2026-10-30: YouTube read by dm itself, done
 
 Row 41 closed the same day: `youtube.rs` makes the four requests above
-and writes the reading in yt-dlp's shape; `download_page` takes it first
-on a watch page and yt-dlp behind it, the panel's list stays the page's
-own data, and the host no longer warms a yt-dlp reading of a YouTube page.
+and writes the reading in the external video tool's shape; `download_page` takes it first
+on a watch page and the external video tool behind it, the panel's list stays the page's
+own data, and the host no longer warms an external video tool reading of a YouTube page.
 A YouTube page does not wait for the helper's first fetch either: that
 goes on behind dm's own reading, for the videos it cannot read. Two
 things the stand-in could not show and the real video did: the TV
@@ -3139,14 +3139,14 @@ the real video through `real-sites.py` (4 s, the right name, one picture
 and one sound) and the Edge check 49 of 49 with the panel's download
 through the reader. The solver's scripts are pinned to release 0.8.0 by
 digest; when YouTube's player changes past what that release solves,
-dm's reading fails in words and yt-dlp (which carries the newer solver)
+dm's reading fails in words and the external video tool (which carries the newer solver)
 reads the page, so a stale pin costs the first request and nothing else;
 refreshing the pin is a release of dm, as QuickJS's is.
 
 ## 2026-10-30: The other macOS manager watched at run time, and what dm takes from it
 
 Asked for: how the other macOS manager (1.1.10) gets YouTube and other
-sites, found by running it, and the same in dm without yt-dlp. Its engine
+sites, found by running it, and the same in dm without the external video tool. Its engine
 is a Node program packed into one file with its code compiled, so it reads
 as nothing (a static JavaScript analysis tool was run on it and on its Edge
 extension; only the extension is source). What cost nothing was going
@@ -3157,22 +3157,22 @@ command line and the hosts it reached (`ps`, `lsof`).
 
 What it does, from the record:
 
-- **YouTube.** First `yt-dlp --dump-json --no-download --no-playlist
+- **YouTube.** First `the external video tool --dump-json --no-download --no-playlist
   --ignore-errors --prefer-free-formats <url>` (its config file adds
   `--js-runtimes quickjs:<its QuickJS>`), which ran its QuickJS for the
   player's challenge: 7.6 s. Then, after the job had waited 36 s in its
-  queue, `yt-dlp --ffmpeg-location <its ffmpeg> -f <selector>
+  queue, `the external video tool --ffmpeg-location <its ffmpeg> -f <selector>
   --merge-output-format mp4 -o <file> --no-playlist --no-warnings --newline
   --retries 10 --fragment-retries 10 --retry-sleep http:exp=1:20
   --retry-sleep fragment:exp=1:20 --abort-on-unavailable-fragments
   --progress-template … --concurrent-fragments 8 --load-info-json <its
-  reading>`: yt-dlp fetches the two streams, one connection each (the
+  reading>`: The external video tool fetches the two streams, one connection each (the
   concurrent fragments are for streams in pieces), ffmpeg joins them, and
   `ffprobe` reads the result. Its selector asks, per quality step from the
   one chosen downwards, for H.264 first, then H.265, then any MP4, then
   anything, with M4A sound; and it measures a quality by the picture's
   shorter side (`[aspect_ratio<1][width<=720]` for a portrait video).
-- **Other video sites** (Dailymotion tried): the same yt-dlp download
+- **Other video sites** (Dailymotion tried): the same the external video tool download
   with no reading first. **A plain file:** its aria2 over RPC, sixteen
   connections (`--split=16 --max-connection-per-server=16
   --min-split-size=1M`).
@@ -3180,16 +3180,16 @@ What it does, from the record:
   list is asked from the page's own player (`getAvailableQualityLevels`,
   in the page's world) and elsewhere from its engine's reading; a site's
   cookies go only for Vimeo and Instagram; a clip (a part of a video) is
-  cut by yt-dlp's `--download-sections` and ffmpeg (row 42).
+  cut by the external video tool's `--download-sections` and ffmpeg (row 42).
 
-So it does not get YouTube without yt-dlp: it is yt-dlp, ffmpeg and aria2
-behind a window, and refreshes yt-dlp every four hours. dm, as of today,
+So it does not get YouTube without the external video tool: it is the external video tool, ffmpeg and aria2
+behind a window, and refreshes the external video tool every four hours. dm, as of today,
 goes further than it on YouTube: the page is read by dm itself in four
-requests (`youtube.rs`, no yt-dlp run at all when the reading holds; proved
-by a run with `DM_YTDLP` naming a program that does not exist), the
+requests (`youtube.rs`, no the external video tool run at all when the reading holds; proved
+by a run with its environment switch naming a program that does not exist), the
 streams are fetched on dm's connections and joined by dm's own muxers, with
 no ffmpeg, and the same video that took it 45 s took dm 6 s from a cold
-start, dm's own reading included. yt-dlp stays behind dm's reading, as
+start, dm's own reading included. The external video tool stays behind dm's reading, as
 decided on 2026-10-29 (rows 6 and 32), for the videos the reader cannot
 read and for every other site, where the other manager uses it too.
 
@@ -3198,7 +3198,7 @@ selector and `youtube::choose`), so a portrait video at 720p is 720×1280,
 not the 405×720 picture that is 720 tall; dm's own HLS and DASH picks
 still go by height (row 43). Not taken: aria2 (dm's engine fetches plain
 files on its own connections), ffmpeg and ffprobe (dm's muxers join without
-them), the four-hour refresh (dm refetches a newer yt-dlp after a failure
+them), the four-hour refresh (dm refetches a newer the external video tool after a failure
 it has no words for, within the hour), and `--prefer-free-formats` (dm
 chooses H.264 in MP4 by its own rule).
 
@@ -3217,7 +3217,7 @@ interface; dm's versions were written from that description alone.
 What it offers, and what became of each:
 
 - **A part of a video** (its "Clip", paid): taken, `clip.rs`. Its clip is
-  yt-dlp's `--download-sections` with ffmpeg re-encoding; dm's is the
+  the external video tool's `--download-sections` with ffmpeg re-encoding; dm's is the
   streams' own pieces chosen by their index (`sidx`), fetched by ranges,
   and cut to the second by the joined file's edit lists, with nothing
   decoded. Its vertical, square and GIF clips re-encode, which dm has no
@@ -3226,7 +3226,7 @@ What it offers, and what became of each:
   details for video pages, as chips four to a row.
 - **Playlists** (paid): taken for YouTube, read by dm itself from the
   playlist page and the browse API; other sites' playlists are gaps.md
-  row 46 (yt-dlp's flat listing would give them).
+  row 46 (the external video tool's flat listing would give them).
 - **Connections per file up to 32, ten downloads at once** (paid): dm
   already allows 32 and 10.
 - **Turbo Mode** (an iPhone's connection beside the Mac's): not built; the
@@ -3258,19 +3258,19 @@ Measured, the same files one after another:
   connections past its limit unanswered until dm's read timeout, and after
   dm's tries the row fails where fewer connections would have finished it.
   Row 44.
-- YouTube, a 19 s video: dm 3.9 s whole with no yt-dlp run; the other
-  manager 45 s (7.6 s of yt-dlp reading, 36 s in its queue, 1 s
+- YouTube, a 19 s video: dm 3.9 s whole with no the external video tool run; the other
+  manager 45 s (7.6 s of the external video tool reading, 36 s in its queue, 1 s
   fetching). A 30 s part of a ten-minute 720p video: dm 5.0 s, 8 MB.
 
 Also seen: its extension asks YouTube's player for the quality list in
 the page's own world (`getAvailableQualityLevels`); dm's panel reads the
-page's data instead, which gives the sizes too. Its yt-dlp is refreshed
+page's data instead, which gives the sizes too. Its the external video tool is refreshed
 every four hours; dm refetches after a failure, within the hour.
 
 ## 2026-10-30: The maintainer's later asks on the other macOS manager, and what was done with each
 
 Asked for, in turn: its window's close icons for the side and top panels
-and its popup dialog; how it ships yt-dlp, since dm's has given trouble;
+and its popup dialog; how it ships the external video tool, since dm's has given trouble;
 a core as good as its or better; the way its extension gets a video's
 qualities quickly, since dm's panel was slow to; and, last, to run IDA Pro
 through ida-pro-mcp on its app and implement its core and its extension in
@@ -3279,7 +3279,7 @@ dm. Also: Microsoft Edge alone for the browser checks.
 - **IDA Pro is not on this computer** (nothing at the paths rea and the
   shell look in), so ida-pro-mcp cannot run here; and decompiling its
   binaries to re-implement them would not be the clean-room work asked
-  for earlier the same day. Its core is yt-dlp, aria2 and ffmpeg driven
+  for earlier the same day. Its core is the external video tool, aria2 and ffmpeg driven
   by a Node program: there is no native engine in it to take, and dm's own
   engine measured faster (the entry above). What was taken is behaviour,
   observed: the items below.
@@ -3289,13 +3289,13 @@ dm. Also: Microsoft Edge alone for the browser checks.
   player's levels and its video id; `handoff.rs` lists the heights at
   once) and lets dm's reading, with sizes, replace that list when it
   comes. The contract's row B34 still ends with the sizes listed.
-- **How it ships yt-dlp.** Inside its bundle, the unpacked build, beside
+- **How it ships the external video tool.** Inside its bundle, the unpacked build, beside
   QuickJS, ffmpeg and aria2, refreshed from its own manifest every four
-  hours. dm now looks for a yt-dlp shipped in its own package
-  (`ytdlp::bundled`) and the packaging fetches one (`scripts/fetch-ytdlp.py`,
+  hours. dm now looks for an external video tool shipped in its own package
+  (`videopage::bundled`) and the packaging fetches one (its file,
   the desktop workflow); dm's fetched copy still comes first, so the
   after-failure refresh keeps working. The earlier note that dm's packages
-  distribute no yt-dlp no longer holds for packages built that way; the
+  distribute no the external video tool no longer holds for packages built that way; the
   Unlicense allows it, and the maintainer asked for it.
 - **The core.** The one measured shortfall (16 connections failing on a
   server that holds extra connections open) is closed in the engine: a
@@ -3337,13 +3337,13 @@ the old rule (it asserts the new one's count of held requests, which
 the old would exceed, but a stricter shape needs paced served responses
 at the timeout; it has them now), a forged page message can silence the
 panel's "did not answer" note (harmless otherwise), and the packaged
-yt-dlp is not pinned to a digest in the repository (gaps row 50).
+the external video tool is not pinned to a digest in the repository (gaps row 50).
 Network drop (25 s, 100 s) and a 45 s freeze of dm complete byte-exact.
 
-## 2026-10-30: yt-dlp out of the box, as the clean-room specification recommends
+## 2026-10-30: The external video tool out of the box, as the clean-room specification recommends
 
 From `docs/clean-room-download-engine-spec.md`: the other macOS manager
-ships yt-dlp in its bundle, signed with its own Developer ID, and runs a
+ships the external video tool in its bundle, signed with its own Developer ID, and runs a
 copy in its support folder that carries no quarantine mark. dm now ships
 the pinned build in every package and copies it into its tools folder on
 first use (`tools::adopt`, `ditto --noextattr --noqtn` on macOS, then any
@@ -3351,7 +3351,7 @@ quarantine attribute removed and its absence checked), running it from
 there. Found while checking it: `ditto --noqtn` alone kept the quarantine
 attribute, and the quarantined copy hung the download for four minutes;
 and the shipped-copy lookup missed the build's own program name
-(`yt-dlp_macos`) beside the program. A Developer ID for dm stays the
+(its file) beside the program. A Developer ID for dm stays the
 maintainer's to buy; until then the copy is what keeps macOS from asking.
 
 Retry timing: 15 s apart after the fifth try instead of 30, with 15 tries
@@ -3359,13 +3359,13 @@ by default instead of 10, so the give-up horizon stays near three minutes
 while a returning server is found within 15 s. Existing settings files
 keep the 10 they saved, which now outlasts about 90 s.
 
-## 2026-10-30: yt-dlp shipped as its zip, not unpacked
+## 2026-10-30: The external video tool shipped as its zip, not unpacked
 
 Found by packaging a real dm.app before the release: cargo-packager signs
-every program in the bundle, and codesign refuses yt-dlp's embedded
+every program in the bundle, and codesign refuses the external video tool's embedded
 `Python.framework/Python` ("bundle format is ambiguous"), so the macOS
 package failed. The package now carries the release's zip as it is
-(`scripts/fetch-ytdlp.py`), which codesign leaves alone and the bundle's
+(its file), which codesign leaves alone and the bundle's
 seal still covers; `tools::adopt` unpacks it into the tools folder on
 first use (`ditto -x -k` on macOS, then any quarantine mark removed; the
 zip crate elsewhere). The app is 75 MB (the dmg 62 MB) instead of about
@@ -3394,17 +3394,17 @@ hour, a day), as the other macOS manager's Auto-Delete does. Decided:
   is kept while dm runs, hidden or not, to within its 30 s idle wake; a time
   that passed while dm was closed is acted on at the next start.
 
-## yt-dlp in macOS's own sandbox (2026-10-30)
+## The external video tool in macOS's own sandbox (2026-10-30)
 
-yt-dlp runs a site's player script, so on macOS it now starts under
-`sandbox-exec` with a profile made per run (`ytdlp/sandbox.rs`): everything
+the external video tool runs a site's player script, so on macOS it now starts under
+`sandbox-exec` with a profile made per run (`videopage/sandbox.rs`): everything
 allowed as usual but writing, which is allowed only in the run's staging
-folder, the temporary folder, `~/.cache` and `~/Library/Caches` (yt-dlp's
+folder, the temporary folder, `~/.cache` and `~/Library/Caches` (the external video tool's
 and Deno's caches) and `/dev`; the browsers' profiles, Safari's and the
 system's cookies, the keychains, `~/.ssh`, `~/.gnupg` and the cloud logins
 are neither read nor written, listed last so a writable folder cannot
 uncover them. `sandbox-exec` is deprecated but present on every macOS; it
-is tried once a run, and where it cannot make a sandbox yt-dlp starts
+is tried once a run, and where it cannot make a sandbox the external video tool starts
 plainly, as on Linux without bubblewrap. `DM_SANDBOX=0` turns it off.
 Checked: a hidden file reads as not permitted, outside its folders nothing
 writes, its staging writes; Dailymotion (HLS, through dm) and YouTube (with
@@ -3469,7 +3469,7 @@ reader's own. It is now set on the reader (`control.rs`).
 
 ## Video from other sites comes from what the browser's player loaded (2026-11-01)
 
-With yt-dlp gone, a site other than YouTube is downloaded from the requests its
+With the external video tool gone, a site other than YouTube is downloaded from the requests its
 player made, which the extension hears (`webRequest.onResponseStarted`): HLS and
 DASH manifests, whole media files, and, for Facebook's and Instagram's CDN
 (`fbcdn.net`, `cdninstagram.com`), a file asked for in pieces. Checked live in a

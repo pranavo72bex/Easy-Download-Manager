@@ -347,26 +347,9 @@ def main():
         if hls["state"]["kind"] == "completed":
             check("holding every segment in order", pathlib.Path(hls["path"]).read_bytes() == b"".join(SEGMENTS))
         page = done["watch"]
-        # Where dm itself looks for the tool, on either platform.
-        if WINDOWS:
-            homes = [pathlib.Path(os.environ.get("LOCALAPPDATA", "")) / "Microsoft" / "WinGet" / "Links",
-                     pathlib.Path.home() / "scoop" / "shims",
-                     pathlib.Path(os.environ.get("ProgramData", "")) / "chocolatey" / "bin"]
-            homes += sorted((pathlib.Path(os.environ.get("APPDATA", "")) / "Python").glob("Python3*/Scripts"))
-            ytdlp = shutil.which("yt-dlp", path=os.pathsep.join(map(str, homes)))
-        else:
-            ytdlp = shutil.which("yt-dlp", path="/opt/homebrew/bin:/usr/local/bin:/usr/bin:" + str(pathlib.Path.home() / ".local/bin"))
-        if ytdlp:
-            check("a player page is handed to yt-dlp, found without the shell's PATH", page["state"], {"kind": "completed"})
-            if page["state"]["kind"] == "completed":
-                check("and the file it produced is the clip", pathlib.Path(page["path"]).read_bytes() == CLIP)
-        else:
-            # None installed: dm fetches yt-dlp itself into its own folder.
-            exe = "yt-dlp.exe" if WINDOWS else "yt-dlp"
-            check("with no yt-dlp installed, dm fetches its own and the page downloads",
-                  (page["state"], (home / "tools" / exe).exists()), ({"kind": "completed"}, True))
-            if page["state"]["kind"] == "completed":
-                check("and the file it produced is the clip", pathlib.Path(page["path"]).read_bytes() == CLIP)
+        # A watch page that is not YouTube's is refused: its video comes from
+        # the browser's caught player requests, not from reading the page.
+        check("a player page that is not YouTube's is refused with a reason", page["state"]["kind"], "failed")
         stop(app, home)
         check("the lock is released when dm exits", not lock_is_held(home))
 

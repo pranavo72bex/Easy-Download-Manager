@@ -41,7 +41,7 @@ pub enum StreamKind {
     Sound,
 }
 
-/// Media a page loaded, offered in the panel beside what yt-dlp reads.
+/// Media a page loaded, offered in the panel beside what the app reads.
 #[derive(Debug, Clone, PartialEq, serde::Serialize, Deserialize)]
 pub struct Stream {
     pub url: String,

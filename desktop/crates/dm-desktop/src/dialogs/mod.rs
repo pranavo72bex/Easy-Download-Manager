@@ -106,9 +106,9 @@ pub struct FileInfo {
     pub part_from: String,
     pub part_to: String,
     /// A video page's qualities with their sizes, read as the dialog opens
-    /// (`dm_core::ytdlp::list_choices`): `None` until asked; an empty list
+    /// (`dm_core::videopage::list_choices`): `None` until asked; an empty list
     /// where the page gave none.
-    pub choices: Option<std::sync::Arc<std::sync::Mutex<Option<Vec<dm_core::ytdlp::Choice>>>>>,
+    pub choices: Option<std::sync::Arc<std::sync::Mutex<Option<Vec<dm_core::videopage::Choice>>>>>,
     /// A YouTube playlist page: the Playlist dialog takes over.
     pub playlist: std::sync::Arc<std::sync::Mutex<Option<dm_core::youtube::Playlist>>>,
     /// The browser a handed-over download came from, where the host could

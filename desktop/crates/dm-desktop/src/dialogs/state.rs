@@ -61,7 +61,7 @@ impl Dialogs {
                     .await
                     .map_err(|e| e.to_string())
             } else {
-                match dm_core::ytdlp::read_playlist(&page, None, proxy.as_deref(), None).await {
+                match dm_core::videopage::read_playlist(&page, None, proxy.as_deref(), None).await {
                     Ok(Some(list)) => Ok(list),
                     Ok(None) => Err("That page is one video, not a playlist.".to_string()),
                     Err(e) => Err(e.to_string()),
@@ -171,7 +171,7 @@ impl Dialogs {
                             name: probe.filename,
                             kind: crate::app::category_word(kind),
                             size: probe.size,
-                            html: dm_core::ytdlp::is_page(probe.content_type.as_deref()),
+                            html: dm_core::videopage::is_page(probe.content_type.as_deref()),
                             failed: None,
                         },
                     );

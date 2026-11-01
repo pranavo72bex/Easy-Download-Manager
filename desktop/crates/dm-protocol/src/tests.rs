@@ -50,12 +50,10 @@ fn the_wire_names_are_the_ones_the_host_has_always_used() {
     assert_eq!(failed["failure"]["message"], "no");
     let hello = Reply::Hello(Hello {
         engine_version: "1.2".into(),
-        ytdlp: Some(false),
         protocol: None,
     })
     .to_frame();
     assert_eq!(hello["engineVersion"], "1.2");
-    assert_eq!(hello["ytdlp"], false);
 }
 
 #[test]
@@ -163,12 +161,12 @@ fn an_app_that_does_not_say_its_protocol_does_not_judge_pages() {
 }
 
 #[test]
-fn a_hello_from_a_host_too_old_to_mention_ytdlp_says_unknown() {
-    let frame = json!({ "protocolVersion": 1, "type": "engine.hello", "engineVersion": "0.1" });
+fn a_hello_from_an_older_host_with_a_field_no_longer_read_is_still_read() {
+    let frame = json!({ "protocolVersion": 1, "type": "engine.hello", "engineVersion": "0.1", "old": true });
     let Ok(Reply::Hello(hello)) = Reply::from_frame(&frame) else {
         panic!("not read")
     };
-    assert_eq!(hello.ytdlp, None);
+    assert_eq!(hello.engine_version, "0.1");
 }
 
 #[test]

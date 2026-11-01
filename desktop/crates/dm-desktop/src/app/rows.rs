@@ -320,9 +320,9 @@ pub(super) fn status_in(row: &Entry, words: fn(&'static str) -> &'static str) ->
         // reader's own words follow the sentence.
         State::Failed(reason)
             if format::reason(reason) == Some(format::VIDEO_NOT_GOT)
-                && format::ytdlp_said(reason).is_some() =>
+                && format::video_said(reason).is_some() =>
         {
-            let said = format::ytdlp_said(reason).unwrap_or_default();
+            let said = format::video_said(reason).unwrap_or_default();
             crate::i18n::fill(
                 words("Error: {}"),
                 &[&format!("{} ({said})", words(format::VIDEO_NOT_GOT))],

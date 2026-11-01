@@ -682,7 +682,7 @@ def bad_link():
     through_proxy("badlink.bin", 6 * MB, {"connections": 8}, lambda: None, seconds=300, before=toxics)
 
 
-# ------------------------------------------------------------ video pages (yt-dlp)
+# ------------------------------------------------------------ video pages
 
 def mockvideo():
     if not MOCKVIDEO:
@@ -726,46 +726,6 @@ def video_page_without_media():
         return reason(row)
     finally:
         dm.close()
-
-
-def fake_ytdlp(dm, body):
-    script = dm.root / "yt-dlp"
-    script.write_text("#!/bin/sh\n" + body)
-    script.chmod(0o755)
-    return script
-
-
-@scenario
-def ytdlp_crash_and_hang():
-    site = mockvideo()
-    notes = []
-    for kind, body in (("crash", 'echo "Traceback (most recent call last):" >&2; echo "boom" >&2; exit 1\n'),
-                       ("segfault", "kill -SEGV $$\n"),
-                       ("hang", "exec sleep 100000\n")):
-        dm = DM(f"ytdlp_{kind}")
-        old = os.environ.get("DM_YTDLP")
-        os.environ["DM_YTDLP"] = str(fake_ytdlp(dm, body))
-        # A short silence limit for the hang (BUGLOG.md, BUG-004); its page
-        # reading still has its own two minutes first.
-        os.environ["DM_YTDLP_QUIET"] = "20"
-        try:
-            dm.start()
-            # A watch address with no extension: yt-dlp's alone (BUGLOG.md, T-007).
-            dm.add(f"{site}/watch?v={kind}")
-            row = dm.wait(f"watch?v={kind}", kinds=("failed", "completed"), seconds=300)
-            check(row["state"]["kind"] == "failed", f"{kind}: {row['state']} {row.get('path')}")
-            check(reason(row), f"{kind}: failed with no reason")
-            if kind == "hang":
-                check("stopped answering" in reason(row), f"hang: {reason(row)}")
-            notes.append(f"{kind}: {reason(row)}")
-        finally:
-            os.environ.pop("DM_YTDLP_QUIET", None)
-            if old is None:
-                os.environ.pop("DM_YTDLP", None)
-            else:
-                os.environ["DM_YTDLP"] = old
-            dm.close()
-    return "; ".join(notes)
 
 
 @scenario

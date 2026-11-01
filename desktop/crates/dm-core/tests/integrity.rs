@@ -619,7 +619,7 @@ async fn a_site_that_takes_only_browsers_is_asked_as_a_browser_last() {
 
 #[tokio::test]
 async fn a_file_served_as_a_web_page_is_saved_as_the_file_it_is() {
-    /* A .zip with a careless text/html type went to yt-dlp as a page, and
+    /* A .zip with a careless text/html type went to the video reader as a page, and
      * was saved as "page [html].unknown_video". */
     let data = Arc::new(body(300 * 1024, 7));
     let served = data.clone();

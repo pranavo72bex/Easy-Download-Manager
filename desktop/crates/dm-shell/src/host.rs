@@ -462,7 +462,7 @@ impl World for Here<'_> {
             .map_err(|e| e.to_string())?;
         let referrer = (!referrer.is_empty()).then_some(referrer);
         let sign_in = dm_core::cookies::SignIn::new(url, cookies);
-        let fast = runtime.block_on(dm_core::ytdlp::list_choices_fast(
+        let fast = runtime.block_on(dm_core::videopage::list_choices_fast(
             url,
             proxy.as_deref(),
             sign_in.as_ref(),
@@ -471,7 +471,7 @@ impl World for Here<'_> {
             listed
         } else {
             runtime
-                .block_on(dm_core::ytdlp::list_choices(
+                .block_on(dm_core::videopage::list_choices(
                     url,
                     referrer,
                     proxy.as_deref(),
@@ -636,8 +636,6 @@ pub fn answer(
             mark_browser_seen(home);
             Reply::Hello(Hello {
                 engine_version: env!("CARGO_PKG_VERSION").into(),
-                // There, or fetched by dm when a page needs it (`tools`).
-                ytdlp: Some(dm_core::tools::video_possible()),
                 // The extension hands a download the browser holds only to an
                 // app that says it judges what it is served.
                 protocol: Some(dm_protocol::PROTOCOL_VERSION),

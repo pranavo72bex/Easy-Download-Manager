@@ -1,4 +1,4 @@
-# Pages and media that yt-dlp's generic extractor reads, made once at build
+# Pages and media the video-page checks read, made once at build
 # time with ffmpeg (no network when the suite runs).
 FROM python:3.12-slim-bookworm
 RUN apt-get update && apt-get install -y --no-install-recommends ffmpeg && rm -rf /var/lib/apt/lists/*

@@ -9,7 +9,7 @@
 //! releases and pinned by digest) in the QuickJS dm fetches, which turns each
 //! address's `n` value into the one the server accepts.
 //! The result is written as the JSON a reader of a page prints, so
-//! `ytdlp::download_page` fetches and joins the streams from it. Anything this
+//! `videopage::download_page` fetches and joins the streams from it. Anything this
 //! cannot read (a video wanting a sign-in, a live stream, a changed client) is
 //! failed, with the reason said in words.
 //!
@@ -778,7 +778,7 @@ pub async fn read_for(
     .await
 }
 
-/// A YouTube watch page read, as `ytdlp::download_page` wants a reading:
+/// A YouTube watch page read, as `videopage::download_page` wants a reading:
 /// the JSON a reader of the page prints for it, chosen at `quality`.
 pub async fn read(
     client: &reqwest::Client,
@@ -1205,9 +1205,9 @@ async fn solver_scripts(client: &reqwest::Client) -> Result<(String, String), Er
 /// Runs `program` in QuickJS (the one dm fetched, or one installed) or in
 /// an installed Deno, and gives what it printed.
 async fn run_js(program: &str, staging: &Path) -> Result<String, Error> {
-    let quickjs = match crate::ytdlp::quickjs() {
+    let quickjs = match crate::videopage::quickjs() {
         Some(found) => Some(found),
-        None if crate::ytdlp::deno().is_none() => {
+        None if crate::videopage::deno().is_none() => {
             crate::tools::ensure(&crate::client(), crate::tools::Tool::QuickJs)
                 .await
                 .ok()
@@ -1218,12 +1218,12 @@ async fn run_js(program: &str, staging: &Path) -> Result<String, Error> {
     // from its standard input.
     tokio::fs::create_dir_all(staging).await?;
     let file = staging.join(format!(".dm-solver-{}.js", std::process::id()));
-    crate::ytdlp::write_private(&file, program).await?;
-    let _gone = crate::ytdlp::RemoveOnDrop(file.clone());
+    crate::videopage::write_private(&file, program).await?;
+    let _gone = crate::videopage::RemoveOnDrop(file.clone());
     // Deno first where it is installed: run with no permissions it can
     // reach neither files nor programs, which QuickJS's command line does
     // not prevent.
-    let mut command = match (crate::ytdlp::deno(), quickjs) {
+    let mut command = match (crate::videopage::deno(), quickjs) {
         (None, Some(qjs)) => {
             let mut c = tokio::process::Command::new(qjs);
             c.arg(&file);
@@ -1270,7 +1270,7 @@ async fn run_js(program: &str, staging: &Path) -> Result<String, Error> {
     Ok(String::from_utf8_lossy(&output.stdout).into_owned())
 }
 
-/// The reading as JSON: what `ytdlp::download_page` reads of one
+/// The reading as JSON: what `videopage::download_page` reads of one
 /// (`filename`, `requested_formats` or the one format, each with its
 /// address, type, agent, chunk and size) and what the panel's list reads
 /// (`formats` with heights, codecs and sizes).
@@ -1558,7 +1558,7 @@ mod tests {
     }
 
     #[test]
-    fn the_quality_asked_chooses_as_yt_dlp_would() {
+    fn the_quality_asked_chooses_the_stream_it_names() {
         let formats = formats();
         let itags = |chosen: Option<Vec<Format>>| {
             chosen.map(|c| c.iter().map(|f| f.itag).collect::<Vec<_>>())
@@ -1658,7 +1658,7 @@ mod tests {
     }
 
     #[test]
-    fn the_reading_is_in_yt_dlps_shape() {
+    fn the_reading_is_in_the_shape_the_downloader_reads() {
         let mut formats = formats();
         for f in &mut formats {
             f.url = Some("https://r1.example/x".into());

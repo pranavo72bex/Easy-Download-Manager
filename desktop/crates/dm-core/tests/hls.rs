@@ -399,8 +399,7 @@ fn served(site: &std::path::Path) -> Vec<u8> {
         .collect()
 }
 
-/// `DM_YTDLP` is process-wide: the tests that set it, or could be routed by
-/// it, take turns.
+/// The tests here share one server's state, so they take turns.
 static ENV: tokio::sync::Mutex<()> = tokio::sync::Mutex::const_new(());
 
 /// An MP4 read box by box, apart from dm's own reader: the tracks a player
@@ -821,7 +820,7 @@ async fn a_gather_cut_short_by_a_crash_is_cleared_when_the_stream_is_placed() {
 #[tokio::test]
 async fn a_stream_cut_from_one_file_by_byte_ranges_is_fetched_by_range_and_joined() {
     // Saved as segments joined it was the whole source repeated; now each
-    // piece is asked for by its bytes, with no yt-dlp.
+    // piece is asked for by its bytes.
     use axum::extract::State;
     let _turn = ENV.lock().await;
     let source: Vec<u8> = (0..4096u32).map(|n| (n % 251) as u8).collect();
@@ -857,7 +856,6 @@ async fn a_stream_cut_from_one_file_by_byte_ranges_is_fetched_by_range_and_joine
             .unwrap()
     }
     let addr = common::serve(axum::Router::new().fallback(handler).with_state(served)).await;
-    std::env::set_var("DM_YTDLP", "");
     let dir = tempdir();
     let outcome = download(
         &client(),
@@ -865,7 +863,6 @@ async fn a_stream_cut_from_one_file_by_byte_ranges_is_fetched_by_range_and_joine
         &options(dir.path(), dm_core::stream::Quality::Best),
     )
     .await;
-    std::env::remove_var("DM_YTDLP");
     let done = outcome.expect("a byte-range stream was refused");
     assert_eq!(std::fs::read(&done.path).unwrap(), source);
 }

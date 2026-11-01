@@ -29,8 +29,8 @@ utilities" provider.
 | The window app | arm64 only, macOS 14 | AppKit, SwiftUI, Foundation, Network and about 45 other Apple frameworks; SQLite | The window, the notch, the native-messaging bridge (**Observed**: its symbols name a native-messaging reader and writer) |
 | The engine | arm64 only, macOS 11 | CoreFoundation and Security only, with libc++ and zlib | A Node.js program packed as a single executable (**Observed**: a Node single-executable marker and a Node 22 version string; its JavaScript is stored as compiled bytecode, so no source is readable) |
 | aria2 | arm64 only, macOS 11 | libSystem and libc++ only | The multi-connection file downloader (**Observed**) |
-| QuickJS | arm64 only, macOS 14 | libSystem only | The JavaScript runtime handed to yt-dlp (**Observed**) |
-| yt-dlp | arm64, macOS 11 | libSystem and zlib; a Python 3.14 runtime beside it | The video reader and downloader, in yt-dlp's unpacked ("onedir") layout (**Observed**) |
+| QuickJS | arm64 only, macOS 14 | libSystem only | The JavaScript runtime handed to the external video tool (**Observed**) |
+| The external video tool | arm64, macOS 11 | libSystem and zlib; a Python 3.14 runtime beside it | The video reader and downloader, in the external video tool's unpacked ("onedir") layout (**Observed**) |
 
 The application as a whole is notarized under a Developer ID
 (**Observed**: `spctl` reports it accepted as a notarized Developer ID
@@ -111,7 +111,7 @@ From this:
    macOS asks before a downloaded program first runs).
 
 Videos take another path (**Observed** in the processes the engine
-started on 2026-10-30): yt-dlp downloads the picture and the sound
+started on 2026-10-30): The external video tool downloads the picture and the sound
 (several fragments at once for streams in pieces), ffmpeg joins them into
 the final file, and ffprobe reads the result. Here there *is* a join step,
 done by ffmpeg into a new file (**Observed** from the process sequence;
@@ -178,63 +178,63 @@ the intermediate file names were not sampled).
 
 ---
 
-## The question behind the request: how it makes yt-dlp work out of the box
+## The question behind the request: how it makes the external video tool work out of the box
 
 All **Observed** on this computer:
 
-1. **It ships yt-dlp inside the app bundle**, in yt-dlp's unpacked layout
+1. **It ships the external video tool inside the app bundle**, in the external video tool's unpacked layout
    (the program and a folder of Python libraries, 96 MB), beside QuickJS,
    ffmpeg, ffprobe and aria2.
 2. **Every bundled helper is re-signed with the app's own Developer ID
-   team**, and the bundled yt-dlp carries an identifier under the app's
+   team**, and the bundled the external video tool carries an identifier under the app's
    own name. The whole app is notarized. So Gatekeeper accepts every
    helper on first run, with no prompt and nothing for the person to
    install.
-3. **On first use it copies yt-dlp out to its support folder** and runs it
-   from there, and it keeps that copy current from yt-dlp's own releases
+3. **On first use it copies the external video tool out to its support folder** and runs it
+   from there, and it keeps that copy current from the external video tool's own releases
    (the copy there was 2026.10.26; the bundled one is 2026.08.19). A small
    state file records the version, the layout (unpacked) and when it last
    checked. Its update manifest checks every four hours.
-4. **The updated copy is yt-dlp's own ad-hoc-signed build**, which
+4. **The updated copy is the external video tool's own ad-hoc-signed build**, which
    Gatekeeper's assessment *rejects*, yet it runs. It carries no
    quarantine attribute, because the engine downloaded it itself, not a
    browser. **Inferred**: this is the mechanism that keeps updates
    prompt-free; macOS only checks programs that carry the quarantine mark.
-5. **It points yt-dlp at its own QuickJS** through a yt-dlp configuration
-   file in its support folder, so yt-dlp needs no Deno or Node on the
+5. **It points the external video tool at its own QuickJS** through an external video tool configuration
+   file in its support folder, so the external video tool needs no Deno or Node on the
    computer.
 
 ### What dm already does, and what differs (Inferred unless marked)
 
-- dm fetches yt-dlp's unpacked build, checks its checksums, keeps it
+- dm fetches the external video tool's unpacked build, checks its checksums, keeps it
   current and hands it QuickJS (**Observed** in dm's own code and runs).
   Like the other manager's updated copy, dm's fetched copy has no
   quarantine mark, because dm's own HTTP client writes it.
-- dm reads YouTube itself first and needs no yt-dlp there (**Observed**).
+- dm reads YouTube itself first and needs no the external video tool there (**Observed**).
 - **The difference that matters for "out of the box"** is the first run.
-  The other manager's first video needs no network fetch of yt-dlp, and
+  The other manager's first video needs no network fetch of the external video tool, and
   its bundled copy is signed by the app's own notarized identity. dm's
   installers are signed ad hoc (`signingIdentity = "-"`), and its
-  packaging only includes yt-dlp when `scripts/fetch-ytdlp.py` has run.
-  A dm downloaded in a browser is quarantined as a whole, so a yt-dlp
+  packaging only includes the external video tool when its file has run.
+  A dm downloaded in a browser is quarantined as a whole, so an external video tool
   shipped inside it inherits that and meets Gatekeeper with no Developer
-  ID to pass on. Most reports of yt-dlp failing to install most likely
+  ID to pass on. Most reports of the external video tool failing to install most likely
   come from the fetch on first use: a network that blocks GitHub, a proxy,
   a read-only or `noexec` temporary folder (seen on Linux, gaps row 29),
   or no network at all.
 
 ### Recommended for dm (for the implementer side; not done in this analysis)
 
-1. Always package yt-dlp's unpacked build inside every installer (make the
+1. Always package the external video tool's unpacked build inside every installer (make the
    packaging step fail rather than continue without it), pinned by version
    and checksum in the repository (gaps row 50).
 2. On macOS, sign every bundled helper with dm's own Developer ID and
    notarize the app, once dm has one (gaps row for code signing). Until
-   then, copy the bundled yt-dlp out to dm's tools folder on first use, as
+   then, copy the bundled the external video tool out to dm's tools folder on first use, as
    the other manager does: the copy dm writes itself carries no quarantine
    mark.
 3. Keep dm's own updater as it is: fetch newer releases into the tools
-   folder and prefer them over the bundled copy (`ytdlp::binary` already
+   folder and prefer them over the bundled copy (`videopage::binary` already
    does: fetched, then bundled).
 4. Say plainly in the window when neither copy can run, and why, instead
    of a generic failure.
@@ -248,11 +248,11 @@ Same computer, same local test servers, one manager after the other.
 | Case | dm | The other macOS manager | Better |
 |---|---|---|---|
 | 168 MB, each connection held to 1 MB/s | 21.1 s (8 connections, its default) | 40.6 s, 16 s of it waiting in its queue | dm |
-| A 19 s YouTube video | 3.9 s, no yt-dlp run | 45 s | dm |
+| A 19 s YouTube video | 3.9 s, no the external video tool run | 45 s | dm |
 | Server gone 40 s at 30%, then back | bytes again 16.3 s after it returned | 21 s after | dm |
 | Download folder not writable, from the window | paused within 0.6 s, saying the folder and both ways on | refused at hand-off | equal |
 | Download folder not writable, caught in the browser | left with the browser, with words | left with the browser | equal |
-| First video on a computer with no yt-dlp and no network to GitHub | the shipped copy, adopted unquarantined: 41 s | its shipped copy | equal |
+| First video on a computer with no the external video tool and no network to GitHub | the shipped copy, adopted unquarantined: 41 s | its shipped copy | equal |
 | A file that is gone (404) | fails at once, in words | fails at once, in words | equal |
 
 **Observed** for every dm row in this run. The other manager's rows were

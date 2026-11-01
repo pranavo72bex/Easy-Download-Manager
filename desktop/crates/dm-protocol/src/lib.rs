@@ -28,7 +28,7 @@
 //!
 //! | extension sends   | host answers                                  |
 //! |-------------------|-----------------------------------------------|
-//! | `engine.hello`    | `engine.hello` with `engineVersion`, `ytdlp`  |
+//! | `engine.hello`    | `engine.hello` with `engineVersion`           |
 //! | `settings.get`    | `settings.get` with `catch` ([`CatchRules`])  |
 //! | `download.start`  | `download.started`, or `download.failed`      |
 //! | `media.formats`   | `media.formats` with `choices`, or a `reason` |
@@ -348,10 +348,6 @@ pub struct Hello {
     /// The app's version, such as "0.8.4".
     #[serde(rename = "engineVersion", default)]
     pub engine_version: String,
-    /// Whether the app can read a video page. Absent from a host too old
-    /// to say, which is not the same as `false`.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub ytdlp: Option<bool>,
     /// The newest protocol version the app reads. Absent from an app of
     /// version 1, which said nothing of it.
     #[serde(default, skip_serializing_if = "Option::is_none")]

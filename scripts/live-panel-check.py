@@ -7,7 +7,7 @@ Like youtube-check.py, it runs chrome-check.py's setup and its local
 checks, then replaces the panel step with a live page: by default
 W3Schools' HTML5 video example, a plain `<video>` with an MP4 source. It
 plays the video, hovers it, checks the panel is there, clicks it, and waits
-for the file in dm's folder; on a page whose player yt-dlp reads, it picks
+for the file in dm's folder; on a page whose player the app reads, it picks
 the smallest quality listed. Not in CI: it goes to a real site.
 """
 import importlib.util
@@ -65,7 +65,7 @@ def live(base, origin, engine_dl, engine_home, worker):
     cc.check("it sits in the player's top corner", inside, f"{shown} over {rect}")
     before = {p.name for p in engine_dl.rglob("*") if p.is_file()}
     cc.click_panel(tab)
-    # A player page lists its qualities (the app's yt-dlp reads them); the
+    # A player page lists its qualities (the app reads them); the
     # smallest is picked, to keep the download short.
     listed = cc.wait_for(lambda: ((cc.panel(tab) or {}).get("lines") or (cc.panel(tab) or {}).get("title") == "Sent to dm")
                          and cc.panel(tab), 60) or {}

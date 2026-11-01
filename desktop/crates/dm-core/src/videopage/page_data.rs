@@ -224,7 +224,7 @@ mod tests {
         {"itag":251,"mimeType":"audio/webm; codecs=\"opus\"","averageBitrate":140000,"contentLength":"400"}]}}"#;
 
     #[test]
-    fn a_pages_own_data_gives_the_list_yt_dlp_would() {
+    fn a_pages_own_data_gives_the_list() {
         let list = choices_of_page(&page(PLAYABLE));
         let said: Vec<(&str, &str, Option<u64>)> = list
             .iter()

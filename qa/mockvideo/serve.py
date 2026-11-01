@@ -1,4 +1,4 @@
-"""Serves the mock video site with ranges (yt-dlp and dm both ask for them)."""
+"""Serves the mock video site with ranges (dm asks for them)."""
 import http.server
 import os
 import re

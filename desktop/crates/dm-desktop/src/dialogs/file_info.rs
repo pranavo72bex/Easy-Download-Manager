@@ -94,7 +94,7 @@ pub(super) fn file_info(app: &mut DmApp, ctx: &egui::Context) {
                             name: Some(name),
                             ..Probed::default()
                         }
-                    } else if dm_core::ytdlp::is_page(kind) {
+                    } else if dm_core::videopage::is_page(kind) {
                         Probed {
                             page: !dm_core::download::names_a_document(&url),
                             ..Probed::default()
@@ -156,7 +156,7 @@ pub(super) fn file_info(app: &mut DmApp, ctx: &egui::Context) {
     let youtube = d.urls.len() == 1 && dm_core::youtube::video_id(&first).is_some();
     let video = d.urls.len() == 1 && (page || youtube);
     if video && d.choices.is_none() {
-        let slot: std::sync::Arc<std::sync::Mutex<Option<Vec<dm_core::ytdlp::Choice>>>> =
+        let slot: std::sync::Arc<std::sync::Mutex<Option<Vec<dm_core::videopage::Choice>>>> =
             Default::default();
         d.choices = Some(slot.clone());
         let url = first.clone();
@@ -168,7 +168,7 @@ pub(super) fn file_info(app: &mut DmApp, ctx: &egui::Context) {
         app.backend.runtime.spawn(async move {
             let listed = tokio::time::timeout(
                 std::time::Duration::from_secs(40),
-                dm_core::ytdlp::list_choices(
+                dm_core::videopage::list_choices(
                     &url,
                     referrer.as_deref(),
                     proxy.as_deref(),
@@ -183,7 +183,7 @@ pub(super) fn file_info(app: &mut DmApp, ctx: &egui::Context) {
             // No qualities from another site's page: perhaps it lists
             // several videos (a channel, a showcase, an album).
             if listed.is_empty() && !youtube {
-                let read = dm_core::ytdlp::read_playlist(
+                let read = dm_core::videopage::read_playlist(
                     &url,
                     referrer.as_deref(),
                     proxy.as_deref(),
@@ -203,7 +203,7 @@ pub(super) fn file_info(app: &mut DmApp, ctx: &egui::Context) {
             ctx.request_repaint();
         });
     }
-    let choices: Option<Vec<dm_core::ytdlp::Choice>> = d
+    let choices: Option<Vec<dm_core::videopage::Choice>> = d
         .choices
         .as_ref()
         .and_then(|slot| slot.lock().ok()?.clone());
@@ -753,11 +753,11 @@ pub(super) fn file_info(app: &mut DmApp, ctx: &egui::Context) {
 /// first, the sound alone last): the tallest at or under the height asked,
 /// the first for "best", the sound for "audio"; `None` for an empty list.
 fn default_choice(
-    list: &[dm_core::ytdlp::Choice],
+    list: &[dm_core::videopage::Choice],
     setting: dm_core::stream::Quality,
 ) -> Option<String> {
     use dm_core::stream::Quality;
-    let height = |choice: &dm_core::ytdlp::Choice| {
+    let height = |choice: &dm_core::videopage::Choice| {
         choice
             .quality
             .split('/')
@@ -777,7 +777,7 @@ fn default_choice(
 
 /// A quality's chip: its height and container over its size ("1080p MP4"
 /// over "275.0 MB"), the sound alone said so.
-fn chip_words(choice: &dm_core::ytdlp::Choice) -> String {
+fn chip_words(choice: &dm_core::videopage::Choice) -> String {
     let (head, ext) = choice
         .quality
         .split_once('/')
@@ -788,7 +788,7 @@ fn chip_words(choice: &dm_core::ytdlp::Choice) -> String {
         // By its class, as the panel's list says it: "4K MP4", "1080p MP4".
         format!(
             "{} {}",
-            dm_core::ytdlp::class_name(0, side),
+            dm_core::videopage::class_name(0, side),
             ext.to_ascii_uppercase()
         )
     } else {

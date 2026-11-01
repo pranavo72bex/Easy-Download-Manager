@@ -2,7 +2,7 @@
 //! stand-in for YouTube: its watch page, its player API, its player script
 //! and the solver's releases are all a local server's, and the streams are
 //! served only once their `n` values and signature have been solved. No
-//! yt-dlp is available to fall back on, so the download is the reader's.
+//! nothing else is available to fall back on, so the download is the reader's.
 //!
 //! One test in this binary: the stand-in is named by environment variables,
 //! which are the process's.
@@ -17,7 +17,7 @@ use axum::extract::State;
 use axum::http::{HeaderMap, StatusCode, Uri};
 use axum::response::Response;
 use axum::routing::{get, post};
-use dm_core::{client, ytdlp};
+use dm_core::{client, videopage};
 
 use common::{options, tempdir};
 
@@ -330,14 +330,13 @@ async fn a_youtube_page_is_read_and_fetched_by_dm_with_no_video_helper() {
     tokio::spawn(async move { axum::serve(listener, app).await.unwrap() });
 
     let dir = tempdir();
-    // The stand-in, and no yt-dlp at all.
+    // The stand-in.
     std::env::set_var("DM_YOUTUBE_HOST", &origin);
     std::env::set_var("DM_EJS_RELEASES", format!("{origin}/ejs"));
-    std::env::set_var("DM_YTDLP", dir.path().join("no-such-yt-dlp"));
     dm_core::tools::set_folder(dir.path().join("tools"));
 
     let page = "https://www.youtube.com/watch?v=jNQXAC9IVRw";
-    let done = ytdlp::download_page(&client(), page, &options(dir.path()), None)
+    let done = videopage::download_page(&client(), page, &options(dir.path()), None)
         .await
         .expect("the page did not download through dm's own reader");
 
@@ -378,7 +377,7 @@ async fn a_youtube_page_is_read_and_fetched_by_dm_with_no_video_helper() {
     requests.0.lock().unwrap().clear();
     let mut part = options(dir.path());
     part.span = dm_core::Span::new(2.0, 4.0);
-    let done = ytdlp::download_page(&client(), page, &part, None)
+    let done = videopage::download_page(&client(), page, &part, None)
         .await
         .expect("the part did not download");
     assert_eq!(

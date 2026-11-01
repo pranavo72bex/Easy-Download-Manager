@@ -503,5 +503,5 @@ of them.
       sound are fetched by dm's own engine and joined by dm (`mp4mux.rs`; an
       HLS transport stream is put into an MP4 by `tsmux.rs`). Another site's
       video comes from the browser extension's caught player requests.
-      yt-dlp was used here until 2026-10-31, when it was removed
+      The external video tool was used here until 2026-10-31, when it was removed
       (`docs/decisions.md`).

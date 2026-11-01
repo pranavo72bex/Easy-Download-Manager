@@ -2633,11 +2633,11 @@ async fn a_recheck_of_a_metalink_asks_about_the_file_not_the_document() {
 
 #[tokio::test]
 async fn a_recheck_leaves_alone_a_row_made_from_a_web_page() {
-    /* A yt-dlp row's address is the page, whose length is never the
+    /* A video page row's address is the page, whose length is never the
      * video's and which has no ETag of the video's: compared, every such
      * row was fetched again on every check. Nothing comparable: not
      * checked, not fetched. Stood up from a saved queue, since making the
-     * row needs a yt-dlp. */
+     * row needs a video reader. */
     use axum::response::IntoResponse;
     let app = axum::Router::new().fallback(axum::routing::get(|| async {
         (

@@ -23,12 +23,12 @@ stated by its maker), reported (third parties only), untested, unknown.
 | Categories | verified | untested | yes: `category.rs` | as now | match |
 | Basic, NTLM, Negotiate, Kerberos | verified | unknown | Basic, NTLM, Negotiate carrying NTLM; no Kerberos | Kerberos needs a realm to test against | partial |
 | A program run on each finished file (virus checker) | verified | unknown | yes: `dm-shell/src/settings.rs` | as now | match |
-| A player's picture and sound, fetched apart, taken from its requests and joined, no helper | verified (its documented method) | n/a | yes, first, on every site: `track_of`, `download_media_pair`; `tests/caught_pair.rs` with no yt-dlp present | as now | match |
-| YouTube | reads the player's requests; a new build whenever YouTube changes | only through its yt-dlp add-on | the player's requests name no format today (SABR, measured 2026-10-29), so yt-dlp reads the page and dm fetches what it found; yt-dlp fetched by dm, current within a week | as now; a helper-free YouTube is a client of YouTube's protocol kept up by hand (gaps.md rows 6, 32) | differs, by decision |
-| yt-dlp only reads; the manager fetches the files | n/a | verified | yes: `ytdlp/fetch.rs` | as now | match |
+| A player's picture and sound, fetched apart, taken from its requests and joined, no helper | verified (its documented method) | n/a | yes, first, on every site: `track_of`, `download_media_pair`; `tests/caught_pair.rs` with no the external video tool present | as now | match |
+| YouTube | reads the player's requests; a new build whenever YouTube changes | only through its the external video tool add-on | the player's requests name no format today (SABR, measured 2026-10-29), so the external video tool reads the page and dm fetches what it found; the external video tool fetched by dm, current within a week | as now; a helper-free YouTube is a client of YouTube's protocol kept up by hand (gaps.md rows 6, 32) | differs, by decision |
+| The external video tool only reads; the manager fetches the files | n/a | verified | yes: `videopage/fetch.rs` | as now | match |
 | Picture and sound joined | n/a | verified: ffmpeg, a required package | dm's own muxer, nothing to install | as now | dm needs less |
-| yt-dlp in a sandbox (Linux, macOS) | n/a | verified: bubblewrap, run plainly where none can be made | yes: Linux since 2026-10-29 (bubblewrap, checked in Docker with and without a sandbox), macOS since 2026-10-30 (`sandbox-exec`, `ytdlp/sandbox.rs`) | Windows too | match |
-| A page's only video named by the page | reported | verified: "Lab clip (1).mp4", yt-dlp's number kept | "Lab clip [watch].mp4" since 2026-10-29: `ytdlp/fetch.rs`; QA `video_page` | as now | dm better |
+| The external video tool in a sandbox (Linux, macOS) | n/a | verified: bubblewrap, run plainly where none can be made | yes: Linux since 2026-10-29 (bubblewrap, checked in Docker with and without a sandbox), macOS since 2026-10-30 (`sandbox-exec`, `videopage/sandbox.rs`) | Windows too | match |
+| A page's only video named by the page | reported | verified: "Lab clip (1).mp4", the external video tool's number kept | "Lab clip [watch].mp4" since 2026-10-29: `videopage/fetch.rs`; QA `video_page` | as now | dm better |
 | Reading the browser's whole cookie store | n/a | verified, when the page's cookies are not given | never; only the page's own session, from the extension | as now, by decision | different, kept |
 
 ## Worth taking

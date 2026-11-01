@@ -43,13 +43,6 @@ status=0
         apt-get update >/dev/null
         apt-get install -y --no-install-recommends openbox xdotool dbus-x11 xz-utils bzip2 \
           libasound2 libdbus-glib-1-2 libx11-xcb1 libpci3 libgtk-3-0 imagemagick >/dev/null
-        # Real sites change faster than Debian packages yt-dlp: for a live
-        # page, the current release, as a person installs it.
-        if [ -n "$DM_LIVE_PAGE" ]; then
-          curl -fsSL -o /usr/local/bin/yt-dlp https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp
-          chmod +x /usr/local/bin/yt-dlp
-          yt-dlp --version
-        fi
         cd desktop && cargo build -q -p dm-desktop && cd ..
         export DISPLAY=:78 DM_BINARY=/target/debug/dm-desktop DM_REAL_INPUT=1 DM_SHOTS=/shots
         Xvfb :78 -screen 0 1280x800x24 >/dev/null 2>&1 &

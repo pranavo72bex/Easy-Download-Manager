@@ -184,17 +184,17 @@ fn common_failures_have_plain_reasons() {
             Some("the site is busy and turning downloads away. Try again in a few minutes")
         );
     assert_eq!(
-            reason("yt-dlp could not download that: ERROR: [youtube] x: Sign in to confirm you're not a bot"),
+            reason("YouTube says: Sign in to confirm you're not a bot"),
             Some("the site wants to check you're not a bot. Play the video in your browser, then use the Download video button on it")
         );
     assert_eq!(
-        reason("yt-dlp could not download that: ERROR: [youtube] x: Video unavailable"),
+        reason("YouTube says: Video unavailable"),
         Some(
             "this video isn't available. It may be private, removed, or not shown in your country"
         )
     );
     assert_eq!(
-        reason("yt-dlp could not download that: ERROR: Requested format is not available"),
+        reason("no stream at that quality"),
         Some("dm couldn't get the video from this page")
     );
     assert_eq!(
@@ -345,34 +345,24 @@ fn a_pattern_names_several_files_and_keeps_their_endings() {
 }
 
 #[test]
-fn yt_dlps_own_words_follow_the_vague_video_sentence() {
-    use super::ytdlp_said;
-    // Its last error line, without the extractor and the id.
+fn dms_own_words_follow_the_vague_video_sentence() {
+    use super::video_said;
+    // Its first line, whole.
     assert_eq!(
-        ytdlp_said("yt-dlp could not download that: ERROR: [youtube] jNQXAC9IVRw: Requested format is not available").as_deref(),
-        Some("Requested format is not available")
+        video_said("the solver failed: no such function").as_deref(),
+        Some("the solver failed: no such function")
     );
-    // The last of several, past a warning, and an address (a signed one
-    // included) left out.
-    let many = "yt-dlp could not download that: WARNING: [youtube] x: no JS runtime\nERROR: [youtube] x: Unable to download https://rr1.googlevideo.com/v?sig=SECRET: HTTP Error 403: Forbidden";
-    let said = ytdlp_said(many).unwrap();
-    assert!(said.contains("HTTP Error 403"), "{said}");
+    // An address (a signed one included) left out.
+    let said =
+        video_said("the solver would not start: https://rr1.example/v?sig=SECRET went wrong")
+            .unwrap();
     assert!(
-        !said.contains("SECRET") && !said.contains("googlevideo"),
+        !said.contains("SECRET") && !said.contains("rr1.example"),
         "{said}"
     );
-    // Words with no extractor prefix are kept whole.
-    assert_eq!(
-        ytdlp_said("yt-dlp could not download that: ERROR: Unsupported URL").as_deref(),
-        Some("Unsupported URL")
-    );
-    // Long ones are cut; what is not yt-dlp's is not touched.
-    let long = format!(
-        "yt-dlp could not download that: ERROR: {}",
-        "word ".repeat(80)
-    );
-    let cut = ytdlp_said(&long).unwrap();
+    // Long ones are cut.
+    let long = "word ".repeat(80);
+    let cut = video_said(&long).unwrap();
     assert!(cut.chars().count() <= 121 && cut.ends_with('…'), "{cut}");
-    assert_eq!(ytdlp_said("the server answered 404"), None);
-    assert_eq!(ytdlp_said("yt-dlp could not download that:"), None);
+    assert_eq!(video_said(""), None);
 }

@@ -5,7 +5,7 @@ use super::*;
 /// A file the person asked dm for that dm could not take, downloaded by the
 /// browser instead: the
 /// person asked for the file, and gets it either way. A page (a player for
-/// yt-dlp) has nothing the browser could save, so its reason stands.
+/// the video reader) has nothing the browser could save, so its reason stands.
 pub(super) async fn in_browser_instead(target: &Target, why: &str) -> Result<String, String> {
     // Only what the browser downloads: a magnet given to its downloader was
     // accepted and failed, said as taken, and nothing was opened.
@@ -75,7 +75,7 @@ pub(super) async fn hand_chosen(
         caught: false,
         // A page is handed over for its media, picked or not: with a
         // quality the app never saves the page itself in the video's place
-        // when yt-dlp cannot read it.
+        // when the app cannot read it.
         quality: quality.or_else(|| target.page.then(|| "best".to_string())),
         label,
         sound: sound.filter(|s| s.starts_with("https://") || s.starts_with("http://")),
@@ -86,19 +86,16 @@ pub(super) async fn hand_chosen(
         return in_browser_instead(&target, &why).await;
     }
     log("info", &format!("handed {} to the dm app", target.url));
-    if target.page && hello.ytdlp == Some(false) {
-        return Ok(decide::NO_YTDLP.to_string());
-    }
     Ok(if ask {
         "the dm app has it".into()
     } else if target.page {
-        "the dm app is fetching it with yt-dlp".into()
+        "the dm app is fetching it".into()
     } else {
         "the dm app is downloading it".into()
     })
 }
 
-/// The qualities a player page's video comes in, from the app's yt-dlp. A
+/// The qualities a player page's video comes in, from the app. A
 /// file is one quality, so it has no list.
 pub(super) async fn formats_of(
     target: &Target,
@@ -112,14 +109,11 @@ pub(super) async fn formats_of(
         App::Absent { reason } => return Err(absent_text(&reason, &own_id(), is_firefox())),
         App::Present { hello, .. } => hello,
     };
-    if hello.ytdlp == Some(false) {
-        return Err(decide::NO_YTDLP.to_string());
-    }
     let mut port = match port {
         Some(port) => port,
         None => Port::open()?,
     };
-    // The page's session, for this one reading: a video site asks yt-dlp
+    // The page's session, for this one reading: a video site asks the app
     // to "confirm you're not a bot" without it.
     let (cookies, _) = sign_in_for(&target.url, store, true).await;
     port.send(&Request::Formats(dm_protocol::FormatsAsked {
@@ -127,7 +121,7 @@ pub(super) async fn formats_of(
         referrer: target.referrer.clone(),
         cookies,
     }))?;
-    // yt-dlp reads a page in a few seconds; the app gives it thirty.
+    // The app reads a page in a few seconds and gives it thirty.
     let deadline = now() + 40_000.0;
     loop {
         match port.next(deadline).await {
@@ -154,7 +148,6 @@ pub(super) async fn hand_asked(target: Target, store: Option<String>) {
         decide::taken_name("", &target.url)
     };
     match hand_target(target, store).await {
-        Ok(said) if said == decide::NO_YTDLP => notify("dm", &said),
         // Left to the browser, which is downloading it: said so, not as
         // dm's.
         Ok(said) if said.starts_with("the browser is downloading it") => notify("dm", &said),
@@ -201,7 +194,6 @@ pub async fn on_page_message(message: JsValue, sender: JsValue) -> JsValue {
                     serde_json::json!({
                         "ok": true,
                         "version": hello.engine_version,
-                        "ytdlp": hello.ytdlp,
                         "line": line,
                         "bad": bad,
                     })
@@ -365,8 +357,8 @@ pub async fn on_page_message(message: JsValue, sender: JsValue) -> JsValue {
         Err(why) => return answer(false, &why),
     };
     // What the video comes in, for the panel's list: the qualities the
-    // app's yt-dlp reads from the page, then the streams the page loaded.
-    // A site yt-dlp does not know still offers what its player fetched.
+    // app reads from the page, then the streams the page loaded.
+    // A site the app cannot read still offers what its player fetched.
     if click.kind == decide::FORMATS_MESSAGE {
         let tab = get(&sender, "tab.id").as_f64().map_or(-1, |id| id as i64);
         let streams = streams_of(tab).await;

@@ -333,7 +333,7 @@ pub async fn fetch_into(
 /// which is how a test pins down what dm does without one).
 pub async fn ensure(client: &reqwest::Client, tool: Tool) -> Result<PathBuf, Error> {
     let find = || match tool {
-        Tool::QuickJs => crate::ytdlp::quickjs(),
+        Tool::QuickJs => crate::videopage::quickjs(),
     };
     if let Some(found) = find() {
         return Ok(found);
@@ -370,7 +370,7 @@ pub async fn ensure(client: &reqwest::Client, tool: Tool) -> Result<PathBuf, Err
 /// A JavaScript engine for YouTube's player challenges: a Deno the person
 /// installed, else QuickJS, found or fetched.
 pub async fn for_video(client: &reqwest::Client) -> Result<(), String> {
-    if crate::ytdlp::deno().is_none() {
+    if crate::videopage::deno().is_none() {
         let _ = ensure(client, Tool::QuickJs).await;
     }
     Ok(())
@@ -388,7 +388,7 @@ mod tests {
     #[tokio::test]
     async fn with_fetching_off_nothing_is_fetched_and_it_says_so() {
         allow_fetching(false);
-        if crate::ytdlp::quickjs().is_none() {
+        if crate::videopage::quickjs().is_none() {
             let said = ensure(&crate::client(), Tool::QuickJs)
                 .await
                 .unwrap_err()

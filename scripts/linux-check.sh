@@ -5,7 +5,7 @@
 #
 # What the Rust and JS suites cannot see: the client as a Linux process —
 # the tray library it loads at startup, the instance lock, the inbox, a
-# browser's native-messaging hand-off, yt-dlp found by its Linux home. The
+# browser's native-messaging hand-off. The
 # build's target directory lives in a named volume so a second run is
 # minutes, not the first run's half hour; the cargo registry is the host's.
 #

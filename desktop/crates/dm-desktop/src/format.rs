@@ -433,7 +433,20 @@ pub const REASONS: [(&[&str], &str); 32] = [
         ],
         "this video isn't available. It may be private, removed, or not shown in your country",
     ),
-    (&["yt-dlp could not download that"], VIDEO_NOT_GOT),
+    (
+        &[
+            "the player names no stream",
+            "no stream at that quality",
+            "the page names no player script",
+            "the player API answered no JSON",
+            "a stream with no address",
+            "a cipher with no",
+            "the signature was not solved",
+            "the solver",
+            "no JavaScript engine",
+        ],
+        VIDEO_NOT_GOT,
+    ),
     (
         &["an encrypted stream dm cannot record"],
         "dm can't record this kind of encrypted stream",
@@ -449,28 +462,12 @@ pub const REASONS: [(&[&str], &str); 32] = [
 /// specific is known (`REASONS`).
 pub const VIDEO_NOT_GOT: &str = "dm couldn't get the video from this page";
 
-/// The video reader's own words for why it could not download a page, for the
-/// status to say after [`VIDEO_NOT_GOT`]: its last `ERROR:` line, without the
-/// extractor and video id it starts with and without any address (one may be
-/// signed), and short enough for a row. `None` for a failure that said nothing.
-pub fn ytdlp_said(raw: &str) -> Option<String> {
-    let rest = raw.strip_prefix("yt-dlp could not download that:")?;
-    let line = rest
-        .lines()
-        .map(str::trim)
-        .rev()
-        .find(|l| l.contains("ERROR:"))
-        .or_else(|| rest.lines().map(str::trim).rev().find(|l| !l.is_empty()))?;
-    let mut said = line.rsplit("ERROR:").next()?.trim();
-    // "[youtube] jNQXAC9IVRw: text": the extractor, then the id, then the words.
-    if let Some(after) = said.strip_prefix('[').and_then(|s| s.split_once(']')) {
-        said = after.1.trim_start();
-        if let Some((id, text)) = said.split_once(": ") {
-            if !id.contains(' ') {
-                said = text;
-            }
-        }
-    }
+/// The video reader's own words for why it could not get a page's video, for
+/// the status to say after [`VIDEO_NOT_GOT`]: its first line, without any
+/// address (one may be signed), and short enough for a row. `None` for a
+/// failure that said nothing.
+pub fn video_said(raw: &str) -> Option<String> {
+    let said = raw.lines().map(str::trim).find(|l| !l.is_empty())?;
     let said: String = said
         .split_whitespace()
         .filter(|word| !word.contains("://"))

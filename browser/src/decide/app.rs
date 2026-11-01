@@ -58,9 +58,6 @@ pub fn status_line(hello: &Hello) -> (String, bool) {
         line.push_str(" · update the dm app: until then the browser keeps its downloads");
         return (line, true);
     }
-    if hello.ytdlp == Some(false) {
-        line.push_str(" · update the dm app to download from video sites");
-    }
     (line, false)
 }
 
@@ -133,10 +130,6 @@ fn absent_said(reason: &str, own_id: &str, firefox: bool, then: &str, get: &str)
         )
     }
 }
-
-/// Said alongside a page sent to an app that has no yt-dlp.
-pub const NO_YTDLP: &str = "Sent to dm. If this is a video page rather than a file, update the \
-                            dm app: the newest gets video sites ready by itself.";
 
 /// What the extension knows of the app.
 #[derive(Debug, Clone, PartialEq)]

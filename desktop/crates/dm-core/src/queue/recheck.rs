@@ -98,7 +98,7 @@ impl Queue {
         let kind = now.content_type.as_deref();
         // A page made into a video, or a playlist of segments: what the
         // address serves says nothing about the file made from it.
-        if crate::ytdlp::is_page(kind) || crate::stream::kind_of(&row.url, kind).is_some() {
+        if crate::videopage::is_page(kind) || crate::stream::kind_of(&row.url, kind).is_some() {
             return None;
         }
         if !crate::metalink::is_metalink(&row.url, kind) {

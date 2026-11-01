@@ -74,27 +74,27 @@ disassembled.
 
 - Reference B itself downloads no video site. Given a YouTube link it says "Video
   downloads require an add-on" and points to the add-on's site.
-- That add-on, made by a third party, is yt-dlp. It bundles yt-dlp's Python source and
-  yt-dlp's YouTube challenge solver (`yt_dlp_ejs`); reference B runs it with the
+- That add-on, made by a third party, is the external video tool. It bundles the external video tool's Python source and
+  the external video tool's YouTube challenge solver (its `ejs` package); reference B runs it with the
   system's Python (3.10 or later) and Deno (2.3 or later), which reference B installs
   when first asked (`PythonDependencyManager`, `DenoDependencyManager`),
   inside a bubblewrap sandbox on Linux (`QtProcessSandboxManager`: "using bwrap").
-- yt-dlp only reads the page: `-J --flat-playlist --no-warnings`, plus
+- The external video tool only reads the page: `-J --flat-playlist --no-warnings`, plus
   `--no-playlist` for one video. Reference B's own engine fetches the formats it
   lists (`MsDownload`) and joins picture and sound with ffmpeg
   (`QtFfmpegAvMerger`, ffmpeg a package dependency).
 - Sign-in: the browser's cookies for the page when reference B has them, written to a
   temporary Netscape file; otherwise `--cookies-from-browser` with the
   default browser, Firefox if that one is not supported.
-- Only an HTML page of 3 MB or less is offered to yt-dlp
+- Only an HTML page of 3 MB or less is offered to the external video tool
   (`isPossiblySupportedSource`), and a page's reading is not asked for
   again within 300 s (`minIntevalBetweenQueryInfoDownloads`).
 - "Sign in to confirm you're not a bot" and the age check are reported as
   needing cookies; "Unsupported URL" as unsupported; anything else as a parse error.
 
-Compared with dm: the same design (yt-dlp reads, the download manager
+Compared with dm: the same design (the external video tool reads, the download manager
 fetches). dm joins picture and sound itself, needs no ffmpeg, and runs
-yt-dlp unsandboxed; it does not read a browser's cookie store, by decision
+the external video tool unsandboxed; it does not read a browser's cookie store, by decision
 (`decisions.md`, the entry on reading a page's video list).
 
 ## Videos without a helper: what the player's requests look like today (Verified, 2026-10-29)
@@ -105,7 +105,7 @@ and the sound's addresses, fetching each in up to 32 pieces at once and
 joining the two itself. dm does each of those steps (`browser/src/decide/
 streams.rs` `track_of`, `download/dash.rs` `download_media_pair`, its own
 muxer), and needs no helper for them: `tests/caught_pair.rs` fetches and
-joins a pair with no yt-dlp on the computer at all.
+joins a pair with no the external video tool on the computer at all.
 
 What that write-up assumes of YouTube no longer holds. Measured in Microsoft
 Edge 156 on a real watch page, playing: 15 requests to googlevideo in 30 s,
@@ -113,9 +113,9 @@ of which 13 were `POST videoplayback?sabr=1` with a binary body and no
 `itag`, `mime` or `range` (the other 2 connectivity probes). The player
 asks for its media by a protobuf body and is answered in UMP frames, so
 there is no address of a picture or a sound to take, and none that a plain
-range fetch could read. The same is reported across the field: yt-dlp
+range fetch could read. The same is reported across the field: The external video tool
 lists YouTube's web client as SABR-only and routes around it with other
-clients and proof-of-origin tokens; reference B hands YouTube to a yt-dlp
+clients and proof-of-origin tokens; reference B hands YouTube to an external video tool
 add-on; reference A ships a new build whenever YouTube changes. Nothing
 reads YouTube without someone keeping up with it.
 
@@ -137,9 +137,9 @@ request, in Docker; the lab is kept outside the repository.
   (32 MiB / 8 / 2 MiB/s). From a fast server it used 6.
 - **A 503 on a second connection**: it added no more connections and finished
   on the first; dm moved the refused ranges to its other connections.
-- **A page's only video**: it proposes "Lab clip (1).mp4", yt-dlp's numbering.
+- **A page's only video**: it proposes "Lab clip (1).mp4", the external video tool's numbering.
 - **Sandbox**: in Docker, where `bwrap` cannot make namespaces, it ran the
-  add-on's yt-dlp outside one, without a word.
+  add-on's the external video tool outside one, without a word.
 
 ## Reference A's download engine, measured (Observed, 2026-10-31)
 

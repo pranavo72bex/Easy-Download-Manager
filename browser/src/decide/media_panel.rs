@@ -50,7 +50,7 @@ pub fn offer(media: &Media) -> Option<Offer> {
         dm_protocol::host_of(src)
     } else {
         // A `blob:` or Media Source player: no file exists to fetch, so the
-        // page goes to the app, whose yt-dlp reads it.
+        // page goes to the app, which reads it.
         "this page, through the dm app".to_string()
     };
     Some(Offer {

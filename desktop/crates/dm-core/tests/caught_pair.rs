@@ -1,8 +1,7 @@
 //! A picture and a sound a page's player fetched apart (what the extension
 //! catches: `browser/src/decide/streams.rs` `track_of`) are fetched by dm
 //! itself and joined into one file, with no helper program on the computer at all.
-//! Its own test binary: it says through the environment that there is no
-//! yt-dlp, and a home of its own so nothing could be fetched into a real one.
+//! Its own test binary: a home of its own, so nothing could be fetched into a real one.
 
 mod common;
 
@@ -69,10 +68,8 @@ fn ranged(data: Vec<u8>, seen: Arc<Mutex<Vec<String>>>) -> axum::routing::Method
 }
 
 #[tokio::test(flavor = "multi_thread")]
-async fn a_pair_the_player_fetched_apart_is_fetched_and_joined_with_no_yt_dlp_at_all() {
+async fn a_pair_the_player_fetched_apart_is_fetched_and_joined_with_no_helper_at_all() {
     let dir = tempdir();
-    // No yt-dlp anywhere: not installed, none fetched, none to fetch into.
-    std::env::set_var("DM_YTDLP", "");
     std::env::set_var("DM_HOME", dir.path());
 
     let seen = Arc::new(Mutex::new(Vec::new()));

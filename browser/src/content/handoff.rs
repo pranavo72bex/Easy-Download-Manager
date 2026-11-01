@@ -337,7 +337,7 @@ pub(super) fn list(src: &str, frame: &str, choices: &Array) {
 }
 
 /// One line of the list, handed over: a quality of the page the app's
-/// yt-dlp reads, or a stream the page loaded, which goes by its own address.
+/// the app reads, or a stream the page loaded, which goes by its own address.
 pub(super) fn hand_choice(src: &str, frame: &str, choice: &JsValue) {
     let label = Some(text_of(choice, "label")).filter(|l| !l.is_empty());
     let url = text_of(choice, "url");

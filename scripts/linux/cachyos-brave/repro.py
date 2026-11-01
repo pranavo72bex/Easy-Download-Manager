@@ -66,6 +66,5 @@ row = (call("queue.list").get("result") or [{}])[0]
 ui = [r for r in (call("ui.inspect").get("result") or {}).get("rows", [])]
 say("== what dm recorded:", json.dumps(row.get("state"))[:700])
 say("== what the window says in the Status column:", ui[0]["status"] if ui else None)
-say("== yt-dlp dm fetched:", subprocess.run(f"ls {data}/tools 2>/dev/null | tr '\\n' ' '", shell=True, capture_output=True, text=True).stdout)
 if row.get("state", {}).get("kind") == "completed": say("== the file:", row.get("filename"), row.get("progress", {}).get("downloaded"), "bytes")
 app.terminate()

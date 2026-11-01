@@ -21,9 +21,8 @@ pub fn app_status() -> String {
             app: App::Present { hello, rules },
             ..
         }) => format!(
-            "present: dm {} (yt-dlp: {}), catching {}",
+            "present: dm {}, catching {}",
             hello.engine_version,
-            hello.ytdlp.map_or("unknown".into(), |y| y.to_string()),
             if rules.enabled {
                 format!("{} file types", rules.extensions.len())
             } else {

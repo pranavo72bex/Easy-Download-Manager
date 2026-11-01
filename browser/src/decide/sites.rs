@@ -93,7 +93,7 @@ pub fn cookies_wanted(sites: &[String], url: &str) -> bool {
 /// whether they are for that download alone: `None` sends none; `Some(false)`
 /// is a site the person listed, whose sign-in the row keeps;
 /// `Some(true)` is a video page, whose session goes with every video —
-/// a video site lets yt-dlp in only with it ("confirm you're not a bot") —
+/// a video site lets the app in only with it ("confirm you're not a bot") —
 /// and is dropped once that download is done. With the app's "every site"
 /// switch on (`everywhere`), any site's sign-in goes, for that download
 /// alone, as a video page's does.

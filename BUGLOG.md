@@ -12,7 +12,7 @@ with no flaky result in those three.
 - **Found and fixed: 7.** BUG-001 a range whose server overstates its length
   was fetched for ever; BUG-002 an untrusted certificate was retried for two
   minutes; BUG-003 Brave refused the panel's WebAssembly on YouTube; BUG-004 a
-  silent yt-dlp kept its row running for ever; BUG-005 the new panel loader
+  silent the external video tool kept its row running for ever; BUG-005 the new panel loader
   logged an error where WebAssembly is forbidden; BUG-006 the panel stayed
   put when the player changed size; BUG-007 the panel stayed put when the
   player moved without changing size (found by `scripts/human-qa.py` on real
@@ -39,7 +39,7 @@ with no flaky result in those three.
     resumed range's tail against the server before trusting it, retries what
     waiting can fix (`retry.rs`: 10 tries by default, backoff to 30 s), and
     moves the file into the download folder at the end. Also HLS/DASH, FTP,
-    Metalink, torrents, and yt-dlp (run as a child process) for video pages.
+    Metalink, torrents, and the external video tool (run as a child process) for video pages.
   - `dm-shell`: settings, the queue file, the browser host and `--register`,
     the one-instance lock.
   - `dm-desktop`: the program. The window (egui), and `--headless` with no
@@ -131,21 +131,21 @@ Deviations from the brief, and why:
   browser for now); the Firefox live-page check (W3Schools) did not show the
   panel and has not been compared with the build before this change.
 
-### BUG-004 — a yt-dlp that never says anything keeps the row running for ever
+### BUG-004 — an external video tool that never says anything keeps the row running for ever
 
-- **Scenario**: `ytdlp_crash_and_hang` (a fake yt-dlp that is `sleep 100000`,
-  on an extension-less watch address, which is yt-dlp's alone).
+- **Scenario**: `videopage_crash_and_hang` (a fake the external video tool that is `sleep 100000`,
+  on an extension-less watch address, which is the external video tool's alone).
 - **Symptom**: after 300 s the row is still "running" at 0 bytes; nothing is
   said. The page reading gives up after 120 s (`READ_WITHIN`), but the
-  fallback, yt-dlp's own download (`ytdlp.rs`), waited on it with no limit.
-- **Root cause**: the download loop read yt-dlp's output until it closed and
+  fallback, the external video tool's own download (`videopage.rs`), waited on it with no limit.
+- **Root cause**: the download loop read the external video tool's output until it closed and
   checked only pause and cancel while it was quiet.
 - **Fix**: `Heard`, a watchdog on both streams: no word for 120 s before the
-  first (as long as a reading may take; `DM_YTDLP_QUIET` sets it for tests),
-  or for ten minutes once it has spoken, ends yt-dlp's process tree and says
-  "yt-dlp stopped answering".
-- **Regression test**: `dm-core/tests/ytdlp_quiet.rs`
-  `a_yt_dlp_that_says_nothing_is_ended` (before: still waiting after 60 s;
+  first (as long as a reading may take; its environment switch sets it for tests),
+  or for ten minutes once it has spoken, ends the external video tool's process tree and says
+  "the external video tool stopped answering".
+- **Regression test**: `dm-core/tests/videopage_quiet.rs`
+  `a_helper_that_says_nothing_is_ended` (before: still waiting after 60 s;
   after: ended in 2 s).
 
 ### BUG-005 — on a page that forbids WebAssembly, the new panel loader logged an error
@@ -209,10 +209,10 @@ Deviations from the brief, and why:
 ## Open, not fixed
 
 - Closed 2026-10-29: the "(1)" in "QA clip (1) [watch？v=ok-1].mp4" was not
-  dm's: yt-dlp's `HTML5MediaEmbed` numbers every video on a plain page
+  dm's: The external video tool's `HTML5MediaEmbed` numbers every video on a plain page
   (`'{title} ({num})'`, `'{id}-{num}'`), even the only one, and leaves the
   playlist fields out when there is one. dm now drops the number for a
-  page's only video (`ytdlp/fetch.rs` `unnumbered`); `video_page` checks the
+  page's only video (`videopage/fetch.rs` `unnumbered`); `video_page` checks the
   name, and failed before the change.
 
 ## Tests that were wrong
@@ -246,12 +246,12 @@ Deviations from the brief, and why:
   started a second copy of the whole suite beside the first; the two shared
   the origin's counters and the toxiproxy proxy, which is what made
   `folder_removed_or_read_only` and the network scenarios stall in run 1.
-- **T-007** `ytdlp_crash_and_hang`, `video_page`: used `video.html`. An
-  address that names a document is yt-dlp's first and, if yt-dlp cannot make
+- **T-007** `videopage_crash_and_hang`, `video_page`: used `video.html`. An
+  address that names a document is the external video tool's first and, if the external video tool cannot make
   a video of it, saved as the document (by design, `download/mod.rs`), so a
-  crashing yt-dlp gave a "completed" 188-byte page and the test passed without
+  crashing the external video tool gave a "completed" 188-byte page and the test passed without
   testing anything. They now use an extension-less `/watch?v=`, which is
-  yt-dlp's alone.
+  the external video tool's alone.
 
 - **T-008** the suite: each scenario left its files on the shared 200 MB
   download disk; by `disk_full` 2.9 MB was free and every later download was

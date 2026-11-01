@@ -70,7 +70,7 @@ pub const NO_LINKS_HERE: &str =
 pub struct Target {
     pub url: String,
     pub referrer: String,
-    /// A page rather than a file: the app hands it to yt-dlp if it turns out
+    /// A page rather than a file: the app reads it as a video page if it turns out
     /// to be a player page.
     pub page: bool,
 }
@@ -135,7 +135,7 @@ pub fn menu_target(click: &MenuClick, private: bool) -> Result<Target, String> {
             } else {
                 // A `blob:` source is a Media Source player assembling the
                 // video from pieces; the file does not exist anywhere to be
-                // fetched. The page does, and the app's yt-dlp reads it.
+                // fetched. The page does, and the app reads it.
                 Target {
                     url: if frame.is_empty() {
                         page.clone()

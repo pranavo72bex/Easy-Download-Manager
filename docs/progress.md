@@ -17,8 +17,8 @@ records the reference investigation only.
    test, `dm-core/tests/reuse.rs`: 11 requests on 4 TCP connections. Already
    a match; no engine change needed.
 2. **A page's only video named without "(1)"** (gaps.md row 31, now closed).
-   Cause found in yt-dlp's `HTML5MediaEmbed` reader, which numbers every
-   entry. Core change: `ytdlp/fetch.rs` `unnumbered`. Tests: three unit cases,
+   Cause found in the external video tool's `HTML5MediaEmbed` reader, which numbers every
+   entry. Core change: `videopage/fetch.rs` `unnumbered`. Tests: three unit cases,
    and the QA `video_page` scenario, which failed before the change
    ("QA clip (1) [watch？v=ok-1].mp4") and passes after ("QA clip [watch？v=ok].mp4").
    UI files changed: none.
@@ -26,14 +26,14 @@ records the reference investigation only.
 3. **Reference B run in Docker** (Linux build 6.35.2, emulated x86-64; the
    lab is kept outside the repository). Its engine was measured against
    dm's on the same logging server, and its video add-on watched: the add-on
-   is yt-dlp, which only reads the page while reference B fetches the files.
+   is the external video tool, which only reads the page while reference B fetches the files.
    Findings in reference-behavior.md; candidates in feature-matrix.md
    "Worth taking". UI files changed: none.
-4. **yt-dlp in a sandbox on Linux** was built and tested, then set aside by
+4. **The external video tool in a sandbox on Linux** was built and tested, then set aside by
    the maintainer (not in the repository); kept as a candidate.
-5. **yt-dlp out of the box**: `scripts/out-of-box-check.py` passed 2026-10-29
+5. **The external video tool out of the box**: `scripts/out-of-box-check.py` passed 2026-10-29
    from a fresh dm home (720p MP4, 480p WebM, sound alone). No replacement for
-   yt-dlp was found (gaps.md row 32); it stays for now.
+   the external video tool was found (gaps.md row 32); it stays for now.
 
 ## Commands run
 
@@ -67,19 +67,19 @@ three rows that first described dm wrongly, each corrected to what dm
 does, not the other way round: a repeated address is asked about ("Already
 in the list"), a finished download leaves the list with Undo and no
 question, and an unfinished one is asked about. One earlier run failed only
-on real YouTube's quality list (yt-dlp read the same video at once just
+on real YouTube's quality list (the external video tool read the same video at once just
 after, and the next run passed): a site's slow moment, not a change in dm.
 
-## The yt-dlp costs, closed (2026-10-29, approved by the maintainer)
+## Theexternal video tool costs, closed (2026-10-29, approved by the maintainer)
 
 Rows 33, 34, 35, 36 and 38 of gaps.md, each with a test that failed before
-its change: a failed run fetches the newest yt-dlp once and tries again
-(`tests/ytdlp_heals.rs`); the Linux sandbox (`ytdlp/sandbox.rs`, Docker both
+its change: a failed run fetches the newest the external video tool once and tries again
+(`tests/videopage_heals.rs`); the Linux sandbox (`videopage/sandbox.rs`, Docker both
 ways); the helper fetched at the first start and its bytes told
-(`tests/ytdlp_prefetch.rs`, `tests/tools.rs`); yt-dlp's failures in dm's
-words from a corpus of 38 of its lines (`tests/ytdlp_words.rs`); the
+(`tests/videopage_prefetch.rs`, `tests/tools.rs`); the external video tool's failures in dm's
+words from a corpus of 38 of its lines (`tests/videopage_words.rs`); the
 portable build on the computer's Python where the release has no standalone
-one (`tests/ytdlp_portable.rs`). Row 37 (proof-of-origin tokens) looked
+one (`tests/videopage_portable.rs`). Row 37 (proof-of-origin tokens) looked
 into and left blocked: it needs Node.js and a third-party provider kept
 current with YouTube's bot program. The stress suite ran whole (19 phases):
 one finding, which was the phase expecting a download to hang (T-011).
@@ -87,7 +87,7 @@ one finding, which was the phase expecting a download to hang (T-011).
 status gained its bytes and one failure sentence names both ways out, as
 row 35 says, in all thirteen catalogs.
 
-## QA before merging the yt-dlp rows (2026-10-29)
+## QA before merging theexternal video tool rows (2026-10-29)
 
 - `scripts/human-qa.py` whole, in sight: 36 of 38 the first time; the two
   were B33 (the panel left in the player's old corner when YouTube re-laid
@@ -148,10 +148,10 @@ row 35 says, in all thirteen catalogs.
 - From `download.start` to the server's first request: 50 ms with dm
   closed (the host starts it), 47 ms with dm running (medians of five).
 - A ten-minute YouTube video (181 MB at 720p), release build, headless: 16.1 s
-  and 14.1 s with the slice cap from yt-dlp's reading, 44.2 s twice without
-  it (`DM_YTDLP_NO_CHUNK`); gaps.md row 22 closed.
+  and 14.1 s with the slice cap from the external video tool's reading, 44.2 s twice without
+  it (`DM_NO_CHUNK`); gaps.md row 22 closed.
 - `scripts/real-sites.py` on the release build: 13 of 13 sites as expected
-  in 30 s (YouTube through yt-dlp's reading, GitHub raw, Apple, Wikimedia,
+  in 30 s (YouTube through the external video tool's reading, GitHub raw, Apple, Wikimedia,
   an HLS test stream, a Creative Commons torrent; Reddit and a signed-in
   Vimeo refused with a reason and nothing saved).
 - `scripts/human-qa.py` after these: a run straight after the full test

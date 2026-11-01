@@ -117,8 +117,6 @@ def newcomer():
         early = row_text(home, VIDEO)
         print(f"        the video's row, 4 s in: {early!r}", flush=True)
         check("the first video says what it waits for", early and early != "Starting…", early)
-        # The container has Debian's own yt-dlp, months old: dm is to pass
-        # it over for its own, as for anyone who installed it with apt.
         done = finished(home, VIDEO, 300)
         shot("07-video-done")
         check("the video finishes with nothing installed", done,

@@ -374,7 +374,7 @@ impl Job {
 }
 
 tokio::task_local! {
-    /// Set while one stream of a video page is fetched (`ytdlp::fetch`): the
+    /// Set while one stream of a video page is fetched (`videopage::fetch`): the
     /// address is the file, so a refusal or a page in its place is the
     /// stream's failure, not a page to try reading.
     static STREAM: ();
@@ -397,7 +397,7 @@ pub(crate) struct StreamHints {
     pub chunk: Option<u64>,
 }
 
-/// [`download_reporting`] for one stream of a video page (`ytdlp::fetch`):
+/// [`download_reporting`] for one stream of a video page (`videopage::fetch`):
 /// the address is the file, so what the server refuses, or answers with a
 /// page, is that stream's failure.
 pub async fn download_video_stream(
@@ -495,7 +495,7 @@ pub(crate) async fn download_video_stream_with(
     hints: StreamHints,
 ) -> Result<Finished, Error> {
     // Boxed: a video page's streams are downloads that may themselves meet a
-    // page (`ytdlp::download_page`), which an async fn cannot be recursive in.
+    // page (`videopage::download_page`), which an async fn cannot be recursive in.
     Box::pin(HINTS.scope(
         hints,
         STREAM.scope((), download_reporting(client, url, options, report)),
@@ -710,7 +710,7 @@ async fn fetch_reporting(
                     sound: None,
                     ..options.clone()
                 };
-                crate::ytdlp::download_page(client, page, &page_options, report).await
+                crate::videopage::download_page(client, page, &page_options, report).await
             }
             (outcome, _) => outcome,
         };
@@ -774,7 +774,8 @@ async fn fetch_reporting(
                 status: 403 | 429, ..
             },
         ) if !is_stream() && !names_a_document(url) && crate::youtube::video_id(url).is_some() => {
-            return match crate::ytdlp::download_page(client, url, options, report.clone()).await {
+            return match crate::videopage::download_page(client, url, options, report.clone()).await
+            {
                 Ok(done) => Ok(done),
                 Err(stopped @ (Error::Paused | Error::Cancelled)) => Err(stopped),
                 Err(_) => Err(refused),
@@ -791,7 +792,7 @@ async fn fetch_reporting(
     // place without a word.
     if options.span.is_some()
         && !is_stream()
-        && !crate::ytdlp::is_page(info.content_type.as_deref())
+        && !crate::videopage::is_page(info.content_type.as_deref())
         && crate::youtube::video_id(url).is_none()
     {
         return Err(Error::Internal(
@@ -827,7 +828,7 @@ async fn fetch_reporting(
      * type, which is fetched as the file it is, or a page standing in for
      * it — a sign-in, an expired link. The first bytes tell the two
      * apart. */
-    let page = crate::ytdlp::is_page(info.content_type.as_deref());
+    let page = crate::videopage::is_page(info.content_type.as_deref());
     if page && is_stream() {
         return Err(Error::Internal(
             "the stream answered with a web page rather than the file".into(),
@@ -854,7 +855,7 @@ async fn fetch_reporting(
         let document = names_a_document(url);
         let youtube = crate::youtube::video_id(url).is_some();
         if youtube {
-            match crate::ytdlp::download_page(client, url, options, report.clone()).await {
+            match crate::videopage::download_page(client, url, options, report.clone()).await {
                 Err(e)
                     if document
                         && !options.media
@@ -1062,6 +1063,21 @@ async fn fetch_reporting(
     })
 }
 
+/// `name` as an HTML page's: its extension replaced by `.html`, so a `.zip`
+/// that was a page is saved as the page it is.
+pub(crate) fn html_name(name: &str) -> String {
+    let path = std::path::Path::new(name);
+    match path.extension().and_then(|e| e.to_str()) {
+        Some(ext) if ext.eq_ignore_ascii_case("html") || ext.eq_ignore_ascii_case("htm") => {
+            name.to_string()
+        }
+        _ => {
+            let stem = path.file_stem().and_then(|s| s.to_str()).unwrap_or(name);
+            format!("{stem}.html")
+        }
+    }
+}
+
 #[cfg(test)]
 mod capped_tests;
 
@@ -1224,20 +1240,5 @@ mod tests {
         let outcome = join_parts(&parts, &into).await;
         assert!(outcome.is_err(), "a missing part was skipped");
         assert!(!into.exists(), "a short file was left under the name");
-    }
-}
-
-/// `name` as an HTML page's: its extension replaced by `.html`, so a `.zip`
-/// that was a page is saved as the page it is.
-pub(crate) fn html_name(name: &str) -> String {
-    let path = std::path::Path::new(name);
-    match path.extension().and_then(|e| e.to_str()) {
-        Some(ext) if ext.eq_ignore_ascii_case("html") || ext.eq_ignore_ascii_case("htm") => {
-            name.to_string()
-        }
-        _ => {
-            let stem = path.file_stem().and_then(|s| s.to_str()).unwrap_or(name);
-            format!("{stem}.html")
-        }
     }
 }

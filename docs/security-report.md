@@ -3,7 +3,7 @@
 An authorized black-box and source test of dm on this computer, by a
 testing agent working for the maintainer: the application only, servers of
 its own on loopback, no real folder or credential touched, nothing outside
-reached. Debug build 0.8.4 on branch `ytdlp-gaps`. Denial of service out
+reached. Debug build 0.8.4 on branch its file. Denial of service out
 of scope. What was done about each finding is noted under it.
 
 **Counts:** critical 0, high 0, medium 1, low 3.
@@ -22,7 +22,7 @@ the one that counts for L3.
 
 
 Authorized black-box + source review. Target: `/Users/pranav.jha/Easy-Download-Manager`
-(branch `ytdlp-gaps`), debug build `desktop/target/debug/dm-desktop` (dm 0.8.4).
+(branch its file), debug build `desktop/target/debug/dm-desktop` (dm 0.8.4).
 All testing on 127.0.0.1 against local servers; download_dir pointed at a temp folder
 (`scratchpad/pentest/downloads`); DM_HOME = `scratchpad/pentest/dmhome`.
 DoS/resource-exhaustion out of scope and not reported.
@@ -168,7 +168,7 @@ to /tmp was ignored — file landed in download_dir as normal_download.bin, noth
 validated before any write: `safe_path` rejects empty/NUL/absolute/`..`/drive/backslash names and double
 -checks the zip crate's enclosed_name() (`extract.rs:116,199-205`); symlinks/device/pipe/socket and encrypted
 entries refused; case-folded duplicates refused; zip-bomb ratio/size capped; create_new into a new folder.
-yt-dlp unpack (`tools.rs:392`) also gates enclosed_name() and only unpacks the pinned SHA2-256-verified
+The external video tool unpack (`tools.rs:392`) also gates enclosed_name() and only unpacks the pinned SHA2-256-verified
 release — arbitrary downloads are never auto-extracted. Torrent/metalink names sanitized
 (`torrent.rs:509`, `metalink.rs:111`); per-file torrent paths delegated to the torrent library.
 
@@ -184,7 +184,7 @@ clean. Evidence: `evidence/cargo_audit_desktop.txt`, `evidence/cargo_audit_brows
 
 ## Notes / scope caveats
 - A concurrent autonomous dev agent was editing tracked files on this branch during the assessment
-  (yt-dlp "preparing_progress" in tools.rs, i18n, docs; mtimes 22:39-22:42). None of those are mine. This
+  (the external video tool "preparing_progress" in tools.rs, i18n, docs; mtimes 22:39-22:42). None of those are mine. This
   pentest made zero edits to tracked files and committed nothing; all artifacts are under scratchpad/pentest/.
 - Not tested dynamically (reasoned from source/tests): https->http downgrade (S4), and Cookie (vs
   Authorization) stripping specifically — both share the mechanism demonstrated in S5.
@@ -195,7 +195,7 @@ clean. Evidence: `evidence/cargo_audit_desktop.txt`, `evidence/cargo_audit_brows
 ## Review of the changes since 0.8.4, 2026-10-30
 
 A review of `desktop-v0.8.4..HEAD` (the YouTube and playlist readers, the
-clip fetcher, the shipped yt-dlp's adoption, the native host's new checks,
+clip fetcher, the shipped the external video tool's adoption, the native host's new checks,
 the extension's page-world quality channel, the release workflows), with
 each candidate checked again for false positives. Critical, high, medium:
 none. Three low and four informational findings, all hardened before the
@@ -203,7 +203,7 @@ release (CHANGELOG, "Security hardening from the pre-release review"):
 
 - The solver runs the player's code; QuickJS's command line lets a script
   reach the OS. Attacker: only YouTube itself or a TLS interceptor the
-  user trusts (yt-dlp in 0.8.4 already did the same). Now: the player is
+  user trusts (the external video tool in 0.8.4 already did the same). Now: the player is
   fetched only from YouTube's own player path, and Deno, run with no
   permissions, is preferred.
 - The download-folder write check followed a planted symlink. Attacker: a

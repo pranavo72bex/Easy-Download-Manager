@@ -711,7 +711,7 @@ BROWSER_ROWS = {
     "B33": ["YouTube: hovering the playing player shows 'Download video'", "YouTube: it sits in the player's top corner",
             "YouTube: it stays while the pointer rests on the playing video"],
     "B34": ["YouTube: its click lists the video's qualities with their sizes"],
-    "B35": ["YouTube: its click is taken by the app", "YouTube: the video lands in dm's folder, fetched by yt-dlp",
+    "B35": ["YouTube: its click is taken by the app", "YouTube: the video lands in dm's folder, fetched by dm itself",
             "YouTube: the downloaded video is whole (media_check)"],
 }
 

@@ -290,14 +290,14 @@ PANEL_PAGES = {
         '<script>document.getElementById("v").src = URL.createObjectURL(new MediaSource());</script>',
         None),
     # A streaming player that also loads an HLS playlist, as a site's own
-    # player does: what yt-dlp cannot read, the page's traffic shows.
+    # player does: what the page's traffic shows.
     "/stream.html": (
         '<!doctype html><title>a stream</title><div style="position:relative;margin:40px">'
         '<video id="v" width="640" height="360"></video>' + OVERLAY + '</div>'
         '<script>document.getElementById("v").src = URL.createObjectURL(new MediaSource());'
         'fetch("/files/stream.m3u8");</script>',
         None),
-    # The same, on a page the app's yt-dlp can read: both kinds in one list.
+    # The same, on a page that also names its video: both kinds in one list.
     "/both.html": (
         '<!doctype html><title>both</title><div style="position:relative;margin:40px">'
         '<video id="v" width="640" height="360"></video>' + OVERLAY + '</div>'
@@ -768,7 +768,7 @@ def panel_checks(base, origin, engine_dl, engine_home, worker):
     check("a video starting to play raises it",
           wait_for(lambda: (panel(tab) or {}).get("shown"), 3), str(panel(tab)))
 
-    # A streaming player has no file: the page goes, for the app's yt-dlp.
+    # A streaming player has no file: the page goes to the app.
     tab = panel_page(base, origin, "/player.html")
     hover(tab, tab.evaluate(VIDEO_RECT))
     shown = wait_for(lambda: (panel(tab) or {}).get("shown") and panel(tab), 5) or {}
@@ -964,35 +964,11 @@ def main():
         # drive; here the panel's videos go straight to the folder.
         "ask_panel_downloads": False,
     }))
-    # yt-dlp as it is, except that the player page, which has no real video
-    # for it to read, is said to come in two qualities.
-    # Found where it is usually installed, on any system: a Linux run fell
-    # back to the Mac's /opt/homebrew/bin and the player-page check failed
-    # though yt-dlp was in ~/.local/bin.
-    real_ytdlp = shutil.which(
-        "yt-dlp",
-        path=os.pathsep.join([os.environ.get("PATH", ""), str(pathlib.Path.home() / ".local/bin"),
-                              "/opt/homebrew/bin", "/usr/local/bin", "/usr/bin"]),
-    ) or "yt-dlp"
-    stand_in = engine_home / "yt-dlp"
-    stand_in.write_text(
-        "#!/bin/sh\n"
-        'case "$*" in *-J*player.html*|*-J*both.html*) cat <<\'EOF\'\n'
-        + json.dumps({"formats": [
-            {"ext": "m4a", "vcodec": "none", "acodec": "mp4a", "abr": 128, "filesize": 1_000_000},
-            {"ext": "mp4", "vcodec": "avc1", "acodec": "none", "width": 1280, "height": 720,
-             "filesize": 9_000_000},
-        ]}) +
-        "\nEOF\nexit 0;; esac\n"
-        f'exec "{real_ytdlp}" "$@"\n'
-    )
-    stand_in.chmod(0o755)
     if sys.platform == "win32":
         shim = engine_home / "host.bat"
         shim.write_text(
             "@echo off\r\n"
             f"set DM_HOME={engine_home}\r\n"
-            f"set DM_YTDLP={stand_in}\r\n"
             f'"{host}" %* 2>>"{engine_home / "host-stderr.txt"}"\r\n'
         )
     else:
@@ -1000,7 +976,6 @@ def main():
         shim.write_text(
             "#!/bin/sh\n"
             f"export DM_HOME='{engine_home}'\n"
-            f"export DM_YTDLP='{stand_in}'\n"
             f"exec '{host}' \"$@\" 2>>'{engine_home}/host-stderr.txt'\n"
         )
         shim.chmod(0o755)
