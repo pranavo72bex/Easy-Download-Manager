@@ -36,6 +36,9 @@ pub struct Piece {
     /// The key and vector the bytes are scrambled with (an HLS stream's
     /// AES-128), to be undone as the piece is fetched.
     pub lock: Option<Lock>,
+    /// How long it plays, in milliseconds; 0 for an initialisation piece, and
+    /// where the manifest says nothing of it.
+    pub millis: u64,
 }
 
 /// An AES-128 key and the initialisation vector one piece is scrambled with.
@@ -64,6 +67,17 @@ pub struct Track {
     /// WebM (VP8, VP9, AV1 with Opus or Vorbis) rather than MP4.
     pub webm: bool,
     pub pieces: Vec<Piece>,
+    /// Set where the track is one file whose own index (`sidx`) says where its
+    /// pieces lie: a part of it is then cut by that index, not by the list.
+    pub indexed: Option<Indexed>,
+}
+
+/// Where the first boxes and the index of a one-file track are, where the
+/// manifest said (otherwise they are looked for at the file's start).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct Indexed {
+    pub init: Option<(u64, u64)>,
+    pub index: Option<(u64, u64)>,
 }
 
 /// What to fetch for a wanted quality.
@@ -327,16 +341,19 @@ fn pieces_of(c: &Context) -> Result<Vec<Piece>, Error> {
                 url: join(&c.base, &url)?,
                 range: None,
                 lock: None,
+                millis: 0,
             });
         }
         let media = attr("media").ok_or_else(|| unreadable("media template"))?;
-        let at = |number: u64, time: u64| -> Result<Piece, Error> {
+        let to_millis = |ticks: u64| (ticks as f64 * 1000.0 / timescale as f64).round() as u64;
+        let at = |number: u64, time: u64, ticks: u64| -> Result<Piece, Error> {
             let url = fill(media, id, bandwidth, number, time)
                 .ok_or_else(|| unreadable("media template"))?;
             Ok(Piece {
                 url: join(&c.base, &url)?,
                 range: None,
                 lock: None,
+                millis: to_millis(ticks),
             })
         };
         let timeline = c
@@ -376,7 +393,7 @@ fn pieces_of(c: &Context) -> Result<Vec<Piece>, Error> {
                     if pieces.len() >= MOST_PIECES {
                         return Err(unreadable("timeline (far too many pieces)"));
                     }
-                    pieces.push(at(number, time)?);
+                    pieces.push(at(number, time, d)?);
                     time = time.saturating_add(d);
                     number += 1;
                 }
@@ -392,7 +409,7 @@ fn pieces_of(c: &Context) -> Result<Vec<Piece>, Error> {
                 return Err(unreadable("segment count"));
             }
             for n in 0..count as u64 {
-                pieces.push(at(start + n, n * d as u64)?);
+                pieces.push(at(start + n, n * d as u64, d as u64)?);
             }
         }
         return Ok(pieces);
@@ -405,15 +422,31 @@ fn pieces_of(c: &Context) -> Result<Vec<Piece>, Error> {
                     url: join(&c.base, src)?,
                     range: init.attr("range").and_then(byte_range),
                     lock: None,
+                    millis: 0,
                 });
             } else {
                 pieces.push(Piece {
                     url: c.base.clone(),
                     range: init.attr("range").and_then(byte_range),
                     lock: None,
+                    millis: 0,
                 });
             }
         }
+        // Each URL plays for the list's duration, in its own timescale.
+        let each = list
+            .attr("duration")
+            .and_then(|v| v.parse::<f64>().ok())
+            .filter(|d| *d > 0.0)
+            .map(|d| {
+                let scale = list
+                    .attr("timescale")
+                    .and_then(|v| v.parse::<f64>().ok())
+                    .filter(|v| *v > 0.0)
+                    .unwrap_or(1.0);
+                (d * 1000.0 / scale).round() as u64
+            })
+            .unwrap_or(0);
         for s in list.children("SegmentURL") {
             if pieces.len() >= MOST_PIECES {
                 return Err(unreadable("segment list (far too many pieces)"));
@@ -426,6 +459,7 @@ fn pieces_of(c: &Context) -> Result<Vec<Piece>, Error> {
                 url,
                 range: s.attr("mediaRange").and_then(byte_range),
                 lock: None,
+                millis: each,
             });
         }
         return Ok(pieces);
@@ -438,9 +472,63 @@ fn pieces_of(c: &Context) -> Result<Vec<Piece>, Error> {
             url: c.base.clone(),
             range: None,
             lock: None,
+            millis: 0,
         }]);
     }
     Err(unreadable("segment addressing"))
+}
+
+/// Whether a representation is one file with an index of its own
+/// (`SegmentBase`), and where the manifest says the first boxes and the
+/// index lie.
+fn indexed_of(c: &Context) -> Option<Indexed> {
+    if c.inherited("SegmentTemplate").is_some() || c.inherited("SegmentList").is_some() {
+        return None;
+    }
+    let base = c.inherited("SegmentBase")?;
+    Some(Indexed {
+        init: base
+            .child("Initialization")
+            .and_then(|i| i.attr("range"))
+            .and_then(byte_range),
+        index: base.attr("indexRange").and_then(byte_range),
+    })
+}
+
+/// The part of a track that plays within `from`..`to` seconds: its
+/// initialisation pieces (which play for no time) and every timed piece that
+/// overlaps, with the seconds where the first starts and the last ends.
+/// `None` where the pieces carry no timing or none overlaps. A one-file track
+/// is cut by its own index at fetch time, not here.
+pub fn cut(track: &Track, from: f64, to: f64) -> Option<(Track, f64, f64)> {
+    let mut pieces: Vec<Piece> = Vec::new();
+    let (mut at, mut starts, mut ends, mut any) = (0.0f64, 0.0f64, 0.0f64, false);
+    for piece in &track.pieces {
+        if piece.millis == 0 && !any {
+            pieces.push(piece.clone());
+            continue;
+        }
+        let end = at + piece.millis as f64 / 1000.0;
+        if piece.millis > 0 && at < to && end > from {
+            if !any {
+                starts = at;
+                any = true;
+            }
+            ends = end;
+            pieces.push(piece.clone());
+        }
+        at = end;
+    }
+    any.then(|| {
+        (
+            Track {
+                pieces,
+                ..track.clone()
+            },
+            starts,
+            ends,
+        )
+    })
 }
 
 /// What a representation says about itself.
@@ -560,6 +648,7 @@ fn candidates(root: &Node, url: &str) -> Result<Vec<Candidate>, Error> {
                         (if w > 0 && w < h { w } else { h }) as u32
                     },
                     webm,
+                    indexed: indexed_of(&c),
                     pieces,
                 },
                 main,

@@ -64,6 +64,7 @@ pub(super) async fn download_pair(
         bandwidth: 0,
         height: 0,
         webm: false,
+        indexed: None,
         pieces: s
             .parts
             .iter()
@@ -77,6 +78,7 @@ pub(super) async fn download_pair(
                     }),
                     _ => None,
                 },
+                millis: (p.duration * 1000.0).round() as u64,
             })
             .collect(),
     };
@@ -138,6 +140,7 @@ pub(super) async fn download_media_pair(
         bandwidth: 0,
         height: 0,
         webm: query_of(url, "mime").is_some_and(|m| m.contains("webm")),
+        indexed: None,
         pieces: pieces_of(url, total, PIECE),
     };
     let (picture_size, sound_size) = tokio::try_join!(
@@ -189,6 +192,7 @@ pub(crate) fn pieces_of(url: &str, total: u64, piece: u64) -> Vec<dash::Piece> {
             url: url.to_string(),
             range: None,
             lock: None,
+            millis: 0,
         }];
     }
     let mut pieces = Vec::new();
@@ -199,6 +203,7 @@ pub(crate) fn pieces_of(url: &str, total: u64, piece: u64) -> Vec<dash::Piece> {
             url: url.to_string(),
             range: Some((first, last)),
             lock: None,
+            millis: 0,
         });
         first = last + 1;
     }
@@ -246,7 +251,38 @@ async fn join_tracks(
     options: &Options,
     report: Option<tokio::sync::mpsc::Sender<Update>>,
 ) -> Result<Finished, Error> {
-    let filename = filename.to_string();
+    let mut filename = filename.to_string();
+    let mut signature = signature.to_string();
+    /* A part of the stream: each track reduced to the pieces that overlap the
+     * span (a one-file track is cut by its own index when it is fetched), and
+     * the joined file trimmed exactly by the muxer's edit lists. */
+    let cut_tracks: Vec<Track>;
+    let tracks: Vec<&Track> = match options.span {
+        Some(span) => {
+            let mut reduced = Vec::new();
+            for track in tracks {
+                if track.indexed.is_some() {
+                    reduced.push((*track).clone());
+                } else {
+                    let (cut, _, _) = dash::cut(track, span.from, span.to).ok_or_else(|| {
+                        Error::Internal(
+                            "that part is outside the stream, or the stream does not say how                              long its pieces are"
+                                .to_string(),
+                        )
+                    })?;
+                    reduced.push(cut);
+                }
+            }
+            cut_tracks = reduced;
+            signature = format!("{signature}
+{}", span.words());
+            filename = hls::named_for_span(&filename, span);
+            cut_tracks.iter().collect()
+        }
+        None => tracks.to_vec(),
+    };
+    let tracks = tracks.as_slice();
+    let signature = signature.as_str();
     fs::create_dir_all(&options.parts_dir).await?;
     hls::keep_only_parts_of(&options.parts_dir, signature).await?;
 
@@ -292,10 +328,10 @@ async fn join_tracks(
                 crate::tsmux::join_packed_async(picture.clone(), sound.clone(), partial.clone())
                     .await
             } else {
-                crate::mp4mux::join_async(files.clone(), partial.clone()).await
+                join_mp4(files.clone(), partial.clone(), options).await
             }
         } else {
-            crate::mp4mux::join_async(files.clone(), partial.clone()).await
+            join_mp4(files.clone(), partial.clone(), options).await
         };
         if let Err(why) = made {
             let _ = fs::remove_file(&partial).await;
@@ -319,6 +355,23 @@ async fn join_tracks(
         verified: options.checksum.is_some(),
         mirrors: 1,
     })
+}
+
+/// The tracks joined into one MP4, cut to the span where there is one.
+async fn join_mp4(files: Vec<PathBuf>, out: PathBuf, options: &Options) -> Result<u64, String> {
+    match options.span {
+        Some(span) => {
+            crate::mp4mux::join_cut_async(
+                files,
+                Vec::new(),
+                out,
+                Some(span.millis()),
+                options.shape,
+            )
+            .await
+        }
+        None => crate::mp4mux::join_async(files, out).await,
+    }
 }
 
 /// Every piece of each track, then each track gathered into a file of its
@@ -359,6 +412,34 @@ async fn fetch_track(
     // Gathered before a stop: its pieces were freed as they were
     // consumed, and the file is named only when whole.
     if fs::metadata(&gathered).await.is_ok_and(|m| m.len() > 0) {
+        return Ok(gathered);
+    }
+    // One file with an index of its own, for a part of it: the index says
+    // which bytes, and only those are asked for.
+    if let (Some(indexed), Some(span), Some(first_piece)) =
+        (track.indexed, options.span, track.pieces.first())
+    {
+        let url = first_piece.url.clone();
+        let mut pairs = Vec::new();
+        let cookies = crate::cookies::header_with(options.sign_in.as_ref(), &url);
+        if let Some(cookies) = &cookies {
+            pairs.push(("cookie", cookies.as_str()));
+        }
+        if let Some(referrer) = options.referrer.as_deref() {
+            pairs.push(("referer", referrer));
+        }
+        let source = crate::clip::Source {
+            agent: Some(crate::agent_for(&url).to_string()),
+            url,
+            init: indexed.init,
+            index: indexed.index,
+            headers: Headers::of(pairs),
+            chunk: None,
+            target: options.parts_dir.join(format!("track{n}.partial")),
+        };
+        let part = crate::clip::fetch_part(client, &source, span, options, None).await?;
+        downloaded.fetch_add(part.bytes, Ordering::Relaxed);
+        fs::rename(&source.target, &gathered).await?;
         return Ok(gathered);
     }
     // As many at once as there are connections, each taking the next piece as
