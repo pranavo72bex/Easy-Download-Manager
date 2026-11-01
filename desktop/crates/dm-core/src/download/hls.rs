@@ -739,6 +739,7 @@ async fn fetch_one_segment(
     options.control.check()?;
 
     let staging = done.with_extension("partial");
+    let client = &crate::second_path::client_for_piece(client, &options.parts_dir, index);
     let fetched = retry::run_up_to(&options.control, options.tries(), || {
         fetch_segment_range(client, &part.url, part.range, options)
     })

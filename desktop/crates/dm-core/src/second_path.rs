@@ -38,6 +38,26 @@ pub(crate) fn fetched_by(parts: &Path, index: usize, second: bool) {
     }
 }
 
+/// The client for piece `index` of a stream staged in `parts`: every other
+/// piece goes out on the second path where one is chosen, the rest (and all
+/// of them where none is) on `first`. Records which, for `on_second`.
+pub(crate) fn client_for_piece(
+    first: &reqwest::Client,
+    parts: &Path,
+    index: usize,
+) -> reqwest::Client {
+    match second_client() {
+        Some(second) if index % 2 == 1 => {
+            fetched_by(parts, index, true);
+            second
+        }
+        _ => {
+            fetched_by(parts, index, false);
+            first.clone()
+        }
+    }
+}
+
 /// The ranges of the download staged in `parts` last taken on the second
 /// path, in this run.
 pub fn on_second(parts: &Path) -> HashSet<usize> {

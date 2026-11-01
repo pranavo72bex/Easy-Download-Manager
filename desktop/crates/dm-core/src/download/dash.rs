@@ -274,8 +274,11 @@ async fn join_tracks(
                 }
             }
             cut_tracks = reduced;
-            signature = format!("{signature}
-{}", span.words());
+            signature = format!(
+                "{signature}
+{}",
+                span.words()
+            );
             filename = hls::named_for_span(&filename, span);
             cut_tracks.iter().collect()
         }
@@ -480,6 +483,7 @@ async fn fetch_piece(
     }
     options.control.check()?;
     let staging = done.with_extension("partial");
+    let client = &crate::second_path::client_for_piece(client, &options.parts_dir, index);
     let body = retry::run_up_to(&options.control, options.tries(), || {
         hls::fetch_segment_range(client, &piece.url, piece.range, options)
     })
