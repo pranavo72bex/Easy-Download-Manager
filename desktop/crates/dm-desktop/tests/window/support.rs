@@ -55,6 +55,8 @@ pub(crate) fn home() -> &'static std::path::Path {
         // SAFETY: set once (`OnceLock`), before any test reads it: they all reach
         // the home through this function.
         unsafe { std::env::set_var("DM_HOME", dir.path()) };
+        // And no secrets left in the person's own store by a throw-away home.
+        unsafe { std::env::set_var("DM_NO_SECRET_STORE", "1") };
         // Sizes and dates as the language writes them, on any machine.
         dm_desktop::region::pin(None);
         dir

@@ -52,6 +52,8 @@ pub fn options(dir: &Path) -> Options {
 
 /// A temporary directory that cleans up after itself.
 pub fn tempdir() -> tempfile::TempDir {
+    // A throw-away home leaves nothing in the person's own store of secrets.
+    std::env::set_var("DM_NO_SECRET_STORE", "1");
     tempfile::tempdir().expect("a temporary directory")
 }
 

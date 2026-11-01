@@ -54,6 +54,7 @@ pub mod rtmp;
 pub mod rtsp;
 pub mod schedule;
 pub mod second_path;
+pub mod secretstore;
 pub mod shape;
 pub mod stream;
 pub mod subtitles;
@@ -77,7 +78,9 @@ pub use category::{Categories, Category, Custom};
 pub use checksum::Checksum;
 pub use clip::Span;
 pub use control::{Control, Wanted};
-pub use download::{download, download_reporting, Finished, HostLimit, Options, Room, Update};
+pub use download::{
+    download, download_reporting, free_space, Finished, HostLimit, Options, Room, Update,
+};
 pub use limit::Limiter;
 pub use metalink::Metalink;
 pub use plan::Segment;

@@ -255,17 +255,51 @@ impl Queue {
                 "the queue could not be written ({e}); changes since will not survive a restart"
             ));
         }
+        if let Some(why) = crate::secretstore::take_note() {
+            self.note(why);
+        }
         self.save_quota(path);
     }
 
     /// The secrets saved beside the queue file, by row.
     fn read_secrets(&self, queue_file: &std::path::Path) -> HashMap<Id, Secret> {
         let kept = secrets_file(queue_file);
-        let Ok(text) = std::fs::read_to_string(&kept) else {
+        let Ok(bytes) = std::fs::read(&kept) else {
             return HashMap::new();
         };
+        // Sealed under a key the operating system's store keeps, or in clear as ever.
+        let (text, in_clear) = match crate::secretstore::opened(&bytes) {
+            crate::secretstore::Opened::Plain => (String::from_utf8_lossy(&bytes).into_owned(), true),
+            crate::secretstore::Opened::Opened(plain) => {
+                (String::from_utf8_lossy(&plain).into_owned(), false)
+            }
+            crate::secretstore::Opened::Failed(why) => {
+                self.note(format!(
+                    "the saved logins and cookies could not be opened ({why}): the downloads \
+                     that had them will ask for them again"
+                ));
+                return HashMap::new();
+            }
+        };
         match serde_json::from_str::<Vec<Secret>>(&text) {
-            Ok(secrets) => secrets.into_iter().map(|s| (s.id, s)).collect(),
+            Ok(secrets) => {
+                // A file written in clear moves into the store on its first read where there
+                // is one: written again, it is sealed.
+                if in_clear && crate::secretstore::system().is_some() {
+                    let mut listed = secrets.clone();
+                    listed.sort_by_key(|s| s.id);
+                    if let Err(e) = super::journal::write_secrets(queue_file, &listed) {
+                        self.note(format!(
+                            "the saved logins and cookies could not be moved into the operating \
+                             system's store ({e}); they stay in their file"
+                        ));
+                    }
+                    if let Some(why) = crate::secretstore::take_note() {
+                        self.note(why);
+                    }
+                }
+                secrets.into_iter().map(|s| (s.id, s)).collect()
+            }
             Err(e) => {
                 self.note(format!(
                     "the saved logins and cookies could not be read ({e}): the downloads \

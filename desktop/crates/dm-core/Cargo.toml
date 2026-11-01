@@ -49,6 +49,8 @@ quick-xml = "0.42.0"
 url = "2.5.8"
 aes = "0.9.3"
 cbc = { version = "0.2.1", features = ["block-padding", "alloc"] }
+# Seals the file of a row's secrets under a key the operating system's store keeps (`secretstore.rs`).
+chacha20poly1305 = { version = "0.10", default-features = false, features = ["alloc"] }
 # BitTorrent, the one kind of download the browser side cannot do at all: an
 # extension has no sockets. rustls to match reqwest above, so the binary
 # carries one TLS stack rather than two.
@@ -71,7 +73,7 @@ libc = "0.2"
 # start. Already in the tree through tokio and others; only its
 # file-system module is named.
 [target.'cfg(windows)'.dependencies]
-windows-sys = { version = "0.61", features = ["Win32_Storage_FileSystem"] }
+windows-sys = { version = "0.61", features = ["Win32_Foundation", "Win32_Security", "Win32_Security_Credentials", "Win32_Storage_FileSystem"] }
 
 # Media Foundation, the system's own decoders, for a video's sound saved as MP3
 # and a part saved as GIF (`mf.rs`): COM, which windows-sys has no wrappers

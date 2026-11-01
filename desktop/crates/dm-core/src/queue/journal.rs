@@ -247,7 +247,7 @@ fn append(
     })
 }
 
-fn write_secrets(queue_file: &Path, secrets: &[Secret]) -> std::io::Result<()> {
+pub(super) fn write_secrets(queue_file: &Path, secrets: &[Secret]) -> std::io::Result<()> {
     let kept = secrets_file(queue_file);
     if secrets.is_empty() {
         if kept.exists() {
@@ -255,9 +255,11 @@ fn write_secrets(queue_file: &Path, secrets: &[Secret]) -> std::io::Result<()> {
         }
         return Ok(());
     }
-    crate::write_atomic_with(&kept, |w| {
-        serde_json::to_writer_pretty(w, secrets).map_err(std::io::Error::from)
-    })
+    // Sealed under a key the operating system's store keeps where there is one; the same
+    // bytes as ever where there is none (`secretstore.rs`).
+    let plain = serde_json::to_vec_pretty(secrets).map_err(std::io::Error::from)?;
+    let bytes = crate::secretstore::sealed(plain);
+    crate::write_atomic_with(&kept, |w| w.write_all(&bytes))
 }
 
 /// `entries`, read from `queue_file` (whose bytes are `text`), with the

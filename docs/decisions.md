@@ -3610,3 +3610,16 @@ The repository needs "Allow GitHub Actions to create and approve pull requests" 
 Settings > Actions > General; a pull request opened with the workflow's own token does not start the
 other workflows, which is why the YouTube tests run inside this one. A failed run (the release
 page unreachable, a script that is not one) is the signal that something needs a person.
+
+## Secrets on Windows are sealed under a key Credential Manager keeps (2026-11-01)
+
+A row's login and its browser cookies were written whole to `secrets.json` beside the queue file, readable
+by this account alone, so a copy of the home carried them in clear (gaps row 39). A Windows credential is
+limited to 2560 bytes and a cookie jar is not, so the file is sealed instead (ChaCha20-Poly1305, a fresh
+nonce on every write, `secretstore.rs`) under a random 32-byte key that is the credential, named
+`dm:queue-secrets-key` and scoped to this computer's profile. A file written in clear moves into the sealed
+form the first time it is read where the store works; where it does not (an error from the API, the
+store switched off by `DM_NO_SECRET_STORE`, any other system) the file is exactly what it always was and a
+notice says so. A file that cannot be opened (a copy made on another account) is not guessed at: the
+downloads that had logins or cookies ask for them again. Not done: the Sign-ins' and the proxy's passwords
+in the settings file, and the macOS and Linux stores (the row says why).
