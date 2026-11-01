@@ -760,5 +760,15 @@
  "The requested file doesn't exist.": "요청한 파일이 없습니다.",
  "Details:": "자세히:",
  "Contents": "내용",
- "Reading the contents…": "내용을 읽는 중…"
+ "Reading the contents…": "내용을 읽는 중…",
+ "When the scheduled downloads are done": "예약된 다운로드가 끝났을 때",
+ "Try a failed download again this many times (0 for none)": "실패한 다운로드를 다시 시도할 횟수 (0은 안 함)",
+ "The schedule has set what dm does when the downloads are done: {}.": "일정이 다운로드 완료 후 dm의 동작을 설정했습니다: {}.",
+ "Remember my choice": "내 선택 기억",
+ "Replace the old file": "이전 파일 바꾸기",
+ "Resume it": "이어받기",
+ "When an address is already in the list": "주소가 이미 목록에 있을 때",
+ "dm identifies itself to servers as:": "dm이 서버에 밝히는 이름:",
+ "Identify as dm only": "dm으로만 밝히기",
+ "Sends dm's own name first. A site that refuses it is asked again with another name.": "먼저 dm 자신의 이름을 보냅니다. 이를 거부하는 사이트에는 다른 이름으로 다시 요청합니다."
 }

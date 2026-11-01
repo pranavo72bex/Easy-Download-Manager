@@ -29,6 +29,14 @@ pub struct Schedule {
     /// Wake a sleeping computer for the window's start (and a queue's
     /// start time), where the system lets dm: Windows' wake timers.
     pub wake: bool,
+    /// What dm does when the queue runs dry after the window opened: `""` or
+    /// `"nothing"`, `"exit"`, `"sleep"`, `"hibernate"`, `"shutdown"`. It is
+    /// carried out through the same cancellable countdown as Downloads ›
+    /// When done, never without it.
+    pub when_done: String,
+    /// How many more times a download that failed is tried again while the
+    /// window is open, 0 to 5; zero leaves it failed, as before.
+    pub retries: u8,
 }
 
 impl Default for Schedule {
@@ -39,6 +47,8 @@ impl Default for Schedule {
             to: "07:00".into(),
             days: (0..=6).collect(),
             wake: false,
+            when_done: String::new(),
+            retries: 0,
         }
     }
 }
@@ -173,6 +183,8 @@ mod tests {
             to: "07:00".into(),
             days: vec![5], // Friday nights only
             wake: false,
+            when_done: String::new(),
+            retries: 0,
         };
         // Monday 08:00: Friday 23:00 is four days and fifteen hours away.
         assert_eq!(
@@ -205,6 +217,8 @@ mod tests {
             to: "07:00".into(),
             days: (0..=6).collect(),
             wake: false,
+            when_done: String::new(),
+            retries: 0,
         }
     }
 

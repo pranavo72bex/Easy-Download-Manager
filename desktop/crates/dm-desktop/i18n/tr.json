@@ -760,5 +760,15 @@
  "The requested file doesn't exist.": "İstenen dosya yok.",
  "Details:": "Ayrıntılar:",
  "Contents": "İçerik",
- "Reading the contents…": "İçerik okunuyor…"
+ "Reading the contents…": "İçerik okunuyor…",
+ "When the scheduled downloads are done": "Zamanlanmış indirmeler bittiğinde",
+ "Try a failed download again this many times (0 for none)": "Başarısız bir indirmeyi bu kadar kez yeniden dene (0 hiç)",
+ "The schedule has set what dm does when the downloads are done: {}.": "Zamanlama, indirmeler bittiğinde dm'nin ne yapacağını belirledi: {}.",
+ "Remember my choice": "Seçimimi hatırla",
+ "Replace the old file": "Eski dosyayı değiştir",
+ "Resume it": "Sürdür",
+ "When an address is already in the list": "Bir adres listede zaten varsa",
+ "dm identifies itself to servers as:": "dm sunuculara şöyle tanıtılır:",
+ "Identify as dm only": "Yalnızca dm olarak tanıt",
+ "Sends dm's own name first. A site that refuses it is asked again with another name.": "Önce dm'nin kendi adını gönderir. Bunu reddeden site başka bir adla yeniden sorulur."
 }

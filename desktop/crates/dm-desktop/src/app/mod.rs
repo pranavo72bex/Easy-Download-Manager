@@ -35,6 +35,7 @@ mod menus;
 mod naming;
 mod places;
 mod rows;
+mod scheduled;
 mod search;
 mod sync;
 mod tree;
@@ -374,6 +375,8 @@ pub struct DmApp {
     fonts_ready: bool,
     /// What to do when the queue runs dry, for this session only.
     pub when_done: crate::power::WhenDone,
+    /// The schedule window as the last read of the list found it (`scheduled.rs`).
+    pub(crate) schedule_watch: scheduled::Watch,
     /// Words typed over the list: only rows whose name, address or note
     /// holds them all are shown, in whatever place is chosen.
     pub filter: String,
@@ -590,6 +593,7 @@ impl DmApp {
             accent_in_force: None,
             fonts_ready: false,
             when_done: Default::default(),
+            schedule_watch: Default::default(),
             failed_told: HashSet::new(),
             asks: Default::default(),
             ask_seen: Default::default(),

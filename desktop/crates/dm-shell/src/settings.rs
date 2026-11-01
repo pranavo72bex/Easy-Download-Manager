@@ -47,6 +47,17 @@ pub struct Settings {
     #[serde(default)]
     pub last_speed_limit: u64,
 
+    /// Send dm's own name to servers first, not the browser-like one
+    /// (Options › Advanced › Identify as dm only). A site that refuses the
+    /// first name is still asked again with the others.
+    #[serde(default)]
+    pub identify_as_dm: bool,
+    /// What to do when an address typed in or caught is already in the list,
+    /// remembered from the question's tick: `""` asks, or `"show"`,
+    /// `"again"`, `"replace"`. Options › General undoes it.
+    #[serde(default)]
+    pub duplicate_choice: String,
+
     /// Addresses typed into Add URL, newest first, without any login in
     /// them, for picking again; cleared from the dialog.
     #[serde(default)]
@@ -455,6 +466,8 @@ impl Default for Settings {
                 .join("dm"),
             speed_limit: 0,
             last_speed_limit: 0,
+            identify_as_dm: false,
+            duplicate_choice: String::new(),
             recent_urls: Vec::new(),
             last_folders: Default::default(),
             limit_mb: 0,

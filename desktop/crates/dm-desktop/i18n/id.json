@@ -760,5 +760,15 @@
  "The requested file doesn't exist.": "File yang diminta tidak ada.",
  "Details:": "Detail:",
  "Contents": "Isi",
- "Reading the contents…": "Membaca isi…"
+ "Reading the contents…": "Membaca isi…",
+ "When the scheduled downloads are done": "Setelah unduhan terjadwal selesai",
+ "Try a failed download again this many times (0 for none)": "Coba lagi unduhan yang gagal sebanyak ini (0 untuk tidak)",
+ "The schedule has set what dm does when the downloads are done: {}.": "Jadwal telah menetapkan yang dilakukan dm setelah unduhan selesai: {}.",
+ "Remember my choice": "Ingat pilihan saya",
+ "Replace the old file": "Ganti file lama",
+ "Resume it": "Lanjutkan",
+ "When an address is already in the list": "Jika alamat sudah ada di daftar",
+ "dm identifies itself to servers as:": "dm memperkenalkan diri ke server sebagai:",
+ "Identify as dm only": "Kenali hanya sebagai dm",
+ "Sends dm's own name first. A site that refuses it is asked again with another name.": "Mengirim nama dm sendiri lebih dulu. Situs yang menolaknya ditanya lagi dengan nama lain."
 }

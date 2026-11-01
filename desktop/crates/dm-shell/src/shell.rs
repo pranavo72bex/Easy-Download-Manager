@@ -492,6 +492,7 @@ pub async fn apply(
     // The second network, where one is chosen and no proxy is on: through
     // a proxy every connection must go by it, and one that did not would
     // be seen by the site from this computer's own address.
+    dm_core::set_identify_as_dm(settings.identify_as_dm);
     let second = (!settings.proxy.enabled).then_some(settings.second_path.as_str());
     if let Err(why) = dm_core::set_second_path(second) {
         problems.push(format!("downloads use one network: {why}"));

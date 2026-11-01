@@ -41,6 +41,26 @@ impl WhenDone {
             WhenDone::ShutDown => "shut the computer down",
         }
     }
+
+    /// The word a schedule keeps it as (`Schedule::when_done`) and the
+    /// command line and the control port name it by.
+    pub fn word(self) -> &'static str {
+        match self {
+            WhenDone::Nothing => "nothing",
+            WhenDone::Quit => "exit",
+            WhenDone::Sleep => "sleep",
+            WhenDone::Hibernate => "hibernate",
+            WhenDone::ShutDown => "shutdown",
+        }
+    }
+
+    /// The action a kept word names; anything else is nothing.
+    pub fn from_word(word: &str) -> WhenDone {
+        WhenDone::ALL
+            .into_iter()
+            .find(|w| w.word() == word.trim())
+            .unwrap_or_default()
+    }
 }
 
 /// How the machine is put to sleep or shut down on one system.

@@ -760,5 +760,15 @@
  "The requested file doesn't exist.": "Het gevraagde bestand bestaat niet.",
  "Details:": "Details:",
  "Contents": "Inhoud",
- "Reading the contents…": "Inhoud wordt gelezen…"
+ "Reading the contents…": "Inhoud wordt gelezen…",
+ "When the scheduled downloads are done": "Wanneer de geplande downloads klaar zijn",
+ "Try a failed download again this many times (0 for none)": "Een mislukte download zo vaak opnieuw proberen (0 voor nooit)",
+ "The schedule has set what dm does when the downloads are done: {}.": "Het schema heeft ingesteld wat dm doet als de downloads klaar zijn: {}.",
+ "Remember my choice": "Mijn keuze onthouden",
+ "Replace the old file": "Het oude bestand vervangen",
+ "Resume it": "Hervatten",
+ "When an address is already in the list": "Als een adres al in de lijst staat",
+ "dm identifies itself to servers as:": "dm stelt zich aan servers voor als:",
+ "Identify as dm only": "Alleen als dm voorstellen",
+ "Sends dm's own name first. A site that refuses it is asked again with another name.": "Stuurt eerst de eigen naam van dm. Een site die die weigert, wordt opnieuw gevraagd met een andere naam."
 }

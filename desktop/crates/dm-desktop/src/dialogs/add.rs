@@ -166,36 +166,154 @@ pub(crate) fn worth_keeping(app: &DmApp, address: &str) -> Option<Id> {
         .map(|r| r.id)
 }
 
-/// Asked when an address typed in is already a row: download it again,
-/// show the row, or leave it.
+/// How an address already in the list is answered: show its row (and go on
+/// with it if it is stopped), download it again as a numbered copy, or have
+/// the new download take the old file's place once it is whole. Kept as a
+/// word in the settings (`duplicate_choice`) when the person ticks
+/// "Remember my choice"; Options › General undoes it.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum Dup {
+    Show,
+    Again,
+    Replace,
+}
+
+impl Dup {
+    pub(crate) fn word(self) -> &'static str {
+        match self {
+            Dup::Show => "show",
+            Dup::Again => "again",
+            Dup::Replace => "replace",
+        }
+    }
+
+    pub(crate) fn from_word(word: &str) -> Option<Dup> {
+        [Dup::Show, Dup::Again, Dup::Replace]
+            .into_iter()
+            .find(|d| d.word() == word.trim())
+    }
+}
+
+/// The finished file of row `id` as (path, folder, name), where it is on the
+/// disk to be replaced.
+fn replaceable(app: &DmApp, id: Id) -> Option<(String, String, String)> {
+    let row = app.row(id)?;
+    if row.state != State::Completed || row.path.is_empty() {
+        return None;
+    }
+    let path = std::path::Path::new(&row.path);
+    if !path.exists() {
+        return None;
+    }
+    Some((
+        row.path.clone(),
+        path.parent()?.to_string_lossy().into_owned(),
+        path.file_name()?.to_string_lossy().into_owned(),
+    ))
+}
+
+/// Whether the row is stopped, or failed: one that "Show it" can also go on
+/// with.
+fn can_go_on(app: &DmApp, id: Id) -> bool {
+    app.row(id)
+        .is_some_and(|r| matches!(r.state, State::Paused | State::Failed(_)))
+}
+
+/// Carries out an answer: asked, or remembered.
+pub(crate) fn answer_duplicate(app: &mut DmApp, address: String, id: Id, how: Dup) {
+    match how {
+        Dup::Show => {
+            app.selected.clear();
+            app.selected.insert(id);
+            // A stopped or failed row goes on, so the person who clicked the
+            // link again is not left to find the button.
+            let failed = app
+                .row(id)
+                .is_some_and(|r| matches!(r.state, State::Failed(_)));
+            if can_go_on(app, id) {
+                if failed {
+                    app.backend.retry(id);
+                } else {
+                    app.backend.resume(id);
+                }
+            }
+        }
+        Dup::Again => app.dialogs.open_file_info(vec![address]),
+        Dup::Replace => match replaceable(app, id) {
+            Some((path, dir, name)) => {
+                let with = dm_core::AddOptions {
+                    replaces: Some(path),
+                    save_dir: Some(dir),
+                    save_name: Some(name),
+                    ..Default::default()
+                };
+                if let Err(e) = app.add(&[address], with) {
+                    app.said = e.into();
+                }
+            }
+            // Nothing finished to replace: a numbered copy, as before.
+            None => app.dialogs.open_file_info(vec![address]),
+        },
+    }
+}
+
+/// Asked when an address typed in is already a row: show it (or go on with
+/// it), download it again, replace the old file, or leave it.
 pub(super) fn duplicate(app: &mut DmApp, ctx: &egui::Context) {
     let Some((address, id)) = app.dialogs.duplicate.clone() else {
         return;
     };
     let status = app.row(id).map(crate::app::status_of).unwrap_or_default();
-    let (mut again, mut show, mut cancel) = (false, false, false);
+    let go_on = can_go_on(app, id);
+    let can_replace = replaceable(app, id).is_some();
+    let tick = egui::Id::unique("duplicate-remember");
+    let mut remember = ctx.data(|d| d.get_temp::<bool>(tick)).unwrap_or(false);
+    let (mut again, mut show, mut replace, mut cancel) = (false, false, false, false);
     window(ctx, "Already in the list").show(ctx, |ui| {
         ui.label(RichText::new(format::shown_url(&address)).weak());
         ui.label(tf("This address is already in the list ({}).", &[&status]));
+        toggle_row(ui, &mut remember, t("Remember my choice"));
         footer(ui, |ui| {
             // Enter presses it, as in every other dialog.
             // Enter shows the row, which changes nothing: an Enter pressed
             // for Download details, a moment before this asked, fetched the
             // file a second time.
-            show = primary(ui, "Show it").clicked() || enter_free(ui);
+            show = if go_on {
+                primary(ui, "Resume it").clicked()
+            } else {
+                primary(ui, "Show it").clicked()
+            } || enter_free(ui);
             again = ui.button(t("Download again")).clicked();
+            if can_replace {
+                replace = ui.button(t("Replace the old file")).clicked();
+            }
             cancel = ui.button(t("Cancel")).clicked();
         });
     });
-    if again {
-        app.dialogs.duplicate = None;
-        app.dialogs.open_file_info(vec![address]);
+    ctx.data_mut(|d| d.insert_temp(tick, remember));
+    let how = if replace {
+        Some(Dup::Replace)
+    } else if again {
+        Some(Dup::Again)
     } else if show {
+        Some(Dup::Show)
+    } else {
+        None
+    };
+    if let Some(how) = how {
         app.dialogs.duplicate = None;
-        app.selected.clear();
-        app.selected.insert(id);
+        ctx.data_mut(|d| d.insert_temp(tick, false));
+        if remember {
+            let mut wanted = app.applied.clone();
+            wanted.duplicate_choice = how.word().to_string();
+            if let Err(e) = app.apply_settings(wanted) {
+                app.said = e.into();
+            }
+        }
+        answer_duplicate(app, address, id, how);
     } else if cancel {
         app.dialogs.duplicate = None;
+        ctx.data_mut(|d| d.insert_temp(tick, false));
     }
 }
 
@@ -363,6 +481,11 @@ pub(super) fn add_url(app: &mut DmApp, ctx: &egui::Context) {
     }
     // Already a row: asked, rather than a second row nobody meant.
     if let Some(id) = already_listed(app, &address) {
+        // Answered at once where the person ticked "Remember my choice".
+        if let Some(how) = Dup::from_word(&app.applied.duplicate_choice) {
+            answer_duplicate(app, address, id, how);
+            return;
+        }
         app.dialogs.duplicate = Some((address, id));
         return;
     }

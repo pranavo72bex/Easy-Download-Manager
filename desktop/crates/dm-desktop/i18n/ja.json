@@ -760,5 +760,15 @@
  "The requested file doesn't exist.": "要求されたファイルは存在しません。",
  "Details:": "詳細:",
  "Contents": "内容",
- "Reading the contents…": "内容を読み込んでいます…"
+ "Reading the contents…": "内容を読み込んでいます…",
+ "When the scheduled downloads are done": "予約したダウンロードが終わったとき",
+ "Try a failed download again this many times (0 for none)": "失敗したダウンロードを再試行する回数（0で再試行しない）",
+ "The schedule has set what dm does when the downloads are done: {}.": "スケジュールにより、ダウンロード完了時の dm の動作が設定されました: {}。",
+ "Remember my choice": "選択を記憶する",
+ "Replace the old file": "古いファイルを置き換える",
+ "Resume it": "再開する",
+ "When an address is already in the list": "アドレスがすでに一覧にあるとき",
+ "dm identifies itself to servers as:": "dm がサーバーに名乗る名前:",
+ "Identify as dm only": "dm としてのみ名乗る",
+ "Sends dm's own name first. A site that refuses it is asked again with another name.": "まず dm 自身の名前を送ります。拒否するサイトには別の名前で再度問い合わせます。"
 }
