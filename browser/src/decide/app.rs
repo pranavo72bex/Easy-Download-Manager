@@ -134,18 +134,24 @@ fn absent_said(reason: &str, own_id: &str, firefox: bool, then: &str, get: &str)
 /// What the extension knows of the app.
 #[derive(Debug, Clone, PartialEq)]
 pub enum App {
+    /// The app answered: its hello, and the rules it serves for what to catch.
     Present { hello: Hello, rules: CatchRules },
+    /// The app did not answer, and why.
     Absent { reason: String },
 }
 
 /// An answer about the app, and when it was given.
 #[derive(Debug, Clone)]
 pub struct Known {
+    /// What was learned of the app.
     pub app: App,
+    /// When it was learned, in milliseconds.
     pub at_ms: f64,
 }
 
 impl Known {
+    /// Whether the answer is recent enough to rely on at `now_ms`.
+    #[must_use]
     pub fn fresh(&self, now_ms: f64) -> bool {
         let lasts = match self.app {
             App::Present { .. } => PRESENT_FOR_MS,
@@ -178,6 +184,8 @@ impl Probe {
         }
     }
 
+    /// Whether the app has said hello.
+    #[must_use]
     pub fn has_hello(&self) -> bool {
         self.hello.is_some()
     }
@@ -238,6 +246,7 @@ pub struct Released {
 }
 
 impl Released {
+    /// Notes that the app took the download of this address, so a repeat is not handed over again for a while.
     pub fn remember(&mut self, url: &str, now_ms: f64) {
         self.urls.retain(|(_, at)| now_ms - *at < RELEASED_FOR_MS);
         self.urls.push((url.to_string(), now_ms));

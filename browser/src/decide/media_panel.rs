@@ -15,13 +15,16 @@ pub struct Media {
     pub tag: String,
     /// `currentSrc`, falling back to `src`.
     pub src: String,
+    /// The element's width in pixels.
     pub width: f64,
+    /// The element's height in pixels.
     pub height: f64,
 }
 
 /// What the panel offers for one element.
 #[derive(Debug, Clone, PartialEq)]
 pub struct Offer {
+    /// The panel's heading.
     pub title: &'static str,
     /// Where the file comes from, or how it is fetched: the bar's tooltip.
     pub sub: String,
@@ -33,6 +36,7 @@ pub struct Offer {
 /// Below these a media element is decoration — an avatar, a spacer, a muted
 /// background loop — and a download button over it would be noise.
 pub const MIN_VIDEO: (f64, f64) = (200.0, 120.0);
+/// The smallest audio element that gets a panel, in pixels (width, height).
 pub const MIN_AUDIO: (f64, f64) = (160.0, 24.0);
 
 /// Whether a media element gets the panel, and what it says.
@@ -109,17 +113,21 @@ pub fn dragged(
 #[derive(Deserialize, Default, Debug, Clone)]
 #[serde(default, rename_all = "camelCase")]
 pub struct PanelClick {
+    /// The kind of click: what the page script reports.
     #[serde(rename = "type")]
     pub kind: String,
+    /// The address of the element's media.
     pub src: String,
     /// The address of the frame the player is in.
     pub frame: String,
     /// The quality picked from the panel's list, and what the list said.
     pub quality: Option<String>,
+    /// What the quality's list entry said.
     pub label: Option<String>,
     /// A sound the player fetched apart from the picture at `src`.
     /// The panel's "Part" line: where the part starts and ends, as typed.
     pub from: Option<String>,
+    /// Where the part ends, as typed.
     pub to: Option<String>,
 }
 
@@ -179,6 +187,7 @@ pub fn human_size(bytes: u64) -> String {
 /// through the browser's DRM, EME): offered nothing, and said so, rather
 /// than handing over something that could only fail or come out scrambled.
 pub const PROTECTED_TITLE: &str = "Protected video";
+/// What the panel says over a protected video.
 pub const PROTECTED_SAID: &str =
     "This video is copy-protected, so only the site's own player can play it. dm does not download protected video.";
 

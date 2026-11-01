@@ -14,9 +14,13 @@ pub const MENUS: &[(&str, &str, &[&str])] = &[
         &["selection"],
     ),
 ];
+/// The id of the context menu entry for a link.
 pub const MENU_LINK: &str = "dm-link";
+/// The id of the context menu entry for a video or audio element.
 pub const MENU_MEDIA: &str = "dm-media";
+/// The id of the context menu entry that downloads all links on a page.
 pub const MENU_ALL_LINKS: &str = "dm-all-links";
+/// The id of the context menu entry that downloads the selected links.
 pub const MENU_SELECTED_LINKS: &str = "dm-selected-links";
 
 /// What the background asks the page script for: the page's links, or only
@@ -68,7 +72,9 @@ pub const NO_LINKS_HERE: &str =
 /// What a context menu click or the toolbar button asks for.
 #[derive(Debug, Clone, PartialEq)]
 pub struct Target {
+    /// The address to download.
     pub url: String,
+    /// The page it was found on.
     pub referrer: String,
     /// A page rather than a file: the app reads it as a video page if it turns out
     /// to be a player page.
@@ -79,10 +85,15 @@ pub struct Target {
 #[derive(Deserialize, Default, Debug, Clone)]
 #[serde(default, rename_all = "camelCase")]
 pub struct MenuClick {
+    /// Which menu entry was clicked.
     pub menu_item_id: Value,
+    /// The link clicked, if any.
     pub link_url: Option<String>,
+    /// The media element's address, if any.
     pub src_url: Option<String>,
+    /// The address of the page.
     pub page_url: Option<String>,
+    /// The address of the frame the click was in.
     pub frame_url: Option<String>,
 }
 

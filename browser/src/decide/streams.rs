@@ -6,7 +6,9 @@ use super::*;
 #[derive(Deserialize, Default, Debug, Clone)]
 #[serde(default)]
 pub struct Header {
+    /// The header's name.
     pub name: String,
+    /// The header's value, where it has one.
     pub value: Option<String>,
 }
 
@@ -16,11 +18,16 @@ pub struct Header {
 #[derive(Deserialize, Default, Debug, Clone)]
 #[serde(default, rename_all = "camelCase")]
 pub struct Seen {
+    /// The response's address.
     pub url: String,
+    /// The browser tab it was loaded for.
     pub tab_id: i64,
+    /// What kind of request it answered, as the browser names it.
     #[serde(rename = "type")]
     pub kind: String,
+    /// The HTTP status code.
     pub status_code: u16,
+    /// The response's headers.
     pub response_headers: Vec<Header>,
 }
 
@@ -44,9 +51,13 @@ pub enum StreamKind {
 /// Media a page loaded, offered in the panel beside what the app reads.
 #[derive(Debug, Clone, PartialEq, serde::Serialize, Deserialize)]
 pub struct Stream {
+    /// The stream's address.
     pub url: String,
+    /// What kind of media the stream is.
     pub kind: StreamKind,
+    /// Its size, where the response said.
     pub size: Option<u64>,
+    /// The label the panel lists it under.
     pub label: String,
     /// For a picture and a sound a player fetched apart, joined into one
     /// line of the list: the address of the sound, which dm fetches with the
@@ -852,6 +863,7 @@ impl Streams {
         }
     }
 
+    /// Forgets everything learned about this tab.
     pub fn forget(&mut self, tab: i64) {
         self.by_tab.remove(&tab);
         self.described.retain(|(t, _)| *t != tab);

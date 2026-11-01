@@ -8,6 +8,7 @@ pub const CATCHING_KEY: &str = "dm.catching";
 
 /// The toolbar popup asking how the app is, and asking it to show itself.
 pub const STATUS_MESSAGE: &str = "dm.status";
+/// The message the popup sends to ask the app to show itself.
 pub const OPEN_MESSAGE: &str = "dm.open";
 
 /// Where the sites the panel is kept off are stored, in the extension's
@@ -122,7 +123,9 @@ pub fn cookie_query(url: &str, store: Option<&str>) -> Value {
 #[derive(Deserialize, Default, Debug, Clone, PartialEq)]
 #[serde(default)]
 pub struct BrowserCookie {
+    /// The cookie's name.
     pub name: String,
+    /// The cookie's value.
     pub value: String,
 }
 

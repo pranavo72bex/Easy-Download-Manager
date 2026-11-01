@@ -8,18 +8,27 @@ use super::*;
 #[derive(Deserialize, Default, Debug, Clone)]
 #[serde(default, rename_all = "camelCase")]
 pub struct DownloadItem {
+    /// The browser's id for the download.
     pub id: Option<f64>,
+    /// The address the download was asked for.
     pub url: Option<String>,
     /// Chrome only: where the redirects ended.
     pub final_url: Option<String>,
+    /// The page it was started from.
     pub referrer: Option<String>,
+    /// The file name the browser chose.
     pub filename: Option<String>,
+    /// The type of the content, as the server said.
     pub mime: Option<String>,
+    /// The file's size, where known.
     pub file_size: Option<f64>,
+    /// The size the browser expects, where known.
     pub total_bytes: Option<f64>,
+    /// The browser's state for the download.
     pub state: Option<String>,
     /// Set when an extension started the download.
     pub by_extension_id: Option<String>,
+    /// Whether it was started in a private window.
     pub incognito: Option<bool>,
     /// Firefox: the container (cookie store) the download was made in.
     pub cookie_store_id: Option<String>,
@@ -28,14 +37,19 @@ pub struct DownloadItem {
 /// A browser download that could be handed over, if the app wants it.
 #[derive(Debug, Clone, PartialEq)]
 pub struct Catchable {
+    /// The browser's id for the download.
     pub id: i64,
     /// Where the bytes come from: after redirects, where the browser says.
     pub url: String,
     /// The address the download was asked for, before any redirect.
     pub asked_url: String,
+    /// The page it was started from.
     pub referrer: String,
+    /// The file name the browser chose.
     pub filename: String,
+    /// The type of the content, as the server said.
     pub mime: String,
+    /// The file's size, where known.
     pub size: Option<u64>,
     /// The cookie store the download was made in (Firefox's containers),
     /// whose cookies are its sign-in; `None` is the browser's default.
@@ -43,6 +57,8 @@ pub struct Catchable {
 }
 
 impl Catchable {
+    /// This download as the rules look at it.
+    #[must_use]
     pub fn candidate(&self) -> Candidate<'_> {
         Candidate {
             url: &self.url,
@@ -141,6 +157,8 @@ pub enum BrowserCopy {
     Remove,
 }
 
+/// What to do with the browser's own copy once the app has taken the download.
+#[must_use]
 pub fn after_taken(state: Option<&str>) -> BrowserCopy {
     if state == Some("complete") {
         BrowserCopy::Remove

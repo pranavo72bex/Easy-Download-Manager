@@ -88,13 +88,21 @@ pub const BODY: &str = r#"<div class="panel" role="group" aria-label="dm">
 /// A key pressed in the panel, as far as the panel cares.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Key {
+    /// The Escape key.
     Escape,
+    /// The Down arrow.
     Down,
+    /// The Up arrow.
     Up,
+    /// The Home key.
     Home,
+    /// The End key.
     End,
+    /// The Tab key.
     Tab,
+    /// Shift and Tab together.
     ShiftTab,
+    /// Any other key.
     Other,
 }
 
@@ -119,7 +127,9 @@ impl Key {
 pub enum Focus {
     /// The bar's button.
     Go,
+    /// The help button.
     Help,
+    /// The close button.
     Close,
     /// A line of the open list (qualities, or the × menu), by position.
     Item(usize),
@@ -132,6 +142,7 @@ pub enum Act {
     CloseList,
     /// Hide the panel and put the focus back on the player.
     Hide,
+    /// Moves the focus to this place.
     Focus(Focus),
     /// Back to the player, the key's own work stopped (Shift+Tab off the
     /// bar) or let go on from there (Tab off the last button), so Tab

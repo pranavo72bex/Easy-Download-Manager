@@ -56,6 +56,7 @@ pub struct Request {
     /// end as typed, either empty. "Download details" opens with them filled.
     #[serde(default, skip_serializing_if = "String::is_empty")]
     pub from: String,
+    /// Where that part ends, as typed; see `from`.
     #[serde(default, skip_serializing_if = "String::is_empty")]
     pub to: String,
     /// Caught by the browser extension, rather than asked for from its
