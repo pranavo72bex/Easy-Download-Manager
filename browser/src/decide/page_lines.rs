@@ -352,54 +352,17 @@ fn gather_value(value: &Value, into: &mut Gathered) {
     }
 }
 
-/// The one HLS or DASH address a page names, when it names exactly one: a page with
-/// several (a feed) does not say which is the playing video's, so none is offered.
-fn lone_stream(text: &str) -> Vec<PageLine> {
-    let mut found: Vec<String> = Vec::new();
-    for region in regions(text) {
-        let plain = region.replace("\\/", "/").replace("\\u002F", "/").replace("\\u002f", "/");
-        for (at, _) in plain.match_indices("http") {
-            let rest = &plain[at..];
-            if !is_web(rest) {
-                continue;
-            }
-            let end = rest
-                .find(|c: char| matches!(c, '"' | '\'' | '\\' | '<' | '>' | ' ' | '\n' | '\r' | ')'))
-                .unwrap_or(rest.len());
-            let url = &rest[..end];
-            if is_stream(url) && !found.iter().any(|u| u == url) {
-                found.push(url.to_string());
-            }
-        }
-    }
-    match found.as_slice() {
-        [url] => vec![line_of(Found {
-            url: url.clone(),
-            ..Found::default()
-        })],
-        _ => Vec::new(),
-    }
-}
-
 /// The lines a page offers for the video the player is playing, given the
 /// addresses the player has been seen to fetch (`seen`): the page's list of
 /// renditions that holds one of those files, and the DASH manifest beside it.
 /// Nothing when the page names no video that matches.
 pub fn page_lines(text: &str, seen: &[String]) -> Vec<PageLine> {
     let ids: Vec<String> = seen.iter().filter_map(|u| file_id(u)).collect();
-    // The player has fetched nothing yet: the page's one stream, if it names only one.
-    // Once it has, a page that does not hold its files is not offered another video's.
     if ids.is_empty() {
-        lone_stream(text)
-    } else {
-        lines_around(text, &ids)
+        return Vec::new();
     }
-}
-
-/// The page's own list of renditions around the files the player fetched.
-fn lines_around(text: &str, ids: &[String]) -> Vec<PageLine> {
     for region in regions(text) {
-        for hit in hits(region, ids) {
+        for hit in hits(region, &ids) {
             let Some(Value::String(own)) = value_at(region, hit.string.0) else {
                 continue;
             };

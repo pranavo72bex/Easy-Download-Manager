@@ -1826,10 +1826,7 @@ fn a_pages_own_video_files_are_offered_for_the_video_that_is_playing() {
     // that names nothing offers nothing.
     assert!(page_lines(&page, &["https://other.example/zzzzzzzzzzzzzzzzzzzzzzzzzzzz.mp4".into()]).is_empty());
     assert!(page_lines("<p>no video here</p>", &seen).is_empty());
-    // Nothing fetched yet: the page's one stream is offered, and only that.
-    let lone = page_lines(&page, &[]);
-    assert_eq!(lone.len(), 1);
-    assert_eq!(lone[0].label, "DASH stream");
+    assert!(page_lines(&page, &[]).is_empty());
 }
 
 #[test]
@@ -1923,17 +1920,4 @@ fn a_site_nobody_wrote_a_reader_for_still_lists_its_renditions() {
             ("MP4 file, quality 1080p, 3000 kbps".to_string(), format!("https://cdn.example/v/{ID}_1080.mp4")),
         ]
     );
-}
-
-#[test]
-fn a_page_naming_one_stream_offers_it_before_the_player_has_fetched_anything() {
-    let one = r#"<script>var cfg = {"hls":"https:\/\/cdn.example\/v\/master.m3u8?sig=1","poster":"https:\/\/cdn.example\/p.jpg"};</script>"#;
-    let lines = page_lines(one, &[]);
-    assert_eq!(lines.len(), 1);
-    assert_eq!(lines[0].label, "HLS stream");
-    assert_eq!(lines[0].url, "https://cdn.example/v/master.m3u8?sig=1");
-    // A page with several (a feed) does not say which is the playing video's.
-    let feed = r#"<script>[{"u":"https://cdn.example/a.m3u8"},{"u":"https://cdn.example/b.m3u8"}]</script>"#;
-    assert!(page_lines(feed, &[]).is_empty());
-    assert!(page_lines("<p>no video</p>", &[]).is_empty());
 }

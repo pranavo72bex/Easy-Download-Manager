@@ -3684,10 +3684,3 @@ one of its own. Dropped: a table of site profiles (needs a release for each site
 Known limits: field names with none of those words (a height named `h`), a list kept outside
 a script (a `data-` attribute), and pages that hold no list at all (the list then shows only
 what the player fetched).
-
-Added the same day: where the player has fetched nothing yet, the page's own HLS or DASH
-address is offered when the page names exactly one (a page with several, a feed, does not
-say which is the playing video's, so none). Once the player has fetched something, only the
-page's list that holds those files is used: another video's stream is never offered instead.
-The stream is one line ("HLS stream" or "DASH stream"); its own ladder of qualities is not yet
-read for such a line.
