@@ -257,6 +257,9 @@ struct Source {
 /// Shared state for one download.
 struct Job {
     segments: Mutex<Vec<Segment>>,
+    /// Set when a finished range's last bytes, asked for again, were other
+    /// bytes than the ones on disk: the connections did not get one file.
+    disagreed: std::sync::atomic::AtomicBool,
     /// For each range after the first, the byte just before it, fetched as
     /// a one-byte overlap with the range before; `NO_OVERLAP` until fetched.
     /// Checked at assembly against the previous range's last byte, which is
@@ -934,6 +937,7 @@ async fn fetch_reporting(
     let live = segments.clone();
 
     let job = Arc::new(Job {
+        disagreed: std::sync::atomic::AtomicBool::new(false),
         segments: Mutex::new(segments),
         limiter: options.limiter.clone(),
         sources,
@@ -1047,6 +1051,33 @@ async fn fetch_reporting(
         return Box::pin(download_reporting(client, url, &one, again)).await;
     }
     outcome?;
+
+    /* A range's last bytes, asked for again, were not the bytes on disk: the
+     * connections did not all get the same file. Fetched again from the
+     * start on one connection, where there is no seam, and the row says why. */
+    if job.disagreed.load(std::sync::atomic::Ordering::SeqCst) && options.connections > 1 && workers > 1 {
+        let mut listing = fs::read_dir(&options.parts_dir).await?;
+        while let Some(entry) = listing.next_entry().await? {
+            let _ = fs::remove_file(entry.path()).await;
+        }
+        if let Some(to) = &again {
+            let _ = to
+                .send(Update::Retrying {
+                    attempt: 1,
+                    of: 1,
+                    why: "the pieces fetched over several connections did not agree when                           checked again, so the file is fetched again over one"
+                        .into(),
+                    wait: std::time::Duration::ZERO,
+                })
+                .await;
+        }
+        let one = Options {
+            connections: 1,
+            ..options.clone()
+        };
+        drop(claimed);
+        return Box::pin(download_reporting(client, url, &one, again)).await;
+    }
 
     /* A Metalink supplies its own digest where the caller gave none, so the
      * options handed to assembly carry whichever applies — one place decides

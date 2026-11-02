@@ -87,9 +87,11 @@ async fn honest_ranges_pass_the_second_look_and_stay_on_several_connections() {
     let done = download(&client(), &url, &opts).await.expect("download");
     assert_eq!(std::fs::read(&done.path).unwrap(), pattern(8 * MB));
     assert!(done.connections > 1, "{} connection", done.connections);
+    // Every small range counts: the seams, and the last bytes of each finished
+    // piece asked for again, of which a split makes more.
     let looked = checks.load(Ordering::SeqCst);
     assert!(
-        (1..=8).contains(&looked),
+        (1..=24).contains(&looked),
         "{looked} seams were looked at again"
     );
 }

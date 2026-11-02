@@ -541,10 +541,10 @@ pub(super) async fn fetch_segment(
 const DATA_CHECK_SIZE: u64 = 4 * 1024;
 
 /// After a segment completes, re-fetches its last [`DATA_CHECK_SIZE`] bytes
-/// and compares them against what is on disk. Returns [`Error::Changed`] if
-/// they differ — the staged file is corrupt and the download should restart.
+/// and compares them against what is on disk. If they differ the job is
+/// marked as disagreeing, and the download goes again on one connection.
 /// Network errors during the check are ignored: only a clear byte mismatch
-/// fails the segment.
+/// counts.
 async fn spot_check_segment(
     client: &reqwest::Client,
     job: &Job,
@@ -599,7 +599,7 @@ async fn spot_check_segment(
     };
 
     if from_server[..] != on_disk[..] {
-        return Err(Error::Changed);
+        job.disagreed.store(true, std::sync::atomic::Ordering::SeqCst);
     }
     Ok(())
 }
