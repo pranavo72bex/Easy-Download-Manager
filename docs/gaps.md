@@ -136,7 +136,13 @@ reference A works. The external video tool is removed entirely (`docs/decisions.
 | 90 | Start queue and Stop queue each with a drop-down of queues. Spec G90. | OPEN |
 | 91 | Help and View menus: Tutorials, Tip of the Day, Home page, Contact support, Tell a friend, Font. Spec G91. | OPEN, needs approval |
 | 92 | Site grabber: templates, size filters, sign-in inside it, a Grabber projects node, a results step. Spec G92. | OPEN |
-| 93 | Order to build, rows 72 to 92: G73, G75, G79, G80, then G82, G85, G87, G86, G92, G90. Wait for the maintainer's word before 72a to 72d, G74, G76, G84, G91 (each changes visible wording, layout or what a click does). | PLAN |
+| 93 | Order to build, rows 72 to 98: G73, G75, G79, G80, G95, G96, G97, then G82, G85, G87, G86, G92, G90; G98 is a measurement to run first. Wait for the maintainer's word before 72a to 72d, G74, G76, G84, G91 (each changes visible wording, layout or what a click does). | PLAN |
+| 94 | Link grabbing: reference A's "Download All Links" window always opens with every link unchecked, its type, its size (it asks each server), its address, the folder it will save to, and its link text; dm adds every link to the queue at once unless an "ask" setting is on (both off by default), and its window lacks three of reference A's controls. Spec G94. | OPEN, needs approval for the default |
+| 95 | Engine, measured 2026-11-02 (`docs/reference-behavior.md`): reference A cuts a small file into pieces down to about 14 KB (a 100 KB file on 4 connections); dm uses 1 connection under 128 KiB. Spec G95. | OPEN |
+| 96 | Engine: reference A re-reads 64 bytes across each seam between pieces; dm checks 1 byte. Spec G96. | OPEN |
+| 97 | Engine: after a cut or an outage reference A is back on all connections within 0.04 to 0.1 s; dm within 1.2 s, and after a long outage on a growing wait. Spec G97. | OPEN |
+| 98 | Engine cases dm was not run on, reference A was: a 302 redirect (every piece asks the final address), a reply with no Content-Length, the headers sent (an old browser's User-Agent, `Accept-Encoding: identity`, `Accept-Language`, `Accept-Charset`, a `Referer` of the address's own folder when none is given). Spec G98. | OPEN (audit) |
+| 99 | Extension, watched 2026-11-02 with both on one page: the right-click items match in kind (a page: dm "Download all links with dm", reference A "Download with" its own name; a link: "Download link with dm" and the same; a selection: "Download selected links with dm" and the same). Differences are rows 74, 76, 86 and 94. | NOTE |
 
 ### Implementation specs, rows 72 to 92 (2026-11-02)
 
@@ -320,7 +326,67 @@ and `SITES_HOLD=<seconds>` with `scripts/sites-check.py <site>`, then drive the 
   rate and the app's `Choice` carries it (`dm-protocol`); `decide::choice_line` writes "720p HD 60 fps". Done when: a
   dm-core test on a fixed player response with two 720p formats; side by side on the same video.
 
+#### G94 Link grabbing: the "Download links" window (Approval for the default)
+- **Reference A:** right-click, "Download selected links with ..." opens a window with every link, none checked: File Name,
+  File Type, Size (it asks each server for it: `292.96 KB` for each of eight local files), Download from, Save to (the
+  category's folder: `Downloads\Compressed\a.zip`), Link Text. Below it: Check All, Uncheck All, Edit; Save To (every file
+  to the folder of its category / all files to one category / all files to one directory with Browse); "Use link texts as
+  download descriptions" (on); "Hide HTML files"; "Hide images located on this web page" (on); "Hide repeated files".
+- **dm:** `desktop/crates/dm-desktop/src/dialogs/links.rs` has File name, Type, Size, "Only these types", "Hide HTML files",
+  Check all, Uncheck all, Add for later, Start now, Cancel. It opens only when `ask_panel_downloads` is on
+  (`dm-shell/src/settings.rs`, default `false`); otherwise `app/sync.rs` (line ~310) queues every link at once, in the
+  Main queue, waiting for Start queue. A run on this page: all eight links appeared at once as "Waiting for Start queue".
+- **Goal:** the defaults ask, as reference A does, and the window gets the missing controls.
+- **Change:**
+  1. Default `ask_panel_downloads` and `ask_caught_downloads` to `true` (contract rows B02, B30 and B37 describe what a click
+     does today: **Approval**, and the commit edits those rows). A person who turned them off keeps off.
+  2. `dialogs/links.rs`: columns Save to and Link text; a Save To choice (by category, one category, one folder, with Browse);
+     "Use link texts as descriptions" (puts the text in the row's note); "Hide images" and "Hide repeated files" beside
+     "Hide HTML files"; an Edit button for the chosen row's name or address. `dialogs/state.rs` `LinksImport` carries them.
+  3. The sizes: `open_links` already asks each address (`Found.size`); keep it bounded (8 at a time, 5 s each).
+- **Done when:** a window test in `tests/window/` that opens the dialog from a page's links with the defaults, ticks two, and
+  adds only those to the folder chosen; `scripts/human-qa.py` row; a side-by-side screenshot on the local page
+  (`python -m http.server` with eight files, the page in `scripts/fixtures/`).
+
+#### G95 Engine: pieces for small files
+- **Measured:** reference A, a 100 KB file: 4 connections, pieces down to about 14 KB; dm: 1 connection (a piece is at least
+  128 KiB, `dm-core/src/download/ranged.rs`).
+- **Goal:** a small file finishes as fast as reference A's without a flood: pieces down to 32 KiB, never more connections than
+  the setting, and not under 4 pieces for a file over 256 KiB.
+- **Change:** the piece-size floor in `ranged.rs` (and where it is read in `download/mod.rs`); a setting is not needed.
+- **Done when:** `tests/download.rs` and `tests/speed.rs` runs on 100 KB, 256 KB and 1 MB local files: the connection
+  count and the bytes match; the whole suite (`tests/limits.rs`, `tests/seam_check.rs`) still passes.
+
+#### G96 Engine: the seam between pieces
+- **Measured:** reference A starts each piece 64 bytes before its own start and ends it 64 bytes into the next; dm
+  overlaps 1 byte (`spot_check_segment`, ENG-D12, `download/ranged.rs`).
+- **Goal:** compare 64 bytes at each seam, so a server that changes its content between pieces is caught at the joins.
+- **Change:** the overlap constant and the compare in `spot_check_segment`; on a mismatch keep today's answer
+  (`job.disagreed`, restart on one connection).
+- **Done when:** `tests/seam_check.rs` gains a case where bytes 10 to 60 across a seam differ (the 1-byte check passes it, the
+  64-byte one fails it).
+
+#### G97 Engine: recovery after a cut or an outage
+- **Measured:** every connection cut: reference A back on all in 0.04 s, dm in 1.2 s. A server that stops for 30 s: reference A
+  back within 0.1 s of its return, dm waits 1, 2, 4, 8 s and so on. (Its 205 attempts a second against a failing server is
+  not copied: a short, bounded wait gives the same result.)
+- **Goal:** back within about a second of a cut, and within 2 s of a server's return after any outage.
+- **Change:** `dm-core/src/retry.rs` and `download/ranged.rs`: a cut of a connection that was working is retried at once
+  (first retry with no wait); after the first failed retry the wait is capped at 2 s while the file had made progress; the
+  attempt limit (Options > Advanced, 15) stays.
+- **Done when:** `tests/wire.rs` and `tests/errors.rs`: a cut at 3 s resumes in under 1.5 s; a server back after 20 s is
+  reached within 2 s; a server that never returns still ends after the limit.
+
+#### G98 Engine cases to run on dm (audit)
+- **Run both** on the local logging server (`qa/origin`): a 302 redirect, a reply with no `Content-Length`, a server that
+  ignores `If-Range`, and a `Referer` check. Record each in `docs/reference-behavior.md` beside the measured table (the
+  rows marked "Not run").
+- **Headers:** reference A sends an old browser's User-Agent, `Accept-Encoding: identity`, `Accept-Language`,
+  `Accept-Charset`, and a `Referer` of the address's own folder when none was given. Compare with `download/http.rs`
+  `identify_as` and the default User-Agent; open a row for each header a real site refuses without.
+- **Done when:** the "Not run" cells are filled and any difference is a row.
+
 #### Order and rules
-Build G73, G75, G79, G80, then G82, G85, G87, G86, G92, G90. After each: `cargo test --workspace`, the browser tests for
+Build G73, G75, G79, G80, G95, G96, G97, then G82, G85, G87, G86, G92, G90; G98 is a measurement to run first; G94 waits for the maintainer's word on the default. After each: `cargo test --workspace`, the browser tests for
 G73, G75 and G76, `python3 scripts/human-qa.py` in a visible window, the side-by-side look, then update this file and
 `docs/parity.md`, and delete the row when closed (git keeps its history).
