@@ -307,7 +307,7 @@ impl Gathered {
 }
 
 /// A list of entries each carrying a file, read as renditions. `strict` takes only
-/// addresses that look like media; sorted from the smallest bitrate up where all have one.
+/// addresses that look like media; sorted from the largest bitrate down where all have one.
 fn rendition_list(items: &[Value], strict: bool) -> Vec<PageLine> {
     let mut entries: Vec<Found> = Vec::new();
     for item in items {
@@ -318,7 +318,8 @@ fn rendition_list(items: &[Value], strict: bool) -> Vec<PageLine> {
         }
     }
     if entries.iter().all(|e| e.bitrate > 0) {
-        entries.sort_by_key(|e| e.bitrate);
+        // The best first, as the other manager lists them.
+        entries.sort_by_key(|e| std::cmp::Reverse(e.bitrate));
     }
     entries.into_iter().map(line_of).collect()
 }
@@ -494,7 +495,7 @@ fn manifest_lines(xml: &str) -> Vec<PageLine> {
     }
     sounds.sort_by_key(|(bandwidth, _)| std::cmp::Reverse(*bandwidth));
     let sound = sounds.into_iter().next().map(|(_, url)| url);
-    pictures.sort_by_key(|(bandwidth, ..)| *bandwidth);
+    pictures.sort_by_key(|(bandwidth, ..)| std::cmp::Reverse(*bandwidth));
     pictures
         .into_iter()
         .map(|(bandwidth, height, hd, url)| {

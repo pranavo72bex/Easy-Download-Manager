@@ -1848,15 +1848,15 @@ fn a_pages_dash_manifest_gives_each_rendition_its_height_bitrate_and_length() {
     assert_eq!(
         said,
         [
-            "MP4 file, 22 sec, quality 640p, 353 kbps",
             "MP4 file, 22 sec, quality 1280p HD, 2075 kbps",
+            "MP4 file, 22 sec, quality 640p, 353 kbps",
             "MP4 file, quality SD",
             "MP4 file, quality HD",
         ]
     );
     // A picture goes with the best sound, joined; a whole file needs none.
-    assert_eq!(lines[1].url, format!("https://v.fbcdn.net/o1/v/m366/{ID}.mp4?a=1&b=2"));
-    assert_eq!(lines[1].sound.as_deref(), Some("https://v.fbcdn.net/o1/v/m412/sound.mp4"));
+    assert_eq!(lines[0].url, format!("https://v.fbcdn.net/o1/v/m366/{ID}.mp4?a=1&b=2"));
+    assert_eq!(lines[0].sound.as_deref(), Some("https://v.fbcdn.net/o1/v/m412/sound.mp4"));
     assert_eq!(lines[2].sound, None);
 }
 
@@ -1876,12 +1876,12 @@ fn instagrams_manifest_and_files_give_the_reels_qualities() {
     assert_eq!(
         said,
         [
-            "MP4 file, 41 sec, quality 640p, 500 kbps",
             "MP4 file, 41 sec, quality 1280p, 1500 kbps",
+            "MP4 file, 41 sec, quality 640p, 500 kbps",
             "MP4 file, quality 1280p",
         ]
     );
-    assert_eq!(lines[1].sound.as_deref(), Some("https://i.fbcdn.net/o1/v/sound.mp4"));
+    assert_eq!(lines[0].sound.as_deref(), Some("https://i.fbcdn.net/o1/v/sound.mp4"));
     assert!(page_lines(&page, &["https://other.example/zzzzzzzzzzzzzzzzzzzzzzzzzzzz.mp4".into()]).is_empty());
 }
 
@@ -1895,7 +1895,7 @@ fn tiktoks_bitrate_info_gives_the_clips_qualities() {
     let said: Vec<String> = page_lines(&page, &seen).into_iter().map(|l| l.label).collect();
     assert_eq!(
         said,
-        ["MP4 file, quality 960p, 400 kbps", "MP4 file, quality 1280p, 811 kbps"]
+        ["MP4 file, quality 1280p, 811 kbps", "MP4 file, quality 960p, 400 kbps"]
     );
     assert!(page_lines(&page, &["https://x.example/zzzzzzzzzzzzzzzzzzzzzzzzzzzz.mp4".into()]).is_empty());
 }
@@ -1915,9 +1915,9 @@ fn a_site_nobody_wrote_a_reader_for_still_lists_its_renditions() {
     assert_eq!(
         said,
         [
-            ("MP4 file, quality 360p, 500 kbps".to_string(), format!("https://cdn.example/v/{ID}_360.mp4")),
-            ("MP4 file, quality 720p, 1500 kbps".to_string(), format!("https://cdn.example/v/{ID}_720.mp4")),
             ("MP4 file, quality 1080p, 3000 kbps".to_string(), format!("https://cdn.example/v/{ID}_1080.mp4")),
+            ("MP4 file, quality 720p, 1500 kbps".to_string(), format!("https://cdn.example/v/{ID}_720.mp4")),
+            ("MP4 file, quality 360p, 500 kbps".to_string(), format!("https://cdn.example/v/{ID}_360.mp4")),
         ]
     );
 }

@@ -51,6 +51,12 @@ SITES = {
     "vimeo": {"url": "https://vimeo.com/513177164"},
     "facebook": {"url": "https://www.facebook.com/NASA/videos/watch-nasas-perseverance-rover-land-on-mars/438313177583525/"},
     # Facebook's Watch page, for a signed-in account: the post above can be unavailable to it.
+    # Not a site to check: opens the page where the other manager's extension is added to
+    # the kept profile by hand (SITES_SIGNIN=reference-a-extension, the page's address in
+    # SITES_INSTALL_URL), then ends.
+    "reference-a-extension": {"url": "about:blank", "signin_url": os.environ.get("SITES_INSTALL_URL", "about:blank"),
+                              "signed_in": "false"},
+    "youtube": {"url": "https://www.youtube.com/watch?v=ccQ3v1RyOtM"},
     "facebook-watch": {"url": "https://www.facebook.com/watch/", "signin_url": "https://www.facebook.com/"},
     "tiktok": {"url": "https://www.tiktok.com/@nasa/video/7675478347278863629"},
     # A GIF-style clip: the post's media is a short silent MP4.
@@ -278,6 +284,13 @@ def one(base, name, site, engine_dl, worker=None):
     if PROBE and worker is not None:
         out["worker_saw"] = worker.evaluate("globalThis.__dmseen.slice(-14)")
     cc.hover(tab, page_rect(rect))
+    # SITES_HOLD=<seconds>: the video left playing under the pointer for that long, for a
+    # person (or a script that connects to the browser's DevTools port) to look at it.
+    if os.environ.get("SITES_HOLD"):
+        print("HOLD", json.dumps({"url": name, "rect": page_rect(rect)}), flush=True)
+        time.sleep(int(os.environ["SITES_HOLD"]))
+        out["result"] = "held"
+        return out
     state = cc.wait_for(lambda: (panel_of(view) or {}).get("shown") and panel_of(view), 10)
     if not state:
         cc.hover(tab, page_rect(rect))

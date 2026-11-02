@@ -1084,6 +1084,10 @@ def main():
         "--enable-unsafe-extension-debugging",
         "--enable-logging=stderr", "--v=0", "about:blank",
     ]
+    # DM_KEEP_OTHER_EXTENSIONS=1: the extensions the kept profile already holds stay on (a
+    # side-by-side look at another manager's extension), not only the one under test.
+    if os.environ.get("DM_KEEP_OTHER_EXTENSIONS"):
+        args = [a for a in args if not a.startswith("--disable-extensions-except=")]
     # Chromium will not start as root with its sandbox, which is how a
     # container runs it; anywhere else the sandbox stays on.
     if hasattr(os, "geteuid") and os.geteuid() == 0:

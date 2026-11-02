@@ -237,3 +237,24 @@ harness closes its dialogs unread, so its result here is not used.
 ## HTTP proxy test (dm only, 2026-11-02)
 
 FTP and proxy tests via the harness (`D:\compare\compare2.mjs`). SOCKS5 proxy test for dm pending (proxy settings not loading from DM_HOME/settings.json in the harness; to be verified in the human QA). HTTP CONNECT proxy: dm issues `CONNECT host:port HTTP/1.1` to the proxy and downloads over the tunnel — verified working.
+
+## The floating button's list of qualities, watched side by side (2026-11-02)
+
+Both managers' extensions ran in one visible Edge window (a kept test profile, no one's own), on the
+same page, the pointer over the same playing video; reference A's button and list were read from the
+screen (its button is a window of its own over the browser, not part of the page), and nothing was
+downloaded. Observed behaviour only: no file of reference A was opened, and no binary was read.
+
+| | Reference A | dm (before this entry) |
+|---|---|---|
+| Where the button sits | At the top right of the video, above dm's; on a narrow video (a reel) it shrinks to a small play mark and a close mark | At the top right of the video, a bar with a drag grip, a mark, "Download video", a help mark and a hide mark |
+| First line of its list | "Download all" | A "Part" line, then dm's own best-quality line |
+| YouTube, one 15-minute video | TTML subtitles line; then "MP4 file, quality 1080p HD 60 fps", "720p HD", "720p HD 60 fps", "480p", "360p", "240p", "144p"; each line starts with the video's title; no sizes in the list (sizes are in its "Download all" dialog) | "1080p MP4 — 252 MB", "720p MP4 — 137 MB", "480p", "360p", "240p", "144p", then audio-only lines; sizes shown; the 60 fps variants are not listed apart |
+| Facebook, one reel | Best first: "MP4 file, 13 sec, quality 1280p HD, 4590 kbps", "MP4 file, 13 sec, quality 640p, 707 kbps", then "MP4 file, quality SD", "MP4 file, quality HD", then an SRT file; each starts with the video's title | The same lines, the two renditions smallest first (changed below), no title, no caption file, with dm's "video + sound" line first |
+| Wording | "MP4 file, <seconds> sec, quality <height>p[ HD][ 60 fps][, <n> kbps]" | The same words for a page's own renditions; YouTube lines are dm's own ("1080p MP4 — 252 MB") |
+
+Decided: renditions from a page's own data are listed best first, as reference A does (the maintainer asked
+that both be the same; no contract row fixes the order). Not yet done, each a visible wording or layout
+change that needs the maintainer's word (gaps row 72): the video's title at the start of each line, a
+"Download all" line, caption files as lines, the 60 fps variants and "HD" in YouTube's lines, and leaving
+sizes out (dm's sizes were asked for and are kept).
