@@ -357,12 +357,16 @@ def one(base, name, site, engine_dl, worker=None):
     after = cc.wait_for(lambda: (((panel_of(view) or {}).get("lines") or (panel_of(view) or {}).get("title") == "Sent to dm")
                                  and panel_of(view)) or (landed() and {"landed": True}), 60) or {}
     out["lines"] = after.get("lines")
+    if os.environ.get("SITES_EVAL_AFTER"):
+        out["eval_after"] = tab.evaluate(pathlib.Path(os.environ["SITES_EVAL_AFTER"]).read_text(encoding="utf-8"))
     if after.get("lines"):
         shot("3-list")
         x, y = after["at"][0]
         cc.click_at(tab, x + ox, y + oy)
     elif after.get("title") != "Sent to dm" and not after.get("landed"):
         out["panel_after"] = panel_of(view)
+        if os.environ.get("SITES_EVAL_AFTER"):
+            out["eval_after"] = tab.evaluate(pathlib.Path(os.environ["SITES_EVAL_AFTER"]).read_text(encoding="utf-8"))
         out["result"] = "the panel listed no qualities"
         return out
     said = cc.wait_for(lambda: (panel_of(view) or {}).get("title") == "Sent to dm" and panel_of(view), 20)

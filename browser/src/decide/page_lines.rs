@@ -22,7 +22,8 @@ const NEAR: usize = 150_000;
 /// A key that names a file in an address: the part after the last slash, up to
 /// its extension. Long enough to be this file's and no other's.
 fn file_id(url: &str) -> Option<String> {
-    let name = url.split(['?', '#']).next()?.rsplit('/').next()?;
+    // The last non-empty part of the path: some addresses end in a slash.
+    let name = url.split(['?', '#']).next()?.trim_end_matches('/').rsplit('/').next()?;
     let id = name.split('.').next()?;
     (id.len() >= 24).then(|| id.to_string())
 }
@@ -106,7 +107,66 @@ pub fn page_lines(text: &str, seen: &[String]) -> Vec<PageLine> {
         }
         return lines;
     }
-    instagram_lines(text, &ids)
+    let lines = instagram_lines(text, &ids);
+    if lines.is_empty() {
+        tiktok_lines(text, &ids)
+    } else {
+        lines
+    }
+}
+
+/// TikTok's shape: each video's data holds `bitrateInfo`, one entry per quality with its
+/// bitrate, size and addresses. The video whose entry holds a file the player fetched is
+/// the one; its qualities are listed from the smallest up.
+fn tiktok_lines(text: &str, ids: &[String]) -> Vec<PageLine> {
+    for at in places(text, "bitrateInfo") {
+        let items = array_after(text, at, "\"bitrateInfo\"").unwrap_or_default();
+        let address = |item: &serde_json::Value| -> Option<String> {
+            item.get("PlayAddr")?
+                .get("UrlList")?
+                .as_array()?
+                .iter()
+                .filter_map(|u| u.as_str())
+                .find(|u| u.starts_with("https://") || u.starts_with("http://"))
+                .map(str::to_string)
+        };
+        if !items
+            .iter()
+            .filter_map(address)
+            .filter_map(|u| file_id(&u))
+            .any(|id| ids.contains(&id))
+        {
+            continue;
+        }
+        let mut found: Vec<(u64, u64, String)> = items
+            .iter()
+            .filter_map(|item| {
+                let url = address(item)?;
+                let bitrate = item.get("Bitrate").and_then(|b| b.as_u64()).unwrap_or(0);
+                let height = item
+                    .get("PlayAddr")
+                    .and_then(|a| a.get("Height"))
+                    .and_then(|h| h.as_u64())
+                    .unwrap_or(0);
+                Some((bitrate, height, url))
+            })
+            .collect();
+        found.sort_by_key(|(bitrate, ..)| *bitrate);
+        return found
+            .into_iter()
+            .map(|(bitrate, height, url)| {
+                let mut label = String::from("MP4 file");
+                if height > 0 {
+                    label.push_str(&format!(", quality {height}p"));
+                }
+                if bitrate > 0 {
+                    label.push_str(&format!(", {} kbps", bitrate / 1000));
+                }
+                PageLine { url, label, sound: None }
+            })
+            .collect();
+    }
+    Vec::new()
 }
 
 /// Instagram's shape: each video's data holds `video_dash_manifest` (the MPD as a JSON

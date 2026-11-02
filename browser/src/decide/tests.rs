@@ -1884,3 +1884,18 @@ fn instagrams_manifest_and_files_give_the_reels_qualities() {
     assert_eq!(lines[1].sound.as_deref(), Some("https://i.fbcdn.net/o1/v/sound.mp4"));
     assert!(page_lines(&page, &["https://other.example/zzzzzzzzzzzzzzzzzzzzzzzzzzzz.mp4".into()]).is_empty());
 }
+
+#[test]
+fn tiktoks_bitrate_info_gives_the_clips_qualities() {
+    const ID: &str = "o4DPxfQfIIk3KMBHYxVIEGxCCEuyk9deAAzL6j";
+    let page = format!(
+        r#"{{"bitrateInfo":[{{"Bitrate":811768,"PlayAddr":{{"Height":1280,"UrlList":["https://v16.tiktok.com/video/tos/{ID}/?a=1&sig=2"]}}}},{{"Bitrate":400000,"PlayAddr":{{"Height":960,"UrlList":["https://v16.tiktok.com/video/tos/lowlowlowlowlowlowlowlowlowlow/?a=1"]}}}}]}}"#
+    );
+    let seen = vec![format!("https://v16.tiktok.com/video/tos/{ID}/?")];
+    let said: Vec<String> = page_lines(&page, &seen).into_iter().map(|l| l.label).collect();
+    assert_eq!(
+        said,
+        ["MP4 file, quality 960p, 400 kbps", "MP4 file, quality 1280p, 811 kbps"]
+    );
+    assert!(page_lines(&page, &["https://x.example/zzzzzzzzzzzzzzzzzzzzzzzzzzzz.mp4".into()]).is_empty());
+}
