@@ -223,6 +223,17 @@ automatically, so a prompt offering a retry may have been closed unread. Do
 not take this as "reference A never retries a cut 200" until it is run with
 its dialogs left open, at the human QA.
 
+## Outage re-measured (Observed, 2026-11-02)
+
+A 16 MiB file; the server accepts and drops every connection for 20 s from
+the first request, then serves normally. dm 0.8.6: 25 attempts, 13 of them
+dropped, the first request after the server returned came 1.2 s later, the
+file was whole (total 22 s). The 22 s recovery in the table above was dm
+0.8.3 and no longer holds: a dropped connection is now asked again at once,
+then within 2 s. Reference A made one request and stopped in this run, which
+disagrees with the 2026-10-31 measurement (205 attempts a second); the
+harness closes its dialogs unread, so its result here is not used.
+
 ## HTTP proxy test (dm only, 2026-11-02)
 
 FTP and proxy tests via the harness (`D:\compare\compare2.mjs`). SOCKS5 proxy test for dm pending (proxy settings not loading from DM_HOME/settings.json in the harness; to be verified in the human QA). HTTP CONNECT proxy: dm issues `CONNECT host:port HTTP/1.1` to the proxy and downloads over the tunnel — verified working.
