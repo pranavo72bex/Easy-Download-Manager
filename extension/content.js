@@ -287,6 +287,20 @@
       said(reply?.ok ? 'Sent to dm. ' + (extra.label ? extra.label + ': ' : '') + (reply.said || '') : (reply?.said || 'dm could not take it'));
       hideSoon(2500, true);
     };
+    // What the page itself names for this player: Reddit's player element carries the address of
+    // its HLS playlist (picture and sound together) in its `src`, where the MP4 files it loads
+    // are the picture alone.
+    const playerLines = () => {
+      const lines = [];
+      for (let el = current, i = 0; el && i < 12; el = el.parentElement || (el.getRootNode && el.getRootNode().host) || null, i++) {
+        const src = (el.localName === 'shreddit-player' || el.localName === 'shreddit-player-2') ? el.getAttribute('src') : null;
+        if (src && /^https?:/i.test(src) && /[.]m3u8([?]|$)/i.test(src)) {
+          lines.push({ url: src, label: 'HLS stream, best quality', line: 'HLS stream, best quality' });
+          break;
+        }
+      }
+      return lines;
+    };
     const choose = (choice) => finish({
       url: choice.url || '',
       label: choice.label || '',
@@ -304,7 +318,8 @@
         const reply = await send({ type: 'dm.formats', src: srcOf() });
         said('');
         if (!reply?.ok) { said(reply?.said || 'dm did not answer'); hideSoon(5000, true); return; }
-        const choices = Array.isArray(reply.choices) ? reply.choices : [];
+        const given = Array.isArray(reply.choices) ? reply.choices : [];
+        const choices = [...playerLines().filter((l) => !given.some((g) => g.url === l.url)), ...given];
         if (choices.length === 0) await finish({ fields: {} });
         else if (choices.length === 1) await choose(choices[0]);
         else {

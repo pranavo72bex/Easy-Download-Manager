@@ -56,6 +56,9 @@ SITES = {
     # A GIF-style clip: the post's media is a short silent MP4.
     "x": {"url": "https://x.com/NASA/status/1882872996031066248", "silent_ok": True},
     "x2": {"url": "https://x.com/NASA/status/2042756933686337713"},
+    # Reddit's r/videos, whose posts more often have a sound than r/oddlysatisfying's do.
+    "reddit-videos": {"listing": "https://www.reddit.com/r/nextfuckinglevel/top/?t=week", "discover": REDDIT_JS,
+                      "signin_url": "https://www.reddit.com/login/", "signed_in": REDDIT_SIGNED_IN},
     "reddit": {"listing": "https://www.reddit.com/r/oddlysatisfying/top/?t=week", "discover": REDDIT_JS,
                "signin_url": "https://www.reddit.com/login/", "signed_in": REDDIT_SIGNED_IN},
     "instagram": {"listing": "https://www.instagram.com/nasa/reels/", "discover": INSTAGRAM_JS},
