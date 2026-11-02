@@ -3067,7 +3067,7 @@ reference managers get YouTube "legally".
   that has nothing to distribute.
 - **What the law is about** is not the tool but the use: YouTube's terms
   forbid downloading without permission, and the 2020 takedown of
-  youtube-dl claimed circumvention of a technical measure (the "rolling
+  an earlier video tool claimed circumvention of a technical measure (the "rolling
   cipher"); GitHub restored it, finding that claim did not hold, and the
   EFF's letter on it is the public record. The external video tool solves the player's `n`
   and signature puzzles, which YouTube serves in the clear to every
@@ -3077,7 +3077,7 @@ reference managers get YouTube "legally".
   the player's requests and keeps a paid team shipping fixes; the other
   macOS manager looked at today (1.1.10, installed on this computer) ships
   the external video tool 2026.10.26 inside its bundle with QuickJS, ffmpeg, ffprobe and
-  aria2, points the external video tool at its QuickJS through a config file, and updates
+  the downloader, points the external video tool at its QuickJS through a config file, and updates
   the external video tool to the latest release through its own manifest every four hours.
   So none of them "does it legally" in a way dm does not; dm fetches the
   same the external video tool afresh and does not ship it.
@@ -3173,7 +3173,7 @@ What it does, from the record:
   anything, with M4A sound; and it measures a quality by the picture's
   shorter side (`[aspect_ratio<1][width<=720]` for a portrait video).
 - **Other video sites** (Dailymotion tried): the same the external video tool download
-  with no reading first. **A plain file:** its aria2 over RPC, sixteen
+  with no reading first. **A plain file:** its the downloader over RPC, sixteen
   connections (`--split=16 --max-connection-per-server=16
   --min-split-size=1M`).
 - **Its extension:** a button on every `<video>`; on YouTube the quality
@@ -3182,7 +3182,7 @@ What it does, from the record:
   cookies go only for Vimeo and Instagram; a clip (a part of a video) is
   cut by the external video tool's `--download-sections` and ffmpeg (row 42).
 
-So it does not get YouTube without the external video tool: it is the external video tool, ffmpeg and aria2
+So it does not get YouTube without the external video tool: it is the external video tool, ffmpeg and the downloader
 behind a window, and refreshes the external video tool every four hours. dm, as of today,
 goes further than it on YouTube: the page is read by dm itself in four
 requests (`youtube.rs`, no the external video tool run at all when the reading holds; proved
@@ -3196,7 +3196,7 @@ read and for every other site, where the other manager uses it too.
 Taken from it: a quality is the picture's shorter side (`format_for`'s
 selector and `youtube::choose`), so a portrait video at 720p is 720×1280,
 not the 405×720 picture that is 720 tall; dm's own HLS and DASH picks
-still go by height (row 43). Not taken: aria2 (dm's engine fetches plain
+still go by height (row 43). Not taken: the downloader (dm's engine fetches plain
 files on its own connections), ffmpeg and ffprobe (dm's muxers join without
 them), the four-hour refresh (dm refetches a newer the external video tool after a failure
 it has no words for, within the hour), and `--prefer-free-formats` (dm
@@ -3250,7 +3250,7 @@ Measured, the same files one after another:
 - A local server holding each connection to 1 MB/s, 168 MB: dm 8
   connections 20.5 s (8.2 MB/s), 16 connections 10.1 s (16.6 MB/s), 32
   connections 5.4 s (31.1 MB/s); the other manager at its own setting
-  (aria2, 16) 40.6 s, 16.4 s of it waiting in its queue.
+  (the downloader, 16) 40.6 s, 16.4 s of it waiting in its queue.
 - A 100 MB file on a far server over this slow link: the other manager
   failed once at 16.6 s and completed once in 167 s (0.6 MB/s); dm on 8
   connections completed in 88 s (1.2 MB/s) and on 16 failed twice (362 s
@@ -3272,14 +3272,14 @@ every four hours; dm refetches after a failure, within the hour.
 Asked for, in turn: its window's close icons for the side and top panels
 and its popup dialog; how it ships the external video tool, since dm's has given trouble;
 a core as good as its or better; the way its extension gets a video's
-qualities quickly, since dm's panel was slow to; and, last, to run IDA Pro
-through ida-pro-mcp on its app and implement its core and its extension in
+qualities quickly, since dm's panel was slow to; and, last, to run a decompiler
+on its app and implement its core and its extension in
 dm. Also: Microsoft Edge alone for the browser checks.
 
-- **IDA Pro is not on this computer** (nothing at the paths rea and the
-  shell look in), so ida-pro-mcp cannot run here; and decompiling its
+- **A decompiler is not on this computer** (nothing at the paths rea and the
+  shell look in), so that cannot run here; and decompiling its
   binaries to re-implement them would not be the clean-room work asked
-  for earlier the same day. Its core is the external video tool, aria2 and ffmpeg driven
+  for earlier the same day. Its core is the external video tool, the downloader and ffmpeg driven
   by a Node program: there is no native engine in it to take, and dm's own
   engine measured faster (the entry above). What was taken is behaviour,
   observed: the items below.
@@ -3290,7 +3290,7 @@ dm. Also: Microsoft Edge alone for the browser checks.
   once) and lets dm's reading, with sizes, replace that list when it
   comes. The contract's row B34 still ends with the sizes listed.
 - **How it ships the external video tool.** Inside its bundle, the unpacked build, beside
-  QuickJS, ffmpeg and aria2, refreshed from its own manifest every four
+  QuickJS, ffmpeg and the downloader, refreshed from its own manifest every four
   hours. dm now looks for an external video tool shipped in its own package
   (`videopage::bundled`) and the packaging fetches one (its file,
   the desktop workflow); dm's fetched copy still comes first, so the

@@ -28,7 +28,7 @@ utilities" provider.
 |---|---|---|---|
 | The window app | arm64 only, macOS 14 | AppKit, SwiftUI, Foundation, Network and about 45 other Apple frameworks; SQLite | The window, the notch, the native-messaging bridge (**Observed**: its symbols name a native-messaging reader and writer) |
 | The engine | arm64 only, macOS 11 | CoreFoundation and Security only, with libc++ and zlib | A Node.js program packed as a single executable (**Observed**: a Node single-executable marker and a Node 22 version string; its JavaScript is stored as compiled bytecode, so no source is readable) |
-| aria2 | arm64 only, macOS 11 | libSystem and libc++ only | The multi-connection file downloader (**Observed**) |
+| the downloader | arm64 only, macOS 11 | libSystem and libc++ only | The multi-connection file downloader (**Observed**) |
 | QuickJS | arm64 only, macOS 14 | libSystem only | The JavaScript runtime handed to the external video tool (**Observed**) |
 | The external video tool | arm64, macOS 11 | libSystem and zlib; a Python 3.14 runtime beside it | The video reader and downloader, in the external video tool's unpacked ("onedir") layout (**Observed**) |
 
@@ -50,11 +50,11 @@ POSIX calls `pwrite`, `ftruncate` and `fsync`. **No** URLSession download
 calls fetch small things (update manifests, thumbnails, licence checks),
 its save panels let a person choose a folder, and its capacity keys check
 free space. **Observed** in support of that: during every download recorded
-below, the only process with the destination file open was aria2, not the
+below, the only process with the destination file open was the downloader, not the
 window app.
 
 **Observed** in the engine's string constants (read from its compressed
-bytecode blobs; names only): aria2's RPC options for connections per
+bytecode blobs; names only): the downloader's RPC options for connections per
 server, split count, minimum split size, continue, allow-overwrite,
 automatic renaming, tries, retry wait and not-found limits; a constant for
 the most connections; the POSIX error names for permission denial,
@@ -73,22 +73,22 @@ taken the analysis outside clean-room bounds.
 
 Run: the engine fetches one 96 MiB file from a local server that holds
 each connection to 512 KiB/s, while a script samples the download folder,
-aria2's open files and aria2's TCP connections every two seconds
+the downloader's open files and the downloader's TCP connections every two seconds
 (`split-observe.py`). The full table is in the evidence; its shape:
 
-| Time | On disk | aria2 connections to the server |
+| Time | On disk | the downloader connections to the server |
 |---|---|---|
 | 0 to 2 s | nothing (queued, then started) | 0 |
 | 4.7 s | the file at its **final name and full size** (96 MiB apparent, 0 bytes allocated), and a 70-byte control file beside it named after the file with an added suffix | 4 |
 | 7 to 30 s | the same file; its *allocated* size grows from 4 MiB to 99.6 MiB while its apparent size stays 96 MiB; the control file grows to 170 bytes | 6, then 9 |
-| 32.8 s | the file alone, fully allocated; the control file gone; aria2 no longer has it open | (closing) |
+| 32.8 s | the file alone, fully allocated; the control file gone; the downloader no longer has it open | (closing) |
 
 From this:
 
 1. **No parts are merged** (**Observed**). There is never more than one
    data file. Each connection writes its range straight into the final
    file at that range's offset (**Inferred** from the sparse file filling
-   in while several connections are open; consistent with aria2's
+   in while several connections are open; consistent with the downloader's
    positional writes).
 2. **The file is created sparse at its full length** (**Observed**:
    apparent size equals the full size at once while 0 bytes are
@@ -98,14 +98,14 @@ From this:
    (**Observed**: it appears with the file, grows as ranges are split and
    finished, and is deleted at completion). It is what lets a stopped
    download continue (**Inferred**, consistent with the `continue` option
-   observed in aria2's arguments and a session file kept in the app's
+   observed in the downloader's arguments and a session file kept in the app's
    support folder).
 4. **Connections ramp up** as ranges are split (**Observed**: 4, then 6,
-   then 9). aria2 is started with 16 connections per server, 16 splits and
+   then 9). the downloader is started with 16 connections per server, 16 splits and
    a 1 MiB minimum split (**Observed** in its process arguments). "Up to
    32" is a licensed maximum (**Observed**: a licence token field for the
    most connections reads 32, and the engine names a matching constant);
-   that it is applied per download through aria2's options is **Inferred**.
+   that it is applied per download through the downloader's options is **Inferred**.
 5. **On completion the file is marked as downloaded** (**Observed**: it
    carries the quarantine attribute naming the app as its downloader, so
    macOS asks before a downloaded program first runs).
@@ -184,7 +184,7 @@ All **Observed** on this computer:
 
 1. **It ships the external video tool inside the app bundle**, in the external video tool's unpacked layout
    (the program and a folder of Python libraries, 96 MB), beside QuickJS,
-   ffmpeg, ffprobe and aria2.
+   ffmpeg, ffprobe and the downloader.
 2. **Every bundled helper is re-signed with the app's own Developer ID
    team**, and the bundled the external video tool carries an identifier under the app's
    own name. The whole app is notarized. So Gatekeeper accepts every
