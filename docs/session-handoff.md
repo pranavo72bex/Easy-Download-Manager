@@ -118,9 +118,10 @@ connections, the download restarts. dm/ftp.rs: check if MDTM is saved and
 compared on reconnect. Currently: NOT done.
 
 **WP-3: HLS/DASH scheme prefixes from extension (ENG-J5)**
-Reference A uses `hlstoidm://`, `hls2toidm://`, `mpdtoidm://` etc. to pass
-stream types. dm's browser/src/decide/streams.rs: check all these prefixes are
-handled and the correct download type is started. Currently: PARTIAL.
+Reference A passes a stream's type to its app through URL scheme prefixes of
+its own, one per kind (HLS, a second HLS form, DASH). dm's
+browser/src/decide/streams.rs: check every kind is handled and the correct
+download type is started. Currently: PARTIAL.
 
 **WP-4: Content-type HTML check first bytes (ENG-C4)**
 Reference A's CContentTypeChecker::CheckHTML detects when first bytes are HTML
