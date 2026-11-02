@@ -1,9 +1,11 @@
 //! The video files a page lists in its own data, for the panel's list.
 //!
 //! Some sites put the addresses of a video's files in the page itself, not only
-//! in what the player fetches: Facebook's markup holds `progressive_urls` (the
-//! SD and HD files) and `dash_manifest_urls` for each video on the page. The
-//! player's own requests name one rendition; the page names them all.
+//! in what the player fetches. The player's own requests name one rendition; the
+//! page names them all. No site is named here: the files the player fetched are
+//! looked for in the page's JSON, the list of renditions around them is read by
+//! the names of its fields (a height, a bitrate, a quality), and a DASH manifest
+//! held as a string is read for its representations.
 
 /// One line the page offers: the address of a file or stream, and how it is named.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -16,9 +18,6 @@ pub struct PageLine {
     pub sound: Option<String>,
 }
 
-/// How far either side of a video's `progressive_urls` its other fields are looked for.
-const NEAR: usize = 150_000;
-
 /// A key that names a file in an address: the part after the last slash, up to
 /// its extension. Long enough to be this file's and no other's.
 fn file_id(url: &str) -> Option<String> {
@@ -28,205 +27,393 @@ fn file_id(url: &str) -> Option<String> {
     (id.len() >= 24).then(|| id.to_string())
 }
 
-/// The JSON array that follows `"key":` at `at`, read as the page wrote it
-/// (its slashes and `\u` escapes are JSON's).
-fn array_after(text: &str, at: usize, key: &str) -> Option<Vec<serde_json::Value>> {
-    let rest = text.get(at + key.len()..)?;
-    let rest = rest.trim_start().strip_prefix(':')?.trim_start();
-    let mut values = serde_json::Deserializer::from_str(rest).into_iter::<serde_json::Value>();
-    match values.next()? {
-        Ok(serde_json::Value::Array(items)) => Some(items),
-        _ => None,
+use serde_json::Value;
+
+/// One enclosing JSON container at a spot: whether it is an array, and where it starts.
+type Open = (bool, usize);
+
+/// A string of the region that holds one of the files, with the containers around it.
+struct Hit {
+    open: Vec<Open>,
+    string: (usize, usize),
+}
+
+/// How many hits one page is read for, and how deep the containers are followed.
+const MOST_HITS: usize = 40;
+const MOST_DEPTH: usize = 64;
+/// How many enclosing objects are searched for the video's other files.
+const WIDEN: usize = 4;
+
+/// The parts of `text` that are scripts, or the whole of it when it has none.
+fn regions(text: &str) -> Vec<&str> {
+    let mut found = Vec::new();
+    let mut rest = text;
+    while let Some(at) = rest.find("<script") {
+        let after = &rest[at..];
+        let Some(open_end) = after.find('>') else { break };
+        let body = &after[open_end + 1..];
+        let end = body.find("</script>").unwrap_or(body.len());
+        found.push(&body[..end]);
+        rest = &body[end..];
+    }
+    if found.is_empty() {
+        found.push(text);
+    }
+    found
+}
+
+/// Each string of `region` that holds one of `ids`, with the containers it sits in.
+fn hits(region: &str, ids: &[String]) -> Vec<Hit> {
+    let spots: Vec<usize> = ids
+        .iter()
+        .flat_map(|id| region.match_indices(id.as_str()).map(|(at, _)| at))
+        .collect();
+    let mut found = Vec::new();
+    if spots.is_empty() {
+        return found;
+    }
+    let bytes = region.as_bytes();
+    let mut open: Vec<Open> = Vec::new();
+    let mut string: Option<usize> = None;
+    let mut i = 0;
+    while i < bytes.len() && found.len() < MOST_HITS {
+        let b = bytes[i];
+        match (string, b) {
+            (Some(_), b'\\') => i += 1,
+            (Some(start), b'"') => {
+                if spots.iter().any(|&p| p > start && p < i) {
+                    found.push(Hit {
+                        open: open.clone(),
+                        string: (start, i + 1),
+                    });
+                }
+                string = None;
+            }
+            (Some(_), _) => {}
+            (None, b'"') => string = Some(i),
+            (None, b'{' | b'[') if open.len() < MOST_DEPTH => open.push((b == b'[', i)),
+            (None, b'}' | b']') => {
+                open.pop();
+            }
+            _ => {}
+        }
+        i += 1;
+    }
+    found
+}
+
+/// The JSON value that starts at `at` in `region`.
+fn value_at(region: &str, at: usize) -> Option<Value> {
+    serde_json::Deserializer::from_str(region.get(at..)?)
+        .into_iter::<Value>()
+        .next()?
+        .ok()
+}
+
+/// Whether an address names a picture, a caption file or a script, not a video.
+fn not_video(url: &str) -> bool {
+    let path = url
+        .split(['?', '#'])
+        .next()
+        .unwrap_or("")
+        .to_ascii_lowercase();
+    [
+        ".jpg", ".jpeg", ".png", ".webp", ".gif", ".svg", ".vtt", ".srt", ".json", ".js", ".css",
+        ".html",
+    ]
+    .iter()
+    .any(|ext| path.ends_with(ext))
+}
+
+fn is_web(url: &str) -> bool {
+    url.starts_with("https://") || url.starts_with("http://")
+}
+
+/// Whether an address looks like a video, audio or stream by itself.
+fn looks_like_media(url: &str) -> bool {
+    let lower = url.to_ascii_lowercase();
+    let path = lower.split(['?', '#']).next().unwrap_or("");
+    is_web(url)
+        && !not_video(url)
+        && ([
+            ".mp4", ".webm", ".m3u8", ".mpd", ".m4v", ".mov", ".mkv", ".m4a", ".mp3",
+        ]
+        .iter()
+        .any(|ext| path.ends_with(ext))
+            || lower.contains("mime_type=video")
+            || lower.contains("mime_type=audio"))
+}
+
+/// What one entry of a list of renditions says about its file.
+#[derive(Default)]
+struct Found {
+    url: String,
+    height: u64,
+    bitrate: u64,
+    quality: Option<String>,
+}
+
+/// Whether `text` is an address this read takes: any that is not a picture, or only
+/// one that looks like media.
+fn takes(text: &str, any_url: bool) -> bool {
+    if any_url {
+        is_web(text) && !not_video(text)
+    } else {
+        looks_like_media(text)
     }
 }
 
-/// Where `key` starts, for each place `text` has it.
-fn places(text: &str, key: &str) -> Vec<usize> {
-    let quoted = format!("\"{key}\"");
-    text.match_indices(&quoted).map(|(at, _)| at).collect()
+/// An entry read by the names of its fields: the first address in it (and in the
+/// objects and lists inside it), a field named height, one named for a bitrate or
+/// bandwidth, and a short quality or label.
+fn describe(value: &Value, any_url: bool, depth: u8, found: &mut Found) {
+    let Value::Object(map) = value else { return };
+    for (key, field) in map {
+        let key = key.to_ascii_lowercase();
+        match field {
+            Value::String(text) => {
+                if takes(text, any_url) {
+                    if found.url.is_empty() {
+                        found.url = text.clone();
+                    }
+                } else if (key.contains("quality") || key.contains("label"))
+                    && found.quality.is_none()
+                    && !text.is_empty()
+                    && text.len() <= 12
+                    && !is_web(text)
+                {
+                    found.quality = Some(text.clone());
+                }
+            }
+            Value::Number(n) => {
+                let n = n.as_u64().unwrap_or(0);
+                if key.ends_with("height") && found.height == 0 {
+                    found.height = n;
+                } else if (key.contains("bitrate") || key.contains("bandwidth")) && found.bitrate == 0 {
+                    found.bitrate = n;
+                }
+            }
+            Value::Array(items) if depth < 3 => {
+                for item in items {
+                    match item {
+                        Value::String(text) => {
+                            if takes(text, any_url) && found.url.is_empty() {
+                                found.url = text.clone();
+                            }
+                        }
+                        other => describe(other, any_url, depth + 1, found),
+                    }
+                }
+            }
+            Value::Object(_) if depth < 3 => describe(field, any_url, depth + 1, found),
+            _ => {}
+        }
+    }
+}
+
+fn is_stream(url: &str) -> bool {
+    let path = url
+        .split(['?', '#'])
+        .next()
+        .unwrap_or("")
+        .to_ascii_lowercase();
+    path.ends_with(".m3u8") || path.ends_with(".mpd")
+}
+
+/// The line for one entry: what kind of file, its quality, its bitrate.
+fn line_of(found: Found) -> PageLine {
+    let path = found
+        .url
+        .split(['?', '#'])
+        .next()
+        .unwrap_or("")
+        .to_ascii_lowercase();
+    let mut label = String::from(if path.ends_with(".m3u8") {
+        "HLS stream"
+    } else if path.ends_with(".mpd") {
+        "DASH stream"
+    } else if path.ends_with(".webm") {
+        "WebM file"
+    } else {
+        "MP4 file"
+    });
+    if found.height > 0 {
+        label.push_str(&format!(", quality {}p", found.height));
+    } else if let Some(quality) = &found.quality {
+        label.push_str(&format!(", quality {quality}"));
+    }
+    if found.bitrate > 0 {
+        label.push_str(&format!(", {} kbps", found.bitrate / 1000));
+    }
+    PageLine {
+        url: found.url,
+        label,
+        sound: None,
+    }
+}
+
+/// What was read from a page for one video.
+#[derive(Default)]
+struct Gathered {
+    /// The representations of a DASH manifest, each with its sound.
+    manifests: Vec<PageLine>,
+    /// The page's own files.
+    files: Vec<PageLine>,
+    /// Streams the page names, offered only where no manifest could be read.
+    streams: Vec<PageLine>,
+}
+
+impl Gathered {
+    fn add_file(&mut self, line: PageLine) {
+        let list = if is_stream(&line.url) {
+            &mut self.streams
+        } else {
+            &mut self.files
+        };
+        if !list.iter().any(|l| l.url == line.url) {
+            list.push(line);
+        }
+    }
+
+    fn add_manifest(&mut self, xml: &str) {
+        for line in manifest_lines(xml) {
+            if !self.manifests.iter().any(|l| l.url == line.url) {
+                self.manifests.push(line);
+            }
+        }
+    }
+
+    fn has(&self, url: &str) -> bool {
+        self.manifests
+            .iter()
+            .chain(&self.files)
+            .chain(&self.streams)
+            .any(|l| l.url == url)
+    }
+
+    fn count(&self) -> usize {
+        self.manifests.len() + self.files.len() + self.streams.len()
+    }
+
+    fn into_lines(self) -> Vec<PageLine> {
+        let mut lines = self.manifests;
+        let manifests = !lines.is_empty();
+        lines.extend(self.files);
+        if !manifests {
+            lines.extend(self.streams);
+        }
+        lines
+    }
+}
+
+/// A list of entries each carrying a file, read as renditions. `strict` takes only
+/// addresses that look like media; sorted from the smallest bitrate up where all have one.
+fn rendition_list(items: &[Value], strict: bool) -> Vec<PageLine> {
+    let mut entries: Vec<Found> = Vec::new();
+    for item in items {
+        let mut found = Found::default();
+        describe(item, !strict, 0, &mut found);
+        if !found.url.is_empty() {
+            entries.push(found);
+        }
+    }
+    if entries.iter().all(|e| e.bitrate > 0) {
+        entries.sort_by_key(|e| e.bitrate);
+    }
+    entries.into_iter().map(line_of).collect()
+}
+
+/// What a value of the video's record holds: a manifest as a string, a list of entries
+/// with manifests in them, or a list of files that look like media.
+fn gather_value(value: &Value, into: &mut Gathered) {
+    match value {
+        Value::String(text) if text.contains("<MPD") => into.add_manifest(text),
+        Value::Array(items) if !items.is_empty() && items.iter().all(|i| i.is_object()) => {
+            let mut manifest = false;
+            for item in items {
+                if let Value::Object(map) = item {
+                    for field in map.values() {
+                        if let Value::String(text) = field {
+                            if text.contains("<MPD") {
+                                into.add_manifest(text);
+                                manifest = true;
+                            }
+                        }
+                    }
+                }
+            }
+            if !manifest {
+                for line in rendition_list(items, true) {
+                    into.add_file(line);
+                }
+            }
+        }
+        _ => {}
+    }
 }
 
 /// The lines a page offers for the video the player is playing, given the
-/// addresses the player has been seen to fetch (`seen`): the video whose data
-/// holds one of those files is the one, and its progressive files and DASH
-/// manifest are the lines. Nothing when the page names no video that matches.
+/// addresses the player has been seen to fetch (`seen`): the page's list of
+/// renditions that holds one of those files, and the DASH manifest beside it.
+/// Nothing when the page names no video that matches.
 pub fn page_lines(text: &str, seen: &[String]) -> Vec<PageLine> {
     let ids: Vec<String> = seen.iter().filter_map(|u| file_id(u)).collect();
     if ids.is_empty() {
         return Vec::new();
     }
-    let key = "progressive_urls";
-    for at in places(text, key) {
-        let from = floor(text, at.saturating_sub(NEAR));
-        let to = floor(text, (at + NEAR).min(text.len()));
-        let window = &text[from..to];
-        if !ids.iter().any(|id| window.contains(id.as_str())) {
-            continue;
-        }
-        let mut lines = renditions(text, at);
-        // The renditions of the manifest come first, each with its height, bitrate and
-        // the video's length; the page's own SD and HD files follow them.
-        let manifest_renditions = !lines.is_empty();
-        for item in array_after(text, at, &format!("\"{key}\"")).unwrap_or_default() {
-            let url = item.get("progressive_url").and_then(|v| v.as_str());
-            let quality = item
-                .get("metadata")
-                .and_then(|m| m.get("quality"))
-                .and_then(|q| q.as_str());
-            if let Some(url) = url.filter(|u| u.starts_with("https://") || u.starts_with("http://")) {
-                lines.push(PageLine {
-                    url: url.to_string(),
-                    label: match quality {
-                        Some(quality) => format!("MP4 file, quality {quality}"),
-                        None => "MP4 file".to_string(),
-                    },
-                    sound: None,
-                });
-            }
-        }
-        // The manifest of the same video, the nearest one before or after: offered as a
-        // line of its own only where its renditions could not be read.
-        let manifests = places(text, "dash_manifest_urls")
-            .into_iter()
-            .filter(|m| m.abs_diff(at) <= NEAR)
-            .min_by_key(|m| m.abs_diff(at));
-        if let Some(m) = manifests.filter(|_| !manifest_renditions) {
-            for item in array_after(text, m, "\"dash_manifest_urls\"").unwrap_or_default() {
-                if let Some(url) = item
-                    .get("manifest_url")
-                    .and_then(|v| v.as_str())
-                    .filter(|u| u.starts_with("https://") || u.starts_with("http://"))
-                {
-                    lines.push(PageLine {
-                        url: url.to_string(),
-                        label: "DASH stream".to_string(),
-                        sound: None,
-                    });
+    for region in regions(text) {
+        for hit in hits(region, &ids) {
+            let Some(Value::String(own)) = value_at(region, hit.string.0) else {
+                continue;
+            };
+            let mut gathered = Gathered::default();
+            if own.contains("<MPD") {
+                gathered.add_manifest(&own);
+            } else {
+                // The innermost list of objects around the file is the renditions.
+                for (_, start) in hit.open.iter().rev().filter(|(array, _)| *array) {
+                    if let Some(Value::Array(items)) = value_at(region, *start) {
+                        if !items.is_empty() && items.iter().all(|i| i.is_object()) {
+                            for line in rendition_list(&items, false) {
+                                gathered.add_file(line);
+                            }
+                            break;
+                        }
+                    }
                 }
             }
-        }
-        return lines;
-    }
-    let lines = instagram_lines(text, &ids);
-    if lines.is_empty() {
-        tiktok_lines(text, &ids)
-    } else {
-        lines
-    }
-}
-
-/// TikTok's shape: each video's data holds `bitrateInfo`, one entry per quality with its
-/// bitrate, size and addresses. The video whose entry holds a file the player fetched is
-/// the one; its qualities are listed from the smallest up.
-fn tiktok_lines(text: &str, ids: &[String]) -> Vec<PageLine> {
-    for at in places(text, "bitrateInfo") {
-        let items = array_after(text, at, "\"bitrateInfo\"").unwrap_or_default();
-        let address = |item: &serde_json::Value| -> Option<String> {
-            item.get("PlayAddr")?
-                .get("UrlList")?
-                .as_array()?
-                .iter()
-                .filter_map(|u| u.as_str())
-                .find(|u| u.starts_with("https://") || u.starts_with("http://"))
-                .map(str::to_string)
-        };
-        if !items
-            .iter()
-            .filter_map(address)
-            .filter_map(|u| file_id(&u))
-            .any(|id| ids.contains(&id))
-        {
-            continue;
-        }
-        let mut found: Vec<(u64, u64, String)> = items
-            .iter()
-            .filter_map(|item| {
-                let url = address(item)?;
-                let bitrate = item.get("Bitrate").and_then(|b| b.as_u64()).unwrap_or(0);
-                let height = item
-                    .get("PlayAddr")
-                    .and_then(|a| a.get("Height"))
-                    .and_then(|h| h.as_u64())
-                    .unwrap_or(0);
-                Some((bitrate, height, url))
-            })
-            .collect();
-        found.sort_by_key(|(bitrate, ..)| *bitrate);
-        return found
-            .into_iter()
-            .map(|(bitrate, height, url)| {
-                let mut label = String::from("MP4 file");
-                if height > 0 {
-                    label.push_str(&format!(", quality {height}p"));
-                }
-                if bitrate > 0 {
-                    label.push_str(&format!(", {} kbps", bitrate / 1000));
-                }
-                PageLine { url, label, sound: None }
-            })
-            .collect();
-    }
-    Vec::new()
-}
-
-/// Instagram's shape: each video's data holds `video_dash_manifest` (the MPD as a JSON
-/// string) and `video_versions` (the plain files, each with its width and height). The
-/// video whose manifest or files hold one of the files the player fetched is the one.
-fn instagram_lines(text: &str, ids: &[String]) -> Vec<PageLine> {
-    for at in places(text, "video_dash_manifest") {
-        let rest = &text[at + "\"video_dash_manifest\"".len()..];
-        let Some(rest) = rest.trim_start().strip_prefix(':') else {
-            continue;
-        };
-        let Some(serde_json::Value::String(xml)) = serde_json::Deserializer::from_str(rest.trim_start())
-            .into_iter::<serde_json::Value>()
-            .next()
-            .and_then(|v| v.ok())
-        else {
-            continue;
-        };
-        let from = floor(text, at.saturating_sub(NEAR));
-        let to = floor(text, (at + NEAR).min(text.len()));
-        let window = &text[from..to];
-        if !ids.iter().any(|id| xml.contains(id.as_str()) || window.contains(id.as_str())) {
-            continue;
-        }
-        let mut lines = manifest_lines(&xml);
-        let versions = places(text, "video_versions")
-            .into_iter()
-            .filter(|v| v.abs_diff(at) <= NEAR)
-            .min_by_key(|v| v.abs_diff(at));
-        if let Some(v) = versions {
-            for item in array_after(text, v, "\"video_versions\"").unwrap_or_default() {
-                let Some(url) = item
-                    .get("url")
-                    .and_then(|u| u.as_str())
-                    .filter(|u| u.starts_with("https://") || u.starts_with("http://"))
-                else {
+            // The video's other files: the neighbours of the hit in the objects around it.
+            for (_, start) in hit.open.iter().rev().filter(|(array, _)| !*array).take(WIDEN) {
+                let Some(Value::Object(map)) = value_at(region, *start) else {
                     continue;
                 };
-                let height = item.get("height").and_then(|h| h.as_u64()).filter(|h| *h > 0);
-                lines.push(PageLine {
-                    url: url.to_string(),
-                    label: match height {
-                        Some(h) => format!("MP4 file, quality {h}p"),
-                        None => "MP4 file".to_string(),
-                    },
-                    sound: None,
-                });
+                let mut more = Gathered::default();
+                for field in map.values() {
+                    gather_value(field, &mut more);
+                }
+                let mut extra = 0;
+                for line in more.manifests {
+                    if !gathered.has(&line.url) {
+                        gathered.manifests.push(line);
+                        extra += 1;
+                    }
+                }
+                for line in more.files.into_iter().chain(more.streams) {
+                    if extra < 12 && !gathered.has(&line.url) {
+                        gathered.add_file(line);
+                        extra += 1;
+                    }
+                }
+                if extra > 0 {
+                    break;
+                }
+            }
+            if gathered.count() > 0 {
+                return gathered.into_lines();
             }
         }
-        return lines;
     }
     Vec::new()
-}
-
-/// `at` moved back to a character boundary.
-fn floor(text: &str, mut at: usize) -> usize {
-    while at > 0 && !text.is_char_boundary(at) {
-        at -= 1;
-    }
-    at
 }
 
 /// The value of `name="…"` in the start tag `tag`.
@@ -263,30 +450,6 @@ fn seconds_of(duration: &str) -> Option<f64> {
         rest = &rest[end + 1..];
     }
     Some(total)
-}
-
-/// The lines for the renditions of the DASH manifest the page holds for the video
-/// whose `progressive_urls` are at `at`: each picture with its height, bitrate and the
-/// video's length, and the best sound beside it to be joined. Empty when the page has
-/// no such manifest or it is not one of this shape.
-fn renditions(text: &str, at: usize) -> Vec<PageLine> {
-    let Some(at_manifests) = places(text, "dash_manifests")
-        .into_iter()
-        .filter(|m| m.abs_diff(at) <= NEAR)
-        .min_by_key(|m| m.abs_diff(at))
-    else {
-        return Vec::new();
-    };
-    let Some(items) = array_after(text, at_manifests, "\"dash_manifests\"") else {
-        return Vec::new();
-    };
-    let Some(xml) = items
-        .iter()
-        .find_map(|item| item.get("manifest_xml").and_then(|x| x.as_str()))
-    else {
-        return Vec::new();
-    };
-    manifest_lines(xml)
 }
 
 /// The lines for the renditions a DASH manifest names: each picture with its height,

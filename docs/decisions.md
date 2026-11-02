@@ -3669,3 +3669,18 @@ and Linux `secret-tool`, started as processes (no new crate, no linking to libse
 need): a value is base64 text; `secret-tool` takes it on standard input, `security` only on its command line,
 which is said in the code. A missing tool is no store. Written without a Mac or Linux computer to compile or
 run on: proved by hand at the final QA.
+
+## Page renditions are read by one scan, not by a reader per site (2026-11-02)
+
+The panel's list of qualities adds the renditions a page names in its own data. The first
+three readers (Facebook, Instagram, TikTok) were each written for one site's field names;
+with a thousand sites that cannot be kept up. `decide/page_lines.rs` now names no site: it
+finds the strings of the page's scripts that hold a file the player fetched, takes the
+innermost list of objects around it as the renditions, reads each entry by the names of its
+fields (an address, `*height`, `*bitrate`/`*bandwidth`, a short `quality`/`label`), reads any
+string holding a DASH manifest for its representations, and looks in the objects around for
+the video's other lists. The old per-site tests pass unchanged, and a made-up site's shape has
+one of its own. Dropped: a table of site profiles (needs a release for each site).
+Known limits: field names with none of those words (a height named `h`), a list kept outside
+a script (a `data-` attribute), and pages that hold no list at all (the list then shows only
+what the player fetched).

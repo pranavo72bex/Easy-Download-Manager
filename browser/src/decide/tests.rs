@@ -1899,3 +1899,25 @@ fn tiktoks_bitrate_info_gives_the_clips_qualities() {
     );
     assert!(page_lines(&page, &["https://x.example/zzzzzzzzzzzzzzzzzzzzzzzzzzzz.mp4".into()]).is_empty());
 }
+
+#[test]
+fn a_site_nobody_wrote_a_reader_for_still_lists_its_renditions() {
+    const ID: &str = "clip9f3a7c21d4e84b6a9c0d1e2f3a4b5c6d";
+    // Another site's shape: sources with a label and a bitrate, and a poster that is not a video.
+    let page = format!(
+        r#"<html><script>window.__STATE__ = {{"poster":"https://img.example/p.jpg","player":{{"sources":[{{"label":"360p","bitrate":500000,"src":"https://cdn.example/v/{ID}_360.mp4"}},{{"label":"720p","bitrate":1500000,"src":"https://cdn.example/v/{ID}_720.mp4"}},{{"label":"1080p","bitrate":3000000,"src":"https://cdn.example/v/{ID}_1080.mp4"}}]}}}};</script><script>var other = {{"sources":[{{"label":"240p","src":"https://cdn.example/v/another_240.mp4"}}]}};</script></html>"#
+    );
+    let seen = vec![format!("https://cdn.example/v/{ID}_720.mp4?token=1")];
+    let said: Vec<(String, String)> = page_lines(&page, &seen)
+        .into_iter()
+        .map(|l| (l.label, l.url))
+        .collect();
+    assert_eq!(
+        said,
+        [
+            ("MP4 file, quality 360p, 500 kbps".to_string(), format!("https://cdn.example/v/{ID}_360.mp4")),
+            ("MP4 file, quality 720p, 1500 kbps".to_string(), format!("https://cdn.example/v/{ID}_720.mp4")),
+            ("MP4 file, quality 1080p, 3000 kbps".to_string(), format!("https://cdn.example/v/{ID}_1080.mp4")),
+        ]
+    );
+}
