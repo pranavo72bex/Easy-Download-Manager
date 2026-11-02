@@ -979,6 +979,7 @@ fn closed_now() -> dm_core::Schedule {
         wake: false,
         when_done: String::new(),
         retries: 0,
+        run_when_done: String::new(),
     }
 }
 

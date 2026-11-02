@@ -542,3 +542,11 @@ fn a_ring_with_nobody_listening_is_harmless() {
     std::fs::write(host::inbox(home.path()).join(host::BELL), "not a port").unwrap();
     host::ring(home.path());
 }
+
+#[test]
+fn a_program_that_cannot_start_says_so_and_an_empty_one_is_nothing() {
+    assert!(run_program("   ").is_ok());
+    let said = run_program("dm-no-such-program-here --flag").unwrap_err();
+    assert!(said.contains("dm-no-such-program-here"), "{said}");
+    assert!(said.contains("scheduled downloads are done"), "{said}");
+}

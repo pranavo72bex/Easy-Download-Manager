@@ -632,6 +632,10 @@ impl DmApp {
             wanted.on_complete = self.applied.on_complete.clone();
             self.said = "The command to run when a download finishes was not changed: a script was driving the window a moment ago; set it again".to_string().into();
         }
+        if self.by_script() && wanted.schedule.run_when_done != self.applied.schedule.run_when_done {
+            wanted.schedule.run_when_done = self.applied.schedule.run_when_done.clone();
+            self.said = "The program to run when the scheduled downloads are done was not changed: a script was driving the window a moment ago; set it again".to_string().into();
+        }
         let watch_changed = wanted.watch_clipboard != self.applied.watch_clipboard;
         match self.backend.set_settings(wanted) {
             Ok(now) => {

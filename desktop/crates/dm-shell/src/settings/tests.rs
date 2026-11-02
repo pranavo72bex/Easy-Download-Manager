@@ -846,3 +846,13 @@ fn a_proxy_password_stays_only_with_the_proxy_it_was_given_for() {
     let other_port = mine.imported(&file("proxy.corp.example", 8080)).unwrap();
     assert_eq!(other_port.proxy.password, "");
 }
+
+#[test]
+fn a_settings_file_never_sets_the_program_run_at_the_end_of_the_schedule() {
+    let mut mine = Settings::default();
+    mine.schedule.run_when_done = "backup --quiet".into();
+    let mut theirs = Settings::default();
+    theirs.schedule.run_when_done = "evil".into();
+    let read = mine.imported(&serde_json::to_string(&theirs).unwrap()).unwrap();
+    assert_eq!(read.schedule.run_when_done, "backup --quiet");
+}

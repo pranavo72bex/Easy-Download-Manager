@@ -465,6 +465,7 @@ pub(super) mod status_tests {
             wake: false,
             when_done: String::new(),
             retries: 0,
+            run_when_done: String::new(),
         };
         // Monday 00:30: later today. Monday 08:00: next Monday.
         assert_eq!(opens_after(&schedule, 1, 30), Some((0, 60)));

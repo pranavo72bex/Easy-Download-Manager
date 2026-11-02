@@ -1136,6 +1136,24 @@ pub fn words(command: &str) -> Vec<String> {
     out
 }
 
+/// Runs `command` as it is, with no file: started and left running, no shell, its
+/// words split as `run_after`'s are. An error says why it could not start.
+pub fn run_program(command: &str) -> Result<(), String> {
+    let mut parts = words(command);
+    if parts.is_empty() {
+        return Ok(());
+    }
+    let program = parts.remove(0);
+    std::process::Command::new(&program)
+        .args(parts)
+        .stdin(std::process::Stdio::null())
+        .stdout(std::process::Stdio::null())
+        .stderr(std::process::Stdio::null())
+        .spawn()
+        .map(|_| ())
+        .map_err(|e| format!("\"{program}\", to run when the scheduled downloads are done, could not start: {e}"))
+}
+
 /// Runs `command` on a finished file, its path added as the last argument
 /// rather than pasted into the line, so no file name can become a command.
 /// Started and left running; an error says why it could not start.

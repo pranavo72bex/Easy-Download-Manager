@@ -19,6 +19,10 @@ pub(crate) struct Watch {
     armed: Option<crate::power::WhenDone>,
     /// Rounds of tries again made since the window opened.
     rounds: u8,
+    /// Whether something was waiting to run since the window opened.
+    had_work: bool,
+    /// Whether the program to run at the end has been run in this window.
+    ran: bool,
 }
 
 /// What a read of the list finds of the window.
@@ -35,6 +39,8 @@ impl Watch {
             (false, true) => {
                 self.was_open = true;
                 self.rounds = 0;
+                self.had_work = false;
+                self.ran = false;
                 Step::Opened
             }
             (true, false) => {
@@ -43,6 +49,23 @@ impl Watch {
             }
             _ => Step::Nothing,
         }
+    }
+
+    /// Whether the program to run at the end is due: the window is open, something
+    /// was waiting in it, nothing is now, and it has not been run in this window.
+    pub(crate) fn run_due(&mut self, open: bool, work_left: bool) -> bool {
+        if !open {
+            return false;
+        }
+        if work_left {
+            self.had_work = true;
+            return false;
+        }
+        if self.had_work && !self.ran {
+            self.ran = true;
+            return true;
+        }
+        false
     }
 
     pub(crate) fn arm(&mut self, action: crate::power::WhenDone) {
@@ -116,6 +139,14 @@ impl DmApp {
         if self.when_done == crate::power::WhenDone::Nothing {
             self.schedule_watch.disarm();
         }
+        // The program a person set to run when the scheduled downloads are done,
+        // once in a window, after something ran in it.
+        let command = schedule.run_when_done.trim();
+        if self.schedule_watch.run_due(open, work_left(&self.rows)) && !command.is_empty() {
+            if let Err(why) = dm_shell::shell::run_program(command) {
+                self.problems.push(why);
+            }
+        }
         // Failed downloads tried again while the window is open, a round each
         // time the queue has run dry.
         if open && schedule.retries > 0 && !work_left(&self.rows) {
@@ -182,5 +213,28 @@ mod tests {
         assert_eq!(WhenDone::from_word(""), WhenDone::Nothing);
         assert_eq!(WhenDone::from_word("reboot"), WhenDone::Nothing);
         assert_eq!(WhenDone::from_word(" sleep "), WhenDone::Sleep);
+    }
+}
+
+#[cfg(test)]
+mod run_tests {
+    use super::Watch;
+
+    #[test]
+    fn the_program_at_the_end_runs_once_after_something_ran_in_the_window() {
+        let mut watch = Watch::default();
+        watch.step(true);
+        // Nothing waited in this window: nothing to do at its end.
+        assert!(!watch.run_due(true, false));
+        // Something runs, then the queue runs dry: due once.
+        assert!(!watch.run_due(true, true));
+        assert!(watch.run_due(true, false));
+        assert!(!watch.run_due(true, false), "twice in one window");
+        // Closed: never. A new window starts over.
+        assert!(!watch.run_due(false, false));
+        watch.step(false);
+        watch.step(true);
+        assert!(!watch.run_due(true, true));
+        assert!(watch.run_due(true, false));
     }
 }

@@ -410,6 +410,7 @@ impl Settings {
         // after every download stays this computer's own, so a settings file
         // passed around cannot make dm start something.
         read.on_complete = self.on_complete.clone();
+        read.schedule.run_when_done = self.schedule.run_when_done.clone();
         Ok(read.clamped())
     }
 }

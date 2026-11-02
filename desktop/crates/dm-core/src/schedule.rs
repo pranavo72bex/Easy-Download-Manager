@@ -39,6 +39,10 @@ pub struct Schedule {
     /// How many more times a download that failed is tried again while the
     /// window is open, 0 to 5; zero leaves it failed, as before.
     pub retries: u8,
+    /// A program, with any arguments, run once when the scheduled downloads
+    /// are done. Empty is none. Never set by an imported settings file or by
+    /// a script driving the window, as the command run after each download is not.
+    pub run_when_done: String,
 }
 
 impl Default for Schedule {
@@ -51,6 +55,7 @@ impl Default for Schedule {
             wake: false,
             when_done: String::new(),
             retries: 0,
+            run_when_done: String::new(),
         }
     }
 }
@@ -187,6 +192,7 @@ mod tests {
             wake: false,
             when_done: String::new(),
             retries: 0,
+            run_when_done: String::new(),
         };
         // Monday 08:00: Friday 23:00 is four days and fifteen hours away.
         assert_eq!(
@@ -221,6 +227,7 @@ mod tests {
             wake: false,
             when_done: String::new(),
             retries: 0,
+            run_when_done: String::new(),
         }
     }
 

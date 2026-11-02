@@ -83,6 +83,14 @@ pub(super) fn scheduler(app: &mut DmApp, ctx: &egui::Context) {
                     schedule.retries = tries.min(5) as u8;
                 }
             });
+            // A program run once when they are done, as Downloads > Options'
+            // command is after each file: no shell, its words split.
+            field(
+                ui,
+                t("Run this program when they are done (optional)"),
+                &mut schedule.run_when_done,
+                320.0,
+            );
             // The days are shown as they are kept, all ticked for every
             // day; the hint said no tick meant every day beside seven ticks.
             ui.label(
