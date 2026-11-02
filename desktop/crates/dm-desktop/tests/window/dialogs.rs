@@ -249,7 +249,14 @@ fn a_double_click_opens_properties_and_open_runs_a_finished_file() {
     harness
         .get_by_role_and_label(egui::accesskit::Role::Button, "Open")
         .click();
-    harness.run_steps(4);
+    // The opener runs off the window's thread: given up to a second to record.
+    for _ in 0..50 {
+        harness.run_steps(1);
+        if !world.fake.opened.lock().unwrap().is_empty() {
+            break;
+        }
+        std::thread::sleep(std::time::Duration::from_millis(20));
+    }
     assert_eq!(
         *world.fake.opened.lock().unwrap(),
         std::slice::from_ref(&row.path)
