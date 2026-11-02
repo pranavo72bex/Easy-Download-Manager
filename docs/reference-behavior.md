@@ -258,3 +258,10 @@ that both be the same; no contract row fixes the order). Not yet done, each a vi
 change that needs the maintainer's word (gaps row 72): the video's title at the start of each line, a
 "Download all" line, caption files as lines, the 60 fps variants and "HD" in YouTube's lines, and leaving
 sizes out (dm's sizes were asked for and are kept).
+
+### More pages, same two extensions (2026-11-02)
+
+- **Vimeo (public video).** Reference A: a bar above the video's top right and a second bar at the page's bottom left; its list is eight lines, a TS file and an MP4 file for each of 270p, 360p, 540p and 720p HD, with kbps. dm: "Protected video" and a refusal (the player has an encryption key object).
+- **X (one MP4 tweet).** Reference A: a click opens its "Download File Info" window (URL, Category, Save As from the page's title, Remember this path, Description, Download Later / Start Download / Cancel). dm: the click sent the file at once, and the app came forward with it complete; named by the file's own name.
+- **TikTok and Instagram (logged out).** dm showed its bar; reference A showed none. On Instagram dm's bar sat on the site's header, since the video's top lies under it.
+- Reference A's bar sits on the video's top edge, right-aligned, and is a plain play mark and close mark on a narrow video.
