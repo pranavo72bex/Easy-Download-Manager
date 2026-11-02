@@ -216,9 +216,12 @@ Server cuts TCP connection after sending 512 KB of each range's first attempt; r
 |---|---|---|
 | Result | Failed (1 request, did not retry) | Completed |
 | Requests | 1 | 34 |
-| Note | Reference A's probe (no-Range GET) received 512 KB of a 16 MiB file, connection cut. Reference A did not issue range requests to recover. dm retried each cut range and completed the file. |
+| Note | Reference A's first request (no Range) was answered with a 200 and cut after 512 KB of 16 MiB. In two runs it made no second request within 90 s and left no file in the folder. dm retried each cut range and completed the file. |
 
-This is a difference to watch: reference A does not retry a partial 200-response.
+Seen twice, not explained: the harness closes reference A's dialogs
+automatically, so a prompt offering a retry may have been closed unread. Do
+not take this as "reference A never retries a cut 200" until it is run with
+its dialogs left open, at the human QA.
 
 ## HTTP proxy test (dm only, 2026-11-02)
 
