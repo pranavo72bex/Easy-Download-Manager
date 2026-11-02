@@ -264,6 +264,11 @@ def one(base, name, site, engine_dl, worker=None):
             data = tab.call("Page.captureScreenshot", format="png")["data"]
             (pathlib.Path(folder) / f"{name}-{label}.png").write_bytes(base64.b64decode(data))
     shot("1-hover")
+    if PROBE:
+        # SITES_EVAL: a file of JavaScript to run in the page, its answer kept in the output.
+        probe = os.environ.get("SITES_EVAL")
+        if probe:
+            out["eval"] = tab.evaluate(pathlib.Path(probe).read_text(encoding="utf-8"))
     if worker is not None and PROBE:
         # What the extension kept of this tab's streams, the signed parts of each address left out.
         out["kept"] = worker.evaluate("chrome.storage.session.get(null).then(all => Object.fromEntries(Object.entries(all)"
@@ -282,13 +287,13 @@ def one(base, name, site, engine_dl, worker=None):
                                  and cc.panel(view)) or (landed() and {"landed": True}), 60) or {}
     out["lines"] = after.get("lines")
     if after.get("lines"):
+        shot("3-list")
         x, y = after["at"][0]
         cc.click_at(tab, x + ox, y + oy)
     elif after.get("title") != "Sent to dm" and not after.get("landed"):
         out["panel_after"] = cc.panel(view)
         out["result"] = "the panel listed no qualities"
         return out
-    shot("2-after-click")
     said = cc.wait_for(lambda: (cc.panel(view) or {}).get("title") == "Sent to dm" and cc.panel(view), 20)
     out["sent"] = bool(said)
     got = cc.wait_for(landed, 240)

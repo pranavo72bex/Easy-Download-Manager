@@ -1102,6 +1102,11 @@ def main():
         os.set_inheritable(from_chrome, True)
         args.insert(1, "--remote-debugging-pipe")
         pipe = (from_us, to_us, to_chrome, from_chrome)
+    # A kept profile also holds the extension's cached worker and compiled scripts, from
+    # the build before this one; the login (cookies) is elsewhere and stays.
+    if kept_profile:
+        for stale in ("Service Worker", "Code Cache", "Extension Scripts"):
+            shutil.rmtree(profile / "Default" / stale, ignore_errors=True)
     # A kept profile still holds the last run's port: it is not this browser's.
     (profile / "DevToolsActivePort").unlink(missing_ok=True)
     log = open(work / "chrome-stderr.txt", "wb")
