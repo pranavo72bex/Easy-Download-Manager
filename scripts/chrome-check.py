@@ -934,10 +934,16 @@ def main():
     expected_id = "".join(chr(ord("a") + int(c, 16)) for c in hashlib.sha256(der).hexdigest()[:32])
 
     work = pathlib.Path(tempfile.mkdtemp(prefix="dm-chrome-check-"))
-    ext, profile = work / "extension", work / "profile"
+    # DM_CHROME_PROFILE names a profile kept between runs (a test account that stays
+    # signed in); otherwise the profile is new and goes with the run.
+    kept_profile = os.environ.get("DM_CHROME_PROFILE")
+    profile = pathlib.Path(kept_profile) if kept_profile else work / "profile"
+    # A kept profile remembers where its unpacked extension is, so that stays one place.
+    ext = pathlib.Path(kept_profile + "-extension") if kept_profile else work / "extension"
     browser_dl, engine_home, engine_dl = work / "browser-downloads", work / "dm-home", work / "dm-downloads"
     for d in (profile / "Default", browser_dl, engine_home, engine_dl):
-        d.mkdir(parents=True)
+        d.mkdir(parents=True, exist_ok=True)
+    shutil.rmtree(ext, ignore_errors=True)
     shutil.copytree(EXT, ext)
     (profile / "Default" / "Preferences").write_text(json.dumps({
         "download": {"default_directory": str(browser_dl), "prompt_for_download": False,
@@ -980,7 +986,7 @@ def main():
         )
         shim.chmod(0o755)
     hosts = profile / "NativeMessagingHosts"
-    hosts.mkdir()
+    hosts.mkdir(exist_ok=True)
     registration = hosts / "com.dm.engine.json"
     host_manifest = json.dumps({
         "name": "com.dm.engine", "description": "dm (chrome-check)", "path": str(shim),
@@ -1018,15 +1024,29 @@ def main():
             subkeys.append(r"Software\BraveSoftware\Brave-Browser\NativeMessagingHosts\com.dm.engine")
         if "chrome" in where and "edge" not in where:
             subkeys.append(r"Software\Google\Chrome\NativeMessagingHosts\com.dm.engine")
+        # The person's own entry is written down the first time it is seen, outside
+        # this run's folders: a run stopped before it could put things back leaves
+        # ours in the key, and the next run must not take that for the person's, or
+        # delete the key and with it the registration of the dm they installed.
+        backup_file = pathlib.Path.home() / ".cache" / "dm-chrome-check-registry.json"
+        try:
+            backup = json.loads(backup_file.read_text())
+        except (OSError, ValueError):
+            backup = {}
+        installed = pathlib.Path(os.environ.get("LOCALAPPDATA", "")) / "dm/NativeMessagingHosts/chromium/com.dm.engine.json"
         for subkey in subkeys:
             try:
                 with winreg.OpenKey(winreg.HKEY_CURRENT_USER, subkey) as k:
                     was_value = winreg.QueryValueEx(k, "")[0]
             except OSError:
                 was_value = None
-            # An earlier run stopped before it could put things back left our own.
             if was_value and "dm-chrome-check" in was_value:
-                was_value = None
+                # An earlier run stopped before it could put things back left our own.
+                was_value = backup.get(subkey) or (str(installed) if installed.is_file() else None)
+            elif was_value:
+                backup[subkey] = was_value
+                backup_file.parent.mkdir(parents=True, exist_ok=True)
+                backup_file.write_text(json.dumps(backup))
             registry_keys.append((subkey, was_value))
             with winreg.CreateKey(winreg.HKEY_CURRENT_USER, subkey) as k:
                 winreg.SetValueEx(k, "", 0, winreg.REG_SZ, str(registration))
@@ -1082,6 +1102,8 @@ def main():
         os.set_inheritable(from_chrome, True)
         args.insert(1, "--remote-debugging-pipe")
         pipe = (from_us, to_us, to_chrome, from_chrome)
+    # A kept profile still holds the last run's port: it is not this browser's.
+    (profile / "DevToolsActivePort").unlink(missing_ok=True)
     log = open(work / "chrome-stderr.txt", "wb")
     # Its own process group, so the whole browser can be stopped at the end,
     # but not its own session: on macOS a new session is a new Mach bootstrap

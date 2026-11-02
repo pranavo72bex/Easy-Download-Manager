@@ -8,10 +8,15 @@ sign-in, plays the video, hovers it, reads the panel and its list, clicks the
 first line and waits for the file to land in dm's folder, then reads the
 file's own structure: is there a picture, is there a sound, how long is it.
 
-    python3 scripts/sites-check.py [site ...]        # vimeo facebook tiktok x x2 reddit instagram
+    python3 scripts/sites-check.py [site ...]        # vimeo facebook facebook-watch tiktok x x2 reddit instagram
 
 No credentials are used and nobody is signed in: a site that puts a login wall
 in front of its video is reported as that, not worked around.
+
+A person who wants a signed-in run sets SITES_SIGNIN=facebook (or another site's
+name): the check opens that site in its own visible browser window and waits, up
+to six minutes, for the person to sign in there, by hand. The password is never
+typed, read or kept by the check, and the throwaway profile goes with the run.
 """
 import importlib.util
 import base64
@@ -40,6 +45,8 @@ INSTAGRAM_JS = """(() => { const a = [...document.querySelectorAll('a[href*="/re
 SITES = {
     "vimeo": {"url": "https://vimeo.com/513177164"},
     "facebook": {"url": "https://www.facebook.com/NASA/videos/watch-nasas-perseverance-rover-land-on-mars/438313177583525/"},
+    # Facebook's Watch page, for a signed-in account: the post above can be unavailable to it.
+    "facebook-watch": {"url": "https://www.facebook.com/watch/", "signin_url": "https://www.facebook.com/"},
     "tiktok": {"url": "https://www.tiktok.com/@nasa/video/7675478347278863629"},
     # A GIF-style clip: the post's media is a short silent MP4.
     "x": {"url": "https://x.com/NASA/status/1882872996031066248", "silent_ok": True},
@@ -145,8 +152,37 @@ def media_seen(tab):
     return rows[:30]
 
 
+SIGNIN = set(filter(None, os.environ.get("SITES_SIGNIN", "").split(",")))
+SIGNED_IN = """(() => document.readyState === 'complete' && !document.querySelector('input[name="pass"]')
+  && !/login|checkpoint|recover/.test(location.pathname))()"""
+
+
+def wait_for_signin(base, name, site):
+    """Opens the site's front page in the check's own window and waits for a person
+    to sign in by hand. True once the login form is gone, False if it never is."""
+    front = site.get("signin_url") or "https://www." + name + ".com/"
+    tab = cc.open_tab(base, front)
+    tab.call("Runtime.enable")
+    wait = int(os.environ.get("SITES_SIGNIN_WAIT", "360"))
+    print(f"  {name}: sign in in the browser window that opened; waiting up to {wait // 60} minutes...", flush=True)
+    deadline = time.time() + wait
+    while time.time() < deadline:
+        try:
+            if tab.evaluate(SIGNED_IN):
+                time.sleep(3)
+                print(f"  {name}: signed in, going on", flush=True)
+                return True
+        except RuntimeError:
+            pass
+        time.sleep(2)
+    return False
+
+
 def one(base, name, site, engine_dl, worker=None):
     out = {"site": name}
+    if name in SIGNIN and not wait_for_signin(base, name, site):
+        out["result"] = "not signed in within six minutes, so not checked"
+        return out
     url = site.get("url")
     tab = None
     if not url:
@@ -215,12 +251,28 @@ def one(base, name, site, engine_dl, worker=None):
         time.sleep(2)
         state = cc.wait_for(lambda: (cc.panel(view) or {}).get("shown") and cc.panel(view), 10)
     out["panel_shown"] = bool(state)
+    out["panel_state"] = state
     if not state:
         out["cover"] = view.evaluate(COVER)
         out["result"] = "the panel did not appear"
         return out
+    def shot(label):
+        """SITES_SHOT=<folder>: a picture of the page as a person sees it."""
+        folder = os.environ.get("SITES_SHOT")
+        if folder:
+            pathlib.Path(folder).mkdir(parents=True, exist_ok=True)
+            data = tab.call("Page.captureScreenshot", format="png")["data"]
+            (pathlib.Path(folder) / f"{name}-{label}.png").write_bytes(base64.b64decode(data))
+    shot("1-hover")
+    if worker is not None and PROBE:
+        # What the extension kept of this tab's streams, the signed parts of each address left out.
+        out["kept"] = worker.evaluate("chrome.storage.session.get(null).then(all => Object.fromEntries(Object.entries(all)"
+                                      ".map(([k, v]) => [k, JSON.stringify(v).replace(/[?][^\"]*/g, '?').slice(0, 1500)])))")
     before = {p for p in engine_dl.rglob("*") if p.is_file()}
-    cc.click_at(tab, state["x"] + 60 + ox, state["y"] + state["h"] / 2 + oy)
+    # SITES_CARET=1: the small arrow beside the button, which opens the list of
+    # qualities, rather than the button, which sends the best at once.
+    across = state["w"] - 22 if os.environ.get("SITES_CARET") else 60
+    cc.click_at(tab, state["x"] + across + ox, state["y"] + state["h"] / 2 + oy)
     # A player on a plain file address is handed over by the click itself; a
     # blob or stream player lists its qualities first.
     def landed():
@@ -236,6 +288,7 @@ def one(base, name, site, engine_dl, worker=None):
         out["panel_after"] = cc.panel(view)
         out["result"] = "the panel listed no qualities"
         return out
+    shot("2-after-click")
     said = cc.wait_for(lambda: (cc.panel(view) or {}).get("title") == "Sent to dm" and cc.panel(view), 20)
     out["sent"] = bool(said)
     got = cc.wait_for(landed, 240)
@@ -257,9 +310,11 @@ def sites(base, origin, engine_dl, engine_home, worker):
     if PROBE:
         # What the extension's own worker is told, tab or no tab.
         worker.evaluate("""(() => { globalThis.__dmseen = []; chrome.webRequest.onResponseStarted.addListener(d => {
-          const u = d.url.split('?')[0];
+          const [u, q] = d.url.split('?'); const keys = (q || '').split('&').map(p => p.split('=')[0]).filter(Boolean).slice(0, 16).join(',');
+          const raw = ((q || '').split('&').find(p => p.startsWith('efg=')) || '').slice(4); let tag = raw.slice(0, 12);
+          try { tag = JSON.parse(atob(decodeURIComponent(raw).replace(/-/g, '+').replace(/_/g, '/'))).vencode_tag; } catch (e) { tag = 'unread:' + raw.length + ':' + raw.slice(-6); }
           if (/[.](m3u8|mpd|mp4|m4s|ts)$/i.test(u) || d.type === 'media')
-            globalThis.__dmseen.push([d.tabId, d.type, d.statusCode, d.frameId, (d.initiator || '').slice(0, 40), u.slice(0, 100)]); },
+            globalThis.__dmseen.push([d.tabId, d.type, d.statusCode, d.frameId, (d.initiator || '').slice(0, 40), u.slice(0, 100), keys, tag]); },
           { urls: ['<all_urls>'] }, []); return 1; })()""")
     for name in WANT:
         try:
