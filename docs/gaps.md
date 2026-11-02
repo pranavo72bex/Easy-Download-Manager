@@ -386,6 +386,24 @@ and `SITES_HOLD=<seconds>` with `scripts/sites-check.py <site>`, then drive the 
   `identify_as` and the default User-Agent; open a row for each header a real site refuses without.
 - **Done when:** the "Not run" cells are filled and any difference is a row.
 
+#### Design rule for every spec: dm's look, reference A's way of working
+- **Look stays dm's.** Every new or changed dialog, menu, list and button is drawn in dm's current WinUI-style theme
+  (`desktop/crates/dm-desktop/src/theme/`, the `window()` and control helpers in `dialogs/frame.rs` and `controls.rs`;
+  compact spacing, dark and light). Reference A's old grey Win32 look, its icons and its colours are not copied, and no
+  picture of it goes in the repo.
+- **Way of working follows reference A**, so a person who knows it finds things where they expect them: the same names for the
+  same things (Add URL, Scheduler, Options, Download all links, Categories, Queues, Site grabber), the same order of steps
+  (Add URL, then a details window with Start, Download later and Cancel, then progress), the same shapes of choice (save by
+  category, one category or one folder; check boxes with Check all and Uncheck all; per-queue start and stop), the same
+  defaults that matter (it asks before it starts a browser download or a list of links).
+- **What a spec may change without asking:** behaviour, defaults that are not in `docs/behaviour-contract.md`, and
+  controls added to an existing dialog in its own style. **What it may not change without the maintainer's word:** a row of
+  the contract, the window's layout, an existing dialog's wording or its places (the contract's rule).
+- **Check for each:** the screenshot beside reference A's shows the same controls in dm's style, a person can do the same task
+  in the same number of steps, and `python3 scripts/human-qa.py` still passes in full.
+- **Status of this plan:** research and specs only (2026-11-02). Nothing in rows 72 to 99 is built yet except the order of a
+  page's renditions in the floating list (row 72).
+
 #### Order and rules
 Build G73, G75, G79, G80, G95, G96, G97, then G82, G85, G87, G86, G92, G90; G98 is a measurement to run first; G94 waits for the maintainer's word on the default. After each: `cargo test --workspace`, the browser tests for
 G73, G75 and G76, `python3 scripts/human-qa.py` in a visible window, the side-by-side look, then update this file and
