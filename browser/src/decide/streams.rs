@@ -642,6 +642,32 @@ fn label_height(label: &str) -> u32 {
     }
 }
 
+/// `text` with its percent escapes read (`%3D` as `=`): a CDN writes the padding of a
+/// base64 value that way in an address, and the value is not base64 until it is read.
+fn percent_decoded(text: &str) -> String {
+    let bytes = text.as_bytes();
+    let mut out = Vec::with_capacity(bytes.len());
+    let mut at = 0;
+    while at < bytes.len() {
+        let escaped = (bytes[at] == b'%')
+            .then(|| bytes.get(at + 1..at + 3))
+            .flatten()
+            .and_then(|pair| std::str::from_utf8(pair).ok())
+            .and_then(|pair| u8::from_str_radix(pair, 16).ok());
+        match escaped {
+            Some(byte) => {
+                out.push(byte);
+                at += 3;
+            }
+            None => {
+                out.push(bytes[at]);
+                at += 1;
+            }
+        }
+    }
+    String::from_utf8_lossy(&out).into_owned()
+}
+
 /// Standard base64, either alphabet, padding or none.
 fn unbase64(text: &str) -> Option<Vec<u8>> {
     let mut out = Vec::with_capacity(text.len() * 3 / 4);
@@ -697,7 +723,7 @@ pub fn pieces_of(url: &str, mime: &str) -> Option<Stream> {
         return None;
     }
     let tag = param(url, "efg")
-        .and_then(|efg| unbase64(&efg))
+        .and_then(|efg| unbase64(&percent_decoded(&efg)))
         .and_then(|json| serde_json::from_slice::<serde_json::Value>(&json).ok())
         .and_then(|v| {
             v.get("vencode_tag")

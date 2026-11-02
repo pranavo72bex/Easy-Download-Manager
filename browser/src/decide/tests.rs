@@ -1772,3 +1772,33 @@ fn the_panels_part_line_hands_over_a_time_and_nothing_else() {
     let plain: PanelClick = serde_json::from_str(r#"{"type":"dm.panel","src":"u"}"#).unwrap();
     assert!(plain.from.is_none() && plain.to.is_none());
 }
+
+#[test]
+fn a_picture_whose_tag_is_padded_with_an_escaped_equals_sign_still_says_its_height() {
+    // Facebook writes the padding of efg as %3D: "dash_h264-basic-gen2_720p".
+    const PADDED: &str = "eyJ2ZW5jb2RlX3RhZyI6ImRhc2hfaDI2NC1iYXNpYy1nZW4yXzcyMHAifQ%3D%3D";
+    const AUDIO: &str = "eyJ2ZW5jb2RlX3RhZyI6ImRhc2hfbG5faGVhYWNfdmJyM19hdWRpbyJ9";
+    let picture = stream_seen(&cdn_piece(
+        "scontent.fktm18-1.fna.fbcdn.net",
+        "m366/AQpic",
+        PADDED,
+        0,
+        99,
+        "video/mp4",
+    ))
+    .unwrap();
+    assert_eq!(
+        (picture.kind, picture.label.as_str()),
+        (StreamKind::Picture, "720p video")
+    );
+    let sound = stream_seen(&cdn_piece(
+        "scontent.fktm18-1.fna.fbcdn.net",
+        "m412/AQsnd",
+        AUDIO,
+        0,
+        99,
+        "audio/mp4",
+    ))
+    .unwrap();
+    assert_eq!(sound.kind, StreamKind::Sound);
+}

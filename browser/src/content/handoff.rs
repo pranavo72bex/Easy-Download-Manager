@@ -476,6 +476,11 @@ pub(super) fn hand_with(
         } else {
             "Sent to dm"
         };
+        // The quality it was sent at, where the page said one, ahead of what the app said.
+        let said = match label.as_deref().filter(|l| !l.is_empty()) {
+            Some(label) if title == "Sent to dm" => format!("{label}: {said}"),
+            _ => said,
+        };
         with_panel(|p| {
             p.wrap.set_class_name("wrap done");
             set_title(p, title);
