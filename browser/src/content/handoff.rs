@@ -317,12 +317,30 @@ fn with_page_lines(choices: Array) -> Array {
         .flat_map(|c| [text_of(&c, "url"), text_of(&c, "sound")])
         .filter(|u| !u.is_empty())
         .collect();
-    let Some(text) = document()
+    let Some(mut text) = document()
         .and_then(|d| d.document_element())
         .map(|e| e.outer_html())
     else {
         return choices;
     };
+    // Then what the page's own answers said about media, newest first (kept by the page
+    // script): each as a script of its own, a bare manifest as a JSON string.
+    if let Ok(kept) = Reflect::get(&js_sys::global(), &"__dmBodies".into()) {
+        if let Some(kept) = kept.dyn_ref::<Array>() {
+            for body in kept.iter().rev().filter_map(|b| b.as_string()) {
+                let body = if body.trim_start().starts_with('<') {
+                    serde_json::to_string(&body).unwrap_or_default()
+                } else {
+                    body
+                };
+                if !body.contains("</script") {
+                    text.push_str("<script>");
+                    text.push_str(&body);
+                    text.push_str("</script>");
+                }
+            }
+        }
+    }
     for line in decide::page_lines(&text, &seen) {
         if choices.iter().any(|c| text_of(&c, "url") == line.url) {
             continue;

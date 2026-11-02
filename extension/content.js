@@ -28,6 +28,19 @@
     } catch { /* the extension was updated under this page */ }
   });
 
+  // What the page's own answers said about media (document.js passes them on), kept in
+  // memory for the panel's list of qualities: the newest few, at most 12 MiB, nowhere else.
+  const bodies = [];
+  let keptSize = 0;
+  globalThis.__dmBodies = bodies;
+  window.addEventListener('message', (event) => {
+    const data = event.data;
+    if (event.source !== window || data?.source !== 'dm-page-body' || typeof data.body !== 'string') return;
+    bodies.push(data.body);
+    keptSize += data.body.length;
+    while (keptSize > 12 * 1024 * 1024 || bodies.length > 40) keptSize -= bodies.shift().length;
+  });
+
   // On a site the app's rules name, the requests whose JSON answers hold the
   // streams its page builds: the page script is told which, and what it reads
   // comes back here to the background, which finds the streams (in Rust, only

@@ -56,6 +56,24 @@
       return reading.some((part) => lower.includes(part)) ? href : null;
     } catch { return null; }
   };
+  // On every site, an answer of the page's own that names media (a manifest, a playlist,
+  // an .mp4 address) is passed on to content.js, which keeps it in memory for the
+  // panel's list of qualities and sends it nowhere: a feed loads each video's
+  // renditions through its API after the page, so the page's markup does not hold them.
+  const MEDIA_ANSWER = 2 * 1024 * 1024;
+  const MEDIA_WORDS = /\.m3u8|\.mpd|<MPD|\.mp4|\.webm/;
+  const TEXTUAL = /json|xml|text|mpegurl|dash/i;
+  const keep = (body) => {
+    if (typeof body !== 'string' || !body || body.length > MEDIA_ANSWER || !MEDIA_WORDS.test(body)) return;
+    window.postMessage({ source: 'dm-page-body', body }, location.origin);
+  };
+  const keepFetched = async (response) => {
+    try {
+      if (!response?.ok || !TEXTUAL.test(response.headers.get('content-type') || '')) return;
+      if (Number(response.headers.get('content-length')) > MEDIA_ANSWER) return;
+      keep(await response.clone().text());
+    } catch { /* an answer that cannot be read is not kept */ }
+  };
   const tellAnswer = (href, body) => {
     if (typeof body !== 'string' || !body || body.length > MAX_ANSWER) return;
     window.postMessage({ source: 'dm-page-answer', url: href, body }, location.origin);
@@ -85,11 +103,20 @@
     const pending = fetched.apply(this, args);
     const href = watched(args[0]);
     if (href) pending.then((response) => readFetched(href, response), () => {});
+    pending.then(keepFetched, () => {});
     return pending;
   };
   const opened = XMLHttpRequest.prototype.open;
   XMLHttpRequest.prototype.open = function (method, url, ...rest) {
     tell(url);
+    this.addEventListener('load', () => {
+      try {
+        if (this.status < 200 || this.status > 299) return;
+        if (this.responseType !== '' && this.responseType !== 'text') return;
+        if (!TEXTUAL.test(this.getResponseHeader('content-type') || '')) return;
+        keep(this.responseText);
+      } catch { /* an answer that cannot be read is not kept */ }
+    });
     const href = watched(url);
     if (href) {
       this.addEventListener('load', () => {

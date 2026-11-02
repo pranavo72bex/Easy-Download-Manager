@@ -3684,3 +3684,12 @@ one of its own. Dropped: a table of site profiles (needs a release for each site
 Known limits: field names with none of those words (a height named `h`), a list kept outside
 a script (a `data-` attribute), and pages that hold no list at all (the list then shows only
 what the player fetched).
+
+Added 2026-11-02 (Facebook's feed showed no list): the scan also reads what the page's own
+answers said. A feed loads each video's renditions through its API after the page, so the page's
+markup never held them (the file the player fetched appeared nowhere in it). `extension/document.js`
+keeps, on every site, the text of each fetch or XHR answer (text, JSON, XML; at most 2 MiB each) that
+mentions `.m3u8`, `.mpd`, `<MPD`, `.mp4` or `.webm`; `content.js` holds the newest 40, at most 12 MiB,
+in memory; the panel's list scans the page and then those answers, newest first. They are sent nowhere.
+Tried and dropped: offering the page's one stream when the player has fetched nothing (on a feed it
+was another video's: a 2-hour file landed), so a stream is offered only with a file the player fetched.
