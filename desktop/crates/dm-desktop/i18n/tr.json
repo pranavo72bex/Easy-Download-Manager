@@ -619,6 +619,7 @@
  "Copy link": "Bağlantıyı kopyala",
  "Copied {} link.||Copied {} links.": "{} bağlantı kopyalandı.",
  "Stop reading pages after (minutes)": "Sayfa okumayı şu süre sonra durdur (dakika)",
+ "Also follow links to other sites": "Diğer sitelere giden bağlantıları da izle",
  "It ran out of time before reading every page. These are the files it found.": "Okunacak sayfalar varken süre doldu; bunlar o ana kadar bulunan dosyalar.",
  "Error: the disk is full in {}": "Hata: {} içinde disk dolu",
  "Numbers only: the one before was kept": "Yalnızca sayı: önceki değer korundu",

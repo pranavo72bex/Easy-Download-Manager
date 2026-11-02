@@ -619,6 +619,7 @@
  "Copy link": "Salin tautan",
  "Copied {} link.||Copied {} links.": "{} tautan disalin.",
  "Stop reading pages after (minutes)": "Berhenti membaca halaman setelah (menit)",
+ "Also follow links to other sites": "Ikuti juga tautan ke situs lain",
  "It ran out of time before reading every page. These are the files it found.": "Waktunya habis sementara masih ada halaman yang belum dibaca; inilah berkas yang ditemukan sampai saat itu.",
  "Error: the disk is full in {}": "Galat: disk penuh di {}",
  "Numbers only: the one before was kept": "Hanya angka: angka sebelumnya dipertahankan",

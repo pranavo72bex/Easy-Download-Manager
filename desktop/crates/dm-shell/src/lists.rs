@@ -276,6 +276,9 @@ pub struct Search {
     /// Pages past the start page to read, 0 to [`MAX_DEPTH`]. Only pages on
     /// the start page's site are read.
     pub depth: u8,
+    /// Whether pages on other sites than the start page's are read too, to
+    /// the same depth. Off: only the start page's own site.
+    pub other_sites: bool,
     /// Only files whose path has one of these in it; empty is any.
     pub include: Vec<String>,
     /// Files and pages whose path has one of these in it are skipped.
@@ -334,6 +337,7 @@ impl Default for Search {
             page: String::new(),
             types: DEFAULT_TYPES.split(' ').map(str::to_string).collect(),
             depth: 0,
+            other_sites: false,
             include: Vec::new(),
             exclude: Vec::new(),
             every_hours: 0,
@@ -653,7 +657,7 @@ pub async fn crawl_until(
             }
             if level < depth
                 && looks_like_page(&link)
-                && sites.iter().any(|site| same_site(site, &link))
+                && (search.other_sites || sites.iter().any(|site| same_site(site, &link)))
                 && seen.insert(link.clone())
             {
                 frontier.push_back((link, level + 1));

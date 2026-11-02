@@ -453,6 +453,8 @@ pub struct SiteFiles {
     pub every_hours: u64,
     /// Minutes a run reads pages for; 0 is no limit.
     pub stop_after_minutes: u64,
+    /// Whether pages on other sites are followed too.
+    pub other_sites: bool,
     /// What went wrong, said in the dialog; empty when nothing did.
     pub says: String,
     /// How the running search is going.
@@ -470,6 +472,7 @@ impl Default for SiteFiles {
             name: String::new(),
             every_hours: 0,
             stop_after_minutes: 0,
+            other_sites: false,
             says: String::new(),
             state: Arc::default(),
         }
@@ -490,6 +493,7 @@ impl SiteFiles {
             page: self.page.trim().to_string(),
             types: words(&self.types),
             depth: self.depth.min(dm_shell::lists::MAX_DEPTH),
+            other_sites: self.other_sites,
             include: words(&self.include),
             exclude: words(&self.exclude),
             every_hours: self.every_hours,

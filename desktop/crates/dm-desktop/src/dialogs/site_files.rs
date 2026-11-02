@@ -33,6 +33,7 @@ pub(super) fn site_files(app: &mut DmApp, ctx: &egui::Context) {
                 ui.add(number_box(&mut d.depth).range(0..=dm_shell::lists::MAX_DEPTH))
                     .labelled_by(name.id);
             });
+            ui.checkbox(&mut d.other_sites, t("Also follow links to other sites"));
             ui.horizontal(|ui| {
                 let name = ui.label(t("Stop reading pages after (minutes)"));
                 ui.add(

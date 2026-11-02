@@ -619,6 +619,7 @@
  "Copy link": "リンクをコピー",
  "Copied {} link.||Copied {} links.": "{} 件のリンクをコピーしました。",
  "Stop reading pages after (minutes)": "ページの読み込みを停止するまでの時間（分）",
+ "Also follow links to other sites": "他のサイトへのリンクもたどる",
  "It ran out of time before reading every page. These are the files it found.": "未読のページを残して時間切れになりました。それまでに見つかったファイルです。",
  "Error: the disk is full in {}": "エラー：{} のディスクがいっぱいです",
  "Numbers only: the one before was kept": "数字のみ：前の値を維持しました",

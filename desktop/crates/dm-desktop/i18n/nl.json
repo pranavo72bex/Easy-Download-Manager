@@ -619,6 +619,7 @@
  "Copy link": "Link kopiëren",
  "Copied {} link.||Copied {} links.": "{} link gekopieerd.||{} links gekopieerd.",
  "Stop reading pages after (minutes)": "Stoppen met pagina's lezen na (minuten)",
+ "Also follow links to other sites": "Ook links naar andere sites volgen",
  "It ran out of time before reading every page. These are the files it found.": "De tijd was op terwijl er nog pagina's te lezen waren; dit zijn de bestanden die tot dan zijn gevonden.",
  "Error: the disk is full in {}": "Fout: de schijf is vol in {}",
  "Numbers only: the one before was kept": "Alleen cijfers: het vorige getal is behouden",

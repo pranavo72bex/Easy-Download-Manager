@@ -619,6 +619,7 @@
  "Copy link": "Copia link",
  "Copied {} link.||Copied {} links.": "{} link copiato.||{} link copiati.",
  "Stop reading pages after (minutes)": "Smetti di leggere le pagine dopo (minuti)",
+ "Also follow links to other sites": "Segui anche i link ad altri siti",
  "It ran out of time before reading every page. These are the files it found.": "Il tempo è scaduto con pagine ancora da leggere; questi sono i file trovati fino ad allora.",
  "Error: the disk is full in {}": "Errore: il disco è pieno in {}",
  "Numbers only: the one before was kept": "Solo numeri: è stato mantenuto il precedente",

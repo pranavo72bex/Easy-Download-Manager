@@ -619,6 +619,7 @@
  "Copy link": "Копировать ссылку",
  "Copied {} link.||Copied {} links.": "Скопирована {} ссылка.||Скопировано {} ссылки.||Скопировано {} ссылок.",
  "Stop reading pages after (minutes)": "Остановить чтение страниц через (минут)",
+ "Also follow links to other sites": "Переходить также по ссылкам на другие сайты",
  "It ran out of time before reading every page. These are the files it found.": "Время вышло, а страницы ещё оставались; вот файлы, найденные до этого момента.",
  "Error: the disk is full in {}": "Ошибка: диск заполнен в {}",
  "Numbers only: the one before was kept": "Только числа: оставлено прежнее значение",

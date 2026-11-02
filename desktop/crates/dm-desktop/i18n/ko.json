@@ -619,6 +619,7 @@
  "Copy link": "링크 복사",
  "Copied {} link.||Copied {} links.": "링크 {}개를 복사했습니다.",
  "Stop reading pages after (minutes)": "페이지 읽기 중지 시간(분)",
+ "Also follow links to other sites": "다른 사이트로 가는 링크도 따라가기",
  "It ran out of time before reading every page. These are the files it found.": "읽을 페이지가 남은 채 시간이 다 되었습니다. 그때까지 찾은 파일입니다.",
  "Error: the disk is full in {}": "오류: {}의 디스크가 가득 찼습니다",
  "Numbers only: the one before was kept": "숫자만 입력: 이전 값을 유지했습니다",

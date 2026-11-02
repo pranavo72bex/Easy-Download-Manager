@@ -224,3 +224,44 @@ async fn a_search_stops_when_its_time_runs_out() {
     assert!(found.stopped);
     assert_eq!(names(&found.files), ["a.zip"]);
 }
+
+#[tokio::test]
+async fn pages_on_other_sites_are_read_only_when_asked() {
+    let other = axum::Router::new().route(
+        "/more.html",
+        get(|| async { Html(r#"<a href="far.zip">far</a>"#) }),
+    );
+    let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let port = listener.local_addr().unwrap().port();
+    tokio::spawn(async move { axum::serve(listener, other).await.unwrap() });
+    // `localhost` is another site than `127.0.0.1`, as two names are.
+    let away = format!("http://localhost:{port}/more.html");
+    let home = axum::Router::new().route(
+        "/",
+        get(move || {
+            let away = away.clone();
+            async move { Html(format!(r#"<a href="near.zip">n</a> <a href="{away}">away</a>"#)) }
+        }),
+    );
+    let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let addr = listener.local_addr().unwrap();
+    tokio::spawn(async move { axum::serve(listener, home).await.unwrap() });
+    let base = format!("http://{addr}");
+    let client = dm_core::client();
+
+    let own = crawl(&client, &zips(&base, 1)).await.unwrap();
+    assert_eq!(names(&own.files), ["near.zip"]);
+    assert_eq!(own.pages, 1);
+
+    let wide = crawl(
+        &client,
+        &Search {
+            other_sites: true,
+            ..zips(&base, 1)
+        },
+    )
+    .await
+    .unwrap();
+    assert_eq!(names(&wide.files), ["near.zip", "far.zip"]);
+    assert_eq!(wide.pages, 2);
+}

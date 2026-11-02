@@ -619,6 +619,7 @@
  "Copy link": "复制链接",
  "Copied {} link.||Copied {} links.": "已复制 {} 个链接。",
  "Stop reading pages after (minutes)": "停止读取页面时间（分钟）",
+ "Also follow links to other sites": "同时跟随指向其他网站的链接",
  "It ran out of time before reading every page. These are the files it found.": "时间已到，仍有页面未读；以下是此前找到的文件。",
  "Error: the disk is full in {}": "错误：{} 所在磁盘已满",
  "Numbers only: the one before was kept": "只能输入数字：已保留之前的值",

@@ -1110,6 +1110,23 @@ def walk(dm, origin):
     # B57: the site-limit list is there with its Add button.
     check("B57", "Advanced has a site connection-limit list with Add a site limit",
           "Sites with their own connection limit:" in words and "Add a site limit" in words, f"{words}")
+    # B60: Site files has the switch for following links to other sites.
+    dm.click("Cancel")
+    pause(0.8)
+    dm.click("Program")
+    pause(0.5)
+    dm.click("Site files")
+    pause(0.8)
+    site_words = dm.dialog_texts()
+    check("B60", "Site files has 'Also follow links to other sites' beside the page depth",
+          "Also follow links to other sites" in site_words and "Page depth (0 for the start page only)" in site_words,
+          f"{site_words}")
+    dm.click("Close")
+    pause(0.8)
+    dm.click("Options")
+    pause(0.8)
+    dm.click("Advanced")
+    pause(0.8)
     # B51: the page says how dm identifies itself, with the switch.
     check("B51", "Advanced shows the name dm sends to servers and the Identify as dm only switch",
           "dm identifies itself to servers as:" in words and "Identify as dm only" in words, f"{words}")
