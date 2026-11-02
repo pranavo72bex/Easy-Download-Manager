@@ -83,7 +83,7 @@ pub fn show(app: &mut DmApp, ui: &mut egui::Ui) {
     let striped = false;
     // ListViewItemMinHeight, compact.
     let row_height = if crate::theme::Tokens::get(ui.ctx()).modern {
-        32.0
+        28.0
     } else {
         22.0
     };

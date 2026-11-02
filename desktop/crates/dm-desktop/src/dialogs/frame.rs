@@ -398,13 +398,13 @@ pub(super) fn lay_out<R>(
         titled,
         closable,
     } = *layout;
-    // A dialog's fields, buttons and drop-downs are 32 tall, the
-    // Fluent 2 standard control height. The window's own list and
+    // A dialog's fields, buttons and drop-downs are 28 tall, a little under
+    // the Fluent 2 standard control height. The window's own list and
     // bars keep their compact 24 (the list sizes itself around
     // them, and at 300% text with the clipboard's bar above it a
     // taller control left its last row under the sideways bar).
     if crate::theme::Tokens::get(ui.ctx()).modern {
-        ui.spacing_mut().interact_size.y = 32.0;
+        ui.spacing_mut().interact_size.y = 28.0;
     }
     let layer = key_layer(ui);
     // A dialog of fixed size holds its body to the width inside its

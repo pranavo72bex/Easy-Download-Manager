@@ -176,15 +176,15 @@ pub fn apply_with_accent(ctx: &Context, theme: Theme, accent: Option<crate::acce
         // Set after the line above, which put egui's own back over it.
         style.spacing.scroll = steady_scroll();
         if t.modern {
-            // WinUI's standard density: controls 32 tall (the Fluent 2
-            // standard control height), buttons padded 11 by 5; 8 between
-            // controls, a dialog padded 24, a check box's box 20 with 8
-            // before its words. A menu's items are 32 with no gap between.
-            style.spacing.button_padding = egui::vec2(11.0, 5.0);
-            style.spacing.item_spacing = egui::vec2(8.0, 8.0);
-            style.spacing.interact_size.y = 32.0;
+            // A compact take on WinUI's density, as reference A's windows
+            // are: controls 28 tall, buttons padded 11 by 4; 6 between
+            // controls, a dialog padded 16, a check box's box 20 with 8
+            // before its words. A menu's items are 28 with no gap between.
+            style.spacing.button_padding = egui::vec2(11.0, 4.0);
+            style.spacing.item_spacing = egui::vec2(8.0, 6.0);
+            style.spacing.interact_size.y = 28.0;
             style.spacing.menu_margin = egui::Margin::same(4);
-            style.spacing.window_margin = egui::Margin::same(24);
+            style.spacing.window_margin = egui::Margin::same(16);
             // A drop-down's chevron takes a square this wide: at 20, a
             // drop-down stood 30 tall beside 27 for a button. The check box's 20 is set where one is drawn
             // (`dialogs::check`).
