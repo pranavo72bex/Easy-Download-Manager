@@ -154,23 +154,50 @@ contract row in the same commit. Check on a real page with the side-by-side setu
 and `SITES_HOLD=<seconds>` with `scripts/sites-check.py <site>`, then drive the held browser.
 
 #### G73 Vimeo: a normal video refused as "Protected"
-- **Today:** on a public Vimeo video the bar says "Protected video" and refuses (reference A offers the video and
-  lists eight lines: a TS and an MP4 file at each of 270p, 360p, 540p and 720p HD, with kbps). The test is only that
-  the player has a `mediaKeys` object (`browser/src/content/show.rs`, the `protected` value near line 40).
-- **Goal:** a video is refused only when its stream is encrypted by a DRM system. A key object alone is not that.
-- **Change:**
-  1. `browser/src/decide/` (new `protection.rs`, a pure function `is_drm(text: &str) -> bool`): true for an MPD with
-     a `ContentProtection` whose `schemeIdUri` is a DRM system (Widevine `urn:uuid:edef8ba9-79d6-4ace-a3c8-27dcd51d21ed`,
-     PlayReady `urn:uuid:9a04f079-9840-4286-ab92-e65be0885f95`, FairPlay `urn:uuid:94ce86fb-07ff-4f43-adb8-93d2fa968ca2`),
-     or an HLS `#EXT-X-KEY` whose `METHOD` is `SAMPLE-AES` or whose `KEYFORMAT` is not `identity`. HLS `AES-128` with a
-     key address is not DRM (dm's HLS engine already joins it).
-  2. `show.rs`: `protected = mediaKeys set && !clear_stream_known`, where a stream is "known clear" when the playlists
-     or manifests seen for the tab (`__dmBodies` and the tab's kept streams) are present and `is_drm` is false for all.
-     With nothing seen the old answer stands (refuse), so no DRM site changes.
-  3. The panel's list then offers the playlist's renditions through the existing HLS/DASH readers.
-- **Done when:** unit tests in `browser/src/decide/tests.rs` for `is_drm` (Widevine MPD true, clear MPD false,
-  `SAMPLE-AES` HLS true, `AES-128` HLS false, empty false); a live run on the same Vimeo page shows a list and a whole
-  video lands; a known DRM page (a Widevine demo) is still refused.
+**Seen 2026-11-02.** On a public Vimeo video dm's bar says "Protected video" and refuses it. Reference A offers the video and
+lists eight lines (a TS file and an MP4 file at each of 270p 453 kbps, 360p 900, 540p 1755, 720p HD 2991). dm's test is only
+that the player has a `mediaKeys` object (`browser/src/content/show.rs`, lines 39 to 42: `let protected = Reflect::get(element,
+"mediaKeys")...`). A key object does not mean the stream is encrypted.
+
+**Goal.** Refuse a video only when a playlist or manifest the page loaded says it is DRM-encrypted. With nothing read, keep
+refusing (no site that really has DRM changes).
+
+**Step 0, ten minutes: look before building.** In the held test browser on the Vimeo page (`SITES_HOLD=600 py
+scripts/sites-check.py vimeo`, then `D:\t\drive.py`-style eval), list `performance.getEntriesByType('resource')` names that
+contain `.m3u8` or `.mpd`, fetch the first, and look in its text for `#EXT-X-KEY` or `ContentProtection`. Write the finding
+here. If Vimeo's playlist is encrypted with `METHOD=AES-128` and a key address it is clear to dm's HLS engine; if it names
+`SAMPLE-AES` or a DRM system it is protected and this row closes as "dm is right". Do not build before this is known.
+
+**Build (if Step 0 says clear).**
+1. New file `browser/src/decide/protection.rs`, exported from `browser/src/decide.rs`:
+   ```rust
+   /// Whether one playlist or manifest says its media is encrypted by a DRM system.
+   pub fn is_drm(text: &str) -> bool;
+   /// What the texts the page loaded say: Some(true) if any is DRM, Some(false) if at least one
+   /// playlist or manifest was read and none is, None if none was read.
+   pub fn stream_protection(texts: &[String]) -> Option<bool>;
+   ```
+   Rules for `is_drm`: an MPD (`<MPD`) with a `ContentProtection` whose `schemeIdUri` (case-insensitively) is one of
+   `urn:uuid:edef8ba9-79d6-4ace-a3c8-27dcd51d21ed` (Widevine), `urn:uuid:9a04f079-9840-4286-ab92-e65be0885f95` or
+   `urn:uuid:79f0049a-4098-8642-ab92-e65be0885f95` (PlayReady), `urn:uuid:94ce86fb-07ff-4f43-adb8-93d2fa968ca2` (FairPlay);
+   an HLS text (`#EXTM3U`) with an `#EXT-X-KEY` line whose `METHOD=SAMPLE-AES` (or `SAMPLE-AES-CTR`) or whose `KEYFORMAT` is
+   anything but `"identity"`. `METHOD=AES-128` with `KEYFORMAT` absent or `identity` is NOT DRM. `ContentProtection` with
+   only `urn:mpeg:dash:mp4protection:2011` (common encryption's marker, no system) is not DRM by itself.
+2. `extension/document.js`: add `|#EXTM3U` to `MEDIA_WORDS` so a media playlist (whose lines name `.ts` or `.m4s`, not `.m3u8`)
+   is kept too.
+3. New `browser/src/content/bodies.rs`: move `kept bodies` out of `handoff.rs` `with_page_lines` into
+   `pub(super) fn kept_texts() -> Vec<String>` (reads `globalThis.__dmBodies`), used by both.
+4. `show.rs`: replace the three lines with
+   ```rust
+   let key_object = Reflect::get(element, &"mediaKeys".into()).ok().is_some_and(|k| !k.is_null() && !k.is_undefined());
+   let protected = key_object && decide::stream_protection(&bodies::kept_texts()) != Some(false);
+   ```
+**Tests (`browser/src/decide/tests.rs`).** `is_drm`: a Widevine MPD true; a PlayReady MPD true; an MPD with only the
+mp4protection marker false; a clear MPD false; HLS `#EXT-X-KEY:METHOD=SAMPLE-AES,URI="skd://x",KEYFORMAT="com.apple.streamingkeydelivery"`
+true; HLS `#EXT-X-KEY:METHOD=AES-128,URI="https://k/1"` false; HLS with no key false; empty and non-manifest text false.
+`stream_protection`: `[]` None; one clear playlist Some(false); a clear and a DRM one Some(true); a page of ordinary JSON None.
+**Live.** The Vimeo page lists renditions and a whole video lands (`kinds` audio and video); a Widevine demo page is still
+refused. Then run `scripts/chrome-check.py` (69 checks) and the browser tests.
 
 #### G74 A single file: ask first (Approval)
 - **Today:** on a tweet with one MP4, reference A's bar opens its File Info window (URL, Category, Save As, Remember
@@ -184,16 +211,44 @@ and `SITES_HOLD=<seconds>` with `scripts/sites-check.py <site>`, then drive the 
   the panel click; side-by-side screenshot.
 
 #### G75 File names from the page's title
-- **Today:** reference A's Save As is the page's title ("NASA on X- 'Everybody, wave!...'"); dm names the file from the
-  media's own name (`GiFPAi8WYAEgiBu.mp4`, `video.mp4` on Facebook).
-- **Goal:** when the address's own name is a hash, a bare `video`, or has no letters, the name is the page's title
-  (made safe for a file name) plus the type's extension; otherwise the file's own name stays.
-- **Change:** `browser/src/decide/download.rs` `taken_name(filename, url)` (line ~239) gets the tab's title (the
-  background has `sender.tab.title`) and a pure `is_meaningless_name(&str)`; pass the title through `Handoff`/the
-  request to the app; the app's `FileInfo` default name uses it (dm-core `probe.rs` `from_disposition` order: the
-  server's Content-Disposition first, then the title for meaningless names, then the address).
-- **Done when:** unit tests for `is_meaningless_name` (hash, `video`, digits, a real name) and for the safe name
-  (slashes, quotes, over-long, trailing dots, reserved Windows names); live on X, Facebook and Instagram.
+**Seen 2026-11-02.** Reference A's Save As is the page's title (`NASA on X- 'Everybody, wave! @fireflyspace's...'`). dm names
+the file from the media's own name: `GiFPAi8WYAEgiBu.mp4` (X), `video.mp4` (Facebook). (`browser/src/decide/download.rs`
+`taken_name` only words the notification; the saved name is decided in the app.)
+
+**Goal.** Name by the page's title when the file's own name says nothing; otherwise keep the file's name. Order of choice:
+(1) the name in the server's `Content-Disposition`; (2) the address's name unless `is_meaningless`; (3) the page's title
+made safe, plus the type's extension; (4) the address's name.
+
+**Build.**
+1. `dm-protocol/src/lib.rs` `Start` gains `#[serde(default, skip_serializing_if = "String::is_empty")] pub title: String`
+   (no version bump: an older app ignores it). `Batch` gets nothing.
+2. Extension: `extension/content.js` `finish()` and `choose()` add `title: document.title` to the `dm.media` message;
+   `browser/src/decide/media_panel.rs` `PanelClick` gets `title: Option<String>`; `browser/src/web/page.rs` copies it into
+   `Start.title`. For a download the browser caught, use the tab's title (`tabs.get(tabId).title` in `web/downloads.rs`).
+3. App: `dm-core/src/queue/mod.rs` `AddOptions` gains `pub title_hint: Option<String>`; `dm-shell/src/host.rs` (where `Start`
+   becomes an `AddOptions`) sets it; after the probe, where `probe.filename` becomes the row's name (search `probe.filename` in
+   `dm-core/src/queue/runner.rs`), call the new function below when `save_name` is `None`.
+4. New `dm-core/src/naming.rs`, `pub mod naming;` in `lib.rs`:
+   ```rust
+   pub fn is_meaningless(name: &str) -> bool;
+   pub fn title_name(title: &str, extension: &str) -> Option<String>;
+   pub fn choose(from_header: Option<&str>, from_url: &str, title: Option<&str>, extension: &str) -> String;
+   ```
+   `is_meaningless` (stem = the name before its last dot, case-insensitive for the word list) is true when: the stem is empty; the
+   stem is one of `video audio download file playback media index stream master manifest segment`; the stem is all digits; the
+   stem is hex or a UUID of 16 or more characters; or the stem is 12 or more characters with no space, dot, hyphen or underscore,
+   has a letter and a digit, and 25% to 75% of its letters are upper case.
+   `title_name`: trim; turn `:` into ` -`; remove control characters and `\ / * ? " < > |`; collapse runs of spaces; strip trailing
+   dots and spaces; cut to 120 characters at a word end; refuse (None) an empty result or a Windows reserved name (`CON PRN AUX NUL
+   COM1..COM9 LPT1..LPT9`, with any extension); append `.` + `extension`.
+**Tests (`dm-core/src/naming.rs` `#[cfg(test)]`).** `is_meaningless` true: `GiFPAi8WYAEgiBu.mp4`, `o4DPxfQfIIk3KMBHYxVIEGxCCEuyk9deAAzL6j.mp4`,
+`video.mp4`, `123456789.mp4`, `3f2a9c1e7b8d4a6f9c0e1d2b3a4c5d6e.mp4`, `0b6d3c1a-7e2f-4a8b-9c1d-2e3f4a5b6c7d.mp4`; false: `setup-installer.exe`, `BigBuckBunny720p.mp4`,
+`Report2026_Final.pdf`, `holiday photos.zip`, `NASA.mp4`. `title_name`: `NASA on X: "Everybody, wave!" / Moon` +
+`mp4` gives `NASA on X - Everybody, wave! Moon.mp4`; `CON` gives None; a 300-character title is cut at a word end under 120; an
+empty or whitespace title is None. `choose`: a header name beats everything; a hash name with a title takes the title; a real
+URL name beats the title; no title keeps the URL name.
+**Live.** The X tweet, a Facebook reel and an Instagram reel each save under the page's title; a link to `report.pdf` keeps
+`report.pdf`.
 
 #### G76 Where the bar sits (Approval)
 - **Today:** reference A's bar sits on the video's top edge, right-aligned, and shrinks to a play mark and a close mark
@@ -223,6 +278,21 @@ and `SITES_HOLD=<seconds>` with `scripts/sites-check.py <site>`, then drive the 
   5. `app/scheduled.rs` `run_due` per queue.
 - **Done when:** dm-core tests for `once_at` and per-queue windows; a window test
   (`tests/window/speed_schedule.rs`) that two queues keep different windows; `human-qa.py` row; side-by-side.
+
+**Exact shapes (so the work is mechanical).**
+- `dm-core/src/schedule.rs`: `Schedule` gains `#[serde(default)] pub once_at: Option<String>` (`"YYYY-MM-DD HH:MM"`, local) and
+  `#[serde(default)] pub force: bool`; `Schedule::open_at(&self, weekday: u8, minute_of_day: u32)` keeps its meaning, and a new
+  `open_now(&self, today: (i32, u8, u8), weekday: u8, minute_of_day: u32) -> bool` adds: with `once_at` set, closed until that
+  moment, then open until `to` that day, after which `once_at` is cleared by the caller (`app/scheduled.rs`).
+- `dm-shell/src/settings.rs`: `pub queue_schedules: BTreeMap<String, Schedule>` (key: the queue's name); a queue without an entry
+  uses the global `schedule`. `dm-core/src/queue/queues.rs` asks `Options::schedule_for(&str) -> &Schedule`.
+- `dialogs/speed_schedule.rs`: left, the queues (the Main queue and the named ones, from `queues.rs`); right, today's form
+  (the hours switch, start, stop, weekdays, wake, when done, retries, run a program) plus a "Start at" date for `once_at`;
+  buttons Start now, Stop, OK, Cancel. Start now calls the queue's start; Stop calls its stop.
+**Tests.** `schedule.rs`: `once_at = "2026-11-03 23:00"`: at 2026-11-03 22:59 closed, at 23:00 open, at 2026-11-04 00:01 open until
+`to`, at `to` closed; weekday filters still apply; an overnight window (`to` before `from`) still works; two queues in settings
+with different windows each answer their own. `tests/window/speed_schedule.rs`: choose queue B, change its start, OK, reopen: A is
+unchanged, B kept.
 
 #### G80 Proxy: configuration script, per protocol, browser fallback
 - **Today:** `dm-core/src/proxy.rs` `Kind`: System, Http, Https, Socks4, Socks5, with a host, port, user, password and a
@@ -347,6 +417,26 @@ and `SITES_HOLD=<seconds>` with `scripts/sites-check.py <site>`, then drive the 
 - **Done when:** a window test in `tests/window/` that opens the dialog from a page's links with the defaults, ticks two, and
   adds only those to the folder chosen; `scripts/human-qa.py` row; a side-by-side screenshot on the local page
   (`python -m http.server` with eight files, the page in `scripts/fixtures/`).
+
+**Exact shapes.**
+- `dm-protocol/src/lib.rs` `Batch` gains `#[serde(default, skip_serializing_if = "Vec::is_empty")] pub texts: Vec<String>`, parallel to
+  `urls` (the link's visible text, trimmed to 200 characters). `extension/content.js` (the `dm.links` handler, line ~185 to 206)
+  pushes `node.textContent.trim().slice(0, 200)` beside `node.href`; `browser/src/web/page.rs` passes it on.
+- `dialogs/state.rs` `LinksImport` gains `texts: Vec<String>`, `save_to: SaveTo`, `hide_images: bool`, `hide_repeats: bool`,
+  `use_texts: bool`, with
+  ```rust
+  pub enum SaveTo { ByCategory, OneCategory(String), OneFolder(String) }
+  ```
+  Defaults: `ByCategory`, `hide_images: true`, `hide_repeats: true`, `use_texts: true`, as reference A's.
+- `dialogs/links.rs`: add columns Save to (the folder the row's category gives, or the chosen one) and Link text; the Save To
+  radio group (three choices; a folder box with Browse for the third; a category list for the second); three check boxes
+  "Use link texts as descriptions", "Hide images", "Hide repeated files" beside the existing "Hide HTML files"; an Edit button
+  for the row chosen (its name and address). An image is a row whose `Found.kind` is Pictures; a repeat is a row whose bare
+  address (`bare()`) is already listed or already a download.
+- On OK, each ticked row becomes `AddOptions { save_dir, description: text if use_texts, later, queue: MAIN_QUEUE, referrer }`.
+**Tests.** `tests/window/`: eight local links, none ticked on open; Check all ticks eight; "Hide images" hides the one picture;
+a repeated address is hidden by "Hide repeated files"; choosing one folder and OK saves only the ticked into it; the row's note
+is the link text. `dm-protocol` round-trip: a `Batch` without `texts` (an older extension) still reads.
 
 #### G95 Engine: pieces for small files
 - **Measured:** reference A, a 100 KB file: 4 connections, pieces down to about 14 KB; dm: 1 connection (a piece is at least
