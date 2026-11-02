@@ -265,3 +265,24 @@ sizes out (dm's sizes were asked for and are kept).
 - **X (one MP4 tweet).** Reference A: a click opens its "Download File Info" window (URL, Category, Save As from the page's title, Remember this path, Description, Download Later / Start Download / Cancel). dm: the click sent the file at once, and the app came forward with it complete; named by the file's own name.
 - **TikTok and Instagram (logged out).** dm showed its bar; reference A showed none. On Instagram dm's bar sat on the site's header, since the video's top lies under it.
 - Reference A's bar sits on the video's top edge, right-aligned, and is a plain play mark and close mark on a narrow video.
+
+### The desktop apps, side by side (2026-11-02)
+
+Reference A's main window (menus Tasks, File, Downloads, View, Help, Registration; toolbar Add URL, Resume,
+Stop, Stop All, Delete, Delete Completed, Options, Scheduler, Start Queue, Stop Queue, Tell a Friend; a category
+tree of All Downloads (Compressed, Documents, Music, Programs, Video), Unfinished, Finished, Grabber projects and
+Queues; list columns File Name, Q, Size, Status, Time left, Transfer rate, Last Try Date, Description) and dm's
+(menus Program, File, Downloads, View, Help; toolbar Add URL, Resume, Stop, Stop all, Remove, Clear finished,
+Options, Scheduler, Start queue, Stop queue, Site files; Everything with Videos, Audio, Documents, Apps, Archives,
+Pictures, Other, In progress, Done, Queues) were opened in visible windows and every menu, the Options dialog's
+tabs, the Scheduler, Add URL and the site grabber were read from the screen. Nothing was downloaded or changed.
+dm was a build of this branch on its own data folder; the person's installed dm was not touched. The differences are
+gaps rows 79 to 92.
+
+- Reference A's Tasks menu: Add new download, Add batch download, Add batch download from clipboard, Run site
+  grabber, Show drop target, Export, Import, Exit. Its Downloads menu: Pause All, Stop All, Delete All Completed,
+  Find (Ctrl-F), Find Next (F3), Scheduler, Start queue, Stop queue, Speed Limiter, Options.
+- dm's Program menu has the same things (Add numbered series for batch, Add links from clipboard, Site files);
+  its File menu is larger (Show progress, Update download link, Copy details, Move/Rename, Open with, Preview,
+  Extract here or to, Move to queue, Take out of queue, Move up and down), and its Downloads menu adds Find previous
+  and When done.
