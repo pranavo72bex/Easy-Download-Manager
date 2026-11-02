@@ -125,7 +125,9 @@ async fn a_site_with_a_limit_of_its_own_is_fetched_on_that_many_connections() {
     );
 }
 
-/// Refuses the first `fail` requests with 503, then serves the file.
+/// Refuses the first `fail` ranged requests with 503, then serves the file.
+/// A plain request (the engine's one second try of a failed first request) is
+/// refused and not counted, so `seen` counts attempts.
 struct Flaky {
     data: Vec<u8>,
     seen: AtomicUsize,
@@ -133,7 +135,8 @@ struct Flaky {
 }
 
 async fn flaky(State(f): State<Arc<Flaky>>, headers: HeaderMap) -> Response {
-    if f.seen.fetch_add(1, Ordering::SeqCst) < f.fail {
+    let plain = !headers.contains_key("range");
+    if plain || f.seen.fetch_add(1, Ordering::SeqCst) < f.fail {
         return Response::builder()
             .status(503)
             .header("retry-after", "1")

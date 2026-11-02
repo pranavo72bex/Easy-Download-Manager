@@ -385,3 +385,39 @@ async fn an_untrusted_certificate_is_said_at_once_not_retried() {
         hits.load(std::sync::atomic::Ordering::SeqCst)
     );
 }
+
+#[tokio::test]
+async fn a_server_that_fails_ranged_requests_but_serves_the_plain_one_gives_the_file() {
+    use axum::http::HeaderMap;
+    let data: Vec<u8> = (0..300_000u32).map(|i| (i % 251) as u8).collect();
+    let served = data.clone();
+    let app = axum::Router::new().route(
+        "/f.bin",
+        axum::routing::get(move |headers: HeaderMap| {
+            let served = served.clone();
+            async move {
+                if headers.contains_key("range") {
+                    return axum::response::Response::builder()
+                        .status(503)
+                        .body(axum::body::Body::empty())
+                        .unwrap();
+                }
+                axum::response::Response::builder()
+                    .status(200)
+                    .header("content-length", served.len())
+                    .body(axum::body::Body::from(served))
+                    .unwrap()
+            }
+        }),
+    );
+    let addr = common::serve(app).await;
+    let dir = tempdir();
+    let once = dm_core::Options {
+        attempts: 1,
+        ..options(dir.path())
+    };
+    let done = dm_core::download(&dm_core::client(), &format!("http://{addr}/f.bin"), &once)
+        .await
+        .expect("the plain request should have been tried");
+    assert_eq!(std::fs::read(done.path).unwrap(), data);
+}

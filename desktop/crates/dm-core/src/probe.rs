@@ -72,12 +72,14 @@ pub async fn probe_get(
     referrer: Option<&str>,
     sign_in: Option<&crate::cookies::SignIn>,
 ) -> Result<ProbeWithBody, Error> {
-    let ask = |agent: &str| {
+    let ask_as = |agent: &str, ranged: bool| {
         let mut request = client
             .get(url)
-            .header(reqwest::header::RANGE, "bytes=0-")
             .header(reqwest::header::USER_AGENT, agent)
             .header(reqwest::header::ACCEPT_ENCODING, crate::download::IDENTITY);
+        if ranged {
+            request = request.header(reqwest::header::RANGE, "bytes=0-");
+        }
         let cookies = crate::cookies::header_with(sign_in, url);
         request =
             crate::download::stream_headers().onto(request, cookies.is_some(), referrer.is_some());
@@ -94,6 +96,7 @@ pub async fn probe_get(
         }
         crate::auth::send(client, request, url)
     };
+    let ask = |agent: &str| ask_as(agent, true);
     let mut res = ask(crate::agent_for(url)).await?;
     if res.status() == reqwest::StatusCode::FORBIDDEN
         && crate::agent_for(url) == crate::first_agent()
@@ -115,6 +118,17 @@ pub async fn probe_get(
     // A 404 is asked for a second time before it is said, as reference A does.
     if res.status() == reqwest::StatusCode::NOT_FOUND {
         res = ask(crate::agent_for(url)).await?;
+    }
+
+    // Some servers fail a ranged request and serve the plain one, which is how
+    // reference A asks first. Taken only if the plain request succeeds; the
+    // ranged answer's error is what is said otherwise.
+    if res.status().is_server_error() {
+        if let Ok(plain) = ask_as(crate::agent_for(url), false).await {
+            if plain.status().is_success() {
+                res = plain;
+            }
+        }
     }
 
     let status = res.status();
