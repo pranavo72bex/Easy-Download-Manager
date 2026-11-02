@@ -610,7 +610,7 @@ mod mp4 {
 
 fn sha256(bytes: &[u8]) -> String {
     use sha2::Digest;
-    hex::encode(sha2::Sha256::digest(bytes))
+    dm_core::hex::encode(sha2::Sha256::digest(bytes))
 }
 
 /// The MP4 dm makes of the `h264` stream, judged as a player would find it:

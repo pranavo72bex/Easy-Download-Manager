@@ -221,7 +221,7 @@ mod tools {
 pub fn namespace(path: &Path) -> String {
     use sha2::{Digest, Sha256};
     let digest = Sha256::digest(path.to_string_lossy().as_bytes());
-    hex::encode(&digest[..4])
+    crate::hex::encode(&digest[..4])
 }
 
 /// What an attempt to open a file of secrets found.

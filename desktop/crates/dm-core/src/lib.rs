@@ -33,6 +33,7 @@ pub mod fmp4;
 pub mod frames;
 pub mod ftp;
 pub mod gif;
+pub mod hex;
 mod limit;
 pub mod live;
 mod metalink;

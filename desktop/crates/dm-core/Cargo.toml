@@ -44,7 +44,6 @@ md-5 = "0.11.0"
 # client challenge must be unpredictable.
 md4 = "0.11"
 getrandom = "0.4"
-hex = "0.4.3"
 quick-xml = "0.42.0"
 url = "2.5.8"
 aes = "0.9.3"
@@ -97,7 +96,6 @@ rand = "0.8"
 # downloaded parts behind on every run.
 tempfile = "3"
 sha2 = "0.11.0"
-hex = "0.4.3"
 memory-stats = "1.2.0"
 aes = "0.9.3"
 cbc = { version = "0.2.1", features = ["block-padding", "alloc"] }

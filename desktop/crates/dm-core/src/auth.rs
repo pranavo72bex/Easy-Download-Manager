@@ -74,9 +74,9 @@ impl Algorithm {
 
     fn hash(self, text: &str) -> String {
         match self {
-            Algorithm::Md5 | Algorithm::Md5Sess => hex::encode(Md5::digest(text.as_bytes())),
+            Algorithm::Md5 | Algorithm::Md5Sess => crate::hex::encode(Md5::digest(text.as_bytes())),
             Algorithm::Sha256 | Algorithm::Sha256Sess => {
-                hex::encode(Sha256::digest(text.as_bytes()))
+                crate::hex::encode(Sha256::digest(text.as_bytes()))
             }
         }
     }
@@ -224,7 +224,7 @@ fn cnonce(server_nonce: &str) -> String {
         .map_or(0, |d| d.as_nanos());
     let count = COUNTER.fetch_add(1, Ordering::Relaxed);
     let seed = format!("{nanos}:{count}:{server_nonce}:{}", std::process::id());
-    hex::encode(Sha256::digest(seed.as_bytes()))
+    crate::hex::encode(Sha256::digest(seed.as_bytes()))
 }
 
 /// The `Authorization` value answering `challenge` for `method` on `url`,

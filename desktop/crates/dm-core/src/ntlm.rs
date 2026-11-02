@@ -284,7 +284,7 @@ mod tests {
     use super::*;
 
     fn bytes(hex: &str) -> Vec<u8> {
-        hex::decode(hex.replace(' ', "")).unwrap()
+        crate::hex::decode(&hex.replace(' ', "")).unwrap()
     }
 
     /// MS-NLMP 4.2.4's target info: NetBIOS domain "Domain", computer

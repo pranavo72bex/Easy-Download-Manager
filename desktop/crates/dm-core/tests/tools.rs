@@ -23,7 +23,7 @@ async fn fetched_tools_are_kept_only_when_they_match() {
         quickjs: format!("{base}/q"),
         quickjs_digests: vec![(
             "qjs-linux-x86_64".into(),
-            hex::encode(sha2::Sha256::digest(b"a quickjs")),
+            dm_core::hex::encode(sha2::Sha256::digest(b"a quickjs")),
         )],
     };
     let dir = common::tempdir();
@@ -112,7 +112,7 @@ async fn the_official_build_is_fetched_and_run() {
 async fn the_bytes_of_a_fetch_are_told_while_it_runs() {
     use axum::routing::get;
     let program = b"#!/bin/sh\necho slow\n".repeat(50);
-    let digest = hex::encode(sha2::Sha256::digest(&program));
+    let digest = dm_core::hex::encode(sha2::Sha256::digest(&program));
     let served = program.clone();
     let app = axum::Router::new().route(
         "/q/qjs-linux-x86_64",

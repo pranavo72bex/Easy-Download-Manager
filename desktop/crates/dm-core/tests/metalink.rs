@@ -119,7 +119,7 @@ async fn a_mirror_serving_other_bytes_is_passed_over_for_one_that_matches_the_di
     let size = 6 * 1024 * 1024;
     let good: Vec<u8> = (0..size).map(|i| (i * 7 % 251) as u8).collect();
     let wrong: Vec<u8> = (0..size).map(|i| (i * 11 % 241) as u8).collect();
-    let digest = hex::encode(Sha256::digest(&good));
+    let digest = dm_core::hex::encode(Sha256::digest(&good));
     let app = Router::new()
         .route("/m1/f.bin", get(ranged(wrong, "\"wrong\"")))
         .route("/m2/f.bin", get(ranged(good.clone(), "\"good\"")));

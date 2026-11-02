@@ -248,7 +248,7 @@ mod tls_tests {
         let size = describe(&target).await.unwrap().size.unwrap();
         let whole = fetched(&target, 0).await;
         assert_eq!(whole.len() as u64, size);
-        assert_eq!(hex::encode(sha2::Sha256::digest(&whole)), sha256);
+        assert_eq!(crate::hex::encode(sha2::Sha256::digest(&whole)), sha256);
         let half = size / 2;
         assert_eq!(fetched(&target, half).await, whole[half as usize..]);
     }

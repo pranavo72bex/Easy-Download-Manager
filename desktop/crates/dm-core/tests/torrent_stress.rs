@@ -64,7 +64,7 @@ fn pattern(seed: u64, len: usize) -> Vec<u8> {
 }
 
 fn sha(bytes: &[u8]) -> String {
-    hex::encode(Sha256::digest(bytes))
+    dm_core::hex::encode(Sha256::digest(bytes))
 }
 
 fn walk(dir: &Path) -> Vec<PathBuf> {

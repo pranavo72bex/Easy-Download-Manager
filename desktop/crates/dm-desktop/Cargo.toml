@@ -148,7 +148,6 @@ egui_kittest = { version = "0.37", features = ["wgpu", "snapshot"] }
 tempfile = "3"
 # The digest a test works out for itself, to hold the window's to.
 sha2 = "0.11.0"
-hex = "0.4.3"
 # A real archive for the extraction test.
 zip = { version = "9", default-features = false, features = ["deflate"] }
 # The window's memory written out as eframe writes it, for a relaunch.

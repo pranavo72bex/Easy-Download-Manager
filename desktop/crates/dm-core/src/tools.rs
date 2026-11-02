@@ -254,7 +254,7 @@ async fn fetch_once(client: &reqwest::Client, url: &str) -> Result<Vec<u8>, Erro
 }
 
 fn hex_of(bytes: &[u8]) -> String {
-    hex::encode(Sha256::digest(bytes))
+    crate::hex::encode(Sha256::digest(bytes))
 }
 
 /// The SHA-256 digest of `bytes`, in hex: what a fetched file is held to.

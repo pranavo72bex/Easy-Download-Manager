@@ -34,8 +34,8 @@ enum Hash {
 impl Hash {
     fn of(self, text: &str) -> String {
         match self {
-            Hash::Md5 => hex::encode(md5::Md5::digest(text.as_bytes())),
-            Hash::Sha256 => hex::encode(sha2::Sha256::digest(text.as_bytes())),
+            Hash::Md5 => dm_core::hex::encode(md5::Md5::digest(text.as_bytes())),
+            Hash::Sha256 => dm_core::hex::encode(sha2::Sha256::digest(text.as_bytes())),
         }
     }
     fn name(self) -> &'static str {

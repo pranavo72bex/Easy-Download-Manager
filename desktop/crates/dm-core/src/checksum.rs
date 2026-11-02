@@ -117,7 +117,7 @@ pub async fn digest(path: &Path, algorithm: Algorithm) -> Result<String, Error> 
                 }
                 hasher.update(buffer.get(..read).unwrap_or_default());
             }
-            hex::encode(hasher.finalize())
+            crate::hex::encode(hasher.finalize())
         }};
     }
 

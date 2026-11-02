@@ -780,7 +780,7 @@ fn served_sha256() -> String {
     use sha2::Digest;
     let mut hasher = sha2::Sha256::new();
     hasher.update(vec![7u8; 1024]);
-    hex::encode(hasher.finalize())
+    dm_core::hex::encode(hasher.finalize())
 }
 
 #[tokio::test]
@@ -1463,7 +1463,7 @@ fn sha256_of(bytes: &[u8]) -> String {
     use sha2::Digest;
     let mut hasher = sha2::Sha256::new();
     hasher.update(bytes);
-    hex::encode(hasher.finalize())
+    dm_core::hex::encode(hasher.finalize())
 }
 
 /// Bytes that differ everywhere, so a file spliced from the wrong source is

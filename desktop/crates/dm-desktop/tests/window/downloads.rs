@@ -1890,7 +1890,7 @@ fn properties_show_the_files_sha256_and_check_a_given_digest() {
         app.rows().iter().any(|r| r.state == State::Completed)
     });
     let finished = row(&harness, "file.zip");
-    let expected = hex::encode(Sha256::digest(std::fs::read(&finished.path).unwrap()));
+    let expected = dm_core::hex::encode(Sha256::digest(std::fs::read(&finished.path).unwrap()));
     let id = finished.id;
     harness.state_mut().dialogs.open_properties(&finished);
     until(&mut harness, "its SHA-256 to be shown", |_| true);
