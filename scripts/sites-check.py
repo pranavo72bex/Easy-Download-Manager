@@ -42,6 +42,11 @@ REDDIT_JS = """(() => { const t = [...document.querySelectorAll('shreddit-post')
 INSTAGRAM_JS = """(() => { const a = [...document.querySelectorAll('a[href*="/reel/"], a[href*="/p/"]')][0];
   return a ? a.href : null; })()"""
 
+# Reddit's front page has no password box when nobody is signed in, only a "Log In" button.
+REDDIT_SIGNED_IN = """(() => document.readyState === 'complete' && !document.querySelector('input[type=password]')
+  && !location.pathname.startsWith('/login') && !location.pathname.startsWith('/register')
+  && ![...document.querySelectorAll('a, button')].some(e => (e.textContent || '').trim().toLowerCase() === 'log in'))()"""
+
 SITES = {
     "vimeo": {"url": "https://vimeo.com/513177164"},
     "facebook": {"url": "https://www.facebook.com/NASA/videos/watch-nasas-perseverance-rover-land-on-mars/438313177583525/"},
@@ -51,12 +56,13 @@ SITES = {
     # A GIF-style clip: the post's media is a short silent MP4.
     "x": {"url": "https://x.com/NASA/status/1882872996031066248", "silent_ok": True},
     "x2": {"url": "https://x.com/NASA/status/2042756933686337713"},
-    "reddit": {"listing": "https://www.reddit.com/r/oddlysatisfying/top/?t=week", "discover": REDDIT_JS},
+    "reddit": {"listing": "https://www.reddit.com/r/oddlysatisfying/top/?t=week", "discover": REDDIT_JS,
+               "signin_url": "https://www.reddit.com/login/", "signed_in": REDDIT_SIGNED_IN},
     "instagram": {"listing": "https://www.instagram.com/nasa/reels/", "discover": INSTAGRAM_JS},
 }
 WANT = sys.argv[1:] or list(SITES)
 
-RECT = """(() => { const v = [...document.querySelectorAll('video')]
+RECT = """(() => { const allVideos = () => { const out = []; const promoted = v => { for (let e = v; e; e = (e.parentElement || (e.getRootNode && e.getRootNode().host) || null)) { if (/promoted|-ad$/i.test(((e.className || '') + '').split(' ').join(' ') + ' ' + (e.localName || ''))) return true; } return false; }; const walk = r => { r.querySelectorAll('video').forEach(v => { if (!promoted(v)) out.push(v); }); r.querySelectorAll('*').forEach(e => { if (e.shadowRoot) walk(e.shadowRoot); }); }; walk(document); return out; }; const v = allVideos()
     .sort((a, b) => b.clientWidth * b.clientHeight - a.clientWidth * a.clientHeight)[0];
   if (!v) return null; v.scrollIntoView({block: 'center'}); const r = v.getBoundingClientRect();
   return { x: r.left, y: r.top, w: r.width, h: r.height, paused: v.paused, src: (v.currentSrc || v.src || '').slice(0, 120) }; })()"""
@@ -64,16 +70,16 @@ CONSENT = """(() => { const words = /^(accept all|accept|allow all|allow all coo
   for (const b of document.querySelectorAll('button, [role=button]')) {
     if (words.test((b.innerText || '').trim())) { b.click(); return (b.innerText || '').trim(); } }
   return null; })()"""
-COVER = """(() => { const v = [...document.querySelectorAll('video')]
+COVER = """(() => { const allVideos = () => { const out = []; const promoted = v => { for (let e = v; e; e = (e.parentElement || (e.getRootNode && e.getRootNode().host) || null)) { if (/promoted|-ad$/i.test(((e.className || '') + '').split(' ').join(' ') + ' ' + (e.localName || ''))) return true; } return false; }; const walk = r => { r.querySelectorAll('video').forEach(v => { if (!promoted(v)) out.push(v); }); r.querySelectorAll('*').forEach(e => { if (e.shadowRoot) walk(e.shadowRoot); }); }; walk(document); return out; }; const v = allVideos()
     .sort((a, b) => b.clientWidth * b.clientHeight - a.clientWidth * a.clientHeight)[0];
   if (!v) return null; const r = v.getBoundingClientRect();
   const desc = e => { if (!e) return null; const b = e.getBoundingClientRect(); const st = getComputedStyle(e);
     return `${e.tagName.toLowerCase()}.${(e.className || '').toString().slice(0, 40)} ${Math.round(b.width)}x${Math.round(b.height)} pos=${st.position} op=${st.opacity} pe=${st.pointerEvents}`; };
   let top = document.elementFromPoint(r.left + r.width / 2, r.top + r.height / 2);
-  const chain = []; for (let e = v.parentElement, i = 0; e && i < 5; e = e.parentElement, i++) chain.push(desc(e));
-  const topChain = []; for (let e = top, i = 0; e && i < 4; e = e.parentElement, i++) topChain.push(desc(e));
+  const chain = []; for (let e = (v.parentElement || (v.getRootNode && v.getRootNode().host) || null), i = 0; e && i < 8; e = (e.parentElement || (e.getRootNode && e.getRootNode().host) || null), i++) chain.push(desc(e));
+  const topChain = []; for (let e = top, i = 0; e && i < 8; e = (e.parentElement || (e.getRootNode && e.getRootNode().host) || null), i++) topChain.push(desc(e));
   return { video: desc(v), top: topChain, around: chain, inVideo: top === v || v.contains(top) }; })()"""
-PLAY = """(() => { const v = document.querySelector('video'); if (!v) return 'none'; v.muted = true;
+PLAY = """(() => { const allVideos = () => { const out = []; const promoted = v => { for (let e = v; e; e = (e.parentElement || (e.getRootNode && e.getRootNode().host) || null)) { if (/promoted|-ad$/i.test(((e.className || '') + '').split(' ').join(' ') + ' ' + (e.localName || ''))) return true; } return false; }; const walk = r => { r.querySelectorAll('video').forEach(v => { if (!promoted(v)) out.push(v); }); r.querySelectorAll('*').forEach(e => { if (e.shadowRoot) walk(e.shadowRoot); }); }; walk(document); return out; }; const v = allVideos()[0]; if (!v) return 'none'; v.muted = true;
   const p = v.play(); return p && p.then ? 'asked' : 'played'; })()"""
 
 
@@ -102,6 +108,30 @@ class FrameView:
         if "exceptionDetails" in result:
             raise RuntimeError(result["exceptionDetails"].get("text", "evaluate failed"))
         return result["result"].get("value")
+
+
+LITE_STATE = """(() => { const h = document.querySelector('dm-panel-lite'); if (!h || h.style.display === 'none') return null;
+  const r = h.shadowRoot; const go = r.querySelector('.bar button'); const b = go.getBoundingClientRect();
+  const items = [...r.querySelectorAll('.list button')]; const say = r.querySelector('.say');
+  const sent = !say.hidden && /^sent to dm/i.test(say.textContent);
+  return { shown: true, title: sent ? 'Sent to dm' : go.textContent, sub: say.hidden ? '' : say.textContent,
+    lines: items.map(i => i.textContent), at: items.map(i => { const q = i.getBoundingClientRect(); return [q.left + q.width / 2, q.top + q.height / 2]; }),
+    x: b.left - 60 + 60, y: b.top, w: 240, h: b.height }; })()"""
+
+
+def panel_of(view):
+    """The panel as the page shows it: the full one, or the plain-JavaScript one a page that forbids
+    WebAssembly gets, read into the same fields."""
+    try:
+        full = panel_of(view)
+    except RuntimeError:
+        full = None
+    if full and full.get("shown"):
+        return full
+    try:
+        return view.evaluate(LITE_STATE)
+    except RuntimeError:
+        return None
 
 
 MEDIA = (".mp4", ".webm", ".mkv", ".m4a", ".mp3", ".ts")
@@ -168,7 +198,7 @@ def wait_for_signin(base, name, site):
     deadline = time.time() + wait
     while time.time() < deadline:
         try:
-            if tab.evaluate(SIGNED_IN):
+            if tab.evaluate(site.get("signed_in") or SIGNED_IN):
                 time.sleep(3)
                 print(f"  {name}: signed in, going on", flush=True)
                 return True
@@ -245,15 +275,25 @@ def one(base, name, site, engine_dl, worker=None):
     if PROBE and worker is not None:
         out["worker_saw"] = worker.evaluate("globalThis.__dmseen.slice(-14)")
     cc.hover(tab, page_rect(rect))
-    state = cc.wait_for(lambda: (cc.panel(view) or {}).get("shown") and cc.panel(view), 10)
+    state = cc.wait_for(lambda: (panel_of(view) or {}).get("shown") and panel_of(view), 10)
     if not state:
         cc.hover(tab, page_rect(rect))
         time.sleep(2)
-        state = cc.wait_for(lambda: (cc.panel(view) or {}).get("shown") and cc.panel(view), 10)
+        state = cc.wait_for(lambda: (panel_of(view) or {}).get("shown") and panel_of(view), 10)
     out["panel_shown"] = bool(state)
     out["panel_state"] = state
     if not state:
         out["cover"] = view.evaluate(COVER)
+        tab.drain(1)
+        out["console"] = [
+            " ".join(str(arg.get("value", arg.get("description", ""))) for arg in event["params"].get("args", []))[:240]
+            for event in tab.events
+            if event.get("method") == "Runtime.consoleAPICalled"
+            and "dm" in " ".join(str(arg.get("value", "")) for arg in event["params"].get("args", []))[:20]
+        ][-8:]
+        out["dm_panel"] = tab.evaluate("""(() => { const p = document.querySelector('dm-panel'); if (!p) return 'absent';
+          const r = p.getBoundingClientRect(); return { display: getComputedStyle(p).display, rect: [r.left, r.top, r.width, r.height],
+            hidden: p.hasAttribute('hidden'), attrs: p.getAttributeNames().join(',') }; })()""")
         out["result"] = "the panel did not appear"
         return out
     def shot(label):
@@ -277,24 +317,49 @@ def one(base, name, site, engine_dl, worker=None):
     # SITES_CARET=1: the small arrow beside the button, which opens the list of
     # qualities, rather than the button, which sends the best at once.
     across = state["w"] - 22 if os.environ.get("SITES_CARET") else 60
+    shot("2-panel")
+    if os.environ.get("SITES_TRACE"):
+        cx, cy = state["x"] + across + ox, state["y"] + state["h"] / 2 + oy
+        out["at_click"] = tab.evaluate("[...document.elementsFromPoint(%s, %s)].slice(0, 4).map(e => e.localName + (e.shadowRoot ? '#shadow' : ''))" % (cx, cy))
+        out["click_point"] = [cx, cy]
+        out["lite_dbg"] = tab.evaluate("""(() => { const h = document.querySelector('dm-panel-lite'); if (!h) return 'absent';
+          const r = h.getBoundingClientRect(); const c = getComputedStyle(h); const bar = h.shadowRoot.querySelector('.bar');
+          const br = bar.getBoundingClientRect(); const bc = getComputedStyle(bar);
+          return { rect: [r.left, r.top, r.width, r.height], display: c.display, position: c.position, visibility: c.visibility,
+            opacity: c.opacity, z: c.zIndex, popoverOpen: h.matches(':popover-open'), parent: h.parentElement && h.parentElement.localName,
+            bar: [br.left, br.top, br.width, br.height], barDisplay: bc.display, barColor: bc.color, barBg: bc.backgroundColor,
+            innerWidth: innerWidth, innerHeight: innerHeight, dpr: devicePixelRatio }; })()""")
     cc.click_at(tab, state["x"] + across + ox, state["y"] + state["h"] / 2 + oy)
+    if os.environ.get("SITES_TRACE"):
+        # What the panel said, second by second, after the click.
+        trace = []
+        for _ in range(int(os.environ["SITES_TRACE"])):
+            time.sleep(1)
+            st = panel_of(view)
+            trace.append(None if not st else (st.get("sub") or st.get("title"), len(st.get("lines") or [])))
+        out["trace"] = trace
+        tab.drain(1)
+        out["console_after"] = [
+            " ".join(str(arg.get("value", arg.get("description", ""))) for arg in event["params"].get("args", []))[:260]
+            for event in tab.events if event.get("method") == "Runtime.consoleAPICalled"
+        ][-6:]
     # A player on a plain file address is handed over by the click itself; a
     # blob or stream player lists its qualities first.
     def landed():
         return [p for p in engine_dl.rglob("*") if p.is_file() and p not in before and p.suffix in MEDIA]
 
-    after = cc.wait_for(lambda: (((cc.panel(view) or {}).get("lines") or (cc.panel(view) or {}).get("title") == "Sent to dm")
-                                 and cc.panel(view)) or (landed() and {"landed": True}), 60) or {}
+    after = cc.wait_for(lambda: (((panel_of(view) or {}).get("lines") or (panel_of(view) or {}).get("title") == "Sent to dm")
+                                 and panel_of(view)) or (landed() and {"landed": True}), 60) or {}
     out["lines"] = after.get("lines")
     if after.get("lines"):
         shot("3-list")
         x, y = after["at"][0]
         cc.click_at(tab, x + ox, y + oy)
     elif after.get("title") != "Sent to dm" and not after.get("landed"):
-        out["panel_after"] = cc.panel(view)
+        out["panel_after"] = panel_of(view)
         out["result"] = "the panel listed no qualities"
         return out
-    said = cc.wait_for(lambda: (cc.panel(view) or {}).get("title") == "Sent to dm" and cc.panel(view), 20)
+    said = cc.wait_for(lambda: (panel_of(view) or {}).get("title") == "Sent to dm" and panel_of(view), 20)
     out["sent"] = bool(said)
     got = cc.wait_for(landed, 240)
     if not got:

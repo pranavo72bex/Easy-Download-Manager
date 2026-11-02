@@ -201,6 +201,164 @@
   // the pointer inside components that keep their player in a shadow root,
   // and on a play the page starts.
   let loading = false;
+  // Where the panel's WebAssembly cannot load (a page whose security policy forbids it:
+  // Reddit's), a plain-JavaScript panel does the same job with the same messages to the
+  // background: a button over the video, the list of what it comes in, and a line to
+  // say it was sent. Only a click the person made counts, as in the full panel.
+  const lite = (() => {
+    let host = null;
+    let parts = null;
+    let current = null;
+    let busy = false;
+    let hideTimer = null;
+    let lastScan = 0;
+    const STYLE = ':host{all:initial;position:fixed;z-index:2147483647;display:none}'
+      + '.bar{display:flex;font:600 13px system-ui,sans-serif;color:#fff;background:rgba(32,32,32,.94);'
+      + 'border:1px solid rgba(255,255,255,.25);border-radius:6px;overflow:hidden}'
+      + 'button{all:unset;cursor:pointer;padding:6px 10px;font:inherit;color:inherit}'
+      + 'button:hover,button:focus-visible{background:#0a64d8}'
+      + '.x{padding:6px 8px;font-weight:400;border-left:1px solid rgba(255,255,255,.25)}'
+      + '.list{margin-top:4px;background:rgba(32,32,32,.96);border:1px solid rgba(255,255,255,.25);'
+      + 'border-radius:6px;overflow:hidden auto;max-height:260px;max-width:320px}'
+      + '.list button{display:block;width:100%;box-sizing:border-box;padding:8px 12px;font-weight:400;'
+      + 'white-space:normal;overflow-wrap:anywhere;border-top:1px solid rgba(255,255,255,.15)}'
+      + '.say{margin-top:4px;padding:6px 10px;background:rgba(32,32,32,.94);border-radius:6px;color:#ddd;'
+      + 'font:12px system-ui,sans-serif;max-width:320px;overflow-wrap:anywhere}'
+      + '[hidden]{display:none!important}';
+    const build = () => {
+      host = document.createElement('dm-panel-lite');
+      const root = host.attachShadow({ mode: 'open' });
+      const style = document.createElement('style');
+      style.textContent = STYLE;
+      const bar = document.createElement('div');
+      bar.className = 'bar';
+      const go = document.createElement('button');
+      go.textContent = 'Download video';
+      const close = document.createElement('button');
+      close.className = 'x';
+      close.textContent = '×';
+      close.setAttribute('aria-label', 'Hide');
+      bar.append(go, close);
+      const list = document.createElement('div');
+      list.className = 'list';
+      list.hidden = true;
+      const say = document.createElement('div');
+      say.className = 'say';
+      say.hidden = true;
+      root.append(style, bar, list, say);
+      parts = { go, close, list, say };
+      // Reset to a plain box; the browser's own popover rules would centre and frame it.
+      // Said outright: the page's own rules (a hidden or see-through <html>) reach it by inheritance.
+      host.style.cssText = 'position:fixed;inset:auto;margin:0;padding:0;border:0;background:none;'
+        + 'overflow:visible;width:auto;height:auto;display:none;color:inherit;visibility:visible;opacity:1;'
+        + 'pointer-events:auto;transform:none;filter:none;clip-path:none;';
+      document.documentElement.appendChild(host);
+      // In the top layer, where a page's own player (Reddit's) cannot be drawn over it.
+      try { host.setAttribute('popover', 'manual'); host.showPopover(); } catch (e) { /* an older browser: z-index it is */ }
+      host.addEventListener('mouseenter', () => clearTimeout(hideTimer));
+      go.addEventListener('click', (event) => { if (event.isTrusted) ask(); });
+      close.addEventListener('click', (event) => { if (event.isTrusted) hide(); });
+    };
+    const hide = () => {
+      if (host) host.style.display = 'none';
+      if (parts) { parts.list.hidden = true; parts.say.hidden = true; }
+      current = null;
+    };
+    // Left up while it is working or its list is open; a message it gave ends it for sure.
+    const hideSoon = (ms, last) => {
+      clearTimeout(hideTimer);
+      hideTimer = setTimeout(() => {
+        if (last) { hide(); return; }
+        if (busy || (parts && !parts.list.hidden) || host?.matches(':hover')) { hideSoon(ms); return; }
+        hide();
+      }, ms);
+    };
+    const said = (text) => {
+      parts.say.textContent = text || '';
+      parts.say.hidden = !text;
+    };
+    const send = (message) => ext.runtime.sendMessage({ ...message, frame: location.href });
+    const srcOf = () => (current && (current.currentSrc || current.src)) || '';
+    const finish = async (extra) => {
+      parts.list.hidden = true;
+      said('Sending to dm…');
+      let reply;
+      try { reply = await send({ type: 'dm.media', src: extra.url || srcOf(), ...extra.fields }); } catch (e) { reply = { ok: false, said: 'dm was updated: reload this page to use it' }; }
+      said(reply?.ok ? 'Sent to dm. ' + (extra.label ? extra.label + ': ' : '') + (reply.said || '') : (reply?.said || 'dm could not take it'));
+      hideSoon(2500, true);
+    };
+    const choose = (choice) => finish({
+      url: choice.url || '',
+      label: choice.label || '',
+      fields: {
+        ...(choice.quality ? { quality: choice.quality } : {}),
+        ...(choice.label ? { label: choice.label } : {}),
+        ...(choice.sound ? { sound: choice.sound } : {}),
+      },
+    });
+    const ask = async () => {
+      if (busy || !current) return;
+      busy = true;
+      said('Reading qualities…');
+      try {
+        const reply = await send({ type: 'dm.formats', src: srcOf() });
+        said('');
+        if (!reply?.ok) { said(reply?.said || 'dm did not answer'); hideSoon(5000, true); return; }
+        const choices = Array.isArray(reply.choices) ? reply.choices : [];
+        if (choices.length === 0) await finish({ fields: {} });
+        else if (choices.length === 1) await choose(choices[0]);
+        else {
+          parts.list.textContent = '';
+          for (const choice of choices) {
+            const item = document.createElement('button');
+            item.textContent = choice.line || choice.label || 'Download';
+            item.addEventListener('click', (event) => { if (event.isTrusted) choose(choice); });
+            parts.list.appendChild(item);
+          }
+          parts.list.hidden = false;
+        }
+      } catch (e) {
+        said('dm did not answer. Try again, or right-click the video and choose Download media with dm.');
+        hideSoon(5000, true);
+      } finally { busy = false; }
+    };
+    // The media under a point, followed into open shadow roots as the full panel's hit test is.
+    const mediaIn = (root, x, y, depth) => {
+      let stack = [];
+      try { stack = root.elementsFromPoint(x, y); } catch { return null; }
+      const direct = stack.find((e) => e.tagName === 'VIDEO' || e.tagName === 'AUDIO');
+      if (direct) return direct;
+      if (depth < 4) {
+        for (const e of stack) {
+          if (e.shadowRoot) {
+            const found = mediaIn(e.shadowRoot, x, y, depth + 1);
+            if (found) return found;
+          }
+        }
+      }
+      return null;
+    };
+    const place = (video) => {
+      const r = video.getBoundingClientRect();
+      if (r.width < 150 || r.height < 100) return;
+      if (!host) build();
+      current = video;
+      host.style.left = Math.max(0, Math.min(window.innerWidth - 240, r.right - 240 - 8)) + 'px';
+      host.style.top = Math.max(0, r.top + 8) + 'px';
+      host.style.display = 'block';
+      hideSoon(4000);
+    };
+    const onMove = (event) => {
+      if (Date.now() - lastScan < 150) return;
+      lastScan = Date.now();
+      if (host && event.composedPath().includes(host)) { clearTimeout(hideTimer); return; }
+      const video = mediaIn(document, event.clientX, event.clientY, 0);
+      if (video) place(video);
+    };
+    return {
+      start: () => document.addEventListener('mousemove', onMove, { capture: true, passive: true }),
+    };
+  })();
   // Where the pointer last was, and what last played, handed over once the
   // panel has loaded: the move or the play that loaded it is over by then,
   // and a pointer resting on a player sends no other.
@@ -219,7 +377,7 @@
       dm.content_start(ext);
       if (played) dm.content_played(played);
       else if (point) dm.content_pointer(point.x, point.y);
-    })().catch((e) => console.debug('dm:', e));
+    })().catch((e) => { console.debug('dm:', e); lite.start(); });
   };
   const hasMedia = (root) => {
     try { return root.querySelector('video, audio') !== null; } catch { return false; }

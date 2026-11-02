@@ -825,8 +825,13 @@ def panel_checks(base, origin, engine_dl, engine_home, worker):
     hover(tab, tab.evaluate(VIDEO_RECT))
     time.sleep(0.5)
     errors = tab.logged("error")
-    check("on a site whose policy forbids WebAssembly the panel stays away, quietly",
-          not (panel(tab) or {}).get("shown") and not [e for e in errors if "dm" in e],
+    # A plain-JavaScript panel takes its place there (content.js), over the video: the
+    # button, the list from the same messages, and the confirmation.
+    lite = wait_for(lambda: (hover(tab, tab.evaluate(VIDEO_RECT)) or True) and tab.evaluate(
+        "(() => { const h = document.querySelector('dm-panel-lite'); return !!h && h.style.display !== 'none'"
+        " && getComputedStyle(h).visibility === 'visible'; })()"), 8)
+    check("on a site whose policy forbids WebAssembly the full panel stays away, quietly, and the plain one is shown",
+          not (panel(tab) or {}).get("shown") and bool(lite) and not [e for e in errors if "dm" in e],
           "; ".join(errors)[:300])
     worker.evaluate(
         f"dmReady.then(m => m.on_menu_clicked({{menuItemId: 'dm-media', srcUrl: '{origin}/files/strict.mp4',"
@@ -1105,7 +1110,7 @@ def main():
     # A kept profile also holds the extension's cached worker and compiled scripts, from
     # the build before this one; the login (cookies) is elsewhere and stays.
     if kept_profile:
-        for stale in ("Service Worker", "Code Cache", "Extension Scripts"):
+        for stale in ("Service Worker", "Code Cache", "Extension Scripts", "Sessions"):
             shutil.rmtree(profile / "Default" / stale, ignore_errors=True)
     # A kept profile still holds the last run's port: it is not this browser's.
     (profile / "DevToolsActivePort").unlink(missing_ok=True)
