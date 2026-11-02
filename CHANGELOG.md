@@ -5,6 +5,7 @@ the browser extension (`v*` tags) are versioned separately.
 
 ## App 0.8.6, extension 3.2.1
 
+- On Windows dm is now what a `magnet:` link opens with (`dm-desktop --register`, and the installed app at each start, write the protocol's key under the current user), so a torrent button a page handles with script, or a click in a browser without the extension, starts the download in dm. Another program that already owns magnet links is left alone, and dm removes only its own key on `--unregister`.
 - After each download segment finishes on a multi-connection download, dm re-fetches its last 4 KB from the server and compares it byte-for-byte with what is on disk (ENG-D12, clean-room); a difference clears the staged file and restarts the download.
 - Two unit-test bugs fixed: the AAC fixture `sound.f140.m4a` is mono, so the channel assertion now says 1; `plan_plain_part` now refuses a time range whose start is entirely past the track's end.
 

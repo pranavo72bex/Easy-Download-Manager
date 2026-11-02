@@ -413,6 +413,59 @@ pub fn reg_delete(key: &str) -> Vec<String> {
         .collect()
 }
 
+/// The key Windows opens a `magnet:` link through.
+const MAGNET_KEY: &str = r"HKCU\Software\Classes\magnet";
+
+fn reg_args(parts: &[&str]) -> Vec<String> {
+    parts.iter().map(|s| s.to_string()).collect()
+}
+
+/// `reg.exe` argument lists, in the order to run them, that make dm what Windows opens a
+/// `magnet:` link with: the protocol's own key, a marker value (`dm`) saying the key is dm's
+/// own, and the command, `"<program>" "%1"`.
+pub fn magnet_keys(exe: &Path) -> Vec<Vec<String>> {
+    let command = format!("\"{}\" \"%1\"", exe.display());
+    let open = format!(r"{MAGNET_KEY}\shell\open\command");
+    vec![
+        reg_args(&["add", MAGNET_KEY, "/ve", "/t", "REG_SZ", "/d", "URL:Magnet Protocol", "/f"]),
+        reg_args(&["add", MAGNET_KEY, "/v", "URL Protocol", "/t", "REG_SZ", "/d", "", "/f"]),
+        reg_args(&["add", MAGNET_KEY, "/v", "dm", "/t", "REG_SZ", "/d", "1", "/f"]),
+        reg_args(&["add", &open, "/ve", "/t", "REG_SZ", "/d", &command, "/f"]),
+    ]
+}
+
+/// Whether the magnet key is dm's own: it carries the marker `magnet_keys` writes.
+fn magnet_is_ours(reg: &mut impl FnMut(&[String]) -> Result<(), String>) -> bool {
+    reg(&reg_args(&["query", MAGNET_KEY, "/v", "dm"])).is_ok()
+}
+
+/// Makes dm what Windows opens a magnet link with, so a click the extension does not catch
+/// (a button the page's script handles, a browser without the extension, another program's
+/// link) still starts the download in dm. Another program's own registration is left alone:
+/// returns `Ok(false)` then, and `Ok(true)` once dm's is written (a path that moved is
+/// rewritten, since the key is dm's).
+pub fn register_magnet_windows(
+    exe: &Path,
+    mut reg: impl FnMut(&[String]) -> Result<(), String>,
+) -> Result<bool, String> {
+    if !exe.is_absolute() {
+        return Err(format!("{} is not a program Windows could start", exe.display()));
+    }
+    let present = reg(&reg_args(&["query", MAGNET_KEY])).is_ok();
+    if present && !magnet_is_ours(&mut reg) {
+        return Ok(false);
+    }
+    for args in magnet_keys(exe) {
+        reg(&args)?;
+    }
+    Ok(true)
+}
+
+/// Removes dm's magnet registration, only if it is dm's. True when it was removed.
+pub fn unregister_magnet_windows(mut reg: impl FnMut(&[String]) -> Result<(), String>) -> bool {
+    magnet_is_ours(&mut reg) && reg(&reg_args(&["delete", MAGNET_KEY, "/f"])).is_ok()
+}
+
 /// Registers on Windows: both manifests written under `data`, then a key
 /// for every browser. `reg` runs `reg.exe` with the arguments given; a test
 /// passes one that records them. Returns what was written, files then keys.
@@ -632,7 +685,11 @@ pub fn register(
     programs: &Programs,
 ) -> Result<Vec<PathBuf>, String> {
     if cfg!(target_os = "windows") {
-        return register_windows(&windows_data(home), exe, allowed, run_reg);
+        let written = register_windows(&windows_data(home), exe, allowed, run_reg)?;
+        // Best effort, and never over another program's own: a failure here
+        // does not undo the browsers' registration.
+        let _ = register_magnet_windows(exe, run_reg);
+        return Ok(written);
     }
     if !exe.is_absolute() || !exe.is_file() {
         return Err(format!(
@@ -683,6 +740,7 @@ pub fn register(
 /// files removed.
 pub fn unregister(home: &Path) -> Vec<PathBuf> {
     if cfg!(target_os = "windows") {
+        let _ = unregister_magnet_windows(run_reg);
         return unregister_windows(&windows_data(home), run_reg);
     }
     places(home)

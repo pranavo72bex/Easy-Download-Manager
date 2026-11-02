@@ -539,6 +539,73 @@ fn on_windows_a_key_that_cannot_be_written_is_said_and_unregistering_removes_all
     assert!(missing.is_err(), "a relative program is not registered");
 }
 
+/// Windows' magnet handler: dm's keys are the protocol, a marker and the command, and dm
+/// writes them only where no other program owns the key.
+#[test]
+fn on_windows_dm_becomes_the_magnet_handler_unless_another_program_is() {
+    let elsewhere = tempfile::tempdir().unwrap();
+    let exe = program(elsewhere.path());
+
+    let keys = magnet_keys(&exe);
+    assert_eq!(keys.len(), 4);
+    assert!(keys.iter().all(|a| a[0] == "add" && a.last().map(String::as_str) == Some("/f")));
+    assert_eq!(keys[1][3], "URL Protocol");
+    assert_eq!(keys[2][3], "dm", "a marker says the key is dm's own");
+    let command = format!("\"{}\" \"%1\"", exe.display());
+    assert_eq!(keys[3][1], r"HKCU\Software\Classes\magnet\shell\open\command");
+    assert_eq!(keys[3][6], command);
+
+    // No magnet key at all: dm's four are written.
+    let mut ran: Vec<Vec<String>> = Vec::new();
+    let wrote = register_magnet_windows(&exe, |args| {
+        ran.push(args.to_vec());
+        if args[0] == "query" { Err("not found".into()) } else { Ok(()) }
+    })
+    .unwrap();
+    assert!(wrote);
+    assert_eq!(ran.iter().filter(|a| a[0] == "add").count(), 4);
+
+    // Another program's key (it exists, and carries no marker): nothing is written.
+    let mut ran: Vec<Vec<String>> = Vec::new();
+    let wrote = register_magnet_windows(&exe, |args| {
+        ran.push(args.to_vec());
+        // `query KEY` finds it; `query KEY /v dm` does not.
+        if args.len() > 3 { Err("no such value".into()) } else { Ok(()) }
+    })
+    .unwrap();
+    assert!(!wrote);
+    assert!(ran.iter().all(|a| a[0] == "query"), "{ran:?}");
+
+    // dm's own key (the marker is there): rewritten, so a moved program is followed.
+    let mut ran: Vec<Vec<String>> = Vec::new();
+    assert!(register_magnet_windows(&exe, |args| {
+        ran.push(args.to_vec());
+        Ok(())
+    })
+    .unwrap());
+    assert_eq!(ran.iter().filter(|a| a[0] == "add").count(), 4);
+
+    // A relative program is refused.
+    assert!(register_magnet_windows(Path::new("dm.exe"), |_| Ok(())).is_err());
+}
+
+#[test]
+fn on_windows_only_a_magnet_key_that_is_dms_is_removed() {
+    let mut ran: Vec<Vec<String>> = Vec::new();
+    assert!(unregister_magnet_windows(|args| {
+        ran.push(args.to_vec());
+        Ok(())
+    }));
+    assert!(ran.iter().any(|a| a[0] == "delete" && a[1] == r"HKCU\Software\Classes\magnet" && a[2] == "/f"));
+
+    let mut ran: Vec<Vec<String>> = Vec::new();
+    assert!(!unregister_magnet_windows(|args| {
+        ran.push(args.to_vec());
+        if args[0] == "query" { Err("no such value".into()) } else { Ok(()) }
+    }));
+    assert!(ran.iter().all(|a| a[0] != "delete"), "another program's key is not deleted");
+}
+
 #[test]
 fn only_the_two_flags_are_taken_as_registering() {
     assert_eq!(from_args(&[]), None);
