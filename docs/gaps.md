@@ -145,6 +145,14 @@ reference A works. The external video tool is removed entirely (`docs/decisions.
 | 99 | Extension, watched 2026-11-02 with both on one page: the right-click items match in kind (a page: dm "Download all links with dm", reference A "Download with" its own name; a link: "Download link with dm" and the same; a selection: "Download selected links with dm" and the same). Differences are rows 74, 76, 86 and 94. | NOTE |
 | 100 | **Magnet links on Windows** (reported 2026-11-02: a torrent button on a site did nothing). Windows had no program registered for `magnet:`; dm took a magnet only when its extension saw the click (`extension/content.js`, a trusted left click on an `<a href="magnet:...">`), so a button the page handles with script, a browser without the extension, or a private window did nothing. Done: `--register`, and the installed app at each start, make dm what Windows opens a magnet link with (`dm-shell/src/register.rs` `register_magnet_windows`, `unregister_magnet_windows`; another program's own registration is left alone; 2 tests); `dm-desktop "magnet:?..."` starts the download in the running dm (checked). Also done in the extension (`extension/document.js`, `content.js`): a magnet a page opens with script while the person's own click is still active is taken for dm as a clicked link is: `window.open('magnet:...')`, a link a script makes and clicks, and a button or handler that sets `location` to it (the browser's Navigation API reports it and it can be cancelled); where dm cannot take it the page's own way runs once. Watched in a visible Edge with both extensions on a local page of seven variants (made-up hashes): all seven reached dm. The real site (1337x) sits behind a Cloudflare check that an automated browser does not pass, so it was not tried there. Left: the same for macOS (`CFBundleURLTypes` and an open-URL event) and a `.torrent` file association on Windows and macOS (a ProgId and an Open with entry); a switch in Options > Browser to turn the magnet handler off or on. | PARTIAL |
 | 101 | **First torrent on Windows: the firewall prompt.** The first magnet dm takes makes Windows ask "Do you want to allow public and private networks to access this app?" (dm listens for peers). The prompt is modal, can sit behind other windows, and nothing in dm says it is waiting; a person who does not see it may think the magnet did not open. Closes by dm saying so on the row ("Windows is asking about the firewall") while the prompt is open, and Options > Advanced telling what the allowance is for. Not for dm to answer: the person decides. | OPEN |
+| 102 | **Torrent: what was tested 2026-11-02, and what is left** (reported: a magnet button on a torrent site does not open dm). Tested and working: the engine (a public test torrent, Sintel, 129,241,752 bytes in about a minute from the real swarm); a magnet link opened through a Windows protocol handler starts in dm (a handler registered by hand for the test, then removed); seven ways a page opens a magnet (plain link, link with a script handler, button that sets `location`, new-tab link, icon inside a link, `window.open`, a link a script makes and clicks) all reach dm through the extension. Not tested: the real 1337x site (behind a Cloudflare check an automated browser does not pass), a build from this branch installed on the person's computer. Specs T1 to T8. | NOTE |
+| 103 | T1: the person's computer, 2026-11-02: the installed dm is 0.8.3 (28 October) and its help does not mention magnet links; Windows has no program registered for `magnet:` (no key in the current user's or the machine's classes); the Edge profile has no dm extension. Until a build from this branch is installed and run once, and the extension is added, nothing opens dm from a magnet link. Spec T1. | OPEN (needs a person) |
+| 104 | T2: a `.torrent` file on Windows does not open dm (no file association; only the browser catch and the command line take one). Spec T2. | OPEN |
+| 105 | T3: macOS: no magnet handler or `.torrent` association (the app's Info.plist names neither; no open-URL event is handled). Spec T3. | OPEN |
+| 106 | T4: Options has no place to see or change who opens magnet links: when another program already owns them dm leaves it alone, silently. Spec T4. | OPEN |
+| 107 | T5: the first torrent raises Windows' firewall prompt (row 101); and a first click on a magnet link may raise Windows' own "how do you want to open this" chooser, which dm cannot answer. Spec T5. | OPEN |
+| 108 | T6: no automated test covers the torrent launch paths: the seven page variants and the Windows protocol handler were watched by hand. Spec T6. | OPEN |
+| 109 | T7: a magnet opened in a browser's Reading view (`read://`), a PDF viewer, or another program reaches dm only through the system handler (extensions do not run there). Spec T7 is a check list for a person on the real site. | NOTE |
 
 ### Implementation specs, rows 72 to 92 (2026-11-02)
 
@@ -495,6 +503,91 @@ is the link text. `dm-protocol` round-trip: a `Batch` without `texts` (an older 
   in the same number of steps, and `python3 scripts/human-qa.py` still passes in full.
 - **Status of this plan:** research and specs only (2026-11-02). Nothing in rows 72 to 99 is built yet except the order of a
   page's renditions in the floating list (row 72).
+
+#### Torrent: what is left (T1 to T8), 2026-11-02
+**Design rule as everywhere:** dm's look, the way of working a person expects (a torrent button opens the download client and
+starts the download). Nothing here changes a row of `docs/behaviour-contract.md`.
+
+**T1. The person's computer.**
+- *Seen:* installed dm 0.8.3 at `C:\Users\prana\AppData\Local\dm`, last written 28 October, help text without "magnet"; the
+  Windows magnet key absent under both `HKCU\Software\Classes\magnet` and `HKLM\SOFTWARE\Classes\magnet`; no dm extension among the
+  Edge profile's extensions.
+- *Done in the code (commit `f997e38`):* `dm-shell/src/register.rs` `register_magnet_windows` and `unregister_magnet_windows`,
+  called from `register()` and `unregister()`: the installed app writes the key at each start unless another program owns it.
+- *To do, by a person:* build and install a dm from this branch (`desktop/packaging/`), start it once (this registers), add the
+  extension from `dist\chrome` in each browser used (Edge: `edge://extensions`, Load unpacked), keep "Catch downloads" on in its
+  popup, allow the firewall prompt. Then run the T7 check list.
+- *Done when:* `reg query HKCU\Software\Classes\magnet\shell\open\command` names the installed `dm-desktop.exe`, and a magnet
+  link opened from the Run box (`Win+R`, paste the link) starts a download in dm.
+
+**T2. `.torrent` files on Windows.** (Written once, not compiled or tested, then put aside: rebuild from this spec.)
+- *Goal:* double-clicking a `.torrent` file opens dm and starts it; dm's registration never takes the extension from another
+  program.
+- *Change:* `dm-shell/src/register.rs`, beside the magnet functions:
+  ```rust
+  pub fn torrent_keys(exe: &Path) -> Vec<Vec<String>>;            // 5 `reg add` lists
+  pub fn register_torrent_windows(exe: &Path, reg: impl FnMut(&[String]) -> Result<(), String>) -> Result<bool, String>;
+  pub fn unregister_torrent_windows(reg: impl FnMut(&[String]) -> Result<(), String>) -> bool;
+  ```
+  Keys: `HKCU\Software\Classes\dm.torrent` (default `BitTorrent file`, a marker value `dm`=`1`, `shell\open\command` default
+  `"<exe>" "%1"`) and `HKCU\Software\Classes\.torrent` (default `dm.torrent`, `Content Type` `application/x-bittorrent`).
+  Register only when `reg query HKCU\Software\Classes\.torrent` fails (free) or `dm.torrent` carries the marker (dm's own,
+  rewritten so a moved program is followed); unregister only when it carries the marker. Call both from `register()` and
+  `unregister()` on Windows, best effort, as the magnet ones are.
+- *Tests (`register/tests.rs`, recording `reg` closure, as the magnet ones):* five `add` lists with the command quoted;
+  free extension: five adds; owned by another (query finds `.torrent`, not the marker): no add; dm's own: five adds; relative
+  program refused; unregister: two `delete`s only when the marker is there.
+- *Live:* with the keys written for a test build, a `.torrent` file opened from Explorer (`Start-Process file.torrent`) starts in
+  dm (use a temporary `cmd /c set DM_HOME=...&& ...` command as in T6), then the keys are removed.
+
+**T3. macOS.**
+- *Goal:* a `magnet:` link and a `.torrent` file open dm.
+- *Change:* `desktop/crates/dm-desktop/Cargo.toml` `[package.metadata.packager]`: `deepLinkProtocols = [{ schemes = ["magnet"],
+  role = "viewer" }]` and `fileAssociations = [{ ext = ["torrent"], mimeType = "application/x-bittorrent" }]`; handle the
+  app's open-URL and open-file events in the window loop (`desktop/crates/dm-desktop/src/main.rs`, where the command-line links
+  are read) by passing them to the same path as a command-line link.
+- *Done when:* `open "magnet:?xt=urn:btih:..."` on a Mac starts a download in dm; written without a Mac to run on, so proved by
+  hand at the final QA.
+
+**T4. Who opens magnet links: a place in Options.**
+- *Goal:* Options > Browser shows "Open magnet links with: dm / another program" and, when it is another program, a button "Use
+  dm for magnet links" (rewrites the key, with a line saying what changes and how to undo); a switch for the same for `.torrent`.
+- *Change:* `dialogs/options/tabs.rs` (Browser page) and `dm-shell/src/register.rs`: `pub fn magnet_owner(reg) -> Owner`
+  (`Dm`, `Other`, `None`) from `reg query` of the magnet key and its marker; a `force` variant of `register_magnet_windows`.
+  A visible control in an existing page, in dm's own style (**Approval** for the wording and place).
+- *Tests:* `magnet_owner` over the three states with a recording closure; a window test that the button shows only for `Other`.
+
+**T5. The two Windows prompts.**
+- *Firewall (row 101):* while the first torrent starts, show on its row "Windows may be asking about the firewall" if the row has
+  not got a peer within 10 seconds and the program has no inbound allow rule (`netsh advfirewall firewall show rule
+  name=all dir=in` read once, matched by program path). Never answer the prompt for the person.
+- *"How do you want to open this?":* when a handler is registered but no default is chosen, Windows 11 may ask once. Registering
+  under `HKCU\Software\RegisteredApplications` with a `Capabilities` key naming `URLAssociations\magnet` makes dm appear in
+  Settings > Default apps so the person can choose it there; optional, and a change to how dm shows in Windows (**Approval**).
+
+**T6. Automated tests for the launch paths.**
+- *Extension:* a `scripts/chrome-check.py` scenario with the seven variants on a local page (hashes made up), a visible browser,
+  and the app run with `--headless --control 0` so no window or firewall prompt is raised by the check itself; assert that the
+  app's list holds seven rows with the seven `dn=` names. The variants are in `D:\t\site\magnets.html` as written for this
+  note.
+- *Windows handler:* a test marked `#[ignore]` in `dm-desktop/tests/` that writes the magnet key under a throwaway key path
+  (`HKCU\Software\Classes\magnet` is the real one: so the test runs only with `DM_REGISTRY_TEST=1`, saves what was there,
+  restores it after), sets the command to `cmd /c "set DM_HOME=<temp>&& "<exe>" --headless --control 0 "%1""`, calls
+  `Start-Process "magnet:?xt=urn:btih:<made up>"`, and polls `list` until a row appears. This is what was done by hand on
+  2026-11-02 and it passed.
+- *Engine:* `dm-core/tests/torrent*.rs` already run a local swarm; add none until a defect is found.
+
+**T7. A person's check list on the real site** (an automated browser does not pass the site's Cloudflare check, and that check is
+not to be worked around):
+  1. Edge with the dm extension loaded; dm from this branch installed and started once.
+  2. Open a torrent's page; click "Magnet Download". Expected: dm comes forward, a row "Finding peers..." then a download.
+  3. Same page in Reading view (`read://`): the magnet button, clicked. Expected: Windows opens dm through the handler.
+  4. Same page in a browser without the extension. Expected: the same.
+  5. A `.torrent` button. Expected: dm takes the file (contract row B37) and starts it.
+  6. Write what was seen in `docs/reference-behavior.md`; a failing step becomes a row.
+
+**T8. Not torrent, noted on the way.** The screenshot helper that took a picture of the whole screen once included the person's
+own browser window; those pictures were deleted. Any later watch of a real person's session must capture the one window only.
 
 #### Order and rules
 Build G73, G75, G79, G80, G95, G96, G97, then G82, G85, G87, G86, G92, G90; G98 is a measurement to run first; G94 waits for the maintainer's word on the default. After each: `cargo test --workspace`, the browser tests for
