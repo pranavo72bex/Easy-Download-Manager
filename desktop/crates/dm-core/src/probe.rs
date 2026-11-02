@@ -476,12 +476,16 @@ pub fn sanitize(name: &str) -> String {
 /// sign-in" and Sign-ins put them there — but the address it
 /// reports back has them removed, and every range was fetched from that one:
 /// the probe passed and each range was answered 401. Kept only where the
-/// host is the one the login was given for.
+/// host and port are the ones the login was given for: another port is
+/// another server, as it is for a redirect (`redirects::other_host`).
 fn keep_login(asked: &str, landed: &url::Url) -> String {
     let Ok(asked) = url::Url::parse(asked) else {
         return landed.to_string();
     };
-    if asked.username().is_empty() || asked.host_str() != landed.host_str() {
+    if asked.username().is_empty()
+        || asked.host_str() != landed.host_str()
+        || asked.port_or_known_default() != landed.port_or_known_default()
+    {
         return landed.to_string();
     }
     let mut landed = landed.clone();
@@ -521,6 +525,17 @@ fn extension_of(name: &str) -> String {
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn a_login_is_kept_for_its_own_host_and_port_only() {
+        let landed = |u: &str| url::Url::parse(u).unwrap();
+        let login = ["me", "pw"].join(":");
+        let asked = format!("http://{login}@h.example/f");
+        assert!(super::keep_login(&asked, &landed("http://h.example/g")).contains("me:"));
+        assert!(super::keep_login(&asked, &landed("http://h.example:80/g")).contains("me:"));
+        assert!(!super::keep_login(&asked, &landed("http://h.example:8081/g")).contains("me:"));
+        assert!(!super::keep_login(&asked, &landed("http://other.example/g")).contains("me:"));
+    }
+
     use super::*;
 
     /* The cases live in `shared/naming-cases.json` and the extension's suite

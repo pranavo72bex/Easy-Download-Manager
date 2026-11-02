@@ -233,7 +233,15 @@ fn param(url: &str, key: &str) -> Option<String> {
 pub fn track_of(url: &str) -> Option<Stream> {
     let (host, rest) = url.split_once("://")?.1.split_once('/')?;
     let (path, query) = rest.split_once('?')?;
-    if !(host == "googlevideo.com" || host.ends_with(".googlevideo.com"))
+    // A host is letters, digits, dots and hyphens and nothing else: a message a
+    // page posts itself is not read through a URL parser, and a `#`, a backslash, an `@` or a `:`
+    // in the part before the first slash would name another host than the one
+    // the suffix test sees.
+    let plain = host
+        .bytes()
+        .all(|b| b.is_ascii_alphanumeric() || b == b'.' || b == b'-');
+    if !plain
+        || !(host == "googlevideo.com" || host.ends_with(".googlevideo.com"))
         || !path.ends_with("videoplayback")
     {
         return None;

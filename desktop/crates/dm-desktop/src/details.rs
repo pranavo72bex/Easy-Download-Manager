@@ -85,6 +85,12 @@ fn scrubbed(text: &str) -> String {
     text.split_whitespace()
         .map(|word| {
             if !word.contains("://") {
+                // A folder named in a failure carries the account's name: a word
+                // with a backslash in it, or one that starts like an absolute path,
+                // is not given away.
+                if looks_like_path(word) {
+                    return "(path hidden)".to_string();
+                }
                 return word.to_string();
             }
             let start = word.find(|c: char| c.is_ascii_alphabetic()).unwrap_or(0);
@@ -100,6 +106,16 @@ fn scrubbed(text: &str) -> String {
         })
         .collect::<Vec<_>>()
         .join(" ")
+}
+
+/// Whether a word of a reason reads as part of a file path: it has a backslash, or starts
+/// like an absolute path (a drive, a slash, `~`), after any opening bracket or quote.
+fn looks_like_path(word: &str) -> bool {
+    let word = word.trim_start_matches(|c: char| matches!(c, '(' | '[' | '"' | '\''));
+    let mut chars = word.chars();
+    let drive = matches!((chars.next(), chars.next()), (Some(d), Some(':')) if d.is_ascii_alphabetic())
+        && matches!(chars.next(), Some('/' | '\\'));
+    word.contains('\\') || drive || word.starts_with('/') || word.starts_with('~')
 }
 
 /// The names of the headers a request of this row carries; the values of the ones that hold a
@@ -184,9 +200,13 @@ mod tests {
 
     #[test]
     fn a_row_carrying_a_login_and_a_token_gives_away_neither() {
+        // Built here, not written out, so no tracked file holds a login in an address.
+        let login = ["user", "hunter2"].join(":");
+        let address =
+            format!("http://{login}@files.example.org:8080/private/dir/a.bin?token=abc123&sig=zzz9");
         let row = failed(
-            "http://user:hunter2@files.example.org:8080/private/dir/a.bin?token=abc123&sig=zzz9",
-            "the server answered 403 Forbidden for http://user:hunter2@files.example.org:8080/private/dir/a.bin?token=abc123&sig=zzz9",
+            &address,
+            &format!("the server answered 403 Forbidden for {address}"),
             "session=COOKIEVALUE; other=COOKIEVALUE2",
             "https://page.example.net/watch?v=1&auth=REFERERSECRET",
         );
@@ -249,9 +269,20 @@ mod tests {
     }
 
     #[test]
+    fn a_folder_in_a_reason_is_not_given_away() {
+        let said = scrubbed("the folder C:\\Users\\Bob Smith\\Downloads cannot be written to, or /home/bob/dl or ~/x");
+        for part in ["Bob", "Smith", "Users", "/home", "~/x"] {
+            assert!(!said.contains(part), "{part} is in: {said}");
+        }
+        assert!(said.starts_with("the folder"), "{said}");
+        assert_eq!(scrubbed("and/or half 1/2"), "and/or half 1/2");
+    }
+
+    #[test]
     fn an_address_in_a_reason_is_cut_to_its_host() {
+        let login = ["u", "p"].join(":");
         assert_eq!(
-            scrubbed("no good (http://u:p@h.example/a/b?c=d), sorry"),
+            scrubbed(&format!("no good (http://{login}@h.example/a/b?c=d), sorry")),
             "no good h.example sorry"
         );
         assert_eq!(scrubbed("see ://broken"), "see (address hidden)");

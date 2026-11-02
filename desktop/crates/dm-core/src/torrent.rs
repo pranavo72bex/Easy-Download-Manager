@@ -293,6 +293,26 @@ pub async fn download_torrent(
         .into_handle()
         .ok_or_else(|| Error::Internal("the torrent produced no handle".into()))?;
 
+    /* A file name inside the torrent is the swarm's to choose: one with a
+     * drive, a stream suffix or a device name would land outside the folder
+     * the files go in. Refused as soon as the list is known. The torrent is
+     * removed without deleting files: a delete would act on that path. */
+    let escaping = handle
+        .with_metadata(|metadata| {
+            metadata
+                .file_infos
+                .iter()
+                .any(|file| !plain_torrent_path(&file.relative_filename))
+        })
+        .unwrap_or(false);
+    if escaping {
+        let _ = session.delete(handle.id().into(), false).await;
+        token.cancel();
+        return Err(Error::Internal(
+            "the torrent names a file outside its own folder, so it was not downloaded".into(),
+        ));
+    }
+
     // A digest is for one file: refused as soon as the metadata shows more,
     // rather than after the whole tree was fetched for nothing.
     let several = handle
@@ -849,5 +869,55 @@ mod tests {
         // metainfo file, and fetching it as a torrent would be wrong.
         assert!(!is_torrent("https://example.com/torrent/list"));
         assert!(!is_torrent("https://example.com/a.torrent.html"));
+    }
+}
+
+/// Whether a file's path inside a torrent stays inside the folder the torrent
+/// goes in: plain parts only, and on Windows none that names a drive, a stream
+/// or a device, or ends in a dot or space.
+fn plain_torrent_path(path: &std::path::Path) -> bool {
+    use std::path::Component;
+    let mut any = false;
+    for part in path.components() {
+        let Component::Normal(name) = part else {
+            return false;
+        };
+        any = true;
+        let name = name.to_string_lossy();
+        if name.contains('\0') {
+            return false;
+        }
+        if cfg!(windows)
+            && (name.contains(':')
+                || name.ends_with('.')
+                || name.ends_with(' ')
+                || crate::probe::reserved_on_windows(&name))
+        {
+            return false;
+        }
+    }
+    any
+}
+
+#[cfg(test)]
+mod path_tests {
+    use super::plain_torrent_path;
+    use std::path::Path;
+
+    #[test]
+    fn a_torrent_file_path_must_stay_inside_its_folder() {
+        assert!(plain_torrent_path(Path::new("album/01 track.mp3")));
+        assert!(!plain_torrent_path(Path::new("")));
+        assert!(!plain_torrent_path(Path::new("../x")));
+        assert!(!plain_torrent_path(Path::new("/etc/x")));
+    }
+
+    #[cfg(windows)]
+    #[test]
+    fn windows_drives_streams_and_devices_are_refused() {
+        assert!(!plain_torrent_path(Path::new("D:/x/y.exe")));
+        assert!(!plain_torrent_path(Path::new("a/b:stream")));
+        assert!(!plain_torrent_path(Path::new("a/NUL")));
+        assert!(!plain_torrent_path(Path::new("a/b.")));
     }
 }

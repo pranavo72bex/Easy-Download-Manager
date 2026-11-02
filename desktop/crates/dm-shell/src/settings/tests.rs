@@ -824,3 +824,25 @@ fn a_store_that_refuses_leaves_the_passwords_in_the_file_and_says_so() {
     assert!(!moved && note.is_some());
     assert_eq!(read.proxy.password, "p4ss", "nothing is lost");
 }
+
+#[test]
+fn a_proxy_password_stays_only_with_the_proxy_it_was_given_for() {
+    let mut mine = Settings::default();
+    mine.proxy.username = "corp".into();
+    mine.proxy.host = "proxy.corp.example".into();
+    mine.proxy.port = 3128;
+    mine.proxy.password = "kept".into();
+    let file = |host: &str, port: u16| {
+        let mut other = Settings::default();
+        other.proxy.username = "corp".into();
+        other.proxy.host = host.into();
+        other.proxy.port = port;
+        serde_json::to_string(&other).unwrap()
+    };
+    let same = mine.imported(&file("proxy.corp.example", 3128)).unwrap();
+    assert_eq!(same.proxy.password, "kept");
+    let elsewhere = mine.imported(&file("evil.example", 3128)).unwrap();
+    assert_eq!(elsewhere.proxy.password, "");
+    let other_port = mine.imported(&file("proxy.corp.example", 8080)).unwrap();
+    assert_eq!(other_port.proxy.password, "");
+}

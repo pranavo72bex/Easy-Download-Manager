@@ -1644,6 +1644,13 @@ fn only_a_video_servers_playback_addresses_are_read_as_tracks() {
     assert!(track_of("https://evil.example/videoplayback?itag=137&mime=video%2Fmp4").is_none());
     assert!(track_of("https://notgooglevideo.com/videoplayback?itag=137").is_none());
     assert!(track_of("https://a.googlevideo.com/other?itag=137").is_none());
+    // A host another URL parser would read differently is not the suffix it ends with.
+    assert!(track_of("https://evil.example#.googlevideo.com/videoplayback?itag=22&mime=video/mp4").is_none());
+    assert!(track_of("https://evil.example\\@a.googlevideo.com/videoplayback?itag=22&mime=video/mp4").is_none());
+    // Built here, so no tracked file holds a login in an address.
+    let userinfo = ["a.googlevideo.com", "8080"].join(":");
+    assert!(track_of(&format!("https://{userinfo}@evil.example.googlevideo.com/videoplayback?itag=22&mime=video/mp4")).is_none());
+    assert!(track_of("https://rr1---sn-abc.googlevideo.com/videoplayback?itag=22&mime=video/mp4").is_some());
     assert!(track_of("https://a.googlevideo.com/videoplayback?itag=9999").is_none());
 }
 

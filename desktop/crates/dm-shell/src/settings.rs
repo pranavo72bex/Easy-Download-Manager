@@ -382,7 +382,7 @@ impl Settings {
 
     /// Settings read from such a file, in place of these: the passwords
     /// this computer already has for the same site and name, and for the
-    /// same proxy user, are kept, as are its history and the command it
+    /// same proxy (host, port and user), are kept, as are its history and the command it
     /// runs after a download, which a file never sets.
     pub fn imported(&self, text: &str) -> Result<Settings, String> {
         let mut read: Settings = serde_json::from_str(text)
@@ -396,7 +396,12 @@ impl Settings {
                 login.password = known.password.clone();
             }
         }
-        if read.proxy.username == self.proxy.username {
+        // For the same proxy: a user name alone is guessable, and a file naming
+        // another proxy must not be handed this computer's password for it.
+        if read.proxy.username == self.proxy.username
+            && read.proxy.host == self.proxy.host
+            && read.proxy.port == self.proxy.port
+        {
             read.proxy.password = self.proxy.password.clone();
         }
         read.recent_urls = self.recent_urls.clone();

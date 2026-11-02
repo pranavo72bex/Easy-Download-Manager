@@ -125,7 +125,7 @@ fn plain_mode(mode: Option<u32>) -> bool {
 
 /// A path inside the archive that stays inside the folder: relative, with
 /// no `..`, no drive, no stream suffix, no empty or NUL-bearing part, under
-/// either slash.
+/// either slash; and on Windows no device name or trailing dot or space.
 fn safe_path(raw: &str) -> Option<PathBuf> {
     if raw.is_empty() || raw.contains('\0') || raw.starts_with('/') || raw.starts_with('\\') {
         return None;
@@ -136,6 +136,13 @@ fn safe_path(raw: &str) -> Option<PathBuf> {
             "" | "." => continue,
             ".." => return None,
             p if p.contains(':') => return None,
+            // Names Windows reads as devices, or strips a trailing dot or space
+            // from, are not files it can write under that name.
+            p if cfg!(windows)
+                && (crate::probe::reserved_on_windows(p) || p.ends_with('.') || p.ends_with(' ')) =>
+            {
+                return None;
+            }
             p => out.push(p),
         }
     }
@@ -335,6 +342,17 @@ fn write_all(
 #[cfg(test)]
 #[allow(clippy::unwrap_used, clippy::expect_used)]
 mod tests {
+    #[cfg(windows)]
+    #[test]
+    fn windows_device_names_and_trailing_dots_are_not_extracted() {
+        assert!(super::safe_path("docs/readme.txt").is_some());
+        assert!(super::safe_path("docs/COM1").is_none());
+        assert!(super::safe_path("aux.txt").is_none());
+        assert!(super::safe_path("nul/x").is_none());
+        assert!(super::safe_path("a/b.").is_none());
+        assert!(super::safe_path("a/b ").is_none());
+    }
+
     use super::*;
     use zip::write::SimpleFileOptions;
     use zip::ZipWriter;
