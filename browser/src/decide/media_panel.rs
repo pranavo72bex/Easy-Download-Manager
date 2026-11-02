@@ -125,7 +125,8 @@ pub struct PanelClick {
     /// What the quality's list entry said.
     pub label: Option<String>,
     /// A sound the player fetched apart from the picture at `src`.
-    /// The panel's "Part" line: where the part starts and ends, as typed.
+    pub sound: Option<String>,
+    /// The panel's "Part" line: where the part starts, as typed.
     pub from: Option<String>,
     /// Where the part ends, as typed.
     pub to: Option<String>,
