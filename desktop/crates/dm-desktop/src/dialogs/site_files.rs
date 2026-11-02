@@ -20,6 +20,7 @@ pub(super) fn site_files(app: &mut DmApp, ctx: &egui::Context) {
     let mut run_saved: Option<dm_shell::lists::Search> = None;
     let mut delete_saved: Option<String> = None;
     let saved = app.applied.site_searches.clone();
+    let keep_layout = d.keep_layout;
     window(ctx, "Site files")
         .open(&mut open)
         .show(ctx, |ui| {
@@ -34,6 +35,7 @@ pub(super) fn site_files(app: &mut DmApp, ctx: &egui::Context) {
                     .labelled_by(name.id);
             });
             ui.checkbox(&mut d.other_sites, t("Also follow links to other sites"));
+            ui.checkbox(&mut d.keep_layout, t("Keep the site's folders"));
             ui.horizontal(|ui| {
                 let name = ui.label(t("Stop reading pages after (minutes)"));
                 ui.add(
@@ -125,7 +127,9 @@ pub(super) fn site_files(app: &mut DmApp, ctx: &egui::Context) {
         open = false;
     }
     if look {
-        let search = d.search();
+        let mut search = d.search();
+        // The login Options > Sign-ins keeps for the site, where it keeps one.
+        search.page = app.applied.with_login(&search.page);
         let state = Arc::clone(&d.state);
         *dm_core::lock(&state) = Grab::Looking;
         let ctx = ctx.clone();
@@ -208,7 +212,7 @@ pub(super) fn site_files(app: &mut DmApp, ctx: &egui::Context) {
             queue: MAIN_QUEUE.into(),
             ..AddOptions::default()
         };
-        if let Ok(n) = app.add(&chosen, with) {
+        if let Ok(n) = app.add_found(&chosen, with, keep_layout) {
             app.said = crate::i18n::Said::counting_naming(
                 "Added {} download to {}.||Added {} downloads to {}.",
                 n as u64,

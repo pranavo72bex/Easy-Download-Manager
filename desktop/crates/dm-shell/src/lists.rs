@@ -279,6 +279,9 @@ pub struct Search {
     /// Whether pages on other sites than the start page's are read too, to
     /// the same depth. Off: only the start page's own site.
     pub other_sites: bool,
+    /// Whether each file is saved in folders that mirror its address
+    /// (`site/folder/subfolder`) instead of the one download folder.
+    pub keep_layout: bool,
     /// Only files whose path has one of these in it; empty is any.
     pub include: Vec<String>,
     /// Files and pages whose path has one of these in it are skipped.
@@ -294,6 +297,30 @@ pub struct Search {
     /// What it has found before, without logins: added once, not again
     /// after the list is cleared or a login changed the row's address.
     pub seen: Vec<String>,
+}
+
+/// The folders a file is saved in when a search keeps the site's layout: its
+/// site, then the folders of its address, each made safe as a file name is.
+/// `None` for an address that is not a web or FTP one.
+pub fn layout_folder(file: &str) -> Option<String> {
+    let parsed = url::Url::parse(file).ok()?;
+    if !matches!(parsed.scheme(), "http" | "https" | "ftp") {
+        return None;
+    }
+    let site = match parsed.port() {
+        Some(port) => format!("{}_{port}", parsed.host_str()?),
+        None => parsed.host_str()?.to_string(),
+    };
+    let mut parts = vec![dm_core::sanitize_name(&site.replace(':', "_"))];
+    let mut segments: Vec<&str> = parsed.path_segments()?.collect();
+    segments.pop();
+    for segment in segments {
+        let name = dm_core::sanitize_name(&dm_core::decode_percent(segment));
+        if !name.is_empty() && name != "." && name != ".." {
+            parts.push(name);
+        }
+    }
+    Some(parts.join("/"))
 }
 
 /// The most a saved search remembers having found.
@@ -338,6 +365,7 @@ impl Default for Search {
             types: DEFAULT_TYPES.split(' ').map(str::to_string).collect(),
             depth: 0,
             other_sites: false,
+            keep_layout: false,
             include: Vec::new(),
             exclude: Vec::new(),
             every_hours: 0,
@@ -425,6 +453,39 @@ pub fn looks_like_page(link: &str) -> bool {
     }
 }
 
+/// `page` with the login the start page was given, for a page on that same host: a
+/// site that wants a sign-in wants it on every page of it, and never on another host.
+fn with_start_login(page: &str, start: &url::Url) -> String {
+    if start.username().is_empty() {
+        return page.to_string();
+    }
+    let Ok(mut parsed) = url::Url::parse(page) else {
+        return page.to_string();
+    };
+    let same_place = parsed.host_str().map(str::to_ascii_lowercase)
+        == start.host_str().map(str::to_ascii_lowercase)
+        && parsed.port_or_known_default() == start.port_or_known_default()
+        && parsed.scheme() == start.scheme();
+    if !same_place || !parsed.username().is_empty() {
+        return page.to_string();
+    }
+    let _ = parsed.set_username(start.username());
+    let _ = parsed.set_password(start.password());
+    parsed.to_string()
+}
+
+/// `address` without a user and password, for saying it in a message.
+fn bare_of_login(address: &str) -> String {
+    match url::Url::parse(address) {
+        Ok(mut parsed) => {
+            let _ = parsed.set_username("");
+            let _ = parsed.set_password(None);
+            parsed.to_string()
+        }
+        Err(_) => address.to_string(),
+    }
+}
+
 fn same_site(a: &url::Url, link: &str) -> bool {
     url::Url::parse(link).ok().is_some_and(|b| {
         a.host_str().map(str::to_ascii_lowercase) == b.host_str().map(str::to_ascii_lowercase)
@@ -436,9 +497,12 @@ fn same_site(a: &url::Url, link: &str) -> bool {
 async fn fetch_page(
     client: &dm_core::reqwest::Client,
     page: &str,
+    ask: &str,
     start: bool,
 ) -> Result<(String, String), String> {
-    let res = dm_core::redirects::send(client.get(page))
+    // `ask` may carry a login; `page` is what is said in a message, and it may too.
+    let shown = bare_of_login(page);
+    let res = dm_core::auth::send(client, client.get(ask), ask)
         .await
         .map_err(|e| e.to_string())?;
     if !res.status().is_success() {
@@ -454,7 +518,7 @@ async fn fetch_page(
     // read as one: a bare `/download/123` is usually the file itself.
     let html = kind == "text/html" || kind == "application/xhtml+xml";
     if !(html || (start && kind.is_empty())) {
-        return Err(format!("{page} is a file ({kind}), not a page of links"));
+        return Err(format!("{shown} is a file ({kind}), not a page of links"));
     }
     let base = res.url().to_string();
     // A page, not a file: past a few megabytes this is not HTML to read,
@@ -614,7 +678,8 @@ pub async fn crawl_until(
         }
         // Past the time it was given: what was found so far is the answer.
         // The start page is always read, however slow.
-        let fetch = fetch_page(client, &page, found.pages == 0);
+        let ask = with_start_login(&page, &start);
+        let fetch = fetch_page(client, &page, &ask, found.pages == 0);
         let read = match deadline {
             Some(at) if found.pages > 0 => match tokio::time::timeout_at(at, fetch).await {
                 Ok(read) => read,
@@ -669,6 +734,21 @@ pub async fn crawl_until(
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn a_file_is_kept_in_folders_that_mirror_its_address() {
+        assert_eq!(
+            super::layout_folder("https://files.example.org/pub/a%20b/c/file.zip?x=1").as_deref(),
+            Some("files.example.org/pub/a b/c")
+        );
+        assert_eq!(
+            super::layout_folder("http://h.example:8080/file.zip").as_deref(),
+            Some("h.example_8080")
+        );
+        assert_eq!(super::layout_folder("magnet:?xt=urn:btih:abc"), None);
+        let dotted = super::layout_folder("https://h.example/a/%2e%2e/b/f.zip").unwrap();
+        assert!(!dotted.contains(".."), "{dotted}");
+    }
+
     #[test]
     fn tracking_parameters_do_not_make_an_address_new() {
         let a = super::bare("https://v.example/watch?v=1&si=abc&utm_source=x");

@@ -1121,7 +1121,17 @@ def walk(dm, origin):
     check("B60", "Site files has 'Also follow links to other sites' beside the page depth",
           "Also follow links to other sites" in site_words and "Page depth (0 for the start page only)" in site_words,
           f"{site_words}")
+    check("B61", "Site files has 'Keep the site's folders' under the other-sites box",
+          "Keep the site's folders" in site_words, f"{site_words}")
     dm.click("Close")
+    pause(0.8)
+    # B62: the Scheduler has the field for a program to run at the end.
+    dm.click("Scheduler")
+    pause(0.8)
+    sched_words = dm.dialog_texts()
+    check("B62", "the Scheduler has 'Run this program when they are done (optional)'",
+          "Run this program when they are done (optional)" in sched_words, f"{sched_words}")
+    dm.click("Cancel")
     pause(0.8)
     dm.click("Options")
     pause(0.8)

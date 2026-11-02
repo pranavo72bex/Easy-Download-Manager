@@ -455,6 +455,8 @@ pub struct SiteFiles {
     pub stop_after_minutes: u64,
     /// Whether pages on other sites are followed too.
     pub other_sites: bool,
+    /// Whether files are saved in folders that mirror the site's.
+    pub keep_layout: bool,
     /// What went wrong, said in the dialog; empty when nothing did.
     pub says: String,
     /// How the running search is going.
@@ -473,6 +475,7 @@ impl Default for SiteFiles {
             every_hours: 0,
             stop_after_minutes: 0,
             other_sites: false,
+            keep_layout: false,
             says: String::new(),
             state: Arc::default(),
         }
@@ -494,6 +497,7 @@ impl SiteFiles {
             types: words(&self.types),
             depth: self.depth.min(dm_shell::lists::MAX_DEPTH),
             other_sites: self.other_sites,
+            keep_layout: self.keep_layout,
             include: words(&self.include),
             exclude: words(&self.exclude),
             every_hours: self.every_hours,

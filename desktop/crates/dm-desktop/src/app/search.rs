@@ -4,6 +4,9 @@ impl DmApp {
     /// Runs a site search in the background; what it finds that is not
     /// already in the list is added for later when it comes back.
     pub fn run_search(&mut self, search: dm_shell::lists::Search) {
+        let mut search = search;
+        // The login Options > Sign-ins keeps for the site, where it keeps one.
+        search.page = self.applied.with_login(&search.page);
         let client = self.client();
         let results = Arc::clone(&self.search_results);
         let queue = self.backend.queue.clone();
@@ -13,6 +16,49 @@ impl DmApp {
             let found = dm_shell::lists::crawl_with(&client, &search, Some(&options)).await;
             dm_core::lock(&results).push((search.name, found));
         });
+    }
+
+    /// Adds what a search found. With `keep_layout` each file goes in a folder
+    /// under the download folder that mirrors its address, one add for each
+    /// folder; otherwise all of them in one.
+    pub fn add_found(
+        &mut self,
+        urls: &[String],
+        with: dm_core::AddOptions,
+        keep_layout: bool,
+    ) -> Result<usize, String> {
+        if !keep_layout {
+            return self.add(urls, with);
+        }
+        let mut groups: std::collections::BTreeMap<Option<String>, Vec<String>> =
+            std::collections::BTreeMap::new();
+        for url in urls {
+            groups
+                .entry(dm_shell::lists::layout_folder(url))
+                .or_default()
+                .push(url.clone());
+        }
+        let mut added = 0;
+        let mut failure = None;
+        for (folder, group) in groups {
+            let mut here = with.clone();
+            if let Some(folder) = folder {
+                here.save_dir = Some(
+                    std::path::Path::new(&self.applied.download_dir)
+                        .join(folder)
+                        .to_string_lossy()
+                        .into_owned(),
+                );
+            }
+            match self.add(&group, here) {
+                Ok(n) => added += n,
+                Err(e) => failure = Some(e),
+            }
+        }
+        match failure {
+            Some(e) if added == 0 => Err(e),
+            _ => Ok(added),
+        }
     }
 
     /// Takes in what finished searches found, and starts any saved search
@@ -66,7 +112,13 @@ impl DmApp {
                             queue: dm_core::MAIN_QUEUE.into(),
                             ..Default::default()
                         };
-                        let added = self.add(&new, with);
+                        let keep_layout = self
+                            .applied
+                            .site_searches
+                            .iter()
+                            .find(|s| s.name == name)
+                            .is_some_and(|s| s.keep_layout);
+                        let added = self.add_found(&new, with, keep_layout);
                         let now: std::collections::HashSet<String> = self
                             .rows
                             .iter()

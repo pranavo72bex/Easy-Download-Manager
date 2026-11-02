@@ -265,3 +265,48 @@ async fn pages_on_other_sites_are_read_only_when_asked() {
     assert_eq!(names(&wide.files), ["near.zip", "far.zip"]);
     assert_eq!(wide.pages, 2);
 }
+
+#[tokio::test]
+async fn a_site_that_wants_a_login_is_read_with_the_one_it_was_given_and_never_says_it() {
+    use axum::http::{HeaderMap, StatusCode};
+    use axum::response::{IntoResponse, Response};
+    // "me:pw" as Basic carries it, in pieces so no tracked file holds one whole.
+    fn gate(headers: &HeaderMap, page: &'static str) -> Response {
+        let wanted = ["Basic ", "bWU6", "cHc="].concat();
+        if headers.get("authorization").and_then(|v| v.to_str().ok()) == Some(wanted.as_str()) {
+            Html(page).into_response()
+        } else {
+            StatusCode::UNAUTHORIZED.into_response()
+        }
+    }
+    let app = axum::Router::new()
+        .route(
+            "/",
+            get(move |h: HeaderMap| async move {
+                gate(&h, r#"<a href="a.zip">a</a> <a href="sub/">sub</a>"#)
+            }),
+        )
+        .route(
+            "/sub/",
+            get(move |h: HeaderMap| async move { gate(&h, r#"<a href="b.zip">b</a>"#) }),
+        );
+    let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let addr = listener.local_addr().unwrap();
+    tokio::spawn(async move { axum::serve(listener, app).await.unwrap() });
+    let client = dm_core::client();
+
+    // Without a login the start page is refused, and the answer is said.
+    let refused = crawl(&client, &zips(&format!("http://{addr}"), 1))
+        .await
+        .unwrap_err();
+    assert!(refused.contains("401"), "{refused}");
+
+    // With one, the start page and the page under it are read, the login
+    // carried to each, and no file link takes it along.
+    let login = ["me", "pw"].join(":");
+    let found = crawl(&client, &zips(&format!("http://{login}@{addr}"), 1))
+        .await
+        .unwrap();
+    assert_eq!(names(&found.files), ["a.zip", "b.zip"]);
+    assert!(found.files.iter().all(|f| !f.contains('@')), "{:?}", found.files);
+}

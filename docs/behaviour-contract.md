@@ -132,3 +132,10 @@ Recorded 2026-10-29 from the merged `main`, where every row passed.
 | ID | A person does | What must happen | Reference A |
 |---|---|---|---|
 | B60 | Opens Program › Site files and looks under the page depth | A box "Also follow links to other sites", off by default, sits there. Left off, only pages on the start page's own site are read, as before; ticked, pages on other sites that the start page links to are read too, to the same depth. A saved search keeps the setting, and one saved before the box existed runs with it off (added 2026-11-02 at the maintainer's word, "yes", to a list of four proposed options) | same |
+| B61 | Opens Program › Site files and looks under "Also follow links to other sites" | A box "Keep the site's folders", off by default. Off, every file found is added to the one download folder, as before; ticked, each is saved under the download folder in folders that mirror its address (`site/folder/subfolder`). A saved search keeps the setting, and one saved before the box existed runs with it off (added 2026-11-02 at the maintainer's word, "yes", to a list of four proposed options) | same |
+
+## Scheduler
+
+| ID | A person does | What must happen | Reference A |
+|---|---|---|---|
+| B62 | Opens the Scheduler and looks under the "When the scheduled downloads are done" choices | A box "Run this program when they are done (optional)", empty by default. With a program typed, it is run once, with no shell and no file, when the queue runs dry in a window in which something ran. A settings file imported or a script driving the window never sets it, as they never set the command run after each download (added 2026-11-02 at the maintainer's word, "yes", to a list of four proposed options) | same |
