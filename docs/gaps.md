@@ -120,24 +120,207 @@ reference A works. The external video tool is removed entirely (`docs/decisions.
 | 72d | YouTube: reference A names 60 fps and HD apart ("720p HD" and "720p HD 60 fps" are two lines); dm keeps one line per height. Needs dm's own YouTube reading to keep the frame rate and offer both. | OPEN, needs approval |
 | 72e | Sizes: reference A's list shows none (they are in its Download all dialog); dm's list shows them ("1080p MP4 — 252 MB"), which the maintainer asked for earlier. Kept; listed so it is not mistaken for a gap. | CLOSED as a difference |
 | 72f | Reddit and TikTok were not yet compared side by side: the Reddit test profile (`D:\dm-reddit-profile`) has no reference A extension, and TikTok's page had only one quality. Needs the extension added there by hand, then the same screenshots. | OPEN |
-| 73 | **Vimeo: dm refuses a video reference A downloads.** Same public Vimeo page, both extensions on, 2026-11-02: dm's bar says "Protected video" (its test is only that the player has an encryption key object, `mediaKeys`); reference A offers "Download this video" and lists eight lines, a TS file and an MP4 file at each of 270p (453 kbps), 360p (900), 540p (1755) and 720p HD (2991). A key object does not mean the stream is encrypted. Closes by deciding protection from the stream itself (an HLS `EXT-X-KEY` other than AES-128 with a key address, a DASH `ContentProtection` for a DRM system) and offering the playlist's renditions otherwise; test with a made-up page, then the same Vimeo page. Whether to also list each quality as TS and MP4 is a wording choice for the maintainer. | OPEN |
-| 74 | **A single file: reference A asks first, dm sends at once.** On a tweet with one MP4, reference A's bar opens its "Download File Info" window (URL, Category, Save As, Remember this path, Description, and Download Later, Start Download and Cancel) before anything downloads; dm's bar sent the file and the app came forward with it already complete. dm has a Download details dialog (contract row B02) that is how a person normally decides; to confirm: whether the panel's click opens it under dm's default settings, and give the panel's click the same "ask, then start" as reference A (a behaviour change, so it needs the maintainer's word). | OPEN, needs approval |
-| 75 | **File names.** Reference A's Save As defaults to the page's title ("NASA on X- 'Everybody, wave!...'"); dm names a downloaded file from the media's own name (`GiFPAi8WYAEgiBu.mp4`, and `video.mp4` on Facebook), which is a hash or says nothing. Closes by naming from the page's title when the address's own name is a hash, a bare `video`, or has no letters, with the type's extension; applies to every site, so test with a made-up page and one real page each of Facebook, X and Instagram. | OPEN |
-| 76 | **Where the bar sits.** Reference A's bar is right-aligned on the video's top edge, outside it, and shrinks to a play mark and a close mark on a narrow video (a reel); it also draws a second, page-level bar at the page's bottom left ("Download video from this page", seen on Vimeo). dm's is always 240 px wide inside the video's top right, so on a 292-px reel it covers most of the width, and on Instagram, where a sticky header lies over the video's top, it sat on the header, not the video. Closes by placing the bar in the visible part of the video, and by a compact form on narrow videos; whether to add a page-level button is the maintainer's choice. | OPEN |
-| 77 | **Pages where only one manager showed a bar** (logged out, no one signed in): on TikTok and on Instagram's reel page dm showed its bar and reference A none; on the Vimeo page and the X page both showed one. Not a defect of dm's, recorded so a later run is not mistaken: the check for any of these is the same two extensions on the same page. Reddit has not been compared (gaps row 72f). | NOTE |
-| 78 | **Desktop app, side by side (2026-11-02): both main windows, every menu, Options, Scheduler, Add URL and the site grabber were opened and read on screen** (reference A's Options has nine tabs: General, File types, Save to, Downloads, Connection, Proxy/Socks, Sites Logins, Dial Up/VPN, Sounds; dm's has six: General, Browser, Folders, Downloads, Advanced, Sign-ins). Rows 79 to 92 are what reference A does that dm was not seen to do; each says how it closes. "Not seen" means not on the tab's first screen: scroll the dm tab and confirm before building. | NOTE |
-| 79 | **Scheduler per queue.** Reference A's Scheduler lists its queues (Main download queue, Synchronization queue, Download limits) and each has its own schedule: start at a time once (a date) or daily on chosen weekdays, stop at, retries per file, open a file when done, exit the app or turn off the computer (shut down, with "force processes to terminate"), hang up the modem; it has a Files in the queue tab and Start now and Stop buttons. dm's one dialog sets hours for every queue (between set hours, weekdays, wake from sleep, do nothing / exit / sleep / hibernate / turn off, retries, run a program), with no once-at date, no per-queue schedule, no Start now or Stop, no files tab. Closes with a schedule on each queue, a once-at date, and the same buttons. | OPEN |
-| 80 | **Proxy tab.** Reference A: No proxy / Use system settings / Automatic configuration script (an address) / Manual (address, port, user, password, per protocol http, https, ftp, and Advanced / Socks), "use the browser's proxy if a download from the browser fails", and FTP in passive mode. dm's proxy is under Options > Advanced; confirm it has a configuration script, per-protocol use, SOCKS, the browser-proxy fallback and an FTP passive switch. | OPEN |
-| 81 | **Connection limits.** Reference A: a default number of connections (a list) and an Exceptions list by server (Server, Number; New, Edit, Delete). dm: one number with presets (Slow 2, Normal 8, Fast 16, Maximum 32). Closes with a per-server list. | OPEN |
-| 82 | **Sounds.** Reference A plays a chosen sound for Download complete, Download failed, Queue processing started and Queue stopped or finished (Browse, Play). dm has no Sounds tab and none was seen elsewhere. | OPEN |
-| 83 | **Virus checking.** Reference A's Downloads tab has Virus checking settings (a program run on a finished file). Not seen in dm. | OPEN |
-| 84 | **Dial-up / VPN.** Reference A: use a Windows dial-up or VPN connection, with user, password, redial attempts and the time between them. Not in dm; low value on current systems, listed only because the aim is a replica. | OPEN, maintainer to decide |
-| 85 | **Download-start behaviour.** Reference A's Downloads tab: show or skip the start dialog and the complete dialog, "do not start downloading, only add to the queue", start downloading while its File Info dialog is open, show the queue chooser on Download Later and on closing batch dialogs, ignore the file's modified-time change when resuming, a customizable progress dialog, the User-Agent for added downloads. dm has the duplicate-address choice and the start options of contract rows B02 and B59; confirm each of the others against dm's Downloads and Advanced tabs. | OPEN |
-| 86 | **General tab.** Reference A: start downloading a URL put on the clipboard by itself; the list of browsers it captures from as check boxes (Safari, Chrome, Edge, Edge Legacy, Firefox, Opera, Internet Explorer) with Add browser; Keys to prevent or force a download; Edit the items it adds to a browser's right-click menu; Edit its download panels in browsers. dm: Add dm to Edge, Firefox, Chrome and others (buttons), a take-from-browser switch with file types and a size floor. Missing: clipboard auto-start, a per-browser capture list, editing the right-click items, choosing which panel buttons show. | OPEN |
-| 87 | **Which downloads the browser hands over.** Reference A ships a default list of types to capture (3GP 7Z AAC ... ZIP), a default list of sites never captured (update servers), and an address list to skip (Edit list). dm's list of types is empty (all) and no list of sites was seen on the Browser tab's first screen; confirm the site and address lists exist and that a fresh install has a sensible default. | OPEN |
-| 88 | **Save to.** Reference A: categories each with file types and a folder (General, Compressed, Documents, Music, Programs, Video; New, Edit), "change the folder for the category on last selected", "set the file's date as the server gives it", a temporary folder. dm's Folders tab has kinds with folder names (Videos, Audio, Documents, Apps, Archives, Pictures, Other), your own categories, and a folder for unfinished downloads. Confirm: remembering the last folder per category and the server's file date; the category names differ (a naming choice for the maintainer). | OPEN |
-| 89 | **List columns.** Reference A's list has File Name, Q (queue), Size, Status, Time left, Transfer rate, Last Try Date, Description. dm's has Name, Size, Status, Time left, Speed, Queue; confirm its Columns menu offers Last try and Description. | OPEN |
-| 90 | **Toolbar and queue buttons.** Reference A: Add URL, Resume, Stop, Stop All, Delete, Delete Completed, Options, Scheduler, Start Queue and Stop Queue each with a drop-down of queues, Tell a Friend. dm: Add URL, Resume, Stop, Stop all, Remove, Clear finished, Options, Scheduler, Start queue, Stop queue (no per-queue drop-down), Site files. Closes with a per-queue drop-down on Start and Stop queue. | OPEN |
-| 91 | **Help and View menus.** Reference A's Help: Help contents, Tutorials, Scheduler and queues, Grabber help, Tip of the Day, Home page, Contact support, Check for updates, About, Tell a friend. dm's: Help (F1), Check for updates, About. Reference A's View also has tray icon options, Customize URL List, a Font menu (dm: Text size). Wording or layout changes, so each needs the maintainer's word. | OPEN, needs approval |
-| 92 | **Site grabber.** Reference A: a step wizard (project name, start page, a project template, authorization with a manual login or a logout page, then levels, filters and results), kept under a Grabber projects node in the category tree. dm's "Site files" is one dialog (start page, file types, depth, other sites, keep folders, stop after minutes, path filters, saved searches that run every N hours). Missing: project templates, size filters, sign-in inside the grabber, a Grabber projects node, a results step with check boxes. | OPEN |
-| 93 | **Order to build rows 72 to 92** (what a person meets first, and what needs no approval first). 1: row 73 (Vimeo refused as protected: a normal video is lost); 2: row 75 (file names from the page title, every site); 3: row 79 (a schedule on each queue, a once-at date); 4: row 81 (per-server connection limits); 5: row 80 (proxy: configuration script, SOCKS, per-protocol); 6: rows 85, 88, 89 (download-start options, last folder per category and the server's file date, list columns: confirm each in dm first); 7: rows 82 and 83 (sounds, a program run on a finished file); 8: row 86 (clipboard auto-start, per-browser capture list); 9: row 92 (site grabber templates, size filters, results step); 10: row 90 (per-queue drop-downs). Wait for the maintainer's word before: 72a to 72d, 74, 76, 84, 91 (each changes visible wording, layout or what a click does). | PLAN |
+| 73 | Vimeo: dm refuses as "Protected" a video that reference A downloads. Spec G73. | OPEN |
+| 74 | A single file: reference A asks (its File Info window) before it starts; dm's panel sends at once. Spec G74. | OPEN, needs approval |
+| 75 | File names: reference A names a download from the page's title; dm uses the media file's own name (a hash, or `video`). Spec G75. | OPEN |
+| 76 | Where the floating bar sits, and its compact form on a narrow video. Spec G76. | OPEN |
+| 77 | Pages where only one manager showed a bar (logged out). Not a defect; recorded so a later run is not misread. | NOTE |
+| 78 | Desktop apps compared side by side 2026-11-02 (`docs/reference-behavior.md`). Checked in dm's code and found already done, so not gaps: a connection limit per server (`Options::host_limits`, Options > Advanced), a command run after each download (a virus checker or a script), the last folder per category (`last_folders`), the file's date from the server (`set_modified`), the list columns Last try and Description (and Referrer and Folder besides). | NOTE |
+| 79 | Scheduler: a schedule on each queue, a once-at date, Start now and Stop. Spec G79. | OPEN |
+| 80 | Proxy: a configuration script, per-protocol proxies, and the browser's proxy as a fallback. Spec G80. | OPEN |
+| 82 | Sounds: a chosen file per event, and queue started and queue finished events (complete and failed already play a fixed sound). Spec G82. | PARTIAL |
+| 84 | Dial-up / VPN connection and redial (reference A's last Options tab). Spec G84. | OPEN, maintainer to decide |
+| 85 | Download-start options in reference A's Downloads tab: audit each against dm. Spec G85. | OPEN (audit) |
+| 86 | General tab: a clipboard link started by itself, a per-browser capture list, editing the browser's menu items and panel buttons. Spec G86. | PARTIAL |
+| 87 | What the browser hands over: default type list and site list. Audit. Spec G87. | OPEN (audit) |
+| 90 | Start queue and Stop queue each with a drop-down of queues. Spec G90. | OPEN |
+| 91 | Help and View menus: Tutorials, Tip of the Day, Home page, Contact support, Tell a friend, Font. Spec G91. | OPEN, needs approval |
+| 92 | Site grabber: templates, size filters, sign-in inside it, a Grabber projects node, a results step. Spec G92. | OPEN |
+| 93 | Order to build, rows 72 to 92: G73, G75, G79, G80, then G82, G85, G87, G86, G92, G90. Wait for the maintainer's word before 72a to 72d, G74, G76, G84, G91 (each changes visible wording, layout or what a click does). | PLAN |
+
+### Implementation specs, rows 72 to 92 (2026-11-02)
+
+Each spec says what a person sees today, what they should see, where in the code it lives, the steps, and the
+check that proves it. "Reference A" is the other manager, watched on screen only (`docs/reference-behavior.md`).
+A change to visible wording, layout or what a click does needs the maintainer's word first
+(`docs/behaviour-contract.md`); such a spec is marked **Approval**, and its commit names the approval and edits the
+contract row in the same commit. Check on a real page with the side-by-side setup: `DM_KEEP_OTHER_EXTENSIONS=1`
+and `SITES_HOLD=<seconds>` with `scripts/sites-check.py <site>`, then drive the held browser.
+
+#### G73 Vimeo: a normal video refused as "Protected"
+- **Today:** on a public Vimeo video the bar says "Protected video" and refuses (reference A offers the video and
+  lists eight lines: a TS and an MP4 file at each of 270p, 360p, 540p and 720p HD, with kbps). The test is only that
+  the player has a `mediaKeys` object (`browser/src/content/show.rs`, the `protected` value near line 40).
+- **Goal:** a video is refused only when its stream is encrypted by a DRM system. A key object alone is not that.
+- **Change:**
+  1. `browser/src/decide/` (new `protection.rs`, a pure function `is_drm(text: &str) -> bool`): true for an MPD with
+     a `ContentProtection` whose `schemeIdUri` is a DRM system (Widevine `urn:uuid:edef8ba9-79d6-4ace-a3c8-27dcd51d21ed`,
+     PlayReady `urn:uuid:9a04f079-9840-4286-ab92-e65be0885f95`, FairPlay `urn:uuid:94ce86fb-07ff-4f43-adb8-93d2fa968ca2`),
+     or an HLS `#EXT-X-KEY` whose `METHOD` is `SAMPLE-AES` or whose `KEYFORMAT` is not `identity`. HLS `AES-128` with a
+     key address is not DRM (dm's HLS engine already joins it).
+  2. `show.rs`: `protected = mediaKeys set && !clear_stream_known`, where a stream is "known clear" when the playlists
+     or manifests seen for the tab (`__dmBodies` and the tab's kept streams) are present and `is_drm` is false for all.
+     With nothing seen the old answer stands (refuse), so no DRM site changes.
+  3. The panel's list then offers the playlist's renditions through the existing HLS/DASH readers.
+- **Done when:** unit tests in `browser/src/decide/tests.rs` for `is_drm` (Widevine MPD true, clear MPD false,
+  `SAMPLE-AES` HLS true, `AES-128` HLS false, empty false); a live run on the same Vimeo page shows a list and a whole
+  video lands; a known DRM page (a Widevine demo) is still refused.
+
+#### G74 A single file: ask first (Approval)
+- **Today:** on a tweet with one MP4, reference A's bar opens its File Info window (URL, Category, Save As, Remember
+  this path, Description, Download Later, Start Download, Cancel); dm's bar hands the file over and the app starts it.
+- **Goal:** the panel's click opens dm's own Download details dialog (contract row B02) before starting, as reference A
+  does, when the person's setting is "ask".
+- **Change:** `browser/src/web/page.rs` `hand_chosen(.., ask: true, ..)` already asks the app; the app side must open
+  Download details for a panel click when `Options > Downloads` says ask (find where `Request::Hand`'s `ask` is read in
+  `desktop/crates/dm-desktop/src/app/links.rs`). Confirm first why the harness's app did not open it.
+- **Done when:** a window test in `desktop/crates/dm-desktop/tests/window/dialogs.rs`; `scripts/human-qa.py` row for
+  the panel click; side-by-side screenshot.
+
+#### G75 File names from the page's title
+- **Today:** reference A's Save As is the page's title ("NASA on X- 'Everybody, wave!...'"); dm names the file from the
+  media's own name (`GiFPAi8WYAEgiBu.mp4`, `video.mp4` on Facebook).
+- **Goal:** when the address's own name is a hash, a bare `video`, or has no letters, the name is the page's title
+  (made safe for a file name) plus the type's extension; otherwise the file's own name stays.
+- **Change:** `browser/src/decide/download.rs` `taken_name(filename, url)` (line ~239) gets the tab's title (the
+  background has `sender.tab.title`) and a pure `is_meaningless_name(&str)`; pass the title through `Handoff`/the
+  request to the app; the app's `FileInfo` default name uses it (dm-core `probe.rs` `from_disposition` order: the
+  server's Content-Disposition first, then the title for meaningless names, then the address).
+- **Done when:** unit tests for `is_meaningless_name` (hash, `video`, digits, a real name) and for the safe name
+  (slashes, quotes, over-long, trailing dots, reserved Windows names); live on X, Facebook and Instagram.
+
+#### G76 Where the bar sits (Approval)
+- **Today:** reference A's bar sits on the video's top edge, right-aligned, and shrinks to a play mark and a close mark
+  on a narrow video; dm's is always 240 px wide inside the video's top right (it covers most of a 292 px reel) and on
+  Instagram it sat on the site's sticky header.
+- **Goal:** the bar is inside the visible part of the video, and compact on a video under 400 px wide.
+- **Change:** `browser/src/decide/media_panel.rs` `panel_at` (position and size) and `browser/src/content/show.rs`
+  (the visible rect: clip the video's rect by the viewport and by any fixed element over its top).
+- **Done when:** unit tests for `panel_at` (narrow, partly off screen, under a header); screenshots on a reel and on
+  Instagram.
+
+#### G79 Scheduler: a schedule on each queue
+- **Today:** one window of hours for every queue (`dm-core/src/schedule.rs` `Schedule`: `from`, `to`, `days`, `wake`,
+  `when_done`, `retries`, `run_when_done`; dialog `dialogs/speed_schedule.rs`; runner `app/scheduled.rs`). Reference A
+  lists its queues (Main, Synchronization, Download limits), each with: start at a time (once on a date, or daily on
+  chosen weekdays), stop at, retries per file, open a file when done, exit the app or turn off the computer (with
+  "force processes to terminate"), a Files in the queue tab, and Start now and Stop buttons.
+- **Goal:** each named queue can carry its own schedule; a once-at date; Start now and Stop in the dialog.
+- **Change:**
+  1. `dm-core/src/queue/queues.rs`: a `schedule: Option<Schedule>` on each queue, kept in `queue/persist.rs`; `Schedule`
+     gains `once_at: Option<String>` (`YYYY-MM-DD HH:MM`, local) and `force: bool`.
+  2. `dm-core/src/schedule.rs`: `open_at` honours `once_at` (open from that moment, then clear it); tests beside
+     the existing ones for weekdays and overnight windows.
+  3. `dm-shell/src/settings.rs`: the global one becomes the default for a queue with none.
+  4. `desktop/crates/dm-desktop/src/dialogs/speed_schedule.rs`: a queue list on the left, the schedule on the right,
+     Files in the queue tab, Start now, Stop, New queue, Delete. Layout follows the existing dialog style.
+  5. `app/scheduled.rs` `run_due` per queue.
+- **Done when:** dm-core tests for `once_at` and per-queue windows; a window test
+  (`tests/window/speed_schedule.rs`) that two queues keep different windows; `human-qa.py` row; side-by-side.
+
+#### G80 Proxy: configuration script, per protocol, browser fallback
+- **Today:** `dm-core/src/proxy.rs` `Kind`: System, Http, Https, Socks4, Socks5, with a host, port, user, password and a
+  bypass list; UI in `dialogs/options/tabs.rs` (Advanced, lines ~704 to 930). Reference A adds: an automatic
+  configuration script (an address), the proxy per protocol (http, https, ftp, each its own), "use the browser's proxy if a
+  download handed over by the browser fails", and FTP in passive mode (dm's FTP already supports passive).
+- **Goal:** the three additions, in this order: per-protocol proxy, browser fallback, configuration script.
+- **Change:** (1) `Proxy` gets `per_scheme: BTreeMap<String, Proxy>`; `client_with` picks by the URL's scheme.
+  (2) the extension sends the browser's proxy (`proxy.settings.get`, needs the `proxy` permission: a manifest
+  change, so needs the maintainer's word) with a hand-over; dm tries it once after a failure. (3) A script: evaluate
+  `FindProxyForURL` with the QuickJS dm already fetches (`dm-core/src/tools.rs`), in a sandbox with `shExpMatch`,
+  `dnsDomainIs`, `isInNet`, `isPlainHostName`, `localHostOrDomainIs`; results `DIRECT`, `PROXY h:p`, `SOCKS h:p`.
+- **Done when:** tests with a local proxy server for each scheme; a script test with a fixed `FindProxyForURL`;
+  a refused script address fails closed (direct is not assumed).
+
+#### G82 Sounds
+- **Today:** `sound_on_complete` and `sound_on_failure` play a fixed sound (`app/sync.rs` lines ~97 to 102 call
+  `platform.chime()` and `platform.alert()`). Reference A: a sound file chosen for each of Download complete, Download
+  failed, Queue processing started, Queue processing stopped or finished (Browse, Play).
+- **Goal:** a file per event, and the two queue events.
+- **Change:** `dm-shell/src/settings.rs`: `sounds: BTreeMap<String, String>` (keys `complete`, `failed`,
+  `queue_started`, `queue_done`; an empty path keeps the fixed sound); a `Platform::play(path)` beside `chime`;
+  Options gets a Sounds section (a row per event: switch, path, Browse, Play); `app/sync.rs` and the queue start and
+  finish hooks call it. Only `.wav` is promised (Windows `PlaySound`, macOS `afplay`, Linux `paplay` or `aplay`).
+- **Done when:** a settings round-trip test; a window test that the two new events fire once.
+
+#### G84 Dial-up / VPN (maintainer to decide)
+- **Today:** reference A has a last Options tab: use a Windows dial-up or VPN connection, user and password, redial
+  attempts and the time between them. dm has none.
+- **Decision needed:** build it for Windows only (RAS: `RasDial`, `RasEnumConnections`) or leave it out as obsolete.
+  If built: a settings block, an Options section on Windows, a redial loop around the queue's start.
+
+#### G85 Download-start options (audit)
+- **Reference A's Downloads tab:** show the start dialog; "do not start downloading, only add to the queue"; show the
+  complete dialog; start downloading while its File Info window is open; show the queue chooser on Download Later and on
+  closing batch dialogs; ignore the file's modified-time change when resuming; a customizable progress dialog; the
+  User-Agent for added downloads; what to do with a duplicate (dm has it).
+- **Do:** for each, open dm's Options > Downloads and Advanced and scroll; write the finding beside the item
+  (present, partial, absent) in this spec; open one row per absent item.
+- **Done when:** every item has a finding and a row or a note.
+
+#### G86 General tab
+- **Today:** dm has a clipboard watch (`app/clipboard.rs`) that offers a copied link (it does not start it), take or
+  keep keys, and Add dm to Edge, Firefox, Chrome and others. Reference A: start a copied URL by itself; a list of the
+  browsers it captures from, each a check box, with Add browser; edit the items it adds to the browser's right-click menu;
+  edit which buttons its panel shows in the browser.
+- **Goal, in order:** (1) a switch "start a copied link at once" (default off) in `app/clipboard.rs`; (2) a per-browser
+  capture list in Options > Browser, backed by the native-messaging registration per browser; (3) extension options page
+  for the right-click items and the panel's buttons (`extension/` options, `browser/src/web/settings.rs`).
+- **Done when:** a window test for (1); `human-qa.py` row for each.
+
+#### G87 What the browser hands over (audit)
+- **Reference A:** a default list of file types to capture (3GP 7Z AAC ACE AIF APK ARJ ASF AVI BIN BZ2 EXE GZ GZIP IMG
+  ISO LZH M4A M4V MKV MOV MP3 MP4 MPA MPE MPEG MPG MSI MSU OGG OGV PDF PLJ PPS PPT QT R0* R1* RA RAR RM RMVB SEA SIT SITX
+  TAR TIF TIFF WAV WMA WMV Z ZIP), a default list of sites never captured (update servers), and a list of addresses to skip.
+- **dm:** the type list is empty (all) with a size floor; the shipped rules are `desktop/crates/dm-shell/resources/rules.json`
+  and `browser/src/decide/excluded.rs` (never-catch hosts).
+- **Do:** compare the two lists, decide the default for a fresh install (the maintainer's word if it narrows what dm
+  catches), and add an addresses-to-skip editor if absent.
+
+#### G90 Start queue and Stop queue with a drop-down of queues
+- **Today:** one Start queue and one Stop queue command (`app/menus.rs` line ~226). Reference A: each toolbar button has a
+  small arrow that lists the queues; Downloads > Start queue > and Stop queue > are submenus.
+- **Change:** `table.rs`/toolbar: split buttons; `app/menus.rs`: the two menu items become submenus of the queues
+  (`dm-core/src/queue/queues.rs` names); keep the plain click as "the selected queue".
+- **Done when:** a window test for starting a chosen queue from the arrow.
+
+#### G91 Help and View menus (Approval)
+- **Reference A's Help:** Help contents, Tutorials, Scheduler and queues, Grabber help, Tip of the Day, Home page, Contact
+  support, Check for updates, About, Tell a friend. **dm's:** Help (F1), Check for updates, About. **View:** tray icon
+  options, Customize URL List, Font (dm: Text size).
+- **Do:** only the items the maintainer names. Each is a menu line with a link or a small dialog (`app/menus.rs`, the
+  Help menu; texts in `i18n/*.json`, all 14 languages).
+
+#### G92 Site grabber
+- **Today:** `dialogs/site_files.rs`: start page, file types, page depth, also other sites, keep the site's folders, stop
+  after N minutes, only and skip paths, Find files, save a search and run it every N hours. Reference A: a step wizard
+  (project name, start page, a project template, authorization with a manual login or a logout page, then levels,
+  filters, a results step with check boxes), kept under a Grabber projects node in the category tree.
+- **Goal, in order:** (1) size filters (minimum and maximum) in the dialog; (2) a results step: list what was found with
+  check boxes, then add the ticked ones; (3) project templates (a few: pictures, documents, videos, whole site);
+  (4) sign-in inside the grabber (use Options > Sign-ins for the site before crawling; already done for sites with a
+  saved login, so show it); (5) a Grabber projects node listing the saved searches.
+- **Change:** `dialogs/site_files.rs`, `dm-core` crawler (search `Grab` in `dm-core/src`), `app/ui.rs` category tree.
+- **Done when:** a dm-core test with a local site (filters, depth, results); a window test for the results step.
+
+#### G72a to G72d The floating list's wording (Approval, one commit each)
+- **72a Title at the start of each line.** Reference A: "type of,  MP4 file, 13 sec, quality 1280p HD, 4590 kbps".
+  Change: `browser/src/content/handoff.rs` `with_page_lines` and `decide::choice_line` take the page's title
+  (`document.title`, trimmed to 40 characters) and put it first, followed by a comma and two spaces. Done when: unit
+  test on `choice_line`; the same reel shows the same text in both lists.
+- **72b "Download all" first line.** Change: `browser/src/content/handoff.rs` `list` adds a first line that hands every
+  listed quality to the app's "Download all links" dialog (`dm-protocol` already carries a list of links: see
+  `Request::Links`); the Part box stays above it. Done when: a window test that the dialog opens with every line.
+- **72c Caption files as lines.** Reference A: "TTML file, HI subtitles (ASR)" (YouTube), "SRT file, 70 Bytes" (Facebook).
+  Change: `decide/page_lines.rs` reads caption addresses (an address ending `.vtt`, `.srt`, `.ttml`, or a JSON key
+  containing `caption` or `subtitle`) near the video's record and offers each as a line "SRT file" (label by
+  extension); today `not_video` throws these away. Done when: unit tests for each extension; live on a captioned video.
+- **72d 60 fps and HD named apart on YouTube.** Reference A: "MP4 file, quality 720p HD" and "720p HD 60 fps" are
+  two lines. dm keeps one line per height. Change: dm's own YouTube reading (`dm-core/src/youtube.rs`) keeps the frame
+  rate and the app's `Choice` carries it (`dm-protocol`); `decide::choice_line` writes "720p HD 60 fps". Done when: a
+  dm-core test on a fixed player response with two 720p formats; side by side on the same video.
+
+#### Order and rules
+Build G73, G75, G79, G80, then G82, G85, G87, G86, G92, G90. After each: `cargo test --workspace`, the browser tests for
+G73, G75 and G76, `python3 scripts/human-qa.py` in a visible window, the side-by-side look, then update this file and
+`docs/parity.md`, and delete the row when closed (git keeps its history).
