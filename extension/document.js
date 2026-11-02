@@ -97,6 +97,41 @@
       tellAnswer(href, await new Blob(parts).text());
     } catch { /* an answer that cannot be read is not read */ }
   };
+  // A magnet link a page opens with script (window.open, or a link it makes and clicks) rather than
+  // as a link a person clicked: passed to content.js, which takes it for dm only while the person's own
+  // click is still active (the page's user activation), as a clicked link is. The browser's own way is
+  // not left: where dm cannot take it, content.js opens it as the page meant to.
+  const tellMagnet = (target) => {
+    try {
+      const text = String(target?.href ?? target);
+      if (!/^magnet:\?/i.test(text) || !navigator.userActivation?.isActive) return false;
+      // The page's own way, when dm could not take it: content.js marks the page with the time, and
+      // a magnet opened within three seconds of it is left alone (the exact address is not compared:
+      // the browser may write it a little differently).
+      const marked = Number(document.documentElement?.getAttribute('data-dm-magnet-pass'));
+      if (marked && Date.now() - marked < 3000) return false;
+      window.postMessage({ source: 'dm-magnet', url: text }, location.origin);
+      return true;
+    } catch { return false; }
+  };
+  const opened_ = window.open;
+  window.open = function (url, ...rest) {
+    if (tellMagnet(url)) return null;
+    return opened_.call(this, url, ...rest);
+  };
+  const clicked_ = HTMLAnchorElement.prototype.click;
+  HTMLAnchorElement.prototype.click = function () {
+    if (tellMagnet(this)) return undefined;
+    return clicked_.call(this);
+  };
+  // A page that sets location to a magnet link (a button, or a link's own script): the browser
+  // reports it, and it can be cancelled, so dm can take it instead.
+  try {
+    window.navigation?.addEventListener('navigate', (event) => {
+      const to = String(event.destination?.url ?? '');
+      if (event.cancelable && /^magnet:\?/i.test(to) && tellMagnet(to)) event.preventDefault();
+    });
+  } catch { /* no Navigation API here: the clicked link and the script's open are still taken */ }
   const fetched = window.fetch;
   window.fetch = function (...args) {
     tell(args[0]);

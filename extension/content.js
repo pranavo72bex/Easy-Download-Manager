@@ -41,6 +41,24 @@
     while (keptSize > 12 * 1024 * 1024 || bodies.length > 40) keptSize -= bodies.shift().length;
   });
 
+  // A magnet link the page opened with script while the person's own click is active (document.js
+  // passes it on): taken for dm as a clicked magnet link is, or opened as the page meant when dm
+  // cannot take it. Never without the page's user activation, so a page cannot hand dm a torrent alone.
+  window.addEventListener('message', (event) => {
+    const data = event.data;
+    if (event.source !== window || data?.source !== 'dm-magnet' || typeof data.url !== 'string') return;
+    if (!/^magnet:\?/i.test(data.url)) return;
+    const open = () => openMagnet(data.url);
+    let active = false;
+    try { active = navigator.userActivation?.isActive === true; } catch { active = false; }
+    if (!active || !catchingNow() || privateTab) { open(); return; }
+    try {
+      ext.runtime.sendMessage({ type: 'dm.magnet', src: data.url, frame: '' })
+        .then((answer) => { if (!answer?.ok) open(); })
+        .catch(open);
+    } catch { open(); }
+  });
+
   // On a site the app's rules name, the requests whose JSON answers hold the
   // streams its page builds: the page script is told which, and what it reads
   // comes back here to the background, which finds the streams (in Rust, only
@@ -118,6 +136,12 @@
   const privateTab = (() => {
     try { return ext.extension?.inIncognitoContext === true; } catch { return false; }
   })();
+  // Opens a magnet link in the browser as the page meant to, marked so document.js lets it through
+  // instead of offering it to dm again.
+  const openMagnet = (url) => {
+    try { document.documentElement.setAttribute('data-dm-magnet-pass', String(Date.now())); } catch { /* no root */ }
+    window.location.href = url;
+  };
   document.addEventListener('click', (event) => {
     if (!(event.target instanceof Element)) return;
     // A magnet link is the app's, as a clicked .torrent is: it went to
@@ -135,10 +159,10 @@
         // browser's prompt names the site, as it would without dm, not the
         // extension (torrent check 4).
         ext.runtime.sendMessage({ type: 'dm.magnet', src: String(magnet.href), frame: '' })
-          .then((answer) => { if (!answer?.ok) window.location.href = magnet.href; })
-          .catch(() => { window.location.href = magnet.href; });
+          .then((answer) => { if (!answer?.ok) openMagnet(magnet.href); })
+          .catch(() => { openMagnet(magnet.href); });
       } catch {
-        window.location.href = magnet.href;
+        openMagnet(magnet.href);
       }
       return;
     }
