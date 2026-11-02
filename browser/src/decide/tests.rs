@@ -1802,3 +1802,60 @@ fn a_picture_whose_tag_is_padded_with_an_escaped_equals_sign_still_says_its_heig
     .unwrap();
     assert_eq!(sound.kind, StreamKind::Sound);
 }
+
+#[test]
+fn a_pages_own_video_files_are_offered_for_the_video_that_is_playing() {
+    const ID: &str = "AQOEmnf_c2TGtpRirhIDnZXgky_nEeo1jZFNmFMiNXegAa3MHxF6";
+    // The page's data for two videos, far apart; the player fetched the first.
+    let page = format!(
+        r#"<script>{{"dash_manifests":[{{"manifest_xml":"<MPD><BaseURL>https:\/\/v.fbcdn.net\/o1\/v\/m366\/{ID}.mp4</BaseURL></MPD>"}}],"dash_manifest_urls":[{{"manifest_url":"https:\/\/v.fbcdn.net\/m\/first.mpd?x=1&y=2","failure_reason":null}}],"progressive_urls":[{{"progressive_url":"https:\/\/v.fbcdn.net\/v\/first-sd.mp4?a=1&b=2","failure_reason":null,"metadata":{{"quality":"SD"}}}},{{"progressive_url":"https:\/\/v.fbcdn.net\/v\/first-hd.mp4","failure_reason":null,"metadata":{{"quality":"HD"}}}}]}}</script>{pad}<script>{{"progressive_urls":[{{"progressive_url":"https:\/\/v.fbcdn.net\/v\/other-sd.mp4","failure_reason":null,"metadata":{{"quality":"SD"}}}}]}}</script>"#,
+        pad = "x".repeat(400_000)
+    );
+    let seen = vec![format!("https://v.fbcdn.net/o1/v/m366/{ID}.mp4?_nc_cat=1&efg=e30%3D")];
+    let lines = page_lines(&page, &seen);
+    let said: Vec<(&str, &str)> = lines.iter().map(|l| (l.label.as_str(), l.url.as_str())).collect();
+    assert_eq!(
+        said,
+        [
+            ("MP4 file, quality SD", "https://v.fbcdn.net/v/first-sd.mp4?a=1&b=2"),
+            ("MP4 file, quality HD", "https://v.fbcdn.net/v/first-hd.mp4"),
+            ("DASH stream", "https://v.fbcdn.net/m/first.mpd?x=1&y=2"),
+        ]
+    );
+    // A video the player has not been seen to fetch is not offered, and a page
+    // that names nothing offers nothing.
+    assert!(page_lines(&page, &["https://other.example/zzzzzzzzzzzzzzzzzzzzzzzzzzzz.mp4".into()]).is_empty());
+    assert!(page_lines("<p>no video here</p>", &seen).is_empty());
+    assert!(page_lines(&page, &[]).is_empty());
+}
+
+#[test]
+fn a_pages_dash_manifest_gives_each_rendition_its_height_bitrate_and_length() {
+    const ID: &str = "AQOEmnf_c2TGtpRirhIDnZXgky_nEeo1jZFNmFMiNXegAa3MHxF6";
+    // The shape of a manifest Facebook's page holds, addresses shortened.
+    let xml = format!(
+        "<?xml version=\"1.0\"?><MPD xmlns=\"urn:mpeg:dash:schema:mpd:2011\" mediaPresentationDuration=\"PT22.185099S\">         <Period id=\"0\"><AdaptationSet id=\"0\" contentType=\"video\">         <Representation id=\"1v\" bandwidth=\"2075447\" mimeType=\"video/mp4\" width=\"720\" height=\"1280\" FBQualityClass=\"hd\" FBQualityLabel=\"720p\">         <BaseURL>https://v.fbcdn.net/o1/v/m366/{ID}.mp4?a=1&amp;b=2</BaseURL></Representation>         <Representation id=\"2v\" bandwidth=\"353028\" mimeType=\"video/mp4\" width=\"360\" height=\"640\" FBQualityClass=\"sd\" FBQualityLabel=\"360p\">         <BaseURL>https://v.fbcdn.net/o1/v/m84/low.mp4</BaseURL></Representation></AdaptationSet>         <AdaptationSet id=\"1\" contentType=\"audio\"><Representation id=\"3a\" bandwidth=\"59194\" mimeType=\"audio/mp4\">         <BaseURL>https://v.fbcdn.net/o1/v/m412/sound.mp4</BaseURL></Representation></AdaptationSet></Period></MPD>"
+    );
+    let manifests = serde_json::json!([{ "manifest_xml": xml }]).to_string();
+    let page = format!(
+        r#"{{"dash_manifests":{manifests},"dash_manifest_urls":[{{"manifest_url":"https://v.fbcdn.net/m/x.mpd","failure_reason":null}}],"progressive_urls":[{{"progressive_url":"https://v.fbcdn.net/v/sd.mp4","failure_reason":null,"metadata":{{"quality":"SD"}}}},{{"progressive_url":"https://v.fbcdn.net/v/hd.mp4","failure_reason":null,"metadata":{{"quality":"HD"}}}}]}}"#
+    );
+    let seen = vec![format!("https://v.fbcdn.net/o1/v/m366/{ID}.mp4?x=1")];
+    let lines = page_lines(&page, &seen);
+    let said: Vec<&str> = lines.iter().map(|l| l.label.as_str()).collect();
+    // As the other manager lists them: each rendition, then the page's own SD and HD
+    // files; the manifest is not a line of its own when its renditions are.
+    assert_eq!(
+        said,
+        [
+            "MP4 file, 22 sec, quality 640p, 353 kbps",
+            "MP4 file, 22 sec, quality 1280p HD, 2075 kbps",
+            "MP4 file, quality SD",
+            "MP4 file, quality HD",
+        ]
+    );
+    // A picture goes with the best sound, joined; a whole file needs none.
+    assert_eq!(lines[1].url, format!("https://v.fbcdn.net/o1/v/m366/{ID}.mp4?a=1&b=2"));
+    assert_eq!(lines[1].sound.as_deref(), Some("https://v.fbcdn.net/o1/v/m412/sound.mp4"));
+    assert_eq!(lines[2].sound, None);
+}

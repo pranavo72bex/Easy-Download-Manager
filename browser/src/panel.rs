@@ -54,8 +54,8 @@ button:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
 .help:hover, .close:hover, .help:focus-visible, .close:focus-visible { background: var(--hover); color: var(--text); }
 .list { margin-top: 4px; border-radius: var(--radius); overflow: hidden; background: var(--surface-solid);
   border: 1px solid var(--line); box-shadow: 0 8px 20px rgba(0,0,0,.4); max-height: 260px; overflow-y: auto; }
-.item { display: block; width: 100%; padding: 8px 12px; text-align: left; font-size: 13px; white-space: nowrap; color: var(--text);
-  overflow: hidden; text-overflow: ellipsis; border-top: 1px solid var(--line); }
+.item { display: block; width: 100%; padding: 8px 12px; text-align: left; font-size: 13px; white-space: normal; color: var(--text);
+  overflow-wrap: anywhere; border-top: 1px solid var(--line); }
 .item:first-child { border-top: 0; }
 .part { display: flex; align-items: center; gap: 6px; padding: 8px 12px; font-size: 13px; color: var(--text2);
   border-bottom: 1px solid var(--line); }
@@ -270,6 +270,10 @@ mod tests {
         let sub = &sub[..sub.find('}').unwrap()];
         assert!(sub.contains("overflow-wrap: anywhere"), "{sub}");
         assert!(sub.contains("max-width"), "{sub}");
+        // A line of the list wraps rather than being cut: its quality is the point of it.
+        let item = STYLE.split(".item {").nth(1).unwrap();
+        let item = &item[..item.find('}').unwrap()];
+        assert!(item.contains("white-space: normal") && !item.contains("ellipsis"), "{item}");
     }
 
     #[test]

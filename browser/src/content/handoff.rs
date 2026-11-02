@@ -295,6 +295,7 @@ pub(super) fn clicked() {
             .ok()
             .and_then(|v| v.dyn_into().ok())
             .unwrap_or_default();
+        let choices = with_page_lines(choices);
         with_panel(|p| {
             p.settled = false;
             say(p, "");
@@ -305,6 +306,41 @@ pub(super) fn clicked() {
             _ => list(&src, &frame, &choices),
         }
     });
+}
+
+/// The video files the page lists in its own data, added to the lines the background
+/// gave: for the video whose file the player has been seen to fetch, the page's SD and
+/// HD files and its DASH stream, as a site that names them all shows them.
+fn with_page_lines(choices: Array) -> Array {
+    let seen: Vec<String> = choices
+        .iter()
+        .flat_map(|c| [text_of(&c, "url"), text_of(&c, "sound")])
+        .filter(|u| !u.is_empty())
+        .collect();
+    let Some(text) = document()
+        .and_then(|d| d.document_element())
+        .map(|e| e.outer_html())
+    else {
+        return choices;
+    };
+    for line in decide::page_lines(&text, &seen) {
+        if choices.iter().any(|c| text_of(&c, "url") == line.url) {
+            continue;
+        }
+        let item = js_sys::Object::new();
+        let _ = Reflect::set(&item, &"url".into(), &line.url.as_str().into());
+        let _ = Reflect::set(&item, &"label".into(), &line.label.as_str().into());
+        if let Some(sound) = &line.sound {
+            let _ = Reflect::set(&item, &"sound".into(), &sound.as_str().into());
+        }
+        let _ = Reflect::set(
+            &item,
+            &"line".into(),
+            &decide::choice_line(&line.label, None).into(),
+        );
+        choices.push(&item);
+    }
+    choices
 }
 
 /// The list: one line per quality, with its size.
