@@ -359,7 +359,7 @@ class Dm:
                 break
             time.sleep(0.1)
         self.conn = socket.create_connection(("127.0.0.1", int(port.read_text())), timeout=60)
-        self.replies = self.conn.makefile("r")
+        self.replies = self.conn.makefile("r", encoding="utf-8")
         self.call("auth", token=(self.home / "control.token").read_text().strip())
         pause(1.5)
 
@@ -419,6 +419,32 @@ class Dm:
             print(f"  (nothing on screen to click for {text!r}: dm's window {self.windows().get('main')})", flush=True)
         pause(0.6)
         return reply.get("ok")
+
+    def scrolled_texts(self, anchor=None, turns=8, lines=6):
+        """The words of a dialog's page from its top to its bottom, read as a person
+        reads it: the wheel turned over a word in the middle of what shows, a
+        screenful at a time."""
+        seen = list(self.dialog_texts())
+        for _ in range(turns):
+            shown = self.dialog_texts()
+            over = shown[len(shown) // 2] if shown else anchor
+            if not over or not self.call("ui.scroll", text=over, lines=lines).get("ok"):
+                break
+            pause(0.5)
+            for word in self.dialog_texts():
+                if word not in seen:
+                    seen.append(word)
+        return seen
+
+    def reveal(self, text, turns=14):
+        """Turns the list's wheel until `text` is drawn: a row added below the last
+        one in view is not on screen for a person either."""
+        for _ in range(turns):
+            if any(text == t or text in t for t in self.texts()):
+                return True
+            self.call("ui.scroll", text="Complete", lines=6)
+            pause(0.4)
+        return any(text in t for t in self.texts())
 
     def windows(self):
         """Where dm's window and each dialog's window of its own stand."""
@@ -826,6 +852,7 @@ def walk(dm, origin):
             break
         time.sleep(0.25)
     pause(1)
+    seen = seen + [t for t in dm.scrolled_texts(turns=4, lines=2) if t not in seen]
     listed = (any(t.strip() == "Contents" for t in seen) and any("docs/readme.txt" in t for t in seen)
               and any("setup.exe" in t for t in seen))
     asked = requests("pack.zip", mark)
@@ -834,7 +861,7 @@ def walk(dm, origin):
     partial = bool(asked) and all(e["range"] and (e["range"] in PROBES or not e["range"].startswith("bytes=0-"))
                                   for e in asked)
     check("B44", "Download details for a .zip lists its files, with sizes, before the archive is fetched",
-          listed and partial, f"listed: {listed}; ranges asked: {[e['range'] for e in asked]}")
+          listed and partial, f"listed: {listed}; ranges asked: {[e['range'] for e in asked]}; seen: {seen[:30]}")
     dm.click("Cancel")
     pause(0.8)
     check("B44", "closing it fetched nothing and left no row",
@@ -857,6 +884,7 @@ def walk(dm, origin):
     dm.add(f"{files}/ui.bin")
     dm.wait("ui.bin", {"running"}, 20)
     pause(3)
+    dm.reveal("ui.bin")
     dm.call("ui.click", text="ui.bin", double=True)
     pause(1.5)
     titles = [w.get("title", "") for w in (dm.windows().get("dialogs") or [])]
@@ -886,27 +914,31 @@ def walk(dm, origin):
     # B47: an address with a token in its query is not kept for Add URL's list.
     dm.add(f"{files}/ui-alpha.bin?token=secret123abc")
     dm.wait("ui-alpha.bin", {"completed", "failed"}, 30)
-    kept = (home / "settings.json").read_text(encoding="utf-8", errors="replace") if (home / "settings.json").exists() else ""
+    kept = (dm.home / "settings.json").read_text(encoding="utf-8", errors="replace") if (dm.home / "settings.json").exists() else ""
     check("B47", "an address with a token in its query is added but not kept for Add URL's Recent list",
           dm.row("ui-alpha.bin") is not None and "secret123abc" not in kept, f"settings mention it: {'secret123abc' in kept}")
     # B48: Find previous goes back, wrapping from the first row to the last.
     for name in ("ui-beta.bin", "ui-alphabet.bin"):
         dm.add(f"{files}/{name}")
         dm.wait(name, {"completed", "failed"}, 30)
-    dm.call("ui.key", key="F", ctrl=True)
+    dm.call("ui.key", key="F", modifiers=["ctrl"])
     pause(0.8)
     dm.call("ui.type", text="alpha")
     pause(0.4)
-    dm.call("ui.key", key="F3", shift=True)
+    # Find next puts the text in force; the dialog then holds the keyboard, so
+    # it is closed, and F3 and Shift-F3 are pressed in the window, as a person does.
+    dm.click("Find next")
+    pause(0.6)
+    dm.click("Close")
+    pause(0.8)
+    dm.call("ui.key", key="F3", modifiers=["shift"])
     pause(0.8)
     one = [x["url"].rsplit("/", 1)[-1] for x in dm.rows() if x["id"] in (dm.call("ui.inspect").get("result", {}).get("selected") or [])]
-    dm.call("ui.key", key="F3", shift=True)
+    dm.call("ui.key", key="F3", modifiers=["shift"])
     pause(0.8)
     two = [x["url"].rsplit("/", 1)[-1] for x in dm.rows() if x["id"] in (dm.call("ui.inspect").get("result", {}).get("selected") or [])]
     check("B48", "Shift-F3 selects the previous row whose name has the text, and goes on back",
           len(one) == 1 and len(two) == 1 and one != two and all("alpha" in n for n in one + two), f"{one} then {two}")
-    dm.click("Cancel")
-    pause(0.6)
 
     print("\nWhen things go wrong", flush=True)
     dm.add(f"{files}/crash.bin")
@@ -1097,7 +1129,7 @@ def walk(dm, origin):
     pause(0.8)
     dm.click("Advanced")
     pause(0.8)
-    words = dm.dialog_texts()
+    words = dm.scrolled_texts("Speed limit, KB/s (0 for none)")
     first = "Speed limit, KB/s (0 for none)"
     # What is drawn before the first setting: the tabs, then the page's first heading.
     before = words[:words.index(first)] if first in words else []

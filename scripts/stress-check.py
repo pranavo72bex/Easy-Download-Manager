@@ -448,7 +448,7 @@ class DM:
     def connect(self):
         port = int((self.home / "control.port").read_text())
         self.conn = socket.create_connection(("127.0.0.1", port), timeout=120)
-        self.replies = self.conn.makefile("r")
+        self.replies = self.conn.makefile("r", encoding="utf-8")
         r = self.call("auth", token=(self.home / "control.token").read_text().strip())
         assert r["ok"], r
 
@@ -1021,7 +1021,7 @@ def p_control(ctx):
         # Many wrong guesses: is there any lockout / delay?
         t0 = time.time()
         s = socket.create_connection(("127.0.0.1", port), timeout=10)
-        rf = s.makefile("r")
+        rf = s.makefile("r", encoding="utf-8")
         guesses = 0
         try:
             for i in range(300):

@@ -426,7 +426,7 @@ def main():
             check("a --hidden launch shows no window", hidden, 0)
         # It makes no window until one is asked for, and still downloads.
         conn = socket.create_connection(("127.0.0.1", int(port_file.read_text())), timeout=30)
-        replies = conn.makefile("r")
+        replies = conn.makefile("r", encoding="utf-8")
         def call(method, **params):
             conn.sendall((json.dumps({"id": 1, "method": method, "params": params}) + "\n").encode())
             return json.loads(replies.readline())
@@ -479,13 +479,13 @@ def main():
         else:
             check("the token is private", oct((home / "control.token").stat().st_mode & 0o777), "0o600")
         conn = socket.create_connection(("127.0.0.1", int(port_file.read_text())), timeout=30)
-        replies = conn.makefile("r")
+        replies = conn.makefile("r", encoding="utf-8")
         def call(method, **params):
             conn.sendall((json.dumps({"id": 1, "method": method, "params": params}) + "\n").encode())
             return json.loads(replies.readline())
         check("a request before the token is refused", call("commands.list")["ok"], False)
         conn = socket.create_connection(("127.0.0.1", int(port_file.read_text())), timeout=30)
-        replies = conn.makefile("r")
+        replies = conn.makefile("r", encoding="utf-8")
         check("the token is accepted", call("auth", token=token)["ok"], True)
         ids = [c["id"] for c in call("commands.list")["result"]]
         check("every registry command is listed", len(ids) >= 40 and "program.add_url" in ids)
@@ -578,7 +578,7 @@ def main():
         wait_for("the headless dm never wrote its port", lambda: port_file.exists() and port_file.read_text().strip())
         token = (home / "control.token").read_text().strip()
         conn = socket.create_connection(("127.0.0.1", int(port_file.read_text())), timeout=30)
-        replies = conn.makefile("r")
+        replies = conn.makefile("r", encoding="utf-8")
         def call(method, **params):
             conn.sendall((json.dumps({"id": 1, "method": method, "params": params}) + "\n").encode())
             return json.loads(replies.readline())

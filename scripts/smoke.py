@@ -172,7 +172,7 @@ def main():
         ok("starts with no window")
 
         control = socket.create_connection(("127.0.0.1", int(port_file.read_text())), timeout=30)
-        replies = control.makefile("r")
+        replies = control.makefile("r", encoding="utf-8")
 
         def call(method, **params):
             control.sendall((json.dumps({"id": 1, "method": method, "params": params}) + "\n").encode())

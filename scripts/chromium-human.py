@@ -309,7 +309,7 @@ def oracle(home):
 
     def connect():
         sock = socket.create_connection(("127.0.0.1", int(port_file.read_text())), timeout=60)
-        link["sock"], link["lines"] = sock, sock.makefile("r")
+        link["sock"], link["lines"] = sock, sock.makefile("r", encoding="utf-8")
         ask("auth", token=(home / "control.token").read_text().strip())
 
     def ask(method, **params):

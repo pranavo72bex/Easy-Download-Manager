@@ -72,7 +72,7 @@ try:
           (app.stderr.read().decode(errors="replace")[-300:] if app.poll() is not None else ""))
     if port_file.exists() and (data / "control.token").exists():
         conn = socket.create_connection(("127.0.0.1", int(port_file.read_text())), timeout=30)
-        replies = conn.makefile("r")
+        replies = conn.makefile("r", encoding="utf-8")
 
         def call(method, **params):
             conn.sendall((json.dumps({"id": 1, "method": method, "params": params}) + "\n").encode())

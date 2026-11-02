@@ -74,7 +74,7 @@ def main():
                 break
             time.sleep(0.2)
         conn = socket.create_connection(("127.0.0.1", int(port_file.read_text())), timeout=60)
-        replies = conn.makefile("r")
+        replies = conn.makefile("r", encoding="utf-8")
 
         def call(method, **params):
             conn.sendall((json.dumps({"id": 1, "method": method, "params": params}) + "\n").encode())

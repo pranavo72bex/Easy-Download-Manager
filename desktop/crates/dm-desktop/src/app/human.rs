@@ -176,7 +176,7 @@ impl DmApp {
     ) -> Option<Result<Value, String>> {
         // Steps wait for frames: a window that draws none (parked in the
         // tray) would let a client queue them without end.
-        if matches!(method, "ui.click" | "ui.type" | "ui.key") {
+        if matches!(method, "ui.click" | "ui.type" | "ui.key" | "ui.scroll") {
             if self.hidden {
                 return Some(Err(
                     "dm's window is hidden in the tray: launch dm again, or choose Show in the tray, first"
@@ -268,6 +268,39 @@ impl DmApp {
                 step(&mut self.synthetic, Vec::new());
                 wake();
                 Ok(json!({ "clicked": target.text, "at": [pos.x, pos.y] }))
+            })(),
+            "ui.scroll" => (|| {
+                let wanted = params
+                    .get("text")
+                    .and_then(Value::as_str)
+                    .filter(|t| !t.is_empty())
+                    .ok_or("give `text`: words on screen to hold the pointer over, in what scrolls")?;
+                // Lines turned down (negative: up), as a wheel is, a line being a
+                // few rows of text.
+                let lines = params.get("lines").and_then(Value::as_f64).unwrap_or(3.0) as f32;
+                self.find_text(wanted, 0)
+                    .ok_or_else(|| format!("nothing on screen says {wanted:?}"))?;
+                self.synthetic.push_back((
+                    Instant::now(),
+                    Step::Pointer {
+                        text: wanted.to_string(),
+                        nth: 0,
+                        button: egui::PointerButton::Primary,
+                        pressed: None,
+                    },
+                ));
+                step(
+                    &mut self.synthetic,
+                    vec![egui::Event::MouseWheel {
+                        unit: egui::MouseWheelUnit::Point,
+                        delta: egui::vec2(0.0, -lines * 40.0),
+                        phase: egui::TouchPhase::Move,
+                        source: egui::MouseWheelSource::Wheel,
+                        modifiers: egui::Modifiers::NONE,
+                    }],
+                );
+                wake();
+                Ok(json!({ "scrolled": wanted, "lines": lines }))
             })(),
             "ui.type" => (|| {
                 let text = params
