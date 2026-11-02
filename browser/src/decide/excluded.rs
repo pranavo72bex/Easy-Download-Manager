@@ -49,6 +49,7 @@ pub const SMALLEST_PLAYER: (f64, f64) = (15.0, 10.0);
 
 /// Hosts whose downloads should never be caught: OS update servers and
 /// content-delivery networks that serve only GIF stickers and image embeds.
+/// Not Instagram's: its videos come from the same network as its pictures.
 /// A file from these hosts is never the file a person is looking for.
 const NEVER_CATCH_HOSTS: &[&str] = &[
     "update.microsoft.com",
@@ -59,7 +60,6 @@ const NEVER_CATCH_HOSTS: &[&str] = &[
     "media.tenor.co",
     "giphy.com",
     "media.giphy.com",
-    "cdninstagram.com",
 ];
 
 /// Advertising networks and trackers by the end of their host name: a host
