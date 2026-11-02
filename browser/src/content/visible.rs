@@ -93,7 +93,21 @@ pub(super) fn seen(window: &Window, element: &Element) -> bool {
     ) {
         return false;
     }
-    around.iter().any(|player| within(player, &top))
+    if around.iter().any(|player| within(player, &top)) {
+        return true;
+    }
+    // A layer hung off another branch of the player (Instagram's reel keeps
+    // its controls and caption beside the video's own wrappers): the closest
+    // element holding both it and the video, if that is player-sized and not
+    // the page, is the player, and the layer is one of its own.
+    std::iter::successors(composed_parent(&top), composed_parent)
+        .take(12)
+        .take_while(|e| {
+            let tag = e.tag_name().to_ascii_lowercase();
+            tag != "body" && tag != "html"
+        })
+        .find(|e| within(e, element))
+        .is_some_and(|shared| panel::layer_fits(rect.width() * rect.height(), positioned.map(area), area(&shared)))
 }
 
 /// The element through the shadow root holding it, or its parent.

@@ -1859,3 +1859,28 @@ fn a_pages_dash_manifest_gives_each_rendition_its_height_bitrate_and_length() {
     assert_eq!(lines[1].sound.as_deref(), Some("https://v.fbcdn.net/o1/v/m412/sound.mp4"));
     assert_eq!(lines[2].sound, None);
 }
+
+#[test]
+fn instagrams_manifest_and_files_give_the_reels_qualities() {
+    const ID: &str = "AQMgO65IBSO4D1Fg1v8qWRLjCR7N-LaX4H_sPQeyoyjFQE149o094RW";
+    let xml = format!(
+        "<?xml version=\"1.0\"?><MPD mediaPresentationDuration=\"PT41S\"><Period><AdaptationSet contentType=\"video\"><Representation id=\"1\" bandwidth=\"1500000\" width=\"720\" height=\"1280\"><BaseURL>https://i.fbcdn.net/o1/v/{ID}.mp4?a=1&amp;b=2</BaseURL></Representation><Representation id=\"2\" bandwidth=\"500000\" width=\"360\" height=\"640\"><BaseURL>https://i.fbcdn.net/o1/v/low.mp4</BaseURL></Representation></AdaptationSet><AdaptationSet contentType=\"audio\"><Representation id=\"3\" bandwidth=\"60000\"><BaseURL>https://i.fbcdn.net/o1/v/sound.mp4</BaseURL></Representation></AdaptationSet></Period></MPD>"
+    );
+    let page = format!(
+        r#"{{"video_versions":[{{"type":101,"url":"https:\/\/i.fbcdn.net\/o1\/v\/{ID}.mp4?x=1","width":720,"height":1280}}],"video_dash_manifest":{}}}"#,
+        serde_json::Value::String(xml)
+    );
+    let seen = vec![format!("https://i.fbcdn.net/o1/v/{ID}.mp4?x=1&bytestart=0&byteend=9")];
+    let lines = page_lines(&page, &seen);
+    let said: Vec<&str> = lines.iter().map(|l| l.label.as_str()).collect();
+    assert_eq!(
+        said,
+        [
+            "MP4 file, 41 sec, quality 640p, 500 kbps",
+            "MP4 file, 41 sec, quality 1280p, 1500 kbps",
+            "MP4 file, quality 1280p",
+        ]
+    );
+    assert_eq!(lines[1].sound.as_deref(), Some("https://i.fbcdn.net/o1/v/sound.mp4"));
+    assert!(page_lines(&page, &["https://other.example/zzzzzzzzzzzzzzzzzzzzzzzzzzzz.mp4".into()]).is_empty());
+}

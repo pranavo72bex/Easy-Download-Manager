@@ -126,7 +126,7 @@ def panel_of(view):
     """The panel as the page shows it: the full one, or the plain-JavaScript one a page that forbids
     WebAssembly gets, read into the same fields."""
     try:
-        full = panel_of(view)
+        full = cc.panel(view)
     except RuntimeError:
         full = None
     if full and full.get("shown"):
@@ -297,6 +297,9 @@ def one(base, name, site, engine_dl, worker=None):
         out["dm_panel"] = tab.evaluate("""(() => { const p = document.querySelector('dm-panel'); if (!p) return 'absent';
           const r = p.getBoundingClientRect(); return { display: getComputedStyle(p).display, rect: [r.left, r.top, r.width, r.height],
             hidden: p.hasAttribute('hidden'), attrs: p.getAttributeNames().join(',') }; })()""")
+        probe = os.environ.get("SITES_EVAL")
+        if PROBE and probe:
+            out["eval"] = tab.evaluate(pathlib.Path(probe).read_text(encoding="utf-8"))
         out["result"] = "the panel did not appear"
         return out
     def shot(label):

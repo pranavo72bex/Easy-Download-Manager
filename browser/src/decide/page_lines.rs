@@ -106,6 +106,58 @@ pub fn page_lines(text: &str, seen: &[String]) -> Vec<PageLine> {
         }
         return lines;
     }
+    instagram_lines(text, &ids)
+}
+
+/// Instagram's shape: each video's data holds `video_dash_manifest` (the MPD as a JSON
+/// string) and `video_versions` (the plain files, each with its width and height). The
+/// video whose manifest or files hold one of the files the player fetched is the one.
+fn instagram_lines(text: &str, ids: &[String]) -> Vec<PageLine> {
+    for at in places(text, "video_dash_manifest") {
+        let rest = &text[at + "\"video_dash_manifest\"".len()..];
+        let Some(rest) = rest.trim_start().strip_prefix(':') else {
+            continue;
+        };
+        let Some(serde_json::Value::String(xml)) = serde_json::Deserializer::from_str(rest.trim_start())
+            .into_iter::<serde_json::Value>()
+            .next()
+            .and_then(|v| v.ok())
+        else {
+            continue;
+        };
+        let from = floor(text, at.saturating_sub(NEAR));
+        let to = floor(text, (at + NEAR).min(text.len()));
+        let window = &text[from..to];
+        if !ids.iter().any(|id| xml.contains(id.as_str()) || window.contains(id.as_str())) {
+            continue;
+        }
+        let mut lines = manifest_lines(&xml);
+        let versions = places(text, "video_versions")
+            .into_iter()
+            .filter(|v| v.abs_diff(at) <= NEAR)
+            .min_by_key(|v| v.abs_diff(at));
+        if let Some(v) = versions {
+            for item in array_after(text, v, "\"video_versions\"").unwrap_or_default() {
+                let Some(url) = item
+                    .get("url")
+                    .and_then(|u| u.as_str())
+                    .filter(|u| u.starts_with("https://") || u.starts_with("http://"))
+                else {
+                    continue;
+                };
+                let height = item.get("height").and_then(|h| h.as_u64()).filter(|h| *h > 0);
+                lines.push(PageLine {
+                    url: url.to_string(),
+                    label: match height {
+                        Some(h) => format!("MP4 file, quality {h}p"),
+                        None => "MP4 file".to_string(),
+                    },
+                    sound: None,
+                });
+            }
+        }
+        return lines;
+    }
     Vec::new()
 }
 
@@ -174,6 +226,12 @@ fn renditions(text: &str, at: usize) -> Vec<PageLine> {
     else {
         return Vec::new();
     };
+    manifest_lines(xml)
+}
+
+/// The lines for the renditions a DASH manifest names: each picture with its height,
+/// bitrate and the video's length, and the best sound beside it to be joined.
+fn manifest_lines(xml: &str) -> Vec<PageLine> {
     let length = xml
         .find("<MPD ")
         .and_then(|i| xml[i..].find('>').map(|e| &xml[i..i + e]))
