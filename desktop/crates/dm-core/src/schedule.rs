@@ -43,6 +43,14 @@ pub struct Schedule {
     /// are done. Empty is none. Never set by an imported settings file or by
     /// a script driving the window, as the command run after each download is not.
     pub run_when_done: String,
+    /// One run on a date instead of the weekly window: `YYYY-MM-DD HH:MM`,
+    /// local. Closed until then, open from then to `to` (the next morning
+    /// when `to` is not later than the start), after which the caller
+    /// clears it (`Schedule::once_over`).
+    pub once_at: Option<String>,
+    /// When the window closes, stop what is running and end processes that
+    /// would hold the computer awake ("force processes to terminate").
+    pub force: bool,
 }
 
 impl Default for Schedule {
@@ -56,6 +64,8 @@ impl Default for Schedule {
             when_done: String::new(),
             retries: 0,
             run_when_done: String::new(),
+            once_at: None,
+            force: false,
         }
     }
 }
@@ -97,7 +107,9 @@ impl Schedule {
     /// Whether the queue may run now.
     pub fn open(&self) -> bool {
         let now = Local::now();
-        self.open_at(
+        // With a once-only date set, the date decides (`open_now`).
+        self.open_now(
+            (now.year(), now.month() as u8, now.day() as u8),
             now.weekday().num_days_from_sunday() as u8,
             now.time().hour() * 60 + now.time().minute(),
         )
@@ -136,6 +148,53 @@ impl Schedule {
             } else {
                 false
             }
+        }
+    }
+}
+
+/// The span a once-only run covers, as (start, end) in minutes since the
+/// calendar's day one; `None` where `once_at` or the times are not usable.
+fn once_span(schedule: &Schedule) -> Option<(i64, i64)> {
+    let at = chrono::NaiveDateTime::parse_from_str(
+        schedule.once_at.as_deref()?.trim(),
+        "%Y-%m-%d %H:%M",
+    )
+    .ok()?;
+    let to = minutes(&schedule.to)?;
+    let from = at.time().hour() * 60 + at.time().minute();
+    let day = i64::from(at.date().num_days_from_ce());
+    let start = day * 24 * 60 + i64::from(from);
+    let end_day = if to > from { day } else { day + 1 };
+    Some((start, end_day * 24 * 60 + i64::from(to)))
+}
+
+fn since_day_one((year, month, day): (i32, u8, u8), minute_of_day: u32) -> Option<i64> {
+    let date = chrono::NaiveDate::from_ymd_opt(year, u32::from(month), u32::from(day))?;
+    Some(i64::from(date.num_days_from_ce()) * 24 * 60 + i64::from(minute_of_day))
+}
+
+impl Schedule {
+    /// `open_at`, with a once-only date honoured: with `once_at` set the
+    /// queue is closed until that moment, open from it to `to`, and closed
+    /// after, until the caller clears it. Without one, or with one that is not
+    /// a date, it is `open_at`'s answer.
+    pub fn open_now(&self, today: (i32, u8, u8), weekday: u8, minute_of_day: u32) -> bool {
+        if !self.enabled {
+            return true;
+        }
+        let (Some((start, end)), Some(now)) =
+            (once_span(self), since_day_one(today, minute_of_day))
+        else {
+            return self.open_at(weekday, minute_of_day);
+        };
+        (start..end).contains(&now)
+    }
+
+    /// Whether a once-only date has been and gone, so the caller clears it.
+    pub fn once_over(&self, today: (i32, u8, u8), minute_of_day: u32) -> bool {
+        match (once_span(self), since_day_one(today, minute_of_day)) {
+            (Some((_, end)), Some(now)) => now >= end,
+            _ => false,
         }
     }
 }
@@ -193,6 +252,8 @@ mod tests {
             when_done: String::new(),
             retries: 0,
             run_when_done: String::new(),
+            once_at: None,
+            force: false,
         };
         // Monday 08:00: Friday 23:00 is four days and fifteen hours away.
         assert_eq!(
@@ -228,6 +289,8 @@ mod tests {
             when_done: String::new(),
             retries: 0,
             run_when_done: String::new(),
+            once_at: None,
+            force: false,
         }
     }
 
@@ -330,6 +393,75 @@ mod tests {
             ..nightly()
         };
         assert!(empty.open_at(3, 12 * 60));
+    }
+
+    fn once(at: &str) -> Schedule {
+        Schedule {
+            once_at: Some(at.into()),
+            ..nightly()
+        }
+    }
+
+    #[test]
+    fn a_once_only_date_opens_at_its_moment_and_closes_at_the_end_time() {
+        let s = once("2026-11-03 23:00");
+        let (nov3, nov4) = ((2026, 11, 3), (2026, 11, 4));
+        assert!(!s.open_now(nov3, 2, 22 * 60 + 59), "a minute before");
+        assert!(s.open_now(nov3, 2, 23 * 60), "at its moment");
+        assert!(s.open_now(nov4, 3, 60), "past midnight, still inside");
+        assert!(!s.open_now(nov4, 3, 7 * 60), "at the end time");
+        assert!(!s.open_now((2026, 11, 2), 1, 23 * 60), "the day before");
+    }
+
+    #[test]
+    fn a_once_only_date_that_is_over_is_cleared_by_the_caller() {
+        let s = once("2026-11-03 23:00");
+        assert!(!s.once_over((2026, 11, 4), 6 * 60 + 59));
+        assert!(s.once_over((2026, 11, 4), 7 * 60));
+        assert!(!s.once_over((2026, 11, 3), 12 * 60), "not yet begun");
+    }
+
+    #[test]
+    fn a_once_only_window_within_one_day_ends_that_day() {
+        let s = Schedule {
+            to: "17:00".into(),
+            ..once("2026-11-03 09:00")
+        };
+        assert!(s.open_now((2026, 11, 3), 2, 12 * 60));
+        assert!(!s.open_now((2026, 11, 3), 2, 17 * 60));
+        assert!(!s.open_now((2026, 11, 4), 3, 10 * 60), "not tomorrow");
+    }
+
+    #[test]
+    fn a_once_only_date_that_is_not_a_date_falls_back_to_the_weekly_window() {
+        let s = once("tomorrow evening");
+        assert_eq!(s.open_now((2026, 11, 3), 2, 2 * 60), s.open_at(2, 2 * 60));
+        assert_eq!(s.open_now((2026, 11, 3), 2, 12 * 60), s.open_at(2, 12 * 60));
+        assert!(!s.once_over((2026, 11, 9), 0));
+    }
+
+    #[test]
+    fn two_schedules_answer_each_their_own_window() {
+        let night = nightly();
+        let day = Schedule {
+            from: "09:00".into(),
+            to: "17:00".into(),
+            ..nightly()
+        };
+        assert!(
+            night.open_now((2026, 11, 3), 2, 2 * 60) && !day.open_now((2026, 11, 3), 2, 2 * 60)
+        );
+        assert!(
+            !night.open_now((2026, 11, 3), 2, 12 * 60) && day.open_now((2026, 11, 3), 2, 12 * 60)
+        );
+    }
+
+    #[test]
+    fn a_schedule_written_before_once_at_still_reads() {
+        let read: Schedule =
+            serde_json::from_str(r#"{"enabled": true, "from": "22:00"}"#).unwrap_or_default();
+        assert_eq!(read.once_at, None);
+        assert!(!read.force);
     }
 
     #[test]

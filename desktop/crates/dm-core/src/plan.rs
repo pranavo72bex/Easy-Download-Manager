@@ -52,7 +52,11 @@ impl Segment {
 
 /// Below this, splitting costs more in round trips than it wins in
 /// parallelism — the connections spend their time being set up rather than
-/// carrying bytes.
+/// carrying bytes. Reference A cuts a 100 KB file into pieces down to about
+/// 14 KB (gaps row 95); lowering this to match opens every connection at once
+/// on a small file from a fast server, which the browser check (contract row
+/// B36: "no more connections than it needs") refuses, so it waits for the
+/// maintainer's word.
 pub const MIN_SEGMENT: u64 = 1024 * 1024;
 
 /// Browsers cap connections per host at six and no amount of asking changes

@@ -240,7 +240,11 @@ async fn pages_on_other_sites_are_read_only_when_asked() {
         "/",
         get(move || {
             let away = away.clone();
-            async move { Html(format!(r#"<a href="near.zip">n</a> <a href="{away}">away</a>"#)) }
+            async move {
+                Html(format!(
+                    r#"<a href="near.zip">n</a> <a href="{away}">away</a>"#
+                ))
+            }
         }),
     );
     let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
@@ -308,5 +312,9 @@ async fn a_site_that_wants_a_login_is_read_with_the_one_it_was_given_and_never_s
         .await
         .unwrap();
     assert_eq!(names(&found.files), ["a.zip", "b.zip"]);
-    assert!(found.files.iter().all(|f| !f.contains('@')), "{:?}", found.files);
+    assert!(
+        found.files.iter().all(|f| !f.contains('@')),
+        "{:?}",
+        found.files
+    );
 }

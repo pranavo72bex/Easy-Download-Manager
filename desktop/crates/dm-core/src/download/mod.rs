@@ -124,6 +124,8 @@ pub struct Options {
     /// it held that name for a moment and pushed a download of the same
     /// file finishing then to "name (1)".
     pub save_name: Option<String>,
+    /// The title of the page the link came from: names the file when the name found says nothing (`naming`).
+    pub title_hint: Option<String>,
     /// A page that answers for a file (a sign-in, an expired link) is saved as
     /// an HTML page, named `<name>.html`, rather than failing the download:
     /// what a person who was asked and said yes has chosen (reference A asks).
@@ -260,12 +262,12 @@ struct Job {
     /// Set when a finished range's last bytes, asked for again, were other
     /// bytes than the ones on disk: the connections did not get one file.
     disagreed: std::sync::atomic::AtomicBool,
-    /// For each range after the first, the byte just before it, fetched as
-    /// a one-byte overlap with the range before; `NO_OVERLAP` until fetched.
-    /// Checked at assembly against the previous range's last byte, which is
-    /// the only way to see a server that labels bytes from the wrong offset
-    /// with the right Content-Range.
-    overlaps: Vec<std::sync::atomic::AtomicU16>,
+    /// For each range after the first, the bytes just before it (up to 64)
+    /// fetched as an overlap with the range before. `None` until fetched;
+    /// compared at assembly against the same bytes on disk, which is the only
+    /// way to catch a server that labels bytes from the wrong offset with the
+    /// right Content-Range.
+    overlaps: Vec<std::sync::Mutex<Option<Vec<u8>>>>,
     limiter: Limiter,
     /// Best first. More than one only when a Metalink named mirrors that
     /// agree about the file.
@@ -942,9 +944,7 @@ async fn fetch_reporting(
         limiter: options.limiter.clone(),
         sources,
         attempts: (0..capacity).map(|_| AtomicU64::new(0)).collect(),
-        overlaps: (0..capacity)
-            .map(|_| std::sync::atomic::AtomicU16::new(NO_OVERLAP))
-            .collect(),
+        overlaps: (0..capacity).map(|_| std::sync::Mutex::new(None)).collect(),
         live: (0..capacity)
             .map(|i| {
                 std::sync::Mutex::new(live.get(i).map_or(Live::default(), |s| Live {
@@ -1055,7 +1055,10 @@ async fn fetch_reporting(
     /* A range's last bytes, asked for again, were not the bytes on disk: the
      * connections did not all get the same file. Fetched again from the
      * start on one connection, where there is no seam, and the row says why. */
-    if job.disagreed.load(std::sync::atomic::Ordering::SeqCst) && options.connections > 1 && workers > 1 {
+    if job.disagreed.load(std::sync::atomic::Ordering::SeqCst)
+        && options.connections > 1
+        && workers > 1
+    {
         let mut listing = fs::read_dir(&options.parts_dir).await?;
         while let Some(entry) = listing.next_entry().await? {
             let _ = fs::remove_file(entry.path()).await;
@@ -1266,6 +1269,7 @@ mod tests {
             save_name: None,
             accept_page: false,
             system_proxy: false,
+            title_hint: None,
         }
     }
 

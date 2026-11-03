@@ -540,6 +540,10 @@ pub(super) async fn fetch_segment(
 /// confirm the bytes on disk are the ones the server sent.
 const DATA_CHECK_SIZE: u64 = 4 * 1024;
 
+/// How many bytes before each range boundary are fetched as an overlap and
+/// compared at assembly: reference A overlaps 64 bytes at each seam.
+pub(super) const LEAD_BYTES: usize = 64;
+
 /// After a segment completes, re-fetches its last [`DATA_CHECK_SIZE`] bytes
 /// and compares them against what is on disk. If they differ the job is
 /// marked as disagreeing, and the download goes again on one connection.
@@ -582,11 +586,16 @@ async fn spot_check_segment(
 
     // Ask the server for the same bytes.
     let source = job.source(index);
-    let request = get(client, &source.url, job.referrer.as_deref(), job.sign_in.as_ref())
-        .header(
-            reqwest::header::RANGE,
-            format!("bytes={check_start}-{check_end}"),
-        );
+    let request = get(
+        client,
+        &source.url,
+        job.referrer.as_deref(),
+        job.sign_in.as_ref(),
+    )
+    .header(
+        reqwest::header::RANGE,
+        format!("bytes={check_start}-{check_end}"),
+    );
     let Ok(res) = crate::auth::send(client, request, &source.url).await else {
         return Ok(());
     };
@@ -599,7 +608,8 @@ async fn spot_check_segment(
     };
 
     if from_server[..] != on_disk[..] {
-        job.disagreed.store(true, std::sync::atomic::Ordering::SeqCst);
+        job.disagreed
+            .store(true, std::sync::atomic::Ordering::SeqCst);
     }
     Ok(())
 }
@@ -644,8 +654,8 @@ pub(super) async fn attempt_segment(
         already
     };
 
-    // A range after the first, starting fresh, asks for one byte more at
-    // its front: the last byte of the range before, checked at assembly.
+    // A range after the first, starting fresh, asks for up to LEAD_BYTES more
+    // at its front: the bytes of the range before it, checked at assembly.
     let lead = resumable && index > 0 && already == 0 && start > 0;
     /* What a part already holds is asked for again at its end, and compared.
      * Its ledger says how much is there, and after a power cut the ledger can
@@ -659,10 +669,13 @@ pub(super) async fn attempt_segment(
         0
     };
     let from = if lead {
-        start - 1
+        start.saturating_sub(LEAD_BYTES as u64)
     } else {
         start + already - check
     };
+    // How many lead bytes are actually before `start` (may be < LEAD_BYTES
+    // when `start` itself is near the beginning of the file).
+    let lead_n = if lead { (start - from) as usize } else { 0 };
 
     /* Where this request stops. Without a cap, at the range's end, as ever.
      * With one (`Job::chunk`, from the reading of a video page), a slice of
@@ -897,6 +910,7 @@ pub(super) async fn attempt_segment(
     // its back half.
     let mut span_now = span;
     let mut want_lead = lead;
+    let mut lead_buf: Vec<u8> = Vec::with_capacity(lead_n);
     let mut reader = Reader::new();
     let mut window = Window::open(written, job);
 
@@ -955,13 +969,20 @@ pub(super) async fn attempt_segment(
                 return Err(Error::Network(e));
             }
         };
-        // The overlap byte is kept aside, not written into this range.
+        // The lead bytes are kept aside, not written into this range.
         if want_lead && !chunk.is_empty() {
-            if let (Some(first), Some(slot)) = (chunk.first(), job.overlaps.get(index)) {
-                slot.store(u16::from(*first), Ordering::Relaxed);
+            let need = lead_n.saturating_sub(lead_buf.len());
+            let take = need.min(chunk.len());
+            lead_buf.extend_from_slice(&chunk[..take]);
+            chunk = chunk.slice(take..);
+            if lead_buf.len() >= lead_n {
+                if let Some(slot) = job.overlaps.get(index) {
+                    if let Ok(mut guard) = slot.lock() {
+                        *guard = Some(lead_buf.clone());
+                    }
+                }
+                want_lead = false;
             }
-            chunk = chunk.slice(1..);
-            want_lead = false;
         }
 
         /* Checked between chunks rather than mid-write, so what is flushed

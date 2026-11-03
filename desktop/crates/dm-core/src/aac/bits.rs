@@ -10,6 +10,10 @@ impl<'a> Bits<'a> {
         Bits { data, pos: 0 }
     }
 
+    #[allow(
+        dead_code,
+        reason = "used once the decoder's tables are in (gaps row 53)"
+    )]
     pub(super) fn position(&self) -> usize {
         self.pos
     }

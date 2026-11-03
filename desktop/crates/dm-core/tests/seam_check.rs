@@ -76,6 +76,62 @@ async fn serve(corrupt_checks: bool) -> (String, Arc<AtomicUsize>) {
     (format!("http://{addr}/f.bin"), checks)
 }
 
+/// A server that, for any range request that starts at least 64 bytes into
+/// the file, corrupts bytes at positions 10–60 of the returned slice but
+/// leaves byte 0 intact.  The lead window fetched by a range-N request starts
+/// at `seam - 64`; position 0 of the response is `seam - 64` (unchanged), but
+/// positions 10–60 are corrupted.  The previous range wrote the honest bytes
+/// at those same file offsets, so the assembly-time comparison catches the
+/// disagreement.  A 1-byte check (position 0 only) would pass; the 64-byte
+/// check catches the interior mismatch.
+async fn serve_partial_corrupt() -> (String, Arc<AtomicUsize>) {
+    let checks = Arc::new(AtomicUsize::new(0));
+    let body = Arc::new(pattern(8 * MB));
+    let checks_c = checks.clone();
+    let body_c = body.clone();
+
+    let app = axum::Router::new().fallback(move |headers: axum::http::HeaderMap| {
+        let checks = checks_c.clone();
+        let body = body_c.clone();
+        async move {
+            let total = body.len();
+            let (a, b) = headers
+                .get("range")
+                .and_then(|v| v.to_str().ok())
+                .and_then(|v| v.strip_prefix("bytes="))
+                .and_then(|v| v.split_once('-'))
+                .map(|(a, b)| {
+                    (
+                        a.parse::<usize>().unwrap_or(0),
+                        b.parse::<usize>().unwrap_or(total - 1).min(total - 1),
+                    )
+                })
+                .unwrap_or((0, total - 1));
+            let mut bytes = body[a..=b].to_vec();
+            // Any range that starts 64+ bytes in is a lead-bearing request;
+            // corrupt positions 10–60 (not 0, so a 1-byte check passes).
+            if a >= 64 {
+                checks.fetch_add(1, Ordering::SeqCst);
+                for i in 10..60usize {
+                    if let Some(byte) = bytes.get_mut(i) {
+                        *byte = byte.wrapping_add(1);
+                    }
+                }
+            }
+            axum::response::Response::builder()
+                .status(axum::http::StatusCode::PARTIAL_CONTENT)
+                .header("accept-ranges", "bytes")
+                .header("content-range", format!("bytes {a}-{b}/{total}"))
+                .header("content-length", b - a + 1)
+                .header("etag", "\"s\"")
+                .body(axum::body::Body::from(bytes))
+                .unwrap()
+        }
+    });
+    let addr = common::serve(app).await;
+    (format!("http://{addr}/f.bin"), checks)
+}
+
 #[tokio::test]
 async fn honest_ranges_pass_the_second_look_and_stay_on_several_connections() {
     let (url, checks) = serve(false).await;
@@ -94,6 +150,28 @@ async fn honest_ranges_pass_the_second_look_and_stay_on_several_connections() {
         (1..=24).contains(&looked),
         "{looked} seams were looked at again"
     );
+}
+
+/// A server that leaves the seam boundary byte correct but corrupts bytes
+/// 10–60 of the lead window. A 1-byte overlap would miss this; 64 bytes catch
+/// it. This test verifies G96: dm fetches and compares LEAD_BYTES = 64 bytes.
+#[tokio::test]
+async fn a_corrupt_seam_interior_is_caught_by_the_64_byte_overlap() {
+    let (url, checks) = serve_partial_corrupt().await;
+    let dir = tempdir();
+    let opts = dm_core::Options {
+        connections: 4,
+        ..options(dir.path())
+    };
+    let done = dm_core::download(&dm_core::client(), &url, &opts)
+        .await
+        .expect("the download failed instead of going on with one connection");
+    // Fell back to one connection because the seam bytes disagreed.
+    assert_eq!(
+        done.connections, 1,
+        "it did not fall back to one connection when seam interior differed"
+    );
+    assert!(checks.load(Ordering::SeqCst) >= 1, "no seam check was made");
 }
 
 #[tokio::test]

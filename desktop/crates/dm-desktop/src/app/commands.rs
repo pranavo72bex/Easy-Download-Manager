@@ -356,6 +356,12 @@ impl DmApp {
             Command::StartQueue => {
                 let queue = self.current_queue();
                 let n = self.backend.start_queue(&queue);
+                // Its own sound, only where the person chose a file.
+                if n > 0 {
+                    if let Some(path) = self.sound_file("queue_started") {
+                        self.backend.platform.play_file(&path);
+                    }
+                }
                 // "Started 0 downloads" said nothing useful.
                 self.said = if n == 0 {
                     crate::i18n::Said::naming("Nothing in {} was waiting to start.", &[&queue])

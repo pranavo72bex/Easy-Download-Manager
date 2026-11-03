@@ -78,7 +78,10 @@ pub enum Way {
     /// was not: rundll32 hands the function its window handle where the
     /// first argument goes, never zero, so Sleep hibernated wherever
     /// hibernation was on.
-    Suspend { hibernate: bool },
+    Suspend {
+        /// Hibernate rather than sleep.
+        hibernate: bool,
+    },
 }
 
 /// How `action` is done on `os` (as `std::env::consts::OS` names it).
@@ -263,6 +266,63 @@ pub fn play(sound: Sound) {
     }
 }
 
+/// The program that plays the sound file `path` on `os`; `None` on Windows, which plays it in this
+/// process. Only the files an ear can expect (`.wav`, `.aiff`, `.mp3`, `.ogg`) are handed on.
+pub fn file_program(path: &str, os: &str) -> Option<(&'static str, Vec<String>)> {
+    let lower = path.to_ascii_lowercase();
+    if path.trim().is_empty()
+        || ![".wav", ".aiff", ".mp3", ".ogg"]
+            .iter()
+            .any(|e| lower.ends_with(e))
+    {
+        return None;
+    }
+    match os {
+        "windows" => None,
+        "macos" => Some(("afplay", vec![path.to_string()])),
+        _ => Some(("paplay", vec![path.to_string()])),
+    }
+}
+
+/// Plays the sound file `path`. False when it is not a file dm can play, so the caller can fall back
+/// to the system's sound.
+pub fn play_file(path: &str) -> bool {
+    if !std::path::Path::new(path).is_file() {
+        return false;
+    }
+    let lower = path.to_ascii_lowercase();
+    #[cfg(windows)]
+    {
+        if !lower.ends_with(".wav") {
+            return false;
+        }
+        use windows_sys::Win32::Media::Audio::{
+            PlaySoundW, SND_ASYNC, SND_FILENAME, SND_NODEFAULT,
+        };
+        let wide: Vec<u16> = path.encode_utf16().chain(std::iter::once(0)).collect();
+        // SAFETY: a NUL-ended wide string that outlives the call, which queues the sound and returns.
+        let played = unsafe {
+            PlaySoundW(
+                wide.as_ptr(),
+                std::ptr::null_mut(),
+                SND_FILENAME | SND_ASYNC | SND_NODEFAULT,
+            )
+        };
+        played != 0
+    }
+    #[cfg(not(windows))]
+    {
+        let _ = lower;
+        match file_program(path, std::env::consts::OS) {
+            Some((program, args)) => dm_core::no_window(&mut std::process::Command::new(program))
+                .args(args)
+                .spawn()
+                .is_ok(),
+            None => false,
+        }
+    }
+}
+
 /// Plays the system's own short sound for a failed download.
 pub fn alert() {
     play(Sound::Failed);
@@ -275,6 +335,23 @@ pub fn chime() {
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn a_sound_file_is_handed_to_the_players_program_only_when_it_is_one_an_ear_can_expect() {
+        assert_eq!(
+            super::file_program("/s/a.WAV", "macos"),
+            Some(("afplay", vec!["/s/a.WAV".to_string()]))
+        );
+        assert_eq!(
+            super::file_program("/s/a.ogg", "linux"),
+            Some(("paplay", vec!["/s/a.ogg".to_string()]))
+        );
+        assert_eq!(super::file_program(r"C:s.wav", "windows"), None);
+        for refused in ["", "  ", "/s/a.exe", "/s/a.sh", "/s/wav"] {
+            assert_eq!(super::file_program(refused, "linux"), None, "{refused:?}");
+        }
+        assert!(!super::play_file("/no/such/dir/a.wav"));
+    }
+
     #[test]
     #[cfg(unix)]
     fn a_program_counts_only_where_it_is_installed() {

@@ -649,7 +649,10 @@ fn percent_decoded(text: &str) -> String {
     let mut out = Vec::with_capacity(bytes.len());
     let mut at = 0;
     while at < bytes.len() {
-        let escaped = (bytes[at] == b'%')
+        let Some(&here) = bytes.get(at) else {
+            break;
+        };
+        let escaped = (here == b'%')
             .then(|| bytes.get(at + 1..at + 3))
             .flatten()
             .and_then(|pair| std::str::from_utf8(pair).ok())
@@ -660,7 +663,7 @@ fn percent_decoded(text: &str) -> String {
                 at += 3;
             }
             None => {
-                out.push(bytes[at]);
+                out.push(here);
                 at += 1;
             }
         }

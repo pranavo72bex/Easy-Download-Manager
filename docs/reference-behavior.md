@@ -234,6 +234,18 @@ then within 2 s. Reference A made one request and stopped in this run, which
 disagrees with the 2026-10-31 measurement (205 attempts a second); the
 harness closes its dialogs unread, so its result here is not used.
 
+Re-run 2026-11-03 (`compare2.mjs cut_mid hang_body retry_503 outage big`, dm 0.8.6
+built that day): the same picture. Cut after 512 KB: dm whole in 2.6 s (31
+requests), reference A one request and no file. Outage: dm back 1.2 s after
+the server returned, whole in 22 s; reference A no file. Every range answered
+503: both whole, reference A in 4.7 s after 8 refusals, dm in 0.4 s after 1. A
+64 MiB file: both whole, reference A in 27.6 s on 18 connections (halves of the
+largest piece), dm in 2.7 s on 11 (8 MiB pieces, each range starting 64 bytes
+back). A header then a body that never comes: neither has a file; dm gave up
+after 120 s. dm's piece plan is not changed to reference A's halving: dm is
+the faster here, and row 65's rule is to change dm only where it is not
+already better.
+
 ## HTTP proxy test (dm only, 2026-11-02)
 
 FTP and proxy tests via the harness (`D:\compare\compare2.mjs`). SOCKS5 proxy test for dm pending (proxy settings not loading from DM_HOME/settings.json in the harness; to be verified in the human QA). HTTP CONNECT proxy: dm issues `CONNECT host:port HTTP/1.1` to the proxy and downloads over the tunnel — verified working.

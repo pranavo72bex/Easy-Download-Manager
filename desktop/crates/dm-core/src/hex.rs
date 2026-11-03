@@ -16,7 +16,7 @@ pub fn encode(bytes: impl AsRef<[u8]>) -> String {
 /// character that is not a hexadecimal digit (either case is read).
 pub fn decode(text: &str) -> Option<Vec<u8>> {
     let digits = text.as_bytes();
-    if digits.len() % 2 != 0 {
+    if !digits.len().is_multiple_of(2) {
         return None;
     }
     let value = |d: u8| char::from(d).to_digit(16).map(|v| v as u8);

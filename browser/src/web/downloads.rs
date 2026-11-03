@@ -134,6 +134,9 @@ pub async fn on_download_created(item: JsValue) {
         // What the browser is being sent, so the app can tell a sign-in
         // page served to it in the file's place, and refuse.
         mime: found.mime.clone(),
+        // The page's title, so the app can name a file whose own name says
+        // nothing (a hash, `video`); the app keeps a real name.
+        title: tab_title(&found.referrer).await.unwrap_or_default(),
         ..Start::default()
     };
     // dm refused for want of the browser's session (a link only a signed-in
@@ -320,4 +323,31 @@ pub(super) async fn give_back(id: &JsValue, url: &str) {
             &format!("Neither dm nor the browser could carry on with {url}: {why}"),
         );
     }
+}
+
+/// The title of the open tab at `referrer`, the page a caught download was
+/// started from. A browser's `DownloadItem` names no tab, so the tabs are
+/// matched by address; reading a tab's title needs the host permission the
+/// extension already has for every page.
+async fn tab_title(referrer: &str) -> Option<String> {
+    if referrer.trim().is_empty() {
+        return None;
+    }
+    let found = call("tabs", "query", &[js_sys::Object::new().into()])
+        .await
+        .ok()?;
+    let tabs: Vec<(String, String)> = from_js(&found)
+        .as_array()?
+        .iter()
+        .map(|tab| {
+            let field = |k: &str| {
+                tab.get(k)
+                    .and_then(|v| v.as_str())
+                    .unwrap_or("")
+                    .to_string()
+            };
+            (field("url"), field("title"))
+        })
+        .collect();
+    decide::referrer_title(&tabs, referrer)
 }

@@ -3693,3 +3693,33 @@ mentions `.m3u8`, `.mpd`, `<MPD`, `.mp4` or `.webm`; `content.js` holds the newe
 in memory; the panel's list scans the page and then those answers, newest first. They are sent nowhere.
 Tried and dropped: offering the page's one stream when the player has fetched nothing (on a feed it
 was another video's: a 2-hour file landed), so a stream is offered only with a file the player fetched.
+
+## EDM-V1 and EDM-E1: what was built, and what was not (2026-11-03)
+
+Checked against the code before writing any: most of EDM-E1 already exists. Midpoint halving of the
+largest range is `ranged::split_largest`; a connection far slower than the rest is dropped and
+asked again (`window.stalled`, a coarser rule than the spec's: under 1/64 of the whole download's
+bytes over a window, not an EMA below 0.15 of the peers' for 3 s, so Part 2 is only partly met); a first retry after a cut is at once (`retry::quick_nap`); the seam
+is compared over 64 bytes (`LEAD_BYTES`, row 96); a zip's directory is read from the file's tail
+(`zipinfo.rs`). Not built, with the reason:
+
+- **Part 8, HTTP/2 multiplexing.** The client is pinned to HTTP/1 (`lib.rs`, `http1_only`) on
+  purpose: over h2 the ranges share one connection, one congestion window and one throttle, so
+  eight ranges download at the speed of one. The spec asks for that to be undone; it would make
+  the multi-connection feature do nothing on most CDNs.
+- **Part 6, full pre-allocation (`fallocate`, `SetFileValidData`).** The staged file is sparse
+  (`set_len`); allocating every block up front costs the whole write before the first byte arrives
+  and `SetFileValidData` needs a privilege and exposes old disk contents. Not a gain.
+- **Part 3, size tiers.** Contradicts row 95 (a 100 KB file on 4 connections, measured on reference
+  A); the floor stays at 32 KiB.
+
+EDM-V1: built are the page hook (`document.js` now relays manifests, playlists and whole media
+files on any host, not only googlevideo, leaving segments and byte ranges out; the MediaSource and
+`URL.createObjectURL` calls are observed, their codecs kept in `content.js` and read by nothing yet)
+and the shipped `rules.json` (revision 2) with answer rules for Facebook, Instagram, Vimeo, TikTok,
+X/Twitter and Reddit, in the document's real shape (`sites[].answers[]`; the spec's `profiles` schema
+is not the one the code reads). None of the site rules has been run against a live site (rows 62, 63
+and 71: logged-out pages refuse an automated browser). Not built: the `AdaptivePair` stream kind, the
+itag table (YouTube's heights come from the player response, not from itags), the extra headers in
+`Start`, and the `RefreshStream` request; `Entry::fresh_link` / `adopt_fresh_link` already cover the
+expired-address resume (row 57).

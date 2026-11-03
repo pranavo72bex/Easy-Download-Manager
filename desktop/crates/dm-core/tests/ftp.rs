@@ -745,6 +745,7 @@ async fn under_the_computers_proxy_with_no_address_ftp_is_refused_not_sent_direc
     let dir = tempdir();
     let system = dm_core::Options {
         system_proxy: true,
+        title_hint: None,
         proxy: None,
         ..options(dir.path())
     };

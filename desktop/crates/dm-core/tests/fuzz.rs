@@ -172,7 +172,7 @@ proptest! {
         weekday in any::<u8>(),
         minute in any::<u32>(),
     ) {
-        let schedule = Schedule { enabled: true, from, to, days, wake: false, when_done: String::new(), retries: 0, run_when_done: String::new() };
+        let schedule = Schedule { enabled: true, from, to, days, wake: false, when_done: String::new(), retries: 0, run_when_done: String::new(), once_at: None, force: false };
         let _ = schedule.open_at(weekday, minute);
         let _ = schedule.open();
     }

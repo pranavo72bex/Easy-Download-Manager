@@ -12,6 +12,10 @@ pub(super) struct Book {
 impl Book {
     /// `lengths[i]` bits long and `codes[i]` is symbol i's code word. A book whose arrays differ
     /// in size, or which has two symbols with one code, is refused.
+    #[allow(
+        dead_code,
+        reason = "used once the decoder's tables are in (gaps row 53)"
+    )]
     pub(super) fn new(lengths: &[u8], codes: &[u32]) -> Result<Book, String> {
         if lengths.len() != codes.len() || lengths.len() > usize::from(u16::MAX) {
             return Err("a Huffman book whose lengths and codes differ".into());

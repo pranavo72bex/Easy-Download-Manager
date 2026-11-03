@@ -122,6 +122,12 @@ impl Platform for Desktop {
         }
     }
 
+    fn play_file(&self, path: &str) {
+        if !dm_desktop::quiet::quiet_now() && !dm_desktop::power::play_file(path) {
+            dm_desktop::power::chime();
+        }
+    }
+
     fn clipboard(&self) -> Option<String> {
         arboard::Clipboard::new().ok()?.get_text().ok()
     }

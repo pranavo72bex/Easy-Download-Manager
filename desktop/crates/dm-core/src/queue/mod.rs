@@ -155,6 +155,9 @@ pub struct Entry {
     /// The name to save it under, if a person chose one over the server's.
     #[serde(default)]
     pub save_name: Option<String>,
+    /// The title of the page the link was found on, to name a file whose own name says nothing.
+    #[serde(default)]
+    pub title_hint: Option<String>,
     /// Whether a person said yes to saving a web page that answered for the
     /// file as an HTML page (`Options::accept_page`).
     #[serde(default)]
@@ -284,6 +287,8 @@ pub struct AddOptions {
     pub save_dir: Option<String>,
     /// The name to save under, in place of the one found.
     pub save_name: Option<String>,
+    /// The title of the page the link was found on, where known.
+    pub title_hint: Option<String>,
     /// "Add for later": added paused, waiting for its queue to start.
     pub later: bool,
     /// The quality picked in the browser's video panel, in
@@ -445,6 +450,8 @@ struct Inner {
     /// before the queue starts serving anything. Spawning that as a task
     /// raced the scheduler, and a scheduled queue would run at launch.
     schedule: std::sync::Mutex<Schedule>,
+    /// A schedule of its own for a named queue; a queue with none follows `schedule`.
+    queue_schedules: std::sync::Mutex<std::collections::BTreeMap<String, Schedule>>,
     /// How much may be downloaded per period, and how much has been.
     quota: std::sync::Mutex<crate::quota::Meter>,
     /// When the download limit's use was last written beside the queue.
@@ -538,6 +545,7 @@ impl Queue {
                 concurrency: AtomicUsize::new(concurrency.max(1)),
                 queue_limits: std::sync::Mutex::new(HashMap::new()),
                 schedule: std::sync::Mutex::new(Schedule::default()),
+                queue_schedules: std::sync::Mutex::new(Default::default()),
                 quota: std::sync::Mutex::new(crate::quota::Meter::default()),
                 quota_saved: std::sync::Mutex::new(None),
                 recheck: std::sync::Mutex::new((None, now_millis())),
@@ -660,6 +668,7 @@ impl Queue {
                 speed_limit: 0,
                 stalled: String::new(),
                 fresh_link: false,
+                title_hint: None,
             }),
             control: Control::new(),
             task: None,

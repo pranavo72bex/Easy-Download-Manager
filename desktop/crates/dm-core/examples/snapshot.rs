@@ -68,6 +68,7 @@ async fn main() {
             save_name: None,
             accept_page: false,
             system_proxy: false,
+            title_hint: None,
         },
         3,
     );

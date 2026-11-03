@@ -233,6 +233,25 @@ impl<T> Holds<T> {
     }
 }
 
+/// The title of the open tab a caught download was started from (the tab
+/// whose address is the download's referrer, its `#` part aside), so the
+/// app can name a file whose own name says nothing (spec G75). `tabs` is
+/// each open tab's address and title. None when no tab matches, or its
+/// title is empty or only its address (what Chrome shows for a page with
+/// no title).
+pub fn referrer_title(tabs: &[(String, String)], referrer: &str) -> Option<String> {
+    let bare = |u: &str| u.split('#').next().unwrap_or("").to_string();
+    let wanted = bare(referrer.trim());
+    if wanted.is_empty() {
+        return None;
+    }
+    tabs.iter()
+        .find(|(url, _)| bare(url) == wanted)
+        .map(|(url, title)| (url, title.trim()))
+        .filter(|(url, title)| !title.is_empty() && *title != url.as_str() && bare(title) != wanted)
+        .map(|(_, title)| title.to_string())
+}
+
 /// What a person is told the app took: the file's own name where the
 /// browser gave one, else the last part of its address. A caught link
 /// otherwise vanished from the browser without a word.

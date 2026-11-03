@@ -139,7 +139,9 @@ fn safe_path(raw: &str) -> Option<PathBuf> {
             // Names Windows reads as devices, or strips a trailing dot or space
             // from, are not files it can write under that name.
             p if cfg!(windows)
-                && (crate::probe::reserved_on_windows(p) || p.ends_with('.') || p.ends_with(' ')) =>
+                && (crate::probe::reserved_on_windows(p)
+                    || p.ends_with('.')
+                    || p.ends_with(' ')) =>
             {
                 return None;
             }

@@ -427,9 +427,30 @@ pub fn magnet_keys(exe: &Path) -> Vec<Vec<String>> {
     let command = format!("\"{}\" \"%1\"", exe.display());
     let open = format!(r"{MAGNET_KEY}\shell\open\command");
     vec![
-        reg_args(&["add", MAGNET_KEY, "/ve", "/t", "REG_SZ", "/d", "URL:Magnet Protocol", "/f"]),
-        reg_args(&["add", MAGNET_KEY, "/v", "URL Protocol", "/t", "REG_SZ", "/d", "", "/f"]),
-        reg_args(&["add", MAGNET_KEY, "/v", "dm", "/t", "REG_SZ", "/d", "1", "/f"]),
+        reg_args(&[
+            "add",
+            MAGNET_KEY,
+            "/ve",
+            "/t",
+            "REG_SZ",
+            "/d",
+            "URL:Magnet Protocol",
+            "/f",
+        ]),
+        reg_args(&[
+            "add",
+            MAGNET_KEY,
+            "/v",
+            "URL Protocol",
+            "/t",
+            "REG_SZ",
+            "/d",
+            "",
+            "/f",
+        ]),
+        reg_args(&[
+            "add", MAGNET_KEY, "/v", "dm", "/t", "REG_SZ", "/d", "1", "/f",
+        ]),
         reg_args(&["add", &open, "/ve", "/t", "REG_SZ", "/d", &command, "/f"]),
     ]
 }
@@ -449,7 +470,10 @@ pub fn register_magnet_windows(
     mut reg: impl FnMut(&[String]) -> Result<(), String>,
 ) -> Result<bool, String> {
     if !exe.is_absolute() {
-        return Err(format!("{} is not a program Windows could start", exe.display()));
+        return Err(format!(
+            "{} is not a program Windows could start",
+            exe.display()
+        ));
     }
     let present = reg(&reg_args(&["query", MAGNET_KEY])).is_ok();
     if present && !magnet_is_ours(&mut reg) {

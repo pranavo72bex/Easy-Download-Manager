@@ -116,6 +116,7 @@ impl Queue {
             slot.entry_mut().queue = with.queue;
             slot.entry_mut().save_dir = with.save_dir.filter(|d| !d.trim().is_empty());
             slot.entry_mut().save_name = with.save_name.filter(|n| !n.trim().is_empty());
+            slot.entry_mut().title_hint = with.title_hint.filter(|t| !t.trim().is_empty());
             slot.entry_mut().quality = with.quality.filter(|q| !q.trim().is_empty());
             slot.entry_mut().sound = with
                 .sound

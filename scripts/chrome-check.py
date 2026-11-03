@@ -1217,8 +1217,14 @@ def main():
         # A name too long for the disk: Chromium would ask where to save it,
         # and its Save dialog stayed open over a download dm had taken.
         long_tab = click(base, origin, LONG)
+        def read_or_none(p):
+            # dm's part file is listed, then renamed before it is read.
+            try:
+                return p.read_bytes()
+            except OSError:
+                return None
         long_in_dm = lambda: [p.name for p in engine_dl.iterdir()
-                              if p.name.startswith("verylong") and p.read_bytes() == body(LONG)]
+                              if p.name.startswith("verylong") and read_or_none(p) == body(LONG)]
         landed = wait_for(long_in_dm, 60)
         time.sleep(3)
         dialogs = save_dialogs()

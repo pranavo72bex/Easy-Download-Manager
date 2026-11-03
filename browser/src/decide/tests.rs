@@ -1645,12 +1645,24 @@ fn only_a_video_servers_playback_addresses_are_read_as_tracks() {
     assert!(track_of("https://notgooglevideo.com/videoplayback?itag=137").is_none());
     assert!(track_of("https://a.googlevideo.com/other?itag=137").is_none());
     // A host another URL parser would read differently is not the suffix it ends with.
-    assert!(track_of("https://evil.example#.googlevideo.com/videoplayback?itag=22&mime=video/mp4").is_none());
-    assert!(track_of("https://evil.example\\@a.googlevideo.com/videoplayback?itag=22&mime=video/mp4").is_none());
+    assert!(
+        track_of("https://evil.example#.googlevideo.com/videoplayback?itag=22&mime=video/mp4")
+            .is_none()
+    );
+    assert!(track_of(
+        "https://evil.example\\@a.googlevideo.com/videoplayback?itag=22&mime=video/mp4"
+    )
+    .is_none());
     // Built here, so no tracked file holds a login in an address.
     let userinfo = ["a.googlevideo.com", "8080"].join(":");
-    assert!(track_of(&format!("https://{userinfo}@evil.example.googlevideo.com/videoplayback?itag=22&mime=video/mp4")).is_none());
-    assert!(track_of("https://rr1---sn-abc.googlevideo.com/videoplayback?itag=22&mime=video/mp4").is_some());
+    assert!(track_of(&format!(
+        "https://{userinfo}@evil.example.googlevideo.com/videoplayback?itag=22&mime=video/mp4"
+    ))
+    .is_none());
+    assert!(
+        track_of("https://rr1---sn-abc.googlevideo.com/videoplayback?itag=22&mime=video/mp4")
+            .is_some()
+    );
     assert!(track_of("https://a.googlevideo.com/videoplayback?itag=9999").is_none());
 }
 
@@ -1768,7 +1780,10 @@ fn the_panels_part_line_hands_over_a_time_and_nothing_else() {
     // What the page script sends is read, a Part line or not.
     let click: PanelClick =
         serde_json::from_str(r#"{"type":"dm.panel","src":"u","from":"1:00","to":"2:00"}"#).unwrap();
-    assert_eq!((click.from.as_deref(), click.to.as_deref()), (Some("1:00"), Some("2:00")));
+    assert_eq!(
+        (click.from.as_deref(), click.to.as_deref()),
+        (Some("1:00"), Some("2:00"))
+    );
     let plain: PanelClick = serde_json::from_str(r#"{"type":"dm.panel","src":"u"}"#).unwrap();
     assert!(plain.from.is_none() && plain.to.is_none());
 }
@@ -1811,20 +1826,32 @@ fn a_pages_own_video_files_are_offered_for_the_video_that_is_playing() {
         r#"<script>{{"dash_manifests":[{{"manifest_xml":"<MPD><BaseURL>https:\/\/v.fbcdn.net\/o1\/v\/m366\/{ID}.mp4</BaseURL></MPD>"}}],"dash_manifest_urls":[{{"manifest_url":"https:\/\/v.fbcdn.net\/m\/first.mpd?x=1&y=2","failure_reason":null}}],"progressive_urls":[{{"progressive_url":"https:\/\/v.fbcdn.net\/v\/first-sd.mp4?a=1&b=2","failure_reason":null,"metadata":{{"quality":"SD"}}}},{{"progressive_url":"https:\/\/v.fbcdn.net\/v\/first-hd.mp4","failure_reason":null,"metadata":{{"quality":"HD"}}}}]}}</script>{pad}<script>{{"progressive_urls":[{{"progressive_url":"https:\/\/v.fbcdn.net\/v\/other-sd.mp4","failure_reason":null,"metadata":{{"quality":"SD"}}}}]}}</script>"#,
         pad = "x".repeat(400_000)
     );
-    let seen = vec![format!("https://v.fbcdn.net/o1/v/m366/{ID}.mp4?_nc_cat=1&efg=e30%3D")];
+    let seen = vec![format!(
+        "https://v.fbcdn.net/o1/v/m366/{ID}.mp4?_nc_cat=1&efg=e30%3D"
+    )];
     let lines = page_lines(&page, &seen);
-    let said: Vec<(&str, &str)> = lines.iter().map(|l| (l.label.as_str(), l.url.as_str())).collect();
+    let said: Vec<(&str, &str)> = lines
+        .iter()
+        .map(|l| (l.label.as_str(), l.url.as_str()))
+        .collect();
     assert_eq!(
         said,
         [
-            ("MP4 file, quality SD", "https://v.fbcdn.net/v/first-sd.mp4?a=1&b=2"),
+            (
+                "MP4 file, quality SD",
+                "https://v.fbcdn.net/v/first-sd.mp4?a=1&b=2"
+            ),
             ("MP4 file, quality HD", "https://v.fbcdn.net/v/first-hd.mp4"),
             ("DASH stream", "https://v.fbcdn.net/m/first.mpd?x=1&y=2"),
         ]
     );
     // A video the player has not been seen to fetch is not offered, and a page
     // that names nothing offers nothing.
-    assert!(page_lines(&page, &["https://other.example/zzzzzzzzzzzzzzzzzzzzzzzzzzzz.mp4".into()]).is_empty());
+    assert!(page_lines(
+        &page,
+        &["https://other.example/zzzzzzzzzzzzzzzzzzzzzzzzzzzz.mp4".into()]
+    )
+    .is_empty());
     assert!(page_lines("<p>no video here</p>", &seen).is_empty());
     assert!(page_lines(&page, &[]).is_empty());
 }
@@ -1855,8 +1882,14 @@ fn a_pages_dash_manifest_gives_each_rendition_its_height_bitrate_and_length() {
         ]
     );
     // A picture goes with the best sound, joined; a whole file needs none.
-    assert_eq!(lines[0].url, format!("https://v.fbcdn.net/o1/v/m366/{ID}.mp4?a=1&b=2"));
-    assert_eq!(lines[0].sound.as_deref(), Some("https://v.fbcdn.net/o1/v/m412/sound.mp4"));
+    assert_eq!(
+        lines[0].url,
+        format!("https://v.fbcdn.net/o1/v/m366/{ID}.mp4?a=1&b=2")
+    );
+    assert_eq!(
+        lines[0].sound.as_deref(),
+        Some("https://v.fbcdn.net/o1/v/m412/sound.mp4")
+    );
     assert_eq!(lines[2].sound, None);
 }
 
@@ -1870,7 +1903,9 @@ fn instagrams_manifest_and_files_give_the_reels_qualities() {
         r#"{{"video_versions":[{{"type":101,"url":"https:\/\/i.fbcdn.net\/o1\/v\/{ID}.mp4?x=1","width":720,"height":1280}}],"video_dash_manifest":{}}}"#,
         serde_json::Value::String(xml)
     );
-    let seen = vec![format!("https://i.fbcdn.net/o1/v/{ID}.mp4?x=1&bytestart=0&byteend=9")];
+    let seen = vec![format!(
+        "https://i.fbcdn.net/o1/v/{ID}.mp4?x=1&bytestart=0&byteend=9"
+    )];
     let lines = page_lines(&page, &seen);
     let said: Vec<&str> = lines.iter().map(|l| l.label.as_str()).collect();
     assert_eq!(
@@ -1881,8 +1916,15 @@ fn instagrams_manifest_and_files_give_the_reels_qualities() {
             "MP4 file, quality 1280p",
         ]
     );
-    assert_eq!(lines[0].sound.as_deref(), Some("https://i.fbcdn.net/o1/v/sound.mp4"));
-    assert!(page_lines(&page, &["https://other.example/zzzzzzzzzzzzzzzzzzzzzzzzzzzz.mp4".into()]).is_empty());
+    assert_eq!(
+        lines[0].sound.as_deref(),
+        Some("https://i.fbcdn.net/o1/v/sound.mp4")
+    );
+    assert!(page_lines(
+        &page,
+        &["https://other.example/zzzzzzzzzzzzzzzzzzzzzzzzzzzz.mp4".into()]
+    )
+    .is_empty());
 }
 
 #[test]
@@ -1892,12 +1934,22 @@ fn tiktoks_bitrate_info_gives_the_clips_qualities() {
         r#"{{"bitrateInfo":[{{"Bitrate":811768,"PlayAddr":{{"Height":1280,"UrlList":["https://v16.tiktok.com/video/tos/{ID}/?a=1&sig=2"]}}}},{{"Bitrate":400000,"PlayAddr":{{"Height":960,"UrlList":["https://v16.tiktok.com/video/tos/lowlowlowlowlowlowlowlowlowlow/?a=1"]}}}}]}}"#
     );
     let seen = vec![format!("https://v16.tiktok.com/video/tos/{ID}/?")];
-    let said: Vec<String> = page_lines(&page, &seen).into_iter().map(|l| l.label).collect();
+    let said: Vec<String> = page_lines(&page, &seen)
+        .into_iter()
+        .map(|l| l.label)
+        .collect();
     assert_eq!(
         said,
-        ["MP4 file, quality 1280p, 811 kbps", "MP4 file, quality 960p, 400 kbps"]
+        [
+            "MP4 file, quality 1280p, 811 kbps",
+            "MP4 file, quality 960p, 400 kbps"
+        ]
     );
-    assert!(page_lines(&page, &["https://x.example/zzzzzzzzzzzzzzzzzzzzzzzzzzzz.mp4".into()]).is_empty());
+    assert!(page_lines(
+        &page,
+        &["https://x.example/zzzzzzzzzzzzzzzzzzzzzzzzzzzz.mp4".into()]
+    )
+    .is_empty());
 }
 
 #[test]
@@ -1915,9 +1967,47 @@ fn a_site_nobody_wrote_a_reader_for_still_lists_its_renditions() {
     assert_eq!(
         said,
         [
-            ("MP4 file, quality 1080p, 3000 kbps".to_string(), format!("https://cdn.example/v/{ID}_1080.mp4")),
-            ("MP4 file, quality 720p, 1500 kbps".to_string(), format!("https://cdn.example/v/{ID}_720.mp4")),
-            ("MP4 file, quality 360p, 500 kbps".to_string(), format!("https://cdn.example/v/{ID}_360.mp4")),
+            (
+                "MP4 file, quality 1080p, 3000 kbps".to_string(),
+                format!("https://cdn.example/v/{ID}_1080.mp4")
+            ),
+            (
+                "MP4 file, quality 720p, 1500 kbps".to_string(),
+                format!("https://cdn.example/v/{ID}_720.mp4")
+            ),
+            (
+                "MP4 file, quality 360p, 500 kbps".to_string(),
+                format!("https://cdn.example/v/{ID}_360.mp4")
+            ),
         ]
     );
+}
+
+#[test]
+fn a_caught_download_is_named_by_the_title_of_the_tab_it_came_from() {
+    let tabs = vec![
+        (
+            "https://news.example/a".to_string(),
+            "Other page".to_string(),
+        ),
+        (
+            "https://x.example/nasa/status/1#top".to_string(),
+            "NASA on X: \"Everybody, wave!\"".to_string(),
+        ),
+        (
+            "https://bare.example/".to_string(),
+            "https://bare.example/".to_string(),
+        ),
+        ("https://blank.example/".to_string(), "  ".to_string()),
+    ];
+    assert_eq!(
+        referrer_title(&tabs, "https://x.example/nasa/status/1"),
+        Some("NASA on X: \"Everybody, wave!\"".to_string())
+    );
+    // A tab whose title is only its address, or empty, names nothing.
+    assert_eq!(referrer_title(&tabs, "https://bare.example/"), None);
+    assert_eq!(referrer_title(&tabs, "https://blank.example/"), None);
+    // No referrer, or no open tab at it.
+    assert_eq!(referrer_title(&tabs, ""), None);
+    assert_eq!(referrer_title(&tabs, "https://gone.example/"), None);
 }

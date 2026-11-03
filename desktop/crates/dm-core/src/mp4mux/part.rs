@@ -63,9 +63,10 @@ pub(crate) fn plan_plain_part(index: &Path, from_ms: u64, to_ms: u64) -> Result<
         // starts before B.
         let at_from = starts.iter().rposition(|t| *t <= from_t).unwrap_or(0);
         // If the sample at at_from ends before from_t, the whole track is past the end.
-        let at_from_end =
-            starts[at_from] + u64::from(track.samples[at_from].duration);
-        if at_from_end <= from_t {
+        let (Some(start), Some(sample)) = (starts.get(at_from), track.samples.get(at_from)) else {
+            continue;
+        };
+        if start.saturating_add(u64::from(sample.duration)) <= from_t {
             continue;
         }
         let first = track

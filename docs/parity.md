@@ -99,6 +99,7 @@ the extension is Rust compiled to WebAssembly. Test paths are under
 | A range longer than asked is refused, not trimmed | PASS | `a_range_longer_than_asked_for_is_refused_rather_than_trimmed` |
 | The seams between ranges are fetched again over fresh requests and compared; bytes that differ restart the file on one connection and the row says why | PASS | `seam_check.rs` `honest_ranges_pass_the_second_look_and_stay_on_several_connections`, `seams_that_differ_when_asked_for_again_restart_the_file_on_one_connection` |
 | After each segment of a multi-connection download completes, its last 4 KB are re-fetched and compared byte-for-byte with what is on disk (ENG-D12, clean-room); a mismatch clears the staged file and restarts the download | PASS | `seam_check.rs` `seams_that_differ_when_asked_for_again_restart_the_file_on_one_connection` (server corrupts all small range requests including end-of-segment spot checks); `download/ranged.rs` `spot_check_segment` |
+| Each seam is re-read over 64 bytes; a cut connection or short outage is retried at once | PASS | `seam_check.rs` `a_corrupt_seam_interior_is_caught_by_the_64_byte_overlap`; `tests/errors.rs` `a_server_back_after_a_short_outage_is_reached_quickly` |
 | One failed range recovers alone | PASS | `a_connection_dropped_mid_range_is_retried` |
 | One connection when ranges are not served | PASS | `a_server_without_ranges_still_produces_the_right_file` |
 | Small files not split | PASS | `MIN_SEGMENT`, `plan.rs` tests |

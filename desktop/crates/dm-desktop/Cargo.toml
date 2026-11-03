@@ -101,6 +101,8 @@ windows = { version = "0.62", features = [
 ] }
 windows-sys = { version = "0.61", features = [
   "Win32_Foundation",
+  # A sound file of the person's own (power.rs, play_file).
+  "Win32_Media_Audio",
   # The title bar dark, and in the window's colour (chrome.rs).
   "Win32_Graphics_Dwm",
   "Win32_System_Console",

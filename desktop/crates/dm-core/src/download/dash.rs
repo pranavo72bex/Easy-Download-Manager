@@ -539,6 +539,7 @@ mod tests {
             save_name: None,
             accept_page: false,
             system_proxy: false,
+            title_hint: None,
         }
     }
 

@@ -65,6 +65,56 @@ pub struct Proxy {
     /// the engine's own FTP client reads it as well as reqwest.
     #[serde(default)]
     pub bypass: Vec<String>,
+    /// A proxy of its own for downloads of one scheme (`http`, `https`), in place of the one above;
+    /// a scheme with no entry here goes through the one above. Not for the system kind.
+    #[serde(default)]
+    pub per_scheme: std::collections::BTreeMap<String, SchemeProxy>,
+}
+
+/// The proxy for one scheme (`Proxy::per_scheme`).
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+pub struct SchemeProxy {
+    /// Its kind; the system kind is not one for a scheme.
+    #[serde(default = "default_kind", rename = "type")]
+    pub kind: Kind,
+    /// Its host name or address.
+    #[serde(default)]
+    pub host: String,
+    /// Its port.
+    #[serde(default)]
+    pub port: u16,
+    /// Its login, empty if none.
+    #[serde(default)]
+    pub username: String,
+    /// Its password, empty if none.
+    #[serde(default)]
+    pub password: String,
+}
+
+fn default_kind() -> Kind {
+    Kind::Http
+}
+
+impl SchemeProxy {
+    /// Its address with the login inside it (percent-encoded by the URL type), or `None` when it
+    /// names no usable proxy.
+    fn url(&self) -> Option<url::Url> {
+        if self.kind == Kind::System || self.host.trim().is_empty() || self.port == 0 {
+            return None;
+        }
+        let mut url = url::Url::parse(&format!(
+            "{}://{}:{}",
+            self.kind.scheme(),
+            self.host.trim(),
+            self.port
+        ))
+        .ok()?;
+        if !self.username.is_empty() {
+            url.set_username(&self.username).ok()?;
+            url.set_password(Some(&self.password)).ok()?;
+        }
+        Some(url)
+    }
 }
 
 impl Default for Proxy {
@@ -77,6 +127,7 @@ impl Default for Proxy {
             username: String::new(),
             password: String::new(),
             bypass: Vec::new(),
+            per_scheme: Default::default(),
         }
     }
 }
@@ -202,7 +253,7 @@ pub fn client_with_timeout(
     // Turned on with no host or port is a proxy asked for and not usable:
     // building a client without one sent every download out directly, and
     // a saved one like it went direct at every launch, unsaid.
-    if proxy.enabled && !system && proxy.url().is_none() {
+    if proxy.enabled && !system && proxy.per_scheme.is_empty() && proxy.url().is_none() {
         return Err(if proxy.host.trim().is_empty() {
             "the proxy has no host".into()
         } else {
@@ -211,7 +262,36 @@ pub fn client_with_timeout(
     }
     let mut builder = crate::builder_with(read_timeout, system);
 
-    if let Some(url) = proxy.url() {
+    if proxy.enabled && !system && !proxy.per_scheme.is_empty() {
+        // A scheme named here is refused when its entry is unusable, as the main proxy is: going
+        // direct when a proxy was asked for is the outcome no one wants.
+        for (scheme, entry) in &proxy.per_scheme {
+            if entry.url().is_none() {
+                return Err(format!("the {scheme} proxy has no usable host or port"));
+            }
+        }
+        let chosen = proxy.clone();
+        let main = proxy
+            .url()
+            .and_then(|u| url::Url::parse(&u).ok())
+            .map(|mut u| {
+                if !proxy.username.is_empty() {
+                    let _ = u.set_username(&proxy.username);
+                    let _ = u.set_password(Some(&proxy.password));
+                }
+                u
+            });
+        builder = builder.proxy(reqwest::Proxy::custom(move |target| {
+            if chosen.bypasses(target.host_str().unwrap_or_default()) {
+                return None;
+            }
+            chosen
+                .per_scheme
+                .get(target.scheme())
+                .and_then(SchemeProxy::url)
+                .or_else(|| main.clone())
+        }));
+    } else if let Some(url) = proxy.url() {
         let mut configured = reqwest::Proxy::all(&url)
             .map_err(|e| format!("that proxy address is not usable: {e}"))?;
         if !proxy.username.is_empty() {
@@ -269,6 +349,7 @@ mod tests {
             username: "me@work".into(),
             password: password.clone(),
             bypass: Vec::new(),
+            per_scheme: Default::default(),
         };
         assert_eq!(
             proxy.url_for_tools().as_deref(),
@@ -400,5 +481,57 @@ mod tests {
             ..Default::default()
         };
         assert!(client_with(&proxy).is_err());
+    }
+
+    #[test]
+    fn a_proxy_per_scheme_is_used_for_its_scheme_and_the_main_one_for_the_rest() {
+        let mut proxy = Proxy {
+            enabled: true,
+            host: "main.example".into(),
+            port: 3128,
+            ..Proxy::default()
+        };
+        proxy.per_scheme.insert(
+            "https".into(),
+            SchemeProxy {
+                kind: Kind::Socks5,
+                host: "secure.example".into(),
+                port: 1080,
+                username: "u@x".into(),
+                password: "p:w".into(),
+            },
+        );
+        // The client is built (the closure is only run at connect time, so also test its parts).
+        assert!(client_with(&proxy).is_ok());
+        let entry = proxy
+            .per_scheme
+            .get("https")
+            .and_then(SchemeProxy::url)
+            .expect("usable");
+        assert_eq!(entry.scheme(), "socks5h");
+        assert_eq!(entry.host_str(), Some("secure.example"));
+        assert_eq!(entry.port(), Some(1080));
+        assert_eq!(entry.username(), "u%40x");
+        assert_eq!(proxy.url().as_deref(), Some("http://main.example:3128"));
+    }
+
+    #[test]
+    fn a_scheme_proxy_with_no_host_is_refused_not_gone_around() {
+        let mut proxy = Proxy {
+            enabled: true,
+            ..Proxy::default()
+        };
+        proxy.per_scheme.insert(
+            "http".into(),
+            SchemeProxy {
+                kind: Kind::Http,
+                host: String::new(),
+                port: 8080,
+                username: String::new(),
+                password: String::new(),
+            },
+        );
+        let why = client_with(&proxy).expect_err("refused");
+        assert!(why.contains("http proxy"), "{why}");
     }
 }

@@ -35,12 +35,16 @@ pub(super) async fn in_browser_instead(target: &Target, why: &str) -> Result<Str
 /// Hands something a person asked for. `Ok` carries a word for whoever
 /// asked; `Err` why it could not be done.
 pub(super) async fn hand_target(target: Target, store: Option<String>) -> Result<String, String> {
-    hand_chosen(target, store, None, None, None, false, (None, None)).await
+    hand_chosen(target, store, None, None, None, false, (None, None), None).await
 }
 
 /// Hands one download over, with the quality picked from the panel's list
 /// and, as for a video from the panel, asking the app to show
 /// "Download details" before it starts.
+#[allow(
+    clippy::too_many_arguments,
+    reason = "each is one field of the panel's click, passed straight into Start"
+)]
 pub(super) async fn hand_chosen(
     target: Target,
     store: Option<String>,
@@ -49,15 +53,13 @@ pub(super) async fn hand_chosen(
     sound: Option<String>,
     ask: bool,
     part: (Option<String>, Option<String>),
+    title: Option<String>,
 ) -> Result<String, String> {
     let (app, port) = app().await;
-    let hello = match app {
-        App::Absent { reason } => {
-            let why = absent_text(&reason, &own_id(), is_firefox());
-            return in_browser_instead(&target, &why).await;
-        }
-        App::Present { hello, .. } => hello,
-    };
+    if let App::Absent { reason } = app {
+        let why = absent_text(&reason, &own_id(), is_firefox());
+        return in_browser_instead(&target, &why).await;
+    }
     // A stream chosen from the panel (`ask`) is a video the page is playing:
     // its session goes with it, for this download alone, as a video page's
     // does. TikTok's and others' CDN refuse a signed address without it.
@@ -84,6 +86,7 @@ pub(super) async fn hand_chosen(
         // The panel's "Part" line; the app checks what was typed.
         from: part.0.map(|s| decide::part_text(&s)).unwrap_or_default(),
         to: part.1.map(|s| decide::part_text(&s)).unwrap_or_default(),
+        title: title.map(|t| t.trim().to_string()).unwrap_or_default(),
         ..Start::default()
     };
     if let Err(why) = hand(port, start).await {
@@ -109,10 +112,9 @@ pub(super) async fn formats_of(
         return Ok(Vec::new());
     }
     let (app, port) = app().await;
-    let hello = match app {
-        App::Absent { reason } => return Err(absent_text(&reason, &own_id(), is_firefox())),
-        App::Present { hello, .. } => hello,
-    };
+    if let App::Absent { reason } = app {
+        return Err(absent_text(&reason, &own_id(), is_firefox()));
+    }
     let mut port = match port {
         Some(port) => port,
         None => Port::open()?,
@@ -452,6 +454,7 @@ pub async fn on_page_message(message: JsValue, sender: JsValue) -> JsValue {
         click.sound,
         true,
         (click.from, click.to),
+        click.title,
     )
     .await
     {

@@ -22,7 +22,12 @@ pub struct PageLine {
 /// its extension. Long enough to be this file's and no other's.
 fn file_id(url: &str) -> Option<String> {
     // The last non-empty part of the path: some addresses end in a slash.
-    let name = url.split(['?', '#']).next()?.trim_end_matches('/').rsplit('/').next()?;
+    let name = url
+        .split(['?', '#'])
+        .next()?
+        .trim_end_matches('/')
+        .rsplit('/')
+        .next()?;
     let id = name.split('.').next()?;
     (id.len() >= 24).then(|| id.to_string())
 }
@@ -50,7 +55,9 @@ fn regions(text: &str) -> Vec<&str> {
     let mut rest = text;
     while let Some(at) = rest.find("<script") {
         let after = &rest[at..];
-        let Some(open_end) = after.find('>') else { break };
+        let Some(open_end) = after.find('>') else {
+            break;
+        };
         let body = &after[open_end + 1..];
         let end = body.find("</script>").unwrap_or(body.len());
         found.push(&body[..end]);
@@ -76,8 +83,10 @@ fn hits(region: &str, ids: &[String]) -> Vec<Hit> {
     let mut open: Vec<Open> = Vec::new();
     let mut string: Option<usize> = None;
     let mut i = 0;
-    while i < bytes.len() && found.len() < MOST_HITS {
-        let b = bytes[i];
+    while found.len() < MOST_HITS {
+        let Some(&b) = bytes.get(i) else {
+            break;
+        };
         match (string, b) {
             (Some(_), b'\\') => i += 1,
             (Some(start), b'"') => {
@@ -189,7 +198,9 @@ fn describe(value: &Value, any_url: bool, depth: u8, found: &mut Found) {
                 let n = n.as_u64().unwrap_or(0);
                 if key.ends_with("height") && found.height == 0 {
                     found.height = n;
-                } else if (key.contains("bitrate") || key.contains("bandwidth")) && found.bitrate == 0 {
+                } else if (key.contains("bitrate") || key.contains("bandwidth"))
+                    && found.bitrate == 0
+                {
                     found.bitrate = n;
                 }
             }
@@ -384,7 +395,13 @@ pub fn page_lines(text: &str, seen: &[String]) -> Vec<PageLine> {
                 }
             }
             // The video's other files: the neighbours of the hit in the objects around it.
-            for (_, start) in hit.open.iter().rev().filter(|(array, _)| !*array).take(WIDEN) {
+            for (_, start) in hit
+                .open
+                .iter()
+                .rev()
+                .filter(|(array, _)| !*array)
+                .take(WIDEN)
+            {
                 let Some(Value::Object(map)) = value_at(region, *start) else {
                     continue;
                 };
@@ -503,7 +520,10 @@ fn manifest_lines(xml: &str) -> Vec<PageLine> {
             if let Some(seconds) = length {
                 label.push_str(&format!(", {} sec", seconds.round() as u64));
             }
-            label.push_str(&format!(", quality {height}p{}", if hd { " HD" } else { "" }));
+            label.push_str(&format!(
+                ", quality {height}p{}",
+                if hd { " HD" } else { "" }
+            ));
             if bandwidth > 0 {
                 label.push_str(&format!(", {} kbps", bandwidth / 1000));
             }

@@ -108,6 +108,10 @@ pub(super) fn window(kind: u8, n: usize) -> Vec<f64> {
     }
 }
 
+#[allow(
+    dead_code,
+    reason = "used once the decoder's tables are in (gaps row 53)"
+)]
 pub(super) const ONLY_LONG: u8 = 0;
 pub(super) const LONG_START: u8 = 1;
 pub(super) const EIGHT_SHORT: u8 = 2;

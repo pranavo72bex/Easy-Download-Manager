@@ -22,6 +22,7 @@ use std::path::Path;
 
 use serde_json::{json, Value};
 
+mod itags;
 use crate::stream::Quality;
 use crate::Error;
 
@@ -647,8 +648,19 @@ impl Format {
             let (start, end) = (edge("start")?, edge("end")?);
             (end >= start).then_some((start, end))
         };
+        let itag = number("itag")?;
+        // A picture the answer lists by its format number alone is read from the table.
+        let known = itags::describe(itag).filter(|k| video && k.kind != itags::Kind::Audio);
+        let height = number("height")
+            .or_else(|| known.map(|k| u64::from(k.height)))
+            .unwrap_or(0);
+        let width = number("width").unwrap_or(if number("height").is_none() {
+            height * 16 / 9
+        } else {
+            0
+        });
         Some(Format {
-            itag: number("itag")?,
+            itag,
             url,
             cipher,
             container: if !video && container == "mp4" {
@@ -659,13 +671,15 @@ impl Format {
             codec,
             mime,
             video,
-            width: number("width").unwrap_or(0),
-            height: number("height").unwrap_or(0),
+            width,
+            height,
             bitrate: number("averageBitrate")
                 .or_else(|| number("bitrate"))
                 .unwrap_or(0),
             size: number("contentLength"),
-            fps: number("fps").unwrap_or(0),
+            fps: number("fps")
+                .or_else(|| known.map(|k| u64::from(k.fps)))
+                .unwrap_or(0),
             secondary: dubbed || drc,
             init: range("initRange"),
             index: range("indexRange"),
@@ -739,7 +753,15 @@ fn choose(formats: &[Format], quality: Quality, container: Option<&str>) -> Opti
             pictures
                 .iter()
                 .filter(|f| side(f) == biggest)
-                .max_by_key(|f| (f.container == "mp4", f.height, f.fps, f.bitrate))
+                .max_by_key(|f| {
+                    (
+                        f.container == "mp4",
+                        f.height,
+                        f.fps,
+                        itags::codec_rank(&f.codec),
+                        f.bitrate,
+                    )
+                })
         })?;
     let sound = match picture.container.as_str() {
         "webm" => audio_in("webm").or_else(audio_in_m4a),
@@ -1551,6 +1573,27 @@ mod tests {
         let bare = "<html><head><title>Me &amp; the zoo - YouTube</title></head></html>";
         assert_eq!(page_title(bare).as_deref(), Some("Me & the zoo"));
         assert_eq!(page_title("<html></html>"), None);
+    }
+
+    #[test]
+    fn a_picture_listed_by_its_format_number_alone_is_read_from_the_table() {
+        let f = |json: &str| Format::of(&serde_json::from_str::<Value>(json).unwrap()).unwrap();
+        let bare = f(
+            r#"{"itag":299,"mimeType":"video/mp4; codecs=\"avc1.64002a\"","url":"https://r1.example/v"}"#,
+        );
+        assert_eq!((bare.height, bare.fps), (1080, 60));
+        let told = f(
+            r#"{"itag":299,"mimeType":"video/mp4; codecs=\"avc1\"","width":1920,"height":1000,"fps":24,"url":"https://r1.example/v"}"#,
+        );
+        assert_eq!(
+            (told.height, told.fps),
+            (1000, 24),
+            "what the answer says wins"
+        );
+        let sound = f(
+            r#"{"itag":140,"mimeType":"audio/mp4; codecs=\"mp4a.40.2\"","url":"https://r1.example/a"}"#,
+        );
+        assert_eq!((sound.height, sound.fps), (0, 0));
     }
 
     #[test]

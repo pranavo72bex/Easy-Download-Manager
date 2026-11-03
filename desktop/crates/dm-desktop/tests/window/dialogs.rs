@@ -249,8 +249,9 @@ fn a_double_click_opens_properties_and_open_runs_a_finished_file() {
     harness
         .get_by_role_and_label(egui::accesskit::Role::Button, "Open")
         .click();
-    // The opener runs off the window's thread: given up to a second to record.
-    for _ in 0..50 {
+    // The opener runs off the window's thread: given up to five seconds to record (one second
+    // failed when the window tests ran beside each other on a loaded machine).
+    for _ in 0..250 {
         harness.run_steps(1);
         if !world.fake.opened.lock().unwrap().is_empty() {
             break;

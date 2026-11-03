@@ -130,6 +130,8 @@ pub struct PanelClick {
     pub from: Option<String>,
     /// Where the part ends, as typed.
     pub to: Option<String>,
+    /// The page's title, to name a file whose own name says nothing.
+    pub title: Option<String>,
 }
 
 /// How long the panel waits for the list of qualities before it gives up
@@ -151,7 +153,9 @@ pub fn part_text(typed: &str) -> String {
     typed
         .trim()
         .chars()
-        .filter(|c| c.is_ascii_digit() || matches!(c, ':' | '.' | 'h' | 'm' | 's' | 'H' | 'M' | 'S'))
+        .filter(|c| {
+            c.is_ascii_digit() || matches!(c, ':' | '.' | 'h' | 'm' | 's' | 'H' | 'M' | 'S')
+        })
         .take(16)
         .collect()
 }

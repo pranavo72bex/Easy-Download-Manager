@@ -73,6 +73,9 @@ pub struct Request {
     /// Those cookies are a video page's session, for this download alone.
     #[serde(default, skip_serializing_if = "std::ops::Not::not")]
     pub cookies_once: bool,
+    /// The title of the page it came from, to name a file whose own name says nothing.
+    #[serde(default, skip_serializing_if = "String::is_empty")]
+    pub title: String,
     /// The browser it came from ("Microsoft Edge"), as the host's parent
     /// process is named, for the dialog to say; `None` where that cannot
     /// be told.
@@ -756,6 +759,7 @@ pub fn answer(
             to,
             cookies,
             cookies_once,
+            title,
             mime,
             deadline,
             ..
@@ -827,6 +831,7 @@ pub fn answer(
                         caught,
                         cookies: cookies.trim().to_string(),
                         cookies_once: cookies_once && !cookies.trim().is_empty(),
+                        title: title.trim().chars().take(300).collect(),
                         browser: parent_browser(),
                         ..Request::default()
                     },

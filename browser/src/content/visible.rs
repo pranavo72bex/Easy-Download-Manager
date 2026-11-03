@@ -107,7 +107,13 @@ pub(super) fn seen(window: &Window, element: &Element) -> bool {
             tag != "body" && tag != "html"
         })
         .find(|e| within(e, element))
-        .is_some_and(|shared| panel::layer_fits(rect.width() * rect.height(), positioned.map(area), area(&shared)))
+        .is_some_and(|shared| {
+            panel::layer_fits(
+                rect.width() * rect.height(),
+                positioned.map(area),
+                area(&shared),
+            )
+        })
 }
 
 /// The element through the shadow root holding it, or its parent.

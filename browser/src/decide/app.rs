@@ -133,11 +133,23 @@ fn absent_said(reason: &str, own_id: &str, firefox: bool, then: &str, get: &str)
 
 /// What the extension knows of the app.
 #[derive(Debug, Clone, PartialEq)]
+#[allow(
+    clippy::large_enum_variant,
+    reason = "one value, kept for the session; boxing it buys nothing"
+)]
 pub enum App {
     /// The app answered: its hello, and the rules it serves for what to catch.
-    Present { hello: Hello, rules: CatchRules },
+    Present {
+        /// What the app said of itself.
+        hello: Hello,
+        /// The rules it serves for what to catch.
+        rules: CatchRules,
+    },
     /// The app did not answer, and why.
-    Absent { reason: String },
+    Absent {
+        /// Why, in words.
+        reason: String,
+    },
 }
 
 /// An answer about the app, and when it was given.

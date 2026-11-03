@@ -325,20 +325,16 @@ fn with_page_lines(choices: Array) -> Array {
     };
     // Then what the page's own answers said about media, newest first (kept by the page
     // script): each as a script of its own, a bare manifest as a JSON string.
-    if let Ok(kept) = Reflect::get(&js_sys::global(), &"__dmBodies".into()) {
-        if let Some(kept) = kept.dyn_ref::<Array>() {
-            for body in kept.iter().rev().filter_map(|b| b.as_string()) {
-                let body = if body.trim_start().starts_with('<') {
-                    serde_json::to_string(&body).unwrap_or_default()
-                } else {
-                    body
-                };
-                if !body.contains("</script") {
-                    text.push_str("<script>");
-                    text.push_str(&body);
-                    text.push_str("</script>");
-                }
-            }
+    for body in super::bodies::kept_texts().into_iter().rev() {
+        let body = if body.trim_start().starts_with('<') {
+            serde_json::to_string(&body).unwrap_or_default()
+        } else {
+            body
+        };
+        if !body.contains("</script") {
+            text.push_str("<script>");
+            text.push_str(&body);
+            text.push_str("</script>");
         }
     }
     for line in decide::page_lines(&text, &seen) {

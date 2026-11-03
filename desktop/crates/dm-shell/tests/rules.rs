@@ -49,6 +49,7 @@ async fn a_held_download_goes_on_when_the_limit_lets_it() {
             save_name: None,
             accept_page: false,
             system_proxy: false,
+            title_hint: None,
         },
         1,
     );

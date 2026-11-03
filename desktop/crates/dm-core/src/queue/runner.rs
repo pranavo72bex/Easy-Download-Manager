@@ -63,9 +63,15 @@ impl Queue {
         // the reason to set a window is a link that must be free outside it.
         // The same for a download limit whose allowance is spent: held until
         // the period rolls over, then put back as the schedule's are.
-        if !self.window_open() || self.allowance_spent().is_some() {
+        let spent = self.allowance_spent().is_some();
+        // Every queue on the one schedule: closed, nothing more to look at. With queues on
+        // schedules of their own each row is held or put back by its own queue's window.
+        if spent || (!self.has_queue_schedules() && !self.window_open()) {
             self.hold_for_schedule().await;
             return;
+        }
+        if self.has_queue_schedules() {
+            self.hold_for_schedule().await;
         }
         self.release_from_schedule().await;
 
@@ -168,6 +174,9 @@ impl Queue {
     /// Paused rather than cancelled, so the bytes already staged are kept
     /// and the next window resumes from them.
     pub(super) async fn hold_for_schedule(&self) {
+        // All of it where the one schedule (or the download limit) says stop; only the rows of
+        // queues whose own window is closed where queues have schedules of their own.
+        let all = self.allowance_spent().is_some() || !self.has_queue_schedules();
         let held = {
             let mut slots = self.inner.slots.lock().await;
             let mut held = false;
@@ -183,6 +192,7 @@ impl Queue {
                 if matches!(slot.entry.state, State::Running | State::Queued)
                     && !fetched
                     && !slot.outside_schedule
+                    && (all || !self.window_open_for(&slot.entry.queue))
                 {
                     slot.hold(true);
                     held = true;
@@ -204,7 +214,10 @@ impl Queue {
             let mut slots = self.inner.slots.lock().await;
             let mut released = false;
             for slot in slots.values_mut() {
-                if slot.entry.paused_by_schedule && slot.entry.state == State::Paused {
+                if slot.entry.paused_by_schedule
+                    && slot.entry.state == State::Paused
+                    && self.window_open_for(&slot.entry.queue)
+                {
                     slot.requeue();
                     released = true;
                 }
@@ -263,6 +276,7 @@ impl Queue {
                         crate::cookies::SignIn::new(&slot.entry.url, &slot.entry.cookies);
                     options.checksum = slot.entry.checksum.clone();
                     options.save_name = slot.entry.save_name.clone();
+                    options.title_hint = slot.entry.title_hint.clone();
                     options.accept_page = slot.entry.accept_page;
                     // Its own limit as well as the one every download shares.
                     options.limiter = options.limiter.chained(&slot.own_limit);

@@ -264,6 +264,7 @@ pub fn add_options(request: &host::Request) -> dm_core::AddOptions {
         sound: request.sound.clone(),
         cookies: request.cookies.clone(),
         cookies_once: request.cookies_once,
+        title_hint: Some(request.title.clone()).filter(|t| !t.is_empty()),
         queue: if request.later {
             dm_core::MAIN_QUEUE.to_string()
         } else {
@@ -391,6 +392,7 @@ pub async fn start(orders: &Orders) -> Started {
     // Before anything can serve the queue: applying it from a spawned task
     // raced the scheduler, and a scheduled queue ran at launch.
     queue.set_schedule(saved.schedule.clone());
+    queue.set_queue_schedules(saved.queue_schedules.clone());
     queue.set_allowance(saved.allowance());
     queue.set_recheck_every(saved.recheck_every());
     queue.set_queue_limits(saved.queue_limit_map());
@@ -509,6 +511,7 @@ pub async fn apply(
     queue.set_concurrency(settings.concurrency);
     queue.set_speed_limit(settings.speed_limit_bytes()).await;
     queue.set_schedule(settings.schedule.clone());
+    queue.set_queue_schedules(settings.queue_schedules.clone());
     queue.set_allowance(settings.allowance());
     queue.set_recheck_every(settings.recheck_every());
     queue.set_queue_limits(settings.queue_limit_map());
@@ -1151,7 +1154,11 @@ pub fn run_program(command: &str) -> Result<(), String> {
         .stderr(std::process::Stdio::null())
         .spawn()
         .map(|_| ())
-        .map_err(|e| format!("\"{program}\", to run when the scheduled downloads are done, could not start: {e}"))
+        .map_err(|e| {
+            format!(
+                "\"{program}\", to run when the scheduled downloads are done, could not start: {e}"
+            )
+        })
 }
 
 /// Runs `command` on a finished file, its path added as the last argument

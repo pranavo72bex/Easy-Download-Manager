@@ -39,7 +39,9 @@ PACE = float(os.environ.get("DM_QA_PACE", "1.0"))   # how long each step stays o
 SAVE_BASELINE = "--save-baseline" in sys.argv
 MiB = 1024 * 1024
 PROBES = ("bytes=0-0", "bytes=0-")   # the engine's first look at a file
-WORK = pathlib.Path(os.environ.get("DM_QA_WORK") or "/tmp/dm-human-qa")
+# Resolved: on Windows "/tmp/..." has no drive, so it is not absolute and dm
+# refused it as the download folder, saving into the real Downloads folder.
+WORK = pathlib.Path(os.environ.get("DM_QA_WORK") or "/tmp/dm-human-qa").resolve()
 
 
 def pause(seconds):

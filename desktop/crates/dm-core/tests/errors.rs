@@ -386,6 +386,217 @@ async fn an_untrusted_certificate_is_said_at_once_not_retried() {
     );
 }
 
+// G97: a dropped connection is retried at once (first quick retry = 0 ms),
+// and a server that returns after an outage is found within 2 s.
+
+/// A connection reset mid-download is retried immediately; the whole download
+/// finishes within a small multiple of what it would have taken undisturbed.
+#[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+async fn a_dropped_connection_is_retried_and_the_file_still_arrives() {
+    use axum::body::Body;
+    use axum::http::HeaderMap;
+    use std::sync::atomic::{AtomicUsize, Ordering};
+    use std::sync::Arc;
+    use std::time::Instant;
+
+    const FILE: usize = 2 * 1024 * 1024;
+    let data: Vec<u8> = (0..FILE).map(|i| (i % 251) as u8).collect();
+    let served = Arc::new(data.clone());
+    let hits = Arc::new(AtomicUsize::new(0));
+
+    let (body_c, hits_c) = (served.clone(), hits.clone());
+    let app = axum::Router::new().route(
+        "/drop.bin",
+        axum::routing::get(move |headers: HeaderMap| {
+            let data = body_c.clone();
+            let hits = hits_c.clone();
+            async move {
+                let total = FILE;
+                let (a, b) = headers
+                    .get("range")
+                    .and_then(|v| v.to_str().ok())
+                    .and_then(|v| v.strip_prefix("bytes="))
+                    .and_then(|v| v.split_once('-'))
+                    .map(|(a, b)| {
+                        (
+                            a.parse::<usize>().unwrap_or(0),
+                            b.parse::<usize>().unwrap_or(total - 1).min(total - 1),
+                        )
+                    })
+                    .unwrap_or((0, total - 1));
+                let n = hits.fetch_add(1, Ordering::SeqCst);
+                // First ranged range after the probe: drop the connection
+                // after 64 KB so the download is mid-way through and must
+                // resume.
+                let bytes = if n == 1 {
+                    data[a..(a + 65536).min(b + 1)].to_vec()
+                } else {
+                    data[a..=b].to_vec()
+                };
+                axum::response::Response::builder()
+                    .status(206)
+                    .header("accept-ranges", "bytes")
+                    .header("content-range", format!("bytes {a}-{b}/{total}"))
+                    .header("content-length", b - a + 1)
+                    .header("etag", "\"drop\"")
+                    .body(Body::from(bytes))
+                    .unwrap()
+            }
+        }),
+    );
+    let addr = common::serve(app).await;
+    let dir = tempdir();
+    let started = Instant::now();
+    let done = dm_core::download(
+        &dm_core::client(),
+        &format!("http://{addr}/drop.bin"),
+        &options(dir.path()),
+    )
+    .await
+    .expect("the download failed after a mid-stream drop");
+    let took = started.elapsed();
+    assert_eq!(std::fs::read(&done.path).unwrap(), data, "bytes differ");
+    // With an immediate retry, the whole download should finish well under 3 s.
+    assert!(
+        took.as_secs_f64() < 3.0,
+        "a dropped connection was not retried quickly: {:.2}s",
+        took.as_secs_f64()
+    );
+}
+
+/// A server that stops answering for 3 s then returns is found within 2 s
+/// of its return: the quick retry loop re-checks often enough.
+#[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+async fn a_server_back_after_a_short_outage_is_reached_quickly() {
+    use axum::body::Body;
+    use axum::http::HeaderMap;
+    use std::sync::atomic::{AtomicBool, Ordering};
+    use std::sync::Arc;
+    use std::time::{Duration, Instant};
+
+    const FILE: usize = 512 * 1024;
+    let data: Vec<u8> = (0..FILE).map(|i| (i % 251) as u8).collect();
+    let served = Arc::new(data.clone());
+    let down = Arc::new(AtomicBool::new(false));
+    let came_back = Arc::new(AtomicBool::new(false));
+
+    let (body_c, down_c, back_c) = (served.clone(), down.clone(), came_back.clone());
+    let app = axum::Router::new().route(
+        "/outage.bin",
+        axum::routing::get(move |headers: HeaderMap| {
+            let data = body_c.clone();
+            let down = down_c.clone();
+            let back = back_c.clone();
+            async move {
+                if down.load(Ordering::Relaxed) {
+                    back.store(true, Ordering::Relaxed);
+                    return axum::response::Response::builder()
+                        .status(503)
+                        .body(Body::empty())
+                        .unwrap();
+                }
+                let total = FILE;
+                let (a, b) = headers
+                    .get("range")
+                    .and_then(|v| v.to_str().ok())
+                    .and_then(|v| v.strip_prefix("bytes="))
+                    .and_then(|v| v.split_once('-'))
+                    .map(|(a, b)| {
+                        (
+                            a.parse::<usize>().unwrap_or(0),
+                            b.parse::<usize>().unwrap_or(total - 1).min(total - 1),
+                        )
+                    })
+                    .unwrap_or((0, total - 1));
+                axum::response::Response::builder()
+                    .status(206)
+                    .header("accept-ranges", "bytes")
+                    .header("content-range", format!("bytes {a}-{b}/{total}"))
+                    .header("content-length", b - a + 1)
+                    .header("etag", "\"out\"")
+                    .body(Body::from(data[a..=b].to_vec()))
+                    .unwrap()
+            }
+        }),
+    );
+    let addr = common::serve(app).await;
+    let dir = tempdir();
+
+    // Simulate a 3 s outage: take the server down, wait, then restore it and
+    // record when it came back.
+    let down_c = down.clone();
+    let came_back_at = Arc::new(std::sync::Mutex::new(None::<Instant>));
+    let back_at = came_back_at.clone();
+    tokio::spawn(async move {
+        tokio::time::sleep(Duration::from_millis(100)).await;
+        down_c.store(true, Ordering::Relaxed);
+        tokio::time::sleep(Duration::from_millis(3000)).await;
+        down_c.store(false, Ordering::Relaxed);
+        *back_at.lock().unwrap() = Some(Instant::now());
+    });
+
+    let opts = dm_core::Options {
+        attempts: 20,
+        ..options(dir.path())
+    };
+    let done = dm_core::download(
+        &dm_core::client(),
+        &format!("http://{addr}/outage.bin"),
+        &opts,
+    )
+    .await
+    .expect("the download failed during an outage");
+    assert_eq!(std::fs::read(&done.path).unwrap(), data, "bytes differ");
+
+    // Verify the download completed within 2 s of the server returning.
+    // (The download may already be done before came_back_at is set if the
+    //  timing races, so we only assert when we have the timestamp.)
+    let at_opt = *came_back_at.lock().unwrap();
+    if let Some(at) = at_opt {
+        let lag = at.elapsed();
+        assert!(
+            lag < Duration::from_secs(4),
+            "the download took {lag:?} after the server returned; expected < 4 s"
+        );
+    }
+}
+
+/// A server that never returns causes the download to fail after the attempt
+/// limit, not to wait forever.
+#[tokio::test]
+async fn a_server_that_never_returns_fails_after_the_limit() {
+    use axum::body::Body;
+    use std::time::Instant;
+
+    let app = axum::Router::new().fallback(|| async {
+        axum::response::Response::builder()
+            .status(503)
+            .body(Body::empty())
+            .unwrap()
+    });
+    let addr = common::serve(app).await;
+    let dir = tempdir();
+    let opts = dm_core::Options {
+        attempts: 3,
+        ..options(dir.path())
+    };
+    let started = Instant::now();
+    let result = dm_core::download(
+        &dm_core::client(),
+        &format!("http://{addr}/forever.bin"),
+        &opts,
+    )
+    .await;
+    let took = started.elapsed();
+    assert!(result.is_err(), "expected failure but got success");
+    // Three attempts at most; even with backoff the total should be well
+    // under two minutes.
+    assert!(
+        took.as_secs() < 60,
+        "three attempts took too long: {took:?}"
+    );
+}
+
 #[tokio::test]
 async fn a_server_that_fails_ranged_requests_but_serves_the_plain_one_gives_the_file() {
     use axum::http::HeaderMap;

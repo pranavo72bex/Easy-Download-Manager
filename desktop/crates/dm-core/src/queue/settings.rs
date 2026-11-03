@@ -117,6 +117,25 @@ impl Queue {
         crate::lock(&self.inner.schedule).open()
     }
 
+    /// Whether the window is open for a row of `queue`: that queue's own schedule if it has
+    /// one, else the one for every queue.
+    pub(super) fn window_open_for(&self, queue: &str) -> bool {
+        match crate::lock(&self.inner.queue_schedules).get(queue) {
+            Some(own) => own.open(),
+            None => self.window_open(),
+        }
+    }
+
+    /// Whether any named queue has a schedule of its own.
+    pub(super) fn has_queue_schedules(&self) -> bool {
+        !crate::lock(&self.inner.queue_schedules).is_empty()
+    }
+
+    /// Puts in place the schedules of named queues (key: the queue's name). Replaces the set.
+    pub fn set_queue_schedules(&self, schedules: std::collections::BTreeMap<String, Schedule>) {
+        *crate::lock(&self.inner.queue_schedules) = schedules;
+    }
+
     /// Sets the schedule.
     pub fn set_schedule(&self, schedule: Schedule) {
         *crate::lock(&self.inner.schedule) = schedule;

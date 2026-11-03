@@ -38,3 +38,6 @@ engine/
 
 # Local-only engine requirements (never committed)
 docs/engine-local/
+
+# Graphify knowledge graph (local analysis only)
+graphify-out/

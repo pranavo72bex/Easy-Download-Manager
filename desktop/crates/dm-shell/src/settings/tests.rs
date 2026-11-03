@@ -1,6 +1,27 @@
 use super::*;
 
 #[test]
+fn a_queue_with_a_schedule_of_its_own_uses_it_and_the_rest_use_the_shared_one() {
+    let mut settings = Settings::default();
+    settings.schedule.from = "01:00".into();
+    settings.queue_schedules.insert(
+        "Night".into(),
+        Schedule {
+            from: "23:00".into(),
+            ..Schedule::default()
+        },
+    );
+    assert_eq!(settings.schedule_for("Night").from, "23:00");
+    assert_eq!(settings.schedule_for("Main").from, "01:00");
+
+    let saved = serde_json::to_string(&settings).unwrap();
+    let read: Settings = serde_json::from_str(&saved).unwrap();
+    assert_eq!(read.schedule_for("Night").from, "23:00");
+    let old: Settings = serde_json::from_str("{}").unwrap_or_default();
+    assert!(old.queue_schedules.is_empty());
+}
+
+#[test]
 fn a_marker_beside_the_program_or_its_app_makes_it_portable() {
     let dir = tempfile::tempdir().unwrap();
     let root = dir.path();
@@ -761,12 +782,14 @@ impl dm_core::secretstore::SecretStore for Refusing {
 }
 
 fn with_passwords() -> Settings {
-    let mut settings = Settings::default();
-    settings.site_logins = vec![SiteLogin {
-        host: "example.com".into(),
-        username: "ann".into(),
-        password: "s3cret".into(),
-    }];
+    let mut settings = Settings {
+        site_logins: vec![SiteLogin {
+            host: "example.com".into(),
+            username: "ann".into(),
+            password: "s3cret".into(),
+        }],
+        ..Settings::default()
+    };
     settings.proxy.username = "bob".into();
     settings.proxy.password = "p4ss".into();
     settings
@@ -853,6 +876,24 @@ fn a_settings_file_never_sets_the_program_run_at_the_end_of_the_schedule() {
     mine.schedule.run_when_done = "backup --quiet".into();
     let mut theirs = Settings::default();
     theirs.schedule.run_when_done = "evil".into();
-    let read = mine.imported(&serde_json::to_string(&theirs).unwrap()).unwrap();
+    let read = mine
+        .imported(&serde_json::to_string(&theirs).unwrap())
+        .unwrap();
     assert_eq!(read.schedule.run_when_done, "backup --quiet");
+}
+
+#[test]
+fn a_sound_file_chosen_for_an_event_is_kept_and_an_old_file_has_none() {
+    let mut settings = Settings::default();
+    settings
+        .sounds
+        .insert("queue_done".into(), "/sounds/done.wav".into());
+    let saved = serde_json::to_string(&settings).unwrap();
+    let read: Settings = serde_json::from_str(&saved).unwrap();
+    assert_eq!(
+        read.sounds.get("queue_done").map(String::as_str),
+        Some("/sounds/done.wav")
+    );
+    let old: Settings = serde_json::from_str("{}").unwrap_or_default();
+    assert!(old.sounds.is_empty(), "no entry keeps the system's sound");
 }

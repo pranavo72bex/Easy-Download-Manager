@@ -231,6 +231,9 @@ pub struct Start {
     /// finishes. False from an extension that sends only kept ones.
     #[serde(default, skip_serializing_if = "std::ops::Not::not")]
     pub cookies_once: bool,
+    /// The title of the page the download was found on: names a file whose own name says nothing. An older app ignores it.
+    #[serde(default, skip_serializing_if = "String::is_empty")]
+    pub title: String,
     /// What the browser said the download was (its `DownloadItem.mime`), for
     /// a download it had started. A server that sends the browser a zip and
     /// dm, without the browser's sign-in, a login page is not one dm can

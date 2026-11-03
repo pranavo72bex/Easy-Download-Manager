@@ -60,7 +60,7 @@ mod tests {
 
     #[test]
     fn the_decoder_stays_off_while_a_book_is_missing() {
-        assert!(!COMPLETE);
+        const { assert!(!COMPLETE) };
         assert!(scalefactor_book().is_none());
         assert!(spectral_book(1).is_none());
     }

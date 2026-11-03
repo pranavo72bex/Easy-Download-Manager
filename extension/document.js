@@ -9,15 +9,56 @@
 (() => {
   if (globalThis.__dmHook) return;
   globalThis.__dmHook = true;
+  // A manifest, a playlist or a whole media file a player asks for, on any site. The pieces of a
+  // stream (segments, initialisation slices, byte ranges) are not passed on: they are not what a
+  // person comes to save, and a player asks for hundreds. What is a stream is decided in Rust
+  // (browser/src/decide/streams.rs); this only keeps the traffic to the extension small.
+  const STREAM_URL = /\.(m3u8|mpd|webm|mp4|m4a|aac|f4m)(\?|#|$)/i;
+  const PIECE_URL = /\.(ts|m4s|m4f|cmfv|cmfa)(\?|#|$)|[?&](range|bytestart|byterange|sq|segment)=/i;
+  const told = new Set();
   const tell = (url) => {
     try {
       const text = typeof url === 'string' ? url : url?.url;
-      if (typeof text !== 'string' || !text.includes('/videoplayback')) return;
+      if (typeof text !== 'string') return;
       const u = new URL(text, location.href);
-      if (u.hostname !== 'googlevideo.com' && !u.hostname.endsWith('.googlevideo.com')) return;
+      if (u.protocol !== 'http:' && u.protocol !== 'https:') return;
+      const google = u.hostname === 'googlevideo.com' || u.hostname.endsWith('.googlevideo.com');
+      if (google) {
+        if (!text.includes('/videoplayback')) return;
+      } else {
+        const where = u.pathname + u.search;
+        if (!STREAM_URL.test(where) || PIECE_URL.test(where) || told.has(u.href) || told.size > 500) return;
+        told.add(u.href);
+      }
       window.postMessage({ source: 'dm-media-seen', url: u.href }, location.origin);
     } catch { /* an address that is not one is not media */ }
   };
+  // A player that feeds a MediaSource plays a blob: address that names nothing. What it declares
+  // (the codecs of its picture and its sound) is passed on, so content.js can tell a page with an
+  // adaptive player from one with a plain file; the bytes are never read.
+  try {
+    const sources = new WeakMap();
+    const createObjectURL = URL.createObjectURL;
+    URL.createObjectURL = function (object) {
+      const url = createObjectURL.call(this, object);
+      try {
+        if (typeof MediaSource !== 'undefined' && object instanceof MediaSource) {
+          window.postMessage({ source: 'dm-mediasource', blob: url, types: sources.get(object) || [] }, location.origin);
+        }
+      } catch { /* the page's own call goes on */ }
+      return url;
+    };
+    if (typeof MediaSource !== 'undefined') {
+      const addSourceBuffer = MediaSource.prototype.addSourceBuffer;
+      MediaSource.prototype.addSourceBuffer = function (type) {
+        try {
+          const known = sources.get(this) || [];
+          if (known.length < 8) sources.set(this, [...known, String(type).slice(0, 200)]);
+        } catch { /* the page's own call goes on */ }
+        return addSourceBuffer.call(this, type);
+      };
+    }
+  } catch { /* no MediaSource here: the requests are still read */ }
   // The player's own list of qualities, for the panel's list: asked by
   // the content script with a token, answered at once from the page's
   // player with the id of the video it is playing, so the panel lists
@@ -61,7 +102,7 @@
   // panel's list of qualities and sends it nowhere: a feed loads each video's
   // renditions through its API after the page, so the page's markup does not hold them.
   const MEDIA_ANSWER = 2 * 1024 * 1024;
-  const MEDIA_WORDS = /\.m3u8|\.mpd|<MPD|\.mp4|\.webm/;
+  const MEDIA_WORDS = /\.m3u8|\.mpd|<MPD|#EXTM3U|\.mp4|\.webm/;
   const TEXTUAL = /json|xml|text|mpegurl|dash/i;
   const keep = (body) => {
     if (typeof body !== 'string' || !body || body.length > MEDIA_ANSWER || !MEDIA_WORDS.test(body)) return;

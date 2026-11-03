@@ -28,6 +28,17 @@
     } catch { /* the extension was updated under this page */ }
   });
 
+  // The codecs of the pictures and sounds a page's MediaSource player declared (document.js passes
+  // them on), kept in memory: the newest few, nowhere else.
+  const mediaSources = [];
+  globalThis.__dmMediaSources = mediaSources;
+  window.addEventListener('message', (event) => {
+    const data = event.data;
+    if (event.source !== window || data?.source !== 'dm-mediasource' || !Array.isArray(data.types)) return;
+    mediaSources.push({ blob: String(data.blob).slice(0, 300), types: data.types.map((t) => String(t).slice(0, 200)).slice(0, 8) });
+    while (mediaSources.length > 8) mediaSources.shift();
+  });
+
   // What the page's own answers said about media (document.js passes them on), kept in
   // memory for the panel's list of qualities: the newest few, at most 12 MiB, nowhere else.
   const bodies = [];
@@ -320,7 +331,7 @@
       parts.list.hidden = true;
       said('Sending to dm…');
       let reply;
-      try { reply = await send({ type: 'dm.media', src: extra.url || srcOf(), ...extra.fields }); } catch (e) { reply = { ok: false, said: 'dm was updated: reload this page to use it' }; }
+      try { reply = await send({ type: 'dm.media', src: extra.url || srcOf(), title: document.title, ...extra.fields }); } catch (e) { reply = { ok: false, said: 'dm was updated: reload this page to use it' }; }
       said(reply?.ok ? 'Sent to dm. ' + (extra.label ? extra.label + ': ' : '') + (reply.said || '') : (reply?.said || 'dm could not take it'));
       hideSoon(2500, true);
     };

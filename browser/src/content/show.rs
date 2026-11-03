@@ -36,10 +36,12 @@ pub(super) fn show(element: &Element) -> bool {
     let Some(offer) = decide::offer(&media) else {
         return false;
     };
-    // Played through the browser's DRM: a `mediaKeys` is set on it.
-    let protected = Reflect::get(element, &"mediaKeys".into())
+    // A `mediaKeys` object alone is not DRM: refuse unless a playlist the page loaded was read and is clear.
+    let key_object = Reflect::get(element, &"mediaKeys".into())
         .ok()
         .is_some_and(|keys| !keys.is_null() && !keys.is_undefined());
+    let protected =
+        key_object && decide::protection::stream_protection(&bodies::kept_texts()) != Some(false);
     let Some(window) = window() else {
         return false;
     };

@@ -196,6 +196,8 @@ impl Decoder {
     }
 
     /// One individual channel stream: its dequantized lines (windows after one another) and info.
+    // Each band indexes several tables at once (edges, books, factors), as the standard's loops do.
+    #[allow(clippy::needless_range_loop)]
     fn channel(&self, bits: &mut Bits, shared: Option<Info>) -> Result<(Vec<f64>, Info), String> {
         let global_gain = bits.bits(8)? as i32;
         let info = match shared {

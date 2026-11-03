@@ -222,4 +222,66 @@ mod tests {
             Some("https://cdn.example/a/b.M3U8")
         );
     }
+
+    /// The rules dm ships: every site's answer rule is read as the code reads it, and a made-up
+    /// answer in each site's field names gives its stream (written from the sites' published
+    /// field names; none has been run against the live site).
+    #[test]
+    fn the_shipped_site_rules_find_the_streams_of_their_sites_answers() {
+        let rules = dm_protocol::Rules::parse(include_str!(
+            "../../../desktop/crates/dm-shell/resources/rules.json"
+        ))
+        .expect("the shipped rules parse");
+        let keys_of = |host: &str, request: &str| -> Vec<String> {
+            let site = rules.sites.iter().find(|s| s.host == host).expect(host);
+            site.answers
+                .iter()
+                .find(|a| request.contains(a.url_contains.as_str()))
+                .unwrap_or_else(|| panic!("{host} has no rule for {request}"))
+                .keys
+                .clone()
+        };
+        let cases = [
+            (
+                "facebook.com",
+                "/api/graphql/",
+                r#"{"data":{"browser_native_hd_url":"https://video.fbcdn.net/v/hd.mp4?oh=1"}}"#,
+                "https://video.fbcdn.net/v/hd.mp4?oh=1",
+            ),
+            (
+                "instagram.com",
+                "/api/v1/media/1/info/",
+                r#"{"items":[{"video_versions":[{"url":"https://scontent.cdninstagram.com/v/a.mp4?x=1"}]}]}"#,
+                "https://scontent.cdninstagram.com/v/a.mp4?x=1",
+            ),
+            (
+                "vimeo.com",
+                "/video/1/config",
+                r#"{"request":{"files":{"progressive":[{"url":"https://vod.vimeocdn.com/p/720.mp4"}]}}}"#,
+                "https://vod.vimeocdn.com/p/720.mp4",
+            ),
+            (
+                "tiktok.com",
+                "/api/item/detail/",
+                r#"{"itemInfo":{"itemStruct":{"video":{"playAddr":"https://v16.tiktokcdn.com/v/a.mp4"}}}}"#,
+                "https://v16.tiktokcdn.com/v/a.mp4",
+            ),
+            (
+                "x.com",
+                "/graphql/abc/TweetDetail".to_lowercase().leak(),
+                r#"{"video_info":{"variants":[{"url":"https://video.twimg.com/v/1280.mp4"}]}}"#,
+                "https://video.twimg.com/v/1280.mp4",
+            ),
+            (
+                "reddit.com",
+                "/r/a/comments/1/x/",
+                r#"{"reddit_video":{"fallback_url":"https://v.redd.it/id/DASH_1080.mp4","hls_url":"https://v.redd.it/id/HLSPlaylist.m3u8"}}"#,
+                "https://v.redd.it/id/DASH_1080.mp4",
+            ),
+        ];
+        for (host, request, body, expected) in cases {
+            let found = addresses_in(body, &keys_of(host, request));
+            assert!(found.iter().any(|a| a == expected), "{host}: {found:?}");
+        }
+    }
 }

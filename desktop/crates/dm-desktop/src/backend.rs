@@ -53,6 +53,10 @@ pub trait Platform: Send + Sync {
     }
     /// Plays the system's short sound for a finished download.
     fn chime(&self);
+    /// Plays a sound file the person chose; the finish sound when it cannot be played.
+    fn play_file(&self, _path: &str) {
+        self.chime();
+    }
     /// Plays the system's short sound for a failed download. The finish's
     /// sound unless a platform has a different one.
     fn alert(&self) {

@@ -238,6 +238,7 @@ mod tests {
             speed_limit: 0,
             stalled: String::new(),
             fresh_link: false,
+            title_hint: None,
         }
     }
 

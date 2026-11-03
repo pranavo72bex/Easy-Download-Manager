@@ -105,8 +105,8 @@ impl Rules {
         if !value.is_object() {
             return Err("not a rules document: it is not a JSON object".into());
         }
-        let rules: Rules = serde_json::from_value(value)
-            .map_err(|why| format!("not a rules document: {why}"))?;
+        let rules: Rules =
+            serde_json::from_value(value).map_err(|why| format!("not a rules document: {why}"))?;
         if rules.format != RULES_FORMAT {
             return Err(format!(
                 "format {} is not one this side reads (it reads {RULES_FORMAT})",

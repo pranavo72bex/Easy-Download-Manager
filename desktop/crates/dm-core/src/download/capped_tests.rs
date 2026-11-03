@@ -53,6 +53,7 @@ fn options(dir: &Path) -> Options {
         save_name: None,
         accept_page: false,
         system_proxy: false,
+        title_hint: None,
         remux: false,
         server_dates: false,
         retry_wait: 0,

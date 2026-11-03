@@ -99,9 +99,49 @@ pub(crate) fn work_left(rows: &[Arc<dm_core::Entry>]) -> bool {
     })
 }
 
+/// Whether a once-only date of `schedule` has been and gone, by the clock now.
+fn once_over_now(schedule: &dm_core::Schedule) -> bool {
+    use chrono::{Datelike, Timelike};
+    let now = chrono::Local::now();
+    schedule.once_at.is_some()
+        && schedule.once_over(
+            (now.year(), now.month() as u8, now.day() as u8),
+            now.hour() * 60 + now.minute(),
+        )
+}
+
 impl DmApp {
+    /// A once-only date that is over is put away, so the schedule goes back to its weekly window
+    /// (left set, its queue would stay shut for good).
+    fn clear_spent_once_at(&mut self) {
+        let global = once_over_now(&self.applied.schedule);
+        let queues: Vec<String> = self
+            .applied
+            .queue_schedules
+            .iter()
+            .filter(|(_, s)| once_over_now(s))
+            .map(|(name, _)| name.clone())
+            .collect();
+        if !global && queues.is_empty() {
+            return;
+        }
+        let mut wanted = self.applied.clone();
+        if global {
+            wanted.schedule.once_at = None;
+        }
+        for name in queues {
+            if let Some(s) = wanted.queue_schedules.get_mut(&name) {
+                s.once_at = None;
+            }
+        }
+        if let Err(why) = self.apply_settings(wanted) {
+            self.problems.push(why);
+        }
+    }
+
     /// Called after every read of the list.
     pub(super) fn schedule_hooks(&mut self) {
+        self.clear_spent_once_at();
         let schedule = self.applied.schedule.clone();
         let open = schedule.enabled && schedule.open();
         match self.schedule_watch.step(open) {
@@ -139,30 +179,75 @@ impl DmApp {
         if self.when_done == crate::power::WhenDone::Nothing {
             self.schedule_watch.disarm();
         }
-        // The program a person set to run when the scheduled downloads are done,
-        // once in a window, after something ran in it.
+        // The rows the schedule for every queue looks after: those of a queue
+        // with no schedule of its own (all of them, unless one has).
+        let own = self.applied.queue_schedules.clone();
+        let shared = looked_after(&self.rows, &own, None);
+        let mut watch = std::mem::take(&mut self.schedule_watch);
+        self.end_of_window(&schedule, open, &shared, &mut watch);
+        self.schedule_watch = watch;
+        // Each named queue with a schedule of its own: its program at the end and
+        // its tries again, over its own rows. (What dm does when the downloads
+        // are done stays the one for every queue: it acts on the computer.)
+        let mut watches = std::mem::take(&mut self.queue_watches);
+        watches.retain(|name, _| own.contains_key(name));
+        for (name, schedule) in &own {
+            let open = schedule.enabled && schedule.open();
+            let watch = watches.entry(name.clone()).or_default();
+            watch.step(open);
+            let mine = looked_after(&self.rows, &own, Some(name));
+            self.end_of_window(schedule, open, &mine, watch);
+        }
+        self.queue_watches = watches;
+    }
+
+    /// The program a person set to run when the scheduled downloads of `rows`
+    /// are done, once in a window after something ran in it; and the failed
+    /// ones tried again while the window is open, a round each time they have
+    /// run dry.
+    fn end_of_window(
+        &mut self,
+        schedule: &dm_core::Schedule,
+        open: bool,
+        rows: &[Arc<dm_core::Entry>],
+        watch: &mut Watch,
+    ) {
         let command = schedule.run_when_done.trim();
-        if self.schedule_watch.run_due(open, work_left(&self.rows)) && !command.is_empty() {
+        if watch.run_due(open, work_left(rows)) && !command.is_empty() {
             if let Err(why) = dm_shell::shell::run_program(command) {
                 self.problems.push(why);
             }
         }
-        // Failed downloads tried again while the window is open, a round each
-        // time the queue has run dry.
-        if open && schedule.retries > 0 && !work_left(&self.rows) {
-            let failed: Vec<Id> = self
-                .rows
+        if open && schedule.retries > 0 && !work_left(rows) {
+            let failed: Vec<Id> = rows
                 .iter()
                 .filter(|r| matches!(r.state, State::Failed(_)))
                 .map(|r| r.id)
                 .collect();
-            if !failed.is_empty() && self.schedule_watch.retry_round(schedule.retries) {
+            if !failed.is_empty() && watch.retry_round(schedule.retries) {
                 for id in failed {
                     self.backend.retry(id);
                 }
             }
         }
     }
+}
+
+/// The rows a schedule looks after: with `Some(queue)`, that queue's own
+/// schedule's (its rows); with `None`, the one for every queue's (the rows of
+/// every queue that has no schedule of its own).
+fn looked_after(
+    rows: &[Arc<dm_core::Entry>],
+    own: &std::collections::BTreeMap<String, dm_core::Schedule>,
+    queue: Option<&str>,
+) -> Vec<Arc<dm_core::Entry>> {
+    rows.iter()
+        .filter(|r| match queue {
+            Some(q) => r.queue == q,
+            None => !own.contains_key(&r.queue),
+        })
+        .cloned()
+        .collect()
 }
 
 #[cfg(test)]
@@ -213,6 +298,34 @@ mod tests {
         assert_eq!(WhenDone::from_word(""), WhenDone::Nothing);
         assert_eq!(WhenDone::from_word("reboot"), WhenDone::Nothing);
         assert_eq!(WhenDone::from_word(" sleep "), WhenDone::Sleep);
+    }
+}
+
+#[cfg(test)]
+mod queue_tests {
+    use super::*;
+
+    #[test]
+    fn each_schedule_looks_after_its_own_rows() {
+        let row = |id: Id, queue: &str| {
+            let mut e = crate::app::rows::status_tests::paused(false);
+            e.id = id;
+            e.queue = queue.into();
+            Arc::new(e)
+        };
+        let rows = vec![
+            row(1, ""),
+            row(2, "Night"),
+            row(3, "Music"),
+            row(4, "Night"),
+        ];
+        let ids = |v: Vec<Arc<dm_core::Entry>>| v.iter().map(|r| r.id).collect::<Vec<_>>();
+        let mut own = std::collections::BTreeMap::new();
+        // No queue has a schedule of its own: the shared one looks after all.
+        assert_eq!(ids(looked_after(&rows, &own, None)), [1, 2, 3, 4]);
+        own.insert("Night".to_string(), dm_core::Schedule::default());
+        assert_eq!(ids(looked_after(&rows, &own, None)), [1, 3]);
+        assert_eq!(ids(looked_after(&rows, &own, Some("Night"))), [2, 4]);
     }
 }
 

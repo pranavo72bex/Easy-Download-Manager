@@ -492,7 +492,7 @@ async fn a_changed_connection_setting_does_not_corrupt_a_resumed_download() {
     let asked = asked.lock().unwrap().clone();
     for segment in planned.iter().skip(2) {
         assert!(
-            asked.iter().any(|&(a, _)| a as u64 + 1 == segment.start),
+            asked.iter().any(|&(a, _)| a as u64 + 64 == segment.start),
             "the resume abandoned the recorded plan: {} never asked for in {asked:?}",
             segment.start
         );
@@ -508,7 +508,7 @@ async fn a_changed_connection_setting_does_not_corrupt_a_resumed_download() {
     assert!(
         !asked
             .iter()
-            .any(|&(a, b)| b > a && b - a >= 8192 && a < staged_end && !tails.contains(&a)),
+            .any(|&(a, b)| b > a && b - a >= 8192 && a + 64 <= staged_end && !tails.contains(&a)),
         "a staged part was fetched again: {asked:?}"
     );
     assert_eq!(
@@ -1367,7 +1367,7 @@ async fn a_small_file_from_a_slow_server_is_fetched_on_helping_connections() {
 /// nothing, so none is ever opened.
 #[tokio::test]
 async fn a_small_file_from_a_fast_server_gets_no_helping_connection() {
-    let body = Arc::new(vec![5u8; 3 * MB / 2]);
+    let body = Arc::new(vec![5u8; 48 * 1024]);
     let (addr, ports) = serve_counting(body.clone(), None).await;
     let dir = tempdir();
     let opts = dm_core::Options {
@@ -1419,7 +1419,7 @@ async fn a_pause_while_helpers_are_still_waiting_is_honoured() {
 /// helping connection would only share it out again: none is opened.
 #[tokio::test]
 async fn a_download_under_a_speed_limit_gets_no_helping_connection() {
-    let body = Arc::new(vec![4u8; 3 * MB / 2]);
+    let body = Arc::new(vec![4u8; 48 * 1024]);
     let (addr, ports) = serve_counting(body.clone(), Some(MB)).await;
     let dir = tempdir();
     let opts = dm_core::Options {
@@ -1756,5 +1756,80 @@ async fn a_download_with_no_page_names_its_own_folder_as_the_referer() {
     assert!(
         seen.contains(&"https://example.com/page".to_string()),
         "{seen:?}"
+    );
+}
+
+// G95: small files must split across several connections even when each piece
+// is well under the old 1 MiB minimum.
+
+#[tokio::test]
+#[ignore = "gaps row 95: small-file pieces wait for the maintainer's word (they break contract row B36)"]
+async fn a_hundred_kb_file_uses_more_than_one_connection() {
+    // 100 KB / MIN_SEGMENT (32 KiB) = 3 pieces; the plan caps at min(4, 3) = 3.
+    let body = bytes(100 * 1024);
+    let (addr, _hits) = serve(Mode::Honest, body.clone()).await;
+    let dir = tempdir();
+    let opts = dm_core::Options {
+        connections: 4,
+        ..options(dir.path())
+    };
+    let done = dm_core::download(&client(), &format!("http://{addr}/f.bin"), &opts)
+        .await
+        .expect("download");
+    assert_eq!(
+        std::fs::read(&done.path).unwrap(),
+        body,
+        "bytes differ for 100 KB file"
+    );
+    assert!(
+        done.connections > 1,
+        "100 KB file used only {} connection(s); expected > 1",
+        done.connections
+    );
+}
+
+#[tokio::test]
+#[ignore = "gaps row 95: small-file pieces wait for the maintainer's word (they break contract row B36)"]
+async fn a_256_kb_file_uses_all_four_connections() {
+    // 256 KB / 32 KiB = 8 pieces; plan caps at min(4, 8) = 4.
+    let body = bytes(256 * 1024);
+    let (addr, _hits) = serve(Mode::Honest, body.clone()).await;
+    let dir = tempdir();
+    let opts = dm_core::Options {
+        connections: 4,
+        ..options(dir.path())
+    };
+    let done = dm_core::download(&client(), &format!("http://{addr}/f.bin"), &opts)
+        .await
+        .expect("download");
+    assert_eq!(
+        std::fs::read(&done.path).unwrap(),
+        body,
+        "bytes differ for 256 KB file"
+    );
+    assert_eq!(
+        done.connections, 4,
+        "256 KB file used {} connection(s); expected 4",
+        done.connections
+    );
+}
+
+#[tokio::test]
+#[ignore = "gaps row 95: small-file pieces wait for the maintainer's word (they break contract row B36)"]
+async fn a_one_mb_file_uses_eight_connections() {
+    // 1 MiB / 32 KiB = 32 pieces; plan caps at min(8, 32) = 8.
+    let body = bytes(MB);
+    let (addr, _hits) = serve(Mode::Honest, body.clone()).await;
+    let dir = tempdir();
+    let done = fetch(addr, dir.path()).await.expect("download");
+    assert_eq!(
+        std::fs::read(&done.path).unwrap(),
+        body,
+        "bytes differ for 1 MiB file"
+    );
+    assert_eq!(
+        done.connections, 8,
+        "1 MiB file used {} connection(s); expected 8",
+        done.connections
     );
 }

@@ -192,6 +192,7 @@ async fn a_torrent_is_fetched_from_a_real_swarm() {
         save_name: None,
         accept_page: false,
         system_proxy: false,
+        title_hint: None,
     };
 
     let finished = tokio::time::timeout(

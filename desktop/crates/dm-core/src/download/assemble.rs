@@ -88,23 +88,6 @@ pub(super) fn copy_parts_blocking(parts: &[PathBuf], into: &Path) -> Result<u64,
     Ok(out.get_ref().metadata()?.len())
 }
 
-/// No overlap byte fetched for a range (one fetched is 0–255).
-pub(super) const NO_OVERLAP: u16 = u16::MAX;
-
-/// The byte at `at` in a file, if it has one there.
-pub(super) async fn byte_at(path: &Path, at: u64) -> Option<u8> {
-    let mut file = fs::File::open(path).await.ok()?;
-    if file.metadata().await.ok()?.len() <= at {
-        return None;
-    }
-    file.seek(std::io::SeekFrom::Start(at)).await.ok()?;
-    let mut byte = [0u8; 1];
-    tokio::io::AsyncReadExt::read_exact(&mut file, &mut byte)
-        .await
-        .ok()?;
-    Some(byte[0])
-}
-
 /// How much of each side of a seam is fetched a second time to be compared.
 const SEAM_WINDOW: u64 = 2048;
 
@@ -227,8 +210,8 @@ pub(super) async fn assemble(
         }
     }
 
-    // Each overlap byte against the last byte of the range before it. A
-    // mismatch is a server that sent bytes from the wrong place under the
+    // Each overlap slice against the matching bytes of the range before it.
+    // A mismatch is a server that sent bytes from the wrong place under the
     // right label; the parts are thrown away so a Retry fetches them afresh
     // rather than reassembling the same wrong bytes.
     // In file order, which a split leaves different from part order.
@@ -236,27 +219,29 @@ pub(super) async fn assemble(
     order.sort_by_key(|&i| segments[i].start);
     let mut dishonest = false;
     for pair in order.windows(2) {
-        let (previous, index) = (pair[0], pair[1]);
-        let byte = job.overlaps[index].load(Ordering::Relaxed);
-        if byte == NO_OVERLAP {
+        let (_previous, index) = (pair[0], pair[1]);
+        let lead = {
+            let guard = crate::lock(&job.overlaps[index]);
+            guard.clone()
+        };
+        let Some(lead) = lead else { continue };
+        if lead.is_empty() {
             continue;
         }
-        let before = {
-            let p = &segments[previous];
-            match p.done {
-                0 => None,
-                done => byte_at(&job.staged(), p.start + done - 1).await,
-            }
+        let seam = segments[index].start;
+        let n = lead.len() as u64;
+        let disk_start = seam.saturating_sub(n);
+        let Some(on_disk) = span_on_disk(&job.staged(), disk_start, n).await else {
+            continue;
         };
-        if before.is_some_and(|b| u16::from(b) != byte) {
+        if on_disk != lead {
             dishonest = true;
             break;
         }
     }
     // The same seams looked at a second time, as reference A does: a few of
     // them fetched again over a fresh request and compared with what the
-    // connections wrote. One byte at the seam passes a server that is right
-    // there and wrong a little further in.
+    // connections wrote.
     if !dishonest && !seams_agree(client, job, &segments, &order).await {
         dishonest = true;
     }
@@ -323,7 +308,24 @@ pub(crate) async fn finish(
         .as_deref()
         .map(crate::probe::sanitize)
         .filter(|n| !n.trim().is_empty());
-    let path = claim_path(&dir, chosen.as_deref().unwrap_or(name)).await?;
+    let titled = if chosen.is_none() && crate::naming::is_meaningless(name) {
+        let extension = std::path::Path::new(name)
+            .extension()
+            .and_then(|e| e.to_str())
+            .unwrap_or("");
+        options
+            .title_hint
+            .as_deref()
+            .and_then(|t| crate::naming::title_name(t, extension))
+            .map(|n| crate::probe::sanitize(&n))
+    } else {
+        None
+    };
+    let path = claim_path(
+        &dir,
+        chosen.as_deref().or(titled.as_deref()).unwrap_or(name),
+    )
+    .await?;
 
     let bytes = join_parts(parts, &path).await?;
 

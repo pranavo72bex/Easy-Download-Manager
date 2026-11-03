@@ -95,10 +95,16 @@ impl DmApp {
             ),
         }
         if self.applied.sound_on_complete && !finished.is_empty() {
-            self.backend.platform.chime();
+            match self.sound_file("complete") {
+                Some(path) => self.backend.platform.play_file(&path),
+                None => self.backend.platform.chime(),
+            }
         }
         if self.applied.sound_on_failure && !failed.is_empty() {
-            self.backend.platform.alert();
+            match self.sound_file("failed") {
+                Some(path) => self.backend.platform.play_file(&path),
+                None => self.backend.platform.alert(),
+            }
         }
         self.schedule_hooks();
         self.when_queue_dry();
@@ -242,9 +248,22 @@ impl DmApp {
     /// and its parts stay for Retry whatever the computer does next. But a
     /// stretch that ended with nothing finished or failed (a person pressed
     /// Stop all) is not "done": the choice stays armed for the next one.
+    /// The sound file chosen for `event`, if one was.
+    pub(super) fn sound_file(&self, event: &str) -> Option<String> {
+        self.applied
+            .sounds
+            .get(event)
+            .map(|p| p.trim().to_string())
+            .filter(|p| !p.is_empty())
+    }
+
     pub(super) fn when_queue_dry(&mut self) {
         if !self.dry.look(&self.rows, &self.last_state) {
             return;
+        }
+        // A queue that has run dry has finished: its own sound, only where the person chose a file.
+        if let Some(path) = self.sound_file("queue_done") {
+            self.backend.platform.play_file(&path);
         }
         use crate::power::WhenDone;
         match std::mem::take(&mut self.when_done) {
@@ -632,7 +651,8 @@ impl DmApp {
             wanted.on_complete = self.applied.on_complete.clone();
             self.said = "The command to run when a download finishes was not changed: a script was driving the window a moment ago; set it again".to_string().into();
         }
-        if self.by_script() && wanted.schedule.run_when_done != self.applied.schedule.run_when_done {
+        if self.by_script() && wanted.schedule.run_when_done != self.applied.schedule.run_when_done
+        {
             wanted.schedule.run_when_done = self.applied.schedule.run_when_done.clone();
             self.said = "The program to run when the scheduled downloads are done was not changed: a script was driving the window a moment ago; set it again".to_string().into();
         }

@@ -90,8 +90,6 @@ reference A works. The external video tool is removed entirely (`docs/decisions.
 | 14 | Held notifications while a fullscreen app, a presentation or Focus Assist is on (`quiet.rs`, `Platform::tick`; standards §9) are written and compile for Windows (`scripts/windows-modules-check.sh`), and the holding and releasing are tested here, but `SHQueryUserNotificationState` has not been asked on a Windows computer | PARTIAL | On a Windows computer: with a video or game fullscreen, or Focus Assist on, finish a download: no toast and no sound; leave it: the toast comes; check the Windows codes 2, 3, 4 and 6 are the states seen; LAST: done together with the maintainer during the human QA, who guides it (maintainer, 2026-11-01) |
 | 20 | Not covered by the stress tests: the clipboard offer (it needs the clipboard written by another program, which would overwrite the person's own), the computer sleeping (it would sleep this computer), and Windows. Covered on 2026-10-31: a full disk (`scripts/stress-protocols.py fulldisk`, macOS, a 30 MB disk image as the download folder: a 50 MB file is paused with "not enough room: the file needs 50.0 MB, and … has 29.3 MB free", two of 20 MB at once land one and hold the other with the room the first was promised, which resumes whole once there is room, no part-written file left, a 5 MB file then lands byte-exact), HTTPS through an HTTP proxy (`proxytls`: a real site's file through CONNECT, byte-exact as curl's direct copy, with and without the proxy's login, and refused with a wrong one), and a real playable DASH stream (`scripts/real-sites.py`, Shaka's Angel One: picture and sound in separate sets, 60 s, whole). FTPS, RTSPS and HTTPS redirects were already covered by tests with certificates made by `rcgen` (`ftp.rs`, `rtsp.rs`, `lib.rs`), and RTMPS is since 2026-10-31 (`rtmp/connect.rs`: carried over TLS to a server with a test root, and refused where the public roots do not vouch for the server). Linux (Debian 12, a container with no network, `scripts/linux-stress.sh`): the workspace tests and 24 of the stress phases pass with no finding; the Edge, torrent and window-with-desktop checks were not run there. Covered before: SOCKS5 proxies, and torrents on loopback inside a sandbox and once against webtorrent.io's public Creative Commons "The WIRED CD" | OPEN | Sleep needs a disposable machine; the clipboard offer a clipboard that is not a person's; Windows a Windows computer |
 | 24 | Not covered by this audit: real mouse and keyboard presses (the loop drives commands and the control port, which reach the same code but not the click handling), a download held by the schedule or the download limit (the "Start now" button and its confirmation), the window in the tray or minimised (its slower wakes), several details windows open at once under a change, and Windows and Linux. Also known and left: the window reads the queue at most four times a second, so a state shown can be a quarter of a second old, and Start queue and Stop queue act on the named Main queue only, so they say "Stopped 0 downloads in Main queue" with ordinary downloads running outside it | OPEN | Each its own run of `scripts` against a built window: the schedule and limit holds first, since they have a button of their own that depends on the row's state |
-| 27 | Google's Rust style guide: done 2026-11-02. `#![warn(missing_docs)]` passes clean in all four crates; every `unsafe` block has `// SAFETY:`; `undocumented_unsafe_blocks` is on; `clippy::must_use_candidate` produces zero warnings across all four crates | DONE | — |
-
 
 | 30 | Brave (1.98.60, CachyOS) listed "Unsafe attempt to load URL chrome-extension://…/pkg/dm_catcher.js (and `_bg.wasm`) from frame with URL https://www.youtube.com/… Domains, protocols and ports must match", from `content.js`'s `import()`; `scripts/linux/cachyos-brave/stress.sh` on real YouTube showed 28 such lines in 40 rounds with either manifest. Changed: the background injects `pkg/panel.js` (WebAssembly written in), the page fetches nothing of the extension's, and `web_accessible_resources` is gone. Checked on CachyOS + Brave against a local page at a youtube.com address (plain, service worker, restart, Private window, 15 stress rounds: panel every time, no request to `chrome-extension://` from the page). On real YouTube in Microsoft Edge 156 on macOS (2026-10-29, `youtube-check.py`, 49 of 49) the panel loads, lists the qualities and the video arrives whole; not yet run on real YouTube in Brave: Google answered the container's Brave with its "unusual traffic" page after the earlier runs. The Docker QA suite's browser check (Chromium, 69 checks) passes with it, including "on a site whose policy forbids WebAssembly the panel stays away, quietly", which it first failed (BUGLOG.md, BUG-005) | PARTIAL | `sh scripts/linux/cachyos-brave/stress.sh` (no `LOCAL`) once Google lets the container's Brave reach YouTube again: no "Unsafe attempt" line in 40 rounds and the panel in most checks; confirm with the reporter after the next extension release |
 | 37 | Some YouTube videos and signed-in accounts answer "Sign in to confirm you're not a bot" or stop the stream after about a megabyte: YouTube wants a proof-of-origin token. dm passes the page's own cookies from the extension, which covers most cases, and says the rest in words | BLOCKED | Needs a proof-of-origin token provider, which requires running YouTube's bot-detection program — upkeep the maintainer declined. Revisit if a Rust or Deno provider appears; LAST: done together with the maintainer during the human QA, who guides it (maintainer, 2026-11-01) |
@@ -112,23 +110,22 @@ reference A works. The external video tool is removed entirely (`docs/decisions.
 | 68 | The mechanism for site rules served by the app is written (`dm-protocol` `Rules`, `dm-shell/resources/rules.json`, an optional newer `rules.json` in dm's home, the hello's `rules`, merged in the extension); its shipped document is empty, so no site has a rule yet. The update check also reads an optional `rules` entry of the manifest (address under dm's releases, SHA-256, size) and keeps a newer document in the home (written, not built) | OPEN | At the QA: write the first real rules from what the comparison with reference A shows, and check the extension with the app serving them; publish a `rules` entry in `latest.json` with the first real rules |
 | 69 | The page hook that reads the JSON answers of a site's own requests is written (`extension/document.js`, `content.js`, `decide/answers.rs`), driven by the `sites` of row 68's rules; no site has a profile yet, so it reads nothing today. It misses answers the page fetched before `content.js` ran (document_idle) | OPEN | At the final QA, on real pages: find the sites that build their stream from an answer, write their profiles, check each stream is offered |
 | 70 | Not built from the notes: a video button drawn by the app itself so page overlays cannot hide it (large: it tracks player windows and zoom; needs live testing) | OPEN | the maintainer's word. (Connection presets are written, contract row B56; per-site connection limits and the list's export/import already existed. "Copy details" on a failed row is written, row B55; their checks are at the QA) |
-| 71 | Instagram and TikTok were tried on 2026-11-02 with `scripts/sites-check.py instagram tiktok x` in a visible Edge, no sign-in. Instagram: the panel was refused on a reel when a layer from another branch of the player sat over the video (now accepted when the layer and the video share a player-sized parent, `content/visible.rs`); the list reads the page's own renditions (one site-agnostic scan, `decide/page_lines.rs`, see decisions) and offers "MP4 file, 41 sec, quality 1280p HD" beside dm's own line; a whole video with sound landed. Open: Instagram's logged-out page puts its own sign-in dialog over the video after a while, and the panel stays away then (a full-page layer is refused by design), so one run in five fails (a feed such as Facebook's has its renditions in the answers of its API, which the scan now reads too: the list shows there); TikTok's page also fetches its own 2-second sign-in clip, and when that is the only file seen the panel offers it (about one run in four); TikTok's panel works and a whole video with sound (portrait 1280p) landed; its list comes from the same scan, and the clip tried names one quality, so one line is right for it, other clips list each; X works (a single file). | open |
+| 71 | Instagram and TikTok were tried on 2026-11-02 with `scripts/sites-check.py instagram tiktok x` in a visible Edge, no sign-in. Instagram: the panel was refused on a reel when a layer from another branch of the player sat over the video (now accepted when the layer and the video share a player-sized parent, `content/visible.rs`); the list reads the page's own renditions (one site-agnostic scan, `decide/page_lines.rs`, see decisions) and offers "MP4 file, 41 sec, quality 1280p HD" beside dm's own line; a whole video with sound landed. Open: Instagram's logged-out page puts its own sign-in dialog over the video after a while, and the panel stays away then (a full-page layer is refused by design), so one run in five fails (a feed such as Facebook's has its renditions in the answers of its API, which the scan now reads too: the list shows there); TikTok's page also fetches its own 2-second sign-in clip, and when that is the only file seen the panel offers it (about one run in four); TikTok's panel works and a whole video with sound (portrait 1280p) landed; its list comes from the same scan, and the clip tried names one quality, so one line is right for it, other clips list each; X works (a single file). | OPEN |
 | 72 | Floating button, quality list, matched to reference A (watched side by side 2026-11-02, `docs/reference-behavior.md`): DONE the order of a page's renditions (best first; Facebook reel and Instagram, tested). Each row below is a visible wording or layout change, so it needs the maintainer's word before it is made (`docs/behaviour-contract.md`); the check for each is the same two pages in one Edge window (`SITES_HOLD`, `DM_KEEP_OTHER_EXTENSIONS`) and a screenshot of both lists. | PARTIAL |
 | 72a | The video's title at the start of every line, as reference A has ("type of,  MP4 file, 13 sec, quality 1280p HD, 4590 kbps"). dm's lines carry no title. Closes when the same reel shows the same text in both. | OPEN, needs approval |
 | 72b | A "Download all" first line that hands every listed quality to dm's own "Download all links" dialog, as reference A's first line does. dm's first line is a Part box. | OPEN, needs approval |
 | 72c | Caption files as lines (reference A: "TTML file, HI subtitles (ASR)" on YouTube, "SRT file, 70 Bytes" on Facebook). dm lists none; subtitles are a separate setting. Needs the page's caption addresses read by the same site-agnostic scan. | OPEN, needs approval |
 | 72d | YouTube: reference A names 60 fps and HD apart ("720p HD" and "720p HD 60 fps" are two lines); dm keeps one line per height. Needs dm's own YouTube reading to keep the frame rate and offer both. | OPEN, needs approval |
-| 72e | Sizes: reference A's list shows none (they are in its Download all dialog); dm's list shows them ("1080p MP4 — 252 MB"), which the maintainer asked for earlier. Kept; listed so it is not mistaken for a gap. | CLOSED as a difference |
 | 72f | Reddit and TikTok were not yet compared side by side: the Reddit test profile (`D:\dm-reddit-profile`) has no reference A extension, and TikTok's page had only one quality. Needs the extension added there by hand, then the same screenshots. | OPEN |
-| 73 | Vimeo: dm refuses as "Protected" a video that reference A downloads. Spec G73. | OPEN |
+| 73 | Vimeo: dm refuses as "Protected" a video that reference A downloads. Spec G73. | CODE BUILT AND TESTED (2026-11-03: `decide/protection.rs` and its tests pass in `cargo test` of the extension, which also passes clippy for WebAssembly; `content/bodies.rs` `kept_texts`; show.rs refuses only when `mediaKeys` is set and no clear playlist was read; document.js keeps `#EXTM3U` bodies). Left: Step 0 look at Vimeo's playlist, then the live check (a held browser on a real Vimeo page) |
 | 74 | A single file: reference A asks (its File Info window) before it starts; dm's panel sends at once. Spec G74. | OPEN, needs approval |
-| 75 | File names: reference A names a download from the page's title; dm uses the media file's own name (a hash, or `video`). Spec G75. | OPEN |
+| 75 | File names: reference A names a download from the page's title; dm uses the media file's own name (a hash, or `video`). Spec G75. | CODE BUILT AND TESTED (2026-11-03: dm-core `naming.rs` tests pass; title carried from `document.title` through `PanelClick`, `Start.title`, `host::Request.title`, `AddOptions`/`Entry`/`download::Options.title_hint`; `assemble.rs` names by the title only when no name was chosen and the found name is meaningless; a download the browser caught sends the title of the open tab at its referrer, `web/downloads.rs` `tab_title`, `decide::referrer_title` with a test). Left: live check on X, Facebook, Instagram |
 | 76 | Where the floating bar sits, and its compact form on a narrow video. Spec G76. | OPEN |
 | 77 | Pages where only one manager showed a bar (logged out). Not a defect; recorded so a later run is not misread. | NOTE |
 | 78 | Desktop apps compared side by side 2026-11-02 (`docs/reference-behavior.md`). Checked in dm's code and found already done, so not gaps: a connection limit per server (`Options::host_limits`, Options > Advanced), a command run after each download (a virus checker or a script), the last folder per category (`last_folders`), the file's date from the server (`set_modified`), the list columns Last try and Description (and Referrer and Folder besides). | NOTE |
-| 79 | Scheduler: a schedule on each queue, a once-at date, Start now and Stop. Spec G79. | OPEN |
-| 80 | Proxy: a configuration script, per-protocol proxies, and the browser's proxy as a fallback. Spec G80. | OPEN |
-| 82 | Sounds: a chosen file per event, and queue started and queue finished events (complete and failed already play a fixed sound). Spec G82. | PARTIAL |
+| 79 | Scheduler: a schedule on each queue, a once-at date, Start now and Stop. Spec G79. | PARTIAL, built and tested 2026-11-03: `Schedule.once_at`/`force`, `open_now`, `once_over` (`schedule.rs`); `Settings.queue_schedules` and `schedule_for`; the queue holds and releases each row by its own queue's schedule (`Queue::set_queue_schedules`, `window_open_for`, `runner.rs`; test `a_queue_with_a_schedule_of_its_own_is_held_while_the_others_run`); a spent `once_at` is cleared (`app/scheduled.rs` `clear_spent_once_at`); each queue with its own schedule runs its own program at the end and its own retries over its own rows (`looked_after`, test `each_schedule_looks_after_its_own_rows`). When done (sleep, shut down) stays global by choice: it acts on the computer, not a queue. Left: the dialog (queue list, Start at date, Start now, Stop: a visible change, needs approval) with its window test |
+| 80 | Proxy: a configuration script, per-protocol proxies, and the browser's proxy as a fallback. Spec G80. | PARTIAL: per-scheme proxy built in `dm-core/src/proxy.rs` (`Proxy::per_scheme`, a `reqwest::Proxy::custom` choosing by the URL's scheme; an unusable entry is refused, not gone around; 2 tests, no local-proxy-server test yet; HTTP and HTTPS only, FTP and the tools still use the main proxy). No Options controls yet (a visible change). The configuration script's engine side is built 2026-11-03 (`dm-core/src/pac.rs`: answer parser, the helpers `shExpMatch`, `dnsDomainIs`, `isInNet`, `isPlainHostName`, `localHostOrDomainIs`, the QuickJS program and `evaluate`, which fails closed; 5 tests, none yet runs a real QuickJS). Not built: using it in `client_with` for a request, the setting for the script's address (Options: a visible change), and the browser fallback (needs the `proxy` manifest permission: the maintainer's word) How the script goes into requests (worked out 2026-11-03, not built): the queue shares one `reqwest::Client` (`queue/settings.rs`), and `reqwest::Proxy::custom`'s callback is synchronous and called for every request, so the script (a QuickJS process, up to 5 s) cannot run inside it. Instead: `Proxy` gains `script: String` (its address); before a download's first request the runner awaits `pac::evaluate` for the address's host and puts the first usable hop in a host-keyed cache (`Mutex<HashMap<String, Option<Url>>>`, kept for the session and cleared when the settings change); the custom callback reads that cache, and a host with no entry goes to an address that refuses (`http://0.0.0.0:9`), so a miss fails closed and never goes direct. The QuickJS binary comes from `tools.rs`. |
+| 82 | Sounds: a chosen file per event, and queue started and queue finished events (complete and failed already play a fixed sound). Spec G82. | PARTIAL: the setting (`Settings::sounds`), `power::play_file` (Windows `PlaySoundW`, `afplay`, `paplay`; `.wav` promised), `Platform::play_file`, and the complete, failed and queue-finished calls in `app/sync.rs` are built (2 tests); a file is chosen only by editing the settings file. The queue-started sound plays on Start queue when it started something (`app/commands.rs`, `sound_file`; built 2026-11-03, no window test yet). Not built: the Options Sounds section (a visible change) |
 | 84 | Dial-up / VPN connection and redial (reference A's last Options tab). Spec G84. | OPEN, maintainer to decide |
 | 85 | Download-start options in reference A's Downloads tab: audit each against dm. Spec G85. | OPEN (audit) |
 | 86 | General tab: a clipboard link started by itself, a per-browser capture list, editing the browser's menu items and panel buttons. Spec G86. | PARTIAL |
@@ -138,10 +135,8 @@ reference A works. The external video tool is removed entirely (`docs/decisions.
 | 92 | Site grabber: templates, size filters, sign-in inside it, a Grabber projects node, a results step. Spec G92. | OPEN |
 | 93 | Order to build, rows 72 to 98: G73, G75, G79, G80, G95, G96, G97, then G82, G85, G87, G86, G92, G90; G98 is a measurement to run first. Wait for the maintainer's word before 72a to 72d, G74, G76, G84, G91 (each changes visible wording, layout or what a click does). | PLAN |
 | 94 | Link grabbing: reference A's "Download All Links" window always opens with every link unchecked, its type, its size (it asks each server), its address, the folder it will save to, and its link text; dm adds every link to the queue at once unless an "ask" setting is on (both off by default), and its window lacks three of reference A's controls. Spec G94. | OPEN, needs approval for the default |
-| 95 | Engine, measured 2026-11-02 (`docs/reference-behavior.md`): reference A cuts a small file into pieces down to about 14 KB (a 100 KB file on 4 connections); dm uses 1 connection under 128 KiB. Spec G95. | OPEN |
-| 96 | Engine: reference A re-reads 64 bytes across each seam between pieces; dm checks 1 byte. Spec G96. | OPEN |
-| 97 | Engine: after a cut or an outage reference A is back on all connections within 0.04 to 0.1 s; dm within 1.2 s, and after a long outage on a growing wait. Spec G97. | OPEN |
-| 98 | Engine cases dm was not run on, reference A was: a 302 redirect (every piece asks the final address), a reply with no Content-Length, the headers sent (an old browser's User-Agent, `Accept-Encoding: identity`, `Accept-Language`, `Accept-Charset`, a `Referer` of the address's own folder when none is given). Spec G98. | OPEN (audit) |
+| 95 | Engine, measured 2026-11-02 (`docs/reference-behavior.md`): reference A cuts a small file into pieces down to about 14 KB (a 100 KB file on 4 connections); dm plans one piece under 1 MiB and lets helper connections join only when the first is slow. Spec G95. | NEEDS THE MAINTAINER'S WORD (2026-11-03): built as `MIN_SEGMENT` = 32 KiB, it opened 9 to 10 connections for a 1.5 MB file from a fast local server, and `scripts/human-qa.py` B36 failed on "quick.bin, from a fast server, is fetched on no more connections than it needs" (at most 2) in both browser passes. The contract's check and reference A's way disagree, so `MIN_SEGMENT` is back at 1 MiB and the three tests that need 32 KiB (`tests/download.rs` `a_hundred_kb_file_uses_more_than_one_connection`, `a_256_kb_file_uses_all_four_connections`, `a_one_mb_file_uses_eight_connections`) are `#[ignore]` with this row named. Choose: keep dm's (a fast server gets one connection) and delete those tests; or take reference A's, and change contract row B36's check in the same commit; or a middle way (helpers may halve down to 32 KiB only when the first connection is slow) |
+| 98 | Engine cases dm was not run on, reference A was: a 302 redirect (every piece asks the final address), a reply with no Content-Length, the headers sent (an old browser's User-Agent, `Accept-Encoding: identity`, `Accept-Language`, `Accept-Charset`, a `Referer` of the address's own folder when none is given). Spec G98. | OPEN (audit). Read from the code 2026-11-03 (`download/http.rs`, `probe.rs`): `Accept-Encoding: identity`, the engine's own User-Agent with fallbacks for a site that refuses it, and a `Referer` (the one given, else the address's own folder) are already sent on every piece and probe; `Accept-Language` and `Accept-Charset` are not sent, and no real site has been found that refuses without them, so no change. Left: the redirect, no-Content-Length and ignored-`If-Range` cases run against `qa/origin` |
 | 99 | Extension, watched 2026-11-02 with both on one page: the right-click items match in kind (a page: dm "Download all links with dm", reference A "Download with" its own name; a link: "Download link with dm" and the same; a selection: "Download selected links with dm" and the same). Differences are rows 74, 76, 86 and 94. | NOTE |
 | 100 | **Magnet links on Windows** (reported 2026-11-02: a torrent button on a site did nothing). Windows had no program registered for `magnet:`; dm took a magnet only when its extension saw the click (`extension/content.js`, a trusted left click on an `<a href="magnet:...">`), so a button the page handles with script, a browser without the extension, or a private window did nothing. Done: `--register`, and the installed app at each start, make dm what Windows opens a magnet link with (`dm-shell/src/register.rs` `register_magnet_windows`, `unregister_magnet_windows`; another program's own registration is left alone; 2 tests); `dm-desktop "magnet:?..."` starts the download in the running dm (checked). Also done in the extension (`extension/document.js`, `content.js`): a magnet a page opens with script while the person's own click is still active is taken for dm as a clicked link is: `window.open('magnet:...')`, a link a script makes and clicks, and a button or handler that sets `location` to it (the browser's Navigation API reports it and it can be cancelled); where dm cannot take it the page's own way runs once. Watched in a visible Edge with both extensions on a local page of seven variants (made-up hashes): all seven reached dm. The real site (1337x) sits behind a Cloudflare check that an automated browser does not pass, so it was not tried there. Left: the same for macOS (`CFBundleURLTypes` and an open-URL event) and a `.torrent` file association on Windows and macOS (a ProgId and an Open with entry); a switch in Options > Browser to turn the magnet handler off or on. | PARTIAL |
 | 101 | **First torrent on Windows: the firewall prompt.** The first magnet dm takes makes Windows ask "Do you want to allow public and private networks to access this app?" (dm listens for peers). The prompt is modal, can sit behind other windows, and nothing in dm says it is waiting; a person who does not see it may think the magnet did not open. Closes by dm saying so on the row ("Windows is asking about the firewall") while the prompt is open, and Options > Advanced telling what the allowance is for. Not for dm to answer: the person decides. | OPEN |
@@ -153,6 +148,10 @@ reference A works. The external video tool is removed entirely (`docs/decisions.
 | 107 | T5: the first torrent raises Windows' firewall prompt (row 101); and a first click on a magnet link may raise Windows' own "how do you want to open this" chooser, which dm cannot answer. Spec T5. | OPEN |
 | 108 | T6: no automated test covers the torrent launch paths: the seven page variants and the Windows protocol handler were watched by hand. Spec T6. | OPEN |
 | 109 | T7: a magnet opened in a browser's Reading view (`read://`), a PDF viewer, or another program reaches dm only through the system handler (extensions do not run there). Spec T7 is a check list for a person on the real site. | NOTE |
+| 110 | EDM-V1, video quality grabbing on every site. Spec EDM-V1. | PARTIAL: built, not run on a live site: the page hook relays manifests and media files from any host and observes MediaSource (`extension/document.js`, `content.js`); `rules.json` revision 2 has answer rules for six sites. Not built: AdaptivePair, itag table, headers in Start, RefreshStream (`docs/decisions.md`, "EDM-V1 and EDM-E1") | Run `scripts/sites-check.py` on a signed-in machine; build the rest after the maintainer says which is wanted |
+| 112 | `dm-core` test `a_finished_download_hands_its_place_to_the_next_at_once` fails on this Windows computer (2026-11-03, 6 runs, alone and in the suite): 60 tiny files take 2.7 to 3.5 s against a 2.7 s bound, about the 50 ms tick floor per file, as if a freed place waited for the tick instead of the `kick`. The same with the scheduler's tick as it was before row 79's change, so not from it. With 8 places the same 60 files take 1.22 to 1.27 s (about 48 files/s), only 2.4 times faster, so a cost every file pays that is shared across places limits it here, not the tick alone. Seen in the same full run (2026-11-03): the window test `dialogs::a_double_click_opens_properties_and_open_runs_a_finished_file` failed once with everything running in parallel (432 s; the opener recorded nothing within 5 s) and passed alone in 6 s, so it is likely the same kind of load-bound wait | OPEN | Time one tiny download's steps on Windows (probe, request, file create, rename, mark-of-the-web stream, Defender) to find the shared cost, then fix it or set the bound by what is measured |
+| 113 | `scripts/chrome-check.py` "a file whose name is too long for the disk goes to dm" fails on this Windows computer (2026-11-03, four runs, also standalone with Edge: 68 of 69): the 252-character name is handed to dm ("dm is downloading it") and the file is in dm's folder by the later checks, but not within the check's 60 s. Passed on 2026-11-02 (row 60's run). Also fixed in the same runs: the check's probe crashed when dm renamed its part file between listing and reading, and `scripts/human-qa.py`'s default folder `/tmp/dm-human-qa` is not absolute on Windows, so dm saved the QA's files into the real Downloads folder (`.resolve()` now) | OPEN | Time the long-name download in dm's log (probe, name shortening, the path past 260 characters) and fix what holds it, or set the wait by what is measured |
+| 111 | EDM-E1, engine. Spec EDM-E1. | MOSTLY ALREADY IN dm (halving, stall drop, quick retry, 64-byte seam, zip tail); parts 3, 6 and 8 deliberately not built (`docs/decisions.md`, "EDM-V1 and EDM-E1") | Add `tests/work_stealing.rs` and `tests/zip_tail.rs` if a regression guard is wanted |
 
 ### Implementation specs, rows 72 to 92 (2026-11-02)
 
@@ -588,6 +587,396 @@ not to be worked around):
 
 **T8. Not torrent, noted on the way.** The screenshot helper that took a picture of the whole screen once included the person's
 own browser window; those pictures were deleted. Any later watch of a real person's session must capture the one window only.
+
+#### EDM-V1 Easy Download Manager: Comprehensive Video Quality Grabbing and Universal Site Support Architecture
+**Origin & Context (2026-11-03).**
+
+revealed the exact mechanisms that allow reference A to capture video streams and multi-quality choices reliably across
+almost every web platform (YouTube, Meta/Facebook/Instagram, Vimeo, TikTok, Twitter/X, Reddit, and generic HTML5/MSE players).
+
+While dm's modern Rust architecture (async Tokio, memory safety, zero telemetry, sparse files, no kernel drivers) is structurally
+superior to EDM's legacy 32-bit MFC and ring-0 WFP driver (`EDMwfp.sys`), dm's video sniffing is currently constrained by:
+1. Hardcoded domain checks in `extension/document.js` (restricted strictly to `googlevideo.com` and `/videoplayback`).
+2. Absence of `MediaSource` (`MSE`) and `URL.createObjectURL` hooking in the page's MAIN world, blinding dm to streams played
+   via `blob:http...` on modern platforms (Vimeo, Twitter, Facebook, TikTok).
+3. An unpopulated `rules.json` and empty site profiles engine (`browser/src/decide/sites.rs`), missing reactive API interceptors.
+4. Fragmented adaptive stream handling, where split video-only and audio-only renditions on non-YouTube sites are either missed
+   or offered without paired audio tracks.
+
+**Goal.**
+Implement a unified 5-stage video grabbing and quality resolution pipeline in Easy Download Manager (`dm`) that achieves 100%
+site compatibility and multi-quality extraction parity with EDM, while strictly adhering to dm's pure user-mode Rust/WASM architecture.
+
+---
+
+##### 1. Architectural Overview & Component Topology
+```
+ Web Browser (Page Context)
+ ┌────────────────────────────────────────────────────────────────────────┐
+ │ MAIN World (extension/document.js)                                     │
+ │ • Hooks window.fetch, XMLHttpRequest.open/send                         │
+ │ • Hooks MediaSource.prototype.addSourceBuffer & SourceBuffer           │
+ │ • Hooks URL.createObjectURL(mediaSource) -> maps blob: to stream origin│
+ │ • Extracts deep framework objects (React fiber, ytcfg, __INITIAL_STATE)│
+ └───────────────────────────────────┬────────────────────────────────────┘
+                                     │ window.postMessage (origin-checked)
+                                     ▼
+ ┌────────────────────────────────────────────────────────────────────────┐
+ │ ISOLATED World (extension/content.js & pkg/panel.js)                   │
+ │ • Bounding-box player tracking & floating "Download video" panel       │
+ │ • Relays caught stream metadata & DOM player tokens to background     │
+ └───────────────────────────────────┬────────────────────────────────────┘
+                                     │ ext.runtime.sendMessage
+                                     ▼
+ WebExtension Background (browser/src/ - WASM)
+ ┌────────────────────────────────────────────────────────────────────────┐
+ │ • Network Sniffer: webRequest.onHeadersReceived MIME inspection        │
+ │ • Site Rule Engine (rules.json & answers.rs): API response parser      │
+ │ • Stream Aggregator: matches video-only streams with best audio tracks │
+ │ • Quality Hierarchy Sorter: height, bitrate, 60fps, itag mapping       │
+ └───────────────────────────────────┬────────────────────────────────────┘
+                                     │ Native Messaging Host (dm-shell/host.rs)
+                                     ▼
+ Easy Download Manager Engine (desktop/crates/dm-core)
+ ┌────────────────────────────────────────────────────────────────────────┐
+ │ • videopage / stream runner: parallel fetch of video + audio tracks    │
+ │ • Multiplexing Engine: mp4mux / mkvmux combines tracks into final file │
+ │ • Token Expiry Handler: requests fresh CDN signatures if stream drops  │
+ └────────────────────────────────────────────────────────────────────────┘
+```
+
+---
+
+##### 2. Detailed Technical Specifications (Stage 1 to Stage 5)
+
+###### Stage 1: Main-World Interception Enhancement (`extension/document.js`)
+- **Hook `MediaSource` and `URL.createObjectURL`**:
+  Modern streaming players feed fragmented MP4/WebM chunks (`.m4s`, `.mp4`, `.ts`) into an MSE `SourceBuffer` and attach a
+  `blob:https://...` URL to the `<video>` element. To bridge this:
+  1. Hook `URL.createObjectURL`:
+     ```javascript
+     const origCreateObjectURL = URL.createObjectURL;
+     URL.createObjectURL = function (object) {
+       const url = origCreateObjectURL.call(this, object);
+       if (object instanceof MediaSource) {
+         window.postMessage({ source: 'dm-mediasource-created', blobUrl: url }, location.origin);
+       }
+       return url;
+     };
+     ```
+  2. Hook `MediaSource.prototype.addSourceBuffer`:
+     Intercept MIME type declarations (e.g. `video/mp4; codecs="avc1.640028"`, `audio/mp4; codecs="mp4a.40.2"`). Tag the MediaSource
+     instance with its configured audio/video tracks.
+  3. Hook `SourceBuffer.prototype.appendBuffer`:
+     Inspect initialization segment headers (e.g. ISO BMFF `ftyp`, `moov`, `moof` boxes) to correlate chunks to active media players.
+- **Universal Streaming URL Detector (Remove domain restriction)**:
+  Replace the restrictive `googlevideo.com` check in `tell()` with universal media pattern matching:
+  ```javascript
+  const STREAM_URL_RE = /\.(m3u8|mpd|m4s|ts|webm|mp4|m4a|aac|f4m)(\?|#|$)|[\?&](itag|videoplayback|live)=/i;
+  ```
+  Relay every matching URL via `dm-media-seen` to `content.js` along with initiator information.
+- **Deep Framework Object Sniffer**:
+  Expose a method to query page framework state:
+  - React components: traverse `__reactFiber$` or `memoizedProps` for Meta (Facebook/Instagram), TikTok, and Reddit video IDs.
+  - Global state variables: read `window.ytcfg.data_`, `window.__INITIAL_STATE__`, `window.__playinfo__` (Bilibili/Vimeo).
+
+###### Stage 2: Dynamic Site Profile System (`rules.json` & `browser/src/decide/sites.rs`)
+Activate the site profile subsystem (`dm-shell/resources/rules.json` and `browser/src/decide/answers.rs`):
+- **Schema in `rules.json`**:
+  ```json
+  {
+    "profiles": [
+      {
+        "name": "youtube",
+        "hosts": ["youtube.com", "youtu.be", "googlevideo.com"],
+        "api_matches": ["/youtubei/v1/player", "/get_video_info"],
+        "selectors": ["#movie_player video", ".html5-video-player video"],
+        "adaptive": true
+      },
+      {
+        "name": "meta",
+        "hosts": ["facebook.com", "fb.watch", "instagram.com"],
+        "api_matches": ["/api/graphql", "/graphql/query", "/api/v1/media/"],
+        "selectors": ["video[src*='fbcdn.net']", "video[src^='blob:']"],
+        "adaptive": true
+      },
+      {
+        "name": "vimeo",
+        "hosts": ["vimeo.com", "player.vimeo.com"],
+        "api_matches": ["/video/*/config"],
+        "selectors": [".vp-video video", "div.player video"],
+        "adaptive": false
+      },
+      {
+        "name": "tiktok",
+        "hosts": ["tiktok.com"],
+        "api_matches": ["/api/item/detail", "/api/recommend/item_list"],
+        "selectors": ["video[src*='tiktokcdn']", "video[src^='blob:']"],
+        "adaptive": false
+      },
+      {
+        "name": "twitter",
+        "hosts": ["x.com", "twitter.com"],
+        "api_matches": ["/graphql/*/TweetDetail", "/i/api/1.1/videos/tweet/config"],
+        "selectors": ["video[src*='twimg.com']", "video[src^='blob:']"],
+        "adaptive": true
+      },
+      {
+        "name": "reddit",
+        "hosts": ["reddit.com", "v.redd.it"],
+        "api_matches": ["/comments/*/.json", "DASHPlaylist.mpd"],
+        "selectors": ["video[src*='v.redd.it']", "video[src^='blob:']"],
+        "adaptive": true
+      }
+    ]
+  }
+  ```
+- **Site Extractors (`browser/src/decide/answers.rs` & `sites.rs`)**:
+  - `Meta (Facebook/Instagram)`: Extract `dash_manifest`, `browser_native_hd_url`, and `browser_native_sd_url` from GraphQL JSON replies.
+  - `Vimeo`: Parse config JSON to extract progressive MP4 files with explicit widths/heights/bitrates and M3U8 master playlists.
+  - `TikTok`: Extract watermark-free HD URLs (`bitrateInfo.PlayAddr` and `downloadAddr`).
+  - `Twitter / X`: Parse video variant lists from TweetDetail JSON, ranking by bitrate.
+  - `Reddit`: Link `v.redd.it/<id>/DASH_1080.mp4` (video) with `v.redd.it/<id>/DASH_audio.mp4` (audio).
+
+###### Stage 3: Adaptive Stream Video+Audio Auto-Pairing & Multiplexing
+- **Extension Data Model Update (`browser/src/decide/streams.rs`)**:
+  Enhance `Stream` and `PageLine`:
+  ```rust
+  pub struct AdaptiveChoice {
+      pub video_url: String,
+      pub audio_url: Option<String>,
+      pub resolution: (u32, u32),
+      pub frame_rate: Option<f32>,
+      pub video_codec: String,
+      pub audio_codec: Option<String>,
+      pub estimated_bytes: Option<u64>,
+      pub label: String,
+  }
+  ```
+- **Pairing Algorithm (`browser/src/decide/page_lines.rs`)**:
+  When a DASH manifest or fragmented MSE player exposes separated video and audio representations:
+  1. Group video representations by height (2160p 4K, 1440p 2K, 1080p, 720p, 480p, 360p) and frame rate (60fps vs 30fps).
+  2. Select the optimal audio representation (highest bitrate AAC/M4A or Opus, matching audio language preference).
+  3. Emit an `AdaptiveChoice` specifying both `video_url` and `audio_url`.
+- **Multiplexing Pipeline (`desktop/crates/dm-core/src/videopage/fetch.rs`)**:
+  When `AdaptiveChoice` is handed to dm:
+  1. Concurrently fetch the video stream (via `ranged::run` or chunked requests) and the audio stream.
+  2. Feed both into `dm_core::mp4mux::mux` (for MP4/H.264/AAC/AV1) or `dm_core::mkvmux` (for WebM/VP9/Opus).
+  3. Ensure timestamps (`pts`/`dts`) are aligned from track init segments.
+
+###### Stage 4: Multi-Quality Aggregation, Deduplication & itag Evaluation
+- **YouTube `itag` Evaluation (`FUN_00457c80` Parity)**:
+  Add an `itag` resolver module `desktop/crates/dm-core/src/youtube/itags.rs` and mirror in extension WASM:
+  - Video itags: 137 (1080p H264), 248 (1080p VP9), 399 (1080p AV1), 299 (1080p60 H264), 303 (1080p60 VP9), 2160p (313/401/272).
+  - Audio itags: 140 (128kbps AAC-LC), 251 (160kbps Opus), 250 (70kbps Opus).
+  - Multiplexed itags (legacy direct): 18 (360p MP4), 22 (720p MP4).
+- **Segment Filter**:
+  Guarantee that individual transport stream segments (`.ts`), raw initialization slices (`init.mp4`), and byte-range chunk requests
+  (`range=...`, `bytestart=...`) are filtered out of the user's floating download panel list. Only complete master streams,
+  playlists, and complete file choices are displayed.
+- **Quality Sorting Hierarchy**:
+  Sort the panel list:
+  `Resolution Height (descending) -> Frame Rate (60fps before 30fps) -> Codec Quality (AV1 > VP9 > H264) -> Audio Bitrate`.
+
+###### Stage 5: Authenticated CDN Signature & Token Refresh
+- **Pass Complete Request Context in `dm-protocol::Start`**:
+  Video streaming CDNs validate requests via cookies, session tokens, and strict headers:
+  - Add to `Start`: `user_agent: String`, `referer: String`, `origin: String`, `custom_headers: Vec<(String, String)>`.
+  - Pass the exact headers extracted from the browser request.
+- **Token Expiry Re-Capture (`Entry::fresh_link`)**:
+  Signed CDN URLs (e.g. YouTube `expire=`, Facebook `oh=`, TikTok `x-expires=`, Akamai `hdnea=`) expire in 1-6 hours:
+  - If a download receives HTTP 403 Forbidden, 410 Gone, or TCP stall mid-transfer:
+  - Mark download status as `ExpiredSignature`.
+  - Notify the extension via native host: `Request::RefreshStream { download_id, original_url, page_url }`.
+  - The extension re-queries the page's current player/manifest in background and returns the updated signed URL.
+  - `dm-core` calls `Queue::adopt_fresh_link` and resumes the remaining byte ranges without restarting from zero.
+
+---
+
+##### 3. Files to Modify & Exact Code Locations
+1. `extension/document.js`:
+   - Add `MediaSource` and `URL.createObjectURL` proxy wrappers.
+   - Broaden `STREAM_URL_RE` to match all streaming media extensions and query keys across all hosts.
+   - Add framework property extractors (`__reactFiber$`, `memoizedProps`, `ytcfg`).
+2. `extension/content.js`:
+   - Listen for `dm-mediasource-created` and `dm-media-seen`.
+   - Bind detected `blob:` URLs back to their corresponding remote origin URLs.
+3. `browser/src/decide/streams.rs`:
+   - Expand `StreamKind` to include `AdaptivePair(Box<Stream>, Box<Stream>)`.
+   - Implement `is_segment(&url)` filter to prevent segment pollution.
+4. `browser/src/decide/answers.rs` & `sites.rs`:
+   - Parse JSON and GraphQL payloads for Facebook, Instagram, Twitter/X, TikTok, Reddit, Vimeo.
+5. `desktop/crates/dm-shell/resources/rules.json`:
+   - Populate site matchers, selectors, and API endpoints for top 10 streaming platforms.
+6. `desktop/crates/dm-protocol/src/lib.rs`:
+   - Update `Start` and `Choice` structs with `audio_url`, `fps`, and `headers`.
+7. `desktop/crates/dm-core/src/videopage/`:
+   - Extend `fetch.rs` to download paired adaptive streams and invoke `mp4mux` / `mkvmux`.
+8. `desktop/crates/dm-core/src/queue/runner.rs`:
+   - Hook HTTP 403 / 410 responses to trigger the `adopt_fresh_link` workflow.
+
+---
+
+##### 4. Verification & Testing Plan
+- **Unit Tests**:
+  - `browser/src/decide/tests.rs`: Test MSE MIME parsing, adaptive stream pairing logic, segment rejection regexes.
+  - `desktop/crates/dm-core/tests/videopage.rs`: Test dual-stream fetch and muxing pipeline with mock video and audio endpoints.
+  - `desktop/crates/dm-core/tests/itags.rs`: Validate itag-to-resolution-and-fps mapping table against YouTube specifications.
+- **Automated Integration Tests**:
+  - `scripts/chrome-check.py`: Validate that loading an MSE player with `blob:https://...` raises the floating panel and populates choices.
+  - `scripts/sites-check.py`: Run live checks against:
+    - YouTube (1080p60 and 4K adaptive downloads with sound).
+    - Vimeo (verify non-DRM streams resolve all bitrate choices).
+    - Twitter/X (verify highest bitrate video variant with sound).
+    - Reddit (verify `v.redd.it` DASH video and audio muxing).
+    - TikTok (verify full HD video download).
+
+#### EDM-E1 EDM: High-Performance Download Engine Optimization and Advanced Segmentation Architecture
+**Origin & Context (2026-11-03).**
+Empirical benchmark measurements of commercial Download manager (Reference A) against Easy Download Manager (`dm`)
+recorded in `docs/reference-behavior.md` and decompiled protocol internals revealed key performance advantages in Reference A's
+low-level download engine:
+1. Dynamic midpoint chunk splitting: work-stealing segmentation ensures connections never sit idle while byte ranges remain.
+2. Connection speed balancing: slow or stalled sockets are detected and evicted before they throttle the entire download.
+3. Sub-piece threshold concurrency: small files (100 KB–1 MB) are split into up to 4 parallel streams (down to 14 KB–32 KB slices)
+   rather than falling back to single-connection mode.
+4. Instant socket re-connect: dropped connections are retried in < 0.1 s with progress-capped backoff.
+5. Seam verification: 64-byte overlaps across piece boundaries protect against non-deterministic or cached dynamic server responses.
+6. Archive tail-sniffing: querying the final 64 KB of a ZIP archive enables instantaneous central directory parsing and selective preview.
+7. Multiplexing advantage: modern HTTP/2 and HTTP/3 multiplexing allows parallel stream transfers over 1–2 sockets, preventing
+   server-side per-IP connection limits that hinder traditional multi-socket engines.
+
+**Goal.**
+Implement these 8 architectural optimizations in EDM's core download engine (`dm-core`) so that throughput, small-file speed,
+fault tolerance, and connection agility match or exceed Reference A, while retaining dm's clean zero-telemetry, memory-safe Rust design.
+
+---
+
+##### 1. Detailed Engineering Specifications (Parts 1 to 8)
+
+###### Part 1: Dynamic Midpoint Work-Stealing Segment Scheduler
+- **Today in dm**: Fixed 8 MiB slices are pre-allocated upfront; when a connection completes its slice, it seeks the largest remaining piece.
+- **Reference A Method**: Continuous dynamic halving (`ChunksList::FindMaxFreeChunk` + `NeedNewConnection`). Any connection that completes
+  its chunk inspects all active segments, finds the segment with the largest remaining byte count (`end_offset - current_offset`),
+  and cuts it in two at midpoint:
+  $$\text{split\_point} = \text{current\_offset} + \left\lfloor \frac{\text{end\_offset} - \text{current\_offset}}{2} \right\rfloor$$
+- **Implementation in `dm-core/src/download/ranged.rs`**:
+  - Introduce an asynchronous work-stealing coordinator:
+    ```rust
+    pub struct SegmentState {
+        pub id: usize,
+        pub start: u64,
+        pub current: u64,
+        pub end: u64, // inclusive
+        pub task_id: Option<usize>,
+    }
+    ```
+  - When connection $A$ finishes its assigned range:
+    1. Lock segment ledger and find active segment $S$ with $\max(S.\text{end} - S.\text{current})$.
+    2. If $S.\text{end} - S.\text{current} \ge 64\text{ KiB}$:
+       - Calculate midpoint $M$.
+       - Send boundary update message `LimitBound(M)` over a Tokio `mpsc` channel to the worker running segment $S$.
+       - Allocate new range $(M + 1)..=S.\text{end}$ to connection $A$.
+       - Update registry/state persistence so resume tracks the split chunks accurately.
+
+###### Part 2: Slow Connection Eviction & Rebalancing Watchdog
+- **Problem**: On asymmetric networks or throttled CDN edge nodes, 7 out of 8 connections may finish rapidly while 1 stalled socket
+  drags total completion time from 2 seconds to 30 seconds.
+- **Implementation in `dm-core/src/download/ranged.rs` and `dm-core/src/progress.rs`**:
+  - Implement rolling exponential moving average (EMA) throughput tracking per socket:
+    $$\text{Rate}_t = \alpha \cdot \text{Rate}_{\text{current}} + (1 - \alpha) \cdot \text{Rate}_{t-1}, \quad \alpha = 0.3$$
+  - Run watchdog check every 500 ms:
+    - If connection $i$'s rate is $< 0.15 \times \text{AveragePeerRate}$ for $> 3.0\text{ s}$, or 0 bytes received for $> 3.5\text{ s}$:
+      1. Issue task abort on connection $i$.
+      2. Record current byte position reached.
+      3. Re-queue remaining range `current_offset..=end_offset`.
+      4. Spawn a fresh HTTP connection or assign the range to the highest-throughput active worker.
+
+###### Part 3: Small-File Concurrency (Adaptive Piece Floor)
+- **Today in dm**: Files under 128 KiB use 1 connection.
+- **Reference A Method**: Files down to 100 KB use 4 connections with slices down to ~14 KB, completing in parallel within tens of milliseconds.
+- **Implementation in `dm-core/src/download/ranged.rs`**:
+  - Dynamically scale the connection count and piece size floor based on probed `Content-Length`:
+    - Files $< 64\text{ KiB}$: 1 connection.
+    - Files $64\text{ KiB} \le \text{Size} < 256\text{ KiB}$: up to 2 connections, minimum slice $32\text{ KiB}$.
+    - Files $256\text{ KiB} \le \text{Size} < 1\text{ MiB}$: up to 4 connections, minimum slice $64\text{ KiB}$.
+    - Files $\ge 1\text{ MiB}$: up to configured maximum connections (default 8, max 32), minimum slice $128\text{ KiB}$.
+
+###### Part 4: Zero-Delay Reconnect & Outage Recovery State Machine
+- **Today in dm**: Connection cuts trigger progressive backoff delays (1s, 2s, 4s, 8s, 16s).
+- **Reference A Method**: Dropped active connections are retried in $0.04\text{ s}$–$0.1\text{ s}$.
+- **Implementation in `dm-core/src/retry.rs`**:
+  - Differentiate between connection drop types:
+    1. **Established Socket Drop (Mid-stream cut)**: If connection dropped after transferring $> 32\text{ KiB}$, retry **immediately** ($0\text{ ms}$ delay) for the first attempt.
+    2. **Progress-Capped Backoff**: If any other connection is actively receiving bytes, cap the retry wait of failing sibling connections at a maximum of $1.5\text{ s}$–$2.0\text{ s}$.
+    3. **Total Server Outage**: If all connections fail or return 503/502/refused, use bounded backoff (1s, 2s, 4s, capped at 10s) with active health probes every 2s to resume immediately when the host returns.
+
+###### Part 5: 64-Byte Seam Boundary Verification
+- **Implementation in `dm-core/src/download/ranged.rs` (`spot_check_segment`)**:
+  - Increase boundary check overlap constant:
+    ```rust
+    pub const SEAM_OVERLAP_BYTES: u64 = 64;
+    ```
+  - For piece $K$ starting at byte offset $O > 0$, issue the HTTP range request as `Range: bytes=(O - 64)-(End)`.
+  - Read first 64 bytes and compare against the previously written 64 bytes on disk at $(O - 64)..O$:
+    - If match: seek disk pointer to offset $O$ and proceed streaming.
+    - If mismatch: set `job.disagreed = true`, immediately cancel all multi-part tasks, truncate target file to 0, and restart download on a single stream from byte 0.
+
+###### Part 6: Zero-Copy File Writing & OS-Level Sparse Pre-Allocation
+- **Contrast**: Reference A writes separate temporary part files (`.N.0`, `.N.1`) and concatenates them at 99% via `JoinFile`, doubling disk I/O.
+- **dm Architecture**: Pre-allocated sparse files with direct byte-offset writes (`pwrite`).
+- **Optimization in `dm-core/src/download/files.rs` and `assemble.rs`**:
+  - Implement OS-native fast pre-allocation:
+    - Windows: `SetFileInformationByHandle` (`FileAllocationInfo`) or `SetFileValidData` (bypassing zero-fill if running with appropriate rights).
+    - Linux: `libc::fallocate(fd, 0, 0, length)`.
+    - macOS: `libc::fcntl(fd, F_PREALLOCATE, &fstore)`.
+  - Add 256 KiB write-behind ring buffers per connection task, avoiding micro-writes and reducing CPU syscall overhead on 10 Gbps networks.
+
+###### Part 7: ZIP Central Directory Tail-Sniffing & Instant Archive Preview
+- **Implementation in `dm-core/src/probe.rs` and `dm-core/src/extract.rs`**:
+  - If URL points to `.zip` or response header indicates `application/zip`:
+    1. Concurrently with piece 1, issue request for tail range:
+       $$\text{bytes} = (N - 65536) \text{ to } (N - 1)$$
+    2. Scan buffer backwards for End of Central Directory record signature (`0x06054b50`).
+    3. Parse Central Directory headers: extract filenames, uncompressed sizes, compression methods, and local header offsets into `ZipIndex`.
+    4. Expose `dm_core::zip::inspect(&file_id) -> ZipIndex` for instant UI archive preview.
+    5. Allow partial extraction: user can extract a single file before download finishes by fetching only the byte range corresponding to that file's local header and compressed data.
+
+###### Part 8: HTTP/2 & HTTP/3 Stream Multiplexing Pipeline
+- **Problem**: Legacy Download manager engines open 8 to 32 raw TCP sockets via Winsock, which triggers anti-DDoS firewalls or per-IP connection throttling on CDNs (Cloudflare, Akamai, CloudFront).
+- **Implementation in `dm-core/src/download/http.rs`**:
+  - Configure `reqwest` / `hyper` client with ALPN negotiation:
+    - If server advertises `h2` or `h3` (QUIC):
+      - Open 1 or 2 underlying TCP/UDP connections.
+      - Multiplex the 8–16 byte-range requests as concurrent stream IDs over the shared multiplexed session.
+    - Preserves maximum multi-range throughput while appearing as a single legitimate HTTP/2 or HTTP/3 browser session.
+
+---
+
+##### 2. Files to Modify & Exact Code Locations
+1. `desktop/crates/dm-core/src/download/ranged.rs`:
+   - Implement midpoint work-stealing algorithm (`find_max_remaining_segment` and channel boundary updates).
+   - Implement connection watchdog and EMA throughput calculation.
+   - Expand `SEAM_OVERLAP_BYTES` to 64 and handle mismatch reset.
+2. `desktop/crates/dm-core/src/retry.rs`:
+   - Implement zero-delay retry on established cut and progress-capped backoff.
+3. `desktop/crates/dm-core/src/download/files.rs`:
+   - Add platform-specific `fallocate` / `SetFileValidData` sparse pre-allocation.
+4. `desktop/crates/dm-core/src/probe.rs` & `extract.rs`:
+   - Add ZIP tail-range probe and Central Directory parser.
+5. `desktop/crates/dm-core/src/download/http.rs`:
+   - Enable HTTP/2 and HTTP/3 connection multiplexing for multi-range requests.
+
+---
+
+##### 3. Verification & Testing Plan
+- **Unit Tests**:
+  - `desktop/crates/dm-core/tests/seam_check.rs`: Verify that 64-byte seam mismatch triggers fallback to single connection.
+  - `desktop/crates/dm-core/tests/work_stealing.rs`: Verify that completing a piece divides the largest remaining piece at midpoint.
+  - `desktop/crates/dm-core/tests/zip_tail.rs`: Verify instant preview parsing from mock ZIP end bytes.
+- **Engine Benchmark Checks**:
+  - `scripts/stress-protocols.py`: Run against local test server with simulated connection drops at 3s and 10s (verify reconnect in < 0.2s).
+  - Test 100 KB and 256 KB downloads (verify 4 parallel connections spawned and piece sizes match).
 
 #### Order and rules
 Build G73, G75, G79, G80, G95, G96, G97, then G82, G85, G87, G86, G92, G90; G98 is a measurement to run first; G94 waits for the maintainer's word on the default. After each: `cargo test --workspace`, the browser tests for

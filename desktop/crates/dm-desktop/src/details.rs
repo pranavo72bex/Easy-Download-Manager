@@ -94,8 +94,7 @@ fn scrubbed(text: &str) -> String {
                 return word.to_string();
             }
             let start = word.find(|c: char| c.is_ascii_alphabetic()).unwrap_or(0);
-            let address = word[start..]
-                .trim_end_matches(|c: char| matches!(c, '.' | ',' | ';' | ')' | '"' | '\'' | ':'));
+            let address = word[start..].trim_end_matches(['.', ',', ';', ')', '"', '\'', ':']);
             match url::Url::parse(address)
                 .ok()
                 .and_then(|parsed| parsed.host_str().map(str::to_owned))
@@ -111,7 +110,7 @@ fn scrubbed(text: &str) -> String {
 /// Whether a word of a reason reads as part of a file path: it has a backslash, or starts
 /// like an absolute path (a drive, a slash, `~`), after any opening bracket or quote.
 fn looks_like_path(word: &str) -> bool {
-    let word = word.trim_start_matches(|c: char| matches!(c, '(' | '[' | '"' | '\''));
+    let word = word.trim_start_matches(['(', '[', '"', '\'']);
     let mut chars = word.chars();
     let drive = matches!((chars.next(), chars.next()), (Some(d), Some(':')) if d.is_ascii_alphabetic())
         && matches!(chars.next(), Some('/' | '\\'));
@@ -202,8 +201,9 @@ mod tests {
     fn a_row_carrying_a_login_and_a_token_gives_away_neither() {
         // Built here, not written out, so no tracked file holds a login in an address.
         let login = ["user", "hunter2"].join(":");
-        let address =
-            format!("http://{login}@files.example.org:8080/private/dir/a.bin?token=abc123&sig=zzz9");
+        let address = format!(
+            "http://{login}@files.example.org:8080/private/dir/a.bin?token=abc123&sig=zzz9"
+        );
         let row = failed(
             &address,
             &format!("the server answered 403 Forbidden for {address}"),
@@ -282,7 +282,9 @@ mod tests {
     fn an_address_in_a_reason_is_cut_to_its_host() {
         let login = ["u", "p"].join(":");
         assert_eq!(
-            scrubbed(&format!("no good (http://{login}@h.example/a/b?c=d), sorry")),
+            scrubbed(&format!(
+                "no good (http://{login}@h.example/a/b?c=d), sorry"
+            )),
             "no good h.example sorry"
         );
         assert_eq!(scrubbed("see ://broken"), "see (address hidden)");

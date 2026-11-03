@@ -149,6 +149,7 @@ pub enum Act {
     /// carries on through the page as if the panel sat right after the
     /// player.
     ToPlayer {
+        /// Whether the key's own work is stopped (Shift+Tab off the bar).
         stop: bool,
     },
     /// Nothing: the browser does what it does.
@@ -273,7 +274,10 @@ mod tests {
         // A line of the list wraps rather than being cut: its quality is the point of it.
         let item = STYLE.split(".item {").nth(1).unwrap();
         let item = &item[..item.find('}').unwrap()];
-        assert!(item.contains("white-space: normal") && !item.contains("ellipsis"), "{item}");
+        assert!(
+            item.contains("white-space: normal") && !item.contains("ellipsis"),
+            "{item}"
+        );
     }
 
     #[test]

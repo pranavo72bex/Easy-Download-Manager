@@ -700,6 +700,7 @@ pub(super) fn file_info(app: &mut DmApp, ctx: &egui::Context) {
         } else {
             String::new()
         },
+        title_hint: None,
         save_dir: Some(d.folder.trim().to_string()).filter(|f| !f.is_empty()),
         // The server's own name, untouched, is what dm names the file
         // anyway: left for it to place as it always does.

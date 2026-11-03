@@ -412,6 +412,8 @@ pub struct DmApp {
     pub when_done: crate::power::WhenDone,
     /// The schedule window as the last read of the list found it (`scheduled.rs`).
     pub(crate) schedule_watch: scheduled::Watch,
+    /// The same for each named queue with a schedule of its own (key: its name).
+    pub(crate) queue_watches: std::collections::BTreeMap<String, scheduled::Watch>,
     /// Words typed over the list: only rows whose name, address or note
     /// holds them all are shown, in whatever place is chosen.
     pub filter: String,
@@ -630,6 +632,7 @@ impl DmApp {
             fonts_ready: false,
             when_done: Default::default(),
             schedule_watch: Default::default(),
+            queue_watches: Default::default(),
             failed_told: HashSet::new(),
             asks: Default::default(),
             ask_seen: Default::default(),

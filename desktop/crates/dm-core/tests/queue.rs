@@ -980,6 +980,8 @@ fn closed_now() -> dm_core::Schedule {
         when_done: String::new(),
         retries: 0,
         run_when_done: String::new(),
+        once_at: None,
+        force: false,
     }
 }
 
@@ -3150,4 +3152,40 @@ async fn a_page_for_a_file_is_saved_as_html_after_a_person_says_yes() {
     assert_eq!(row.state, DownloadState::Completed);
     assert_eq!(row.filename, "report.html");
     assert_eq!(std::fs::read_to_string(&row.path).unwrap(), page);
+}
+
+#[tokio::test]
+async fn a_queue_with_a_schedule_of_its_own_is_held_while_the_others_run() {
+    let (addr, _) = serve().await;
+    let dir = tempdir();
+    let q = queue(dir.path(), 2);
+    q.set_queue_schedules(std::collections::BTreeMap::from([(
+        "Night".to_string(),
+        closed_now(),
+    )]));
+    let in_queue = |name: &str| dm_core::AddOptions {
+        queue: name.into(),
+        ..Default::default()
+    };
+    let night = q
+        .add_with(&format!("http://{addr}/f.bin?n"), in_queue("Night"))
+        .await
+        .unwrap();
+    let day = q
+        .add_with(&format!("http://{addr}/f.bin?d"), in_queue("Day"))
+        .await
+        .unwrap();
+    q.run().await;
+    assert_eq!(q.get(day).await.unwrap().state, DownloadState::Completed);
+    assert_eq!(
+        q.get(night).await.unwrap().state,
+        DownloadState::Paused,
+        "its own window is shut"
+    );
+    assert!(q.get(night).await.unwrap().paused_by_schedule);
+
+    // Its window opening puts it back, and only it.
+    q.set_queue_schedules(Default::default());
+    q.run().await;
+    assert_eq!(q.get(night).await.unwrap().state, DownloadState::Completed);
 }

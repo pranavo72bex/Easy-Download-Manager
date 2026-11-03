@@ -446,6 +446,7 @@ pub(super) mod status_tests {
             speed_limit: 0,
             stalled: String::new(),
             fresh_link: false,
+            title_hint: None,
             sound: None,
             span: None,
             shape: None,
@@ -466,6 +467,8 @@ pub(super) mod status_tests {
             when_done: String::new(),
             retries: 0,
             run_when_done: String::new(),
+            once_at: None,
+            force: false,
         };
         // Monday 00:30: later today. Monday 08:00: next Monday.
         assert_eq!(opens_after(&schedule, 1, 30), Some((0, 60)));

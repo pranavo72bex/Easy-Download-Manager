@@ -94,6 +94,10 @@ pub struct Settings {
     #[serde(deserialize_with = "lenient::schedule")]
     pub schedule: Schedule,
 
+    /// A schedule of its own for a named queue, by the queue's name; a queue
+    /// with none uses `schedule`.
+    pub queue_schedules: std::collections::BTreeMap<String, Schedule>,
+
     /// Where downloads connect through.
     #[serde(deserialize_with = "lenient::proxy")]
     pub proxy: Proxy,
@@ -256,6 +260,11 @@ pub struct Settings {
     /// Play the system's short failure sound when a download fails.
     #[serde(default)]
     pub sound_on_failure: bool,
+    /// A sound file of the person's own for an event (`complete`, `failed`, `queue_started`,
+    /// `queue_done`); an event with no entry, or an empty one, keeps the system's sound. Only `.wav`
+    /// is promised. The switches above still decide whether the finish and failure sounds play.
+    #[serde(default)]
+    pub sounds: std::collections::BTreeMap<String, String>,
     /// Start the Main queue as dm opens, so what was added for later goes
     /// at the next launch without a click.
     #[serde(default)]
@@ -449,6 +458,7 @@ impl Default for Settings {
             site_rules: Vec::new(),
             recheck_hours: 0,
             sound_on_failure: false,
+            sounds: Default::default(),
             start_queue_on_launch: false,
             subtitles: false,
             site_searches: Vec::new(),
@@ -483,6 +493,7 @@ impl Default for Settings {
             custom_categories: Vec::new(),
             stream_quality: default_quality(),
             schedule: Schedule::default(),
+            queue_schedules: std::collections::BTreeMap::new(),
             proxy: Proxy::default(),
             watch_clipboard: false,
             start_on_login: true,
@@ -734,6 +745,7 @@ impl Settings {
                 .then(|| std::time::Duration::from_secs(self.record_minutes * 60)),
             sign_in: None,
             save_name: None,
+            title_hint: None,
             accept_page: false,
             system_proxy: self.proxy.enabled && self.proxy.kind == dm_core::ProxyKind::System,
             proxy_bypass: if self.proxy.enabled {
@@ -1002,6 +1014,12 @@ impl Settings {
                 !want.is_empty() && (host == want || host.ends_with(&format!(".{want}")))
             })
             .max_by_key(|rule| rule.host.trim().len())
+    }
+
+    /// The schedule that governs the queue called `name`: its own, or the
+    /// one every queue shares.
+    pub fn schedule_for(&self, name: &str) -> &Schedule {
+        self.queue_schedules.get(name).unwrap_or(&self.schedule)
     }
 
     /// `with`, given its site's folder and speed limit where it was not given

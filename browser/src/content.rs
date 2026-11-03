@@ -97,6 +97,7 @@ thread_local! {
         const { std::cell::Cell::new(None) };
 }
 
+mod bodies;
 mod build;
 mod dom;
 mod events;
