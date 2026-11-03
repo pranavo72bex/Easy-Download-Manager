@@ -1218,7 +1218,13 @@ def main():
         # and its Save dialog stayed open over a download dm had taken.
         long_tab = click(base, origin, LONG)
         def read_or_none(p):
-            # dm's part file is listed, then renamed before it is read.
+            # The saved name (up to 200 characters) under this folder passes
+            # Windows' 260-character limit, which Python's plain open obeys
+            # unless long paths are on: the file is listed but cannot be opened.
+            # The verbatim prefix reads it. A part file renamed between the
+            # listing and the read is None.
+            if sys.platform == "win32":
+                p = pathlib.Path("\\\\?\\" + str(p.resolve()))
             try:
                 return p.read_bytes()
             except OSError:

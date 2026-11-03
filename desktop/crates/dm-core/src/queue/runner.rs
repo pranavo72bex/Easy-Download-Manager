@@ -510,6 +510,22 @@ impl Queue {
                     let _ = tokio::fs::remove_dir(holder).await;
                 }
             }
+            // From the internet, as a browser's download says: marked here,
+            // before the queue's lock and on a thread of its own. On Windows
+            // the mark is a stream of the file's own, which the virus checker
+            // reads as it is written: about 16 ms a file on a Windows 11
+            // computer (2026-11-03), during which the lock held every other
+            // look at the queue, the window's included. Still before the row
+            // says Completed, so a file is never opened unmarked.
+            if let Ok(finished) = &outcome {
+                let path = finished.path.clone();
+                let from = url.clone();
+                let referrer = options.referrer.clone().unwrap_or_default();
+                let _ = tokio::task::spawn_blocking(move || {
+                    crate::motw::mark(&path, &from, &referrer);
+                })
+                .await;
+            }
             let mut slots = inner.slots.lock().await;
             let Some(slot) = slots.get_mut(&id) else {
                 return;
@@ -541,8 +557,6 @@ impl Queue {
                         slot.entry_mut().filename = name.to_string_lossy().into_owned();
                     }
                     slot.entry_mut().path = finished.path.to_string_lossy().into_owned();
-                    // From the internet, as a browser's download says.
-                    crate::motw::mark(&finished.path, &slot.entry.url, &slot.entry.referrer);
                     slot.entry_mut().category = Some(finished.category);
                     slot.entry_mut().verified = finished.verified;
                     slot.entry_mut().mirrors = finished.mirrors;

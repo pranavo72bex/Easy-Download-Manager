@@ -246,6 +246,19 @@ fn a_double_click_opens_properties_and_open_runs_a_finished_file() {
         .unwrap();
     double_click(&mut harness, "file.zip");
     harness.run_steps(3);
+    // What the window showed, said if the file is not opened: under a full
+    // run of the window tests this failed now and then and passed alone.
+    let seen = {
+        let open = harness.get_by_role_and_label(egui::accesskit::Role::Button, "Open");
+        format!(
+            "Open disabled: {}; Properties open: {}; row {:?} at {} (exists: {})",
+            open.accesskit_node().is_disabled(),
+            harness.query_by_label("File properties").is_some(),
+            row.state,
+            row.path,
+            std::path::Path::new(&row.path).exists()
+        )
+    };
     harness
         .get_by_role_and_label(egui::accesskit::Role::Button, "Open")
         .click();
@@ -260,7 +273,8 @@ fn a_double_click_opens_properties_and_open_runs_a_finished_file() {
     }
     assert_eq!(
         *world.fake.opened.lock().unwrap(),
-        std::slice::from_ref(&row.path)
+        std::slice::from_ref(&row.path),
+        "{seen}"
     );
 
     // Options › General's "opens the file": the double-click opens a

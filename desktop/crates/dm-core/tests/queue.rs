@@ -2814,6 +2814,22 @@ async fn a_finished_download_hands_its_place_to_the_next_at_once() {
     }));
     let addr = common::serve(app).await;
     let dir = tempdir();
+    // What one tiny file costs on this computer outside the queue: the
+    // engine's own steps and the mark of the web. A few milliseconds on an
+    // idle Mac; 30 to 50 on a Windows 11 computer whose virus checker reads
+    // every file made (2026-11-03, gaps row 112).
+    let alone = tempdir();
+    let options = dm_core::Options {
+        connections: 1,
+        ..common::options(alone.path())
+    };
+    let began = std::time::Instant::now();
+    for n in 0..FILES {
+        let url = format!("http://{addr}/alone{n}.bin");
+        let done = dm_core::download(&client(), &url, &options).await.unwrap();
+        dm_core::motw::mark(&done.path, &url, "");
+    }
+    let each = began.elapsed() / FILES as u32;
     let q = queue(dir.path(), 1);
     for n in 0..FILES {
         q.add(&format!("http://{addr}/tiny{n}.bin")).await.unwrap();
@@ -2827,19 +2843,22 @@ async fn a_finished_download_hands_its_place_to_the_next_at_once() {
         .iter()
         .all(|e| e.state == DownloadState::Completed));
     println!(
-        "{FILES} tiny files, one place: {:.2}s ({:.0} files/s)",
+        "{FILES} tiny files, one place: {:.2}s ({:.0} files/s); alone {each:?} a file",
         took.as_secs_f64(),
         FILES as f64 / took.as_secs_f64()
     );
     /* Waiting for the tick after each file puts a floor under this: one
-     * place, a tick every 50 ms, so no less than about 50 ms a file at any
-     * load, 3 s here. Handed on at once it is the files alone (0.2 s on an
-     * idle machine, several seconds with every core busy, where this is
-     * not a test to read anything into); the bound is just under the floor,
-     * so the tick always fails it. */
+     * place, a tick every 50 ms, so no less than about 50 ms a file. Handed
+     * on at once it is the files' own cost and a little of the queue's. The
+     * bound is 45 ms a file, just under the floor, so the tick fails it
+     * wherever a file costs less than 25 ms; where files alone cost more
+     * (a virus checker, a loaded machine) the tick cannot be told from the
+     * files, and the bound is their cost and 20 ms, so a queue that is not
+     * at fault is not failed for it. */
+    let per_file = Duration::from_millis(45).max(each + Duration::from_millis(20));
     assert!(
-        took < Duration::from_millis(FILES as u64 * 45),
-        "{FILES} tiny files took {took:?}: places are refilled by the tick, not when they free"
+        took < per_file * FILES as u32,
+        "{FILES} tiny files took {took:?} ({each:?} a file alone): places are refilled by the          tick, not when they free"
     );
 }
 

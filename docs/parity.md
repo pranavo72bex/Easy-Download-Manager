@@ -237,7 +237,7 @@ the host and the extension.
 | FTP through a SOCKS5, SOCKS4 or HTTP (CONNECT) proxy, control and data connections both | PASS | `tests/ftp.rs` `an_ftp_download_goes_through_a_socks5_proxy_and_not_around_it` (a loopback SOCKS5 proxy with a login sees every connection; a wrong proxy password is its refusal), `an_ftp_download_goes_through_an_http_proxy_by_connect`, `a_bypassed_site_is_fetched_directly_and_an_https_proxy_is_refused` |
 | A proxy a route cannot go through is a refusal, never a direct connection | PASS | FTP under an HTTPS proxy (`tests/ftp.rs`); a torrent under anything but SOCKS5 (`torrent.rs` `only_a_socks5_proxy_can_carry_a_swarm`); a dead proxy fails the download (`app-check.py`) |
 | A proxy turned on with no host, an address for a host, or no port: Options refuses it, saying why; one saved that way is turned off for every route at launch and said in the window, never gone around | PASS | `options_refuses_a_proxy_with_no_host`; `proxy.rs` `a_proxy_turned_on_with_no_host_or_port_is_refused_not_gone_around`; `dm-shell/tests/proxy_start.rs` |
-| PAC scripts | N/A | a proxy auto-config file is JavaScript, which dm does not run; the computer's settings or a proxy of its own cover the cases dm has met |
+| PAC scripts | PARTIAL | the script's engine side is built and unit-tested (`dm-core/src/pac.rs`: the answer, the usual helpers, `FindProxyForURL` run in QuickJS, failing closed), but no request uses it yet and there is no setting for the script's address (gaps row 80); until then the computer's settings or a proxy of dm's own |
 
 ## K. Media
 
