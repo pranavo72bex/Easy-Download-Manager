@@ -3723,3 +3723,17 @@ and 71: logged-out pages refuse an automated browser). Not built: the `AdaptiveP
 itag table (YouTube's heights come from the player response, not from itags), the extra headers in
 `Start`, and the `RefreshStream` request; `Entry::fresh_link` / `adopt_fresh_link` already cover the
 expired-address resume (row 57).
+
+## The worker checks its WebAssembly against a digest built with its code (2026-11-03)
+
+A browser keeps an unpacked extension's worker scripts (`background.js` and wasm-bindgen's glue)
+from when the extension was loaded, but reads `pkg/dm_catcher_bg.wasm` from the folder each time the
+worker starts. A rebuild of `extension/pkg` in place therefore paired old glue with new WebAssembly,
+which failed on its first call ("wasm.__wasm_bindgen_func_elem_1846 is not a function", gaps row
+114). `package.sh` writes the WebAssembly's SHA-256 into `pkg/build.js`, which the worker imports
+beside the glue, so the two are cached together; the worker fetches the bytes itself, compares, and
+on a mismatch reloads the extension, which loads glue that matches. At most once in two minutes
+(`dmReloadedAt` in `storage.local`, which a reload keeps): a folder caught halfway through a
+rebuild cannot set off a loop. Tried and dropped: naming the file by its digest, which would do the
+same with a 404 but changes a name seven scripts look for. The page's panel needs none of this: its
+glue and WebAssembly are one file (`pkg/panel.js`).

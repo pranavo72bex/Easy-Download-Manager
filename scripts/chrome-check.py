@@ -1207,10 +1207,18 @@ def main():
         check("dm fetched it with the page as referrer",
               bool(dm_asked) and all(r["referer"] == page for r in dm_asked),
               f"{len(dm_asked)} request(s) from dm, referer {sorted({r['referer'] for r in dm_asked})}")
-        time.sleep(1.5)
-        left = worker.evaluate("chrome.downloads.search({}).then(l => l.filter(d => d.url.endsWith('caught.bin')).map(d => d.state))")
+        # Waited for, not a fixed pause: the copy is cancelled when the app's
+        # answer reaches the extension, and on Windows the native host's first
+        # start (a debug build the virus checker reads) took more than the
+        # 1.5 s this once allowed, now and then, with dm's file already whole.
+        caught_at = time.monotonic()
+        browser_copy = lambda: worker.evaluate(
+            "chrome.downloads.search({}).then(l => l.filter(d => d.url.endsWith('caught.bin')).map(d => d.state))")
+        wait_for(lambda: browser_copy() == [] and not (browser_dl / "caught.bin").exists(), 10)
+        left = browser_copy()
         check("the browser's copy is cancelled and erased", left == [] and not (browser_dl / "caught.bin").exists(),
-              f"browser list {left}, browser folder {sorted(p.name for p in browser_dl.iterdir())}")
+              f"browser list {left}, browser folder {sorted(p.name for p in browser_dl.iterdir())}, "
+              f"after {time.monotonic() - caught_at:.1f} s")
         check("the app answered", "present" in (worker.evaluate("dmReady.then(m => m.app_status())") or ""),
               worker.evaluate("dmReady.then(m => m.app_status())"))
 
@@ -1380,9 +1388,12 @@ def main():
         def queued_main():
             return [r for r in queue_rows(engine_home) if r.get("queue") == "Main queue"]
         before = len(queued_main())
-        # The page just opened is the active tab; without the tabs permission
-        # dm cannot look tabs up by address, and does not need to.
-        tab_id = worker.evaluate("chrome.tabs.query({active: true, lastFocusedWindow: true}).then(t => t[0].id)")
+        # The tab this page is in, found by its address (the extension's host
+        # permission for every page lets it match tabs by address). "The
+        # active tab of the last focused window" was another tab now and then
+        # on Windows, an edge:// page the links reader may not enter.
+        tab_id = worker.evaluate(
+            f"chrome.tabs.query({{url: '{origin}/page.html*'}}).then(t => t[t.length - 1].id)")
         worker.evaluate(
             f"dmReady.then(m => m.on_menu_clicked({{menuItemId: 'dm-all-links', pageUrl: '{origin}/page.html',"
             f" frameId: 0}}, {{id: {tab_id}}}))")

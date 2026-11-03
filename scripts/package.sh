@@ -77,6 +77,20 @@ pathlib.Path(sys.argv[2]).write_text(
     + "__dmPanelCode.catch(() => {});\n})();\n")
 PY
 rm -rf "$panel"
+# The digest of the WebAssembly, in a module the background imports beside the
+# glue. A browser keeps an unpacked extension's worker scripts (background.js,
+# the glue, this) from when the extension was loaded, but fetches the .wasm from
+# the folder each time the worker starts: after a rebuild in place it paired old
+# glue with new WebAssembly and failed with "wasm.__wasm_bindgen_func_elem_… is
+# not a function" (gaps row 114). The background compares the bytes it fetched
+# with this digest and reloads the extension when they differ.
+python3 - "$pkg/dm_catcher_bg.wasm" "$pkg/build.js" <<'PY'
+import hashlib, pathlib, sys
+digest = hashlib.sha256(pathlib.Path(sys.argv[1]).read_bytes()).hexdigest()
+pathlib.Path(sys.argv[2]).write_text(
+    "// Built by scripts/package.sh: the SHA-256 of dm_catcher_bg.wasm from the same build.\n"
+    + f"export const WASM_SHA256 = '{digest}';\n")
+PY
 echo "  extension/pkg: $(du -k "$pkg/dm_catcher_bg.wasm" | cut -f1) KB of WebAssembly"
 
 [ "${1:-}" = "--build" ] && exit 0
@@ -111,13 +125,13 @@ pack() {
   # Every file a manifest names must be in what ships, and so must the
   # module the loader imports and the WebAssembly that module fetches.
   for named in $(sed -n 's/.*"\(icons\/[^"]*\)".*/\1/p; s/.*"\(background\.js\)".*/\1/p; s/.*"\(content\.js\)".*/\1/p; s/.*"\(document\.js\)".*/\1/p; s/.*"\(popup\.html\)".*/\1/p' "$stage/manifest.json") \
-               popup.js pkg/dm_catcher.js pkg/dm_catcher_bg.wasm pkg/panel.js; do
+               popup.js pkg/dm_catcher.js pkg/dm_catcher_bg.wasm pkg/panel.js pkg/build.js; do
     if [ ! -f "$stage/$named" ]; then
       echo "the $browser build is missing $named" >&2
       exit 1
     fi
   done
-  if find "$stage" -name '*.js' | grep -v -e '/background.js$' -e '/content.js$' -e '/document.js$' -e '/popup.js$' -e '/pkg/dm_catcher.js$' -e '/pkg/panel.js$' >/dev/null; then
+  if find "$stage" -name '*.js' | grep -v -e '/background.js$' -e '/content.js$' -e '/document.js$' -e '/popup.js$' -e '/pkg/dm_catcher.js$' -e '/pkg/panel.js$' -e '/pkg/build.js$' >/dev/null; then
     echo "the $browser build carries JavaScript that is neither the loader nor wasm-bindgen's" >&2
     exit 1
   fi

@@ -3,9 +3,42 @@
 // register its listeners on its first turn, before the WebAssembly has
 // loaded, so it registers them here and forwards each event once it has.
 import init, * as dm from './pkg/dm_catcher.js';
+import { WASM_SHA256 } from './pkg/build.js';
 
 const ext = globalThis.browser ?? globalThis.chrome;
-const ready = init().then(() => dm);
+// Said to the page when this worker's code and the WebAssembly on disk are
+// not from the same build, or the WebAssembly fails inside its glue.
+const UPDATED = 'dm was updated: reload this page to use it';
+
+// The WebAssembly is fetched here and checked against the digest built with
+// the glue. The browser keeps this worker's scripts from when the extension
+// was loaded but reads the .wasm from the folder each time the worker starts,
+// so a rebuild in place (an unpacked copy) paired old glue with new
+// WebAssembly and failed on its first call (gaps row 114). Then the extension
+// is reloaded, which loads the matching glue: at most once in two minutes, so
+// a folder caught halfway through a rebuild cannot set off a loop.
+const load = async () => {
+  const url = new URL('./pkg/dm_catcher_bg.wasm', import.meta.url);
+  const bytes = await (await fetch(url)).arrayBuffer();
+  const digest = [...new Uint8Array(await crypto.subtle.digest('SHA-256', bytes))]
+    .map((b) => b.toString(16).padStart(2, '0')).join('');
+  if (digest !== WASM_SHA256) {
+    const { dmReloadedAt = 0 } = await ext.storage.local.get('dmReloadedAt');
+    if (Date.now() - dmReloadedAt > 120000) {
+      await ext.storage.local.set({ dmReloadedAt: Date.now() });
+      ext.runtime.reload();
+    }
+    throw new Error(UPDATED);
+  }
+  await init({ module_or_path: bytes });
+  return dm;
+};
+const ready = load();
+// An error from inside the WebAssembly's glue is not one to show a person.
+const plain = (e) => {
+  const text = String(e);
+  return text.includes(UPDATED) || /wasm|__wbg|wasm_bindgen/i.test(text) ? UPDATED : text;
+};
 // For a test harness attached to the worker; nothing in the extension uses it.
 globalThis.dmReady = ready;
 
@@ -50,6 +83,6 @@ ext.runtime.onMessage.addListener((message, sender, reply) => {
   }
   ready
     .then((m) => m.on_page_message(message, sender))
-    .then(reply, (e) => reply({ ok: false, said: String(e) }));
+    .then(reply, (e) => reply({ ok: false, said: plain(e) }));
   return true;
 });
