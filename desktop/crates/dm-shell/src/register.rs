@@ -490,6 +490,101 @@ pub fn unregister_magnet_windows(mut reg: impl FnMut(&[String]) -> Result<(), St
     magnet_is_ours(&mut reg) && reg(&reg_args(&["delete", MAGNET_KEY, "/f"])).is_ok()
 }
 
+/// The key that says which program a `.torrent` file opens with.
+const TORRENT_EXTENSION_KEY: &str = r"HKCU\Software\Classes\.torrent";
+/// dm's own kind of file the extension names (a ProgId).
+const TORRENT_PROGID: &str = "dm.torrent";
+const TORRENT_PROGID_KEY: &str = r"HKCU\Software\Classes\dm.torrent";
+
+/// `reg.exe` argument lists, in order, that make a `.torrent` file open with dm: dm's ProgId
+/// (its name, a marker value `dm`, and the command `"<program>" "%1"`), then the extension
+/// pointing at it with its content type.
+pub fn torrent_keys(exe: &Path) -> Vec<Vec<String>> {
+    let command = format!("\"{}\" \"%1\"", exe.display());
+    let open = format!(r"{TORRENT_PROGID_KEY}\shell\open\command");
+    vec![
+        reg_args(&[
+            "add",
+            TORRENT_PROGID_KEY,
+            "/ve",
+            "/t",
+            "REG_SZ",
+            "/d",
+            "BitTorrent file",
+            "/f",
+        ]),
+        reg_args(&[
+            "add",
+            TORRENT_PROGID_KEY,
+            "/v",
+            "dm",
+            "/t",
+            "REG_SZ",
+            "/d",
+            "1",
+            "/f",
+        ]),
+        reg_args(&["add", &open, "/ve", "/t", "REG_SZ", "/d", &command, "/f"]),
+        reg_args(&[
+            "add",
+            TORRENT_EXTENSION_KEY,
+            "/ve",
+            "/t",
+            "REG_SZ",
+            "/d",
+            TORRENT_PROGID,
+            "/f",
+        ]),
+        reg_args(&[
+            "add",
+            TORRENT_EXTENSION_KEY,
+            "/v",
+            "Content Type",
+            "/t",
+            "REG_SZ",
+            "/d",
+            "application/x-bittorrent",
+            "/f",
+        ]),
+    ]
+}
+
+/// Whether dm's `.torrent` ProgId is there with the marker `torrent_keys` writes.
+fn torrent_is_ours(reg: &mut impl FnMut(&[String]) -> Result<(), String>) -> bool {
+    reg(&reg_args(&["query", TORRENT_PROGID_KEY, "/v", "dm"])).is_ok()
+}
+
+/// Makes a `.torrent` file opened from Explorer (or a browser's "Open") start in dm. As for
+/// magnet links, the extension is never taken from another program: when `.torrent` is already
+/// set and dm's marked ProgId is not there, nothing is written (`Ok(false)`). dm's own is
+/// rewritten, so a program that moved is followed.
+pub fn register_torrent_windows(
+    exe: &Path,
+    mut reg: impl FnMut(&[String]) -> Result<(), String>,
+) -> Result<bool, String> {
+    if !exe.is_absolute() {
+        return Err(format!(
+            "{} is not a program Windows could start",
+            exe.display()
+        ));
+    }
+    let present = reg(&reg_args(&["query", TORRENT_EXTENSION_KEY])).is_ok();
+    if present && !torrent_is_ours(&mut reg) {
+        return Ok(false);
+    }
+    for args in torrent_keys(exe) {
+        reg(&args)?;
+    }
+    Ok(true)
+}
+
+/// Removes dm's `.torrent` registration, only if it is dm's. True when it was removed.
+pub fn unregister_torrent_windows(mut reg: impl FnMut(&[String]) -> Result<(), String>) -> bool {
+    torrent_is_ours(&mut reg)
+        && reg(&reg_args(&["delete", TORRENT_EXTENSION_KEY, "/f"])).is_ok()
+        && reg(&reg_args(&["delete", TORRENT_PROGID_KEY, "/f"])).is_ok()
+}
+
 /// Registers on Windows: both manifests written under `data`, then a key
 /// for every browser. `reg` runs `reg.exe` with the arguments given; a test
 /// passes one that records them. Returns what was written, files then keys.
@@ -713,6 +808,7 @@ pub fn register(
         // Best effort, and never over another program's own: a failure here
         // does not undo the browsers' registration.
         let _ = register_magnet_windows(exe, run_reg);
+        let _ = register_torrent_windows(exe, run_reg);
         return Ok(written);
     }
     if !exe.is_absolute() || !exe.is_file() {
@@ -765,6 +861,7 @@ pub fn register(
 pub fn unregister(home: &Path) -> Vec<PathBuf> {
     if cfg!(target_os = "windows") {
         let _ = unregister_magnet_windows(run_reg);
+        let _ = unregister_torrent_windows(run_reg);
         return unregister_windows(&windows_data(home), run_reg);
     }
     places(home)
@@ -878,7 +975,29 @@ pub fn ensure_this_copy() -> Result<Option<Vec<PathBuf>>, String> {
         );
     }
     let home = dirs::home_dir().unwrap_or_default();
-    ensure(&home, &exe, &Programs::here(&home))
+    let browsers = ensure(&home, &exe, &Programs::here(&home));
+    // Windows' magnet and .torrent handlers, whatever the browsers' manifests needed: `ensure`
+    // registers only when a manifest is stale, and a dm installed over an older one at the
+    // same path finds its manifests current, so the handlers that version never wrote were
+    // never written (a torrent site's button then did nothing, 2026-11-03). Two queries a
+    // start; written only where dm's marker is missing, and never over another program's.
+    // Here, not in `ensure`, so tests of `ensure` never touch the real keys.
+    if cfg!(target_os = "windows") {
+        refresh_windows_handlers(&exe, run_reg);
+    }
+    browsers
+}
+
+/// Writes dm's magnet and `.torrent` registrations where dm's marker is not yet there (a new
+/// install, or an update from a version that wrote none). A registration that is dm's is left
+/// as it is: `ensure` rewrites everything when the program has moved.
+pub fn refresh_windows_handlers(exe: &Path, mut reg: impl FnMut(&[String]) -> Result<(), String>) {
+    if !magnet_is_ours(&mut reg) {
+        let _ = register_magnet_windows(exe, &mut reg);
+    }
+    if !torrent_is_ours(&mut reg) {
+        let _ = register_torrent_windows(exe, &mut reg);
+    }
 }
 
 /// The extension ids a manifest allows, as ids: a Chromium manifest names

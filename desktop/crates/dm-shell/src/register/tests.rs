@@ -639,3 +639,141 @@ fn only_the_two_flags_are_taken_as_registering() {
         Some(2)
     );
 }
+
+/// `.torrent` files on Windows (spec T2): dm's ProgId with a marker and the command, then the
+/// extension pointing at it; never over another program's, and removed only when it is dm's.
+#[test]
+fn on_windows_a_torrent_file_opens_with_dm_unless_another_program_has_it() {
+    let elsewhere = tempfile::tempdir().unwrap();
+    let exe = program(elsewhere.path());
+    let command = format!("\"{}\" \"%1\"", exe.display());
+
+    let keys = torrent_keys(&exe);
+    assert_eq!(keys.len(), 5);
+    assert!(keys
+        .iter()
+        .all(|a| a[0] == "add" && a.last().map(String::as_str) == Some("/f")));
+    assert_eq!(keys[1][1], r"HKCU\Software\Classes\dm.torrent");
+    assert_eq!(keys[1][3], "dm", "a marker says the ProgId is dm's own");
+    assert_eq!(
+        keys[2][1],
+        r"HKCU\Software\Classes\dm.torrent\shell\open\command"
+    );
+    assert_eq!(keys[2][6], command, "the program and the file, both quoted");
+    assert_eq!(keys[3][1], r"HKCU\Software\Classes\.torrent");
+    assert_eq!(keys[3][6], "dm.torrent");
+    assert_eq!(keys[4][3], "Content Type");
+    assert_eq!(keys[4][7], "application/x-bittorrent");
+
+    let adds = |ran: &[Vec<String>]| ran.iter().filter(|a| a[0] == "add").count();
+
+    // No `.torrent` key at all: dm's five are written.
+    let mut ran: Vec<Vec<String>> = Vec::new();
+    let wrote = register_torrent_windows(&exe, |args| {
+        ran.push(args.to_vec());
+        if args[0] == "query" {
+            Err("not found".into())
+        } else {
+            Ok(())
+        }
+    });
+    assert_eq!(wrote, Ok(true));
+    assert_eq!(adds(&ran), 5);
+
+    // Another program's: `.torrent` is there, dm's marker is not. Nothing written.
+    let mut ran: Vec<Vec<String>> = Vec::new();
+    let wrote = register_torrent_windows(&exe, |args| {
+        ran.push(args.to_vec());
+        if args[0] == "query" && args[1].ends_with(r"\dm.torrent") {
+            Err("not found".into())
+        } else {
+            Ok(())
+        }
+    });
+    assert_eq!(wrote, Ok(false));
+    assert_eq!(adds(&ran), 0, "another program's extension is left alone");
+
+    // dm's own: rewritten, so a program that moved is followed.
+    let mut ran: Vec<Vec<String>> = Vec::new();
+    assert_eq!(
+        register_torrent_windows(&exe, |args| {
+            ran.push(args.to_vec());
+            Ok(())
+        }),
+        Ok(true)
+    );
+    assert_eq!(adds(&ran), 5);
+
+    // A program named without its folder is not one Windows could start.
+    assert!(register_torrent_windows(Path::new("dm.exe"), |_| Ok(())).is_err());
+}
+
+#[test]
+fn on_windows_only_a_torrent_registration_that_is_dms_is_removed() {
+    let mut ran: Vec<Vec<String>> = Vec::new();
+    assert!(unregister_torrent_windows(|args| {
+        ran.push(args.to_vec());
+        Ok(())
+    }));
+    let deleted: Vec<&str> = ran
+        .iter()
+        .filter(|a| a[0] == "delete")
+        .map(|a| a[1].as_str())
+        .collect();
+    assert_eq!(
+        deleted,
+        [
+            r"HKCU\Software\Classes\.torrent",
+            r"HKCU\Software\Classes\dm.torrent"
+        ]
+    );
+
+    let mut ran: Vec<Vec<String>> = Vec::new();
+    assert!(!unregister_torrent_windows(|args| {
+        ran.push(args.to_vec());
+        if args[0] == "query" {
+            Err("no such value".into())
+        } else {
+            Ok(())
+        }
+    }));
+    assert!(
+        ran.iter().all(|a| a[0] != "delete"),
+        "another program's registration is not deleted"
+    );
+}
+
+/// An update installed over a version that wrote no handlers: the browsers' manifests are
+/// current, yet the magnet and `.torrent` registrations are written; once they are dm's, a
+/// start only asks.
+#[test]
+fn a_start_writes_the_windows_handlers_an_older_version_never_wrote() {
+    let elsewhere = tempfile::tempdir().unwrap();
+    let exe = program(elsewhere.path());
+    // Nothing registered yet: every query fails, so both are written.
+    let mut ran: Vec<Vec<String>> = Vec::new();
+    refresh_windows_handlers(&exe, |args| {
+        ran.push(args.to_vec());
+        if args[0] == "query" {
+            Err("not found".into())
+        } else {
+            Ok(())
+        }
+    });
+    let added: Vec<&str> = ran
+        .iter()
+        .filter(|a| a[0] == "add")
+        .map(|a| a[1].as_str())
+        .collect();
+    assert!(added.contains(&r"HKCU\Software\Classes\magnet"));
+    assert!(added.contains(&r"HKCU\Software\Classes\.torrent"));
+    assert_eq!(added.len(), 4 + 5);
+
+    // Both are dm's already: nothing written.
+    let mut ran: Vec<Vec<String>> = Vec::new();
+    refresh_windows_handlers(&exe, |args| {
+        ran.push(args.to_vec());
+        Ok(())
+    });
+    assert!(ran.iter().all(|a| a[0] == "query"), "{ran:?}");
+}
