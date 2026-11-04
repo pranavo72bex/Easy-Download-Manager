@@ -833,7 +833,8 @@ fn a_file_with_clear_passwords_is_moved_into_the_store_on_its_first_read() {
     let (moved, note) = read.take_passwords_from(&store, "ns");
     assert!(moved && note.is_none());
     assert_eq!(
-        read.site_logins[0].password, site_password(),
+        read.site_logins[0].password,
+        site_password(),
         "in memory as before"
     );
     // What is written next carries none, and a later read finds them in the store.

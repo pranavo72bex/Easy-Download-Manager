@@ -384,7 +384,13 @@ pub fn page_lines_for_player(text: &str, id: &str) -> Vec<PageLine> {
     for region in regions(text) {
         for hit in hits(region, &[id.to_string()]) {
             // The innermost objects around the id: their own fields are the video's files.
-            for (_, start) in hit.open.iter().rev().filter(|(array, _)| !*array).take(WIDEN) {
+            for (_, start) in hit
+                .open
+                .iter()
+                .rev()
+                .filter(|(array, _)| !*array)
+                .take(WIDEN)
+            {
                 let Some(Value::Object(map)) = value_at(region, *start) else {
                     continue;
                 };

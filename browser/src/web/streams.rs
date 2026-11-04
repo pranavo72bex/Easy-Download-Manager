@@ -106,7 +106,8 @@ pub(super) async fn sent_to(url: &str) -> Vec<(String, String)> {
 pub(super) async fn renewed(url: &str) -> String {
     // Read back from the session's storage first, as `sent_to` does.
     let _ = sent_to(url).await;
-    SENT.with(|s| s.borrow().renewed(url)).unwrap_or_else(|| url.to_string())
+    SENT.with(|s| s.borrow().renewed(url))
+        .unwrap_or_else(|| url.to_string())
 }
 
 /// A playlist or manifest the tab just loaded that is named by nothing but

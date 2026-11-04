@@ -2049,24 +2049,60 @@ fn a_players_byte_range_pieces_of_a_picture_and_a_sound_become_one_line_on_any_s
         };
         stream_seen(&seen)
     };
-    let low = piece("https://cdn.example/v/a.mp4?id=7&bytestart=0&byteend=999", "video/mp4", "bytes 0-999/3000000").unwrap();
+    let low = piece(
+        "https://cdn.example/v/a.mp4?id=7&bytestart=0&byteend=999",
+        "video/mp4",
+        "bytes 0-999/3000000",
+    )
+    .unwrap();
     assert_eq!(low.url, "https://cdn.example/v/a.mp4?id=7");
     assert_eq!(low.kind, StreamKind::Picture);
     assert_eq!(low.size, Some(3_000_000));
-    let high = piece("https://cdn.example/v/b.mp4?id=8&range=0-999", "video/mp4", "bytes 0-999/9000000").unwrap();
-    let sound = piece("https://cdn.example/v/c.m4a?id=9&bytestart=5&byteend=9", "audio/mp4", "bytes 5-9/700000").unwrap();
+    let high = piece(
+        "https://cdn.example/v/b.mp4?id=8&range=0-999",
+        "video/mp4",
+        "bytes 0-999/9000000",
+    )
+    .unwrap();
+    let sound = piece(
+        "https://cdn.example/v/c.m4a?id=9&bytestart=5&byteend=9",
+        "audio/mp4",
+        "bytes 5-9/700000",
+    )
+    .unwrap();
     assert_eq!(sound.kind, StreamKind::Sound);
     let mut streams = Streams::default();
     streams.restore(1, vec![low, high, sound]);
     let lines = streams.of(1);
     assert_eq!(lines.len(), 1, "{lines:?}");
-    assert_eq!(lines[0].url, "https://cdn.example/v/b.mp4?id=8", "the largest picture");
-    assert_eq!(lines[0].sound.as_deref(), Some("https://cdn.example/v/c.m4a?id=9"));
+    assert_eq!(
+        lines[0].url, "https://cdn.example/v/b.mp4?id=8",
+        "the largest picture"
+    );
+    assert_eq!(
+        lines[0].sound.as_deref(),
+        Some("https://cdn.example/v/c.m4a?id=9")
+    );
     assert_eq!(lines[0].size, Some(9_700_000));
     // Not a piece of a file: a segment of a stream, a type that is neither, or no range at all.
-    assert!(piece("https://cdn.example/s/1.m4s?bytestart=0", "video/mp4", "bytes 0-9/10").is_none());
-    assert!(piece("https://cdn.example/s/x?bytestart=0", "application/octet-stream", "bytes 0-9/10").is_none());
-    assert!(piece("https://cdn.example/v/a.mp4?id=7", "video/mp4", "bytes 0-9/10").is_none());
+    assert!(piece(
+        "https://cdn.example/s/1.m4s?bytestart=0",
+        "video/mp4",
+        "bytes 0-9/10"
+    )
+    .is_none());
+    assert!(piece(
+        "https://cdn.example/s/x?bytestart=0",
+        "application/octet-stream",
+        "bytes 0-9/10"
+    )
+    .is_none());
+    assert!(piece(
+        "https://cdn.example/v/a.mp4?id=7",
+        "video/mp4",
+        "bytes 0-9/10"
+    )
+    .is_none());
 }
 
 #[test]
@@ -2075,9 +2111,21 @@ fn the_media_types_reference_a_knows_are_read_the_same_way() {
         stream_seen(&seen(url, "xmlhttprequest", &[("Content-Type", mime)])).map(|s| s.kind)
     };
     // Manifests and playlists by their type alone: the address says nothing.
-    assert_eq!(kind("https://e.com/playlist?id=3", "application/octet-stream-m3u8"), Some(StreamKind::Hls));
-    assert_eq!(kind("https://e.com/playlist?id=3", "audio/x-mpegurl"), Some(StreamKind::Hls));
-    assert_eq!(kind("https://e.com/manifest?id=3", "video/vnd.mpeg.dash.mpd"), Some(StreamKind::Dash));
+    assert_eq!(
+        kind(
+            "https://e.com/playlist?id=3",
+            "application/octet-stream-m3u8"
+        ),
+        Some(StreamKind::Hls)
+    );
+    assert_eq!(
+        kind("https://e.com/playlist?id=3", "audio/x-mpegurl"),
+        Some(StreamKind::Hls)
+    );
+    assert_eq!(
+        kind("https://e.com/manifest?id=3", "video/vnd.mpeg.dash.mpd"),
+        Some(StreamKind::Dash)
+    );
     // Transport-stream pieces, picture or sound, are not files.
     assert_eq!(kind("https://e.com/s?n=1", "audio/mp2t"), None);
     assert_eq!(kind("https://e.com/s?n=1", "video/mp2t"), None);
@@ -2087,8 +2135,12 @@ fn the_media_types_reference_a_knows_are_read_the_same_way() {
     assert_eq!(kind("https://e.com/m.f4m", "video/f4m"), None);
     // Older containers a player may still load whole are files.
     let big = |url: &str, mime: &str| {
-        stream_seen(&seen(url, "media", &[("Content-Type", mime), ("Content-Length", "9000000")]))
-            .map(|s| s.kind)
+        stream_seen(&seen(
+            url,
+            "media",
+            &[("Content-Type", mime), ("Content-Length", "9000000")],
+        ))
+        .map(|s| s.kind)
     };
     for (url, mime) in [
         ("https://e.com/a.flv", "video/x-flv"),
@@ -2109,7 +2161,11 @@ fn an_advert_loaded_by_the_player_never_reaches_the_list() {
     assert!(advert(
         "https://cdn.example/preroll.mp4",
         "media",
-        &[("Content-Type", "video/mp4"), ("Content-Length", "9000000"), ("Server", "DCLK-AdSvr")]
+        &[
+            ("Content-Type", "video/mp4"),
+            ("Content-Length", "9000000"),
+            ("Server", "DCLK-AdSvr")
+        ]
     ));
     // The IMA SDK's and DoubleClick's hosts.
     assert!(advert(
@@ -2121,6 +2177,9 @@ fn an_advert_loaded_by_the_player_never_reaches_the_list() {
     assert!(advert(
         "https://cdn.example/ad.wmv",
         "media",
-        &[("Content-Type", "video/x-ms-wmv"), ("Content-Length", "90000")]
+        &[
+            ("Content-Type", "video/x-ms-wmv"),
+            ("Content-Length", "90000")
+        ]
     ));
 }

@@ -156,12 +156,11 @@ impl RequestHeaders {
             n.sort();
             n
         };
-        let itag = |p: &[(String, String)]| p.iter().find(|(n, _)| n == "itag").map(|(_, v)| v.clone());
+        let itag =
+            |p: &[(String, String)]| p.iter().find(|(n, _)| n == "itag").map(|(_, v)| v.clone());
         let newest = self.kept.iter().rev().map(|(u, _)| u.as_str()).find(|u| {
             let (other_path, other) = split(u);
-            other_path == path
-                && names(&other) == names(&pairs)
-                && itag(&other) == itag(&pairs)
+            other_path == path && names(&other) == names(&pairs) && itag(&other) == itag(&pairs)
         })?;
         (newest != key(url)).then(|| newest.to_string())
     }
@@ -230,7 +229,11 @@ mod tests {
             vec![("X-A".to_string(), "2".to_string())]
         );
         for i in 0..(MOST_ADDRESSES + 50) {
-            kept.keep(&sent(&format!("https://a.example/{i}"), "media", &[("X-A", "1")]));
+            kept.keep(&sent(
+                &format!("https://a.example/{i}"),
+                "media",
+                &[("X-A", "1")],
+            ));
         }
         assert!(kept.kept.len() <= MOST_ADDRESSES);
         assert!(kept.of("https://a.example/f").is_empty());
@@ -239,17 +242,39 @@ mod tests {
     #[test]
     fn a_stream_asked_for_again_with_a_new_signature_is_renewed() {
         let mut kept = RequestHeaders::default();
-        kept.keep(&sent("https://c.example/v.mp4?itag=22&sig=old", "media", &[("X-A", "1")]));
-        kept.keep(&sent("https://c.example/v.mp4?itag=18&sig=other", "media", &[("X-A", "1")]));
-        kept.keep(&sent("https://c.example/v.mp4?itag=22&sig=new", "media", &[("X-A", "1")]));
+        kept.keep(&sent(
+            "https://c.example/v.mp4?itag=22&sig=old",
+            "media",
+            &[("X-A", "1")],
+        ));
+        kept.keep(&sent(
+            "https://c.example/v.mp4?itag=18&sig=other",
+            "media",
+            &[("X-A", "1")],
+        ));
+        kept.keep(&sent(
+            "https://c.example/v.mp4?itag=22&sig=new",
+            "media",
+            &[("X-A", "1")],
+        ));
         assert_eq!(
-            kept.renewed("https://c.example/v.mp4?itag=22&sig=old").as_deref(),
+            kept.renewed("https://c.example/v.mp4?itag=22&sig=old")
+                .as_deref(),
             Some("https://c.example/v.mp4?itag=22&sig=new")
         );
-        assert_eq!(kept.renewed("https://c.example/v.mp4?itag=22&sig=new"), None);
+        assert_eq!(
+            kept.renewed("https://c.example/v.mp4?itag=22&sig=new"),
+            None
+        );
         // A piece is not the file, and another path is another stream.
-        assert_eq!(kept.renewed("https://c.example/v.mp4?itag=22&sig=old&range=0-9"), None);
-        assert_eq!(kept.renewed("https://c.example/w.mp4?itag=22&sig=old"), None);
+        assert_eq!(
+            kept.renewed("https://c.example/v.mp4?itag=22&sig=old&range=0-9"),
+            None
+        );
+        assert_eq!(
+            kept.renewed("https://c.example/w.mp4?itag=22&sig=old"),
+            None
+        );
     }
 
     #[test]

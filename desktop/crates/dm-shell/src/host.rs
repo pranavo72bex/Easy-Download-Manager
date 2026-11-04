@@ -818,10 +818,12 @@ pub fn answer(
                 // links work once (Options › Browser): the asking spent the
                 // link before dm's own download could use it.
                 caught && !saved(home).catch.works_once(&url, &referrer),
-                &url,
-                &referrer,
-                &cookies,
-                &headers,
+                Asking {
+                    url: &url,
+                    referrer: &referrer,
+                    cookies: &cookies,
+                    headers: &headers,
+                },
                 &mime,
                 deadline,
             ) {
@@ -942,6 +944,14 @@ pub(crate) fn unwritable(folder: &Path) -> Option<String> {
     })
 }
 
+/// The request a hand-off would make: its address and what the browser sent with it.
+struct Asking<'a> {
+    url: &'a str,
+    referrer: &'a str,
+    cookies: &'a str,
+    headers: &'a [(String, String)],
+}
+
 /// Why a hand-off must not be taken, or `None` when it can be filed.
 ///
 /// Too late first: past the extension's deadline it has given the download
@@ -954,13 +964,16 @@ pub(crate) fn unwritable(folder: &Path) -> Option<String> {
 fn checked(
     world: &mut dyn World,
     caught: bool,
-    url: &str,
-    referrer: &str,
-    cookies: &str,
-    headers: &[(String, String)],
+    asking: Asking<'_>,
     mime: &str,
     deadline: Option<u64>,
 ) -> Option<String> {
+    let Asking {
+        url,
+        referrer,
+        cookies,
+        headers,
+    } = asking;
     let late = "the browser stopped waiting for dm, so it keeps the download";
     let Some(within) = dm_protocol::time_left(world.now_ms(), deadline) else {
         return Some(late.into());

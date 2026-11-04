@@ -214,7 +214,10 @@ pub fn clean_title(title: &str, page_url: &str) -> String {
         if let Some((count, rest)) = text[1..].split_once(')') {
             // A few digits (an unread count), not a year.
             if (1..=3).contains(&count.trim_end_matches('+').len())
-                && count.trim_end_matches('+').chars().all(|c| c.is_ascii_digit())
+                && count
+                    .trim_end_matches('+')
+                    .chars()
+                    .all(|c| c.is_ascii_digit())
             {
                 text = rest.trim_start();
             }

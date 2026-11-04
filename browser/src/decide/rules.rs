@@ -67,7 +67,13 @@ pub fn private_fetches_for(page_url: &str) -> Vec<String> {
     let Some(site) = super::site_of(page_url) else {
         return Vec::new();
     };
-    with_served(|rules| rules.private_fetches_for(&site).into_iter().cloned().collect())
+    with_served(|rules| {
+        rules
+            .private_fetches_for(&site)
+            .into_iter()
+            .cloned()
+            .collect()
+    })
 }
 
 /// The JSON keys of the answer rule for a page at `page_url` that watches `request_url`: the keys

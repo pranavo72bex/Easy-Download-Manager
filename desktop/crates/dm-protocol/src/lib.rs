@@ -110,6 +110,11 @@ pub mod kind {
 }
 
 /// What the extension asks.
+// `Start` outgrew the rest once it carried the page's request headers (gaps
+// row 116). A request is one message, read and dropped, never kept in bulk,
+// so its size costs nothing; boxing it would change every place, in the
+// app and the extension, that builds or reads one.
+#[allow(clippy::large_enum_variant)]
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
 #[serde(tag = "type")]
 pub enum Request {
