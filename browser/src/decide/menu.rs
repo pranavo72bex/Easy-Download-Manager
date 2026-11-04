@@ -132,7 +132,7 @@ pub fn menu_target(click: &MenuClick, private: bool) -> Result<Target, String> {
     let target = match item {
         MENU_LINK => Target {
             url: text(&click.link_url),
-            referrer: page.clone(),
+            referrer: page,
             page: false,
         },
         MENU_MEDIA => {
@@ -140,7 +140,7 @@ pub fn menu_target(click: &MenuClick, private: bool) -> Result<Target, String> {
             if handable(&src) {
                 Target {
                     url: src,
-                    referrer: page.clone(),
+                    referrer: page,
                     page: false,
                 }
             } else {
@@ -148,11 +148,7 @@ pub fn menu_target(click: &MenuClick, private: bool) -> Result<Target, String> {
                 // video from pieces; the file does not exist anywhere to be
                 // fetched. The page does, and the app reads it.
                 Target {
-                    url: if frame.is_empty() {
-                        page.clone()
-                    } else {
-                        frame
-                    },
+                    url: if frame.is_empty() { page } else { frame },
                     referrer: String::new(),
                     page: true,
                 }

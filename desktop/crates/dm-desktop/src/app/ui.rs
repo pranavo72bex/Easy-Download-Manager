@@ -334,7 +334,7 @@ impl DmApp {
                 .map(|(_, step)| (step, i.modifiers.shift))
             });
             if let Some((step, shift)) = pressed {
-                let ids: Vec<Id> = self.visible().iter().map(|r| r.id).collect();
+                let ids: Vec<Id> = self.visible_shared().iter().map(|r| r.id).collect();
                 let (selected, anchor, cursor) = crate::table::stepped(
                     &ids,
                     &self.selected,

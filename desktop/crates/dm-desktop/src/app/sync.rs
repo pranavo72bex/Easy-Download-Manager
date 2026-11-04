@@ -648,12 +648,15 @@ impl DmApp {
         // The command run when a download finishes is a person's to set, as
         // a settings file imported never sets it.
         if self.by_script() && wanted.on_complete != self.applied.on_complete {
-            wanted.on_complete = self.applied.on_complete.clone();
+            wanted.on_complete.clone_from(&self.applied.on_complete);
             self.said = "The command to run when a download finishes was not changed: a script was driving the window a moment ago; set it again".to_string().into();
         }
         if self.by_script() && wanted.schedule.run_when_done != self.applied.schedule.run_when_done
         {
-            wanted.schedule.run_when_done = self.applied.schedule.run_when_done.clone();
+            wanted
+                .schedule
+                .run_when_done
+                .clone_from(&self.applied.schedule.run_when_done);
             self.said = "The program to run when the scheduled downloads are done was not changed: a script was driving the window a moment ago; set it again".to_string().into();
         }
         let watch_changed = wanted.watch_clipboard != self.applied.watch_clipboard;
@@ -919,7 +922,7 @@ impl DmApp {
 
     /// Adds downloads, as "Start now" and "Add for later" do.
     pub fn add(&mut self, urls: &[String], with: dm_core::AddOptions) -> Result<usize, String> {
-        self.add_sized(urls, with, &HashMap::new())
+        self.add_sized(urls, &with, &HashMap::new())
     }
 
     /// The same, with the sizes a dialog already learned for some of the
@@ -927,7 +930,7 @@ impl DmApp {
     pub fn add_sized(
         &mut self,
         urls: &[String],
-        with: dm_core::AddOptions,
+        with: &dm_core::AddOptions,
         sizes: &HashMap<String, u64>,
     ) -> Result<usize, String> {
         let mut added = 0;

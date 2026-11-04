@@ -577,8 +577,8 @@ pub(super) fn tool(
     };
     let size = match style {
         ToolStyle::Icons => egui::vec2(34.0, 30.0),
-        ToolStyle::Text => egui::vec2(fits(12.0) + 18.0, 28.0),
-        ToolStyle::Both => egui::vec2((fits(11.0) + 12.0).max(72.0), 52.0),
+        ToolStyle::Text => egui::vec2(fits(crate::theme::BODY) + 18.0, 28.0),
+        ToolStyle::Both => egui::vec2((fits(crate::theme::CAPTION) + 12.0).max(72.0), 52.0),
     };
     let (rect, response) = ui.allocate_exact_size(
         size,
@@ -615,7 +615,7 @@ pub(super) fn tool(
             rect.center(),
             egui::Align2::CENTER_CENTER,
             label,
-            egui::FontId::proportional(12.0),
+            egui::FontId::proportional(crate::theme::BODY),
             color,
         );
         return response;
@@ -647,7 +647,7 @@ pub(super) fn tool(
         egui::Align2::CENTER_CENTER,
         label,
         // Nothing under 12 points, the smallest step of the type ramp.
-        egui::FontId::proportional(12.0),
+        egui::FontId::proportional(crate::theme::BODY),
         color,
     );
     response

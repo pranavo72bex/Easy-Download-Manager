@@ -99,14 +99,12 @@ pub fn target(url: &str) -> Result<Target, String> {
     if app.is_empty() || play.is_empty() {
         return Err("the address names no application and stream".into());
     }
-    let tc_url = format!(
-        "{scheme}://{}:{port}/{app}",
-        if host.contains(':') {
-            format!("[{host}]")
-        } else {
-            host.clone()
-        }
-    );
+    // An IPv6 address in brackets; any other host borrowed as it is.
+    let tc_url = if host.contains(':') {
+        format!("{scheme}://[{host}]:{port}/{app}")
+    } else {
+        format!("{scheme}://{host}:{port}/{app}")
+    };
     Ok(Target {
         host,
         port,

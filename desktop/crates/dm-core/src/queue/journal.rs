@@ -87,7 +87,7 @@ pub(super) fn write(
 ) -> std::io::Result<Saved> {
     match previous {
         Some(previous) => match changes(&previous, &rows) {
-            Some((changed, gone)) => append(queue_file, rows, previous, changed, gone),
+            Some((changed, gone)) => append(queue_file, rows, previous, &changed, gone),
             None => whole(queue_file, rows),
         },
         None => whole(queue_file, rows),
@@ -173,7 +173,7 @@ fn append(
     queue_file: &Path,
     rows: Vec<Arc<Entry>>,
     previous: Saved,
-    changed: Vec<Arc<Entry>>,
+    changed: &[Arc<Entry>],
     gone: Vec<Id>,
 ) -> std::io::Result<Saved> {
     let mut secrets = previous.secrets.clone();

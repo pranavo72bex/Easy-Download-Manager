@@ -252,7 +252,7 @@ pub(super) fn tab_general(ui: &mut egui::Ui, d: &mut OptionsDialog, env: &TabEnv
             let path = if platform.can_choose_file() {
                 platform.choose_file(false, "dm-settings.json")
             } else {
-                Some(fallback.clone())
+                Some(fallback)
             };
             if let Some(path) = path {
                 d.says = match std::fs::read_to_string(&path)

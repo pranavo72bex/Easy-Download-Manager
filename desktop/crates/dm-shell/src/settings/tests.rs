@@ -915,3 +915,28 @@ fn a_sound_file_chosen_for_an_event_is_kept_and_an_old_file_has_none() {
     let old: Settings = serde_json::from_str("{}").unwrap_or_default();
     assert!(old.sounds.is_empty(), "no entry keeps the system's sound");
 }
+
+/// The browser's host reads settings as the window does: one odd field
+/// costs that field, not every choice, and the file is left as it was
+/// (the host has no window to say it moved it).
+#[test]
+fn read_only_keeps_the_rest_of_a_file_with_one_odd_field_and_leaves_it_alone() {
+    let dir = tempfile::tempdir().unwrap();
+    let path = dir.path().join("settings.json");
+    let text = format!(
+        r#"{{"connections": "eight", "ask_caught_downloads": false, "popups_version": {POPUPS_VERSION}}}"#
+    );
+    std::fs::write(&path, &text).unwrap();
+    let read = Settings::read_only(&path);
+    assert!(!read.ask_caught_downloads, "the person's choice was lost");
+    assert_eq!(read.connections, Settings::default().connections);
+    assert_eq!(
+        std::fs::read_to_string(&path).unwrap(),
+        text,
+        "the file was touched"
+    );
+    assert!(!path.with_extension("json.unreadable").exists());
+    // No file at all: the defaults.
+    let none = Settings::read_only(&dir.path().join("absent.json"));
+    assert_eq!(none.connections, Settings::default().connections);
+}

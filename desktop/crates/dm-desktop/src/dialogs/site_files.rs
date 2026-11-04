@@ -133,10 +133,9 @@ pub(super) fn site_files(app: &mut DmApp, ctx: &egui::Context) {
         let state = Arc::clone(&d.state);
         *dm_core::lock(&state) = Grab::Looking;
         let ctx = ctx.clone();
-        // Those already in the list offered unticked, as the links dialog
-        // offers them: all were ticked, and Add for later queued them again
-        // without asking.
-        let listed = listed.clone();
+        // Those already in the list (`listed`, moved into the task below)
+        // offered unticked, as the links dialog offers them: all were ticked,
+        // and Add for later queued them again without asking.
         let queue = app.backend.queue.clone();
         app.backend.runtime.spawn(async move {
             let options = queue.options().await;
@@ -181,7 +180,7 @@ pub(super) fn site_files(app: &mut DmApp, ctx: &egui::Context) {
                 .iter()
                 .find(|s| s.name == search.name)
             {
-                search.seen = before.seen.clone();
+                search.seen.clone_from(&before.seen);
                 search.last_run = before.last_run;
             }
             settings.site_searches.retain(|s| s.name != search.name);

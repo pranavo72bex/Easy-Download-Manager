@@ -160,7 +160,7 @@ pub(super) fn confirm_remove(app: &mut DmApp, ctx: &egui::Context) {
         // The selection goes to the row after those removed, or the one
         // before where they were the last: it was lost, and the keys had
         // nowhere to go on from.
-        let shown: Vec<Id> = app.visible().iter().map(|r| r.id).collect();
+        let shown: Vec<Id> = app.visible_shared().iter().map(|r| r.id).collect();
         let next = shown
             .iter()
             .rposition(|id| ids.contains(id))

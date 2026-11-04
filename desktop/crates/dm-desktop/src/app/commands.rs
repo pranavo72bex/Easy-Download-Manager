@@ -128,7 +128,9 @@ impl DmApp {
         }
         let targets = self.targets();
         match command {
-            Command::AddUrl => self.dialogs.open_add_url(self.backend.platform.clipboard()),
+            Command::AddUrl => self
+                .dialogs
+                .open_add_url(self.backend.platform.clipboard().as_deref()),
             Command::AddSeries => self.dialogs.open_series(),
             Command::AddFromClipboard => {
                 let text = self.backend.platform.clipboard().unwrap_or_default();
@@ -330,7 +332,7 @@ impl DmApp {
                 })
             }
             Command::SelectAll => {
-                self.selected = self.visible().iter().map(|r| r.id).collect();
+                self.selected = self.visible_shared().iter().map(|r| r.id).collect();
             }
 
             Command::ResumeAll => {

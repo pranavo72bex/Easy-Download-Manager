@@ -114,6 +114,39 @@ python3 scripts/firefox-check.py native    # a real Firefox, when one is install
 `cargo` lives in `~/.cargo/bin`, which a fresh shell may not have on `PATH`.
 There is no Node, npm or JavaScript test suite; do not add one.
 
+### On Windows (learnt the hard way, 2026-11-04)
+
+- Build outside `C:`: `CARGO_TARGET_DIR=D:/dm-target` for `desktop/`, and a
+  directory of its own (`D:/dm-target-browser`) for `browser/`, so the two do
+  not wait on each other's lock.
+- `python3` can be the Microsoft Store's placeholder, which only prints how to
+  install Python: `scripts/package.sh` finds a Python that runs; elsewhere call
+  `python`.
+- `cargo test --workspace` stops at the first test program that fails, so the
+  crates after it never run: add `--no-fail-fast` to see every failure. The
+  window tests fail one at a time now and then in a full run and pass alone
+  (gaps row 115); re-run the one by name before suspecting a change.
+- The order a change is checked in, cheapest first: `cargo fmt --check`, both
+  clippies, the crates' tests, `scripts/chrome-check.py`, then
+  `scripts/human-qa.py` whole.
+- A browser check's first hand-over can be slow: Windows' virus scanner reads
+  each fresh copy of `dm-desktop.exe` the first time it runs. chrome-check
+  asks the host for a hello before its first click, and a failed check prints
+  what the extension said since the check before.
+- `%RANDOM%` in a `.bat` is the same in every `cmd.exe` started in the same
+  second: a name built from it is not unique between two hosts. chrome-check's
+  host shim makes a folder for each start's stderr, which only one can win,
+  inside a parent made beforehand (two `mkdir`s also making the parent at once
+  can both succeed).
+- A dm started from a Git Bash subshell with `&` ends with the subshell; start
+  one to look at with PowerShell's `Start-Process`.
+- Reference A's Edge extension is a Manifest V2 one, which Edge disables in a
+  new or test profile: its panel can be watched only in a profile where it was
+  already on (the maintainer's own Edge). The side-by-side harness lives
+  outside the repository, since it names reference A.
+- Windows Firewall asks about dm (or a test program) when a torrent listens
+  for peers; Cancel is enough for a test, which only downloads.
+
 ## Rules for a change
 
 0. What a person does and sees is fixed by `docs/behaviour-contract.md`:

@@ -413,15 +413,17 @@ impl Settings {
             && read.proxy.host == self.proxy.host
             && read.proxy.port == self.proxy.port
         {
-            read.proxy.password = self.proxy.password.clone();
+            read.proxy.password.clone_from(&self.proxy.password);
         }
-        read.recent_urls = self.recent_urls.clone();
+        read.recent_urls.clone_from(&self.recent_urls);
         read.last_folders = self.last_folders.clone();
         // Never a program to run from someone else's file: the command run
         // after every download stays this computer's own, so a settings file
         // passed around cannot make dm start something.
-        read.on_complete = self.on_complete.clone();
-        read.schedule.run_when_done = self.schedule.run_when_done.clone();
+        read.on_complete.clone_from(&self.on_complete);
+        read.schedule
+            .run_when_done
+            .clone_from(&self.schedule.run_when_done);
         Ok(read.clamped())
     }
 }
@@ -868,38 +870,61 @@ impl Settings {
         (settings, notice)
     }
 
+    /// A settings file's text as dm reads it: whole, or, where one entry is
+    /// odd, field by field (that entry costs only itself), with the names of
+    /// what was left out. The error is the whole read's, where even the
+    /// field-by-field one fails. One reader for the window and the browser's
+    /// host: the host read strictly, so one odd field put every default in
+    /// force there while the window kept the rest.
+    fn parse(text: &str) -> Result<(Self, Vec<String>), serde_json::Error> {
+        lenient::take();
+        let parsed = match serde_json::from_str::<Settings>(text) {
+            Ok(settings) => Ok((settings, Vec::new())),
+            Err(e) => lenient::settings(text).ok_or(e),
+        };
+        parsed.map(|(read, mut dropped)| {
+            // What the lenient readers inside left out: a proxy type, a field
+            // of a schedule, an entry of a list or a field of one.
+            dropped.extend(lenient::take());
+            dropped.dedup();
+            (read, dropped)
+        })
+    }
+
+    /// The settings at `path` as [`Settings::load`] reads them, every value
+    /// brought into range, but read only: nothing is moved aside or copied,
+    /// and the store of secrets is not asked. For a process with no window
+    /// to say what it did: the browser's host.
+    pub fn read_only(path: &std::path::Path) -> Self {
+        std::fs::read_to_string(path)
+            .ok()
+            .and_then(|text| Self::parse(&text).ok())
+            .map(|(read, _)| read.readable().0)
+            .unwrap_or_else(|| Settings::default().clamped())
+    }
+
     fn load_file(path: &std::path::Path) -> (Self, Option<String>) {
         let Ok(text) = std::fs::read_to_string(path) else {
             return (Settings::default().clamped(), None);
         };
-        lenient::take();
-        let (read, mut dropped) = match serde_json::from_str::<Settings>(&text) {
-            Ok(settings) => (settings, Vec::new()),
-            // One odd entry costs that entry: the rest is read, field by
-            // field, and what was left out is named below.
-            Err(e) => match lenient::settings(&text) {
-                Some(read) => read,
-                None => {
-                    let aside = path.with_extension("json.unreadable");
-                    let notice = match std::fs::rename(path, &aside) {
-                        Ok(()) => format!(
-                            "the saved settings could not be read ({e}); they were kept as {} \
+        let (read, dropped) = match Self::parse(&text) {
+            Ok(parsed) => parsed,
+            Err(e) => {
+                let aside = path.with_extension("json.unreadable");
+                let notice = match std::fs::rename(path, &aside) {
+                    Ok(()) => format!(
+                        "the saved settings could not be read ({e}); they were kept as {} \
                              and the defaults are in use",
-                            aside.display()
-                        ),
-                        Err(io) => format!(
-                            "the saved settings could not be read ({e}) or moved aside ({io}); \
+                        aside.display()
+                    ),
+                    Err(io) => format!(
+                        "the saved settings could not be read ({e}) or moved aside ({io}); \
                              the defaults are in use and the next change will replace them"
-                        ),
-                    };
-                    return (Settings::default().clamped(), Some(notice));
-                }
-            },
+                    ),
+                };
+                return (Settings::default().clamped(), Some(notice));
+            }
         };
-        // What the lenient readers inside left out: a proxy type, a field
-        // of a schedule, an entry of a list or a field of one.
-        dropped.extend(lenient::take());
-        dropped.dedup();
         let (settings, mut notes) = read.readable();
         if !dropped.is_empty() {
             notes.insert(

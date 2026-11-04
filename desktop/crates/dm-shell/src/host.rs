@@ -344,14 +344,10 @@ pub fn catch_rules(home: &Path) -> CatchRules {
 }
 
 pub(crate) fn saved(home: &Path) -> crate::Settings {
-    // Read as the app reads it (`clamped`), so the two never disagree: a
-    // file from an older edition of the pop-up defaults asked nothing here
-    // while the window, reading the same file, asked first.
-    std::fs::read_to_string(home.join("settings.json"))
-        .ok()
-        .and_then(|text| serde_json::from_str::<crate::Settings>(&text).ok())
-        .map(crate::Settings::clamped)
-        .unwrap_or_default()
+    // Read as the window reads it, so the two never disagree (an older
+    // edition of the pop-up defaults, one odd field), and read only: this
+    // process has no window to say it moved a file aside.
+    crate::Settings::read_only(&home.join("settings.json"))
 }
 
 /// What answering needs from outside this process. A trait so a test can
@@ -949,6 +945,7 @@ pub(crate) fn unwritable(folder: &Path) -> Option<String> {
 }
 
 /// The request a hand-off would make: its address and what the browser sent with it.
+#[derive(Clone, Copy)]
 struct Asking<'a> {
     url: &'a str,
     referrer: &'a str,

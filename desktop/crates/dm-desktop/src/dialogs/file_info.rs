@@ -147,7 +147,7 @@ pub(super) fn file_info(app: &mut DmApp, ctx: &egui::Context) {
     let remux = app.applied.remux_ts;
     if let Some(name) = &server_name {
         if !d.name_typed && d.name.is_empty() {
-            d.name = name.clone();
+            d.name.clone_from(name);
         }
     }
     // A YouTube video's qualities, each with its size, read once as the
@@ -181,7 +181,7 @@ pub(super) fn file_info(app: &mut DmApp, ctx: &egui::Context) {
         let slot: std::sync::Arc<std::sync::Mutex<Option<Vec<dm_core::videopage::Choice>>>> =
             Default::default();
         d.choices = Some(slot.clone());
-        let url = first.clone();
+        let url = first;
         let referrer = Some(d.referrer.clone()).filter(|r| !r.is_empty());
         let proxy = app.backend.settings().proxy.url_for_tools();
         let sign_in = dm_core::cookies::SignIn::with_headers(&url, &d.cookies, &d.headers);
@@ -345,7 +345,7 @@ pub(super) fn file_info(app: &mut DmApp, ctx: &egui::Context) {
                             }
                             for (label, path) in &places {
                                 if option(ui, d.folder.trim() == path, label).clicked() {
-                                    d.folder = path.clone();
+                                    d.folder.clone_from(path);
                                 }
                             }
                         })
@@ -653,7 +653,7 @@ pub(super) fn file_info(app: &mut DmApp, ctx: &egui::Context) {
                 combo("details-queue")
                     .selected_text(crate::i18n::name(&d.queue))
                     .show_ui(ui, |ui| {
-                        for q in &queues {
+                        for q in queues.iter() {
                             pick(ui, &mut d.queue, q.clone(), crate::i18n::name(q));
                         }
                     })
@@ -740,7 +740,7 @@ pub(super) fn file_info(app: &mut DmApp, ctx: &egui::Context) {
         let kind = kind_key(d.name.trim());
         let folder = Some(d.folder.trim().to_string()).filter(|f| !f.is_empty());
         if app.applied.last_folders.get(kind) != folder.as_ref() {
-            match app.backend.remember_folder(kind, folder) {
+            match app.backend.remember_folder(kind, folder.as_deref()) {
                 Ok(now) => app.applied.last_folders = now.last_folders,
                 Err(e) => app.said = e.into(),
             }
@@ -764,7 +764,7 @@ pub(super) fn file_info(app: &mut DmApp, ctx: &egui::Context) {
         .into_iter()
         .collect();
     let handed = d.handed;
-    match app.add_sized(&urls, with, &sizes) {
+    match app.add_sized(&urls, &with, &sizes) {
         Ok(_) => {
             app.dialogs.file_info = None;
             if handed {

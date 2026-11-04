@@ -25,7 +25,7 @@ impl DmApp {
         if text == self.clipboard.last {
             return;
         }
-        self.clipboard.last = text.clone();
+        self.clipboard.last.clone_from(&text);
         let fresh = |url: &String| {
             !self.clipboard.dismissed.contains(url) && !self.rows.iter().any(|r| &r.url == url)
         };

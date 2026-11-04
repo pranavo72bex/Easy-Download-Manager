@@ -167,8 +167,8 @@ pub(super) fn links(app: &mut DmApp, ctx: &egui::Context) {
         };
         app.dialogs.links = None;
         let added = match (
-            app.add_sized(&signed, signed_with, &sizes),
-            app.add_sized(&plain, with, &sizes),
+            app.add_sized(&signed, &signed_with, &sizes),
+            app.add_sized(&plain, &with, &sizes),
         ) {
             (Ok(a), Ok(b)) => Ok(a + b),
             (Err(e), _) | (_, Err(e)) => Err(e),

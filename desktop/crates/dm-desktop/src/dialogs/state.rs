@@ -15,13 +15,12 @@ impl Dialogs {
     }
 
     /// Add URL, offering a link already on the clipboard.
-    pub fn open_add_url(&mut self, clipboard: Option<String>) {
+    pub fn open_add_url(&mut self, clipboard: Option<&str>) {
         self.focus_on("Add URL");
         if self.keep("Add URL", self.add_url.is_some()) {
             return;
         }
         let address = clipboard
-            .as_deref()
             .and_then(crate::app::looks_downloadable)
             .unwrap_or_default();
         self.add_url = Some(AddUrl {

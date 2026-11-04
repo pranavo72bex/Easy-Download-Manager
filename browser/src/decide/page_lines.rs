@@ -183,7 +183,7 @@ fn describe(value: &Value, any_url: bool, depth: u8, found: &mut Found) {
             Value::String(text) => {
                 if takes(text, any_url) {
                     if found.url.is_empty() {
-                        found.url = text.clone();
+                        found.url.clone_from(text);
                     }
                 } else if (key.contains("quality") || key.contains("label"))
                     && found.quality.is_none()
@@ -209,7 +209,7 @@ fn describe(value: &Value, any_url: bool, depth: u8, found: &mut Found) {
                     match item {
                         Value::String(text) => {
                             if takes(text, any_url) && found.url.is_empty() {
-                                found.url = text.clone();
+                                found.url.clone_from(text);
                             }
                         }
                         other => describe(other, any_url, depth + 1, found),

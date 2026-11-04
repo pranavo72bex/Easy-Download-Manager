@@ -375,7 +375,7 @@ impl Backend {
         // Only this field changes on disk: the file is read, the list put
         // in, and written back, so nothing else saved there is overwritten.
         let (mut on_disk, _) = Settings::load();
-        on_disk.recent_urls = recent.clone();
+        on_disk.recent_urls.clone_from(&recent);
         on_disk
             .clamped()
             .save()
@@ -391,11 +391,11 @@ impl Backend {
     /// The folder Download details last saved a kind of file to, kept and
     /// saved alone as Add URL's addresses are; `None` forgets it, for the
     /// kind's own folder.
-    pub fn remember_folder(&self, kind: &str, folder: Option<String>) -> Result<Settings, String> {
+    pub fn remember_folder(&self, kind: &str, folder: Option<&str>) -> Result<Settings, String> {
         let (mut on_disk, _) = Settings::load();
         let set = |s: &mut Settings| match &folder {
             Some(f) => {
-                s.last_folders.insert(kind.to_string(), f.clone());
+                s.last_folders.insert(kind.to_string(), (*f).to_string());
             }
             None => {
                 s.last_folders.remove(kind);

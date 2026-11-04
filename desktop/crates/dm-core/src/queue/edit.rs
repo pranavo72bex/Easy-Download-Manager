@@ -98,7 +98,7 @@ impl Queue {
                 slot.entry_mut().referrer = with.referrer.trim().to_string();
             }
             if !with.cookies.is_empty() {
-                slot.entry_mut().cookies = with.cookies.clone();
+                slot.entry_mut().cookies.clone_from(&with.cookies);
             }
             if !with.headers.is_empty() {
                 slot.entry_mut().headers = crate::cookies::forwardable(&with.headers);

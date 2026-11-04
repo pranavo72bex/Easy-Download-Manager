@@ -3830,3 +3830,30 @@ Now (`theme::BODY` 12, `CAPTION` 11, `HEADING` 16, `CONTROL` 22, `NAV_ITEM` 22, 
 window 820 by 500; the tree from 170; toolbar buttons with their name under the picture at most 64
 wide, a longer name shortened with "…" and whole on hover; columns in reference A's widths, so its
 eight fit. The larger text sizes in Options › View still scale all of it.
+
+## Maintenance pass: one settings reader, lib.rs by concern, borrowing over copying (2026-11-05)
+
+Asked: code easy to maintain, without changing what dm does; then a performance review on three
+rules (borrow in parameters, no copy before the end, references out where only read).
+
+* **One settings reader.** `Settings::read_only` (the window's lenient reading and its upgrades, no
+  file moved, no secret asked) is what the browser's host reads; it read strictly, so one odd field
+  put every default in force there while the window kept the rest.
+* **`dm-core/src/lib.rs` by concern** (1214 lines to 397): `error.rs`, `files.rs`, `http_client.rs`,
+  `agents.rs`, `processes.rs`, each re-exported whole, so every path (`dm_core::Error`,
+  `crate::lock`, `dm_core::agent_for`) is where it was.
+* **CI off Node 20**: checkout v5.0.0, upload-artifact v6.0.0, download-artifact v7.0.0, the first
+  of each on Node 24 (later majors not taken: more change than the runtime).
+* **Borrowing over copying**, found with clippy's `needless_pass_by_value`, `ptr_arg`,
+  `redundant_clone`, `assigning_clones`, `needless_collect`, `unnecessary_to_owned` on top of the
+  usual set: parameters only read now borrow (`add_sized`'s options, `remember_folder`'s folder,
+  `open_add_url`'s clipboard, the MCP relay's params, a font's bytes, a page's player id, the
+  journal's changed rows); fifteen `x = y.clone()` reuse `x`'s buffer (`clone_from`); clones of
+  values not used again are gone; `queues()` hands out its cached list (`Rc<[String]>`) where it
+  copied every name several times a frame, and the window's read-only users of the visible rows
+  share the table's list (`visible_shared`) rather than copying it.
+* **Left as they are, on purpose:** `mp3.rs` collects its threads' handles before joining them (not
+  collected, the threads ran one after another); `Arc::clone` spelled `.clone()` (no cost, a
+  matter of style); a `web_sys` event or `JsValue` taken by value (that is how wasm-bindgen hands
+  them over, and a clone is a handle); `tree_action`'s place (used after it is stored); `Spec`
+  (copying it is free; deriving `Copy` only quiets the lint).

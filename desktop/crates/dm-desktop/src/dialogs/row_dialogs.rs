@@ -96,7 +96,7 @@ pub(super) fn move_to_queue(app: &mut DmApp, ctx: &egui::Context) {
     window(ctx, "Move to queue")
         .open(&mut open)
         .show(ctx, |ui| {
-            for q in &known {
+            for q in known.iter() {
                 let shown = crate::i18n::name(q);
                 let picked = new.trim().is_empty() && *queue == shown;
                 if radio_flag(ui, picked, shown.clone()).clicked() {

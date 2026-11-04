@@ -371,7 +371,7 @@ pub(super) fn clicked() {
             .ok()
             .and_then(|v| v.dyn_into().ok())
             .unwrap_or_default();
-        let choices = with_page_lines(choices, player_id().await);
+        let choices = with_page_lines(choices, &player_id().await);
         with_panel(|p| {
             p.settled = false;
             say(p, "");
@@ -387,7 +387,7 @@ pub(super) fn clicked() {
 /// The video files the page lists in its own data, added to the lines the background
 /// gave: for the video whose file the player has been seen to fetch, the page's SD and
 /// HD files and its DASH stream, as a site that names them all shows them.
-fn with_page_lines(choices: Array, player: String) -> Array {
+fn with_page_lines(choices: Array, player: &str) -> Array {
     let seen: Vec<String> = choices
         .iter()
         .flat_map(|c| [text_of(&c, "url"), text_of(&c, "sound")])
@@ -415,7 +415,7 @@ fn with_page_lines(choices: Array, player: String) -> Array {
     }
     // The video a site's finder named for this player comes first; the lines found by the file
     // the player was seen to fetch follow.
-    let mut lines = decide::page_lines_for_player(&text, &player);
+    let mut lines = decide::page_lines_for_player(&text, player);
     lines.extend(decide::page_lines(&text, &seen));
     for line in lines {
         if choices.iter().any(|c| text_of(&c, "url") == line.url) {

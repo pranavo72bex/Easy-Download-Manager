@@ -1187,10 +1187,20 @@ def main():
         # held a shared host-stderr.txt open, cmd.exe could not open it for the
         # next ("being used by another process") and never started dm, so that
         # hand-over found no app and the browser kept the file, now and then.
+        # The name is a folder made for it: cmd.exe seeds %RANDOM% with the
+        # second it started, so two hosts started in the same second drew the
+        # same number, and making a folder is the step that only one wins. The
+        # parent is made here: two cmd.exe making it and their own at once could
+        # both be told theirs was made, and one then found the other's file held.
+        said_dir = engine_home / "host-stderr"
+        said_dir.mkdir(exist_ok=True)
         shim.write_text(
             "@echo off\r\n"
             f"set DM_HOME={engine_home}\r\n"
-            f'"{host}" %* 2>>"{engine_home / "host-stderr-%RANDOM%%RANDOM%.txt"}"\r\n'
+            ":pick\r\n"
+            "set DM_SAID=%RANDOM%%RANDOM%\r\n"
+            f'mkdir "{said_dir}\\%DM_SAID%" 2>nul || goto pick\r\n'
+            f'"{host}" %* 2>>"{said_dir}\\%DM_SAID%\\said.txt"\r\n'
         )
     else:
         shim = engine_home / "host.sh"
@@ -1779,7 +1789,8 @@ def main():
         else:
             subprocess.run(["pkill", "-f", str(host)], check=False)
         server.shutdown()
-        said = "".join(f.read_text(errors="replace") for f in sorted(engine_home.glob("host-stderr*.txt")))
+        said = "".join(f.read_text(errors="replace") for f in sorted(
+            [*engine_home.glob("host-stderr*.txt"), *engine_home.glob("host-stderr/*/said.txt")]))
         if said.strip():
             print(f"\nhost stderr:\n{said[:2000]}")
 

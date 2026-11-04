@@ -455,7 +455,7 @@ pub fn sanitize(name: &str) -> String {
     // hundred bytes, which ext4 and NTFS refuse after the whole download.
     if out.chars().count() > 200 || out.len() > MAX_NAME_BYTES {
         let mut tail = if !extension.is_empty() && extension.chars().count() <= 21 {
-            extension.clone()
+            extension
         } else {
             String::new()
         };

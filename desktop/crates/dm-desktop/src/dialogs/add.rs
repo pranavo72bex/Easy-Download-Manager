@@ -376,7 +376,7 @@ pub(super) fn add_url(app: &mut DmApp, ctx: &egui::Context) {
                     .show_ui(ui, |ui| {
                         for url in &recent {
                             if ui.selectable_label(false, format::shown_url(url)).clicked() {
-                                d.address = url.clone();
+                                d.address.clone_from(url);
                             }
                         }
                     })

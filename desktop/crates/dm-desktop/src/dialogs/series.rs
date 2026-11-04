@@ -47,7 +47,7 @@ pub(super) fn series(app: &mut DmApp, ctx: &egui::Context) {
             let mut listed = Vec::new();
             match dm_shell::lists::series(&d.template, &d.from, &d.to, d.width) {
                 Ok(urls) => {
-                    listed = urls.clone();
+                    listed.clone_from(&urls);
                     if let Some(first) = urls.first() {
                         count = crate::i18n::tn(
                             "{} address: {}||{} addresses, the first {}",

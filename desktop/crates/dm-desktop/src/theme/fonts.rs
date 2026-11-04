@@ -157,7 +157,7 @@ pub(super) fn windows_segoe() -> Option<(egui::FontData, egui::FontData)> {
     }
     let dir = std::path::PathBuf::from(std::env::var_os("WINDIR")?).join("Fonts");
     if let Some(blob) = font_file(&dir.join("SegUIVar.ttf")) {
-        return Some(variable_faces(blob));
+        return Some(variable_faces(&blob));
     }
     let face =
         |name: &str| font_file(&dir.join(name)).map(|blob| egui::FontData::from_blob(blob, 0));
@@ -180,7 +180,7 @@ pub(super) fn windows_numbers() -> Option<egui::FontData> {
 /// One variable font as the regular and semibold faces: its weight axis
 /// at 400 and 600, and its optical size at that of text (Segoe UI
 /// Variable's "Text", 10.5), which an axis the font lacks ignores.
-pub(super) fn variable_faces(blob: egui::epaint::text::Blob) -> (egui::FontData, egui::FontData) {
+pub(super) fn variable_faces(blob: &egui::epaint::text::Blob) -> (egui::FontData, egui::FontData) {
     let weighted = |weight: f32| {
         let mut face = egui::FontData::from_blob(blob.clone(), 0);
         face.tweak.coords =

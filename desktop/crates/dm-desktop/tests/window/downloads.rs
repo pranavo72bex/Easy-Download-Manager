@@ -1202,10 +1202,7 @@ fn add_url_selects_its_link_and_refuses_two_run_together() {
     let mut harness = world.harness();
     let first = world.url("file.zip");
     let second = world.url("other.pdf");
-    harness
-        .state_mut()
-        .dialogs
-        .open_add_url(Some(first.clone()));
+    harness.state_mut().dialogs.open_add_url(Some(&first));
     harness.run_steps(4);
     harness.event(egui::Event::Text(second.clone()));
     harness.run_steps(2);

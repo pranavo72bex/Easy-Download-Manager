@@ -162,7 +162,7 @@ impl DmApp {
                 self.refresh();
             }
             if ui.button(t("Hide")).clicked() {
-                self.failed_hidden = failed.clone();
+                self.failed_hidden.clone_from(&failed);
             }
         });
         ui.separator();

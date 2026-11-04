@@ -82,7 +82,7 @@ fn which(program: &str) -> Option<PathBuf> {
         let var = |name: &str| std::env::var_os(name).map(PathBuf::from);
         windows_homes(&Homes {
             local: var("LOCALAPPDATA"),
-            home: home.clone(),
+            home,
             program_data: var("ProgramData"),
         })
     } else {

@@ -440,10 +440,10 @@ impl Secret {
     /// Puts this row's secrets back where they were.
     fn given_back(&self, entry: &mut Entry) {
         if !self.cookies.is_empty() {
-            entry.cookies = self.cookies.clone();
+            entry.cookies.clone_from(&self.cookies);
         }
         if !self.headers.is_empty() {
-            entry.headers = self.headers.clone();
+            entry.headers.clone_from(&self.headers);
         }
         if !self.username.is_empty() || self.password.is_some() {
             if let Ok(mut url) = url::Url::parse(&entry.url) {

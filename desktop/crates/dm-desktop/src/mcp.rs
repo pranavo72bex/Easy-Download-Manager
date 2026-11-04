@@ -301,7 +301,7 @@ impl Control {
             .map_err(|e| e.to_string())?;
         let replies = BufReader::new(stream.try_clone().map_err(|e| e.to_string())?);
         self.link = Some((stream, replies));
-        if let Err(why) = self.exchange("auth", json!({ "token": token, "client": self.client })) {
+        if let Err(why) = self.exchange("auth", &json!({ "token": token, "client": self.client })) {
             self.link = None;
             return Err(why);
         }
@@ -334,7 +334,7 @@ impl Control {
         if !self.alive() {
             self.reconnect()?;
         }
-        let answer = self.exchange(method, params);
+        let answer = self.exchange(method, &params);
         // A click, a typed word or a key is done a frame at a time: what
         // is drawn next is read after it has been.
         if answer.is_ok() && matches!(method, "ui.click" | "ui.type" | "ui.key") {
@@ -347,7 +347,7 @@ impl Control {
         answer
     }
 
-    fn exchange(&mut self, method: &str, params: Value) -> Result<Value, String> {
+    fn exchange(&mut self, method: &str, params: &Value) -> Result<Value, String> {
         let Some((out, replies)) = &mut self.link else {
             return Err("dm closed the connection".into());
         };

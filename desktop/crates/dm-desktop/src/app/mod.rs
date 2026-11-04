@@ -513,7 +513,7 @@ pub struct DmApp {
     counts_cache: std::cell::RefCell<(u64, HashMap<String, usize>)>,
     /// The queues the list names, for the generation they were read at
     /// ([`DmApp::queues`]).
-    queues_cache: std::cell::RefCell<Option<(u64, Vec<String>)>>,
+    queues_cache: std::cell::RefCell<Option<(u64, std::rc::Rc<[String]>)>>,
     /// What each row's kind, own category and filter text were made from, so
     /// a read of the list makes them again only for a row that changed.
     /// With the row they were made from: the same allocation again means
@@ -720,14 +720,16 @@ impl DmApp {
 
     /// The queues, as the queue lists them, worked out from the list as
     /// last read: once a read, and with no lock on the queue. The side
-    /// rail, the tree and the dialogs ask several times a frame.
-    pub fn queues(&self) -> Vec<String> {
+    /// rail, the tree and the dialogs ask several times a frame, so the
+    /// list is shared, not copied: each ask costs a count, not every name.
+    pub fn queues(&self) -> std::rc::Rc<[String]> {
         let mut cache = self.queues_cache.borrow_mut();
         match &*cache {
-            Some((generation, names)) if *generation == self.rows_gen => names.clone(),
+            Some((generation, names)) if *generation == self.rows_gen => std::rc::Rc::clone(names),
             _ => {
-                let names = dm_core::queue_names(self.rows.iter().map(|r| &**r));
-                *cache = Some((self.rows_gen, names.clone()));
+                let names: std::rc::Rc<[String]> =
+                    dm_core::queue_names(self.rows.iter().map(|r| &**r)).into();
+                *cache = Some((self.rows_gen, std::rc::Rc::clone(&names)));
                 names
             }
         }

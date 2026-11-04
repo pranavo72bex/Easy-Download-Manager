@@ -99,8 +99,8 @@ impl DmApp {
         let queues = self.queues();
         let in_queues = matches!(self.place, Place::Queue(_));
         nav_group(ui, "tree-queues", t("Queues"), in_queues, &tokens, |ui| {
-            for name in queues {
-                let label = crate::i18n::name(&name);
+            for name in queues.iter() {
+                let label = crate::i18n::name(name);
                 place(ui, self, Place::Queue(name.clone()), label);
             }
         });
@@ -131,9 +131,9 @@ impl DmApp {
         }
         places.push((Place::Unfinished, t("Unfinished").into()));
         places.push((Place::Finished, t("Finished").into()));
-        for queue in self.queues() {
-            let label = crate::i18n::name(&queue);
-            places.push((Place::Queue(queue), label));
+        for queue in self.queues().iter() {
+            let label = crate::i18n::name(queue);
+            places.push((Place::Queue(queue.clone()), label));
         }
         let shown = |place: &Place, label: &str| format!("{label} ({})", self.count(place));
         let current = places

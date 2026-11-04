@@ -158,7 +158,9 @@ impl DmApp {
             .or_insert_with(|| self.rows.iter().filter(|r| self.within(place, r)).count())
     }
 
-    /// The rows the table shows, in the order it shows them.
+    /// The rows the table shows, in the order it shows them, as a list of
+    /// the caller's own. To read them, [`Self::visible_shared`] shares the
+    /// one the table keeps rather than copying it.
     pub fn visible(&self) -> Vec<Arc<Entry>> {
         self.visible_shared().as_ref().clone()
     }

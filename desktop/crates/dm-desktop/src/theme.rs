@@ -450,7 +450,7 @@ mod variable_tests {
         let Some(blob) = font_file(std::path::Path::new("/System/Library/Fonts/SFNS.ttf")) else {
             return;
         };
-        let (regular, semibold) = variable_faces(blob);
+        let (regular, semibold) = variable_faces(&blob);
         let width = |face: egui::FontData| {
             let ctx = egui::Context::default();
             let mut fonts = egui::FontDefinitions::empty();

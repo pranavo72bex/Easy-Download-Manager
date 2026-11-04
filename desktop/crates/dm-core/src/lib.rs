@@ -19,874 +19,178 @@
 #![warn(clippy::undocumented_unsafe_blocks)]
 #![warn(clippy::string_add, clippy::needless_for_each)]
 pub mod aac;
+
 pub mod auth;
+
 mod category;
+
 mod checksum;
+
 mod clip;
+
 mod control;
+
 pub mod cookies;
+
 pub mod dash;
+
 mod decode;
+
 mod download;
+
 pub mod extract;
+
 pub mod fmp4;
+
 pub mod frames;
+
 pub mod ftp;
+
 pub mod gif;
+
 pub mod hex;
+
 mod limit;
+
 pub mod live;
+
 mod metalink;
+
 #[cfg(windows)]
 pub(crate) mod mf;
+
 pub mod mkvmux;
+
 pub mod mms;
+
 pub mod motw;
+
 pub mod mp3;
+
 pub mod mp4mux;
+
 pub mod naming;
+
 pub mod ntlm;
+
 pub mod pac;
+
 mod plan;
+
 mod probe;
+
 mod progress;
+
 mod proxy;
+
 mod queue;
+
 pub mod quota;
+
 pub mod redirects;
+
 pub mod retry;
+
 pub mod rtmp;
+
 pub mod rtsp;
+
 mod schedule;
+
 mod second_path;
+
 pub mod secretstore;
+
 pub mod shape;
+
 mod stream;
+
 pub mod subtitles;
+
 /// The tests' logins and secrets, never written in the code.
 #[cfg(test)]
 #[path = "../../../test-support/secrets.rs"]
 pub(crate) mod test_secrets;
+
 pub mod tools;
+
 pub use second_path::{
     interfaces, on_second, set_second_client, set_second_path, system_name, Interface,
 };
+
 mod torrent;
+
 pub mod tsmux;
+
 pub mod videopage;
+
 pub mod youtube;
+
+mod agents;
+mod error;
+mod files;
+mod http_client;
+mod processes;
 mod zipinfo;
 
 /// The HTTP client crate, for callers that take or build a client of the
 /// engine's kind without a dependency of their own.
 pub use reqwest;
 
+// What lib.rs held itself until 2026-11-04, by what it is about; every name is
+// where it was (`crate::lock`, `dm_core::Error`, `dm_core::agent_for`).
+pub use agents::*;
+pub use error::*;
+pub use files::*;
+pub use http_client::*;
+pub use processes::*;
+
 pub use category::{
     by_name, classify, host_of, one_folder, portable_folder, Categories, Category, Custom,
 };
+
 pub use checksum::{digest, Algorithm, Checksum};
+
 pub use clip::Span;
+
 pub use control::{Control, Wanted};
+
 pub use download::{
     download, download_reporting, download_video_stream, free_name, free_space, names_a_document,
     nth_free_name, Finished, HostLimit, Options, Room, Update,
 };
+
 pub use limit::Limiter;
+
 pub use metalink::{is_metalink, parse as parse_metalink, Metalink};
+
 pub use plan::{plan, record as record_plan, Segment, MAX_CONNECTIONS};
+
 pub use probe::{
     decode as decode_percent, filename_for, mime_essence, probe, sanitize as sanitize_name, Probe,
 };
+
 pub use progress::Progress;
+
 pub use proxy::{client_with, client_with_timeout, Kind as ProxyKind, Proxy};
+
 pub use queue::{
     accepted, queue_names, AddOptions, Connection, Entry, Id, Queue, State, LINK_EXPIRED,
     MAIN_QUEUE, RECHECK_QUEUE, UNFINISHED,
 };
+
 pub use schedule::{
     is_time, minutes as minutes_of, minutes_until_next_start, now_local, weekday_now, Schedule,
 };
+
 pub use stream::{
     kind_of, media_playlist, pick as pick_quality, variants as stream_variants, Kind as StreamKind,
     Quality, Stream, Variant,
 };
+
 pub use torrent::{download_torrent, file_url, is_torrent, local_file};
+
 pub use zipinfo::{zip_contents, zip_contents_of_file, ZipEntry};
-
-/// Why a download stopped.
-///
-/// The variants are the distinctions worth acting on, not a catalogue of
-/// everything that can go wrong: a refusal names what refused and what it
-/// said, because "it failed" sends people looking in the wrong place.
-#[derive(Debug, thiserror::Error)]
-pub enum Error {
-    /// The server answered with a status that is not a success.
-    #[error("the server answered {} for {url}{}", status_line(*.status), if .body.is_empty() { String::new() } else { format!(" — {body}") })]
-    Refused {
-        /// The HTTP status code.
-        status: u16,
-        /// The URL that was refused.
-        url: String,
-        /// The body of the error response, if any.
-        body: String,
-        /// What the server asked us to wait, where it said.
-        retry_after: Option<std::time::Duration>,
-    },
-
-    /// The body ended before the range did. Usually a dropped connection,
-    /// which is worth another attempt; a server that does it every time is
-    /// caught by the length check instead.
-    #[error("the connection ended after {got} of {expected} bytes")]
-    Incomplete {
-        /// How many bytes arrived before the connection dropped.
-        got: u64,
-        /// How many bytes were expected.
-        expected: u64,
-    },
-
-    /// The file was republished while it was being fetched. Everything staged
-    /// belongs to the version that is gone.
-    #[error("the file changed on the server, so the download has to start again")]
-    Changed,
-
-    /// A range came back longer than it was asked for, so the bytes are not
-    /// the bytes of that range. Almost always a compressed representation
-    /// ranged over its encoded length and served decoded.
-    #[error("this server does not serve ranges honestly")]
-    DishonestRanges,
-
-    /// A range was answered with the whole file, and the file had not
-    /// changed: the server stopped serving ranges for now. Wikimedia's
-    /// caches do it to several connections at once and serve one connection
-    /// its range. Not a changed file, so not reported as one.
-    #[error("the server stopped serving parts of the file")]
-    RangesIgnored,
-
-    /// Stopped on request. Not a failure — the bytes so far are staged and a
-    /// later attempt resumes from them.
-    #[error("paused")]
-    Paused,
-
-    /// The download was cancelled.
-    #[error("cancelled")]
-    Cancelled,
-
-    /// The parts add up to less than the length the server stated.
-    #[error("the server sent {got} bytes of a file it said was {expected}")]
-    ShortFile {
-        /// How many bytes the server actually sent.
-        got: u64,
-        /// How many bytes the server said the file was.
-        expected: u64,
-    },
-
-    /// The common causes in plain words, with what the system said after
-    /// them; anything else with its causes, since reqwest's own message is
-    /// "error sending request" and why is underneath it.
-    #[error("{}", network(.0))]
-    Network(#[from] reqwest::Error),
-
-    /// A connection of dm's own (FTP's) dropped, timed out, or was told to
-    /// try later. Worth another attempt, as a dropped HTTP request is.
-    #[error("network: {0}")]
-    Connection(String),
-
-    /// The disk refused a read or a write.
-    #[error("disk: {0}")]
-    Disk(#[from] std::io::Error),
-
-    /// What arrived is not what was published. The only evidence from
-    /// outside the transfer that the transfer was honest, so it names both
-    /// digests rather than saying the file is bad.
-    #[error("{algorithm} was {got}, but {expected} was published")]
-    Checksum {
-        /// The name of the hash algorithm (e.g. `"SHA-256"`).
-        algorithm: &'static str,
-        /// The digest that was published alongside the file.
-        expected: String,
-        /// The digest computed from the bytes that arrived.
-        got: String,
-    },
-
-    /// A sentence written for the person reading the row. It used to be
-    /// prefixed "internal:", which made a site that wants a sign-in read as
-    /// a fault in dm.
-    #[error("{0}")]
-    Internal(String),
-}
-
-impl Error {
-    /// The delay a refusal asked for, where it asked for one.
-    pub fn retry_after(&self) -> Option<std::time::Duration> {
-        match self {
-            Error::Refused { retry_after, .. } => *retry_after,
-            _ => None,
-        }
-    }
-}
-
-impl Error {
-    /// Passes a response through, or turns a refusal into an error.
-    ///
-    /// The predicate belongs next to the constructor. Left at the call sites
-    /// it was written out six times, and the seventh fetch anybody adds is
-    /// the one that writes a 404 page to disk and calls it a download.
-    pub async fn refused_or(res: reqwest::Response) -> Result<reqwest::Response, Error> {
-        let status = res.status();
-        if status.is_client_error() || status.is_server_error() {
-            return Err(Error::from_response(res).await);
-        }
-        // A redirect the client did not follow (to a `file://` or `ftp://`
-        // address, say) is no file: listed as a finished download of its
-        // empty body, it said the download had worked.
-        if status.is_redirection() && status != reqwest::StatusCode::NOT_MODIFIED {
-            let to = res
-                .headers()
-                .get(reqwest::header::LOCATION)
-                .and_then(|v| v.to_str().ok())
-                .unwrap_or("somewhere else")
-                .chars()
-                .take(200)
-                .collect::<String>();
-            return Err(Error::Internal(format!(
-                "the server sent dm on to {to}, an address dm does not follow"
-            )));
-        }
-        Ok(res)
-    }
-
-    /// Whether this says the address itself has run out: the server refused it
-    /// (403, or 410 Gone), or a web page answered where the file should be. A
-    /// signed address from a browser stops working after a while, and what
-    /// is staged under it is still good (`Queue::adopt_fresh_link`).
-    pub fn link_expired(&self) -> bool {
-        match self {
-            Error::Refused { status, .. } => matches!(status, 403 | 410),
-            Error::Internal(said) => said.contains("web page rather than the file"),
-            _ => false,
-        }
-    }
-
-    /// Turns a refused response into an error that says what refused and why.
-    ///
-    /// One place, because both the probe and the range fetch need it and the
-    /// second one used to build it by hand with an empty body — so a refusal
-    /// that happened mid-download explained nothing at all.
-    pub async fn from_response(mut res: reqwest::Response) -> Error {
-        let status = res.status().as_u16();
-        let url = res.url().to_string();
-        // A refusal's body is either a short explanation or a whole error
-        // page, whose sentence comes after its styles; it is read down to
-        // that sentence rather than shown as markup.
-        let retry_after = crate::retry::retry_after(res.headers());
-        /* Read only as far as an explanation goes, and for no longer than
-         * a person would wait for one. Read whole (and decompressed whole)
-         * before it was cut down, a 500 whose body never ended, or a small
-         * gzip that unpacks to gigabytes, ran dm out of memory. */
-        const MOST: usize = 64 * 1024;
-        let mut head = Vec::new();
-        let _ = tokio::time::timeout(std::time::Duration::from_secs(5), async {
-            while head.len() < MOST {
-                match res.chunk().await {
-                    Ok(Some(chunk)) => head.extend_from_slice(&chunk),
-                    _ => break,
-                }
-            }
-        })
-        .await;
-        drop(res);
-        head.truncate(MOST);
-        let body = worth_saying(
-            &readable(
-                &String::from_utf8_lossy(&head)
-                    .chars()
-                    .take(16_000)
-                    .collect::<String>(),
-            ),
-            status,
-        );
-        Error::Refused {
-            status,
-            url,
-            body,
-            retry_after,
-        }
-    }
-}
-
-/// A status as a person reads it: "404 Not Found", not "404".
-fn status_line(status: u16) -> String {
-    match reqwest::StatusCode::from_u16(status)
-        .ok()
-        .and_then(|s| s.canonical_reason())
-    {
-        Some(reason) => format!("{status} {reason}"),
-        None => status.to_string(),
-    }
-}
-
-/// What a refusal's body adds to its status, or nothing when it adds
-/// nothing. Most error pages only restate the status in the server's
-/// boilerplate: Python's "Error response Error code: 404 Message: File not
-/// found. Error code explanation: …", nginx's "404 Not Found nginx/1.24",
-/// Go's "404 page not found". A failed row read like a stack of them; it
-/// now says "the server answered 404 Not Found", and keeps a body that
-/// says something of its own ("Too many requests, please contact …").
-fn worth_saying(body: &str, status: u16) -> String {
-    // Python's http.server: boilerplate around a message, which is its own
-    // ("Token expired") or a restatement ("File not found"). Only the
-    // message is judged, and said.
-    let body = match body.strip_prefix("Error response Error code:") {
-        Some(rest) => {
-            let message = rest.split_once("Message:").map_or("", |(_, m)| m);
-            let message = message
-                .split_once("Error code explanation:")
-                .map_or(message, |(m, _)| m);
-            message.trim().trim_end_matches('.').trim()
-        }
-        None => body,
-    };
-    let lower = body.to_ascii_lowercase();
-    let reason = reqwest::StatusCode::from_u16(status)
-        .ok()
-        .and_then(|s| s.canonical_reason())
-        .unwrap_or_default()
-        .to_ascii_lowercase();
-    let code = status.to_string();
-    let rest = lower.replace(&reason, " ").replace(&code, " ");
-    const FILLER: [&str; 9] = [
-        "error", "page", "response", "http", "status", "code", "the", "message", "file",
-    ];
-    // What is left once the status and its filler are gone; a server's
-    // signature ("nginx/1.24.0") is not a reason either.
-    let said = rest
-        .split(|c: char| !c.is_alphanumeric() && c != '/' && c != '.')
-        .map(|word| word.trim_matches('.'))
-        .filter(|word| !FILLER.contains(word))
-        .filter(|word| {
-            !word
-                .split_once('/')
-                .is_some_and(|(_, version)| version.starts_with(|c: char| c.is_ascii_digit()))
-        })
-        .any(|word| word.chars().any(char::is_alphanumeric));
-    if said {
-        body.to_string()
-    } else {
-        String::new()
-    }
-}
-
-/// A network failure as a person reads it. "network: error sending request
-/// for url (…): client error (Connect): dns error: …" was what a mistyped
-/// address showed; the cause is said first now, plainly, and the system's
-/// own words for it after.
-fn network(error: &reqwest::Error) -> String {
-    let mut innermost = String::new();
-    let mut refused = false;
-    let mut cause: Option<&dyn std::error::Error> = Some(error);
-    while let Some(next) = cause {
-        if let Some(io) = next.downcast_ref::<std::io::Error>() {
-            refused |= io.kind() == std::io::ErrorKind::ConnectionRefused;
-        }
-        let text = next.to_string();
-        if !text.is_empty() {
-            innermost = text;
-        }
-        cause = next.source();
-    }
-    let all = with_causes(error).to_ascii_lowercase();
-    let plain = if all.contains("dns error")
-        || all.contains("failed to lookup address")
-        || all.contains("name or service not known")
-        || all.contains("nodename nor servname")
-        || all.contains("no such host")
-    {
-        "the server's name could not be found (check the address)"
-    } else if refused || all.contains("connection refused") {
-        "the server refused the connection"
-    } else if error.is_timeout() || all.contains("timed out") {
-        "the server did not answer in time"
-    } else {
-        return format!("network: {}", with_causes(error));
-    };
-    if innermost.is_empty() {
-        plain.to_string()
-    } else {
-        format!("{plain}: {innermost}")
-    }
-}
-
-/// An error and what caused it, each said once: "error sending request
-/// for url (…): client error (Connect): tcp connect error: Connection
-/// refused (os error 61)" rather than the first of those alone.
-fn with_causes(error: &dyn std::error::Error) -> String {
-    let mut said = error.to_string();
-    let mut cause = error.source();
-    while let Some(next) = cause {
-        let text = next.to_string();
-        if !text.is_empty() && !said.contains(&text) {
-            said.push_str(": ");
-            said.push_str(&text);
-        }
-        cause = next.source();
-    }
-    said
-}
-
-/// What an error page says, as a sentence: the markup, its styles and
-/// scripts dropped, its entities decoded, and the first two hundred
-/// characters kept. Wikimedia's 403 put a page of CSS in front of "Too many
-/// requests", and dm's row showed the CSS.
-pub fn readable(body: &str) -> String {
-    const MOST: usize = 200;
-    let mut text = String::new();
-    let lower = body.to_ascii_lowercase();
-    let mut at = 0;
-    while at < body.len() {
-        let Some(rest) = body.get(at..) else { break };
-        let Some(open) = rest.find('<') else {
-            text.push_str(rest);
-            break;
-        };
-        text.push_str(rest.get(..open).unwrap_or_default());
-        let tag_at = at + open;
-        let tag = lower.get(tag_at + 1..).unwrap_or_default();
-        // A block whose content is not words is skipped to its end tag.
-        let skipped = ["style", "script", "title", "head"]
-            .iter()
-            .find_map(|name| {
-                let named = tag.starts_with(name)
-                    && tag.get(name.len()..).is_some_and(|after| {
-                        after.starts_with(|c: char| c == '>' || c.is_whitespace())
-                    });
-                named.then(|| {
-                    lower
-                        .get(tag_at..)
-                        .and_then(|from| from.find(&format!("</{name}")))
-                        .map(|end| tag_at + end)
-                })
-            });
-        let from = match skipped {
-            Some(Some(end)) => end,
-            Some(None) => break,
-            None => tag_at,
-        };
-        match body.get(from..).and_then(|from_here| from_here.find('>')) {
-            Some(close) => {
-                at = from + close + 1;
-                text.push(' ');
-            }
-            None => break,
-        }
-    }
-    let decoded = text
-        .replace("&nbsp;", " ")
-        .replace("&lt;", "<")
-        .replace("&gt;", ">")
-        .replace("&quot;", "\"")
-        .replace("&#39;", "'")
-        .replace("&amp;", "&");
-    let words: Vec<&str> = decoded.split_whitespace().collect();
-    let joined = words.join(" ");
-    if joined.chars().count() <= MOST {
-        return joined;
-    }
-    let cut: String = joined.chars().take(MOST).collect();
-    format!("{}…", cut.trim_end())
-}
-
-/// Writes a file whole, or not at all.
-///
-/// Written to a sibling and moved, because the files dm keeps — the queue,
-/// the settings, a request handed over by a browser and the rest — are read
-/// back by something that must never see half of one.
-pub fn write_atomic(path: &std::path::Path, bytes: &[u8]) -> std::io::Result<()> {
-    replace(path, |w| w.write_all(bytes), true)
-}
-
-/// As [`write_atomic`], for a file produced piece by piece: nothing the size
-/// of the whole file is held in memory.
-pub fn write_atomic_with(
-    path: &std::path::Path,
-    fill: impl FnOnce(&mut dyn std::io::Write) -> std::io::Result<()>,
-) -> std::io::Result<()> {
-    replace(path, fill, true)
-}
-
-/// As [`write_atomic`], without waiting for the disk: for a file whose
-/// stale or empty copy after a power cut costs time but not correctness.
-pub fn write_atomic_unsynced(path: &std::path::Path, bytes: &[u8]) -> std::io::Result<()> {
-    replace(path, |w| w.write_all(bytes), false)
-}
-
-fn replace(
-    path: &std::path::Path,
-    fill: impl FnOnce(&mut dyn std::io::Write) -> std::io::Result<()>,
-    durable: bool,
-) -> std::io::Result<()> {
-    if let Some(parent) = path.parent() {
-        std::fs::create_dir_all(parent)?;
-    }
-    // A sibling of its own per write: two saves at once shared one `.tmp`,
-    // and whichever renamed second found it gone and reported a failure
-    // that had not happened.
-    static NEXT: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
-    let n = NEXT.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
-    let mut name = path.file_name().unwrap_or_default().to_os_string();
-    name.push(format!(".{}.{n}.tmp", std::process::id()));
-    let temp = path.with_file_name(name);
-    /* On disk before it takes the name. Renamed with its bytes still in the
-     * page cache, a power cut could leave the name on an empty or zeroed
-     * file: the queue then unreadable, and every download in it forgotten. */
-    let written = (|| {
-        use std::io::Write;
-        // Readable by this account alone: dm's files hold a proxy's
-        // password, site logins and a site's handed-over session.
-        let mut open = std::fs::OpenOptions::new();
-        open.write(true).create(true).truncate(true);
-        #[cfg(unix)]
-        std::os::unix::fs::OpenOptionsExt::mode(&mut open, 0o600);
-        let mut file = open.open(&temp)?;
-        let mut buffered = std::io::BufWriter::new(&mut file);
-        fill(&mut buffered)?;
-        buffered.flush()?;
-        drop(buffered);
-        if durable {
-            file.sync_all()?;
-        }
-        Ok(())
-    })();
-    if let Err(e) = written.and_then(|()| std::fs::rename(&temp, path)) {
-        let _ = std::fs::remove_file(&temp);
-        return Err(e);
-    }
-    // And the rename itself, which lives in the directory. Best effort:
-    // not every system lets a directory be opened to sync it.
-    #[cfg(unix)]
-    if let Some(dir) = path
-        .parent()
-        .filter(|_| durable)
-        .and_then(|p| std::fs::File::open(p).ok())
-    {
-        let _ = dir.sync_all();
-    }
-    Ok(())
-}
-
-/// How every client this engine builds is configured.
-///
-/// One builder rather than two: the proxied client is the one that actually
-/// runs downloads once a proxy is set, so anything added here and not there
-/// would apply to everybody except the people who configured a proxy.
-pub fn builder() -> reqwest::ClientBuilder {
-    builder_with(READ_TIMEOUT, false)
-}
-
-/// `builder` given dm's TLS: rustls with ring and the public roots, the
-/// set-up the stream protocols use (`rtmp::tls_config`). Every
-/// client is built through this: reqwest is built without a TLS provider of
-/// its own, so one without it could not reach an `https://` address.
-pub fn with_tls(builder: reqwest::ClientBuilder) -> reqwest::ClientBuilder {
-    match crate::rtmp::tls_config() {
-        Ok(config) => builder.tls_backend_preconfigured((*config).clone()),
-        Err(_) => builder,
-    }
-}
-
-/// How long a connection may send nothing before it is given up on, unless
-/// a setting says otherwise. Long enough for a server assembling a file;
-/// short enough that a pause is honoured within it.
-pub const READ_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(30);
-
-/// What a refused downgrade says.
-pub const INSECURE_REDIRECT: &str =
-    "the secure address sent dm on to an insecure (http) one, where the file could be swapped on the way, so dm stopped";
-
-/// What a refused inward redirect says.
-pub const INWARD_REDIRECT: &str = "the address sent dm on to one inside this computer or its own network, which a public site has no business reaching, so dm stopped";
-
-/// [`builder`], with the read timeout a setting: a server that takes a
-/// minute to start sending a large archive is not a dead connection to the
-/// person who knows it does that.
-///
-/// `system_proxy` has the client use the computer's proxy settings — the
-/// environment's variables and, on macOS, the network settings. Off, the
-/// client goes out directly whatever the environment says: a proxy dm uses
-/// is one chosen in its Options, and reading the system's settings costs
-/// over a second on some Macs, which every client built paid until it was
-/// made the choice of the one kind that wants it.
-pub fn builder_with(
-    read_timeout: std::time::Duration,
-    system_proxy: bool,
-) -> reqwest::ClientBuilder {
-    let builder = with_tls(reqwest::Client::builder());
-    let builder = if system_proxy {
-        builder
-    } else {
-        builder.no_proxy()
-    };
-    builder
-        // Redirects are dm's to follow (`redirects`): reqwest wrote the
-        // address each hop came from into `Referer`, for another host too.
-        .redirect(reqwest::redirect::Policy::none())
-        .referer(false)
-        // HTTP/1.1, on purpose, and this is the whole point of the program.
-        //
-        // Splitting a file into several ranges only beats a per-connection
-        // throttle if the ranges travel on separate connections. Over HTTP/2
-        // they do not: several requests to one host multiplex onto a single
-        // TCP connection, sharing one congestion window and one throttle, so
-        // eight ranges over h2 download at the speed of one. Modern CDNs
-        // negotiate h2 by default (jsdelivr, Fastly, Cloudflare all do), so
-        // without this pin the multi-connection feature quietly does nothing
-        // on exactly the servers people download from most. Pinning h1 makes
-        // each range a real connection again — and it helps the segmented
-        // HLS and mirror paths for the same reason. A file server that spoke
-        // only h2 would be refused, but for downloading files that server
-        // does not exist; h2-only is API and gRPC territory.
-        .http1_only()
-        /* Bounded waits, or a pause is not.
-         *
-         * Every route honours pause and cancel between chunks, so a server
-         * that accepts the connection, sends its headers and then sends
-         * nothing holds the task forever with the flag never read: the row
-         * says Paused because the queue said so, and a resume starts a second
-         * writer on the same part files while the first still holds them. A
-         * read that stalls this long is a dead connection, and the retry
-         * policy already knows what to do with one of those. */
-        .connect_timeout(std::time::Duration::from_secs(20))
-        .read_timeout(read_timeout.max(std::time::Duration::from_secs(1)))
-        .user_agent(USER_AGENT)
-}
-
-/// What dm says it is. Wikimedia, as its policy says, refuses an agent with
-/// no way to reach whoever runs it: a bare `dm/0.1.0` got 403 for every
-/// Wikipedia image, and the same agent with the project's address got the
-/// file.
-pub const USER_AGENT: &str = concat!(
-    "dm/",
-    env!("CARGO_PKG_VERSION"),
-    " (+https://github.com/pranavo72bex/Easy-Download-Manager)"
-);
-
-/// dm's name alone. Some sites refuse an agent that names a code host as a
-/// bot's (W3Schools refused anything with "github" in it, with 403), and
-/// Wikimedia refuses this one; so a site that refuses [`USER_AGENT`] is
-/// asked again with this, once, and if it answers it is asked with this
-/// from then on.
-pub const PLAIN_AGENT: &str = concat!("dm/", env!("CARGO_PKG_VERSION"));
-
-/// The last agent asked with: a browser's, naming dm. A site that refuses
-/// both of dm's own (W3Schools did on one network, though a browser there
-/// played the same video) is asked once more as browsers ask.
-pub const BROWSER_AGENT: &str = concat!(
-    "Mozilla/5.0 (X11; Linux x86_64; rv:128.0) Gecko/20100101 Firefox/128.0 dm/",
-    env!("CARGO_PKG_VERSION")
-);
-
-fn plain_hosts() -> &'static std::sync::Mutex<std::collections::HashMap<String, &'static str>> {
-    static HOSTS: std::sync::OnceLock<
-        std::sync::Mutex<std::collections::HashMap<String, &'static str>>,
-    > = std::sync::OnceLock::new();
-    HOSTS.get_or_init(Default::default)
-}
-
-fn bare_hosts() -> &'static std::sync::Mutex<std::collections::HashSet<String>> {
-    static HOSTS: std::sync::OnceLock<std::sync::Mutex<std::collections::HashSet<String>>> =
-        std::sync::OnceLock::new();
-    HOSTS.get_or_init(Default::default)
-}
-
-/// From now on, `url`'s server is asked with no `Referer` of dm's own
-/// making: it refused one (thinkbroadband answers 403 to any `Referer` but
-/// its own pages) and served the same request without it.
-pub fn drop_made_up_referer(url: &str) {
-    if let Some(host) = server_of(url) {
-        lock(bare_hosts()).insert(host);
-    }
-}
-
-/// Undoes [`drop_made_up_referer`]: the server refused without it too, so
-/// the `Referer` was not why.
-pub fn forget_dropped_referer(url: &str) {
-    if let Some(host) = server_of(url) {
-        lock(bare_hosts()).remove(&host);
-    }
-}
-
-/// Whether `url`'s server refused the `Referer` dm makes up.
-pub fn made_up_referer_refused(url: &str) -> bool {
-    server_of(url).is_some_and(|host| lock(bare_hosts()).contains(&host))
-}
-
-/// The server a URL names, host and port: two servers on one host are two
-/// servers, each with its own answer about which agent it takes.
-fn server_of(url: &str) -> Option<String> {
-    let url = reqwest::Url::parse(url).ok()?;
-    let host = url.host_str()?.to_ascii_lowercase();
-    Some(match url.port_or_known_default() {
-        Some(port) => format!("{host}:{port}"),
-        None => host,
-    })
-}
-
-/// The agent a download goes out with first: Internet Explorer 11's, as
-/// reference A sends it (maintainer, 2026-11-01), so a site that takes only
-/// browsers answers the first request. A site that refuses it is asked again
-/// with dm's own agents ([`FALLBACK_AGENTS`]), which the sites that refuse
-/// browsers' (Wikimedia asks for a contact address) take.
-pub const IE_AGENT: &str = "Mozilla/5.0 (Windows NT 6.1; Trident/7.0; rv:11.0) like Gecko";
-
-/// The agent a request to `url` goes out with: the one its site last
-/// answered, else [`first_agent`].
-static IDENTIFY_AS_DM: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
-
-/// Whether dm sends its own name first, not the browser-like one: Options ›
-/// Advanced › Identify as dm only. A site that refused the first name is still
-/// asked again with the others (`prefer_agent`).
-pub fn set_identify_as_dm(only: bool) {
-    IDENTIFY_AS_DM.store(only, std::sync::atomic::Ordering::Relaxed);
-}
-
-/// The agent a request goes out with before any site has refused it:
-/// [`IE_AGENT`], or dm's own name where the person asked for that.
-pub fn first_agent() -> &'static str {
-    if IDENTIFY_AS_DM.load(std::sync::atomic::Ordering::Relaxed) {
-        USER_AGENT
-    } else {
-        IE_AGENT
-    }
-}
-
-/// The identity (`User-Agent`) dm presents to `url`'s host.
-#[must_use]
-pub fn agent_for(url: &str) -> &'static str {
-    server_of(url)
-        .and_then(|host| lock(plain_hosts()).get(&host).copied())
-        .unwrap_or_else(first_agent)
-}
-
-/// The agents a refused probe tries, in order, after [`IE_AGENT`].
-pub const FALLBACK_AGENTS: [&str; 3] = [USER_AGENT, PLAIN_AGENT, BROWSER_AGENT];
-
-/// From now on, `url`'s site is asked with `agent`.
-pub fn prefer_agent(url: &str, agent: &'static str) {
-    if let Some(host) = server_of(url) {
-        lock(plain_hosts()).insert(host, agent);
-    }
-}
-
-/// On Windows, starts a helper program without a console window: dm's
-/// release build has none of its own, so each `powershell` or `reg` it
-/// ran flashed one up. On Linux, takes the AppImage's own
-/// folders out of what the helper inherits ([`appimage_env`]).
-pub fn no_window(command: &mut std::process::Command) -> &mut std::process::Command {
-    for (name, value) in appimage_env() {
-        match value {
-            Some(v) => command.env(name, v),
-            None => command.env_remove(name),
-        };
-    }
-    #[cfg(windows)]
-    {
-        use std::os::windows::process::CommandExt;
-        const CREATE_NO_WINDOW: u32 = 0x0800_0000;
-        command.creation_flags(CREATE_NO_WINDOW);
-    }
-    command
-}
-
-/// [`no_window`] for tokio's commands.
-pub fn no_window_async(command: &mut tokio::process::Command) -> &mut tokio::process::Command {
-    for (name, value) in appimage_env() {
-        match value {
-            Some(v) => command.env(name, v),
-            None => command.env_remove(name),
-        };
-    }
-    #[cfg(windows)]
-    {
-        const CREATE_NO_WINDOW: u32 = 0x0800_0000;
-        command.creation_flags(CREATE_NO_WINDOW);
-    }
-    command
-}
-
-/// The variables the AppImage's start program (`AppRun`) points into the
-/// AppImage, as a helper should have them: without the AppImage's folders,
-/// or unset where nothing else is left. `PYTHONHOME` set to the AppImage
-/// made a person's own tools, scripts run by the system's Python, stop
-/// with "Fatal Python error: Failed to import encodings module … <no Python
-/// frame>"; `LD_LIBRARY_PATH` would hand it the AppImage's libraries.
-/// The AppImage's folder is `APPDIR`, which its runtime sets, or else the
-/// one dm's program sits in as `<folder>/usr/bin/dm-desktop` (an AppImage
-/// unpacked and started by its `AppRun`). Nothing outside an AppImage.
-pub fn appimage_env() -> Vec<(&'static str, Option<std::ffi::OsString>)> {
-    let appdir = std::env::var_os("APPDIR")
-        .filter(|d| !d.is_empty())
-        .map(std::path::PathBuf::from)
-        .or_else(|| {
-            let exe = std::env::current_exe().ok()?;
-            let usr = exe.parent()?.parent()?;
-            (usr.file_name()? == "usr" && usr.parent()?.join("AppRun").exists())
-                .then(|| usr.parent().map(std::path::Path::to_path_buf))
-                .flatten()
-        });
-    match appdir {
-        Some(appdir) => without_appdir(&appdir, |name| std::env::var_os(name)),
-        None => Vec::new(),
-    }
-}
-
-fn without_appdir(
-    appdir: &std::path::Path,
-    get: impl Fn(&str) -> Option<std::ffi::OsString>,
-) -> Vec<(&'static str, Option<std::ffi::OsString>)> {
-    const SET_BY_APPRUN: [&str; 11] = [
-        "PYTHONHOME",
-        "PYTHONPATH",
-        "PYTHONDONTWRITEBYTECODE",
-        "LD_LIBRARY_PATH",
-        "PERLLIB",
-        "GSETTINGS_SCHEMA_DIR",
-        "QT_PLUGIN_PATH",
-        "GST_PLUGIN_SYSTEM_PATH",
-        "GST_PLUGIN_SYSTEM_PATH_1_0",
-        "XDG_DATA_DIRS",
-        "PATH",
-    ];
-    let mut out = Vec::new();
-    for name in SET_BY_APPRUN {
-        let Some(value) = get(name) else { continue };
-        if name == "PYTHONDONTWRITEBYTECODE" {
-            out.push((name, None));
-            continue;
-        }
-        let kept: Vec<std::path::PathBuf> = std::env::split_paths(&value)
-            .filter(|p| !p.as_os_str().is_empty() && !p.starts_with(appdir))
-            .collect();
-        let rebuilt = if kept.is_empty() {
-            None
-        } else {
-            std::env::join_paths(kept).ok()
-        };
-        if rebuilt.as_ref() != Some(&value) {
-            out.push((name, rebuilt));
-        }
-    }
-    out
-}
-
-/// A path as Windows programs read it: `canonicalize` there gives the
-/// `\\?\C:\…` form, which a browser registered with it — and `cmd`, which
-/// starts the host — can mishandle. A UNC share keeps its form.
-pub fn plain_path(path: std::path::PathBuf) -> std::path::PathBuf {
-    let text = path.to_string_lossy();
-    match text.strip_prefix(r"\\?\") {
-        Some(rest) if !rest.starts_with("UNC\\") => std::path::PathBuf::from(rest),
-        _ => path,
-    }
-}
 
 /// A lock that is taken even if a thread that held it panicked.
 ///
@@ -897,127 +201,6 @@ pub fn lock<T>(mutex: &std::sync::Mutex<T>) -> std::sync::MutexGuard<'_, T> {
     mutex
         .lock()
         .unwrap_or_else(std::sync::PoisonError::into_inner)
-}
-
-/// A client configured the way a download manager wants one.
-// The one `expect` dm ships: rustls is compiled in, so the only way this
-// fails is a build without a TLS backend, which is a build bug.
-#[allow(clippy::expect_used)]
-pub fn client() -> reqwest::Client {
-    builder()
-        .build()
-        .expect("a client with no TLS backend cannot be built")
-}
-
-/// What a file error means, in words a person reads: "No such file or
-/// directory (os error 2)" said nothing a person could act on.
-pub fn file_error(e: &std::io::Error) -> String {
-    match e.kind() {
-        std::io::ErrorKind::NotFound => "it is not there".into(),
-        std::io::ErrorKind::PermissionDenied => "dm is not allowed to use it".into(),
-        std::io::ErrorKind::AlreadyExists => "something of that name is already there".into(),
-        _ => {
-            // The system's words without its error number.
-            let said = e.to_string();
-            match said.rfind(" (os error ") {
-                Some(at) => said[..at].to_string(),
-                None => said,
-            }
-        }
-    }
-}
-
-#[cfg(test)]
-mod redirect_tests {
-    use tokio::io::{AsyncReadExt, AsyncWriteExt};
-    use tokio_rustls::rustls;
-
-    /// A secure server that sends every request on to `to`.
-    async fn sending_on(to: String) -> (u16, Vec<u8>) {
-        let made = rcgen::generate_simple_self_signed(vec!["localhost".into()]).unwrap();
-        let cert = made.cert.der().to_vec();
-        let key =
-            rustls::pki_types::PrivateKeyDer::try_from(made.signing_key.serialize_der()).unwrap();
-        let config = rustls::ServerConfig::builder_with_provider(std::sync::Arc::new(
-            rustls::crypto::ring::default_provider(),
-        ))
-        .with_safe_default_protocol_versions()
-        .unwrap()
-        .with_no_client_auth()
-        .with_single_cert(vec![made.cert.der().clone()], key)
-        .unwrap();
-        let acceptor = tokio_rustls::TlsAcceptor::from(std::sync::Arc::new(config));
-        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
-        let port = listener.local_addr().unwrap().port();
-        tokio::spawn(async move {
-            while let Ok((tcp, _)) = listener.accept().await {
-                let (acceptor, to) = (acceptor.clone(), to.clone());
-                tokio::spawn(async move {
-                    let Ok(mut tls) = acceptor.accept(tcp).await else {
-                        return;
-                    };
-                    let mut asked = [0u8; 2048];
-                    let _ = tls.read(&mut asked).await;
-                    let answer = format!(
-                        "HTTP/1.1 302 Found\r\nLocation: {to}\r\nContent-Length: 0\r\nConnection: close\r\n\r\n"
-                    );
-                    let _ = tls.write_all(answer.as_bytes()).await;
-                    let _ = tls.shutdown().await;
-                });
-            }
-        });
-        (port, cert)
-    }
-
-    #[tokio::test]
-    async fn a_secure_address_is_not_followed_to_a_plain_one() {
-        let plain = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
-        let plain_port = plain.local_addr().unwrap().port();
-        let (port, cert) = sending_on(format!("http://127.0.0.1:{plain_port}/f.bin")).await;
-        // dm's own set-up, but trusting this server's certificate alone.
-        let mut roots = rustls::RootCertStore::empty();
-        roots
-            .add(rustls::pki_types::CertificateDer::from(cert))
-            .unwrap();
-        let trusting = rustls::ClientConfig::builder_with_provider(std::sync::Arc::new(
-            rustls::crypto::ring::default_provider(),
-        ))
-        .with_safe_default_protocol_versions()
-        .unwrap()
-        .with_root_certificates(roots)
-        .with_no_client_auth();
-        let client = super::builder()
-            .tls_backend_preconfigured(trusting)
-            .build()
-            .unwrap();
-        let refused = super::redirects::send(client.get(format!("https://localhost:{port}/f.bin")))
-            .await
-            .unwrap_err();
-        let said = format!("{refused:?}");
-        assert!(said.contains("insecure (http)"), "{said}");
-        // The plain server was never asked.
-        let asked =
-            tokio::time::timeout(std::time::Duration::from_millis(200), plain.accept()).await;
-        assert!(asked.is_err(), "the plain address was fetched");
-    }
-
-    /// Every client dm builds has its TLS (reqwest is built without a
-    /// provider of its own): a secure server answers it, and one whose
-    /// certificate the public roots do not vouch for is refused.
-    #[tokio::test]
-    async fn a_client_dm_builds_speaks_tls_with_the_public_roots_alone() {
-        let (port, _) = sending_on("http://127.0.0.1:9/x".into()).await;
-        let client = super::builder().build().unwrap();
-        let said = format!(
-            "{:?}",
-            client
-                .get(format!("https://localhost:{port}/f.bin"))
-                .send()
-                .await
-                .unwrap_err()
-        );
-        assert!(said.contains("UnknownIssuer"), "{said}");
-    }
 }
 
 #[cfg(test)]

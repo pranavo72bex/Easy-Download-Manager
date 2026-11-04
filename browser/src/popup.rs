@@ -215,7 +215,7 @@ async fn cookies_switch(ext: JsValue) {
             decide::wider_note(&before, &site)
         };
         let after = decide::with_site(&before, &site, on);
-        *known.borrow_mut() = after.clone();
+        (*known.borrow_mut()).clone_from(&after);
         let ext = ext.clone();
         wasm_bindgen_futures::spawn_local(async move {
             store(&ext, decide::COOKIES_SITES_KEY, as_array(&after)).await;
@@ -335,7 +335,7 @@ pub fn popup_start(ext: JsValue) {
 
     // Open dm: its window to the front, then the popup gets out of the way.
     if let Some(open) = by_id("open") {
-        let ext = ext.clone();
+        let ext = ext;
         let closure = Closure::<dyn Fn()>::new(move || {
             let ext = ext.clone();
             wasm_bindgen_futures::spawn_local(async move {

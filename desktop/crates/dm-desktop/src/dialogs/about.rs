@@ -70,7 +70,7 @@ pub(super) fn welcome(app: &mut DmApp, ctx: &egui::Context) {
                 }
             });
         });
-    app.dialogs.welcome_dir = dir.clone();
+    app.dialogs.welcome_dir.clone_from(&dir);
     if done || later || !open {
         let chosen = std::path::PathBuf::from(dir.trim());
         if !dir.trim().is_empty() && chosen != app.applied.download_dir {

@@ -217,7 +217,7 @@ impl DmApp {
         if needle.is_empty() {
             return;
         }
-        let rows = self.visible();
+        let rows = self.visible_shared();
         let names: Vec<String> = rows.iter().map(|r| name_of(r)).collect();
         let from = rows.iter().position(|r| self.selected.contains(&r.id));
         let found = next_match(&names, from, &needle, forward).and_then(|i| rows.get(i));

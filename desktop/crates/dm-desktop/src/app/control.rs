@@ -167,7 +167,7 @@ impl DmApp {
                 let mut categories = self.applied.categories();
                 let before = self.earlier_of_the_same_name();
                 let rows: Vec<_> = self
-                    .visible()
+                    .visible_shared()
                     .iter()
                     .map(|r| {
                         json!({
