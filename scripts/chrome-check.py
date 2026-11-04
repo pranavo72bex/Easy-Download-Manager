@@ -702,14 +702,16 @@ PANEL_STATE = """(() => {
   if (!host) return null;
   const wrap = host.shadowRoot && host.shadowRoot.querySelector('.wrap');
   const r = wrap ? wrap.getBoundingClientRect() : host.getBoundingClientRect();
-  const lines = [...host.shadowRoot.querySelectorAll('.item')];
+  // The qualities; reference A's "Download all" line before them is apart.
+  const lines = [...host.shadowRoot.querySelectorAll('.item:not(.all)')];
+  const all = host.shadowRoot.querySelector('.item.all');
   const at = lines.map(l => { const b = l.getBoundingClientRect(); return [b.left + 30, b.top + b.height / 2]; });
   return { shown: getComputedStyle(host).display !== 'none',
            title: host.shadowRoot.querySelector('.title').textContent,
            sub: host.shadowRoot.querySelector('.sub').textContent,
            tip: host.shadowRoot.querySelector('.go').getAttribute('title') || '',
            caret: !host.shadowRoot.querySelector('.caret').hidden,
-           lines: lines.map(l => l.textContent), at,
+           lines: lines.map(l => l.textContent), at, all: all ? all.textContent : null,
            x: r.left, y: r.top, w: r.width, h: r.height };
 })()"""
 
@@ -1287,7 +1289,11 @@ def main():
         "--no-first-run", "--no-default-browser-check", "--disable-gpu",
         # Brave upgrades http:// to https:// first, which a test server on
         # loopback never answers; Chrome ignores the names it does not know.
-        "--disable-features=DisableLoadExtensionCommandLineSwitch,HttpsUpgrades,BraveHttpsByDefault",
+        # DM_CHROME_DISABLE_FEATURES adds more (a side-by-side run turns off the
+        # Manifest V2 phase-out, which disabled reference A's extension in the
+        # kept profile).
+        "--disable-features=DisableLoadExtensionCommandLineSwitch,HttpsUpgrades,BraveHttpsByDefault"
+        + "".join("," + f for f in os.environ.get("DM_CHROME_DISABLE_FEATURES", "").split(",") if f),
         # Lets DevTools press the extension's toolbar button.
         "--enable-unsafe-extension-debugging",
         "--enable-logging=stderr", "--v=0", "about:blank",

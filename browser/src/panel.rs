@@ -53,8 +53,9 @@ button:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
 .help, .close { width: 28px; flex: none; color: var(--weak); font-size: 13px; border-left: 1px solid var(--line); }
 .help:hover, .close:hover, .help:focus-visible, .close:focus-visible { background: var(--hover); color: var(--text); }
 .list { margin-top: 4px; border-radius: var(--radius); overflow: hidden; background: var(--surface-solid);
-  border: 1px solid var(--line); box-shadow: 0 8px 20px rgba(0,0,0,.4); max-height: 260px; overflow-y: auto; }
-.item { display: block; width: 100%; padding: 8px 12px; text-align: left; font-size: 13px; white-space: normal; color: var(--text);
+  border: 1px solid var(--line); box-shadow: 0 8px 20px rgba(0,0,0,.4); max-height: 300px; overflow-y: auto;
+  width: 460px; max-width: 90vw; margin-left: -220px; }
+.item { display: block; width: 100%; padding: 5px 10px; text-align: left; font-size: 12px; white-space: normal; color: var(--text);
   overflow-wrap: anywhere; border-top: 1px solid var(--line); }
 .item:first-child { border-top: 0; }
 .part { display: flex; align-items: center; gap: 6px; padding: 8px 12px; font-size: 13px; color: var(--text2);

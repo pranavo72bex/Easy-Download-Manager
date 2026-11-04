@@ -160,6 +160,45 @@ pub fn part_text(typed: &str) -> String {
         .collect()
 }
 
+/// The panel list's first line, as reference A's: every quality listed,
+/// handed over at once (gaps row 72b).
+pub const DOWNLOAD_ALL: &str = "Download all";
+
+/// The most of a video's title a list line carries before "…".
+pub const LINE_TITLE_MOST: usize = 40;
+
+/// A quality line as reference A words it (gaps row 72a): its number, the
+/// video's title and "…", then the kind and quality. A bare height ("1080p",
+/// what the player names) is said as a file, "MP4 file, quality 1080p HD",
+/// HD from 720 up; any other line (a stream, a page's own "MP4 file, …") is
+/// kept as it is.
+pub fn reference_line(number: usize, title: &str, line: &str) -> String {
+    // A size after the quality ("1080p — 50.1 MB", `choice_line`) stays after it.
+    let (head, size) = match line.split_once(" — ") {
+        Some((head, size)) => (head, format!(" — {size}")),
+        None => (line, String::new()),
+    };
+    // "1080p", or dm's reading's "1080p MP4": a height, and the container
+    // where one is named (MP4 where none is, as dm saves the player's).
+    let (height, container) = match head.split_once(' ') {
+        Some((height, container)) => (height, container),
+        None => (head, "MP4"),
+    };
+    let quality = match height.strip_suffix('p').and_then(|h| h.parse::<u32>().ok()) {
+        Some(height) if !container.contains(' ') => format!(
+            "{container} file, quality {height}p{}{size}",
+            if height >= 720 { " HD" } else { "" }
+        ),
+        _ => line.to_string(),
+    };
+    let title = title.trim();
+    if title.is_empty() {
+        return format!("{number}. {quality}");
+    }
+    let short: String = title.chars().take(LINE_TITLE_MOST).collect();
+    format!("{number}. {}… {quality}", short.trim_end())
+}
+
 /// One line of the panel's list: the format and size.
 pub fn choice_line(label: &str, size: Option<u64>) -> String {
     match size {

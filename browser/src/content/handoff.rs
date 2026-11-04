@@ -442,17 +442,46 @@ pub(super) fn list(src: &str, frame: &str, choices: &Array) {
     let Some(document) = document() else {
         return;
     };
+    // Each line as reference A words it: its number, the video's title, the
+    // kind and quality (gaps row 72a).
+    let page = window()
+        .and_then(|w| w.location().href().ok())
+        .unwrap_or_default();
+    let title = decide::clean_title(&document.title(), &page);
     let first = with_panel(|p| {
         set_title(p, "Download video");
         close_list(p);
+        // Reference A's first line: every quality listed, handed over at
+        // once; the app asks about each in turn (gaps row 72b).
+        if choices.length() > 1 {
+            if let Ok(all) = document.create_element("button") {
+                // Looks as a line does; told apart from the qualities.
+                all.set_class_name("item all");
+                let _ = all.set_attribute("role", "menuitem");
+                all.set_text_content(Some(decide::DOWNLOAD_ALL));
+                let (src, frame, every) = (src.to_string(), frame.to_string(), choices.clone());
+                listen(&all, "click", move |event| {
+                    event.prevent_default();
+                    event.stop_propagation();
+                    for choice in every.iter() {
+                        hand_choice(&src, &frame, &choice);
+                    }
+                });
+                let _ = p.list.append_child(&all);
+            }
+        }
         part_line(&document, p);
-        for choice in choices.iter() {
+        for (number, choice) in choices.iter().enumerate() {
             let Ok(item) = document.create_element("button") else {
                 continue;
             };
             item.set_class_name("item");
             let _ = item.set_attribute("role", "menuitem");
-            item.set_text_content(Some(&text_of(&choice, "line")));
+            item.set_text_content(Some(&decide::reference_line(
+                number + 1,
+                &title,
+                &text_of(&choice, "line"),
+            )));
             let (src, frame) = (src.to_string(), frame.to_string());
             listen(&item, "click", move |event| {
                 event.prevent_default();

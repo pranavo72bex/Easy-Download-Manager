@@ -2183,3 +2183,45 @@ fn an_advert_loaded_by_the_player_never_reaches_the_list() {
         ]
     ));
 }
+
+/// Reference A's list lines (gaps row 72a), from its panel on a YouTube
+/// video watched on 2026-11-04.
+#[test]
+fn a_quality_line_is_worded_as_reference_a_words_it() {
+    let title = "What Happened To FIRST YOUTUBE Video Guy";
+    assert_eq!(
+        reference_line(2, title, "720p"),
+        "2. What Happened To FIRST YOUTUBE Video Guy… MP4 file, quality 720p HD"
+    );
+    assert_eq!(
+        reference_line(4, title, "480p"),
+        "4. What Happened To FIRST YOUTUBE Video Guy… MP4 file, quality 480p"
+    );
+    // A page's own line is kept; a long title is cut at forty characters.
+    let long = "A title that runs on far past the forty characters kept";
+    assert_eq!(
+        reference_line(1, long, "MP4 file, quality SD"),
+        "1. A title that runs on far past the forty… MP4 file, quality SD"
+    );
+    // With its size, once dm's reading has come.
+    assert_eq!(
+        reference_line(1, "Clip", "1080p — 50.1 MB"),
+        "1. Clip… MP4 file, quality 1080p HD — 50.1 MB"
+    );
+    // dm's own reading names the container.
+    assert_eq!(
+        reference_line(1, "Clip", "1080p MP4 — 252 MB"),
+        "1. Clip… MP4 file, quality 1080p HD — 252 MB"
+    );
+    assert_eq!(
+        reference_line(2, "Clip", "360p WebM"),
+        "2. Clip… WebM file, quality 360p"
+    );
+    // A line of more words is not a quality to reword.
+    assert_eq!(
+        reference_line(1, "Clip", "720p video + sound"),
+        "1. Clip… 720p video + sound"
+    );
+    // No title: the number and the line alone.
+    assert_eq!(reference_line(3, "  ", "HLS stream"), "3. HLS stream");
+}
