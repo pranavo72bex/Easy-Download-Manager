@@ -94,6 +94,7 @@ pub async fn probe_get(
                 }
             }
         }
+        request = crate::cookies::add_headers(request, sign_in, url);
         crate::auth::send(client, request, url)
     };
     let ask = |agent: &str| ask_as(agent, true);
@@ -112,6 +113,22 @@ pub async fn probe_get(
                 res = again;
                 break;
             }
+        }
+    }
+    // Still refused, with a `Referer` dm made up (none was given): asked once
+    // more without it. A server that refuses any `Referer` but its own pages
+    // (thinkbroadband) served reference A and refused dm on every agent.
+    if res.status() == reqwest::StatusCode::FORBIDDEN
+        && referrer.is_none()
+        && crate::download::folder_referer(url).is_some()
+    {
+        crate::drop_made_up_referer(url);
+        let again = ask(crate::agent_for(url)).await?;
+        if again.status() == reqwest::StatusCode::FORBIDDEN {
+            crate::forget_dropped_referer(url);
+        } else {
+            crate::drop_made_up_referer(again.url().as_str());
+            res = again;
         }
     }
 

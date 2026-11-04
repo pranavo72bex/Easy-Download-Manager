@@ -1,4 +1,4 @@
-use super::family::same_family;
+use super::family::{same_family, same_path};
 use super::*;
 
 /* --------------------------------------------------------------------- row verbs
@@ -37,29 +37,45 @@ impl Queue {
         if !accepted(url) {
             return None;
         }
-        let waiting: Vec<(Id, String, String, u64)> = {
+        let all_waiting: Vec<(Id, String, String, Option<u64>)> = {
             let slots = self.inner.slots.lock().await;
             slots
                 .values()
                 .filter(|s| s.entry.fresh_link && matches!(s.entry.state, State::Failed(_)))
-                .filter_map(|s| {
-                    Some((
+                .map(|s| {
+                    (
                         s.entry.id,
                         s.entry.url.clone(),
                         s.entry.filename.clone(),
-                        s.entry.progress.total?,
-                    ))
+                        s.entry.progress.total,
+                    )
                 })
-                .filter(|(_, old, name, _)| !name.is_empty() && same_family(old, url))
+                .filter(|(_, old, ..)| same_family(old, url))
                 .collect()
         };
+        // A row that failed at its very first request never learned a name or a size, so those
+        // cannot be compared. Its signed address and the fresh one differ in the query alone:
+        // the same server family and the very same path is the same file.
+        if let Some((id, ..)) = all_waiting.iter().find(|(_, old, name, total)| {
+            (name.is_empty() || total.is_none()) && same_path(old, url)
+        }) {
+            let id = *id;
+            if self.set_url(id, url).await {
+                self.take_hand_over(id, with).await;
+                return self.retry(id).await.then_some(id);
+            }
+            return None;
+        }
+        let waiting: Vec<(Id, String, String, u64)> = all_waiting
+            .into_iter()
+            .filter_map(|(id, old, name, total)| Some((id, old, name, total?)))
+            .filter(|(_, _, name, _)| !name.is_empty())
+            .collect();
         if waiting.is_empty() {
             return None;
         }
         let client = self.inner.client.lock().await.clone();
-        let sign_in = (!with.cookies.is_empty())
-            .then(|| crate::cookies::SignIn::new(url, &with.cookies))
-            .flatten();
+        let sign_in = crate::cookies::SignIn::with_headers(url, &with.cookies, &with.headers);
         let referrer = Some(with.referrer.trim()).filter(|r| !r.is_empty());
         let probed = crate::probe::probe(&client, url, referrer, sign_in.as_ref())
             .await
@@ -70,6 +86,13 @@ impl Queue {
         if !self.set_url(id, url).await {
             return None;
         }
+        self.take_hand_over(id, with).await;
+        self.retry(id).await.then_some(id)
+    }
+
+    /// What the fresh hand-over brings to the row that takes it: the page, the sign-in and the
+    /// request headers it came with; and the row no longer waits for one.
+    async fn take_hand_over(&self, id: Id, with: &AddOptions) {
         self.edit(id, |slot| {
             if !with.referrer.trim().is_empty() {
                 slot.entry_mut().referrer = with.referrer.trim().to_string();
@@ -77,11 +100,13 @@ impl Queue {
             if !with.cookies.is_empty() {
                 slot.entry_mut().cookies = with.cookies.clone();
             }
+            if !with.headers.is_empty() {
+                slot.entry_mut().headers = crate::cookies::forwardable(&with.headers);
+            }
             slot.entry_mut().fresh_link = false;
             true
         })
         .await;
-        self.retry(id).await.then_some(id)
     }
 
     /// Adds every one of `items`, each with its own options, and writes the
@@ -129,7 +154,9 @@ impl Queue {
             slot.entry_mut().gif = with.gif && with.span.is_some();
             slot.entry_mut().delete_after = with.delete_after.filter(|s| *s > 0);
             slot.entry_mut().cookies = with.cookies.trim().to_string();
-            slot.entry_mut().cookies_once = with.cookies_once && !slot.entry.cookies.is_empty();
+            slot.entry_mut().headers = crate::cookies::forwardable(&with.headers);
+            slot.entry_mut().cookies_once = with.cookies_once
+                && !(slot.entry.cookies.is_empty() && slot.entry.headers.is_empty());
             slot.entry_mut().replaces = with.replaces.filter(|p| !p.trim().is_empty());
             if with.checksum.is_some() {
                 slot.entry_mut().checksum = with.checksum;
@@ -210,6 +237,7 @@ impl Queue {
                 .is_some();
             if !same_server {
                 slot.entry_mut().cookies.clear();
+                slot.entry_mut().headers.clear();
             }
             slot.entry_mut().url = url;
             true

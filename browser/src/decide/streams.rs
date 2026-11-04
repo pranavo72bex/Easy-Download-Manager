@@ -125,7 +125,12 @@ pub fn stream_seen(seen: &Seen) -> Option<Stream> {
     if let Some(track) = pieces_of(&seen.url, &mime) {
         return Some(track);
     }
-    if mime.contains("mpegurl") || ext == "m3u8" {
+    if let Some(track) = ranged_of(&seen.url, &mime, header("content-range")) {
+        return Some(track);
+    }
+    // `application/vnd.apple.mpegurl`, `audio/x-mpegurl` and the `application/octet-stream-m3u8`
+    // some servers send.
+    if mime.contains("mpegurl") || mime.contains("m3u8") || ext == "m3u8" {
         return Some(Stream {
             url: seen.url.clone(),
             kind: StreamKind::Hls,
@@ -135,7 +140,8 @@ pub fn stream_seen(seen: &Seen) -> Option<Stream> {
             members: Vec::new(),
         });
     }
-    if mime.contains("dash+xml") || ext == "mpd" {
+    // `application/dash+xml` and `video/vnd.mpeg.dash.mpd`.
+    if mime.contains("dash+xml") || mime.contains("dash.mpd") || ext == "mpd" {
         return Some(Stream {
             url: seen.url.clone(),
             kind: StreamKind::Dash,
@@ -147,8 +153,13 @@ pub fn stream_seen(seen: &Seen) -> Option<Stream> {
     }
 
     let media = mime.starts_with("video/") || mime.starts_with("audio/");
-    let segment = matches!(ext.as_str(), "ts" | "m4s" | "m4f" | "cmfv" | "cmfa")
+    // HDS (Adobe's old Flash streaming: a `.f4m` manifest and `Seg1-Frag1` fragments) is not
+    // read: neither is a file, and offering them would save a few bytes of XML (docs/decisions.md).
+    let segment = matches!(ext.as_str(), "ts" | "m4s" | "m4f" | "cmfv" | "cmfa" | "f4m" | "f4f")
+        || mime == "video/f4m"
+        || mime == "video/f4f"
         || mime == "video/mp2t"
+        || mime == "audio/mp2t"
         || mime.contains("iso.segment")
         // Players that ask for a file in pieces name the piece in the
         // address; the piece is not the file.
@@ -768,6 +779,88 @@ pub fn pieces_of(url: &str, mime: &str) -> Option<Stream> {
     })
 }
 
+/// What a picture and a sound found by [`ranged_of`] are called. A file with one of these names
+/// and no partner is a whole file all the same, and is offered as one.
+const RANGED_PICTURE: &str = "video file";
+const RANGED_SOUND: &str = "audio file";
+
+/// A picture or a sound of any site's player that fetches each as a file in byte ranges named in
+/// the address (`bytestart` and `byteend`, or `range`): the file is the address without them, and
+/// what it is — picture or sound — is the response's type, which must say `video/` or `audio/`
+/// (a guess from the address alone would offer a sprite or a script). `content_range` is the
+/// response's `Content-Range`, whose total, where it has one, is the file's size: the largest
+/// picture and the largest sound are then the best the page loaded, joined as one line by
+/// [`Streams::of`].
+///
+/// Nothing for the pieces of an HLS or DASH stream (segments by extension), which are not whole
+/// files, or for an address with no range parameter at all.
+pub fn ranged_of(url: &str, mime: &str, content_range: Option<&str>) -> Option<Stream> {
+    let sound = if mime.starts_with("audio/") {
+        true
+    } else if mime.starts_with("video/") {
+        false
+    } else {
+        return None;
+    };
+    let (authority, rest) = url.split_once("://")?.1.split_once('/')?;
+    let host = authority.split(':').next().unwrap_or(authority);
+    // YouTube's pieces are read by `track_of`, which knows its itags.
+    if host == "googlevideo.com" || host.ends_with(".googlevideo.com") {
+        return None;
+    }
+    let (path, query) = rest.split_once('?')?;
+    let query = query.split('#').next().unwrap_or("");
+    let names = |pair: &str| pair.split('=').next().unwrap_or("").to_string();
+    const RANGE_PARAMS: [&str; 3] = ["bytestart", "byteend", "range"];
+    if !query
+        .split('&')
+        .any(|p| RANGE_PARAMS.contains(&names(p).as_str()))
+    {
+        return None;
+    }
+    let extension = path
+        .rsplit('/')
+        .next()
+        .and_then(|name| name.rsplit_once('.'))
+        .map(|(_, e)| e.to_ascii_lowercase())
+        .unwrap_or_default();
+    if matches!(
+        extension.as_str(),
+        "ts" | "m4s" | "m4f" | "cmfv" | "cmfa" | "aac" | "vtt"
+    ) {
+        return None;
+    }
+    let kept: Vec<&str> = query
+        .split('&')
+        .filter(|pair| !RANGE_PARAMS.contains(&names(pair).as_str()))
+        .collect();
+    let whole = if kept.is_empty() {
+        format!("https://{authority}/{path}")
+    } else {
+        format!("https://{authority}/{path}?{}", kept.join("&"))
+    };
+    if excluded::address(&whole).is_some() {
+        return None;
+    }
+    // `bytes 0-1023/5242880`: the total after the slash, unless it is `*`.
+    let size = content_range
+        .and_then(|value| value.rsplit_once('/'))
+        .and_then(|(_, total)| total.trim().parse::<u64>().ok());
+    let (kind, label) = if sound {
+        (StreamKind::Sound, RANGED_SOUND.to_string())
+    } else {
+        (StreamKind::Picture, RANGED_PICTURE.to_string())
+    };
+    Some(Stream {
+        url: whole,
+        kind,
+        size,
+        label,
+        sound: None,
+        members: Vec::new(),
+    })
+}
+
 /// Whether a response is a new page in its tab, whose streams start afresh:
 /// a top-level document. A download opened in the tab (`main_frame` too,
 /// but a file and not a page) leaves the page, and its streams, in place.
@@ -1010,6 +1103,16 @@ impl Streams {
             largest(&list, StreamKind::Sound),
         );
         list.retain(|s| !matches!(s.kind, StreamKind::Picture | StreamKind::Sound));
+        // A file found by its byte ranges that has no partner is a whole file on its own.
+        let alone = match (&picture, &sound) {
+            (Some(p), None) if p.label == RANGED_PICTURE => Some(p.clone()),
+            (None, Some(s)) if s.label == RANGED_SOUND => Some(s.clone()),
+            _ => None,
+        };
+        if let Some(mut file) = alone {
+            file.kind = StreamKind::File;
+            list.push(file);
+        }
         // A playlist of sound alone is not offered beside a stream with a
         // picture: it would save the sound and nothing else.
         if list

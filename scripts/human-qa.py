@@ -127,6 +127,8 @@ public class U {
  [DllImport("user32.dll")] public static extern int GetWindowLong(IntPtr h, int i);
  [DllImport("user32.dll")] public static extern bool SetWindowPos(IntPtr h, IntPtr a, int x, int y, int w, int hh, uint f);
  [DllImport("user32.dll")] public static extern bool SetCursorPos(int x, int y);
+ [DllImport("user32.dll")] public static extern bool SetForegroundWindow(IntPtr h);
+ [DllImport("user32.dll")] public static extern bool BringWindowToTop(IntPtr h);
  [DllImport("user32.dll")] public static extern void mouse_event(uint f, int dx, int dy, uint d, UIntPtr e);
  public struct R { public int L, T, Rr, B; } }
 "@
@@ -164,6 +166,17 @@ def win32_move(pid, title, x, y):
     window = win32_windows(pid).get(title)
     if window:
         win32_run(r"[U]::SetWindowPos([IntPtr]%d, [IntPtr]::Zero, %d, %d, 0, 0, 0x0005) | Out-Null" % (window["hwnd"], x, y))
+
+
+def win32_front(pid, title):
+    """A window of dm's brought above every other window, so that a press on its title
+    bar lands on it and not on whatever else (an editor, a terminal) lies over that spot."""
+    window = win32_windows(pid).get(title)
+    if window:
+        win32_run(r"[U]::BringWindowToTop([IntPtr]%d) | Out-Null; [U]::SetForegroundWindow([IntPtr]%d) | Out-Null; "
+                  r"[U]::SetWindowPos([IntPtr]%d, [IntPtr](-1), 0, 0, 0, 0, 0x0043) | Out-Null; "
+                  r"[U]::SetWindowPos([IntPtr]%d, [IntPtr](-2), 0, 0, 0, 0, 0x0043) | Out-Null"
+                  % (window["hwnd"], window["hwnd"], window["hwnd"], window["hwnd"]))
 
 
 def win32_drag(x0, y0, x1, y1):
@@ -1087,6 +1100,8 @@ def walk(dm, origin):
                 gx = min(max(box[0] + 60, 40), box[2] - 80)
                 gy = max(box[1], 0) + 14
                 goal = (free + 40, 260)
+                win32_front(pid, "Add URL")
+                pause(0.5)
                 win32_drag(gx, gy, gx + (goal[0] - box[0]), gy + (goal[1] - box[1]))
                 pause(1.5)
                 dragged = win32_windows(pid).get("Add URL", {}).get("rect")

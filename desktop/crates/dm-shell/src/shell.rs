@@ -264,6 +264,7 @@ pub fn add_options(request: &host::Request) -> dm_core::AddOptions {
         sound: request.sound.clone(),
         cookies: request.cookies.clone(),
         cookies_once: request.cookies_once,
+        headers: request.headers.clone(),
         title_hint: Some(request.title.clone()).filter(|t| !t.is_empty()),
         queue: if request.later {
             dm_core::MAIN_QUEUE.to_string()

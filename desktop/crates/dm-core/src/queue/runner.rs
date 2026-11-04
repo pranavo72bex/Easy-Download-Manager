@@ -272,8 +272,11 @@ impl Queue {
                     options.dest_dir = PathBuf::from(&slot.entry.began_in);
                     // The browser's cookies for this site, where handed
                     // over: this download's alone, for its own server.
-                    options.sign_in =
-                        crate::cookies::SignIn::new(&slot.entry.url, &slot.entry.cookies);
+                    options.sign_in = crate::cookies::SignIn::with_headers(
+                        &slot.entry.url,
+                        &slot.entry.cookies,
+                        &slot.entry.headers,
+                    );
                     options.checksum = slot.entry.checksum.clone();
                     options.save_name = slot.entry.save_name.clone();
                     options.title_hint = slot.entry.title_hint.clone();
@@ -563,6 +566,7 @@ impl Queue {
                     slot.entry_mut().replaces = None;
                     if std::mem::take(&mut slot.entry_mut().cookies_once) {
                         slot.entry_mut().cookies.clear();
+                        slot.entry_mut().headers.clear();
                     }
                     State::Completed
                 }
@@ -579,7 +583,9 @@ impl Queue {
                          {error}"
                     )),
                     None if error.link_expired()
-                        && (!slot.entry.referrer.is_empty() || !slot.entry.cookies.is_empty()) =>
+                        && (!slot.entry.referrer.is_empty()
+                            || !slot.entry.cookies.is_empty()
+                            || !slot.entry.headers.is_empty()) =>
                     {
                         slot.entry_mut().fresh_link = true;
                         State::Failed(format!("{LINK_EXPIRED} ({error})"))

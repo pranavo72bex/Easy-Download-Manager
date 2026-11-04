@@ -37,6 +37,13 @@ async fn answer(State(site): State<Site>, uri: Uri, headers: HeaderMap) -> Respo
             .body(Body::from("Request has expired"))
             .unwrap();
     }
+    // An address that had already run out when it was first asked for: no probe ever answered.
+    if token.contains("t=dead") {
+        return Response::builder()
+            .status(StatusCode::FORBIDDEN)
+            .body(Body::from("Request has expired"))
+            .unwrap();
+    }
     let total = if token.contains("t=bigger") {
         7 * MB
     } else {
@@ -229,4 +236,40 @@ async fn the_wait_is_saved_with_the_row_and_survives_a_restart() {
         .add_with(&format!("http://{addr}/f.bin?t=new"), from_browser())
         .await;
     assert_eq!(again, Some(id));
+}
+
+#[tokio::test]
+async fn a_row_that_failed_at_its_very_first_request_takes_the_fresh_address_of_the_same_path() {
+    let (addr, _) = site().await;
+    let dir = tempdir();
+    let q = queue(dir.path());
+
+    let id = q
+        .add_with(&format!("http://{addr}/h.bin?t=dead"), from_browser())
+        .await
+        .unwrap();
+    q.run().await;
+    let row = q.get(id).await.unwrap();
+    assert!(row.fresh_link, "{:?}", row.state);
+    assert!(
+        row.filename.is_empty() || row.progress.total.is_none(),
+        "the first request answered after all"
+    );
+
+    // Another path is another file, whatever the query says.
+    let other = q
+        .add_with(&format!("http://{addr}/i.bin?t=new"), from_browser())
+        .await
+        .unwrap();
+    assert_ne!(other, id);
+
+    // The same path with a fresh signature is the same file.
+    let again = q
+        .add_with(&format!("http://{addr}/h.bin?t=new"), from_browser())
+        .await;
+    assert_eq!(again, Some(id), "a second row was added");
+    q.run().await;
+    let done = q.get(id).await.unwrap();
+    assert_eq!(done.state, DownloadState::Completed, "{:?}", done.state);
+    assert_eq!(std::fs::read(&done.path).unwrap(), pattern(6 * MB));
 }

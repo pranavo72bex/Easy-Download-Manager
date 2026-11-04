@@ -21,6 +21,8 @@ const MAX_ENTRIES: usize = 2000;
 /// The most site profiles, answer rules and keys kept.
 const MAX_PROFILES: usize = 500;
 const MAX_ANSWERS: usize = 64;
+const MAX_FINDERS: usize = 16;
+const MAX_FINDER_TEXT: usize = 512;
 const MAX_KEYS: usize = 64;
 /// The largest floor for a Windows media stub a document may set: 10 MiB.
 const MAX_MEDIA_FLOOR: u64 = 10 * 1024 * 1024;
@@ -77,6 +79,31 @@ pub struct SiteProfile {
     pub host: String,
     /// The requests whose answers are read.
     pub answers: Vec<AnswerRule>,
+    /// How to tell which video a player on a page is (a feed lists many).
+    pub finders: Vec<Finder>,
+    /// Private copies of `fetch` a site's script keeps, to be read like the global one, each
+    /// `<global>|<property path>|<name>`: the object `global` holds, the path to the object that
+    /// owns the function, and the function's name.
+    pub private_fetches: Vec<String>,
+}
+
+/// How to find which video one player is, in a site's pages. The languages are small and read
+/// only: a selector chain (see the extension's `document.js`) and a dotted property path, so a fix
+/// for a site needs a new rules document and not a new release.
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Default)]
+#[serde(default)]
+pub struct Finder {
+    /// The selector chain that says a player element is one this finder reads.
+    pub player: String,
+    /// A dotted property path from the player element to its video's id. A leading `*` means
+    /// "the first own property of this object for which the rest of the path exists".
+    pub id_path: String,
+    /// The player element's attribute that holds the id.
+    pub id_attr: String,
+    /// A regular expression whose first group is the id in the page's address.
+    pub id_from_url: String,
+    /// The selector chain to the element that holds a feed's players, watched for new ones.
+    pub container: String,
 }
 
 /// One kind of request a site's player makes whose answer names a stream.
@@ -160,11 +187,40 @@ impl Rules {
             }
             site.answers
                 .retain(|answer| !answer.url_contains.is_empty());
+            site.finders.truncate(MAX_FINDERS);
+            for finder in &mut site.finders {
+                for text in [
+                    &mut finder.player,
+                    &mut finder.id_path,
+                    &mut finder.id_attr,
+                    &mut finder.id_from_url,
+                    &mut finder.container,
+                ] {
+                    *text = text.trim().to_string();
+                    if text.len() > MAX_FINDER_TEXT {
+                        text.clear();
+                    }
+                }
+            }
+            site.finders.retain(|finder| {
+                !finder.player.is_empty()
+                    && (!finder.id_path.is_empty()
+                        || !finder.id_attr.is_empty()
+                        || !finder.id_from_url.is_empty())
+            });
+            site.private_fetches.truncate(MAX_FINDERS);
+            site.private_fetches.retain(|path| {
+                path.len() <= MAX_FINDER_TEXT
+                    && path.split('|').count() == 3
+                    && path.split('|').all(|part| !part.trim().is_empty())
+            });
         }
         self.sites.retain(|site| {
             !site.host.is_empty()
                 && !site.host.contains(['/', ':', ' '])
-                && !site.answers.is_empty()
+                && (!site.answers.is_empty()
+                    || !site.finders.is_empty()
+                    || !site.private_fetches.is_empty())
         });
         self
     }
@@ -172,17 +228,33 @@ impl Rules {
     /// The answer rules of the site a page on `host` belongs to: those of every profile whose host
     /// is `host` or one `host` is a sub-domain of.
     pub fn answers_for(&self, host: &str) -> Vec<&AnswerRule> {
-        let host = host.trim_matches('.').to_ascii_lowercase();
-        self.sites
-            .iter()
-            .filter(|site| {
-                host == site.host
-                    || host
-                        .strip_suffix(site.host.as_str())
-                        .is_some_and(|before| before.ends_with('.'))
-            })
+        self.profiles_for(host)
             .flat_map(|site| site.answers.iter())
             .collect()
+    }
+
+    /// The finders of the site a page on `host` belongs to.
+    pub fn finders_for(&self, host: &str) -> Vec<&Finder> {
+        self.profiles_for(host)
+            .flat_map(|site| site.finders.iter())
+            .collect()
+    }
+
+    /// The private `fetch` paths of the site a page on `host` belongs to.
+    pub fn private_fetches_for(&self, host: &str) -> Vec<&String> {
+        self.profiles_for(host)
+            .flat_map(|site| site.private_fetches.iter())
+            .collect()
+    }
+
+    fn profiles_for<'a>(&'a self, host: &str) -> impl Iterator<Item = &'a SiteProfile> {
+        let host = host.trim_matches('.').to_ascii_lowercase();
+        self.sites.iter().filter(move |site| {
+            host == site.host
+                || host
+                    .strip_suffix(site.host.as_str())
+                    .is_some_and(|before| before.ends_with('.'))
+        })
     }
 }
 
@@ -228,6 +300,24 @@ mod tests {
         assert_eq!(rules.sites[0].answers.len(), 1);
         assert_eq!(rules.sites[0].answers[0].url_contains, "/api/play");
         assert_eq!(rules.sites[0].answers[0].keys, vec!["hlsUrl"]);
+    }
+
+    #[test]
+    fn finders_and_private_fetches_are_read_tidied_and_found_by_site() {
+        let rules = Rules::parse(&document(
+            r#""sites": [ { "host": "feed.example", "finders": [
+                    { "player": " div.vp ", "id_path": "*.return.props.videoID" },
+                    { "player": "", "id_path": "x" },
+                    { "player": "video" } ],
+                  "private_fetches": ["w|a.b|fetch", "bad", "a||c"] } ]"#,
+        ))
+        .expect("a document");
+        assert_eq!(rules.sites.len(), 1, "a site with finders only is kept");
+        let finders = rules.finders_for("www.feed.example");
+        assert_eq!(finders.len(), 1);
+        assert_eq!(finders[0].player, "div.vp");
+        assert_eq!(rules.private_fetches_for("feed.example"), ["w|a.b|fetch"]);
+        assert!(rules.finders_for("other.example").is_empty());
     }
 
     #[test]

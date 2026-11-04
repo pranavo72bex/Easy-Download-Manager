@@ -65,12 +65,25 @@ pub(super) async fn hand_chosen(
     // does. TikTok's and others' CDN refuse a signed address without it.
     let (cookies, cookies_once) =
         sign_in_for(&target.url, store.as_deref(), target.page || ask).await;
+    // A signed address runs out: the newest one the player has asked for goes, not the first seen.
+    let address = if target.page {
+        target.url.clone()
+    } else {
+        renewed(&target.url).await
+    };
     let start = Start {
         id: hand_id("m", 0, now()),
-        url: target.url.clone(),
+        url: address.clone(),
         referrer: target.referrer.clone(),
         cookies,
         cookies_once,
+        // A file or stream the page's own request fetched, with the headers
+        // that request carried; a page has none that matter.
+        headers: if target.page {
+            Vec::new()
+        } else {
+            sent_to(&address).await
+        },
         // Not checked first, as a caught download is: this one was asked of
         // dm, by name, so dm takes it and says if it fails, rather than
         // handing it back to start in the browser when dm's own request is
@@ -86,7 +99,9 @@ pub(super) async fn hand_chosen(
         // The panel's "Part" line; the app checks what was typed.
         from: part.0.map(|s| decide::part_text(&s)).unwrap_or_default(),
         to: part.1.map(|s| decide::part_text(&s)).unwrap_or_default(),
-        title: title.map(|t| t.trim().to_string()).unwrap_or_default(),
+        title: title
+            .map(|t| decide::clean_title(&t, &target.referrer))
+            .unwrap_or_default(),
         ..Start::default()
     };
     if let Err(why) = hand(port, start).await {
@@ -195,9 +210,12 @@ pub async fn on_page_message(message: JsValue, sender: JsValue) -> JsValue {
     if get(&message, "type").as_string().as_deref() == Some(decide::PAGE_RULES_MESSAGE) {
         ensure_served().await;
         let page = get(&sender, "url").as_string().unwrap_or_default();
-        return to_js(
-            &serde_json::json!({ "ok": true, "urls": decide::rules::watched_for(&page) }),
-        );
+        return to_js(&serde_json::json!({
+            "ok": true,
+            "urls": decide::rules::watched_for(&page),
+            "finders": decide::rules::finders_for(&page),
+            "privateFetches": decide::rules::private_fetches_for(&page),
+        }));
     }
     // The answer to one of those requests: read for the streams a page builds
     // itself, only where the app's rules for the page's site name the request,

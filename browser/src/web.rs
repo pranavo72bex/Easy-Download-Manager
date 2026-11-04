@@ -34,6 +34,13 @@ thread_local! {
     static TAKEN: RefCell<Released> = RefCell::new(Released::default());
     /// Media each tab has loaded, for the panel's list.
     static STREAMS: RefCell<decide::Streams> = RefCell::new(decide::Streams::default());
+    /// The last request headers per address, for the hand-off that address
+    /// begins. In memory only: never stored, never logged.
+    static SENT: RefCell<decide::RequestHeaders> = RefCell::new(decide::RequestHeaders::default());
+    /// Whether the kept request headers were read back from the session's storage, and whether a
+    /// write of them is already waiting.
+    static SENT_LOADED: std::cell::Cell<bool> = const { std::cell::Cell::new(false) };
+    static SENT_WRITING: std::cell::Cell<bool> = const { std::cell::Cell::new(false) };
     /// Which page each tab is on, so an `Add` that outlives its page is dropped.
     static PAGES: RefCell<decide::Pages> = RefCell::new(decide::Pages::default());
     /// Whether "update the dm app" has been said in this worker's life: once

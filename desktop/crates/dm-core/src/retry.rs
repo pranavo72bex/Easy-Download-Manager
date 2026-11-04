@@ -90,9 +90,16 @@ fn untrusted_certificate(error: &reqwest::Error) -> bool {
 /// instant too, which is how a struggling server is kept struggling.
 pub fn backoff(attempt: u32, retry_after: Option<Duration>) -> Duration {
     // A server that said how long to wait is believed, within reason — an
-    // hour-long Retry-After is not something to sit in.
+    // hour-long Retry-After is not something to sit in. Believed as the least
+    // wait, not the whole of it: Wikimedia's limiter answered every request
+    // "429, Retry-After: 1" for as long as they kept coming a second apart,
+    // so dm, asking each second, sat at 0 B for minutes; the wait still grows.
+    // Past the fifteen seconds a dropped connection is held to: that
+    // limiter let a request through only after about twenty quiet seconds.
     if let Some(asked) = retry_after {
-        return asked.min(Duration::from_secs(60));
+        let grown = Duration::from_millis(500 * 2u64.saturating_pow(attempt).min(128))
+            + Duration::from_millis(u64::from(attempt) * 137 % 400);
+        return asked.max(grown).min(Duration::from_secs(60));
     }
 
     let base = Duration::from_millis(500 * 2u64.saturating_pow(attempt).min(64));
@@ -549,6 +556,18 @@ mod tests {
             delays.windows(2).all(|w| w[0] != w[1]),
             "delays repeat: {delays:?}"
         );
+    }
+
+    #[test]
+    fn a_server_that_keeps_asking_for_a_second_is_waited_out_longer_each_time() {
+        let one = Some(Duration::from_secs(1));
+        let waits: Vec<Duration> = (0..8).map(|a| backoff(a, one)).collect();
+        assert!(waits.windows(2).all(|w| w[0] <= w[1]), "{waits:?}");
+        assert!(
+            waits.iter().any(|w| *w > Duration::from_secs(20)),
+            "never quiet for long enough: {waits:?}"
+        );
+        assert!(waits.iter().all(|w| *w <= Duration::from_secs(60)));
     }
 
     #[test]

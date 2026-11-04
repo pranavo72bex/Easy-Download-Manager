@@ -40,7 +40,8 @@ impl Queue {
         let (mut checked, mut changed) = (0, Vec::new());
         for row in &rows {
             let referrer = (!row.referrer.is_empty()).then_some(row.referrer.as_str());
-            let sign_in = crate::cookies::SignIn::new(&row.url, &row.cookies);
+            let sign_in =
+                crate::cookies::SignIn::with_headers(&row.url, &row.cookies, &row.headers);
             let Ok(now) = crate::probe::probe(&client, &row.url, referrer, sign_in.as_ref()).await
             else {
                 continue;

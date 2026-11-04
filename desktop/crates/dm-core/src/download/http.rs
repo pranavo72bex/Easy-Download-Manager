@@ -133,13 +133,16 @@ pub(crate) fn get(
             }
         }
     }
-    request
+    crate::cookies::add_headers(request, sign_in, url)
 }
 
 /// The folder an address lives in, as the page a request with none of its own
 /// is said to come from (`http://host/files/` for `http://host/files/a.bin?x`).
 /// The same host the request goes to, so it tells that server nothing new.
 pub(crate) fn folder_referer(url: &str) -> Option<String> {
+    if crate::made_up_referer_refused(url) {
+        return None;
+    }
     let parsed = reqwest::Url::parse(url).ok()?;
     if !matches!(parsed.scheme(), "http" | "https") {
         return None;

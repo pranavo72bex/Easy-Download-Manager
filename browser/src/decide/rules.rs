@@ -54,6 +54,22 @@ pub fn watched_for(page_url: &str) -> Vec<String> {
     })
 }
 
+/// The finders for a page at `page_url`, as the page script reads them.
+pub fn finders_for(page_url: &str) -> Vec<dm_protocol::Finder> {
+    let Some(site) = super::site_of(page_url) else {
+        return Vec::new();
+    };
+    with_served(|rules| rules.finders_for(&site).into_iter().cloned().collect())
+}
+
+/// The private `fetch` paths for a page at `page_url`.
+pub fn private_fetches_for(page_url: &str) -> Vec<String> {
+    let Some(site) = super::site_of(page_url) else {
+        return Vec::new();
+    };
+    with_served(|rules| rules.private_fetches_for(&site).into_iter().cloned().collect())
+}
+
 /// The JSON keys of the answer rule for a page at `page_url` that watches `request_url`: the keys
 /// whose strings are addresses (empty: every string). `None` where no rule of the page's site
 /// names that request, which is how an answer nobody asked for is refused.

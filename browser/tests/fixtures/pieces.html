@@ -1,0 +1,12 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>dm fixture: a player that fetches picture and sound in ranges (gaps row 119)</title>
+<!-- No manifest names them. After this loads, the panel's list must offer ONE line,
+     "video file + sound": the larger picture with the sound, to be joined by dm. -->
+<script>
+  const ask = (u) => fetch(u).then((r) => r.arrayBuffer());
+  ask('low.mp4?id=1&bytestart=0&byteend=999');
+  ask('high.mp4?id=2&bytestart=0&byteend=999');
+  ask('sound.m4a?id=3&bytestart=0&byteend=999');
+</script>
+<video controls width="480" src="high.mp4"></video>

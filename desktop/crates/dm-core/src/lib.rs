@@ -691,6 +691,34 @@ fn plain_hosts() -> &'static std::sync::Mutex<std::collections::HashMap<String, 
     HOSTS.get_or_init(Default::default)
 }
 
+fn bare_hosts() -> &'static std::sync::Mutex<std::collections::HashSet<String>> {
+    static HOSTS: std::sync::OnceLock<std::sync::Mutex<std::collections::HashSet<String>>> =
+        std::sync::OnceLock::new();
+    HOSTS.get_or_init(Default::default)
+}
+
+/// From now on, `url`'s server is asked with no `Referer` of dm's own
+/// making: it refused one (thinkbroadband answers 403 to any `Referer` but
+/// its own pages) and served the same request without it.
+pub fn drop_made_up_referer(url: &str) {
+    if let Some(host) = server_of(url) {
+        lock(bare_hosts()).insert(host);
+    }
+}
+
+/// Undoes [`drop_made_up_referer`]: the server refused without it too, so
+/// the `Referer` was not why.
+pub fn forget_dropped_referer(url: &str) {
+    if let Some(host) = server_of(url) {
+        lock(bare_hosts()).remove(&host);
+    }
+}
+
+/// Whether `url`'s server refused the `Referer` dm makes up.
+pub fn made_up_referer_refused(url: &str) -> bool {
+    server_of(url).is_some_and(|host| lock(bare_hosts()).contains(&host))
+}
+
 /// The server a URL names, host and port: two servers on one host are two
 /// servers, each with its own answer about which agent it takes.
 fn server_of(url: &str) -> Option<String> {

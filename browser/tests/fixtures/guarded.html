@@ -1,0 +1,15 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>dm fixture: a file behind a request header (gaps row 116)</title>
+<!-- Needs qa/origin (route /bearer/<name>, 403 without "Authorization: Bearer t"; run
+     python3 qa/origin/origin.py or the qa compose file) and the origin's address in ?origin=.
+     The page's player fetches the file WITH the header, as a site's script does. Then choose
+     it from dm's panel over the video (or "Download media with dm"): dm must finish it. Without
+     the header dm gets 403 and the row fails. -->
+<video id="v" controls width="480"></video>
+<script>
+  const origin = new URLSearchParams(location.search).get('origin') || 'http://127.0.0.1:8080';
+  fetch(origin + '/bearer/guarded.mp4?size=3000000', { headers: { Authorization: 'Bearer t' } })
+    .then((r) => r.blob())
+    .then((b) => { document.getElementById('v').src = URL.createObjectURL(b); });
+</script>

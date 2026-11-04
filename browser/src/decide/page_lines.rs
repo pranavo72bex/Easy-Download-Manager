@@ -370,9 +370,42 @@ fn gather_value(value: &Value, into: &mut Gathered) {
 /// Nothing when the page names no video that matches.
 pub fn page_lines(text: &str, seen: &[String]) -> Vec<PageLine> {
     let ids: Vec<String> = seen.iter().filter_map(|u| file_id(u)).collect();
+    lines_for_ids(text, &ids)
+}
+
+/// The lines a page offers for the video a site's finder said a player is (`id`, its id on that
+/// site): what the page's answers hold around that id. Nothing for an id too short to be told
+/// from any other number in the text.
+pub fn page_lines_for_player(text: &str, id: &str) -> Vec<PageLine> {
+    let id = id.trim();
+    if id.len() < 6 || id.len() > 200 || id.contains(['"', '\\']) {
+        return Vec::new();
+    }
+    for region in regions(text) {
+        for hit in hits(region, &[id.to_string()]) {
+            // The innermost objects around the id: their own fields are the video's files.
+            for (_, start) in hit.open.iter().rev().filter(|(array, _)| !*array).take(WIDEN) {
+                let Some(Value::Object(map)) = value_at(region, *start) else {
+                    continue;
+                };
+                let mut gathered = Gathered::default();
+                for field in map.values() {
+                    gather_value(field, &mut gathered);
+                }
+                if gathered.count() > 0 {
+                    return gathered.into_lines();
+                }
+            }
+        }
+    }
+    Vec::new()
+}
+
+fn lines_for_ids(text: &str, ids: &[String]) -> Vec<PageLine> {
     if ids.is_empty() {
         return Vec::new();
     }
+    let ids = ids.to_vec();
     for region in regions(text) {
         for hit in hits(region, &ids) {
             let Some(Value::String(own)) = value_at(region, hit.string.0) else {

@@ -67,6 +67,16 @@ ext.webRequest.onResponseStarted.addListener(
   { urls: ['<all_urls>'], types: ['main_frame', 'media', 'xmlhttprequest', 'other'] },
   ['responseHeaders'],
 );
+// The headers of the requests a page makes, read only (a Manifest V3 worker
+// cannot change them), kept by address for the download a request begins.
+// `extraHeaders` is Chrome's word for the ones it hides unless asked
+// (Authorization, Origin); Firefox does not know it.
+const sentTypes = { urls: ['<all_urls>'], types: ['main_frame', 'sub_frame', 'media', 'xmlhttprequest', 'other'] };
+try {
+  ext.webRequest.onSendHeaders.addListener(forward('on_send_headers'), sentTypes, ['requestHeaders', 'extraHeaders']);
+} catch {
+  ext.webRequest.onSendHeaders.addListener(forward('on_send_headers'), sentTypes, ['requestHeaders']);
+}
 // The floating panel's click, answered so the panel can say what happened.
 ext.runtime.onMessage.addListener((message, sender, reply) => {
   // The panel's code, put into the asking frame by the browser itself

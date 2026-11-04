@@ -69,7 +69,7 @@ pub(super) fn file_info(app: &mut DmApp, ctx: &egui::Context) {
         {
             let client = dm_core::client_with(&app.backend.settings().proxy)
                 .unwrap_or_else(|_| dm_core::client());
-            let sign_in = dm_core::cookies::SignIn::new(&url, &d.cookies);
+            let sign_in = dm_core::cookies::SignIn::with_headers(&url, &d.cookies, &d.headers);
             let referrer = d.referrer.clone();
             let ctx = ctx.clone();
             app.backend.runtime.spawn(async move {
@@ -166,7 +166,7 @@ pub(super) fn file_info(app: &mut DmApp, ctx: &egui::Context) {
         let client = dm_core::client_with(&app.backend.settings().proxy)
             .unwrap_or_else(|_| dm_core::client());
         let referrer = Some(d.referrer.clone()).filter(|r| !r.is_empty());
-        let sign_in = dm_core::cookies::SignIn::new(&first, &d.cookies);
+        let sign_in = dm_core::cookies::SignIn::with_headers(&first, &d.cookies, &d.headers);
         zip_list::read_address(
             &app.backend.runtime,
             ctx,
@@ -184,7 +184,7 @@ pub(super) fn file_info(app: &mut DmApp, ctx: &egui::Context) {
         let url = first.clone();
         let referrer = Some(d.referrer.clone()).filter(|r| !r.is_empty());
         let proxy = app.backend.settings().proxy.url_for_tools();
-        let sign_in = dm_core::cookies::SignIn::new(&url, &d.cookies);
+        let sign_in = dm_core::cookies::SignIn::with_headers(&url, &d.cookies, &d.headers);
         let ctx = ctx.clone();
         let found = d.playlist.clone();
         app.backend.runtime.spawn(async move {
@@ -719,6 +719,7 @@ pub(super) fn file_info(app: &mut DmApp, ctx: &egui::Context) {
         delete_after: d.delete_after,
         cookies: d.cookies.clone(),
         cookies_once: d.cookies_once,
+        headers: d.headers.clone(),
         checksum: None,
         speed_limit: 0,
         // Added from Download details, by a person: not a hand-over that

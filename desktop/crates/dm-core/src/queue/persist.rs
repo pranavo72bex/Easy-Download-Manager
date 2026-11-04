@@ -402,6 +402,8 @@ pub(super) struct Secret {
     password: Option<String>,
     #[serde(default, skip_serializing_if = "String::is_empty")]
     cookies: String,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    headers: Vec<(String, String)>,
 }
 
 impl Secret {
@@ -414,6 +416,7 @@ impl Secret {
                 let mut secret = Secret {
                     id: entry.id,
                     cookies: std::mem::take(&mut entry.cookies),
+                    headers: std::mem::take(&mut entry.headers),
                     ..Secret::default()
                 };
                 if let Ok(mut url) = url::Url::parse(&entry.url) {
@@ -427,7 +430,8 @@ impl Secret {
                 }
                 let any = !secret.username.is_empty()
                     || secret.password.is_some()
-                    || !secret.cookies.is_empty();
+                    || !secret.cookies.is_empty()
+                    || !secret.headers.is_empty();
                 any.then_some(secret)
             })
             .collect()
@@ -437,6 +441,9 @@ impl Secret {
     fn given_back(&self, entry: &mut Entry) {
         if !self.cookies.is_empty() {
             entry.cookies = self.cookies.clone();
+        }
+        if !self.headers.is_empty() {
+            entry.headers = self.headers.clone();
         }
         if !self.username.is_empty() || self.password.is_some() {
             if let Ok(mut url) = url::Url::parse(&entry.url) {

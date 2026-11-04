@@ -2011,3 +2011,116 @@ fn a_caught_download_is_named_by_the_title_of_the_tab_it_came_from() {
     assert_eq!(referrer_title(&tabs, ""), None);
     assert_eq!(referrer_title(&tabs, "https://gone.example/"), None);
 }
+
+#[test]
+fn a_players_id_from_a_site_finder_picks_its_videos_lines_out_of_a_feed() {
+    // A feed's data holds two videos; the finder said the player is the second.
+    let page = r#"<script>{"videos":[
+        {"videoFBID":"1111111111","progressive_urls":[{"progressive_url":"https:\/\/v.example\/v\/one-sd.mp4","metadata":{"quality":"SD"}}]},
+        {"videoFBID":"2222222222","progressive_urls":[{"progressive_url":"https:\/\/v.example\/v\/two-sd.mp4","metadata":{"quality":"SD"}},{"progressive_url":"https:\/\/v.example\/v\/two-hd.mp4","metadata":{"quality":"HD"}}]}
+    ]}</script>"#;
+    let lines = page_lines_for_player(page, "2222222222");
+    let urls: Vec<&str> = lines.iter().map(|l| l.url.as_str()).collect();
+    assert!(urls.contains(&"https://v.example/v/two-hd.mp4"), "{urls:?}");
+    assert!(!urls.iter().any(|u| u.contains("one-sd")), "{urls:?}");
+    // An id too short to be told from any number, or one the page lacks, offers nothing.
+    assert!(page_lines_for_player(page, "12").is_empty());
+    assert!(page_lines_for_player(page, "9999999999").is_empty());
+}
+
+#[test]
+fn a_players_byte_range_pieces_of_a_picture_and_a_sound_become_one_line_on_any_site() {
+    let piece = |url: &str, mime: &str, range: &str| {
+        let seen = Seen {
+            url: url.into(),
+            tab_id: 1,
+            kind: "media".into(),
+            status_code: 206,
+            response_headers: vec![
+                Header {
+                    name: "Content-Type".into(),
+                    value: Some(mime.into()),
+                },
+                Header {
+                    name: "Content-Range".into(),
+                    value: Some(range.into()),
+                },
+            ],
+        };
+        stream_seen(&seen)
+    };
+    let low = piece("https://cdn.example/v/a.mp4?id=7&bytestart=0&byteend=999", "video/mp4", "bytes 0-999/3000000").unwrap();
+    assert_eq!(low.url, "https://cdn.example/v/a.mp4?id=7");
+    assert_eq!(low.kind, StreamKind::Picture);
+    assert_eq!(low.size, Some(3_000_000));
+    let high = piece("https://cdn.example/v/b.mp4?id=8&range=0-999", "video/mp4", "bytes 0-999/9000000").unwrap();
+    let sound = piece("https://cdn.example/v/c.m4a?id=9&bytestart=5&byteend=9", "audio/mp4", "bytes 5-9/700000").unwrap();
+    assert_eq!(sound.kind, StreamKind::Sound);
+    let mut streams = Streams::default();
+    streams.restore(1, vec![low, high, sound]);
+    let lines = streams.of(1);
+    assert_eq!(lines.len(), 1, "{lines:?}");
+    assert_eq!(lines[0].url, "https://cdn.example/v/b.mp4?id=8", "the largest picture");
+    assert_eq!(lines[0].sound.as_deref(), Some("https://cdn.example/v/c.m4a?id=9"));
+    assert_eq!(lines[0].size, Some(9_700_000));
+    // Not a piece of a file: a segment of a stream, a type that is neither, or no range at all.
+    assert!(piece("https://cdn.example/s/1.m4s?bytestart=0", "video/mp4", "bytes 0-9/10").is_none());
+    assert!(piece("https://cdn.example/s/x?bytestart=0", "application/octet-stream", "bytes 0-9/10").is_none());
+    assert!(piece("https://cdn.example/v/a.mp4?id=7", "video/mp4", "bytes 0-9/10").is_none());
+}
+
+#[test]
+fn the_media_types_reference_a_knows_are_read_the_same_way() {
+    let kind = |url: &str, mime: &str| {
+        stream_seen(&seen(url, "xmlhttprequest", &[("Content-Type", mime)])).map(|s| s.kind)
+    };
+    // Manifests and playlists by their type alone: the address says nothing.
+    assert_eq!(kind("https://e.com/playlist?id=3", "application/octet-stream-m3u8"), Some(StreamKind::Hls));
+    assert_eq!(kind("https://e.com/playlist?id=3", "audio/x-mpegurl"), Some(StreamKind::Hls));
+    assert_eq!(kind("https://e.com/manifest?id=3", "video/vnd.mpeg.dash.mpd"), Some(StreamKind::Dash));
+    // Transport-stream pieces, picture or sound, are not files.
+    assert_eq!(kind("https://e.com/s?n=1", "audio/mp2t"), None);
+    assert_eq!(kind("https://e.com/s?n=1", "video/mp2t"), None);
+    // Subtitles are not media, and HDS (an old Flash format) is not read: see docs/decisions.md.
+    assert_eq!(kind("https://e.com/c.vtt", "text/vtt"), None);
+    assert_eq!(kind("https://e.com/c.xml", "application/ttml+xml"), None);
+    assert_eq!(kind("https://e.com/m.f4m", "video/f4m"), None);
+    // Older containers a player may still load whole are files.
+    let big = |url: &str, mime: &str| {
+        stream_seen(&seen(url, "media", &[("Content-Type", mime), ("Content-Length", "9000000")]))
+            .map(|s| s.kind)
+    };
+    for (url, mime) in [
+        ("https://e.com/a.flv", "video/x-flv"),
+        ("https://e.com/a.3gp", "video/3gpp"),
+        ("https://e.com/a.mov", "video/quicktime"),
+        ("https://e.com/a.wmv", "video/x-ms-wmv"),
+    ] {
+        assert_eq!(big(url, mime), Some(StreamKind::File), "{url}");
+    }
+}
+
+#[test]
+fn an_advert_loaded_by_the_player_never_reaches_the_list() {
+    let advert = |url: &str, kind: &str, headers: &[(&str, &str)]| {
+        stream_seen(&seen(url, kind, headers)).is_none()
+    };
+    // A pre-roll from an ad server named in the `Server` header, whatever its address.
+    assert!(advert(
+        "https://cdn.example/preroll.mp4",
+        "media",
+        &[("Content-Type", "video/mp4"), ("Content-Length", "9000000"), ("Server", "DCLK-AdSvr")]
+    ));
+    // The IMA SDK's and DoubleClick's hosts.
+    assert!(advert(
+        "https://pubads.g.doubleclick.net/ondemand/hls/content/1/master.m3u8",
+        "xmlhttprequest",
+        &[("Content-Type", "application/vnd.apple.mpegurl")]
+    ));
+    // A Windows media stub of 100 KB or less.
+    assert!(advert(
+        "https://cdn.example/ad.wmv",
+        "media",
+        &[("Content-Type", "video/x-ms-wmv"), ("Content-Length", "90000")]
+    ));
+}

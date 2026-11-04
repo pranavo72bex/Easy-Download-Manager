@@ -339,6 +339,64 @@ PANEL_PAGES = {
         "default-src 'none'; media-src 'self'; style-src 'none'; script-src 'none'"),
 }
 
+# Pages for the request checks (gaps rows 116 to 119 and 123): a file guarded by a request header, the
+# seven ways a page reads an answer, a player that fetches picture and sound in ranges, a feed whose
+# players are told apart by React-like props, and a page with more links than `<a>`.
+REQUEST_PAGES = {
+    "/guard.html": (
+        '<!doctype html><title>guarded</title><div style="position:relative;margin:40px">'
+        '<video id="v" width="640" height="360"></video>' + OVERLAY + '</div>'
+        '<script>document.getElementById("v").src = URL.createObjectURL(new MediaSource());'
+        'fetch("/guarded/guarded1.mp4", {headers: {Authorization: "Bearer t"}}).then(r => r.arrayBuffer());</script>',
+        None),
+    "/answers.html": (
+        '<!doctype html><title>answers</title><pre id="log"></pre><script>'
+        'window.__ways = [];'
+        '(async () => {'
+        ' const note = (w) => window.__ways.push(w);'
+        ' await (await fetch("/files/a-text.m3u8")).text(); note("text");'
+        ' await (await fetch("/api/play?x=1")).json(); note("json as octet-stream");'
+        ' await (await fetch("/files/a-buffer.m3u8")).arrayBuffer(); note("arrayBuffer");'
+        ' await (await fetch("/files/a-blob.m3u8")).blob(); note("blob");'
+        ' const r = (await fetch("/files/a-body.m3u8")).body.getReader();'
+        ' for (;;) { const { done } = await r.read(); if (done) break; } note("body");'
+        ' for (const [type, url] of [["json", "/api/play?x=2"], ["arraybuffer", "/files/a-xhr-buffer.m3u8"],'
+        '                            ["blob", "/files/a-xhr-blob.m3u8"]]) {'
+        '  await new Promise((done) => { const x = new XMLHttpRequest(); x.open("GET", url); x.responseType = type;'
+        '   x.onload = () => { note("xhr " + type); done(); }; x.send(); }); }'
+        ' window.__finished = true;'
+        '})();</script>', None),
+    "/pieces.html": (
+        '<!doctype html><title>pieces</title><div style="position:relative;margin:40px">'
+        '<video id="v" width="640" height="360"></video>' + OVERLAY + '</div>'
+        '<script>document.getElementById("v").src = URL.createObjectURL(new MediaSource());'
+        'for (const u of ["/media/low.mp4?id=1&bytestart=0&byteend=999", "/media/high.mp4?id=2&bytestart=0&byteend=999",'
+        ' "/media/sound.m4a?id=3&bytestart=0&byteend=999"]) fetch(u).then(r => r.arrayBuffer());</script>', None),
+    "/feed.html": (
+        '<!doctype html><title>feed</title><div id="feed"></div>'
+        '<script type="application/json">{"videos":['
+        '{"videoFBID":"1111111111","progressive_urls":[{"progressive_url":"https:\\/\\/v.example\\/v\\/one-sd.mp4","metadata":{"quality":"SD"}}]},'
+        '{"videoFBID":"2222222222","progressive_urls":[{"progressive_url":"https:\\/\\/v.example\\/v\\/two-sd.mp4","metadata":{"quality":"SD"}},'
+        '{"progressive_url":"https:\\/\\/v.example\\/v\\/two-hd.mp4","metadata":{"quality":"HD"}}]}]}</script>'
+        '<script>for (const id of ["1111111111", "2222222222"]) {'
+        ' const box = document.createElement("div"); box.className = "vp-video";'
+        ' box.style.cssText = "position:relative;margin:20px;width:640px;height:360px;background:#222";'
+        ' const v = document.createElement("video"); v.className = "feedvideo"; v.width = 640; v.height = 360;'
+        ' v.src = URL.createObjectURL(new MediaSource());'
+        ' v["__reactFiber$" + Math.random().toString(36).slice(2)] ='
+        '  {return: {return: {memoizedProps: {coreVideoPlayerMetaData: {videoFBID: id}}}}};'
+        ' box.appendChild(v); document.getElementById("feed").appendChild(box); }'
+        'fetch("/files/stream.m3u8");</script>', None),
+    "/morelinks.html": (
+        '<!doctype html><title>more links</title>'
+        '<p><a href="/files/more-a.bin">a</a></p>'
+        '<map name="m"><area shape="rect" coords="0,0,10,10" href="/files/more-area.bin"></map>'
+        '<img usemap="#m" width="20" height="20" src="/files/more-img.bin">'
+        '<iframe src="/files/more-frame.bin" width="10" height="10"></iframe>'
+        '<script>var u = "{ORIGIN}/files/more-script.bin";</script>', None),
+}
+PANEL_PAGES.update(REQUEST_PAGES)
+
 
 class Handler(http.server.BaseHTTPRequestHandler):
     protocol_version = "HTTP/1.1"
@@ -351,6 +409,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
         agent = self.headers.get("User-Agent", "")
         requests.append({"path": path, "agent": agent, "referer": self.headers.get("Referer", ""),
                          "range": self.headers.get("Range", ""), "t": time.monotonic(),
+                         "auth": self.headers.get("Authorization", ""),
                          "port": self.client_address[1]})
         if path == "/framed.html":
             port = self.server.server_address[1]
@@ -363,9 +422,46 @@ class Handler(http.server.BaseHTTPRequestHandler):
             self.end_headers()
             self.wfile.write(page)
             return
+        if path == "/api/play":
+            # A player's API that answers JSON as application/octet-stream.
+            data = b'{"hls": "https://cdn.example/a/master.m3u8"}'
+            self.send_response(200)
+            self.send_header("Content-Type", "application/octet-stream")
+            self.send_header("Content-Length", str(len(data)))
+            self.end_headers()
+            self.wfile.write(data)
+            return
+        if path.startswith("/media/"):
+            # One range of a picture or a sound, as a player asks for it in pieces.
+            name = path.rsplit("/", 1)[1]
+            total = {"low.mp4": 300_000, "high.mp4": 900_000, "sound.m4a": 200_000}.get(name, 100_000)
+            data = body(name)[:1000]
+            self.send_response(206)
+            self.send_header("Content-Type", "audio/mp4" if name.endswith(".m4a") else "video/mp4")
+            self.send_header("Content-Range", f"bytes 0-999/{total}")
+            self.send_header("Content-Length", str(len(data)))
+            self.end_headers()
+            self.wfile.write(data)
+            return
+        if path.startswith("/guarded/"):
+            # A file the site guards with a request header: 403 without it.
+            if self.headers.get("Authorization") != "Bearer t":
+                self.send_error(403)
+                return
+            name = path.rsplit("/", 1)[1]
+            data = body(name)
+            self.send_response(200)
+            self.send_header("Content-Type", "video/mp4")
+            self.send_header("Content-Length", str(len(data)))
+            self.end_headers()
+            try:
+                self.wfile.write(data)
+            except (BrokenPipeError, ConnectionResetError):
+                pass
+            return
         if path in PANEL_PAGES:
             page, csp = PANEL_PAGES[path]
-            page = page.encode()
+            page = page.replace("{ORIGIN}", f"http://127.0.0.1:{self.server.server_address[1]}").encode()
             self.send_response(200)
             self.send_header("Content-Type", "text/html")
             if csp:
@@ -659,6 +755,83 @@ def click_panel(tab, player=None):
     mouse(tab, "mouseMoved", x, y)
     mouse(tab, "mousePressed", x, y)
     mouse(tab, "mouseReleased", x, y)
+
+
+def request_checks(base, origin, engine_dl, engine_home, worker):
+    """Gaps rows 116 to 119 and 123, in the browser: what the page's own requests carried, the seven
+    ways an answer is read, a picture and a sound fetched in ranges, a feed's players, more links."""
+    # 116: the file is guarded by a header the page's own request carried.
+    tab = panel_page(base, origin, "/guard.html")
+    wait_for(lambda: any(r["path"] == "/guarded/guarded1.mp4" and r["auth"] == "Bearer t" for r in requests), 10)
+    hover(tab, tab.evaluate(VIDEO_RECT))
+    wait_for(lambda: (panel(tab) or {}).get("shown"), 5)
+    click_panel(tab)
+    row = wait_for(lambda: next((r for r in queue_rows(engine_home)
+                                 if r.get("url", "").endswith("/guarded/guarded1.mp4")
+                                 and r["state"]["kind"] in ("completed", "failed")), None), 40) or {}
+    check("a file guarded by a request header is fetched by dm with that header (row 116)",
+          row.get("state", {}).get("kind") == "completed" and whole(engine_dl, "guarded1.mp4")
+          and any(r["path"] == "/guarded/guarded1.mp4" and is_dm(r["agent"]) and r["auth"] == "Bearer t"
+                  for r in requests),
+          str(row.get("state")))
+    check("and the header is not in the queue file (it is kept apart, like cookies)",
+          "Bearer t" not in (engine_home / "queue.json").read_text(), "found in queue.json")
+
+    # 117: eight ways to read an answer; each reaches the panel's list as a page body.
+    tab = open_tab(base, "about:blank")
+    tab.call("Page.enable")
+    tab.call("Page.addScriptToEvaluateOnNewDocument", source=(
+        "window.__bodies = []; addEventListener('message', (e) => {"
+        " if (e.data && e.data.source === 'dm-page-body') window.__bodies.push(String(e.data.body).length); });"))
+    tab.call("Page.navigate", url=f"{origin}/answers.html")
+    loaded(tab, "/answers.html")
+    wait_for(lambda: tab.evaluate("window.__finished === true"), 20)
+    seen = wait_for(lambda: tab.evaluate("window.__bodies.length") >= 8 and tab.evaluate("window.__bodies.length"), 10)
+    check("a page reading an answer by text, json, arrayBuffer, blob, body or XHR json/arraybuffer/blob is "
+          "heard each time (row 117)", bool(seen), f"{tab.evaluate('window.__bodies.length')} of 8; ways {tab.evaluate('window.__ways')}")
+
+    # 119: a picture and a sound fetched in ranges become one line.
+    tab = panel_page(base, origin, "/pieces.html")
+    wait_for(lambda: any(r["path"] == "/media/sound.m4a" for r in requests), 10)
+    time.sleep(1)
+    tab_id = worker.evaluate(f"chrome.tabs.query({{url: '{origin}/pieces.html*'}}).then(t => t[t.length - 1].id)")
+    reply = worker.evaluate(
+        f"dmReady.then(m => m.on_page_message({{type: 'dm.formats', src: '', frame: '{origin}/pieces.html'}},"
+        f" {{id: chrome.runtime.id, tab: {{id: {tab_id}}}, url: '{origin}/pieces.html'}}))")
+    lines = [c for c in (reply or {}).get("choices", []) if c.get("sound")]
+    check("a picture and a sound fetched in byte ranges are one line, the larger picture with the sound (row 119)",
+          len(lines) == 1 and "high.mp4" in lines[0]["url"] and "sound.m4a" in lines[0]["sound"]
+          and "bytestart" not in lines[0]["url"], str(reply)[:400])
+
+    # 118: the feed's second player is told from the first by its React-like props.
+    tab = panel_page(base, origin, "/feed.html")
+    wait_for(lambda: any(r["path"] == "/files/stream.m3u8" for r in requests), 10)
+    second = tab.evaluate("(() => { const r = document.querySelectorAll('video.feedvideo')[1].getBoundingClientRect();"
+                          " window.scrollTo(0, window.scrollY + r.top - 40); const s = document.querySelectorAll('video.feedvideo')[1]"
+                          ".getBoundingClientRect(); return { x: s.left, y: s.top, w: s.width, h: s.height }; })()")
+    time.sleep(1)
+    hover(tab, second)
+    wait_for(lambda: (panel(tab) or {}).get("shown"), 5)
+    click_panel(tab, second)
+    lines = wait_for(lambda: (panel(tab) or {}).get("lines") or None, 30) or []
+    check("the second player of a feed lists its own video's qualities, found by the site's finder (row 118)",
+          any("HD" in l for l in lines) and any("SD" in l for l in lines), str(lines))
+
+    # 123: all links reads more than <a>.
+    tab = open_tab(base, f"{origin}/morelinks.html")
+    loaded(tab, "/morelinks.html")
+    time.sleep(1)
+    def queued():
+        return [r.get("url", "") for r in queue_rows(engine_home) if r.get("queue") == "Main queue"]
+    before = set(queued())
+    tab_id = worker.evaluate(f"chrome.tabs.query({{url: '{origin}/morelinks.html*'}}).then(t => t[t.length - 1].id)")
+    worker.evaluate(
+        f"dmReady.then(m => m.on_menu_clicked({{menuItemId: 'dm-all-links', pageUrl: '{origin}/morelinks.html',"
+        f" frameId: 0}}, {{id: {tab_id}}}))")
+    want = ["more-a.bin", "more-area.bin", "more-img.bin", "more-frame.bin", "more-script.bin"]
+    got = wait_for(lambda: len([n for n in want if any(u.endswith("/" + n) for u in set(queued()) - before)]) == len(want), 20)
+    check("'Download all links' also takes an <area>, an image, a frame and an address written in a script (row 123)",
+          bool(got), str([u for u in set(queued()) - before]))
 
 
 def panel_checks(base, origin, engine_dl, engine_home, worker):
@@ -974,6 +1147,12 @@ def main():
         # The dialog the app opens for a panel video is the window test's to
         # drive; here the panel's videos go straight to the folder.
         "ask_panel_downloads": False,
+    }))
+    (engine_home / "rules.json").write_text(json.dumps({
+        "format": 1, "revision": 999, "exclude": {},
+        "sites": [{"host": "127.0.0.1", "finders": [
+            {"player": "div.vp-video",
+             "id_path": "*.return.return.memoizedProps.coreVideoPlayerMetaData.videoFBID"}]}],
     }))
     if sys.platform == "win32":
         shim = engine_home / "host.bat"
@@ -1417,6 +1596,9 @@ def main():
 
         # 7. The floating "Download video" panel over players.
         panel_checks(base, origin, engine_dl, engine_home, worker)
+
+        # 7b. Requests the page itself made: headers, answers, pieces, feeds, more links.
+        request_checks(base, origin, engine_dl, engine_home, worker)
 
         # The toolbar popup, opened as the page it is: it says dm is there,
         # "Open dm" brings dm's window up and downloads nothing, and with

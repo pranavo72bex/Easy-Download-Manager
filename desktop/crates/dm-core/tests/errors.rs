@@ -597,6 +597,141 @@ async fn a_server_that_never_returns_fails_after_the_limit() {
     );
 }
 
+/// thinkbroadband answers 403 to any `Referer` but its own pages, so the one
+/// dm makes up (the file's own folder) failed on every agent, where
+/// reference A got the file.
+#[tokio::test]
+async fn a_server_that_refuses_any_referer_gives_the_file_on_every_piece() {
+    use axum::http::HeaderMap;
+    use std::sync::{Arc, Mutex};
+    let data: Vec<u8> = (0..4_000_000u32).map(|i| (i % 251) as u8).collect();
+    let served = data.clone();
+    // Each request: whether it carried a `Referer`, and its `Range`.
+    type Asked = Vec<(bool, Option<String>)>;
+    let asked: Arc<Mutex<Asked>> = Arc::default();
+    let log = asked.clone();
+    let app = axum::Router::new().route(
+        "/files/f.bin",
+        axum::routing::get(move |headers: HeaderMap| {
+            let served = served.clone();
+            let log = log.clone();
+            async move {
+                let referer = headers.contains_key("referer");
+                let range = headers
+                    .get("range")
+                    .and_then(|v| v.to_str().ok())
+                    .map(str::to_owned);
+                log.lock().unwrap().push((referer, range.clone()));
+                if referer {
+                    return axum::response::Response::builder()
+                        .status(403)
+                        .body(axum::body::Body::from("not permitted"))
+                        .unwrap();
+                }
+                let total = served.len();
+                let (start, end) = range
+                    .as_deref()
+                    .and_then(|r| r.strip_prefix("bytes="))
+                    .and_then(|r| r.split_once('-'))
+                    .map(|(a, b)| {
+                        let a: usize = a.parse().unwrap_or(0);
+                        let b: usize = b.parse().unwrap_or(total - 1).min(total - 1);
+                        (a, b)
+                    })
+                    .unwrap_or((0, total - 1));
+                let body = served[start..=end].to_vec();
+                let mut reply = axum::response::Response::builder()
+                    .header("accept-ranges", "bytes")
+                    .header("content-length", body.len());
+                reply = if range.is_some() {
+                    reply
+                        .status(206)
+                        .header("content-range", format!("bytes {start}-{end}/{total}"))
+                } else {
+                    reply.status(200)
+                };
+                reply.body(axum::body::Body::from(body)).unwrap()
+            }
+        }),
+    );
+    let addr = common::serve(app).await;
+    let dir = tempdir();
+    let once = dm_core::Options {
+        attempts: 1,
+        ..options(dir.path())
+    };
+    let done = dm_core::download(
+        &dm_core::client(),
+        &format!("http://{addr}/files/f.bin"),
+        &once,
+    )
+    .await
+    .expect("asked again without the made-up Referer");
+    assert_eq!(std::fs::read(done.path).unwrap(), data);
+    let asked = asked.lock().unwrap();
+    let after_first_bare = asked.iter().skip_while(|(referer, _)| *referer).skip(1);
+    assert!(
+        after_first_bare.clone().all(|(referer, _)| !referer),
+        "a piece after the bare probe carried the Referer again: {asked:?}"
+    );
+}
+
+/// Wikimedia's limiter answered "429, Retry-After: 1" for as long as requests
+/// kept coming within its window; dm, asking each second as told, sat at
+/// 0 B for minutes. The server's wait is the least dm waits, and it grows.
+#[tokio::test]
+async fn a_limiter_that_resets_on_each_request_is_outwaited() {
+    use std::sync::{Arc, Mutex};
+    let data: Vec<u8> = (0..200_000u32).map(|i| (i % 251) as u8).collect();
+    let served = data.clone();
+    // Refused while the last request, served or not, came under 2 s ago.
+    let last: Arc<Mutex<std::time::Instant>> = Arc::new(Mutex::new(std::time::Instant::now()));
+    let app = axum::Router::new().route(
+        "/f.bin",
+        axum::routing::get(move || {
+            let served = served.clone();
+            let last = last.clone();
+            async move {
+                let mut last = last.lock().unwrap();
+                let quiet = last.elapsed() >= std::time::Duration::from_secs(2);
+                *last = std::time::Instant::now();
+                if !quiet {
+                    return axum::response::Response::builder()
+                        .status(429)
+                        .header("retry-after", "1")
+                        .body(axum::body::Body::empty())
+                        .unwrap();
+                }
+                axum::response::Response::builder()
+                    .status(200)
+                    .header("content-length", served.len())
+                    .body(axum::body::Body::from(served))
+                    .unwrap()
+            }
+        }),
+    );
+    let addr = common::serve(app).await;
+    let dir = tempdir();
+    let patient = dm_core::Options {
+        attempts: 8,
+        ..options(dir.path())
+    };
+    let started = std::time::Instant::now();
+    let done = dm_core::download(
+        &dm_core::client(),
+        &format!("http://{addr}/f.bin"),
+        &patient,
+    )
+    .await
+    .expect("the waits should have grown past the limiter's window");
+    assert_eq!(std::fs::read(done.path).unwrap(), data);
+    assert!(
+        started.elapsed() < std::time::Duration::from_secs(20),
+        "{:?}",
+        started.elapsed()
+    );
+}
+
 #[tokio::test]
 async fn a_server_that_fails_ranged_requests_but_serves_the_plain_one_gives_the_file() {
     use axum::http::HeaderMap;

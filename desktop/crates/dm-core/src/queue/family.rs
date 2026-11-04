@@ -6,6 +6,17 @@ pub(super) fn same_family(a: &str, b: &str) -> bool {
     matches!((family(a), family(b)), (Some(x), Some(y)) if x == y)
 }
 
+/// Whether two addresses are on one family of servers and have the very same path (their queries
+/// may differ: a signature is in the query).
+pub(super) fn same_path(a: &str, b: &str) -> bool {
+    let path = |u: &str| {
+        let url = reqwest::Url::parse(u).ok()?;
+        let path = url.path().to_string();
+        (path.len() > 1).then_some(path)
+    };
+    same_family(a, b) && matches!((path(a), path(b)), (Some(x), Some(y)) if x == y)
+}
+
 fn family(url: &str) -> Option<String> {
     let host = reqwest::Url::parse(url)
         .ok()?

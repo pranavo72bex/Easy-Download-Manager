@@ -211,6 +211,11 @@ pub struct Entry {
     /// the browser sends with every video): dropped once it completes.
     #[serde(default, skip_serializing_if = "std::ops::Not::not")]
     pub cookies_once: bool,
+    /// The request headers the browser sent (a bearer token and the like),
+    /// sent to this row's own server on every request, held like `cookies`
+    /// (outside the journal, dropped with a one-off sign-in).
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub headers: Vec<(String, String)>,
     /// The finished file a recheck found changed on its server, kept until
     /// the new version is whole and then replaced by it. Fetched beside it
     /// rather than after deleting it: a server that fails halfway through
@@ -312,6 +317,8 @@ pub struct AddOptions {
     pub cookies: String,
     /// Those cookies are for this download alone, not kept once it is done.
     pub cookies_once: bool,
+    /// The headers the browser sent with the request (see `Entry::headers`).
+    pub headers: Vec<(String, String)>,
     /// A file this download takes the place of once it is whole, as a
     /// recheck's new version does: kept until then, so a failed download
     /// leaves it.
@@ -664,6 +671,7 @@ impl Queue {
                 began_in: String::new(),
                 cookies: String::new(),
                 cookies_once: false,
+                headers: Vec::new(),
                 replaces: None,
                 speed_limit: 0,
                 stalled: String::new(),

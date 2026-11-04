@@ -1,0 +1,31 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>dm fixture: a feed with several players (gaps row 118)</title>
+<!-- A rules.json site entry that reads this page (host 127.0.0.1):
+  { "host": "127.0.0.1", "finders": [
+    { "player": "$<div.vp-video", "id_path": "*.return.return.memoizedProps.coreVideoPlayerMetaData.videoFBID",
+      "container": "$>#feed" } ] }
+  The panel over the second video must list that video's files (two-hd.mp4), not the first's. -->
+<div id="feed"></div>
+<script id="data" type="application/json">
+{"videos":[
+ {"videoFBID":"1111111111","progressive_urls":[{"progressive_url":"https://cdn.example/v/one-sd.mp4","metadata":{"quality":"SD"}}]},
+ {"videoFBID":"2222222222","progressive_urls":[{"progressive_url":"https://cdn.example/v/two-sd.mp4","metadata":{"quality":"SD"}},{"progressive_url":"https://cdn.example/v/two-hd.mp4","metadata":{"quality":"HD"}}]}
+]}
+</script>
+<script>
+  // A React-like fiber on each player's element, under a random key, two levels up.
+  for (const id of ['1111111111', '2222222222']) {
+    const box = document.createElement('div');
+    box.className = 'vp-video';
+    box.style.cssText = 'width:480px;height:270px;margin:12px;background:#222';
+    const video = document.createElement('video');
+    video.style.cssText = 'width:100%;height:100%';
+    video.src = 'low.mp4';
+    video.controls = true;
+    box.appendChild(video);
+    const fiber = { return: { return: { memoizedProps: { coreVideoPlayerMetaData: { videoFBID: id } } } } };
+    video['__reactFiber$' + Math.random().toString(36).slice(2)] = fiber;
+    document.getElementById('feed').appendChild(box);
+  }
+</script>

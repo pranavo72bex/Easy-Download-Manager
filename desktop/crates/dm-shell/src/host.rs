@@ -73,6 +73,9 @@ pub struct Request {
     /// Those cookies are a video page's session, for this download alone.
     #[serde(default, skip_serializing_if = "std::ops::Not::not")]
     pub cookies_once: bool,
+    /// The request headers the browser sent for it (`Start::headers`).
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub headers: Vec<(String, String)>,
     /// The title of the page it came from, to name a file whose own name says nothing.
     #[serde(default, skip_serializing_if = "String::is_empty")]
     pub title: String,
@@ -367,6 +370,18 @@ pub trait World {
         cookies: &str,
         within_ms: u64,
     ) -> Result<String, String>;
+    /// [`World::reachable`] with the request headers the browser sent. A
+    /// world that does not use them asks without.
+    fn reachable_with(
+        &mut self,
+        url: &str,
+        referrer: &str,
+        cookies: &str,
+        _headers: &[(String, String)],
+        within_ms: u64,
+    ) -> Result<String, String> {
+        self.reachable(url, referrer, cookies, within_ms)
+    }
     /// The qualities a page's video comes in.
     fn formats(&mut self, url: &str, referrer: &str, cookies: &str) -> Result<Vec<Choice>, String>;
     /// Milliseconds since the Unix epoch, the clock the extension's
@@ -413,6 +428,17 @@ impl World for Here<'_> {
         cookies: &str,
         within_ms: u64,
     ) -> Result<String, String> {
+        self.reachable_with(url, referrer, cookies, &[], within_ms)
+    }
+
+    fn reachable_with(
+        &mut self,
+        url: &str,
+        referrer: &str,
+        cookies: &str,
+        headers: &[(String, String)],
+        within_ms: u64,
+    ) -> Result<String, String> {
         if !(url.starts_with("http://") || url.starts_with("https://")) {
             return Ok(String::new());
         }
@@ -441,7 +467,7 @@ impl World for Here<'_> {
                     // refused and always left with the browser.
                     &settings.with_login(url),
                     referrer,
-                    dm_core::cookies::SignIn::new(url, cookies).as_ref(),
+                    dm_core::cookies::SignIn::with_headers(url, cookies, headers).as_ref(),
                 ),
             )
             .await
@@ -759,6 +785,7 @@ pub fn answer(
             to,
             cookies,
             cookies_once,
+            headers,
             title,
             mime,
             deadline,
@@ -794,6 +821,7 @@ pub fn answer(
                 &url,
                 &referrer,
                 &cookies,
+                &headers,
                 &mime,
                 deadline,
             ) {
@@ -830,7 +858,9 @@ pub fn answer(
                         },
                         caught,
                         cookies: cookies.trim().to_string(),
-                        cookies_once: cookies_once && !cookies.trim().is_empty(),
+                        cookies_once: cookies_once
+                            && (!cookies.trim().is_empty() || !headers.is_empty()),
+                        headers: dm_core::cookies::forwardable(&headers),
                         title: title.trim().chars().take(300).collect(),
                         browser: parent_browser(),
                         ..Request::default()
@@ -927,6 +957,7 @@ fn checked(
     url: &str,
     referrer: &str,
     cookies: &str,
+    headers: &[(String, String)],
     mime: &str,
     deadline: Option<u64>,
 ) -> Option<String> {
@@ -937,7 +968,7 @@ fn checked(
     if !caught {
         return None;
     }
-    match world.reachable(url, referrer, cookies, within) {
+    match world.reachable_with(url, referrer, cookies, headers, within) {
         Err(why) => Some(format!("dm cannot fetch this without the browser: {why}")),
         Ok(served) if dm_protocol::page_instead_of_file(mime, url, &served) => Some(format!(
             "dm cannot fetch this without the browser: the site answers dm with a page \

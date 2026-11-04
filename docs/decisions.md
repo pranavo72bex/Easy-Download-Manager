@@ -3737,3 +3737,53 @@ on a mismatch reloads the extension, which loads glue that matches. At most once
 rebuild cannot set off a loop. Tried and dropped: naming the file by its digest, which would do the
 same with a 404 but changes a name seven scripts look for. The page's panel needs none of this: its
 glue and WebAssembly are one file (`pkg/panel.js`).
+
+## Reference A's extension, rows 116 to 119 (2026-11-04)
+
+* **Headers (116).** The worker listens at `onSendHeaders` (read only) and keeps the last request
+  headers per address in memory, never in storage or a log. They travel in `Start.headers`; the host
+  and the queue filter them again (`dm_core::cookies::forwardable`: nothing dm sets itself, no
+  `Cookie`, bounded), keep them with the row's secrets like cookies, and send them only to the
+  row's own server (`SignIn::headers_for`), so a bearer token never follows a redirect or a mirror.
+  `Authorization` is forwarded here although `Headers::of` (the stream hints) drops it: those hints
+  come from a playlist, these from the browser's own request for the same file.
+* **Answers (117).** The page hook no longer clones every answer. It wraps the `Response` reading
+  methods and the `body` getter (a `tee()` for answers that may be text), and XHR `json`,
+  `arraybuffer` and `blob`; bytes are decoded only when the first 64 are text.
+* **Finders (118).** A small selector-chain and property-path language from `rules.json`, evaluated
+  read only in the page's world (32 steps, 5 ms). The id is asked at the panel click; the lines come
+  from the answers already kept (`page_lines_for_player`). No site's finder is shipped yet.
+* **Pairing (119).** `ranged_of` reads any site's byte-range pieces by `Content-Type`; a lone one
+  is offered as a whole file, so a site with video only loses nothing.
+* **Not built: renewing (121).** The app cannot ask the extension anything (the native host exists
+  only while the browser holds a port), so there is no way to ask for a newer address.
+
+## Media types and adverts audited against reference A (2026-11-04, rows 126 and 127)
+
+* **Added:** a playlist or manifest recognised by its type alone (`application/octet-stream-m3u8`,
+  `video/vnd.mpeg.dash.mpd`), and `audio/mp2t` as a segment, not a file.
+* **Not offered, on purpose:** HDS (`video/f4m`, `video/f4f`, `Seg1-Frag1`): Flash-era, neither a
+  file; it is now kept out of the list. Subtitle types (`text/vtt`, TTML, DFXP) are not media.
+  `application/vnd.yt-ump` is YouTube's, read from the page by `youtube.rs`, not from the list.
+* **Adverts:** already excluded by host, path, `Server: DCLK-AdSvr` and a Windows-media stub of
+  100 KB or less (`excluded.rs`); an MP4 loaded as an image is never heard, since the worker does
+  not listen to the `image` type. Tests added for each.
+
+## The made-up `Referer` is dropped for a server that refuses it; `Retry-After` is a floor (2026-11-04, rows 133 and 134)
+
+Found by running reference A and dm on the same real sites (`docs/gaps.md` row 132).
+
+* **`Referer`:** dm keeps sending the file's own folder when no `Referer` was given (reference A does
+  the same, and some hosts want one). Only when the probe is still refused with 403 after the agent
+  ladder is it asked once more with none; if that is served, the server (host and port) is
+  remembered for the session and every later request to it goes without. A `Referer` that came with
+  the download (the browser's page) is never dropped. Tried and dropped: never sending one, which
+  would lose the hosts that want it.
+* **`Retry-After`:** the server's value is the least wait, and dm's own wait still grows under it,
+  doubling past the 15 s a dropped connection is held to, up to the 60 s ceiling as before.
+  Wikimedia's limiter answered dm each second for minutes and let a request through only after
+  about 20 quiet seconds; following the header exactly cannot get past one. Checked by
+  `tests/errors.rs` and a unit test in `retry.rs`. Not re-checked live: after the day's
+  side-by-side runs Wikimedia answered this computer `Retry-After: 600` with a request to be less
+  disruptive; dm then showed "Too many requests (retry n …)" and asked once a minute. Do not
+  re-test against Wikimedia's originals in a loop.

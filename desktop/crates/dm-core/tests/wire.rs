@@ -41,6 +41,7 @@ fn entry(state: State) -> Entry {
         began_in: String::new(),
         cookies: String::new(),
         cookies_once: false,
+        headers: Vec::new(),
         replaces: None,
         speed_limit: 0,
         stalled: String::new(),

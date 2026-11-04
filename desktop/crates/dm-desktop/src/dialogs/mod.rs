@@ -158,6 +158,8 @@ pub struct FileInfo {
     pub cookies: String,
     /// Those cookies are for this download alone.
     pub cookies_once: bool,
+    /// The request headers the browser sent for it.
+    pub headers: Vec<(String, String)>,
     /// Browse… was pressed on a desktop with no folder chooser: said in
     /// this opening of the dialog only (it stayed for the next).
     pub no_chooser: bool,

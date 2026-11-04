@@ -131,6 +131,9 @@ pub async fn on_download_created(item: JsValue) {
         held: true,
         cookies,
         cookies_once,
+        // The headers the browser's own request carried (a token a site
+        // checks), kept when the request went out.
+        headers: sent_to(&found.url).await,
         // What the browser is being sent, so the app can tell a sign-in
         // page served to it in the file's place, and refuse.
         mime: found.mime.clone(),
@@ -349,5 +352,5 @@ async fn tab_title(referrer: &str) -> Option<String> {
             (field("url"), field("title"))
         })
         .collect();
-    decide::referrer_title(&tabs, referrer)
+    decide::referrer_title(&tabs, referrer).map(|title| decide::clean_title(&title, referrer))
 }

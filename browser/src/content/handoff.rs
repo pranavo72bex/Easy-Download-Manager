@@ -133,6 +133,82 @@ pub(super) fn player_answer() -> Promise {
     })
 }
 
+thread_local! {
+    /// Who is waiting for the page to say which video the player is: the
+    /// ask's token and the promise's resolve.
+    static ID_ASKED: RefCell<Option<(String, Function)>> = const { RefCell::new(None) };
+    /// Whether the page's id answers are listened for yet.
+    static ID_LISTENING: std::cell::Cell<bool> = const { std::cell::Cell::new(false) };
+}
+
+/// Which video the player under the panel is, by the finders the app's
+/// rules give this site (`document.js` reads them): its id, or empty where
+/// the site has no finder, the player matches none, or the page does not
+/// answer in a moment.
+async fn player_id() -> String {
+    let Some(window) = window() else {
+        return String::new();
+    };
+    let Some(Some(element)) = with_panel(|p| p.current.clone()) else {
+        return String::new();
+    };
+    if !ID_LISTENING.with(|l| l.replace(true)) {
+        listen(&window, "message", |event| {
+            let Ok(event) = event.dyn_into::<web_sys::MessageEvent>() else {
+                return;
+            };
+            let data = event.data();
+            if text_of(&data, "source") != "dm-player-id" {
+                return;
+            }
+            let token = text_of(&data, "token");
+            let waiting = ID_ASKED.with(|a| {
+                let mut a = a.borrow_mut();
+                match a.as_ref() {
+                    Some((asked, _)) if *asked == token => a.take(),
+                    _ => None,
+                }
+            });
+            if let Some((_, resolve)) = waiting {
+                let _ = resolve.call1(&JsValue::NULL, &data);
+            }
+        });
+    }
+    let token = format!("f{}", js_sys::Date::now() as u64);
+    let origin = window.location().origin().unwrap_or_else(|_| "*".into());
+    // The element is marked for the page script to find, for this one ask.
+    let _ = element.set_attribute("data-dm-find", &token);
+    let asked = Promise::new(&mut |resolve, _reject| {
+        ID_ASKED.with(|a| *a.borrow_mut() = Some((token.clone(), resolve.clone())));
+        let ask = js_sys::Object::new();
+        let _ = Reflect::set(&ask, &"source".into(), &"dm-find-id".into());
+        let _ = Reflect::set(&ask, &"token".into(), &token.clone().into());
+        let _ = window.post_message(&ask, &origin);
+        let token = token.clone();
+        set_timeout(
+            move || {
+                let late = ID_ASKED.with(|a| {
+                    let mut a = a.borrow_mut();
+                    match a.as_ref() {
+                        Some((asked, _)) if *asked == token => a.take(),
+                        _ => None,
+                    }
+                });
+                if let Some((_, resolve)) = late {
+                    let _ = resolve.call1(&JsValue::NULL, &JsValue::NULL);
+                }
+            },
+            PLAYER_PATIENCE_MS,
+        );
+    });
+    let answer = JsFuture::from(asked).await.unwrap_or(JsValue::NULL);
+    element.remove_attribute("data-dm-find").ok();
+    if answer.is_null() {
+        return String::new();
+    }
+    text_of(&answer, "id")
+}
+
 /// The heights the player's answer names for the video `id`, tallest
 /// first; none where the answer is another video's (the player is reused
 /// for the next video, and for an advertisement) or never came.
@@ -295,7 +371,7 @@ pub(super) fn clicked() {
             .ok()
             .and_then(|v| v.dyn_into().ok())
             .unwrap_or_default();
-        let choices = with_page_lines(choices);
+        let choices = with_page_lines(choices, player_id().await);
         with_panel(|p| {
             p.settled = false;
             say(p, "");
@@ -311,7 +387,7 @@ pub(super) fn clicked() {
 /// The video files the page lists in its own data, added to the lines the background
 /// gave: for the video whose file the player has been seen to fetch, the page's SD and
 /// HD files and its DASH stream, as a site that names them all shows them.
-fn with_page_lines(choices: Array) -> Array {
+fn with_page_lines(choices: Array, player: String) -> Array {
     let seen: Vec<String> = choices
         .iter()
         .flat_map(|c| [text_of(&c, "url"), text_of(&c, "sound")])
@@ -337,7 +413,11 @@ fn with_page_lines(choices: Array) -> Array {
             text.push_str("</script>");
         }
     }
-    for line in decide::page_lines(&text, &seen) {
+    // The video a site's finder named for this player comes first; the lines found by the file
+    // the player was seen to fetch follow.
+    let mut lines = decide::page_lines_for_player(&text, &player);
+    lines.extend(decide::page_lines(&text, &seen));
+    for line in lines {
         if choices.iter().any(|c| text_of(&c, "url") == line.url) {
             continue;
         }

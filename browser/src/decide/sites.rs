@@ -204,3 +204,73 @@ pub fn with_site(off: &[String], site: &str, keep_off: bool) -> Vec<String> {
     list.truncate(1000);
     list
 }
+
+/// A page's title as a file's name should have it: without the unread-count a site puts in
+/// front of it (`(3) `), the play mark a player puts there, and the site's own name after it
+/// (` - YouTube`, ` | Vimeo`) when that name is the host's. Never left empty.
+pub fn clean_title(title: &str, page_url: &str) -> String {
+    let mut text = title.trim();
+    if text.starts_with('(') {
+        if let Some((count, rest)) = text[1..].split_once(')') {
+            // A few digits (an unread count), not a year.
+            if (1..=3).contains(&count.trim_end_matches('+').len())
+                && count.trim_end_matches('+').chars().all(|c| c.is_ascii_digit())
+            {
+                text = rest.trim_start();
+            }
+        }
+    }
+    text = text.trim_start_matches(['▶', '►', '▷']).trim_start();
+    let host = site_of(page_url).unwrap_or_default();
+    let plain = |s: &str| {
+        s.chars()
+            .filter(|c| c.is_alphanumeric())
+            .flat_map(char::to_lowercase)
+            .collect::<String>()
+    };
+    let mut labels = host.split('.').collect::<Vec<_>>();
+    if labels.len() > 1 {
+        labels.pop();
+    }
+    // `youtube` of `m.youtube.com`, `bbc` of `bbc.co.uk`: the label before the ending.
+    let name = labels
+        .iter()
+        .rev()
+        .find(|l| l.len() > 2 && !matches!(**l, "co" | "com" | "org" | "net"))
+        .map(|l| plain(l))
+        .unwrap_or_default();
+    for separator in [" - ", " | ", " – ", " — ", " · ", " • "] {
+        if let Some((front, back)) = text.rsplit_once(separator) {
+            let back = plain(back);
+            if !front.trim().is_empty()
+                && !name.is_empty()
+                && (back == name || back == plain(&host))
+            {
+                text = front.trim_end();
+                break;
+            }
+        }
+    }
+    if text.is_empty() {
+        title.trim().to_string()
+    } else {
+        text.to_string()
+    }
+}
+
+#[cfg(test)]
+mod title_tests {
+    use super::clean_title;
+
+    #[test]
+    fn a_titles_noise_is_taken_off_but_not_its_own_words() {
+        let page = "https://www.youtube.com/watch?v=1";
+        assert_eq!(clean_title("(3) Name - YouTube", page), "Name");
+        assert_eq!(clean_title("▶ A talk | YouTube", page), "A talk");
+        assert_eq!(clean_title("Name - Other Site", page), "Name - Other Site");
+        assert_eq!(clean_title("YouTube", page), "YouTube");
+        assert_eq!(clean_title("(2020) A film", page), "(2020) A film");
+        assert_eq!(clean_title("Clip - Vimeo", "https://vimeo.com/12"), "Clip");
+        assert_eq!(clean_title("News - BBC", "https://www.bbc.co.uk/x"), "News");
+    }
+}

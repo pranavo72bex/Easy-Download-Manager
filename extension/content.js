@@ -76,8 +76,15 @@
   // where the rules for the site name that request). Only from this page.
   try {
     ext.runtime.sendMessage({ type: 'dm.page-rules' }).then((answer) => {
-      if (answer?.ok && Array.isArray(answer.urls) && answer.urls.length) {
-        window.postMessage({ source: 'dm-page-rules', urls: answer.urls }, location.origin);
+      if (answer?.ok && ((Array.isArray(answer.urls) && answer.urls.length)
+        || (Array.isArray(answer.finders) && answer.finders.length)
+        || (Array.isArray(answer.privateFetches) && answer.privateFetches.length))) {
+        window.postMessage({
+          source: 'dm-page-rules',
+          urls: answer.urls || [],
+          finders: answer.finders || [],
+          privateFetches: answer.privateFetches || [],
+        }, location.origin);
       }
     }).catch(() => {});
   } catch { /* the extension was updated under this page */ }
@@ -217,26 +224,77 @@
     }
   }, true);
 
-  // The background's 'dm.links': the address of every link on the page, or
-  // of each one the selection holds. Nothing else is read.
+  // The background's 'dm.links': the addresses a page holds, or the selection holds, in the order a
+  // person would look for them: links (`a`, then `area`), images, then for "all links" the frames
+  // and every address written in an inline script, and for "selected links" the plain-text
+  // addresses in the selection and in a selected textarea (not a selected link's own text).
+  // Only addresses are sent; the background keeps web ones, once each.
+  const TEXT_ADDRESS = /\bhttps?:\/\/(?:[^\s:@/<>"']+(?::[^\s@/<>"']*)?@)?[A-Za-z0-9-]+(?:\.[A-Za-z0-9-]+)+(?::\d{1,5})?(?:[/?#][^\s<>"'`]*)?/gi;
+  const trimmed = (text) => text.replace(/[).,;:!?\]}>'"]+$/, '');
+  const addressesIn = (text, limit) => {
+    const found = [];
+    for (const hit of String(text).matchAll(TEXT_ADDRESS)) {
+      found.push(trimmed(hit[0]));
+      if (found.length >= limit) break;
+    }
+    return found;
+  };
   ext.runtime.onMessage.addListener((message, _sender, reply) => {
     if (!message || message.type !== 'dm.links') return false;
     const selected = message.selected === true;
     const selection = selected ? window.getSelection() : null;
     const selectionText = selection ? String(selection) : '';
+    const inSelection = (node, words) => {
+      if (!selected) return true;
+      // Inside the selection, or partly inside with its words in the
+      // selected text: a link that only touches its edge was not selected.
+      if (!selection) return false;
+      const whole = selection.containsNode(node, false);
+      const partly = words !== '' && selection.containsNode(node, true)
+        && selectionText.includes(words);
+      return whole || partly;
+    };
     const links = [];
+    const own = new Set();
     for (const node of document.querySelectorAll('a[href]')) {
-      if (selected) {
-        // Inside the selection, or partly inside with its words in the
-        // selected text: a link that only touches its edge was not selected.
-        if (!selection) continue;
-        const whole = selection.containsNode(node, false);
-        const words = (node.textContent ?? '').trim();
-        const partly = words !== '' && selection.containsNode(node, true)
-          && selectionText.includes(words);
-        if (!(whole || partly)) continue;
-      }
+      const words = (node.textContent ?? '').trim();
+      if (!inSelection(node, words)) continue;
       if (typeof node.href === 'string') links.push(node.href);
+      if (selected) own.add(words);
+    }
+    for (const node of document.querySelectorAll('area[href]')) {
+      if (inSelection(node, '') && typeof node.href === 'string') links.push(node.href);
+    }
+    for (const node of document.querySelectorAll('img')) {
+      const src = node.currentSrc || node.src;
+      if (src && inSelection(node, '')) links.push(src);
+    }
+    if (!selected) {
+      for (const frame of document.querySelectorAll('iframe[src]')) {
+        if (typeof frame.src === 'string') links.push(frame.src);
+      }
+      // Addresses a page writes into its scripts (a gallery's list, a player's config).
+      let looked = 0;
+      for (const script of document.querySelectorAll('script:not([src])')) {
+        const text = script.textContent || '';
+        if (text.length > 500000 || looked >= 200) continue;
+        for (const found of addressesIn(text.replace(/\\\//g, '/'), 200 - looked)) {
+          links.push(found);
+          looked += 1;
+        }
+      }
+    } else {
+      // Addresses typed in the selected text or in a selected textarea / text box.
+      const typed = [selectionText];
+      const active = document.activeElement;
+      if (active && (active.tagName === 'TEXTAREA' || active.tagName === 'INPUT')) {
+        try { typed.push(String(active.value || '').slice(active.selectionStart, active.selectionEnd)); } catch { /* not a text box */ }
+      }
+      for (const text of typed) {
+        for (const found of addressesIn(text, 500)) {
+          if (!own.has(found)) links.push(found);
+        }
+      }
     }
     reply({ links });
     return false;

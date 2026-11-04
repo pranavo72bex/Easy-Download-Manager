@@ -112,6 +112,7 @@ impl Dialogs {
             handed: true,
             cookies: request.cookies,
             cookies_once: request.cookies_once,
+            headers: request.headers,
             browser: request.browser,
             caught: request.caught,
             // The panel's "Part" line: the dialog opens with the part on.

@@ -59,7 +59,9 @@ use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
 mod rules;
-pub use rules::{AnswerRule, ExcludeRules, Rules, SiteProfile, MAX_RULES_BYTES, RULES_FORMAT};
+pub use rules::{
+    AnswerRule, ExcludeRules, Finder, Rules, SiteProfile, MAX_RULES_BYTES, RULES_FORMAT,
+};
 
 /// The newest version this side reads and writes. A frame of a version
 /// outside [`OLDEST_PROTOCOL`]`..=PROTOCOL_VERSION` is not read.
@@ -231,6 +233,12 @@ pub struct Start {
     /// finishes. False from an extension that sends only kept ones.
     #[serde(default, skip_serializing_if = "std::ops::Not::not")]
     pub cookies_once: bool,
+    /// The headers the browser sent with the request that began this
+    /// download (a bearer token, `Origin`, a site's own `X-…`), minus the
+    /// ones that belong to one connection and `Cookie`, which has its own
+    /// field. Kept like cookies and never logged; absent from an older extension.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub headers: Vec<(String, String)>,
     /// The title of the page the download was found on: names a file whose own name says nothing. An older app ignores it.
     #[serde(default, skip_serializing_if = "String::is_empty")]
     pub title: String,

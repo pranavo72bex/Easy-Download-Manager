@@ -159,6 +159,67 @@ fn host_of(url: &str) -> Option<String> {
 pub struct SignIn {
     host: String,
     header: String,
+    /// Request headers the browser sent for this download (a bearer token, an
+    /// `Origin`, a site's own `X-…` header), sent to the same one server.
+    extra: Vec<(String, String)>,
+}
+
+/// Headers dm sets itself or that belong to one connection, never taken
+/// from the browser's request. `Cookie` keeps its own field.
+const NOT_FORWARDED: [&str; 18] = [
+    "user-agent",
+    "referer",
+    "if-none-match",
+    "if-modified-since",
+    "if-match",
+    "if-unmodified-since",
+    "host",
+    "range",
+    "if-range",
+    "content-length",
+    "content-type",
+    "connection",
+    "accept-encoding",
+    "cookie",
+    "transfer-encoding",
+    "upgrade",
+    "te",
+    "expect",
+];
+
+/// The most headers, and the longest value, taken from one hand-off.
+const MAX_FORWARDED: usize = 32;
+const MAX_FORWARDED_VALUE: usize = 4096;
+
+/// The headers of `headers` dm may send on, in order, valid and bounded.
+pub fn forwardable(headers: &[(String, String)]) -> Vec<(String, String)> {
+    headers
+        .iter()
+        .filter(|(name, value)| {
+            let name = name.trim();
+            !name.is_empty()
+                && !NOT_FORWARDED
+                    .iter()
+                    .any(|own| own.eq_ignore_ascii_case(name))
+                && value.len() <= MAX_FORWARDED_VALUE
+                && reqwest::header::HeaderName::from_bytes(name.as_bytes()).is_ok()
+                && reqwest::header::HeaderValue::from_str(value).is_ok()
+        })
+        .take(MAX_FORWARDED)
+        .map(|(n, v)| (n.trim().to_string(), v.clone()))
+        .collect()
+}
+
+/// Adds the browser's own request headers for `url`'s server to `request`.
+pub fn add_headers(
+    mut request: reqwest::RequestBuilder,
+    sign_in: Option<&SignIn>,
+    url: &str,
+) -> reqwest::RequestBuilder {
+    for (name, value) in sign_in.map_or(&[][..], |s| s.headers_for(url)) {
+        request = request.header(name.as_str(), value.as_str());
+    }
+    request
 }
 
 impl SignIn {
@@ -173,12 +234,38 @@ impl SignIn {
         Some(SignIn {
             host: host_of(url)?,
             header: header.to_string(),
+            extra: Vec::new(),
         })
+    }
+
+    /// The sign-in for `url`'s server with the browser's own request headers
+    /// as well: `None` when there are neither cookies nor a usable header.
+    /// Headers dm sets itself, and any that is not valid, are left out.
+    pub fn with_headers(url: &str, header: &str, headers: &[(String, String)]) -> Option<SignIn> {
+        let extra = forwardable(headers);
+        if extra.is_empty() {
+            return SignIn::new(url, header);
+        }
+        Some(SignIn {
+            host: host_of(url)?,
+            header: header.replace(['\r', '\n'], "").trim().to_string(),
+            extra,
+        })
+    }
+
+    /// The browser's request headers, where `url` is on the server they are for.
+    pub fn headers_for(&self, url: &str) -> &[(String, String)] {
+        if host_of(url).as_deref() == Some(self.host.as_str()) {
+            &self.extra
+        } else {
+            &[]
+        }
     }
 
     /// The header, where `url` is on the server it is for.
     pub fn for_url(&self, url: &str) -> Option<&str> {
-        (host_of(url).as_deref() == Some(self.host.as_str())).then_some(self.header.as_str())
+        (host_of(url).as_deref() == Some(self.host.as_str()) && !self.header.is_empty())
+            .then_some(self.header.as_str())
     }
 
     /// The cookies as `cookies.txt` lines for that server.

@@ -76,6 +76,19 @@ class Handler(http.server.BaseHTTPRequestHandler):
         if self.command != "HEAD":
             self.wfile.write(body)
 
+    def end_headers(self):
+        # Open to any page, so a fixture page on another port can fetch with a header.
+        self.send_header("Access-Control-Allow-Origin", "*")
+        self.send_header("Access-Control-Expose-Headers", "Content-Length, Content-Range")
+        super().end_headers()
+
+    def do_OPTIONS(self):
+        self.send_response(204)
+        self.send_header("Access-Control-Allow-Headers", "Authorization, Range, Content-Type")
+        self.send_header("Access-Control-Allow-Methods", "GET, HEAD, OPTIONS")
+        self.send_header("Content-Length", "0")
+        self.end_headers()
+
     def do_HEAD(self):
         self.do_GET()
 
@@ -124,6 +137,12 @@ class Handler(http.server.BaseHTTPRequestHandler):
         if head == "cookie" and rest:
             if "session=qa" not in (self.headers.get("Cookie") or ""):
                 return self.small(403, b"no session")
+            return self.file(rest[-1], self.q())
+        if head == "bearer" and rest:
+            # A file a site guards with a request header (gaps row 116): the
+            # browser's own request carried it, so the hand-off must too.
+            if self.headers.get("Authorization") != "Bearer t":
+                return self.small(403, b"no token")
             return self.file(rest[-1], self.q())
         if head == "changing" and rest:
             return self.changing(rest[-1], self.q())

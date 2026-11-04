@@ -1,9 +1,11 @@
 {
  "format": 1,
- "revision": 2,
+ "revision": 3,
  "exclude": {},
  "sites": [
-  { "host": "facebook.com", "answers": [
+  { "host": "facebook.com", "finders": [
+   { "player": "video", "id_path": "*.return.return.memoizedProps.coreVideoPlayerMetaData.videoFBID" }
+  ], "answers": [
    { "url_contains": "/api/graphql", "keys": ["browser_native_hd_url", "browser_native_sd_url", "playable_url", "playable_url_quality_hd"] },
    { "url_contains": "/graphql/query", "keys": ["browser_native_hd_url", "browser_native_sd_url", "playable_url", "playable_url_quality_hd"] }
   ] },
@@ -12,7 +14,9 @@
    { "url_contains": "/graphql/query", "keys": ["browser_native_hd_url", "browser_native_sd_url", "video_url"] },
    { "url_contains": "/api/v1/media/", "keys": ["url"] }
   ] },
-  { "host": "vimeo.com", "answers": [
+  { "host": "vimeo.com", "finders": [
+   { "player": "div.vp-video, video", "id_from_url": "vimeo\\.com/(?:video/)?(\\d{2,})" }
+  ], "answers": [
    { "url_contains": "/config", "keys": ["url"] }
   ] },
   { "host": "tiktok.com", "answers": [

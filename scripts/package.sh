@@ -19,11 +19,25 @@ export PATH="$HOME/.cargo/bin:$PATH"
 version=$(sed -n 's/.*"version": "\([^"]*\)".*/\1/p' "$root/extension/manifest.json" | head -1)
 dist="$root/dist"
 pkg="$root/extension/pkg"
+# A Python that runs: on Windows `python3` can be the Microsoft Store's
+# placeholder, which only prints how to install Python, and every check
+# below then failed as though it had found something wrong.
+py=
+for candidate in python3 python; do
+  if "$candidate" -c "import sys; sys.exit(sys.version_info < (3, 8))" >/dev/null 2>&1; then
+    py=$candidate
+    break
+  fi
+done
+if [ -z "$py" ]; then
+  echo "package.sh needs Python 3.8 or newer (python3 or python)" >&2
+  exit 1
+fi
 
 # The stores refuse a description over 132 characters (Edge Add-ons said
 # so on a manual upload); refused here first.
 for manifest in "$root/extension/manifest.json" "$root/extension/manifest.firefox.json"; do
-  if ! python3 -c "import json,sys; d=json.load(open(sys.argv[1]))['description']; sys.exit(len(d) > 132)" "$manifest"; then
+  if ! "$py" -c "import json,sys; d=json.load(open(sys.argv[1]))['description']; sys.exit(len(d) > 132)" "$manifest"; then
     echo "$manifest: the description is over the stores' 132 characters" >&2
     exit 1
   fi
@@ -55,14 +69,14 @@ echo "building the extension (dm-catcher, wasm32)"
 (cd "$root/browser" && cargo build --release --target wasm32-unknown-unknown --locked)
 rm -rf "$pkg"
 wasm-bindgen --target web --no-typescript --out-dir "$pkg" \
-  "$root/browser/target/wasm32-unknown-unknown/release/dm_catcher.wasm"
+  "${CARGO_TARGET_DIR:-$root/browser/target}/wasm32-unknown-unknown/release/dm_catcher.wasm"
 # The panel's copy, which the background puts into a page's frame with
 # scripting.executeScript: a script of its own (no module), its WebAssembly
 # written into it, so the page's frame fetches nothing from the extension.
 panel=$(mktemp -d)
 wasm-bindgen --target no-modules --no-typescript --out-dir "$panel" \
-  "$root/browser/target/wasm32-unknown-unknown/release/dm_catcher.wasm"
-python3 - "$panel" "$pkg/panel.js" <<'PY'
+  "${CARGO_TARGET_DIR:-$root/browser/target}/wasm32-unknown-unknown/release/dm_catcher.wasm"
+"$py" - "$panel" "$pkg/panel.js" <<'PY'
 import base64, pathlib, sys
 src = pathlib.Path(sys.argv[1])
 glue = (src / "dm_catcher.js").read_text()
@@ -84,7 +98,7 @@ rm -rf "$panel"
 # glue with new WebAssembly and failed with "wasm.__wasm_bindgen_func_elem_… is
 # not a function" (gaps row 114). The background compares the bytes it fetched
 # with this digest and reloads the extension when they differ.
-python3 - "$pkg/dm_catcher_bg.wasm" "$pkg/build.js" <<'PY'
+"$py" - "$pkg/dm_catcher_bg.wasm" "$pkg/build.js" <<'PY'
 import hashlib, pathlib, sys
 digest = hashlib.sha256(pathlib.Path(sys.argv[1]).read_bytes()).hexdigest()
 pathlib.Path(sys.argv[2]).write_text(
@@ -136,7 +150,25 @@ pack() {
     exit 1
   fi
 
-  (cd "$stage" && zip -qr "$dist/dm-$browser-$version.zip" .)
+  # Git Bash on Windows has no `zip`: there the store zips came out empty
+  # (0 bytes) and nothing said so. Python's zipfile does the same job.
+  out="$dist/dm-$browser-$version.zip"
+  rm -f "$out"
+  if command -v zip >/dev/null 2>&1; then
+    (cd "$stage" && zip -qr "$out" .)
+  else
+    "$py" - "$stage" "$out" <<'PY'
+import pathlib, sys, zipfile
+stage, out = pathlib.Path(sys.argv[1]), sys.argv[2]
+with zipfile.ZipFile(out, "w", zipfile.ZIP_DEFLATED) as z:
+    for f in sorted(p for p in stage.rglob("*") if p.is_file()):
+        z.write(f, f.relative_to(stage).as_posix())
+PY
+  fi
+  if ! "$py" -c "import sys, zipfile; sys.exit('manifest.json' not in zipfile.ZipFile(sys.argv[1]).namelist())" "$out"; then
+    echo "the $browser zip ($out) is empty or has no manifest.json" >&2
+    exit 1
+  fi
   echo "  dist/$browser (unpacked)  dist/dm-$browser-$version.zip"
 }
 

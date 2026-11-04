@@ -62,6 +62,53 @@ pub async fn on_response_started(details: JsValue) {
     describe_playlist(tab, &seen.url).await;
 }
 
+/// A request the browser is sending, read for its headers (never changed:
+/// a Manifest V3 worker may not). Kept by address, in memory, for the
+/// hand-off that address begins.
+#[wasm_bindgen]
+pub fn on_send_headers(details: JsValue) {
+    if let Ok(sent) = serde_json::from_value::<decide::Sent>(from_js(&details)) {
+        SENT.with(|s| s.borrow_mut().keep(&sent));
+        // Written to the session's storage a moment later, once for a burst of requests, so a
+        // worker that sleeps before the download is handed over has not forgotten them.
+        if !SENT_WRITING.with(|w| w.replace(true)) {
+            wasm_bindgen_futures::spawn_local(async {
+                sleep(1000.0).await;
+                SENT_WRITING.with(|w| w.set(false));
+                let all = SENT.with(|s| s.borrow().export());
+                let item = to_js(&serde_json::json!({ SENT_KEY: all }));
+                if let Err(why) = call("storage.session", "set", &[item]).await {
+                    log("debug", &format!("request headers were not kept: {why}"));
+                }
+            });
+        }
+    }
+}
+
+/// Where the request headers are kept between the worker's naps.
+const SENT_KEY: &str = "dm.sent";
+
+/// The headers the browser sent to `url`, from this worker or, after it slept, the session's
+/// storage.
+pub(super) async fn sent_to(url: &str) -> Vec<(String, String)> {
+    if !SENT_LOADED.with(|l| l.replace(true)) {
+        if let Ok(got) = call("storage.session", "get", &[JsValue::from_str(SENT_KEY)]).await {
+            if let Ok(older) = serde_json::from_value(from_js(&field(&got, SENT_KEY))) {
+                SENT.with(|s| s.borrow_mut().merge(older));
+            }
+        }
+    }
+    SENT.with(|s| s.borrow().of(url))
+}
+
+/// The newest address the tab's player asked for that is the same stream as `url`, when a signed
+/// address has been asked for again since (`RequestHeaders::renewed`); `url` itself otherwise.
+pub(super) async fn renewed(url: &str) -> String {
+    // Read back from the session's storage first, as `sent_to` does.
+    let _ = sent_to(url).await;
+    SENT.with(|s| s.borrow().renewed(url)).unwrap_or_else(|| url.to_string())
+}
+
 /// A playlist or manifest the tab just loaded that is named by nothing but
 /// its kind: read once, within a few seconds and a few hundred kilobytes,
 /// with the browser's own session; what it says of its renditions names the
