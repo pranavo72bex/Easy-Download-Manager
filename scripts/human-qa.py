@@ -1199,7 +1199,9 @@ def walk(dm, origin):
           and "Fast (16)" in dl and "Maximum (32)" in dl, f"{dl}")
     dm.click("General")
     pause(0.8)
-    general = dm.dialog_texts()
+    # Scrolled through: in reference A's smaller window (2026-11-04) the row
+    # is below the tab's first screen, as it is for a person.
+    general = dm.dialog_texts() + dm.scrolled_texts("Theme")
     check("B50", "General has the row for what happens when an address is already in the list",
           "When an address is already in the list" in general, f"{general}")
     dm.click("Cancel")

@@ -435,6 +435,22 @@ impl DmApp {
         if found.is_empty() {
             found = matching(false);
         }
+        // Last, words drawn shortened ("Delete Co…", a toolbar button in a
+        // narrow window), as a person reads and clicks them: what is shown
+        // begins the words asked for.
+        if found.is_empty() {
+            found = self
+                .screen
+                .iter()
+                .rev()
+                .filter(|t| {
+                    let have = t.text.trim().to_lowercase();
+                    have.strip_suffix('…')
+                        .map(str::trim_end)
+                        .is_some_and(|shown| shown.chars().count() >= 4 && lower.starts_with(shown))
+                })
+                .collect();
+        }
         found.get(nth).copied()
     }
 }
