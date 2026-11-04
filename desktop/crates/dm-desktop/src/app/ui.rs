@@ -165,7 +165,7 @@ impl DmApp {
             egui::Panel::left("categories")
                 .resizable(true)
                 .show_separator_line(lines)
-                .default_size(self.rail_width(ui, if t.modern { 230.0 } else { 200.0 }))
+                .default_size(self.rail_width(ui, if t.modern { 170.0 } else { 150.0 }))
                 // And never narrower than its longest name needs: a width
                 // kept from English cut German names after a switch and a
                 // relaunch.

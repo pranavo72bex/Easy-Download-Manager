@@ -403,7 +403,7 @@ fn download_later_waits_in_the_main_queue_until_start_queue() {
     harness.run_steps(2);
     assert!(
         harness.query_by_label("Main queue").is_some(),
-        "the Queue column does not name the queue"
+        "the Q column does not name the queue"
     );
     harness.get_by_label_contains("Main queue (").click();
     harness.run_steps(3);
@@ -411,7 +411,7 @@ fn download_later_waits_in_the_main_queue_until_start_queue() {
         harness.state().place,
         Place::Queue(dm_core::MAIN_QUEUE.into())
     );
-    click(&mut harness, "Start queue");
+    click(&mut harness, "Start Queue");
     until(&mut harness, "the queue's download to complete", |app| {
         app.rows().iter().all(|r| r.state == State::Completed)
     });
@@ -1108,7 +1108,7 @@ fn the_small_things_of_round_eight() {
         let mut harness = world.harness();
         harness.run_steps(3);
         let heading = harness
-            .get_by_label("Name")
+            .get_by_label("File Name")
             .accesskit_node()
             .bounding_box()
             .unwrap();
@@ -1177,7 +1177,7 @@ fn the_small_things_of_round_eight() {
         app.rows().iter().any(|r| r.state == State::Completed)
     });
     let delete_at = |h: &Harness<'_, DmApp>| {
-        h.get_by_label("Remove")
+        h.get_by_label("Delete")
             .accesskit_node()
             .bounding_box()
             .unwrap()
@@ -1540,7 +1540,7 @@ fn a_file_added_again_is_listed_under_the_name_it_will_get() {
         .collect();
     assert!(names.contains(&"file (1).zip"), "{names:?}");
     // And it is placed there once fetched.
-    click(&mut harness, "Start queue");
+    click(&mut harness, "Start Queue");
     until(&mut harness, "the second copy to finish", |app| {
         app.rows()
             .iter()
@@ -2012,7 +2012,7 @@ fn the_hovered_row_offers_stop_and_remove_on_itself() {
     harness.run_steps(3);
     let name = dm_desktop::app::name_of(&harness.state().rows()[0].clone());
     assert!(
-        harness.query_by_label(&format!("Remove {name}")).is_some(),
+        harness.query_by_label(&format!("Delete {name}")).is_some(),
         "no buttons on the hovered row"
     );
     // A progress window no longer opens by itself: Details is how a person
@@ -2046,7 +2046,7 @@ fn a_finished_rows_buttons_open_the_file_and_its_folder() {
     harness.hover_at(rect.center());
     harness.run_steps(3);
     let name = dm_desktop::app::name_of(&row);
-    for button in ["Open", "Open folder", "Remove"] {
+    for button in ["Open", "Open folder", "Delete"] {
         assert!(
             harness
                 .query_by_label(&format!("{button} {name}"))

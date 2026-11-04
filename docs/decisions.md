@@ -3800,3 +3800,33 @@ Found by running reference A and dm on the same real sites (`docs/gaps.md` row 1
   dm was back at full speed in the first second after a restart (1.5 MB, against 262 KB in a fresh
   start's first second). Not changed. Use a local steady server (`D:\compare\steady\steady.mjs`)
   for engine timings; real servers only to see that a thing works.
+
+## dm works exactly like reference A, with its labels (maintainer, 2026-11-04)
+
+Asked, in the maintainer's words: "I want to clone" reference A; "it should exactly work same";
+"if the user from" reference A "use our app user should be comfortable"; Windows first, macOS and
+Linux tested later; Microsoft Edge for testing. Answered the same day to three questions:
+
+* **Approval:** "It should work exactly like" reference A. This is the approval
+  `docs/behaviour-contract.md` asks for, for every change that makes dm behave as reference A does
+  (the link chooser, File Info before a panel download, the quality list, connections on small
+  files, a pasted page saved, the queue drop-downs, the Options controls). Each such commit names
+  this entry and edits its contract row and `docs/behaviour-baseline/` in the same commit.
+* **Labels:** reference A's own words for menus, buttons, categories and columns (a Tasks menu,
+  Delete, Delete Completed, All Downloads, Unfinished, Finished, Grabber; the Q, Last Try Date and
+  Description columns), in every catalog. Its icons, logo and artwork are still never copied.
+* **The window:** dm's own (Rust and egui), reshaped to reference A's layout; no WinUI rewrite.
+
+## The window as compact as reference A's (maintainer, 2026-11-04)
+
+Asked: "the opening screen size, font size and overall compactness" of dm and reference A "should be
+same. It should not look extremely big." Measured on this computer (1366 by 768, 100%): reference A
+opens 800 by 458, its text the system's 9-point face (about 12 pixels), its list rows 17 apart, its
+tree about 145 wide with items 16 apart, its toolbar 66 tall with every button named (a long name
+shortened, "Delete C…"). dm opened 962 by 692, past the bottom of the screen, with 14-point text,
+rows 28 apart, tree items 32 and a tree 230 wide; at that width its toolbar fell to pictures alone.
+
+Now (`theme::BODY` 12, `CAPTION` 11, `HEADING` 16, `CONTROL` 22, `NAV_ITEM` 22, `ROW` 20): a new
+window 820 by 500; the tree from 170; toolbar buttons with their name under the picture at most 64
+wide, a longer name shortened with "…" and whole on hover; columns in reference A's widths, so its
+eight fit. The larger text sizes in Options › View still scale all of it.

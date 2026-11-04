@@ -238,6 +238,7 @@ FILES = {
     "ui-alpha.bin": (1 * MiB, 0, "plain"),            # Find / Find previous (B48)
     "ui-beta.bin": (1 * MiB, 0, "plain"),
     "ui-alphabet.bin": (1 * MiB, 0, "plain"),
+    "fresh.bin": (8 * MiB, 512 * 1024, "plain"),      # a new install's pop-ups (B63)
     **{f"q{i}.bin": (8 * MiB, 256 * 1024, "plain") for i in range(1, 6)},
 }
 DATA = {n: body(n, s) for n, (s, _, _) in FILES.items()}
@@ -824,7 +825,7 @@ def walk(dm, origin):
     pause(2)
     waiting = dm.row("later.bin")
     still = waiting and waiting["state"]["kind"] not in ("running", "completed")
-    dm.click("Start queue")
+    dm.click("Start Queue")
     r = dm.wait("later.bin", {"completed", "failed"}, 60)
     check("B19", "Add for later waits until Start queue, then completes",
           still and r["state"]["kind"] == "completed", f"before: {waiting['state']['kind'] if waiting else None}")
@@ -985,7 +986,7 @@ def walk(dm, origin):
     kept = pathlib.Path(r["path"])
     dm.call("ui.select", ids=[r["id"]])
     pause(0.5)
-    dm.click("Remove")
+    dm.click("Delete")
     pause(0.8)
     said = dm.call("ui.inspect")["result"].get("said", "")
     gone = dm.row("lie.bin") is None
@@ -1002,7 +1003,7 @@ def walk(dm, origin):
     dm.click("Stop")
     dm.wait("stopme.bin", {"paused"}, 10)
     dm.call("ui.select", ids=[r["id"]])
-    dm.click("Remove")
+    dm.click("Delete")
     pause(0.8)
     asked_titles = dm.dialogs()
     asked = dm.dialog_texts()
@@ -1010,7 +1011,7 @@ def walk(dm, origin):
     pause(0.6)
     still = dm.row("stopme.bin")
     dm.call("ui.select", ids=[r["id"]])
-    dm.click("Remove")
+    dm.click("Delete")
     pause(0.8)
     dm.click("Yes, remove")
     pause(0.8)
@@ -1021,7 +1022,7 @@ def walk(dm, origin):
           and dm.row("stopme.bin") is None,
           f"asked: {'This download isn' + chr(39) + 't finished' in ' '.join(asked)}; kept after Keep it: {bool(still)}")
     paths = [pathlib.Path(x["path"]) for x in dm.rows() if x["state"]["kind"] == "completed"]
-    dm.click("Clear finished")
+    dm.click("Delete Completed")
     # Its own line, not the one before it ("Put back 1 download." from the
     # Undo above), which a fixed pause sometimes read (gaps row 56).
     said = ""
@@ -1162,9 +1163,9 @@ def walk(dm, origin):
     # B60: Site files has the switch for following links to other sites.
     dm.click("Cancel")
     pause(0.8)
-    dm.click("Program")
+    dm.click("Tasks")
     pause(0.5)
-    dm.click("Site files")
+    dm.click("Grabber")
     pause(0.8)
     site_words = dm.dialog_texts()
     check("B60", "Site files has 'Also follow links to other sites' beside the page depth",
@@ -1316,6 +1317,42 @@ def clipboard_restore(held):
             pass
 
 
+def new_install(origin):
+    """B63: dm as a new install has it, nothing chosen yet: a download opens its
+    progress window as it starts, and a Download complete window when it ends."""
+    home = WORK / "new-install"
+    (home / "downloads").mkdir(parents=True)
+    (home / "settings.json").write_text(json.dumps({"download_dir": str(home / "downloads"), "theme": "dark"}))
+    dm = Dm(home)
+    dm.start()
+    try:
+        dm.add(f"{origin}/files/fresh.bin")
+        seen = []
+        for _ in range(80):
+            seen.append(dm.dialogs())
+            if "Download progress" in seen[-1]:
+                break
+            time.sleep(0.1)
+        check("B63", "a new install opens a download's progress window as it starts",
+              "Download progress" in seen[-1], f"windows: {seen[-1]}")
+        dm.wait("fresh.bin", ("completed", "failed"), 60)
+        for _ in range(40):
+            if "Download complete" in dm.dialogs():
+                break
+            time.sleep(0.25)
+        pause(1)
+        check("B63", "and a Download complete window when it has finished",
+              "Download complete" in dm.dialogs(), f"windows: {dm.dialogs()}")
+        check("B63", "with Open and Open folder in it",
+              all(any(t.startswith(w) for t in dm.dialog_texts()) for w in ("Open", "Open folder")),
+              f"words: {dm.dialog_texts()[:16]}")
+    finally:
+        try:
+            dm.quit()
+        except Exception:
+            dm.proc.kill()
+
+
 def main():
     if not BINARY.exists():
         sys.exit(f"no dm at {BINARY}: cd desktop && cargo build -p dm-desktop")
@@ -1323,7 +1360,13 @@ def main():
     shutil.rmtree(WORK, ignore_errors=True)
     home = WORK / "home"
     (home / "downloads").mkdir(parents=True)
-    (home / "settings.json").write_text(json.dumps({"download_dir": str(home / "downloads"), "theme": "dark"}))
+    # The walk's rows are about the list and its dialogs: without the windows a
+    # new install opens on every download, as reference A does (B63 checks
+    # those on a home of its own).
+    (home / "settings.json").write_text(json.dumps({
+        "download_dir": str(home / "downloads"), "theme": "dark", "popups_version": 2,
+        "show_progress": False, "show_complete": False,
+        "ask_caught_downloads": False, "ask_panel_downloads": False}))
     origin = start_server()
     print(f"dm: {BINARY}\nthe contract: {len(rows)} rows\nserver: {origin}", flush=True)
     # An address on the clipboard is offered in Add URL (as it should be), so
@@ -1343,6 +1386,7 @@ def main():
         except Exception:
             dm.proc.kill()
         clipboard_restore(held)
+    new_install(origin)
     browser()
 
     print("\nThe contract, row by row", flush=True)

@@ -635,20 +635,24 @@ fn a_caught_download_asks_where_to_save_only_where_options_say() {
         )
         .unwrap()
     };
-    // A new install starts a download at once.
+    // A new install asks first, as reference A's File Info does.
     let home = tempfile::tempdir().unwrap();
     let new = filed(home.path(), "c1");
-    assert!(new.caught && !new.ask);
-    // So does a settings file from before the choice existed.
+    assert!(new.caught && new.ask);
+    // So does a settings file from an older edition of the defaults.
     std::fs::write(home.path().join("settings.json"), r#"{"connections":4}"#).unwrap();
     let old = filed(home.path(), "c2");
-    assert!(old.caught && !old.ask);
+    assert!(old.caught && old.ask);
+    // A person who turned it off since keeps it off.
     std::fs::write(
         home.path().join("settings.json"),
-        r#"{"ask_caught_downloads":true}"#,
+        format!(
+            r#"{{"ask_caught_downloads":false,"popups_version":{}}}"#,
+            crate::settings::POPUPS_VERSION
+        ),
     )
     .unwrap();
-    assert!(filed(home.path(), "c3").ask);
+    assert!(!filed(home.path(), "c3").ask);
 }
 
 #[test]

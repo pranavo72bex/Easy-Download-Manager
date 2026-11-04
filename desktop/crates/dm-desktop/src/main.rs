@@ -506,7 +506,8 @@ fn main() {
     let mut viewport = egui::ViewportBuilder::default()
         .with_title("dm")
         .with_app_id("dm")
-        .with_inner_size([960.0, 660.0])
+        // Reference A opens 800 by 458; a little more for dm's side panel.
+        .with_inner_size([820.0, 500.0])
         // Half the smallest at first: eframe applies this before the saved
         // text size, so at 200% the full one forced a 1440×920 window over
         // the size it was left at. The window sets the real

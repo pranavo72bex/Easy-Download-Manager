@@ -559,7 +559,7 @@ fn the_series_error_from_start_goes_when_the_range_is_fixed() {
 fn the_site_file_finder_finds_the_files_a_page_links_to() {
     let world = world();
     let mut harness = world.harness();
-    click(&mut harness, "Site files");
+    click(&mut harness, "Grabber");
     type_into(&mut harness, "Start page", &world.url("page.html"));
     let types = harness.get_by_label("File types");
     types.focus();
@@ -601,7 +601,7 @@ fn a_site_search_reads_pages_deep_and_a_saved_one_runs_on_its_own() {
     let _file = settings_file();
     let world = world();
     let mut harness = world.harness();
-    click(&mut harness, "Site files");
+    click(&mut harness, "Grabber");
     type_into(&mut harness, "Start page", &world.url("page.html"));
     assert!(harness
         .query_by_label("Page depth (0 for the start page only)")
@@ -1088,7 +1088,7 @@ fn a_dialog_asked_for_while_open_keeps_what_was_typed_in_it() {
     for (command, open) in [
         (Command::Scheduler, "Scheduler"),
         (Command::AddSeries, "Add numbered series"),
-        (Command::SiteFiles, "Site files"),
+        (Command::SiteFiles, "Grabber"),
         (Command::SpeedLimiterSettings, "Speed limiter"),
     ] {
         harness.state_mut().run(command);
@@ -1537,7 +1537,7 @@ fn the_window_behind_a_dialog_takes_no_clicks() {
         "Add URL opened behind Options"
     );
     let before = harness.state().place.clone();
-    harness.get_by_label("Done (0)").click();
+    harness.get_by_label("Finished (0)").click();
     harness.run_steps(3);
     assert_eq!(
         harness.state().place,

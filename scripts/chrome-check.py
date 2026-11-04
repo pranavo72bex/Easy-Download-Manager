@@ -1163,9 +1163,15 @@ def main():
     (engine_home / "settings.json").write_text(json.dumps({
         "download_dir": str(engine_dl), "categorize": False,
         "catch": {"enabled": True, "extensions": ["bin", "pdf"], "defaultsVersion": 1},
-        # The dialog the app opens for a panel video is the window test's to
-        # drive; here the panel's videos go straight to the folder.
+        # The dialog the app opens for a panel video or a caught download
+        # (Download details, reference A's File Info; on in a new install) is
+        # the window tests' to drive; here both go straight to the folder,
+        # and no progress or finished window opens over the checks.
         "ask_panel_downloads": False,
+        "ask_caught_downloads": False,
+        "show_progress": False,
+        "show_complete": False,
+        "popups_version": 2,
     }))
     (engine_home / "rules.json").write_text(json.dumps({
         "format": 1, "revision": 999, "exclude": {},

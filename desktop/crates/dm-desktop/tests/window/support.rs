@@ -489,6 +489,11 @@ impl World {
             connections: 1,
             show_progress: false,
             show_complete: false,
+            // Nor Download details before a caught or a panel download,
+            // which a new install shows as reference A does, unless a test
+            // asks for it.
+            ask_caught_downloads: false,
+            ask_panel_downloads: false,
             // The tests find controls by their English names, whatever the
             // machine running them is set to.
             language: "en".into(),
@@ -747,9 +752,17 @@ pub(crate) fn greyed(h: &mut Harness<'_, DmApp>, path: &[&str]) -> bool {
         h.run_steps(3);
     }
     let leaf = path[path.len() - 1];
+    // As `press` reads a menu item: its name, or its name and a key after
+    // it, so "Delete" is not "Delete file".
     let disabled = h
         .query_all_by_label_contains(leaf)
-        .last()
+        .rfind(|n| {
+            let label = n.accesskit_node().label().unwrap_or_default();
+            label == leaf
+                || label
+                    .strip_prefix(&format!("{leaf} "))
+                    .is_some_and(|key| !key.starts_with(|c: char| c.is_lowercase()))
+        })
         .unwrap_or_else(|| panic!("{leaf:?} is not on screen"))
         .accesskit_node()
         .is_disabled();

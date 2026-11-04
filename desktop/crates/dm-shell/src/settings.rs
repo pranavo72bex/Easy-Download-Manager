@@ -138,20 +138,18 @@ pub struct Settings {
     /// When dm last looked for a newer version, in seconds since 1970.
     pub update_checked: u64,
 
-    /// Which edition of the pop-up defaults the two switches below were
-    /// last brought up to. Zero is a file from before they were off by
-    /// default, whose `true` was the default, not a choice: it is read as
-    /// off once (`clamped`), and from then on a person's choice stands.
+    /// Which edition of the pop-up defaults the four switches below were
+    /// last brought up to. A file from an older edition is brought up to
+    /// this one's defaults once (`clamped`); from then on a person's choice
+    /// stands.
     #[serde(default)]
     pub popups_version: u32,
-    /// Open a progress window for a download as it starts. Off unless turned
-    /// on: the list already shows progress, and a window opening over the
-    /// work on every download was in the way.
+    /// Open a progress window for a download as it starts, as reference A
+    /// does (on by default since edition 2).
     #[serde(default)]
     pub show_progress: bool,
     /// Say so in a window when a download finishes, with Open and Open
-    /// folder. Off unless turned on: a download just starts and finishes
-    /// in the list.
+    /// folder, as reference A does (on by default since edition 2).
     #[serde(default)]
     pub show_complete: bool,
     /// Play the system's short sound when a download finishes.
@@ -160,7 +158,8 @@ pub struct Settings {
     /// to name it and choose where it goes, before it starts.
     pub ask_panel_downloads: bool,
     /// A download caught from the browser: "Download details" opens for it
-    /// too, rather than it starting at once. Off by default, since 2026-10-26.
+    /// too, rather than it starting at once, as reference A's File Info
+    /// does (on by default since edition 2).
     #[serde(default)]
     pub ask_caught_downloads: bool,
     /// The window's look: "system" (the modern look, light or dark as the
@@ -370,9 +369,12 @@ fn yes() -> bool {
     true
 }
 
-/// The edition of the pop-up defaults now (1: progress and finished windows
-/// off until turned on).
-pub const POPUPS_VERSION: u32 = 1;
+/// The edition of the pop-up defaults now. 1 (2026-10-26): the progress and
+/// finished windows off. 2 (2026-11-04): the progress and finished windows
+/// on, and Download details before a caught or a panel download, as
+/// reference A does them (`docs/decisions.md`, "dm works exactly like
+/// reference A").
+pub const POPUPS_VERSION: u32 = 2;
 
 impl Settings {
     /// The settings as a file to carry to another computer: every choice,
@@ -504,11 +506,11 @@ impl Default for Settings {
             language: String::new(),
             update_checked: 0,
             popups_version: POPUPS_VERSION,
-            show_progress: false,
-            show_complete: false,
+            show_progress: true,
+            show_complete: true,
             sound_on_complete: false,
-            ask_panel_downloads: false,
-            ask_caught_downloads: false,
+            ask_panel_downloads: true,
+            ask_caught_downloads: true,
             theme: "system".into(),
             double_click: "open".into(),
             on_close: "ask".into(),
@@ -551,11 +553,13 @@ impl Settings {
             self.double_click = "properties".into();
         }
         self.catch.bring_up_to_date();
-        // Both pop-ups were on for everyone before they were off by default:
-        // a saved `true` from then is the old default, so it is let go once.
+        // A file from an older edition takes this edition's defaults once
+        // (reference A's: every pop-up on); a choice saved since stands.
         if self.popups_version < POPUPS_VERSION {
-            self.show_progress = false;
-            self.show_complete = false;
+            self.show_progress = true;
+            self.show_complete = true;
+            self.ask_caught_downloads = true;
+            self.ask_panel_downloads = true;
             self.popups_version = POPUPS_VERSION;
         }
         // The click keys are one of those the extension knows, or (to take)

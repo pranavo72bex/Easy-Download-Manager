@@ -257,8 +257,8 @@ impl Dialogs {
 
     /// Opens the Site files dialog.
     pub fn open_site_files(&mut self) {
-        self.focus_on("Site files");
-        if !self.keep("Site files", self.site_files.is_some()) {
+        self.focus_on("Grabber");
+        if !self.keep("Grabber", self.site_files.is_some()) {
             self.site_files = Some(Default::default());
         }
     }
@@ -354,7 +354,7 @@ impl Dialogs {
             (self.series.is_some(), "Add numbered series"),
             (self.clip_links.is_some(), "Links on the clipboard"),
             (self.links.is_some(), "Download links"),
-            (self.site_files.is_some(), "Site files"),
+            (self.site_files.is_some(), "Grabber"),
             (self.update_link.is_some(), "Update download link"),
             (self.move_to_queue.is_some(), "Move to queue"),
             (self.rename.is_some(), "Move/Rename"),
@@ -475,7 +475,7 @@ impl Dialogs {
         say(!self.properties.is_empty(), "File properties");
         say(self.series.is_some(), "Add numbered series");
         say(self.clip_links.is_some(), "Links on the clipboard");
-        say(self.site_files.is_some(), "Site files");
+        say(self.site_files.is_some(), "Grabber");
         say(self.update_link.is_some(), "Update download link");
         say(self.move_to_queue.is_some(), "Move to queue");
         say(self.rename.is_some(), "Move/Rename");
@@ -608,7 +608,7 @@ impl Dialogs {
             ),
             (self.series.is_some(), "Add numbered series", Shut::Series),
             (self.links.is_some(), "Download links", Shut::Links),
-            (self.site_files.is_some(), "Site files", Shut::SiteFiles),
+            (self.site_files.is_some(), "Grabber", Shut::SiteFiles),
             (self.file_info.is_some(), "Download details", Shut::FileInfo),
             (self.options.is_some(), "Options", Shut::Options),
             (self.about_open, "About dm", Shut::About),

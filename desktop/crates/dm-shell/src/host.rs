@@ -344,9 +344,13 @@ pub fn catch_rules(home: &Path) -> CatchRules {
 }
 
 pub(crate) fn saved(home: &Path) -> crate::Settings {
+    // Read as the app reads it (`clamped`), so the two never disagree: a
+    // file from an older edition of the pop-up defaults asked nothing here
+    // while the window, reading the same file, asked first.
     std::fs::read_to_string(home.join("settings.json"))
         .ok()
         .and_then(|text| serde_json::from_str::<crate::Settings>(&text).ok())
+        .map(crate::Settings::clamped)
         .unwrap_or_default()
 }
 

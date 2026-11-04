@@ -11,19 +11,24 @@ impl DmApp {
                 .iter()
                 .map(|c| crate::i18n::name(&format::titled(&category_word(*c)))),
         );
-        names.extend(["In progress", "Done"].map(|w| t(w).to_string()));
+        names.extend(["Unfinished", "Finished"].map(|w| t(w).to_string()));
         let widest = names
             .into_iter()
             .map(|n| {
                 ui.fonts_mut(|f| {
-                    f.layout_no_wrap(n, egui::FontId::proportional(14.0), egui::Color32::WHITE)
-                        .size()
-                        .x
+                    f.layout_no_wrap(
+                        n,
+                        egui::FontId::proportional(crate::theme::BODY),
+                        egui::Color32::WHITE,
+                    )
+                    .size()
+                    .x
                 })
             })
             .fold(0.0_f32, f32::max);
-        // The icon and count beside it, the branch's indent and the margins.
-        (widest + 36.0 + 34.0 + 18.0 + 16.0).clamp(least, (ui.available_width() / 3.0).max(least))
+        // The icon and count beside it, the branch's indent and the margins:
+        // as compact as reference A's tree, about 145 pixels.
+        (widest + 30.0 + 28.0 + 12.0 + 8.0).clamp(least, (ui.available_width() / 3.0).max(least))
     }
 
     pub(super) fn categories(&mut self, ui: &mut egui::Ui) {
@@ -72,7 +77,7 @@ impl DmApp {
         nav_group(
             ui,
             "tree-everything",
-            t("Everything"),
+            t("All Downloads"),
             in_everything,
             &tokens,
             |ui| {
@@ -89,8 +94,8 @@ impl DmApp {
                 }
             },
         );
-        place(ui, self, Place::Unfinished, t("In progress").into());
-        place(ui, self, Place::Finished, t("Done").into());
+        place(ui, self, Place::Unfinished, t("Unfinished").into());
+        place(ui, self, Place::Finished, t("Finished").into());
         let queues = self.queues();
         let in_queues = matches!(self.place, Place::Queue(_));
         nav_group(ui, "tree-queues", t("Queues"), in_queues, &tokens, |ui| {
@@ -124,8 +129,8 @@ impl DmApp {
                 places.push((Place::Custom(name.clone()), name));
             }
         }
-        places.push((Place::Unfinished, t("In progress").into()));
-        places.push((Place::Finished, t("Done").into()));
+        places.push((Place::Unfinished, t("Unfinished").into()));
+        places.push((Place::Finished, t("Finished").into()));
         for queue in self.queues() {
             let label = crate::i18n::name(&queue);
             places.push((Place::Queue(queue), label));

@@ -74,18 +74,15 @@ pub fn show(app: &mut DmApp, ui: &mut egui::Ui) {
         .iter()
         .copied()
         .filter(|c| !app.hidden_columns.contains(c))
-        // Queue is empty for a download with no queue of its own, which is
-        // most; drawn then, it only pushed the sixth column half out of the
-        // window, its heading cut to a letter beside the sideways bar.
-        .filter(|c| *c != Column::Queue || app.rows.iter().any(|r| !r.queue.is_empty()))
         .collect();
     // Plain rows; the modern look's are taller.
     let striped = false;
-    // ListViewItemMinHeight, compact.
+    // Reference A's rows are 17 apart; dm's are as tall as a control,
+    // which a row's cells hold (`theme::ROW`).
     let row_height = if crate::theme::Tokens::get(ui.ctx()).modern {
-        28.0
+        crate::theme::ROW
     } else {
-        22.0
+        crate::theme::ROW_CLASSIC
     };
     // In a narrow window the file name gives up width first, down to
     // 120 points, so Status is still in view beside it: the name took its

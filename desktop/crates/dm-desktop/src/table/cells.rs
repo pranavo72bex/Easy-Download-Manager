@@ -25,11 +25,18 @@ pub(super) fn cell(
                 drawn.on_hover_text(format::shown_url(&entry.url));
             });
         }
-        // The queue's name, dm's own in the language in force.
+        // Reference A's Q: a mark for a download in a queue; the queue's
+        // name, dm's own in the language in force, on hover.
         Column::Queue => {
             if !entry.queue.is_empty() {
                 let name = crate::i18n::name(&entry.queue);
-                ui.label(&name).on_hover_text(name);
+                let (rect, response) =
+                    ui.allocate_exact_size(egui::vec2(16.0, 16.0), egui::Sense::hover());
+                ui.painter()
+                    .circle_filled(rect.center(), 4.0, ui.visuals().selection.bg_fill);
+                // Named for a screen reader as the mark is for the eye.
+                response.widget_info(|| egui::WidgetInfo::labeled(egui::Role::Label, true, &name));
+                response.on_hover_text(name);
             }
         }
         // Numbers against the column's right edge, so their digits line up

@@ -903,8 +903,9 @@ fn options_tabs_fit_at_150_percent() {
         "Sign-ins ends at {} past {edge}",
         last.right()
     );
-    // The dialog is padded 16 points, 24 at this zoom, and the tabs start inside that.
-    assert!(first.left() >= 28.0, "General moved: {first:?}");
+    // The dialog is padded 12 points (reference A's density), 18 at this
+    // zoom, and the tabs start inside that.
+    assert!(first.left() >= 22.0, "General moved: {first:?}");
 }
 
 #[test]

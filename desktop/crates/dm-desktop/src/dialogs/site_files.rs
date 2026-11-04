@@ -1,6 +1,6 @@
 use super::*;
 pub(super) fn site_files(app: &mut DmApp, ctx: &egui::Context) {
-    let focus = app.dialogs.take_focus("Site files");
+    let focus = app.dialogs.take_focus("Grabber");
     // Nothing more is worked out for a dialog that is not open: its client
     // was built and every row's address parsed on every frame.
     if app.dialogs.site_files.is_none() {
@@ -21,7 +21,7 @@ pub(super) fn site_files(app: &mut DmApp, ctx: &egui::Context) {
     let mut delete_saved: Option<String> = None;
     let saved = app.applied.site_searches.clone();
     let keep_layout = d.keep_layout;
-    window(ctx, "Site files")
+    window(ctx, "Grabber")
         .open(&mut open)
         .show(ctx, |ui| {
             look |= entered(&focused(

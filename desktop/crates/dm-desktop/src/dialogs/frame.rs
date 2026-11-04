@@ -404,7 +404,7 @@ pub(super) fn lay_out<R>(
     // them, and at 300% text with the clipboard's bar above it a
     // taller control left its last row under the sideways bar).
     if crate::theme::Tokens::get(ui.ctx()).modern {
-        ui.spacing_mut().interact_size.y = 28.0;
+        ui.spacing_mut().interact_size.y = crate::theme::CONTROL;
     }
     let layer = key_layer(ui);
     // A dialog of fixed size holds its body to the width inside its

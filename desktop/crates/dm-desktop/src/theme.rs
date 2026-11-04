@@ -292,6 +292,27 @@ const fn hex(rgb: u32) -> Color32 {
     Color32::from_rgb((rgb >> 16) as u8, (rgb >> 8) as u8, rgb as u8)
 }
 
+/// The window's density, reference A's (`docs/decisions.md`, "dm works exactly
+/// like reference A"): its text is the system's 9-point face, about 12 pixels,
+/// its list rows 17 apart and its controls about 22 tall. dm's were 14, 28 and
+/// 28, and a new window opened 960 by 660, past the bottom of a 768-pixel
+/// screen, beside reference A's 800 by 458.
+pub const BODY: f32 = 12.0;
+/// Counts, captions and a toolbar button's words.
+pub const CAPTION: f32 = 11.0;
+/// A dialog's title.
+pub const HEADING: f32 = 16.0;
+/// A button's, a field's and a drop-down's height.
+pub const CONTROL: f32 = 22.0;
+/// A place's height in the tree beside the list.
+pub const NAV_ITEM: f32 = 22.0;
+/// A row of the list, in the modern look; the classic look's is `ROW_CLASSIC`.
+/// No less than a control's height, which a row's cells hold: at 20 each row
+/// stood 22 tall and End left the last one under the list's edge.
+pub const ROW: f32 = CONTROL;
+/// A row of the list in the classic look.
+pub const ROW_CLASSIC: f32 = 18.0;
+
 /// Every colour and radius the window draws with.
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct Tokens {
@@ -619,7 +640,7 @@ mod tests {
     fn going_from_a_modern_look_to_classic_leaves_none_of_its_spacing() {
         let ctx = Context::default();
         apply(&ctx, Theme::Light);
-        assert_eq!(ctx.global_style().spacing.interact_size.y, 28.0);
+        assert_eq!(ctx.global_style().spacing.interact_size.y, CONTROL);
         apply(&ctx, Theme::Classic);
         let fresh = egui::style::Spacing::default();
         let now = ctx.global_style().spacing.clone();

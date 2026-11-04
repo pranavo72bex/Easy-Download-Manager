@@ -145,16 +145,16 @@ pub enum Column {
 }
 
 impl Column {
-    /// In the order a new window shows them: Name, Size, Status, Time
-    /// left and Speed fit a 960-point window whole; Queue, empty for most
-    /// rows, comes after them (Speed was off to the right).
+    /// In the order a new window shows them, reference A's: File Name, Q
+    /// (narrow), Size, Status, Time left, Transfer rate, Last Try Date and
+    /// Description (decisions.md, "dm works exactly like reference A").
     pub const ALL: [Column; 10] = [
         Column::Name,
+        Column::Queue,
         Column::Size,
         Column::Status,
         Column::TimeLeft,
         Column::Rate,
-        Column::Queue,
         Column::LastTry,
         Column::Description,
         Column::Referrer,
@@ -208,14 +208,14 @@ impl Column {
     /// Its heading in English, which the catalogs are keyed by.
     pub fn english(self) -> &'static str {
         match self {
-            Column::Name => "Name",
-            Column::Queue => "Queue",
+            Column::Name => "File Name",
+            Column::Queue => "Q",
             Column::Size => "Size",
             Column::Status => "Status",
             Column::TimeLeft => "Time left",
-            Column::Rate => "Speed",
-            Column::LastTry => "Date",
-            Column::Description => "Note",
+            Column::Rate => "Transfer rate",
+            Column::LastTry => "Last Try Date",
+            Column::Description => "Description",
             Column::Referrer => "Referrer",
             Column::Folder => "Folder",
         }
@@ -833,12 +833,15 @@ pub fn tree_menu(place: &Place) -> Vec<(&'static str, TreeAction)> {
         ],
         Place::Unfinished => vec![
             ("Resume all", TreeAction::Run(Command::ResumeAll)),
-            ("Stop all", TreeAction::Run(Command::StopAll)),
+            ("Stop All", TreeAction::Run(Command::StopAll)),
         ],
-        Place::Finished => vec![("Clear finished", TreeAction::Run(Command::DeleteCompleted))],
+        Place::Finished => vec![(
+            "Delete Completed",
+            TreeAction::Run(Command::DeleteCompleted),
+        )],
         Place::Queue(_) => vec![
-            ("Start queue", TreeAction::Run(Command::StartQueue)),
-            ("Stop queue", TreeAction::Run(Command::StopQueue)),
+            ("Start Queue", TreeAction::Run(Command::StartQueue)),
+            ("Stop Queue", TreeAction::Run(Command::StopQueue)),
             ("Scheduler…", TreeAction::Run(Command::Scheduler)),
         ],
     }

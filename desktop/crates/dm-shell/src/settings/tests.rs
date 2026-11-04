@@ -745,25 +745,32 @@ fn a_catch_list_brought_up_to_date_is_left_as_the_person_made_it() {
     assert!(every.catch.extensions.is_empty());
 }
 
-/// Both pop-ups were on for everyone, so a saved `true` from before they
-/// were off by default is the old default and is let go once; a choice made
-/// since (the edition is saved with it) stands.
+/// Reference A's pop-ups, every one on (edition 2): a file from an older
+/// edition, whose `false` was dm's old default and not a choice, takes them
+/// once; a choice made since (the edition is saved with it) stands.
 #[test]
-fn pop_ups_saved_on_before_they_were_off_by_default_are_turned_off_once() {
-    let old = serde_json::from_str::<Settings>(r#"{"show_progress": true, "show_complete": true}"#)
-        .unwrap()
-        .clamped();
-    assert!(!old.show_progress && !old.show_complete);
+fn pop_ups_from_an_older_edition_take_reference_as_defaults_once() {
+    let old = serde_json::from_str::<Settings>(
+        r#"{"popups_version": 1, "show_progress": false, "show_complete": false,
+            "ask_caught_downloads": false, "ask_panel_downloads": false}"#,
+    )
+    .unwrap()
+    .clamped();
+    assert!(old.show_progress && old.show_complete);
+    assert!(old.ask_caught_downloads && old.ask_panel_downloads);
     assert_eq!(old.popups_version, POPUPS_VERSION);
-    // Turned on afterwards and saved: kept through the next read.
+    // Turned off afterwards and saved: kept through the next read.
     let mut chosen = old.clone();
-    chosen.show_progress = true;
+    chosen.show_progress = false;
+    chosen.ask_caught_downloads = false;
     let text = serde_json::to_string(&chosen).unwrap();
     let again = serde_json::from_str::<Settings>(&text).unwrap().clamped();
-    assert!(again.show_progress && !again.show_complete);
-    // A fresh install has them off.
+    assert!(!again.show_progress && again.show_complete);
+    assert!(!again.ask_caught_downloads && again.ask_panel_downloads);
+    // A fresh install has them all on.
     let fresh = Settings::default();
-    assert!(!fresh.show_progress && !fresh.show_complete);
+    assert!(fresh.show_progress && fresh.show_complete);
+    assert!(fresh.ask_caught_downloads && fresh.ask_panel_downloads);
 }
 
 /// A store that refuses everything, for the fallback.

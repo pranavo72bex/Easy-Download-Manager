@@ -66,13 +66,13 @@ fn a_group_of_places_shuts_and_opens_from_its_row() {
     let mut harness = world.harness();
     harness.run_steps(3);
     assert!(harness.query_by_label_contains("Videos (").is_some());
-    click(&mut harness, "Everything");
+    click(&mut harness, "All Downloads");
     assert!(
         harness.query_by_label_contains("Videos (").is_none(),
         "Everything did not shut"
     );
-    assert!(harness.query_by_label_contains("In progress (").is_some());
-    click(&mut harness, "Everything");
+    assert!(harness.query_by_label_contains("Unfinished (").is_some());
+    click(&mut harness, "All Downloads");
     assert!(
         harness.query_by_label_contains("Videos (").is_some(),
         "Everything did not open again"
@@ -128,10 +128,10 @@ fn the_toolbar_acts_on_the_selected_row() {
         harness.state().rows()[0].state,
         State::Queued | State::Running
     ));
-    click(&mut harness, "Stop all");
+    click(&mut harness, "Stop All");
     assert_eq!(harness.state().rows()[0].state, State::Paused);
     // Unfinished, so Delete asks first.
-    click(&mut harness, "Remove");
+    click(&mut harness, "Delete");
     assert!(harness
         .query_by_label("Remove an unfinished download")
         .is_some());
@@ -143,7 +143,7 @@ fn the_toolbar_acts_on_the_selected_row() {
         .contains(&"Remove an unfinished download".to_string()));
     click(&mut harness, "Keep it");
     assert_eq!(harness.state().rows().len(), 1, "Keep deleted it");
-    click(&mut harness, "Remove");
+    click(&mut harness, "Delete");
     click(&mut harness, "Yes, remove");
     assert!(harness.state().rows().is_empty());
 }
@@ -166,11 +166,11 @@ fn the_category_tree_filters_the_one_list() {
 
     // In progress is what is under way: the stalled download,
     // not the one that failed.
-    harness.get_by_label_contains("Done (1)").click();
+    harness.get_by_label_contains("Finished (1)").click();
     harness.run_steps(3);
     assert!(harness.query_by_label("file.zip").is_some());
     assert!(harness.query_by_label("stalled.bin").is_none());
-    harness.get_by_label_contains("In progress (1)").click();
+    harness.get_by_label_contains("Unfinished (1)").click();
     harness.run_steps(3);
     assert!(harness.query_by_label("stalled.bin").is_some());
     assert!(harness.query_by_label("file.zip").is_none());
@@ -202,7 +202,7 @@ fn clicking_a_heading_sorts_and_clicking_again_reverses() {
     }
     harness.state_mut().refresh();
     harness.run_steps(2);
-    click(&mut harness, "Name");
+    click(&mut harness, "File Name");
     let names = |h: &Harness<'_, DmApp>| -> Vec<String> {
         h.state()
             .visible()
@@ -212,7 +212,7 @@ fn clicking_a_heading_sorts_and_clicking_again_reverses() {
     };
     assert_eq!(names(&harness), ["a.bin", "b.bin", "c.bin"]);
     assert_eq!(harness.state().sort, Some((Column::Name, true)));
-    click(&mut harness, "Name");
+    click(&mut harness, "File Name");
     assert_eq!(names(&harness), ["c.bin", "b.bin", "a.bin"]);
 }
 
@@ -235,36 +235,36 @@ fn a_column_turned_off_is_gone_and_comes_back() {
         .unwrap();
     harness.state_mut().refresh();
     harness.run_steps(2);
-    assert!(harness.query_by_label("Speed").is_some());
+    assert!(harness.query_by_label("Transfer rate").is_some());
     click(&mut harness, "View");
     // A sub-menu's name carries its arrow: "Columns ⏵".
     harness.get_by_label_contains("Columns").click();
     harness.run_steps(3);
     harness
-        .get_by_role_and_label(egui::accesskit::Role::CheckBox, "Speed")
+        .get_by_role_and_label(egui::accesskit::Role::CheckBox, "Transfer rate")
         .click();
     harness.run_steps(3);
     // Still open after a tick: a second column is a second click, not a
     // second trip through View.
     assert!(
         harness
-            .query_by_role_and_label(egui::accesskit::Role::CheckBox, "Speed")
+            .query_by_role_and_label(egui::accesskit::Role::CheckBox, "Transfer rate")
             .is_some(),
         "the Columns menu closed at a tick"
     );
     harness
-        .get_by_role_and_label(egui::accesskit::Role::CheckBox, "Note")
+        .get_by_role_and_label(egui::accesskit::Role::CheckBox, "Description")
         .click();
     harness.run_steps(3);
     harness
-        .get_by_role_and_label(egui::accesskit::Role::CheckBox, "Note")
+        .get_by_role_and_label(egui::accesskit::Role::CheckBox, "Description")
         .click();
     harness.run_steps(3);
     harness.key_press(egui::Key::Escape);
     harness.run_steps(3);
     assert!(harness.state().hidden_columns.contains(&Column::Rate));
     assert!(
-        harness.query_by_label("Speed").is_none(),
+        harness.query_by_label("Transfer rate").is_none(),
         "the column is still drawn"
     );
     assert_eq!(
@@ -274,7 +274,7 @@ fn a_column_turned_off_is_gone_and_comes_back() {
     );
     harness.state_mut().hidden_columns.clear();
     harness.run_steps(2);
-    assert!(harness.query_by_label("Speed").is_some());
+    assert!(harness.query_by_label("Transfer rate").is_some());
 
     // Moved: Size after Status.
     let x = |harness: &egui_kittest::Harness<'_, dm_desktop::app::DmApp>, name: &str| {
@@ -295,7 +295,7 @@ fn a_column_turned_off_is_gone_and_comes_back() {
     let saved = harness.state().backend().settings();
     assert_eq!(
         Column::ordered(&saved.column_order)[..4],
-        [Column::Name, Column::Status, Column::Size, Column::TimeLeft]
+        [Column::Name, Column::Queue, Column::Status, Column::Size]
     );
     // Put back for the other tests.
     let mut wanted = saved;
@@ -447,7 +447,7 @@ fn the_toolbar_is_customized_from_the_view_menu_and_remembered() {
     let world = world();
     let mut harness = world.harness();
     let site_files_buttons = |h: &Harness<'_, DmApp>| {
-        h.query_all_by_role_and_label(Role::Button, "Site files")
+        h.query_all_by_role_and_label(Role::Button, "Grabber")
             .count()
     };
     assert_eq!(site_files_buttons(&harness), 1);
@@ -457,7 +457,7 @@ fn the_toolbar_is_customized_from_the_view_menu_and_remembered() {
     harness.get_by_label_contains("Customize toolbar").click();
     harness.run_steps(3);
     harness
-        .get_by_role_and_label(Role::CheckBox, "Site files")
+        .get_by_role_and_label(Role::CheckBox, "Grabber")
         .click();
     harness.run_steps(3);
     // A click in a menu closes it, so it is opened again.
@@ -636,7 +636,7 @@ fn clear_finished_is_greyed_with_only_failed_rows() {
     });
     assert!(!h.state().enabled(Command::DeleteCompleted));
     assert!(
-        greyed(&mut h, &["Downloads", "Clear finished"]),
+        greyed(&mut h, &["Downloads", "Delete Completed"]),
         "Clear all finished is offered for a failed row"
     );
     h.state_mut().run(Command::DeleteCompleted);

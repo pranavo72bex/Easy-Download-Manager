@@ -17,7 +17,7 @@ fn the_category_tree_has_right_click_menus() {
     harness.run_steps(2);
     // The toolbar has a Start queue too; the menu's is the later one.
     harness
-        .query_all_by_label("Start queue")
+        .query_all_by_label("Start Queue")
         .last()
         .unwrap()
         .click();
@@ -34,10 +34,12 @@ fn the_category_tree_has_right_click_menus() {
     );
 
     // Done: Clear finished, from the menu (the toolbar has one too).
-    harness.get_by_label_contains("Done (").click_secondary();
+    harness
+        .get_by_label_contains("Finished (")
+        .click_secondary();
     harness.run_steps(2);
     harness
-        .query_all_by_label("Clear finished")
+        .query_all_by_label("Delete Completed")
         .last()
         .expect("the menu's Clear finished")
         .click();
@@ -692,7 +694,7 @@ fn the_delete_key_asks_and_the_limiter_takes_enter() {
     assert!(harness.state().dialogs.confirm_remove.is_none());
     click(&mut harness, "Undo");
     assert_eq!(harness.state().rows().len(), 1, "Undo did not put it back");
-    click(&mut harness, "Remove");
+    click(&mut harness, "Delete");
     assert!(
         harness.state().rows().is_empty(),
         "the toolbar's Remove asks, where Delete does not"

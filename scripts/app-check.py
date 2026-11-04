@@ -559,7 +559,7 @@ def main():
         soon(lambda: "Add URL" in open_dialogs())
         human("ui.key", key="Escape")
         check("Escape closes the top dialog", soon(lambda: "Add URL" not in open_dialogs()))
-        human("ui.click", text="Program")
+        human("ui.click", text="Tasks")
         check("a menu opens and lists its items", soon(lambda: "Add numbered series…" in on_screen()))
         human("ui.key", key="Escape")
         outside = call("downloads.add", urls=[url("outside.zip")], folder=str(home.parent / "elsewhere"))

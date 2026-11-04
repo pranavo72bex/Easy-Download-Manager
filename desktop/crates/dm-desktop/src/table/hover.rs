@@ -90,7 +90,7 @@ pub(super) fn actions(
     buttons.push((
         Icon::Delete,
         Command::Remove,
-        format!("{} {file}", t("Remove")),
+        format!("{} {file}", t("Delete")),
     ));
 
     let tokens = crate::theme::Tokens::get(&ctx);

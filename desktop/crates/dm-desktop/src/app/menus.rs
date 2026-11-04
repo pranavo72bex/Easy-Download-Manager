@@ -151,7 +151,7 @@ impl DmApp {
         egui::MenuBar::new()
             .config(egui::containers::menu::MenuConfig::new().style(menu_style))
             .ui(ui, |ui| {
-                let program = ui.menu_button(t("Program"), |ui| {
+                let program = ui.menu_button(t("Tasks"), |ui| {
                     for c in [
                         Command::AddUrl,
                         Command::AddSeries,
@@ -493,7 +493,9 @@ impl DmApp {
                 // None while a dialog is in front: one drawn over its title
                 // read as part of it.
                 let response =
-                    if (said != *name || chosen == ToolStyle::Icons || icons_only) && !in_front {
+                    if (said != *name || chosen == ToolStyle::Icons || icons_only || stacked)
+                        && !in_front
+                    {
                         response.on_hover_text(said)
                     } else {
                         response

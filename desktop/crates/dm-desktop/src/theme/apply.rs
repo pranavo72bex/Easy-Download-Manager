@@ -148,22 +148,28 @@ pub fn apply_with_accent(ctx: &Context, theme: Theme, accent: Option<crate::acce
         // a folder's path and a field's name showed the text cursor and
         // could be dragged over. Fields keep theirs.
         style.interaction.selectable_labels = false;
-        // The type ramp: Body 14, Caption 12, and Subtitle (20
-        // semibold) for a dialog's title.
+        // The type ramp, reference A's density: Body 12, Caption 11, and
+        // a 16 semibold title for a dialog (`theme::BODY` and the rest).
         style.text_styles = [
             (
                 TextStyle::Small,
-                FontId::new(12.0, FontFamily::Proportional),
+                FontId::new(super::CAPTION, FontFamily::Proportional),
             ),
-            (TextStyle::Body, FontId::new(14.0, FontFamily::Proportional)),
+            (
+                TextStyle::Body,
+                FontId::new(super::BODY, FontFamily::Proportional),
+            ),
             (
                 TextStyle::Button,
-                FontId::new(14.0, FontFamily::Proportional),
+                FontId::new(super::BODY, FontFamily::Proportional),
             ),
-            (TextStyle::Heading, FontId::new(20.0, heading.clone())),
+            (
+                TextStyle::Heading,
+                FontId::new(super::HEADING, heading.clone()),
+            ),
             (
                 TextStyle::Monospace,
-                FontId::new(13.0, FontFamily::Monospace),
+                FontId::new(super::BODY, FontFamily::Monospace),
             ),
         ]
         .into();
@@ -176,15 +182,13 @@ pub fn apply_with_accent(ctx: &Context, theme: Theme, accent: Option<crate::acce
         // Set after the line above, which put egui's own back over it.
         style.spacing.scroll = steady_scroll();
         if t.modern {
-            // A compact take on WinUI's density, as reference A's windows
-            // are: controls 28 tall, buttons padded 11 by 4; 6 between
-            // controls, a dialog padded 16, a check box's box 20 with 8
-            // before its words. A menu's items are 28 with no gap between.
-            style.spacing.button_padding = egui::vec2(11.0, 4.0);
-            style.spacing.item_spacing = egui::vec2(8.0, 6.0);
-            style.spacing.interact_size.y = 28.0;
-            style.spacing.menu_margin = egui::Margin::same(4);
-            style.spacing.window_margin = egui::Margin::same(16);
+            // Reference A's density: controls 22 tall, buttons padded 8
+            // by 2; 4 between controls, a dialog padded 12.
+            style.spacing.button_padding = egui::vec2(8.0, 2.0);
+            style.spacing.item_spacing = egui::vec2(6.0, 4.0);
+            style.spacing.interact_size.y = super::CONTROL;
+            style.spacing.menu_margin = egui::Margin::same(3);
+            style.spacing.window_margin = egui::Margin::same(12);
             // A drop-down's chevron takes a square this wide: at 20, a
             // drop-down stood 30 tall beside 27 for a button. The check box's 20 is set where one is drawn
             // (`dialogs::check`).
