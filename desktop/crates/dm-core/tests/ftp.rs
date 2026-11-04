@@ -32,6 +32,9 @@ struct Quirks {
     at: Option<&'static str>,
     /// No MLSD, so a folder is listed with LIST.
     no_mlsd: bool,
+    /// The first session hangs up right after answering REST, as a server
+    /// that drops a control connection left waiting does.
+    first_session_hangs_up: bool,
 }
 
 #[derive(Clone)]
@@ -41,6 +44,9 @@ struct Server {
     /// Every REST offset a RETR started at.
     starts: Arc<Mutex<Vec<u64>>>,
     transfers: Arc<AtomicUsize>,
+    /// Sessions opened, and sign-ins let in.
+    sessions: Arc<AtomicUsize>,
+    sign_ins: Arc<AtomicUsize>,
 }
 
 async fn serve(body: Vec<u8>, quirks: Quirks) -> (String, Server) {
@@ -49,6 +55,8 @@ async fn serve(body: Vec<u8>, quirks: Quirks) -> (String, Server) {
         quirks,
         starts: Arc::default(),
         transfers: Arc::default(),
+        sessions: Arc::default(),
+        sign_ins: Arc::default(),
     };
     let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
     let port = listener.local_addr().unwrap().port();
@@ -80,6 +88,7 @@ async fn session(stream: TcpStream, s: Server) {
         }
         return;
     }
+    let first = s.sessions.fetch_add(1, Ordering::SeqCst) == 0;
     let _ = say(&mut write, "220-dm's test server\r\n220 ready".into()).await;
     let (mut user, mut offset) = (String::new(), 0u64);
     let mut passive: Option<TcpListener> = None;
@@ -97,6 +106,9 @@ async fn session(stream: TcpStream, s: Server) {
                     None => user == "anonymous",
                 };
                 signed_in = ok;
+                if ok {
+                    s.sign_ins.fetch_add(1, Ordering::SeqCst);
+                }
                 if ok { "230 in" } else { "530 Login incorrect." }.to_string()
             }
             _ if !signed_in => "530 sign in first".to_string(),
@@ -109,6 +121,10 @@ async fn session(stream: TcpStream, s: Server) {
             "SIZE" | "RETR" if arg != s.quirks.at.unwrap_or("f.bin") => "550 No such file.".into(),
             "MDTM" => "213 20260101120000".into(),
             "REST" if s.quirks.bare => "502 no REST here".into(),
+            "REST" if first && s.quirks.first_session_hangs_up => {
+                let _ = say(&mut write, "350 restarting".into()).await;
+                return;
+            }
             "REST" => {
                 offset = arg.parse().unwrap_or(0);
                 "350 restarting".into()
@@ -232,6 +248,47 @@ async fn an_ftp_file_is_fetched_over_several_connections() {
         starts.iter().any(|&s| s > 0),
         "no range began past the start"
     );
+}
+
+/// ftp.gnu.org takes about 3.4 s to sign in; dm signed in once to describe
+/// the file and again to fetch it, 11.7 s for a 1 MB file where reference A
+/// took 8.2 s. The session that described it now fetches it.
+#[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+async fn a_small_ftp_file_is_fetched_on_the_session_that_described_it() {
+    let data = body(300 * 1024);
+    let (addr, server) = serve(data.clone(), Quirks::default()).await;
+    let dir = tempdir();
+    let done = download(
+        &client(),
+        &format!("ftp://{addr}/f.bin"),
+        &options(dir.path()),
+    )
+    .await
+    .expect("the FTP download failed");
+    assert_eq!(std::fs::read(&done.path).unwrap(), data, "not the file");
+    assert_eq!(server.sign_ins.load(Ordering::SeqCst), 1, "signed in again");
+}
+
+/// The kept session gone by the time the first range wants it: a fresh one
+/// is signed in, and the download does not fail or wait for it.
+#[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+async fn a_kept_ftp_session_the_server_dropped_is_replaced_at_once() {
+    let data = body(300 * 1024);
+    let quirks = Quirks {
+        first_session_hangs_up: true,
+        ..Quirks::default()
+    };
+    let (addr, server) = serve(data.clone(), quirks).await;
+    let dir = tempdir();
+    let once = dm_core::Options {
+        attempts: 1,
+        ..options(dir.path())
+    };
+    let done = download(&client(), &format!("ftp://{addr}/f.bin"), &once)
+        .await
+        .expect("a fresh session should have been signed in");
+    assert_eq!(std::fs::read(&done.path).unwrap(), data, "not the file");
+    assert_eq!(server.sign_ins.load(Ordering::SeqCst), 2);
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 4)]

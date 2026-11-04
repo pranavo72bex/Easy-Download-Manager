@@ -3787,3 +3787,16 @@ Found by running reference A and dm on the same real sites (`docs/gaps.md` row 1
   side-by-side runs Wikimedia answered this computer `Retry-After: 600` with a request to be less
   disruptive; dm then showed "Too many requests (retry n …)" and asked once a minute. Do not
   re-test against Wikimedia's originals in a loop.
+
+## Measured and not changed: FTP's sign-in, the ramp after a restart (2026-11-04, rows 138 and 139)
+
+* **The 11.7 s against 8.2 s for GNU's 1 MB file over FTP** was mostly the harness: `sites.mjs`
+  sampled connections with a blocking PowerShell call each 400 ms, which held Node's loop and added
+  seconds to both apps' times. Traced without it, dm took 7.3 s on three runs; it signed in twice
+  (once to describe the file, once to fetch it) where curl signs in once (7.4 s). Changed: the
+  describing session fetches the first range; about 6 s now.
+* **The slow ramp after a hard kill** was the server: Hetzner's Ashburn mirror swings from 5 MB/s to
+  16 KB/s within a fresh download as well. On a local server holding each connection to 256 KB/s,
+  dm was back at full speed in the first second after a restart (1.5 MB, against 262 KB in a fresh
+  start's first second). Not changed. Use a local steady server (`D:\compare\steady\steady.mjs`)
+  for engine timings; real servers only to see that a thing works.

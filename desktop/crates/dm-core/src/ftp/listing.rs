@@ -13,7 +13,19 @@ pub(super) struct Described {
     pub(super) absolute: Option<String>,
 }
 
+#[cfg(test)]
 pub(super) async fn describe(target: &Target) -> Result<Described, Error> {
+    let (described, mut session) = describe_keeping(target).await?;
+    let _ = session.command("QUIT").await;
+    Ok(described)
+}
+
+/// As [`describe`], with the signed-in session handed back for the first
+/// range to use. A server slow to sign in (ftp.gnu.org takes about 3.4 s
+/// from connect to logged in) cost dm that twice before any byte came: once
+/// to describe the file, once more for the transfer, so a 1 MB file took
+/// 11.7 s where reference A, which signs in once, took 8.2 s.
+pub(super) async fn describe_keeping(target: &Target) -> Result<(Described, Session), Error> {
     let mut session = Session::open(target).await?;
     let (mut code, mut text) = session.command(&format!("SIZE {}", target.path)).await?;
     /* Not there relative to the login folder: asked for from the root, as
@@ -41,13 +53,15 @@ pub(super) async fn describe(target: &Target) -> Result<Described, Error> {
         .filter(|v| !v.is_empty());
     // A server that takes REST starts a transfer where it is told to.
     let (code, _) = session.command("REST 0").await?;
-    let _ = session.command("QUIT").await;
-    Ok(Described {
-        size,
-        resumable: code == 350 && size.is_some(),
-        validator,
-        absolute,
-    })
+    Ok((
+        Described {
+            size,
+            resumable: code == 350 && size.is_some(),
+            validator,
+            absolute,
+        },
+        session,
+    ))
 }
 
 /// One thing in an FTP folder.

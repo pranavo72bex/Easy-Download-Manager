@@ -511,11 +511,29 @@ mod credentials {
     mod tests {
         use super::*;
 
-        fn unique(what: &str) -> String {
+        /// A name of the test's own in the person's real Credential Manager,
+        /// forgotten when the test ends, passed or failed: a failed assert
+        /// before the test's own `delete` left `dm:test:key:…` there for good.
+        struct Unique(String);
+
+        impl Drop for Unique {
+            fn drop(&mut self) {
+                let _ = CredentialStore.delete(&self.0);
+            }
+        }
+
+        impl std::ops::Deref for Unique {
+            type Target = str;
+            fn deref(&self) -> &str {
+                &self.0
+            }
+        }
+
+        fn unique(what: &str) -> Unique {
             let nanos = std::time::SystemTime::now()
                 .duration_since(std::time::UNIX_EPOCH)
                 .map_or(0, |d| d.as_nanos());
-            format!("dm:test:{what}:{}:{nanos}", std::process::id())
+            Unique(format!("dm:test:{what}:{}:{nanos}", std::process::id()))
         }
 
         #[test]

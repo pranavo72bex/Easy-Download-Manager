@@ -832,3 +832,124 @@ async fn a_web_page_that_answered_for_a_file_is_saved_as_html_when_asked_to() {
     assert_eq!(done.path.file_name().unwrap(), "report.html");
     assert_eq!(std::fs::read_to_string(&done.path).unwrap(), page);
 }
+
+/// A server that ignores `If-Range` and republishes the file mid-download:
+/// from the third request on it serves another version, under another ETag,
+/// still as 206 to every range (gaps row 98). Whatever dm does, it must not
+/// finish with a file made of both.
+#[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+async fn a_file_republished_mid_download_under_a_server_ignoring_if_range_is_not_spliced() {
+    const SIZE: usize = 24 * 1024 * 1024;
+    let old = Arc::new(body(SIZE, 1));
+    let new = Arc::new(body(SIZE, 2));
+    let asked = Arc::new(AtomicUsize::new(0));
+    let (served_old, served_new, counter) = (old.clone(), new.clone(), asked.clone());
+    let app = axum::Router::new().route(
+        "/f.bin",
+        get(move |headers: HeaderMap| {
+            let n = counter.fetch_add(1, Ordering::SeqCst);
+            let (data, etag) = if n < 2 {
+                (served_old.clone(), "\"v1\"")
+            } else {
+                (served_new.clone(), "\"v2\"")
+            };
+            async move {
+                let total = data.len();
+                let (a, b) = headers
+                    .get("range")
+                    .and_then(|v| v.to_str().ok())
+                    .and_then(|v| v.strip_prefix("bytes="))
+                    .and_then(|v| v.split_once('-'))
+                    .map(|(a, b)| {
+                        let a: usize = a.parse().unwrap_or(0);
+                        (a, b.parse::<usize>().unwrap_or(total - 1).min(total - 1))
+                    })
+                    .unwrap_or((0, total - 1));
+                // About 8 MB/s a connection, so helpers join while it runs.
+                let chunks: Vec<Vec<u8>> =
+                    data[a..=b].chunks(64 * 1024).map(<[u8]>::to_vec).collect();
+                let stream = futures_util::stream::iter(chunks).then(|c| async move {
+                    tokio::time::sleep(Duration::from_millis(8)).await;
+                    Ok::<_, std::io::Error>(c)
+                });
+                Response::builder()
+                    .status(206)
+                    .header("content-range", format!("bytes {a}-{b}/{total}"))
+                    .header("content-length", b - a + 1)
+                    .header("accept-ranges", "bytes")
+                    .header("etag", etag)
+                    .body(Body::from_stream(stream))
+                    .unwrap()
+            }
+        }),
+    );
+    let addr = serve(app).await;
+    let dir = tempdir();
+    let outcome = download(
+        &client(),
+        &format!("http://{addr}/f.bin"),
+        &options(dir.path()),
+    )
+    .await;
+    if let Ok(done) = outcome {
+        let saved = std::fs::read(&done.path).unwrap();
+        assert!(
+            saved == *old || saved == *new,
+            "a file of both versions was finished ({} requests)",
+            asked.load(Ordering::SeqCst)
+        );
+    }
+}
+
+/// Behind a redirect, every piece asks the address it landed on, as
+/// reference A does (gaps row 98): the redirecting address is asked once, by
+/// the first request, and never again for a range.
+#[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+async fn after_a_redirect_every_piece_asks_the_address_it_landed_on() {
+    let data = Arc::new(body(24 * 1024 * 1024, 7));
+    let at_start = Arc::new(AtomicUsize::new(0));
+    let at_end = Arc::new(AtomicUsize::new(0));
+    let (start_count, end_count, served) = (at_start.clone(), at_end.clone(), data.clone());
+    let app = axum::Router::new()
+        .route(
+            "/go/f.bin",
+            get(move || {
+                start_count.fetch_add(1, Ordering::SeqCst);
+                async {
+                    Response::builder()
+                        .status(302)
+                        .header("location", "/files/f.bin")
+                        .body(Body::empty())
+                        .unwrap()
+                }
+            }),
+        )
+        .route(
+            "/files/f.bin",
+            get(move |headers: HeaderMap| {
+                end_count.fetch_add(1, Ordering::SeqCst);
+                let served = served.clone();
+                async move { ranged(&served, "\"one\"", &headers) }
+            }),
+        );
+    let addr = serve(app).await;
+    let dir = tempdir();
+    let done = download(
+        &client(),
+        &format!("http://{addr}/go/f.bin"),
+        &options(dir.path()),
+    )
+    .await
+    .expect("the download behind a redirect failed");
+    assert_eq!(std::fs::read(&done.path).unwrap(), *data);
+    assert!(
+        done.connections > 1,
+        "one connection only: no pieces to check"
+    );
+    assert_eq!(
+        at_start.load(Ordering::SeqCst),
+        1,
+        "a piece asked the redirecting address"
+    );
+    assert!(at_end.load(Ordering::SeqCst) > 1);
+}

@@ -57,9 +57,27 @@ ENDPOINT = "https://googlechromelabs.github.io/chrome-for-testing/last-known-goo
 results = []
 
 
+# The extension's worker, once it is found: a failed check says what the
+# extension last said (gaps row 141), so a failure that does not come again
+# leaves its reason behind.
+WATCHED = []
+MARK = [0]
+
+
 def check(name, ok, detail=""):
     results.append((ok, name, detail))
     print(f"  {'PASS' if ok else 'FAIL'}  {name}" + (f" — {detail}" if detail else ""), flush=True)
+    if WATCHED:
+        worker = WATCHED[0]
+        if not ok:
+            try:
+                worker.drain(0.5)
+                said = [line[:200] for line in worker.logged("log", "info", "warning", "error", since=MARK[0])
+                        if line.startswith("dm")][-6:]
+                print(f"        the extension said since the last check: {said}", flush=True)
+            except Exception as e:  # the worker gone or stopped: the check's own result stands
+                print(f"        (the extension could not be read: {e!r})", flush=True)
+        MARK[0] = len(worker.events)
     return ok
 
 
@@ -236,9 +254,10 @@ class Target:
         finally:
             self.ws.sock.settimeout(90)
 
-    def logged(self, *levels):
+    def logged(self, *levels, since=0):
+        """What the target logged at these levels, from event `since` on."""
         out = []
-        for event in self.events:
+        for event in self.events[since:]:
             params = event.get("params", {})
             if event.get("method") == "Runtime.consoleAPICalled" and params.get("type") in levels:
                 out.append(" ".join(str(a.get("value", a.get("description", ""))) for a in params.get("args", [])))
@@ -1156,10 +1175,14 @@ def main():
     }))
     if sys.platform == "win32":
         shim = engine_home / "host.bat"
+        # A file of its own for each start's stderr (gaps row 141): while one host
+        # held a shared host-stderr.txt open, cmd.exe could not open it for the
+        # next ("being used by another process") and never started dm, so that
+        # hand-over found no app and the browser kept the file, now and then.
         shim.write_text(
             "@echo off\r\n"
             f"set DM_HOME={engine_home}\r\n"
-            f'"{host}" %* 2>>"{engine_home / "host-stderr.txt"}"\r\n'
+            f'"{host}" %* 2>>"{engine_home / "host-stderr-%RANDOM%%RANDOM%.txt"}"\r\n'
         )
     else:
         shim = engine_home / "host.sh"
@@ -1350,6 +1373,8 @@ def main():
               f"{ext_id} (expected {expected_id})")
         worker = Target(found[0]["webSocketDebuggerUrl"])
         worker.call("Runtime.enable")
+        WATCHED.append(worker)
+        worker.call("Runtime.enable")
         worker.call("Log.enable")
         # The target is listed as soon as the script is fetched, before the
         # loader has run.
@@ -1375,6 +1400,23 @@ def main():
             " try { return !chrome[a][b].hasListeners(); } catch (e) { return true; } })")
         check("every listener is registered on the first turn", missing == [],
               f"{len(names) - len(missing)} of {len(names)}" + (f"; not registered: {missing}" if missing else ""))
+
+        # The host is asked for a hello before the first click (gaps row 141): in
+        # `human-qa.py`'s second pass the first click once found no app (the host,
+        # a fresh copy each pass, ended at once with nothing on its stderr) and the
+        # browser kept the file, which read as a failed hand-over. A host that cannot
+        # be reached now fails as that, here, and the clicks below find it warm.
+        # The frame's envelope as the extension sends it: without `protocolVersion`
+        # the host answers nothing and the browser waits on it for ever.
+        hello = ("new Promise(r => chrome.runtime.sendNativeMessage('com.dm.engine',"
+                 " {protocolVersion: 1, type: 'engine.hello'},"
+                 " m => r(chrome.runtime.lastError ? 'error: ' + chrome.runtime.lastError.message : m)))")
+        said = []
+        def host_answers():
+            said.append(worker.evaluate(hello))
+            return isinstance(said[-1], dict)
+        check("the extension reaches the app's host before the first click", wait_for(host_answers, 30),
+              f"{len(said)} tries; refused first: {sorted({str(s)[:120] for s in said if not isinstance(s, dict)})}")
 
         # 2. A link click, caught and handed over.
         page = f"{origin}/page.html"
@@ -1725,9 +1767,9 @@ def main():
         else:
             subprocess.run(["pkill", "-f", str(host)], check=False)
         server.shutdown()
-        stderr = (engine_home / "host-stderr.txt")
-        if stderr.exists() and stderr.read_text().strip():
-            print(f"\nhost stderr:\n{stderr.read_text()[:2000]}")
+        said = "".join(f.read_text(errors="replace") for f in sorted(engine_home.glob("host-stderr*.txt")))
+        if said.strip():
+            print(f"\nhost stderr:\n{said[:2000]}")
 
     failed = [r for r in results if not r[0]]
     print(f"\n{len(results) - len(failed)} of {len(results)} checks passed")
