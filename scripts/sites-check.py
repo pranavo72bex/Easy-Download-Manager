@@ -283,6 +283,12 @@ def one(base, name, site, engine_dl, worker=None):
         out["net"] = media_seen(tab)
     if PROBE and worker is not None:
         out["worker_saw"] = worker.evaluate("globalThis.__dmseen.slice(-14)")
+        # The panel's list as the worker answers it for this tab, before the panel asks.
+        page = tab.evaluate("location.href")
+        out["formats"] = worker.evaluate(
+            "chrome.tabs.query({}).then(ts => { const t = ts.find(t => t.url === %s);"
+            " return t ? dmReady.then(m => m.on_page_message({type: 'dm.formats', src: '', frame: %s},"
+            " {id: chrome.runtime.id, tab: {id: t.id}, url: %s})) : 'no tab'; })" % (json.dumps(page), json.dumps(page), json.dumps(page)))
     cc.hover(tab, page_rect(rect))
     # SITES_HOLD=<seconds>: the video left playing under the pointer for that long, for a
     # person (or a script that connects to the browser's DevTools port) to look at it.
@@ -335,7 +341,10 @@ def one(base, name, site, engine_dl, worker=None):
     before = {p for p in engine_dl.rglob("*") if p.is_file()}
     # SITES_CARET=1: the small arrow beside the button, which opens the list of
     # qualities, rather than the button, which sends the best at once.
-    across = state["w"] - 22 if os.environ.get("SITES_CARET") else 60
+    # On a narrow video the panel is compact (the download mark and the close mark only, 72
+    # wide, gaps row 76): its mark is clicked, not 60 across, which is the close mark there.
+    compact = state["w"] < 240
+    across = state["w"] - 22 if os.environ.get("SITES_CARET") and not compact else (18 if compact else 60)
     shot("2-panel")
     if os.environ.get("SITES_TRACE"):
         cx, cy = state["x"] + across + ox, state["y"] + state["h"] / 2 + oy
@@ -406,9 +415,10 @@ def sites(base, origin, engine_dl, engine_home, worker):
           const [u, q] = d.url.split('?'); const keys = (q || '').split('&').map(p => p.split('=')[0]).filter(Boolean).slice(0, 16).join(',');
           const raw = ((q || '').split('&').find(p => p.startsWith('efg=')) || '').slice(4); let tag = raw.slice(0, 12);
           try { tag = JSON.parse(atob(decodeURIComponent(raw).replace(/-/g, '+').replace(/_/g, '/'))).vencode_tag; } catch (e) { tag = 'unread:' + raw.length + ':' + raw.slice(-6); }
-          if (/[.](m3u8|mpd|mp4|m4s|ts)$/i.test(u) || d.type === 'media')
-            globalThis.__dmseen.push([d.tabId, d.type, d.statusCode, d.frameId, (d.initiator || '').slice(0, 40), u.slice(0, 100), keys, tag]); },
-          { urls: ['<all_urls>'] }, []); return 1; })()""")
+          const mime = ((d.responseHeaders || []).find(h => h.name.toLowerCase() === 'content-type') || {}).value || '';
+          if (/[.](m3u8|mpd|mp4|m4s|ts)$/i.test(u) || d.type === 'media' || /^(video|audio)[/]/i.test(mime))
+            globalThis.__dmseen.push([d.tabId, d.type, d.statusCode, d.frameId, (d.initiator || '').slice(0, 40), u.slice(0, 100), keys, tag, mime]); },
+          { urls: ['<all_urls>'] }, ['responseHeaders']); return 1; })()""")
     for name in WANT:
         try:
             r = one(base, name, SITES[name], engine_dl, worker)
