@@ -10,6 +10,50 @@ pub(super) struct TabEnv<'a> {
     pub(super) first: &'a dyn Fn(egui::Response, bool),
 }
 
+/// The events a sound file can be chosen for, by the settings' key.
+const SOUND_EVENTS: [&str; 4] = ["complete", "failed", "queue_started", "queue_done"];
+
+/// What an event is called beside its sound.
+fn sound_words(event: &str) -> &'static str {
+    match event {
+        "complete" => t("Download complete"),
+        "failed" => t("Download failed"),
+        "queue_started" => t("Queue started"),
+        _ => t("Queue finished"),
+    }
+}
+
+/// One event's sound: its file's path, Choose… and Play.
+fn sound_row(
+    ui: &mut egui::Ui,
+    sounds: &mut std::collections::BTreeMap<String, String>,
+    event: &str,
+    words: &str,
+    platform: &dyn crate::backend::Platform,
+) {
+    let mut path = sounds.get(event).cloned().unwrap_or_default();
+    ui.horizontal_wrapped(|ui| {
+        field(ui, words, &mut path, 220.0);
+        if ui.button(t("Choose…")).clicked() {
+            if let Some(file) = rfd::FileDialog::new()
+                .add_filter("WAV", &["wav"])
+                .pick_file()
+            {
+                path = file.display().to_string();
+            }
+        }
+        let has = !path.trim().is_empty();
+        if ui.add_enabled(has, egui::Button::new(t("Play"))).clicked() {
+            platform.play_file(path.trim());
+        }
+    });
+    if path.trim().is_empty() {
+        sounds.remove(event);
+    } else {
+        sounds.insert(event.to_string(), path);
+    }
+}
+
 /// The General tab of Options.
 pub(super) fn tab_general(ui: &mut egui::Ui, d: &mut OptionsDialog, env: &TabEnv<'_>) {
     let TabEnv { platform, .. } = *env;
@@ -143,6 +187,15 @@ pub(super) fn tab_general(ui: &mut egui::Ui, d: &mut OptionsDialog, env: &TabEnv
         &mut s.sound_on_failure,
         t("Play a sound when a download fails"),
     );
+    // A sound of one's own for each event, as reference A offers: empty
+    // keeps the system's.
+    hint(
+        ui,
+        t("A sound file of your own for each, or empty for the usual sound (.wav)."),
+    );
+    for event in SOUND_EVENTS {
+        sound_row(ui, &mut s.sounds, event, sound_words(event), platform);
+    }
     // Offered only where it can be drawn.
     if crate::chrome::mica_possible() {
         toggle_row(ui, &mut s.mica, t("Use the Mica backdrop"));
@@ -725,6 +778,17 @@ pub(super) fn tab_advanced(ui: &mut egui::Ui, d: &mut OptionsDialog, env: &TabEn
     }
     section(ui, t("Proxy"));
     tab_proxy(ui, d, env);
+    section(ui, t("BitTorrent"));
+    field(
+        ui,
+        t("Block the peers listed at this address (optional)"),
+        &mut d.draft.peer_blocklist,
+        360.0,
+    );
+    hint(
+        ui,
+        t("A list in the P2P format, plain or gzipped, on the web or on this computer. One on the web is fetched through the proxy and read again once a day; a torrent stops, saying why, if the list cannot be read."),
+    );
 }
 
 /// The connection's settings, the first part of the Advanced page.

@@ -797,5 +797,20 @@
  "Every week, on the days ticked": "Setiap minggu, pada hari yang dicentang",
  "Once, on this date": "Sekali, pada tanggal ini",
  "Date (YYYY-MM-DD)": "Tanggal (YYYY-MM-DD)",
- "\"{}\" is not a date: write it as YYYY-MM-DD, such as 2026-12-31.": "\"{}\" bukan tanggal: tulis sebagai YYYY-MM-DD, misalnya 2026-12-31."
+ "\"{}\" is not a date: write it as YYYY-MM-DD, such as 2026-12-31.": "\"{}\" bukan tanggal: tulis sebagai YYYY-MM-DD, misalnya 2026-12-31.",
+ "Peers: {} connected, {} known": "Peer: {} terhubung, {} diketahui",
+ "Sent to peers: {} at {}": "Dikirim ke peer: {} pada {}",
+ "Files": "Berkas",
+ "Stop the download to change which files are fetched.": "Hentikan unduhan untuk mengubah berkas yang diambil.",
+ "Tick at least one file.": "Centang setidaknya satu berkas.",
+ "The torrent's files are not known yet.": "Berkas torrent belum diketahui.",
+ "BitTorrent": "BitTorrent",
+ "Block the peers listed at this address (optional)": "Blokir peer yang tercantum di alamat ini (opsional)",
+ "A list in the P2P format, plain or gzipped, on the web or on this computer. One on the web is fetched through the proxy and read again once a day; a torrent stops, saying why, if the list cannot be read.": "Daftar dalam format P2P, polos atau gzip, di web atau di komputer ini. Daftar di web diambil melalui proxy dan dibaca ulang sekali sehari; jika daftar tidak bisa dibaca, torrent berhenti dengan menyebutkan alasannya.",
+ "Slower between set hours": "Lebih lambat di antara jam tertentu",
+ "Speed limit in those hours (KB/s)": "Batas kecepatan pada jam tersebut (KB/s)",
+ "A sound file of your own for each, or empty for the usual sound (.wav).": "Berkas suara Anda sendiri untuk masing-masing, atau kosong untuk suara biasa (.wav).",
+ "Queue started": "Antrean dimulai",
+ "Queue finished": "Antrean selesai",
+ "Play": "Putar"
 }

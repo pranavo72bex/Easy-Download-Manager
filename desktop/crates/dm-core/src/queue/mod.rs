@@ -237,6 +237,10 @@ pub struct Entry {
     /// parts already staged (`Queue::adopt_fresh_link`).
     #[serde(default, skip_serializing_if = "std::ops::Not::not")]
     pub fresh_link: bool,
+    /// A torrent's files, once its metadata is known, each with whether it
+    /// is fetched (Properties).
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub torrent_files: Vec<crate::torrent::TorrentFile>,
 }
 
 fn is_zero(n: &u64) -> bool {
@@ -360,6 +364,8 @@ struct Slot {
     /// there may be (0 for no end), and what failed, until bytes arrive
     /// again. Not saved: it is about this run.
     retrying: Option<(u32, u32, String, std::time::Instant)>,
+    /// A running torrent's swarm at its last sample; none once it stops.
+    swarm: Option<crate::torrent::Swarm>,
     /// This row's own speed limit (`Entry::speed_limit`), chained to the
     /// shared one while it runs, so a change reaches it at once.
     own_limit: crate::limit::Limiter,
@@ -677,11 +683,13 @@ impl Queue {
                 stalled: String::new(),
                 fresh_link: false,
                 title_hint: None,
+                torrent_files: Vec::new(),
             }),
             control: Control::new(),
             task: None,
             outside_schedule: false,
             retrying: None,
+            swarm: None,
             own_limit: crate::limit::Limiter::unlimited(),
         };
 

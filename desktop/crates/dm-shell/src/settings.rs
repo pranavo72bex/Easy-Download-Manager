@@ -46,6 +46,10 @@ pub struct Settings {
     /// on — in this run or the next — restores it. Zero for never set.
     #[serde(default)]
     pub last_speed_limit: u64,
+    /// A lower speed limit for set hours of every day (when others share
+    /// the link), beside the one for the rest of the day.
+    #[serde(default)]
+    pub slow_hours: SlowHours,
 
     /// Send dm's own name to servers first, not the browser-like one
     /// (Options › Advanced › Identify as dm only). A site that refuses the
@@ -129,6 +133,11 @@ pub struct Settings {
     /// moved into a `done` folder inside it. Empty is off.
     #[serde(default)]
     pub watch_folder: String,
+    /// Where the list of peers a torrent never connects to is: an address on
+    /// the web or a file on this computer, in the P2P format, plain or
+    /// gzipped. Empty for none.
+    #[serde(default)]
+    pub peer_blocklist: String,
     /// Look for a newer dm about once a week. Off unless turned on: it asks
     /// GitHub, and dm otherwise contacts nothing but what is downloaded.
     pub check_updates: bool,
@@ -452,6 +461,50 @@ fn default_folders() -> Vec<String> {
         .collect()
 }
 
+/// A lower speed limit for set hours of every day.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(default)]
+pub struct SlowHours {
+    /// Whether the slow hours are used.
+    pub enabled: bool,
+    /// `HH:MM`, local time: when they start.
+    pub from: String,
+    /// `HH:MM`, local time: when they end; before `from`, past midnight.
+    pub to: String,
+    /// The limit in those hours, in KB/s.
+    pub limit: u64,
+}
+
+impl Default for SlowHours {
+    fn default() -> Self {
+        SlowHours {
+            enabled: false,
+            from: "08:00".into(),
+            to: "18:00".into(),
+            limit: 256,
+        }
+    }
+}
+
+impl SlowHours {
+    /// Whether the slow hours are in force on a weekday (0 = Sunday) at a
+    /// minute past midnight: every day, as the Scheduler's window reads.
+    pub fn open_at(&self, weekday: u8, minute: u32) -> bool {
+        self.enabled
+            && self.limit > 0
+            && dm_core::is_time(&self.from)
+            && dm_core::is_time(&self.to)
+            && Schedule {
+                enabled: true,
+                from: self.from.clone(),
+                to: self.to.clone(),
+                days: Vec::new(),
+                ..Schedule::default()
+            }
+            .open_at(weekday, minute)
+    }
+}
+
 impl Default for Settings {
     fn default() -> Self {
         Settings {
@@ -486,6 +539,7 @@ impl Default for Settings {
                 .join("dm"),
             speed_limit: 0,
             last_speed_limit: 0,
+            slow_hours: SlowHours::default(),
             identify_as_dm: false,
             duplicate_choice: String::new(),
             recent_urls: Vec::new(),
@@ -504,6 +558,7 @@ impl Default for Settings {
             allow_command_line: false,
             allow_mcp: true,
             watch_folder: String::new(),
+            peer_blocklist: String::new(),
             check_updates: false,
             language: String::new(),
             update_checked: 0,
@@ -729,6 +784,11 @@ impl Settings {
             // Per download, not a setting: the queue fills this in from the
             // row when it starts one.
             checksum: None,
+            torrent: dm_core::TorrentOptions {
+                // Per download: the queue fills this in from the row.
+                only: None,
+                blocklist: self.peer_blocklist(),
+            },
             quality: self.quality(),
             sound: None,
             span: None,
@@ -760,6 +820,12 @@ impl Settings {
                 Vec::new()
             },
         }
+    }
+
+    /// The peer blocklist's address, where one is set.
+    pub fn peer_blocklist(&self) -> Option<String> {
+        let address = self.peer_blocklist.trim();
+        (!address.is_empty()).then(|| address.to_string())
     }
 
     /// How often the recheck queue asks its servers again, if on its own.
@@ -819,6 +885,28 @@ impl Settings {
     /// The speed ceiling in bytes a second, which is what the engine counts.
     pub fn speed_limit_bytes(&self) -> u64 {
         self.speed_limit.saturating_mul(1024)
+    }
+
+    /// The speed limit in force now, in bytes a second: the lower of the
+    /// two in the slow hours, the speed limit the rest of the day.
+    pub fn speed_limit_bytes_now(&self) -> u64 {
+        let (weekday, minute) = dm_core::weekday_now();
+        self.speed_limit_bytes_at(weekday, minute)
+    }
+
+    /// `speed_limit_bytes_now` on a given weekday (0 = Sunday) and minute
+    /// past midnight.
+    pub fn speed_limit_bytes_at(&self, weekday: u8, minute: u32) -> u64 {
+        let normal = self.speed_limit_bytes();
+        if !self.slow_hours.open_at(weekday, minute) {
+            return normal;
+        }
+        let slow = self.slow_hours.limit.saturating_mul(1024);
+        if normal == 0 {
+            slow
+        } else {
+            normal.min(slow)
+        }
     }
 
     /// The engine's view of the stream quality.

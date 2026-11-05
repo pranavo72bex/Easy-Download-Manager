@@ -47,6 +47,7 @@ fn entry(state: State) -> Entry {
         stalled: String::new(),
         fresh_link: false,
         title_hint: None,
+        torrent_files: Vec::new(),
         sound: None,
         span: None,
         shape: None,

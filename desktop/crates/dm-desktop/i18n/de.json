@@ -797,5 +797,20 @@
  "Every week, on the days ticked": "Jede Woche, an den angehakten Tagen",
  "Once, on this date": "Einmal, an diesem Datum",
  "Date (YYYY-MM-DD)": "Datum (JJJJ-MM-TT)",
- "\"{}\" is not a date: write it as YYYY-MM-DD, such as 2026-12-31.": "»{}« ist kein Datum: Schreiben Sie es als JJJJ-MM-TT, etwa 2026-12-31."
+ "\"{}\" is not a date: write it as YYYY-MM-DD, such as 2026-12-31.": "»{}« ist kein Datum: Schreiben Sie es als JJJJ-MM-TT, etwa 2026-12-31.",
+ "Peers: {} connected, {} known": "Peers: {} verbunden, {} bekannt",
+ "Sent to peers: {} at {}": "An Peers gesendet: {} mit {}",
+ "Files": "Dateien",
+ "Stop the download to change which files are fetched.": "Halten Sie den Download an, um zu ändern, welche Dateien geladen werden.",
+ "Tick at least one file.": "Haken Sie mindestens eine Datei an.",
+ "The torrent's files are not known yet.": "Die Dateien des Torrents sind noch nicht bekannt.",
+ "BitTorrent": "BitTorrent",
+ "Block the peers listed at this address (optional)": "Die unter dieser Adresse aufgeführten Peers sperren (optional)",
+ "A list in the P2P format, plain or gzipped, on the web or on this computer. One on the web is fetched through the proxy and read again once a day; a torrent stops, saying why, if the list cannot be read.": "Eine Liste im P2P-Format, unkomprimiert oder gzip, im Web oder auf diesem Computer. Eine Liste im Web wird über den Proxy geladen und einmal am Tag neu gelesen; kann sie nicht gelesen werden, hält ein Torrent mit Begründung an.",
+ "Slower between set hours": "Langsamer zu festgelegten Zeiten",
+ "Speed limit in those hours (KB/s)": "Geschwindigkeitsbegrenzung in diesen Stunden (KB/s)",
+ "A sound file of your own for each, or empty for the usual sound (.wav).": "Eine eigene Tondatei für jedes Ereignis oder leer für den üblichen Ton (.wav).",
+ "Queue started": "Warteschlange gestartet",
+ "Queue finished": "Warteschlange beendet",
+ "Play": "Abspielen"
 }

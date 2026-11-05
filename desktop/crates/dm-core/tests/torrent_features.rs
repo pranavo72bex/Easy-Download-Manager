@@ -188,6 +188,7 @@ fn options(dir: &Path) -> Options {
         sign_in: None,
         save_name: None,
         accept_page: false,
+        torrent: Default::default(),
         system_proxy: false,
         title_hint: None,
     }
@@ -349,6 +350,9 @@ async fn progress_is_reported_and_the_speed_limit_holds() {
         async move { download_torrent(&client(), &url, &o, Some(tx)).await }
     });
     let (mut named, mut samples, mut last) = (None, 0, 0u64);
+    // The swarm with each sample: the seeder connected, among the peers known.
+    let mut swarm: Option<dm_core::Swarm> = None;
+    let mut most_connected = 0;
     while let Some(u) = rx.recv().await {
         match u {
             Update::Named { name, .. } => named = Some(name),
@@ -357,9 +361,19 @@ async fn progress_is_reported_and_the_speed_limit_holds() {
                 assert!(p.downloaded >= last, "progress went back");
                 last = p.downloaded;
             }
+            Update::Swarm(s) => {
+                assert!(s.known >= s.connected, "fewer known than connected: {s:?}");
+                most_connected = most_connected.max(s.connected);
+                swarm = Some(s);
+            }
             _ => {}
         }
     }
+    assert!(swarm.is_some(), "no swarm was reported");
+    assert!(
+        most_connected >= 1,
+        "the seeder was never counted as connected"
+    );
     let done = run.await.unwrap().expect("limited torrent failed");
     let took = started.elapsed();
     assert_eq!(std::fs::read(&done.path).unwrap(), data);
@@ -506,4 +520,154 @@ async fn two_torrents_download_at_the_same_time() {
     assert_eq!(std::fs::read(ra.expect("first failed").path).unwrap(), a);
     assert_eq!(std::fs::read(rb.expect("second failed").path).unwrap(), b);
     println!("VERIFY two at once: both finished byte-exact");
+}
+
+/// A torrent's files are listed on its row once known; with one left out,
+/// only the others are fetched, and the one left out is not moved in with
+/// them. The choice is refused while it runs, and with no file ticked.
+#[tokio::test(flavor = "multi_thread")]
+async fn a_file_left_out_of_a_torrent_is_not_fetched() {
+    let _shared = TIMING.read().await;
+    let keep = bytes(2 * 1024 * 1024, 21);
+    let skip = bytes(2 * 1024 * 1024, 22);
+    let s = swarm("pair", &[("keep.bin", keep.clone()), ("skip.bin", skip)]).await;
+    let dir = tempdir();
+    let q = Queue::new(client(), options(dir.path()), 2);
+    // Slow, so it is still running when its files are known.
+    q.set_speed_limit(256 * 1024).await;
+    let id = q.add(&s.torrent_url).await.unwrap();
+    let runner = tokio::spawn({
+        let q = q.clone();
+        async move { q.run().await }
+    });
+    let deadline = Instant::now() + Duration::from_secs(30);
+    loop {
+        let row = q.get(id).await.unwrap();
+        if row.torrent_files.len() == 2 {
+            assert!(row.torrent_files.iter().all(|f| f.wanted));
+            assert_eq!(row.torrent_files[0].size, 2 * 1024 * 1024);
+            break;
+        }
+        assert!(Instant::now() < deadline, "the files were never listed");
+        tokio::time::sleep(Duration::from_millis(100)).await;
+    }
+    let names: Vec<String> = q
+        .get(id)
+        .await
+        .unwrap()
+        .torrent_files
+        .iter()
+        .map(|f| f.name.clone())
+        .collect();
+    let skip_at = names
+        .iter()
+        .position(|n| n == "skip.bin")
+        .expect("skip.bin listed");
+    let wanted: Vec<bool> = (0..names.len()).map(|i| i != skip_at).collect();
+    assert!(
+        q.set_torrent_files(id, &wanted).await.is_err(),
+        "the choice was taken while it ran"
+    );
+    q.pause(id).await;
+    let _ = runner.await;
+    tokio::time::sleep(Duration::from_millis(500)).await;
+    assert!(
+        q.set_torrent_files(id, &[false, false]).await.is_err(),
+        "a choice of no file was taken"
+    );
+    q.set_torrent_files(id, &wanted)
+        .await
+        .expect("the choice was refused");
+    q.set_speed_limit(0).await;
+    q.resume(id).await;
+    let deadline = Instant::now() + Duration::from_secs(60);
+    loop {
+        q.run().await;
+        let row = q.get(id).await.unwrap();
+        if row.state == State::Completed {
+            let folder = PathBuf::from(&row.path);
+            assert_eq!(std::fs::read(folder.join("keep.bin")).unwrap(), keep);
+            assert!(
+                !folder.join("skip.bin").exists(),
+                "the file left out was moved in"
+            );
+            assert!(
+                !row.torrent_files[skip_at].wanted,
+                "the choice was not kept"
+            );
+            break;
+        }
+        assert!(!matches!(row.state, State::Failed(_)), "{:?}", row.state);
+        assert!(Instant::now() < deadline, "row stuck at {:?}", row.state);
+        tokio::time::sleep(Duration::from_millis(100)).await;
+    }
+    println!("VERIFY file choice: keep.bin fetched, skip.bin left out");
+}
+
+/// A peer blocklist keeps the peers it lists away: with every address on it
+/// nothing arrives (the seeder is found on loopback and, by local discovery,
+/// on this computer's own address too), with only others on it the torrent
+/// is whole, and a list that cannot be read stops the torrent saying so.
+#[tokio::test(flavor = "multi_thread")]
+async fn a_peer_blocklist_keeps_its_peers_away_and_one_unread_stops_the_torrent() {
+    let _shared = TIMING.read().await;
+    let data = bytes(512 * 1024, 31);
+    let s = swarm("listed.bin", &[("listed.bin", data.clone())]).await;
+    let lists = tempdir();
+    let blocks_seeder = lists.path().join("everyone.p2p");
+    std::fs::write(
+        &blocks_seeder,
+        "every v4:0.0.0.0-255.255.255.255\nevery v6:::-ffff:ffff:ffff:ffff:ffff:ffff:ffff:ffff\n",
+    )
+    .unwrap();
+    let blocks_others = lists.path().join("others.p2p");
+    std::fs::write(&blocks_others, "elsewhere:10.0.0.0-10.255.255.255\n").unwrap();
+
+    // Every peer listed: nothing in six seconds, then stopped.
+    let dir = tempdir();
+    let mut o = options(dir.path());
+    o.torrent.blocklist = Some(blocks_seeder.display().to_string());
+    let control = o.control.clone();
+    let (tx, mut rx) = tokio::sync::mpsc::channel(256);
+    let run = tokio::spawn({
+        let url = s.torrent_url.clone();
+        async move { download_torrent(&client(), &url, &o, Some(tx)).await }
+    });
+    let watch = tokio::spawn(async move {
+        let mut most = 0;
+        while let Some(u) = rx.recv().await {
+            if let Update::Progress(p) = u {
+                most = most.max(p.downloaded);
+            }
+        }
+        most
+    });
+    tokio::time::sleep(Duration::from_secs(6)).await;
+    control.pause();
+    let _ = run.await.unwrap();
+    assert_eq!(watch.await.unwrap(), 0, "bytes came from a listed peer");
+
+    // Only others listed: whole.
+    let dir = tempdir();
+    let mut o = options(dir.path());
+    o.torrent.blocklist = Some(blocks_others.display().to_string());
+    let done = tokio::time::timeout(
+        Duration::from_secs(60),
+        download_torrent(&client(), &s.torrent_url, &o, None),
+    )
+    .await
+    .expect("timeout")
+    .expect("a list of other peers stopped the torrent");
+    assert_eq!(std::fs::read(&done.path).unwrap(), data);
+
+    // A list on the web that is not there: stopped, with the reason.
+    let dir = tempdir();
+    let mut o = options(dir.path());
+    let missing = serve(axum::Router::new()).await;
+    o.torrent.blocklist = Some(format!("http://{missing}/list.p2p.gz"));
+    let err = download_torrent(&client(), &s.torrent_url, &o, None)
+        .await
+        .expect_err("an unread list was gone around");
+    assert!(err.to_string().contains("peer blocklist"), "{err}");
+    println!("VERIFY blocklist: seeder blocked (0 bytes), others listed (whole), missing list refused ({err})");
 }

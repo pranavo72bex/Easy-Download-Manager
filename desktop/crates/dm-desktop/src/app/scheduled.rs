@@ -142,6 +142,12 @@ impl DmApp {
     /// Called after every read of the list.
     pub(super) fn schedule_hooks(&mut self) {
         self.clear_spent_once_at();
+        // The slow hours' limit in, or out, as they begin or end.
+        let limit = self.applied.speed_limit_bytes_now();
+        if self.limit_in_force != Some(limit) {
+            self.backend.set_speed_limit(limit);
+            self.limit_in_force = Some(limit);
+        }
         let schedule = self.applied.schedule.clone();
         let open = schedule.enabled && schedule.open();
         match self.schedule_watch.step(open) {

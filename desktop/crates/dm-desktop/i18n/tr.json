@@ -797,5 +797,20 @@
  "Every week, on the days ticked": "Her hafta, işaretli günlerde",
  "Once, on this date": "Bir kez, bu tarihte",
  "Date (YYYY-MM-DD)": "Tarih (YYYY-AA-GG)",
- "\"{}\" is not a date: write it as YYYY-MM-DD, such as 2026-12-31.": "\"{}\" bir tarih değil: 2026-12-31 gibi YYYY-AA-GG biçiminde yazın."
+ "\"{}\" is not a date: write it as YYYY-MM-DD, such as 2026-12-31.": "\"{}\" bir tarih değil: 2026-12-31 gibi YYYY-AA-GG biçiminde yazın.",
+ "Peers: {} connected, {} known": "Eşler: {} bağlı, {} bilinen",
+ "Sent to peers: {} at {}": "Eşlere gönderilen: {}, {} hızla",
+ "Files": "Dosyalar",
+ "Stop the download to change which files are fetched.": "Hangi dosyaların alınacağını değiştirmek için indirmeyi durdurun.",
+ "Tick at least one file.": "En az bir dosya işaretleyin.",
+ "The torrent's files are not known yet.": "Torrent'in dosyaları henüz bilinmiyor.",
+ "BitTorrent": "BitTorrent",
+ "Block the peers listed at this address (optional)": "Bu adreste listelenen eşleri engelle (isteğe bağlı)",
+ "A list in the P2P format, plain or gzipped, on the web or on this computer. One on the web is fetched through the proxy and read again once a day; a torrent stops, saying why, if the list cannot be read.": "P2P biçiminde, düz veya gzip'li, web'de ya da bu bilgisayarda bir liste. Web'deki liste vekil sunucu üzerinden alınır ve günde bir kez yeniden okunur; liste okunamazsa torrent nedenini söyleyerek durur.",
+ "Slower between set hours": "Belirlenen saatler arasında daha yavaş",
+ "Speed limit in those hours (KB/s)": "O saatlerde hız sınırı (KB/s)",
+ "A sound file of your own for each, or empty for the usual sound (.wav).": "Her biri için kendi ses dosyanız ya da olağan ses için boş (.wav).",
+ "Queue started": "Kuyruk başladı",
+ "Queue finished": "Kuyruk bitti",
+ "Play": "Çal"
 }

@@ -510,7 +510,10 @@ pub async fn apply(
         .await;
 
     queue.set_concurrency(settings.concurrency);
-    queue.set_speed_limit(settings.speed_limit_bytes()).await;
+    // The slow hours' limit where they are in force now.
+    queue
+        .set_speed_limit(settings.speed_limit_bytes_now())
+        .await;
     queue.set_schedule(settings.schedule.clone());
     queue.set_queue_schedules(settings.queue_schedules.clone());
     queue.set_allowance(settings.allowance());

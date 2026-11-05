@@ -797,5 +797,20 @@
  "Every week, on the days ticked": "Elke week, op de aangevinkte dagen",
  "Once, on this date": "Eenmaal, op deze datum",
  "Date (YYYY-MM-DD)": "Datum (JJJJ-MM-DD)",
- "\"{}\" is not a date: write it as YYYY-MM-DD, such as 2026-12-31.": "\"{}\" is geen datum: schrijf hem als JJJJ-MM-DD, zoals 2026-12-31."
+ "\"{}\" is not a date: write it as YYYY-MM-DD, such as 2026-12-31.": "\"{}\" is geen datum: schrijf hem als JJJJ-MM-DD, zoals 2026-12-31.",
+ "Peers: {} connected, {} known": "Peers: {} verbonden, {} bekend",
+ "Sent to peers: {} at {}": "Naar peers verzonden: {} met {}",
+ "Files": "Bestanden",
+ "Stop the download to change which files are fetched.": "Stop de download om te wijzigen welke bestanden worden opgehaald.",
+ "Tick at least one file.": "Vink ten minste één bestand aan.",
+ "The torrent's files are not known yet.": "De bestanden van de torrent zijn nog niet bekend.",
+ "BitTorrent": "BitTorrent",
+ "Block the peers listed at this address (optional)": "Blokkeer de peers op de lijst op dit adres (optioneel)",
+ "A list in the P2P format, plain or gzipped, on the web or on this computer. One on the web is fetched through the proxy and read again once a day; a torrent stops, saying why, if the list cannot be read.": "Een lijst in P2P-formaat, gewoon of gzip, op het web of op deze computer. Een lijst op het web wordt via de proxy opgehaald en eens per dag opnieuw gelezen; kan de lijst niet worden gelezen, dan stopt een torrent en zegt waarom.",
+ "Slower between set hours": "Langzamer tussen ingestelde uren",
+ "Speed limit in those hours (KB/s)": "Snelheidslimiet in die uren (KB/s)",
+ "A sound file of your own for each, or empty for the usual sound (.wav).": "Een eigen geluidsbestand voor elk, of leeg voor het gewone geluid (.wav).",
+ "Queue started": "Wachtrij gestart",
+ "Queue finished": "Wachtrij voltooid",
+ "Play": "Afspelen"
 }

@@ -797,5 +797,20 @@
  "Every week, on the days ticked": "毎週、チェックした曜日に",
  "Once, on this date": "一度だけ、この日に",
  "Date (YYYY-MM-DD)": "日付 (YYYY-MM-DD)",
- "\"{}\" is not a date: write it as YYYY-MM-DD, such as 2026-12-31.": "「{}」は日付ではありません。2026-12-31 のように YYYY-MM-DD で入力してください。"
+ "\"{}\" is not a date: write it as YYYY-MM-DD, such as 2026-12-31.": "「{}」は日付ではありません。2026-12-31 のように YYYY-MM-DD で入力してください。",
+ "Peers: {} connected, {} known": "ピア: 接続中 {}、既知 {}",
+ "Sent to peers: {} at {}": "ピアへ送信: {}({})",
+ "Files": "ファイル",
+ "Stop the download to change which files are fetched.": "取得するファイルを変更するには、ダウンロードを停止してください。",
+ "Tick at least one file.": "少なくとも 1 つのファイルにチェックを入れてください。",
+ "The torrent's files are not known yet.": "トレントのファイルはまだわかりません。",
+ "BitTorrent": "BitTorrent",
+ "Block the peers listed at this address (optional)": "このアドレスの一覧にあるピアをブロック(任意)",
+ "A list in the P2P format, plain or gzipped, on the web or on this computer. One on the web is fetched through the proxy and read again once a day; a torrent stops, saying why, if the list cannot be read.": "P2P 形式の一覧(そのままか gzip)。Web 上でもこのコンピューター上でも可。Web 上のものはプロキシ経由で取得し、1 日に 1 回読み直します。読めない場合、トレントは理由を示して停止します。",
+ "Slower between set hours": "指定した時間帯は低速にする",
+ "Speed limit in those hours (KB/s)": "その時間帯の速度制限 (KB/s)",
+ "A sound file of your own for each, or empty for the usual sound (.wav).": "それぞれに独自のサウンドファイル(空欄なら通常の音、.wav)。",
+ "Queue started": "キュー開始",
+ "Queue finished": "キュー完了",
+ "Play": "再生"
 }

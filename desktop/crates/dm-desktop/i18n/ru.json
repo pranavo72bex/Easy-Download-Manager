@@ -797,5 +797,20 @@
  "Every week, on the days ticked": "Каждую неделю, в отмеченные дни",
  "Once, on this date": "Один раз, в эту дату",
  "Date (YYYY-MM-DD)": "Дата (ГГГГ-ММ-ДД)",
- "\"{}\" is not a date: write it as YYYY-MM-DD, such as 2026-12-31.": "«{}» — не дата: запишите её как ГГГГ-ММ-ДД, например 2026-12-31."
+ "\"{}\" is not a date: write it as YYYY-MM-DD, such as 2026-12-31.": "«{}» — не дата: запишите её как ГГГГ-ММ-ДД, например 2026-12-31.",
+ "Peers: {} connected, {} known": "Пиры: подключено {}, известно {}",
+ "Sent to peers: {} at {}": "Отправлено пирам: {} со скоростью {}",
+ "Files": "Файлы",
+ "Stop the download to change which files are fetched.": "Остановите загрузку, чтобы изменить, какие файлы загружаются.",
+ "Tick at least one file.": "Отметьте хотя бы один файл.",
+ "The torrent's files are not known yet.": "Файлы торрента пока неизвестны.",
+ "BitTorrent": "BitTorrent",
+ "Block the peers listed at this address (optional)": "Блокировать пиров из списка по этому адресу (необязательно)",
+ "A list in the P2P format, plain or gzipped, on the web or on this computer. One on the web is fetched through the proxy and read again once a day; a torrent stops, saying why, if the list cannot be read.": "Список в формате P2P, обычный или gzip, в сети или на этом компьютере. Список из сети загружается через прокси и перечитывается раз в день; если список не прочесть, торрент останавливается с указанием причины.",
+ "Slower between set hours": "Медленнее в заданные часы",
+ "Speed limit in those hours (KB/s)": "Ограничение скорости в эти часы (КБ/с)",
+ "A sound file of your own for each, or empty for the usual sound (.wav).": "Свой звуковой файл для каждого события или пусто для обычного звука (.wav).",
+ "Queue started": "Очередь запущена",
+ "Queue finished": "Очередь завершена",
+ "Play": "Воспроизвести"
 }

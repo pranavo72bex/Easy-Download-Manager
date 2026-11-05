@@ -315,6 +315,7 @@ impl Queue {
                         task: None,
                         outside_schedule: false,
                         retrying: None,
+                        swarm: None,
                         own_limit,
                     },
                 );

@@ -797,5 +797,20 @@
  "Every week, on the days ticked": "每周,在勾选的日子",
  "Once, on this date": "仅一次,在此日期",
  "Date (YYYY-MM-DD)": "日期 (YYYY-MM-DD)",
- "\"{}\" is not a date: write it as YYYY-MM-DD, such as 2026-12-31.": "“{}”不是日期:请写成 YYYY-MM-DD,例如 2026-12-31。"
+ "\"{}\" is not a date: write it as YYYY-MM-DD, such as 2026-12-31.": "“{}”不是日期:请写成 YYYY-MM-DD,例如 2026-12-31。",
+ "Peers: {} connected, {} known": "节点:已连接 {},已知 {}",
+ "Sent to peers: {} at {}": "已发送给节点:{},速度 {}",
+ "Files": "文件",
+ "Stop the download to change which files are fetched.": "请先停止下载,再更改要获取的文件。",
+ "Tick at least one file.": "请至少勾选一个文件。",
+ "The torrent's files are not known yet.": "种子的文件尚未知晓。",
+ "BitTorrent": "BitTorrent",
+ "Block the peers listed at this address (optional)": "屏蔽此地址列表中的节点(可选)",
+ "A list in the P2P format, plain or gzipped, on the web or on this computer. One on the web is fetched through the proxy and read again once a day; a torrent stops, saying why, if the list cannot be read.": "P2P 格式的列表(纯文本或 gzip),可在网上或本机。网上的列表通过代理获取,每天重新读取一次;若无法读取,种子会停止并说明原因。",
+ "Slower between set hours": "在设定时段内降速",
+ "Speed limit in those hours (KB/s)": "该时段的速度限制 (KB/s)",
+ "A sound file of your own for each, or empty for the usual sound (.wav).": "为每项选择自己的声音文件,留空则使用默认声音 (.wav)。",
+ "Queue started": "队列已开始",
+ "Queue finished": "队列已完成",
+ "Play": "播放"
 }

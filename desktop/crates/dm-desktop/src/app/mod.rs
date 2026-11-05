@@ -349,6 +349,9 @@ pub struct DmApp {
     /// The queue a Start Queue or Stop Queue drop-down chose, for the next
     /// of those commands in place of the queue the list shows.
     pub queue_chosen: Option<String>,
+    /// The shared speed limit last put in force, in bytes a second, so the
+    /// slow hours' beginning and end are each seen once.
+    pub limit_in_force: Option<u64>,
     /// Finished files a drag out of the list has asked to carry, for the
     /// window to hand to the system's drag: only it has the native handle.
     pub drag_out: Vec<std::path::PathBuf>,
@@ -595,6 +598,7 @@ impl DmApp {
             column_order: Column::ordered(&settings.column_order),
             queued: Vec::new(),
             queue_chosen: None,
+            limit_in_force: None,
             drag_out: Vec::new(),
             reordering: None,
             row_rects: HashMap::new(),

@@ -61,6 +61,23 @@ impl ConnRates {
     }
 }
 
+/// What a torrent's progress window says of its swarm, line by line.
+pub(crate) fn swarm_lines(swarm: &dm_core::Swarm) -> [String; 2] {
+    [
+        tf(
+            "Peers: {} connected, {} known",
+            &[&swarm.connected, &swarm.known],
+        ),
+        tf(
+            "Sent to peers: {} at {}",
+            &[
+                &format::bytes(swarm.uploaded),
+                &format::rate(swarm.upload_speed),
+            ],
+        ),
+    ]
+}
+
 pub(super) fn progress(app: &mut DmApp, ctx: &egui::Context) {
     let mut ids: Vec<Id> = app.dialogs.progress.iter().copied().collect();
     ids.sort_unstable();
@@ -456,6 +473,12 @@ pub(super) fn progress(app: &mut DmApp, ctx: &egui::Context) {
                                     });
                                 }
                             });
+                    } else if let Some(swarm) = crate::app::swarm_of(id) {
+                        // A torrent's peers in place of connections, and
+                        // what it sent them.
+                        for line in swarm_lines(&swarm) {
+                            ui.label(RichText::new(line).weak());
+                        }
                     }
                 });
             // The buttons below what scrolls, always in view; a plain row,
@@ -594,5 +617,23 @@ mod conn_rate_tests {
         rates.sample(t0 + Duration::from_secs(1), &[(0, 6_000)]);
         rates.sample(t0 + Duration::from_secs(2), &[(0, 100)]);
         assert_eq!(rates.rate(0), 0.0);
+    }
+}
+
+#[cfg(test)]
+mod swarm_tests {
+    use super::swarm_lines;
+
+    #[test]
+    fn a_torrents_peers_and_what_it_sent_are_said() {
+        let lines = swarm_lines(&dm_core::Swarm {
+            connected: 3,
+            known: 12,
+            uploaded: 2 * 1024 * 1024,
+            upload_speed: 64.0 * 1024.0,
+        });
+        assert_eq!(lines[0], "Peers: 3 connected, 12 known");
+        assert!(lines[1].starts_with("Sent to peers: 2"), "{}", lines[1]);
+        assert!(lines[1].ends_with("/s"), "{}", lines[1]);
     }
 }

@@ -538,6 +538,7 @@ mod tests {
             sign_in: None,
             save_name: None,
             accept_page: false,
+            torrent: Default::default(),
             system_proxy: false,
             title_hint: None,
         }

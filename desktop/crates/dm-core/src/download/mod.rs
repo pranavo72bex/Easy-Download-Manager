@@ -72,6 +72,9 @@ pub struct Options {
     /// A digest the finished file must have. A Metalink supplies its own
     /// where the caller gave none.
     pub checksum: Option<Checksum>,
+    /// What only a torrent's download reads: the files chosen, the peers
+    /// blocked.
+    pub torrent: crate::torrent::TorrentOptions,
     /// Which rendition to take from an adaptive stream.
     pub quality: Quality,
     /// The address of a separate sound track for the picture at the download's
@@ -550,6 +553,10 @@ pub enum Update {
     },
     /// How far the download has got.
     Progress(Progress),
+    /// A torrent's swarm at this sample: its peers and what was sent to them.
+    Swarm(crate::torrent::Swarm),
+    /// A torrent's files, once its metadata is known.
+    Files(Vec<crate::torrent::TorrentFile>),
     /// The server's ETag or Last-Modified for the file being fetched.
     Validator(String),
     /// A range failed and is about to be tried again: attempt `attempt`
@@ -1268,6 +1275,7 @@ mod tests {
             sign_in: None,
             save_name: None,
             accept_page: false,
+            torrent: Default::default(),
             system_proxy: false,
             title_hint: None,
         }

@@ -232,6 +232,7 @@ impl Dialogs {
                 sums: Default::default(),
                 check: String::new(),
                 zip: None,
+                files: row.torrent_files.iter().map(|f| f.wanted).collect(),
             },
         );
     }
@@ -396,6 +397,7 @@ impl Dialogs {
             String::new(),
             settings.limit_mb,
             settings.limit_hours,
+            settings.slow_hours.clone(),
         ));
     }
 

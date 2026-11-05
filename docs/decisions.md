@@ -3886,3 +3886,31 @@ contract rows B64 and B65.
   egui has none, and two plain buttons keep each one's click and name for a screen reader
   ("Choose the queue to start"). Its tooltip is not shown while its list is open: it lay over
   the list and took the pointer from the first item.
+
+## A BitTorrent client's features: peers, files, a blocklist; slower hours; sound files (2026-11-05, gaps rows 144 to 148 and 82)
+
+From the BitTorrent client's feature list the maintainer supplied (its name left out, as for the
+reference apps); the sound files are reference A's.
+
+* **Peers: connected and known, no seeds.** librqbit counts peers by state (`live`, `connecting`,
+  `queued`, `dead`) and every address found this run (`seen`), not which of them have the whole
+  file, so the progress window says "Peers: {} connected, {} known" and claims no seed count. The
+  upload speed is measured from `uploaded_bytes` between samples, as the download speed is.
+* **A torrent's files are chosen while it is stopped.** librqbit can change `only_files` on a
+  running torrent, but the queue owns the session's life (a pause ends it), so the choice is
+  kept on the row and given to `add_torrent` at each start; Properties greys the ticks while it
+  runs. A file left out is deleted from the staging folder before the rest is moved: pieces it
+  shares with a wanted file leave it partly written, and moved it would look fetched.
+* **The blocklist is fetched by dm, not librqbit.** librqbit's own fetch would go around dm's
+  proxy, so dm fetches a list on the web with its own client, keeps it a day beside the parts
+  (named by a hash of its address) and hands librqbit a `file:` address. A list that cannot be
+  read stops the torrent with the reason: going on unprotected is not what was asked for. One
+  address on a list does not cover a peer's others: on this computer local peer discovery found
+  the test's seeder on the network address as well as on loopback.
+* **Slower hours every day, applied by the window.** The limit in force is worked out from the
+  clock (`Settings::speed_limit_bytes_now`) when settings are applied and at each refresh of the
+  window, which puts the other limit in when the hours begin or end; with nothing moving a refresh
+  can be up to half a minute away, so the change can come that late.
+* **Sound files per event** are kept in the `sounds` map the engine already read (`complete`,
+  `failed`, `queue_started`, `queue_done`); an emptied field removes its entry, so the usual
+  sound is back. Only `.wav` is offered in the chooser, as only `.wav` is promised.

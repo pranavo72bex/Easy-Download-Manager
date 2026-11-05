@@ -1,6 +1,17 @@
 use super::*;
 
 impl Queue {
+    /// Each running torrent's swarm at its last sample, by row.
+    pub async fn swarms(&self) -> HashMap<Id, crate::torrent::Swarm> {
+        self.inner
+            .slots
+            .lock()
+            .await
+            .iter()
+            .filter_map(|(id, s)| s.swarm.map(|swarm| (*id, swarm)))
+            .collect()
+    }
+
     /// The rows a range is being retried for, now: each with the attempt
     /// it is on (the first try is 1) and how many there may be, 0 for no
     /// end, and what failed, in the engine's words. Over once bytes arrive

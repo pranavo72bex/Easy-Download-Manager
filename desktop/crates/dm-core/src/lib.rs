@@ -188,7 +188,10 @@ pub use stream::{
     Quality, Stream, Variant,
 };
 
-pub use torrent::{download_torrent, file_url, is_torrent, local_file};
+pub use torrent::{
+    download_torrent, file_url, is_torrent, local_file, merged_files, only_files, Swarm,
+    TorrentFile, TorrentOptions,
+};
 
 pub use zipinfo::{zip_contents, zip_contents_of_file, ZipEntry};
 

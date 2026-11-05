@@ -170,6 +170,21 @@ impl Backend {
         self.block_on(self.queue.retrying())
     }
 
+    /// Which of a torrent's files are fetched, one tick a file.
+    pub fn set_torrent_files(&self, id: Id, wanted: &[bool]) -> Result<(), String> {
+        self.block_on(self.queue.set_torrent_files(id, wanted))
+    }
+
+    /// The speed limit every download shares, in bytes a second (0 for none).
+    pub fn set_speed_limit(&self, bytes_per_second: u64) {
+        self.block_on(self.queue.set_speed_limit(bytes_per_second));
+    }
+
+    /// Each running torrent's swarm, by row.
+    pub fn swarms(&self) -> std::collections::HashMap<Id, dm_core::Swarm> {
+        self.block_on(self.queue.swarms())
+    }
+
     /// Adds the downloads that `text` names (addresses, one to a line).
     pub fn add(&self, text: &str) -> Result<shell::Added, String> {
         self.block_on(shell::add(&self.queue, text))

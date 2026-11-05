@@ -714,7 +714,10 @@ fn merge_progress(
                 retrying @ Update::Retrying { .. } => {
                     let _ = report.send(retrying).await;
                 }
-                Update::Named { .. } | Update::Validator(_) => {}
+                Update::Named { .. }
+                | Update::Validator(_)
+                | Update::Swarm(_)
+                | Update::Files(_) => {}
             }
         }
     });

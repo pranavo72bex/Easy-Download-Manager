@@ -32,6 +32,7 @@ impl DmApp {
         self.rows_gen += 1;
         self.place_rows();
         set_retrying(self.backend.retrying());
+        set_swarms(self.backend.swarms());
         crate::table::set_superseded(&self.rows);
         set_limit_holds(self.backend.queue.allowance_spent().is_some());
         self.saved_sizes();

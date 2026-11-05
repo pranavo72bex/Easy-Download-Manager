@@ -940,3 +940,47 @@ fn read_only_keeps_the_rest_of_a_file_with_one_odd_field_and_leaves_it_alone() {
     let none = Settings::read_only(&dir.path().join("absent.json"));
     assert_eq!(none.connections, Settings::default().connections);
 }
+
+/// The slow hours' limit is in force in its hours, the lower of the two,
+/// and the speed limit outside them; past midnight too; off, never.
+#[test]
+fn the_slow_hours_lower_the_limit_in_their_hours_only() {
+    let mut s = Settings {
+        speed_limit: 1000,
+        slow_hours: SlowHours {
+            enabled: true,
+            from: "22:00".into(),
+            to: "06:00".into(),
+            limit: 100,
+        },
+        ..Settings::default()
+    };
+    assert_eq!(
+        s.speed_limit_bytes_at(1, 23 * 60),
+        100 * 1024,
+        "in its hours"
+    );
+    assert_eq!(
+        s.speed_limit_bytes_at(2, 3 * 60),
+        100 * 1024,
+        "past midnight"
+    );
+    assert_eq!(s.speed_limit_bytes_at(2, 12 * 60), 1000 * 1024, "outside");
+    // No speed limit the rest of the day: the slow one alone in its hours.
+    s.speed_limit = 0;
+    assert_eq!(s.speed_limit_bytes_at(1, 23 * 60), 100 * 1024);
+    assert_eq!(s.speed_limit_bytes_at(1, 12 * 60), 0);
+    // A speed limit lower than the slow one stands.
+    s.speed_limit = 50;
+    assert_eq!(s.speed_limit_bytes_at(1, 23 * 60), 50 * 1024);
+    // Off, or with a time that is not one, never.
+    s.slow_hours.enabled = false;
+    assert_eq!(s.speed_limit_bytes_at(1, 23 * 60), 50 * 1024);
+    s.speed_limit = 0;
+    s.slow_hours.enabled = true;
+    s.slow_hours.from = "25:00".into();
+    assert_eq!(s.speed_limit_bytes_at(1, 23 * 60), 0);
+    // An older settings file, without them, reads as off.
+    let read: Settings = serde_json::from_str("{}").unwrap();
+    assert!(!read.slow_hours.enabled);
+}

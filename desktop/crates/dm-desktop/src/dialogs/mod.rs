@@ -346,6 +346,9 @@ pub struct Properties {
     pub check: String,
     /// A finished ZIP's files, read from the file in the background.
     pub zip: Option<ZipSlot>,
+    /// A torrent's files ticked to be fetched, as edited; empty until its
+    /// files are known.
+    pub files: Vec<bool>,
 }
 
 /// The files of a ZIP, as a background reading leaves them: `None` while it
@@ -756,8 +759,9 @@ pub struct Dialogs {
     pub find_text: String,
     /// The Scheduler being edited: every queue's hours.
     pub scheduler: Option<SchedulerDraft>,
-    /// The speed limit, what went wrong, and the download limit (MB, hours).
-    pub limiter: Option<(u64, String, u64, u64)>,
+    /// The speed limit, what went wrong, the download limit (MB, hours) and
+    /// the slow hours.
+    pub limiter: Option<(u64, String, u64, u64, dm_shell::settings::SlowHours)>,
     /// The Options dialog.
     pub options: Option<OptionsDialog>,
     /// Whether About is open.

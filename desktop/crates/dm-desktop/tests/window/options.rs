@@ -1198,3 +1198,55 @@ fn ok_keeps_every_setting_of_the_advanced_page() {
     assert_eq!(saved["speed_limit"], 321);
     assert_eq!(saved["proxy"]["host"], "proxy.example");
 }
+
+/// Options › General › Sounds names a sound file for each event, kept with
+/// the settings, and an empty one is the usual sound again.
+#[test]
+fn a_sound_file_is_chosen_for_each_event_in_options() {
+    let _file = settings_file();
+    let world = world();
+    let mut harness = world.harness();
+    harness.state_mut().run(Command::Options);
+    harness.run_steps(3);
+    for words in [
+        "Download complete",
+        "Download failed",
+        "Queue started",
+        "Queue finished",
+    ] {
+        assert!(
+            harness.query_all_by_label(words).count() > 0,
+            "no sound row for {words}"
+        );
+    }
+    if let Some(options) = harness.state_mut().dialogs.options.as_mut() {
+        options
+            .draft
+            .sounds
+            .insert("queue_done".into(), r"C:\Windows\Media\tada.wav".into());
+    }
+    harness.run_steps(2);
+    click(&mut harness, "OK");
+    let kept = harness.state().backend().settings().sounds;
+    assert_eq!(
+        kept.get("queue_done").map(String::as_str),
+        Some(r"C:\Windows\Media\tada.wav")
+    );
+    // Emptied, the event's entry goes, and the usual sound is back.
+    harness.state_mut().run(Command::Options);
+    harness.run_steps(3);
+    if let Some(options) = harness.state_mut().dialogs.options.as_mut() {
+        options
+            .draft
+            .sounds
+            .insert("queue_done".into(), String::new());
+    }
+    harness.run_steps(2);
+    click(&mut harness, "OK");
+    assert!(!harness
+        .state()
+        .backend()
+        .settings()
+        .sounds
+        .contains_key("queue_done"));
+}

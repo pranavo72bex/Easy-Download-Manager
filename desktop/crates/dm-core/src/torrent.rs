@@ -26,6 +26,180 @@ use tokio_util::sync::CancellationToken;
 use crate::download::{Finished, Options, Update};
 use crate::{category, Error, Progress};
 
+/// A torrent's swarm as its engine last saw it: shown beside the bytes, as
+/// a torrent has peers where a file has connections.
+#[derive(Debug, Clone, Copy, Default, PartialEq)]
+pub struct Swarm {
+    /// Peers connected now.
+    pub connected: u32,
+    /// Peers known: every address found for it this run, connected or not.
+    pub known: u32,
+    /// Bytes sent to peers this run.
+    pub uploaded: u64,
+    /// Bytes a second sent to peers, over the last sample.
+    pub upload_speed: f64,
+}
+
+impl Swarm {
+    /// The swarm as librqbit's sample counts it, with the upload speed since
+    /// the sample before (`before`, `dt` seconds earlier).
+    fn of(stats: &librqbit::TorrentStats, before: Option<u64>, dt: f64) -> Swarm {
+        let peers = stats.live.as_ref().map(|l| &l.snapshot.peer_stats);
+        let connected = peers.map_or(0, |p| p.live);
+        let uploaded = stats.uploaded_bytes;
+        Swarm {
+            connected,
+            known: peers.map_or(0, |p| p.seen).max(connected),
+            uploaded,
+            upload_speed: match before {
+                Some(before) if dt > 0.0 => uploaded.saturating_sub(before) as f64 / dt,
+                _ => 0.0,
+            },
+        }
+    }
+}
+
+/// What only a torrent's download reads, beside the file download's options.
+#[derive(Debug, Clone, Default)]
+pub struct TorrentOptions {
+    /// The files to fetch, by their place in the torrent; `None` is every file.
+    pub only: Option<Vec<usize>>,
+    /// Where the list of peers never connected to is: an address on the web,
+    /// or a file on this computer. `None` for no list.
+    pub blocklist: Option<String>,
+}
+
+/// How long a blocklist fetched from the web is used before it is fetched again.
+const BLOCKLIST_FRESH: Duration = Duration::from_secs(24 * 3600);
+/// The largest blocklist read: the lists in use are a few megabytes, gzipped.
+const BLOCKLIST_MOST: u64 = 64 * 1024 * 1024;
+
+/// The blocklist as librqbit reads it, a `file:` address: one on this
+/// computer as it is; one on the web fetched with dm's own client (so
+/// through the proxy, which librqbit's own fetch would go around) and kept
+/// a day beside the parts. One that cannot be read is an error: a torrent
+/// does not go on as if the person had asked for no list.
+async fn blocklist_file(
+    client: &reqwest::Client,
+    address: &str,
+    parts_dir: &Path,
+) -> Result<String, Error> {
+    let address = address.trim();
+    let refused = |why: String| {
+        Error::Internal(format!(
+            "the peer blocklist at {address} could not be read: {why}"
+        ))
+    };
+    if address.starts_with("file:") {
+        return Ok(address.to_string());
+    }
+    if !(address.starts_with("http://") || address.starts_with("https://")) {
+        let path = Path::new(address);
+        if !path.is_file() {
+            return Err(refused("there is no such file".into()));
+        }
+        return file_url(path).ok_or_else(|| refused("its path cannot be made an address".into()));
+    }
+    let folder = parts_dir.parent().unwrap_or(parts_dir);
+    let kept = folder.join(format!("peer-blocklist-{:016x}", fnv(address)));
+    let fresh = tokio::fs::metadata(&kept)
+        .await
+        .ok()
+        .and_then(|m| m.modified().ok())
+        .and_then(|at| at.elapsed().ok())
+        .is_some_and(|age| age < BLOCKLIST_FRESH);
+    if !fresh {
+        let mut response = client
+            .get(address)
+            .send()
+            .await
+            .map_err(|e| refused(e.to_string()))?;
+        if !response.status().is_success() {
+            return Err(refused(format!(
+                "the server answered {}",
+                response.status()
+            )));
+        }
+        let too_big = || refused("it is larger than 64 MB".into());
+        if response
+            .content_length()
+            .is_some_and(|n| n > BLOCKLIST_MOST)
+        {
+            return Err(too_big());
+        }
+        let mut body = Vec::new();
+        while let Some(chunk) = response.chunk().await.map_err(|e| refused(e.to_string()))? {
+            body.extend_from_slice(&chunk);
+            if body.len() as u64 > BLOCKLIST_MOST {
+                return Err(too_big());
+            }
+        }
+        tokio::fs::create_dir_all(folder)
+            .await
+            .map_err(Error::Disk)?;
+        // Whole or not at all: a torrent started meanwhile reads the last one.
+        let partial = kept.with_extension("part");
+        tokio::fs::write(&partial, &body)
+            .await
+            .map_err(Error::Disk)?;
+        tokio::fs::rename(&partial, &kept)
+            .await
+            .map_err(Error::Disk)?;
+    }
+    file_url(&kept).ok_or_else(|| refused("its copy's path cannot be made an address".into()))
+}
+
+/// A short name for an address, for the file its list is kept in.
+fn fnv(text: &str) -> u64 {
+    text.bytes().fold(0xcbf2_9ce4_8422_2325, |hash, byte| {
+        (hash ^ u64::from(byte)).wrapping_mul(0x0100_0000_01b3)
+    })
+}
+
+/// One file of a torrent, and whether it is fetched.
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+pub struct TorrentFile {
+    /// Its path inside the torrent, folders apart by `/`.
+    pub name: String,
+    /// Its size in bytes.
+    pub size: u64,
+    /// Whether it is fetched: every file is, until a person leaves it out.
+    #[serde(default = "fetched")]
+    pub wanted: bool,
+}
+
+fn fetched() -> bool {
+    true
+}
+
+/// The files to fetch, by their place in the torrent, where some are left
+/// out; `None` where every file is wanted (or none is known yet).
+pub fn only_files(files: &[TorrentFile]) -> Option<Vec<usize>> {
+    files.iter().any(|f| !f.wanted).then(|| {
+        files
+            .iter()
+            .enumerate()
+            .filter(|(_, f)| f.wanted)
+            .map(|(i, _)| i)
+            .collect()
+    })
+}
+
+/// A torrent's files as now reported, with the choices already made kept
+/// where the list is the same one (each name and size in its place).
+pub fn merged_files(kept: &[TorrentFile], reported: Vec<TorrentFile>) -> Vec<TorrentFile> {
+    let same = kept.len() == reported.len()
+        && kept
+            .iter()
+            .zip(&reported)
+            .all(|(k, r)| k.name == r.name && k.size == r.size);
+    if same {
+        kept.to_vec()
+    } else {
+        reported
+    }
+}
+
 /// Whether this is a download for the torrent engine rather than the HTTP one.
 ///
 /// A `.torrent` served over HTTP is caught here too: fetched as a file it
@@ -179,6 +353,17 @@ pub async fn download_torrent(
     let token = CancellationToken::new();
     // This torrent's claim on the shared ceiling, given back on every exit.
     let _share = options.limiter.share();
+    // The peers never to connect to, where a list is set.
+    let blocklist_url = match &options.torrent.blocklist {
+        Some(address) => Some(
+            crate::download::or_stop(
+                &options.control,
+                blocklist_file(client, address, &options.parts_dir),
+            )
+            .await?,
+        ),
+        None => None,
+    };
     let session = Session::new_with_opts(
         output.clone(),
         SessionOptions {
@@ -200,6 +385,7 @@ pub async fn download_torrent(
                 ..Default::default()
             }),
             disable_local_service_discovery: proxied,
+            blocklist_url,
             cancellation_token: Some(token.clone()),
             ratelimits: librqbit::limits::LimitsConfig {
                 download_bps: download_cap(options).await,
@@ -282,6 +468,8 @@ pub async fn download_torrent(
                     // paused torrent that could not overwrite its own parts
                     // would start from nothing every time it resumed.
                     overwrite: true,
+                    // The files a person left ticked, where they left some out.
+                    only_files: options.torrent.only.clone(),
                     ..Default::default()
                 }),
             )
@@ -313,6 +501,26 @@ pub async fn download_torrent(
         ));
     }
 
+    // Its files, once known, for a person to choose from.
+    if let Some(tx) = &report {
+        let files = handle
+            .with_metadata(|metadata| {
+                metadata
+                    .file_infos
+                    .iter()
+                    .map(|file| TorrentFile {
+                        name: file.relative_filename.to_string_lossy().replace('\\', "/"),
+                        size: file.len,
+                        wanted: true,
+                    })
+                    .collect::<Vec<_>>()
+            })
+            .unwrap_or_default();
+        if !files.is_empty() {
+            let _ = tx.send(Update::Files(files)).await;
+        }
+    }
+
     // A digest is for one file: refused as soon as the metadata shows more,
     // rather than after the whole tree was fetched for nothing.
     let several = handle
@@ -332,6 +540,7 @@ pub async fn download_torrent(
      * already counts the bytes on disk, and measured from zero they showed
      * as a burst of speed nobody downloaded. */
     let mut last_done: Option<u64> = None;
+    let mut last_sent: Option<u64> = None;
 
     loop {
         // A pause or cancel is honoured here, between samples, the same place
@@ -410,8 +619,11 @@ pub async fn download_torrent(
                     eta,
                 }))
                 .await;
+            let swarm = Swarm::of(&stats, last_sent, dt);
+            let _ = tx.send(Update::Swarm(swarm)).await;
             last = now;
             last_done = Some(done);
+            last_sent = Some(swarm.uploaded);
         }
 
         if stats.finished {
@@ -441,6 +653,20 @@ pub async fn download_torrent(
             _ => handle.output_folder().to_path_buf(),
         })
         .map_err(|e| Error::Internal(format!("the finished torrent has no metadata: {e}")))?;
+
+    /* The files left out are not the person's: pieces they share with a
+     * wanted file leave them partly written, and moved with the rest they
+     * would look like files that were fetched. */
+    if let Some(only) = &options.torrent.only {
+        let _ = handle.with_metadata(|metadata| {
+            for (i, file) in metadata.file_infos.iter().enumerate() {
+                if !only.contains(&i) {
+                    let _ =
+                        std::fs::remove_file(handle.output_folder().join(&file.relative_filename));
+                }
+            }
+        });
+    }
 
     // Forgotten by the session, files kept, so nothing holds them open
     // while they are moved into place.

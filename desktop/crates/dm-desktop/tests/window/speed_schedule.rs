@@ -582,3 +582,52 @@ fn pick_queue(h: &mut Harness<'_, DmApp>, name: &str) {
         .click();
     h.run_steps(3);
 }
+
+/// The Speed limiter's settings keep the slow hours, refuse a time that is
+/// not one, and the window puts the slow limit in force in its hours.
+#[test]
+fn the_speed_limiter_keeps_slower_hours_and_puts_them_in_force() {
+    let _file = settings_file();
+    let world = world();
+    let mut harness = world.harness();
+    harness.state_mut().run(Command::SpeedLimiterSettings);
+    harness.run_steps(3);
+    click(&mut harness, "Slower between set hours");
+    if let Some(limiter) = harness.state_mut().dialogs.limiter.as_mut() {
+        assert!(limiter.4.enabled);
+        limiter.4.from = "7pm".into();
+    }
+    harness.run_steps(2);
+    click(&mut harness, "OK");
+    assert!(harness
+        .query_by_label_contains("times are HH:MM in 24 hours")
+        .is_some());
+    assert!(!harness.state().backend().settings().slow_hours.enabled);
+    // Hours that hold every minute of the day, so the test is in them.
+    if let Some(limiter) = harness.state_mut().dialogs.limiter.as_mut() {
+        limiter.4.from = "00:00".into();
+        limiter.4.to = "23:59".into();
+        limiter.4.limit = 64;
+    }
+    harness.run_steps(2);
+    click(&mut harness, "OK");
+    let kept = harness.state().backend().settings().slow_hours;
+    assert!(kept.enabled && kept.from == "00:00" && kept.limit == 64);
+    harness.state_mut().refresh();
+    harness.run_steps(2);
+    let in_force = harness.state().limit_in_force;
+    let (weekday, minute) = dm_core::weekday_now();
+    if minute < 23 * 60 + 59 {
+        assert_eq!(
+            in_force,
+            Some(64 * 1024),
+            "not put in force in its hours (day {weekday})"
+        );
+    }
+    // Put back for the other tests.
+    let mut back = harness.state().backend().settings();
+    back.slow_hours.enabled = false;
+    harness.state_mut().apply_settings(back).unwrap();
+    harness.state_mut().limit_in_force = None;
+    harness.state_mut().refresh();
+}

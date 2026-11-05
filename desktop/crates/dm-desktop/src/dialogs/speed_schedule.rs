@@ -383,7 +383,7 @@ fn schedule_form(ui: &mut egui::Ui, draft: &mut SchedulerDraft, apply: &mut bool
 
 pub(super) fn limiter(app: &mut DmApp, ctx: &egui::Context) {
     let focus = app.dialogs.take_focus("Speed limiter");
-    let Some((limit, says, mb, hours)) = app.dialogs.limiter.as_mut() else {
+    let Some((limit, says, mb, hours, slow)) = app.dialogs.limiter.as_mut() else {
         return;
     };
     let mut open = true;
@@ -427,6 +427,21 @@ pub(super) fn limiter(app: &mut DmApp, ctx: &egui::Context) {
                     apply |= entered(&hours_field);
                     ui.end_row();
                 });
+            // A lower limit for set hours of every day.
+            toggle_row(ui, &mut slow.enabled, t("Slower between set hours"));
+            ui.add_enabled_ui(slow.enabled, |ui| {
+                ui.horizontal(|ui| {
+                    apply |= entered(&field(ui, t("Start at"), &mut slow.from, 60.0));
+                    apply |= entered(&field(ui, t("Stop at"), &mut slow.to, 60.0));
+                });
+                ui.horizontal(|ui| {
+                    let name = ui.label(t("Speed limit in those hours (KB/s)"));
+                    let field = ui
+                        .add(number_box(&mut slow.limit).range(1..=10_000_000))
+                        .labelled_by(name.id);
+                    apply |= entered(&field);
+                });
+            });
             // The modern footer draws its own line.
             if !crate::theme::Tokens::get(ui.ctx()).modern {
                 ui.separator();
@@ -440,15 +455,29 @@ pub(super) fn limiter(app: &mut DmApp, ctx: &egui::Context) {
             });
         });
     open &= !cancel;
-    if apply && open {
+    if apply
+        && open
+        && slow.enabled
+        && !(dm_core::is_time(&slow.from) && dm_core::is_time(&slow.to))
+    {
+        *says = tf(
+            "\"{}\" to \"{}\": times are HH:MM in 24 hours, such as 01:00 or 23:30.",
+            &[&slow.from, &slow.to],
+        );
+    } else if apply && open {
         let mut wanted = app.applied.clone();
         wanted.speed_limit = *limit;
         wanted.limit_mb = *mb;
         wanted.limit_hours = *hours;
+        wanted.slow_hours = slow.clone();
         match app.apply_settings(wanted) {
-            Ok(()) => open = false,
+            Ok(()) => {
+                open = false;
+                // Put in force at once, by the hours as they are now.
+                app.limit_in_force = None;
+            }
             Err(e) => {
-                if let Some((_, says, _, _)) = app.dialogs.limiter.as_mut() {
+                if let Some((_, says, _, _, _)) = app.dialogs.limiter.as_mut() {
                     *says = e;
                 }
             }

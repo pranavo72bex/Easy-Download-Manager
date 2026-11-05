@@ -122,6 +122,22 @@ thread_local! {
     static LIMIT_HOLDS: std::cell::Cell<bool> = const { std::cell::Cell::new(false) };
 }
 
+thread_local! {
+    /// Each running torrent's swarm, as the last refresh found it.
+    static SWARMS: std::cell::RefCell<HashMap<Id, dm_core::Swarm>> =
+        std::cell::RefCell::new(HashMap::new());
+}
+
+/// What the engine now says of each running torrent's swarm.
+pub fn set_swarms(now: HashMap<Id, dm_core::Swarm>) {
+    SWARMS.with(|s| *s.borrow_mut() = now);
+}
+
+/// A running torrent's swarm, as the last refresh found it.
+pub(crate) fn swarm_of(id: Id) -> Option<dm_core::Swarm> {
+    SWARMS.with(|s| s.borrow().get(&id).copied())
+}
+
 /// What holds waiting rows now, for the statuses drawn next.
 pub fn set_limit_holds(now: bool) {
     LIMIT_HOLDS.with(|l| l.set(now));
@@ -448,6 +464,7 @@ pub(super) mod status_tests {
             stalled: String::new(),
             fresh_link: false,
             title_hint: None,
+            torrent_files: Vec::new(),
             sound: None,
             span: None,
             shape: None,

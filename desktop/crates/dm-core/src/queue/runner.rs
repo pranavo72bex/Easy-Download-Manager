@@ -278,6 +278,7 @@ impl Queue {
                         &slot.entry.headers,
                     );
                     options.checksum = slot.entry.checksum.clone();
+                    options.torrent.only = crate::torrent::only_files(&slot.entry.torrent_files);
                     options.save_name = slot.entry.save_name.clone();
                     options.title_hint = slot.entry.title_hint.clone();
                     options.accept_page = slot.entry.accept_page;
@@ -365,6 +366,20 @@ impl Queue {
                             crate::download::Update::Validator(validator) => {
                                 slot.entry_mut().validator = Some(validator);
                             }
+                            crate::download::Update::Files(files) => {
+                                let merged =
+                                    crate::torrent::merged_files(&slot.entry.torrent_files, files);
+                                if merged != slot.entry.torrent_files {
+                                    slot.entry_mut().torrent_files = merged;
+                                }
+                            }
+                            // Kept for the window, not saved: a stopped
+                            // torrent has no swarm.
+                            crate::download::Update::Swarm(swarm) => {
+                                slot.swarm = Some(swarm);
+                                drop(slots);
+                                continue;
+                            }
                             // The highest attempt of any range is the row's.
                             crate::download::Update::Retrying {
                                 attempt,
@@ -387,6 +402,9 @@ impl Queue {
             let client = inner.client.lock().await.clone();
             let outcome = download_reporting(&client, &url, &options, Some(tx)).await;
             let reported = watcher.await.ok().flatten();
+            if let Some(slot) = inner.slots.lock().await.get_mut(&id) {
+                slot.swarm = None;
+            }
             /* Reports are samples: a file whole before the next one was
              * sent had bytes no report carried, and a small download could
              * go uncounted by the download limit altogether. What a

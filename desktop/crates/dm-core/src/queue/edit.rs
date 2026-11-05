@@ -217,6 +217,38 @@ impl Queue {
         .await
     }
 
+    /// Which of a torrent's files are fetched, one tick a file in its
+    /// order. Only while it is not running or finished, and never none: a
+    /// person stops it, chooses, and starts it again.
+    pub async fn set_torrent_files(&self, id: Id, wanted: &[bool]) -> Result<(), String> {
+        if !wanted.iter().any(|w| *w) {
+            return Err("Tick at least one file.".into());
+        }
+        let mut why = None;
+        let wanted = wanted.to_vec();
+        let done = self
+            .edit(id, |slot| {
+                if matches!(slot.entry.state, State::Running | State::Completed) {
+                    why = Some("Stop the download to change which files are fetched.");
+                    return false;
+                }
+                if slot.entry.torrent_files.len() != wanted.len() {
+                    why = Some("The torrent's files are not known yet.");
+                    return false;
+                }
+                for (file, on) in slot.entry_mut().torrent_files.iter_mut().zip(&wanted) {
+                    file.wanted = *on;
+                }
+                true
+            })
+            .await;
+        match (done, why) {
+            (true, _) => Ok(()),
+            (false, Some(why)) => Err(why.into()),
+            (false, None) => Err("There is no such download.".into()),
+        }
+    }
+
     /// "Update download link": a new link for a download whose
     /// old one expired. Only while it is not running, and only to something
     /// dm can fetch. The parts stay; the plan recorded beside them, with the
