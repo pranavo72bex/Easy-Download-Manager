@@ -209,6 +209,13 @@ impl Dialogs {
             types: String::new(),
             hide_html: true,
             found,
+            hide_images: true,
+            hide_repeats: true,
+            save_to: SaveTo::ByCategory,
+            category: crate::app::category_word(dm_core::Category::Archives),
+            folder: String::new(),
+            editing: None,
+            names: Default::default(),
         });
     }
 

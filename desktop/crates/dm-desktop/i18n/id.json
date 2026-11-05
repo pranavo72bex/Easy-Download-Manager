@@ -824,5 +824,13 @@
  "Use dm for .torrent files": "Gunakan dm untuk berkas .torrent",
  "Give magnet links back": "Kembalikan tautan magnet",
  "Give .torrent files back": "Kembalikan berkas .torrent",
- "dm keeps what another program had, and can give it back. Where Windows' Default apps has a choice, that choice decides: change it in Settings, Apps, Default apps.": "dm menyimpan apa yang dimiliki program lain, dan dapat mengembalikannya. Jika ada pilihan di Aplikasi default Windows, pilihan itu yang menentukan: ubah di Pengaturan, Aplikasi, Aplikasi default."
+ "dm keeps what another program had, and can give it back. Where Windows' Default apps has a choice, that choice decides: change it in Settings, Apps, Default apps.": "dm menyimpan apa yang dimiliki program lain, dan dapat mengembalikannya. Jika ada pilihan di Aplikasi default Windows, pilihan itu yang menentukan: ubah di Pengaturan, Aplikasi, Aplikasi default.",
+ "Save to": "Simpan ke",
+ "Hide images": "Sembunyikan gambar",
+ "Hide repeated files": "Sembunyikan berkas berulang",
+ "Edit": "Ubah",
+ "Each file to the folder of its category": "Setiap berkas ke folder kategorinya",
+ "Every file to this category": "Semua berkas ke kategori ini",
+ "Every file to this folder": "Semua berkas ke folder ini",
+ "Choose the folder every file goes to.": "Pilih folder tujuan semua berkas."
 }

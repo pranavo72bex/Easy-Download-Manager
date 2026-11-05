@@ -824,5 +824,13 @@
  "Use dm for .torrent files": "Usar o dm para arquivos .torrent",
  "Give magnet links back": "Devolver os links magnet",
  "Give .torrent files back": "Devolver os arquivos .torrent",
- "dm keeps what another program had, and can give it back. Where Windows' Default apps has a choice, that choice decides: change it in Settings, Apps, Default apps.": "O dm guarda o que outro programa tinha e pode devolver. Se houver uma escolha em Aplicativos padrão do Windows, ela decide: altere em Configurações, Aplicativos, Aplicativos padrão."
+ "dm keeps what another program had, and can give it back. Where Windows' Default apps has a choice, that choice decides: change it in Settings, Apps, Default apps.": "O dm guarda o que outro programa tinha e pode devolver. Se houver uma escolha em Aplicativos padrão do Windows, ela decide: altere em Configurações, Aplicativos, Aplicativos padrão.",
+ "Save to": "Salvar em",
+ "Hide images": "Ocultar imagens",
+ "Hide repeated files": "Ocultar arquivos repetidos",
+ "Edit": "Editar",
+ "Each file to the folder of its category": "Cada arquivo para a pasta da sua categoria",
+ "Every file to this category": "Todos os arquivos para esta categoria",
+ "Every file to this folder": "Todos os arquivos para esta pasta",
+ "Choose the folder every file goes to.": "Escolha a pasta para onde vão todos os arquivos."
 }

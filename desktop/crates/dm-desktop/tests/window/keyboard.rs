@@ -775,6 +775,7 @@ fn enter_starts_the_links_dialogs() {
         hide_html: true,
         types: String::new(),
         found: Default::default(),
+        ..Default::default()
     });
     harness.run_steps(3);
     harness.key_press(egui::Key::Enter);

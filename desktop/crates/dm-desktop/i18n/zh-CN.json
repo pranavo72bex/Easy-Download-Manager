@@ -824,5 +824,13 @@
  "Use dm for .torrent files": "用 dm 打开 .torrent 文件",
  "Give magnet links back": "交还磁力链接",
  "Give .torrent files back": "交还 .torrent 文件",
- "dm keeps what another program had, and can give it back. Where Windows' Default apps has a choice, that choice decides: change it in Settings, Apps, Default apps.": "dm 会保留其他程序原有的设置,并可交还。若 Windows 默认应用中已有选择,则以该选择为准:请在“设置 > 应用 > 默认应用”中更改。"
+ "dm keeps what another program had, and can give it back. Where Windows' Default apps has a choice, that choice decides: change it in Settings, Apps, Default apps.": "dm 会保留其他程序原有的设置,并可交还。若 Windows 默认应用中已有选择,则以该选择为准:请在“设置 > 应用 > 默认应用”中更改。",
+ "Save to": "保存到",
+ "Hide images": "隐藏图片",
+ "Hide repeated files": "隐藏重复文件",
+ "Edit": "编辑",
+ "Each file to the folder of its category": "每个文件存入其类别的文件夹",
+ "Every file to this category": "所有文件存入此类别",
+ "Every file to this folder": "所有文件存入此文件夹",
+ "Choose the folder every file goes to.": "请选择所有文件要存入的文件夹。"
 }

@@ -3945,3 +3945,20 @@ switch's height (32 wide, its row `CONTROL` + 6), and the theme picker's buttons
 height with their 16-point drawings. The Windows baseline pictures were taken again from the QA
 run that showed the change (Add URL 8 points shorter: its sign-in switch's row); contract row
 B25 says so.
+
+## "Download links" as reference A's, and where dm keeps its own way (2026-11-05, gaps row 94)
+
+At the maintainer's word that dm "should work exactly like" reference A (2026-11-04).
+
+* **Hide images and Hide repeated files are on**, as reference A's are. A picture is told by the
+  name its server gave, or before it answers by its address (`classify`).
+* **A repeat is an address the page gives more than once**, the first kept. Reference A also
+  counts one already downloaded; dm already shows such a link unticked and says "(already in the
+  list)", which tells the person more than a missing line, so that stays.
+* **Save To's one category** is any of the kinds or a person's own categories; the folder it
+  names is the one dm would sort that kind into. One folder must be named before Start now or
+  Add for later take it.
+* **Edit is a button on each line**, opening the link's name and address under the list: egui's
+  grid has no row to select for one Edit button below it, as reference A's list does.
+* **Link texts wait for the extension**: the Link text column and "Use link texts as
+  descriptions" need each link's text in the hand-over (`Batch.texts`, row 123).

@@ -1,6 +1,21 @@
 use super::*;
 /// The "Download links" dialog.
 pub(super) fn links(app: &mut DmApp, ctx: &egui::Context) {
+    if app.dialogs.links.is_none() {
+        return;
+    }
+    // Where each link goes, for the Save to column and the choice of one
+    // category: the settings' folders and categories.
+    let root = app.applied.download_dir.clone();
+    let categories = app.applied.categories();
+    let customs: Vec<String> = app
+        .applied
+        .custom_categories
+        .iter()
+        .map(|c| c.name.trim().to_string())
+        .filter(|n| !n.is_empty())
+        .collect();
+    let platform = &app.backend.platform;
     let Some(d) = app.dialogs.links.as_mut() else {
         return;
     };
@@ -20,7 +35,7 @@ pub(super) fn links(app: &mut DmApp, ctx: &egui::Context) {
             } else {
                 0
             };
-            let hidden = d.items.iter().filter(|(u, _)| !d.shown(u)).count();
+            let hidden = d.visible().iter().filter(|listed| !**listed).count();
             ui.label(tf(
                 "{} links on {}",
                 &[&(d.items.len() - hidden), &format::shown_url(&d.page)],
@@ -44,10 +59,15 @@ pub(super) fn links(app: &mut DmApp, ctx: &egui::Context) {
                 )
                 .labelled_by(name.id);
             });
-            ui.horizontal(|ui| {
+            // What is left out, as reference A offers it.
+            ui.horizontal_wrapped(|ui| {
                 check(ui, &mut d.hide_html, t("Hide HTML files"));
+                check(ui, &mut d.hide_images, t("Hide images"));
+                check(ui, &mut d.hide_repeats, t("Hide repeated files"));
+            });
+            ui.horizontal(|ui| {
                 // Check all and Uncheck all act on what is listed.
-                let listed: Vec<bool> = d.items.iter().map(|(u, _)| d.shown(u)).collect();
+                let listed = d.visible();
                 if ui.button(t("Check all")).clicked() {
                     for (l, shown) in d.items.iter_mut().zip(&listed) {
                         if *shown {
@@ -71,27 +91,35 @@ pub(super) fn links(app: &mut DmApp, ctx: &egui::Context) {
                     *on = false;
                 }
             }
-            let listed: Vec<bool> = d.items.iter().map(|(u, _)| d.shown(u)).collect();
+            let listed = d.visible();
+            let mut edit_asked: Option<usize> = None;
             egui::ScrollArea::vertical()
                 .max_height(320.0)
                 .show(ui, |ui| {
                     egui::Grid::new("links")
-                        .num_columns(3)
+                        .num_columns(5)
                         .striped(true)
                         .show(ui, |ui| {
                             ui.strong(t("File name"));
                             ui.strong(t("Type"));
                             ui.strong(t("Size"));
+                            ui.strong(t("Save to"));
+                            ui.label("");
                             ui.end_row();
-                            for ((url, on), shown) in d.items.iter_mut().zip(listed) {
+                            let names: Vec<String> =
+                                d.items.iter().map(|(url, _)| d.name_of(url)).collect();
+                            let folders: Vec<String> = d
+                                .items
+                                .iter()
+                                .map(|(url, _)| d.folder_of(url, &root, &categories))
+                                .collect();
+                            for (n, (((url, on), shown), name)) in
+                                d.items.iter_mut().zip(listed).zip(names).enumerate()
+                            {
                                 if !shown {
                                     continue;
                                 }
                                 let what = found.get(url.as_str());
-                                let name = what
-                                    .map(|f| f.name.clone())
-                                    .filter(|n| !n.is_empty())
-                                    .unwrap_or_else(|| format::provisional(url));
                                 let name = if d.listed.contains(&bare(url)) {
                                     tf("{} (already in the list)", &[&name])
                                 } else {
@@ -122,10 +150,114 @@ pub(super) fn links(app: &mut DmApp, ctx: &egui::Context) {
                                     .map(format::bytes)
                                     .unwrap_or_default();
                                 ui.label(crate::table::digits(ui, size));
+                                // The folder's own name, its whole path on hover:
+                                // cut to the room, a path said only its drive.
+                                let folder = folders.get(n).cloned().unwrap_or_default();
+                                let last = std::path::Path::new(&folder)
+                                    .file_name()
+                                    .map(|f| f.to_string_lossy().into_owned())
+                                    .unwrap_or_else(|| folder.clone());
+                                ui.add(egui::Label::new(RichText::new(last).weak()).truncate())
+                                    .on_hover_text(&folder);
+                                // Its name and address changed before it is added.
+                                if ui.small_button(t("Edit")).clicked() {
+                                    edit_asked = Some(n);
+                                }
                                 ui.end_row();
                             }
                         });
                 });
+            if let Some(n) = edit_asked {
+                d.editing = Some(n);
+            }
+            // The row being edited: its name and its address.
+            if let Some(n) = d.editing.filter(|n| *n < d.items.len()) {
+                let url = d.items[n].0.clone();
+                // As typed, spaces and all; trimmed where it is used.
+                let mut name = d
+                    .names
+                    .get(&url)
+                    .cloned()
+                    .unwrap_or_else(|| d.name_of(&url));
+                let mut address = url.clone();
+                ui.horizontal_wrapped(|ui| {
+                    field(ui, t("File name"), &mut name, 160.0);
+                    field(ui, t("Address"), &mut address, 200.0);
+                    if ui.button(t("Done")).clicked() {
+                        d.editing = None;
+                    }
+                });
+                let address = address.trim().to_string();
+                if !address.is_empty() && address != url {
+                    if let Some(given) = d.names.remove(&url) {
+                        d.names.insert(address.clone(), given);
+                    }
+                    d.items[n].0 = address.clone();
+                }
+                let key = if address.is_empty() { url } else { address };
+                // Kept once it differs from the name it would have, and while
+                // it is being typed after that.
+                if d.names.contains_key(&key) || name.trim() != d.name_of(&key) {
+                    d.names.insert(key, name);
+                }
+            }
+            // Where the ticked links go, as reference A offers it.
+            ui.label(RichText::new(t("Save to")).strong());
+            if radio_flag(
+                ui,
+                d.save_to == SaveTo::ByCategory,
+                t("Each file to the folder of its category"),
+            )
+            .clicked()
+            {
+                d.save_to = SaveTo::ByCategory;
+            }
+            ui.horizontal(|ui| {
+                if radio_flag(
+                    ui,
+                    d.save_to == SaveTo::OneCategory,
+                    t("Every file to this category"),
+                )
+                .clicked()
+                {
+                    d.save_to = SaveTo::OneCategory;
+                }
+                ui.add_enabled_ui(d.save_to == SaveTo::OneCategory, |ui| {
+                    let shown = |word: &str| crate::i18n::name(&format::titled(word));
+                    combo("links-category")
+                        .selected_text(shown(&d.category))
+                        .show_ui(ui, |ui| {
+                            for kind in dm_core::Category::ALL {
+                                let word = crate::app::category_word(kind);
+                                pick(ui, &mut d.category, word.clone(), shown(&word));
+                            }
+                            for own in &customs {
+                                pick(ui, &mut d.category, own.clone(), own.clone());
+                            }
+                        });
+                });
+            });
+            ui.horizontal(|ui| {
+                if radio_flag(
+                    ui,
+                    d.save_to == SaveTo::OneFolder,
+                    t("Every file to this folder"),
+                )
+                .clicked()
+                {
+                    d.save_to = SaveTo::OneFolder;
+                }
+                ui.add_enabled_ui(d.save_to == SaveTo::OneFolder, |ui| {
+                    let wide = (ui.available_width() - 120.0).clamp(120.0, 320.0);
+                    let name = t("Every file to this folder");
+                    let typed =
+                        ui.add(egui::TextEdit::singleline(&mut d.folder).desired_width(wide));
+                    typed.widget_info(|| {
+                        egui::WidgetInfo::labeled(egui::Role::TextInput, true, name)
+                    });
+                    browse(ui, &**platform, &mut d.folder);
+                });
+            });
             footer(ui, |ui| {
                 if primary(ui, "Start now").clicked() || enter_free(ui) {
                     chosen = Some(false);
@@ -137,6 +269,10 @@ pub(super) fn links(app: &mut DmApp, ctx: &egui::Context) {
             });
         });
     if let Some(later) = chosen {
+        if d.save_to == SaveTo::OneFolder && d.folder.trim().is_empty() {
+            app.said = crate::i18n::Said::new("Choose the folder every file goes to.", &[]);
+            return;
+        }
         let chosen = d.chosen();
         let with = AddOptions {
             later,
@@ -146,8 +282,20 @@ pub(super) fn links(app: &mut DmApp, ctx: &egui::Context) {
                 String::new()
             },
             referrer: d.page.clone(),
+            save_dir: d.save_dir(&root, &categories),
             ..AddOptions::default()
         };
+        // A link given a name with Edit is added with it, apart from the rest.
+        let named: Vec<(String, String)> = chosen
+            .iter()
+            .filter_map(|url| d.names.get(url).map(|n| (url.clone(), n.clone())))
+            .filter(|(_, n)| !n.trim().is_empty())
+            .collect();
+        let chosen: Vec<String> = chosen
+            .into_iter()
+            .filter(|url| !named.iter().any(|(u, _)| u == url))
+            .collect();
+        let page_sign_in = d.sign_in.clone();
         // The sizes the servers already told, kept on the rows until each
         // learns its own.
         let sizes: std::collections::HashMap<String, u64> = dm_core::lock(&d.found)
@@ -166,13 +314,33 @@ pub(super) fn links(app: &mut DmApp, ctx: &egui::Context) {
             ..with.clone()
         };
         app.dialogs.links = None;
-        let added = match (
+        let mut added = match (
             app.add_sized(&signed, &signed_with, &sizes),
             app.add_sized(&plain, &with, &sizes),
         ) {
             (Ok(a), Ok(b)) => Ok(a + b),
             (Err(e), _) | (_, Err(e)) => Err(e),
         };
+        for (url, name) in named {
+            let own = AddOptions {
+                save_name: Some(name),
+                ..if page_sign_in
+                    .as_ref()
+                    .is_some_and(|s| s.for_url(&url).is_some())
+                {
+                    signed_with.clone()
+                } else {
+                    with.clone()
+                }
+            };
+            added = match (
+                added,
+                app.add_sized(std::slice::from_ref(&url), &own, &sizes),
+            ) {
+                (Ok(a), Ok(b)) => Ok(a + b),
+                (Err(e), _) | (_, Err(e)) => Err(e),
+            };
+        }
         match added {
             Ok(n) if later => {
                 app.said = crate::i18n::Said::counting_naming(

@@ -824,5 +824,13 @@
  "Use dm for .torrent files": ".torrent 파일에 dm 사용",
  "Give magnet links back": "마그넷 링크 되돌리기",
  "Give .torrent files back": ".torrent 파일 되돌리기",
- "dm keeps what another program had, and can give it back. Where Windows' Default apps has a choice, that choice decides: change it in Settings, Apps, Default apps.": "dm은 다른 프로그램의 설정을 보관하고 되돌릴 수 있습니다. Windows 기본 앱에 선택이 있으면 그 선택이 우선합니다. 설정, 앱, 기본 앱에서 바꾸세요."
+ "dm keeps what another program had, and can give it back. Where Windows' Default apps has a choice, that choice decides: change it in Settings, Apps, Default apps.": "dm은 다른 프로그램의 설정을 보관하고 되돌릴 수 있습니다. Windows 기본 앱에 선택이 있으면 그 선택이 우선합니다. 설정, 앱, 기본 앱에서 바꾸세요.",
+ "Save to": "저장 위치",
+ "Hide images": "이미지 숨기기",
+ "Hide repeated files": "반복된 파일 숨기기",
+ "Edit": "편집",
+ "Each file to the folder of its category": "각 파일을 해당 범주의 폴더로",
+ "Every file to this category": "모든 파일을 이 범주로",
+ "Every file to this folder": "모든 파일을 이 폴더로",
+ "Choose the folder every file goes to.": "모든 파일이 저장될 폴더를 선택하세요."
 }

@@ -2232,3 +2232,95 @@ fn a_copied_link_is_taken_at_once_where_that_is_on() {
     off.watch_clipboard = false;
     harness.state_mut().apply_settings(off).unwrap();
 }
+
+/// "Download links" as reference A's: pictures and an address the page gives
+/// twice are left out (each can be shown again), each link's folder is said,
+/// Edit opens a link's name and address, and every file can be sent to one
+/// folder, a link renamed there keeping its name.
+#[test]
+fn download_links_hides_pictures_and_repeats_and_saves_where_chosen() {
+    let _file = settings_file();
+    let world = world();
+    let mut harness = world.harness();
+    let request = dm_shell::host::Request {
+        url: world.url("page.html"),
+        referrer: world.url("page.html"),
+        links: vec![
+            world.url("file.zip"),
+            world.url("photo.jpg"),
+            world.url("other.pdf"),
+            world.url("file.zip"),
+        ],
+        ask: true,
+        ..Default::default()
+    };
+    let app = harness.state_mut();
+    let backend = app.backend.clone();
+    app.dialogs.open_links(request, &backend);
+    harness.run_steps(3);
+    let visible = |h: &Harness<'_, DmApp>| h.state().dialogs.links.as_ref().unwrap().visible();
+    assert_eq!(
+        visible(&harness),
+        [true, false, true, false],
+        "a picture or a repeat was listed"
+    );
+    click(&mut harness, "Hide images");
+    assert_eq!(
+        visible(&harness),
+        [true, true, true, false],
+        "Hide images did not let the picture back"
+    );
+    click(&mut harness, "Hide images");
+    click(&mut harness, "Hide repeated files");
+    assert_eq!(visible(&harness), [true, false, true, true]);
+    click(&mut harness, "Hide repeated files");
+
+    // Edit opens the first listed link's name and address.
+    harness
+        .query_all_by_label("Edit")
+        .next()
+        .expect("an Edit button on each row")
+        .click();
+    harness.run_steps(3);
+    assert_eq!(
+        harness.state().dialogs.links.as_ref().unwrap().editing,
+        Some(0)
+    );
+    click(&mut harness, "Done");
+    assert_eq!(
+        harness.state().dialogs.links.as_ref().unwrap().editing,
+        None
+    );
+
+    // Every file to one folder, other.pdf under a name of its own.
+    let folder = tempfile::tempdir().unwrap();
+    let where_to = folder.path().display().to_string();
+    {
+        let d = harness.state_mut().dialogs.links.as_mut().unwrap();
+        d.names.insert(world.url("other.pdf"), "renamed.pdf".into());
+        d.save_to = dm_desktop::dialogs::SaveTo::OneFolder;
+        d.folder.clone_from(&where_to);
+    }
+    harness.run_steps(3);
+    assert!(
+        harness.query_by_label_contains("renamed.pdf").is_some(),
+        "the name given is not the one listed"
+    );
+    click(&mut harness, "Check all");
+    click(&mut harness, "Add for later");
+    harness.state_mut().refresh();
+    let rows = harness.state().rows().to_vec();
+    assert_eq!(
+        rows.len(),
+        2,
+        "{:?}",
+        rows.iter().map(|r| &r.url).collect::<Vec<_>>()
+    );
+    assert!(
+        rows.iter()
+            .all(|r| r.save_dir.as_deref() == Some(where_to.as_str())),
+        "not every file goes to the folder chosen"
+    );
+    let pdf = rows.iter().find(|r| r.url.ends_with("/other.pdf")).unwrap();
+    assert_eq!(pdf.save_name.as_deref(), Some("renamed.pdf"));
+}

@@ -824,5 +824,13 @@
  "Use dm for .torrent files": ".torrent dosyaları için dm'yi kullan",
  "Give magnet links back": "Magnet bağlantılarını geri ver",
  "Give .torrent files back": ".torrent dosyalarını geri ver",
- "dm keeps what another program had, and can give it back. Where Windows' Default apps has a choice, that choice decides: change it in Settings, Apps, Default apps.": "dm başka bir programın ayarını saklar ve geri verebilir. Windows Varsayılan uygulamalarında bir seçim varsa o karar verir: Ayarlar, Uygulamalar, Varsayılan uygulamalar'dan değiştirin."
+ "dm keeps what another program had, and can give it back. Where Windows' Default apps has a choice, that choice decides: change it in Settings, Apps, Default apps.": "dm başka bir programın ayarını saklar ve geri verebilir. Windows Varsayılan uygulamalarında bir seçim varsa o karar verir: Ayarlar, Uygulamalar, Varsayılan uygulamalar'dan değiştirin.",
+ "Save to": "Kaydetme yeri",
+ "Hide images": "Resimleri gizle",
+ "Hide repeated files": "Yinelenen dosyaları gizle",
+ "Edit": "Düzenle",
+ "Each file to the folder of its category": "Her dosya kendi kategorisinin klasörüne",
+ "Every file to this category": "Tüm dosyalar bu kategoriye",
+ "Every file to this folder": "Tüm dosyalar bu klasöre",
+ "Choose the folder every file goes to.": "Tüm dosyaların gideceği klasörü seçin."
 }

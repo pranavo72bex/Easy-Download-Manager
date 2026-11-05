@@ -241,6 +241,7 @@ pub struct Found {
 
 /// The import dialog for a page's links: each checked or not, with its
 /// name, kind and size as its server tells them.
+#[derive(Default)]
 pub struct LinksImport {
     /// The page the links came from.
     pub page: String,
@@ -263,6 +264,36 @@ pub struct LinksImport {
     pub types: String,
     /// What each link's server said, by address.
     pub found: std::sync::Arc<std::sync::Mutex<std::collections::HashMap<String, Found>>>,
+    /// Whether pictures are left out of the list (reference A's "Hide images
+    /// located on this web page", on as there).
+    pub hide_images: bool,
+    /// Whether an address the page links to more than once is listed once.
+    pub hide_repeats: bool,
+    /// Where the links ticked are saved.
+    pub save_to: SaveTo,
+    /// The category every file goes to, for `SaveTo::OneCategory`: a kind's
+    /// word or a person's own category's name.
+    pub category: String,
+    /// The folder every file goes to, for `SaveTo::OneFolder`, as typed.
+    pub folder: String,
+    /// The row whose name and address are being edited, by its place.
+    pub editing: Option<usize>,
+    /// Names given with Edit, by address.
+    pub names: std::collections::HashMap<String, String>,
+}
+
+/// Where the links ticked in "Download links" are saved, as reference A
+/// offers: each to its category's folder, all to one category's, or all to
+/// one folder.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum SaveTo {
+    /// Each file to the folder of its category.
+    #[default]
+    ByCategory,
+    /// Every file to one category's folder (`LinksImport::category`).
+    OneCategory,
+    /// Every file to one folder (`LinksImport::folder`).
+    OneFolder,
 }
 
 impl LinksImport {
@@ -285,9 +316,39 @@ impl LinksImport {
                 .any(|e| last.ends_with(e))
     }
 
+    /// A link that is a picture: by what its server said, or before it
+    /// answers, by its address.
+    pub fn is_image(&self, url: &str) -> bool {
+        let name = dm_core::lock(&self.found)
+            .get(url)
+            .map(|f| f.name.clone())
+            .filter(|n| !n.is_empty())
+            .unwrap_or_else(|| {
+                let path = url.split(['?', '#']).next().unwrap_or(url);
+                path.rsplit('/').next().unwrap_or_default().to_string()
+            });
+        dm_core::classify(&name, None) == dm_core::Category::Pictures
+    }
+
+    /// Which rows are listed, in order: what the filters leave, and of an
+    /// address the page links to more than once, its first.
+    pub fn visible(&self) -> Vec<bool> {
+        let mut seen = std::collections::HashSet::new();
+        self.items
+            .iter()
+            .map(|(url, _)| {
+                let first = seen.insert(bare(url));
+                self.shown(url) && (first || !self.hide_repeats)
+            })
+            .collect()
+    }
+
     /// Whether the filters leave `url` in the list.
     pub fn shown(&self, url: &str) -> bool {
         if self.hide_html && self.is_html(url) {
+            return false;
+        }
+        if self.hide_images && self.is_image(url) {
             return false;
         }
         let wanted: Vec<String> = self
@@ -315,13 +376,81 @@ impl LinksImport {
         wanted.contains(&ext)
     }
 
-    /// The links OK would add: checked, and shown.
+    /// The links OK would add: checked, and listed.
     pub fn chosen(&self) -> Vec<String> {
         self.items
             .iter()
-            .filter(|(url, on)| *on && self.shown(url))
-            .map(|(url, _)| url.clone())
+            .zip(self.visible())
+            .filter(|((_, on), listed)| *on && *listed)
+            .map(|((url, _), _)| url.clone())
             .collect()
+    }
+
+    /// The folder the links go to where the choice names one: `None` is each
+    /// to the folder of its category, as dm sorts a download.
+    pub fn save_dir(
+        &self,
+        root: &std::path::Path,
+        categories: &dm_core::Categories,
+    ) -> Option<String> {
+        match self.save_to {
+            SaveTo::ByCategory => None,
+            SaveTo::OneFolder => {
+                let folder = self.folder.trim();
+                (!folder.is_empty()).then(|| folder.to_string())
+            }
+            SaveTo::OneCategory => Some(
+                category_folder(&self.category, root, categories)
+                    .display()
+                    .to_string(),
+            ),
+        }
+    }
+
+    /// The folder `url` will be saved to, as the Save to column says it.
+    pub fn folder_of(
+        &self,
+        url: &str,
+        root: &std::path::Path,
+        categories: &dm_core::Categories,
+    ) -> String {
+        if let Some(dir) = self.save_dir(root, categories) {
+            return dir;
+        }
+        let name = self.name_of(url);
+        categories
+            .destination(root, dm_core::classify(&name, None))
+            .display()
+            .to_string()
+    }
+
+    /// The name `url` will be saved under: the one given with Edit, else its
+    /// server's, else its address's.
+    pub fn name_of(&self, url: &str) -> String {
+        if let Some(name) = self.names.get(url).filter(|n| !n.trim().is_empty()) {
+            return name.trim().to_string();
+        }
+        dm_core::lock(&self.found)
+            .get(url)
+            .map(|f| f.name.clone())
+            .filter(|n| !n.is_empty())
+            .unwrap_or_else(|| crate::format::provisional(url))
+    }
+}
+
+/// A category's folder, by the category's word (a kind) or a person's own
+/// category's name.
+pub fn category_folder(
+    word: &str,
+    root: &std::path::Path,
+    categories: &dm_core::Categories,
+) -> std::path::PathBuf {
+    match dm_core::Category::ALL
+        .iter()
+        .find(|c| crate::app::category_word(**c) == word)
+    {
+        Some(kind) => categories.destination(root, *kind),
+        None => root.join(word),
     }
 }
 
