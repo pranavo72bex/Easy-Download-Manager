@@ -832,5 +832,7 @@
  "Each file to the folder of its category": "Elk bestand naar de map van zijn categorie",
  "Every file to this category": "Alle bestanden naar deze categorie",
  "Every file to this folder": "Alle bestanden naar deze map",
- "Choose the folder every file goes to.": "Kies de map waar alle bestanden heen gaan."
+ "Choose the folder every file goes to.": "Kies de map waar alle bestanden heen gaan.",
+ "Link text": "Linktekst",
+ "Use link texts as descriptions": "Linkteksten als beschrijvingen gebruiken"
 }

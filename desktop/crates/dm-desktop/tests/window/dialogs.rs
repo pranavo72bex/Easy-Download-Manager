@@ -246,6 +246,16 @@ fn a_double_click_opens_properties_and_open_runs_a_finished_file() {
         .unwrap();
     double_click(&mut harness, "file.zip");
     harness.run_steps(3);
+    // Its digests are worked out beside the window and fill their rows when
+    // done, which moves Open: on a loaded machine that fell between finding
+    // the button and clicking it, and the click took nothing.
+    until(&mut harness, "the file's digests to be worked out", |app| {
+        app.dialogs.properties.get(&row.id).is_some_and(|d| {
+            let sums = dm_core::lock(&d.sums);
+            !sums.is_empty() && sums.values().all(Option::is_some)
+        })
+    });
+    harness.run_steps(3);
     // What the window showed, said if the file is not opened: under a full
     // run of the window tests this failed now and then and passed alone.
     let seen = {
@@ -2323,4 +2333,78 @@ fn download_links_hides_pictures_and_repeats_and_saves_where_chosen() {
     );
     let pdf = rows.iter().find(|r| r.url.ends_with("/other.pdf")).unwrap();
     assert_eq!(pdf.save_name.as_deref(), Some("renamed.pdf"));
+}
+
+/// Each link's words on the page show in a Link text column and become its
+/// download's description, as reference A's "Use link texts as
+/// descriptions"; unticked, none is kept.
+#[test]
+fn a_links_words_on_the_page_are_shown_and_kept_as_its_description() {
+    let _file = settings_file();
+    let world = world();
+    let mut harness = world.harness();
+    let texts: std::collections::BTreeMap<String, String> = [
+        (world.url("file.zip"), "The whole archive".to_string()),
+        (world.url("other.pdf"), "The manual".to_string()),
+    ]
+    .into_iter()
+    .collect();
+    let request = dm_shell::host::Request {
+        url: world.url("page.html"),
+        referrer: world.url("page.html"),
+        links: vec![world.url("file.zip"), world.url("other.pdf")],
+        texts,
+        ask: true,
+        ..Default::default()
+    };
+    let app = harness.state_mut();
+    let backend = app.backend.clone();
+    app.dialogs.open_links(request, &backend);
+    harness.run_steps(3);
+    assert!(harness.query_by_label("Link text").is_some());
+    assert!(
+        harness.query_by_label("The whole archive").is_some(),
+        "the link's words are not shown"
+    );
+    click(&mut harness, "Add for later");
+    harness.state_mut().refresh();
+    let notes: Vec<String> = harness
+        .state()
+        .rows()
+        .iter()
+        .map(|r| r.description.clone())
+        .collect();
+    assert!(
+        notes.contains(&"The whole archive".to_string()),
+        "{notes:?}"
+    );
+    assert!(notes.contains(&"The manual".to_string()), "{notes:?}");
+
+    // Unticked, the words are shown and not kept.
+    let again = dm_shell::host::Request {
+        url: world.url("page.html"),
+        referrer: world.url("page.html"),
+        links: vec![world.url("third.bin")],
+        texts: [(world.url("third.bin"), "A third".to_string())]
+            .into_iter()
+            .collect(),
+        ask: true,
+        ..Default::default()
+    };
+    let app = harness.state_mut();
+    let backend = app.backend.clone();
+    app.dialogs.open_links(again, &backend);
+    harness.run_steps(3);
+    click(&mut harness, "Use link texts as descriptions");
+    click(&mut harness, "Check all");
+    click(&mut harness, "Add for later");
+    harness.state_mut().refresh();
+    let third = harness
+        .state()
+        .rows()
+        .iter()
+        .find(|r| r.url.ends_with("/third.bin"))
+        .cloned()
+        .expect("the third link was added");
+    assert_eq!(third.description, "");
 }

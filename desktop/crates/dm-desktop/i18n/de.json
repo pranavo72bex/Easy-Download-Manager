@@ -832,5 +832,7 @@
  "Each file to the folder of its category": "Jede Datei in den Ordner ihrer Kategorie",
  "Every file to this category": "Alle Dateien in diese Kategorie",
  "Every file to this folder": "Alle Dateien in diesen Ordner",
- "Choose the folder every file goes to.": "Wählen Sie den Ordner, in den alle Dateien kommen."
+ "Choose the folder every file goes to.": "Wählen Sie den Ordner, in den alle Dateien kommen.",
+ "Link text": "Linktext",
+ "Use link texts as descriptions": "Linktexte als Beschreibungen verwenden"
 }

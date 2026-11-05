@@ -2225,3 +2225,29 @@ fn a_quality_line_is_worded_as_reference_a_words_it() {
     // No title: the number and the line alone.
     assert_eq!(reference_line(3, "  ", "HLS stream"), "3. HLS stream");
 }
+
+/// The words a page gives its links go with the links sent, keyed as they
+/// are, spaces closed up; words for an address not sent are dropped.
+#[test]
+fn a_links_words_are_kept_for_the_link_sent() {
+    let urls = vec![
+        "https://e.com/a.zip".to_string(),
+        "https://e.com/b.iso".to_string(),
+    ];
+    let texts: std::collections::BTreeMap<String, String> = [
+        ("https://e.com/a.zip#mirror", "  The   A\n archive "),
+        ("https://e.com/b.iso", ""),
+        ("mailto:me@e.com", "Write to us"),
+    ]
+    .iter()
+    .map(|(k, v)| (k.to_string(), v.to_string()))
+    .collect();
+    let kept = link_texts(&texts, &urls);
+    assert_eq!(kept.len(), 1);
+    assert_eq!(kept["https://e.com/a.zip"], "The A archive");
+    let long: std::collections::BTreeMap<String, String> =
+        [("https://e.com/a.zip".to_string(), "x".repeat(500))]
+            .into_iter()
+            .collect();
+    assert_eq!(link_texts(&long, &urls)["https://e.com/a.zip"].len(), 200);
+}

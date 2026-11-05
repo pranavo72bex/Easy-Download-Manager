@@ -216,6 +216,8 @@ impl Dialogs {
             folder: String::new(),
             editing: None,
             names: Default::default(),
+            texts: request.texts,
+            use_texts: true,
         });
     }
 

@@ -66,6 +66,9 @@ pub struct Request {
     /// A page's links, for the app's "Download all links" dialog.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub links: Vec<String>,
+    /// Each of those links' words on the page, by address, where it has any.
+    #[serde(default, skip_serializing_if = "std::collections::BTreeMap::is_empty")]
+    pub texts: std::collections::BTreeMap<String, String>,
     /// The browser's cookies for the site, as a `Cookie` header, where the
     /// person switched that on for the site in the toolbar popup.
     #[serde(default, skip_serializing_if = "String::is_empty")]
@@ -693,6 +696,7 @@ pub fn answer(
             page,
             urls,
             cookies,
+            texts,
         })) => {
             let links: Vec<String> = urls
                 .into_iter()
@@ -710,6 +714,11 @@ pub fn answer(
                         url: page.clone(),
                         referrer: page,
                         ask: true,
+                        // The words of the links sent, no others.
+                        texts: texts
+                            .into_iter()
+                            .filter(|(url, _)| links.contains(url))
+                            .collect(),
                         links,
                         // Scoped to the page's site by the dialog's sign-in.
                         cookies,

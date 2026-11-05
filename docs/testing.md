@@ -77,6 +77,13 @@ installed). In sight, never headless; about half an hour. It fails when any
 row fails or was not checked, and `--save-baseline` records the window's
 pictures once a change to them is approved. This is what "QA" means here.
 
+## Real sites, beside reference A
+
+[site-list.md](site-list.md) lists the sites reference A is known to work on (the maintainer's list, 2026-11-05),
+with what to try on each and columns for what reference A and dm did. A person runs it in the
+final human QA, in Microsoft Edge with both extensions; a place where dm does less is a row in
+`gaps.md` (row 152).
+
 ## The built program, driven
 
 | Check | What it proves | Run |

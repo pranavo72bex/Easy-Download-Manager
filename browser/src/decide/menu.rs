@@ -47,6 +47,32 @@ pub fn links_from(hrefs: &[String], page: &str) -> Vec<String> {
         .collect()
 }
 
+/// The words of the links sent, keyed as `links_from` keys their addresses
+/// (no fragment, no spaces around), their spaces closed up and cut to 200
+/// characters; the first words given an address win.
+pub fn link_texts(
+    texts: &std::collections::BTreeMap<String, String>,
+    urls: &[String],
+) -> std::collections::BTreeMap<String, String> {
+    let sent: std::collections::HashSet<&str> = urls.iter().map(String::as_str).collect();
+    let mut out = std::collections::BTreeMap::new();
+    for (href, words) in texts {
+        let href = href.trim();
+        let key = href.split('#').next().unwrap_or(href);
+        let words: String = words
+            .split_whitespace()
+            .collect::<Vec<_>>()
+            .join(" ")
+            .chars()
+            .take(200)
+            .collect();
+        if !words.is_empty() && sent.contains(key) && !out.contains_key(key) {
+            out.insert(key.to_string(), words);
+        }
+    }
+    out
+}
+
 /// Whether the browser lets an extension run a script in a page at `url`,
 /// so a page opened before dm was installed can be given dm's links reader.
 /// Its own pages, other extensions' and the stores' are closed

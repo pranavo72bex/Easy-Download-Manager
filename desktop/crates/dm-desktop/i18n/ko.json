@@ -832,5 +832,7 @@
  "Each file to the folder of its category": "각 파일을 해당 범주의 폴더로",
  "Every file to this category": "모든 파일을 이 범주로",
  "Every file to this folder": "모든 파일을 이 폴더로",
- "Choose the folder every file goes to.": "모든 파일이 저장될 폴더를 선택하세요."
+ "Choose the folder every file goes to.": "모든 파일이 저장될 폴더를 선택하세요.",
+ "Link text": "링크 텍스트",
+ "Use link texts as descriptions": "링크 텍스트를 설명으로 사용"
 }

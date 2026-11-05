@@ -256,18 +256,34 @@
     };
     const links = [];
     const own = new Set();
+    // Each address's words where it has any (a link's text, an image's alt or
+    // title), the first found: the app shows them and keeps them as descriptions.
+    const texts = {};
+    const said = (address, words) => {
+      const plain = String(words ?? '').replace(/\s+/g, ' ').trim().slice(0, 200);
+      if (plain && typeof address === 'string' && !(address in texts)) texts[address] = plain;
+    };
     for (const node of document.querySelectorAll('a[href]')) {
       const words = (node.textContent ?? '').trim();
       if (!inSelection(node, words)) continue;
-      if (typeof node.href === 'string') links.push(node.href);
+      if (typeof node.href === 'string') {
+        links.push(node.href);
+        said(node.href, words || node.title);
+      }
       if (selected) own.add(words);
     }
     for (const node of document.querySelectorAll('area[href]')) {
-      if (inSelection(node, '') && typeof node.href === 'string') links.push(node.href);
+      if (inSelection(node, '') && typeof node.href === 'string') {
+        links.push(node.href);
+        said(node.href, node.alt || node.title);
+      }
     }
     for (const node of document.querySelectorAll('img')) {
       const src = node.currentSrc || node.src;
-      if (src && inSelection(node, '')) links.push(src);
+      if (src && inSelection(node, '')) {
+        links.push(src);
+        said(src, node.alt || node.title);
+      }
     }
     if (!selected) {
       for (const frame of document.querySelectorAll('iframe[src]')) {
@@ -296,7 +312,7 @@
         }
       }
     }
-    reply({ links });
+    reply({ links, texts });
     return false;
   });
 

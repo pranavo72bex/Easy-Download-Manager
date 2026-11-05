@@ -832,5 +832,7 @@
  "Each file to the folder of its category": "各ファイルをそのカテゴリのフォルダーへ",
  "Every file to this category": "すべてのファイルをこのカテゴリへ",
  "Every file to this folder": "すべてのファイルをこのフォルダーへ",
- "Choose the folder every file goes to.": "すべてのファイルを保存するフォルダーを選んでください。"
+ "Choose the folder every file goes to.": "すべてのファイルを保存するフォルダーを選んでください。",
+ "Link text": "リンクテキスト",
+ "Use link texts as descriptions": "リンクテキストを説明として使う"
 }

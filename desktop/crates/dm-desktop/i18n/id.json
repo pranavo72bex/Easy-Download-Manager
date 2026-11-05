@@ -832,5 +832,7 @@
  "Each file to the folder of its category": "Setiap berkas ke folder kategorinya",
  "Every file to this category": "Semua berkas ke kategori ini",
  "Every file to this folder": "Semua berkas ke folder ini",
- "Choose the folder every file goes to.": "Pilih folder tujuan semua berkas."
+ "Choose the folder every file goes to.": "Pilih folder tujuan semua berkas.",
+ "Link text": "Teks tautan",
+ "Use link texts as descriptions": "Gunakan teks tautan sebagai deskripsi"
 }

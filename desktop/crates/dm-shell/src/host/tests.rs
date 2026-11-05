@@ -287,6 +287,15 @@ fn a_pages_links_reach_the_app_together_to_be_picked_from() {
             "https://e.com/b.iso".into(),
         ],
         cookies: "sid=1".into(),
+        texts: [
+            (
+                "https://e.com/a.zip".to_string(),
+                "The A archive".to_string(),
+            ),
+            ("mailto:a@e.com".to_string(), "Write to us".to_string()),
+        ]
+        .into_iter()
+        .collect(),
     })
     .to_frame();
     let (reply, _) = ask(dir.path(), frame, true, Ok(()));
@@ -305,6 +314,14 @@ fn a_pages_links_reach_the_app_together_to_be_picked_from() {
     assert!(filed.ask);
     // The site's sign-in goes with them, for the dialog to scope.
     assert_eq!(filed.cookies, "sid=1");
+    // And the links' words, of the links sent only.
+    assert_eq!(
+        filed.texts.into_iter().collect::<Vec<_>>(),
+        [(
+            "https://e.com/a.zip".to_string(),
+            "The A archive".to_string()
+        )]
+    );
 
     let none = Asked::Batch(Batch {
         id: "links-2".into(),

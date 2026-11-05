@@ -832,5 +832,7 @@
  "Each file to the folder of its category": "Cada archivo a la carpeta de su categoría",
  "Every file to this category": "Todos los archivos a esta categoría",
  "Every file to this folder": "Todos los archivos a esta carpeta",
- "Choose the folder every file goes to.": "Elija la carpeta a la que van todos los archivos."
+ "Choose the folder every file goes to.": "Elija la carpeta a la que van todos los archivos.",
+ "Link text": "Texto del enlace",
+ "Use link texts as descriptions": "Usar los textos de los enlaces como descripciones"
 }

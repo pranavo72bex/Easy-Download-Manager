@@ -156,6 +156,12 @@ pub struct Batch {
     /// download. Empty from an extension that sends none.
     #[serde(default, skip_serializing_if = "String::is_empty")]
     pub cookies: String,
+    /// Each link's own words on the page (its text, an image's `alt`), by
+    /// address, where it has any: the app shows them beside the links and
+    /// keeps them as the downloads' descriptions. Empty from an extension
+    /// that sends none.
+    #[serde(default, skip_serializing_if = "std::collections::BTreeMap::is_empty")]
+    pub texts: std::collections::BTreeMap<String, String>,
 }
 
 /// A page to list the qualities of.

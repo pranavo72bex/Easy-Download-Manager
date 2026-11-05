@@ -832,5 +832,7 @@
  "Each file to the folder of its category": "Her dosya kendi kategorisinin klasörüne",
  "Every file to this category": "Tüm dosyalar bu kategoriye",
  "Every file to this folder": "Tüm dosyalar bu klasöre",
- "Choose the folder every file goes to.": "Tüm dosyaların gideceği klasörü seçin."
+ "Choose the folder every file goes to.": "Tüm dosyaların gideceği klasörü seçin.",
+ "Link text": "Bağlantı metni",
+ "Use link texts as descriptions": "Bağlantı metinlerini açıklama olarak kullan"
 }

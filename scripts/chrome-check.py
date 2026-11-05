@@ -1646,6 +1646,12 @@ def main():
         got = wait_for(lambda: len(queued_main()) - before >= on_page and len(queued_main()) - before, 20)
         check("'Download all links with dm' hands every link on the page to dm's queue",
               got == on_page, f"{len(queued_main()) - before} queued of {on_page} links")
+        # Each link's words on the page go with it as its description (gaps
+        # row 94): on this page a link's words are its file's name.
+        words = {r.get("url", "").rsplit("/", 1)[-1]: r.get("description", "") for r in queued_main()}
+        check("each link's words on the page go with it to dm as its description",
+              words.get("notes.txt") == "notes.txt" and words.get("kept.zip") == "kept.zip",
+              str({k: words[k] for k in list(words)[:6]}))
         before = len(queued_main())
         tab.evaluate("(() => { const r = document.createRange();"
                      " r.setStartBefore(document.querySelectorAll('p')[0]);"

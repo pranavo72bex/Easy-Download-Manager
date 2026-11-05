@@ -832,5 +832,7 @@
  "Each file to the folder of its category": "Каждый файл в папку его категории",
  "Every file to this category": "Все файлы в эту категорию",
  "Every file to this folder": "Все файлы в эту папку",
- "Choose the folder every file goes to.": "Выберите папку для всех файлов."
+ "Choose the folder every file goes to.": "Выберите папку для всех файлов.",
+ "Link text": "Текст ссылки",
+ "Use link texts as descriptions": "Использовать тексты ссылок как описания"
 }

@@ -280,6 +280,11 @@ pub struct LinksImport {
     pub editing: Option<usize>,
     /// Names given with Edit, by address.
     pub names: std::collections::HashMap<String, String>,
+    /// Each link's words on the page, by address, as the browser sent them.
+    pub texts: std::collections::BTreeMap<String, String>,
+    /// Whether those words become the downloads' descriptions (reference A's
+    /// "Use link texts as descriptions", on as there).
+    pub use_texts: bool,
 }
 
 /// Where the links ticked in "Download links" are saved, as reference A

@@ -337,7 +337,20 @@ impl DmApp {
                     referrer: request.referrer.clone(),
                     ..Default::default()
                 };
-                if let Err(e) = self.add(&request.links, with) {
+                // Each link's words on the page as its description, as the
+                // dialog does by default.
+                let items = request
+                    .links
+                    .iter()
+                    .map(|url| {
+                        let own = dm_core::AddOptions {
+                            description: request.texts.get(url).cloned().unwrap_or_default(),
+                            ..with.clone()
+                        };
+                        (url.clone(), own)
+                    })
+                    .collect();
+                if let Err(e) = self.add_items(items, &HashMap::new()) {
                     self.said = e.into();
                 }
             }
@@ -934,11 +947,23 @@ impl DmApp {
         with: &dm_core::AddOptions,
         sizes: &HashMap<String, u64>,
     ) -> Result<usize, String> {
+        let items = urls.iter().map(|u| (u.clone(), with.clone())).collect();
+        self.add_items(items, sizes)
+    }
+
+    /// Adds downloads, each with options of its own (a name, a description,
+    /// a sign-in), in one batch.
+    pub fn add_items(
+        &mut self,
+        items: Vec<(String, dm_core::AddOptions)>,
+        sizes: &HashMap<String, u64>,
+    ) -> Result<usize, String> {
         let mut added = 0;
         let mut last_error = None;
         self.last_added.clear();
-        let items = urls.iter().map(|u| (u.clone(), with.clone())).collect();
-        for (url, outcome) in urls.iter().zip(self.backend.add_each(items)) {
+        let count = items.len();
+        let asked: Vec<(String, bool)> = items.iter().map(|(u, w)| (u.clone(), w.later)).collect();
+        for ((url, later), outcome) in asked.iter().zip(self.backend.add_each(items)) {
             match outcome {
                 Ok(id) => {
                     added += 1;
@@ -947,7 +972,7 @@ impl DmApp {
                     if let Some(size) = sizes.get(url) {
                         self.sizes_told.insert(id, *size);
                     }
-                    if !with.later && self.applied.show_progress && urls.len() == 1 {
+                    if !later && self.applied.show_progress && count == 1 {
                         self.dialogs.progress.insert(id);
                     }
                 }
@@ -955,7 +980,7 @@ impl DmApp {
             }
         }
         self.refresh();
-        let failed = urls.len().saturating_sub(added);
+        let failed = count.saturating_sub(added);
         match (added, last_error) {
             (0, Some(e)) => Err(e),
             (_, Some(e)) => {

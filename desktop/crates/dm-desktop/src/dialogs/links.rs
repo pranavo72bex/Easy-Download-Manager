@@ -97,17 +97,19 @@ pub(super) fn links(app: &mut DmApp, ctx: &egui::Context) {
                 .max_height(320.0)
                 .show(ui, |ui| {
                     egui::Grid::new("links")
-                        .num_columns(5)
+                        .num_columns(6)
                         .striped(true)
                         .show(ui, |ui| {
                             ui.strong(t("File name"));
                             ui.strong(t("Type"));
                             ui.strong(t("Size"));
                             ui.strong(t("Save to"));
+                            ui.strong(t("Link text"));
                             ui.label("");
                             ui.end_row();
                             let names: Vec<String> =
                                 d.items.iter().map(|(url, _)| d.name_of(url)).collect();
+                            let texts = d.texts.clone();
                             let folders: Vec<String> = d
                                 .items
                                 .iter()
@@ -159,6 +161,10 @@ pub(super) fn links(app: &mut DmApp, ctx: &egui::Context) {
                                     .unwrap_or_else(|| folder.clone());
                                 ui.add(egui::Label::new(RichText::new(last).weak()).truncate())
                                     .on_hover_text(&folder);
+                                // Its words on the page, as reference A's Link Text.
+                                let words = texts.get(url.as_str()).cloned().unwrap_or_default();
+                                ui.add(egui::Label::new(RichText::new(&words).weak()).truncate())
+                                    .on_hover_text(&words);
                                 // Its name and address changed before it is added.
                                 if ui.small_button(t("Edit")).clicked() {
                                     edit_asked = Some(n);
@@ -201,6 +207,8 @@ pub(super) fn links(app: &mut DmApp, ctx: &egui::Context) {
                     d.names.insert(key, name);
                 }
             }
+            // Each link's words on the page kept as its download's description.
+            check(ui, &mut d.use_texts, t("Use link texts as descriptions"));
             // Where the ticked links go, as reference A offers it.
             ui.label(RichText::new(t("Save to")).strong());
             if radio_flag(
@@ -285,62 +293,45 @@ pub(super) fn links(app: &mut DmApp, ctx: &egui::Context) {
             save_dir: d.save_dir(&root, &categories),
             ..AddOptions::default()
         };
-        // A link given a name with Edit is added with it, apart from the rest.
-        let named: Vec<(String, String)> = chosen
-            .iter()
-            .filter_map(|url| d.names.get(url).map(|n| (url.clone(), n.clone())))
-            .filter(|(_, n)| !n.trim().is_empty())
-            .collect();
-        let chosen: Vec<String> = chosen
-            .into_iter()
-            .filter(|url| !named.iter().any(|(u, _)| u == url))
-            .collect();
-        let page_sign_in = d.sign_in.clone();
         // The sizes the servers already told, kept on the rows until each
         // learns its own.
         let sizes: std::collections::HashMap<String, u64> = dm_core::lock(&d.found)
             .iter()
             .filter_map(|(url, found)| found.size.map(|size| (url.clone(), size)))
             .collect();
-        // The page's sign-in goes with the links on its own server, and with
-        // no others.
-        let (signed, plain): (Vec<String>, Vec<String>) = chosen.into_iter().partition(|link| {
-            d.sign_in
-                .as_ref()
-                .is_some_and(|s| s.for_url(link).is_some())
-        });
-        let signed_with = AddOptions {
-            cookies: d.cookies.clone(),
-            ..with.clone()
-        };
-        app.dialogs.links = None;
-        let mut added = match (
-            app.add_sized(&signed, &signed_with, &sizes),
-            app.add_sized(&plain, &with, &sizes),
-        ) {
-            (Ok(a), Ok(b)) => Ok(a + b),
-            (Err(e), _) | (_, Err(e)) => Err(e),
-        };
-        for (url, name) in named {
-            let own = AddOptions {
-                save_name: Some(name),
-                ..if page_sign_in
+        // Each link with what is its own: the page's sign-in for the links on
+        // its own server and no others, a name given with Edit, and its words
+        // on the page as its description where that is asked for.
+        let items: Vec<(String, AddOptions)> = chosen
+            .into_iter()
+            .map(|url| {
+                let signed = d
+                    .sign_in
                     .as_ref()
-                    .is_some_and(|s| s.for_url(&url).is_some())
-                {
-                    signed_with.clone()
-                } else {
-                    with.clone()
-                }
-            };
-            added = match (
-                added,
-                app.add_sized(std::slice::from_ref(&url), &own, &sizes),
-            ) {
-                (Ok(a), Ok(b)) => Ok(a + b),
-                (Err(e), _) | (_, Err(e)) => Err(e),
-            };
-        }
+                    .is_some_and(|s| s.for_url(&url).is_some());
+                let own = AddOptions {
+                    cookies: if signed {
+                        d.cookies.clone()
+                    } else {
+                        String::new()
+                    },
+                    save_name: d
+                        .names
+                        .get(&url)
+                        .map(|n| n.trim().to_string())
+                        .filter(|n| !n.is_empty()),
+                    description: if d.use_texts {
+                        d.texts.get(&url).cloned().unwrap_or_default()
+                    } else {
+                        String::new()
+                    },
+                    ..with.clone()
+                };
+                (url, own)
+            })
+            .collect();
+        app.dialogs.links = None;
+        let added = app.add_items(items, &sizes);
         match added {
             Ok(n) if later => {
                 app.said = crate::i18n::Said::counting_naming(

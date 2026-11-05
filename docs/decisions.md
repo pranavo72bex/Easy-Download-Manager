@@ -3960,5 +3960,9 @@ At the maintainer's word that dm "should work exactly like" reference A (2026-11
   Add for later take it.
 * **Edit is a button on each line**, opening the link's name and address under the list: egui's
   grid has no row to select for one Edit button below it, as reference A's list does.
-* **Link texts wait for the extension**: the Link text column and "Use link texts as
-  descriptions" need each link's text in the hand-over (`Batch.texts`, row 123).
+* **Link texts come with the links**, as a map of address to words (`Batch.texts`), not a list
+  beside the links: the browser and the host each drop links (a fragment, a page's own address,
+  what dm cannot fetch), and a map stays right where two lists would fall out of step. Words are
+  a link's text, else its title, an image's `alt` or title, spaces closed up and cut to 200
+  characters; an older extension sends none and the column is empty. With the dialog off they
+  are the queued links' descriptions too, as the dialog keeps them by default.

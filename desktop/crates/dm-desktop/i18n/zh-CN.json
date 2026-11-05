@@ -832,5 +832,7 @@
  "Each file to the folder of its category": "每个文件存入其类别的文件夹",
  "Every file to this category": "所有文件存入此类别",
  "Every file to this folder": "所有文件存入此文件夹",
- "Choose the folder every file goes to.": "请选择所有文件要存入的文件夹。"
+ "Choose the folder every file goes to.": "请选择所有文件要存入的文件夹。",
+ "Link text": "链接文字",
+ "Use link texts as descriptions": "将链接文字用作描述"
 }

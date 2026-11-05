@@ -541,6 +541,9 @@ pub(super) async fn page_links(
     let hrefs: Vec<String> =
         serde_json::from_value(from_js(&get(&answer, "links"))).unwrap_or_default();
     let urls = decide::links_from(&hrefs, page);
+    let words: std::collections::BTreeMap<String, String> =
+        serde_json::from_value(from_js(&get(&answer, "texts"))).unwrap_or_default();
+    let texts = decide::link_texts(&words, &urls);
     if urls.is_empty() {
         return Err(if selected {
             "the selection has no links".into()
@@ -567,6 +570,7 @@ pub(super) async fn page_links(
         page: page.to_string(),
         urls,
         cookies,
+        texts,
     }))?;
     let deadline = now() + decide::TAKEN_WITHIN_MS;
     loop {
