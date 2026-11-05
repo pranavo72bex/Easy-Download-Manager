@@ -94,6 +94,9 @@ pub fn on_form_sent(details: JsValue) {
 pub fn on_send_headers(details: JsValue) {
     if let Ok(sent) = serde_json::from_value::<decide::Sent>(from_js(&details)) {
         SENT.with(|s| s.borrow_mut().keep(&sent));
+        if matches!(sent.kind.as_str(), "media" | "xmlhttprequest" | "other") {
+            offer_renewals();
+        }
         // Written to the session's storage a moment later, once for a burst of requests, so a
         // worker that sleeps before the download is handed over has not forgotten them.
         if !SENT_WRITING.with(|w| w.replace(true)) {
@@ -112,6 +115,85 @@ pub fn on_send_headers(details: JsValue) {
 
 /// Where the request headers are kept between the worker's naps.
 const SENT_KEY: &str = "dm.sent";
+
+/// Where the streams handed to dm are kept between the worker's naps.
+const HANDED_KEY: &str = "dm.handed";
+
+/// The least time between two looks for renewed addresses: every request the
+/// browser sends calls here, and a look compares each handed stream with
+/// every address heard.
+const LOOK_EVERY_MS: f64 = 2_000.0;
+
+/// Reads back what an earlier worker handed to dm, once in this worker's life.
+pub(super) async fn load_handed() {
+    if HANDED_LOADED.with(|l| l.replace(true)) {
+        return;
+    }
+    if let Ok(got) = call("storage.session", "get", &[JsValue::from_str(HANDED_KEY)]).await {
+        if let Some(older) = field(&got, HANDED_KEY).as_string() {
+            HANDED.with(|h| h.borrow_mut().merge(&older));
+        }
+    }
+}
+
+/// Writes what was handed to dm to the session's storage.
+pub(super) async fn store_handed() {
+    let all = HANDED.with(|h| h.borrow().export());
+    let item = to_js(&serde_json::json!({ HANDED_KEY: all }));
+    if let Err(why) = call("storage.session", "set", &[item]).await {
+        log(
+            "debug",
+            &format!("the streams handed to dm were not kept: {why}"),
+        );
+    }
+}
+
+/// A newer signed address for a stream handed to dm, as the page's player asked for it (gaps row
+/// 121), offered to an app that says it takes them: a row whose address ran out goes on with it,
+/// and the app drops it otherwise. Looked for at most every [`LOOK_EVERY_MS`].
+fn offer_renewals() {
+    let at = now();
+    if at - HANDED_LOOKED.with(|l| l.get()) < LOOK_EVERY_MS {
+        return;
+    }
+    HANDED_LOOKED.with(|l| l.set(at));
+    wasm_bindgen_futures::spawn_local(async move {
+        load_handed().await;
+        let _ = sent_to("").await;
+        let due = SENT.with(|s| HANDED.with(|h| h.borrow_mut().due(&s.borrow(), at)));
+        if due.is_empty() {
+            return;
+        }
+        store_handed().await;
+        let (app, mut port) = app().await;
+        let App::Present { hello, .. } = &app else {
+            return;
+        };
+        if !hello.renews {
+            return;
+        }
+        for (n, renewal) in due.into_iter().enumerate() {
+            let headers = sent_to(&renewal.new).await;
+            let start = Start {
+                id: format!("renew-{}-{n}", at as u64),
+                url: renewal.new,
+                referrer: renewal.referrer,
+                headers,
+                renews: true,
+                ..Start::default()
+            };
+            if let Err(why) = hand(port.take(), start).await {
+                log(
+                    "debug",
+                    &format!(
+                        "a renewed address for {} was not offered: {why}",
+                        renewal.old
+                    ),
+                );
+            }
+        }
+    });
+}
 
 /// The headers the browser sent to `url`, from this worker or, after it slept, the session's
 /// storage.

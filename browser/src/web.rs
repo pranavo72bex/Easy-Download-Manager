@@ -43,6 +43,11 @@ thread_local! {
     /// write of them is already waiting.
     static SENT_LOADED: std::cell::Cell<bool> = const { std::cell::Cell::new(false) };
     static SENT_WRITING: std::cell::Cell<bool> = const { std::cell::Cell::new(false) };
+    /// Streams handed to dm, for a newer address of one the page asks for (gaps row 121), with
+    /// whether they were read back from the session's storage and when they were last looked at.
+    static HANDED: RefCell<decide::Handed> = RefCell::new(decide::Handed::default());
+    static HANDED_LOADED: std::cell::Cell<bool> = const { std::cell::Cell::new(false) };
+    static HANDED_LOOKED: std::cell::Cell<f64> = const { std::cell::Cell::new(0.0) };
     /// Which page each tab is on, so an `Add` that outlives its page is dropped.
     static PAGES: RefCell<decide::Pages> = RefCell::new(decide::Pages::default());
     /// Whether "update the dm app" has been said in this worker's life: once

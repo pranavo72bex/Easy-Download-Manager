@@ -39,6 +39,9 @@ pub(super) async fn hand(port: Option<Port>, start: Start) -> Result<(), String>
         None => Port::open()?,
     };
     let id = start.id.clone();
+    // What the app took is remembered, for a newer address of it later; a
+    // renewal is not a hand-off of its own.
+    let handed = (!start.renews).then(|| (start.url.clone(), start.referrer.clone()));
     // The app is told when this stops waiting, so it does not take what has
     // been given back to the browser by then.
     let deadline = now() + decide::TAKEN_WITHIN_MS;
@@ -60,6 +63,10 @@ pub(super) async fn hand(port: Option<Port>, start: Start) -> Result<(), String>
     if outcome.is_err() {
         // Whatever went wrong may be the app going away; ask again next time.
         forget_app();
+    } else if let Some((url, referrer)) = handed {
+        load_handed().await;
+        HANDED.with(|h| h.borrow_mut().keep(&url, &referrer));
+        store_handed().await;
     }
     outcome
 }

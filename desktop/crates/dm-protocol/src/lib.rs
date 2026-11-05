@@ -313,6 +313,14 @@ pub struct Start {
     /// never started, is checked (`caught`) at version 1 as before.
     #[serde(default, skip_serializing_if = "std::ops::Not::not")]
     pub held: bool,
+    /// A newer signed address of a stream already handed to dm, seen as the
+    /// page's player asked for it: for a row whose address ran out (403 or
+    /// 410) to go on with, and nothing else. No row waiting for it, it is
+    /// dropped: never a new download, never a dialog, and the app is not
+    /// started for it. An older app takes it as an ordinary hand-off, so
+    /// the extension sends it only to an app whose hello says `renews`.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub renews: bool,
 }
 
 /// The longest the host spends asking a server about a caught download.
@@ -431,6 +439,10 @@ pub struct Hello {
     /// from an app that serves none.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub rules: Option<Rules>,
+    /// The app takes a newer address of a stream it was handed (`Start::renews`) for a row whose
+    /// address ran out. False from an older app, which would add it as another download.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub renews: bool,
 }
 
 impl Hello {

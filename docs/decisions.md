@@ -3724,6 +3724,11 @@ itag table (YouTube's heights come from the player response, not from itags), th
 `Start`, and the `RefreshStream` request; `Entry::fresh_link` / `adopt_fresh_link` already cover the
 expired-address resume (row 57).
 
+Row 111 closed 2026-11-06 without new test files: the regression guards the row asked for already
+exist. Halving and stealing are `tests/speed.rs` (`one_slow_connection_does_not_hold_the_download_up`,
+`a_download_paused_after_its_ranges_were_halved_resumes_whole`), the 64-byte seam
+`tests/seam_check.rs`, and the zip tail `tests/zip_contents.rs`.
+
 ## The worker checks its WebAssembly against a digest built with its code (2026-11-03)
 
 A browser keeps an unpacked extension's worker scripts (`background.js` and wasm-bindgen's glue)
@@ -4095,3 +4100,41 @@ At the maintainer's word that dm "should work exactly like" reference A (2026-11
   program at a new path raises Windows' firewall question every time. `DM_NO_SWARM`, set only by
   the check's host shim, makes a torrent fail at once before any connection; the seven magnet
   variants are checked by the rows they make, which is what the check is about.
+
+## A started stream renewed from the open page (2026-11-05, gaps rows 57 and 121)
+
+* **Found: the expired-address resume was never reached.** `AddOptions::fresh_link_ok`, which
+  lets a browser's hand-off take the place of a row whose signed address ran out, was set by its
+  test alone; every hand-off from the inbox left it off, so the waiting row stayed failed and the
+  browser's next address of the file became a second row. The host now marks every hand-off it
+  files `from_browser`, and the inbox offers it to a waiting row first (`shell::take_from_browser`).
+* **Download details still asks first (B63).** A hand-off the window asks about is asked about
+  as before: taking the waiting row in its place would change what contract row B63 says, and
+  waits for the maintainer's word. The waiting row takes it where nothing asks.
+* **The extension offers what it sees, the app decides.** The app has no way to ask the
+  extension (the browser starts the native host, not the app). So the extension remembers the
+  addresses it handed to dm (`decide::Handed`, in the session's storage across the worker's
+  naps), and when the page's player asks for one anew with a fresh signature
+  (`RequestHeaders::renewed`: the same path, query names and `itag`, no byte range) it sends
+  that address marked `Start::renews`. The app gives it to a row waiting for it and drops it
+  otherwise; the host never starts dm for one and never asks about one.
+* **Bounded.** Looked for at most every 2 s (every request the browser sends reaches the
+  worker), offered at most every 30 s and 20 times for one hand-off, 50 hand-offs remembered.
+* **Not a protocol version.** Version 3 would make today's app unable to read the new
+  extension's frames. The app's hello says `renews: true`; the extension sends renewals only to
+  an app that says so, as an older one would add each as another download.
+* **Dropped: an alarm to poll the app.** It needs the `alarms` permission, which every person
+  would be asked for on update.
+
+## A fetched tool loses macOS's quarantine mark (2026-11-06)
+
+* **Found by the human QA (B35):** every YouTube download from Edge failed with "the solver took too
+  long". The QuickJS dm fetched carried `com.apple.quarantine` ("Edge"): a program the browser
+  starts is a quarantining one, so what it writes is marked, and Gatekeeper rejects an ad-hoc
+  signed program so marked; `qjs` waited, never ran, and the solver's 45 s ran out. A copy without
+  the mark printed at once.
+* **dm takes the mark off** what it fetched and held to the SHA-256 it ships (`tools::place`), and
+  off a copy fetched before this (`tools::fetched`, when found). The digest says more than the mark;
+  a tool the person installed is theirs and is left alone.
+* **Not done: signing QuickJS.** dm does not re-sign a program it did not build.
+

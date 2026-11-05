@@ -288,6 +288,26 @@ fn the_control_protocol_refuses_nothing_to_add_and_a_queue_that_is_not_there() {
         .is_ok());
 }
 
+/// `ui.window` puts the window where a person would: the tray and back
+/// through the window's own asks, and nowhere it does not name.
+#[test]
+fn the_window_is_put_in_the_tray_and_shown_again_over_the_control_protocol() {
+    let world = world();
+    let mut harness = world.harness();
+    let ctx = egui::Context::default();
+    let app = harness.state_mut();
+    let mut call = |to: &str| {
+        app.human_call("ui.window", &serde_json::json!({ "to": to }), Some(&ctx))
+            .expect("ui.window is a call of its own")
+    };
+    assert!(call("tray").is_ok());
+    assert!(call("minimized").is_ok());
+    assert!(call("shown").is_ok());
+    assert!(call("away").is_err());
+    let app = harness.state();
+    assert!(app.hide_asked && app.show_asked);
+}
+
 /// Opening a file runs it if it is a program: never at a script's word.
 #[test]
 fn opening_a_file_is_refused_over_the_control_protocol() {

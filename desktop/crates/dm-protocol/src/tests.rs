@@ -52,9 +52,38 @@ fn the_wire_names_are_the_ones_the_host_has_always_used() {
         engine_version: "1.2".into(),
         protocol: None,
         rules: None,
+        renews: false,
     })
     .to_frame();
     assert_eq!(hello["engineVersion"], "1.2");
+    assert!(hello.get("renews").is_none(), "said only when true");
+}
+
+/// An app that takes renewals says so; an older one, saying nothing, does not, and the
+/// extension sends it none (it would add each as another download).
+#[test]
+fn a_hello_says_whether_the_app_takes_renewed_addresses() {
+    let old: Hello =
+        serde_json::from_str(r#"{ "engineVersion": "0.8.7", "protocol": 2 }"#).unwrap();
+    assert!(!old.renews);
+    let new: Hello =
+        serde_json::from_str(r#"{ "engineVersion": "0.8.8", "protocol": 2, "renews": true }"#)
+            .unwrap();
+    assert!(new.renews);
+    let start = Start {
+        id: "r".into(),
+        url: "https://cdn.example/v.mp4?sig=new".into(),
+        renews: true,
+        ..Start::default()
+    };
+    let frame = crate::Request::Start(start.clone()).to_frame();
+    assert_eq!(frame["renews"], true);
+    let plain = crate::Request::Start(Start {
+        renews: false,
+        ..start
+    })
+    .to_frame();
+    assert!(plain.get("renews").is_none());
 }
 
 #[test]

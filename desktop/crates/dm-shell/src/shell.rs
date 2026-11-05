@@ -1063,6 +1063,18 @@ pub async fn watch_inbox(
             }
 
             match serde_json::from_str::<host::Request>(&text) {
+                // The browser's newer address for a file whose row waits for
+                // one (its address ran out): that row takes it and goes on,
+                // and a renewal is nothing more (`take_from_browser`).
+                Ok(request) if request.from_browser || request.renews => {
+                    let saved = host::saved(&settings::home());
+                    let asks = request.ask || routed_to_window();
+                    if let Taken::Ask(request) =
+                        take_from_browser(&queue, &saved, request, asks).await
+                    {
+                        ask(*request);
+                    }
+                }
                 // A video from the browser's panel, or any hand-off while the
                 // window waits for one: the window asks first.
                 Ok(request) if request.ask || routed_to_window() => ask(request),
@@ -1096,6 +1108,45 @@ pub async fn watch_inbox(
         }
         wait_for_inbox(bell.as_ref()).await;
     }
+}
+
+/// What became of a browser's hand-off ([`take_from_browser`]).
+#[derive(Debug, PartialEq)]
+pub enum Taken {
+    /// A row waiting for a fresh address for the same file took it and goes on.
+    Adopted(dm_core::Id),
+    /// A renewal no row waits for: nothing is done with it.
+    Dropped,
+    /// For the window to ask about first.
+    Ask(Box<host::Request>),
+    /// Added to the queue as a download of its own.
+    Added(Option<dm_core::Id>),
+}
+
+/// A hand-off from the browser's extension. One the window asks about
+/// (`asks`) is asked about first, as contract row B63 has it. Otherwise it
+/// is first offered to a row whose signed address ran out and that waits for
+/// the browser's next one for the same file (`Queue::adopt_fresh_link`), and
+/// added where none takes it; a renewal (`Request::renews`) never asks and is
+/// nothing more.
+pub async fn take_from_browser(
+    queue: &Queue,
+    saved: &Settings,
+    request: host::Request,
+    asks: bool,
+) -> Taken {
+    if asks && !request.renews {
+        return Taken::Ask(Box::new(request));
+    }
+    let with = saved.with_site_rule(&request.url, add_options(&request));
+    if let Some(id) = queue.adopt_fresh_link(&request.url, &with).await {
+        return Taken::Adopted(id);
+    }
+    if request.renews {
+        return Taken::Dropped;
+    }
+    let url = saved.with_login(&request.url);
+    Taken::Added(queue.add_with(&url, with).await)
 }
 
 /// How often the inbox is looked at with no bell rung.

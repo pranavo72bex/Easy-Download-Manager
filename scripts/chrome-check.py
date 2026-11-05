@@ -423,6 +423,33 @@ REQUEST_PAGES = {
         '<script>var u = "{ORIGIN}/files/more-script.bin";</script>', None),
 }
 PANEL_PAGES.update(REQUEST_PAGES)
+# Which player the panel goes on, and where (gaps row 125): one page for each rule.
+PLACEMENT_PAGES = {
+    # A dialog over the whole page, as a site's sign-in lies over its reel: the
+    # player under it is not offered.
+    "/covered.html": (
+        '<!doctype html><title>covered</title><div style="position:relative;margin:40px">'
+        '<video id="v" src="/files/clip.mp4" width="640" height="360" preload="none"></video></div>'
+        '<div style="position:fixed;inset:0;background:#fff;z-index:20"><p>Sign in to go on</p></div>', None),
+    # A parent that hides what overflows it (a carousel): the panel stays in
+    # the part of the player that can be seen.
+    "/clipped.html": (
+        '<!doctype html><title>clipped</title>'
+        '<div id="clip" style="position:relative;overflow:hidden;width:400px;height:300px;margin:40px">'
+        '<video id="v" src="/files/clip.mp4" width="640" height="360" preload="none"></video></div>', None),
+    # Smaller than any player (a tracking pixel playing): passed by.
+    "/tiny.html": (
+        '<!doctype html><title>tiny</title><div style="margin:40px">'
+        '<video id="v" src="/files/clip.mp4" width="12" height="8" preload="none"></video></div>', None),
+    # A site's fixed header lying over the top of the player: the panel goes
+    # below it.
+    "/topbar.html": (
+        '<!doctype html><title>topbar</title>'
+        '<div id="bar" style="position:fixed;top:0;left:0;right:0;height:70px;background:#333;z-index:10"></div>'
+        '<div style="position:relative;margin:30px 40px 0">'
+        '<video id="v" src="/files/clip.mp4" width="640" height="360" preload="none"></video></div>', None),
+}
+PANEL_PAGES.update(PLACEMENT_PAGES)
 
 
 class Handler(http.server.BaseHTTPRequestHandler):
@@ -945,6 +972,34 @@ def request_checks(base, origin, engine_dl, engine_home, worker):
     got = wait_for(lambda: len([n for n in want if any(u.endswith("/" + n) for u in set(queued()) - before)]) == len(want), 20)
     check("'Download all links' also takes an <area>, an image, a frame and an address written in a script (row 123)",
           bool(got), str([u for u in set(queued()) - before]))
+
+
+def placement_checks(base, origin):
+    """Which player the panel goes on and where, one page for each rule (gaps row 125)."""
+    def raised(path):
+        tab = panel_page(base, origin, path)
+        video = wait_for(lambda: tab.evaluate("document.getElementById('v') ? 1 : 0") and tab.evaluate(VIDEO_RECT), 15)
+        hover(tab, video)
+        state = wait_for(lambda: (panel(tab) or {}).get("shown") and panel(tab), 3) or panel(tab) or {}
+        return tab, video, state
+
+    _, _, state = raised("/covered.html")
+    check("a player under a dialog over the whole page is not offered (row 125)",
+          not state.get("shown"), str(state))
+    _, _, state = raised("/tiny.html")
+    check("a player smaller than 15 by 10 is passed by (row 125)", not state.get("shown"), str(state))
+    tab, video, state = raised("/clipped.html")
+    clip = tab.evaluate("(() => { const r = document.getElementById('clip').getBoundingClientRect();"
+                        " return { x: r.left, y: r.top, w: r.width, h: r.height }; })()") or {}
+    check("on a player its parent cuts, the panel sits in the part that is seen (row 125)",
+          state.get("shown") and state.get("x", 0) + state.get("w", 0) <= clip.get("x", 0) + clip.get("w", 0) + 1
+          and state.get("x", -1) >= clip.get("x", 0),
+          f"panel {state.get('x')},{state.get('y')} {state.get('w')}x{state.get('h')}; seen part {clip}; video {video}")
+    tab, video, state = raised("/topbar.html")
+    bar = tab.evaluate("document.getElementById('bar').getBoundingClientRect().bottom") or 0
+    check("below a site's fixed header over the player's top, the panel goes under the header (row 125)",
+          state.get("shown") and state.get("y", -1) >= bar - 1 and state.get("y", 0) <= video.get("y", 0) + video.get("h", 0),
+          f"panel y {state.get('y')}; header ends at {bar}; video {video}")
 
 
 def panel_checks(base, origin, engine_dl, engine_home, worker):
@@ -1829,6 +1884,7 @@ def main():
 
         # 7. The floating "Download video" panel over players.
         panel_checks(base, origin, engine_dl, engine_home, worker)
+        placement_checks(base, origin)
 
         # 7b. Requests the page itself made: headers, answers, pieces, feeds, more links.
         request_checks(base, origin, engine_dl, engine_home, worker)

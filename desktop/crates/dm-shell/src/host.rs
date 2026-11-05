@@ -93,6 +93,15 @@ pub struct Request {
     /// be told.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub browser: Option<String>,
+    /// Handed over by the browser's extension, not given on a command line:
+    /// it may take the place of a row waiting for a fresh address for the
+    /// same file (`Queue::adopt_fresh_link`) rather than be added again.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub from_browser: bool,
+    /// Only a newer address for a row waiting for one (`Start::renews`):
+    /// dropped where no row takes it.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub renews: bool,
 }
 
 mod parent;
@@ -688,6 +697,7 @@ pub fn answer(
                 // The site rules the extension adds to its compiled tables: a fix for
                 // a site reaches it with the app, not with a store release.
                 rules: Some(served::served(home)),
+                renews: true,
             })
         }
 
@@ -810,11 +820,16 @@ pub fn answer(
             mime,
             deadline,
             post,
+            renews,
             ..
         })) => {
             let url = url.trim().to_string();
             if url.is_empty() {
                 Reply::failed(&id, "no URL was given")
+            } else if renews && !world.app_running() {
+                // Nothing waits for it with no app running, and dm is not
+                // started for a renewal the person did not ask for.
+                Reply::failed(&id, "no dm is running to take a renewed address")
             } else if !dm_core::accepted(&url)
                 // A file on this computer is dm's to read only when the
                 // person opens it with dm, never at a web page's word.
@@ -867,8 +882,9 @@ pub fn answer(
                             .map(|s| s.trim().to_string())
                             .filter(|s| !s.is_empty()),
                         label,
-                        // A caught download asks too, where Options says so.
-                        ask: ask || (caught && saved(home).ask_caught_downloads),
+                        // A caught download asks too, where Options says so;
+                        // a renewal never does.
+                        ask: !renews && (ask || (caught && saved(home).ask_caught_downloads)),
                         // Only a video asked for from the panel has a part.
                         from: if caught {
                             String::new()
@@ -888,6 +904,8 @@ pub fn answer(
                         title: title.trim().chars().take(300).collect(),
                         browser: parent_browser(),
                         post,
+                        from_browser: true,
+                        renews,
                         ..Request::default()
                     },
                 ) {

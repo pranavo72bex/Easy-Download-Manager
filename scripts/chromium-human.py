@@ -469,9 +469,14 @@ def main():
     SHOTS.mkdir(parents=True, exist_ok=True)
     work = pathlib.Path(tempfile.mkdtemp(prefix="dm-human-"))
     home, dm_home = work / "home", work / "dm-home"
-    profile = home / ".config" / PROFILE_DIR
+    # Where the browser looks for host manifests (its default folder for this
+    # HOME); the profile itself is another folder, as Chromium 136 and Edge
+    # 156 refuse remote debugging on the default one ("DevTools remote
+    # debugging requires a non-default data directory").
+    default = home / ".config" / PROFILE_DIR
+    profile = work / "profile"
     dm_dl, browser_dl = work / "dm-downloads", work / "browser-downloads"
-    for d in (profile / "Default", dm_home, dm_dl, browser_dl):
+    for d in (default, profile / "Default", dm_home, dm_dl, browser_dl):
         d.mkdir(parents=True)
     DM_HOME = str(dm_home)
     make_video(work)
@@ -485,6 +490,12 @@ def main():
         # The progress and completion windows would stand over the window
         # being checked; gui.py drives them.
         "show_progress": False, "show_complete": False,
+        # A browser download goes straight to the folder (step 1); a panel
+        # video asks where it goes, which step 3 answers. Written with this
+        # edition's mark, or dm takes the file for an older edition's and
+        # turns every pop-up on (the progress windows, and an ask for each
+        # download that nothing here answered).
+        "ask_caught_downloads": False, "ask_panel_downloads": True, "popups_version": 2,
     }))
     env = dict(os.environ, HOME=str(home), DM_HOME=str(dm_home), ACCESSIBILITY_ENABLED="1")
 
@@ -495,9 +506,14 @@ def main():
 
     print("dm, opened with its window, and registered with the browser")
     registered = subprocess.run([str(BINARY), "--register"], env=env, capture_output=True, text=True, timeout=30)
-    manifest = profile / "NativeMessagingHosts" / "com.dm.engine.json"
+    manifest = default / "NativeMessagingHosts" / "com.dm.engine.json"
     check(f"`dm-desktop --register` writes {NAME}'s host manifest", manifest.exists(),
           (registered.stdout + registered.stderr).strip()[:300])
+    # The browser reads host manifests from the profile it runs on as well:
+    # dm's, as `--register` wrote it, there too.
+    if manifest.exists():
+        (profile / "NativeMessagingHosts").mkdir(exist_ok=True)
+        shutil.copy(manifest, profile / "NativeMessagingHosts" / manifest.name)
     app = subprocess.Popen([str(BINARY), "--control", "0"], env=env, stdout=subprocess.DEVNULL,
                            stderr=open(work / "dm-stderr.txt", "wb"))
     browser = None

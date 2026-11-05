@@ -711,6 +711,11 @@ def walk(dm, origin):
     if sys.platform == "win32":
         held = subprocess.run(["powershell", "-NoProfile", "-Command", "Get-Clipboard -Raw"],
                               capture_output=True, text=True, timeout=10).stdout
+    elif sys.platform == "darwin":
+        held = subprocess.run(["pbpaste"], capture_output=True, text=True, timeout=10).stdout
+    elif shutil.which("xclip"):
+        held = subprocess.run(["xclip", "-selection", "clipboard", "-o"],
+                              capture_output=True, text=True, timeout=10).stdout
     check("B55", "Copy details puts the host, the status and the setup on the clipboard, no path or query",
           "State: failed" in held and "Host: " in held and "Headers sent:" in held and "?" not in held
           and "/missing.bin" not in held, held[:200])
@@ -945,7 +950,7 @@ def walk(dm, origin):
     pause(2.5)
     rates = [w for w in dm.dialog_texts() if re.search(r"\d\s?(KB|MB|GB|B)/s$", w)]
     check("B53", "a running download's Connections section names a speed beside its pieces",
-          len(rates) >= 2, f"{rates}")
+          len(rates) >= 2, f"{rates}; the dialogs said {dm.dialog_texts()[:40]}")
     dm.call("ui.key", key="Escape")
     pause(0.6)
     r = dm.row("ui.bin")
@@ -963,7 +968,8 @@ def walk(dm, origin):
     for name in ("ui-beta.bin", "ui-alphabet.bin"):
         dm.add(f"{files}/{name}")
         dm.wait(name, {"completed", "failed"}, 30)
-    dm.call("ui.key", key="F", modifiers=["ctrl"])
+    # Find is Cmd-F on macOS, Ctrl-F elsewhere, as the menu says.
+    dm.call("ui.key", key="F", modifiers=["cmd" if sys.platform == "darwin" else "ctrl"])
     pause(0.8)
     dm.call("ui.type", text="alpha")
     pause(0.4)

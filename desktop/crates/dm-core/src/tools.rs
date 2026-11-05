@@ -279,18 +279,45 @@ async fn place(path: &Path, bytes: &[u8]) -> Result<(), Error> {
         use std::os::unix::fs::PermissionsExt;
         tokio::fs::set_permissions(&partial, std::fs::Permissions::from_mode(0o755)).await?;
     }
+    clear_quarantine(&partial);
     tokio::fs::rename(&partial, path).await?;
     Ok(())
 }
 
-/// The copy of `program` dm fetched, if there is one.
+/// Takes macOS's quarantine mark off a tool dm fetched. What a program the
+/// browser started writes is marked (`com.apple.quarantine`, "Edge"), and
+/// Gatekeeper then refuses an ad-hoc signed program so marked: QuickJS
+/// never ran, and every YouTube download from the browser failed with "the
+/// solver took too long" (the human QA's B35, 2026-11-06). dm held the file
+/// to the SHA-256 it knows before keeping it, which says more than the mark.
+#[cfg(target_os = "macos")]
+fn clear_quarantine(path: &Path) {
+    use std::os::unix::ffi::OsStrExt;
+    let Ok(file) = std::ffi::CString::new(path.as_os_str().as_bytes()) else {
+        return;
+    };
+    // SAFETY: both are NUL-terminated strings that outlive the call; a file
+    // with no mark answers ENOATTR, which is what is wanted.
+    unsafe {
+        libc::removexattr(file.as_ptr(), c"com.apple.quarantine".as_ptr(), 0);
+    }
+}
+
+#[cfg(not(target_os = "macos"))]
+fn clear_quarantine(_: &Path) {}
+
+/// The copy of `program` dm fetched, if there is one. A copy fetched before
+/// dm cleared the quarantine mark is cleared here (`clear_quarantine`).
 pub(crate) fn fetched(program: &str) -> Option<PathBuf> {
     let file = folder()?.join(if cfg!(windows) {
         format!("{program}.exe")
     } else {
         program.to_string()
     });
-    file.is_file().then_some(file)
+    file.is_file().then(|| {
+        clear_quarantine(&file);
+        file
+    })
 }
 
 /// Fetches `tool` into `folder` from `sources`, checked, for this OS.
@@ -384,6 +411,58 @@ pub fn video_possible() -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// A tool written by a dm the browser started carries macOS's
+    /// quarantine mark, under which Gatekeeper will not run it: placed, it
+    /// has none.
+    #[cfg(target_os = "macos")]
+    #[tokio::test]
+    async fn a_fetched_tool_is_kept_without_the_quarantine_mark() {
+        use std::os::unix::ffi::OsStrExt;
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("qjs");
+        let marked = |path: &Path| {
+            let file = std::ffi::CString::new(path.as_os_str().as_bytes()).unwrap();
+            let mut value = [0u8; 128];
+            // SAFETY: NUL-terminated strings and a buffer of the length given.
+            let got = unsafe {
+                libc::getxattr(
+                    file.as_ptr(),
+                    c"com.apple.quarantine".as_ptr(),
+                    value.as_mut_ptr().cast(),
+                    value.len(),
+                    0,
+                    0,
+                )
+            };
+            got >= 0
+        };
+        let mark = |path: &Path| {
+            let file = std::ffi::CString::new(path.as_os_str().as_bytes()).unwrap();
+            let value = b"0081;6aecdecc;Edge;";
+            // SAFETY: NUL-terminated strings and a value of the length given.
+            let set = unsafe {
+                libc::setxattr(
+                    file.as_ptr(),
+                    c"com.apple.quarantine".as_ptr(),
+                    value.as_ptr().cast(),
+                    value.len(),
+                    0,
+                    0,
+                )
+            };
+            assert_eq!(set, 0, "the test could not mark the file");
+        };
+        // As Edge's child writes it: marked from the first byte.
+        std::fs::write(path.with_extension("partial"), b"").unwrap();
+        mark(&path.with_extension("partial"));
+        place(&path, b"#!/bin/sh\n").await.unwrap();
+        assert!(!marked(&path), "the placed tool kept the quarantine mark");
+        // One fetched before this was cleared is cleared when found.
+        mark(&path);
+        clear_quarantine(&path);
+        assert!(!marked(&path));
+    }
 
     #[tokio::test]
     async fn with_fetching_off_nothing_is_fetched_and_it_says_so() {

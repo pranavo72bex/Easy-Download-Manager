@@ -533,6 +533,68 @@ fn start(id: &str, url: &str) -> serde_json::Value {
     .to_frame()
 }
 
+/// A browser's hand-off is filed as one, for a row waiting for a fresh address to take; a
+/// renewal (row 121) never asks, is never probed, and never starts dm.
+#[test]
+fn a_renewal_is_filed_for_a_running_dm_only_and_never_asks_or_launches() {
+    let dir = tempfile::tempdir().unwrap();
+    let (hello, _) = ask(
+        dir.path(),
+        dm_protocol::Request::Hello.to_frame(),
+        true,
+        Ok(()),
+    );
+    let Some(Reply::Hello(hello)) = hello else {
+        panic!("no hello")
+    };
+    assert!(hello.renews, "the app does not say it takes renewals");
+
+    let renewal = |id: &str| {
+        dm_protocol::Request::Start(Start {
+            id: id.into(),
+            url: "https://cdn.example/v.mp4?sig=new".into(),
+            referrer: "https://e.com/watch".into(),
+            ask: true,
+            renews: true,
+            ..Start::default()
+        })
+        .to_frame()
+    };
+    let (reply, launched) = ask(dir.path(), renewal("renew-1"), false, Ok(()));
+    assert!(matches!(reply, Some(Reply::Failed { .. })), "{reply:?}");
+    assert!(!launched, "dm was started for a renewal");
+    assert!(!inbox(dir.path()).join("renew-1.json").exists());
+
+    let (reply, launched) = ask(dir.path(), renewal("renew-2"), true, Ok(()));
+    assert_eq!(
+        reply,
+        Some(Reply::Started {
+            id: "renew-2".into()
+        })
+    );
+    assert!(!launched);
+    let filed: Request = serde_json::from_str(
+        &std::fs::read_to_string(inbox(dir.path()).join("renew-2.json")).unwrap(),
+    )
+    .unwrap();
+    assert!(
+        filed.renews && filed.from_browser && !filed.ask,
+        "{filed:?}"
+    );
+
+    let (_, _) = ask(
+        dir.path(),
+        start("plain-1", "https://e.com/a.zip"),
+        true,
+        Ok(()),
+    );
+    let filed: Request = serde_json::from_str(
+        &std::fs::read_to_string(inbox(dir.path()).join("plain-1.json")).unwrap(),
+    )
+    .unwrap();
+    assert!(filed.from_browser && !filed.renews);
+}
+
 #[test]
 fn a_hello_is_remembered_so_the_window_stops_offering_the_extension() {
     let home = tempfile::tempdir().unwrap();

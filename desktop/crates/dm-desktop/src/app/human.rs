@@ -365,6 +365,22 @@ impl DmApp {
                         .collect::<Vec<_>>(),
                 }))
             }
+            // Where the main window is, as a person puts it: in the tray (the
+            // close button's "tray"), minimized, or shown and in front. For
+            // checks of the window's slower wakes while it draws nothing.
+            "ui.window" => (|| {
+                let ctx = ctx.ok_or("there is no window")?;
+                match params.get("to").and_then(Value::as_str) {
+                    Some("tray") => self.hide_asked = true,
+                    Some("minimized") => {
+                        ctx.send_viewport_cmd(egui::ViewportCommand::Minimized(true))
+                    }
+                    Some("shown") => self.show_asked = true,
+                    _ => return Err("give `to`: tray, minimized or shown".into()),
+                }
+                ctx.request_repaint();
+                Ok(json!({ "to": params["to"] }))
+            })(),
             "ui.move_window" => (|| {
                 let ctx = ctx.ok_or("there is no window to move")?;
                 let title = params
