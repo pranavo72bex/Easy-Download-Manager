@@ -81,10 +81,10 @@ down, not worked around.
 
 | Site | Try | Sign-in | How dm gets it | Reference A | dm |
 |---|---|---|---|---|---|
-| GitHub | a release asset; a repository's "Download ZIP" | no | file, hand-over | release asset run 2026-11-04 (row 132) | byte-identical (rows 132, `real-sites.py`) |
+| GitHub | a release asset; a repository's "Download ZIP" | no | file, hand-over | release asset run 2026-11-04 (row 132) | byte-identical (rows 132, `real-sites.py`); 2026-11-06 `handover-check.py`: a release asset's link and the Code menu's Download ZIP (a `codeload` address named by the server) each handed over and arriving |
 | GitLab | a release asset; an archive | no | file, hand-over | not yet | not yet |
 | Bitbucket | a repository's download | no | hand-over | not yet | not yet |
-| SourceForge | a project's Download button (the page counts down, then starts) | no | hand-over | not yet | not yet (row 136: the `/download` address alone is a page) |
+| SourceForge | a project's Download button (the page counts down, then starts) | no | hand-over | not yet | 2026-11-06 `handover-check.py`: the countdown page's download (to a mirror) handed over and whole |
 | Microsoft Download Center | a public download | no | hand-over | not yet | not yet |
 | Apple Support Downloads | a public download | no | hand-over | not yet | not yet |
 | FileHippo | a program's download | no | hand-over | not yet | not yet |
@@ -141,3 +141,28 @@ says why.
 | VLC media player | the Windows installer from the official page (a mirror redirect) | no | hand-over | not yet | not yet |
 | Test-Videos.co.uk | an MP4 and a WebM of each size | no | file, panel | not yet | not yet |
 | NASA Image and Video Library | a video and an original image | no | file, panel | not yet | not yet |
+
+## Download pages, run by `scripts/handover-check.py` (2026-11-06, Microsoft Edge on macOS)
+
+A page's own Download button, clicked as a person clicks it (or nothing, where the page starts
+the download itself), with the app's catch rules as a new install has them. Each was handed to dm
+and arriving, and the browser kept nothing:
+
+| Page | How it starts the download | dm |
+|---|---|---|
+| 7-zip.org | a plain link (to a GitHub release asset, signed redirect) | whole |
+| python.org | a button's link | arriving |
+| nodejs.org | a button's link | arriving |
+| GitHub releases (cli/cli) | an asset's link, signed redirect to another host | arriving |
+| GitHub Download ZIP | a link in the Code menu; the address names no file, the server does | whole |
+| SourceForge | a countdown page, then a mirror | whole |
+| mozilla.org (thank-you page) | started by the page's script, to the CDN | arriving |
+| get.videolan.org | a page that refreshes to a mirror | whole |
+| audacityteam.org | a link to a GitHub release asset | whole |
+| gimp.org | a link to a mirror | arriving |
+| code.visualstudio.com (`?dv=`) | started by the page's script, redirect to Microsoft's CDN | arriving |
+
+LibreOffice's link to `download.documentfoundation.org` was found but the check's click started no
+download in the browser either (the extension saw none), so it says nothing of dm; the same kind
+of address (a redirect to a mirror) works on VideoLAN and GIMP.
+

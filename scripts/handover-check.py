@@ -47,14 +47,19 @@ SITES = {
     "python": {"url": "https://www.python.org/downloads/macos/", "click": link(r"/ftp/python/[0-9.]+/python-[0-9.]+-macos11\.pkg$")},
     "nodejs": {"url": "https://nodejs.org/en/download/prebuilt-installer", "click": link(r"nodejs\.org/dist/v[0-9.]+/node-v[0-9.]+\.pkg$")},
     "github-release": {"url": "https://github.com/cli/cli/releases/latest", "click": link(r"/releases/download/v[0-9.]+/gh_[0-9.]+_macOS_arm64\.zip$")},
-    "github-zip": {"url": "https://github.com/octocat/Hello-World", "click": link(r"/archive/refs/heads/master\.zip$")},
+    # GitHub draws "Download ZIP" only in the Code menu, which a person opens first.
+    "github-zip": {"url": "https://github.com/octocat/Hello-World",
+                   "open": "[...document.querySelectorAll('button')].find(b => /^\\s*Code\\s*$/.test(b.innerText || ''))",
+                   "click": link(r"/archive/refs/heads/master\.zip$")},
     "sourceforge": {"url": "https://sourceforge.net/projects/sevenzip/files/latest/download", "click": None},
     "mozilla": {"url": "https://www.mozilla.org/en-US/firefox/download/thanks/", "click": None},
     "videolan": {"url": "https://get.videolan.org/vlc/3.0.21/macosx/vlc-3.0.21-arm64.dmg", "click": None},
     "audacity": {"url": "https://www.audacityteam.org/download/mac/", "click": link(r"\.dmg$")},
     "gimp": {"url": "https://www.gimp.org/downloads/", "click": link(r"download\.gimp\.org/.*\.dmg$")},
-    "libreoffice": {"url": "https://www.libreoffice.org/download/download-libreoffice/", "click": link(r"/donate/dl/mac-")},
-    "wikimedia": {"url": "https://commons.wikimedia.org/wiki/File:Example.jpg", "click": link(r"upload\.wikimedia\.org/wikipedia/commons/a/a9/Example\.jpg$")},
+    "libreoffice": {"url": "https://www.libreoffice.org/download/download-libreoffice/",
+                    "click": link(r"download\.documentfoundation\.org/libreoffice/stable/[0-9.]+/mac/aarch64/.*\.dmg$")},
+    # Started by the page's script, through a redirect to Microsoft's CDN.
+    "vscode": {"url": "https://code.visualstudio.com/docs/?dv=darwinarm64", "click": None},
 }
 WANT = sys.argv[1:] or list(SITES)
 CONSENT = """(() => { const words = /^(accept all|accept|allow all|allow all cookies|agree|i agree|ok|got it|accept cookies|continue)$/i;
@@ -80,6 +85,15 @@ def one(base, name, site, engine_home, worker):
     except RuntimeError:
         # A page that starts its download navigates away under the check.
         pass
+    if site.get("open"):
+        # A menu the link is drawn in, opened as a person opens it.
+        button = cc.wait_for(lambda: tab.evaluate(
+            "(() => { const b = %s; if (!b) return null; b.scrollIntoView({block: 'center'});"
+            " const r = b.getBoundingClientRect(); return {x: r.left + r.width / 2, y: r.top + r.height / 2}; })()"
+            % site["open"]), 20)
+        if button:
+            cc.click_at(tab, button["x"], button["y"])
+            time.sleep(1.5)
     if site["click"]:
         target = cc.wait_for(lambda: tab.evaluate(site["click"]), 20)
         if not target:
