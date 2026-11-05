@@ -162,6 +162,42 @@ pub struct Batch {
     /// that sends none.
     #[serde(default, skip_serializing_if = "std::collections::BTreeMap::is_empty")]
     pub texts: std::collections::BTreeMap<String, String>,
+    /// The file name a link's `download` attribute gives, by address, where
+    /// it gives one: the download is saved under it, as the browser would.
+    /// Empty from an extension that sends none.
+    #[serde(default, skip_serializing_if = "std::collections::BTreeMap::is_empty")]
+    pub names: std::collections::BTreeMap<String, String>,
+}
+
+/// A form a page sent whose answer is the file (`Start::post`): sent again
+/// by dm, once, to fetch it.
+#[derive(Serialize, Deserialize, Clone, PartialEq, Default)]
+pub struct Posted {
+    /// The form's fields as `application/x-www-form-urlencoded` text, where
+    /// the browser gave them as fields.
+    #[serde(default, skip_serializing_if = "String::is_empty")]
+    pub form: String,
+    /// Or the request's raw body, base64, where it gave bytes.
+    #[serde(default, skip_serializing_if = "String::is_empty")]
+    pub raw: String,
+    /// The body's type, where the browser's request named one.
+    #[serde(
+        default,
+        rename = "contentType",
+        skip_serializing_if = "String::is_empty"
+    )]
+    pub content_type: String,
+}
+
+impl std::fmt::Debug for Posted {
+    // A person's own words may be in a form: their size, never them.
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("Posted")
+            .field("form", &format_args!("{} bytes", self.form.len()))
+            .field("raw", &format_args!("{} bytes", self.raw.len()))
+            .field("content_type", &self.content_type)
+            .finish()
+    }
 }
 
 /// A page to list the qualities of.
@@ -198,6 +234,10 @@ pub struct Start {
     /// The extension's name for this hand-off, echoed in the answer. The host
     /// files the request under it, so it holds it to a plain name.
     pub id: String,
+    /// The form this download is the answer to, where the page sent one to
+    /// the download's own address: dm sends it again to fetch the file.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub post: Option<Posted>,
     /// The download's address, or the page's for a video page.
     pub url: String,
     /// The page the download came from. A media URL alone is often not
@@ -587,6 +627,56 @@ pub struct CatchRules {
     /// on in the toolbar popup. Off unless chosen: a sign-in is the site's.
     #[serde(alias = "sign_in_everywhere")]
     pub sign_in_everywhere: bool,
+    /// The browsers dm takes no downloads from, by [`BROWSERS`]' names (reference A's list of
+    /// the browsers it captures from, each ticked or not). Their menus and panel still hand
+    /// things over when asked.
+    #[serde(alias = "off_browsers", skip_serializing_if = "Vec::is_empty")]
+    pub off_browsers: Vec<String>,
+    /// The items of the browser's right-click menu dm does not add, by [`MENU_ITEMS`]' ids
+    /// (reference A lets its menu items be chosen).
+    #[serde(alias = "hidden_menus", skip_serializing_if = "Vec::is_empty")]
+    pub hidden_menus: Vec<String>,
+}
+
+/// The items dm adds to the browser's right-click menu: id and words, as the extension makes
+/// them and Options lists them.
+pub const MENU_ITEMS: [(&str, &str); 4] = [
+    ("dm-link", "Download link with dm"),
+    ("dm-media", "Download media with dm"),
+    ("dm-all-links", "Download all links with dm"),
+    ("dm-selected-links", "Download selected links with dm"),
+];
+
+/// The browsers the extension tells apart, as Options lists them: what a Chromium browser
+/// names itself in `navigator.userAgentData`, Firefox, and the rest of the Chromium family.
+pub const BROWSERS: [&str; 7] = [
+    "Microsoft Edge",
+    "Google Chrome",
+    "Firefox",
+    "Brave",
+    "Opera",
+    "Vivaldi",
+    "Chromium",
+];
+
+/// Which of [`BROWSERS`] this is, from the brands a Chromium browser names in
+/// `navigator.userAgentData` (or a Firefox): the first one known, else "Chromium".
+pub fn browser_named(brands: &[String], firefox: bool) -> &'static str {
+    if firefox {
+        return "Firefox";
+    }
+    BROWSERS
+        .iter()
+        .copied()
+        .filter(|b| *b != "Firefox" && *b != "Chromium")
+        .find(|known| {
+            brands.iter().any(|brand| {
+                brand.eq_ignore_ascii_case(known)
+                    // Opera names itself "Opera" or "Opera GX".
+                    || (*known == "Opera" && brand.to_ascii_lowercase().starts_with("opera"))
+            })
+        })
+        .unwrap_or("Chromium")
 }
 
 /// Whether any of `urls` is served from a host on `list`, each entry
@@ -663,6 +753,8 @@ impl Default for CatchRules {
             once_hosts: Vec::new(),
             video_panel: true,
             sign_in_everywhere: false,
+            off_browsers: Vec::new(),
+            hidden_menus: Vec::new(),
         }
     }
 }
@@ -717,6 +809,19 @@ impl CatchRules {
     /// links work once, so dm takes it without asking the server first.
     pub fn works_once(&self, url: &str, referrer: &str) -> bool {
         listed(&self.once_hosts, &[url, referrer])
+    }
+
+    /// Whether the browser's right-click menu has dm's item `id` (one of [`MENU_ITEMS`]).
+    pub fn shows_menu(&self, id: &str) -> bool {
+        !self.hidden_menus.iter().any(|hidden| hidden.trim() == id)
+    }
+
+    /// Whether dm takes downloads from `browser` (one of [`BROWSERS`]) at all.
+    pub fn takes_from(&self, browser: &str) -> bool {
+        !self
+            .off_browsers
+            .iter()
+            .any(|off| off.trim().eq_ignore_ascii_case(browser))
     }
 
     /// Whether the app wants this download.

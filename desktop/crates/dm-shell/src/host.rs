@@ -66,9 +66,15 @@ pub struct Request {
     /// A page's links, for the app's "Download all links" dialog.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub links: Vec<String>,
+    /// The form the download is the answer to, where the page sent one.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub post: Option<dm_protocol::Posted>,
     /// Each of those links' words on the page, by address, where it has any.
     #[serde(default, skip_serializing_if = "std::collections::BTreeMap::is_empty")]
     pub texts: std::collections::BTreeMap<String, String>,
+    /// The file names those links' `download` attributes give, by address.
+    #[serde(default, skip_serializing_if = "std::collections::BTreeMap::is_empty")]
+    pub names: std::collections::BTreeMap<String, String>,
     /// The browser's cookies for the site, as a `Cookie` header, where the
     /// person switched that on for the site in the toolbar popup.
     #[serde(default, skip_serializing_if = "String::is_empty")]
@@ -697,6 +703,7 @@ pub fn answer(
             urls,
             cookies,
             texts,
+            names,
         })) => {
             let links: Vec<String> = urls
                 .into_iter()
@@ -716,6 +723,10 @@ pub fn answer(
                         ask: true,
                         // The words of the links sent, no others.
                         texts: texts
+                            .into_iter()
+                            .filter(|(url, _)| links.contains(url))
+                            .collect(),
+                        names: names
                             .into_iter()
                             .filter(|(url, _)| links.contains(url))
                             .collect(),
@@ -798,6 +809,7 @@ pub fn answer(
             title,
             mime,
             deadline,
+            post,
             ..
         })) => {
             let url = url.trim().to_string();
@@ -826,7 +838,8 @@ pub fn answer(
                 // Not asked about first where the person said the site's
                 // links work once (Options › Browser): the asking spent the
                 // link before dm's own download could use it.
-                caught && !saved(home).catch.works_once(&url, &referrer),
+                // Nor a form's answer: asking would send the form again.
+                caught && post.is_none() && !saved(home).catch.works_once(&url, &referrer),
                 Asking {
                     url: &url,
                     referrer: &referrer,
@@ -874,6 +887,7 @@ pub fn answer(
                         headers: dm_core::cookies::forwardable(&headers),
                         title: title.trim().chars().take(300).collect(),
                         browser: parent_browser(),
+                        post,
                         ..Request::default()
                     },
                 ) {

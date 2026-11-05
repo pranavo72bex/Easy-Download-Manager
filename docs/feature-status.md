@@ -22,6 +22,20 @@ was removed on 2026-10-12 and is in git history.
 - [x] A small picture of the file's kind before each row's name, told apart by shape (play mark, note, lines, window, zip, hill and sun; none for other files) and not by colour alone (`icons.rs` `kind_shapes`; two unit tests; contract row B45)
 - [x] A double-click on a download that is running, waiting or stopped opens its progress window, whose title starts with how far it is (`37% Download progress — name`) and counts as it runs (`table.rs`; `dialogs/progress.rs` `title_with_percent`, three unit tests; `tests/window/dialogs.rs`; contract row B46)
 - [x] Add URL's Recent list keeps no address that carries a token, signature, key, password or session in its query, and offers none already kept (`dialogs/add.rs` `query_carries_a_secret`; contract row B47)
+- [x] Downloads that are a form's answer (POST): the form kept by the extension and sent again once by dm, in memory only (`cookies::Posted`, `SignIn::posting`, `download::with_form`, `decide::Forms`)
+- [x] A link's `download` attribute names its file, from the page's links (`Batch.names`, `decide::link_names`)
+- [x] YouTube lines at two frame rates for one height, as reference A's (`choices`, `page_data::choices_of_player`, `Quality::frame_rate_of`, `youtube::choose`)
+- [x] A page with no title names its video from `og:title` (`decide::page_title`)
+- [x] Download links: Add for later to the queue chosen (`LinksImport::queue`)
+- [x] Windows' firewall question at the first torrent said on the row (`dm_shell::firewall::may_ask`), and what it is for in Options
+- [x] Options › Browser: the browsers dm takes from and the right-click menu's items, each chosen (`CatchRules::off_browsers`, `hidden_menus`, `browser_named`)
+- [x] Grabber: size filters, templates, the saved sign-in said, a Grabber projects node (`Search::min_kb`/`max_kb`, `lists::within_sizes`, `Dialogs::open_site_files_with`)
+- [x] Caption files as list lines: YouTube's tracks fetched as TTML, a page's own caption files (`page_data::caption_lines`, `youtube::caption_reading`, `Quality::caption_of`, `decide::page_lines` `add_captions`)
+- [x] The video bar below a fixed header and compact on narrow videos (`decide::visible_box`, `panel_size`, `show::bar_over_top`)
+- [x] Help menu with reference A's items and a Tip of the day dialog; a user guide (`docs/user-guide.md`)
+- [x] Start downloading while Download details is open (`Settings::start_while_asking`, `Queue::settle_early`)
+- [x] Edge checks for the seven magnet variants and a master playlist's line (`DM_NO_SWARM` keeps the check's torrents off the network)
+- [x] Served site rules name a title element (`SiteProfile::title`, `Rules::title_for`, `content.js` `dmTitleRule`)
 - [x] "Download links" as reference A's: Save to column and choice, Hide images, Hide repeated files, Edit (`dialogs/links.rs`, `LinksImport::visible`, `SaveTo`)
 - [x] Who opens magnet links and `.torrent` files, shown in Options › Browser on Windows, with Use dm (the other program's keys kept by `reg export`) and Give back (`register.rs` `magnet_owner`, `take_magnet_windows`, `give_back_magnet_windows`); a copied link taken at once where that is on (`app/clipboard.rs`)
 - [x] Torrents: peers connected and known and the bytes sent in the progress window; files chosen in Properties (`only_files`), those left out not moved in; a peer blocklist in Options › Advanced › BitTorrent, fetched through the proxy, failing closed (`torrent.rs` `Swarm`, `TorrentFile`, `blocklist_file`; `tests/torrent_features.rs`)
@@ -441,6 +455,7 @@ of them.
       (Options › Downloads)
 - [x] Checksum verification — client. A mismatch fails the download and
       removes the file rather than reporting success beside a warning
+- [x] Proxy: an automatic configuration script (PAC) and per-protocol proxies, in Options › Advanced › Proxy (`pac::way_to`, `Proxy::script`, `Proxy::per_scheme`, `proxy::route_for` for the tools; `tests/proxy.rs`)
 - [x] Proxy support — client. HTTP, HTTPS, SOCKS4 and SOCKS5, with credentials,
       or the computer's own settings; a list of sites fetched directly. FTP
       goes through SOCKS or HTTP CONNECT (`tests/ftp.rs`); an HTTPS proxy

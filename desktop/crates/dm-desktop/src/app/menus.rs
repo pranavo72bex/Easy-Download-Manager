@@ -373,6 +373,46 @@ impl DmApp {
                 });
                 let help = ui.menu_button(t("Help"), |ui| {
                     self.item(ui, Command::Help);
+                    // Reference A's Help: its tutorials and topics, a tip of
+                    // the day, its home page, support and telling a friend
+                    // (gaps row 91). The topics are dm's own guide.
+                    let guide = crate::update::GUIDE;
+                    let mut page: Option<String> = None;
+                    for (words, address) in [
+                        (t("Tutorials"), guide.to_string()),
+                        (
+                            t("Queues and the Scheduler"),
+                            format!("{guide}#queues-and-the-scheduler"),
+                        ),
+                        (t("Grabber help"), format!("{guide}#grabber")),
+                    ] {
+                        if ui.button(words).clicked() {
+                            page = Some(address);
+                            ui.close();
+                        }
+                    }
+                    if ui.button(t("Tip of the day")).clicked() {
+                        self.dialogs.focus_on("Tip of the day");
+                        self.dialogs.tip = Some(self.dialogs.tip.unwrap_or(0));
+                        ui.close();
+                    }
+                    ui.separator();
+                    for (words, address) in [
+                        (t("Home page"), crate::update::SOURCE.to_string()),
+                        (t("Contact support"), crate::update::SUPPORT.to_string()),
+                        (t("Tell a friend"), crate::dialogs::tell_a_friend()),
+                    ] {
+                        if ui.button(words).clicked() {
+                            page = Some(address);
+                            ui.close();
+                        }
+                    }
+                    if let Some(page) = page {
+                        if let Err(e) = self.backend.platform.open(&page) {
+                            self.said = e.into();
+                        }
+                    }
+                    ui.separator();
                     self.item(ui, Command::CheckForUpdates);
                     self.item(ui, Command::About);
                 });

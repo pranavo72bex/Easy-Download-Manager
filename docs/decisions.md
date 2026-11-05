@@ -3966,3 +3966,132 @@ At the maintainer's word that dm "should work exactly like" reference A (2026-11
   a link's text, else its title, an image's `alt` or title, spaces closed up and cut to 200
   characters; an older extension sends none and the column is empty. With the dialog off they
   are the queued links' descriptions too, as the dialog keeps them by default.
+
+## A download that is a form's answer is fetched by sending the form once (2026-11-05, gaps row 128)
+
+* **Only the answer itself.** The extension keeps the body of each form a page sends (main frame
+  and frames, two minutes, twenty at most, 64 KB at most). A download is given its form only
+  where it comes from the form's very address with no redirect: a form answered by a redirect
+  leaves the file at an ordinary address that a GET fetches, as before.
+* **Sent once, never resumed.** The form travels with the download's sign-in (`SignIn::posting`)
+  to its one address, so every request builder sends it as a POST (`download::with_form`); the
+  probe asks once, with no range and none of its second tries (each would send the form again),
+  and the answer is fetched whole on one connection. A failure starts over with the same form,
+  as the browser would.
+* **Not asked about first.** The host's check that dm can fetch a caught download would send the
+  form, so a form's answer is taken as a link that works once is.
+* **Fields re-encoded.** A form the browser reports as fields is sent as
+  `application/x-www-form-urlencoded`; a raw body goes as its bytes with the type the browser's
+  request named. A form uploading a file (multipart with a file's bytes) is not reproduced.
+* **In memory only.** The row keeps the form in memory and writes only that it is a form's
+  answer; after a restart it fails saying to start it again from the page.
+* **Fields in the browser's order.** Chromium reports a form's fields as a dictionary sorted by
+  name (`format=csv&report=7` for a form written `report`, `format`), so dm sends them in that
+  order. A server reads a form by field name; one that checks the body's bytes (a signed body)
+  would refuse it. Reading the form in the page as it is submitted would keep the order, at the
+  cost of a listener on every page's submit.
+
+## A proxy configuration script is asked once per site and fails closed (2026-11-05, gaps row 80)
+
+* **Asked inside the request, waited for on a thread of its own.** reqwest's custom proxy is a
+  synchronous callback on the shared client, so the script cannot be awaited there. The first
+  request to a site (`scheme://host:port`, a redirect's new site too) fetches the script and runs
+  it in QuickJS on a thread with a runtime of its own, and the answer is kept for the session
+  (`pac::way_to`). On a runtime with several threads the wait is `block_in_place`; elsewhere the
+  thread waits, which nothing the script needs depends on. Asking before the first request instead
+  (the plan of 2026-11-03) missed redirects to other sites and every request made outside a
+  download (the video page reads, the probe of Add URL).
+* **The first way only.** A script's answer lists ways to try in turn; dm takes the first. Trying
+  the next on failure would need a client per way.
+* **No path, kept per site.** The script is asked about `scheme://host:port/`, as browsers ask
+  about secure addresses: a path can carry a session, and the answer is kept for the whole site.
+* **Fails closed.** A script that cannot be fetched or read, fails, runs past five seconds or
+  answers nothing usable sends the request to an address nothing answers (`pac::NO_WAY`), so it
+  fails, and the row says the script's trouble in place of "refused" (`pac::refusal` in
+  `error::network`). Never direct.
+* **Fetched directly.** The script's own address is fetched with no proxy, as browsers do: it is
+  what says where the proxy is.
+* **The tools take its answer.** `url_for_tools` gives `script:<address>`, and `proxy::route_for`
+  asks the script about each site where the address is used (FTP, a torrent, the video page
+  reads, the YouTube reader), so they go its way too, and a site it gives no way to is refused.
+* **The login goes with it.** The proxy section's user and password go to the proxies a script
+  names: a script names no login, and the proxy that needs one is the usual case.
+* **It decides over the proxies above it.** Filled in, the script chooses in place of the host and
+  port and the per-protocol proxies; the bypass list still sends its sites directly.
+
+## A height at two frame rates is two YouTube lines (2026-11-05, gaps row 72d)
+
+* **Two lines only where both exist.** A height with a picture above 30 frames a second and one at
+  or below gets a line for each, the faster first ("720p MP4 60 fps", then "720p MP4"); a height at
+  one rate keeps its one line and its old quality word, so a hand-off from an older list means what
+  it meant.
+* **The rate in the quality word.** `720/mp4/60` and `720/mp4/30`: a third part read by
+  `Quality::frame_rate_of` into `Options::frame_rate`, which keeps `youtube::choose` to that side
+  of 30. A word with no rate still takes the fastest picture, as before. Where the rate asked has
+  no picture at that height (the page changed), the other is fetched rather than nothing.
+* **The rate said is the picture's.** "60 fps" is the format's own rate (50 for a 50 fps video), as
+  reference A says it.
+
+## Windows' firewall question is said, not answered (2026-11-05, gaps rows 101, 107)
+
+* **Told from Windows' own rules.** The question at the first torrent leaves a firewall rule naming
+  the program, allowed or blocked, in `HKLM\...\FirewallPolicy\FirewallRules`, which a person's
+  account can read. No rule with `App=` dm's own path means Windows has not had an answer: the
+  row of a torrent finding peers says Windows may be asking, until there is one
+  (`dm_shell::firewall::may_ask`, read on a thread of its own every few seconds while asked).
+  Looking for the question's window by its title was the other way: its title is in the
+  system's language and its owner is not dm.
+* **Never answered for the person.** Adding a rule needs administrator rights and is the
+  person's choice; dm says where to change it later (Windows Security, Firewall) and that it
+  still downloads without it.
+* **The magnet chooser likewise.** Windows' own "how do you want to open this" at a first
+  magnet click is said in Options beside who opens magnet links; dm cannot answer it.
+
+## The browsers dm takes from, and its menu items, are chosen in the catch rules (2026-11-05, gaps row 86)
+
+* **The extension knows its browser; the app does not.** Native messaging tells the host an
+  extension's id, which is the same in Chrome, Edge and Brave for one store. The extension names
+  its browser from `navigator.userAgentData`'s brands (Firefox from its own URL scheme) and checks
+  it against `CatchRules::off_browsers`, which the app sends with the rest of its rules.
+* **An unticked browser keeps its downloads, not its menus.** Its right-click menu and the
+  video panel still hand things over when asked, as with catching switched off (B31).
+* **Menu items by id.** `dm_protocol::MENU_ITEMS` names them for Options and is checked against
+  the extension's own list by a test; the extension makes its menu again when the rules it is
+  sent leave out other items than the ones it kept.
+* **The panel's buttons.** Reference A's panel has buttons to choose from; dm's has one (Download
+  video) and its close, and the panel itself has its switch (`video_panel`), so there is nothing
+  more to choose.
+
+## Caption files are list lines of their own (2026-11-05, gaps row 72c)
+
+* **YouTube: the page's tracks, as TTML.** Each track the watch page's player data names is a
+  line ("TTML file, EN subtitles", "(ASR)" after the speech-recognised one, as reference A says
+  it); the line's quality word is `caption/<language>[/asr]` (`Quality::caption_of`), which the
+  runner turns into `Options::caption`, and the reading is that one track's address with
+  `fmt=ttml`, a file named after the video and the language. Only YouTube's own caption address
+  is taken. TTML because reference A saves TTML; the "Subtitles" setting that puts WebVTT into
+  the video stays as it was.
+* **Any site: the caption files in the video's record.** The page lines read the record around
+  the video's files for addresses ending `.srt`, `.vtt`, `.ttml` or `.dfxp`, or under a key
+  naming a caption or subtitle with no type in their last part (taken as SRT), from the innermost
+  record that has any (a wider one can hold other videos'); each is a line after the video's
+  files, downloaded as the file it is.
+
+## Starting while Download details asks (2026-11-05, gaps row 85)
+
+* **A row of its own from the start.** With the setting on, a plain file (one web address, not a
+  video page, a torrent or a form's answer) is added to the queue as Download details opens, so
+  it shows in the list and fetches into its parts folder like any row. The dialog keeps its id.
+* **Placed, not added again.** Start now and Add for later give that row its folder, name,
+  description and queue (`Queue::settle_early`): a row still under way is stopped a moment,
+  given its place (its parts moved with `relocate` when the folder changed) and put back in
+  line keeping what it has, or held for later; one that finished meanwhile is renamed and moved
+  as Move/Rename does. Cancel and the close box remove the row and its parts.
+* **Off by default**, as reference A ships it, and so the dialog behaves as before (B63).
+
+## The Edge check keeps its torrents off the network (2026-11-05, gaps row 108)
+
+* The check copies dm into a new folder for each run, and a torrent listening for peers from a
+  program at a new path raises Windows' firewall question every time. `DM_NO_SWARM`, set only by
+  the check's host shim, makes a torrent fail at once before any connection; the seven magnet
+  variants are checked by the rows they make, which is what the check is about.

@@ -296,6 +296,12 @@ fn a_pages_links_reach_the_app_together_to_be_picked_from() {
         ]
         .into_iter()
         .collect(),
+        names: [
+            ("https://e.com/a.zip".to_string(), "A.zip".to_string()),
+            ("mailto:a@e.com".to_string(), "us.txt".to_string()),
+        ]
+        .into_iter()
+        .collect(),
     })
     .to_frame();
     let (reply, _) = ask(dir.path(), frame, true, Ok(()));
@@ -321,6 +327,11 @@ fn a_pages_links_reach_the_app_together_to_be_picked_from() {
             "https://e.com/a.zip".to_string(),
             "The A archive".to_string()
         )]
+    );
+    // And the names their `download` attributes give, of the links sent only.
+    assert_eq!(
+        filed.names.into_iter().collect::<Vec<_>>(),
+        [("https://e.com/a.zip".to_string(), "A.zip".to_string())]
     );
 
     let none = Asked::Batch(Batch {
@@ -1192,4 +1203,65 @@ fn the_part_asked_for_in_the_panel_reaches_the_app_and_a_caught_download_has_non
     );
     let old: Request = serde_json::from_str(r#"{"url":"https://e.com/a"}"#).unwrap();
     assert!(old.from.is_empty() && old.to.is_empty());
+}
+
+/// A caught download that is a form's answer is taken without asking its
+/// server first (asking would send the form again), and the form is filed
+/// with it for dm to send once.
+#[test]
+fn a_forms_answer_is_taken_without_asking_and_its_form_goes_with_it() {
+    let dir = tempfile::tempdir().unwrap();
+    let frame = Asked::Start(Start {
+        id: "f1".into(),
+        url: "https://files.example/export".into(),
+        referrer: "https://files.example/report".into(),
+        caught: true,
+        post: Some(dm_protocol::Posted {
+            form: "report=7&format=csv".into(),
+            ..dm_protocol::Posted::default()
+        }),
+        ..Start::default()
+    })
+    .to_frame();
+    let mut world = Pretend {
+        running: true,
+        launches: Ok(()),
+        launched: false,
+        refuses: None,
+        asked: Vec::new(),
+        cookies_seen: Vec::new(),
+        serves: "text/csv",
+        clock: 0,
+        probe_takes_ms: 0,
+        budgets: Vec::new(),
+    };
+    let reply = answer(dir.path(), &frame, &mut world).map(|r| Reply::from_frame(&r).unwrap());
+    assert_eq!(reply, Some(Reply::Started { id: "f1".into() }));
+    assert!(
+        world.asked.is_empty(),
+        "the form's address was asked: {:?}",
+        world.asked
+    );
+    let filed: Request =
+        serde_json::from_str(&std::fs::read_to_string(inbox(dir.path()).join("f1.json")).unwrap())
+            .unwrap();
+    let form = crate::shell::posted(&filed.url, filed.post.as_ref()).expect("the form was filed");
+    assert_eq!(form.body, b"report=7&format=csv");
+    assert_eq!(form.content_type, "application/x-www-form-urlencoded");
+    assert_eq!(form.url, "https://files.example/export");
+    // A raw body arrives as base64, with the type the browser's request named.
+    let raw = dm_protocol::Posted {
+        raw: "eyJhIjoxfQ==".into(),
+        content_type: "application/json".into(),
+        ..dm_protocol::Posted::default()
+    };
+    let form = crate::shell::posted("https://e.com/api", Some(&raw)).unwrap();
+    assert_eq!(form.body, br#"{"a":1}"#);
+    assert_eq!(form.content_type, "application/json");
+    // A body that is not base64 is no form to send.
+    let bad = dm_protocol::Posted {
+        raw: "not base64!".into(),
+        ..dm_protocol::Posted::default()
+    };
+    assert!(crate::shell::posted("https://e.com/api", Some(&bad)).is_none());
 }

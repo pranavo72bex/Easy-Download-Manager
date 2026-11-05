@@ -27,7 +27,7 @@ pub fn publish(new_download: &str, open_folder: &str, folder: &std::path::Path) 
 pub fn publish(_new_download: &str, _open_folder: &str, _folder: &std::path::Path) {}
 
 #[cfg(windows)]
-fn build(
+pub(crate) fn build(
     new_download: &str,
     open_folder: &str,
     folder: &std::path::Path,
@@ -110,5 +110,16 @@ fn build(
         })();
         CoUninitialize();
         made
+    }
+}
+
+#[cfg(all(test, windows))]
+mod tests {
+    /// Made by Windows itself (gaps row 11): the shell takes the two entries and commits the
+    /// list (this test program's own, which the shell keeps apart from dm's).
+    #[test]
+    fn windows_takes_the_jump_list() {
+        let folder = std::env::temp_dir();
+        super::build("Add URL", "Open downloads folder", &folder).expect("the jump list was made");
     }
 }

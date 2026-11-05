@@ -297,6 +297,11 @@ pub struct Search {
     /// What it has found before, without logins: added once, not again
     /// after the list is cleared or a login changed the row's address.
     pub seen: Vec<String>,
+    /// Files smaller than this many KB are left out; 0 is no floor. A file
+    /// whose size the server does not say is kept.
+    pub min_kb: u64,
+    /// Files larger than this many KB are left out; 0 is no ceiling.
+    pub max_kb: u64,
 }
 
 /// The folders a file is saved in when a search keeps the site's layout: its
@@ -372,6 +377,8 @@ impl Default for Search {
             stop_after_minutes: 0,
             last_run: 0,
             seen: Vec::new(),
+            min_kb: 0,
+            max_kb: 0,
         }
     }
 }
@@ -562,7 +569,54 @@ pub async fn crawl_with(
         };
         return crawl_ftp(search, options, deadline).await;
     }
-    crawl_until(client, search, deadline).await
+    let mut found = crawl_until(client, search, deadline).await?;
+    found.files = within_sizes(client, found.files, search.min_kb, search.max_kb).await;
+    Ok(found)
+}
+
+/// The files whose size is within `min_kb` and `max_kb` (0 is no limit at that end), each
+/// asked for its size once, eight at a time; one whose size the server does not say is kept,
+/// as reference A keeps it.
+pub async fn within_sizes(
+    client: &dm_core::reqwest::Client,
+    files: Vec<String>,
+    min_kb: u64,
+    max_kb: u64,
+) -> Vec<String> {
+    use futures_util::StreamExt;
+    if min_kb == 0 && max_kb == 0 {
+        return files;
+    }
+    let sizes: Vec<(String, Option<u64>)> = futures_util::stream::iter(files)
+        .map(|file| async move {
+            let size = client
+                .head(&file)
+                .timeout(std::time::Duration::from_secs(15))
+                .send()
+                .await
+                .ok()
+                .filter(|r| r.status().is_success())
+                .and_then(|r| {
+                    r.headers()
+                        .get(dm_core::reqwest::header::CONTENT_LENGTH)
+                        .and_then(|v| v.to_str().ok())
+                        .and_then(|v| v.parse::<u64>().ok())
+                });
+            (file, size)
+        })
+        .buffered(8)
+        .collect()
+        .await;
+    sizes
+        .into_iter()
+        .filter(|(_, size)| {
+            size.is_none_or(|bytes| {
+                (min_kb == 0 || bytes >= min_kb.saturating_mul(1024))
+                    && (max_kb == 0 || bytes <= max_kb.saturating_mul(1024))
+            })
+        })
+        .map(|(file, _)| file)
+        .collect()
 }
 
 /// An FTP server's folders, from the start folder down `depth` levels:

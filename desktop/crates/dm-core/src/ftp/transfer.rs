@@ -15,7 +15,7 @@ pub async fn download_ftp(
     if let Some(why) = options.no_route_through_system_proxy(url, "FTP") {
         return Err(Error::Internal(why));
     }
-    target.route = Route::parse(options.proxy_for(url))?;
+    target.route = Route::parse(options.proxy_for(url).as_deref())?;
     let target = target;
     let options = &Options {
         connections: options.connections_for(url),

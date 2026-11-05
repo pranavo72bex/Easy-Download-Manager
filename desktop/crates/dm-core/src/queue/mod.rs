@@ -241,6 +241,15 @@ pub struct Entry {
     /// is fetched (Properties).
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub torrent_files: Vec<crate::torrent::TorrentFile>,
+    /// The form this download is the answer to, sent again to fetch it. Held
+    /// in memory only: a form can hold what a person typed.
+    #[serde(skip)]
+    pub post: Option<crate::cookies::Posted>,
+    /// Whether it is a form's answer, kept on disk: after a restart, with the
+    /// form gone, it is said to be started again from its page rather than
+    /// asked for in a way the server never answered with the file.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub posted: bool,
 }
 
 fn is_zero(n: &u64) -> bool {
@@ -335,6 +344,9 @@ pub struct AddOptions {
     /// for a fresh address for the same file (`Queue::adopt_fresh_link`)
     /// instead of being added as another row.
     pub fresh_link_ok: bool,
+    /// The form the download is the answer to, where the browser sent one
+    /// (its body, kept in memory with the row only).
+    pub post: Option<crate::cookies::Posted>,
 }
 
 /// Named queues that start on their own each day: each with its minute of
@@ -684,6 +696,8 @@ impl Queue {
                 fresh_link: false,
                 title_hint: None,
                 torrent_files: Vec::new(),
+                post: None,
+                posted: false,
             }),
             control: Control::new(),
             task: None,

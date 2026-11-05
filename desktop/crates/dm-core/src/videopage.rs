@@ -489,6 +489,39 @@ mod tests {
         assert!(choices("not json").is_empty());
         assert!(choices("{}").is_empty());
     }
+
+    /// A height with a picture above 30 frames a second and one at or below
+    /// is two lines, as reference A lists "720p HD 60 fps" and "720p HD"; a
+    /// height with one frame rate is one line, as before (gaps row 72d).
+    #[test]
+    fn a_height_at_two_frame_rates_is_two_lines() {
+        let described = serde_json::json!({"formats": [
+            {"format_id": "140", "ext": "m4a", "vcodec": "none", "acodec": "mp4a", "abr": 129.5, "filesize": 1_000},
+            {"format_id": "136", "ext": "mp4", "vcodec": "avc1", "acodec": "none", "width": 1280, "height": 720, "fps": 30, "filesize": 9_000},
+            {"format_id": "298", "ext": "mp4", "vcodec": "avc1", "acodec": "none", "width": 1280, "height": 720, "fps": 60, "filesize": 14_000},
+            {"format_id": "135", "ext": "mp4", "vcodec": "avc1", "acodec": "none", "width": 854, "height": 480, "fps": 30, "filesize": 4_000},
+        ]})
+        .to_string();
+        let list = choices(&described);
+        let lines: Vec<(&str, &str)> = list
+            .iter()
+            .map(|c| (c.label.as_str(), c.quality.as_str()))
+            .collect();
+        assert_eq!(
+            lines,
+            [
+                ("720p MP4 60 fps", "720/mp4/60"),
+                ("720p MP4", "720/mp4/30"),
+                ("480p MP4", "480/mp4"),
+                ("M4A audio", "audio/m4a"),
+            ]
+        );
+        assert_eq!(list[0].size, Some(15_000));
+        assert_eq!(Quality::named("720/mp4/60"), Quality::UpTo(720));
+        assert_eq!(Quality::container_of("720/mp4/60").as_deref(), Some("mp4"));
+        assert_eq!(Quality::frame_rate_of("720/mp4/60"), Some(60));
+        assert_eq!(Quality::frame_rate_of("720/mp4"), None);
+    }
 }
 
 #[cfg(test)]

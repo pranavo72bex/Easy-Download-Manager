@@ -3208,3 +3208,126 @@ async fn a_queue_with_a_schedule_of_its_own_is_held_while_the_others_run() {
     q.run().await;
     assert_eq!(q.get(night).await.unwrap().state, DownloadState::Completed);
 }
+
+/// A download that is a form's answer keeps its form in memory only: on disk
+/// it says it is one, never what the form held, and after the app is closed,
+/// with the form gone, it fails saying to start it again from its page
+/// rather than asking the address in a way the server never answered.
+#[tokio::test]
+async fn a_forms_answer_keeps_its_form_off_disk_and_says_so_after_a_restart() {
+    let (addr, _) = serve().await;
+    let dir = tempdir();
+    let store = dir.path().join("queue.json");
+    let url = format!("http://{addr}/kept.bin");
+
+    let first = queue(dir.path(), 1);
+    first.persist_to(store.clone()).await;
+    let id = first
+        .add_with(
+            &url,
+            dm_core::AddOptions {
+                later: true,
+                post: Some(dm_core::cookies::Posted {
+                    url: url.clone(),
+                    body: b"secret=hunter2".to_vec(),
+                    content_type: "application/x-www-form-urlencoded".into(),
+                }),
+                ..Default::default()
+            },
+        )
+        .await
+        .unwrap();
+    first.flush().await;
+    let written = std::fs::read_to_string(&store).unwrap();
+    assert!(!written.contains("hunter2"), "the form was written to disk");
+    let rows: serde_json::Value = serde_json::from_str(&written).unwrap();
+    assert_eq!(rows[0]["posted"], true, "{written}");
+
+    let second = queue(dir.path(), 1);
+    second.persist_to(store.clone()).await;
+    second.resume(id).await;
+    let deadline = std::time::Instant::now() + std::time::Duration::from_secs(20);
+    loop {
+        second.run().await;
+        let row = second.get(id).await.unwrap();
+        if let DownloadState::Failed(why) = &row.state {
+            assert!(why.contains("start it again from the page"), "{why}");
+            break;
+        }
+        assert!(
+            std::time::Instant::now() < deadline,
+            "still {:?}",
+            row.state
+        );
+        tokio::time::sleep(std::time::Duration::from_millis(50)).await;
+    }
+}
+
+/// A download begun while Download details asked is given its place once the person chose
+/// (reference A's "start downloading while the dialog is open"; gaps row 85): still under
+/// way, it goes on keeping what it has and lands in the folder and under the name chosen;
+/// already finished, it is moved and renamed.
+#[tokio::test]
+async fn a_download_begun_while_asked_is_placed_where_the_person_chose() {
+    let pieces = || async {
+        use futures_util::StreamExt;
+        let parts = futures_util::stream::iter(0..8).then(|_| async {
+            tokio::time::sleep(Duration::from_millis(60)).await;
+            Ok::<_, std::io::Error>(bytes::Bytes::from(vec![7u8; 4096]))
+        });
+        Response::builder()
+            .header("content-length", 8 * 4096)
+            .body(Body::from_stream(parts))
+            .unwrap()
+    };
+    let addr = common::serve(axum::Router::new().fallback(pieces)).await;
+    let dir = tempdir();
+    let chosen = tempdir();
+    let q = queue(dir.path(), 2);
+    let id = q.add(&format!("http://{addr}/early.bin")).await.unwrap();
+    let running = {
+        let q = q.clone();
+        tokio::spawn(async move { q.run().await })
+    };
+    for _ in 0..100 {
+        if q.get(id).await.unwrap().progress.downloaded > 0 {
+            break;
+        }
+        tokio::time::sleep(Duration::from_millis(20)).await;
+    }
+    q.settle_early(
+        id,
+        Some(chosen.path().to_path_buf()),
+        Some("named.bin".into()),
+        "the one asked about",
+        "",
+        false,
+    )
+    .await
+    .unwrap();
+    // The queue's loop, as the app keeps it going: the row placed goes on to the end.
+    running.abort();
+    tokio::time::timeout(Duration::from_secs(20), q.run())
+        .await
+        .expect("the placed download finished");
+    let row = q.get(id).await.unwrap();
+    assert_eq!(row.state, DownloadState::Completed, "{:?}", row.state);
+    assert_eq!(row.description, "the one asked about");
+    let landed = chosen.path().join("named.bin");
+    assert_eq!(std::fs::read(&landed).unwrap(), vec![7u8; 8 * 4096]);
+
+    // Finished before the person chose: moved and renamed.
+    let later = tempdir();
+    q.settle_early(
+        id,
+        Some(later.path().to_path_buf()),
+        Some("again.bin".into()),
+        "",
+        "",
+        false,
+    )
+    .await
+    .unwrap();
+    assert!(later.path().join("again.bin").is_file());
+    assert!(!landed.exists());
+}

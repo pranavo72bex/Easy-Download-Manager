@@ -172,7 +172,10 @@ pub use probe::{
 
 pub use progress::Progress;
 
-pub use proxy::{client_with, client_with_timeout, Kind as ProxyKind, Proxy};
+pub use proxy::{
+    client_with, client_with_timeout, route_for as proxy_route_for, Kind as ProxyKind, Proxy,
+    SchemeProxy,
+};
 
 pub use queue::{
     accepted, queue_names, AddOptions, Connection, Entry, Id, Queue, State, LINK_EXPIRED,

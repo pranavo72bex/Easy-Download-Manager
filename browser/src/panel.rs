@@ -70,6 +70,11 @@ button:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
 .live { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0);
   clip-path: inset(50%); white-space: nowrap; }
 [hidden] { display: none !important; }
+/* On a narrow video: the download mark and the close mark alone, as reference A's bar. */
+.panel.compact { width: 72px; }
+.panel.compact .title, .panel.compact .caret, .panel.compact .help, .panel.compact .grip { display: none; }
+.panel.compact .go { justify-content: center; padding: 0 4px; }
+.panel.compact .list { margin-left: -388px; }
 "#;
 
 /// The panel's elements. The bar's button is named by its words (the mark

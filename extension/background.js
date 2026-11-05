@@ -77,6 +77,31 @@ try {
 } catch {
   ext.webRequest.onSendHeaders.addListener(forward('on_send_headers'), sentTypes, ['requestHeaders']);
 }
+// The body of a form a page sends: a download that is its answer is fetched
+// by dm sending the same form. Kept a moment by address, in the worker only.
+ext.webRequest.onBeforeRequest.addListener((details) => {
+  if (details.method !== 'POST' || !details.requestBody) return;
+  const body = details.requestBody;
+  let form = '';
+  let raw = '';
+  if (body.formData) {
+    const pairs = [];
+    for (const [name, values] of Object.entries(body.formData)) {
+      for (const value of values) pairs.push([name, String(value)]);
+    }
+    form = new URLSearchParams(pairs).toString();
+  } else if (Array.isArray(body.raw)) {
+    const parts = body.raw.filter((part) => part.bytes).map((part) => new Uint8Array(part.bytes));
+    const size = parts.reduce((n, part) => n + part.length, 0);
+    if (size === 0 || size > 65536) return;
+    let text = '';
+    for (const part of parts) for (const byte of part) text += String.fromCharCode(byte);
+    raw = btoa(text);
+  }
+  if (form.length > 65536) return;
+  forward('on_form_sent')({ url: details.url, tabId: details.tabId, form, raw });
+}, { urls: ['<all_urls>'], types: ['main_frame', 'sub_frame'] }, ['requestBody']);
+
 // The floating panel's click, answered so the panel can say what happened.
 ext.runtime.onMessage.addListener((message, sender, reply) => {
   // The panel's code, put into the asking frame by the browser itself

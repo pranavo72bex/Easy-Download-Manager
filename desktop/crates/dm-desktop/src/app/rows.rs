@@ -190,6 +190,12 @@ pub fn folder_of(row: &Entry) -> String {
     row.save_dir.clone().unwrap_or_default()
 }
 
+/// Whether Windows may be asking about dm and the network (`dm_shell::firewall`); never in the
+/// unit tests, which say a row's words without a firewall.
+fn firewall_may_ask() -> bool {
+    !cfg!(test) && dm_shell::firewall::may_ask()
+}
+
 /// What the Status column says, in English whatever the window's language: what the control
 /// protocol and MCP report, so a script or an agent reads the same words on
 /// every machine.
@@ -253,6 +259,12 @@ pub(super) fn status_in(row: &Entry, words: fn(&'static str) -> &'static str) ->
             }
             // A torrent with nothing yet is looking for peers, for as long
             // as that takes; "Starting…" read as stuck.
+            // The first torrent makes Windows ask, in a window of its own that
+            // can sit behind others, whether dm may use the network: said
+            // until Windows has an answer for dm (gaps row 101).
+            None if dm_core::is_torrent(&row.url) && firewall_may_ask() => {
+                words("Finding peers… Windows may be asking whether dm may use the network: allow it in that window").into()
+            }
             None if dm_core::is_torrent(&row.url) => words("Finding peers…").into(),
             // The first video waits while dm fetches what it needs for
             // videos, half a minute or so: said, so it does not read as
@@ -465,6 +477,8 @@ pub(super) mod status_tests {
             fresh_link: false,
             title_hint: None,
             torrent_files: Vec::new(),
+            post: None,
+            posted: false,
             sound: None,
             span: None,
             shape: None,

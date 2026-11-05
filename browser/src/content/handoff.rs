@@ -447,7 +447,28 @@ pub(super) fn list(src: &str, frame: &str, choices: &Array) {
     let page = window()
         .and_then(|w| w.location().href().ok())
         .unwrap_or_default();
-    let title = decide::clean_title(&document.title(), &page);
+    // The page's title, else its `og:title` (gaps row 124).
+    let og = document
+        .query_selector("meta[property='og:title']")
+        .ok()
+        .flatten()
+        .and_then(|m| m.get_attribute("content"))
+        .unwrap_or_default();
+    // The element the site's rule names for the title, first (gaps row 124).
+    let ruled = Reflect::get(&js_sys::global(), &"dmTitleRule".into())
+        .ok()
+        .and_then(|v| v.as_string())
+        .filter(|s| !s.is_empty())
+        .and_then(|selector| document.query_selector(&selector).ok().flatten())
+        .and_then(|e| e.text_content())
+        .map(|t| t.split_whitespace().collect::<Vec<_>>().join(" "))
+        .unwrap_or_default();
+    let own = if ruled.is_empty() {
+        document.title()
+    } else {
+        ruled
+    };
+    let title = decide::clean_title(decide::page_title(&own, &og), &page);
     let first = with_panel(|p| {
         set_title(p, "Download video");
         close_list(p);

@@ -205,6 +205,17 @@ pub fn with_site(off: &[String], site: &str, keep_off: bool) -> Vec<String> {
     list
 }
 
+/// The title a page's video is named from, as reference A takes it: the page's own title, else
+/// its `og:title` (a page whose `<title>` is empty, or a player page that sets none).
+pub fn page_title<'a>(title: &'a str, og_title: &'a str) -> &'a str {
+    let own = title.trim();
+    if own.is_empty() {
+        og_title.trim()
+    } else {
+        own
+    }
+}
+
 /// A page's title as a file's name should have it: without the unread-count a site puts in
 /// front of it (`(3) `), the play mark a player puts there, and the site's own name after it
 /// (` - YouTube`, ` | Vimeo`) when that name is the host's. Never left empty.
@@ -263,7 +274,14 @@ pub fn clean_title(title: &str, page_url: &str) -> String {
 
 #[cfg(test)]
 mod title_tests {
-    use super::clean_title;
+    use super::{clean_title, page_title};
+
+    #[test]
+    fn a_page_with_no_title_is_named_from_its_og_title() {
+        assert_eq!(page_title("  ", " A clip "), "A clip");
+        assert_eq!(page_title("The page", "Its card"), "The page");
+        assert_eq!(page_title("", ""), "");
+    }
 
     #[test]
     fn a_titles_noise_is_taken_off_but_not_its_own_words() {

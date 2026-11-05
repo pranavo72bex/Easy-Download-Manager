@@ -17,6 +17,11 @@ pub const HELP: &str = "https://github.com/pranavo72bex/Easy-Download-Manager#re
 /// The project's source, licence, privacy statement and code signing
 /// policy, as About dm links them.
 pub const SOURCE: &str = "https://github.com/pranavo72bex/Easy-Download-Manager";
+/// The guide to dm's parts, where Help's topics point (`docs/user-guide.md`).
+pub const GUIDE: &str =
+    "https://github.com/pranavo72bex/Easy-Download-Manager/blob/main/docs/user-guide.md";
+/// Where a person asks for help or reports a fault.
+pub const SUPPORT: &str = "https://github.com/pranavo72bex/Easy-Download-Manager/issues";
 /// The project's licence.
 pub const LICENCE: &str = "https://github.com/pranavo72bex/Easy-Download-Manager/blob/main/LICENSE";
 /// The project's privacy statement.

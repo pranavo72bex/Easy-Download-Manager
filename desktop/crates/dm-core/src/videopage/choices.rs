@@ -17,7 +17,9 @@ pub struct Choice {
 
 /// The choices in a reader's JSON description of a page: one per picture
 /// height, tallest first, each with the biggest file at that height (and the
-/// sound it would be joined with), then the best sound alone. Nothing it
+/// sound it would be joined with), then the best sound alone. A height with
+/// pictures above 30 frames a second and at or below it has a line for each,
+/// the faster first, as reference A lists "720p HD 60 fps" and "720p HD". Nothing it
 /// cannot read is listed; garbage gives an empty list, not an error.
 pub fn choices(described: &str) -> Vec<Choice> {
     let Ok(page) = serde_json::from_str::<serde_json::Value>(described) else {
@@ -52,7 +54,8 @@ pub fn choices(described: &str) -> Vec<Choice> {
         });
     let audio_size = audio.and_then(size_of);
 
-    let mut by_height: Vec<(u32, String, String, Option<u64>)> = Vec::new();
+    // Height, faster than 30 frames a second, label, container, size, frame rate.
+    let mut by_height: Vec<(u32, bool, String, String, Option<u64>, u64)> = Vec::new();
     for f in &formats {
         let Some(height) = f.get("height").and_then(|v| v.as_u64()).map(|h| h as u32) else {
             continue;
@@ -78,20 +81,31 @@ pub fn choices(described: &str) -> Vec<Choice> {
             (None, _) => None,
         };
         let ext = ext.to_ascii_lowercase();
+        let fps = f.get("fps").and_then(|v| v.as_f64()).unwrap_or(0.0).round() as u64;
+        let fast = fps > 30;
         // MP4 at a height wherever there is one; another container only where MP4 has nothing that tall.
         let rank = |ext: &str, size: Option<u64>| (ext == "mp4", size);
-        match by_height.iter_mut().find(|(h, _, _, _)| *h == height) {
-            Some(slot) if rank(&ext, size) > rank(&slot.2, slot.3) => {
-                *slot = (height, label, ext, size)
+        match by_height
+            .iter_mut()
+            .find(|slot| slot.0 == height && slot.1 == fast)
+        {
+            Some(slot) if rank(&ext, size) > rank(&slot.3, slot.4) => {
+                *slot = (height, fast, label, ext, size, fps)
             }
             Some(_) => {}
-            None => by_height.push((height, label, ext, size)),
+            None => by_height.push((height, fast, label, ext, size, fps)),
         }
     }
-    by_height.sort_by_key(|slot| std::cmp::Reverse(slot.0));
+    by_height.sort_by_key(|slot| (std::cmp::Reverse(slot.0), std::cmp::Reverse(slot.1)));
+    let twice: Vec<u32> = by_height
+        .iter()
+        .filter(|slot| slot.1)
+        .map(|slot| slot.0)
+        .filter(|h| by_height.iter().any(|slot| slot.0 == *h && !slot.1))
+        .collect();
     let mut list: Vec<Choice> = by_height
         .into_iter()
-        .map(|(height, label, ext, size)| {
+        .map(|(height, fast, label, ext, size, fps)| {
             // The quality word is the picture's shorter side, which is what
             // the chooser and the selector measure: a portrait video's
             // width (720 for 720x1280).
@@ -102,9 +116,23 @@ pub fn choices(described: &str) -> Vec<Choice> {
                 .and_then(|(w, _)| w.parse::<u32>().ok())
                 .filter(|w| *w > 0 && *w < height)
                 .unwrap_or(height);
+            // A height listed twice says which of its frame rates each line is.
+            let (label, quality) = if fast {
+                (
+                    format!("{} {fps} fps", shown_label(&label, &ext, height)),
+                    format!("{side}/{ext}/{fps}"),
+                )
+            } else if twice.contains(&height) {
+                (
+                    shown_label(&label, &ext, height),
+                    format!("{side}/{ext}/30"),
+                )
+            } else {
+                (shown_label(&label, &ext, height), format!("{side}/{ext}"))
+            };
             Choice {
-                label: shown_label(&label, &ext, height),
-                quality: format!("{side}/{ext}"),
+                label,
+                quality,
                 size,
             }
         })

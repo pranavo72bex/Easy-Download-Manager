@@ -316,6 +316,14 @@ PANEL_PAGES = {
         '<script>document.getElementById("v").src = URL.createObjectURL(new MediaSource());'
         'fetch("/files/stream.m3u8");</script>',
         None),
+    # A page whose player loads a master playlist: the stream's line is named
+    # from what the playlist lists (gaps row 64).
+    "/master.html": (
+        '<!doctype html><title>a master playlist</title><div style="position:relative;margin:40px">'
+        '<video id="v" width="640" height="360"></video>' + OVERLAY + '</div>'
+        '<script>document.getElementById("v").src = URL.createObjectURL(new MediaSource());'
+        'fetch("/files/master.m3u8");</script>',
+        None),
     # The same, on a page that also names its video: both kinds in one list.
     "/both.html": (
         '<!doctype html><title>both</title><div style="position:relative;margin:40px">'
@@ -423,6 +431,36 @@ class Handler(http.server.BaseHTTPRequestHandler):
     def log_message(self, *args):
         pass
 
+    def do_POST(self):
+        # A file given only as the answer to its form (gaps row 128): an export
+        # button's kind, which a GET of the same address does not get.
+        path = urllib.parse.urlparse(self.path).path
+        agent = self.headers.get("User-Agent", "")
+        sent = self.rfile.read(int(self.headers.get("Content-Length", "0") or 0))
+        requests.append({"path": path, "agent": agent, "method": "POST", "t": time.monotonic(),
+                         "referer": self.headers.get("Referer", ""), "range": "", "auth": "",
+                         "port": self.client_address[1], "body": sent[:200],
+                         "headers": [f"{k}: {v}" for k, v in self.headers.items()]})
+        # Read by field, as a server reads a form: the browser reports a form's
+        # fields sorted by name, and dm sends them so.
+        fields = urllib.parse.parse_qs(sent.decode("latin-1"))
+        if path != "/export.bin" or fields != {"report": ["7"], "format": ["csv"]}:
+            self.send_error(400)
+            return
+        data = body("posted.bin")
+        self.send_response(200)
+        self.send_header("Content-Type", "application/octet-stream")
+        self.send_header("Content-Disposition", 'attachment; filename="posted.bin"')
+        self.send_header("Content-Length", str(len(data)))
+        self.end_headers()
+        # Slowly to the browser, so the extension holds it; at once to dm.
+        if is_dm(agent):
+            self.wfile.write(data)
+        else:
+            for at in range(0, len(data), 64 * 1024):
+                self.wfile.write(data[at:at + 64 * 1024])
+                time.sleep(0.05)
+
     def do_GET(self):
         path = urllib.parse.urlparse(self.path).path
         agent = self.headers.get("User-Agent", "")
@@ -430,6 +468,51 @@ class Handler(http.server.BaseHTTPRequestHandler):
                          "range": self.headers.get("Range", ""), "t": time.monotonic(),
                          "auth": self.headers.get("Authorization", ""),
                          "port": self.client_address[1]})
+        if path == "/magnets.html":
+            # The seven ways a torrent site's button opens a magnet link (gaps
+            # row 108, spec T6); the hashes are made up.
+            page = (
+                '<!doctype html><title>magnets</title>'
+                '<p><a id="m1" href="magnet:?xt=urn:btih:0000000000000000000000000000000000abc00a&dn=plain">1</a></p>'
+                '<p><a id="m2" href="magnet:?xt=urn:btih:0000000000000000000000000000000000abc00b&dn=onclick" '
+                'onclick="window.location=this.href; return false;">2</a></p>'
+                '<p><button id="m3" onclick="window.location.href=\'magnet:?xt=urn:btih:0000000000000000000000000000000000abc00c&dn=button\'">3</button></p>'
+                '<p><a id="m4" href="magnet:?xt=urn:btih:0000000000000000000000000000000000abc00d&dn=blank" target="_blank">4</a></p>'
+                '<p><a id="m5" href="magnet:?xt=urn:btih:0000000000000000000000000000000000abc00e&dn=icon"><span><i>&#9733;</i> 5</span></a></p>'
+                '<p><a id="m6" href="#" onclick="window.open(\'magnet:?xt=urn:btih:0000000000000000000000000000000000abc00f&dn=windowopen\'); return false;">6</a></p>'
+                '<p><a id="m7" href="#" onclick="var a=document.createElement(\'a\');a.href=\'magnet:?xt=urn:btih:0000000000000000000000000000000000abc010&dn=synthetic\';document.body.appendChild(a);a.click();return false;">7</a></p>'
+            ).encode()
+            self.send_response(200)
+            self.send_header("Content-Type", "text/html")
+            self.send_header("Content-Length", str(len(page)))
+            self.end_headers()
+            self.wfile.write(page)
+            return
+        if path == "/newtab.html":
+            # A download link that opens a tab of its own (gaps row 130).
+            page = ('<!doctype html><title>a new tab</title>'
+                    '<p><a id="go" target="_blank" href="/files/newtab.bin">newtab.bin</a></p>').encode()
+            self.send_response(200)
+            self.send_header("Content-Type", "text/html")
+            self.send_header("Content-Length", str(len(page)))
+            self.end_headers()
+            self.wfile.write(page)
+            return
+        if path == "/form.html":
+            page = ('<!doctype html><title>an export</title>'
+                    '<form id="export" method="post" action="/export.bin">'
+                    '<input name="report" value="7"><input name="format" value="csv">'
+                    '<button id="go" type="submit">Export</button></form>').encode()
+            self.send_response(200)
+            self.send_header("Content-Type", "text/html")
+            self.send_header("Content-Length", str(len(page)))
+            self.end_headers()
+            self.wfile.write(page)
+            return
+        if path == "/export.bin":
+            # Asked for plainly, the export gives nothing.
+            self.send_error(405)
+            return
         if path == "/framed.html":
             port = self.server.server_address[1]
             page = ('<!doctype html><title>a page embedding a player</title><h1>an article</h1>'
@@ -520,6 +603,15 @@ class Handler(http.server.BaseHTTPRequestHandler):
             return
         if not path.startswith("/files/"):
             self.send_error(404)
+            return
+        if path.endswith("/master.m3u8"):
+            playlist = ("#EXTM3U\n#EXT-X-STREAM-INF:BANDWIDTH=2500000,RESOLUTION=1280x720\n/files/hi.m3u8\n"
+                        "#EXT-X-STREAM-INF:BANDWIDTH=800000,RESOLUTION=640x360\n/files/lo.m3u8\n").encode()
+            self.send_response(200)
+            self.send_header("Content-Type", "application/vnd.apple.mpegurl")
+            self.send_header("Content-Length", str(len(playlist)))
+            self.end_headers()
+            self.wfile.write(playlist)
             return
         if path.endswith(".m3u8"):
             playlist = ("#EXTM3U\n#EXT-X-VERSION:3\n#EXT-X-TARGETDURATION:4\n#EXT-X-MEDIA-SEQUENCE:0\n"
@@ -990,7 +1082,11 @@ def panel_checks(base, origin, engine_dl, engine_home, worker):
     check("when a page loaded an HLS playlist, the panel hands dm that stream",
           stream.get("state", {}).get("kind") == "completed"
           and any(r["path"] == "/files/seg-1.ts" and is_dm(r["agent"]) for r in requests),
-          str(stream.get("state")))
+          # Not finished: where the row was, what else dm was busy with, and
+          # which pieces it asked for (gaps row 141, "the slow part is in the app").
+          str(stream.get("state")) if stream else
+          f"rows: {[(r.get('url', '').rsplit('/', 1)[-1], r['state'].get('kind'), r.get('queue')) for r in queue_rows(engine_home)][-8:]}; "
+          f"dm asked for: {[r['path'] for r in requests if is_dm(r['agent']) and ('seg-' in r['path'] or 'stream' in r['path'])]}")
 
     # A page that loads one playlist: its click hands the stream over at once,
     # and no list of qualities is read from the page.
@@ -1004,6 +1100,15 @@ def panel_checks(base, origin, engine_dl, engine_home, worker):
                                   and r["state"]["kind"] in ("completed", "failed")), None), 40) or {}
     check("a page whose stream was loaded hands dm the stream", both.get("state", {}).get("kind") == "completed",
           str(both.get("state")))
+
+    # A master playlist the page loaded: read by the extension in the browser,
+    # its line named by the best picture it lists (gaps row 64).
+    tab = panel_page(base, origin, "/master.html")
+    wait_for(lambda: any(r["path"] == "/files/master.m3u8" for r in requests), 10)
+    kept = wait_for(lambda: (lambda all_: "720p HLS stream" in all_ and all_)(
+        worker.evaluate("chrome.storage.session.get(null).then(all => JSON.stringify(all))") or ""), 15)
+    check("a master playlist the page loaded names its stream's line by its best picture",
+          bool(kept), str(kept)[:300])
 
     # Decoration is left alone.
     tab = panel_page(base, origin, "/tiny.html")
@@ -1197,6 +1302,8 @@ def main():
         shim.write_text(
             "@echo off\r\n"
             f"set DM_HOME={engine_home}\r\n"
+            # Torrents held off the network: the check's magnets fail at once.
+            "set DM_NO_SWARM=1\r\n"
             ":pick\r\n"
             "set DM_SAID=%RANDOM%%RANDOM%\r\n"
             f'mkdir "{said_dir}\\%DM_SAID%" 2>nul || goto pick\r\n'
@@ -1207,6 +1314,7 @@ def main():
         shim.write_text(
             "#!/bin/sh\n"
             f"export DM_HOME='{engine_home}'\n"
+            "export DM_NO_SWARM=1\n"
             f"exec '{host}' \"$@\" 2>>'{engine_home}/host-stderr.txt'\n"
         )
         shim.chmod(0o755)
@@ -1601,6 +1709,52 @@ def main():
         check("and goes to dm again once the site is not paused",
               taken and not (browser_dl / "resumed.bin").exists())
 
+        # 4b. A file that is a form's answer: dm sends the same form once and
+        # has the file; the browser keeps nothing (gaps row 128).
+        tab = open_tab(base, f"{origin}/form.html")
+        loaded(tab, "/form.html", "#go")
+        tab.evaluate("document.getElementById('go').click()", gesture=True)
+        taken = wait_for(lambda: whole(engine_dl, "posted.bin"), 60)
+        posts = [r for r in requests if r.get("method") == "POST" and is_dm(r["agent"])]
+        check("a file that is a form's answer is fetched by dm sending the form again, once",
+              taken and not (browser_dl / "posted.bin").exists() and len(posts) == 1,
+              f"dm's posts: {len(posts)}; the browser's: "
+              f"{len([r for r in requests if r.get('method') == 'POST' and not is_dm(r['agent'])])}; "
+              f"in the browser's folder: {(browser_dl / 'posted.bin').exists()}; dm's row: "
+              f"{[(r.get('filename'), r.get('state')) for r in queue_rows(engine_home) if 'export' in r.get('url', '')]}; "
+              f"dm folder: {sorted(p.name for p in engine_dl.iterdir() if 'post' in p.name or 'export' in p.name)}; "
+              f"dm sent: {[(r.get('body'), r.get('headers')) for r in posts]}")
+
+        # 4c. A download link that opens a tab of its own: dm takes it, and no
+        # empty tab is left behind (gaps row 130).
+        tab = open_tab(base, f"{origin}/newtab.html")
+        loaded(tab, "/newtab.html", "#go")
+        before_tabs = {t["id"] for t in targets(base) if t.get("type") == "page"}
+        tab.evaluate("document.getElementById('go').click()", gesture=True)
+        taken = wait_for(lambda: whole(engine_dl, "newtab.bin"), 60)
+        time.sleep(3)
+        left = [t.get("url", "") for t in targets(base)
+                if t.get("type") == "page" and t["id"] not in before_tabs]
+        check("a download link that opens a new tab goes to dm and leaves no empty tab behind",
+              taken and not left and not (browser_dl / "newtab.bin").exists(), f"tabs left: {left}")
+
+        # 4d. The seven ways a page opens a magnet link each reach dm (gaps row
+        # 108). dm's torrent engine is held off the network in this run
+        # (DM_NO_SWARM), so each row fails at once rather than going to the DHT
+        # and raising Windows' firewall question for this run's copy of dm.
+        tab = open_tab(base, f"{origin}/magnets.html")
+        loaded(tab, "/magnets.html", "#m7")
+        names = ["plain", "onclick", "button", "blank", "icon", "windowopen", "synthetic"]
+        for n in range(1, 8):
+            tab.evaluate(f"document.getElementById('m{n}').click()", gesture=True)
+            time.sleep(1.0)
+        def magnets():
+            return {name for r in queue_rows(engine_home) for name in names
+                    if r.get("url", "").startswith("magnet:") and f"dn={name}" in r.get("url", "")}
+        got = wait_for(lambda: magnets() if len(magnets()) == 7 else None, 30) or magnets()
+        check("each of the seven ways a page opens a magnet link reaches dm",
+              len(got) == 7, f"missing: {sorted(set(names) - set(got))}")
+
         # 5. Only the browser can fetch it: dm is refused without the
         # browser's session, so it is handed over again with it, for this
         # download, and dm fetches it; the browser keeps nothing.
@@ -1637,6 +1791,12 @@ def main():
         # on Windows, an edge:// page the links reader may not enter.
         tab_id = worker.evaluate(
             f"chrome.tabs.query({{url: '{origin}/page.html*'}}).then(t => t[t.length - 1].id)")
+        # A link's `download` attribute names its file (gaps row 123): set in
+        # the tab whose links are read.
+        worker.evaluate(
+            f"chrome.scripting.executeScript({{target: {{tabId: {tab_id}}}, func: () => "
+            "document.querySelector('a[href$=\"kept.zip\"]').setAttribute('download', 'renamed by the page.zip')"
+            "}).then(() => 'ok')")
         worker.evaluate(
             f"dmReady.then(m => m.on_menu_clicked({{menuItemId: 'dm-all-links', pageUrl: '{origin}/page.html',"
             f" frameId: 0}}, {{id: {tab_id}}}))")
@@ -1652,6 +1812,9 @@ def main():
         check("each link's words on the page go with it to dm as its description",
               words.get("notes.txt") == "notes.txt" and words.get("kept.zip") == "kept.zip",
               str({k: words[k] for k in list(words)[:6]}))
+        given = {r.get("url", "").rsplit("/", 1)[-1]: r.get("save_name") for r in queued_main()}
+        check("a link's download attribute names its file in dm",
+              given.get("kept.zip") == "renamed by the page.zip", f"kept.zip: {given.get('kept.zip')!r}")
         before = len(queued_main())
         tab.evaluate("(() => { const r = document.createRange();"
                      " r.setStartBefore(document.querySelectorAll('p')[0]);"

@@ -1776,6 +1776,7 @@ name = "dm-shell"
 version = "0.8.7"
 dependencies = [
  "axum",
+ "base64 0.22.1",
  "dirs 7.0.0",
  "dm-core",
  "dm-protocol",

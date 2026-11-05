@@ -318,3 +318,42 @@ async fn a_site_that_wants_a_login_is_read_with_the_one_it_was_given_and_never_s
         found.files
     );
 }
+
+/// The Grabber's size filters (gaps row 92): a file under the floor or over
+/// the ceiling is left out; one whose size the server does not say is kept.
+#[tokio::test]
+async fn files_outside_the_size_limits_are_left_out_and_unknown_sizes_kept() {
+    let app = axum::Router::new()
+        .route(
+            "/",
+            get(|| async {
+                Html(r#"<a href="small.zip">s</a> <a href="mid.zip">m</a> <a href="big.zip">b</a> <a href="unsaid.zip">u</a>"#)
+            }),
+        )
+        .route("/small.zip", get(|| async { vec![0u8; 2 * 1024] }))
+        .route("/mid.zip", get(|| async { vec![0u8; 50 * 1024] }))
+        .route("/big.zip", get(|| async { vec![0u8; 900 * 1024] }))
+        // Streamed, so no length is said, to a HEAD or a GET.
+        .route(
+            "/unsaid.zip",
+            get(|| async {
+                axum::body::Body::from_stream(futures_util::stream::iter([Ok::<_, std::io::Error>(
+                    vec![0u8; 10],
+                )]))
+            }),
+        );
+    let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let addr = listener.local_addr().unwrap();
+    tokio::spawn(async move { axum::serve(listener, app).await.unwrap() });
+    let search = Search {
+        page: format!("http://{addr}/"),
+        types: vec!["zip".into()],
+        min_kb: 10,
+        max_kb: 500,
+        ..Search::default()
+    };
+    let found = crawl(&dm_core::client(), &search).await.unwrap();
+    let mut kept = names(&found.files);
+    kept.sort_unstable();
+    assert_eq!(kept, ["mid.zip", "unsaid.zip"]);
+}

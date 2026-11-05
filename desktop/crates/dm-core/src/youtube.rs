@@ -697,7 +697,15 @@ impl Format {
 /// under the quality, measured by its shorter side (a portrait video's
 /// width: 720p is 720×1280 for a Short), in the container asked for where
 /// there is one that size, with the best sound in the same container.
-fn choose(formats: &[Format], quality: Quality, container: Option<&str>) -> Option<Vec<Format>> {
+///
+/// `frame_rate`, where the list gave the height two lines, keeps the picture to its side of 30
+/// frames a second: above for the "60 fps" line, at or below for the other.
+fn choose(
+    formats: &[Format],
+    quality: Quality,
+    container: Option<&str>,
+    frame_rate: Option<u32>,
+) -> Option<Vec<Format>> {
     let usable: Vec<&Format> = formats.iter().filter(|f| !f.secondary).collect();
     let audio_in = |container: &str| {
         usable
@@ -738,12 +746,29 @@ fn choose(formats: &[Format], quality: Quality, container: Option<&str>) -> Opti
             f.height
         }
     };
-    let pictures: Vec<&Format> = usable
+    let all: Vec<&Format> = usable
         .iter()
         .filter(|f| f.video && f.height > 0 && side(f) <= limit)
         .copied()
         .collect();
-    let biggest = pictures.iter().map(|f| side(f)).max()?;
+    let biggest = all.iter().map(|f| side(f)).max()?;
+    // The line's frame rate, where pictures that size have it; else what there is.
+    let fast = |f: &Format| f.fps > 30;
+    let pictures: Vec<&Format> = match frame_rate {
+        Some(rate) => {
+            let kept: Vec<&Format> = all
+                .iter()
+                .filter(|f| side(f) == biggest && fast(f) == (rate > 30))
+                .copied()
+                .collect();
+            if kept.is_empty() {
+                all
+            } else {
+                kept
+            }
+        }
+        None => all,
+    };
     // The container asked for at the biggest size, else whatever is biggest.
     let picture = pictures
         .iter()
@@ -794,11 +819,13 @@ pub async fn read_for(
     } else {
         options.container.as_deref()
     };
-    read(
+    read_at(
         &client,
         url,
         options.quality,
         container,
+        options.frame_rate,
+        options.caption.clone(),
         part,
         options.sign_in.as_ref(),
         staging,
@@ -817,20 +844,45 @@ pub async fn read(
     sign_in: Option<&crate::cookies::SignIn>,
     staging: &Path,
 ) -> Result<String, Error> {
+    read_at(
+        client, url, quality, container, None, None, mp4_only, sign_in, staging,
+    )
+    .await
+}
+
+/// [`read`], at the frame rate a list line named (`Options::frame_rate`), or the caption
+/// track it named (`Options::caption`).
+#[allow(clippy::too_many_arguments)]
+pub async fn read_at(
+    client: &reqwest::Client,
+    url: &str,
+    quality: Quality,
+    container: Option<&str>,
+    frame_rate: Option<u32>,
+    caption: Option<(String, bool)>,
+    mp4_only: bool,
+    sign_in: Option<&crate::cookies::SignIn>,
+    staging: &Path,
+) -> Result<String, Error> {
     let id = video_id(url).ok_or_else(|| Error::Internal("not a YouTube video address".into()))?;
     tokio::time::timeout(
         WITHIN,
-        read_within(client, &id, quality, container, mp4_only, sign_in, staging),
+        read_within(
+            client, &id, quality, container, frame_rate, caption, mp4_only, sign_in, staging,
+        ),
     )
     .await
     .map_err(|_| Error::Internal("the page took too long to read".into()))?
 }
 
+#[allow(clippy::too_many_arguments)]
 async fn read_within(
     client: &reqwest::Client,
     id: &str,
     quality: Quality,
     container: Option<&str>,
+    frame_rate: Option<u32>,
+    caption: Option<(String, bool)>,
     mp4_only: bool,
     sign_in: Option<&crate::cookies::SignIn>,
     staging: &Path,
@@ -852,6 +904,10 @@ async fn read_within(
     )
     .await?;
     let page = text_capped(Error::refused_or(page).await?, PAGE_MOST).await?;
+    // A caption line: the track the page names, as a TTML file of its own (gaps row 72c).
+    if let Some((language, asr)) = caption {
+        return caption_reading(id, &page, &language, asr, staging);
+    }
     let mut facts = page_facts(&page);
     // The player script, where its timestamp is wanted now (the page gave
     // none) and for the solver later.
@@ -986,12 +1042,12 @@ async fn read_within(
         .cloned()
         .collect();
     let chosen = if muxed {
-        choose(&cuttable, quality, container).map(|mut pair| {
+        choose(&cuttable, quality, container, frame_rate).map(|mut pair| {
             pair.truncate(1);
             pair
         })
     } else {
-        choose(&cuttable, quality, container)
+        choose(&cuttable, quality, container, frame_rate)
     }
     .ok_or_else(|| Error::Internal("no stream at that quality".into()))?;
     // The TV client's answer names no title; the page does.
@@ -1005,6 +1061,72 @@ async fn read_within(
         .pointer("/videoDetails/lengthSeconds")
         .and_then(|v| v.as_u64().or_else(|| v.as_str()?.parse().ok()));
     Ok(reading_json(id, &title, duration, &formats, &chosen, staging).to_string())
+}
+
+/// The reading for a caption line: the track of `language` (the speech-recognised one where
+/// `asr`) the watch page's player data names, fetched as TTML into a file of its own named
+/// after the video and the language. Only YouTube's own caption address is taken.
+fn caption_reading(
+    id: &str,
+    page: &str,
+    language: &str,
+    asr: bool,
+    staging: &Path,
+) -> Result<String, Error> {
+    const MARK: &str = "ytInitialPlayerResponse = ";
+    let player: Value = page
+        .find(MARK)
+        .and_then(|at| json_object_at(page[at + MARK.len()..].trim_start()))
+        .and_then(|object| serde_json::from_str(object).ok())
+        .ok_or_else(|| Error::Internal("the page names no captions".into()))?;
+    let track = player
+        .pointer("/captions/playerCaptionsTracklistRenderer/captionTracks")
+        .and_then(Value::as_array)
+        .into_iter()
+        .flatten()
+        .find(|t| {
+            t.get("languageCode").and_then(Value::as_str) == Some(language)
+                && (t.get("kind").and_then(Value::as_str) == Some("asr")) == asr
+        })
+        .ok_or_else(|| Error::Internal(format!("the video has no {language} captions now")))?;
+    let base = track
+        .get("baseUrl")
+        .and_then(Value::as_str)
+        .ok_or_else(|| Error::Internal("the captions have no address".into()))?;
+    let mut url = url::Url::parse(base)
+        .or_else(|_| url::Url::parse(&format!("https://www.youtube.com{base}")))
+        .map_err(|_| Error::Internal("the captions' address is not one".into()))?;
+    if url.host_str() != Some("www.youtube.com") || url.scheme() != "https" {
+        return Err(Error::Internal("the captions are not on YouTube".into()));
+    }
+    let kept: Vec<(String, String)> = url
+        .query_pairs()
+        .filter(|(k, _)| k != "fmt")
+        .map(|(k, v)| (k.into_owned(), v.into_owned()))
+        .collect();
+    url.query_pairs_mut()
+        .clear()
+        .extend_pairs(kept)
+        .append_pair("fmt", "ttml");
+    let title = player
+        .pointer("/videoDetails/title")
+        .and_then(Value::as_str)
+        .unwrap_or("video");
+    let name = format!("{} [{id}].{language}.ttml", safe_title(title));
+    Ok(json!({
+        "id": id,
+        "title": title,
+        "extractor": "youtube",
+        "extractor_key": "Youtube",
+        "webpage_url": format!("https://www.youtube.com/watch?v={id}"),
+        "ext": "ttml",
+        "filename": staging.join(name).display().to_string(),
+        "url": url.to_string(),
+        "protocol": "https",
+        "format_id": format!("caption-{language}"),
+        "read_by": "dm",
+    })
+    .to_string())
 }
 
 /// The video's title as the watch page gives it: its player data's, else
@@ -1613,26 +1735,29 @@ mod tests {
             chosen.map(|c| c.iter().map(|f| f.itag).collect::<Vec<_>>())
         };
         assert_eq!(
-            itags(choose(&formats, Quality::Best, None)),
+            itags(choose(&formats, Quality::Best, None, None)),
             Some(vec![137, 140])
         );
         assert_eq!(
-            itags(choose(&formats, Quality::Best, Some("webm"))),
+            itags(choose(&formats, Quality::Best, Some("webm"), None)),
             Some(vec![248, 251])
         );
         assert_eq!(
-            itags(choose(&formats, Quality::UpTo(720), None)),
+            itags(choose(&formats, Quality::UpTo(720), None, None)),
             Some(vec![136, 140])
         );
         assert_eq!(
-            itags(choose(&formats, Quality::Audio, None)),
+            itags(choose(&formats, Quality::Audio, None, None)),
             Some(vec![140])
         );
         assert_eq!(
-            itags(choose(&formats, Quality::Audio, Some("webm"))),
+            itags(choose(&formats, Quality::Audio, Some("webm"), None)),
             Some(vec![251])
         );
-        assert_eq!(itags(choose(&formats, Quality::UpTo(100), None)), None);
+        assert_eq!(
+            itags(choose(&formats, Quality::UpTo(100), None, None)),
+            None
+        );
     }
 
     #[test]
@@ -1658,19 +1783,19 @@ mod tests {
             chosen.map(|c| c.iter().map(|f| f.itag).collect::<Vec<_>>())
         };
         assert_eq!(
-            itags(choose(&formats, Quality::UpTo(720), None)),
+            itags(choose(&formats, Quality::UpTo(720), None, None)),
             Some(vec![302, 140])
         );
         assert_eq!(
-            itags(choose(&formats, Quality::UpTo(1080), None)),
+            itags(choose(&formats, Quality::UpTo(1080), None, None)),
             Some(vec![301, 140])
         );
         assert_eq!(
-            itags(choose(&formats, Quality::UpTo(480), None)),
+            itags(choose(&formats, Quality::UpTo(480), None, None)),
             Some(vec![303, 140])
         );
         assert_eq!(
-            itags(choose(&formats, Quality::Best, None)),
+            itags(choose(&formats, Quality::Best, None, None)),
             Some(vec![301, 140])
         );
     }
@@ -1706,6 +1831,64 @@ mod tests {
         assert!(!has_n("https://r1.example/a?itag=251"));
     }
 
+    /// A caption line is the track the page names, fetched as TTML into a file named after the
+    /// video and its language; a track elsewhere than YouTube is refused (gaps row 72c).
+    #[test]
+    fn a_caption_line_is_its_track_as_a_ttml_file() {
+        let page = r#"<script>var ytInitialPlayerResponse = {"videoDetails":{"title":"A talk"},
+          "captions":{"playerCaptionsTracklistRenderer":{"captionTracks":[
+            {"baseUrl":"https://www.youtube.com/api/timedtext?v=abc&lang=hi&kind=asr&fmt=srv3","languageCode":"hi","kind":"asr"},
+            {"baseUrl":"https://evil.example/t?lang=en","languageCode":"en"}]}}};</script>"#;
+        let dir = std::path::Path::new("/staging");
+        let reading: Value =
+            serde_json::from_str(&caption_reading("abc", page, "hi", true, dir).unwrap()).unwrap();
+        let url = reading["url"].as_str().unwrap();
+        assert!(
+            url.starts_with("https://www.youtube.com/api/timedtext?"),
+            "{url}"
+        );
+        assert!(
+            url.contains("lang=hi") && url.ends_with("fmt=ttml") && !url.contains("srv3"),
+            "{url}"
+        );
+        assert_eq!(reading["ext"], "ttml");
+        assert!(reading["filename"]
+            .as_str()
+            .unwrap()
+            .ends_with("A talk [abc].hi.ttml"));
+        assert!(
+            caption_reading("abc", page, "en", false, dir).is_err(),
+            "not YouTube's"
+        );
+        assert!(
+            caption_reading("abc", page, "hi", false, dir).is_err(),
+            "not the ASR one"
+        );
+    }
+
+    /// The line's frame rate is the picture's: "720p 60 fps" gets the faster
+    /// picture, "720p" the other, and with no rate named the faster (gaps row 72d).
+    #[test]
+    fn the_line_picked_names_the_frame_rate_fetched() {
+        let formats: Vec<Format> = [
+            r#"{"itag":136,"mimeType":"video/mp4; codecs=\"avc1\"","width":1280,"height":720,"fps":30,"bitrate":1000,"url":"https://r1.example/v?itag=136"}"#,
+            r#"{"itag":298,"mimeType":"video/mp4; codecs=\"avc1\"","width":1280,"height":720,"fps":60,"bitrate":2000,"url":"https://r1.example/v?itag=298"}"#,
+            r#"{"itag":140,"mimeType":"audio/mp4; codecs=\"mp4a.40.2\"","bitrate":128000,"url":"https://r1.example/v?itag=140"}"#,
+        ]
+        .iter()
+        .filter_map(|j| Format::of(&serde_json::from_str(j).unwrap()))
+        .collect();
+        let picture = |rate| {
+            choose(&formats, Quality::UpTo(720), Some("mp4"), rate)
+                .unwrap()
+                .first()
+                .map(|f| f.itag)
+        };
+        assert_eq!(picture(Some(60)), Some(298));
+        assert_eq!(picture(Some(30)), Some(136));
+        assert_eq!(picture(None), Some(298));
+    }
+
     #[test]
     fn the_reading_is_in_the_shape_the_downloader_reads() {
         let mut formats = formats();
@@ -1713,7 +1896,7 @@ mod tests {
             f.url = Some("https://r1.example/x".into());
             f.cipher = None;
         }
-        let chosen = choose(&formats, Quality::Best, None).unwrap();
+        let chosen = choose(&formats, Quality::Best, None, None).unwrap();
         let reading = reading_json(
             "jNQXAC9IVRw",
             "Me at the zoo: a \"first\" / video",
@@ -1738,7 +1921,7 @@ mod tests {
         assert_eq!(pair[1]["ext"], "m4a");
         assert_eq!(pair[1]["vcodec"], "none");
         assert_eq!(reading["formats"].as_array().unwrap().len(), 6);
-        let sound = choose(&formats, Quality::Audio, Some("webm")).unwrap();
+        let sound = choose(&formats, Quality::Audio, Some("webm"), None).unwrap();
         let alone = reading_json("jNQXAC9IVRw", "x", None, &formats, &sound, Path::new("/s"));
         assert_eq!(alone["ext"], "webm");
         assert_eq!(alone["url"], "https://r1.example/x");

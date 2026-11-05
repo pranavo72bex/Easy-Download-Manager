@@ -12,6 +12,14 @@ pub(super) async fn remember_rules(rules: &CatchRules) {
     let Ok(value) = serde_json::to_value(rules) else {
         return;
     };
+    // The menu items chosen in Options, made again where the choice changed.
+    let was = remembered_rules()
+        .await
+        .map(|kept| kept.hidden_menus)
+        .unwrap_or_default();
+    if was != rules.hidden_menus {
+        make_menus_without(&rules.hidden_menus).await;
+    }
     let item = to_js(&serde_json::json!({ RULES_KEY: value }));
     if let Err(why) = call("storage.local", "set", &[item]).await {
         log("debug", &format!("the catch rules were not kept: {why}"));

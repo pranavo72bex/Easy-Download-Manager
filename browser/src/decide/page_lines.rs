@@ -272,6 +272,8 @@ struct Gathered {
     files: Vec<PageLine>,
     /// Streams the page names, offered only where no manifest could be read.
     streams: Vec<PageLine>,
+    /// The video's caption files, offered after its files (gaps row 72c).
+    captions: Vec<PageLine>,
 }
 
 impl Gathered {
@@ -313,7 +315,74 @@ impl Gathered {
         if !manifests {
             lines.extend(self.streams);
         }
+        lines.extend(self.captions);
         lines
+    }
+
+    /// The caption files in the video's record, however deep: an address ending `.srt`, `.vtt`
+    /// or `.ttml`, or one under a key naming a caption or subtitle (gaps row 72c).
+    fn add_captions(&mut self, value: &Value, key: &str, depth: usize) {
+        if depth > 6 || self.captions.len() >= 20 {
+            return;
+        }
+        match value {
+            Value::String(url) if is_web(url) => {
+                let named = {
+                    let key = key.to_ascii_lowercase();
+                    key.contains("caption") || key.contains("subtitle")
+                };
+                if let Some(kind) = caption_kind(url, named) {
+                    if !self.captions.iter().any(|l| l.url == *url) {
+                        self.captions.push(PageLine {
+                            url: url.clone(),
+                            label: format!("{kind} file"),
+                            sound: None,
+                        });
+                    }
+                }
+            }
+            Value::Array(items) => {
+                for item in items {
+                    self.add_captions(item, key, depth + 1);
+                }
+            }
+            Value::Object(map) => {
+                for (name, field) in map {
+                    // A field under a caption key keeps that key's meaning.
+                    let named = key.to_ascii_lowercase();
+                    let carried = if named.contains("caption") || named.contains("subtitle") {
+                        key
+                    } else {
+                        name.as_str()
+                    };
+                    self.add_captions(field, carried, depth + 1);
+                }
+            }
+            _ => {}
+        }
+    }
+}
+
+/// What kind of caption file an address is, by its ending ("SRT", "VTT", "TTML"); one under a
+/// caption or subtitle key whose last part names no type at all is taken as SRT, the kind such
+/// keys hold. Anything else (a picture, a page, a script, a video) is not a caption file.
+fn caption_kind(url: &str, named: bool) -> Option<&'static str> {
+    let path = url
+        .split(['?', '#'])
+        .next()
+        .unwrap_or("")
+        .to_ascii_lowercase();
+    let last = path.trim_end_matches('/').rsplit('/').next().unwrap_or("");
+    if path.ends_with(".srt") {
+        Some("SRT")
+    } else if path.ends_with(".vtt") {
+        Some("VTT")
+    } else if path.ends_with(".ttml") || path.ends_with(".dfxp") {
+        Some("TTML")
+    } else if named && !last.is_empty() && !last.contains('.') {
+        Some("SRT")
+    } else {
+        None
     }
 }
 
@@ -399,6 +468,9 @@ pub fn page_lines_for_player(text: &str, id: &str) -> Vec<PageLine> {
                     gather_value(field, &mut gathered);
                 }
                 if gathered.count() > 0 {
+                    for (name, field) in &map {
+                        gathered.add_captions(field, name, 0);
+                    }
                     return gathered.into_lines();
                 }
             }
@@ -447,6 +519,13 @@ fn lines_for_ids(text: &str, ids: &[String]) -> Vec<PageLine> {
                 let mut more = Gathered::default();
                 for field in map.values() {
                     gather_value(field, &mut more);
+                }
+                // The video's caption files, from the innermost record around it that has any:
+                // a wider one can hold other videos' too.
+                if gathered.captions.is_empty() {
+                    for (name, field) in &map {
+                        gathered.add_captions(field, name, 0);
+                    }
                 }
                 let mut extra = 0;
                 for line in more.manifests {

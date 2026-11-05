@@ -345,6 +345,8 @@ impl DmApp {
                     .map(|url| {
                         let own = dm_core::AddOptions {
                             description: request.texts.get(url).cloned().unwrap_or_default(),
+                            // The name its `download` attribute gives.
+                            save_name: request.names.get(url).cloned(),
                             ..with.clone()
                         };
                         (url.clone(), own)

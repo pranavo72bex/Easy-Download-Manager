@@ -48,7 +48,8 @@ pub(super) async fn fetch_choices(
         )
         .connect_timeout(std::time::Duration::from_secs(5))
         .timeout(std::time::Duration::from_secs(10));
-    if let Some(proxy) = proxy {
+    // A configuration script's choice is asked for the page's site.
+    if let Some(proxy) = crate::proxy::route_for(proxy, url) {
         builder = builder.proxy(reqwest::Proxy::all(proxy).ok()?);
     }
     let client = builder.build().ok()?;
@@ -148,7 +149,9 @@ fn choices_of_player(player: &Value) -> Vec<Choice> {
             )
         });
     let audio_size = audio.and_then(size);
-    let mut by_height: Vec<(u32, String, String, Option<u64>)> = Vec::new();
+    // Height, faster than 30 frames a second, label, container, size, frame rate: a height at
+    // two frame rates is two lines, as reference A lists "720p HD 60 fps" and "720p HD".
+    let mut by_height: Vec<(u32, bool, String, String, Option<u64>, u64)> = Vec::new();
     for f in formats {
         let Some((true, ext)) = kind(f) else {
             continue;
@@ -167,19 +170,30 @@ fn choices_of_player(player: &Value) -> Vec<Choice> {
         };
         // A picture alone is joined with the sound, so its size counts both.
         let total = size(f).map(|s| s + audio_size.unwrap_or(0));
+        let fps = f.get("fps").and_then(Value::as_u64).unwrap_or(0);
+        let fast = fps > 30;
         let rank = |ext: &str, size: Option<u64>| (ext == "mp4", size);
-        match by_height.iter_mut().find(|(h, _, _, _)| *h == height) {
-            Some(slot) if rank(&ext, total) > rank(&slot.2, slot.3) => {
-                *slot = (height, label, ext, total)
+        match by_height
+            .iter_mut()
+            .find(|slot| slot.0 == height && slot.1 == fast)
+        {
+            Some(slot) if rank(&ext, total) > rank(&slot.3, slot.4) => {
+                *slot = (height, fast, label, ext, total, fps)
             }
             Some(_) => {}
-            None => by_height.push((height, label, ext, total)),
+            None => by_height.push((height, fast, label, ext, total, fps)),
         }
     }
-    by_height.sort_by_key(|slot| std::cmp::Reverse(slot.0));
+    by_height.sort_by_key(|slot| (std::cmp::Reverse(slot.0), std::cmp::Reverse(slot.1)));
+    let twice: Vec<u32> = by_height
+        .iter()
+        .filter(|slot| slot.1)
+        .map(|slot| slot.0)
+        .filter(|h| by_height.iter().any(|slot| slot.0 == *h && !slot.1))
+        .collect();
     let mut list: Vec<Choice> = by_height
         .into_iter()
-        .map(|(height, label, ext, size)| {
+        .map(|(height, fast, label, ext, size, fps)| {
             // The quality word is the picture's shorter side, which is what
             // the chooser and the selector measure: a portrait video's
             // width (720 for 720x1280).
@@ -190,9 +204,17 @@ fn choices_of_player(player: &Value) -> Vec<Choice> {
                 .and_then(|(w, _)| w.parse::<u32>().ok())
                 .filter(|w| *w > 0 && *w < height)
                 .unwrap_or(height);
+            let shown = super::choices::shown_label(&label, &ext, height);
+            let (label, quality) = if fast {
+                (format!("{shown} {fps} fps"), format!("{side}/{ext}/{fps}"))
+            } else if twice.contains(&height) {
+                (shown, format!("{side}/{ext}/30"))
+            } else {
+                (shown, format!("{side}/{ext}"))
+            };
             Choice {
-                label: super::choices::shown_label(&label, &ext, height),
-                quality: format!("{side}/{ext}"),
+                label,
+                quality,
                 size,
             }
         })
@@ -204,7 +226,34 @@ fn choices_of_player(player: &Value) -> Vec<Choice> {
             size: audio_size,
         });
     }
+    list.extend(caption_lines(player));
     list
+}
+
+/// A line for each caption track the page names, as reference A lists them: "TTML file, EN
+/// subtitles", and "(ASR)" after YouTube's own made by speech recognition (gaps row 72c).
+fn caption_lines(player: &Value) -> Vec<Choice> {
+    player
+        .pointer("/captions/playerCaptionsTracklistRenderer/captionTracks")
+        .and_then(Value::as_array)
+        .into_iter()
+        .flatten()
+        .filter_map(|track| {
+            let language = track.get("languageCode")?.as_str()?;
+            let word = format!("caption/{language}");
+            let (language, _) = crate::stream::Quality::caption_of(&word)?;
+            let asr = track.get("kind").and_then(Value::as_str) == Some("asr");
+            Some(Choice {
+                label: format!(
+                    "TTML file, {} subtitles{}",
+                    language.to_ascii_uppercase(),
+                    if asr { " (ASR)" } else { "" }
+                ),
+                quality: if asr { format!("{word}/asr") } else { word },
+                size: None,
+            })
+        })
+        .collect()
 }
 
 #[cfg(test)]
@@ -222,6 +271,58 @@ mod tests {
         {"itag":136,"mimeType":"video/mp4; codecs=\"avc1.4d401f\"","width":1280,"height":720,"contentLength":"2000"},
         {"itag":140,"mimeType":"audio/mp4; codecs=\"mp4a.40.2\"","averageBitrate":130000,"contentLength":"500"},
         {"itag":251,"mimeType":"audio/webm; codecs=\"opus\"","averageBitrate":140000,"contentLength":"400"}]}}"#;
+
+    /// Each caption track is a line after the sound, as reference A lists them (gaps row 72c).
+    #[test]
+    fn each_caption_track_is_a_line_after_the_sound() {
+        let player = r#"{"playabilityStatus":{"status":"OK"},"videoDetails":{"isLive":false},
+          "streamingData":{"adaptiveFormats":[
+            {"itag":136,"mimeType":"video/mp4; codecs=\"avc1\"","width":1280,"height":720,"contentLength":"2000"},
+            {"itag":140,"mimeType":"audio/mp4; codecs=\"mp4a.40.2\"","averageBitrate":130000,"contentLength":"500"}]},
+          "captions":{"playerCaptionsTracklistRenderer":{"captionTracks":[
+            {"baseUrl":"https://www.youtube.com/api/timedtext?v=x&lang=en","languageCode":"en","name":{"simpleText":"English"}},
+            {"baseUrl":"https://www.youtube.com/api/timedtext?v=x&lang=hi&kind=asr","languageCode":"hi","kind":"asr"},
+            {"baseUrl":"https://e.com/t","languageCode":"../x"}]}}}"#;
+        let list = choices_of_page(&page(player));
+        let lines: Vec<(&str, &str)> = list
+            .iter()
+            .map(|c| (c.label.as_str(), c.quality.as_str()))
+            .collect();
+        assert_eq!(
+            lines,
+            [
+                ("720p MP4", "720/mp4"),
+                ("M4A audio", "audio/m4a"),
+                ("TTML file, EN subtitles", "caption/en"),
+                ("TTML file, HI subtitles (ASR)", "caption/hi/asr"),
+            ]
+        );
+    }
+
+    /// A height at two frame rates is two lines, the faster first (gaps row 72d).
+    #[test]
+    fn a_height_at_two_frame_rates_is_two_lines_from_the_pages_own_data() {
+        let player = r#"{"playabilityStatus":{"status":"OK"},"videoDetails":{"isLive":false},
+          "streamingData":{"adaptiveFormats":[
+            {"itag":136,"mimeType":"video/mp4; codecs=\"avc1\"","width":1280,"height":720,"fps":30,"contentLength":"2000"},
+            {"itag":298,"mimeType":"video/mp4; codecs=\"avc1\"","width":1280,"height":720,"fps":60,"contentLength":"3000"},
+            {"itag":135,"mimeType":"video/mp4; codecs=\"avc1\"","width":854,"height":480,"fps":30,"contentLength":"900"},
+            {"itag":140,"mimeType":"audio/mp4; codecs=\"mp4a.40.2\"","averageBitrate":130000,"contentLength":"500"}]}}"#;
+        let list = choices_of_page(&page(player));
+        let lines: Vec<(&str, &str)> = list
+            .iter()
+            .map(|c| (c.label.as_str(), c.quality.as_str()))
+            .collect();
+        assert_eq!(
+            lines,
+            [
+                ("720p MP4 60 fps", "720/mp4/60"),
+                ("720p MP4", "720/mp4/30"),
+                ("480p MP4", "480/mp4"),
+                ("M4A audio", "audio/m4a"),
+            ]
+        );
+    }
 
     #[test]
     fn a_pages_own_data_gives_the_list() {

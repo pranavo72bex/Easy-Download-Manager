@@ -331,10 +331,17 @@ pub async fn download_torrent(
     options: &Options,
     report: Option<Sender<Update>>,
 ) -> Result<Finished, Error> {
+    // A check that makes torrents (`scripts/chrome-check.py`) holds them off the network: a
+    // program at a new path listening for peers raises Windows' firewall question each run.
+    if std::env::var_os("DM_NO_SWARM").is_some_and(|v| !v.is_empty()) {
+        return Err(Error::Internal(
+            "torrents are held off the network in this run (DM_NO_SWARM)".into(),
+        ));
+    }
     if let Some(why) = options.no_route_through_system_proxy(url, "a torrent") {
         return Err(Error::Internal(why));
     }
-    let connect = swarm_proxy(options.proxy_for(url))?;
+    let connect = swarm_proxy(options.proxy_for(url).as_deref())?;
     let proxied = connect.is_some();
 
     /* Staged like every other download, under its own parts directory, and
@@ -597,7 +604,14 @@ pub async fn download_torrent(
              * while it checks what is on disk; a row whose bar went back
              * read as a download losing data. The high-water mark, held to
              * the total, catches up once the piece arrives again. */
-            let done = high_water(last_done, stats.progress_bytes, total);
+            // While it initialises, librqbit's count is how much of what is
+            // on disk it has checked, not what it has: a fresh torrent showed
+            // a piece "downloaded" with no peer connected, now and then.
+            let have = match stats.state {
+                TorrentStatsState::Initializing { .. } => last_done.unwrap_or(0),
+                _ => stats.progress_bytes,
+            };
+            let done = high_water(last_done, have, total);
             // Measured rather than read off librqbit's own estimator, so the
             // number is in the same units and computed the same way as every
             // other row.

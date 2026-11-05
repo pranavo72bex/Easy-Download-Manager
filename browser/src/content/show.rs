@@ -67,11 +67,17 @@ pub(super) fn show(element: &Element) -> bool {
     );
     let rect = element.get_bounding_client_rect();
     let box_ = (rect.left(), rect.top(), rect.width(), rect.height());
-    let spot = decide::panel_at(box_, PANEL_SIZE, view);
+    // On the part of the video a person sees, below a page's fixed bar over its top, and
+    // compact on a narrow video (gaps row 76).
+    let clipped = clipped_by_parents(&window, element, box_);
+    let shown = decide::visible_box(clipped, view, bar_over_top(&window, element, clipped, view));
+    let size = decide::panel_size(box_.2);
+    let compact = size.0 < PANEL_SIZE.0;
+    let spot = decide::panel_at(shown, size, view);
     SPOT.with(|s| s.set(spot));
     PLACED.with(|p| p.set(box_));
     // Where the person dragged it to, kept for the page.
-    let (x, y) = decide::dragged(spot, NUDGE.with(|n| n.get()), PANEL_SIZE, view);
+    let (x, y) = decide::dragged(spot, NUDGE.with(|n| n.get()), size, view);
     with_panel(|p| {
         let same = p.current.as_ref() == Some(element);
         if !same {
@@ -111,12 +117,100 @@ pub(super) fn show(element: &Element) -> bool {
             }
         }
         p.generation = p.generation.wrapping_add(1);
+        // Compact: the mark and the close mark; the button keeps its words as its name.
+        if let Ok(Some(body)) = p.root.query_selector(".panel") {
+            let _ = body.set_attribute("class", if compact { "panel compact" } else { "panel" });
+        }
+        if compact {
+            let words = p.title.text_content().unwrap_or_default();
+            let _ = p.go.set_attribute("aria-label", &words);
+        } else {
+            let _ = p.go.remove_attribute("aria-label");
+        }
         let style = p.host.style();
         let _ = style.set_property_with_priority("left", &format!("{x}px"), "important");
         let _ = style.set_property_with_priority("top", &format!("{y}px"), "important");
         let _ = style.set_property_with_priority("display", "block", "important");
     })
     .is_some()
+}
+
+/// The player's box as its parents let it be seen: each of the few around it that hides what
+/// overflows it (a carousel, a cropped card) cuts the box to its own, as reference A clips its
+/// bar to such parents (gaps row 125). The player's own box where nothing would be left.
+fn clipped_by_parents(
+    window: &Window,
+    element: &Element,
+    rect: (f64, f64, f64, f64),
+) -> (f64, f64, f64, f64) {
+    let (mut left, mut top) = (rect.0, rect.1);
+    let (mut right, mut bottom) = (rect.0 + rect.2, rect.1 + rect.3);
+    for parent in std::iter::successors(visible::composed_parent(element), visible::composed_parent)
+        .take(12)
+        .take_while(|e| !matches!(e.tag_name().to_ascii_lowercase().as_str(), "body" | "html"))
+    {
+        let hides = window
+            .get_computed_style(&parent)
+            .ok()
+            .flatten()
+            .map(|st| {
+                let value = |name: &str| st.get_property_value(name).unwrap_or_default();
+                ["overflow-x", "overflow-y"]
+                    .iter()
+                    .any(|name| matches!(value(name).trim(), "hidden" | "clip" | "scroll" | "auto"))
+            })
+            .unwrap_or(false);
+        if hides {
+            let r = parent.get_bounding_client_rect();
+            left = left.max(r.left());
+            top = top.max(r.top());
+            right = right.min(r.right());
+            bottom = bottom.min(r.bottom());
+        }
+    }
+    if right > left && bottom > top {
+        (left, top, right - left, bottom - top)
+    } else {
+        rect
+    }
+}
+
+/// The bottom of a page's fixed or sticky bar lying over the top of the player (a site's
+/// header), where one does: the element at the top of the player's visible part, when it is
+/// neither the player nor anything inside or around it, and it or one of a few elements around
+/// it stays put on the screen.
+fn bar_over_top(
+    window: &Window,
+    element: &Element,
+    rect: (f64, f64, f64, f64),
+    view: (f64, f64),
+) -> Option<f64> {
+    let (left, top, width, height) = rect;
+    let x = (left + width / 2.0).clamp(1.0, (view.0 - 1.0).max(1.0));
+    let y = top.max(0.0) + 2.0;
+    if y >= top + height || y >= view.1 {
+        return None;
+    }
+    let hit = document().and_then(|d| visible::deepest_at(&d.into(), x, y))?;
+    if &hit == element || visible::within(&hit, element) || visible::within(element, &hit) {
+        return None;
+    }
+    if with_panel(|p| visible::within(&p.host, &hit)).unwrap_or(false) {
+        return None;
+    }
+    std::iter::successors(Some(hit), visible::composed_parent)
+        .take(8)
+        .take_while(|e| !matches!(e.tag_name().to_ascii_lowercase().as_str(), "body" | "html"))
+        .find(|e| {
+            window
+                .get_computed_style(e)
+                .ok()
+                .flatten()
+                .and_then(|st| st.get_property_value("position").ok())
+                .is_some_and(|p| matches!(p.trim(), "fixed" | "sticky"))
+        })
+        .map(|bar| bar.get_bounding_client_rect().bottom())
+        .filter(|bottom| *bottom > y && *bottom < top + height)
 }
 
 pub(super) fn hide() {

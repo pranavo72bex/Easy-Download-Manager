@@ -16,6 +16,7 @@ pub(super) fn links(app: &mut DmApp, ctx: &egui::Context) {
         .filter(|n| !n.is_empty())
         .collect();
     let platform = &app.backend.platform;
+    let queues = app.queues();
     let Some(d) = app.dialogs.links.as_mut() else {
         return;
     };
@@ -273,6 +274,18 @@ pub(super) fn links(app: &mut DmApp, ctx: &egui::Context) {
                 if ui.button(t("Add for later")).clicked() {
                     chosen = Some(true);
                 }
+                // The queue they wait in, as reference A asks on closing a
+                // batch dialog and as Download details offers (gaps row 85).
+                let to = ui.label(t("queue:to").trim_start_matches("queue:"));
+                combo("links-queue")
+                    .selected_text(crate::i18n::name(&d.queue))
+                    .show_ui(ui, |ui| {
+                        for q in queues.iter() {
+                            pick(ui, &mut d.queue, q.clone(), crate::i18n::name(q));
+                        }
+                    })
+                    .response
+                    .labelled_by(to.id);
                 cancel = ui.button(t("Cancel")).clicked();
             });
         });
@@ -282,13 +295,14 @@ pub(super) fn links(app: &mut DmApp, ctx: &egui::Context) {
             return;
         }
         let chosen = d.chosen();
+        let queue = if d.queue.trim().is_empty() {
+            MAIN_QUEUE.to_string()
+        } else {
+            d.queue.clone()
+        };
         let with = AddOptions {
             later,
-            queue: if later {
-                MAIN_QUEUE.into()
-            } else {
-                String::new()
-            },
+            queue: if later { queue.clone() } else { String::new() },
             referrer: d.page.clone(),
             save_dir: d.save_dir(&root, &categories),
             ..AddOptions::default()
@@ -337,7 +351,7 @@ pub(super) fn links(app: &mut DmApp, ctx: &egui::Context) {
                 app.said = crate::i18n::Said::counting_naming(
                     "Added {} download to {}.||Added {} downloads to {}.",
                     n as u64,
-                    &[&n, &MAIN_QUEUE],
+                    &[&n, &crate::i18n::name(&queue)],
                 )
             }
             Ok(n) => {

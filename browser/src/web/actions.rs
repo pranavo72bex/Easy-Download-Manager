@@ -70,8 +70,20 @@ pub(super) async fn show_app() -> Result<(), String> {
 /// them, Firefox's event pages may not, and removing them first makes it safe
 /// either way.
 pub(super) async fn make_menus() {
+    let hidden = remembered_rules()
+        .await
+        .map(|rules| rules.hidden_menus)
+        .unwrap_or_default();
+    make_menus_without(&hidden).await;
+}
+
+/// The menus, without the items the app's Options leave out (gaps row 86).
+pub(super) async fn make_menus_without(hidden: &[String]) {
     let _ = call("contextMenus", "removeAll", &[]).await;
     for (id, title, contexts) in decide::MENUS {
+        if hidden.iter().any(|h| h == id) {
+            continue;
+        }
         let item = to_js(&serde_json::json!({ "id": id, "title": title, "contexts": contexts }));
         // With a callback, so a refusal is read here rather than reported
         // by the browser as an unchecked error.

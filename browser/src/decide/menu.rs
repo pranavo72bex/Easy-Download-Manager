@@ -47,6 +47,76 @@ pub fn links_from(hrefs: &[String], page: &str) -> Vec<String> {
         .collect()
 }
 
+/// The forms pages sent lately, by address: the body of the last form sent
+/// to each, for a download that turns out to be its answer. Kept two minutes,
+/// and twenty at most.
+#[derive(Debug, Default)]
+pub struct Forms {
+    sent: Vec<(String, dm_protocol::Posted, f64)>,
+}
+
+/// How long a form is kept for the download it may start.
+pub const FORM_KEPT_MS: f64 = 120_000.0;
+
+impl Forms {
+    /// A form sent to `url` at `at` (milliseconds).
+    pub fn keep(&mut self, url: &str, post: dm_protocol::Posted, at: f64) {
+        let url = url.split('#').next().unwrap_or(url).to_string();
+        self.sent
+            .retain(|(u, _, when)| *u != url && at - *when < FORM_KEPT_MS);
+        self.sent.push((url, post, at));
+        if self.sent.len() > 20 {
+            self.sent.remove(0);
+        }
+    }
+
+    /// The form a download from `url` is the answer to, where one was sent
+    /// there lately and the download was not sent on elsewhere (`final_url`):
+    /// a form answered with a redirect is fetched at the redirect's address
+    /// with an ordinary request. Taken, so it goes with one download.
+    pub fn take(&mut self, url: &str, final_url: &str, at: f64) -> Option<dm_protocol::Posted> {
+        let url = url.split('#').next().unwrap_or(url);
+        let landed = final_url.split('#').next().unwrap_or(final_url);
+        if !landed.is_empty() && landed != url {
+            return None;
+        }
+        let at_index = self
+            .sent
+            .iter()
+            .rposition(|(u, _, when)| u == url && at - *when < FORM_KEPT_MS)?;
+        Some(self.sent.remove(at_index).1)
+    }
+}
+
+/// The file names the links' `download` attributes give, keyed as
+/// `links_from` keys their addresses: the last part of the name only (a
+/// page cannot choose the folder), with no control characters, cut to 200
+/// characters; a name that is nothing, `.` or `..` is none.
+pub fn link_names(
+    given: &std::collections::BTreeMap<String, String>,
+    urls: &[String],
+) -> std::collections::BTreeMap<String, String> {
+    let sent: std::collections::HashSet<&str> = urls.iter().map(String::as_str).collect();
+    let mut out = std::collections::BTreeMap::new();
+    for (href, name) in given {
+        let href = href.trim();
+        let key = href.split('#').next().unwrap_or(href);
+        let last = name.rsplit(['/', '\\']).next().unwrap_or_default();
+        let name: String = last
+            .chars()
+            .filter(|c| !c.is_control())
+            .take(200)
+            .collect::<String>()
+            .trim()
+            .to_string();
+        if !matches!(name.as_str(), "" | "." | "..") && sent.contains(key) && !out.contains_key(key)
+        {
+            out.insert(key.to_string(), name);
+        }
+    }
+    out
+}
+
 /// The words of the links sent, keyed as `links_from` keys their addresses
 /// (no fragment, no spaces around), their spaces closed up and cut to 200
 /// characters; the first words given an address win.

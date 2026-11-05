@@ -48,6 +48,8 @@ fn entry(state: State) -> Entry {
         fresh_link: false,
         title_hint: None,
         torrent_files: Vec::new(),
+        post: None,
+        posted: false,
         sound: None,
         span: None,
         shape: None,

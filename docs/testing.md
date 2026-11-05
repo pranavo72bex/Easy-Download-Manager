@@ -171,3 +171,7 @@ privacy check reads comments in every crate, and a change in `dm-desktop`
 can break it. The pre-commit hook (`scripts/pre-commit`; install with
 `ln -sf ../../scripts/pre-commit .git/hooks/pre-commit`) refuses a commit that
 writes a credential into a tracked file.
+
+## Memory at rest (Windows)
+
+`python scripts/memory-check.py` starts the release build (`DM_BINARY` for another) with a home of its own, waits for its window to settle, samples it for twenty seconds and prints the working set, private bytes, threads and handles; it fails over `DM_MEMORY_BUDGET_MB` (100) or `DM_PRIVATE_BUDGET_MB` (60). Nothing of the person's is read or written: a dm with its own `DM_HOME` claims no browser and no file type.

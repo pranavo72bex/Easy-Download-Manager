@@ -76,6 +76,11 @@
   // where the rules for the site name that request). Only from this page.
   try {
     ext.runtime.sendMessage({ type: 'dm.page-rules' }).then((answer) => {
+      // The element the site's rule says holds a video's title (gaps row 124), for the panel
+      // and for the name a download is given.
+      if (answer?.ok && typeof answer.title === 'string' && answer.title.length < 300) {
+        globalThis.dmTitleRule = answer.title;
+      }
       if (answer?.ok && ((Array.isArray(answer.urls) && answer.urls.length)
         || (Array.isArray(answer.finders) && answer.finders.length)
         || (Array.isArray(answer.privateFetches) && answer.privateFetches.length))) {
@@ -263,12 +268,17 @@
       const plain = String(words ?? '').replace(/\s+/g, ' ').trim().slice(0, 200);
       if (plain && typeof address === 'string' && !(address in texts)) texts[address] = plain;
     };
+    // The file name a link's `download` attribute gives, the first found: the
+    // download is saved under it, as the browser would.
+    const names = {};
     for (const node of document.querySelectorAll('a[href]')) {
       const words = (node.textContent ?? '').trim();
       if (!inSelection(node, words)) continue;
       if (typeof node.href === 'string') {
         links.push(node.href);
         said(node.href, words || node.title);
+        const given = typeof node.download === 'string' ? node.download.trim() : '';
+        if (given && !(node.href in names)) names[node.href] = given.slice(0, 200);
       }
       if (selected) own.add(words);
     }
@@ -312,7 +322,7 @@
         }
       }
     }
-    reply({ links, texts });
+    reply({ links, texts, names });
     return false;
   });
 
@@ -405,7 +415,14 @@
       parts.list.hidden = true;
       said('Sending to dm…');
       let reply;
-      try { reply = await send({ type: 'dm.media', src: extra.url || srcOf(), title: document.title, ...extra.fields }); } catch (e) { reply = { ok: false, said: 'dm was updated: reload this page to use it' }; }
+      // The page's title, else its og:title, as reference A names a video (gaps row 124).
+      let ruled = '';
+      try {
+        if (globalThis.dmTitleRule) ruled = (document.querySelector(globalThis.dmTitleRule)?.textContent || '').replace(/\s+/g, ' ').trim().slice(0, 300);
+      } catch { /* a selector the page cannot read */ }
+      const title = ruled || document.title.trim()
+        || (document.querySelector('meta[property="og:title"]')?.getAttribute('content') || '').trim();
+      try { reply = await send({ type: 'dm.media', src: extra.url || srcOf(), title, ...extra.fields }); } catch (e) { reply = { ok: false, said: 'dm was updated: reload this page to use it' }; }
       said(reply?.ok ? 'Sent to dm. ' + (extra.label ? extra.label + ': ' : '') + (reply.said || '') : (reply?.said || 'dm could not take it'));
       hideSoon(2500, true);
     };

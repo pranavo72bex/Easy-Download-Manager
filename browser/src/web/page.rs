@@ -215,6 +215,7 @@ pub async fn on_page_message(message: JsValue, sender: JsValue) -> JsValue {
             "urls": decide::rules::watched_for(&page),
             "finders": decide::rules::finders_for(&page),
             "privateFetches": decide::rules::private_fetches_for(&page),
+            "title": decide::rules::title_for(&page),
         }));
     }
     // The answer to one of those requests: read for the streams a page builds
@@ -544,6 +545,9 @@ pub(super) async fn page_links(
     let words: std::collections::BTreeMap<String, String> =
         serde_json::from_value(from_js(&get(&answer, "texts"))).unwrap_or_default();
     let texts = decide::link_texts(&words, &urls);
+    let given: std::collections::BTreeMap<String, String> =
+        serde_json::from_value(from_js(&get(&answer, "names"))).unwrap_or_default();
+    let names = decide::link_names(&given, &urls);
     if urls.is_empty() {
         return Err(if selected {
             "the selection has no links".into()
@@ -571,6 +575,7 @@ pub(super) async fn page_links(
         urls,
         cookies,
         texts,
+        names,
     }))?;
     let deadline = now() + decide::TAKEN_WITHIN_MS;
     loop {

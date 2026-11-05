@@ -85,6 +85,10 @@ pub struct SiteProfile {
     /// `<global>|<property path>|<name>`: the object `global` holds, the path to the object that
     /// owns the function, and the function's name.
     pub private_fetches: Vec<String>,
+    /// A CSS selector for the element the site keeps a video's title in, where its page's own
+    /// title says less (a feed's "Home", a count in front): the download is named from that
+    /// element's words, as reference A's site rules name a title element (gaps row 124).
+    pub title: String,
 }
 
 /// How to find which video one player is, in a site's pages. The languages are small and read
@@ -214,13 +218,19 @@ impl Rules {
                     && path.split('|').count() == 3
                     && path.split('|').all(|part| !part.trim().is_empty())
             });
+            // A title selector of a sane length, kept as written.
+            site.title = site.title.trim().to_string();
+            if site.title.len() > MAX_FINDER_TEXT {
+                site.title.clear();
+            }
         }
         self.sites.retain(|site| {
             !site.host.is_empty()
                 && !site.host.contains(['/', ':', ' '])
                 && (!site.answers.is_empty()
                     || !site.finders.is_empty()
-                    || !site.private_fetches.is_empty())
+                    || !site.private_fetches.is_empty()
+                    || !site.title.is_empty())
         });
         self
     }
@@ -238,6 +248,14 @@ impl Rules {
         self.profiles_for(host)
             .flat_map(|site| site.finders.iter())
             .collect()
+    }
+
+    /// The selector for the element a page on `host` keeps its video's title in, where the
+    /// rules name one.
+    pub fn title_for(&self, host: &str) -> Option<&str> {
+        self.profiles_for(host)
+            .map(|site| site.title.trim())
+            .find(|title| !title.is_empty())
     }
 
     /// The private `fetch` paths of the site a page on `host` belongs to.
@@ -300,6 +318,25 @@ mod tests {
         assert_eq!(rules.sites[0].answers.len(), 1);
         assert_eq!(rules.sites[0].answers[0].url_contains, "/api/play");
         assert_eq!(rules.sites[0].answers[0].keys, vec!["hlsUrl"]);
+    }
+
+    /// A site's rule can name the element its pages keep a video's title in (gaps row 124): a
+    /// site with that alone is kept, found by its sub-domains, and an over-long one is dropped.
+    #[test]
+    fn a_title_selector_is_read_and_found_by_site() {
+        let long = "x".repeat(MAX_FINDER_TEXT + 1);
+        let rules = Rules::parse(&document(&format!(
+            r#""sites": [ {{ "host": "videos.example", "title": " h1.video-title " }},
+                          {{ "host": "long.example", "title": "{long}" }} ]"#
+        )))
+        .expect("a document");
+        assert_eq!(
+            rules.title_for("www.videos.example"),
+            Some("h1.video-title")
+        );
+        assert_eq!(rules.title_for("other.example"), None);
+        assert_eq!(rules.title_for("long.example"), None);
+        assert_eq!(rules.sites.len(), 1, "a site with nothing left is dropped");
     }
 
     #[test]

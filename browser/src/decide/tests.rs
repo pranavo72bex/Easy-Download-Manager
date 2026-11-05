@@ -1461,6 +1461,30 @@ fn the_panel_sits_in_the_players_corner_and_stays_on_screen() {
     );
 }
 
+/// The bar sits on the part of the video a person sees: below a page's fixed
+/// header over the video's top, and inside the window; on a video narrower than
+/// 400 px it is the compact bar (gaps row 76).
+#[test]
+fn the_bar_sits_on_the_seen_part_of_the_video_and_is_compact_on_a_narrow_one() {
+    // A header 60 px tall over a video starting at 20: the bar goes under it.
+    let seen = visible_box((100.0, 20.0, 640.0, 360.0), (1200.0, 800.0), Some(60.0));
+    assert_eq!(seen, (100.0, 60.0, 640.0, 320.0));
+    let size = panel_size(640.0);
+    assert_eq!(size, (240.0, 30.0));
+    assert_eq!(panel_at(seen, size, (1200.0, 800.0)), (492.0, 68.0));
+    // A video running past the window's right edge: clipped to the window.
+    let seen = visible_box((900.0, 100.0, 640.0, 360.0), (1200.0, 800.0), None);
+    assert_eq!(seen, (900.0, 100.0, 300.0, 360.0));
+    // Nothing of it seen: its own box, not an empty one.
+    let gone = (100.0, -900.0, 640.0, 360.0);
+    assert_eq!(visible_box(gone, (1200.0, 800.0), None), gone);
+    // A 292 px reel: the compact bar, in its top right.
+    let size = panel_size(292.0);
+    assert_eq!(size, (COMPACT_WIDTH, 30.0));
+    let (x, _) = panel_at((10.0, 10.0, 292.0, 520.0), size, (1200.0, 800.0));
+    assert_eq!(x, 10.0 + 292.0 - COMPACT_WIDTH - 8.0);
+}
+
 #[test]
 fn a_panel_click_hands_the_file_or_the_page() {
     let click = |src: &str, frame: &str| PanelClick {
@@ -1856,6 +1880,44 @@ fn a_pages_own_video_files_are_offered_for_the_video_that_is_playing() {
     assert!(page_lines(&page, &[]).is_empty());
 }
 
+/// The video's caption files in its record are lines after its files, named by their kind as
+/// reference A names them ("SRT file"); a picture under a caption key is not one (gaps row 72c).
+#[test]
+fn a_videos_caption_files_in_the_page_are_lines_after_its_files() {
+    const ID: &str = "AQOEmnf_c2TGtpRirhIDnZXgky_nEeo1jZFNmFMiNXegAa3MHxF6";
+    let page = format!(
+        r#"<script>{{"progressive_urls":[{{"progressive_url":"https:\/\/v.fbcdn.net\/v\/{ID}.mp4","metadata":{{"quality":"HD"}}}}],"video_available_captions_locales":[{{"locale":"en_US","captions_url":"https:\/\/l.fbcdn.net\/captions\/en_US"}}],"tracks":[{{"src":"https:\/\/cdn.example\/subs\/talk.vtt"}}],"caption_thumbnail":"https:\/\/cdn.example\/thumb.jpg"}}</script>"#
+    );
+    let seen = vec![format!("https://v.fbcdn.net/v/{ID}.mp4?x=1")];
+    let said: Vec<(String, String)> = page_lines(&page, &seen)
+        .into_iter()
+        .map(|l| (l.label, l.url))
+        .collect();
+    assert!(
+        said.contains(&(
+            "SRT file".to_string(),
+            "https://l.fbcdn.net/captions/en_US".to_string()
+        )),
+        "{said:?}"
+    );
+    assert!(
+        said.contains(&(
+            "VTT file".to_string(),
+            "https://cdn.example/subs/talk.vtt".to_string()
+        )),
+        "{said:?}"
+    );
+    assert!(
+        !said.iter().any(|(_, url)| url.ends_with("thumb.jpg")),
+        "{said:?}"
+    );
+    let first_caption = said
+        .iter()
+        .position(|(l, _)| l.ends_with(" file") && !l.starts_with("MP4"));
+    let last_file = said.iter().rposition(|(l, _)| l.starts_with("MP4"));
+    assert!(first_caption > last_file, "{said:?}");
+}
+
 #[test]
 fn a_pages_dash_manifest_gives_each_rendition_its_height_bitrate_and_length() {
     const ID: &str = "AQOEmnf_c2TGtpRirhIDnZXgky_nEeo1jZFNmFMiNXegAa3MHxF6";
@@ -2224,6 +2286,16 @@ fn a_quality_line_is_worded_as_reference_a_words_it() {
     );
     // No title: the number and the line alone.
     assert_eq!(reference_line(3, "  ", "HLS stream"), "3. HLS stream");
+    // A height at two frame rates: the faster line says its rate after the
+    // quality, as reference A's "720p HD 60 fps" (gaps row 72d).
+    assert_eq!(
+        reference_line(1, "Clip", "720p MP4 60 fps — 14 MB"),
+        "1. Clip… MP4 file, quality 720p HD 60 fps — 14 MB"
+    );
+    assert_eq!(
+        reference_line(2, "Clip", "720p MP4 — 9 MB"),
+        "2. Clip… MP4 file, quality 720p HD — 9 MB"
+    );
 }
 
 /// The words a page gives its links go with the links sent, keyed as they
@@ -2250,4 +2322,74 @@ fn a_links_words_are_kept_for_the_link_sent() {
             .into_iter()
             .collect();
     assert_eq!(link_texts(&long, &urls)["https://e.com/a.zip"].len(), 200);
+}
+
+/// A link's `download` attribute names its file: the name's last part only
+/// (a page does not choose the folder), for a link sent, and nothing for a
+/// name that is none.
+#[test]
+fn a_links_download_attribute_names_its_file_and_never_its_folder() {
+    let urls = vec![
+        "https://e.com/get?id=7".to_string(),
+        "https://e.com/b.iso".to_string(),
+        "https://e.com/c.zip".to_string(),
+    ];
+    let given: std::collections::BTreeMap<String, String> = [
+        ("https://e.com/get?id=7#x", "Report 2026.pdf"),
+        ("https://e.com/b.iso", "../../Windows\\system32\\evil.dll"),
+        ("https://e.com/c.zip", " .. "),
+        ("https://e.com/not-sent.zip", "kept.zip"),
+    ]
+    .iter()
+    .map(|(k, v)| (k.to_string(), v.to_string()))
+    .collect();
+    let names = link_names(&given, &urls);
+    assert_eq!(names.len(), 2, "{names:?}");
+    assert_eq!(names["https://e.com/get?id=7"], "Report 2026.pdf");
+    assert_eq!(names["https://e.com/b.iso"], "evil.dll");
+}
+
+/// A form a page sent is kept for the download it starts at the same address,
+/// once; not for one sent on to another address, nor after two minutes.
+#[test]
+fn a_forms_body_goes_with_the_download_that_is_its_answer() {
+    let form = |text: &str| dm_protocol::Posted {
+        form: text.into(),
+        ..dm_protocol::Posted::default()
+    };
+    let mut forms = Forms::default();
+    forms.keep("https://e.com/export#top", form("report=7"), 1_000.0);
+    // Sent on to another address: that one is asked for plainly.
+    assert!(forms
+        .take("https://e.com/export", "https://cdn.e.com/r.csv", 2_000.0)
+        .is_none());
+    let taken = forms.take("https://e.com/export", "https://e.com/export", 2_000.0);
+    assert_eq!(taken.map(|p| p.form), Some("report=7".to_string()));
+    assert!(
+        forms.take("https://e.com/export", "", 2_500.0).is_none(),
+        "taken twice"
+    );
+    forms.keep("https://e.com/export", form("report=8"), 3_000.0);
+    assert!(
+        forms
+            .take("https://e.com/export", "", 3_000.0 + FORM_KEPT_MS)
+            .is_none(),
+        "kept too long"
+    );
+    for n in 0..30 {
+        forms.keep(&format!("https://e.com/{n}"), form("x"), 4_000.0);
+    }
+    assert!(
+        forms.take("https://e.com/0", "", 4_000.0).is_none(),
+        "more than twenty kept"
+    );
+    assert!(forms.take("https://e.com/29", "", 4_000.0).is_some());
+}
+
+/// The menu items Options lists are the ones the extension makes, by id and
+/// words, so leaving one out in Options leaves out that one (gaps row 86).
+#[test]
+fn the_menu_items_options_lists_are_the_ones_made() {
+    let made: Vec<(&str, &str)> = MENUS.iter().map(|(id, title, _)| (*id, *title)).collect();
+    assert_eq!(made, dm_protocol::MENU_ITEMS.to_vec());
 }

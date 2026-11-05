@@ -26,7 +26,7 @@ pub enum Kind {
 }
 
 impl Kind {
-    fn scheme(self) -> &'static str {
+    pub(crate) fn scheme(self) -> &'static str {
         match self {
             Kind::Http => "http",
             Kind::Https => "https",
@@ -69,6 +69,11 @@ pub struct Proxy {
     /// a scheme with no entry here goes through the one above. Not for the system kind.
     #[serde(default)]
     pub per_scheme: std::collections::BTreeMap<String, SchemeProxy>,
+    /// A proxy configuration script's address (a web address, a `file:` one, or a path), empty
+    /// for none. Filled in, it decides the way to each site in place of the proxies above
+    /// (`pac::way_to`); the sites on the bypass list still go directly.
+    #[serde(default, skip_serializing_if = "String::is_empty")]
+    pub script: String,
 }
 
 /// The proxy for one scheme (`Proxy::per_scheme`).
@@ -128,6 +133,7 @@ impl Default for Proxy {
             password: String::new(),
             bypass: Vec::new(),
             per_scheme: Default::default(),
+            script: String::new(),
         }
     }
 }
@@ -161,6 +167,9 @@ impl Proxy {
     /// percent-encoded, so a password holding `@` or `:` still names the
     /// right host, which is the reason `url` keeps them out.
     pub fn url_for_tools(&self) -> Option<String> {
+        if let Some(script) = self.script() {
+            return Some(format!("{SCRIPT_MARK}{script}"));
+        }
         if self.enabled && self.kind == Kind::System {
             return system_proxy_url();
         }
@@ -180,7 +189,35 @@ impl Proxy {
     }
 }
 
+/// What a tool's proxy address starts with when a configuration script chooses it: the script's
+/// address follows, and [`route_for`] asks it about each site.
+pub const SCRIPT_MARK: &str = "script:";
+
+/// The proxy a tool's request to `url` goes through, given the address `url_for_tools` made:
+/// that address, or what the script it names says for the site. A site the script gives no way
+/// to is sent where nothing answers ([`crate::pac::NO_WAY`]), so it fails rather than going out
+/// directly.
+pub fn route_for(proxy: Option<&str>, url: &str) -> Option<String> {
+    let proxy = proxy?;
+    let Some(script) = proxy.strip_prefix(SCRIPT_MARK) else {
+        return Some(proxy.to_string());
+    };
+    let Ok(target) = url::Url::parse(url) else {
+        return Some(crate::pac::NO_WAY.into());
+    };
+    match crate::pac::way_to(script, &target) {
+        Ok(way) => way.map(|u| u.to_string().trim_end_matches('/').to_string()),
+        Err(_) => Some(crate::pac::NO_WAY.into()),
+    }
+}
+
 impl Proxy {
+    /// The configuration script's address, where the proxy is on and one is named.
+    pub fn script(&self) -> Option<&str> {
+        let script = self.script.trim();
+        (self.enabled && !script.is_empty()).then_some(script)
+    }
+
     /// Whether downloads from `host` go out directly, past the proxy.
     ///
     /// The same rule reqwest applies to its `NO_PROXY`: a name covers
@@ -249,11 +286,17 @@ pub fn client_with_timeout(
      * the network settings — are read when the client is built, and only
      * for the kind that asks for them; off, or a proxy of dm's own, goes
      * out as told and not as the environment says. */
-    let system = proxy.enabled && proxy.kind == Kind::System;
+    let script = proxy.script().map(str::to_string);
+    let system = proxy.enabled && proxy.kind == Kind::System && script.is_none();
     // Turned on with no host or port is a proxy asked for and not usable:
     // building a client without one sent every download out directly, and
     // a saved one like it went direct at every launch, unsaid.
-    if proxy.enabled && !system && proxy.per_scheme.is_empty() && proxy.url().is_none() {
+    if proxy.enabled
+        && !system
+        && script.is_none()
+        && proxy.per_scheme.is_empty()
+        && proxy.url().is_none()
+    {
         return Err(if proxy.host.trim().is_empty() {
             "the proxy has no host".into()
         } else {
@@ -262,7 +305,28 @@ pub fn client_with_timeout(
     }
     let mut builder = crate::builder_with(read_timeout, system);
 
-    if proxy.enabled && !system && !proxy.per_scheme.is_empty() {
+    if let Some(script) = script {
+        // The script decides each site's way, asked the first time a request goes there (a
+        // redirect's new site too) and kept; settings saved again ask it afresh. A site it
+        // gives no way to is sent where nothing answers, never directly.
+        crate::pac::forget_all();
+        let chosen = proxy.clone();
+        builder = builder.proxy(reqwest::Proxy::custom(move |target| {
+            if chosen.bypasses(target.host_str().unwrap_or_default()) {
+                return None;
+            }
+            match crate::pac::way_to(&script, target) {
+                Ok(way) => way.map(|mut u| {
+                    if !chosen.username.is_empty() {
+                        let _ = u.set_username(&chosen.username);
+                        let _ = u.set_password(Some(&chosen.password));
+                    }
+                    u
+                }),
+                Err(_) => url::Url::parse(crate::pac::NO_WAY).ok(),
+            }
+        }));
+    } else if proxy.enabled && !system && !proxy.per_scheme.is_empty() {
         // A scheme named here is refused when its entry is unusable, as the main proxy is: going
         // direct when a proxy was asked for is the outcome no one wants.
         for (scheme, entry) in &proxy.per_scheme {
@@ -350,6 +414,7 @@ mod tests {
             password: password.clone(),
             bypass: Vec::new(),
             per_scheme: Default::default(),
+            script: String::new(),
         };
         assert_eq!(
             proxy.url_for_tools().as_deref(),

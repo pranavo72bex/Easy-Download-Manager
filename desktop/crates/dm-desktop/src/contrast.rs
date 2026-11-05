@@ -181,6 +181,20 @@ pub fn current() -> Palette {
 mod tests {
     use super::*;
 
+    /// Asked of Windows itself (gaps row 11): the call is answered, and where High Contrast is
+    /// on, its palette's text stands apart from its background, as the look needs.
+    #[cfg(windows)]
+    #[test]
+    fn windows_is_asked_for_high_contrast() {
+        if let Some(palette) = ask() {
+            assert!(
+                ratio(palette.window, palette.window_text) >= 3.0,
+                "{palette:?}"
+            );
+        }
+        assert_eq!(system(), system(), "asked once a second, the same answer");
+    }
+
     #[test]
     fn a_colorref_is_blue_green_red() {
         assert_eq!(from_colorref(0x00_33_22_11), [0x11, 0x22, 0x33]);

@@ -117,6 +117,12 @@ Options › Browser has "Hand over the browser's sign-in with every download"
 takes its own site's cookies, sent to that site's server only, and they are
 dropped from the row once that download is done, as a video page's are.
 
+**A form's answer.** When a page sends a form and the file that comes back is a download
+(an export button, some file hosts), the extension keeps what the form sent, in its own memory
+for two minutes, and hands it to the app with that one download, so the app can send the same
+form to the same address. The app keeps it in memory with the download and never writes it to
+disk; once dm is closed it is gone, and the download is started again from its page.
+
 **On this computer only.** dm listens on no network address by default. Started
 with `--control` (or `--headless --control`), it opens a port on the loopback
 address (`127.0.0.1`), which only programs on this computer can reach, and only

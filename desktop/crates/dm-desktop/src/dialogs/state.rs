@@ -100,6 +100,8 @@ impl Dialogs {
     /// The dialog for a video the browser's panel handed over.
     pub fn open_handed(&mut self, request: dm_shell::host::Request) {
         self.focus_on("Download details");
+        // The form for the address it was sent to, before that is moved below.
+        let post = dm_shell::shell::posted(&request.url, request.post.as_ref());
         self.file_info = Some(FileInfo {
             urls: vec![request.url],
             referrer: request.referrer,
@@ -111,6 +113,7 @@ impl Dialogs {
             handed: true,
             cookies: request.cookies,
             cookies_once: request.cookies_once,
+            post,
             headers: request.headers,
             browser: request.browser,
             caught: request.caught,
@@ -215,9 +218,11 @@ impl Dialogs {
             category: crate::app::category_word(dm_core::Category::Archives),
             folder: String::new(),
             editing: None,
-            names: Default::default(),
+            // The names the page's `download` attributes give, as Edit would.
+            names: request.names.into_iter().collect(),
             texts: request.texts,
             use_texts: true,
+            queue: dm_core::MAIN_QUEUE.to_string(),
         });
     }
 
@@ -262,6 +267,26 @@ impl Dialogs {
         if !self.keep("Add numbered series", self.series.is_some()) {
             self.series = Some(Default::default());
         }
+    }
+
+    /// Opens the Grabber with a saved search filled in, to run or change.
+    pub fn open_site_files_with(&mut self, search: &dm_shell::lists::Search) {
+        self.focus_on("Grabber");
+        self.site_files = Some(SiteFiles {
+            page: search.page.clone(),
+            types: search.types.join(" "),
+            depth: search.depth,
+            include: search.include.join(" "),
+            exclude: search.exclude.join(" "),
+            name: search.name.clone(),
+            every_hours: search.every_hours,
+            stop_after_minutes: search.stop_after_minutes,
+            other_sites: search.other_sites,
+            keep_layout: search.keep_layout,
+            min_kb: search.min_kb,
+            max_kb: search.max_kb,
+            ..Default::default()
+        });
     }
 
     /// Opens the Site files dialog.
@@ -371,6 +396,7 @@ impl Dialogs {
             (self.limiter.is_some(), "Speed limiter"),
             (self.options.is_some(), "Options"),
             (self.about_open, "About dm"),
+            (self.tip.is_some(), "Tip of the day"),
             (self.welcome.is_some(), "Add dm to your browser"),
         ]
         .into_iter()
@@ -491,6 +517,7 @@ impl Dialogs {
         say(self.limiter.is_some(), "Speed limiter");
         say(self.options.is_some(), "Options");
         say(self.about_open, "About dm");
+        say(self.tip.is_some(), "Tip of the day");
         say(self.welcome.is_some(), "Add dm to your browser");
         open
     }
@@ -582,6 +609,7 @@ impl Dialogs {
             FileInfo,
             Options,
             About,
+            Tip,
             Welcome,
             Properties(Id),
             Complete,
@@ -619,6 +647,7 @@ impl Dialogs {
             (self.file_info.is_some(), "Download details", Shut::FileInfo),
             (self.options.is_some(), "Options", Shut::Options),
             (self.about_open, "About dm", Shut::About),
+            (self.tip.is_some(), "Tip of the day", Shut::Tip),
             (
                 self.welcome.is_some(),
                 "Add dm to your browser",
@@ -666,6 +695,7 @@ impl Dialogs {
             Shut::FileInfo => self.file_info = None,
             Shut::Options => self.options = None,
             Shut::About => self.about_open = false,
+            Shut::Tip => self.tip = None,
             Shut::Welcome => self.welcome = None,
             Shut::Properties(id) => {
                 self.properties.remove(&id);

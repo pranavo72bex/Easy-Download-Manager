@@ -116,6 +116,12 @@ pub struct Settings {
     #[serde(default)]
     pub start_copied: bool,
 
+    /// A download shown in Download details starts fetching at once, while the person still
+    /// chooses where it goes; Start now places it, Cancel removes it. Off by default, as
+    /// reference A's "Start downloading immediately while displaying" (gaps row 85).
+    #[serde(default)]
+    pub start_while_asking: bool,
+
     /// Start with the computer, so a browser hand-off has an app to land in
     /// without anyone opening it first. On for a new install, in the tray
     /// with no window; Options › General turns it off.
@@ -560,6 +566,7 @@ impl Default for Settings {
             proxy: Proxy::default(),
             watch_clipboard: false,
             start_copied: false,
+            start_while_asking: false,
             start_on_login: true,
             allow_command_line: false,
             allow_mcp: true,
@@ -815,6 +822,8 @@ impl Settings {
             retry_wait: self.retry_wait,
             record_limit: (self.record_minutes > 0)
                 .then(|| std::time::Duration::from_secs(self.record_minutes * 60)),
+            frame_rate: None,
+            caption: None,
             sign_in: None,
             save_name: None,
             title_hint: None,

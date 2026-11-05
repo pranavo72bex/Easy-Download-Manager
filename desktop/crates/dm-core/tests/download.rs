@@ -1836,3 +1836,73 @@ async fn a_one_mb_file_uses_eight_connections() {
         done.connections
     );
 }
+
+/// A file a server gives only as the answer to a form: dm sends the same
+/// form again, once, with its body and type, and the file is whole; asked
+/// for with a GET, the server gives nothing.
+#[tokio::test]
+async fn a_forms_answer_is_fetched_by_sending_the_form_again() {
+    use axum::response::IntoResponse;
+    let body = vec![7u8; 300 * 1024];
+    let served = body.clone();
+    let posts = Arc::new(AtomicUsize::new(0));
+    let counted = Arc::clone(&posts);
+    let app = axum::Router::new().route(
+        "/export",
+        axum::routing::post(
+            move |headers: axum::http::HeaderMap, sent: axum::body::Bytes| {
+                let served = served.clone();
+                let counted = Arc::clone(&counted);
+                async move {
+                    counted.fetch_add(1, Ordering::SeqCst);
+                    let typed = headers
+                        .get("content-type")
+                        .and_then(|v| v.to_str().ok())
+                        .unwrap_or_default()
+                        .to_string();
+                    if &sent[..] != b"report=7&format=csv"
+                        || typed != "application/x-www-form-urlencoded"
+                    {
+                        return (axum::http::StatusCode::BAD_REQUEST, Vec::new()).into_response();
+                    }
+                    (
+                        [(
+                            axum::http::header::CONTENT_DISPOSITION,
+                            "attachment; filename=\"report.csv\"",
+                        )],
+                        served,
+                    )
+                        .into_response()
+                }
+            },
+        )
+        .get(|| async { axum::http::StatusCode::METHOD_NOT_ALLOWED }),
+    );
+    let addr = common::serve(app).await;
+    let url = format!("http://{addr}/export");
+    let dir = tempdir();
+    let mut posting = options(dir.path());
+    posting.sign_in = dm_core::cookies::SignIn::posting(
+        None,
+        dm_core::cookies::Posted {
+            url: url.clone(),
+            body: b"report=7&format=csv".to_vec(),
+            content_type: "application/x-www-form-urlencoded".into(),
+        },
+    );
+    let done = dm_core::download(&client(), &url, &posting)
+        .await
+        .expect("the form's answer");
+    assert_eq!(std::fs::read(&done.path).unwrap(), body);
+    assert!(done.path.ends_with("report.csv"), "{:?}", done.path);
+    assert_eq!(
+        posts.load(Ordering::SeqCst),
+        1,
+        "the form was sent more than once"
+    );
+
+    // Without the form, the same address gives nothing.
+    let dir = tempdir();
+    let plain = options(dir.path());
+    assert!(dm_core::download(&client(), &url, &plain).await.is_err());
+}

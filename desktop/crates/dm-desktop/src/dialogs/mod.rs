@@ -40,6 +40,7 @@ mod state;
 mod zip_list;
 
 use about::*;
+pub use about::{tell_a_friend, tips};
 pub use add::*;
 pub use asks::NameAsk;
 use asks::*;
@@ -160,6 +161,8 @@ pub struct FileInfo {
     pub cookies_once: bool,
     /// The request headers the browser sent for it.
     pub headers: Vec<(String, String)>,
+    /// The form it is the answer to, where the page sent one.
+    pub post: Option<dm_core::cookies::Posted>,
     /// Browse… was pressed on a desktop with no folder chooser: said in
     /// this opening of the dialog only (it stayed for the next).
     pub no_chooser: bool,
@@ -168,6 +171,11 @@ pub struct FileInfo {
     pub probed: Option<std::sync::Arc<std::sync::Mutex<Option<Probed>>>>,
     /// Whether a person typed in Save as.
     pub name_typed: bool,
+    /// The row begun at once, while the dialog asks (`Settings::start_while_asking`), and
+    /// whether that was tried.
+    pub early: Option<dm_core::Id>,
+    /// Whether a start was tried for this dialog.
+    pub early_tried: bool,
     /// The folder last used for this kind of file has been offered (once
     /// the name says the kind), so clearing it is not undone.
     pub folder_offered: bool,
@@ -285,6 +293,8 @@ pub struct LinksImport {
     /// Whether those words become the downloads' descriptions (reference A's
     /// "Use link texts as descriptions", on as there).
     pub use_texts: bool,
+    /// The queue "Add for later" puts them in; the Main queue at first.
+    pub queue: String,
 }
 
 /// Where the links ticked in "Download links" are saved, as reference A
@@ -596,6 +606,10 @@ pub struct SiteFiles {
     pub other_sites: bool,
     /// Whether files are saved in folders that mirror the site's.
     pub keep_layout: bool,
+    /// Files smaller than this (KB) are left out; 0 is no floor.
+    pub min_kb: u64,
+    /// Files larger than this (KB) are left out; 0 is no ceiling.
+    pub max_kb: u64,
     /// What went wrong, said in the dialog; empty when nothing did.
     pub says: String,
     /// How the running search is going.
@@ -615,6 +629,8 @@ impl Default for SiteFiles {
             stop_after_minutes: 0,
             other_sites: false,
             keep_layout: false,
+            min_kb: 0,
+            max_kb: 0,
             says: String::new(),
             state: Arc::default(),
         }
@@ -643,6 +659,8 @@ impl SiteFiles {
             stop_after_minutes: self.stop_after_minutes,
             last_run: 0,
             seen: Vec::new(),
+            min_kb: self.min_kb,
+            max_kb: self.max_kb,
         }
     }
 }
@@ -908,6 +926,8 @@ pub struct Dialogs {
     pub options: Option<OptionsDialog>,
     /// Whether About is open.
     pub about_open: bool,
+    /// The tip Tip of the day shows, while it is open.
+    pub tip: Option<usize>,
     /// A new install's "Add dm to your browser", with the browsers found.
     pub welcome: Option<Vec<dm_shell::register::Installed>>,
     /// The welcome's download folder, as it is being edited.
@@ -1041,6 +1061,7 @@ pub fn show(app: &mut DmApp, ctx: &egui::Context) {
     limiter(app, ctx);
     options(app, ctx);
     about(app, ctx);
+    tip_of_the_day(app, ctx);
     welcome(app, ctx);
     /* Escape closes the dialog in front — unless a menu, combo box or
      * right-click menu was open: that Escape was theirs, and they have

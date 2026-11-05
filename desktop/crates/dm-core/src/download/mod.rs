@@ -107,6 +107,14 @@ pub struct Options {
     /// "webm"), preferred when choosing among the formats at its height,
     /// so what arrives is what the list said.
     pub container: Option<String>,
+    /// The frame rate a video from the panel was listed at, where its height
+    /// has two lines ("720p HD" and "720p HD 60 fps", as reference A): above
+    /// 30 asks for the faster picture, 30 or less for the other.
+    pub frame_rate: Option<u32>,
+    /// The caption track a list line named (`Quality::caption_of`): its
+    /// language and whether it is the speech-recognised one. The download is
+    /// that caption file alone.
+    pub caption: Option<(String, bool)>,
     /// How many times one connection tries a range (or the probe) before
     /// the download fails, where the failure is the kind waiting can fix.
     /// Zero keeps trying until it gets through, or is paused or cancelled.
@@ -174,8 +182,9 @@ impl Options {
     }
 
     /// The proxy a download of `url` goes through, for the tools and the
-    /// FTP client: `proxy`, unless the site is on the bypass list.
-    pub fn proxy_for(&self, url: &str) -> Option<&str> {
+    /// FTP client: `proxy`, unless the site is on the bypass list; where a
+    /// configuration script chooses, what it says for the site.
+    pub fn proxy_for(&self, url: &str) -> Option<String> {
         let host = category::host_of(url);
         let bypassed = crate::proxy::Proxy {
             bypass: self.proxy_bypass.clone(),
@@ -185,7 +194,7 @@ impl Options {
         if bypassed {
             None
         } else {
-            self.proxy.as_deref()
+            crate::proxy::route_for(self.proxy.as_deref(), url)
         }
     }
 
@@ -1272,6 +1281,8 @@ mod tests {
             server_dates: false,
             retry_wait: 0,
             record_limit: None,
+            frame_rate: None,
+            caption: None,
             sign_in: None,
             save_name: None,
             accept_page: false,

@@ -26,6 +26,8 @@ raw-window-handle = "0.6"
 # collection is 20 MB, of which a window draws a few glyphs.
 memmap2 = "0.9"
 dm-core = { path = "../dm-core" }
+# The catch rules' lists Options shows (the browsers, the menu items).
+dm-protocol = { path = "../dm-protocol" }
 # Checks the ed25519 signature on the update manifest; already in the tree
 # through rustls.
 dm-shell = { path = "../dm-shell" }
@@ -143,7 +145,6 @@ embed-resource = "3"
 
 [dev-dependencies]
 proptest = "1"
-dm-protocol = { path = "../dm-protocol" }
 # The window driven the way a person drives it, through its accessibility
 # tree, and rendered offscreen for a picture of what it draws.
 egui_kittest = { version = "0.37", features = ["wgpu", "snapshot"] }

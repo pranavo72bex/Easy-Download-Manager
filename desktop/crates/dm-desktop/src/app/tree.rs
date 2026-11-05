@@ -104,6 +104,33 @@ impl DmApp {
                 place(ui, self, Place::Queue(name.clone()), label);
             }
         });
+        // The Grabber's saved searches, as reference A keeps its projects in
+        // the tree (gaps row 92): one clicked opens the Grabber with it.
+        let mut project = None;
+        if !self.applied.site_searches.is_empty() {
+            let projects = &self.applied.site_searches;
+            nav_group(
+                ui,
+                "tree-grabber",
+                t("Grabber projects"),
+                false,
+                &tokens,
+                |ui| {
+                    for search in projects {
+                        if ui
+                            .selectable_label(false, &search.name)
+                            .on_hover_text(&search.page)
+                            .clicked()
+                        {
+                            project = Some(search.clone());
+                        }
+                    }
+                },
+            );
+        }
+        if let Some(search) = project {
+            self.dialogs.open_site_files_with(&search);
+        }
         if let Some(place) = chosen {
             self.place = place;
         }

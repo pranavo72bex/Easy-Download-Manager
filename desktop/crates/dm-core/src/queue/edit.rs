@@ -158,6 +158,11 @@ impl Queue {
             slot.entry_mut().cookies_once = with.cookies_once
                 && !(slot.entry.cookies.is_empty() && slot.entry.headers.is_empty());
             slot.entry_mut().replaces = with.replaces.filter(|p| !p.trim().is_empty());
+            // A form's answer: the form for its own address only.
+            if let Some(post) = with.post.filter(|p| p.url == url) {
+                slot.entry_mut().posted = true;
+                slot.entry_mut().post = Some(post);
+            }
             if with.checksum.is_some() {
                 slot.entry_mut().checksum = with.checksum;
             }

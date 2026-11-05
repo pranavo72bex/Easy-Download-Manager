@@ -253,6 +253,16 @@ pub(super) fn tab_general(ui: &mut egui::Ui, d: &mut OptionsDialog, env: &TabEnv
         ui,
         t("Shows Download details before a download from your browser starts."),
     );
+    // Reference A's "start downloading while the dialog is open" (gaps row 85).
+    toggle_row(
+        ui,
+        &mut s.start_while_asking,
+        t("Start downloading while Download details is open"),
+    );
+    hint(
+        ui,
+        t("The file is fetched while you choose where it goes; Start now puts it there, Cancel removes it."),
+    );
     toggle_row(
         ui,
         &mut s.offer_new_link,
@@ -410,6 +420,11 @@ fn handler_rows(ui: &mut egui::Ui, d: &mut OptionsDialog) {
         ui,
         t("dm keeps what another program had, and can give it back. Where Windows' Default apps has a choice, that choice decides: change it in Settings, Apps, Default apps."),
     );
+    // Windows' own chooser at a first magnet click is its question, not dm's (gaps row 107).
+    hint(
+        ui,
+        t("The first magnet link you click may make Windows ask which app opens it: choose dm there. dm cannot answer for you."),
+    );
     // Read again after a change, so the page says what is so now.
     if let Some(result) = done {
         if let Err(why) = result {
@@ -469,6 +484,27 @@ pub(super) fn tab_file_types(ui: &mut egui::Ui, d: &mut OptionsDialog, env: &Tab
     let s = &mut d.draft;
     ui.add_space(8.0);
     let c = &mut s.catch;
+    // The items dm adds to the browser's right-click menu, each chosen, as
+    // reference A's (gaps row 86); the extension makes them again on a change.
+    ui.label(t("Items dm adds to the browser's right-click menu"));
+    ui.horizontal_wrapped(|ui| {
+        for (id, _) in dm_protocol::MENU_ITEMS {
+            let words = match id {
+                "dm-link" => t("Download link with dm"),
+                "dm-media" => t("Download media with dm"),
+                "dm-all-links" => t("Download all links with dm"),
+                _ => t("Download selected links with dm"),
+            };
+            let mut on = c.shows_menu(id);
+            if check(ui, &mut on, words).changed() {
+                c.hidden_menus.retain(|h| h != id);
+                if !on {
+                    c.hidden_menus.push(id.to_string());
+                }
+            }
+        }
+    });
+    ui.add_space(4.0);
     toggle_row(
         ui,
         &mut c.enabled,
@@ -485,6 +521,25 @@ pub(super) fn tab_file_types(ui: &mut egui::Ui, d: &mut OptionsDialog, env: &Tab
                     ui.label(RichText::new(t("Separate types with spaces, no dots. Leave empty for all.")).small().weak());
                     number_row(ui, t("Ignore files smaller than (KB)"), |ui, name| {
                         ui.add(number_box(&mut c.min_size_kb).range(0..=1024 * 1024)).labelled_by(name);
+                    });
+                    // Reference A's list of the browsers it captures from, each ticked
+                    // or not (gaps row 86); an unticked one keeps its downloads.
+                    ui.label(t("Take downloads from these browsers"));
+                    ui.horizontal_wrapped(|ui| {
+                        for browser in dm_protocol::BROWSERS {
+                            let mut on = c.takes_from(browser);
+                            let words = if browser == "Chromium" {
+                                t("Other Chromium browsers")
+                            } else {
+                                browser
+                            };
+                            if check(ui, &mut on, words).changed() {
+                                c.off_browsers.retain(|b| !b.eq_ignore_ascii_case(browser));
+                                if !on {
+                                    c.off_browsers.push(browser.to_string());
+                                }
+                            }
+                        }
                     });
                     field(ui, t("Never take downloads from these sites"), &mut d.skip, 480.0);
                     ui.label(RichText::new(t("Separate sites with spaces. example.com covers its subdomains.")).small().weak());
@@ -890,6 +945,11 @@ pub(super) fn tab_advanced(ui: &mut egui::Ui, d: &mut OptionsDialog, env: &TabEn
         ui,
         t("A list in the P2P format, plain or gzipped, on the web or on this computer. One on the web is fetched through the proxy and read again once a day; a torrent stops, saying why, if the list cannot be read."),
     );
+    // What Windows' question at the first torrent is for (gaps row 101).
+    hint(
+        ui,
+        t("The first torrent makes Windows ask whether dm may use public and private networks. Allowed, other peers can reach dm and torrents go faster; refused, dm still downloads, reaching peers itself. Change it later in Windows Security, Firewall, Allow an app through firewall."),
+    );
 }
 
 /// The connection's settings, the first part of the Advanced page.
@@ -1110,7 +1170,42 @@ fn tab_proxy(ui: &mut egui::Ui, d: &mut OptionsDialog, _env: &TabEnv<'_>) {
                         let name = ui.label(t("Password"));
                         ui.add(egui::TextEdit::singleline(&mut p.password).password(true).desired_width(ui.available_width().min(200.0))).labelled_by(name.id);
                         field(ui, t("Not for these sites (fetched directly)"), &mut d.bypass, 260.0);
+                        // A proxy of its own for one kind of download, as reference A's
+                        // per-protocol settings; the rest go through the one above.
+                        for (scheme, words) in [
+                            ("http", t("A proxy of its own for HTTP downloads")),
+                            ("https", t("A proxy of its own for HTTPS downloads")),
+                        ] {
+                            let mut own = p.per_scheme.contains_key(scheme);
+                            if toggle_row(ui, &mut own, words).changed() {
+                                if own {
+                                    p.per_scheme.insert(
+                                        scheme.to_string(),
+                                        dm_core::SchemeProxy {
+                                            kind: Kind::Http,
+                                            host: String::new(),
+                                            port: 8080,
+                                            username: String::new(),
+                                            password: String::new(),
+                                        },
+                                    );
+                                } else {
+                                    p.per_scheme.remove(scheme);
+                                }
+                            }
+                            if let Some(entry) = p.per_scheme.get_mut(scheme) {
+                                ui.push_id(scheme, |ui| {
+                                    ui.indent(scheme, |ui| {
+                                        field(ui, t("Its host"), &mut entry.host, 220.0);
+                                        number_row(ui, t("Its port"), |ui, name| {
+                                            ui.add(number_box(&mut entry.port).range(1..=65535)).labelled_by(name);
+                                        });
+                                    });
+                                });
+                            }
+                        }
                     });
+                    field(ui, t("Automatic configuration script address (it chooses each site's proxy, in place of the above)"), &mut p.script, 260.0);
                     ui.label(RichText::new(t("Every download, the video tools and a torrent's SOCKS5 connections go through it; FTP through SOCKS or HTTP CONNECT.")).small().weak());
                 });
 }

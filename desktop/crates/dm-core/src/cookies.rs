@@ -162,7 +162,36 @@ pub struct SignIn {
     /// Request headers the browser sent for this download (a bearer token, an
     /// `Origin`, a site's own `X-…` header), sent to the same one server.
     extra: Vec<(String, String)>,
+    /// The form this download is the answer to, sent again to its one address.
+    post: Option<Posted>,
 }
+
+/// A form a page sent, whose answer is the file: its address, its body and
+/// the body's type. Fetched by sending it again, as the browser did; never
+/// written to disk, as a form can hold what a person typed.
+#[derive(Clone, PartialEq, Eq, Default)]
+pub struct Posted {
+    /// Where the form was sent.
+    pub url: String,
+    /// What it sent.
+    pub body: Vec<u8>,
+    /// The body's type (`application/x-www-form-urlencoded` for a form).
+    pub content_type: String,
+}
+
+impl std::fmt::Debug for Posted {
+    // The body is a person's: its size, not its words, in a log or a panic.
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("Posted")
+            .field("url", &self.url)
+            .field("body", &format_args!("{} bytes", self.body.len()))
+            .field("content_type", &self.content_type)
+            .finish()
+    }
+}
+
+/// The largest form body carried: an export button's form is a few fields.
+pub const POST_MOST: usize = 64 * 1024;
 
 /// Headers dm sets itself or that belong to one connection, never taken
 /// from the browser's request. `Cookie` keeps its own field.
@@ -235,7 +264,31 @@ impl SignIn {
             host: host_of(url)?,
             header: header.to_string(),
             extra: Vec::new(),
+            post: None,
         })
+    }
+
+    /// `sign_in` (or none) with the form this download is the answer to,
+    /// for its own address: `None` for an address with no host or a body
+    /// over [`POST_MOST`].
+    pub fn posting(sign_in: Option<SignIn>, post: Posted) -> Option<SignIn> {
+        if post.body.len() > POST_MOST {
+            return sign_in;
+        }
+        let host = host_of(&post.url)?;
+        let mut sign_in = sign_in.unwrap_or(SignIn {
+            host,
+            header: String::new(),
+            extra: Vec::new(),
+            post: None,
+        });
+        sign_in.post = Some(post);
+        Some(sign_in)
+    }
+
+    /// The form to send again, where `url` is its very address.
+    pub fn post_for(&self, url: &str) -> Option<&Posted> {
+        self.post.as_ref().filter(|p| p.url == url)
     }
 
     /// The sign-in for `url`'s server with the browser's own request headers
@@ -250,6 +303,7 @@ impl SignIn {
             host: host_of(url)?,
             header: header.replace(['\r', '\n'], "").trim().to_string(),
             extra,
+            post: None,
         })
     }
 

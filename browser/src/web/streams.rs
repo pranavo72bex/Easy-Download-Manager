@@ -62,6 +62,31 @@ pub async fn on_response_started(details: JsValue) {
     describe_playlist(tab, &seen.url).await;
 }
 
+/// A form a page sent (its body, as `background.js` read it): kept a moment
+/// by address, in memory, for a download that is its answer.
+#[wasm_bindgen]
+pub fn on_form_sent(details: JsValue) {
+    let got = from_js(&details);
+    let Some(url) = got.get("url").and_then(|u| u.as_str()) else {
+        return;
+    };
+    let text = |key: &str| {
+        got.get(key)
+            .and_then(|v| v.as_str())
+            .unwrap_or_default()
+            .to_string()
+    };
+    let post = dm_protocol::Posted {
+        form: text("form"),
+        raw: text("raw"),
+        content_type: String::new(),
+    };
+    if post.form.is_empty() && post.raw.is_empty() {
+        return;
+    }
+    FORMS.with(|f| f.borrow_mut().keep(url, post, now()));
+}
+
 /// A request the browser is sending, read for its headers (never changed:
 /// a Manifest V3 worker may not). Kept by address, in memory, for the
 /// hand-off that address begins.

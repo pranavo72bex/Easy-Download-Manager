@@ -96,6 +96,21 @@ pub(super) fn own_id() -> String {
     api("runtime.id").as_string().unwrap_or_default()
 }
 
+/// Which browser this is, as Options lists them (`dm_protocol::BROWSERS`): from the brands a
+/// Chromium browser names in `navigator.userAgentData`, or Firefox.
+pub(super) fn this_browser() -> &'static str {
+    let navigator = get(&js_sys::global().into(), "navigator");
+    let brands: Vec<String> = from_js(&get(&navigator, "userAgentData.brands"))
+        .as_array()
+        .map(|list| {
+            list.iter()
+                .filter_map(|b| b.get("brand").and_then(|v| v.as_str()).map(str::to_string))
+                .collect()
+        })
+        .unwrap_or_default();
+    dm_protocol::browser_named(&brands, is_firefox())
+}
+
 pub(super) fn is_firefox() -> bool {
     call_on(&api("runtime"), "getURL", &["".into()])
         .ok()

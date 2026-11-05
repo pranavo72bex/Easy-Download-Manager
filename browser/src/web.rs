@@ -37,6 +37,8 @@ thread_local! {
     /// The last request headers per address, for the hand-off that address
     /// begins. In memory only: never stored, never logged.
     static SENT: RefCell<decide::RequestHeaders> = RefCell::new(decide::RequestHeaders::default());
+    /// The forms pages sent lately, for a download that is a form's answer.
+    static FORMS: RefCell<decide::Forms> = RefCell::new(decide::Forms::default());
     /// Whether the kept request headers were read back from the session's storage, and whether a
     /// write of them is already waiting.
     static SENT_LOADED: std::cell::Cell<bool> = const { std::cell::Cell::new(false) };

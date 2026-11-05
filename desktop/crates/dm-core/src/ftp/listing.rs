@@ -145,7 +145,7 @@ pub async fn list(url: &str, options: &Options) -> Result<Vec<Listed>, Error> {
         return Err(Error::Internal(why));
     }
     let mut target = Target::parse_folder(url)?;
-    target.route = Route::parse(options.proxy_for(url))?;
+    target.route = Route::parse(options.proxy_for(url).as_deref())?;
     let mut session = Session::open(&target).await?;
     let folder = target.path.trim_end_matches('/').to_string();
     for (verb, parse) in [

@@ -190,6 +190,201 @@ pub async fn evaluate(
     parse_result(String::from_utf8_lossy(&output.stdout).trim())
 }
 
+/// The address a request is sent to when the script gave it no way: this computer's discard
+/// port, where nothing listens, so the request fails, and never goes out directly in its place
+/// nor anywhere off this computer.
+pub const NO_WAY: &str = "http://127.0.0.1:9";
+
+/// What the scripts said, for this session.
+#[derive(Default)]
+struct Kept {
+    /// Each script's text, by its address.
+    texts: std::collections::HashMap<String, String>,
+    /// The way to each site, by the script's address and the site (`scheme://host:port`): a
+    /// proxy, `None` for straight there, or why there is none.
+    ways: std::collections::HashMap<(String, String), Result<Option<url::Url>, String>>,
+}
+
+static KEPT: std::sync::LazyLock<std::sync::Mutex<Kept>> =
+    std::sync::LazyLock::new(Default::default);
+
+/// Held while a script is fetched or run, so a site is asked about once however many requests
+/// to it start together.
+static ASKING: std::sync::Mutex<()> = std::sync::Mutex::new(());
+
+/// The engine a test names in place of QuickJS.
+static ENGINE: std::sync::Mutex<Option<std::path::PathBuf>> = std::sync::Mutex::new(None);
+
+/// Runs the scripts with `engine` in place of QuickJS found or fetched (`None` puts that back),
+/// and forgets what they said. For tests.
+#[doc(hidden)]
+pub fn set_engine(engine: Option<std::path::PathBuf>) {
+    *crate::lock(&ENGINE) = engine;
+    forget_all();
+}
+
+/// Forgets every script and answer, so each is fetched and asked again: the settings changed.
+pub fn forget_all() {
+    *crate::lock(&KEPT) = Kept::default();
+}
+
+/// The site a script is asked about for `target`: its scheme, host and port, with no path (a
+/// path can carry a session, and the answer is kept for the whole site).
+fn site_of(target: &url::Url) -> Option<String> {
+    let host = target.host_str()?;
+    let port = target.port_or_known_default().unwrap_or(0);
+    Some(format!(
+        "{}://{}:{port}",
+        target.scheme(),
+        host.to_ascii_lowercase()
+    ))
+}
+
+/// Why a script gave no way to `target`'s site, if one did not: said in place of "the
+/// connection was refused".
+pub fn refusal(target: &url::Url) -> Option<String> {
+    let site = site_of(target)?;
+    crate::lock(&KEPT)
+        .ways
+        .iter()
+        .find_map(|((_, s), way)| (*s == site).then(|| way.clone().err()).flatten())
+}
+
+/// Where a request to `target` goes under the script at `address` (a web address, or a file's):
+/// through the proxy it names (`Ok(Some)`), straight there (`Ok(None)`), or nowhere (why).
+///
+/// The first request to a site fetches and runs the script, on a thread of its own, and the
+/// answer is kept for the session; this waits for it, so it can be called where nothing can be
+/// awaited (reqwest's choice of proxy). The first way the script names is the one taken.
+pub fn way_to(address: &str, target: &url::Url) -> Result<Option<url::Url>, String> {
+    let site = site_of(target).ok_or_else(|| "the address has no host".to_string())?;
+    let key = (address.to_string(), site.clone());
+    if let Some(way) = crate::lock(&KEPT).ways.get(&key) {
+        return way.clone();
+    }
+    let ask = || {
+        let _one = crate::lock(&ASKING);
+        if let Some(way) = crate::lock(&KEPT).ways.get(&key) {
+            return way.clone();
+        }
+        let host = target.host_str().unwrap_or_default().to_string();
+        let (address, site) = (address.to_string(), site.clone());
+        let way = std::thread::spawn(move || {
+            let runtime = tokio::runtime::Builder::new_current_thread()
+                .enable_all()
+                .build()
+                .map_err(|e| format!("the proxy script could not be run: {e}"))?;
+            runtime.block_on(async move {
+                let engine = engine().await?;
+                let text = text_of(&address).await?;
+                let hops = evaluate(
+                    &engine,
+                    &text,
+                    &format!("{site}/"),
+                    &host,
+                    &std::env::temp_dir(),
+                )
+                .await?;
+                first_way(&hops)
+            })
+        })
+        .join()
+        .unwrap_or_else(|_| Err("the proxy script could not be run".into()));
+        crate::lock(&KEPT).ways.insert(key.clone(), way.clone());
+        way
+    };
+    // Waiting holds a thread the runtime may need: on one with several, the others take over
+    // its work meanwhile.
+    match tokio::runtime::Handle::try_current().map(|h| h.runtime_flavor()) {
+        Ok(tokio::runtime::RuntimeFlavor::MultiThread) => tokio::task::block_in_place(ask),
+        _ => ask(),
+    }
+}
+
+/// The first way of a script's answer, as reqwest takes a proxy.
+fn first_way(hops: &[Hop]) -> Result<Option<url::Url>, String> {
+    match hops.first() {
+        None => Err("the script answered nothing".into()),
+        Some(Hop::Direct) => Ok(None),
+        Some(Hop::Via { kind, host, port }) => {
+            let host = if host.contains(':') {
+                format!("[{host}]")
+            } else {
+                host.clone()
+            };
+            url::Url::parse(&format!("{}://{host}:{port}", kind.scheme()))
+                .map(Some)
+                .map_err(|e| format!("the script named a proxy that is not one: {e}"))
+        }
+    }
+}
+
+/// The JavaScript engine to run a script with: the one a test named, else QuickJS, found or
+/// fetched.
+async fn engine() -> Result<std::path::PathBuf, String> {
+    let named = crate::lock(&ENGINE).clone();
+    if let Some(named) = named {
+        return Ok(named);
+    }
+    crate::tools::ensure(&crate::client(), crate::tools::Tool::QuickJs)
+        .await
+        .map_err(|e| format!("no JavaScript engine to run the proxy script: {e}"))
+}
+
+/// The most of a script that is read: a script is a few kilobytes.
+const SCRIPT_MOST: usize = 1024 * 1024;
+
+/// The script at `address`, fetched once a session: a web address is fetched directly (the
+/// script says where the proxy is, so it cannot be fetched through it), a `file:` address or a
+/// path is read.
+async fn text_of(address: &str) -> Result<String, String> {
+    let kept = crate::lock(&KEPT).texts.get(address).cloned();
+    if let Some(text) = kept {
+        return Ok(text);
+    }
+    let trimmed = address.trim();
+    let bytes = if trimmed.starts_with("http://") || trimmed.starts_with("https://") {
+        let reply = crate::client()
+            .get(trimmed)
+            .timeout(std::time::Duration::from_secs(15))
+            .send()
+            .await
+            .and_then(reqwest::Response::error_for_status)
+            .map_err(|e| {
+                format!(
+                    "the proxy script could not be fetched: {}",
+                    crate::error::network(&e)
+                )
+            })?;
+        reply
+            .bytes()
+            .await
+            .map_err(|e| format!("the proxy script could not be fetched: {e}"))?
+            .to_vec()
+    } else {
+        let path = match url::Url::parse(trimmed) {
+            Ok(u) if u.scheme() == "file" => u
+                .to_file_path()
+                .map_err(|_| "the proxy script's address names no file".to_string())?,
+            _ => std::path::PathBuf::from(trimmed),
+        };
+        tokio::fs::read(&path)
+            .await
+            .map_err(|e| format!("the proxy script could not be read: {e}"))?
+    };
+    if bytes.len() > SCRIPT_MOST {
+        return Err("the proxy script is too long to be one".into());
+    }
+    let text = String::from_utf8_lossy(&bytes).into_owned();
+    if !text.contains("FindProxyForURL") {
+        return Err("that address holds no proxy script (no FindProxyForURL)".into());
+    }
+    crate::lock(&KEPT)
+        .texts
+        .insert(address.to_string(), text.clone());
+    Ok(text)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

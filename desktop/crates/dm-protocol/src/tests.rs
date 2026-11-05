@@ -184,6 +184,8 @@ fn the_rules_cross_as_written_and_read_from_either_spelling() {
             once_hosts: Vec::new(),
             video_panel: false,
             sign_in_everywhere: true,
+            off_browsers: vec!["Brave".into()],
+            hidden_menus: vec!["dm-media".into()],
         },
     });
     let frame = reply.to_frame();
@@ -278,6 +280,48 @@ fn a_list_written_by_hand_is_read_generously() {
         rules.catches(&file("https://e.com/f.exe")),
         Err(Left::NotAFileType)
     );
+}
+
+/// Each browser is named as Options lists it, from the brands a Chromium
+/// browser gives (with the generic ones beside), and one left unticked is
+/// taken from no more.
+#[test]
+fn a_browser_is_named_from_its_brands_and_one_unticked_is_not_taken_from() {
+    let brands = |list: &[&str]| list.iter().map(|s| s.to_string()).collect::<Vec<_>>();
+    assert_eq!(
+        browser_named(
+            &brands(&["Not)A;Brand", "Microsoft Edge", "Chromium"]),
+            false
+        ),
+        "Microsoft Edge"
+    );
+    assert_eq!(
+        browser_named(&brands(&["Chromium", "Google Chrome"]), false),
+        "Google Chrome"
+    );
+    assert_eq!(
+        browser_named(&brands(&["Opera GX", "Chromium"]), false),
+        "Opera"
+    );
+    assert_eq!(browser_named(&brands(&["Chromium"]), false), "Chromium");
+    assert_eq!(browser_named(&[], true), "Firefox");
+    let rules = CatchRules {
+        off_browsers: vec!["google chrome".into()],
+        ..Default::default()
+    };
+    assert!(!rules.takes_from("Google Chrome"));
+    assert!(rules.takes_from("Microsoft Edge"));
+    assert!(CatchRules::default().takes_from("Firefox"));
+    // The menu items chosen off are not made; the rest are.
+    let menus = CatchRules {
+        hidden_menus: vec!["dm-all-links".into()],
+        ..Default::default()
+    };
+    assert!(!menus.shows_menu("dm-all-links"));
+    assert!(menus.shows_menu("dm-link"));
+    assert!(MENU_ITEMS
+        .iter()
+        .all(|(id, _)| CatchRules::default().shows_menu(id)));
 }
 
 #[test]

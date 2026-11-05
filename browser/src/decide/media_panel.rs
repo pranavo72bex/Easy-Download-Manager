@@ -64,6 +64,46 @@ pub fn offer(media: &Media) -> Option<Offer> {
     })
 }
 
+/// Narrower than this, a video gets the compact bar: the download mark and the close mark
+/// alone, as reference A shrinks its bar on a narrow video (gaps row 76).
+pub const COMPACT_BELOW: f64 = 400.0;
+
+/// The bar's size, whole or compact.
+pub fn panel_size(video_width: f64) -> (f64, f64) {
+    if video_width < COMPACT_BELOW {
+        (COMPACT_WIDTH, 30.0)
+    } else {
+        (240.0, 30.0)
+    }
+}
+
+/// How wide the compact bar is: the mark's button and the close button.
+pub const COMPACT_WIDTH: f64 = 72.0;
+
+/// The part of the element a person sees: inside the viewport and below a page's fixed bar
+/// over its top (`covered_to`, that bar's bottom), so the panel sits on the picture and not
+/// under a sticky header (gaps row 76). The element's own box where nothing of it is seen.
+pub fn visible_box(
+    element: (f64, f64, f64, f64),
+    viewport: (f64, f64),
+    covered_to: Option<f64>,
+) -> (f64, f64, f64, f64) {
+    let (left, top, width, height) = element;
+    let (view_w, view_h) = viewport;
+    let new_left = left.max(0.0);
+    let new_top = top.max(0.0).max(covered_to.unwrap_or(f64::MIN));
+    let right = (left + width).min(view_w);
+    let bottom = (top + height).min(view_h);
+    if !(right > new_left && bottom > new_top)
+        || [new_left, new_top, right, bottom]
+            .iter()
+            .any(|v| !v.is_finite())
+    {
+        return element;
+    }
+    (new_left, new_top, right - new_left, bottom - new_top)
+}
+
 /// Where the panel goes: inside the element's top right corner, kept on
 /// screen. All in CSS pixels of the viewport.
 pub fn panel_at(
@@ -184,9 +224,18 @@ pub fn reference_line(number: usize, title: &str, line: &str) -> String {
         Some((height, container)) => (height, container),
         None => (head, "MP4"),
     };
+    // A height listed at two frame rates names the faster ("720p MP4 60 fps"),
+    // said after the quality as reference A says it: "720p HD 60 fps".
+    let (container, rate) = match container.rsplit_once(' ') {
+        Some((front, "fps")) => match front.rsplit_once(' ') {
+            Some((kind, n)) if n.parse::<u32>().is_ok() => (kind, format!(" {n} fps")),
+            _ => (container, String::new()),
+        },
+        _ => (container, String::new()),
+    };
     let quality = match height.strip_suffix('p').and_then(|h| h.parse::<u32>().ok()) {
         Some(height) if !container.contains(' ') => format!(
-            "{container} file, quality {height}p{}{size}",
+            "{container} file, quality {height}p{}{rate}{size}",
             if height >= 720 { " HD" } else { "" }
         ),
         _ => line.to_string(),

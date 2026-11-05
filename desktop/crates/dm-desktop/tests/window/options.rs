@@ -111,11 +111,25 @@ fn the_file_types_the_browser_hands_over_are_set_in_options() {
         "Sites whose links work only once",
         "*.once.example",
     );
+    // The browsers dm takes from, each ticked at first (gaps row 86): one
+    // unticked is kept in the rules the extension is sent.
+    harness.get_by_label("Brave").scroll_to_me();
+    harness.run();
+    click(&mut harness, "Brave");
+    // A menu item left out of the browser's right-click menu.
+    harness
+        .get_by_label("Download media with dm")
+        .scroll_to_me();
+    harness.run();
+    click(&mut harness, "Download media with dm");
     click(&mut harness, "OK");
     let catch = harness.state().backend().settings().catch;
     assert_eq!(catch.extensions, ["zip", "iso", "mkv"]);
     assert_eq!(catch.skip_hosts, ["intranet.example"]);
     assert_eq!(catch.once_hosts, ["*.once.example"]);
+    assert_eq!(catch.off_browsers, ["Brave"]);
+    assert_eq!(catch.hidden_menus, ["dm-media"]);
+    assert!(!catch.takes_from("Brave") && catch.takes_from("Microsoft Edge"));
     // What the extension is sent is what was typed.
     let rules = dm_protocol::CatchRules { ..catch };
     assert!(rules.enabled);
@@ -242,6 +256,53 @@ fn the_proxys_bypass_list_and_the_recheck_timer_are_set_in_options() {
     assert_eq!(options.proxy_bypass, ["intranet.example", "10.0.0.5"]);
     assert_eq!(options.proxy_for("http://files.intranet.example/a"), None);
     assert!(options.proxy_for("http://outside.example/a").is_some());
+    // Put back, so the other tests' downloads do not go looking for it.
+    click(&mut harness, "Options");
+    click(&mut harness, "Advanced");
+    click(&mut harness, "Connect through a proxy");
+    click(&mut harness, "OK");
+    assert!(!harness.state().backend().settings().proxy.enabled);
+}
+
+/// Reference A's per-protocol proxies and its automatic configuration script, in the proxy
+/// section (gaps row 80).
+#[test]
+fn a_proxy_of_its_own_for_https_and_a_configuration_script_are_set_in_options() {
+    let _file = settings_file();
+    let world = world();
+    let mut harness = world.harness();
+    click(&mut harness, "Options");
+    click(&mut harness, "Advanced");
+    click(&mut harness, "Connect through a proxy");
+    type_into(&mut harness, "Host", "proxy.example");
+    click(&mut harness, "A proxy of its own for HTTPS downloads");
+    type_into(&mut harness, "Its host", "secure-proxy.example");
+    harness.run_steps(2);
+    click(&mut harness, "OK");
+    let settings = harness.state().backend().settings();
+    let https = &settings.proxy.per_scheme["https"];
+    assert_eq!(https.host, "secure-proxy.example");
+    assert_eq!(https.port, 8080);
+    assert!(!settings.proxy.per_scheme.contains_key("http"));
+    assert!(settings.proxy.script.is_empty());
+
+    let script = "Automatic configuration script address (it chooses each site's proxy, in place of the above)";
+    click(&mut harness, "Options");
+    click(&mut harness, "Advanced");
+    type_into(&mut harness, script, "http://wpad.example/proxy.pac");
+    harness.run_steps(2);
+    click(&mut harness, "OK");
+    assert_eq!(
+        harness.state().backend().settings().proxy.script,
+        "http://wpad.example/proxy.pac"
+    );
+    let saved: serde_json::Value =
+        serde_json::from_str(&std::fs::read_to_string(Settings::path()).unwrap()).unwrap();
+    assert_eq!(saved["proxy"]["script"], "http://wpad.example/proxy.pac");
+    assert_eq!(
+        saved["proxy"]["per_scheme"]["https"]["host"],
+        "secure-proxy.example"
+    );
     // Put back, so the other tests' downloads do not go looking for it.
     click(&mut harness, "Options");
     click(&mut harness, "Advanced");

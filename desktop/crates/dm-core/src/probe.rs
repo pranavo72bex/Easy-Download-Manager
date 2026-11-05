@@ -72,12 +72,14 @@ pub async fn probe_get(
     referrer: Option<&str>,
     sign_in: Option<&crate::cookies::SignIn>,
 ) -> Result<ProbeWithBody, Error> {
+    // A form's answer: sent once, as the browser sent it, with no range and
+    // none of the second tries below, each of which would send it again.
+    let posted = sign_in.and_then(|s| s.post_for(url)).is_some();
     let ask_as = |agent: &str, ranged: bool| {
-        let mut request = client
-            .get(url)
+        let mut request = crate::download::with_form(client, url, sign_in)
             .header(reqwest::header::USER_AGENT, agent)
             .header(reqwest::header::ACCEPT_ENCODING, crate::download::IDENTITY);
-        if ranged {
+        if ranged && !posted {
             request = request.header(reqwest::header::RANGE, "bytes=0-");
         }
         let cookies = crate::cookies::header_with(sign_in, url);
@@ -99,7 +101,8 @@ pub async fn probe_get(
     };
     let ask = |agent: &str| ask_as(agent, true);
     let mut res = ask(crate::agent_for(url)).await?;
-    if res.status() == reqwest::StatusCode::FORBIDDEN
+    if !posted
+        && res.status() == reqwest::StatusCode::FORBIDDEN
         && crate::agent_for(url) == crate::first_agent()
     {
         for agent in crate::FALLBACK_AGENTS
@@ -118,7 +121,8 @@ pub async fn probe_get(
     // Still refused, with a `Referer` dm made up (none was given): asked once
     // more without it. A server that refuses any `Referer` but its own pages
     // (thinkbroadband) served reference A and refused dm on every agent.
-    if res.status() == reqwest::StatusCode::FORBIDDEN
+    if !posted
+        && res.status() == reqwest::StatusCode::FORBIDDEN
         && referrer.is_none()
         && crate::download::folder_referer(url).is_some()
     {
@@ -133,14 +137,14 @@ pub async fn probe_get(
     }
 
     // A 404 is asked for a second time before it is said, as reference A does.
-    if res.status() == reqwest::StatusCode::NOT_FOUND {
+    if !posted && res.status() == reqwest::StatusCode::NOT_FOUND {
         res = ask(crate::agent_for(url)).await?;
     }
 
     // Some servers fail a ranged request and serve the plain one, which is how
     // reference A asks first. Taken only if the plain request succeeds; the
     // ranged answer's error is what is said otherwise.
-    if res.status().is_server_error() {
+    if !posted && res.status().is_server_error() {
         if let Ok(plain) = ask_as(crate::agent_for(url), false).await {
             if plain.status().is_success() {
                 res = plain;
@@ -186,7 +190,8 @@ pub async fn probe_get(
     let (size, resumable) = if crate::decode::coding_of(&headers).is_some() {
         (None, false)
     } else {
-        (size, resumable)
+        // A form's answer is fetched whole, by sending the form again.
+        (size, resumable && !posted)
     };
 
     let validator =

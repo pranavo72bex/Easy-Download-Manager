@@ -62,6 +62,15 @@ pub fn finders_for(page_url: &str) -> Vec<dm_protocol::Finder> {
     with_served(|rules| rules.finders_for(&site).into_iter().cloned().collect())
 }
 
+/// The selector for the element a page at `page_url` keeps its video's title in, empty where
+/// the rules name none (gaps row 124).
+pub fn title_for(page_url: &str) -> String {
+    let Some(site) = super::site_of(page_url) else {
+        return String::new();
+    };
+    with_served(|rules| rules.title_for(&site).unwrap_or_default().to_string())
+}
+
 /// The private `fetch` paths for a page at `page_url`.
 pub fn private_fetches_for(page_url: &str) -> Vec<String> {
     let Some(site) = super::site_of(page_url) else {

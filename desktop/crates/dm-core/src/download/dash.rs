@@ -535,6 +535,8 @@ mod tests {
             server_dates: false,
             retry_wait: 0,
             record_limit: None,
+            frame_rate: None,
+            caption: None,
             sign_in: None,
             save_name: None,
             accept_page: false,

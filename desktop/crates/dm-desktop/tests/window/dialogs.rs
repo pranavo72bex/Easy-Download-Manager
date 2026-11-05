@@ -2354,6 +2354,10 @@ fn a_links_words_on_the_page_are_shown_and_kept_as_its_description() {
         referrer: world.url("page.html"),
         links: vec![world.url("file.zip"), world.url("other.pdf")],
         texts,
+        // The page's `download` attribute names the archive's file (row 123).
+        names: [(world.url("file.zip"), "Whole archive.zip".to_string())]
+            .into_iter()
+            .collect(),
         ask: true,
         ..Default::default()
     };
@@ -2379,6 +2383,13 @@ fn a_links_words_on_the_page_are_shown_and_kept_as_its_description() {
         "{notes:?}"
     );
     assert!(notes.contains(&"The manual".to_string()), "{notes:?}");
+    let named = harness
+        .state()
+        .rows()
+        .iter()
+        .find(|r| r.url.ends_with("/file.zip"))
+        .and_then(|r| r.save_name.clone());
+    assert_eq!(named.as_deref(), Some("Whole archive.zip"));
 
     // Unticked, the words are shown and not kept.
     let again = dm_shell::host::Request {
@@ -2407,4 +2418,179 @@ fn a_links_words_on_the_page_are_shown_and_kept_as_its_description() {
         .cloned()
         .expect("the third link was added");
     assert_eq!(third.description, "");
+}
+
+/// "Add for later" in Download links puts the links in the queue chosen beside
+/// it, as reference A asks on closing a batch dialog (gaps row 85); the Main
+/// queue until another is chosen.
+#[test]
+fn download_links_adds_for_later_to_the_queue_chosen() {
+    let _file = settings_file();
+    let world = world();
+    let mut harness = world.harness();
+    add_url(&mut harness, &world.url("file.zip"), "Add for later");
+    harness.state_mut().refresh();
+    let id = row(&harness, "file.zip").id;
+    harness.state().backend.set_queue(id, "Night");
+    until(&mut harness, "the row to be in the Night queue", |app| {
+        app.rows().iter().any(|r| r.queue == "Night")
+    });
+    let request = dm_shell::host::Request {
+        url: world.url("page.html"),
+        referrer: world.url("page.html"),
+        links: vec![world.url("other.pdf")],
+        ask: true,
+        ..Default::default()
+    };
+    let app = harness.state_mut();
+    let backend = app.backend.clone();
+    app.dialogs.open_links(request, &backend);
+    harness.run_steps(3);
+    assert_eq!(
+        harness
+            .state()
+            .dialogs
+            .links
+            .as_ref()
+            .map(|d| d.queue.clone()),
+        Some(dm_core::MAIN_QUEUE.to_string())
+    );
+    if let Some(d) = harness.state_mut().dialogs.links.as_mut() {
+        d.queue = "Night".into();
+    }
+    harness.run_steps(2);
+    click(&mut harness, "Add for later");
+    harness.state_mut().refresh();
+    let other = row(&harness, "other.pdf");
+    assert_eq!(other.queue, "Night");
+    assert_eq!(harness.state().said.english(), "Added 1 download to Night.");
+}
+
+/// A saved Grabber search is listed under Grabber projects in the side panel,
+/// as reference A keeps its projects there; clicking it opens the Grabber with
+/// it filled in (gaps row 92).
+#[test]
+fn a_saved_grabber_search_is_a_project_in_the_side_panel() {
+    let _file = settings_file();
+    let world = world();
+    let mut harness = world.harness();
+    let mut settings = harness.state().applied.clone();
+    settings.site_searches.push(dm_shell::lists::Search {
+        name: "Manuals".into(),
+        page: world.url("page.html"),
+        types: vec!["pdf".into()],
+        min_kb: 20,
+        ..Default::default()
+    });
+    harness.state_mut().apply_settings(settings).unwrap();
+    harness.run_steps(3);
+    click(&mut harness, "Grabber projects");
+    harness.run_steps(2);
+    click(&mut harness, "Manuals");
+    harness.run_steps(3);
+    let d = harness
+        .state()
+        .dialogs
+        .site_files
+        .as_ref()
+        .expect("the Grabber opened");
+    assert_eq!(d.page, world.url("page.html"));
+    assert_eq!(d.types, "pdf");
+    assert_eq!(d.min_kb, 20);
+    assert_eq!(d.name, "Manuals");
+}
+
+/// Help has reference A's items (gaps row 91); Tip of the day shows a tip and Next tip the
+/// next; Tell a friend is an email for the person's own mail program, nothing sent by dm.
+#[test]
+fn help_has_reference_as_items_and_tip_of_the_day_shows_the_next_tip() {
+    let _file = settings_file();
+    let world = world();
+    let mut harness = world.harness();
+    click(&mut harness, "Help");
+    harness.run_steps(2);
+    for item in [
+        "Tutorials",
+        "Queues and the Scheduler",
+        "Grabber help",
+        "Tip of the day",
+        "Home page",
+        "Contact support",
+        "Tell a friend",
+    ] {
+        assert!(harness.query_by_label(item).is_some(), "no {item} in Help");
+    }
+    click(&mut harness, "Tip of the day");
+    harness.run_steps(3);
+    let tips = dm_desktop::dialogs::tips();
+    assert!(harness.query_by_label(tips[0]).is_some(), "the first tip");
+    click(&mut harness, "Next tip");
+    harness.run_steps(3);
+    assert!(harness.query_by_label(tips[1]).is_some(), "the next tip");
+    click(&mut harness, "Close");
+    harness.run_steps(2);
+    assert!(harness.state().dialogs.tip.is_none());
+    let mail = dm_desktop::dialogs::tell_a_friend();
+    assert!(mail.starts_with("mailto:?subject="), "{mail}");
+    assert!(mail.contains("github.com"), "{mail}");
+}
+
+/// With Options' "Start downloading while Download details is open", a plain file starts
+/// at once and Start now places it under the name chosen; Cancel removes what was begun
+/// (gaps row 85).
+#[test]
+fn a_file_starts_while_download_details_asks_and_lands_where_chosen() {
+    let _file = settings_file();
+    let world = world();
+    let mut harness = world.harness();
+    let mut settings = harness.state().applied.clone();
+    settings.start_while_asking = true;
+    harness.state_mut().apply_settings(settings).unwrap();
+    harness
+        .state_mut()
+        .dialogs
+        .open_file_info(vec![world.url("file.zip")]);
+    harness.run_steps(3);
+    until(&mut harness, "the file to start before Start now", |app| {
+        app.rows().iter().any(|r| r.url.ends_with("/file.zip"))
+    });
+    if let Some(d) = harness.state_mut().dialogs.file_info.as_mut() {
+        d.name = "chosen.zip".into();
+        d.name_typed = true;
+    }
+    harness.run_steps(2);
+    click(&mut harness, "Start now");
+    until(
+        &mut harness,
+        "the file to finish under the name chosen",
+        |app| {
+            app.rows()
+                .iter()
+                .any(|r| r.state == dm_core::State::Completed && r.path.ends_with("chosen.zip"))
+        },
+    );
+    assert_eq!(
+        harness
+            .state()
+            .rows()
+            .iter()
+            .filter(|r| r.url.ends_with("/file.zip"))
+            .count(),
+        1,
+        "added once, not again on Start now"
+    );
+
+    // Cancel: what was begun goes.
+    harness
+        .state_mut()
+        .dialogs
+        .open_file_info(vec![world.url("other.pdf")]);
+    harness.run_steps(3);
+    until(&mut harness, "the second file to start", |app| {
+        app.rows().iter().any(|r| r.url.ends_with("/other.pdf"))
+    });
+    click(&mut harness, "Cancel");
+    until(&mut harness, "the begun file to be removed", |app| {
+        !app.rows().iter().any(|r| r.url.ends_with("/other.pdf"))
+    });
 }

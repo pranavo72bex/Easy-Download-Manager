@@ -142,6 +142,22 @@ impl Backend {
         }
     }
 
+    /// Places a download begun while Download details asked (`Queue::settle_early`).
+    pub fn settle_early(
+        &self,
+        id: Id,
+        dir: Option<std::path::PathBuf>,
+        name: Option<String>,
+        description: &str,
+        queue: &str,
+        later: bool,
+    ) -> Result<(), String> {
+        self.block_on(
+            self.queue
+                .settle_early(id, dir, name, description, queue, later),
+        )
+    }
+
     fn block_on<T>(&self, work: impl std::future::Future<Output = T>) -> T {
         self.runtime.block_on(work)
     }

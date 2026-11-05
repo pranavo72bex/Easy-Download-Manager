@@ -163,7 +163,7 @@ async fn the_computers_proxy_settings_are_the_environments() {
     };
     assert_eq!(o.proxy_for("https://a.example.org/x"), None);
     assert_eq!(
-        o.proxy_for("https://example.com/x"),
+        o.proxy_for("https://example.com/x").as_deref(),
         Some("socks5://p:1080")
     );
 }
@@ -274,4 +274,147 @@ async fn a_socks5_proxy_carries_the_download_and_resolves_its_name() {
         asked.iter().all(|(atyp, _)| *atyp == 3),
         "a name was resolved before it reached the proxy: {asked:?}"
     );
+}
+
+/// A JavaScript engine for the configuration script: the QuickJS `DM_QJS` names where it does,
+/// else a stand-in that answers as the script below would (DIRECT for `localhost`, the proxy for
+/// the rest), so the test needs nothing installed.
+fn script_engine(dir: &std::path::Path, proxy: &str) -> std::path::PathBuf {
+    if let Some(real) = std::env::var_os("DM_QJS").map(std::path::PathBuf::from) {
+        if real.is_file() {
+            return real;
+        }
+    }
+    if cfg!(windows) {
+        let engine = dir.join("engine.cmd");
+        std::fs::write(
+            &engine,
+            format!(
+                "@echo off\r\nfindstr /C:\"//localhost:\" \"%~1\" >nul && (echo DIRECT) || (echo PROXY {proxy})\r\n"
+            ),
+        )
+        .unwrap();
+        engine
+    } else {
+        let engine = dir.join("engine.sh");
+        std::fs::write(
+            &engine,
+            format!(
+                "#!/bin/sh\nif grep -q '//localhost:' \"$1\"; then echo DIRECT; else echo 'PROXY {proxy}'; fi\n"
+            ),
+        )
+        .unwrap();
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::PermissionsExt;
+            std::fs::set_permissions(&engine, std::fs::Permissions::from_mode(0o755)).unwrap();
+        }
+        engine
+    }
+}
+
+#[tokio::test]
+async fn a_configuration_script_chooses_each_sites_way_and_a_failed_one_sends_nothing_directly() {
+    let _one = ONE_AT_A_TIME.lock().await;
+    let reached = Arc::new(std::sync::atomic::AtomicUsize::new(0));
+    let counted = Arc::clone(&reached);
+    let server = serve(axum::Router::new().route(
+        "/f.txt",
+        get(move || {
+            counted.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+            direct()
+        }),
+    ))
+    .await;
+    let (proxy, asked) = answering_proxy().await;
+    let dir = tempdir();
+    let script = dir.path().join("proxy.pac");
+    std::fs::write(
+        &script,
+        format!(
+            "function FindProxyForURL(url, host) {{\n  if (host == 'localhost') return 'DIRECT';\n  return 'PROXY {proxy}; DIRECT';\n}}\n"
+        ),
+    )
+    .unwrap();
+    dm_core::pac::set_engine(Some(script_engine(dir.path(), &proxy)));
+    let settings = Proxy {
+        enabled: true,
+        kind: Kind::Http,
+        host: String::new(),
+        script: script.to_string_lossy().into_owned(),
+        ..Default::default()
+    };
+    // No host or port of its own: the script is the proxy.
+    let client = client_with(&settings).unwrap();
+
+    // The script names the proxy for this site: the proxy answers.
+    let got = tempdir();
+    let done = download(
+        &client,
+        &format!("http://{server}/f.txt"),
+        &options(got.path()),
+    )
+    .await
+    .unwrap();
+    assert_eq!(std::fs::read(&done.path).unwrap(), b"via the proxy");
+    assert!(asked.lock().unwrap().iter().any(|l| l.contains("/f.txt")));
+    assert_eq!(reached.load(std::sync::atomic::Ordering::SeqCst), 0);
+
+    // DIRECT for `localhost`: the server itself answers.
+    let got = tempdir();
+    let done = download(
+        &client,
+        &format!("http://localhost:{}/f.txt", server.port()),
+        &options(got.path()),
+    )
+    .await
+    .unwrap();
+    assert_eq!(
+        std::fs::read(&done.path).unwrap(),
+        b"direct from the server"
+    );
+
+    // The tools are told the script's choice for each site.
+    let tools = settings.url_for_tools();
+    assert_eq!(
+        dm_core::proxy_route_for(tools.as_deref(), &format!("http://{server}/f.txt")).as_deref(),
+        Some(format!("http://{proxy}").as_str())
+    );
+    assert_eq!(
+        dm_core::proxy_route_for(
+            tools.as_deref(),
+            &format!("http://localhost:{}/", server.port())
+        ),
+        None
+    );
+
+    // A script that cannot be had: nothing goes out, not even directly, and the row says why.
+    let before = reached.load(std::sync::atomic::Ordering::SeqCst);
+    let gone = Proxy {
+        script: dir
+            .path()
+            .join("no-such.pac")
+            .to_string_lossy()
+            .into_owned(),
+        ..settings.clone()
+    };
+    let client = client_with(&gone).unwrap();
+    let got = tempdir();
+    let said = download(
+        &client,
+        &format!("http://localhost:{}/f.txt", server.port()),
+        &options(got.path()),
+    )
+    .await
+    .unwrap_err()
+    .to_string();
+    assert!(said.contains("proxy configuration script"), "{said}");
+    assert!(said.contains("could not be read"), "{said}");
+    assert_eq!(reached.load(std::sync::atomic::Ordering::SeqCst), before);
+    assert_eq!(
+        dm_core::proxy_route_for(gone.url_for_tools().as_deref(), "http://elsewhere.example/")
+            .as_deref(),
+        Some(dm_core::pac::NO_WAY)
+    );
+    dm_core::pac::set_engine(None);
 }

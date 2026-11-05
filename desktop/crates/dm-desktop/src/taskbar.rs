@@ -241,6 +241,8 @@ mod tests {
             fresh_link: false,
             title_hint: None,
             torrent_files: Vec::new(),
+            post: None,
+            posted: false,
         }
     }
 

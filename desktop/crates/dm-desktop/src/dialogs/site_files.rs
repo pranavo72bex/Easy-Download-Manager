@@ -21,6 +21,12 @@ pub(super) fn site_files(app: &mut DmApp, ctx: &egui::Context) {
     let mut delete_saved: Option<String> = None;
     let saved = app.applied.site_searches.clone();
     let keep_layout = d.keep_layout;
+    // Whether Options › Sign-ins keeps a login for the start page's site, said
+    // in the dialog: the search uses it (gaps row 92).
+    let signed_in = {
+        let page = d.page.trim();
+        !page.is_empty() && app.applied.with_login(page) != page
+    };
     window(ctx, "Grabber")
         .open(&mut open)
         .show(ctx, |ui| {
@@ -28,6 +34,35 @@ pub(super) fn site_files(app: &mut DmApp, ctx: &egui::Context) {
                 field(ui, t("Start page"), &mut d.page, 420.0),
                 focus,
             ));
+            if signed_in {
+                ui.label(
+                    RichText::new(t("Signed in with the login Options › Sign-ins keeps for this site."))
+                        .small()
+                        .weak(),
+                );
+            }
+            // Reference A's project templates: the kinds of file a search is
+            // usually for, filling in the types (gaps row 92).
+            ui.horizontal_wrapped(|ui| {
+                let name = ui.label(t("Template"));
+                combo("grabber-template")
+                    .selected_text(t("Choose…"))
+                    .show_ui(ui, |ui| {
+                        for (words, types) in [
+                            (t("Pictures"), "jpg jpeg png gif webp bmp tif tiff svg"),
+                            (t("Documents"), "pdf doc docx xls xlsx ppt pptx odt ods odp rtf txt epub"),
+                            (t("Videos and music"), "mp4 mkv avi mov wmv webm flv m4v mp3 m4a aac wav flac ogg opus"),
+                            (t("Archives and programs"), "zip rar 7z gz tar bz2 xz exe msi iso dmg apk"),
+                            (t("Every file"), ""),
+                        ] {
+                            if ui.selectable_label(false, words).clicked() {
+                                d.types = types.to_string();
+                            }
+                        }
+                    })
+                    .response
+                    .labelled_by(name.id);
+            });
             field(ui, t("File types"), &mut d.types, 420.0);
             ui.horizontal(|ui| {
                 let name = ui.label(t("Page depth (0 for the start page only)"));
@@ -42,6 +77,15 @@ pub(super) fn site_files(app: &mut DmApp, ctx: &egui::Context) {
                     number_box(&mut d.stop_after_minutes).range(0..=dm_shell::lists::MOST_MINUTES),
                 )
                 .labelled_by(name.id);
+            });
+            // Reference A's size filters (gaps row 92).
+            ui.horizontal_wrapped(|ui| {
+                let name = ui.label(t("Files at least (KB, 0 for any)"));
+                ui.add(number_box(&mut d.min_kb).range(0..=u64::from(u32::MAX)))
+                    .labelled_by(name.id);
+                let name = ui.label(t("and at most (KB, 0 for any)"));
+                ui.add(number_box(&mut d.max_kb).range(0..=u64::from(u32::MAX)))
+                    .labelled_by(name.id);
             });
             field(ui, t("Only paths containing"), &mut d.include, 420.0);
             field(ui, t("Skip paths containing"), &mut d.exclude, 420.0);

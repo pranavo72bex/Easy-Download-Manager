@@ -73,13 +73,19 @@ pub async fn on_download_created(item: JsValue) {
         );
     }
     let forced = clicked || forced_for(&found).await;
-    let early = remembered_rules()
-        .await
-        .is_none_or(|rules| rules.takes(&found.candidate(), forced).is_ok());
+    // A browser unticked in dm's Options is taken from no more, as reference A's list of the
+    // browsers it captures from (gaps row 86); its menus still hand things over.
+    let browser = this_browser();
+    let early = remembered_rules().await.is_none_or(|rules| {
+        rules.takes_from(browser) && rules.takes(&found.candidate(), forced).is_ok()
+    });
     let mut paused = early && pause().await;
 
     let (app, port) = app().await;
     let verdict = match &app {
+        App::Present { rules, .. } if !rules.takes_from(browser) => Err(format!(
+            "dm takes no downloads from {browser} (Options › Browser)"
+        )),
         App::Present { rules, hello } => rules
             .takes(&found.candidate(), forced)
             .map_err(|left| left.reason().to_string())
@@ -140,8 +146,23 @@ pub async fn on_download_created(item: JsValue) {
         // The page's title, so the app can name a file whose own name says
         // nothing (a hash, `video`); the app keeps a real name.
         title: tab_title(&found.referrer).await.unwrap_or_default(),
+        // A form's answer: the form, for dm to send again. Its type goes
+        // with the browser's own request headers above.
+        post: FORMS.with(|f| f.borrow_mut().take(&found.asked_url, &found.url, now())),
         ..Start::default()
     };
+    // The form's type, as the browser's request named it.
+    let mut start = start;
+    if let Some(post) = start.post.as_mut() {
+        if post.content_type.is_empty() {
+            post.content_type = start
+                .headers
+                .iter()
+                .find(|(name, _)| name.eq_ignore_ascii_case("content-type"))
+                .map(|(_, value)| value.clone())
+                .unwrap_or_default();
+        }
+    }
     // dm refused for want of the browser's session (a link only a signed-in
     // browser can fetch): handed over again with that session, for this one
     // download, rather than left to download in the browser.

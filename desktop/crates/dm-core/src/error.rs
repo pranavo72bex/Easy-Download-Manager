@@ -268,6 +268,11 @@ pub(crate) fn worth_saying(body: &str, status: u16) -> String {
 /// address showed; the cause is said first now, plainly, and the system's
 /// own words for it after.
 pub(crate) fn network(error: &reqwest::Error) -> String {
+    // Sent nowhere because the proxy configuration script gave no way there:
+    // the script's trouble is the cause, not the refused connection.
+    if let Some(why) = error.url().and_then(crate::pac::refusal) {
+        return format!("the proxy configuration script gave no way to this site: {why}");
+    }
     let mut innermost = String::new();
     let mut refused = false;
     let mut cause: Option<&dyn std::error::Error> = Some(error);

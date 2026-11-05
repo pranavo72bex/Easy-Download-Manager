@@ -253,6 +253,35 @@ pub fn unrecognised(args: &[String]) -> Vec<String> {
     words
 }
 
+/// The form a hand-over's download is the answer to, as the engine sends it:
+/// `None` for none, or a body that is not base64 or is too big to be a form.
+pub fn posted(url: &str, post: Option<&dm_protocol::Posted>) -> Option<dm_core::cookies::Posted> {
+    use base64::Engine;
+    let post = post?;
+    let (body, content_type) = if post.raw.is_empty() {
+        (
+            post.form.clone().into_bytes(),
+            if post.content_type.is_empty() {
+                "application/x-www-form-urlencoded".to_string()
+            } else {
+                post.content_type.clone()
+            },
+        )
+    } else {
+        (
+            base64::engine::general_purpose::STANDARD
+                .decode(post.raw.trim())
+                .ok()?,
+            post.content_type.clone(),
+        )
+    };
+    (body.len() <= dm_core::cookies::POST_MOST).then(|| dm_core::cookies::Posted {
+        url: url.trim().to_string(),
+        body,
+        content_type,
+    })
+}
+
 /// What a request from the command line or a browser asks the queue for.
 pub fn add_options(request: &host::Request) -> dm_core::AddOptions {
     dm_core::AddOptions {
@@ -265,6 +294,7 @@ pub fn add_options(request: &host::Request) -> dm_core::AddOptions {
         cookies: request.cookies.clone(),
         cookies_once: request.cookies_once,
         headers: request.headers.clone(),
+        post: posted(&request.url, request.post.as_ref()),
         title_hint: Some(request.title.clone()).filter(|t| !t.is_empty()),
         queue: if request.later {
             dm_core::MAIN_QUEUE.to_string()

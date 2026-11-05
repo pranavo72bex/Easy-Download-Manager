@@ -255,6 +255,8 @@ impl Queue {
             // would overwrite each other's part files: the one it was first
             // started under, recorded on the row, so a parts folder changed
             // in the settings since does not strand what it has.
+            // A form's answer whose form is gone (dm was closed since).
+            let mut form_lost = false;
             let own_parts = options.parts_dir.join(id.to_string());
             // Its own folder even if the row is gone before it starts: the
             // shared parts folder is never anybody's staging.
@@ -277,6 +279,13 @@ impl Queue {
                         &slot.entry.cookies,
                         &slot.entry.headers,
                     );
+                    // A form's answer goes with its form, sent again.
+                    if let Some(post) = slot.entry.post.clone() {
+                        options.sign_in =
+                            crate::cookies::SignIn::posting(options.sign_in.take(), post);
+                    } else if slot.entry.posted {
+                        form_lost = true;
+                    }
                     options.checksum = slot.entry.checksum.clone();
                     options.torrent.only = crate::torrent::only_files(&slot.entry.torrent_files);
                     options.save_name = slot.entry.save_name.clone();
@@ -299,6 +308,12 @@ impl Queue {
                     if let Some(quality) = &slot.entry.quality {
                         options.quality = crate::stream::Quality::named(quality);
                         options.container = crate::stream::Quality::container_of(quality);
+                        options.frame_rate = crate::stream::Quality::frame_rate_of(quality);
+                        // A caption line: the caption file alone, in no container.
+                        options.caption = crate::stream::Quality::caption_of(quality);
+                        if options.caption.is_some() {
+                            options.container = None;
+                        }
                         // MP3: the M4A sound fetched, then made an MP3 by dm.
                         if options.container.as_deref() == Some("mp3") {
                             options.container = Some("m4a".into());
@@ -400,7 +415,16 @@ impl Queue {
             };
 
             let client = inner.client.lock().await.clone();
-            let outcome = download_reporting(&client, &url, &options, Some(tx)).await;
+            let outcome = if form_lost {
+                drop(tx);
+                Err(crate::Error::Internal(
+                    "this download is a form's answer, and the form is gone since dm was \
+                     closed: start it again from the page it came from"
+                        .into(),
+                ))
+            } else {
+                download_reporting(&client, &url, &options, Some(tx)).await
+            };
             let reported = watcher.await.ok().flatten();
             if let Some(slot) = inner.slots.lock().await.get_mut(&id) {
                 slot.swarm = None;

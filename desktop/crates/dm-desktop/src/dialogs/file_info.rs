@@ -17,6 +17,7 @@ pub(super) fn file_info(app: &mut DmApp, ctx: &egui::Context) {
         return;
     }
     let focus = app.dialogs.take_focus("Download details");
+    begin_early(app);
     let queues = app.queues();
     let Some(d) = app.dialogs.file_info.as_mut() else {
         return;
@@ -277,7 +278,9 @@ pub(super) fn file_info(app: &mut DmApp, ctx: &egui::Context) {
                 .rows
                 .iter()
                 .filter(|r| {
-                    !r.state.settled()
+                    // The row begun at once for this very dialog is this file.
+                    Some(r.id) != d.early
+                        && !r.state.settled()
                         && r.path.is_empty()
                         && name_of(r) == name
                         && r.save_dir
@@ -671,7 +674,15 @@ pub(super) fn file_info(app: &mut DmApp, ctx: &egui::Context) {
             .and_then(|d| d.urls.first())
             .map(|url| dm_core::host_of(url))
             .filter(|host| !host.is_empty());
+        let early = app.dialogs.file_info.as_ref().and_then(|d| d.early);
         app.dialogs.file_info = None;
+        // What was fetched while it asked goes with it.
+        if let Some(id) = early {
+            let queue = app.backend.queue.clone();
+            app.backend
+                .runtime
+                .spawn(async move { queue.remove(id).await });
+        }
         if let Some(site) = site {
             app.hand_off_cancelled(&site);
         }
@@ -720,6 +731,8 @@ pub(super) fn file_info(app: &mut DmApp, ctx: &egui::Context) {
         cookies: d.cookies.clone(),
         cookies_once: d.cookies_once,
         headers: d.headers.clone(),
+        // The form for the first address alone, which is the one it was sent to.
+        post: d.post.clone(),
         checksum: None,
         speed_limit: 0,
         // Added from Download details, by a person: not a hand-over that
@@ -764,6 +777,29 @@ pub(super) fn file_info(app: &mut DmApp, ctx: &egui::Context) {
         .into_iter()
         .collect();
     let handed = d.handed;
+    // Begun while it asked: placed where it was asked to go, not added again.
+    if let Some(id) = d.early {
+        let dir = with.save_dir.clone().map(std::path::PathBuf::from);
+        let placed = app.backend.settle_early(
+            id,
+            dir,
+            with.save_name.clone(),
+            &with.description,
+            &with.queue,
+            later,
+        );
+        app.dialogs.file_info = None;
+        if let Err(e) = placed {
+            app.said = e.into();
+        }
+        if handed {
+            for url in &urls {
+                app.taken_from_browser(url);
+            }
+        }
+        app.refresh();
+        return;
+    }
     match app.add_sized(&urls, &with, &sizes) {
         Ok(_) => {
             app.dialogs.file_info = None;
@@ -788,6 +824,50 @@ pub(super) fn file_info(app: &mut DmApp, ctx: &egui::Context) {
                 d.says = e;
             }
         }
+    }
+}
+
+/// Starts the dialog's one file at once, where Options asks for that (reference A's "start
+/// downloading while the dialog is open"; gaps row 85): a plain file, not a video page, a
+/// torrent, a form's answer or several addresses, which wait for the person as before.
+fn begin_early(app: &mut DmApp) {
+    if !app.applied.start_while_asking {
+        return;
+    }
+    let Some(d) = app.dialogs.file_info.as_mut() else {
+        return;
+    };
+    if d.early_tried {
+        return;
+    }
+    d.early_tried = true;
+    let [url] = d.urls.as_slice() else {
+        return;
+    };
+    let plain = (url.starts_with("https://") || url.starts_with("http://"))
+        && !dm_core::is_torrent(url)
+        && d.choices.is_none()
+        && d.quality.is_none()
+        && d.post.is_none();
+    if !plain {
+        return;
+    }
+    let with = AddOptions {
+        referrer: d.referrer.clone(),
+        cookies: d.cookies.clone(),
+        cookies_once: d.cookies_once,
+        headers: d.headers.clone(),
+        ..AddOptions::default()
+    };
+    let url = url.clone();
+    match app.backend.add_with(&url, with) {
+        Ok(id) => {
+            if let Some(d) = app.dialogs.file_info.as_mut() {
+                d.early = Some(id);
+            }
+            app.refresh();
+        }
+        Err(e) => app.said = e.into(),
     }
 }
 

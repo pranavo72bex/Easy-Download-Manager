@@ -72,7 +72,7 @@ libc = "0.2"
 # start. Already in the tree through tokio and others; only its
 # file-system module is named.
 [target.'cfg(windows)'.dependencies]
-windows-sys = { version = "0.61", features = ["Win32_Foundation", "Win32_Security", "Win32_Security_Credentials", "Win32_Storage_FileSystem"] }
+windows-sys = { version = "0.61", features = ["Win32_Foundation", "Win32_Security", "Win32_Security_Credentials", "Win32_Storage_FileSystem", "Win32_NetworkManagement_IpHelper", "Win32_NetworkManagement_Ndis", "Win32_Networking_WinSock"] }
 
 # Media Foundation, the system's own decoders, for a video's sound saved as MP3
 # and a part saved as GIF (`mf.rs`): COM, which windows-sys has no wrappers

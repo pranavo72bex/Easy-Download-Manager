@@ -129,9 +129,34 @@ impl Quality {
 
     /// The container in a panel's quality word ("720/mp4" is "mp4"), if any.
     pub fn container_of(word: &str) -> Option<String> {
-        word.split_once('/')
-            .map(|(_, c)| c.trim().to_ascii_lowercase())
+        word.split('/')
+            .nth(1)
+            .map(|c| c.trim().to_ascii_lowercase())
             .filter(|c| !c.is_empty() && c.chars().all(|ch| ch.is_ascii_alphanumeric()))
+    }
+
+    /// The caption track a panel's quality word names ("caption/en" or
+    /// "caption/en/asr", the second YouTube's own made by speech recognition):
+    /// the language and whether it is the recognised one.
+    pub fn caption_of(word: &str) -> Option<(String, bool)> {
+        let rest = word.trim().strip_prefix("caption/")?;
+        let mut parts = rest.split('/');
+        let language = parts.next()?.trim();
+        let ok = !language.is_empty()
+            && language.len() <= 20
+            && language
+                .chars()
+                .all(|c| c.is_ascii_alphanumeric() || c == '-' || c == '_');
+        ok.then(|| (language.to_string(), parts.next() == Some("asr")))
+    }
+
+    /// The frame rate in a panel's quality word ("720/mp4/60" is 60), where
+    /// its height is listed twice, at two frame rates.
+    pub fn frame_rate_of(word: &str) -> Option<u32> {
+        word.split('/')
+            .nth(2)
+            .and_then(|r| r.trim().parse::<u32>().ok())
+            .filter(|r| *r > 0)
     }
 
     /// The word `named` reads back.

@@ -9,6 +9,8 @@ description = "What every dm window shares: the settings, the browser host, the 
 # so what a download manager does at startup, on a browser hand-off and on a
 # settings change is written once, whichever window is drawing it.
 [dependencies]
+# A form's raw body, which the extension sends as base64 (dm-core's version).
+base64 = "0.22"
 dm-core = { path = "../dm-core" }
 dm-protocol = { path = "../dm-protocol" }
 serde = { version = "1", features = ["derive"] }
