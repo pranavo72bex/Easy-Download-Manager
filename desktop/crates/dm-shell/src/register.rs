@@ -585,6 +585,147 @@ pub fn unregister_torrent_windows(mut reg: impl FnMut(&[String]) -> Result<(), S
         && reg(&reg_args(&["delete", TORRENT_PROGID_KEY, "/f"])).is_ok()
 }
 
+/// Who Windows opens a kind of link or file with.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Owner {
+    /// dm: its registration, with its marker.
+    Dm,
+    /// Another program's registration.
+    Other,
+    /// None at all.
+    Nobody,
+    /// The program chosen in Windows' Default apps, which decides over any
+    /// program's registration and which no program may write.
+    WindowsChoice,
+}
+
+/// Where Windows keeps a person's own choice for `magnet:` links.
+const MAGNET_CHOICE_KEY: &str =
+    r"HKCU\Software\Microsoft\Windows\Shell\Associations\UrlAssociations\magnet\UserChoice";
+/// Where Windows keeps a person's own choice for `.torrent` files.
+const TORRENT_CHOICE_KEY: &str =
+    r"HKCU\Software\Microsoft\Windows\CurrentVersion\Explorer\FileExts\.torrent\UserChoice";
+
+/// Who opens magnet links: Windows' own choice where one is made, else dm,
+/// another program or nobody, by the registration and dm's marker.
+pub fn magnet_owner(mut reg: impl FnMut(&[String]) -> Result<(), String>) -> Owner {
+    if reg(&reg_args(&["query", MAGNET_CHOICE_KEY])).is_ok() {
+        Owner::WindowsChoice
+    } else if magnet_is_ours(&mut reg) {
+        Owner::Dm
+    } else if reg(&reg_args(&["query", MAGNET_KEY])).is_ok() {
+        Owner::Other
+    } else {
+        Owner::Nobody
+    }
+}
+
+/// Who opens `.torrent` files, as `magnet_owner` reads it.
+pub fn torrent_owner(mut reg: impl FnMut(&[String]) -> Result<(), String>) -> Owner {
+    if reg(&reg_args(&["query", TORRENT_CHOICE_KEY])).is_ok() {
+        Owner::WindowsChoice
+    } else if torrent_is_ours(&mut reg) {
+        Owner::Dm
+    } else if reg(&reg_args(&["query", TORRENT_EXTENSION_KEY])).is_ok() {
+        Owner::Other
+    } else {
+        Owner::Nobody
+    }
+}
+
+/// Makes dm what opens magnet links, at a person's asking, though another
+/// program has them: that program's key is first written to `backup` (a
+/// `.reg` file, `reg export`), so `give_back_magnet_windows` can put it back.
+pub fn take_magnet_windows(
+    exe: &Path,
+    backup: &Path,
+    mut reg: impl FnMut(&[String]) -> Result<(), String>,
+) -> Result<(), String> {
+    if !exe.is_absolute() {
+        return Err(format!(
+            "{} is not a program Windows could start",
+            exe.display()
+        ));
+    }
+    let backup_text = backup.display().to_string();
+    if reg(&reg_args(&["query", MAGNET_KEY])).is_ok() && !magnet_is_ours(&mut reg) {
+        reg(&reg_args(&["export", MAGNET_KEY, &backup_text, "/y"]))?;
+        reg(&reg_args(&["delete", MAGNET_KEY, "/f"]))?;
+    }
+    for args in magnet_keys(exe) {
+        reg(&args)?;
+    }
+    Ok(())
+}
+
+/// Gives magnet links back to the program that had them before dm took
+/// them: dm's key removed, `backup` imported, and then removed.
+pub fn give_back_magnet_windows(
+    backup: &Path,
+    mut reg: impl FnMut(&[String]) -> Result<(), String>,
+) -> Result<(), String> {
+    if magnet_is_ours(&mut reg) {
+        reg(&reg_args(&["delete", MAGNET_KEY, "/f"]))?;
+    }
+    reg(&reg_args(&["import", &backup.display().to_string()]))?;
+    let _ = std::fs::remove_file(backup);
+    Ok(())
+}
+
+/// Makes dm what opens `.torrent` files, at a person's asking, though
+/// another program has them; the extension's key is first written to
+/// `backup`, as for magnet links.
+pub fn take_torrent_windows(
+    exe: &Path,
+    backup: &Path,
+    mut reg: impl FnMut(&[String]) -> Result<(), String>,
+) -> Result<(), String> {
+    if !exe.is_absolute() {
+        return Err(format!(
+            "{} is not a program Windows could start",
+            exe.display()
+        ));
+    }
+    let backup_text = backup.display().to_string();
+    if reg(&reg_args(&["query", TORRENT_EXTENSION_KEY])).is_ok() && !torrent_is_ours(&mut reg) {
+        reg(&reg_args(&[
+            "export",
+            TORRENT_EXTENSION_KEY,
+            &backup_text,
+            "/y",
+        ]))?;
+        reg(&reg_args(&["delete", TORRENT_EXTENSION_KEY, "/f"]))?;
+    }
+    for args in torrent_keys(exe) {
+        reg(&args)?;
+    }
+    Ok(())
+}
+
+/// Gives `.torrent` files back to the program that had them before dm.
+pub fn give_back_torrent_windows(
+    backup: &Path,
+    mut reg: impl FnMut(&[String]) -> Result<(), String>,
+) -> Result<(), String> {
+    if torrent_is_ours(&mut reg) {
+        reg(&reg_args(&["delete", TORRENT_EXTENSION_KEY, "/f"]))?;
+        reg(&reg_args(&["delete", TORRENT_PROGID_KEY, "/f"]))?;
+    }
+    reg(&reg_args(&["import", &backup.display().to_string()]))?;
+    let _ = std::fs::remove_file(backup);
+    Ok(())
+}
+
+/// Where what another program had for magnet links is kept while dm has them.
+pub fn magnet_backup(home: &Path) -> PathBuf {
+    home.join("magnet-before-dm.reg")
+}
+
+/// Where what another program had for `.torrent` files is kept while dm has them.
+pub fn torrent_backup(home: &Path) -> PathBuf {
+    home.join("torrent-before-dm.reg")
+}
+
 /// Registers on Windows: both manifests written under `data`, then a key
 /// for every browser. `reg` runs `reg.exe` with the arguments given; a test
 /// passes one that records them. Returns what was written, files then keys.

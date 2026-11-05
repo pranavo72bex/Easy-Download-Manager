@@ -812,5 +812,17 @@
  "A sound file of your own for each, or empty for the usual sound (.wav).": "Свой звуковой файл для каждого события или пусто для обычного звука (.wav).",
  "Queue started": "Очередь запущена",
  "Queue finished": "Очередь завершена",
- "Play": "Воспроизвести"
+ "Play": "Воспроизвести",
+ "Take a copied link at once, without offering it first": "Сразу брать скопированную ссылку, не предлагая её сначала",
+ "Magnet links open with:": "Magnet-ссылки открывает:",
+ ".torrent files open with:": "Файлы .torrent открывает:",
+ "Looking…": "Проверка…",
+ "another program": "другая программа",
+ "nothing yet": "пока ничего",
+ "the app chosen in Windows' Default apps": "приложение, выбранное в приложениях по умолчанию Windows",
+ "Use dm for magnet links": "Открывать magnet-ссылки в dm",
+ "Use dm for .torrent files": "Открывать файлы .torrent в dm",
+ "Give magnet links back": "Вернуть magnet-ссылки",
+ "Give .torrent files back": "Вернуть файлы .torrent",
+ "dm keeps what another program had, and can give it back. Where Windows' Default apps has a choice, that choice decides: change it in Settings, Apps, Default apps.": "dm сохраняет то, что было у другой программы, и может вернуть это. Если в приложениях по умолчанию Windows сделан выбор, решает он: измените его в «Параметры», «Приложения», «Приложения по умолчанию»."
 }

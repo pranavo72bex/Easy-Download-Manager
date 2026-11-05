@@ -812,5 +812,17 @@
  "A sound file of your own for each, or empty for the usual sound (.wav).": "각각에 사용할 소리 파일(비워 두면 기본 소리, .wav).",
  "Queue started": "대기열 시작됨",
  "Queue finished": "대기열 완료됨",
- "Play": "재생"
+ "Play": "재생",
+ "Take a copied link at once, without offering it first": "복사한 링크를 먼저 묻지 않고 바로 받기",
+ "Magnet links open with:": "마그넷 링크를 여는 프로그램:",
+ ".torrent files open with:": ".torrent 파일을 여는 프로그램:",
+ "Looking…": "확인 중…",
+ "another program": "다른 프로그램",
+ "nothing yet": "아직 없음",
+ "the app chosen in Windows' Default apps": "Windows 기본 앱에서 선택한 앱",
+ "Use dm for magnet links": "마그넷 링크에 dm 사용",
+ "Use dm for .torrent files": ".torrent 파일에 dm 사용",
+ "Give magnet links back": "마그넷 링크 되돌리기",
+ "Give .torrent files back": ".torrent 파일 되돌리기",
+ "dm keeps what another program had, and can give it back. Where Windows' Default apps has a choice, that choice decides: change it in Settings, Apps, Default apps.": "dm은 다른 프로그램의 설정을 보관하고 되돌릴 수 있습니다. Windows 기본 앱에 선택이 있으면 그 선택이 우선합니다. 설정, 앱, 기본 앱에서 바꾸세요."
 }

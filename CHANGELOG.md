@@ -5,6 +5,8 @@ the browser extension (`v*` tags) are versioned separately.
 
 ## Unreleased
 
+- Options › Browser says, on Windows, what opens magnet links and `.torrent` files: dm, another program, nothing yet, or the app chosen in Windows' Default apps. Where it is not dm, "Use dm for magnet links" (or ".torrent files") makes it dm, first keeping what the other program had, and "Give … back" puts that back (gaps row 106).
+- A copied link can be taken at once (gaps row 86, part 1), as reference A's switch does: Options › General, "Take a copied link at once, without offering it first" (off by default), opens its Download details, or the list of several, with no bar first.
 - A torrent's peers and upload are shown (gaps row 144): its progress window says how many peers it is connected to and how many it knows of, and what it has sent them and how fast, where a file's says its connections.
 - A torrent's files can be chosen (gaps row 145): once its files are known, Properties lists each with a tick and its size; with the download stopped, those unticked are not fetched, and a file left out is not moved into the folder with the rest (pieces it shares with a wanted file leave it partly written).
 - A slower speed for set hours (gaps row 148): the Speed limiter's settings take hours of every day (past midnight too) and a speed limit for them; in those hours the lower of it and the speed limit is in force, put in and taken out by the window as they begin and end.

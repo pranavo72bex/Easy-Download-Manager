@@ -682,7 +682,15 @@ pub struct OptionsDialog {
     /// Advanced is to open at its proxy section, where a proxy that is
     /// wrong was said (OK on a host that cannot be one).
     pub to_proxy: bool,
+    /// Who opens magnet links and `.torrent` files, read beside the window
+    /// as File types opens (`reg.exe` takes a moment each); `None` until read.
+    pub handlers: Handlers,
+    /// Whether that reading was started.
+    pub handlers_asked: bool,
 }
+
+/// Who opens magnet links and `.torrent` files, once read.
+pub type Handlers = Arc<Mutex<Option<(dm_shell::register::Owner, dm_shell::register::Owner)>>>;
 
 /// A list to import, some of whose addresses are already rows.
 pub struct ImportAsk {

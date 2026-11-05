@@ -812,5 +812,17 @@
  "A sound file of your own for each, or empty for the usual sound (.wav).": "Her biri için kendi ses dosyanız ya da olağan ses için boş (.wav).",
  "Queue started": "Kuyruk başladı",
  "Queue finished": "Kuyruk bitti",
- "Play": "Çal"
+ "Play": "Çal",
+ "Take a copied link at once, without offering it first": "Kopyalanan bağlantıyı önce sormadan hemen al",
+ "Magnet links open with:": "Magnet bağlantılarını açan:",
+ ".torrent files open with:": ".torrent dosyalarını açan:",
+ "Looking…": "Bakılıyor…",
+ "another program": "başka bir program",
+ "nothing yet": "henüz hiçbiri",
+ "the app chosen in Windows' Default apps": "Windows Varsayılan uygulamalarında seçilen uygulama",
+ "Use dm for magnet links": "Magnet bağlantıları için dm'yi kullan",
+ "Use dm for .torrent files": ".torrent dosyaları için dm'yi kullan",
+ "Give magnet links back": "Magnet bağlantılarını geri ver",
+ "Give .torrent files back": ".torrent dosyalarını geri ver",
+ "dm keeps what another program had, and can give it back. Where Windows' Default apps has a choice, that choice decides: change it in Settings, Apps, Default apps.": "dm başka bir programın ayarını saklar ve geri verebilir. Windows Varsayılan uygulamalarında bir seçim varsa o karar verir: Ayarlar, Uygulamalar, Varsayılan uygulamalar'dan değiştirin."
 }

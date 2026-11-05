@@ -812,5 +812,17 @@
  "A sound file of your own for each, or empty for the usual sound (.wav).": "Berkas suara Anda sendiri untuk masing-masing, atau kosong untuk suara biasa (.wav).",
  "Queue started": "Antrean dimulai",
  "Queue finished": "Antrean selesai",
- "Play": "Putar"
+ "Play": "Putar",
+ "Take a copied link at once, without offering it first": "Ambil tautan yang disalin seketika, tanpa menawarkannya dulu",
+ "Magnet links open with:": "Tautan magnet dibuka dengan:",
+ ".torrent files open with:": "Berkas .torrent dibuka dengan:",
+ "Looking…": "Memeriksa…",
+ "another program": "program lain",
+ "nothing yet": "belum ada",
+ "the app chosen in Windows' Default apps": "aplikasi yang dipilih di Aplikasi default Windows",
+ "Use dm for magnet links": "Gunakan dm untuk tautan magnet",
+ "Use dm for .torrent files": "Gunakan dm untuk berkas .torrent",
+ "Give magnet links back": "Kembalikan tautan magnet",
+ "Give .torrent files back": "Kembalikan berkas .torrent",
+ "dm keeps what another program had, and can give it back. Where Windows' Default apps has a choice, that choice decides: change it in Settings, Apps, Default apps.": "dm menyimpan apa yang dimiliki program lain, dan dapat mengembalikannya. Jika ada pilihan di Aplikasi default Windows, pilihan itu yang menentukan: ubah di Pengaturan, Aplikasi, Aplikasi default."
 }

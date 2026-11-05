@@ -812,5 +812,17 @@
  "A sound file of your own for each, or empty for the usual sound (.wav).": "为每项选择自己的声音文件,留空则使用默认声音 (.wav)。",
  "Queue started": "队列已开始",
  "Queue finished": "队列已完成",
- "Play": "播放"
+ "Play": "播放",
+ "Take a copied link at once, without offering it first": "复制的链接立即接收,不先询问",
+ "Magnet links open with:": "磁力链接的打开方式:",
+ ".torrent files open with:": ".torrent 文件的打开方式:",
+ "Looking…": "正在查看…",
+ "another program": "其他程序",
+ "nothing yet": "尚未设置",
+ "the app chosen in Windows' Default apps": "Windows 默认应用中选择的应用",
+ "Use dm for magnet links": "用 dm 打开磁力链接",
+ "Use dm for .torrent files": "用 dm 打开 .torrent 文件",
+ "Give magnet links back": "交还磁力链接",
+ "Give .torrent files back": "交还 .torrent 文件",
+ "dm keeps what another program had, and can give it back. Where Windows' Default apps has a choice, that choice decides: change it in Settings, Apps, Default apps.": "dm 会保留其他程序原有的设置,并可交还。若 Windows 默认应用中已有选择,则以该选择为准:请在“设置 > 应用 > 默认应用”中更改。"
 }

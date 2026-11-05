@@ -48,6 +48,19 @@ impl DmApp {
                     .into_iter()
                     .collect()
             };
+        // Taken at once where the person asked for that: one link's
+        // Download details, or the list of several, with no bar first.
+        if self.applied.start_copied && !links.is_empty() {
+            self.clipboard.dismissed.extend(links.iter().cloned());
+            self.clipboard.offered = None;
+            self.clipboard.offered_all.clear();
+            if links.len() == 1 {
+                self.dialogs.open_file_info(links);
+            } else {
+                self.queued.push(Command::AddFromClipboard);
+            }
+            return;
+        }
         self.clipboard.offered = links.first().cloned();
         self.clipboard.offered_all = links;
     }

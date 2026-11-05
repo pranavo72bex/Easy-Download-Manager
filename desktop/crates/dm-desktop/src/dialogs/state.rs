@@ -423,6 +423,8 @@ impl Dialogs {
             fresh: false,
             fresh_tab: 3,
             to_proxy: false,
+            handlers: Handlers::default(),
+            handlers_asked: false,
         });
     }
 

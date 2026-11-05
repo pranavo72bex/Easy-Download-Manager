@@ -110,6 +110,11 @@ pub struct Settings {
     /// default: people copy URLs constantly, so this asks rather than grabs.
     #[serde(default)]
     pub watch_clipboard: bool,
+    /// A link copied while the clipboard is watched is taken at once, its
+    /// Download details opened (several, the list of them), rather than
+    /// offered in a bar first. Off by default, as reference A's.
+    #[serde(default)]
+    pub start_copied: bool,
 
     /// Start with the computer, so a browser hand-off has an app to land in
     /// without anyone opening it first. On for a new install, in the tray
@@ -554,6 +559,7 @@ impl Default for Settings {
             queue_schedules: std::collections::BTreeMap::new(),
             proxy: Proxy::default(),
             watch_clipboard: false,
+            start_copied: false,
             start_on_login: true,
             allow_command_line: false,
             allow_mcp: true,

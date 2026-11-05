@@ -812,5 +812,17 @@
  "A sound file of your own for each, or empty for the usual sound (.wav).": "Een eigen geluidsbestand voor elk, of leeg voor het gewone geluid (.wav).",
  "Queue started": "Wachtrij gestart",
  "Queue finished": "Wachtrij voltooid",
- "Play": "Afspelen"
+ "Play": "Afspelen",
+ "Take a copied link at once, without offering it first": "Een gekopieerde link meteen overnemen, zonder hem eerst aan te bieden",
+ "Magnet links open with:": "Magnetlinks openen met:",
+ ".torrent files open with:": ".torrent-bestanden openen met:",
+ "Looking…": "Bezig met kijken…",
+ "another program": "een ander programma",
+ "nothing yet": "nog niets",
+ "the app chosen in Windows' Default apps": "de app die in Standaard-apps van Windows is gekozen",
+ "Use dm for magnet links": "dm gebruiken voor magnetlinks",
+ "Use dm for .torrent files": "dm gebruiken voor .torrent-bestanden",
+ "Give magnet links back": "Magnetlinks teruggeven",
+ "Give .torrent files back": ".torrent-bestanden teruggeven",
+ "dm keeps what another program had, and can give it back. Where Windows' Default apps has a choice, that choice decides: change it in Settings, Apps, Default apps.": "dm bewaart wat een ander programma had en kan het teruggeven. Waar Standaard-apps van Windows een keuze heeft, beslist die keuze: wijzig haar in Instellingen, Apps, Standaard-apps."
 }

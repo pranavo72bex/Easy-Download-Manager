@@ -3914,3 +3914,18 @@ reference apps); the sound files are reference A's.
 * **Sound files per event** are kept in the `sounds` map the engine already read (`complete`,
   `failed`, `queue_started`, `queue_done`); an emptied field removes its entry, so the usual
   sound is back. Only `.wav` is offered in the chooser, as only `.wav` is promised.
+
+## Who opens magnet links: shown, taken at a click, given back (2026-11-05, gaps row 106)
+
+* **Read from Windows' keys, beside the window.** Options › Browser asks `reg.exe` four
+  questions as the page opens (each takes a moment), on a thread of its own. Windows' own
+  choice (`UserChoice`, set in Default apps) is asked first: it decides over every program's
+  registration and no program may write it, so dm says so and offers no button there.
+* **dm takes them only at a click, and keeps what it replaced.** At start dm still writes its
+  keys only where nobody has them (row 100). "Use dm for magnet links" is the person's own
+  choice to replace another program's: that program's key is first written out with
+  `reg export` to `magnet-before-dm.reg` in dm's home, then removed, then dm's written. "Give
+  magnet links back" removes dm's key and imports the kept one. The same for `.torrent`, whose
+  extension key is kept and dm's ProgId removed on giving back.
+* **dm does not appear in Default apps.** That needs a `RegisteredApplications` entry with
+  `Capabilities` (spec T5), a change to how dm shows in Windows, left for the maintainer's word.

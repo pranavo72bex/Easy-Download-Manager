@@ -777,3 +777,145 @@ fn a_start_writes_the_windows_handlers_an_older_version_never_wrote() {
     });
     assert!(ran.iter().all(|a| a[0] == "query"), "{ran:?}");
 }
+
+/// Who opens magnet links and `.torrent` files is read from the keys:
+/// Windows' own choice first, then dm's marker, another program's key, or none.
+#[test]
+fn who_opens_magnet_links_and_torrent_files_is_read_from_the_keys() {
+    // Windows' Default apps choice decides over every registration.
+    assert_eq!(magnet_owner(|_| Ok(())), Owner::WindowsChoice);
+    let only = |found: &'static [&'static str]| {
+        move |args: &[String]| {
+            let key = args[1].as_str();
+            let wanted = if args.len() > 3 && args[2] == "/v" {
+                format!("{key} /v {}", args[3])
+            } else {
+                key.to_string()
+            };
+            if found.iter().any(|f| *f == wanted) {
+                Ok(())
+            } else {
+                Err("not found".to_string())
+            }
+        }
+    };
+    assert_eq!(
+        magnet_owner(only(&[
+            r"HKCU\Software\Classes\magnet",
+            r"HKCU\Software\Classes\magnet /v dm"
+        ])),
+        Owner::Dm
+    );
+    assert_eq!(
+        magnet_owner(only(&[r"HKCU\Software\Classes\magnet"])),
+        Owner::Other
+    );
+    assert_eq!(magnet_owner(only(&[])), Owner::Nobody);
+    assert_eq!(
+        torrent_owner(only(&[
+            r"HKCU\Software\Classes\.torrent",
+            r"HKCU\Software\Classes\dm.torrent /v dm"
+        ])),
+        Owner::Dm
+    );
+    assert_eq!(
+        torrent_owner(only(&[r"HKCU\Software\Classes\.torrent"])),
+        Owner::Other
+    );
+    assert_eq!(torrent_owner(only(&[])), Owner::Nobody);
+}
+
+/// Taken at a person's asking from another program, magnet links and
+/// `.torrent` files are kept first (`reg export`), and given back from it.
+#[test]
+fn magnet_links_and_torrent_files_taken_from_another_program_can_be_given_back() {
+    let elsewhere = tempfile::tempdir().unwrap();
+    let exe = program(elsewhere.path());
+    let backup = elsewhere.path().join("magnet-before-dm.reg");
+    // Another program's key: kept, removed, then dm's written.
+    let mut ran: Vec<Vec<String>> = Vec::new();
+    take_magnet_windows(&exe, &backup, |args| {
+        ran.push(args.to_vec());
+        if args[0] == "query" && args.len() > 2 {
+            Err("no marker".into())
+        } else {
+            Ok(())
+        }
+    })
+    .unwrap();
+    assert_eq!(ran[1][0], "query", "{ran:?}");
+    let export = ran
+        .iter()
+        .position(|a| a[0] == "export")
+        .expect("kept first");
+    let delete = ran
+        .iter()
+        .position(|a| a[0] == "delete")
+        .expect("then removed");
+    let first_add = ran.iter().position(|a| a[0] == "add").expect("then dm's");
+    assert!(export < delete && delete < first_add, "{ran:?}");
+    assert_eq!(ran[export][2], backup.display().to_string());
+    assert_eq!(ran.iter().filter(|a| a[0] == "add").count(), 4);
+    // Nobody's: nothing kept, dm's written.
+    let mut ran: Vec<Vec<String>> = Vec::new();
+    take_magnet_windows(&exe, &backup, |args| {
+        ran.push(args.to_vec());
+        if args[0] == "query" {
+            Err("none".into())
+        } else {
+            Ok(())
+        }
+    })
+    .unwrap();
+    assert!(
+        !ran.iter().any(|a| a[0] == "export" || a[0] == "delete"),
+        "{ran:?}"
+    );
+    // Given back: dm's removed, the kept one imported.
+    let mut ran: Vec<Vec<String>> = Vec::new();
+    give_back_magnet_windows(&backup, |args| {
+        ran.push(args.to_vec());
+        Ok(())
+    })
+    .unwrap();
+    let delete = ran.iter().position(|a| a[0] == "delete").unwrap();
+    let import = ran.iter().position(|a| a[0] == "import").unwrap();
+    assert!(delete < import);
+    assert_eq!(ran[import][1], backup.display().to_string());
+    // The same for .torrent files, both of dm's keys removed on giving back.
+    let backup = elsewhere.path().join("torrent-before-dm.reg");
+    let mut ran: Vec<Vec<String>> = Vec::new();
+    take_torrent_windows(&exe, &backup, |args| {
+        ran.push(args.to_vec());
+        if args[0] == "query" && args[1].ends_with("dm.torrent") {
+            Err("no marker".into())
+        } else {
+            Ok(())
+        }
+    })
+    .unwrap();
+    assert!(
+        ran.iter()
+            .any(|a| a[0] == "export" && a[1] == r"HKCU\Software\Classes\.torrent"),
+        "{ran:?}"
+    );
+    assert_eq!(ran.iter().filter(|a| a[0] == "add").count(), 5);
+    let mut ran: Vec<Vec<String>> = Vec::new();
+    give_back_torrent_windows(&backup, |args| {
+        ran.push(args.to_vec());
+        Ok(())
+    })
+    .unwrap();
+    assert_eq!(ran.iter().filter(|a| a[0] == "delete").count(), 2);
+    assert!(ran.iter().any(|a| a[0] == "import"));
+    // A program that cannot be started is refused before anything is written.
+    let mut ran: Vec<Vec<String>> = Vec::new();
+    assert!(
+        take_magnet_windows(std::path::Path::new("dm.exe"), &backup, |args| {
+            ran.push(args.to_vec());
+            Ok(())
+        })
+        .is_err()
+    );
+    assert!(ran.is_empty());
+}

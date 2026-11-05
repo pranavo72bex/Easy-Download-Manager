@@ -812,5 +812,17 @@
  "A sound file of your own for each, or empty for the usual sound (.wav).": "Un archivo de sonido propio para cada uno, o vacío para el sonido habitual (.wav).",
  "Queue started": "Cola iniciada",
  "Queue finished": "Cola terminada",
- "Play": "Reproducir"
+ "Play": "Reproducir",
+ "Take a copied link at once, without offering it first": "Tomar un enlace copiado al instante, sin ofrecerlo antes",
+ "Magnet links open with:": "Los enlaces magnet se abren con:",
+ ".torrent files open with:": "Los archivos .torrent se abren con:",
+ "Looking…": "Comprobando…",
+ "another program": "otro programa",
+ "nothing yet": "nada todavía",
+ "the app chosen in Windows' Default apps": "la aplicación elegida en Aplicaciones predeterminadas de Windows",
+ "Use dm for magnet links": "Usar dm para los enlaces magnet",
+ "Use dm for .torrent files": "Usar dm para los archivos .torrent",
+ "Give magnet links back": "Devolver los enlaces magnet",
+ "Give .torrent files back": "Devolver los archivos .torrent",
+ "dm keeps what another program had, and can give it back. Where Windows' Default apps has a choice, that choice decides: change it in Settings, Apps, Default apps.": "dm guarda lo que tenía otro programa y puede devolverlo. Si hay una elección en Aplicaciones predeterminadas de Windows, decide esa: cámbiela en Configuración, Aplicaciones, Aplicaciones predeterminadas."
 }

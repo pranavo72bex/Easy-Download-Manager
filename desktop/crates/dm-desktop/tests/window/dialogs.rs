@@ -262,9 +262,10 @@ fn a_double_click_opens_properties_and_open_runs_a_finished_file() {
     harness
         .get_by_role_and_label(egui::accesskit::Role::Button, "Open")
         .click();
-    // The opener runs off the window's thread: given up to five seconds to record (one second
-    // failed when the window tests ran beside each other on a loaded machine).
-    for _ in 0..250 {
+    // The opener runs off the window's thread: given up to fifteen seconds to record (one
+    // second, then five, failed now and then with every window test running beside it on a
+    // loaded machine, the button enabled and the file there; alone it records at once).
+    for _ in 0..750 {
         harness.run_steps(1);
         if !world.fake.opened.lock().unwrap().is_empty() {
             break;
@@ -2175,4 +2176,59 @@ fn a_part_asked_for_in_the_browsers_panel_fills_download_details() {
     harness.run_steps(3);
     let d = harness.state().dialogs.file_info.as_ref().unwrap();
     assert!(!d.part && d.part_from.is_empty() && d.part_to.is_empty());
+}
+
+/// With "Take a copied link at once" on, a link copied opens its Download
+/// details with no bar first, as reference A's switch does; off, it is
+/// offered as before.
+#[test]
+fn a_copied_link_is_taken_at_once_where_that_is_on() {
+    let _file = settings_file();
+    let world = world();
+    *world.fake.clipboard.lock().unwrap() = Some("nothing yet".into());
+    let mut harness = world.harness();
+    let mut wanted = harness.state().applied.clone();
+    wanted.watch_clipboard = true;
+    wanted.start_copied = true;
+    harness.state_mut().apply_settings(wanted).unwrap();
+    harness.state_mut().set_clipboard_watch(true);
+    let copied = world.url("taken.iso");
+    *world.fake.clipboard.lock().unwrap() = Some(copied.clone());
+    harness.state_mut().check_clipboard();
+    harness.run_steps(3);
+    assert_eq!(
+        harness.state().clipboard_offer(),
+        None,
+        "offered, not taken"
+    );
+    let details = harness
+        .state()
+        .dialogs
+        .file_info
+        .as_ref()
+        .map(|f| f.urls.clone());
+    assert_eq!(
+        details,
+        Some(vec![copied.clone()]),
+        "Download details did not open for it"
+    );
+    harness.state_mut().dialogs.file_info = None;
+    // Copied again, it is not taken twice.
+    *world.fake.clipboard.lock().unwrap() = Some("other words".into());
+    harness.state_mut().check_clipboard();
+    *world.fake.clipboard.lock().unwrap() = Some(copied);
+    harness.state_mut().check_clipboard();
+    harness.run_steps(2);
+    assert!(harness.state().dialogs.file_info.is_none(), "taken twice");
+    // Off again: offered in the bar, as before.
+    let mut back = harness.state().applied.clone();
+    back.start_copied = false;
+    harness.state_mut().apply_settings(back).unwrap();
+    let fresh = world.url("offered.iso");
+    *world.fake.clipboard.lock().unwrap() = Some(fresh.clone());
+    harness.state_mut().check_clipboard();
+    assert_eq!(harness.state().clipboard_offer(), Some(fresh.as_str()));
+    let mut off = harness.state().applied.clone();
+    off.watch_clipboard = false;
+    harness.state_mut().apply_settings(off).unwrap();
 }

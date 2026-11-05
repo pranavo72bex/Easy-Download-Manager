@@ -1046,6 +1046,8 @@ fn restore_defaults_puts_a_tab_back_and_only_that_tab() {
         fresh: false,
         fresh_tab: 0,
         to_proxy: false,
+        handlers: Default::default(),
+        handlers_asked: false,
     };
     dialog.restore_defaults();
     let defaults = dm_shell::settings::Settings::default();
@@ -1249,4 +1251,48 @@ fn a_sound_file_is_chosen_for_each_event_in_options() {
         .settings()
         .sounds
         .contains_key("queue_done"));
+}
+
+/// Options > File types says who opens magnet links and .torrent files on
+/// this computer, read from Windows' keys (read only: the test clicks no
+/// button that would write them).
+#[cfg(target_os = "windows")]
+#[test]
+fn file_types_says_who_opens_magnet_links_and_torrent_files() {
+    let world = world();
+    let mut harness = world.harness();
+    harness.state_mut().run(Command::Options);
+    harness.run_steps(3);
+    if let Some(options) = harness.state_mut().dialogs.options.as_mut() {
+        options.tab = dm_desktop::dialogs::Tab::FileTypes;
+    }
+    harness.run_steps(3);
+    assert!(harness.query_by_label("Magnet links open with:").is_some());
+    assert!(harness
+        .query_by_label(".torrent files open with:")
+        .is_some());
+    let deadline = std::time::Instant::now() + std::time::Duration::from_secs(20);
+    loop {
+        let read = harness
+            .state()
+            .dialogs
+            .options
+            .as_ref()
+            .and_then(|o| *o.handlers.lock().unwrap());
+        if read.is_some() {
+            break;
+        }
+        assert!(
+            std::time::Instant::now() < deadline,
+            "the keys were never read"
+        );
+        harness.step();
+        std::thread::sleep(std::time::Duration::from_millis(50));
+    }
+    harness.run_steps(2);
+    assert!(
+        harness.query_by_label("Looking…").is_none(),
+        "still looking once read"
+    );
+    harness.state_mut().dialogs.options = None;
 }

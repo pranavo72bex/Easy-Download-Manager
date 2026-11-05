@@ -812,5 +812,17 @@
  "A sound file of your own for each, or empty for the usual sound (.wav).": "それぞれに独自のサウンドファイル(空欄なら通常の音、.wav)。",
  "Queue started": "キュー開始",
  "Queue finished": "キュー完了",
- "Play": "再生"
+ "Play": "再生",
+ "Take a copied link at once, without offering it first": "コピーしたリンクを、確認せずにすぐ受け取る",
+ "Magnet links open with:": "マグネットリンクを開くアプリ:",
+ ".torrent files open with:": ".torrent ファイルを開くアプリ:",
+ "Looking…": "確認中…",
+ "another program": "別のプログラム",
+ "nothing yet": "まだ何もなし",
+ "the app chosen in Windows' Default apps": "Windows の既定のアプリで選ばれたアプリ",
+ "Use dm for magnet links": "マグネットリンクに dm を使う",
+ "Use dm for .torrent files": ".torrent ファイルに dm を使う",
+ "Give magnet links back": "マグネットリンクを元に戻す",
+ "Give .torrent files back": ".torrent ファイルを元に戻す",
+ "dm keeps what another program had, and can give it back. Where Windows' Default apps has a choice, that choice decides: change it in Settings, Apps, Default apps.": "dm は別のプログラムの設定を保存し、元に戻せます。Windows の既定のアプリで選択がある場合はそれが優先されます。設定 > アプリ > 既定のアプリで変更してください。"
 }

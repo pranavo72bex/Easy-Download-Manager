@@ -228,6 +228,13 @@ pub(super) fn tab_general(ui: &mut egui::Ui, d: &mut OptionsDialog, env: &TabEnv
         ui,
         t("dm looks at what you copy and offers to download any link."),
     );
+    ui.add_enabled_ui(s.watch_clipboard, |ui| {
+        toggle_row(
+            ui,
+            &mut s.start_copied,
+            t("Take a copied link at once, without offering it first"),
+        );
+    });
     toggle_row(
         ui,
         &mut s.ask_panel_downloads,
@@ -323,10 +330,99 @@ pub(super) fn tab_general(ui: &mut egui::Ui, d: &mut OptionsDialog, env: &TabEnv
     });
 }
 
+/// Who opens magnet links and `.torrent` files on this computer, each with
+/// a button that makes it dm where it is not, and one that gives it back to
+/// the program that had it; read once, beside the window, as the page opens.
+#[cfg(target_os = "windows")]
+fn handler_rows(ui: &mut egui::Ui, d: &mut OptionsDialog) {
+    use dm_shell::register::{self, Owner};
+    let read = d.handlers.lock().ok().and_then(|h| *h);
+    if read.is_none() && !d.handlers_asked {
+        d.handlers_asked = true;
+        let slot = std::sync::Arc::clone(&d.handlers);
+        let ctx = ui.ctx().clone();
+        std::thread::spawn(move || {
+            let found = (
+                register::magnet_owner(register::run_reg),
+                register::torrent_owner(register::run_reg),
+            );
+            *dm_core::lock(&slot) = Some(found);
+            ctx.request_repaint();
+        });
+    }
+    let home = dm_shell::settings::home();
+    let mut done: Option<Result<(), String>> = None;
+    ui.add_space(8.0);
+    for magnet in [true, false] {
+        let owner = read.map(|(m, t)| if magnet { m } else { t });
+        let backup = if magnet {
+            register::magnet_backup(&home)
+        } else {
+            register::torrent_backup(&home)
+        };
+        ui.horizontal_wrapped(|ui| {
+            ui.label(if magnet {
+                t("Magnet links open with:")
+            } else {
+                t(".torrent files open with:")
+            });
+            let said = match owner {
+                None => t("Looking…"),
+                Some(Owner::Dm) => "dm",
+                Some(Owner::Other) => t("another program"),
+                Some(Owner::Nobody) => t("nothing yet"),
+                Some(Owner::WindowsChoice) => t("the app chosen in Windows' Default apps"),
+            };
+            ui.label(RichText::new(said).strong());
+            let take = if magnet {
+                t("Use dm for magnet links")
+            } else {
+                t("Use dm for .torrent files")
+            };
+            if matches!(owner, Some(Owner::Other | Owner::Nobody)) && ui.button(take).clicked() {
+                done = Some(
+                    std::env::current_exe()
+                        .map_err(|e| e.to_string())
+                        .and_then(|exe| {
+                            if magnet {
+                                register::take_magnet_windows(&exe, &backup, register::run_reg)
+                            } else {
+                                register::take_torrent_windows(&exe, &backup, register::run_reg)
+                            }
+                        }),
+                );
+            }
+            let give = if magnet {
+                t("Give magnet links back")
+            } else {
+                t("Give .torrent files back")
+            };
+            if owner == Some(Owner::Dm) && backup.is_file() && ui.button(give).clicked() {
+                done = Some(if magnet {
+                    register::give_back_magnet_windows(&backup, register::run_reg)
+                } else {
+                    register::give_back_torrent_windows(&backup, register::run_reg)
+                });
+            }
+        });
+    }
+    hint(
+        ui,
+        t("dm keeps what another program had, and can give it back. Where Windows' Default apps has a choice, that choice decides: change it in Settings, Apps, Default apps."),
+    );
+    // Read again after a change, so the page says what is so now.
+    if let Some(result) = done {
+        if let Err(why) = result {
+            d.says = why;
+        }
+        *dm_core::lock(&d.handlers) = None;
+        d.handlers_asked = false;
+    }
+}
+
 /// The FileTypes tab of Options.
 pub(super) fn tab_file_types(ui: &mut egui::Ui, d: &mut OptionsDialog, env: &TabEnv<'_>) {
     let TabEnv { platform, .. } = *env;
-    let s = &mut d.draft;
     // The extension, for someone who said not now to the bar over the
     // list, or has a second browser: each browser with whether its
     // extension has talked to dm, and Add where it has not.
@@ -366,6 +462,11 @@ pub(super) fn tab_file_types(ui: &mut egui::Ui, d: &mut OptionsDialog, env: &Tab
                 ui.end_row();
             }
         });
+    // Who opens magnet links and .torrent files: Windows keeps that, not
+    // the browser.
+    #[cfg(target_os = "windows")]
+    handler_rows(ui, d);
+    let s = &mut d.draft;
     ui.add_space(8.0);
     let c = &mut s.catch;
     toggle_row(
