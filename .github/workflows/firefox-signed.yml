@@ -49,7 +49,9 @@ jobs:
           fi
           version=$(python3 -c "import json; print(json.load(open('extension/manifest.firefox.json'))['version'])")
           git archive --format=zip -o dist/source.zip HEAD
-          npx --yes web-ext@8.3.0 sign --channel=unlisted \
+          # web-ext 8.3.0 sent the upload named "blob" on the runner's Node, refused as
+          # an "unsupported file type" (gaps.md row 51); later ones send it by name.
+          npx --yes web-ext@10.8.0 sign --channel=unlisted \
             --source-dir dist/firefox --artifacts-dir dist/signed \
             --upload-source-code dist/source.zip \
             --api-key "$AMO_JWT_ISSUER" --api-secret "$AMO_JWT_SECRET"

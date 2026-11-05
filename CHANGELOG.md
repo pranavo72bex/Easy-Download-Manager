@@ -5,6 +5,7 @@ the browser extension (`v*` tags) are versioned separately.
 
 ## Unreleased
 
+- Release: Mozilla's signing of the Firefox add-on uses web-ext 10.8.0. web-ext 8.3.0 sent the upload named "blob" on the runner's Node, which AMO refused as an "unsupported file type" (gaps row 51).
 - Fixed (macOS): a YouTube video from the browser failed with "the solver took too long". dm, started by the browser, wrote the QuickJS it fetched with macOS's quarantine mark, and Gatekeeper would not run it; dm now takes the mark off a tool it has checked against its SHA-256, and off one fetched before (`tools.rs`; found by the human QA's B35).
 - The control port's `ui.window` puts dm's window in the tray, minimized or back in sight, for checks of the window out of sight. `scripts/stress-check.py hidden` (the tray and minimized: calls answered, a pause and a resume taken, downloads finished whole, and the list current within a quarter of a second of being shown) and `details` (three progress windows open while their downloads are paused, resumed and finish) pass on macOS (gaps row 24).
 - `scripts/memory-check.py` measures dm at rest on macOS too, with a budget for each system (gaps row 137).
