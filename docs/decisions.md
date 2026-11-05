@@ -3934,3 +3934,14 @@ reference apps); the sound files are reference A's.
   extension key is kept and dm's ProgId removed on giving back.
 * **dm does not appear in Default apps.** That needs a `RegisteredApplications` entry with
   `Capabilities` (spec T5), a change to how dm shows in Windows, left for the maintainer's word.
+
+## Choices one size (maintainer, 2026-11-05)
+
+Asked: the toggle switches were bigger than the rest, and the controls "should be consistent".
+Check boxes and radio buttons kept WinUI's 20-point box, and the switch its 40 by 20 pill in a
+36-point row, sizes made for WinUI's 14-point text; the window has had 12-point text and
+22-point controls since 2026-11-04. Now `theme::CHOICE` (16) is the box, the ring and the
+switch's height (32 wide, its row `CONTROL` + 6), and the theme picker's buttons are a control's
+height with their 16-point drawings. The Windows baseline pictures were taken again from the QA
+run that showed the change (Add URL 8 points shorter: its sign-in switch's row); contract row
+B25 says so.

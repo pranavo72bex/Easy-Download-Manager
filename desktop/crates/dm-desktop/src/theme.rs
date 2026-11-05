@@ -304,6 +304,11 @@ pub const CAPTION: f32 = 11.0;
 pub const HEADING: f32 = 16.0;
 /// A button's, a field's and a drop-down's height.
 pub const CONTROL: f32 = 22.0;
+/// A check box's box, a radio button's ring and a toggle switch's height:
+/// one size for the three, in proportion to the 12-point text. At WinUI's
+/// 20 (its 14-point text's), with the switch 40 wide, they stood out beside
+/// the words and the 22-point controls (maintainer, 2026-11-05).
+pub const CHOICE: f32 = 16.0;
 /// A place's height in the tree beside the list.
 pub const NAV_ITEM: f32 = 22.0;
 /// A row of the list, in the modern look; the classic look's is `ROW_CLASSIC`.

@@ -190,8 +190,9 @@ pub fn apply_with_accent(ctx: &Context, theme: Theme, accent: Option<crate::acce
             style.spacing.menu_margin = egui::Margin::same(3);
             style.spacing.window_margin = egui::Margin::same(12);
             // A drop-down's chevron takes a square this wide: at 20, a
-            // drop-down stood 30 tall beside 27 for a button. The check box's 20 is set where one is drawn
-            // (`dialogs::check`).
+            // drop-down stood 30 tall beside 27 for a button. A check box's and
+            // a radio button's own size is set where one is drawn
+            // (`dialogs::check`, `theme::CHOICE`).
             style.spacing.icon_width = 16.0;
             style.spacing.icon_width_inner = 10.0;
             style.spacing.icon_spacing = 8.0;

@@ -5,6 +5,7 @@ the browser extension (`v*` tags) are versioned separately.
 
 ## Unreleased
 
+- Check boxes, radio buttons and toggle switches are one size, in proportion to the 12-point text: 16 points (a switch 32 by 16 in a row 28 tall, where it was 40 by 20 in 36), and the Options theme picker's buttons a control's height (they were 32 a side), at the maintainer's word that the controls should be consistent. The Windows baseline pictures are taken again with them.
 - Options › Browser says, on Windows, what opens magnet links and `.torrent` files: dm, another program, nothing yet, or the app chosen in Windows' Default apps. Where it is not dm, "Use dm for magnet links" (or ".torrent files") makes it dm, first keeping what the other program had, and "Give … back" puts that back (gaps row 106).
 - A copied link can be taken at once (gaps row 86, part 1), as reference A's switch does: Options › General, "Take a copied link at once, without offering it first" (off by default), opens its Download details, or the list of several, with no bar first.
 - A torrent's peers and upload are shown (gaps row 144): its progress window says how many peers it is connected to and how many it knows of, and what it has sent them and how fast, where a file's says its connections.
