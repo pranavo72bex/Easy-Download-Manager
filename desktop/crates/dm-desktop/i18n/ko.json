@@ -334,7 +334,6 @@
  "Finding peers…": "피어 찾는 중…",
  "Tick at least one day.": "요일을 하나 이상 선택하세요.",
  "HH:MM, local time. A window ending before it starts runs overnight.": "HH:MM, 현지 시간. 시작보다 이르게 끝나는 구간은 밤새 실행됩니다.",
- "The hours when downloads may run, in every queue.": "모든 대기열에서 다운로드할 수 있는 시간입니다.",
  "A download with this name exists. This one will be numbered.": "같은 이름의 다운로드가 있습니다. 이 다운로드에는 번호가 붙습니다.",
  "Not available: {}.": "사용할 수 없음: {}.",
  "{} is waiting for the schedule; it starts by itself when the schedule opens.": "{}은(는) 일정을 기다리는 중입니다. 일정 시간이 되면 자동으로 시작합니다.",
@@ -789,5 +788,14 @@
  "Q": "Q",
  "Transfer rate": "전송 속도",
  "Last Try Date": "마지막 시도",
- "Description": "설명"
+ "Description": "설명",
+ "Choose the queue to start": "시작할 대기열 선택",
+ "Choose the queue to stop": "중지할 대기열 선택",
+ "The hours when downloads may run, in every queue without hours of its own.": "다운로드를 실행할 수 있는 시간(자체 시간이 없는 모든 대기열).",
+ "Hours of its own for this queue": "이 대기열의 자체 시간",
+ "This queue follows the Main queue's hours.": "이 대기열은 기본 대기열의 시간을 따릅니다.",
+ "Every week, on the days ticked": "매주, 선택한 요일에",
+ "Once, on this date": "한 번, 이 날짜에",
+ "Date (YYYY-MM-DD)": "날짜 (YYYY-MM-DD)",
+ "\"{}\" is not a date: write it as YYYY-MM-DD, such as 2026-12-31.": "\"{}\"은(는) 날짜가 아닙니다. 2026-12-31처럼 YYYY-MM-DD 형식으로 입력하세요."
 }

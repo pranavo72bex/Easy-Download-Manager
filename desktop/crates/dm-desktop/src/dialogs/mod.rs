@@ -754,8 +754,8 @@ pub struct Dialogs {
     pub find_open: bool,
     /// What is typed in the search box.
     pub find_text: String,
-    /// The scheduler being edited and what went wrong.
-    pub scheduler: Option<(Schedule, String)>,
+    /// The Scheduler being edited: every queue's hours.
+    pub scheduler: Option<SchedulerDraft>,
     /// The speed limit, what went wrong, and the download limit (MB, hours).
     pub limiter: Option<(u64, String, u64, u64)>,
     /// The Options dialog.

@@ -377,17 +377,12 @@ impl Dialogs {
             .collect()
     }
 
-    /// Opens the scheduler, over these settings.
-    pub fn open_scheduler(&mut self, settings: &Settings) {
+    /// Opens the scheduler, over these settings, on `queue`'s hours.
+    pub fn open_scheduler(&mut self, settings: &Settings, queue: &str) {
         if self.keep("Scheduler", self.scheduler.is_some()) {
             return;
         }
-        // No days kept means every day, shown as every day ticked.
-        let mut schedule = settings.schedule.clone();
-        if schedule.days.is_empty() {
-            schedule.days = (0..=6).collect();
-        }
-        self.scheduler = Some((schedule, String::new()));
+        self.scheduler = Some(SchedulerDraft::new(settings, queue));
     }
 
     /// Opens the speed limiter's settings, over these settings.

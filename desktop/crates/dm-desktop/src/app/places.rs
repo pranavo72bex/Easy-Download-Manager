@@ -250,6 +250,15 @@ impl DmApp {
         }
     }
 
+    /// The queue Start Queue or Stop Queue acts on: the one a drop-down
+    /// chose for it, else the one the list shows. Taken, so the choice is
+    /// for that one command.
+    pub fn chosen_queue(&mut self) -> String {
+        self.queue_chosen
+            .take()
+            .unwrap_or_else(|| self.current_queue())
+    }
+
     /* --------------------------------------------------------- commands */
 
     /// Each column on or off — View › Columns, and a right click on a

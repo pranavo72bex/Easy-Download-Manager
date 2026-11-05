@@ -334,7 +334,6 @@
  "Finding peers…": "Suche nach Peers…",
  "Tick at least one day.": "Mindestens einen Tag ankreuzen.",
  "HH:MM, local time. A window ending before it starts runs overnight.": "HH:MM, Ortszeit. Ein Zeitfenster, das vor seinem Beginn endet, läuft über Nacht.",
- "The hours when downloads may run, in every queue.": "Die Stunden, in denen Downloads laufen dürfen, in jeder Warteschlange.",
  "A download with this name exists. This one will be numbered.": "Ein Download mit diesem Namen existiert. Dieser wird nummeriert.",
  "Not available: {}.": "Nicht verfügbar: {}.",
  "{} is waiting for the schedule; it starts by itself when the schedule opens.": "{} wartet auf den Zeitplan; startet von selbst, sobald er beginnt.",
@@ -789,5 +788,14 @@
  "Q": "Q",
  "Transfer rate": "Übertragungsrate",
  "Last Try Date": "Letzter Versuch",
- "Description": "Beschreibung"
+ "Description": "Beschreibung",
+ "Choose the queue to start": "Zu startende Warteschlange wählen",
+ "Choose the queue to stop": "Anzuhaltende Warteschlange wählen",
+ "The hours when downloads may run, in every queue without hours of its own.": "Die Zeiten, zu denen Downloads laufen dürfen, in jeder Warteschlange ohne eigene Zeiten.",
+ "Hours of its own for this queue": "Eigene Zeiten für diese Warteschlange",
+ "This queue follows the Main queue's hours.": "Diese Warteschlange folgt den Zeiten der Haupt-Warteschlange.",
+ "Every week, on the days ticked": "Jede Woche, an den angehakten Tagen",
+ "Once, on this date": "Einmal, an diesem Datum",
+ "Date (YYYY-MM-DD)": "Datum (JJJJ-MM-TT)",
+ "\"{}\" is not a date: write it as YYYY-MM-DD, such as 2026-12-31.": "»{}« ist kein Datum: Schreiben Sie es als JJJJ-MM-TT, etwa 2026-12-31."
 }

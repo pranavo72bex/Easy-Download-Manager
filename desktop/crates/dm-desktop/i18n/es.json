@@ -334,7 +334,6 @@
  "Finding peers…": "Buscando pares…",
  "Tick at least one day.": "Marque al menos un día.",
  "HH:MM, local time. A window ending before it starts runs overnight.": "HH:MM, hora local. Un intervalo que termina antes de empezar abarca la noche.",
- "The hours when downloads may run, in every queue.": "Las horas en que pueden ejecutarse las descargas, en todas las colas.",
  "A download with this name exists. This one will be numbered.": "Ya existe una descarga con este nombre. Esta se numerará.",
  "Not available: {}.": "No disponible: {}.",
  "{} is waiting for the schedule; it starts by itself when the schedule opens.": "{} espera al programador; empieza solo cuando se abra.",
@@ -789,5 +788,14 @@
  "Q": "Q",
  "Transfer rate": "Velocidad",
  "Last Try Date": "Último intento",
- "Description": "Descripción"
+ "Description": "Descripción",
+ "Choose the queue to start": "Elegir la cola que iniciar",
+ "Choose the queue to stop": "Elegir la cola que detener",
+ "The hours when downloads may run, in every queue without hours of its own.": "Las horas en que pueden ejecutarse las descargas, en cada cola sin horario propio.",
+ "Hours of its own for this queue": "Horario propio para esta cola",
+ "This queue follows the Main queue's hours.": "Esta cola sigue el horario de la cola principal.",
+ "Every week, on the days ticked": "Cada semana, los días marcados",
+ "Once, on this date": "Una vez, en esta fecha",
+ "Date (YYYY-MM-DD)": "Fecha (AAAA-MM-DD)",
+ "\"{}\" is not a date: write it as YYYY-MM-DD, such as 2026-12-31.": "«{}» no es una fecha: escríbala como AAAA-MM-DD, por ejemplo 2026-12-31."
 }

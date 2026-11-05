@@ -14,7 +14,13 @@ fn the_scheduler_keeps_what_to_do_when_done_and_the_tries_again() {
     let mut harness = world.harness();
     harness.state_mut().run(Command::Scheduler);
     harness.run_steps(2);
-    if let Some((schedule, _)) = harness.state_mut().dialogs.scheduler.as_mut() {
+    if let Some(schedule) = harness
+        .state_mut()
+        .dialogs
+        .scheduler
+        .as_mut()
+        .map(|d| &mut d.schedule)
+    {
         schedule.enabled = true;
         schedule.days = (0..=6).collect();
     }
@@ -26,7 +32,13 @@ fn the_scheduler_keeps_what_to_do_when_done_and_the_tries_again() {
         .query_by_label("Try a failed download again this many times (0 for none)")
         .is_some());
     click(&mut harness, "Exit dm");
-    if let Some((schedule, _)) = harness.state_mut().dialogs.scheduler.as_mut() {
+    if let Some(schedule) = harness
+        .state_mut()
+        .dialogs
+        .scheduler
+        .as_mut()
+        .map(|d| &mut d.schedule)
+    {
         assert_eq!(schedule.when_done, "exit");
         schedule.retries = 9;
     }

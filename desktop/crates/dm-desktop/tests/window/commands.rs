@@ -476,14 +476,15 @@ fn every_menu_item_clicked_does_what_it_says() {
         "nothing slept"
     );
     h.state_mut().place = dm_desktop::app::Place::Queue(dm_core::MAIN_QUEUE.into());
-    press(&mut h, &["Downloads", "Start Queue"]);
+    // Each a list of the queues, as reference A's menu has.
+    press(&mut h, &["Downloads", "Start Queue", "Main queue"]);
     assert!(
         h.state().said.english().starts_with("Started")
             || h.state().said.english().starts_with("Nothing in"),
         "Start queue: {:?}",
         h.state().said
     );
-    press(&mut h, &["Downloads", "Stop Queue"]);
+    press(&mut h, &["Downloads", "Stop Queue", "Main queue"]);
     assert!(
         h.state().said.english().starts_with("Stopped"),
         "Stop queue: {:?}",
@@ -878,4 +879,60 @@ fn every_dialog_keeps_its_title_and_buttons_on_screen_at_large_text() {
             );
         }
     }
+}
+
+/// Start Queue and Stop Queue each have an arrow that lists the queues, as
+/// reference A's toolbar does: the queue chosen there is started or stopped,
+/// whatever the list shows; the button itself keeps to the list's queue.
+#[test]
+fn the_queue_arrows_start_and_stop_the_queue_chosen() {
+    let world = world();
+    let mut h = world.harness();
+    add_url(&mut h, &world.url("file.zip"), "Add for later");
+    h.state_mut().refresh();
+    let id = row(&h, "file.zip").id;
+    h.state().backend.set_queue(id, "Night");
+    until(&mut h, "the row to be in the Night queue", |app| {
+        app.rows().iter().any(|r| r.queue == "Night")
+    });
+    // The list shows every download, so the button would act on the Main
+    // queue; the arrow's choice is Night.
+    h.state_mut().place = dm_desktop::app::Place::All;
+    h.run_steps(3);
+    click(&mut h, "Choose the queue to start");
+    press_last(&mut h, "Night");
+    assert_eq!(
+        h.state().said.english(),
+        "Started 1 download in Night.",
+        "the arrow did not start the queue chosen"
+    );
+    until(&mut h, "the Night queue's download to complete", |app| {
+        app.rows().iter().all(|r| r.state == State::Completed)
+    });
+    // Stop Queue's arrow on Night: nothing is left there to stop.
+    click(&mut h, "Choose the queue to stop");
+    press_last(&mut h, "Night");
+    assert_eq!(h.state().said.english(), "Stopped 0 downloads in Night.");
+    // The choice was for that one command: the button itself acts on the
+    // list's queue again.
+    assert!(h.state().queue_chosen.is_none());
+    h.query_all_by_label("Start Queue")
+        .next()
+        .expect("the toolbar's Start Queue")
+        .click();
+    h.run_steps(3);
+    assert_eq!(
+        h.state().said.english(),
+        "Nothing in Main queue was waiting to start."
+    );
+}
+
+/// Clicks the last button on screen with exactly this name: an item of the
+/// menu just opened (a row's Q cell carries the same name, as a label).
+fn press_last(h: &mut Harness<'_, DmApp>, name: &str) {
+    h.query_all_by_label(name)
+        .rfind(|n| n.accesskit_node().role() == egui::accesskit::Role::Button)
+        .unwrap_or_else(|| panic!("{name:?} is not on screen"))
+        .click();
+    h.run_steps(3);
 }

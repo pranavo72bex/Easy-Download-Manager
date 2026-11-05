@@ -334,7 +334,6 @@
  "Finding peers…": "Поиск пиров…",
  "Tick at least one day.": "Отметьте хотя бы один день.",
  "HH:MM, local time. A window ending before it starts runs overnight.": "ЧЧ:ММ, местное время. Окно, которое заканчивается раньше начала, идёт через ночь.",
- "The hours when downloads may run, in every queue.": "Часы, когда загрузки могут идти, во всех очередях.",
  "A download with this name exists. This one will be numbered.": "Загрузка с таким именем уже есть. Эта будет пронумерована.",
  "Not available: {}.": "Недоступно: {}.",
  "{} is waiting for the schedule; it starts by itself when the schedule opens.": "«{}» ждёт расписания; начнётся само, когда оно откроется.",
@@ -789,5 +788,14 @@
  "Q": "Q",
  "Transfer rate": "Скорость",
  "Last Try Date": "Последняя попытка",
- "Description": "Описание"
+ "Description": "Описание",
+ "Choose the queue to start": "Выбрать очередь для запуска",
+ "Choose the queue to stop": "Выбрать очередь для остановки",
+ "The hours when downloads may run, in every queue without hours of its own.": "Часы, когда могут идти загрузки, в каждой очереди без собственных часов.",
+ "Hours of its own for this queue": "Собственные часы для этой очереди",
+ "This queue follows the Main queue's hours.": "Эта очередь следует часам основной очереди.",
+ "Every week, on the days ticked": "Каждую неделю, в отмеченные дни",
+ "Once, on this date": "Один раз, в эту дату",
+ "Date (YYYY-MM-DD)": "Дата (ГГГГ-ММ-ДД)",
+ "\"{}\" is not a date: write it as YYYY-MM-DD, such as 2026-12-31.": "«{}» — не дата: запишите её как ГГГГ-ММ-ДД, например 2026-12-31."
 }

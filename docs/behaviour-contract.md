@@ -65,6 +65,7 @@ Recorded 2026-10-29 from the merged `main`, where every row passed.
 |---|---|---|---|
 | B18 | Adds five downloads at once | No more than three run at once (the default); the rest wait their turn and complete | same |
 | B19 | Presses Add for later, then Start Queue | The download waits, not running, until Start Queue; then it completes | same |
+| B64 | Opens Downloads › Start Queue (or Stop Queue), or the arrow beside the toolbar's Start Queue (or Stop Queue) | Each lists the queues; the queue clicked is started (or stopped), whatever the list shows. The toolbar button itself still acts on the queue the list shows (the Main queue where it shows no queue). Added 2026-11-05 at the maintainer's word that dm "should work exactly like" reference A (`docs/decisions.md`, 2026-11-04) | same |
 | B20 | Chooses Low speed (256 KB/s) | Downloads together keep to about 256 KB/s; Unlimited lifts it | same |
 
 ## When things go wrong
@@ -140,3 +141,4 @@ Recorded 2026-10-29 from the merged `main`, where every row passed.
 | ID | A person does | What must happen | Reference A |
 |---|---|---|---|
 | B62 | Opens the Scheduler and looks under the "When the scheduled downloads are done" choices | A box "Run this program when they are done (optional)", empty by default. With a program typed, it is run once, with no shell and no file, when the queue runs dry in a window in which something ran. A settings file imported or a script driving the window never sets it, as they never set the command run after each download (added 2026-11-02 at the maintainer's word, "yes", to a list of four proposed options) | same |
+| B65 | Opens the Scheduler | The queues are listed at its left, the list's own queue chosen; the Main queue's hours are the ones every queue without hours of its own follows, and any other queue can be given its own ("Hours of its own for this queue"; off, it says it follows the Main queue's). The hours start every week on the days ticked or once on a date (YYYY-MM-DD; a date that is not one is refused where it was typed). Start now and Stop start or stop the queue chosen there. OK keeps every queue's hours; Cancel none. Added 2026-11-05 at the maintainer's word that dm "should work exactly like" reference A (`docs/decisions.md`, 2026-11-04) | same |

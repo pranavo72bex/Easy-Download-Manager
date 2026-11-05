@@ -334,7 +334,6 @@
  "Finding peers…": "Peers zoeken…",
  "Tick at least one day.": "Vink ten minste één dag aan.",
  "HH:MM, local time. A window ending before it starts runs overnight.": "UU:MM, lokale tijd. Een venster dat eindigt vóór het begint, loopt door de nacht.",
- "The hours when downloads may run, in every queue.": "De uren waarin downloads mogen lopen, in elke wachtrij.",
  "A download with this name exists. This one will be numbered.": "Er bestaat al een download met deze naam. Deze krijgt een nummer.",
  "Not available: {}.": "Niet beschikbaar: {}.",
  "{} is waiting for the schedule; it starts by itself when the schedule opens.": "{} wacht op de planning; start vanzelf zodra die opent.",
@@ -789,5 +788,14 @@
  "Q": "Q",
  "Transfer rate": "Overdrachtssnelheid",
  "Last Try Date": "Laatste poging",
- "Description": "Beschrijving"
+ "Description": "Beschrijving",
+ "Choose the queue to start": "Kies de wachtrij om te starten",
+ "Choose the queue to stop": "Kies de wachtrij om te stoppen",
+ "The hours when downloads may run, in every queue without hours of its own.": "De uren waarop downloads mogen lopen, in elke wachtrij zonder eigen uren.",
+ "Hours of its own for this queue": "Eigen uren voor deze wachtrij",
+ "This queue follows the Main queue's hours.": "Deze wachtrij volgt de uren van de hoofdwachtrij.",
+ "Every week, on the days ticked": "Elke week, op de aangevinkte dagen",
+ "Once, on this date": "Eenmaal, op deze datum",
+ "Date (YYYY-MM-DD)": "Datum (JJJJ-MM-DD)",
+ "\"{}\" is not a date: write it as YYYY-MM-DD, such as 2026-12-31.": "\"{}\" is geen datum: schrijf hem als JJJJ-MM-DD, zoals 2026-12-31."
 }

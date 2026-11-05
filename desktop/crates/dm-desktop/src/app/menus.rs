@@ -27,6 +27,21 @@ impl DmApp {
         }
     }
 
+    /// The queues as menu items, for Start Queue or Stop Queue: a click
+    /// runs `command` on that queue.
+    pub(super) fn queue_items(&mut self, ui: &mut egui::Ui, command: Command) {
+        ui.spacing_mut().item_spacing.y = 0.0;
+        let enabled = self.enabled(command);
+        for queue in self.queues().iter() {
+            let label = crate::i18n::name(queue);
+            if ui.add_enabled(enabled, egui::Button::new(label)).clicked() {
+                self.queue_chosen = Some(queue.clone());
+                self.queued.push(command);
+                ui.close();
+            }
+        }
+    }
+
     /// Whether a question or a dialog that keeps the clicks is open: the
     /// menu bar, the toolbar and the places then take none (behind Options, Add URL opened over it and Done was picked).
     pub(super) fn behind_a_dialog(&self) -> bool {
@@ -223,8 +238,13 @@ impl DmApp {
                     self.item(ui, Command::FindNext);
                     self.item(ui, Command::FindPrevious);
                     ui.separator();
-                    for c in [Command::Scheduler, Command::StartQueue, Command::StopQueue] {
-                        self.item(ui, c);
+                    self.item(ui, Command::Scheduler);
+                    // Each a list of the queues, as reference A's are: the
+                    // one clicked is started or stopped, whichever the list
+                    // shows.
+                    for c in [Command::StartQueue, Command::StopQueue] {
+                        let title = self.title_of(c).to_string();
+                        submenu(ui, &title, |ui| self.queue_items(ui, c));
                     }
                     submenu(ui, t("Speed limiter"), |ui| {
                         // Ticked while a limit is in force: the item says
@@ -424,7 +444,11 @@ impl DmApp {
         let width = |stacked: bool| -> f32 {
             buttons
                 .iter()
-                .map(|(_, _, _, widest)| modern_width(ui, widest, stacked) + spacing)
+                .map(|(command, _, _, widest)| {
+                    modern_width(ui, widest, stacked)
+                        + spacing
+                        + queue_arrow_width(*command, spacing)
+                })
                 .sum()
         };
         let modern = t.modern && chosen == ToolStyle::Both;
@@ -439,6 +463,7 @@ impl DmApp {
         let wrap = !modern || icons_only;
         let in_front = self.dialogs.in_front();
         let show_categories = self.show_categories;
+        let queues = self.queues();
         let mut draw = |ui: &mut egui::Ui| {
             // The side panel's switch at the toolbar's left end, as the
             // other managers have it: the categories and queues folded
@@ -503,6 +528,52 @@ impl DmApp {
                 if response.clicked() {
                     self.queued.push(*command);
                 }
+                // Start Queue and Stop Queue each with an arrow that lists
+                // the queues, as reference A's toolbar has: the button acts
+                // on the queue the list shows, the arrow on the one chosen.
+                if queue_arrow_width(*command, 0.0) > 0.0 {
+                    let words = if *command == Command::StartQueue {
+                        crate::i18n::t("Choose the queue to start")
+                    } else {
+                        crate::i18n::t("Choose the queue to stop")
+                    };
+                    let glyph = if crate::theme::fonts_ready(ui.ctx()) {
+                        egui::RichText::new(icons::fluent::CHEVRON_DOWN.to_string())
+                            .family(icons::family())
+                            .size(10.0)
+                    } else {
+                        egui::RichText::new("▾")
+                    };
+                    let arrow = ui.add_enabled(
+                        enabled,
+                        egui::Button::new(glyph)
+                            .frame(false)
+                            .min_size(egui::vec2(QUEUE_ARROW, response.rect.height())),
+                    );
+                    arrow.widget_info(|| {
+                        egui::WidgetInfo::labeled(egui::Role::Button, enabled, words)
+                    });
+                    // No tooltip while its list is open: it lay over the
+                    // list's items and took the pointer from them.
+                    let listing =
+                        egui::Popup::is_id_open(ui.ctx(), egui::Popup::default_response_id(&arrow));
+                    let arrow = if in_front || listing {
+                        arrow
+                    } else {
+                        arrow.on_hover_text(words)
+                    };
+                    egui::Popup::menu(&arrow).style(menu_style).show(|ui| {
+                        ui.spacing_mut().item_spacing.y = 0.0;
+                        for queue in queues.iter() {
+                            let label = crate::i18n::name(queue);
+                            if ui.button(label).clicked() {
+                                self.queue_chosen = Some(queue.clone());
+                                self.queued.push(*command);
+                                ui.close();
+                            }
+                        }
+                    });
+                }
             }
         };
         if wrap {
@@ -560,6 +631,19 @@ impl DmApp {
                 self.said = e.into();
             }
         }
+    }
+}
+
+/// How wide the arrow beside Start Queue and Stop Queue is drawn.
+const QUEUE_ARROW: f32 = 14.0;
+
+/// The room the queue arrow beside `command`'s button takes, with the
+/// spacing after it: none for other buttons.
+fn queue_arrow_width(command: Command, spacing: f32) -> f32 {
+    if matches!(command, Command::StartQueue | Command::StopQueue) {
+        QUEUE_ARROW + spacing
+    } else {
+        0.0
     }
 }
 

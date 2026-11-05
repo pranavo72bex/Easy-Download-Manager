@@ -334,7 +334,6 @@
  "Finding peers…": "Mencari peer…",
  "Tick at least one day.": "Centang setidaknya satu hari.",
  "HH:MM, local time. A window ending before it starts runs overnight.": "HH:MM, waktu setempat. Jendela yang berakhir sebelum mulai berjalan semalaman.",
- "The hours when downloads may run, in every queue.": "Jam ketika unduhan boleh berjalan, di setiap antrean.",
  "A download with this name exists. This one will be numbered.": "Sudah ada unduhan dengan nama ini. Yang ini akan diberi nomor.",
  "Not available: {}.": "Tidak tersedia: {}.",
  "{} is waiting for the schedule; it starts by itself when the schedule opens.": "{} menunggu jadwal; mulai sendiri saat jadwal dibuka.",
@@ -789,5 +788,14 @@
  "Q": "Q",
  "Transfer rate": "Kecepatan transfer",
  "Last Try Date": "Percobaan terakhir",
- "Description": "Deskripsi"
+ "Description": "Deskripsi",
+ "Choose the queue to start": "Pilih antrean yang akan dimulai",
+ "Choose the queue to stop": "Pilih antrean yang akan dihentikan",
+ "The hours when downloads may run, in every queue without hours of its own.": "Jam saat unduhan boleh berjalan, di setiap antrean tanpa jam sendiri.",
+ "Hours of its own for this queue": "Jam sendiri untuk antrean ini",
+ "This queue follows the Main queue's hours.": "Antrean ini mengikuti jam antrean utama.",
+ "Every week, on the days ticked": "Setiap minggu, pada hari yang dicentang",
+ "Once, on this date": "Sekali, pada tanggal ini",
+ "Date (YYYY-MM-DD)": "Tanggal (YYYY-MM-DD)",
+ "\"{}\" is not a date: write it as YYYY-MM-DD, such as 2026-12-31.": "\"{}\" bukan tanggal: tulis sebagai YYYY-MM-DD, misalnya 2026-12-31."
 }

@@ -230,6 +230,7 @@ FILES = {
     "pageno.zip": (2048, 0, "page"),              # the same; No
     "again.bin": (4 * MiB, 0, "plain"),           # added twice
     "later.bin": (4 * MiB, 0, "plain"),           # Add for later, then Start queue
+    "night.bin": (1 * MiB, 0, "plain"),           # in a queue of its own, started from the queue list (B64)
     "pack.zip": (len(PACK), 0, "plain"),          # a real ZIP: its files are listed from its end
     "limit.bin": (3 * MiB, 0, "plain"),           # fetched under Low speed
     "crash.bin": (64 * MiB, 512 * 1024, "plain"),
@@ -829,6 +830,31 @@ def walk(dm, origin):
     r = dm.wait("later.bin", {"completed", "failed"}, 60)
     check("B19", "Add for later waits until Start queue, then completes",
           still and r["state"]["kind"] == "completed", f"before: {waiting['state']['kind'] if waiting else None}")
+    # B64: Downloads › Start Queue lists the queues; the one clicked is started,
+    # whatever the list shows.
+    dm.add(f"{files}/night.bin", then="Add for later")
+    pause(2)
+    night = dm.row("night.bin")
+    dm.call("ui.select", ids=[night["id"]])
+    dm.call("command.run", id="file.move_to_queue")
+    pause(0.8)
+    dm.call("ui.type", text="Night")
+    pause(0.4)
+    dm.click("OK")
+    pause(0.8)
+    dm.call("ui.place", place="all")
+    pause(0.5)
+    held = dm.row("night.bin")
+    dm.click("Downloads")
+    pause(0.5)
+    dm.click("Start Queue")
+    pause(0.8)
+    dm.click("Night")
+    r = dm.wait("night.bin", {"completed", "failed"}, 60)
+    check("B64", "Downloads > Start Queue > Night starts the Night queue while the list shows All Downloads",
+          held and held.get("queue") == "Night" and held["state"]["kind"] not in ("running", "completed")
+          and r["state"]["kind"] == "completed",
+          f"queue {held.get('queue') if held else None}, then {r['state']['kind']}")
     # Timed as dm sees it, from added to complete: the server's own clock
     # stops early, as the connection's buffers hold most of a small file.
     said = dm.call("command.run", id="downloads.speed.low").get("result", {}).get("said", "")
@@ -1217,6 +1243,26 @@ def walk(dm, origin):
     check("B49", "the Scheduler asks what dm does when the scheduled downloads are done, and how many tries again",
           "When the scheduled downloads are done" in sched
           and "Try a failed download again this many times (0 for none)" in sched, f"{sched}")
+    # B65: the Scheduler lists the queues, each with hours of its own, a date to
+    # start once, and Start now and Stop. Opened again while the list shows
+    # another queue, it shows that queue's (the name is also in the tree, so it
+    # is not clicked for).
+    dm.click("Cancel")
+    pause(0.6)
+    dm.call("ui.place", place="queue:Recheck queue")
+    pause(0.5)
+    dm.click("Scheduler")
+    for _ in range(40):
+        if "Scheduler" in dm.dialogs():
+            break
+        time.sleep(0.1)
+    pause(0.8)
+    other = dm.dialog_texts()
+    dm.call("ui.place", place="all")
+    check("B65", "the Scheduler lists the queues; another queue offers hours of its own, a date, Start now and Stop",
+          "Queues" in sched and "Main queue" in sched and "Start now" in sched and "Stop" in sched
+          and "Once, on this date" in sched and "Hours of its own for this queue" in other
+          and "This queue follows the Main queue's hours." in other, f"{sched} / {other}")
     dm.click("Cancel")
     pause(0.6)
     # B52: the tray's Speed menu has Settings…, which the tray cannot be driven

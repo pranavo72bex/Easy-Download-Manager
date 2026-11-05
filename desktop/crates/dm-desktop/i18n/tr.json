@@ -334,7 +334,6 @@
  "Finding peers…": "Eş aranıyor…",
  "Tick at least one day.": "En az bir gün işaretleyin.",
  "HH:MM, local time. A window ending before it starts runs overnight.": "SS:DD, yerel saat. Başlamadan önce biten bir aralık gece boyunca sürer.",
- "The hours when downloads may run, in every queue.": "İndirmelerin çalışabileceği saatler, her kuyrukta.",
  "A download with this name exists. This one will be numbered.": "Bu adda bir indirme var. Bu numaralandırılacak.",
  "Not available: {}.": "Kullanılamıyor: {}.",
  "{} is waiting for the schedule; it starts by itself when the schedule opens.": "{} zamanlamayı bekliyor; zamanlama açılınca kendiliğinden başlar.",
@@ -789,5 +788,14 @@
  "Q": "Q",
  "Transfer rate": "Aktarım hızı",
  "Last Try Date": "Son deneme",
- "Description": "Açıklama"
+ "Description": "Açıklama",
+ "Choose the queue to start": "Başlatılacak kuyruğu seçin",
+ "Choose the queue to stop": "Durdurulacak kuyruğu seçin",
+ "The hours when downloads may run, in every queue without hours of its own.": "Kendi saatleri olmayan her kuyrukta indirmelerin çalışabileceği saatler.",
+ "Hours of its own for this queue": "Bu kuyruk için kendi saatleri",
+ "This queue follows the Main queue's hours.": "Bu kuyruk ana kuyruğun saatlerini izler.",
+ "Every week, on the days ticked": "Her hafta, işaretli günlerde",
+ "Once, on this date": "Bir kez, bu tarihte",
+ "Date (YYYY-MM-DD)": "Tarih (YYYY-AA-GG)",
+ "\"{}\" is not a date: write it as YYYY-MM-DD, such as 2026-12-31.": "\"{}\" bir tarih değil: 2026-12-31 gibi YYYY-AA-GG biçiminde yazın."
 }

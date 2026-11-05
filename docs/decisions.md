@@ -3857,3 +3857,32 @@ rules (borrow in parameters, no copy before the end, references out where only r
   matter of style); a `web_sys` event or `JsValue` taken by value (that is how wasm-bindgen hands
   them over, and a clone is a handle); `tree_action`'s place (used after it is stored); `Spec`
   (copying it is free; deriving `Copy` only quiets the lint).
+
+## The Scheduler by queue, and the queue lists on Start Queue and Stop Queue (2026-11-05, gaps rows 79 and 90)
+
+Built at the maintainer's word that dm "should work exactly like" reference A (2026-11-04), as
+contract rows B64 and B65.
+
+* **The Main queue's hours are the shared ones.** The settings already had one schedule for
+  every queue (`schedule`) and an entry per named queue (`queue_schedules`), a queue with none
+  following the first. The Scheduler shows that as it is: the Main queue edits `schedule`, and
+  any other queue either follows it ("This queue follows the Main queue's hours.") or is given
+  hours of its own. An entry for the Main queue itself, which only a hand-written file can
+  have, is not shown and so not kept.
+* **Once on a date** is `once_at` with the date typed and the time taken from Start at, so a
+  person types one time, not two. The days are greyed then: `open_now` does not read them for a
+  once-only run.
+* **"Force processes to terminate" is not offered.** `Schedule::force` exists in the settings
+  but nothing acts on it; a switch that does nothing would be worse than none. It waits until the
+  window's close stops processes.
+* **Start now and Stop are Start Queue and Stop Queue for the queue chosen.** Start now does
+  not open a closed schedule: it starts what the queue's hours allow and says when it waits for
+  them, as Start Queue does; the per-row Start now (a held row's) is how a person goes past them.
+* **Side by side where there is room.** The queues sit at the left of the hours when the window
+  leaves 700 points for the dialog (it then opens 660 wide, as a body that scrolls keeps the
+  dialog's least width and the days ran past its edge); at large text or in a small window the
+  queues stand above the hours. A refusal under a body that scrolls is scrolled into view.
+* **The toolbar's arrow is a second button beside the first**, not a split button drawn as one:
+  egui has none, and two plain buttons keep each one's click and name for a screen reader
+  ("Choose the queue to start"). Its tooltip is not shown while its list is open: it lay over
+  the list and took the pointer from the first item.

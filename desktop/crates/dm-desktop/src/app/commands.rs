@@ -105,6 +105,13 @@ impl DmApp {
         }
     }
 
+    /// Whether the schedule that governs `queue` (its own, or the one every
+    /// queue shares) lets it run now.
+    fn schedule_lets(&self, queue: &str) -> bool {
+        let schedule = self.applied.schedule_for(queue);
+        !schedule.enabled || schedule.open()
+    }
+
     /// Runs one command, as a menu item, button, key or the control
     /// protocol asked for it.
     pub fn run(&mut self, command: Command) {
@@ -354,9 +361,12 @@ impl DmApp {
             }
             Command::FindNext => self.find_next(),
             Command::FindPrevious => self.find_previous(),
-            Command::Scheduler => self.dialogs.open_scheduler(&self.applied),
-            Command::StartQueue => {
+            Command::Scheduler => {
                 let queue = self.current_queue();
+                self.dialogs.open_scheduler(&self.applied, &queue);
+            }
+            Command::StartQueue => {
+                let queue = self.chosen_queue();
                 let n = self.backend.start_queue(&queue);
                 // Its own sound, only where the person chose a file.
                 if n > 0 {
@@ -367,7 +377,7 @@ impl DmApp {
                 // "Started 0 downloads" said nothing useful.
                 self.said = if n == 0 {
                     crate::i18n::Said::naming("Nothing in {} was waiting to start.", &[&queue])
-                } else if self.applied.schedule.enabled && !self.applied.schedule.open() {
+                } else if !self.schedule_lets(&queue) {
                     // "Started" while the schedule held them, which nothing
                     // was.
                     crate::i18n::Said::naming(
@@ -396,7 +406,7 @@ impl DmApp {
                 }
             }
             Command::StopQueue => {
-                let queue = self.current_queue();
+                let queue = self.chosen_queue();
                 let n = self.backend.stop_queue(&queue);
                 self.said = crate::i18n::Said::counting_naming(
                     "Stopped {} download in {}.||Stopped {} downloads in {}.",

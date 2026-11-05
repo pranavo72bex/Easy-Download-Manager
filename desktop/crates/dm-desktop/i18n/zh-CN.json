@@ -334,7 +334,6 @@
  "Finding peers…": "正在查找对等节点…",
  "Tick at least one day.": "请至少勾选一天。",
  "HH:MM, local time. A window ending before it starts runs overnight.": "HH:MM，本地时间。结束早于开始的时段会跨夜运行。",
- "The hours when downloads may run, in every queue.": "所有队列中允许下载的时段。",
  "A download with this name exists. This one will be numbered.": "已有同名下载。此下载将加上编号。",
  "Not available: {}.": "不可用：{}。",
  "{} is waiting for the schedule; it starts by itself when the schedule opens.": "{} 正在等待计划时段；时段开始时会自动开始。",
@@ -789,5 +788,14 @@
  "Q": "Q",
  "Transfer rate": "传输速率",
  "Last Try Date": "上次尝试",
- "Description": "描述"
+ "Description": "描述",
+ "Choose the queue to start": "选择要开始的队列",
+ "Choose the queue to stop": "选择要停止的队列",
+ "The hours when downloads may run, in every queue without hours of its own.": "允许下载运行的时段(适用于没有自己时段的每个队列)。",
+ "Hours of its own for this queue": "此队列使用自己的时段",
+ "This queue follows the Main queue's hours.": "此队列沿用主队列的时段。",
+ "Every week, on the days ticked": "每周,在勾选的日子",
+ "Once, on this date": "仅一次,在此日期",
+ "Date (YYYY-MM-DD)": "日期 (YYYY-MM-DD)",
+ "\"{}\" is not a date: write it as YYYY-MM-DD, such as 2026-12-31.": "“{}”不是日期:请写成 YYYY-MM-DD,例如 2026-12-31。"
 }

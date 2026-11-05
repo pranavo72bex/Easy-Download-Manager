@@ -346,6 +346,9 @@ pub struct DmApp {
 
     /// Commands asked for while drawing, run once the frame is drawn.
     pub queued: Vec<Command>,
+    /// The queue a Start Queue or Stop Queue drop-down chose, for the next
+    /// of those commands in place of the queue the list shows.
+    pub queue_chosen: Option<String>,
     /// Finished files a drag out of the list has asked to carry, for the
     /// window to hand to the system's drag: only it has the native handle.
     pub drag_out: Vec<std::path::PathBuf>,
@@ -591,6 +594,7 @@ impl DmApp {
                 .collect(),
             column_order: Column::ordered(&settings.column_order),
             queued: Vec::new(),
+            queue_chosen: None,
             drag_out: Vec::new(),
             reordering: None,
             row_rects: HashMap::new(),
