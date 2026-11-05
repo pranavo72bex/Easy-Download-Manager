@@ -439,6 +439,56 @@ fn when_done_is_read_and_left_for_the_window() {
 }
 
 #[test]
+fn links_and_torrents_the_system_opens_one_after_another_all_reach_the_window() {
+    let home = tempfile::tempdir().unwrap();
+    let files = tempfile::tempdir().unwrap();
+    let torrent = files.path().join("ubuntu.torrent");
+    std::fs::write(&torrent, b"d4:infod4:name1:aee").unwrap();
+    let text = files.path().join("notes.txt");
+    std::fs::write(&text, b"not a torrent").unwrap();
+    let magnet = "magnet:?xt=urn:btih:0123456789abcdef0123456789abcdef01234567&dn=a";
+    // Each Apple event is its own call, from the one running process.
+    assert_eq!(super::opened_by_system(home.path(), &argv(&[magnet])), 1);
+    assert_eq!(
+        super::opened_by_system(
+            home.path(),
+            &[torrent.display().to_string(), text.display().to_string()]
+        ),
+        1,
+        "the text file is passed by"
+    );
+    let inbox = host::inbox(home.path());
+    let mut urls: Vec<String> = std::fs::read_dir(&inbox)
+        .unwrap()
+        .filter_map(|e| {
+            let path = e.unwrap().path();
+            (path.extension()? == "json").then_some(path)
+        })
+        .map(|p| {
+            let request: host::Request =
+                serde_json::from_str(&std::fs::read_to_string(p).unwrap()).unwrap();
+            request.url
+        })
+        .collect();
+    urls.sort();
+    assert_eq!(
+        urls.len(),
+        2,
+        "the second did not overwrite the first: {urls:?}"
+    );
+    assert!(urls[0].starts_with("file://") && urls[0].ends_with("ubuntu.torrent"));
+    assert_eq!(urls[1], magnet);
+    assert!(inbox.join("show").exists(), "the window is brought forward");
+
+    let quiet = tempfile::tempdir().unwrap();
+    assert_eq!(
+        super::opened_by_system(quiet.path(), &[text.display().to_string()]),
+        0
+    );
+    assert!(!host::inbox(quiet.path()).join("show").exists());
+}
+
+#[test]
 fn new_download_is_read_and_left_for_the_window_that_opens_add_url() {
     let got = orders(&argv(&["--new-download"]));
     assert!(got.new_download);

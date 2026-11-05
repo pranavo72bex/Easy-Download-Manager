@@ -189,6 +189,11 @@ minimumSystemVersion = "11.0"
 # System Settings › Privacy & Security lets a person open anyway. A real
 # Developer ID, when there is one, replaces "-" (docs/RELEASING.md).
 signingIdentity = "-"
+# Merged into the bundle's Info.plist: dm opens magnet: links and .torrent
+# files (src/opened.rs). Here rather than the packager's own deep-link and
+# file-type keys, which the Windows installer would also write, taking the
+# keys from another program; on Windows dm registers itself (register.rs).
+infoPlistPath = "macos/Info.plist"
 
 # What the binary loads at run time on Linux, none of it linked, so the
 # package must name it: the X11 libraries winit opens before any window

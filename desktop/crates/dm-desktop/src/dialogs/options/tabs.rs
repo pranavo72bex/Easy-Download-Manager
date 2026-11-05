@@ -487,7 +487,9 @@ pub(super) fn tab_file_types(ui: &mut egui::Ui, d: &mut OptionsDialog, env: &Tab
     // The items dm adds to the browser's right-click menu, each chosen, as
     // reference A's (gaps row 86); the extension makes them again on a change.
     ui.label(t("Items dm adds to the browser's right-click menu"));
-    ui.horizontal_wrapped(|ui| {
+    // One under another: a wrapped row takes the whole width it may have,
+    // which widened Options on this page alone (at 200 % text OK moved).
+    ui.vertical(|ui| {
         for (id, _) in dm_protocol::MENU_ITEMS {
             let words = match id {
                 "dm-link" => t("Download link with dm"),
@@ -525,7 +527,7 @@ pub(super) fn tab_file_types(ui: &mut egui::Ui, d: &mut OptionsDialog, env: &Tab
                     // Reference A's list of the browsers it captures from, each ticked
                     // or not (gaps row 86); an unticked one keeps its downloads.
                     ui.label(t("Take downloads from these browsers"));
-                    ui.horizontal_wrapped(|ui| {
+                    ui.vertical(|ui| {
                         for browser in dm_protocol::BROWSERS {
                             let mut on = c.takes_from(browser);
                             let words = if browser == "Chromium" {

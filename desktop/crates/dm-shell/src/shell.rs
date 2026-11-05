@@ -323,6 +323,19 @@ pub fn hand_to_running(home: &Path, orders: &Orders) {
     let _ = std::fs::write(host::inbox(home).join("show"), b"");
 }
 
+/// What the system opened with this dm (macOS: a `magnet:` link clicked
+/// anywhere, a `.torrent` file opened from Finder), each a link or a file's
+/// path, handed to the window through the inbox as a command-line link is.
+/// Anything that is neither a link nor a `.torrent` is passed by. Returns
+/// how many downloads were handed.
+pub fn opened_by_system(home: &Path, opened: &[String]) -> usize {
+    let handed = orders(opened);
+    if !handed.downloads.is_empty() {
+        hand_to_running(home, &handed);
+    }
+    handed.downloads.len()
+}
+
 /// `--new-download`, left in the inbox for the window to take up: the one
 /// running, or the one this launch starts.
 pub fn leave_new_download(home: &Path, orders: &Orders) {

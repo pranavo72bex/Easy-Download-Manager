@@ -1144,6 +1144,13 @@ fn a_folder_dm_may_not_write_to_is_said_before_a_download_is_taken() {
     let locked = dir.path().join("locked");
     std::fs::create_dir(&locked).unwrap();
     std::fs::set_permissions(&locked, std::fs::Permissions::from_mode(0o555)).unwrap();
+    // As root (a container's test run) no folder is locked: nothing to see.
+    let probe = locked.join(".probe");
+    if std::fs::File::create(&probe).is_ok() {
+        let _ = std::fs::remove_file(&probe);
+        std::fs::set_permissions(&locked, std::fs::Permissions::from_mode(0o755)).unwrap();
+        return;
+    }
     let said = unwritable(&locked);
     std::fs::set_permissions(&locked, std::fs::Permissions::from_mode(0o755)).unwrap();
     let said = said.expect("refused");

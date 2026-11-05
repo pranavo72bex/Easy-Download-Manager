@@ -15,6 +15,8 @@ use dm_shell::{host, instance, settings, shell};
 
 #[cfg(target_os = "macos")]
 mod dock;
+#[cfg(target_os = "macos")]
+mod opened;
 
 mod hidden;
 mod login;
@@ -312,6 +314,12 @@ fn main() {
     // `--when-done`, for the window this launch starts to take up.
     shell::leave_when_done(&settings::home(), &handed);
     shell::leave_new_download(&settings::home(), &handed);
+    // A magnet link or a .torrent file the system opens with dm arrives as an
+    // Apple event, not a command line: handed to the window as one.
+    #[cfg(target_os = "macos")]
+    opened::listen(|words| {
+        shell::opened_by_system(&settings::home(), &words);
+    });
 
     // Made before the signals are listened for, so one arriving during
     // startup still reaches the window once there is one.

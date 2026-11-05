@@ -664,7 +664,9 @@ fn a_site_search_reads_pages_deep_and_a_saved_one_runs_on_its_own() {
         ("Nightly", 1, 1)
     );
     assert_eq!(saved[0].types, ["zip", "pdf"]);
-    assert!(harness.query_by_label_contains("Nightly").is_some());
+    // In the Grabber's list of saved searches and in the side panel's
+    // Grabber projects.
+    assert_eq!(harness.query_all_by_label_contains("Nightly").count(), 2);
     // Not at once: its first run on the timer is an hour from saving (run at once, its files were queued with nothing said).
     harness.run_steps(5);
     assert!(harness.state().rows().is_empty(), "it ran as it was saved");
@@ -2484,8 +2486,9 @@ fn a_saved_grabber_search_is_a_project_in_the_side_panel() {
     });
     harness.state_mut().apply_settings(settings).unwrap();
     harness.run_steps(3);
-    click(&mut harness, "Grabber projects");
-    harness.run_steps(2);
+    // Open from the start, as the side panel's other groups are: a click on
+    // its heading would shut it.
+    assert!(harness.query_by_label("Grabber projects").is_some());
     click(&mut harness, "Manuals");
     harness.run_steps(3);
     let d = harness

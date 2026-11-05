@@ -5,6 +5,8 @@ the browser extension (`v*` tags) are versioned separately.
 
 ## Unreleased
 
+- macOS: dm opens `magnet:` links and `.torrent` files (gaps row 105). The app's Info.plist names the `magnet` scheme and the BitTorrent file type (`macos/Info.plist`, merged by the packager; a person's own choice of program for either is kept), and the link or file the system opens dm with is handed to the window as a command-line link is, the one that started dm included (`opened.rs`, `shell::opened_by_system`).
+- Fixed: Options › Browser grew wider than every other page at large text, so the dialog moved when that tab was chosen: its lists of browsers and menu items were rows that wrap, which take all the width they may; they are now one under another.
 - Fixed: a torrent showed a piece downloaded before any peer had connected, now and then: while librqbit checks what is on disk its count is what it has checked, and dm took that for what it has. The count is taken only once the torrent is live (found by `torrent_features` `a_peer_blocklist_keeps_its_peers_away_and_one_unread_stops_the_torrent`, which failed one run in two).
 - `scripts/memory-check.py`: dm's memory, threads and handles at rest, against a budget (gaps row 137; Windows).
 - A site rule can name the element a site keeps its video's title in (`title`, a CSS selector, in the served rules), as reference A's site rules do (gaps row 124): the panel's lines and the download's name come from its words before the page's own title.
