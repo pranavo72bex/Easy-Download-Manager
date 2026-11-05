@@ -437,24 +437,20 @@ fn with_page_lines(choices: Array, player: &str) -> Array {
     choices
 }
 
-/// The list: one line per quality, with its size.
-pub(super) fn list(src: &str, frame: &str, choices: &Array) {
-    let Some(document) = document() else {
-        return;
-    };
-    // Each line as reference A words it: its number, the video's title, the
-    // kind and quality (gaps row 72a).
+/// The video's title as the page gives it: the element the site's rule names,
+/// else the page's title, else its `og:title` (gaps row 124), cleaned of the
+/// site's name. It heads each line of the list and names a file whose own name
+/// says nothing (gaps row 75).
+fn video_title(document: &web_sys::Document) -> String {
     let page = window()
         .and_then(|w| w.location().href().ok())
         .unwrap_or_default();
-    // The page's title, else its `og:title` (gaps row 124).
     let og = document
         .query_selector("meta[property='og:title']")
         .ok()
         .flatten()
         .and_then(|m| m.get_attribute("content"))
         .unwrap_or_default();
-    // The element the site's rule names for the title, first (gaps row 124).
     let ruled = Reflect::get(&js_sys::global(), &"dmTitleRule".into())
         .ok()
         .and_then(|v| v.as_string())
@@ -468,7 +464,17 @@ pub(super) fn list(src: &str, frame: &str, choices: &Array) {
     } else {
         ruled
     };
-    let title = decide::clean_title(decide::page_title(&own, &og), &page);
+    decide::clean_title(decide::page_title(&own, &og), &page)
+}
+
+/// The list: one line per quality, with its size.
+pub(super) fn list(src: &str, frame: &str, choices: &Array) {
+    let Some(document) = document() else {
+        return;
+    };
+    // Each line as reference A words it: its number, the video's title, the
+    // kind and quality (gaps row 72a).
+    let title = video_title(&document);
     let first = with_panel(|p| {
         set_title(p, "Download video");
         close_list(p);
@@ -617,6 +623,15 @@ pub(super) fn hand_with(
     }
     if let Some(label) = &label {
         let _ = Reflect::set(&message, &"label".into(), &label.into());
+    }
+    // The page's title goes with it: the app names a file by it when the
+    // file's own name says nothing (gaps row 75). It was read for the list
+    // and never sent, so X's videos kept names such as "GiFPAi8WYAEgiBu".
+    if let Some(title) = document()
+        .map(|d| video_title(&d))
+        .filter(|t| !t.is_empty())
+    {
+        let _ = Reflect::set(&message, &"title".into(), &title.into());
     }
     // Read before the list closes: the "Part" line is part of it.
     for (key, class) in [("from", "from"), ("to", "to")] {

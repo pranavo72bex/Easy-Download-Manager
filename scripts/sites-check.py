@@ -399,6 +399,9 @@ def one(base, name, site, engine_dl, worker=None):
         return out
     out["file"] = got[0].name
     out["size"] = got[0].stat().st_size
+    # What the page's title gave the name (gaps row 75): the row's hint beside the name it got.
+    row = next((r for r in cc.queue_rows(engine_dl.parent / "dm-home") if r.get("path") == str(got[0])), {})
+    out["title_hint"] = row.get("title_hint")
     out["media"] = inspect(got[0])
     m = out["media"]
     sound = "audio" in m["kinds"] or site.get("silent_ok")
