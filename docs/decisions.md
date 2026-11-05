@@ -3882,6 +3882,11 @@ contract rows B64 and B65.
   leaves 700 points for the dialog (it then opens 660 wide, as a body that scrolls keeps the
   dialog's least width and the days ran past its edge); at large text or in a small window the
   queues stand above the hours. A refusal under a body that scrolls is scrolled into view.
+  The choice is made once, as it opens: a dialog that is a window of its own reads its own size
+  in its own frames. The line between the two is drawn as tall as they are: a separator in a
+  row takes all the height it is given, which in a window of its own is the window's, and the
+  window grew to it frame after frame until it had to scroll, then shrank, and over again,
+  so that Cancel moved under the pointer (found by `scripts/human-qa.py`, B50, B56, B65).
 * **The toolbar's arrow is a second button beside the first**, not a split button drawn as one:
   egui has none, and two plain buttons keep each one's click and name for a screen reader
   ("Choose the queue to start"). Its tooltip is not shown while its list is open: it lay over

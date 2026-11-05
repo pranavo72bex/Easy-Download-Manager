@@ -24,6 +24,11 @@ pub struct SchedulerDraft {
     pub queues: BTreeMap<String, Schedule>,
     /// What is wrong with what was typed, said under it.
     pub says: String,
+    /// Whether the queues stand beside the hours, decided once, as it
+    /// first opens: a dialog that is a window of its own reads its own size
+    /// in its own frames, and decided each frame it flipped between the two
+    /// layouts, its buttons moving so that no click took.
+    pub beside: Option<bool>,
 }
 
 impl SchedulerDraft {
@@ -53,6 +58,7 @@ impl SchedulerDraft {
                 .map(|(name, s)| (name.clone(), every_day(s.clone())))
                 .collect(),
             says: String::new(),
+            beside: None,
         };
         draft.load(queue);
         draft
@@ -153,7 +159,9 @@ pub(super) fn scheduler(app: &mut DmApp, ctx: &egui::Context) {
     // The width the two need beside each other: a scrolled body keeps the
     // dialog's least width, and the days ran past its edge.
     const BESIDE: f32 = 660.0;
-    let beside = ctx.content_rect().width() - sides(ctx) >= BESIDE + 40.0;
+    let beside = *draft
+        .beside
+        .get_or_insert_with(|| ctx.content_rect().width() - sides(ctx) >= BESIDE + 40.0);
     let mut dialog = window(ctx, "Scheduler");
     if beside {
         dialog = dialog.min_width(BESIDE);
@@ -163,12 +171,28 @@ pub(super) fn scheduler(app: &mut DmApp, ctx: &egui::Context) {
             ui.horizontal_top(|ui| {
                 // The queues on the left, as reference A lists them; their
                 // hours on the right.
-                ui.vertical(|ui| {
-                    ui.set_width(140.0);
-                    queue_list(ui, &queues, &draft.queue, &mut chosen, &mut run);
-                });
-                ui.separator();
-                ui.vertical(|ui| schedule_form(ui, draft, &mut apply));
+                let left = ui
+                    .vertical(|ui| {
+                        ui.set_width(140.0);
+                        queue_list(ui, &queues, &draft.queue, &mut chosen, &mut run);
+                    })
+                    .response
+                    .rect;
+                ui.add_space(16.0);
+                let right = ui
+                    .vertical(|ui| schedule_form(ui, draft, &mut apply))
+                    .response
+                    .rect;
+                // A line between them as tall as the two: a separator takes
+                // all the height it is given, which in a window of its own
+                // is the window's, and the window grew to it frame after
+                // frame until it scrolled, then shrank, and over again.
+                let x = (left.right() + right.left()) / 2.0;
+                ui.painter().vline(
+                    x,
+                    left.top()..=left.bottom().max(right.bottom()),
+                    ui.visuals().widgets.noninteractive.bg_stroke,
+                );
             });
         } else {
             queue_list(ui, &queues, &draft.queue, &mut chosen, &mut run);
