@@ -877,5 +877,11 @@
  "Options › Advanced › Network sets a speed limit and the number of attempts for a failed download.": "Параметры › Дополнительно › Сеть задаёт ограничение скорости и число попыток для неудачной загрузки.",
  "Properties shows a finished file's SHA-256 and checks it against a digest you were given.": "Свойства показывают SHA-256 готового файла и сверяют его с полученным хешем.",
  "Start downloading while Download details is open": "Начинать загрузку, пока открыто окно «Сведения о загрузке»",
- "The file is fetched while you choose where it goes; Start now puts it there, Cancel removes it.": "Файл скачивается, пока вы выбираете, куда его сохранить; «Начать сейчас» помещает его туда, «Отмена» удаляет."
+ "The file is fetched while you choose where it goes; Start now puts it there, Cancel removes it.": "Файл скачивается, пока вы выбираете, куда его сохранить; «Начать сейчас» помещает его туда, «Отмена» удаляет.",
+ "Keep sharing a finished torrent": "Продолжать раздавать готовый торрент",
+ "Its files stay where they are, and other peers are sent them until it has sent the times its size below, or for the minutes below, whichever comes first. Off, a torrent stops once its files are whole.": "Его файлы остаются на месте и отдаются другим участникам, пока он не отдаст указанное ниже число своих размеров или в течение указанных ниже минут — что наступит раньше. Выключено: торрент останавливается, как только его файлы скачаны целиком.",
+ "Until it has sent (times its size)": "Пока не отдаст (раз свой размер)",
+ "For at most (minutes)": "Не дольше (минут)",
+ "Send at most (KB/s, 0 for no limit)": "Отдавать не быстрее (КБ/с, 0 — без ограничения)",
+ "Complete · sharing, {} sent": "Готово · раздаётся, отдано {}"
 }

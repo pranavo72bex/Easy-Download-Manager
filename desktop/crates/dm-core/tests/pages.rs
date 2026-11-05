@@ -52,9 +52,19 @@ async fn a_page_named_as_a_document_is_saved() {
         .await
         .unwrap_err();
         assert!(
-            err.to_string().contains("web page") || err.to_string().contains("video"),
-            "{watch}: {err}"
+            err.to_string().contains("web page rather than the file"),
+            "{watch}: the words the window asks about (B40): {err}"
         );
+        // Said yes to, it is saved as the page it is (gaps row 136).
+        let dir = tempdir();
+        let mut yes = options(dir.path());
+        yes.accept_page = true;
+        let done = dm_core::download(&dm_core::client(), &format!("http://{addr}/{watch}"), &yes)
+            .await
+            .unwrap();
+        assert_eq!(std::fs::read(&done.path).unwrap(), PAGE.as_bytes());
+        let name = done.path.file_name().unwrap().to_string_lossy().to_string();
+        assert!(name.ends_with(".html"), "{watch}: saved as {name}");
     }
 }
 

@@ -69,6 +69,10 @@ pub struct Stream {
     /// not lines of their own beside it.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub members: Vec<String>,
+    /// How long it plays, in seconds, where its playlist or manifest said: said on its line
+    /// (gaps row 155), so two videos' streams of one page are told apart.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub length: Option<u64>,
 }
 
 /// A whole file smaller than this is a thumbnail, a sound effect or an ad
@@ -138,6 +142,7 @@ pub fn stream_seen(seen: &Seen) -> Option<Stream> {
             label: hls_label(&path),
             sound: None,
             members: Vec::new(),
+            length: None,
         });
     }
     // `application/dash+xml` and `video/vnd.mpeg.dash.mpd`.
@@ -149,6 +154,7 @@ pub fn stream_seen(seen: &Seen) -> Option<Stream> {
             label: "DASH stream".into(),
             sound: None,
             members: Vec::new(),
+            length: None,
         });
     }
 
@@ -208,6 +214,7 @@ pub fn stream_seen(seen: &Seen) -> Option<Stream> {
         label: format!("{format} {kind} file"),
         sound: None,
         members: Vec::new(),
+        length: None,
     })
 }
 
@@ -290,6 +297,7 @@ pub fn track_of(url: &str) -> Option<Stream> {
         label,
         sound: None,
         members: Vec::new(),
+        length: None,
     })
 }
 
@@ -550,6 +558,75 @@ pub fn hls_master_label(renditions: &[Rendition]) -> Option<String> {
     })
 }
 
+/// How long a video plays, in the words of the panel's lines (reference A's ", 41 sec"):
+/// "41 sec", "4 min 12 sec", "1 h 2 min". Nothing for under half a second.
+pub fn length_words(seconds: f64) -> Option<String> {
+    if !seconds.is_finite() || seconds < 0.5 {
+        return None;
+    }
+    let total = seconds.round() as u64;
+    let (hours, minutes, secs) = (total / 3600, total / 60 % 60, total % 60);
+    Some(match (hours, minutes, secs) {
+        (0, 0, s) => format!("{s} sec"),
+        (0, m, 0) => format!("{m} min"),
+        (0, m, s) => format!("{m} min {s} sec"),
+        (h, 0, _) => format!("{h} h"),
+        (h, m, _) => format!("{h} h {m} min"),
+    })
+}
+
+/// How long an HLS media playlist plays: its segments' times summed, for one that ends
+/// (`#EXT-X-ENDLIST`). A live playlist, or a master, has no length.
+pub fn hls_length(body: &str) -> Option<f64> {
+    if !body.contains("#EXT-X-ENDLIST") {
+        return None;
+    }
+    let total: f64 = body
+        .lines()
+        .filter_map(|line| line.trim().strip_prefix("#EXTINF:"))
+        .filter_map(|rest| rest.split(',').next()?.trim().parse::<f64>().ok())
+        .filter(|seconds| seconds.is_finite() && *seconds >= 0.0)
+        .sum();
+    (total > 0.0).then_some(total)
+}
+
+/// How long a DASH manifest plays: its `mediaPresentationDuration` (`PT4M12.5S`). A live
+/// manifest names none.
+pub fn dash_length(body: &str) -> Option<f64> {
+    let (_, attrs) = xml_tags(body).into_iter().find(|(name, _)| name == "MPD")?;
+    let (_, value) = attrs
+        .iter()
+        .find(|(key, _)| key == "mediaPresentationDuration")?;
+    iso_duration(value)
+}
+
+/// An ISO 8601 duration as manifests write it (`P1DT2H3M4.5S`), in seconds. Years and months,
+/// which have no fixed length, are not read.
+fn iso_duration(text: &str) -> Option<f64> {
+    let rest = text.trim().strip_prefix('P')?;
+    let (days, time) = rest.split_once('T').unwrap_or((rest, ""));
+    let mut total = 0.0;
+    for (part, units) in [
+        (days, &[('D', 86_400.0)][..]),
+        (time, &[('H', 3600.0), ('M', 60.0), ('S', 1.0)][..]),
+    ] {
+        let mut number = String::new();
+        for c in part.chars() {
+            if c.is_ascii_digit() || c == '.' {
+                number.push(c);
+                continue;
+            }
+            let (_, scale) = units.iter().find(|(unit, _)| *unit == c)?;
+            total += number.parse::<f64>().ok()? * scale;
+            number.clear();
+        }
+        if !number.is_empty() {
+            return None;
+        }
+    }
+    (total > 0.0).then_some(total)
+}
+
 /// The attributes of the XML tags of a manifest, with the tag's name first
 /// (`Representation`, `height`, `1080`, …): enough to read a DASH manifest's
 /// renditions without an XML library.
@@ -776,6 +853,7 @@ pub fn pieces_of(url: &str, mime: &str) -> Option<Stream> {
         label,
         sound: None,
         members: Vec::new(),
+        length: None,
     })
 }
 
@@ -858,6 +936,7 @@ pub fn ranged_of(url: &str, mime: &str, content_range: Option<&str>) -> Option<S
         label,
         sound: None,
         members: Vec::new(),
+        length: None,
     })
 }
 
@@ -949,6 +1028,19 @@ pub struct Streams {
     described: std::collections::HashSet<(i64, String)>,
 }
 
+/// Adds a stream's length to its line, once (gaps row 155). Whether it did.
+fn say_length(stream: &mut Stream, seconds: f64) -> bool {
+    let Some(words) = length_words(seconds) else {
+        return false;
+    };
+    if stream.length.is_some() {
+        return false;
+    }
+    stream.length = Some(seconds.round() as u64);
+    stream.label = format!("{}, {words}", stream.label);
+    true
+}
+
 /// A master playlist's renditions are not lines beside it: what a list holds
 /// of them is taken out.
 fn drop_members(list: &mut Vec<Stream>) {
@@ -1027,29 +1119,56 @@ impl Streams {
         let Some(stream) = list.iter_mut().find(|s| s.url == url) else {
             return false;
         };
-        let (label, members) = match stream.kind {
+        let (label, members, length) = match stream.kind {
             StreamKind::Hls => {
                 let renditions = hls_renditions(url, body);
-                let Some(label) = hls_master_label(&renditions) else {
-                    return false;
-                };
-                (
-                    label,
-                    renditions.into_iter().map(|r| r.url).collect::<Vec<_>>(),
-                )
+                match hls_master_label(&renditions) {
+                    Some(label) => (
+                        label,
+                        renditions.into_iter().map(|r| r.url).collect::<Vec<_>>(),
+                        None,
+                    ),
+                    // A media playlist keeps its name and says how long it plays, where it ends.
+                    None => match hls_length(body) {
+                        Some(seconds) => (stream.label.clone(), Vec::new(), Some(seconds)),
+                        None => return false,
+                    },
+                }
             }
             StreamKind::Dash => {
                 let Some(label) = dash_label(body) else {
                     return false;
                 };
-                (label, Vec::new())
+                (label, Vec::new(), dash_length(body))
             }
             _ => return false,
         };
         stream.label = label;
         stream.members = members;
+        if let Some(seconds) = length {
+            say_length(stream, seconds);
+        }
         drop_members(list);
         true
+    }
+
+    /// The rendition to read for a master playlist's length: its first, while its line says
+    /// none (a master names its renditions, not how long they play).
+    pub fn rendition_for_length(&self, tab: i64, url: &str) -> Option<String> {
+        let stream = self.by_tab.get(&tab)?.iter().find(|s| s.url == url)?;
+        if stream.kind != StreamKind::Hls || stream.length.is_some() {
+            return None;
+        }
+        stream.members.first().cloned()
+    }
+
+    /// Says on a line how long its stream plays, once: for a master playlist, read from one of
+    /// its renditions (each plays as long as the others). Whether the line changed.
+    pub fn lengthen(&mut self, tab: i64, url: &str, seconds: f64) -> bool {
+        self.by_tab
+            .get_mut(&tab)
+            .and_then(|list| list.iter_mut().find(|s| s.url == url))
+            .is_some_and(|stream| say_length(stream, seconds))
     }
 
     /// Whether this worker has heard anything of a tab since it started.
@@ -1135,6 +1254,7 @@ impl Streams {
                 label: format!("{} + sound", picture.label),
                 sound: Some(sound.url),
                 members: Vec::new(),
+                length: None,
             });
         }
         // A small clip beside something larger (a sign-in page's, an advert,

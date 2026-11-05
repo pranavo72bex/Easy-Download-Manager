@@ -238,12 +238,29 @@ async fn describe_playlist(tab: i64, url: &str) {
     if !PAGES.with(|p| p.borrow().still(tab, page)) {
         return;
     }
-    if STREAMS.with(|s| s.borrow_mut().describe(tab, url, &body)) {
-        let after = STREAMS.with(|s| s.borrow().raw(tab));
-        let item = to_js(&serde_json::json!({ streams_key(tab): after }));
-        if let Err(why) = call("storage.session", "set", &[item]).await {
-            log("debug", &format!("a tab's streams were not kept: {why}"));
+    if !STREAMS.with(|s| s.borrow_mut().describe(tab, url, &body)) {
+        return;
+    }
+    // A master playlist says nothing of how long the video plays; one of its renditions does,
+    // and the line says it, so two videos of one page are told apart (gaps row 155).
+    if let Some(rendition) = STREAMS.with(|s| s.borrow().rendition_for_length(tab, url)) {
+        match fetch_text(&rendition, decide::PLAYLIST_READ_CAP, 4000.0).await {
+            Ok(media) if PAGES.with(|p| p.borrow().still(tab, page)) => {
+                if let Some(seconds) = decide::hls_length(&media) {
+                    STREAMS.with(|s| s.borrow_mut().lengthen(tab, url, seconds));
+                }
+            }
+            Ok(_) => return,
+            Err(why) => log(
+                "debug",
+                &format!("a rendition was not read for its length: {why}"),
+            ),
         }
+    }
+    let after = STREAMS.with(|s| s.borrow().raw(tab));
+    let item = to_js(&serde_json::json!({ streams_key(tab): after }));
+    if let Err(why) = call("storage.session", "set", &[item]).await {
+        log("debug", &format!("a tab's streams were not kept: {why}"));
     }
 }
 

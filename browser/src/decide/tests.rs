@@ -2394,3 +2394,64 @@ fn the_menu_items_options_lists_are_the_ones_made() {
     let made: Vec<(&str, &str)> = MENUS.iter().map(|(id, title, _)| (*id, *title)).collect();
     assert_eq!(made, dm_protocol::MENU_ITEMS.to_vec());
 }
+
+#[test]
+fn a_streams_line_says_how_long_it_plays() {
+    // The words, as reference A's lines say a file's length.
+    assert_eq!(length_words(41.4).as_deref(), Some("41 sec"));
+    assert_eq!(length_words(252.0).as_deref(), Some("4 min 12 sec"));
+    assert_eq!(length_words(600.0).as_deref(), Some("10 min"));
+    assert_eq!(length_words(3725.0).as_deref(), Some("1 h 2 min"));
+    assert_eq!(length_words(7200.0).as_deref(), Some("2 h"));
+    assert_eq!(length_words(0.2), None);
+    assert_eq!(length_words(f64::NAN), None);
+
+    // An HLS media playlist that ends: its segments summed; a live one has no length.
+    let vod = "#EXTM3U\n#EXT-X-TARGETDURATION:6\n#EXTINF:6.0,\na.ts\n#EXTINF:5.5,\nb.ts\n#EXT-X-ENDLIST\n";
+    assert_eq!(hls_length(vod), Some(11.5));
+    assert_eq!(hls_length("#EXTM3U\n#EXTINF:6,\na.ts\n"), None);
+    assert_eq!(hls_length("#EXTM3U\n#EXT-X-ENDLIST\n"), None);
+
+    // A DASH manifest's own duration; a live one names none.
+    let mpd = r#"<MPD type="static" mediaPresentationDuration="PT4M12.5S"><Period/></MPD>"#;
+    assert_eq!(dash_length(mpd), Some(252.5));
+    assert_eq!(
+        dash_length(r#"<MPD mediaPresentationDuration="P1DT1H"/>"#),
+        Some(90_000.0)
+    );
+    assert_eq!(dash_length(r#"<MPD type="dynamic"><Period/></MPD>"#), None);
+    assert_eq!(
+        dash_length(r#"<MPD mediaPresentationDuration="P1Y"/>"#),
+        None
+    );
+
+    // A master playlist's line takes its length from a rendition, once.
+    let mut streams = Streams::default();
+    streams.absorb(&playlist_seen(VIMEO_URL));
+    assert!(streams.describe(7, VIMEO_URL, VIMEO_MASTER));
+    let rendition = streams
+        .rendition_for_length(7, VIMEO_URL)
+        .expect("a rendition to read");
+    assert!(rendition.starts_with("https://"), "{rendition}");
+    assert!(streams.lengthen(7, VIMEO_URL, 252.0));
+    assert_eq!(streams.of(7)[0].label, "1080p HLS stream, 4 min 12 sec");
+    assert!(!streams.lengthen(7, VIMEO_URL, 99.0), "once");
+    assert_eq!(streams.rendition_for_length(7, VIMEO_URL), None);
+
+    // A DASH manifest says both at once.
+    let mut streams = Streams::default();
+    streams.absorb(&seen(
+        "https://cdn.e.com/v/manifest.mpd",
+        "xmlhttprequest",
+        &[("Content-Type", "application/dash+xml")],
+    ));
+    let mpd = r#"<MPD mediaPresentationDuration="PT41S"><Period><AdaptationSet contentType="video"><Representation height="720" bandwidth="2000000"/></AdaptationSet></Period></MPD>"#;
+    assert!(streams.describe(7, "https://cdn.e.com/v/manifest.mpd", mpd));
+    assert_eq!(streams.of(7)[0].label, "720p DASH stream, 41 sec");
+
+    // A media playlist that ends keeps its name and says its length.
+    let mut streams = Streams::default();
+    streams.absorb(&playlist_seen("https://e.com/media.m3u8"));
+    assert!(streams.describe(7, "https://e.com/media.m3u8", vod));
+    assert_eq!(streams.of(7)[0].label, "HLS stream, 12 sec");
+}

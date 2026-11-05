@@ -877,5 +877,11 @@
  "Options › Advanced › Network sets a speed limit and the number of attempts for a failed download.": "オプション › 詳細 › ネットワークで、速度の上限と失敗したダウンロードの再試行回数を決められます。",
  "Properties shows a finished file's SHA-256 and checks it against a digest you were given.": "プロパティでは、完了したファイルの SHA-256 を表示し、渡されたダイジェストと照合できます。",
  "Start downloading while Download details is open": "「ダウンロードの詳細」を開いている間にダウンロードを始める",
- "The file is fetched while you choose where it goes; Start now puts it there, Cancel removes it.": "保存先を選んでいる間にファイルを取得します。「今すぐ開始」でそこに置き、「キャンセル」で削除します。"
+ "The file is fetched while you choose where it goes; Start now puts it there, Cancel removes it.": "保存先を選んでいる間にファイルを取得します。「今すぐ開始」でそこに置き、「キャンセル」で削除します。",
+ "Keep sharing a finished torrent": "完了したトレントの共有を続ける",
+ "Its files stay where they are, and other peers are sent them until it has sent the times its size below, or for the minutes below, whichever comes first. Off, a torrent stops once its files are whole.": "ファイルはそのままの場所に置かれ、下のサイズの倍数を送信し終えるか、下の分数が経つまで（早い方まで）他のピアに送られます。オフにすると、トレントはファイルがそろった時点で止まります。",
+ "Until it has sent (times its size)": "送信量の上限（サイズの倍数）",
+ "For at most (minutes)": "最長時間（分）",
+ "Send at most (KB/s, 0 for no limit)": "送信速度の上限（KB/秒、0 で無制限）",
+ "Complete · sharing, {} sent": "完了 · 共有中、{} 送信済み"
 }

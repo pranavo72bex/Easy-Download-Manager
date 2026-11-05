@@ -877,5 +877,11 @@
  "Options › Advanced › Network sets a speed limit and the number of attempts for a failed download.": "Seçenekler › Gelişmiş › Ağ, hız sınırını ve başarısız bir indirmenin deneme sayısını ayarlar.",
  "Properties shows a finished file's SHA-256 and checks it against a digest you were given.": "Özellikler, biten bir dosyanın SHA-256 değerini gösterir ve size verilen özetle karşılaştırır.",
  "Start downloading while Download details is open": "\"İndirme ayrıntıları\" açıkken indirmeye başla",
- "The file is fetched while you choose where it goes; Start now puts it there, Cancel removes it.": "Dosya, nereye gideceğini seçerken indirilir; \"Şimdi başlat\" onu oraya koyar, \"İptal\" kaldırır."
+ "The file is fetched while you choose where it goes; Start now puts it there, Cancel removes it.": "Dosya, nereye gideceğini seçerken indirilir; \"Şimdi başlat\" onu oraya koyar, \"İptal\" kaldırır.",
+ "Keep sharing a finished torrent": "Tamamlanan torrent'i paylaşmaya devam et",
+ "Its files stay where they are, and other peers are sent them until it has sent the times its size below, or for the minutes below, whichever comes first. Off, a torrent stops once its files are whole.": "Dosyaları olduğu yerde kalır ve aşağıdaki boyut katı kadar gönderene ya da aşağıdaki dakika dolana kadar (hangisi önce olursa) diğer eşlere gönderilir. Kapalıyken torrent, dosyaları tamamlanır tamamlanmaz durur.",
+ "Until it has sent (times its size)": "Gönderene kadar (boyutunun katı)",
+ "For at most (minutes)": "En çok (dakika)",
+ "Send at most (KB/s, 0 for no limit)": "En çok gönder (KB/sn, 0 sınırsız)",
+ "Complete · sharing, {} sent": "Tamamlandı · paylaşılıyor, {} gönderildi"
 }

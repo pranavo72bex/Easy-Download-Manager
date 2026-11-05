@@ -325,6 +325,11 @@ pub(super) fn status_in(row: &Entry, words: fn(&'static str) -> &'static str) ->
                 _ => words("Complete").into(),
             }
         }
+        // A finished torrent kept shared says so, and how much it has sent (gaps row 147).
+        State::Completed if !row.path.is_empty() && dm_core::sharing(std::path::Path::new(&row.path)).is_some() => {
+            let sent = dm_core::sharing(std::path::Path::new(&row.path)).map_or(0, |s| s.sent);
+            crate::i18n::fill(words("Complete · sharing, {} sent"), &[&format::bytes(sent)])
+        }
         State::Completed => words("Complete").into(),
         // A server that wants a sign-in says where to give one: the plain
         // sentences for 401 and 403 do (`format::REASONS`); anything else

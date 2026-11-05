@@ -877,5 +877,11 @@
  "Options › Advanced › Network sets a speed limit and the number of attempts for a failed download.": "Opsi › Lanjutan › Jaringan mengatur batas kecepatan dan jumlah percobaan untuk unduhan yang gagal.",
  "Properties shows a finished file's SHA-256 and checks it against a digest you were given.": "Properti menampilkan SHA-256 berkas yang selesai dan mencocokkannya dengan ringkasan yang Anda terima.",
  "Start downloading while Download details is open": "Mulai mengunduh saat Detail unduhan terbuka",
- "The file is fetched while you choose where it goes; Start now puts it there, Cancel removes it.": "Berkas diunduh selagi Anda memilih tempatnya; Mulai sekarang menaruhnya di sana, Batal menghapusnya."
+ "The file is fetched while you choose where it goes; Start now puts it there, Cancel removes it.": "Berkas diunduh selagi Anda memilih tempatnya; Mulai sekarang menaruhnya di sana, Batal menghapusnya.",
+ "Keep sharing a finished torrent": "Tetap bagikan torrent yang sudah selesai",
+ "Its files stay where they are, and other peers are sent them until it has sent the times its size below, or for the minutes below, whichever comes first. Off, a torrent stops once its files are whole.": "Berkasnya tetap di tempatnya dan dikirim ke peer lain sampai torrent itu mengirim kelipatan ukurannya di bawah, atau selama menit di bawah, mana yang lebih dulu. Mati: torrent berhenti begitu berkasnya lengkap.",
+ "Until it has sent (times its size)": "Sampai terkirim (kali ukurannya)",
+ "For at most (minutes)": "Paling lama (menit)",
+ "Send at most (KB/s, 0 for no limit)": "Kirim paling banyak (KB/s, 0 tanpa batas)",
+ "Complete · sharing, {} sent": "Selesai · dibagikan, {} terkirim"
 }

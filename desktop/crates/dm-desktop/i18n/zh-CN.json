@@ -877,5 +877,11 @@
  "Options › Advanced › Network sets a speed limit and the number of attempts for a failed download.": "选项 › 高级 › 网络可设置限速，以及下载失败时的重试次数。",
  "Properties shows a finished file's SHA-256 and checks it against a digest you were given.": "属性会显示已完成文件的 SHA-256，并与你拿到的摘要核对。",
  "Start downloading while Download details is open": "在“下载详情”打开时就开始下载",
- "The file is fetched while you choose where it goes; Start now puts it there, Cancel removes it.": "在你选择保存位置时就开始获取文件；“立即开始”会把它放到那里，“取消”会删除它。"
+ "The file is fetched while you choose where it goes; Start now puts it there, Cancel removes it.": "在你选择保存位置时就开始获取文件；“立即开始”会把它放到那里，“取消”会删除它。",
+ "Keep sharing a finished torrent": "完成后继续分享种子",
+ "Its files stay where they are, and other peers are sent them until it has sent the times its size below, or for the minutes below, whichever comes first. Off, a torrent stops once its files are whole.": "文件保留在原处，并发送给其他节点，直到发送量达到下面的大小倍数，或达到下面的分钟数（以先到者为准）。关闭时，种子在文件下载完整后立即停止。",
+ "Until it has sent (times its size)": "发送量上限（大小的倍数）",
+ "For at most (minutes)": "最长（分钟）",
+ "Send at most (KB/s, 0 for no limit)": "最大发送速度（KB/秒，0 表示不限）",
+ "Complete · sharing, {} sent": "完成 · 分享中，已发送 {}"
 }

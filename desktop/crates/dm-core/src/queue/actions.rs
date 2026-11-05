@@ -434,6 +434,10 @@ impl Queue {
         // where a row begun before a change staged its parts.
         let default_parts = self.inner.options.lock().await.parts_dir.clone();
         for (id, slot) in taken {
+            // A finished torrent still shared stops with its row (gaps row 147).
+            if !slot.entry.path.is_empty() {
+                crate::torrent::stop_sharing(std::path::Path::new(&slot.entry.path));
+            }
             let parts = if slot.entry.parts_dir.is_empty() {
                 default_parts.join(id.to_string())
             } else {

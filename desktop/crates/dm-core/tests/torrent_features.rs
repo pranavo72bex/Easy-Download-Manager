@@ -673,3 +673,101 @@ async fn a_peer_blocklist_keeps_its_peers_away_and_one_unread_stops_the_torrent(
     assert!(err.to_string().contains("peer blocklist"), "{err}");
     println!("VERIFY blocklist: seeder blocked (0 bytes), others listed (whole), missing list refused ({err})");
 }
+
+/// A finished torrent kept shared (gaps row 147): its row is complete and its
+/// file in place at once, another peer fetches it whole from dm alone, and the
+/// sharing stops once dm has sent its size, as the person's ratio of 1 says.
+#[tokio::test(flavor = "multi_thread")]
+async fn a_finished_torrent_kept_shared_serves_another_peer_and_stops_at_its_ratio() {
+    let data = bytes(400 * 1024, 7);
+    let swarm = swarm("shared.bin", &[("shared.bin", data.clone())]).await;
+    let dir = tempdir();
+    let mut opts = options(dir.path());
+    opts.torrent.share = Some(dm_core::Share {
+        ratio: 1.0,
+        minutes: 5,
+        upload_kbps: 0,
+    });
+    let done = download_torrent(&client(), &swarm.torrent_url, &opts, None)
+        .await
+        .expect("the torrent did not finish");
+    assert_eq!(
+        std::fs::read(&done.path).unwrap(),
+        data,
+        "the file is not whole"
+    );
+    let torrent = reqwest::get(&swarm.torrent_url)
+        .await
+        .unwrap()
+        .bytes()
+        .await
+        .unwrap();
+    // The first seeder goes: what the next peer gets, it gets from dm.
+    drop(swarm);
+
+    let mut port = None;
+    for _ in 0..100 {
+        port = dm_core::sharing(&done.path)
+            .and_then(|s| s.listening)
+            .map(|a| a.port());
+        if port.is_some() {
+            break;
+        }
+        tokio::time::sleep(Duration::from_millis(100)).await;
+    }
+    let port = port.expect("the finished torrent is not shared, or not reachable");
+
+    let leech_dir = tempdir();
+    let leecher = Session::new_with_opts(
+        leech_dir.path().to_path_buf(),
+        SessionOptions {
+            dht: None,
+            disable_local_service_discovery: true,
+            persistence: None,
+            ..Default::default()
+        },
+    )
+    .await
+    .unwrap();
+    let handle = leecher
+        .add_torrent(
+            AddTorrent::TorrentFileBytes(torrent),
+            Some(AddTorrentOptions {
+                initial_peers: Some(vec![SocketAddr::from((Ipv4Addr::LOCALHOST, port))]),
+                disable_trackers: true,
+                ..Default::default()
+            }),
+        )
+        .await
+        .unwrap()
+        .into_handle()
+        .unwrap();
+    tokio::time::timeout(Duration::from_secs(60), handle.wait_until_completed())
+        .await
+        .expect("the other peer did not get the file from dm in time")
+        .unwrap();
+    assert_eq!(
+        std::fs::read(leech_dir.path().join("shared.bin")).unwrap(),
+        data,
+        "the other peer's copy is not whole"
+    );
+
+    // Its ratio of 1 reached, dm stops sharing and lets go of the file.
+    let mut stopped = false;
+    for _ in 0..150 {
+        if dm_core::sharing(&done.path).is_none() {
+            stopped = true;
+            break;
+        }
+        tokio::time::sleep(Duration::from_millis(100)).await;
+    }
+    assert!(
+        stopped,
+        "still shared after sending its size: {:?}",
+        dm_core::sharing(&done.path)
+    );
+
+    // Stopped at once when its row goes.
+    dm_core::stop_sharing(&done.path);
+    assert!(dm_core::sharing(&done.path).is_none());
+}

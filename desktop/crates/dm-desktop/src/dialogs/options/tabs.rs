@@ -947,6 +947,31 @@ pub(super) fn tab_advanced(ui: &mut egui::Ui, d: &mut OptionsDialog, env: &TabEn
         ui,
         t("A list in the P2P format, plain or gzipped, on the web or on this computer. One on the web is fetched through the proxy and read again once a day; a torrent stops, saying why, if the list cannot be read."),
     );
+    // Off unless turned on: sharing sends from the person's connection (gaps row 147).
+    toggle_row(
+        ui,
+        &mut d.draft.torrent_share,
+        t("Keep sharing a finished torrent"),
+    );
+    hint(
+        ui,
+        t("Its files stay where they are, and other peers are sent them until it has sent the times its size below, or for the minutes below, whichever comes first. Off, a torrent stops once its files are whole."),
+    );
+    ui.add_enabled_ui(d.draft.torrent_share, |ui| {
+        let s = &mut d.draft;
+        number_row(ui, t("Until it has sent (times its size)"), |ui, name| {
+            ui.add(number_box(&mut s.torrent_share_ratio).range(0.1..=100.0))
+                .labelled_by(name);
+        });
+        number_row(ui, t("For at most (minutes)"), |ui, name| {
+            ui.add(number_box(&mut s.torrent_share_minutes).range(1..=7 * 24 * 60))
+                .labelled_by(name);
+        });
+        number_row(ui, t("Send at most (KB/s, 0 for no limit)"), |ui, name| {
+            ui.add(number_box(&mut s.torrent_upload_limit).range(0..=1_000_000))
+                .labelled_by(name);
+        });
+    });
     // What Windows' question at the first torrent is for (gaps row 101).
     hint(
         ui,

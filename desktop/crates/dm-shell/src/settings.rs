@@ -149,6 +149,19 @@ pub struct Settings {
     /// gzipped. Empty for none.
     #[serde(default)]
     pub peer_blocklist: String,
+    /// Keep a finished torrent shared with other peers (gaps row 147). Off unless
+    /// turned on: it sends from the person's connection.
+    #[serde(default)]
+    pub torrent_share: bool,
+    /// Shared until it has sent this many times its size.
+    #[serde(default = "default_share_ratio")]
+    pub torrent_share_ratio: f64,
+    /// Shared for at most this many minutes.
+    #[serde(default = "default_share_minutes")]
+    pub torrent_share_minutes: u64,
+    /// The most a shared torrent sends, in KB a second; 0 for no limit of its own.
+    #[serde(default)]
+    pub torrent_upload_limit: u64,
     /// Look for a newer dm about once a week. Off unless turned on: it asks
     /// GitHub, and dm otherwise contacts nothing but what is downloaded.
     pub check_updates: bool,
@@ -376,6 +389,14 @@ fn default_attempts() -> u32 {
     15
 }
 
+fn default_share_ratio() -> f64 {
+    1.0
+}
+
+fn default_share_minutes() -> u64 {
+    120
+}
+
 fn default_read_timeout() -> u64 {
     30
 }
@@ -563,7 +584,14 @@ impl Default for Settings {
             stream_quality: default_quality(),
             schedule: Schedule::default(),
             queue_schedules: std::collections::BTreeMap::new(),
-            proxy: Proxy::default(),
+            // The computer's proxy settings, as a browser takes them: with none set it goes
+            // direct as before; behind one, a new dm works where the browser does
+            // (docs/decisions.md, 2026-11-06, in place of gaps row 80).
+            proxy: Proxy {
+                enabled: true,
+                kind: dm_core::ProxyKind::System,
+                ..Proxy::default()
+            },
             watch_clipboard: false,
             start_copied: false,
             start_while_asking: false,
@@ -572,6 +600,10 @@ impl Default for Settings {
             allow_mcp: true,
             watch_folder: String::new(),
             peer_blocklist: String::new(),
+            torrent_share: false,
+            torrent_share_ratio: default_share_ratio(),
+            torrent_share_minutes: default_share_minutes(),
+            torrent_upload_limit: 0,
             check_updates: false,
             language: String::new(),
             update_checked: 0,
@@ -801,6 +833,11 @@ impl Settings {
                 // Per download: the queue fills this in from the row.
                 only: None,
                 blocklist: self.peer_blocklist(),
+                share: self.torrent_share.then(|| dm_core::Share {
+                    ratio: self.torrent_share_ratio.clamp(0.1, 100.0),
+                    minutes: self.torrent_share_minutes.clamp(1, 7 * 24 * 60),
+                    upload_kbps: self.torrent_upload_limit,
+                }),
             },
             quality: self.quality(),
             sound: None,

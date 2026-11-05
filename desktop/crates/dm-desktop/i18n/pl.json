@@ -877,5 +877,11 @@
  "Options › Advanced › Network sets a speed limit and the number of attempts for a failed download.": "Opcje › Zaawansowane › Sieć ustala limit prędkości i liczbę prób dla nieudanego pobierania.",
  "Properties shows a finished file's SHA-256 and checks it against a digest you were given.": "Właściwości pokazują SHA-256 ukończonego pliku i porównują go z otrzymanym skrótem.",
  "Start downloading while Download details is open": "Zacznij pobierać, gdy „Szczegóły pobierania” są otwarte",
- "The file is fetched while you choose where it goes; Start now puts it there, Cancel removes it.": "Plik jest pobierany, gdy wybierasz, gdzie ma trafić; „Rozpocznij teraz” go tam umieszcza, „Anuluj” usuwa."
+ "The file is fetched while you choose where it goes; Start now puts it there, Cancel removes it.": "Plik jest pobierany, gdy wybierasz, gdzie ma trafić; „Rozpocznij teraz” go tam umieszcza, „Anuluj” usuwa.",
+ "Keep sharing a finished torrent": "Udostępniaj dalej ukończony torrent",
+ "Its files stay where they are, and other peers are sent them until it has sent the times its size below, or for the minutes below, whichever comes first. Off, a torrent stops once its files are whole.": "Jego pliki zostają na miejscu i są wysyłane innym peerom, aż wyśle podaną niżej wielokrotność swojego rozmiaru albo przez podaną niżej liczbę minut, zależnie od tego, co nastąpi pierwsze. Wyłączone: torrent zatrzymuje się, gdy jego pliki są kompletne.",
+ "Until it has sent (times its size)": "Aż wyśle (wielokrotność rozmiaru)",
+ "For at most (minutes)": "Najwyżej przez (minuty)",
+ "Send at most (KB/s, 0 for no limit)": "Wysyłaj najwyżej (KB/s, 0 bez limitu)",
+ "Complete · sharing, {} sent": "Ukończone · udostępnianie, wysłano {}"
 }

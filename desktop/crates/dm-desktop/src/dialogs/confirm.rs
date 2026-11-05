@@ -146,6 +146,8 @@ pub(super) fn confirm_remove(app: &mut DmApp, ctx: &egui::Context) {
             let failed: Vec<String> = files
                 .iter()
                 .filter_map(|path| {
+                    // A finished torrent still shared lets go of its files first (gaps row 147).
+                    dm_core::stop_sharing(std::path::Path::new(path));
                     app.backend
                         .platform
                         .trash(path)

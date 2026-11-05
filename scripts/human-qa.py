@@ -1290,8 +1290,14 @@ def walk(dm, origin):
         if not was.exists():
             was = BASELINE / f"{name}.png"
         share = differing(was, now) if was.exists() and now.exists() else None
-        check("B25", f"{name} looks as the baseline", share is not None and share <= 0.01,
-              "no baseline or another screen size" if share is None else f"{share * 100:.2f}% of pixels differ")
+        if not now.exists():
+            # macOS pictures a dialog's window from the screen, which needs the Screen Recording
+            # permission for the program running this check (System Settings › Privacy).
+            why = ("not pictured: allow Screen Recording for the program running this check"
+                   if sys.platform == "darwin" else "not pictured")
+        else:
+            why = "no baseline or another screen size" if share is None else f"{share * 100:.2f}% of pixels differ"
+        check("B25", f"{name} looks as the baseline", share is not None and share <= 0.01, why)
 
 
 BROWSER_ROWS = {

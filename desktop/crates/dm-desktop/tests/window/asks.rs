@@ -63,6 +63,30 @@ fn a_web_page_for_a_file_is_saved_as_html_on_yes() {
     assert_eq!(harness.state().rows()[0].filename, "pagefile.html");
 }
 
+/// A page typed into Add URL is asked about as a page for a file is (B40), not
+/// refused: Yes saves it as HTML (gaps row 136).
+#[test]
+fn a_typed_web_page_is_asked_about_and_saved_as_html_on_yes() {
+    let world = world();
+    let mut harness = world.quick_harness();
+    add_url(&mut harness, &world.url("article"), "Start now");
+    until(&mut harness, "the question", |app| {
+        app.dialogs.page_ask.is_some()
+    });
+    harness.run_steps(3);
+    assert!(harness
+        .query_by_label("Web page instead of the file")
+        .is_some());
+    click(&mut harness, "Yes");
+    until(&mut harness, "the page to be saved", finished);
+    let row = &harness.state().rows()[0];
+    assert!(row.filename.ends_with(".html"), "{}", row.filename);
+    assert_eq!(
+        std::fs::read_to_string(&row.path).unwrap(),
+        "<html><title>An article</title><body>words</body></html>"
+    );
+}
+
 #[test]
 fn a_web_page_for_a_file_leaves_nothing_on_no() {
     let world = world();

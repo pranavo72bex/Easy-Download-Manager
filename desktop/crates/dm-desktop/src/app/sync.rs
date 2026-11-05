@@ -611,6 +611,13 @@ impl DmApp {
             (false, _) if self.clipboard.on => CLIPBOARD_REFRESH,
             (false, _) => IDLE_REFRESH,
         };
+        // A finished torrent being shared says how much it has sent, each second it is
+        // seen (gaps row 147); hidden, no one reads it.
+        let wake = if !self.hidden && dm_core::sharing_any() {
+            wake.min(REFRESH.max(Duration::from_secs(1)))
+        } else {
+            wake
+        };
         // A watched folder is read every few seconds, hidden or not.
         let wake = if self.applied.watch_folder.trim().is_empty() {
             wake
@@ -736,7 +743,11 @@ impl DmApp {
             // Its own file alone: one moved away or since written by another
             // row is not this row's to delete.
             let present = !row.path.is_empty() && !crate::table::gone(&row);
-            match present.then(|| self.backend.platform.trash(&row.path)) {
+            // A finished torrent still shared lets go of its file first (gaps row 147).
+            match present.then(|| {
+                dm_core::stop_sharing(std::path::Path::new(&row.path));
+                self.backend.platform.trash(&row.path)
+            }) {
                 Some(Err(e)) => {
                     failed.push(format!("{}: {e}", row.path));
                     self.backend.set_delete_after(row.id, None);

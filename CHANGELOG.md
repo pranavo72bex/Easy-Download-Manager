@@ -5,6 +5,10 @@ the browser extension (`v*` tags) are versioned separately.
 
 ## Unreleased
 
+- Options › Advanced › BitTorrent: "Keep sharing a finished torrent" (off unless turned on). Its files stay where they are and are sent to other peers until it has sent a chosen number of times its size or for a chosen time, with an upload limit; the row says "Complete · sharing, 12 MB sent". Removing the row or deleting its file stops it, and files that are no longer whole end it rather than being fetched again (gaps row 147).
+- A web page typed into Add URL is asked about ("Web page instead of the file", as an address ending like a file already was) and saved as HTML on Yes, where it was refused (gaps row 136).
+- A new dm follows the computer's proxy settings (Options › Advanced: Connect through a proxy, the computer's proxy settings), as a browser does; with none set it goes direct, and a saved setting is kept (in place of gaps row 80, which needed a new browser permission).
+- The browser panel's stream lines say how long each plays ("1080p HLS stream, 4 min 12 sec"), so two videos on one page can be told apart (gaps row 155).
 - Fixed: a video sent from the panel was not named by its page's title when its own name says nothing (gaps row 75): the panel read the title for its list and never sent it, so an X video was saved as "GiFPAi8WYAEgiBu.mp4". It now goes with every hand-off from the panel.
 - Release: Mozilla's signing of the Firefox add-on uses web-ext 10.8.0. web-ext 8.3.0 sent the upload named "blob" on the runner's Node, which AMO refused as an "unsupported file type" (gaps row 51).
 - Fixed (macOS): a YouTube video from the browser failed with "the solver took too long". dm, started by the browser, wrote the QuickJS it fetched with macOS's quarantine mark, and Gatekeeper would not run it; dm now takes the mark off a tool it has checked against its SHA-256, and off one fetched before (`tools.rs`; found by the human QA's B35).

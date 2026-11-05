@@ -877,5 +877,11 @@
  "Options › Advanced › Network sets a speed limit and the number of attempts for a failed download.": "Opties › Geavanceerd › Netwerk stelt een snelheidslimiet in en het aantal pogingen voor een mislukte download.",
  "Properties shows a finished file's SHA-256 and checks it against a digest you were given.": "Eigenschappen toont de SHA-256 van een voltooid bestand en vergelijkt die met een digest die u kreeg.",
  "Start downloading while Download details is open": "Beginnen met downloaden terwijl ‘Downloaddetails’ open is",
- "The file is fetched while you choose where it goes; Start now puts it there, Cancel removes it.": "Het bestand wordt opgehaald terwijl u kiest waar het heen gaat; ‘Nu starten’ zet het daar, ‘Annuleren’ verwijdert het."
+ "The file is fetched while you choose where it goes; Start now puts it there, Cancel removes it.": "Het bestand wordt opgehaald terwijl u kiest waar het heen gaat; ‘Nu starten’ zet het daar, ‘Annuleren’ verwijdert het.",
+ "Keep sharing a finished torrent": "Een voltooide torrent blijven delen",
+ "Its files stay where they are, and other peers are sent them until it has sent the times its size below, or for the minutes below, whichever comes first. Off, a torrent stops once its files are whole.": "De bestanden blijven waar ze staan en worden naar andere peers gestuurd tot hij het hieronder genoemde aantal keer zijn grootte heeft verstuurd, of gedurende de minuten hieronder, wat het eerst komt. Uit: een torrent stopt zodra de bestanden compleet zijn.",
+ "Until it has sent (times its size)": "Tot verstuurd (keer zijn grootte)",
+ "For at most (minutes)": "Hoogstens (minuten)",
+ "Send at most (KB/s, 0 for no limit)": "Hoogstens versturen (KB/s, 0 voor geen limiet)",
+ "Complete · sharing, {} sent": "Voltooid · wordt gedeeld, {} verstuurd"
 }

@@ -299,6 +299,16 @@ pub(crate) fn world() -> World {
                 }),
             )
             .route(
+                "/article",
+                axum::routing::get(|| async {
+                    // A page typed into Add URL: neither a file nor a video site's page.
+                    Response::builder()
+                        .header("content-type", "text/html; charset=utf-8")
+                        .body(Body::from("<html><title>An article</title><body>words</body></html>"))
+                        .unwrap()
+                }),
+            )
+            .route(
                 "/pagefile.zip",
                 axum::routing::get(|| async {
                     // A sign-in page where a file was asked for.

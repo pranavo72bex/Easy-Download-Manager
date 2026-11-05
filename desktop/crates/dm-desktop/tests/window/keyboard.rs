@@ -138,7 +138,11 @@ fn escape_closes_the_menu_or_the_dialog_in_front_and_nothing_behind_it() {
 
     // A combo box dropped down in the dialog, the same.
     click(&mut harness, "Advanced");
-    click(&mut harness, "Connect through a proxy");
+    // On in a new dm, following the computer's settings (docs/decisions.md, 2026-11-06).
+    harness
+        .get_by_role_and_label(Role::ComboBox, "Proxy type")
+        .scroll_to_me();
+    harness.run_steps(3);
     harness
         .get_by_role_and_label(Role::ComboBox, "Proxy type")
         .click();
@@ -160,7 +164,7 @@ fn escape_closes_the_menu_or_the_dialog_in_front_and_nothing_behind_it() {
         "Escape did not close Options"
     );
     assert!(
-        !harness.state().backend().settings().proxy.enabled,
+        harness.state().backend().settings().proxy.host.is_empty(),
         "Escape kept what was typed"
     );
 

@@ -15,6 +15,7 @@ async fn a_saved_proxy_with_no_host_is_turned_off_and_said_at_launch() {
         ..Settings::default()
     };
     saved.proxy.enabled = true;
+    saved.proxy.kind = dm_core::ProxyKind::Http;
     saved.proxy.host = String::new();
     saved.save().unwrap();
 

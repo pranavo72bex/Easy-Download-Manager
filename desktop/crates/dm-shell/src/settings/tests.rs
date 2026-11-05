@@ -602,7 +602,8 @@ fn settings_written_by_an_earlier_version_still_read() {
         "sorting by kind is on unless turned off"
     );
     assert!(!settings.schedule.enabled);
-    assert!(!settings.proxy.enabled);
+    // A file that never named a proxy follows the computer's, as a new one does.
+    assert!(settings.proxy.enabled && settings.proxy.kind == dm_core::ProxyKind::System);
     assert_eq!(settings.quality(), Quality::Best);
 }
 
@@ -983,4 +984,39 @@ fn the_slow_hours_lower_the_limit_in_their_hours_only() {
     // An older settings file, without them, reads as off.
     let read: Settings = serde_json::from_str("{}").unwrap();
     assert!(!read.slow_hours.enabled);
+}
+
+#[test]
+fn a_finished_torrent_is_kept_shared_only_when_turned_on() {
+    let parts = std::path::PathBuf::from("/tmp/parts");
+    let off = Settings::default();
+    assert!(
+        !off.torrent_share,
+        "sharing sends from the person's connection: off"
+    );
+    assert!(off
+        .options(parts.clone(), dm_core::Limiter::unlimited())
+        .torrent
+        .share
+        .is_none());
+    let on = Settings {
+        torrent_share: true,
+        torrent_share_ratio: 1000.0,
+        torrent_share_minutes: 0,
+        torrent_upload_limit: 50,
+        ..Settings::default()
+    };
+    let share = on
+        .options(parts, dm_core::Limiter::unlimited())
+        .torrent
+        .share
+        .expect("turned on, a finished torrent is shared");
+    assert_eq!(share.ratio, 100.0, "held to a ratio that ends");
+    assert_eq!(share.minutes, 1, "held to at least a minute");
+    assert_eq!(share.upload_kbps, 50);
+    // A file from before it existed reads as off, with the usual ratio and time.
+    let old: Settings = serde_json::from_str(r#"{"connections":4}"#).unwrap();
+    assert!(!old.torrent_share);
+    assert_eq!(old.torrent_share_ratio, 1.0);
+    assert_eq!(old.torrent_share_minutes, 120);
 }

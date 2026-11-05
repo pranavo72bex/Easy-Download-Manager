@@ -902,11 +902,18 @@ async fn fetch_reporting(
                 outcome => return outcome,
             }
         } else if !document {
-            return Err(Error::Internal(
-                "that is a web page, not a file; its video, if any, comes from the browser's \
-                 Download video button when the page plays"
-                    .into(),
-            ));
+            /* Asked about in the window as an address that ends like a file is (contract row
+             * B40, gaps row 136): a person who typed a page may want it, and Yes saves it as
+             * HTML. The words say the asking's phrase, and where a video comes from. */
+            if options.accept_page {
+                info.filename = html_name(&info.filename);
+            } else {
+                return Err(Error::Internal(
+                    "that address answered with a web page rather than the file; its video, if \
+                     any, comes from the browser's Download video button when the page plays"
+                        .into(),
+                ));
+            }
         }
     }
 

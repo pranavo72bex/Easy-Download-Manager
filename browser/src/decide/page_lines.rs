@@ -635,8 +635,8 @@ fn manifest_lines(xml: &str) -> Vec<PageLine> {
         .into_iter()
         .map(|(bandwidth, height, hd, url)| {
             let mut label = String::from("MP4 file");
-            if let Some(seconds) = length {
-                label.push_str(&format!(", {} sec", seconds.round() as u64));
+            if let Some(words) = length.and_then(super::length_words) {
+                label.push_str(&format!(", {words}"));
             }
             label.push_str(&format!(
                 ", quality {height}p{}",

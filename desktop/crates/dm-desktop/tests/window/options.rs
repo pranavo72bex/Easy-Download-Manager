@@ -1,5 +1,26 @@
 use crate::support::*;
 
+/// A proxy of the person's own. A new dm has the proxy on, following the
+/// computer's settings (docs/decisions.md, 2026-11-06), so its kind is picked
+/// from the list, as a person does.
+fn own_proxy(harness: &mut Harness<'_, DmApp>) {
+    use egui::accesskit::Role;
+    harness
+        .get_by_role_and_label(Role::ComboBox, "Proxy type")
+        .scroll_to_me();
+    harness.run_steps(3);
+    harness
+        .get_by_role_and_label(Role::ComboBox, "Proxy type")
+        .click();
+    harness.run_steps(3);
+    assert!(
+        harness.ctx.any_popup_open(),
+        "the proxy's list did not open"
+    );
+    harness.get_by_label("HTTP").click();
+    harness.run_steps(3);
+}
+
 #[test]
 fn options_are_put_into_force_on_ok_and_written_down() {
     let _file = settings_file();
@@ -231,7 +252,7 @@ fn the_proxys_bypass_list_and_the_recheck_timer_are_set_in_options() {
     let mut harness = world.harness();
     click(&mut harness, "Options");
     click(&mut harness, "Advanced");
-    click(&mut harness, "Connect through a proxy");
+    own_proxy(&mut harness);
     type_into(&mut harness, "Host", "proxy.example");
     type_into(
         &mut harness,
@@ -273,7 +294,7 @@ fn a_proxy_of_its_own_for_https_and_a_configuration_script_are_set_in_options() 
     let mut harness = world.harness();
     click(&mut harness, "Options");
     click(&mut harness, "Advanced");
-    click(&mut harness, "Connect through a proxy");
+    own_proxy(&mut harness);
     type_into(&mut harness, "Host", "proxy.example");
     click(&mut harness, "A proxy of its own for HTTPS downloads");
     type_into(&mut harness, "Its host", "secure-proxy.example");
@@ -758,7 +779,7 @@ fn options_refuses_a_proxy_with_no_host() {
     let mut harness = world.harness();
     click(&mut harness, "Options");
     click(&mut harness, "Advanced");
-    click(&mut harness, "Connect through a proxy");
+    own_proxy(&mut harness);
     click(&mut harness, "OK");
     assert!(
         harness.state().dialogs.options.is_some(),
@@ -767,13 +788,17 @@ fn options_refuses_a_proxy_with_no_host() {
     assert!(harness
         .query_by_label_contains("Enter the proxy's host")
         .is_some());
-    assert!(!harness.state().backend().settings().proxy.enabled);
+    // Nothing was put in force: the proxy still follows the computer's settings.
+    let untouched = |h: &Harness<'_, DmApp>| {
+        h.state().backend().settings().proxy.kind == dm_core::ProxyKind::System
+    };
+    assert!(untouched(&harness));
     type_into(&mut harness, "Host", "http://proxy.example:3128");
     click(&mut harness, "OK");
     assert!(harness
         .query_by_label_contains("isn't a valid proxy host")
         .is_some());
-    assert!(!harness.state().backend().settings().proxy.enabled);
+    assert!(untouched(&harness));
     click(&mut harness, "Cancel");
 }
 
@@ -1195,6 +1220,7 @@ fn a_proxy_that_is_wrong_opens_advanced_at_the_proxy_section() {
     if let Some(d) = harness.state_mut().dialogs.options.as_mut() {
         d.tab = Tab::Downloads;
         d.draft.proxy.enabled = true;
+        d.draft.proxy.kind = dm_core::ProxyKind::Http;
         d.draft.proxy.host = String::new();
     }
     harness.run_steps(2);
@@ -1356,4 +1382,35 @@ fn file_types_says_who_opens_magnet_links_and_torrent_files() {
         "still looking once read"
     );
     harness.state_mut().dialogs.options = None;
+}
+
+/// Options › Advanced › BitTorrent turns on keeping a finished torrent shared,
+/// with its ratio, time and upload limit (gaps row 147); off in a new dm.
+#[test]
+fn keeping_a_finished_torrent_shared_is_set_in_options() {
+    let _file = settings_file();
+    let world = world();
+    let mut harness = world.harness();
+    assert!(!harness.state().backend().settings().torrent_share);
+    click(&mut harness, "Options");
+    click(&mut harness, "Advanced");
+    click(&mut harness, "Keep sharing a finished torrent");
+    if let Some(d) = harness.state_mut().dialogs.options.as_mut() {
+        d.draft.torrent_share_ratio = 2.0;
+        d.draft.torrent_share_minutes = 30;
+        d.draft.torrent_upload_limit = 100;
+    }
+    harness.run_steps(2);
+    click(&mut harness, "OK");
+    let settings = harness.state().backend().settings();
+    assert!(settings.torrent_share);
+    assert_eq!(settings.torrent_share_ratio, 2.0);
+    assert_eq!(settings.torrent_share_minutes, 30);
+    assert_eq!(settings.torrent_upload_limit, 100);
+    // Put back, so the other tests' torrents stop when whole.
+    click(&mut harness, "Options");
+    click(&mut harness, "Advanced");
+    click(&mut harness, "Keep sharing a finished torrent");
+    click(&mut harness, "OK");
+    assert!(!harness.state().backend().settings().torrent_share);
 }

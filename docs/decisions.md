@@ -4138,3 +4138,46 @@ At the maintainer's word that dm "should work exactly like" reference A (2026-11
   a tool the person installed is theirs and is left alone.
 * **Not done: signing QuickJS.** dm does not re-sign a program it did not build.
 
+
+## The rows that waited for the maintainer's word, decided for the person using dm (2026-11-06)
+
+The maintainer's word, 2026-11-06, asked about gaps rows 70, 80, 84, 95, 120, 125, 136, 147, 154 and
+155: "implement which is better for user and user experience, what the user expect from program".
+Each was decided by that rule:
+
+* **Built: 155, stream lines say how long.** Two videos' playlists on one page read alike ("1080p HLS
+  stream"), so a person could not tell the film from the trailer.
+* **Built: 136, a web page typed into Add URL is asked about, not refused.** The question contract
+  row B40 already asks for an address that ends like a file is asked here too (Yes saves the page as
+  `.html`, No keeps nothing): a person who typed it may want it, and one who pasted it by mistake
+  says No. Reference A saves it without asking; asking is what B40 already does in dm.
+* **Built: 147, "Keep sharing a finished torrent", off by default.** A person who downloads torrents
+  expects to be able to give back; one who does not is not asked to (uploads cost a metered
+  connection, battery and privacy), so it is off until turned on.
+* **Built: 154, the macOS pictures of contract row B25 taken again**, of the 820 by 500 window the
+  maintainer approved on 2026-11-04, with dm picturing its own dialog windows (no screen-recording
+  permission is needed for the check).
+* **Instead of 80 (the browser's proxy as a fallback): dm follows the system's proxy from the
+  start.** The extension would need the `proxy` permission, and a browser disables an extension on
+  update until each person accepts a new permission: every user would lose the catching for a
+  click. A browser takes the system's proxy itself, so a new dm does the same (Options › Advanced ›
+  Proxy, "system"); with no proxy set in the system it goes direct as before. A saved setting is
+  kept.
+* **Not built: 95, small files in reference A's 14 KB pieces.** A file under a megabyte arrives in
+  well under a second on one connection; ten connections for it cost the server more than they
+  save the person, and servers that limit connections answer them with refusals. dm keeps one piece
+  under 1 MiB, with helpers only when the first is slow (contract row B36 stays).
+* **Not built: 120, the app fetching through the open page.** The extension already hands the app
+  what the page loaded (its answers, its renditions, the session's cookies for that download), which
+  is what the fetch would be for; a way for the app to make the browser fetch addresses with the
+  person's session is a door another local program could use.
+* **Not built: 125's three rules** (the caught address's player first, `object-fit: cover` loops
+  passed by, the largest of several). Reference A raises its bar unasked and must pick a player; dm
+  shows its panel on the player the person points at, plays or focuses, which is the one they mean.
+  Instagram's and TikTok's own videos use `object-fit: cover`, so passing those by would hide the
+  panel where it is wanted.
+* **Not built: 70, a button drawn by the app over the page.** It would follow player windows, zoom
+  and scrolling from outside the browser; the panel inside the page already moves under a fixed
+  header and out of a clipped parent (row 125's fixtures), and the cost is out of proportion.
+* **Not built: 84, dial-up and VPN redial.** Dial-up is gone and a VPN is the system's to connect;
+  a person expects dm to use the connection the computer has.

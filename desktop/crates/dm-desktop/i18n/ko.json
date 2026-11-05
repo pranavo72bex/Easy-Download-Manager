@@ -877,5 +877,11 @@
  "Options › Advanced › Network sets a speed limit and the number of attempts for a failed download.": "옵션 › 고급 › 네트워크에서 속도 제한과 실패한 다운로드의 재시도 횟수를 정합니다.",
  "Properties shows a finished file's SHA-256 and checks it against a digest you were given.": "속성은 완료된 파일의 SHA-256을 보여 주고, 받은 다이제스트와 대조합니다.",
  "Start downloading while Download details is open": "'다운로드 정보'가 열려 있는 동안 내려받기 시작",
- "The file is fetched while you choose where it goes; Start now puts it there, Cancel removes it.": "저장 위치를 고르는 동안 파일을 받아 둡니다. '지금 시작'은 그곳에 두고, '취소'는 지웁니다."
+ "The file is fetched while you choose where it goes; Start now puts it there, Cancel removes it.": "저장 위치를 고르는 동안 파일을 받아 둡니다. '지금 시작'은 그곳에 두고, '취소'는 지웁니다.",
+ "Keep sharing a finished torrent": "완료된 토렌트 계속 공유",
+ "Its files stay where they are, and other peers are sent them until it has sent the times its size below, or for the minutes below, whichever comes first. Off, a torrent stops once its files are whole.": "파일은 그 자리에 그대로 있고, 아래의 크기 배수만큼 보내거나 아래의 분이 지날 때까지(먼저 오는 쪽) 다른 피어에게 보내집니다. 끄면 파일이 모두 받아지는 즉시 토렌트가 멈춥니다.",
+ "Until it has sent (times its size)": "보낼 양(크기의 배수)",
+ "For at most (minutes)": "최대 시간(분)",
+ "Send at most (KB/s, 0 for no limit)": "최대 보내기 속도(KB/s, 0이면 제한 없음)",
+ "Complete · sharing, {} sent": "완료 · 공유 중, {} 보냄"
 }

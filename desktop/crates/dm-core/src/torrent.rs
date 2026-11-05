@@ -67,6 +67,59 @@ pub struct TorrentOptions {
     /// Where the list of peers never connected to is: an address on the web,
     /// or a file on this computer. `None` for no list.
     pub blocklist: Option<String>,
+    /// Keep a finished torrent shared, and how long; `None` stops it once its
+    /// files are whole (gaps row 147).
+    pub share: Option<Share>,
+}
+
+/// How long a finished torrent is shared: until it has sent `ratio` times its
+/// size or for `minutes`, whichever comes first, sending at most `upload_kbps`
+/// (0: no limit of its own).
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct Share {
+    /// How many times its size it sends before it stops.
+    pub ratio: f64,
+    /// The longest it is shared, in minutes.
+    pub minutes: u64,
+    /// The most it sends, in KiB a second; 0 for no limit of its own.
+    pub upload_kbps: u64,
+}
+
+/// A finished torrent being shared: what it has sent, of a size of `size`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct Sharing {
+    /// What it has sent since it finished, in bytes.
+    pub sent: u64,
+    /// Its size, in bytes.
+    pub size: u64,
+    /// Where its session listens for peers, where it does.
+    pub listening: Option<std::net::SocketAddr>,
+}
+
+type Shared = std::collections::HashMap<PathBuf, (Sharing, CancellationToken)>;
+
+/// The finished torrents being shared, by where their files are.
+fn shared() -> std::sync::MutexGuard<'static, Shared> {
+    static SHARED: std::sync::OnceLock<std::sync::Mutex<Shared>> = std::sync::OnceLock::new();
+    crate::lock(SHARED.get_or_init(Default::default))
+}
+
+/// Whether the finished torrent at `path` is being shared, and how far.
+pub fn sharing(path: &Path) -> Option<Sharing> {
+    shared().get(path).map(|(sharing, _)| *sharing)
+}
+
+/// Whether any finished torrent is being shared.
+pub fn sharing_any() -> bool {
+    !shared().is_empty()
+}
+
+/// Stops sharing the finished torrent at `path`, as its row is removed or its
+/// files deleted: its session lets go of the files.
+pub fn stop_sharing(path: &Path) {
+    if let Some((_, token)) = shared().remove(path) {
+        token.cancel();
+    }
 }
 
 /// How long a blocklist fetched from the web is used before it is fetched again.
@@ -461,6 +514,13 @@ pub async fn download_torrent(
         )
     };
 
+    // What it was added from, to add it again over the finished files when it is
+    // kept shared (gaps row 147).
+    let again: Option<AddTorrent<'static>> = options.torrent.share.map(|_| match &add {
+        AddTorrent::Url(link) => AddTorrent::Url(link.to_string().into()),
+        AddTorrent::TorrentFileBytes(bytes) => AddTorrent::TorrentFileBytes(bytes.clone()),
+    });
+
     /* Raced against the row's control: a magnet's metadata comes from its
      * peers, and with no peer answering the add waits with no end. Awaited
      * on its own, a pause or a cancel of such a magnet never took effect.
@@ -694,6 +754,30 @@ pub async fn download_torrent(
 
     let (path, category, verified, left_behind) = place(&staged, &name, options).await?;
 
+    // Shared from where it now is, where the person keeps finished torrents shared. Not
+    // where the file was renamed on the way (a name already taken): the torrent names it
+    // otherwise, and its engine would start a fresh file under that name.
+    if let (Some(share), Some(again)) = (options.torrent.share, again) {
+        let folder = if staged.is_dir() || path.is_dir() {
+            Some(path.clone())
+        } else if path.file_name() == staged.file_name() {
+            path.parent().map(Path::to_path_buf)
+        } else {
+            None
+        };
+        if let Some(folder) = folder {
+            keep_sharing(
+                path.clone(),
+                folder,
+                again,
+                options.torrent.only.clone(),
+                bytes,
+                share,
+                options.proxy_for(url),
+            );
+        }
+    }
+
     Ok(Finished {
         left_behind,
         path,
@@ -706,6 +790,143 @@ pub async fn download_torrent(
         verified,
         mirrors: 0,
     })
+}
+
+/// Shares a finished torrent's files from where they are until its share is
+/// done, in a session of its own beside the queue: the row is complete and its
+/// files are the person's from the start. The session never fetches: files that
+/// are no longer the torrent's whole end the sharing rather than being fetched
+/// again.
+fn keep_sharing(
+    path: PathBuf,
+    folder: PathBuf,
+    again: AddTorrent<'static>,
+    only: Option<Vec<usize>>,
+    size: u64,
+    share: Share,
+    proxy: Option<String>,
+) {
+    if share.ratio <= 0.0 || share.minutes == 0 || size == 0 {
+        return;
+    }
+    let token = CancellationToken::new();
+    let first = Sharing {
+        sent: 0,
+        size,
+        listening: None,
+    };
+    if let Some((_, older)) = shared().insert(path.clone(), (first, token.clone())) {
+        older.cancel();
+    }
+    tokio::spawn(async move {
+        // One that ends early (files moved or changed, no session) ends quietly: the row is
+        // complete either way, and only its "Sharing" goes.
+        let _ = share_until(&path, folder, again, only, size, share, proxy, &token).await;
+        token.cancel();
+        let mut all = shared();
+        if all.get(&path).is_some_and(|(_, t)| t.is_cancelled()) {
+            all.remove(&path);
+        }
+    });
+}
+
+/// The sharing itself: until `share` is done, the token is cancelled, or the
+/// files stop being the torrent's whole.
+#[allow(clippy::too_many_arguments)]
+async fn share_until(
+    path: &Path,
+    folder: PathBuf,
+    again: AddTorrent<'static>,
+    only: Option<Vec<usize>>,
+    size: u64,
+    share: Share,
+    proxy: Option<String>,
+    token: &CancellationToken,
+) -> Result<(), String> {
+    let connect = swarm_proxy(proxy.as_deref()).map_err(|e| e.to_string())?;
+    let proxied = connect.is_some();
+    let upload_bps = u32::try_from(share.upload_kbps.saturating_mul(1024))
+        .ok()
+        .and_then(NonZeroU32::new);
+    let session = Session::new_with_opts(
+        folder.clone(),
+        SessionOptions {
+            persistence: None,
+            // As the download's own session (see there): no DHT state file, and no UDP
+            // behind a proxy.
+            dht: (!proxied).then(|| librqbit::DhtSessionConfig {
+                persistence: None,
+                ..Default::default()
+            }),
+            disable_local_service_discovery: proxied,
+            // Reachable by peers, on a port of the system's choosing (no UPnP): sharing is what
+            // the person turned on. Not behind a proxy, which would show the real address.
+            listen: (!proxied).then(librqbit::ListenerOptions::default),
+            cancellation_token: Some(token.clone()),
+            ratelimits: librqbit::limits::LimitsConfig {
+                // Nothing is fetched: the files are whole, or the sharing ends.
+                download_bps: NonZeroU32::new(1),
+                upload_bps,
+            },
+            connect,
+            ..Default::default()
+        },
+    )
+    .await
+    .map_err(|e| format!("its session would not start: {e}"))?;
+    let _guard = CancelOnDrop(token.clone());
+    let added = session
+        .add_torrent(
+            again,
+            Some(AddTorrentOptions {
+                overwrite: true,
+                output_folder: Some(folder.to_string_lossy().into_owned()),
+                only_files: only,
+                ..Default::default()
+            }),
+        )
+        .await
+        .map_err(|e| format!("it could not be added again: {e}"))?;
+    let handle = added
+        .into_handle()
+        .ok_or_else(|| "it produced no handle".to_string())?;
+    let listening = session.listen_addr();
+    let deadline = Instant::now() + Duration::from_secs(share.minutes.saturating_mul(60));
+    let goal = (size as f64 * share.ratio).ceil() as u64;
+    loop {
+        if token.is_cancelled() {
+            break;
+        }
+        let stats = handle.stats();
+        match stats.state {
+            TorrentStatsState::Initializing { .. } => {}
+            TorrentStatsState::Error => {
+                break;
+            }
+            _ if !stats.finished => {
+                let _ = session.delete(handle.id().into(), false).await;
+                return Err("its files are no longer whole".into());
+            }
+            _ => {}
+        }
+        let sent = stats.uploaded_bytes;
+        if let Some((sharing, _)) = shared().get_mut(path) {
+            *sharing = Sharing {
+                sent,
+                size,
+                listening,
+            };
+        }
+        if sent >= goal || Instant::now() >= deadline {
+            break;
+        }
+        tokio::select! {
+            () = token.cancelled() => break,
+            () = tokio::time::sleep(TICK) => {}
+        }
+    }
+    let _ = session.delete(handle.id().into(), false).await;
+    Ok(())
 }
 
 /// What a torrent reports as downloaded: librqbit's count, held to the

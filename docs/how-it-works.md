@@ -234,7 +234,7 @@ settings rather than borrowing the browser's.
 | **Checksums** | Paste a published SHA-256, SHA-512 or MD5 onto a row. A mismatch fails the download and removes the file — a file known to be wrong should not sit in the downloads folder looking like every other one. |
 | **Mirrors** | Give it a `.meta4` or `.metalink` and it probes every mirror, drops any that disagree about the length, and hands each range its own mirror so all of them are working at once. The document's own checksum is used without being asked for. |
 | **History** | Finished rows stay, with the time they finished, until you clear them. |
-| **BitTorrent** | Paste a magnet or a `.torrent` and the client joins the swarm, fetches every piece, and reports on the same row as any other download — one speed ceiling covers both. The extension cannot do this at all: it has no sockets, so a magnet is a download only the app can take. |
+| **BitTorrent** | Paste a magnet or a `.torrent` and the client joins the swarm, fetches every piece, and reports on the same row as any other download — one speed ceiling covers both. The extension cannot do this at all: it has no sockets, so a magnet is a download only the app can take. With "Keep sharing a finished torrent" on (Options › Advanced, off by default), `torrent::keep_sharing` adds the torrent again, in a session of its own that listens for peers, over the files where they now are, and sends them until its ratio or its time is reached; `torrent::sharing` is what the row's status reads, and removing the row or deleting its file calls `stop_sharing`. That session never fetches: files that are no longer whole end the sharing. |
 
 The browser extension hands downloads to it once the client has been
 registered with `--register`.

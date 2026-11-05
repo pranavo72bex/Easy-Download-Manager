@@ -49,6 +49,7 @@ async fn the_cookies_file_is_read_at_launch_and_its_loss_blocks_nothing() {
     let mut broken = again.clone();
     broken.connections = before + 1;
     broken.proxy.enabled = true;
+    broken.proxy.kind = dm_core::ProxyKind::Http;
     broken.proxy.host = "not a host name".into();
     assert!(shell::apply(&broken, Some(&again), &queue).await.is_err());
     assert_eq!(queue.options().await.connections, before);
