@@ -723,14 +723,30 @@ class Server(socketserver.ThreadingMixIn, http.server.HTTPServer):
 SLOW = float(os.environ.get("DM_SLOW") or 1)
 
 
+# What DevTools says when the page went to another document while it was
+# asked: an answer still to come, as `loaded` takes it.
+NAVIGATED = ("Inspected target navigated or closed", "Execution context was destroyed",
+             "Cannot find context with specified id")
+
+
 def wait_for(probe, seconds):
+    def ask():
+        try:
+            return probe()
+        except RuntimeError as e:
+            # YouTube's watch page went to another document once after it had
+            # loaded (the Windows session, 2026-11-07), and the question cut
+            # short ended the whole run, every check after it unrun.
+            if any(said in str(e) for said in NAVIGATED):
+                return None
+            raise
     deadline = time.time() + seconds * SLOW
     while time.time() < deadline:
-        value = probe()
+        value = ask()
         if value:
             return value
         time.sleep(0.25)
-    return probe()
+    return ask()
 
 
 def whole(folder, name):
