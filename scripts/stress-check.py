@@ -696,7 +696,7 @@ def p_concurrency(ctx):
 def p_flaky(ctx):
     """Servers that cut connections, rate-limit, lie about length, stall."""
     base, root = ctx["base"], ctx["root"]
-    dm = DM(root, {"connections": 8, "concurrency": 8, "retries": 10}, name="flaky").start()
+    dm = DM(root, {"connections": 8, "concurrency": 8, "attempts": 10}, name="flaky").start()
     try:
         size = 8 * MB
         cases = {
@@ -713,7 +713,9 @@ def p_flaky(ctx):
         }
         for k, (u, _) in cases.items():
             dm.add([u])
-        wait_for(lambda: len(dm.rows()) >= len(cases) and all(r["state"]["kind"] in ("completed", "failed", "cancelled") for r in dm.rows()), 240, every=2)
+        # 429 and 503 with Retry-After: the wait grows to 60 s (retry.rs `backoff`,
+        # decisions.md 2026-11-04), so ten retries take about 250 s before the row fails.
+        wait_for(lambda: len(dm.rows()) >= len(cases) and all(r["state"]["kind"] in ("completed", "failed", "cancelled") for r in dm.rows()), 420, every=2)
         rows = dm.rows()
         by = {}
         for r in rows:
@@ -746,7 +748,7 @@ def p_flaky(ctx):
             elif must:
                 finding("high", "flaky", f"{k}: expected to complete through retries, ended {kind}: {r and r['state']}")
             if kind == "running" or kind == "queued":
-                finding("medium", "flaky", f"{k}: still {kind} after 240 s")
+                finding("medium", "flaky", f"{k}: still {kind} after 420 s, past its retries")
         rss, cpu, fds, th = dm.peak()
         measure("flaky", f"peak rss {rss:.0f} MB, fds {fds}")
     finally:
@@ -796,9 +798,13 @@ def p_crash(ctx):
             finding("high", "crash", f"{st['failed']} downloads failed to resume after kill -9: {[r['state'] for r in rows if r['state']['kind'] == 'failed'][:2]}")
         check("crash", "all resumed byte-exact", ok == n)
         # Leftovers: staged parts of finished downloads.
-        parts = list(dm2.home.rglob("*.part")) + [p for p in (dm2.home / "parts").rglob("*") if p.is_file()] if (dm2.home / "parts").exists() else []
+        def leftovers():
+            return list(dm2.home.rglob("*.part")) + [p for p in (dm2.home / "parts").rglob("*") if p.is_file()] if (dm2.home / "parts").exists() else []
+        # A finished download's parts go a moment after its row says so.
+        wait_for(lambda: not leftovers(), 5, every=0.5)
+        parts = leftovers()
         if parts:
-            finding("low", "crash", f"{len(parts)} staged files left behind after every download finished")
+            finding("low", "crash", f"{len(parts)} staged files left behind after every download finished: {[str(p.relative_to(dm2.home)) for p in parts[:3]]}")
     finally:
         dm2.stop()
         shutil.rmtree(dm.out, ignore_errors=True)
@@ -1363,7 +1369,7 @@ def p_outage(ctx):
 def p_expired(ctx):
     """A link that stops working after a few requests, as expiring links do."""
     base, root = ctx["base"], ctx["root"]
-    dm = DM(root, {"connections": 8, "retries": 3}, name="expired").start()
+    dm = DM(root, {"connections": 8, "attempts": 3}, name="expired").start()
     try:
         size = 16 * MB
         dm.add([f"{base}/f/exp/{size}/exp.bin?expire=3&rate={2 * MB}"])

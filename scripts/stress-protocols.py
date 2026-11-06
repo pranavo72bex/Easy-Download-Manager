@@ -439,7 +439,7 @@ def p_socks(ctx):
     proxy = Socks5()
     proxy.start()
     def settings(port):
-        return {"connections": 4, "retries": 1, "proxy": {"enabled": True, "type": "socks5", "host": "127.0.0.1", "port": port, "username": "", "password": "", "bypass": []}}
+        return {"connections": 4, "attempts": 1, "proxy": {"enabled": True, "type": "socks5", "host": "127.0.0.1", "port": port, "username": "", "password": "", "bypass": []}}
     dm = DM(root, settings(proxy.port), name="socks1").start()
     try:
         expect, urls = {}, []
@@ -522,7 +522,7 @@ def p_proxy(ctx):
         # 3. A proxy that is down: nothing may go around it.
         proxy.mode = "refuse"
         sc.Stats.reset()
-        dm = DM(root, {"retries": 1, "proxy": {"enabled": True, "type": "http", "host": "127.0.0.1", "port": port, "username": "", "password": "", "bypass": []}}, name="proxy3").start()
+        dm = DM(root, {"attempts": 1, "proxy": {"enabled": True, "type": "http", "host": "127.0.0.1", "port": port, "username": "", "password": "", "bypass": []}}, name="proxy3").start()
         try:
             dm.add([f"{base}/f/down/{MB}/down.bin"])
             wait_for(lambda: any(r["state"]["kind"] in ("completed", "failed") for r in dm.rows()), 200)
@@ -537,7 +537,7 @@ def p_proxy(ctx):
             shutil.rmtree(dm.out, ignore_errors=True)
         # 4. A proxy that is simply not there.
         sc.Stats.reset()
-        dm = DM(root, {"retries": 1, "proxy": {"enabled": True, "type": "http", "host": "127.0.0.1", "port": 1, "username": "", "password": "", "bypass": []}}, name="proxy4").start()
+        dm = DM(root, {"attempts": 1, "proxy": {"enabled": True, "type": "http", "host": "127.0.0.1", "port": 1, "username": "", "password": "", "bypass": []}}, name="proxy4").start()
         try:
             dm.add([f"{base}/f/gone/{MB}/gone.bin"])
             wait_for(lambda: any(r["state"]["kind"] in ("completed", "failed") for r in dm.rows()), 200)
@@ -621,7 +621,7 @@ def p_ftp(ctx):
     ftp = FTPServer()
     ftp.start()
     base = sc.with_login(f"ftp://127.0.0.1:{ftp.port}", "u", "p")
-    dm = DM(root, {"connections": 4, "concurrency": 8, "retries": 5}, name="ftp").start()
+    dm = DM(root, {"connections": 4, "concurrency": 8, "attempts": 5}, name="ftp").start()
     try:
         size = 24 * MB
         dm.add([f"{base}/ftp1_{size}.bin"])
@@ -660,7 +660,7 @@ def p_ftp(ctx):
         shutil.rmtree(dm.out, ignore_errors=True)
     # A server that cuts the data connection half-way each time, then lets it finish.
     ftp.mode = "cut"
-    dm = DM(root, {"connections": 1, "retries": 6}, name="ftp2").start()
+    dm = DM(root, {"connections": 1, "attempts": 6}, name="ftp2").start()
     try:
         dm.add([f"{base}/cut1_{8 * MB}.bin"])
         wait_for(lambda: any(r["state"]["kind"] in ("completed", "failed") for r in dm.rows()), 60)
@@ -676,7 +676,7 @@ def p_ftp(ctx):
         shutil.rmtree(dm.out, ignore_errors=True)
     # PASV pointing at another address: dm must keep to the server it logged in to.
     ftp.mode = "bounce"
-    dm = DM(root, {"connections": 1, "retries": 1}, name="ftp3").start()
+    dm = DM(root, {"connections": 1, "attempts": 1}, name="ftp3").start()
     try:
         dm.add([f"{base}/bounce1_{MB}.bin"])
         wait_for(lambda: any(r["state"]["kind"] in ("completed", "failed") for r in dm.rows()), 60)
@@ -836,7 +836,7 @@ def p_lossy(ctx):
     port = int(base.rsplit(":", 1)[1])
     link = Lossy(port, delay=0.03, jitter=0.08, cut=0.03)
     link.start()
-    dm = DM(root, {"connections": 6, "concurrency": 10, "retries": 20}, name="lossy").start()
+    dm = DM(root, {"connections": 6, "concurrency": 10, "attempts": 20}, name="lossy").start()
     try:
         n, size = 30, 6 * MB
         expect = {}
@@ -922,6 +922,9 @@ def p_torrent(ctx):
     root = ctx["root"]
     profile = root / "loopback-only.sb"
     profile.write_text(SANDBOX)
+    # macOS: sandbox-exec. Linux: a container started with `--network none`
+    # (scripts/linux-stress.sh) is the sandbox, and the probe below proves it.
+    jail = ["sandbox-exec", "-f", str(profile)] if sys.platform == "darwin" else []
     # The sandbox must hold before anything runs in it.
     probe = r'''
 import socket
@@ -936,7 +939,7 @@ ls = socket.socket(); ls.bind(("127.0.0.1", 0)); ls.listen(1)
 c = socket.create_connection(ls.getsockname(), timeout=3)
 print("LEAKS" if bad else "HOLDS", bad)
 '''
-    held = subprocess.run(["sandbox-exec", "-f", str(profile), sys.executable, "-c", probe], capture_output=True, text=True, timeout=60)
+    held = subprocess.run([*jail, sys.executable, "-c", probe], capture_output=True, text=True, timeout=60)
     measure("torrent", f"the loopback-only sandbox: {held.stdout.strip() or held.stderr.strip()[:100]}")
     if "HOLDS" not in held.stdout:
         finding("info", "torrent", "skipped: the sandbox that keeps the torrent test off the public network could not be shown to hold")
@@ -976,7 +979,7 @@ print("LEAKS" if bad else "HOLDS", bad)
     env = {**os.environ, "DM_STRESS_TORRENT_DIR": str(tdir)}
     for test in ("parallel_swarms", "many_files", "paths_outside_the_folder", "swarm_with_a_piece_missing", "pause_and_resume", "magnet_through_a_tracker"):
         try:
-            run = subprocess.run(["sandbox-exec", "-f", str(profile), binary, "--ignored", "--nocapture", "--test-threads=1", test],
+            run = subprocess.run([*jail, binary, "--ignored", "--nocapture", "--test-threads=1", test],
                                  env=env, capture_output=True, text=True, timeout=400)
         except subprocess.TimeoutExpired:
             finding("medium", "torrent", f"{test}: did not finish in 400 s")
@@ -1083,7 +1086,7 @@ def p_proxytls(ctx):
             proxy.credentials = creds
             proxy.log.clear()
             name = f"proxytls{n}"
-            dm = DM(root, {"connections": 4, "retries": 1, "proxy": {"enabled": True, "type": "http", "host": "127.0.0.1", "port": port, "username": user, "password": pw, "bypass": []}}, name=name).start()
+            dm = DM(root, {"connections": 4, "attempts": 1, "proxy": {"enabled": True, "type": "http", "host": "127.0.0.1", "port": port, "username": user, "password": pw, "bypass": []}}, name=name).start()
             try:
                 dm.add([url])
                 wait_for(lambda: any(r["state"]["kind"] in ("completed", "failed") for r in dm.rows()), 180)
@@ -1125,7 +1128,7 @@ def p_fulldisk(ctx):
         finding("low", "fulldisk", f"the disk image would not attach: {attached.stderr.strip()}")
         return
     try:
-        dm = DM(root, {"connections": 4, "retries": 1, "download_dir": str(mount)}, name="fulldisk").start()
+        dm = DM(root, {"connections": 4, "attempts": 1, "download_dir": str(mount)}, name="fulldisk").start()
         try:
             dm.add([f"{base}/f/big/{50 * MB}/big.bin"])
             # Out of room, a row is paused with why (`stalled`), to resume
