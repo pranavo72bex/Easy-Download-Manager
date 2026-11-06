@@ -4286,3 +4286,17 @@ and would have deleted the Normal and Low files at the end
 (`TorrentOptions::wanted`). The priority is set while the download is stopped,
 as the choice of files is; a priority of Normal is not written to the queue
 file, so files from before read as Normal.
+
+## 2026-11-06: The browser's server address is not passed to the app (gaps row 129, measured)
+
+Measured with a YouTube stream address, which carries an `ip=` token bound to
+the address that asked for it: asked for over IPv6, the same address fetched
+over IPv4 is turned away (302) and over IPv6 served (206). dm's own reader asks
+and fetches over the same connection, and a download handed to dm reaches the
+address the browser was given: dm's client prefers IPv6 as the browser does
+(the address, asked for over IPv6 and handed to a running dm, completed, 433
+KB). A token bound to the browser's address would fail only where the browser
+and dm leave the computer differently (a VPN or proxy in the browser alone).
+No site was found where it fails, so `Start.ip` is not built; it is what to
+build if one is (reqwest's `resolve`, falling back to DNS). Row 122 measured
+the same day: without a sign-in nothing failed for want of the page's data.
