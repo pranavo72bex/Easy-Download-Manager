@@ -63,6 +63,8 @@ zip = { version = "9", default-features = false, features = ["deflate"] }
 # ratio (`decode.rs`), as a decompression bomb needs.
 flate2 = "1"
 brotli-decompressor = "5"
+symphonia-codec-aac = "0.6.1"
+symphonia-core = "0.6.1"
 
 # Calls into the C library that std does not wrap. Already in the tree through tokio.
 [target.'cfg(unix)'.dependencies]
@@ -101,6 +103,7 @@ aes = "0.9.3"
 cbc = { version = "0.2.1", features = ["block-padding", "alloc"] }
 # A certificate for the rtsps:// bridge's test server.
 rcgen = "0.14"
+symphonia-bundle-mp3 = "0.6.1"
 
 # Used as `md5` (checksums and Digest sign-ins), which the name `md-5` hides
 # from cargo-machete.

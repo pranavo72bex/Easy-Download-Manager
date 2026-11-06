@@ -1,8 +1,8 @@
 //! A sound file read to 16-bit samples by the system's own decoder, for the
 //! MP3 encoder: on macOS AudioToolbox's ExtAudioFile, on Windows Media
 //! Foundation's source reader (`win.rs`), which both read AAC in an M4A or
-//! MP4 (and turn another sample rate into one MP3 has). Elsewhere there is
-//! none dm can use yet, and that is said in words.
+//! MP4 (and turn another sample rate into one MP3 has). Elsewhere (Linux) the
+//! built-in AAC decoder, `crate::aac`.
 
 use std::path::Path;
 

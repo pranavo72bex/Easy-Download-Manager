@@ -14,9 +14,10 @@
 pub mod decode;
 mod tables;
 
-/// Whether dm can make an MP3 here: the system has a decoder dm reads
-/// AAC with (AudioToolbox on macOS; on Windows Media Foundation's, which a
-/// Windows "N" edition lacks until the Media Feature Pack is added).
+/// Whether dm can make an MP3 here: a decoder dm reads AAC with
+/// (AudioToolbox on macOS; on Windows Media Foundation's, which a Windows
+/// "N" edition lacks until the Media Feature Pack is added; elsewhere the
+/// built-in one, `crate::aac`).
 pub fn possible() -> bool {
     #[cfg(target_os = "macos")]
     {
@@ -28,7 +29,7 @@ pub fn possible() -> bool {
     }
     #[cfg(not(any(target_os = "macos", windows)))]
     {
-        crate::aac::decoder_ready()
+        true
     }
 }
 
@@ -971,7 +972,7 @@ mod tests {
     /// A real AAC sound (the fixture) saved as MP3 through `convert`, on
     /// Windows: Media Foundation's decoder reads it, dm encodes it, and the
     /// file is a run of whole MPEG-1 Layer III frames as long as the sound.
-    #[cfg(windows)]
+    #[cfg(any(windows, target_os = "linux"))]
     #[test]
     fn a_real_aac_sound_is_saved_as_an_mp3_as_long_as_it_is() {
         if !possible() {
@@ -1065,7 +1066,7 @@ mod tests {
 
     /// A file that is not sound is refused in words, by name or without one
     /// the reader knows, and never panics.
-    #[cfg(windows)]
+    #[cfg(any(windows, target_os = "linux"))]
     #[test]
     fn a_file_that_is_not_sound_is_refused_in_words() {
         let dir = tempfile::tempdir().unwrap();
@@ -1092,5 +1093,126 @@ mod tests {
             encode_all(&samples, 2, 44100).unwrap(),
             encode(&samples, 2, 44100)
         );
+    }
+
+    /// An MP3 decoded by a decoder that is not dm's (symphonia's), one frame
+    /// a packet: the Linux build's stand-in for the system decoders that
+    /// play the files back in the macOS and Windows checks.
+    #[cfg(target_os = "linux")]
+    fn heard(bytes: &[u8]) -> crate::mp3::decode::Pcm {
+        use symphonia_bundle_mp3::MpaDecoder;
+        use symphonia_core::codecs::audio::well_known::CODEC_ID_MP3;
+        use symphonia_core::codecs::audio::{
+            AudioCodecParameters, AudioDecoder, AudioDecoderOptions,
+        };
+        use symphonia_core::packet::PacketRef;
+        use symphonia_core::units::{Duration, Timestamp};
+        const KBPS: [u64; 15] = [
+            0, 32, 40, 48, 56, 64, 80, 96, 112, 128, 160, 192, 224, 256, 320,
+        ];
+        const RATES: [u32; 3] = [44100, 48000, 32000];
+        let mut params = AudioCodecParameters::new();
+        params.for_codec(CODEC_ID_MP3);
+        let mut decoder = MpaDecoder::try_new(&params, &AudioDecoderOptions::default()).unwrap();
+        let (mut at, mut n) = (0usize, 0i64);
+        let (mut samples, mut frame, mut channels, mut rate) = (Vec::new(), Vec::new(), 0, 0);
+        while at + 4 <= bytes.len() {
+            assert_eq!(
+                (bytes[at], bytes[at + 1] & 0xFE),
+                (0xFF, 0xFA),
+                "no frame at {at}"
+            );
+            let kbps = KBPS[usize::from(bytes[at + 2] >> 4)];
+            rate = RATES[usize::from((bytes[at + 2] >> 2) & 3)];
+            channels = if bytes[at + 3] >> 6 == 3 { 1 } else { 2 };
+            let size =
+                (144_000 * kbps / u64::from(rate)) as usize + usize::from((bytes[at + 2] >> 1) & 1);
+            let packet = PacketRef::new(
+                0,
+                Timestamp::new(n * 1152),
+                Duration::new(1152),
+                &bytes[at..at + size],
+            );
+            decoder
+                .decode_ref(&packet)
+                .unwrap()
+                .copy_to_vec_interleaved(&mut frame);
+            samples.extend_from_slice(&frame);
+            at += size;
+            n += 1;
+        }
+        crate::mp3::decode::Pcm {
+            samples,
+            channels,
+            rate,
+        }
+    }
+
+    /// How alike two interleaved sounds are on their first channel, at the
+    /// shift that matches best: signal-to-noise in dB.
+    #[cfg(target_os = "linux")]
+    fn alike(input: &[i16], out: &[i16], channels: usize, rate: u32) -> (f64, usize) {
+        let left = |s: &[i16], i: usize| f64::from(s[i * channels]);
+        let span = rate as usize / 2;
+        let start = rate as usize / 4;
+        let mut best = (0usize, f64::MAX);
+        for shift in 0..3000 {
+            if (start + span + shift) * channels > out.len() {
+                break;
+            }
+            let err: f64 = (start..start + span)
+                .map(|i| (left(out, i + shift) - left(input, i)).powi(2))
+                .sum();
+            if err < best.1 {
+                best = (shift, err);
+            }
+        }
+        let signal: f64 = (start..start + span).map(|i| left(input, i).powi(2)).sum();
+        (10.0 * (signal / best.1.max(1e-9)).log10(), best.0)
+    }
+
+    /// Linux: dm's MP3s, decoded by another decoder, are the sound that went
+    /// in (the check macOS makes with afconvert and Windows with Media
+    /// Foundation).
+    #[cfg(target_os = "linux")]
+    #[test]
+    fn another_decoder_plays_back_what_went_in() {
+        for (channels, rate) in [(2usize, 44100u32), (1, 48000), (2, 32000)] {
+            let input: Vec<i16> = if channels == 2 {
+                tones(rate)
+            } else {
+                tones(rate).chunks(2).map(|p| p[0]).collect()
+            };
+            let out = heard(&encode(&input, channels, rate));
+            assert_eq!((out.channels, out.rate), (channels, rate));
+            let (snr, delay) = alike(&input, &out.samples, channels, rate);
+            assert!(
+                snr > 30.0,
+                "{channels} ch at {rate} Hz: {snr:.1} dB at a delay of {delay}"
+            );
+        }
+    }
+
+    /// Linux: `convert`, as the app calls it, turns a stereo AAC (a 440 Hz
+    /// tone left, a sweep right) into an MP3 that plays that sound back.
+    #[cfg(target_os = "linux")]
+    #[test]
+    fn an_aac_sound_is_saved_as_an_mp3_that_plays_it() {
+        let m4a = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("tests/fixtures/mp4/tone.stereo.m4a");
+        let dir = tempfile::tempdir().unwrap();
+        let mp3 = dir.path().join("tone.mp3");
+        assert!(possible());
+        let length = convert(&m4a, &mp3).unwrap();
+        let bytes = std::fs::read(&mp3).unwrap();
+        assert_eq!(bytes.len() as u64, length);
+        let aac = decode::read(&m4a).unwrap();
+        let out = heard(&bytes);
+        assert_eq!((out.channels, out.rate), (2, 44100));
+        let (snr, delay) = alike(&aac.samples, &out.samples, 2, 44100);
+        eprintln!("the MP3 against its AAC: {snr:.1} dB at a delay of {delay}");
+        assert!(snr > 20.0, "{snr:.1} dB at a delay of {delay}");
+        let seconds = out.samples.len() as f64 / 2.0 / 44100.0;
+        assert!((seconds - 2.0).abs() < 0.1, "{seconds} s");
     }
 }

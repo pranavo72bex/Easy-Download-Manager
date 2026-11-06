@@ -10,14 +10,6 @@ impl<'a> Bits<'a> {
         Bits { data, pos: 0 }
     }
 
-    #[allow(
-        dead_code,
-        reason = "used once the decoder's tables are in (gaps row 53)"
-    )]
-    pub(super) fn position(&self) -> usize {
-        self.pos
-    }
-
     pub(super) fn left(&self) -> usize {
         self.data.len().saturating_mul(8).saturating_sub(self.pos)
     }
@@ -47,18 +39,6 @@ impl<'a> Bits<'a> {
     pub(super) fn flag(&mut self) -> Result<bool, String> {
         Ok(self.bit()? == 1)
     }
-
-    pub(super) fn skip(&mut self, count: usize) -> Result<(), String> {
-        if count > self.left() {
-            return Err("the AAC data ended inside a frame".into());
-        }
-        self.pos += count;
-        Ok(())
-    }
-
-    pub(super) fn align(&mut self) {
-        self.pos = self.pos.div_ceil(8) * 8;
-    }
 }
 
 #[cfg(test)]
@@ -75,12 +55,10 @@ mod tests {
     }
 
     #[test]
-    fn reading_past_the_end_fails_and_align_rounds_up() {
+    fn reading_past_the_end_fails() {
         let mut r = Bits::new(&[0x80]);
         assert!(r.bits(9).is_err());
-        r.skip(3).unwrap();
-        r.align();
-        assert_eq!(r.position(), 8);
-        assert!(r.skip(1).is_err());
+        assert_eq!(r.bits(8).unwrap(), 0x80);
+        assert!(r.flag().is_err());
     }
 }
