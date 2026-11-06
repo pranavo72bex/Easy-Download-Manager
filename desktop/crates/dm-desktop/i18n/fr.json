@@ -1,4 +1,8 @@
 {
+ "Priority of {}": "Priorité de {}",
+ "High": "Haute",
+ "Normal": "Normale",
+ "Low": "Basse",
  "this link has expired. dm is waiting for the browser to hand over a new one for the same file": "ce lien a expiré. dm attend que le navigateur transmette un nouveau lien pour le même fichier",
  "\"{}\" can't be a category, because its name is also its folder's. Leave out / \\ : * ? \" < > |, names like CON, and a dot or space at the end.": "« {} » ne peut pas être une catégorie : son nom est aussi son dossier, et ce n'est pas un nom de dossier que tout ordinateur peut utiliser (pas de / \\ : * ? \" < > |, pas de nom comme CON, rien qui finisse par un point ou une espace)",
  "\"{}\" to \"{}\": times are HH:MM in 24 hours, such as 01:00 or 23:30.": "« {} » à « {} » : les heures s'écrivent HH:MM sur 24 heures, par exemple 01:00 ou 23:30.",

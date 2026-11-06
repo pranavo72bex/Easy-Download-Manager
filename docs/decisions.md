@@ -4271,3 +4271,18 @@ notes, the Cargo `authors` and PKGBUILD e-mail, and the full name in
 Kept: the Code of Conduct's contact address (the maintainer's to change).
 Not touched: git history (author e-mails, the old pictures), which only a
 rewrite and force-push would change.
+
+## 2026-11-06: Torrent file priorities as tiers (gaps row 149)
+
+librqbit 9 has no priority between files, only a file in or out
+(`only_files`), which it can change on a running torrent
+(`Session::update_only_files`). dm asks for the High files alone, and when the
+library reports them finished adds the Normal ones, then the Low ones
+(`torrent::tiers`, `TorrentOptions::tiers`). A priority is an order, not a
+share of the bandwidth. The row's total is every wanted file's, as the
+library counts only the files asked for. Found on the way: the step that
+removes files left out of a torrent read `only`, which is now the first tier,
+and would have deleted the Normal and Low files at the end
+(`TorrentOptions::wanted`). The priority is set while the download is stopped,
+as the choice of files is; a priority of Normal is not written to the queue
+file, so files from before read as Normal.

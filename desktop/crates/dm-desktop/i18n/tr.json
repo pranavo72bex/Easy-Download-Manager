@@ -1,4 +1,8 @@
 {
+ "Priority of {}": "{} önceliği",
+ "High": "Yüksek",
+ "Normal": "Normal",
+ "Low": "Düşük",
  "this link has expired. dm is waiting for the browser to hand over a new one for the same file": "bu bağlantının süresi doldu. dm, tarayıcının aynı dosya için yeni bir bağlantı vermesini bekliyor",
  "\"{}\" can't be a category, because its name is also its folder's. Leave out / \\ : * ? \" < > |, names like CON, and a dot or space at the end.": "\"{}\" bir kategori olamaz: adı aynı zamanda klasörünün adıdır ve bu, her bilgisayarın kullanabileceği bir klasör adı değil (/ \\ : * ? \" < > | olmadan, CON gibi adlar olmadan, nokta ya da boşlukla bitmeden)",
  "\"{}\" to \"{}\": times are HH:MM in 24 hours, such as 01:00 or 23:30.": "\"{}\" ile \"{}\": saatler 24 saatlik SS:DD biçimindedir, örneğin 01:00 veya 23:30.",

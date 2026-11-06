@@ -5,6 +5,8 @@ the browser extension (`v*` tags) are versioned separately.
 
 ## Unreleased
 
+- Torrents: each file has a priority, High, Normal or Low, in Properties beside its tick. The High files are fetched first and the Low ones once every other file is whole (gaps row 149).
+- Security: release builds carry nothing of the computer that built them (its paths, its user name), in the app or the extension; the README's pictures no longer show a computer's temporary folder.
 - Licence: dm is now under the GNU General Public License v3.0 or later, with an attribution term (`NOTICE`): a work built on dm's code must be GPL too and say it is based on dm. Releases up to desktop-v0.8.7 and extension v3.2.1 stay MIT (gaps row 151).
 - Fixed: with the computer's proxy settings chosen (a new install's default) and no proxy on the computer, every FTP download and torrent was refused ("dm cannot send FTP through the computer's proxy settings"). They go direct now; on macOS a proxy set in the network settings is used for them (BUGLOG.md BUG-008).
 - Linux: a video's sound can be saved as MP3 ("MP3 audio" in every quality list, the panel's included), as on macOS and Windows. The AAC is decoded by symphonia's pure-Rust AAC-LC decoder and encoded by dm's own MP3 encoder; a rate MP3 does not have is resampled (gaps row 53).

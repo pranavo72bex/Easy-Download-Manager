@@ -493,6 +493,8 @@ pub struct Properties {
     /// A torrent's files ticked to be fetched, as edited; empty until its
     /// files are known.
     pub files: Vec<bool>,
+    /// When each of a torrent's files is fetched, as edited (gaps row 149).
+    pub priorities: Vec<dm_core::TorrentPriority>,
 }
 
 /// The files of a ZIP, as a background reading leaves them: `None` while it

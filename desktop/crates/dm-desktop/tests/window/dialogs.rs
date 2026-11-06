@@ -2597,3 +2597,80 @@ fn a_file_starts_while_download_details_asks_and_lands_where_chosen() {
         !app.rows().iter().any(|r| r.url.ends_with("/other.pdf"))
     });
 }
+
+/// A stopped torrent's Properties lists its files, a tick and a priority
+/// each (gaps row 149): High set on one is kept on the download, and so the
+/// queue fetches that file first.
+#[test]
+fn a_torrents_file_is_given_a_priority_in_properties() {
+    let _file = settings_file();
+    let world = world();
+    let mut harness = world.harness();
+    harness
+        .state()
+        .backend()
+        .add_with(
+            &world.url("file.zip"),
+            dm_core::AddOptions {
+                later: true,
+                ..Default::default()
+            },
+        )
+        .unwrap();
+    harness.state_mut().refresh();
+    // The row as a launch reads a paused torrent of three files back.
+    let mut torrent: dm_core::Entry = (*harness.state().rows()[0]).clone();
+    torrent.state = State::Paused;
+    torrent.torrent_files = ["a.bin", "b.bin", "c.bin"]
+        .iter()
+        .map(|name| dm_core::TorrentFile {
+            name: (*name).into(),
+            size: 1024,
+            wanted: true,
+            priority: dm_core::TorrentPriority::Normal,
+        })
+        .collect();
+    let stored = world.dir.path().join("torrent-queue.json");
+    std::fs::write(&stored, serde_json::to_string(&vec![torrent]).unwrap()).unwrap();
+    let mut harness = world.harness();
+    let queue = harness.state().backend().queue.clone();
+    world.runtime.block_on(queue.persist_to(stored));
+    harness.state_mut().refresh();
+    let row = harness.state().rows()[0].clone();
+    assert_eq!(row.torrent_files.len(), 3);
+    harness.state_mut().dialogs.open_properties(&row);
+    harness.run_steps(4);
+
+    // One drop-down a file, each named for its file; the third set to High.
+    use egui::accesskit::Role;
+    for name in ["a.bin", "b.bin", "c.bin"] {
+        let label = format!("Priority of {name}");
+        assert!(
+            harness
+                .query_by_role_and_label(Role::ComboBox, &label)
+                .is_some(),
+            "no {label}"
+        );
+    }
+    harness
+        .get_by_role_and_label(Role::ComboBox, "Priority of c.bin")
+        .click();
+    harness.run_steps(3);
+    harness.get_by_label("High").click();
+    harness.run_steps(3);
+    click(&mut harness, "OK");
+    harness.state_mut().refresh();
+    let kept: Vec<_> = harness.state().rows()[0]
+        .torrent_files
+        .iter()
+        .map(|f| f.priority)
+        .collect();
+    assert_eq!(
+        kept,
+        [
+            dm_core::TorrentPriority::Normal,
+            dm_core::TorrentPriority::Normal,
+            dm_core::TorrentPriority::High
+        ]
+    );
+}

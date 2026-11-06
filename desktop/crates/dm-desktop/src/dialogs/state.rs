@@ -247,6 +247,7 @@ impl Dialogs {
                 check: String::new(),
                 zip: None,
                 files: row.torrent_files.iter().map(|f| f.wanted).collect(),
+                priorities: row.torrent_files.iter().map(|f| f.priority).collect(),
             },
         );
     }

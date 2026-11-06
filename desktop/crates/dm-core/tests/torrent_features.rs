@@ -771,3 +771,126 @@ async fn a_finished_torrent_kept_shared_serves_another_peer_and_stops_at_its_rat
     dm_core::stop_sharing(&done.path);
     assert!(dm_core::sharing(&done.path).is_none());
 }
+
+/// Files of a torrent with different priorities are fetched tier by tier
+/// (gaps row 149): the High file is whole before any of the Low one has
+/// arrived, and every file lands whole. Files of a whole number of pieces, so
+/// no piece belongs to two of them.
+#[tokio::test(flavor = "multi_thread")]
+async fn a_torrents_high_file_is_whole_before_its_low_one_starts() {
+    let _shared = TIMING.read().await;
+    let (high, normal, low) = (
+        bytes(1024 * 1024, 41),
+        bytes(1024 * 1024, 42),
+        bytes(1024 * 1024, 43),
+    );
+    let s = swarm(
+        "tiers",
+        &[
+            ("a-low.bin", low.clone()),
+            ("b-normal.bin", normal.clone()),
+            ("c-high.bin", high.clone()),
+        ],
+    )
+    .await;
+    let dir = tempdir();
+    let q = Queue::new(client(), options(dir.path()), 2);
+    // Next to nothing until the priorities are set: the files are listed
+    // while the torrent runs with every file wanted.
+    q.set_speed_limit(1024).await;
+    let id = q.add(&s.torrent_url).await.unwrap();
+    let runner = tokio::spawn({
+        let q = q.clone();
+        async move { q.run().await }
+    });
+    let deadline = Instant::now() + Duration::from_secs(30);
+    while q.get(id).await.unwrap().torrent_files.len() != 3 {
+        assert!(Instant::now() < deadline, "the files were never listed");
+        tokio::time::sleep(Duration::from_millis(100)).await;
+    }
+    q.pause(id).await;
+    let _ = runner.await;
+    tokio::time::sleep(Duration::from_millis(500)).await;
+    let names: Vec<String> = q
+        .get(id)
+        .await
+        .unwrap()
+        .torrent_files
+        .iter()
+        .map(|f| f.name.clone())
+        .collect();
+    let priorities: Vec<dm_core::TorrentPriority> = names
+        .iter()
+        .map(|n| match n.as_str() {
+            n if n.ends_with("c-high.bin") => dm_core::TorrentPriority::High,
+            n if n.ends_with("a-low.bin") => dm_core::TorrentPriority::Low,
+            _ => dm_core::TorrentPriority::Normal,
+        })
+        .collect();
+    q.set_torrent_priorities(id, &priorities)
+        .await
+        .expect("the priorities were refused");
+    q.set_speed_limit(256 * 1024).await;
+    q.resume(id).await;
+    let runner = tokio::spawn({
+        let q = q.clone();
+        async move { q.run().await }
+    });
+
+    // How much of each file is on disk (bytes in place that match), and
+    // whether all of it is.
+    let seen = |name: &str, whole: &[u8]| -> (usize, bool) {
+        files_under(dir.path())
+            .into_iter()
+            .filter(|p| p.file_name().is_some_and(|f| f == name))
+            .filter_map(|p| std::fs::read(p).ok())
+            .fold((0, false), |(most, all), got| {
+                let here = got
+                    .iter()
+                    .zip(whole)
+                    .filter(|(a, b)| a == b && **b != 0)
+                    .count();
+                (most.max(here), all || got == whole)
+            })
+    };
+    // What the Low file had before its priority was set.
+    let (low_before, _) = seen("a-low.bin", &low);
+    let deadline = Instant::now() + Duration::from_secs(90);
+    let mut low_started_with_high_whole = None;
+    loop {
+        let (_, high_whole) = seen("c-high.bin", &high);
+        let (low_now, _) = seen("a-low.bin", &low);
+        if low_now > low_before && low_started_with_high_whole.is_none() {
+            low_started_with_high_whole = Some(high_whole);
+        }
+        let row = q.get(id).await.unwrap();
+        if row.state == State::Completed {
+            let folder = PathBuf::from(&row.path);
+            for (name, data) in [
+                ("a-low.bin", &low),
+                ("b-normal.bin", &normal),
+                ("c-high.bin", &high),
+            ] {
+                assert_eq!(&std::fs::read(folder.join(name)).unwrap(), data, "{name}");
+            }
+            assert_eq!(
+                row.torrent_files
+                    .iter()
+                    .filter(|f| f.priority != dm_core::TorrentPriority::Normal)
+                    .count(),
+                2,
+                "the priorities were not kept"
+            );
+            break;
+        }
+        assert!(!matches!(row.state, State::Failed(_)), "{:?}", row.state);
+        assert!(Instant::now() < deadline, "row stuck at {:?}", row.state);
+        tokio::time::sleep(Duration::from_millis(50)).await;
+    }
+    let _ = runner.await;
+    assert_eq!(
+        low_started_with_high_whole,
+        Some(true),
+        "the Low file had bytes before the High one was whole"
+    );
+}

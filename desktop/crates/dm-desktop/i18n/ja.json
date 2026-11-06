@@ -1,4 +1,8 @@
 {
+ "Priority of {}": "{} の優先度",
+ "High": "高",
+ "Normal": "通常",
+ "Low": "低",
  "this link has expired. dm is waiting for the browser to hand over a new one for the same file": "このリンクは期限切れです。dm はブラウザーから同じファイルの新しいリンクが渡されるのを待っています",
  "\"{}\" can't be a category, because its name is also its folder's. Leave out / \\ : * ? \" < > |, names like CON, and a dot or space at the end.": "「{}」はカテゴリにできません。カテゴリ名はそのままフォルダー名になりますが、どのコンピューターでも使えるフォルダー名ではありません（/ \\ : * ? \" < > | を含まない、CON のような名前でない、末尾がドットや空白でないこと）",
  "\"{}\" to \"{}\": times are HH:MM in 24 hours, such as 01:00 or 23:30.": "「{}」から「{}」：時刻は 24 時間制の HH:MM で、01:00 や 23:30 のように入力してください。",

@@ -830,8 +830,9 @@ impl Settings {
             // row when it starts one.
             checksum: None,
             torrent: dm_core::TorrentOptions {
-                // Per download: the queue fills this in from the row.
+                // Per download: the queue fills these in from the row.
                 only: None,
+                tiers: Vec::new(),
                 blocklist: self.peer_blocklist(),
                 share: self.torrent_share.then(|| dm_core::Share {
                     ratio: self.torrent_share_ratio.clamp(0.1, 100.0),

@@ -254,6 +254,39 @@ impl Queue {
         }
     }
 
+    /// Sets when each of a torrent's files is fetched (gaps row 149): only
+    /// while it is not running, as the choice of files is, and one priority
+    /// for each file listed.
+    pub async fn set_torrent_priorities(
+        &self,
+        id: Id,
+        priorities: &[crate::torrent::Priority],
+    ) -> Result<(), String> {
+        let mut why = None;
+        let priorities = priorities.to_vec();
+        let done = self
+            .edit(id, |slot| {
+                if matches!(slot.entry.state, State::Running | State::Completed) {
+                    why = Some("Stop the download to change which files are fetched.");
+                    return false;
+                }
+                if slot.entry.torrent_files.len() != priorities.len() {
+                    why = Some("The torrent's files are not known yet.");
+                    return false;
+                }
+                for (file, p) in slot.entry_mut().torrent_files.iter_mut().zip(&priorities) {
+                    file.priority = *p;
+                }
+                true
+            })
+            .await;
+        match (done, why) {
+            (true, _) => Ok(()),
+            (false, Some(why)) => Err(why.into()),
+            (false, None) => Err("There is no such download.".into()),
+        }
+    }
+
     /// "Update download link": a new link for a download whose
     /// old one expired. Only while it is not running, and only to something
     /// dm can fetch. The parts stay; the plan recorded beside them, with the

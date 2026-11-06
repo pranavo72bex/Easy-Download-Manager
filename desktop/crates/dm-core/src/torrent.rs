@@ -64,12 +64,29 @@ impl Swarm {
 pub struct TorrentOptions {
     /// The files to fetch, by their place in the torrent; `None` is every file.
     pub only: Option<Vec<usize>>,
+    /// The wanted files tier by tier where their priorities differ ([`tiers`]):
+    /// the first is asked for, the next added once it is whole. Empty where
+    /// they are fetched together.
+    pub tiers: Vec<Vec<usize>>,
     /// Where the list of peers never connected to is: an address on the web,
     /// or a file on this computer. `None` for no list.
     pub blocklist: Option<String>,
     /// Keep a finished torrent shared, and how long; `None` stops it once its
     /// files are whole (gaps row 147).
     pub share: Option<Share>,
+}
+
+impl TorrentOptions {
+    /// Every file wanted, by its place in the torrent: all the tiers where
+    /// there are several, else `only`. `None` is every file.
+    pub fn wanted(&self) -> Option<Vec<usize>> {
+        if self.tiers.is_empty() {
+            return self.only.clone();
+        }
+        let mut all: Vec<usize> = self.tiers.iter().flatten().copied().collect();
+        all.sort_unstable();
+        Some(all)
+    }
 }
 
 /// How long a finished torrent is shared: until it has sent `ratio` times its
@@ -219,6 +236,50 @@ pub struct TorrentFile {
     /// Whether it is fetched: every file is, until a person leaves it out.
     #[serde(default = "fetched")]
     pub wanted: bool,
+    /// When it is fetched beside the torrent's other files (gaps row 149).
+    #[serde(default, skip_serializing_if = "Priority::is_normal")]
+    pub priority: Priority,
+}
+
+/// When a torrent's file is fetched: the High ones first, the Low ones once
+/// every other is whole. The torrent library has no priority between files,
+/// only a file in or out, so dm asks for one tier at a time and adds the next
+/// as the last is complete; with every file Normal nothing changes.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, serde::Serialize, serde::Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum Priority {
+    /// Fetched before the others.
+    High,
+    /// As every file is, until a person says otherwise.
+    #[default]
+    Normal,
+    /// Fetched once every other file is whole.
+    Low,
+}
+
+impl Priority {
+    /// Whether it is the default, which the queue file leaves unwritten.
+    pub fn is_normal(&self) -> bool {
+        *self == Priority::Normal
+    }
+}
+
+/// The wanted files in the order they are fetched, by their place in the
+/// torrent: the High, then the Normal, then the Low, each tier that has a
+/// file. One tier, or none, is the torrent fetched as a whole.
+pub fn tiers(files: &[TorrentFile]) -> Vec<Vec<usize>> {
+    [Priority::High, Priority::Normal, Priority::Low]
+        .iter()
+        .map(|p| {
+            files
+                .iter()
+                .enumerate()
+                .filter(|(_, f)| f.wanted && f.priority == *p)
+                .map(|(i, _)| i)
+                .collect::<Vec<_>>()
+        })
+        .filter(|tier| !tier.is_empty())
+        .collect()
 }
 
 fn fetched() -> bool {
@@ -579,6 +640,7 @@ pub async fn download_torrent(
                         name: file.relative_filename.to_string_lossy().replace('\\', "/"),
                         size: file.len,
                         wanted: true,
+                        priority: Priority::Normal,
                     })
                     .collect::<Vec<_>>()
             })
@@ -600,6 +662,25 @@ pub async fn download_torrent(
             "a checksum cannot be checked over a torrent of several files".into(),
         ));
     }
+
+    /* Tier by tier where the files' priorities differ: the library counts
+     * only the files asked for, so the row's total is every wanted file's,
+     * and its "finished" ends a tier rather than the torrent. */
+    let tiers = options.torrent.tiers.clone();
+    let mut tier = 0;
+    let tiered_total = (tiers.len() > 1)
+        .then(|| {
+            handle
+                .with_metadata(|metadata| {
+                    tiers
+                        .iter()
+                        .flatten()
+                        .filter_map(|&i| metadata.file_infos.get(i).map(|f| f.len))
+                        .sum::<u64>()
+                })
+                .ok()
+        })
+        .flatten();
 
     let mut named = false;
     let mut last = Instant::now();
@@ -658,7 +739,7 @@ pub async fn download_torrent(
         if let Some(tx) = &report {
             let now = Instant::now();
             let dt = (now - last).as_secs_f64();
-            let total = (stats.total_bytes > 0).then_some(stats.total_bytes);
+            let total = tiered_total.or((stats.total_bytes > 0).then_some(stats.total_bytes));
             /* Never less than already reported. librqbit's count
              * drops when a piece fails its hash and is fetched again, and
              * while it checks what is on disk; a row whose bar went back
@@ -701,7 +782,19 @@ pub async fn download_torrent(
         }
 
         if stats.finished {
-            break;
+            if tier + 1 >= tiers.len() {
+                break;
+            }
+            // This tier is whole: the next one joins the files asked for.
+            tier += 1;
+            let asked: std::collections::HashSet<usize> =
+                tiers[..=tier].iter().flatten().copied().collect();
+            if let Err(e) = session.update_only_files(&handle, &asked).await {
+                token.cancel();
+                return Err(Error::Internal(format!(
+                    "the torrent's next files could not be asked for: {e}"
+                )));
+            }
         }
         if let TorrentStatsState::Error = stats.state {
             token.cancel();
@@ -731,7 +824,8 @@ pub async fn download_torrent(
     /* The files left out are not the person's: pieces they share with a
      * wanted file leave them partly written, and moved with the rest they
      * would look like files that were fetched. */
-    if let Some(only) = &options.torrent.only {
+    // Every tier's files: `only` is the first tier's alone where there are several.
+    if let Some(only) = &options.torrent.wanted() {
         let _ = handle.with_metadata(|metadata| {
             for (i, file) in metadata.file_infos.iter().enumerate() {
                 if !only.contains(&i) {
@@ -770,7 +864,7 @@ pub async fn download_torrent(
                 path.clone(),
                 folder,
                 again,
-                options.torrent.only.clone(),
+                options.torrent.wanted(),
                 bytes,
                 share,
                 options.proxy_for(url),
@@ -1152,6 +1246,61 @@ impl Drop for CancelOnDrop {
 
 #[cfg(test)]
 mod tests {
+
+    fn file(name: &str, wanted: bool, priority: Priority) -> TorrentFile {
+        TorrentFile {
+            name: name.into(),
+            size: 1,
+            wanted,
+            priority,
+        }
+    }
+
+    #[test]
+    fn files_are_fetched_high_then_normal_then_low_and_those_left_out_never() {
+        let files = [
+            file("a", true, Priority::Low),
+            file("b", true, Priority::Normal),
+            file("c", true, Priority::High),
+            file("d", false, Priority::High),
+            file("e", true, Priority::High),
+        ];
+        assert_eq!(tiers(&files), vec![vec![2, 4], vec![1], vec![0]]);
+        // All Normal, or one tier however it is called: fetched together.
+        let plain = [
+            file("a", true, Priority::Normal),
+            file("b", true, Priority::Normal),
+        ];
+        assert_eq!(tiers(&plain).len(), 1);
+        let low = [
+            file("a", true, Priority::Low),
+            file("b", false, Priority::High),
+        ];
+        assert_eq!(tiers(&low), vec![vec![0]]);
+        // Every tier's files are the wanted ones, not the first tier's alone.
+        let options = TorrentOptions {
+            only: Some(vec![2, 4]),
+            tiers: tiers(&files),
+            ..Default::default()
+        };
+        assert_eq!(options.wanted(), Some(vec![0, 1, 2, 4]));
+        let untiered = TorrentOptions {
+            only: Some(vec![1]),
+            ..Default::default()
+        };
+        assert_eq!(untiered.wanted(), Some(vec![1]));
+    }
+
+    #[test]
+    fn a_normal_priority_is_not_written_and_an_old_file_reads_as_normal() {
+        let plain = serde_json::to_string(&file("a", true, Priority::Normal)).unwrap();
+        assert!(!plain.contains("priority"), "{plain}");
+        let high = serde_json::to_string(&file("a", true, Priority::High)).unwrap();
+        assert!(high.contains(r#""priority":"high""#), "{high}");
+        let old: TorrentFile = serde_json::from_str(r#"{"name":"a","size":1}"#).unwrap();
+        assert_eq!((old.wanted, old.priority), (true, Priority::Normal));
+    }
+
     #[test]
     fn behind_a_proxy_only_http_trackers_are_kept() {
         let magnet = "magnet:?xt=urn:btih:0123456789abcdef0123456789abcdef01234567\

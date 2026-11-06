@@ -246,9 +246,10 @@ async fn no_cap_asks_as_it_always_did() {
     let dir = tempfile::tempdir().unwrap();
     let (got, _) = fetch(&server, None, &options(dir.path())).await;
     assert!(got == *data);
+    let asked = server.asked.lock().unwrap().len();
     assert!(
-        server.asked.lock().unwrap().len() <= 4 + 16,
-        "split far more than before"
+        asked <= 4 + 16,
+        "split far more than before: {asked} requests"
     );
 }
 

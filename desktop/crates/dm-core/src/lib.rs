@@ -193,7 +193,8 @@ pub use stream::{
 
 pub use torrent::{
     download_torrent, file_url, is_torrent, local_file, merged_files, only_files, sharing,
-    sharing_any, stop_sharing, Share, Sharing, Swarm, TorrentFile, TorrentOptions,
+    sharing_any, stop_sharing, tiers, Priority as TorrentPriority, Share, Sharing, Swarm,
+    TorrentFile, TorrentOptions,
 };
 
 pub use zipinfo::{zip_contents, zip_contents_of_file, ZipEntry};

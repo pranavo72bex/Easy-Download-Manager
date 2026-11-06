@@ -299,6 +299,12 @@ pub(super) fn properties(app: &mut DmApp, ctx: &egui::Context) {
         }
         let files = app.dialogs.properties.get(&id).map(|d| d.files.clone());
         let ok = ok && files.is_none_or(|files| choose_files(app, id, &row, &files));
+        let priorities = app
+            .dialogs
+            .properties
+            .get(&id)
+            .map(|d| d.priorities.clone());
+        let ok = ok && priorities.is_none_or(|p| choose_priorities(app, id, &row, &p));
         if ok {
             if description != row.description {
                 app.backend.set_description(id, &description);
@@ -341,13 +347,45 @@ fn torrent_files(ui: &mut egui::Ui, row: &dm_core::Entry, d: &mut Properties) {
     if d.files.len() != row.torrent_files.len() {
         d.files = row.torrent_files.iter().map(|f| f.wanted).collect();
     }
+    if d.priorities.len() != row.torrent_files.len() {
+        d.priorities = row.torrent_files.iter().map(|f| f.priority).collect();
+    }
     ui.label(t("Files"));
     ui.vertical(|ui| {
         let can = !matches!(row.state, State::Running | State::Queued | State::Completed);
         ui.add_enabled_ui(can, |ui| {
-            for (file, on) in row.torrent_files.iter().zip(d.files.iter_mut()) {
+            let several = row.torrent_files.len() > 1;
+            for (i, (file, on)) in row.torrent_files.iter().zip(d.files.iter_mut()).enumerate() {
                 let label = format!("{} ({})", file.name, format::bytes(file.size));
-                check(ui, on, &label);
+                ui.horizontal(|ui| {
+                    check(ui, on, &label);
+                    // When it is fetched beside the others: a choice only
+                    // where there are others.
+                    if let (true, Some(priority)) = (several, d.priorities.get_mut(i)) {
+                        ui.add_enabled_ui(*on, |ui| {
+                            crate::dialogs::combo(("torrent-priority", row.id, i))
+                                .selected_text(priority_words(*priority))
+                                .show_ui(ui, |ui| {
+                                    for p in [
+                                        dm_core::TorrentPriority::High,
+                                        dm_core::TorrentPriority::Normal,
+                                        dm_core::TorrentPriority::Low,
+                                    ] {
+                                        ui.selectable_value(priority, p, priority_words(p));
+                                    }
+                                })
+                                .response
+                                // Named for a screen reader: one a file.
+                                .widget_info(|| {
+                                    egui::WidgetInfo::labeled(
+                                        egui::Role::ComboBox,
+                                        true,
+                                        tf("Priority of {}", &[&file.name]),
+                                    )
+                                });
+                        });
+                    }
+                });
             }
         });
         if matches!(row.state, State::Running | State::Queued) {
@@ -356,6 +394,38 @@ fn torrent_files(ui: &mut egui::Ui, row: &dm_core::Entry, d: &mut Properties) {
             );
         }
     });
+}
+
+/// A priority in the window's words.
+fn priority_words(p: dm_core::TorrentPriority) -> &'static str {
+    match p {
+        dm_core::TorrentPriority::High => t("High"),
+        dm_core::TorrentPriority::Normal => t("Normal"),
+        dm_core::TorrentPriority::Low => t("Low"),
+    }
+}
+
+/// Keeps changed priorities of a torrent's files; false, with the reason
+/// said in the dialog, where they cannot be kept.
+fn choose_priorities(
+    app: &mut DmApp,
+    id: Id,
+    row: &dm_core::Entry,
+    priorities: &[dm_core::TorrentPriority],
+) -> bool {
+    let now: Vec<_> = row.torrent_files.iter().map(|f| f.priority).collect();
+    if priorities.is_empty() || priorities == now.as_slice() {
+        return true;
+    }
+    match app.backend.set_torrent_priorities(id, priorities) {
+        Ok(()) => true,
+        Err(e) => {
+            if let Some(d) = app.dialogs.properties.get_mut(&id) {
+                d.says = files_refusal(&e);
+            }
+            false
+        }
+    }
 }
 
 /// Keeps a changed choice of a torrent's files; false, with the reason

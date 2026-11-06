@@ -191,6 +191,15 @@ impl Backend {
         self.block_on(self.queue.set_torrent_files(id, wanted))
     }
 
+    /// When each of a torrent's files is fetched, for a stopped torrent.
+    pub fn set_torrent_priorities(
+        &self,
+        id: Id,
+        priorities: &[dm_core::TorrentPriority],
+    ) -> Result<(), String> {
+        self.block_on(self.queue.set_torrent_priorities(id, priorities))
+    }
+
     /// The speed limit every download shares, in bytes a second (0 for none).
     pub fn set_speed_limit(&self, bytes_per_second: u64) {
         self.block_on(self.queue.set_speed_limit(bytes_per_second));

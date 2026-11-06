@@ -288,6 +288,14 @@ impl Queue {
                     }
                     options.checksum = slot.entry.checksum.clone();
                     options.torrent.only = crate::torrent::only_files(&slot.entry.torrent_files);
+                    // Files of different priorities: the first tier asked for alone.
+                    let tiers = crate::torrent::tiers(&slot.entry.torrent_files);
+                    if tiers.len() > 1 {
+                        options.torrent.only = tiers.first().cloned();
+                        options.torrent.tiers = tiers;
+                    } else {
+                        options.torrent.tiers = Vec::new();
+                    }
                     options.save_name = slot.entry.save_name.clone();
                     options.title_hint = slot.entry.title_hint.clone();
                     options.accept_page = slot.entry.accept_page;
