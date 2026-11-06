@@ -230,6 +230,25 @@ Deviations from the brief, and why:
   `proxy::tests` `the_mac_network_settings_are_read_for_a_proxy`; the stress
   `ftp` phase.
 
+### BUG-009 — an incoming peer waited for the next connection after a refused one
+
+- **Scenario**: building encrypted peer connections (gaps row 150), 2026-11-06:
+  a seeder taking only encrypted connections never finished an encrypted
+  handshake that began while another connection was being refused; the
+  connecting side timed out after 20 s.
+- **Root cause**: librqbit's listener (`session.rs` `task_listener`) collects
+  the checks of incoming connections in a `tokio::select!` branch with the
+  pattern `Some(Ok(..))`. A check that failed did not match, which disables
+  that branch until the loop goes round, which it did only when another
+  connection was accepted; until then no check under way was polled. A
+  plaintext handshake is read at once, so it rarely showed; an encrypted one
+  takes several round trips.
+- **Fix**: every finished check is taken, a failed one dropped inside the
+  branch (dm's patched librqbit, `desktop/vendor/README.md`).
+- **Regression test**: `tests/torrent_features.rs`
+  `a_seeder_that_takes_only_encrypted_connections_is_reached` (it runs a
+  refused plaintext connection beside the encrypted one; it timed out before).
+
 ## Open, not fixed
 
 - Closed 2026-10-29: the "(1)" in "QA clip (1) [watch？v=ok-1].mp4" was not
@@ -303,6 +322,14 @@ Deviations from the brief, and why:
   240 s wait ("still running"): with `Retry-After` the wait grows to 60 s,
   so 15 attempts take about nine minutes. The scripts now set `"attempts"`;
   `flaky` waits 420 s for ten. Found 2026-11-06 on Linux, the same on macOS.
+
+- **T-012** The torrent tests' own sessions had the DHT and local discovery
+  on, as dm's downloads do: a test's torrent was announced to the public
+  network and peers on the internet were connected to (seen 2026-11-06 while
+  building row 150: five addresses outside this computer, one of which
+  answered a handshake). `TorrentOptions::no_public_discovery` keeps a
+  session to its trackers; the tests' options set it, and a run of the
+  torrent tests watched with `lsof` saw no address but loopback.
 
 ## Static checks and fuzzing (Step 3)
 

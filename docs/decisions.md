@@ -4318,3 +4318,22 @@ BT.709 as the sequence header says, limited or full range. "Part as GIF" is
 offered on Linux for YouTube addresses only (`gif::possible_for`): a stream
 caught elsewhere is H.264. Checked on Linux: a real YouTube part to a GIF in
 8 s (release).
+
+## 2026-11-06: Encrypted peer connections in a patched librqbit (gaps row 150)
+
+At the maintainer's answer ("build it in a patched copy"). librqbit 9.0.1 has
+no MSE/PE; `desktop/vendor/librqbit` is the published crate with
+`src/mse.rs` and the hooks for it, used through `[patch.crates-io]` as winit
+is. Policy: plaintext first, as before, and encrypted again where a peer hangs
+up on the plaintext handshake (an encryption-only peer does exactly that), so
+peers that took dm before see no change and the extra connection is made only
+for those that refused; incoming connections of both kinds are taken
+(`require_encryption`, off in dm, makes and takes encrypted ones only; the
+tests use it). Ruled out: encrypted first for every peer (a second round trip
+to every plaintext-only peer, and a change for the peers that worked).
+Chosen to check against: libtorrent (the library most clients are built on),
+not a client application, so that no other product is named. MSE with RC4 and
+a 768-bit group hides BitTorrent from simple traffic shaping and reaches the
+peers that insist on it; it is not strong encryption, and the window does not
+call it that. Cost: the patch is carried over at each librqbit upgrade until
+upstream has MSE (`desktop/vendor/README.md` says where each change is).

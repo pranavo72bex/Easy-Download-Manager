@@ -48,7 +48,12 @@ pub fn options(dir: &Path) -> Options {
         sign_in: None,
         save_name: None,
         accept_page: false,
-        torrent: Default::default(),
+        // On loopback only: no DHT or local discovery, which would announce
+        // this computer to the public network from a test.
+        torrent: dm_core::TorrentOptions {
+            no_public_discovery: true,
+            ..Default::default()
+        },
         system_proxy: false,
         title_hint: None,
     }

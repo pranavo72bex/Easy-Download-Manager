@@ -839,6 +839,8 @@ impl Settings {
                     minutes: self.torrent_share_minutes.clamp(1, 7 * 24 * 60),
                     upload_kbps: self.torrent_upload_limit,
                 }),
+                // Peers through the DHT and local discovery as well as trackers.
+                no_public_discovery: false,
             },
             quality: self.quality(),
             sound: None,

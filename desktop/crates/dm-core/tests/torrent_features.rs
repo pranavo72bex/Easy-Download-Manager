@@ -11,8 +11,8 @@ use dm_core::{client, Categories, Control, Limiter, Queue, State};
 use dm_core::{Options, Update};
 use librqbit::spawn_utils::BlockingSpawner;
 use librqbit::{
-    AddTorrent, AddTorrentOptions, CreateTorrentOptions, ListenerMode, ListenerOptions, Session,
-    SessionOptions,
+    AddTorrent, AddTorrentOptions, ConnectionOptions, CreateTorrentOptions, ListenerMode,
+    ListenerOptions, PeerConnectionOptions, Session, SessionOptions,
 };
 
 mod common;
@@ -60,6 +60,12 @@ struct Swarm {
 
 /// A seeder and tracker on loopback serving `files` under `name`.
 async fn swarm(name: &str, files: &[(&str, Vec<u8>)]) -> Swarm {
+    swarm_with(name, files, false).await
+}
+
+/// [`swarm`], its seeder taking only encrypted connections where
+/// `encrypted_only` says (as clients set to require encryption do).
+async fn swarm_with(name: &str, files: &[(&str, Vec<u8>)], encrypted_only: bool) -> Swarm {
     let seed = tempdir();
     let root = if files.len() == 1 {
         seed.path().to_path_buf()
@@ -104,6 +110,13 @@ async fn swarm(name: &str, files: &[(&str, Vec<u8>)]) -> Swarm {
             listen: Some(ListenerOptions {
                 mode: ListenerMode::TcpOnly,
                 listen_addr: addr,
+                ..Default::default()
+            }),
+            connect: Some(ConnectionOptions {
+                peer_opts: Some(PeerConnectionOptions {
+                    require_encryption: encrypted_only,
+                    ..Default::default()
+                }),
                 ..Default::default()
             }),
             ..Default::default()
@@ -190,7 +203,12 @@ fn options(dir: &Path) -> Options {
         sign_in: None,
         save_name: None,
         accept_page: false,
-        torrent: Default::default(),
+        // On loopback only: no DHT or local discovery, which would announce
+        // this computer to the public network from a test.
+        torrent: dm_core::TorrentOptions {
+            no_public_discovery: true,
+            ..Default::default()
+        },
         system_proxy: false,
         title_hint: None,
     }
@@ -893,4 +911,24 @@ async fn a_torrents_high_file_is_whole_before_its_low_one_starts() {
         Some(true),
         "the Low file had bytes before the High one was whole"
     );
+}
+
+/// A seeder that takes only encrypted connections (gaps row 150): dm's
+/// plaintext handshake is refused, it asks again encrypted (MSE, RC4), and
+/// the torrent arrives whole. Before, such a peer was never reached.
+#[tokio::test(flavor = "multi_thread")]
+async fn a_seeder_that_takes_only_encrypted_connections_is_reached() {
+    let _shared = TIMING.read().await;
+    let data = bytes(3 * 1024 * 1024, 51);
+    let s = swarm_with("encrypted.bin", &[("encrypted.bin", data.clone())], true).await;
+    let dir = tempdir();
+    let done = tokio::time::timeout(
+        Duration::from_secs(90),
+        download_torrent(&client(), &s.torrent_url, &options(dir.path()), None),
+    )
+    .await
+    .expect("the encrypted-only seeder was never reached")
+    .expect("the download failed");
+    assert_eq!(std::fs::read(&done.path).unwrap(), data);
+    println!("VERIFY encrypted peer: 3 MB whole from a seeder taking only MSE");
 }

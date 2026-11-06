@@ -74,6 +74,10 @@ pub struct TorrentOptions {
     /// Keep a finished torrent shared, and how long; `None` stops it once its
     /// files are whole (gaps row 147).
     pub share: Option<Share>,
+    /// Peers found only through the torrent's trackers: no DHT and no local
+    /// discovery, which announce this computer to the public network. Set by
+    /// the tests, which run their swarms on loopback.
+    pub no_public_discovery: bool,
 }
 
 impl TorrentOptions {
@@ -457,6 +461,8 @@ pub async fn download_torrent(
     }
     let connect = swarm_proxy(options.proxy_for(url).as_deref())?;
     let proxied = connect.is_some();
+    // Behind a proxy, or asked to keep to the trackers: no DHT, no local discovery.
+    let private = proxied || options.torrent.no_public_discovery;
 
     /* Staged like every other download, under its own parts directory, and
      * moved into the download folder only when whole. Written straight into
@@ -501,11 +507,11 @@ pub async fn download_torrent(
             // which a SOCKS5 connection cannot carry, so they went out
             // directly with the info-hash and the real address.
             // A magnet then needs a tracker.
-            dht: (!proxied).then(|| librqbit::DhtSessionConfig {
+            dht: (!private).then(|| librqbit::DhtSessionConfig {
                 persistence: None,
                 ..Default::default()
             }),
-            disable_local_service_discovery: proxied,
+            disable_local_service_discovery: private,
             blocklist_url,
             cancellation_token: Some(token.clone()),
             ratelimits: librqbit::limits::LimitsConfig {
@@ -868,6 +874,7 @@ pub async fn download_torrent(
                 bytes,
                 share,
                 options.proxy_for(url),
+                options.torrent.no_public_discovery,
             );
         }
     }
@@ -891,6 +898,10 @@ pub async fn download_torrent(
 /// files are the person's from the start. The session never fetches: files that
 /// are no longer the torrent's whole end the sharing rather than being fetched
 /// again.
+#[allow(
+    clippy::too_many_arguments,
+    reason = "each is one part of what the finished download leaves to share"
+)]
 fn keep_sharing(
     path: PathBuf,
     folder: PathBuf,
@@ -899,6 +910,7 @@ fn keep_sharing(
     size: u64,
     share: Share,
     proxy: Option<String>,
+    no_public_discovery: bool,
 ) {
     if share.ratio <= 0.0 || share.minutes == 0 || size == 0 {
         return;
@@ -915,7 +927,18 @@ fn keep_sharing(
     tokio::spawn(async move {
         // One that ends early (files moved or changed, no session) ends quietly: the row is
         // complete either way, and only its "Sharing" goes.
-        let _ = share_until(&path, folder, again, only, size, share, proxy, &token).await;
+        let _ = share_until(
+            &path,
+            folder,
+            again,
+            only,
+            size,
+            share,
+            proxy,
+            no_public_discovery,
+            &token,
+        )
+        .await;
         token.cancel();
         let mut all = shared();
         if all.get(&path).is_some_and(|(_, t)| t.is_cancelled()) {
@@ -935,10 +958,12 @@ async fn share_until(
     size: u64,
     share: Share,
     proxy: Option<String>,
+    no_public_discovery: bool,
     token: &CancellationToken,
 ) -> Result<(), String> {
     let connect = swarm_proxy(proxy.as_deref()).map_err(|e| e.to_string())?;
     let proxied = connect.is_some();
+    let private = proxied || no_public_discovery;
     let upload_bps = u32::try_from(share.upload_kbps.saturating_mul(1024))
         .ok()
         .and_then(NonZeroU32::new);
@@ -948,11 +973,11 @@ async fn share_until(
             persistence: None,
             // As the download's own session (see there): no DHT state file, and no UDP
             // behind a proxy.
-            dht: (!proxied).then(|| librqbit::DhtSessionConfig {
+            dht: (!private).then(|| librqbit::DhtSessionConfig {
                 persistence: None,
                 ..Default::default()
             }),
-            disable_local_service_discovery: proxied,
+            disable_local_service_discovery: private,
             // Reachable by peers, on a port of the system's choosing (no UPnP): sharing is what
             // the person turned on. Not behind a proxy, which would show the real address.
             listen: (!proxied).then(librqbit::ListenerOptions::default),
