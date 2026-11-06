@@ -37,7 +37,7 @@ site, the row says which.
 | Vimeo | a public video | no | panel | run 2026-11-04 (row 142) | whole with sound (row 142) |
 | Dailymotion | a public video | no | panel | not yet | not yet |
 | Twitch | a past broadcast and a clip | no | panel (HLS) | not yet | not yet |
-| Facebook | a public video post, a reel | maintainer | panel | run 2026-11-04 (row 142) | whole with sound (rows 62, 142) |
+| Facebook | a public video post, a reel | maintainer | panel | run 2026-11-04 (row 142); signed in on Windows 2026-11-07 | whole with sound: a NASA video post (26 s, 1280 tall) and the Watch page (222 s); saved as `video.mp4`, the page's title being "(1) Facebook" (row 75) |
 | Instagram | a reel | no | panel | run 2026-11-04 (row 142) | whole; one run in five a sign-in layer hides the button (row 71) |
 | TikTok | a video | no | panel | run 2026-11-04 (row 142) | whole with sound (row 71) |
 | X (Twitter) | a post with a video | no | panel | run 2026-11-04 (row 142) | whole (row 142) |

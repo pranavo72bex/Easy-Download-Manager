@@ -41,6 +41,10 @@ REDDIT_JS = """(() => { const t = [...document.querySelectorAll('shreddit-post')
   return t ? 'https://www.reddit.com' + t.getAttribute('permalink') : null; })()"""
 INSTAGRAM_JS = """(() => { const a = [...document.querySelectorAll('a[href*="/reel/"], a[href*="/p/"]')][0];
   return a ? a.href : null; })()"""
+# A video post on a page's Videos tab: its own page, whose title is the post's words.
+FACEBOOK_JS = """(() => { const h = [...document.querySelectorAll('a[href*="/videos/"], a[href*="/watch/?v="]')]
+    .map(a => a.href).find(h => /\\/videos\\/(?:[^/?]+\\/)?\\d{6,}|\\/watch\\/\\?v=\\d{6,}/.test(h));
+  return h || null; })()"""
 
 # Reddit's front page has no password box when nobody is signed in, only a "Log In" button.
 REDDIT_SIGNED_IN = """(() => document.readyState === 'complete' && !document.querySelector('input[type=password]')
@@ -49,8 +53,11 @@ REDDIT_SIGNED_IN = """(() => document.readyState === 'complete' && !document.que
 
 SITES = {
     "vimeo": {"url": "https://vimeo.com/513177164"},
-    "facebook": {"url": "https://www.facebook.com/NASA/videos/watch-nasas-perseverance-rover-land-on-mars/438313177583525/"},
-    # Facebook's Watch page, for a signed-in account: the post above can be unavailable to it.
+    # A current video post of NASA's, found on its Videos tab: the fixed post this named
+    # (perseverance-rover-land-on-mars/438313177583525) answered "This Video Isn't Available"
+    # from 2026-11-01, signed in or not, and no player ever appeared.
+    "facebook": {"listing": "https://www.facebook.com/NASA/videos/", "discover": FACEBOOK_JS},
+    # Facebook's Watch page, for a signed-in account.
     # Not a site to check: opens the page where the other manager's extension is added to
     # the kept profile by hand (SITES_SIGNIN=reference-a-extension, the page's address in
     # SITES_INSTALL_URL), then ends.
@@ -67,7 +74,13 @@ SITES = {
                       "signin_url": "https://www.reddit.com/login/", "signed_in": REDDIT_SIGNED_IN},
     "reddit": {"listing": "https://www.reddit.com/r/oddlysatisfying/top/?t=week", "discover": REDDIT_JS,
                "signin_url": "https://www.reddit.com/login/", "signed_in": REDDIT_SIGNED_IN},
-    "instagram": {"listing": "https://www.instagram.com/nasa/reels/", "discover": INSTAGRAM_JS},
+    # Its login form's box is named "password", not Facebook's "pass": the shared test took the
+    # login page for a signed-in one.
+    "instagram": {"listing": "https://www.instagram.com/nasa/reels/", "discover": INSTAGRAM_JS,
+                  "signin_url": "https://www.instagram.com/accounts/login/",
+                  "signed_in": """(() => document.readyState === 'complete'
+                      && !document.querySelector('input[name="password"], input[name="pass"]')
+                      && !/login|challenge|accounts/.test(location.pathname))()"""},
 }
 WANT = sys.argv[1:] or list(SITES)
 
