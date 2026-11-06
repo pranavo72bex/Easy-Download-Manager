@@ -173,8 +173,8 @@ pub use probe::{
 pub use progress::Progress;
 
 pub use proxy::{
-    client_with, client_with_timeout, route_for as proxy_route_for, Kind as ProxyKind, Proxy,
-    SchemeProxy,
+    client_with, client_with_timeout, route_for as proxy_route_for, system_proxy_in_force,
+    Kind as ProxyKind, Proxy, SchemeProxy,
 };
 
 pub use queue::{

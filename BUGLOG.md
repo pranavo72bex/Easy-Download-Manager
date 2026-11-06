@@ -206,6 +206,30 @@ Deviations from the brief, and why:
   block put in above the player by script, no pointer event); failed before,
   passes after.
 
+### BUG-008 — FTP and torrents refused on a computer with no proxy
+
+- **Scenario**: `scripts/linux-stress.sh` (2026-11-06, the Debian container,
+  no network): every FTP download failed with "dm cannot send FTP through
+  the computer's proxy settings, and does not go around them". The same on
+  macOS with no proxy set.
+- **Root cause**: a new install follows the computer's proxy settings (gaps
+  row 80, decided 2026-11-06). For dm's own connections (FTP, a torrent's
+  swarm, RTMP/RTSP) the address was looked for in the environment only; with
+  none, `Options::no_route_through_system_proxy` refused, as if a proxy were
+  in force and unreadable. A computer with no proxy at all was the usual case.
+- **Fix**: `proxy::system_proxy_in_force` says whether the computer has a
+  proxy at all (an environment variable; on macOS the network settings,
+  read with `scutil --proxy`, whose SOCKS, HTTPS or HTTP proxy is now also
+  the address used). With none, dm's own connections go direct; with a
+  proxy in force and no address they could use (a configuration script
+  alone), they are still refused, never sent around it.
+- **Regression test**: `tests/ftp.rs`
+  `under_the_computers_proxy_settings_with_no_proxy_ftp_goes_direct` (it
+  replaced a test that expected the refusal), `download::tests`
+  `under_the_computers_proxy_only_a_proxy_in_force_with_no_address_refuses`,
+  `proxy::tests` `the_mac_network_settings_are_read_for_a_proxy`; the stress
+  `ftp` phase.
+
 ## Open, not fixed
 
 - Closed 2026-10-29: the "(1)" in "QA clip (1) [watch？v=ok-1].mp4" was not
@@ -272,6 +296,13 @@ Deviations from the brief, and why:
 - **T-010** `scripts/chrome-check.py` exited 0 when the extension's worker
   never started (a `return` inside the `try`), so a browser that loaded
   nothing reported success. Now exits 1.
+
+- **T-011** `scripts/stress-check.py` and `stress-protocols.py` set
+  `"retries"`, a key dm's settings never had, so every phase ran with the
+  default 15 attempts. `flaky`'s 429 and 503 servers then outlasted its
+  240 s wait ("still running"): with `Retry-After` the wait grows to 60 s,
+  so 15 attempts take about nine minutes. The scripts now set `"attempts"`;
+  `flaky` waits 420 s for ten. Found 2026-11-06 on Linux, the same on macOS.
 
 ## Static checks and fuzzing (Step 3)
 

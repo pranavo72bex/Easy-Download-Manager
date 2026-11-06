@@ -249,9 +249,11 @@ impl Proxy {
     }
 }
 
-/// The proxy the environment names, for a tool dm runs under system
-/// settings: the tool reads the same variables itself, but a torrent's
-/// swarm needs it as an address. The first of the usual names that is set.
+/// The proxy the computer names, for a tool dm runs under system settings
+/// and for dm's own FTP and torrent connections, which need it as an
+/// address: the first of the usual environment variables that is set, then,
+/// on macOS, the network settings' SOCKS, HTTPS or HTTP proxy. `None` when
+/// the computer names none.
 fn system_proxy_url() -> Option<String> {
     [
         "ALL_PROXY",
@@ -265,6 +267,73 @@ fn system_proxy_url() -> Option<String> {
     .find_map(|name| std::env::var(name).ok())
     .map(|v| v.trim().to_string())
     .filter(|v| !v.is_empty())
+    .or_else(|| system_settings().and_then(|s| s.address))
+}
+
+/// Whether the computer has a proxy in force at all: an environment
+/// variable, or (macOS) a proxy, a configuration script or discovery turned
+/// on in the network settings. With none, dm's own connections go direct,
+/// as the computer's own programs do.
+pub fn system_proxy_in_force() -> bool {
+    system_proxy_url().is_some() || system_settings().is_some_and(|s| s.in_force)
+}
+
+/// What the computer's network settings say of proxies.
+#[derive(Debug, PartialEq, Eq)]
+struct Settings {
+    /// A SOCKS, HTTPS or HTTP proxy's address, in that order of choice.
+    address: Option<String>,
+    /// Any proxy kind, script or discovery turned on.
+    in_force: bool,
+}
+
+#[cfg(target_os = "macos")]
+fn system_settings() -> Option<Settings> {
+    let out = std::process::Command::new("/usr/sbin/scutil")
+        .arg("--proxy")
+        .stderr(std::process::Stdio::null())
+        .output()
+        .ok()?;
+    out.status
+        .success()
+        .then(|| read_scutil(&String::from_utf8_lossy(&out.stdout)))
+}
+
+#[cfg(not(target_os = "macos"))]
+fn system_settings() -> Option<Settings> {
+    None
+}
+
+/// `scutil --proxy`'s dictionary, read for its proxies.
+#[cfg_attr(not(target_os = "macos"), allow(dead_code))]
+fn read_scutil(text: &str) -> Settings {
+    let value = |key: &str| {
+        text.lines().find_map(|line| {
+            let (k, v) = line.trim().split_once(" : ")?;
+            (k == key).then(|| v.trim().to_string())
+        })
+    };
+    let on = |key: &str| value(key).as_deref() == Some("1");
+    let address = [("SOCKS", "socks5h"), ("HTTPS", "http"), ("HTTP", "http")]
+        .iter()
+        .find_map(|(kind, scheme)| {
+            if !on(&format!("{kind}Enable")) {
+                return None;
+            }
+            let host = value(&format!("{kind}Proxy")).filter(|h| !h.is_empty())?;
+            let port = value(&format!("{kind}Port"))?.parse::<u16>().ok()?;
+            Some(format!("{scheme}://{host}:{port}"))
+        });
+    let in_force = address.is_some()
+        || [
+            "FTPEnable",
+            "RTSPEnable",
+            "ProxyAutoConfigEnable",
+            "ProxyAutoDiscoveryEnable",
+        ]
+        .iter()
+        .any(|k| on(k));
+    Settings { address, in_force }
 }
 
 /// A client that honours these settings.
@@ -372,6 +441,47 @@ pub fn client_with_timeout(
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn the_mac_network_settings_are_read_for_a_proxy() {
+        // This Mac's own answer with no proxy: nothing in force.
+        let none = "<dictionary> {\n  ExceptionsList : <array> {\n    0 : *.local\n  }\n  FTPPassive : 1\n}\n";
+        assert_eq!(
+            read_scutil(none),
+            Settings {
+                address: None,
+                in_force: false
+            }
+        );
+        let socks = "<dictionary> {\n  HTTPEnable : 1\n  HTTPPort : 8080\n  HTTPProxy : web.example\n  SOCKSEnable : 1\n  SOCKSPort : 1080\n  SOCKSProxy : 10.0.0.2\n}\n";
+        assert_eq!(
+            read_scutil(socks).address.as_deref(),
+            Some("socks5h://10.0.0.2:1080")
+        );
+        let http = "<dictionary> {\n  HTTPEnable : 1\n  HTTPPort : 8080\n  HTTPProxy : web.example\n  SOCKSEnable : 0\n}\n";
+        assert_eq!(
+            read_scutil(http).address.as_deref(),
+            Some("http://web.example:8080")
+        );
+        // A script alone: in force, and no address dm's own connections could use.
+        let pac = "<dictionary> {\n  ProxyAutoConfigEnable : 1\n  ProxyAutoConfigURLString : http://wpad/wpad.dat\n}\n";
+        assert_eq!(
+            read_scutil(pac),
+            Settings {
+                address: None,
+                in_force: true
+            }
+        );
+        // Turned on with no host: not an address.
+        let half = "<dictionary> {\n  HTTPEnable : 1\n  HTTPPort : 8080\n}\n";
+        assert_eq!(
+            read_scutil(half),
+            Settings {
+                address: None,
+                in_force: false
+            }
+        );
+    }
+
     use super::*;
 
     #[test]

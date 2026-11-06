@@ -795,10 +795,19 @@ async fn a_bypassed_site_is_fetched_directly_and_an_https_proxy_is_refused() {
     );
 }
 
+/// Under "the computer's proxy settings" (a new install's default) on a
+/// computer that has no proxy, FTP goes direct, as the computer's own
+/// programs do: it was refused with "cannot send FTP through the computer's
+/// proxy settings" until 2026-11-06. Where a proxy is in force, the refusal
+/// is checked by `download::tests` (it reads the computer's settings).
 #[tokio::test]
-async fn under_the_computers_proxy_with_no_address_ftp_is_refused_not_sent_direct() {
+async fn under_the_computers_proxy_settings_with_no_proxy_ftp_goes_direct() {
+    if dm_core::system_proxy_in_force() {
+        eprintln!("this computer has a proxy in force: nothing to check");
+        return;
+    }
     let data = body(16 * 1024);
-    let (addr, server) = serve(data.clone(), Quirks::default()).await;
+    let (addr, _server) = serve(data.clone(), Quirks::default()).await;
     let dir = tempdir();
     let system = dm_core::Options {
         torrent: Default::default(),
@@ -807,27 +816,7 @@ async fn under_the_computers_proxy_with_no_address_ftp_is_refused_not_sent_direc
         proxy: None,
         ..options(dir.path())
     };
-    let outcome = download(&client(), &format!("ftp://{addr}/f.bin"), &system).await;
-    assert!(
-        matches!(&outcome, Err(Error::Internal(said)) if said.contains("computer's proxy")),
-        "{outcome:?}"
-    );
-    assert!(
-        server.starts.lock().unwrap().is_empty(),
-        "the server was reached directly"
-    );
-    // On the bypass list, it goes direct, as asked.
-    let dir = tempdir();
-    let bypassed = dm_core::Options {
-        proxy_bypass: vec!["127.0.0.1".into()],
-        ..system.clone()
-    };
-    let bypassed = dm_core::Options {
-        dest_dir: dir.path().join("out"),
-        parts_dir: dir.path().join("parts"),
-        ..bypassed
-    };
-    let done = download(&client(), &format!("ftp://{addr}/f.bin"), &bypassed)
+    let done = download(&client(), &format!("ftp://{addr}/f.bin"), &system)
         .await
         .unwrap();
     assert_eq!(std::fs::read(&done.path).unwrap(), data);

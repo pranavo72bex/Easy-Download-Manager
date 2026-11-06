@@ -172,6 +172,19 @@ pub struct HostLimit {
     pub connections: usize,
 }
 
+/// Whether a connection of dm's own is refused under the computer's proxy
+/// settings: they are chosen, they gave no address, the site is not
+/// bypassed, and the computer has a proxy in force (asked last, as it may
+/// run `scutil`).
+fn refuses_unrouted(
+    system: bool,
+    has_address: bool,
+    bypassed: bool,
+    in_force: impl FnOnce() -> bool,
+) -> bool {
+    system && !has_address && !bypassed && in_force()
+}
+
 impl Options {
     /// The attempts and the wait between them, as the retry loops take them.
     pub fn tries(&self) -> retry::Tries {
@@ -201,13 +214,21 @@ impl Options {
     /// Why a connection of dm's own (FTP, a torrent's swarm) to `url` may
     /// not be made: the computer's proxy is in force and names no address
     /// such a connection could use, and the site is not on the bypass list.
+    /// A computer with no proxy at all goes direct (it refused every FTP
+    /// download and torrent until 2026-11-06).
     pub fn no_route_through_system_proxy(&self, url: &str, what: &str) -> Option<String> {
         let bypassed = crate::proxy::Proxy {
             bypass: self.proxy_bypass.clone(),
             ..Default::default()
         }
         .bypasses(&category::host_of(url));
-        (self.system_proxy && self.proxy.is_none() && !bypassed).then(|| {
+        refuses_unrouted(
+            self.system_proxy,
+            self.proxy.is_some(),
+            bypassed,
+            crate::proxy::system_proxy_in_force,
+        )
+        .then(|| {
             format!(
                 "dm cannot send {what} through the computer's proxy settings, and does not go \
                  around them — name the proxy's address in Options › Advanced"
@@ -1184,6 +1205,28 @@ mod capped_tests;
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn under_the_computers_proxy_only_a_proxy_in_force_with_no_address_refuses() {
+        // A proxy in force (a configuration script alone) and no address: refused.
+        assert!(super::refuses_unrouted(true, false, false, || true));
+        // No proxy on the computer: direct.
+        assert!(!super::refuses_unrouted(true, false, false, || false));
+        // An address to go through, a bypassed site, or settings of dm's own:
+        // the computer is not asked.
+        for (system, address, bypassed) in [
+            (true, true, false),
+            (true, false, true),
+            (false, false, false),
+        ] {
+            assert!(!super::refuses_unrouted(
+                system,
+                address,
+                bypassed,
+                || panic!("asked")
+            ));
+        }
+    }
+
     #[test]
     fn a_ts_name_loses_its_extension_in_any_case() {
         assert_eq!(super::ts_stem("show.ts"), "show");
