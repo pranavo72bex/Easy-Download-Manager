@@ -969,12 +969,22 @@ async fn clearing_the_history_keeps_a_failed_row_and_its_parts() {
 
 /* ------------------------------------------------------------- schedule */
 
+/// A window that cannot contain the present moment, whenever it is run.
 fn closed_now() -> dm_core::Schedule {
-    // A window that cannot contain the present moment, whenever it is run.
+    closed_at(dm_core::weekday_now().1)
+}
+
+/// A window shut at `minute` past midnight and for hours after: one minute,
+/// twelve hours later. It was 00:00 to 00:01 whatever the time, which is open
+/// for the minute after midnight: a full suite that reached these tests then
+/// (the Windows session, 2026-11-07) ran what they hold, six failing at once.
+fn closed_at(minute: u32) -> dm_core::Schedule {
+    let from = (minute + 12 * 60) % (24 * 60);
+    let to = (from + 1) % (24 * 60);
     dm_core::Schedule {
         enabled: true,
-        from: "00:00".into(),
-        to: "00:01".into(),
+        from: format!("{:02}:{:02}", from / 60, from % 60),
+        to: format!("{:02}:{:02}", to / 60, to % 60),
         days: vec![],
         wake: false,
         when_done: String::new(),
@@ -982,6 +992,26 @@ fn closed_now() -> dm_core::Schedule {
         run_when_done: String::new(),
         once_at: None,
         force: false,
+    }
+}
+
+/// The schedule tests' shut window is shut whatever minute of the day they
+/// start at, and for the half hour a slow run may take, on every day.
+#[test]
+fn the_tests_shut_window_is_shut_at_every_minute_of_the_day() {
+    for start in 0..24 * 60 {
+        let shut = closed_at(start);
+        for later in 0..30 {
+            for day in 0..7 {
+                let minute = (start + later) % (24 * 60);
+                assert!(
+                    !shut.open_at(day, minute),
+                    "{} to {} is open at minute {minute} for a start at minute {start}",
+                    shut.from,
+                    shut.to
+                );
+            }
+        }
     }
 }
 
