@@ -12,13 +12,22 @@ members = ["crates/dm-core", "crates/dm-protocol", "crates/dm-shell", "crates/dm
 exclude = ["vendor/winit", "vendor/egui-winit"]
 
 [profile.release]
-opt-level = "s"
+opt-level = "z"
 lto = true
 codegen-units = 1
 strip = true
 
-# Sized for speed where the work is the CPU's: digests, unpacking, drawing
-# (docs/decisions.md, 2026-11-06). The rest waits on the network.
+# Built for speed where the work is the CPU's: dm's engine with its MP3, GIF
+# and resampling code ("z" made it three times as slow), digests, unpacking,
+# TLS, AAC decoding and drawing. The rest waits on the network or the window
+# and is built for size. Not dm-desktop: with LTO its setting becomes the
+# whole program's (at 3 the binary was 27 MB). docs/decisions.md, 2026-11-06.
+[profile.release.package.dm-core]
+opt-level = 3
+[profile.release.package.symphonia-codec-aac]
+opt-level = 3
+[profile.release.package.symphonia-core]
+opt-level = 3
 [profile.release.package.sha2]
 opt-level = 3
 [profile.release.package.md-5]

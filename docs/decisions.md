@@ -4228,3 +4228,24 @@ example rather than as the only place: 7(b) covers preserving attributions in
 the material and in legal notices, and a term beyond it could be removed by a
 recipient as a "further restriction" (section 7, last paragraphs). Releases
 up to desktop-v0.8.7 and extension v3.2.1 stay MIT for those who have them.
+
+## 2026-11-06: Release build at "z", with the CPU's work at 3
+
+Measured on this Mac (M-series), release builds, the same day:
+
+| Build | Binary | MP3 encode (test, best of 5) | 20,000 rows over the control port | Window (`hidden`) |
+|---|---|---|---|---|
+| all 3 (until today) | 25.9 MB | 0.17 s | | |
+| "s", digests/unpacking/TLS/drawing at 3 | 20.5 MB | 0.18 s | 0.27 s | 104 ms, list 0.11 s |
+| all "z" (same overrides) | 16.6 MB | 0.37 s | | |
+| **"z", and dm-core, symphonia at 3 too (chosen)** | **17.7 MB** | **0.13 s** | 0.47 s | 104 ms, list 0.11 s |
+| "z", dm-core, dm-shell and dm-desktop at 3 | 27.0 MB | | 0.30 s | |
+
+Throughput (`tests/throughput.rs`, two rounds each) and memory at rest
+(`memory-check.py`: 38.5 MB private against 38.8) were the same within
+noise. With fat LTO the binary crate's level applies to the merged program,
+so dm-desktop cannot be raised alone. Accepted: listing 20,000 rows over the
+control port (the command line, MCP) takes 0.2 s longer. Not done:
+`panic = "abort"` (the tray survives a panic with `catch_unwind`), jemalloc
+(no measured need), removing aws-lc-rs (the torrent library's every TLS
+option brings it or OpenSSL; it would need a patched copy for about 0.5 MB).
