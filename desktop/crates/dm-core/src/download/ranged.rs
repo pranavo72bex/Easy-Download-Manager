@@ -261,6 +261,10 @@ pub(super) async fn run(
                      * here, with the tries a connection alone gets. */
                     Err(e) if crate::retry::transient(&e) && !alone_again => {
                         alone_again = true;
+                        // Given back, so it is this range that is tried
+                        // again and not a fresh one taken in its place.
+                        crate::lock(&job.live[index]).taken = false;
+                        crate::lock(&orphans).push(index);
                         continue;
                     }
                     Err(e) => return Err(e),

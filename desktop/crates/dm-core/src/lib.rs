@@ -156,8 +156,8 @@ pub use clip::Span;
 pub use control::{Control, Wanted};
 
 pub use download::{
-    download, download_reporting, download_video_stream, free_name, free_space, names_a_document,
-    nth_free_name, Finished, HostLimit, Options, Room, Update,
+    download, download_reporting, free_name, free_space, names_a_document, nth_free_name, Finished,
+    HostLimit, Options, Room, Update,
 };
 
 pub use limit::Limiter;

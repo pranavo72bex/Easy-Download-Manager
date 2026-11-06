@@ -5,7 +5,8 @@
 //! Credential Manager keeps (2560 bytes a credential), so the file stays where it is and is sealed
 //! with a random key that the store holds: a copy of the whole home carries the file without the
 //! key. On macOS (the Keychain, through `security`) and Linux (the Secret Service, through
-//! `secret-tool`) the same is written but not yet proved on those systems (`tools` below). Where
+//! `secret-tool`) the same is written, proved against a real store by the tests of `tools` below;
+//! the installed app's own use is checked at the final QA (gaps row 39). Where
 //! there is no store or it cannot be used, the file is written in clear as it always was, and the
 //! queue says so once.
 //!

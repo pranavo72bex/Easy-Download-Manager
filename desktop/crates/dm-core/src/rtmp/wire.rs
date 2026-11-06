@@ -170,5 +170,3 @@ impl<R: AsyncRead + Unpin> Reader<R> {
         }
     }
 }
-
-// ---- what is recorded ---------------------------------------------------

@@ -1699,6 +1699,88 @@ async fn serve_stalled_counting() -> (SocketAddr, Arc<AtomicUsize>, Arc<Open>) {
 }
 
 #[tokio::test]
+async fn a_row_resumed_while_retrying_starts_its_new_run_without_the_old_retry() {
+    /* The old run's "retrying, attempt N" outlived a pause and a resume: the
+     * row showed it on a run that had not failed, and the queue counted the
+     * row as lending its place, so one more than the limit could start. */
+    use axum::http::HeaderMap;
+    use std::sync::atomic::AtomicBool;
+    let failing = Arc::new(AtomicBool::new(true));
+    let ranges = Arc::new(AtomicUsize::new(0));
+    let (fail, asked) = (Arc::clone(&failing), Arc::clone(&ranges));
+    let app = axum::Router::new().fallback(axum::routing::get(move |headers: HeaderMap| {
+        let (fail, asked) = (Arc::clone(&fail), Arc::clone(&asked));
+        async move {
+            let range = headers
+                .get("range")
+                .and_then(|r| r.to_str().ok())
+                .unwrap_or("")
+                .to_string();
+            if range == "bytes=0-0" {
+                return Response::builder()
+                    .status(206)
+                    .header("content-range", "bytes 0-0/1000000")
+                    .body(axum::body::Body::from(vec![0u8]))
+                    .unwrap();
+            }
+            asked.fetch_add(1, Ordering::SeqCst);
+            if fail.load(Ordering::SeqCst) {
+                return Response::builder()
+                    .status(503)
+                    .body(axum::body::Body::empty())
+                    .unwrap();
+            }
+            // Answered, and then nothing: a run that has not failed.
+            Response::builder()
+                .status(206)
+                .header("content-range", "bytes 0-999999/1000000")
+                .body(axum::body::Body::from_stream(
+                    futures_util::stream::pending::<Result<bytes::Bytes, std::io::Error>>(),
+                ))
+                .unwrap()
+        }
+    }));
+    let addr = common::serve(app).await;
+    let dir = tempdir();
+    let q = queue(dir.path(), 1);
+    let id = q.add(&format!("http://{addr}/f.bin")).await.unwrap();
+    {
+        let q = q.clone();
+        tokio::spawn(async move { q.run().await });
+    }
+    let retrying = async {
+        while !q.retrying().await.contains_key(&id) {
+            tokio::time::sleep(Duration::from_millis(20)).await;
+        }
+    };
+    tokio::time::timeout(Duration::from_secs(10), retrying)
+        .await
+        .expect("the row never said it was retrying");
+
+    failing.store(false, Ordering::SeqCst);
+    q.pause(id).await;
+    let before = ranges.load(Ordering::SeqCst);
+    q.resume(id).await;
+    let started_again = async {
+        while ranges.load(Ordering::SeqCst) <= before
+            || q.get(id).await.unwrap().state != DownloadState::Running
+        {
+            tokio::time::sleep(Duration::from_millis(20)).await;
+        }
+    };
+    tokio::time::timeout(Duration::from_secs(10), started_again)
+        .await
+        .expect("the resumed row was never started again");
+    tokio::time::sleep(Duration::from_millis(300)).await;
+    assert!(
+        !q.retrying().await.contains_key(&id),
+        "the new run carries the old run's retry: {:?}",
+        q.retrying().await.get(&id)
+    );
+    q.cancel(id).await;
+}
+
+#[tokio::test]
 async fn a_resumed_row_waits_for_its_previous_run_to_stop_before_starting_again() {
     /* A pause is recorded the moment it is asked for; the task honours it a
      * moment later. A resume in between used to start a second task on the
@@ -1805,6 +1887,27 @@ async fn an_unreadable_queue_file_is_kept_aside_and_said_rather_than_overwritten
     assert!(problems[0].contains("could not be read"), "{problems:?}");
     // Said once: asking again reports nothing new.
     assert!(q.problems().is_empty());
+}
+
+#[tokio::test]
+async fn a_queue_file_that_is_not_text_is_kept_aside_too() {
+    /* Only a file that read as text and failed to parse was kept aside; one
+     * that could not be read as text at all was taken for no file, and the
+     * first save wrote the empty list over it. */
+    let dir = tempdir();
+    let store = dir.path().join("queue.json");
+    let damaged = b"[{\"id\": 1, \"url\": \"http://e.com/\xff\"}]".to_vec();
+    std::fs::write(&store, &damaged).unwrap();
+
+    let q = queue(dir.path(), 1);
+    q.persist_to(store.clone()).await;
+
+    let kept = std::fs::read(dir.path().join("queue.json.unreadable"))
+        .expect("the damaged queue was not kept aside");
+    assert_eq!(kept, damaged);
+    let problems = q.problems();
+    assert_eq!(problems.len(), 1, "{problems:?}");
+    assert!(problems[0].contains("could not be read"), "{problems:?}");
 }
 
 #[tokio::test]

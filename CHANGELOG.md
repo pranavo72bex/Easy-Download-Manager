@@ -5,6 +5,11 @@ the browser extension (`v*` tags) are versioned separately.
 
 ## Unreleased
 
+- Fixed (engine): a download's connection left alone after the others stepped aside, on running out of tries, took a new range and left the failed one unfetched; it now tries that same range again, as its comment always said.
+- Fixed (engine): a Metalink whose mirror stopped answering between the first try and the one-mirror-at-a-time tries crashed the download's workers ("task panicked"); that try now fails as any other and the next mirror is tried.
+- Fixed: a saved queue file that could not be read as text (one damaged byte) was taken for no file, and the first save wrote the empty list over it; it is kept aside as `queue.json.unreadable` and said, as an unparsable one already was.
+- Fixed: a download paused and resumed while it was retrying kept the old run's "retrying, attempt N" on its new run, and the queue counted it as lending its place, so one more than the limit could start.
+- Fixed (media): numbers from a page or a downloaded file that no real picture has (a height in the hundreds of millions, a WebM's padding of days, an MP4 index past its end, a picture or sound claiming more than 1 TiB) are refused or saturated rather than overflowing; an MP4 whose index points past its end is refused by every reader, not only the joiner.
 - Fixed (browser panel): on a site whose rules read a page's own API answers, an answer the page fetched before the extension's content script had run (the first one, on a feed) was missed; it is kept and read once the rules arrive (gaps row 69).
 - The queue column's heading is the queue's list mark (as in the side panel), named "Queue" on hover and in the columns menu, where it said "Q", which read as a search icon.
 - Torrents: encrypted peer connections (BitTorrent's MSE/PE). A peer that takes only encrypted connections, which refused dm before, is now asked again encrypted; one that connects encrypted is answered (gaps row 150).

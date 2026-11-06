@@ -281,7 +281,7 @@ pub(super) fn plain_samples(stbl: &[u8]) -> Result<Vec<Sample>, String> {
                 cts: 0,
                 sync: syncs.is_none(),
             });
-            at += u64::from(*size);
+            at = at.saturating_add(u64::from(*size));
         }
     }
     let mut durations = times
@@ -452,7 +452,7 @@ pub(super) fn read_fragment(
                     },
                     sync: is_sync(sample_flags),
                 });
-                next += u64::from(size);
+                next = next.saturating_add(u64::from(size));
             }
         }
         follows = next;

@@ -12,13 +12,6 @@ impl Queue {
         self.inner.concurrency.load(Ordering::Relaxed)
     }
 
-    /// Changes how many may run at once.
-    ///
-    /// Lowering it does not stop anything already running — a setting that
-    /// killed transfers to obey itself would lose bytes to a preference.
-    /// The excess drains as those finish.
-    /// How many files each named queue runs at once, where fewer than the
-    /// whole queue's limit; unnamed queues run up to that limit.
     /// Named queues to start on their own each day, at a minute past local
     /// midnight. Which already started today is kept across a change.
     pub fn set_queue_starts(&self, starts: Vec<(String, u32)>) {
@@ -47,7 +40,8 @@ impl Queue {
         due
     }
 
-    /// Sets how many downloads each named queue may run at once.
+    /// Sets how many downloads each named queue may run at once, where fewer
+    /// than the whole queue's limit; unnamed queues run up to that limit.
     pub fn set_queue_limits(&self, limits: HashMap<String, usize>) {
         *crate::lock(&self.inner.queue_limits) = limits
             .into_iter()
@@ -63,6 +57,10 @@ impl Queue {
     }
 
     /// Sets how many downloads may run at once.
+    ///
+    /// Lowering it does not stop anything already running — a setting that
+    /// killed transfers to obey itself would lose bytes to a preference.
+    /// The excess drains as those finish.
     pub fn set_concurrency(&self, limit: usize) {
         self.inner
             .concurrency

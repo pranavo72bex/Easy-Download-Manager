@@ -317,6 +317,49 @@ async fn a_file_of_unknown_length_downloads() {
 }
 
 #[tokio::test]
+async fn a_lone_connection_that_runs_out_of_tries_fails_the_download() {
+    /* A server that cuts the only connection and then refuses every try:
+     * the download fails with the server's own answer, not as a short file
+     * or a finished one. */
+    let hits = Arc::new(AtomicUsize::new(0));
+    let counted = hits.clone();
+    let app = axum::Router::new().route(
+        "/f.bin",
+        get(move |h: HeaderMap| {
+            let n = counted.fetch_add(1, Ordering::SeqCst);
+            async move {
+                let resp = ranged(&body(100_000, 4), "\"v1\"", &h);
+                if n > 0 {
+                    return Response::builder().status(503).body(Body::empty()).unwrap();
+                }
+                let (parts, b) = resp.into_parts();
+                let bytes = axum::body::to_bytes(b, usize::MAX).await.unwrap();
+                let s = futures_util::stream::iter(vec![
+                    Ok::<_, std::io::Error>(bytes.slice(..1000)),
+                    Err(std::io::Error::other("dropped")),
+                ]);
+                Response::from_parts(parts, Body::from_stream(s))
+            }
+        }),
+    );
+    let addr = serve(app).await;
+    let dir = tempdir();
+    let mut options = options(dir.path());
+    options.connections = 1;
+    options.attempts = 2;
+    let outcome = download(&client(), &format!("http://{addr}/f.bin"), &options).await;
+    assert!(
+        matches!(outcome, Err(dm_core::Error::Refused { status: 503, .. })),
+        "not the server's own refusal: {:?}",
+        outcome.map(|d| d.path)
+    );
+    assert!(
+        hits.load(Ordering::SeqCst) > 2,
+        "the range was not asked for again"
+    );
+}
+
+#[tokio::test]
 async fn a_connection_dropped_mid_range_is_retried() {
     /* A dropped body surfaces as a decode/body error, which was not counted
      * as transient: one reset on one of eight ranges failed the download. */

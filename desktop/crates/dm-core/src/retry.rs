@@ -84,10 +84,9 @@ fn untrusted_certificate(error: &reqwest::Error) -> bool {
 
 /// How long to wait before attempt `attempt` (zero-based).
 ///
-/// Exponential, capped, and jittered. The jitter matters more than it looks:
-/// every connection of a segmented download fails at the same instant when a
-/// server goes down, and without it they would all come back at the same
-/// instant too, which is how a struggling server is kept struggling.
+/// Exponential, capped, and jittered by the attempt number, so successive
+/// waits differ. The jitter is not per connection: connections that fail
+/// together at the same attempt wait the same time.
 pub fn backoff(attempt: u32, retry_after: Option<Duration>) -> Duration {
     // A server that said how long to wait is believed, within reason — an
     // hour-long Retry-After is not something to sit in. Believed as the least
@@ -112,8 +111,7 @@ pub fn backoff(attempt: u32, retry_after: Option<Duration>) -> Duration {
     // good.
     let capped = base.min(Duration::from_secs(if attempt < 5 { 8 } else { 15 }));
 
-    // Deterministic jitter from the attempt number: no RNG dependency, and
-    // enough spread to break the lockstep.
+    // Deterministic jitter from the attempt number: no RNG dependency.
     let jitter = Duration::from_millis(u64::from(attempt) * 137 % 400);
     capped + jitter
 }
@@ -291,8 +289,8 @@ fn schedule_reached(failing: Duration, limit: u32) -> u32 {
 }
 
 /// The wait before quick attempt `n` (the first is 1): none, then a
-/// quarter, a half and a whole second, then two seconds apart, spread a
-/// little so that connections do not come back in step.
+/// quarter, a half and a whole second, then two seconds apart, each a
+/// little longer by the attempt number.
 fn quick_nap(n: u32) -> Duration {
     const STEPS_MS: [u64; 5] = [0, 250, 500, 1000, 2000];
     let step = STEPS_MS[(n.saturating_sub(1) as usize).min(STEPS_MS.len() - 1)];
@@ -303,8 +301,8 @@ fn quick_nap(n: u32) -> Duration {
 /// As [`run`], with the number of attempts a setting rather than a
 /// constant: a person on a link that drops for minutes at a time wants
 /// more than five, and one who asked for "keep trying" (zero) wants no
-/// end but a pause or a cancel. The backoff stops growing at half a
-/// minute, so an endless retry asks about twice a minute.
+/// end but a pause or a cancel. The backoff stops growing at fifteen
+/// seconds (`backoff`), so an endless retry asks about four times a minute.
 pub async fn run_up_to<F, Fut, T>(
     control: &Control,
     attempts: impl Into<Tries>,
@@ -548,9 +546,8 @@ mod tests {
     }
 
     #[test]
-    fn connections_do_not_all_come_back_at_once() {
-        // Same attempt number on different segments still shares a delay, but
-        // across attempts the spread is what breaks the lockstep.
+    fn successive_attempts_wait_different_times() {
+        // Same attempt number on different segments still shares a delay.
         let delays: Vec<_> = (0..4).map(|a| backoff(a, None)).collect();
         assert!(
             delays.windows(2).all(|w| w[0] != w[1]),

@@ -877,7 +877,10 @@ fn opus_shown(samples: &[crate::mp4mux::Sample], pre_skip: u16, last: Option<&Bl
     if padding_ns <= 0 {
         return 0;
     }
-    let padding = u64::try_from(padding_ns).unwrap_or(0) * 48_000 / 1_000_000_000;
+    let padding = u64::try_from(padding_ns)
+        .unwrap_or(0)
+        .saturating_mul(48_000)
+        / 1_000_000_000;
     let all: u64 = samples.iter().map(|s| u64::from(s.duration)).sum();
     all.saturating_sub(u64::from(pre_skip))
         .saturating_sub(padding)
@@ -987,7 +990,9 @@ pub(crate) fn mp4_tracks(path: &Path, input: usize) -> Result<Vec<crate::mp4mux:
                 let mut samples = Vec::with_capacity(blocks.len());
                 for (i, b) in blocks.iter().enumerate() {
                     let next = blocks.get(i + 1).map(|n| ms(n));
-                    let duration = next.map_or(0, |n| (n - ms(b)).max(0)) as u32;
+                    let duration = next.map_or(0, |n| {
+                        u32::try_from(n.saturating_sub(ms(b)).max(0)).unwrap_or(u32::MAX)
+                    });
                     samples.push(Sample {
                         offset: b.data_at,
                         size: b.data_len as u32,
@@ -1077,7 +1082,9 @@ pub(crate) fn mp4_tracks(path: &Path, input: usize) -> Result<Vec<crate::mp4mux:
                     }],
                     edits_timescale: 48_000,
                     samples,
-                    start: blocks.first().map(|b| (ms(b).max(0) as u64) * 48),
+                    start: blocks
+                        .first()
+                        .map(|b| (ms(b).max(0) as u64).saturating_mul(48)),
                 });
             }
             other => return Err(format!("dm does not put {other} into an MP4")),
@@ -1128,7 +1135,9 @@ mod tests {
             let mut file = element(EBML, &[]);
             file.extend(&data);
             std::fs::write(&path, &file).unwrap();
-            let _ = join(&[path], &dir.path().join("out.webm"));
+            let _ = join(std::slice::from_ref(&path), &dir.path().join("out.webm"));
+            // The reader that puts a WebM's tracks into an MP4.
+            let _ = mp4_tracks(&path, 0);
         }
     }
 }

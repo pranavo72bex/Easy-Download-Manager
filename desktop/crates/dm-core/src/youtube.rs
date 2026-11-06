@@ -1382,12 +1382,18 @@ async fn solver_scripts(client: &reqwest::Client) -> Result<(String, String), Er
 /// Runs `program` in QuickJS (the one dm fetched, or one installed) or in
 /// an installed Deno, and gives what it printed.
 async fn run_js(program: &str, staging: &Path) -> Result<String, Error> {
+    // Why QuickJS could not be fetched, kept for the failure that follows.
+    let mut not_fetched = None;
     let quickjs = match crate::videopage::quickjs() {
         Some(found) => Some(found),
         None if crate::videopage::deno().is_none() => {
-            crate::tools::ensure(&crate::client(), crate::tools::Tool::QuickJs)
-                .await
-                .ok()
+            match crate::tools::ensure(&crate::client(), crate::tools::Tool::QuickJs).await {
+                Ok(fetched) => Some(fetched),
+                Err(e) => {
+                    not_fetched = Some(e);
+                    None
+                }
+            }
         }
         None => None,
     };
@@ -1422,9 +1428,12 @@ async fn run_js(program: &str, staging: &Path) -> Result<String, Error> {
             c
         }
         (None, None) => {
-            return Err(Error::Internal(
-                "no JavaScript engine to run the player's challenges in".into(),
-            ))
+            let why = not_fetched.map_or(String::new(), |e| {
+                format!(" (QuickJS could not be fetched: {e})")
+            });
+            return Err(Error::Internal(format!(
+                "no JavaScript engine to run the player's challenges in{why}"
+            )));
         }
     };
     crate::no_window_async(&mut command);

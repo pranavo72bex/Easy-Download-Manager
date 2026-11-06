@@ -144,5 +144,3 @@ pub(super) fn amf_value(data: &[u8], at: &mut usize, depth: u32) -> Option<Amf> 
         _ => return None,
     })
 }
-
-// ---- the chunk stream ---------------------------------------------------

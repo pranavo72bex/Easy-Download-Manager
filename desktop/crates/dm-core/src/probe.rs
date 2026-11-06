@@ -278,7 +278,7 @@ pub fn reserved_on_windows(name: &str) -> bool {
 }
 
 /// An extension for a URL that ends in a bare path, from what the server said
-/// it was sending. Matches `MIME_EXTENSION` in `naming.js`.
+/// it was sending.
 const BY_MIME: &[(&str, &str)] = &[
     ("application/pdf", ".pdf"),
     ("application/zip", ".zip"),
@@ -309,9 +309,8 @@ const BY_MIME: &[(&str, &str)] = &[
 /// anything that looks like one is reduced to its final component, so a name
 /// cannot place the file somewhere it was not meant to go.
 ///
-/// The rules are `naming.js`'s, and `shared/naming-cases.json` holds them to
-/// it: the same download saved under two names depending on which half of the
-/// product took it is a bug people report as a lost file.
+/// `shared/naming-cases.json` holds the rules (the extension named files by
+/// the same cases when it was JavaScript; it now leaves naming to dm).
 pub fn filename_for(disposition: Option<&str>, url: &str, content_type: Option<&str>) -> String {
     if let Some(value) = disposition {
         if let Some(name) = from_disposition(value) {
@@ -523,8 +522,7 @@ fn keep_login(asked: &str, landed: &url::Url) -> String {
 /// `https://e.com/`, which is a hostname saved as a filename.
 ///
 /// Empty segments are skipped after that, so a URL ending in a slash falls
-/// back to the segment before it — `/downloads/report/` names something, and
-/// `naming.js` has always read it that way.
+/// back to the segment before it — `/downloads/report/` names something.
 fn last_path_segment(url: &str) -> &str {
     let without_query = url.split(['?', '#']).next().unwrap_or(url);
     let path = match without_query.split_once("://") {
@@ -560,12 +558,11 @@ mod tests {
 
     use super::*;
 
-    /* The cases live in `shared/naming-cases.json` and the extension's suite
-     * reads the same file. The two halves of the product were naming the same
-     * download differently — no reserved names here, truncation that cut the
-     * extension off, no MIME fallback — and a rule added to one and not the
-     * other is exactly the sort of thing nobody notices until a file is
-     * missing. Now it fails in whichever language lacks it. */
+    /* The cases live in `shared/naming-cases.json`. They were written when
+     * the extension (then JavaScript) named files too and the two halves
+     * named the same download differently — no reserved names here,
+     * truncation that cut the extension off, no MIME fallback; the extension
+     * now leaves naming to dm, and the file holds dm to the same cases. */
     #[test]
     fn the_naming_rules_are_the_same_as_the_extension_s() {
         let cases: serde_json::Value =

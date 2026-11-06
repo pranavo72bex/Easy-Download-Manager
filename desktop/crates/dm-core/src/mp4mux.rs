@@ -88,7 +88,23 @@ pub(crate) fn tracks_in_file(path: &Path) -> Result<Vec<Track>, String> {
         .metadata()
         .map_err(|e| format!("{} could not be read: {e}", path.display()))?
         .len();
-    read_input(&mut file, length, 0)
+    let tracks = read_input(&mut file, length, 0)?;
+    within(&tracks, length, path)?;
+    Ok(tracks)
+}
+
+/// Refuses tracks whose index points past the end of the file they were
+/// read from: every reader seeks and sizes its buffers by those numbers.
+fn within(tracks: &[Track], length: u64, path: &Path) -> Result<(), String> {
+    let past = tracks.iter().flat_map(|t| &t.samples).any(|s| {
+        s.offset
+            .checked_add(u64::from(s.size))
+            .is_none_or(|end| end > length)
+    });
+    if past {
+        return Err(format!("{} is cut short", path.display()));
+    }
+    Ok(())
 }
 
 /// Joins `inputs`' tracks into one MP4 at `out`. Returns its length.
@@ -134,18 +150,7 @@ pub fn join_cut(
             read_input(&mut file, length, index)
         }
         .map_err(|e| format!("{} is not an MP4 dm can join: {e}", path.display()))?;
-        for track in &read {
-            if let Some(end) = track
-                .samples
-                .iter()
-                .map(|s| s.offset + u64::from(s.size))
-                .max()
-            {
-                if end > length {
-                    return Err(format!("{} is cut short", path.display()));
-                }
-            }
-        }
+        within(&read, length, path)?;
         tracks.extend(read.into_iter().filter(|t| !t.samples.is_empty()));
         files.push(file);
     }

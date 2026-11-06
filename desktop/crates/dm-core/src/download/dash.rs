@@ -235,7 +235,20 @@ async fn total_of(client: &reqwest::Client, url: &str, options: &Options) -> Res
         .and_then(|n| n.trim().parse::<u64>().ok())
         .filter(|n| *n > 0)
         .ok_or_else(|| Error::Internal(format!("{url} did not say how long it is")))
+        .and_then(|n| {
+            // The file is cut into a list of requests by this number before
+            // a byte arrives: one past any real picture or sound is refused.
+            if n > TRACK_MOST {
+                return Err(Error::Internal(format!(
+                    "{url} says it is {n} bytes long, more than a video's picture or sound is"
+                )));
+            }
+            Ok(n)
+        })
 }
+
+/// The longest picture or sound fetched apart that is believed: 1 TiB.
+const TRACK_MOST: u64 = 1 << 40;
 
 /// The tracks fetched, gathered one file each, and joined into the file
 /// named `filename`, placed where downloads go. `signature` says what is
@@ -913,5 +926,35 @@ mod tests {
             .await
             .unwrap_err();
         assert!(err.to_string().contains("byte ranges"), "{err}");
+    }
+
+    #[tokio::test]
+    async fn a_sound_that_claims_a_length_past_any_real_one_is_refused() {
+        /* The claimed length was cut into a request per piece before any
+         * byte arrived: a one-line header could ask for tens of gigabytes. */
+        let dir = tempfile::tempdir().unwrap();
+        let (video, _) = fragmented(dir.path(), "v.mp4", 2);
+        let app = axum::Router::new()
+            .route("/p/picture", ranged(std::fs::read(video).unwrap(), true))
+            .route(
+                "/p/sound",
+                axum::routing::get(|| async {
+                    axum::response::Response::builder()
+                        .status(206)
+                        .header("content-range", format!("bytes 0-0/{}", u64::MAX))
+                        .body(axum::body::Body::from(vec![0u8]))
+                        .unwrap()
+                }),
+            );
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let addr = listener.local_addr().unwrap();
+        tokio::spawn(async move { axum::serve(listener, app).await.unwrap() });
+        let mut options = options(dir.path());
+        options.sound = Some(format!("http://{addr}/p/sound"));
+        let url = format!("http://{addr}/p/picture");
+        let err = crate::download::download(&reqwest::Client::new(), &url, &options)
+            .await
+            .unwrap_err();
+        assert!(err.to_string().contains("bytes long"), "{err}");
     }
 }

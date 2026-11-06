@@ -164,12 +164,13 @@ pub(crate) fn shown_label(built: &str, ext: &str, height: u32) -> String {
 /// longer side's 16:9 height, snapped to the nearest of 144p ... 4K, 8K
 /// (3840x2026 is 4K, a portrait 720x1280 is 720p); else its own lines.
 pub fn class_name(width: u32, height: u32) -> String {
+    // In u64: the sides come from a page's own numbers, which can be any.
     let (short, long) = if width == 0 {
-        (height, height * 16 / 9)
+        (u64::from(height), u64::from(height) * 16 / 9)
     } else {
-        (width.min(height), width.max(height))
+        (u64::from(width.min(height)), u64::from(width.max(height)))
     };
-    let value = f64::from(short.max(long * 9 / 16));
+    let value = short.max(long * 9 / 16) as f64;
     let classes = [144u32, 240, 360, 480, 720, 1080, 1440, 2160, 4320];
     let nearest = classes
         .iter()
@@ -274,5 +275,8 @@ mod mp3_tests {
         assert_eq!(class_name(0, 720), "720p");
         // Nothing near a class: its own lines.
         assert_eq!(class_name(1000, 900), "900p");
+        // A page's numbers out of all proportion: named, not a panic.
+        assert_eq!(class_name(0, u32::MAX), format!("{}p", u32::MAX));
+        assert_eq!(class_name(u32::MAX, u32::MAX), format!("{}p", u32::MAX));
     }
 }

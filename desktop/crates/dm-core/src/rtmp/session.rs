@@ -57,7 +57,6 @@ pub async fn record(
     let mut recorder = Recorder::new(part);
     let mut window: Option<u64> = None;
     let mut acked = 0u64;
-    let mut playing = false;
     let ended = loop {
         let next = tokio::select! {
             m = tokio::time::timeout(Duration::from_secs(30), reader.message()) => m,
@@ -174,7 +173,6 @@ pub async fn record(
                             .and_then(Amf::text)
                             .unwrap_or("");
                         match code {
-                            "NetStream.Play.Start" | "NetStream.Play.Reset" => playing = true,
                             "NetStream.Play.Stop"
                             | "NetStream.Play.Complete"
                             | "NetStream.Play.UnpublishNotify" => break Ended::Over,
@@ -220,7 +218,6 @@ pub async fn record(
             }
             _ => {}
         }
-        let _ = playing;
         downloaded.store(recorder.written(), Ordering::Relaxed);
     };
     let written = recorder.finish()?;

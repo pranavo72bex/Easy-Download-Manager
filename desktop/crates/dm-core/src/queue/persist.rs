@@ -44,14 +44,22 @@ impl Queue {
     /// destroyed every queue on first launch, and the parts those rows
     /// pointed at were orphaned for good. It is moved aside and said.
     pub(super) async fn restore(&self, path: &std::path::Path) -> Result<(), String> {
-        let Ok(text) = std::fs::read_to_string(path) else {
-            return Ok(());
+        // Only a file that is not there is no queue: one that is there and
+        // cannot be read, or is not text, is kept aside as a bad one is.
+        let read = match std::fs::read(path) {
+            Err(e) if e.kind() == std::io::ErrorKind::NotFound => return Ok(()),
+            read => read.map_err(|e| e.to_string()),
         };
         let secrets = self.read_secrets(path);
-        let entries = match serde_json::from_str::<Vec<Entry>>(&text) {
+        let parsed = read.and_then(|text| {
+            serde_json::from_slice::<Vec<Entry>>(&text)
+                .map(|entries| (text, entries))
+                .map_err(|e| e.to_string())
+        });
+        let entries = match parsed {
             // With what changed since, where the journal was written over
             // this very file (`journal`).
-            Ok(entries) => super::journal::replayed(path, text.as_bytes(), entries),
+            Ok((text, entries)) => super::journal::replayed(path, &text, entries),
             Err(e) => {
                 let aside = path.with_extension("json.unreadable");
                 return match std::fs::rename(path, &aside) {

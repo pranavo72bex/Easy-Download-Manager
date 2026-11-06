@@ -35,13 +35,14 @@ mod recheck;
 mod runner;
 mod settings;
 
-/// Seconds since the epoch, for the history a finished row becomes.
+/// Milliseconds since the epoch, for the recheck clock.
 fn now_millis() -> u64 {
     std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
         .map_or(0, |d| d.as_millis() as u64)
 }
 
+/// Seconds since the epoch, for the history a finished row becomes.
 fn now_seconds() -> u64 {
     std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
@@ -276,8 +277,6 @@ pub struct Connection {
     pub second: bool,
 }
 
-/// What a row is added with, beyond its address: what the "Download details"
-/// dialog asks before a download starts.
 impl Entry {
     /// Seconds until "Delete file after" is due for this row, as of `now`
     /// (Unix seconds): 0 once it is; `None` for a row with none, or one not
@@ -292,7 +291,8 @@ impl Entry {
     }
 }
 
-/// What a caller may say when it adds a download.
+/// What a caller may say when it adds a download: beyond its address, what
+/// the "Download details" dialog asks before a download starts.
 #[derive(Debug, Clone, Default)]
 pub struct AddOptions {
     /// The page the link was found on, where known.
@@ -432,6 +432,8 @@ impl Slot {
         self.entry_mut().stalled.clear();
         self.entry_mut().fresh_link = false;
         self.outside_schedule = false;
+        // About the run this one replaces.
+        self.retrying = None;
     }
 }
 

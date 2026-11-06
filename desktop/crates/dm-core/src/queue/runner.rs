@@ -348,6 +348,7 @@ impl Queue {
             let (tx, mut rx) = tokio::sync::mpsc::channel(32);
             let watcher = {
                 let queue = queue.clone();
+                let this_run = ran_with.clone();
                 tokio::spawn(async move {
                     // What this run has reported so far, from what it found.
                     let mut reported: Option<u64> = staged;
@@ -411,7 +412,9 @@ impl Queue {
                                 wait,
                             } => {
                                 let now = slot.retrying.as_ref().map_or(0, |(a, _, _, _)| *a);
-                                if attempt >= now {
+                                // Not a run the row has been put back in
+                                // line since: its retry is not the row's.
+                                if attempt >= now && slot.control.is(&this_run) {
                                     slot.retrying =
                                         Some((attempt, of, why, std::time::Instant::now() + wait));
                                 }

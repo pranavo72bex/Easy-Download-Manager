@@ -442,18 +442,6 @@ pub(crate) struct StreamHints {
     pub chunk: Option<u64>,
 }
 
-/// [`download_reporting`] for one stream of a video page (`videopage::fetch`):
-/// the address is the file, so what the server refuses, or answers with a
-/// page, is that stream's failure.
-pub async fn download_video_stream(
-    client: &reqwest::Client,
-    url: &str,
-    options: &Options,
-    report: Option<tokio::sync::mpsc::Sender<Update>>,
-) -> Result<Finished, Error> {
-    download_video_stream_with(client, url, options, report, StreamHints::default()).await
-}
-
 /// Headers a video site's reading gives for one stream (`http_headers`),
 /// kept for that stream's requests alone.
 ///
@@ -531,7 +519,9 @@ pub(crate) fn stream_headers() -> Headers {
         .unwrap_or_default()
 }
 
-/// [`download_video_stream`] for a stream the reading says how to ask for.
+/// [`download_reporting`] for one stream of a video page (`videopage::fetch`),
+/// asked for as its reading says: the address is the file, so what the
+/// server refuses, or answers with a page, is that stream's failure.
 pub(crate) async fn download_video_stream_with(
     client: &reqwest::Client,
     url: &str,
@@ -553,7 +543,8 @@ fn is_stream() -> bool {
     STREAM.try_with(|()| ()).is_ok()
 }
 
-/// Downloads `url` into the folder in `options`, reporting through `updates`; returns what came of it.
+/// Downloads `url` into the folder in `options` and returns what came of it;
+/// [`download_reporting`] also reports progress as it goes.
 pub async fn download(
     client: &reqwest::Client,
     url: &str,
@@ -956,7 +947,16 @@ async fn fetch_reporting(
 
         let _ = MIRRORS.try_with(|n| n.store(mirrors.len(), Ordering::SeqCst));
         sources = match ONLY_MIRROR.try_with(|only| *only) {
-            Ok(only) => mirrors.get(only).cloned().into_iter().collect(),
+            // The mirror counted on the first try may have stopped answering,
+            // or stopped agreeing, since: that try fails as any other.
+            Ok(only) => match mirrors.get(only) {
+                Some(mirror) => vec![mirror.clone()],
+                None => {
+                    return Err(Error::Connection(
+                        "that mirror no longer answers, or no longer agrees about the file".into(),
+                    ))
+                }
+            },
             Err(_) => mirrors,
         };
         info = agreed;
