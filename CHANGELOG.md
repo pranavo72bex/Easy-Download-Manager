@@ -5,6 +5,7 @@ the browser extension (`v*` tags) are versioned separately.
 
 ## Unreleased
 
+- Windows: dm's memory at rest measured on Windows 11 (working set 64 to 76 MB, private bytes 30.5 MB, 25 threads, about 480 handles) and `scripts/memory-check.py`'s Windows budget set from it, as on macOS: 100 MB working set, 40 MB private (gaps row 137).
 - Windows: a download held by the schedule or the download limit, the window in the tray or minimized, and three progress windows open at once all behave on Windows as on macOS and Linux (`scripts/stress-check.py holds hidden details`, 41 checks; calls answered within 106 ms out of sight, the list current 0.11 s after it is shown; gaps row 24).
 - Windows: the whole behaviour contract holds on Windows, 64 rows of 64 in `scripts/human-qa.py` in a visible window, with Microsoft Edge and a real YouTube video (gaps row 141). Its browser check ended when YouTube's page went to another document while it was being asked something, and every check after it went unrun; a question cut short so is now asked again.
 - Windows: the whole test suite passes on a four-core Windows computer, three times with four test threads and three times in full (1468 tests; gaps row 115). What failed now and then were the tests, not dm: the schedule tests' "always shut" window was open the minute after midnight; the torrent sharing test's first seeder was only dropped and went on serving; a click in Download details landed before a video's qualities had laid it out again.

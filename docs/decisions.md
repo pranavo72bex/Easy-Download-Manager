@@ -4337,3 +4337,18 @@ a 768-bit group hides BitTorrent from simple traffic shaping and reaches the
 peers that insist on it; it is not strong encryption, and the window does not
 call it that. Cost: the patch is carried over at each librqbit upgrade until
 upstream has MSE (`desktop/vendor/README.md` says where each change is).
+
+## 2026-11-07: Windows' memory budget at rest (gaps row 137)
+
+Measured on the maintainer's Windows 11 computer (four cores), the release
+build at rest, `scripts/memory-check.py` three times: working set 64.4 to
+76.1 MB average (76.2 MB peak), private bytes 30.5 to 30.7 MB, 25 or 26
+threads, 478 to 483 handles. Set as on macOS, a third above what was
+measured: the working set's budget stays 100 MB and the private bytes' goes
+from 60 to 40 MB, so a regression of a third fails it and the system's own
+share does not. Beside reference A's numbers in row 137 (35 MB working set
+average, 13 MB private, 9 threads, 991 handles) dm keeps about twice the
+working set and private bytes and runs about three times the threads, with
+half the handles; the three runs agree to within a megabyte of private bytes.
+What makes up the difference was not measured on Windows (on macOS: the
+window's drawing surfaces, fonts and the runtimes, row 137's old text).

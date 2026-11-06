@@ -25,11 +25,13 @@ ROOT = pathlib.Path(__file__).resolve().parent.parent
 BINARY = pathlib.Path(os.environ.get("DM_BINARY") or (
     "D:/dm-target/release/dm-desktop.exe" if sys.platform == "win32"
     else ROOT / "desktop/target/release/dm-desktop"))
-# On macOS a third more than measured at rest on 2026-11-06 (112 MB resident, 75 MB
-# footprint, 37 MB of which the window's drawing surfaces): a regression, not
-# the system's own share, is what fails it.
+# A third more than measured at rest: on macOS on 2026-11-06 (112 MB resident, 75 MB
+# footprint, 37 MB of which the window's drawing surfaces), on Windows 11 on
+# 2026-11-07 (working set 64 to 76 MB, private bytes 30.5 to 30.7 MB, 25 or 26
+# threads, 478 to 483 handles, three runs): a regression, not the system's own
+# share, is what fails it.
 WORKING_BUDGET_MB = float(os.environ.get("DM_MEMORY_BUDGET_MB", "150" if sys.platform == "darwin" else "100"))
-PRIVATE_BUDGET_MB = float(os.environ.get("DM_PRIVATE_BUDGET_MB", "100" if sys.platform == "darwin" else "60"))
+PRIVATE_BUDGET_MB = float(os.environ.get("DM_PRIVATE_BUDGET_MB", "100" if sys.platform == "darwin" else "40"))
 SETTLE_S = float(os.environ.get("DM_MEMORY_SETTLE_S", "15"))
 SAMPLES = int(os.environ.get("DM_MEMORY_SAMPLES", "20"))
 
