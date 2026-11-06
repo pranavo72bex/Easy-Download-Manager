@@ -151,7 +151,13 @@ pub(super) async fn run(
     resumable: bool,
     first_body: Option<reqwest::Response>,
 ) -> Result<(), Error> {
-    let mut first_body = first_body;
+    /* The probe's answer streams the file from byte 0: it is range 0's, for
+     * whichever connection takes range 0. It was given to the first
+     * connection started, which used it only if it also took range 0; the
+     * connections start together, and when another took it first the
+     * answer was held, unread, for as long as that connection ran: a ninth
+     * connection beside eight (QA connections_1_8_32, 2026-11-06). */
+    let probe = Arc::new(std::sync::Mutex::new(first_body));
     let next = Arc::new(std::sync::atomic::AtomicUsize::new(0));
     // Ranges a connection gave up on, for the others to take.
     let orphans = Arc::new(std::sync::Mutex::new(Vec::<usize>::new()));
@@ -176,11 +182,7 @@ pub(super) async fn run(
             Some(second) if on_second => second.clone(),
             _ => client.clone(),
         };
-        let body = if ordinal == 0 {
-            first_body.take()
-        } else {
-            None
-        };
+        let probe = Arc::clone(&probe);
         let (job, next) = (Arc::clone(job), Arc::clone(&next));
         let (orphans, active) = (Arc::clone(&orphans), Arc::clone(&active));
         let refused = Arc::clone(&refused);
@@ -190,7 +192,6 @@ pub(super) async fn run(
             wave_over_seen.clone(),
         );
         running.spawn(async move {
-            let mut body = body;
             // A helper that has been let in: it is one of the active, to the
             // connection that steps aside for a server that limits them.
             let mut joined = false;
@@ -235,7 +236,11 @@ pub(super) async fn run(
                 }
                 crate::lock(&job.live[index]).taken = true;
                 crate::second_path::fetched_by(&job.parts, index, on_second);
-                let first = if index == 0 { body.take() } else { None };
+                let first = if index == 0 {
+                    crate::lock(&probe).take()
+                } else {
+                    None
+                };
                 match fetch_segment(&client, &job, index, resumable, &active, first).await {
                     Ok(()) => {}
                     /* The server would not take this connection (a 429 or

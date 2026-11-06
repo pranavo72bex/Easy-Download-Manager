@@ -435,3 +435,71 @@ async fn a_connection_gone_silent_is_asked_again_before_the_read_timeout() {
         took.as_secs_f64()
     );
 }
+
+/// The probe's answer streams the file from byte 0: it is range 0's. It was
+/// given to the first connection started, which used it only if it took
+/// range 0 too; when another connection took range 0 first, it fetched range
+/// 0 again and the probe's answer was held open, unread, for the whole
+/// download: a ninth connection beside eight. The race goes the other way
+/// in this test's runtime, so this holds the invariant (never a separate
+/// request for range 0) and the QA's `connections_1_8_32` is the regression
+/// test: 5 of 10 runs failed before, 10 of 10 pass after (2026-11-06).
+const ROUNDS: usize = 5;
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+async fn the_probes_answer_is_range_0s_whoever_takes_range_0() {
+    let data = body();
+    let asked = Arc::new(std::sync::Mutex::new(Vec::<String>::new()));
+    let (served, log) = (data.clone(), asked.clone());
+    let app = axum::Router::new().route(
+        "/big.bin",
+        get(move |headers: HeaderMap| {
+            let (data, log) = (served.clone(), log.clone());
+            async move {
+                let wanted = headers
+                    .get("range")
+                    .and_then(|v| v.to_str().ok())
+                    .unwrap_or("")
+                    .to_string();
+                log.lock().unwrap().push(wanted.clone());
+                let (a, b) = wanted
+                    .strip_prefix("bytes=")
+                    .and_then(|v| v.split_once('-'))
+                    .map(|(a, b)| {
+                        let a: usize = a.parse().unwrap();
+                        (a, b.parse::<usize>().unwrap_or(SIZE - 1).min(SIZE - 1))
+                    })
+                    .unwrap_or((0, SIZE - 1));
+                Response::builder()
+                    .status(206)
+                    .header("content-range", format!("bytes {a}-{b}/{SIZE}"))
+                    .header("content-length", b - a + 1)
+                    .header("etag", "\"big\"")
+                    .body(paced(data, a, b, FAST))
+                    .unwrap()
+            }
+        }),
+    );
+    let addr = serve(app).await;
+    for round in 0..ROUNDS {
+        asked.lock().unwrap().clear();
+        let dir = tempdir();
+        let done = download(
+            &client(),
+            &format!("http://{addr}/big.bin"),
+            &options(dir.path()),
+        )
+        .await
+        .unwrap();
+        assert_eq!(std::fs::read(&done.path).unwrap(), *data, "round {round}");
+        let asked = asked.lock().unwrap().clone();
+        let range_0_again = asked
+            .iter()
+            .filter(|r| r.starts_with("bytes=0-") && r.as_str() != "bytes=0-")
+            .count();
+        assert_eq!(
+            range_0_again, 0,
+            "round {round}: range 0 fetched again beside the probe: {asked:?}"
+        );
+    }
+}
