@@ -21,7 +21,7 @@ the one that counts for L3.
 ---
 
 
-Authorized black-box + source review. Target: `/Users/pranav.jha/Easy-Download-Manager`
+Authorized black-box + source review. Target: this repository
 (branch its file), debug build `desktop/target/debug/dm-desktop` (dm 0.8.4).
 All testing on 127.0.0.1 against local servers; download_dir pointed at a temp folder
 (`scratchpad/pentest/downloads`); DM_HOME = `scratchpad/pentest/dmhome`.

@@ -28,7 +28,7 @@ FORMATS="${DM_FORMATS:-deb,appimage}"
 echo "== building: $FORMATS"
 cd desktop/crates/dm-desktop
 # AppImage tools are themselves AppImages, and a container has no FUSE.
-APPIMAGE_EXTRACT_AND_RUN=1 cargo packager --release --formats "$FORMATS" \
+APPIMAGE_EXTRACT_AND_RUN=1 CARGO_BUILD_RUSTFLAGS="$(sh "$(dirname "$0")/../release-flags.sh")" cargo packager --release --formats "$FORMATS" \
   --out-dir /target/release/bundle
 cd /work
 

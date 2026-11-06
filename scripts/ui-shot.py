@@ -67,7 +67,11 @@ def main():
     threading.Thread(target=server.serve_forever, daemon=True).start()
     origin = f"http://127.0.0.1:{server.server_address[1]}"
 
-    home = pathlib.Path(tempfile.mkdtemp(prefix="dm-ui-shot-"))
+    # Under /tmp, not the system's per-user temporary folder: the window
+    # shows the download folder, and that folder's path is unique to the
+    # computer and its user (/var/folders/xx/<id>/T on macOS), which the
+    # README's pictures carried.
+    home = pathlib.Path(tempfile.mkdtemp(prefix="dm-ui-shot-", dir="/tmp" if os.path.isdir("/tmp") else None))
     (home / "downloads").mkdir()
     (home / "settings.json").write_text(json.dumps({
         "download_dir": str(home / "downloads"), "categorize": True, "show_progress": False,

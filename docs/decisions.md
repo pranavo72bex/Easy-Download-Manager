@@ -4221,8 +4221,7 @@ GPL-2.0 also offer MIT or Apache), and every commit is the maintainer's apart
 from dependabot's version bumps, so no one else's consent was needed.
 `LICENSE` is GNU's text (sha256 3972dc97…6986); `NOTICE` holds the copyright,
 the "or later" grant and a section 7(b) term: keep `NOTICE` and the files'
-notices, and show "Based on Easy Download Manager (dm) by Pranav Jha
-(pranavo72bex)" in the work's Appropriate Legal Notices and wherever it shows
+notices, and show "Based on Easy Download Manager (dm) by pranavo72bex" in the work's Appropriate Legal Notices and wherever it shows
 its licence information, such as its README. The README is named as an
 example rather than as the only place: 7(b) covers preserving attributions in
 the material and in legal notices, and a term beyond it could be removed by a
@@ -4249,3 +4248,26 @@ control port (the command line, MCP) takes 0.2 s longer. Not done:
 `panic = "abort"` (the tray survives a panic with `catch_unwind`), jemalloc
 (no measured need), removing aws-lc-rs (the torrent library's every TLS
 option brings it or OpenSSL; it would need a patched copy for about 0.5 MB).
+
+## 2026-11-06: Builds hardened, not obfuscated; nothing of the builder in what ships (gaps row 151)
+
+At the maintainer's answer (keep the repository public; harden, do not
+obfuscate) and word ("keep security the highest priority; do not leak anything
+about the Mac or information"). Found: the release app held 1,139 strings
+with the builder's home path and user name, and the extension's WebAssembly 34
+(panic messages name their source file). `scripts/release-flags.sh` gives
+release builds `--remap-path-prefix` for the home folder, Cargo's crates and
+the checkout, through CARGO_BUILD_RUSTFLAGS so that the Windows target's own
+flags (+crt-static) are untouched; Cargo's `trim-paths` is still unstable on
+1.98. Both are now at 0, and CI's packaging fails if the runner's paths are in
+the binary. Obfuscation was not done: the Chrome, Edge and Firefox stores
+refuse obfuscated extension code, and the app is already compiled and
+stripped. In the repository: the README's pictures showed the per-user
+temporary folder (`/var/folders/…`); they are rendered again by the window
+test `shots` with the folder shown as ~/Downloads, and `ui-shot.py` uses
+/tmp. The security report's checkout path, an e-mail address in the hand-off
+notes, the Cargo `authors` and PKGBUILD e-mail, and the full name in
+`NOTICE`, the README and the Windows file properties now say `pranavo72bex`.
+Kept: the Code of Conduct's contact address (the maintainer's to change).
+Not touched: git history (author e-mails, the old pictures), which only a
+rewrite and force-push would change.

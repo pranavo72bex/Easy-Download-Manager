@@ -222,7 +222,7 @@ settings rather than borrowing the browser's.
 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="settings-dark.png">
-  <img alt="The Options dialog, in its tabs: General, Folders, Downloads, Network, Proxy and Sign-ins" src="settings.png">
+  <img alt="The Options dialog, in its tabs: General, Browser, Folders, Downloads, Advanced and Sign-ins" src="settings.png">
 </picture>
 
 | | |

@@ -61,7 +61,7 @@ cd desktop && git add \
   crates/dm-desktop/src/dialogs/options/mod.rs \
   crates/dm-desktop/src/dialogs/options/tabs.rs && cd ..
 git add browser/src/decide/excluded.rs .gitignore
-git -c user.name=pranavo72bex -c user.email=pranavj304@gmail.com commit \
+git commit \
   -m "Build fixes: ProxyKind import, host_of rename; fmt; exclude OS-update and sticker hosts" \
   -m "Co-Authored-By: Claude Sonnet 4.6 <noreply@anthropic.com>" \
   -- desktop/crates/dm-core/src/aac/decoder.rs \

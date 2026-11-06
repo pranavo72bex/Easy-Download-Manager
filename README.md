@@ -547,6 +547,6 @@ accounts and no analytics, and it sends nothing about you anywhere (see [PRIVACY
 released under the GPL v3 too, keep the [NOTICE](NOTICE) file, and show this attribution
 in your README (or wherever it shows its licence information):
 
-> Based on [Easy Download Manager (dm)](https://github.com/pranavo72bex/Easy-Download-Manager) by Pranav Jha (pranavo72bex)
+> Based on [Easy Download Manager (dm)](https://github.com/pranavo72bex/Easy-Download-Manager) by pranavo72bex
 
 Releases up to desktop-v0.8.7 and extension v3.2.1 were published under the MIT licence.

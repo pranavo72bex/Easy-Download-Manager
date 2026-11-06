@@ -9,6 +9,11 @@
 set -u
 cd "$(dirname "$0")"
 mkdir -p reports
+# The containers write as their own user (uid 1000); on a CI runner this
+# folder belongs to the runner's (1001), and every report write was refused
+# ("Permission denied: '/reports/qa-1.json'"), failing a suite that passed.
+# It holds test reports only.
+chmod a+rwx reports
 runs=${QA_RUNS:-1}
 docker compose build || exit 1
 status=0

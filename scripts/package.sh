@@ -66,7 +66,10 @@ fi
 # ----------------------------------------------------------------- build
 
 echo "building the extension (dm-catcher, wasm32)"
-(cd "$root/browser" && cargo build --release --target wasm32-unknown-unknown --locked)
+# Without the building computer's paths in the WebAssembly the stores publish
+# (scripts/release-flags.sh).
+(cd "$root/browser" && CARGO_BUILD_RUSTFLAGS="$(sh "$root/scripts/release-flags.sh")" \
+  cargo build --release --target wasm32-unknown-unknown --locked)
 rm -rf "$pkg"
 wasm-bindgen --target web --no-typescript --out-dir "$pkg" \
   "${CARGO_TARGET_DIR:-$root/browser/target}/wasm32-unknown-unknown/release/dm_catcher.wasm"
