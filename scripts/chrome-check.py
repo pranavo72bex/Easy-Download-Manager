@@ -393,6 +393,14 @@ REQUEST_PAGES = {
         '   x.onload = () => { note("xhr " + type); done(); }; x.send(); }); }'
         ' window.__finished = true;'
         '})();</script>', None),
+    "/early.html": (
+        '<!doctype html><title>early</title>'
+        # In the head, before the body exists: this runs at document_start, when only the page
+        # hook is in, and the answer is back long before content.js (document_idle) sends the rules.
+        '<script>window.__early = fetch("/api/early?v=7").then(r => r.json());</script>'
+        '<div style="position:relative;margin:40px"><video id="v" width="640" height="360"></video>' + OVERLAY + '</div>'
+        '<script>document.getElementById("v").src = URL.createObjectURL(new MediaSource());</script>',
+        None),
     "/pieces.html": (
         '<!doctype html><title>pieces</title><div style="position:relative;margin:40px">'
         '<video id="v" width="640" height="360"></video>' + OVERLAY + '</div>'
@@ -550,6 +558,15 @@ class Handler(http.server.BaseHTTPRequestHandler):
             self.send_header("Content-Length", str(len(page)))
             self.end_headers()
             self.wfile.write(page)
+            return
+        if path == "/api/early":
+            # The one answer a feed's page makes first, naming its stream.
+            data = b'{"id": 7, "stream": "https://cdn.example/early/playlist.m3u8"}'
+            self.send_response(200)
+            self.send_header("Content-Type", "application/json")
+            self.send_header("Content-Length", str(len(data)))
+            self.end_headers()
+            self.wfile.write(data)
             return
         if path == "/api/play":
             # A player's API that answers JSON as application/octet-stream.
@@ -929,6 +946,19 @@ def request_checks(base, origin, engine_dl, engine_home, worker):
     seen = wait_for(lambda: tab.evaluate("window.__bodies.length") >= 8 and tab.evaluate("window.__bodies.length"), 10)
     check("a page reading an answer by text, json, arrayBuffer, blob, body or XHR json/arraybuffer/blob is "
           "heard each time (row 117)", bool(seen), f"{tab.evaluate('window.__bodies.length')} of 8; ways {tab.evaluate('window.__ways')}")
+
+    # 69: an answer the page fetched before the rules arrived is still read.
+    tab = panel_page(base, origin, "/early.html")
+    tab_id = worker.evaluate(f"chrome.tabs.query({{url: '{origin}/early.html*'}}).then(t => t[t.length - 1].id)")
+    def early_listed():
+        reply = worker.evaluate(
+            f"dmReady.then(m => m.on_page_message({{type: 'dm.formats', src: '', frame: '{origin}/early.html'}},"
+            f" {{id: chrome.runtime.id, tab: {{id: {tab_id}}}, url: '{origin}/early.html'}}))")
+        choices = (reply or {}).get("choices", [])
+        return reply if any("early/playlist.m3u8" in (c.get("url") or "") for c in choices) else None
+    reply = wait_for(early_listed, 15)
+    check("an answer the page fetched before the rules arrived (document_start) is read once they do, and its "
+          "stream is listed (row 69)", bool(reply), str(reply)[:400])
 
     # 119: a picture and a sound fetched in ranges become one line.
     tab = panel_page(base, origin, "/pieces.html")
@@ -1337,7 +1367,10 @@ def main():
     }))
     (engine_home / "rules.json").write_text(json.dumps({
         "format": 1, "revision": 999, "exclude": {},
-        "sites": [{"host": "127.0.0.1", "finders": [
+        "sites": [{"host": "127.0.0.1",
+                   # A request whose JSON answer names the stream (gaps row 69).
+                   "answers": [{"url_contains": "/api/early", "keys": ["stream"]}],
+                   "finders": [
             {"player": "div.vp-video",
              "id_path": "*.return.return.memoizedProps.coreVideoPlayerMetaData.videoFBID"}]}],
     }))

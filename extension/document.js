@@ -81,6 +81,21 @@
   let reading = [];
   const MAX_ANSWER = 1024 * 1024;
   let finders = [];
+  // The JSON answers that came before the rules did: content.js runs at
+  // document_idle and only then says which requests to read, and a feed's
+  // first answer, the one with the renditions, is often in before that. Kept
+  // until the rules arrive (a bounded few), then the ones they name are
+  // passed on and the rest let go; after that nothing is kept.
+  const EARLY_ANSWERS = 24;
+  const EARLY_BYTES = 4 * 1024 * 1024;
+  let early = [];
+  let earlyBytes = 0;
+  let rulesCame = false;
+  const keepEarly = (href, body) => {
+    if (rulesCame || early.length >= EARLY_ANSWERS || earlyBytes + body.length > EARLY_BYTES) return;
+    early.push({ href, body });
+    earlyBytes += body.length;
+  };
   window.addEventListener('message', (event) => {
     if (event.source !== window || event.data?.source !== 'dm-page-rules') return;
     if (Array.isArray(event.data.urls)) {
@@ -88,6 +103,17 @@
         .filter((part) => typeof part === 'string' && part)
         .map((part) => part.toLowerCase())
         .slice(0, 64);
+    }
+    // The answers that came first: the ones the rules name go on now.
+    if (!rulesCame) {
+      rulesCame = true;
+      const kept = early;
+      early = [];
+      earlyBytes = 0;
+      for (const { href, body } of kept) {
+        const hit = watched(href);
+        if (hit) tellAnswer(hit, body);
+      }
     }
     if (Array.isArray(event.data.finders)) {
       finders = event.data.finders.filter((f) => f && typeof f === 'object').slice(0, 16);
@@ -270,8 +296,11 @@
       if (typeof text !== 'string' || !text || !response?.ok) return;
       const type = (response.headers.get('content-type') || '').toLowerCase();
       if (TEXTUAL.test(type) || !type || type.includes('octet-stream') || jsonLike(text)) keep(text);
+      const json = type.includes('json') || jsonLike(text);
+      if (!json) return;
       const href = watched(response.url);
-      if (href && (type.includes('json') || jsonLike(text))) tellAnswer(href, text);
+      if (href) tellAnswer(href, text);
+      else if (!rulesCame) keepEarly(response.url, text);
     } catch { /* an answer that cannot be passed on is not */ }
   };
   const textOfBytes = (bytes) => (bytes.length <= MEDIA_ANSWER && looksText(bytes) ? decode(bytes) : null);

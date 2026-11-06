@@ -5,6 +5,7 @@ the browser extension (`v*` tags) are versioned separately.
 
 ## Unreleased
 
+- Fixed (browser panel): on a site whose rules read a page's own API answers, an answer the page fetched before the extension's content script had run (the first one, on a feed) was missed; it is kept and read once the rules arrive (gaps row 69).
 - The queue column's heading is the queue's list mark (as in the side panel), named "Queue" on hover and in the columns menu, where it said "Q", which read as a search icon.
 - Torrents: encrypted peer connections (BitTorrent's MSE/PE). A peer that takes only encrypted connections, which refused dm before, is now asked again encrypted; one that connects encrypted is answered (gaps row 150).
 - Fixed (torrents): an incoming peer connection could wait unanswered until the next one arrived, whenever another connection had just been refused (BUGLOG.md BUG-009).
