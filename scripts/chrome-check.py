@@ -950,15 +950,21 @@ def request_checks(base, origin, engine_dl, engine_home, worker):
     # 69: an answer the page fetched before the rules arrived is still read.
     tab = panel_page(base, origin, "/early.html")
     tab_id = worker.evaluate(f"chrome.tabs.query({{url: '{origin}/early.html*'}}).then(t => t[t.length - 1].id)")
+    last = {}
     def early_listed():
         reply = worker.evaluate(
             f"dmReady.then(m => m.on_page_message({{type: 'dm.formats', src: '', frame: '{origin}/early.html'}},"
             f" {{id: chrome.runtime.id, tab: {{id: {tab_id}}}, url: '{origin}/early.html'}}))")
+        last["reply"] = reply
         choices = (reply or {}).get("choices", [])
         return reply if any("early/playlist.m3u8" in (c.get("url") or "") for c in choices) else None
-    reply = wait_for(early_listed, 15)
+    # As long as the list's other checks (row 118): the list waits on the app, which in
+    # human-qa.py's second pass is still finishing the fourteen downloads before this.
+    began = time.time()
+    reply = wait_for(early_listed, 30)
     check("an answer the page fetched before the rules arrived (document_start) is read once they do, and its "
-          "stream is listed (row 69)", bool(reply), str(reply)[:400])
+          "stream is listed (row 69)", bool(reply),
+          str(reply)[:400] if reply else f"not listed in {time.time() - began:.0f} s; last reply {str(last.get('reply'))[:300]}")
 
     # 119: a picture and a sound fetched in ranges become one line.
     tab = panel_page(base, origin, "/pieces.html")
