@@ -558,7 +558,17 @@ impl World {
 
 /// Runs frames until `done` says so, or fails after a few seconds.
 pub(crate) fn until(harness: &mut Harness<'_, DmApp>, what: &str, done: impl Fn(&DmApp) -> bool) {
-    let deadline = Instant::now() + Duration::from_secs(10);
+    until_within(harness, what, Duration::from_secs(10), done);
+}
+
+/// [`until`], failing after `most` rather than a few seconds.
+pub(crate) fn until_within(
+    harness: &mut Harness<'_, DmApp>,
+    what: &str,
+    most: Duration,
+    done: impl Fn(&DmApp) -> bool,
+) {
+    let deadline = Instant::now() + most;
     loop {
         harness.state_mut().refresh();
         harness.step();
@@ -643,14 +653,27 @@ pub(crate) fn add_url(harness: &mut Harness<'_, DmApp>, url: &str, button: &str)
 /// Waits for Download details to hear from the server: its answer can add
 /// a line and move the buttons, so a click under load landed where a
 /// button was a frame before. A person, too, sees the dialog settle.
+///
+/// For a video page, its qualities too: they are read beside the server's
+/// answer and lay the dialog out again when they come, and on Windows a
+/// click on "Vertical 9:16" under a full suite took nothing (gaps row 115).
+/// Each is given up on by the dialog itself (20 s and 40 s), so this waits
+/// longer than `until`.
 pub(crate) fn settle_details(harness: &mut Harness<'_, DmApp>) {
-    until(harness, "Download details to hear from the server", |app| {
-        app.dialogs.file_info.as_ref().is_none_or(|d| {
-            d.probed
+    fn heard<T>(slot: Option<&std::sync::Arc<std::sync::Mutex<Option<T>>>>) -> bool {
+        slot.is_none_or(|s| s.lock().map_or(true, |s| s.is_some()))
+    }
+    until_within(
+        harness,
+        "Download details to hear from the server",
+        Duration::from_secs(45),
+        |app| {
+            app.dialogs
+                .file_info
                 .as_ref()
-                .is_none_or(|p| p.lock().map_or(true, |p| p.is_some()))
-        })
-    });
+                .is_none_or(|d| heard(d.probed.as_ref()) && heard(d.choices.as_ref()))
+        },
+    );
     harness.run_steps(2);
 }
 
