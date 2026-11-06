@@ -49,8 +49,15 @@ def connections_1_8_32():
     for n in (1, 8, 32):
         name = f"conn{n}.bin"
         simple(name, 24 * MB, {"connections": n}, drip=4 * MB)
-        used[n] = stats(name)["max_open"]
-        check(used[n] <= n, f"{n} connections allowed, {used[n]} opened")
+        # Held at once for more than a moment (origin.py `held_at_once`): one
+        # socket torn down as the next opens is not a connection more.
+        used[n] = stats(name)["max_held"]
+        if used[n] > n:
+            # Which requests overlapped: seconds from the first, and the bytes each asked for.
+            spans = sorted(stats(name)["spans"])
+            for began, ended, a, z in spans:
+                print(f"  {began - spans[0][0]:7.3f} {ended - spans[0][0]:7.3f}  bytes {a}-{z}", flush=True)
+        check(used[n] <= n, f"{n} connections allowed, {used[n]} held at once (sockets at any instant: {stats(name)['max_open']})")
     check(used[8] > 1 and used[32] > used[8] // 2, f"connections opened: {used}")
     return f"opened {used}"
 
@@ -692,21 +699,24 @@ def mockvideo():
 
 @scenario
 def video_page():
+    # A video page of a site other than YouTube, typed or pasted as an address:
+    # dm reads YouTube's pages itself, and every other site's video comes from
+    # the browser's "Download video" button as the page plays (docs/decisions.md;
+    # in the window, contract row B40 asks whether to save the page instead).
+    # Over the control port nobody is asked: refused, in words that say where
+    # the video comes from, and nothing saved in its place.
     site = mockvideo()
     dm = DM("video_page").start()
     try:
         dm.add(f"{site}/watch?v=ok")
         row = dm.wait("watch?v=ok", seconds=180)
-        check(row["state"]["kind"] == "completed", f"{row['state']}")
-        p = pathlib.Path(row["path"])
-        check(p.exists() and p.stat().st_size > 10_000, f"{p} missing or tiny")
-        files = sorted(x.name for x in dm.out.iterdir())
-        check(files == [p.name], f"one video asked for, the folder holds {files}")
-        # The page's only video, named by the page: no "(1)" with nothing to
-        # tell it from (docs/gaps.md row 31, now closed).
-        check(" (1)" not in p.name and "-1]" not in p.name, f"numbered with nothing beside it: {p.name}")
+        check(row["state"]["kind"] == "failed", f"{row['state']}")
+        said = reason(row) or ""
+        check("web page" in said and "Download video" in said, f"the reason does not say where the video comes from: {said!r}")
+        files = sorted(x.name for x in dm.out.iterdir()) if dm.out.exists() else []
+        check(files == [], f"a page refused, yet the folder holds {files}")
         no_leftovers(dm, row)
-        return p.name
+        return said
     finally:
         dm.close()
 

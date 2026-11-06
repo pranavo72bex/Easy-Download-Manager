@@ -36,6 +36,8 @@ import http.server
 import json
 import os
 import pathlib
+import select
+import socket
 import socketserver
 import ssl
 import sys
@@ -53,7 +55,7 @@ STATS = {}  # name -> {"requests": n, "ranges": [...], "bytes": n, "headers": [.
 
 def stat(name):
     with LOCK:
-        return STATS.setdefault(name, {"requests": 0, "ranges": [], "bytes": 0, "open": 0, "max_open": 0})
+        return STATS.setdefault(name, {"requests": 0, "ranges": [], "bytes": 0, "open": 0, "max_open": 0, "spans": [], "max_held": 0})
 
 
 class Handler(http.server.BaseHTTPRequestHandler):
@@ -204,6 +206,29 @@ class Handler(http.server.BaseHTTPRequestHandler):
             s["ranges"] = s["ranges"][-200:]
             s["open"] += 1
             s["max_open"] = max(s["max_open"], s["open"])
+        # Open until the body is sent or the client has hung up, whichever is
+        # first. A client that stops reading a range it no longer needs (a
+        # range halved under it) closes at once, but this handler would go on
+        # writing into the socket's buffer and sleeping for the drip, and kept
+        # it counted: "8 connections allowed, 9 opened" of a client with 8.
+        released = threading.Event()
+        began = time.monotonic()
+        def release():
+            with LOCK:
+                if not released.is_set():
+                    released.set()
+                    s["open"] -= 1
+                    s["spans"] = (s["spans"] + [[began, time.monotonic(), start, end]])[-2000:]
+                    s["max_held"] = max(s["max_held"], held_at_once(s["spans"]))
+        def watch(sock=self.connection):
+            while not released.wait(0.002):
+                try:
+                    readable, _, _ = select.select([sock], [], [], 0)
+                    if readable and not sock.recv(1, socket.MSG_PEEK):
+                        release()
+                except (OSError, ValueError):
+                    release()
+        threading.Thread(target=watch, daemon=True).start()
         try:
             self.send_response(206 if partial else 200)
             self.send_header("Content-Type", q.get("ctype", "application/octet-stream"))
@@ -236,8 +261,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
                 return
             self.body(name, q, start, end, chunked, nth)
         finally:
-            with LOCK:
-                s["open"] -= 1
+            release()
 
     def body(self, name, q, start, end, chunked, nth):
         drip = int(q.get("drip", 0))
@@ -273,6 +297,26 @@ class Handler(http.server.BaseHTTPRequestHandler):
             self.wfile.write(f"{len(data):x}\r\n".encode() + data + b"\r\n")
         else:
             self.wfile.write(data)
+
+
+# How long two requests must overlap to count as held at once. A client
+# closing one socket and opening the next overlaps them for a millisecond or
+# so while the old one is torn down; that is not a connection more.
+HELD = 0.020
+
+
+def held_at_once(spans):
+    """The most requests open together for longer than HELD."""
+    events = []
+    for began, ended, *_ in spans:
+        if ended - began > HELD:
+            events.append((began + HELD, 1))
+            events.append((ended, -1))
+    most = now = 0
+    for _, step in sorted(events, key=lambda e: (e[0], e[1])):
+        now += step
+        most = max(most, now)
+    return most
 
 
 def split(data, n):
