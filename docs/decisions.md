@@ -4194,3 +4194,37 @@ unpacking, TLS, drawing). Release binary 25,895,328 to 20,516,304 bytes
 line the same within noise. `human-qa.py` on the new release binary: 63 of 64
 rows hold; B25 not pictured (no Screen Recording permission, gaps row 154).
 The 27-finding audit was not kept.
+
+## 2026-11-06: Linux AAC decoding by symphonia (gaps row 53)
+
+At the maintainer's word (2026-11-06, asked with the choice "Symphonia crate"),
+Linux decodes AAC with `symphonia-codec-aac` 0.6.1 (MPL-2.0, pure Rust, used
+unmodified as a crates.io dependency, as `colored` and `option-ext` already
+were). dm's own frame decoder (`aac/decoder.rs`, `huff.rs`, `transform.rs`),
+which lacked the standard's Huffman tables, is removed; dm keeps its own M4A
+reading (AudioSpecificConfig, sample tables, edit list), which refuses HE-AAC,
+more than two channels and 960-sample frames in words before decoding. A rate
+MP3 lacks is resampled by a Lanczos-windowed sinc (16 taps at the cut-off) to
+44.1 kHz for the 11025 family and 48 kHz otherwise. Checked: 72.7 dB against
+macOS AudioToolbox on a stereo 44.1 kHz fixture. macOS and Windows keep their
+system decoders. Row 54 (GIF on Linux) stays: no H.264 decoder, by the same
+day's answer.
+
+## 2026-11-06: GPL-3.0-or-later, with an attribution term (gaps row 151)
+
+At the maintainer's word ("if I can go to GPL v3, implement it, and make sure
+anyone who uses the project or code mentions this project in their readme").
+Checked first: every dependency's licence allows it (MIT, Apache-2.0 (v3
+only, hence not v2), BSD, ISC, Zlib, Unicode, BSL, CDLA-Permissive, MPL-2.0
+not marked "Incompatible With Secondary Licenses"; the few that offer LGPL or
+GPL-2.0 also offer MIT or Apache), and every commit is the maintainer's apart
+from dependabot's version bumps, so no one else's consent was needed.
+`LICENSE` is GNU's text (sha256 3972dc97…6986); `NOTICE` holds the copyright,
+the "or later" grant and a section 7(b) term: keep `NOTICE` and the files'
+notices, and show "Based on Easy Download Manager (dm) by Pranav Jha
+(pranavo72bex)" in the work's Appropriate Legal Notices and wherever it shows
+its licence information, such as its README. The README is named as an
+example rather than as the only place: 7(b) covers preserving attributions in
+the material and in legal notices, and a term beyond it could be removed by a
+recipient as a "further restriction" (section 7, last paragraphs). Releases
+up to desktop-v0.8.7 and extension v3.2.1 stay MIT for those who have them.
