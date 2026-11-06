@@ -27,6 +27,81 @@ fmt --check` are clean; `scripts/smoke.py` on a debug build passes; and
 `scripts/real-sites.py` (YouTube through dm's own engine, OVH, W3Schools,
 Wikimedia) passes 4 of 4. The same day the video route's gaps found against an external tool's reading of a YouTube page were closed (request slices, renewed addresses, per-stream headers, chunked requests; `docs/decisions.md`, "The video route follows what the external video tool's reading says").
 
+### The Windows session (next, with the maintainer)
+
+As of 2026-11-06 every open row below is waiting on a person, a Windows
+computer or the maintainer's word; none is code that can be written alone on
+macOS or Linux (macOS QA that day: 63 of 64 contract rows hold, B25 as row 154
+says; `cargo test --workspace` 1478 passed). The maintainer chose to do the rest
+on Windows. This is the order for that session; each step names the rows it
+closes, and a row is closed (deleted here, written in `CHANGELOG.md`) only when
+its step passes there.
+
+**Before it starts.** On the Windows PC: pull branch `parity-with-reference-a`;
+Rust, Python 3, Git Bash and Microsoft Edge installed; reference A installed
+with its Edge extension (for the side-by-side steps); a spare account for each
+site that needs a sign-in (Facebook, Instagram, YouTube, Reddit), not the
+maintainer's own. The commands are for PowerShell from the repository's root;
+`human-qa.py` and `stress-check.py` look for `dm-desktop` with no `.exe`, so
+`DM_BINARY` is set on Windows.
+
+1. **Build.** `cd desktop; cargo build -p dm-desktop; cargo build --release -p dm-desktop; cd ..`,
+   then `sh scripts/package.sh` in Git Bash.
+2. **The test suite, row 115.** `cd desktop; cargo test --workspace -- --test-threads=4`,
+   then `cargo test --workspace` in full, three times each. For a failing
+   window test, read its message and lengthen the wait it names when that wait
+   is bound by a loaded machine rather than by dm.
+3. **The contract, rows 141 and B25.**
+   `$env:DM_BINARY="$PWD\desktop\target\debug\dm-desktop.exe"; python scripts/human-qa.py`.
+   Report every row it prints. B25 here compares against
+   `docs/behaviour-baseline/windows/`. If B36 fails, the run prints the
+   extension's own words for the failed panel check (row 141): fix what they
+   show.
+4. **Held downloads, row 24.** With `DM_BINARY` as above:
+   `python scripts/stress-check.py holds hidden details`.
+5. **Memory, row 137.** `$env:DM_BINARY="$PWD\desktop\target\release\dm-desktop.exe"; python scripts/memory-check.py`;
+   record the numbers in row 137 and set Windows' budget from them.
+6. **The secret store, row 39 (Windows part).** In the release build: a row with
+   a login and a browser download with cookies; quit dm and start it again (both
+   still work); copy dm's home to another Windows account and start dm there (it
+   cannot open them, and says so once).
+7. **Torrents from the browser, row 103.** Release build, extension added to Edge:
+   a torrent site's Download button and a `magnet:` link each start a download in
+   dm.
+8. **Signed-in sites, rows 62, 63, 71, 75, 110, 114, 122.** One site at a time;
+   the check opens a visible Edge at the login page and waits six minutes while
+   the maintainer signs in by hand (the check never types, reads or keeps a
+   password, and its profile is thrown away after the run):
+   `$env:SITES_SIGNIN="facebook"; python scripts/sites-check.py facebook facebook-watch`
+   (rows 62, 114, 75), the same with `instagram` (rows 71, 75), `youtube` (row
+   122: the four kinds through the panel) and `reddit reddit-videos` (row 63).
+   Row 110 closes on the whole run's results, after the maintainer says which of
+   what is left is wanted.
+9. **Beside reference A, rows 65, 72 (72f), 142, 152.** Both extensions in one
+   Edge (`$env:SITES_HOLD="20"; $env:DM_KEEP_OTHER_EXTENSIONS="1"`) on Reddit and
+   TikTok for 72f; the four differing scenarios of row 65 with reference A's
+   dialogs open; every site of `docs/site-list.md`, filling in its two result
+   columns (row 152), with a new row here for each place dm does less.
+10. **Real streams, rows 45, 57, 121, 68, 69.** The panel's Part line (B59) on a
+    real HLS, DASH and plain MP4 page (row 45); a video site's signed address
+    that runs out mid-download, tab left open, goes on in the same row (rows 57
+    and 121); the first real site rules written from step 9's comparison and
+    checked with the app serving them (rows 68 and 69).
+11. **By hand, row 60.** The maintainer drags each kind of dialog out of dm's
+    window, and onto a second monitor if there is one.
+12. **The maintainer's word, rows 93 and 110.** G74 (a single file: ask first),
+    G76 (where the bar sits) and G84 (dial-up and VPN) each change what a person
+    sees or what a click does, so nothing is built before a yes or no on each.
+
+**Not for the Windows session.** Row 105 (`magnet:` and `.torrent` opening
+dm.app) and row 154 (B25's macOS dialog pictures) need a Mac: row 105 an
+installed dm.app, row 154 a Terminal allowed Screen Recording; both can be done
+on the maintainer's Mac in a few minutes, with their OK to install dm there.
+Row 39's macOS and Linux part is the installed app's own use at the final QA on
+those systems. Row 30 waits on Google letting the Linux container's Brave reach
+YouTube; row 47 needs an iPhone; row 20 a disposable machine; row 5 native
+readers; row 51 the next tagged extension release; row 151 is a periodic search.
+
 ### State audit, 2026-10-28
 
 Reported: a paused download's details window showing Stop instead of Resume,
