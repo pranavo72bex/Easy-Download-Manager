@@ -210,6 +210,7 @@ true; HLS `#EXT-X-KEY:METHOD=AES-128,URI="https://k/1"` false; HLS with no key f
 refused. Then run `scripts/chrome-check.py` (69 checks) and the browser tests.
 
 #### G74 A single file: ask first (Approval)
+- **Checked 2026-11-06 (by reading, no run):** the app already does this. `app/sync.rs` `take_handed` asks for a panel click when `ask_panel_downloads` is on (default `true`, `settings.rs:614`), and `tests/window/dialogs.rs` `a_video_from_the_browsers_panel_opens_download_file_info_with_its_quality` covers it. The harness's app did not open it because `tests/window/support.rs:506` builds it with the setting off. What is left is the human-qa row and the side-by-side screenshot.
 - **Today:** on a tweet with one MP4, reference A's bar opens its File Info window (URL, Category, Save As, Remember
   this path, Description, Download Later, Start Download, Cancel); dm's bar hands the file over and the app starts it.
 - **Goal:** the panel's click opens dm's own Download details dialog (contract row B02) before starting, as reference A

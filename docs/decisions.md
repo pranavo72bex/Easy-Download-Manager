@@ -4181,3 +4181,11 @@ Each was decided by that rule:
   header and out of a clipped parent (row 125's fixtures), and the cost is out of proportion.
 * **Not built: 84, dial-up and VPN redial.** Dial-up is gone and a VPN is the system's to connect;
   a person expects dm to use the connection the computer has.
+
+## 2026-11-06: Release profile, what was not changed
+
+`panic = "abort"` would shrink the binary but breaks `tray.rs`, which survives a
+panic with `catch_unwind` (lines 154 and 164), and tokio tasks' panic isolation:
+not done. `opt-level = "s"` trades speed in hashing and segment copying for size;
+it waits for a measurement of both on a release build (25.9 MB, about 110 MB
+resident at rest, idle CPU negligible). The 27-finding audit was not kept.
