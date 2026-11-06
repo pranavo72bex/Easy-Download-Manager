@@ -167,7 +167,7 @@ pub(super) fn about(app: &mut DmApp, ctx: &egui::Context) {
         ui.horizontal_wrapped(|ui| {
             for (words, page) in [
                 (t("Source code"), crate::update::SOURCE),
-                (t("Licence (MIT)"), crate::update::LICENCE),
+                (t("Licence (GPL v3)"), crate::update::LICENCE),
                 (t("Privacy"), crate::update::PRIVACY),
                 (t("Code signing policy"), crate::update::SIGNING),
             ] {

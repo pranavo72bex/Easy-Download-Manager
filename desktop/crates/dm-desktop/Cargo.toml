@@ -2,7 +2,7 @@
 name = "dm-desktop"
 version = "0.8.7"
 authors = ["pranavo72bex <pranavj304@gmail.com>"]
-license = "MIT"
+license = "GPL-3.0-or-later"
 edition = "2021"
 description = "dm — a download manager, with a window drawn in Rust"
 

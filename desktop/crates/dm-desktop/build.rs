@@ -39,7 +39,7 @@ BEGIN
       VALUE "FileDescription", "dm download manager"
       VALUE "FileVersion", "{version}"
       VALUE "InternalName", "dm-desktop"
-      VALUE "LegalCopyright", "Copyright (c) 2026 dm contributors. MIT License."
+      VALUE "LegalCopyright", "Copyright (C) 2026 Pranav Jha and the dm contributors. GPL-3.0-or-later."
       VALUE "OriginalFilename", "dm-desktop.exe"
       VALUE "ProductName", "dm"
       VALUE "ProductVersion", "{version}"

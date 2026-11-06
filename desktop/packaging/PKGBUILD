@@ -8,7 +8,7 @@ pkgrel=1
 pkgdesc="A download manager: many connections, resume, and a queue"
 arch=('x86_64' 'aarch64')
 url="https://github.com/pranavo72bex/Easy-Download-Manager"
-license=('MIT')
+license=('GPL-3.0-or-later')
 
 # The window is drawn in Rust (egui) with no web view. Its tray is a
 # StatusNotifier item over the session D-Bus; winit and glow need xkbcommon
@@ -72,4 +72,5 @@ package() {
   install -Dm644 "crates/dm-desktop/icons/128x128.png" \
     "$pkgdir/usr/share/icons/hicolor/128x128/apps/dm.png"
   install -Dm644 "../LICENSE" "$pkgdir/usr/share/licenses/$pkgname/LICENSE"
+  install -Dm644 "../NOTICE" "$pkgdir/usr/share/licenses/$pkgname/NOTICE"
 }

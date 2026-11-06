@@ -67,4 +67,4 @@ Actions secrets only (docs/RELEASING.md).
   creep in.
 
 By contributing, you agree that your contribution is licensed under the
-[MIT licence](LICENSE), like the rest of dm.
+[GNU GPL v3 or later](LICENSE), with the attribution terms in [NOTICE](NOTICE), like the rest of dm.

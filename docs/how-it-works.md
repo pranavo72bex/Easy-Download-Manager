@@ -477,4 +477,4 @@ scripts/app-check.py      the built binary, driven
 
 ## Licence
 
-MIT — see [LICENSE](../LICENSE).
+GPL-3.0-or-later, with the attribution terms of section 7(b) — see [LICENSE](../LICENSE) and [NOTICE](../NOTICE).

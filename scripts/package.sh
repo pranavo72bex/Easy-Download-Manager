@@ -135,6 +135,8 @@ pack() {
   (cd "$root/extension" && cp -R $files "$stage/")
   rm -f "$stage/pkg/.gitignore"
   cp "$root/extension/$manifest" "$stage/manifest.json"
+  # The licence and the attribution it requires go with every copy (NOTICE).
+  cp "$root/LICENSE" "$root/NOTICE" "$stage/"
 
   # Every file a manifest names must be in what ships, and so must the
   # module the loader imports and the WebAssembly that module fetches.

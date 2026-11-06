@@ -1,0 +1,45 @@
+Easy Download Manager (dm)
+https://github.com/pranavo72bex/Easy-Download-Manager
+
+Copyright (C) 2026 Pranav Jha (pranavo72bex) and the dm contributors.
+
+This program is free software: you can redistribute it and/or modify it under
+the terms of the GNU General Public License as published by the Free Software
+Foundation, either version 3 of the License, or (at your option) any later
+version, with the additional terms below.
+
+This program is distributed in the hope that it will be useful, but WITHOUT
+ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
+FOR A PARTICULAR PURPOSE. See the GNU General Public License (the LICENSE
+file) for more details.
+
+Releases up to and including desktop-v0.8.7 and extension v3.2.1 were
+published under the MIT licence; copies of those releases keep it.
+
+
+ADDITIONAL TERMS UNDER SECTION 7 OF THE GNU GENERAL PUBLIC LICENSE
+
+Under section 7(b) of the GNU General Public License version 3, the following
+author attribution must be preserved in this material and in any work based
+on it, in whole or in part:
+
+    Based on Easy Download Manager (dm) by Pranav Jha (pranavo72bex),
+    https://github.com/pranavo72bex/Easy-Download-Manager
+
+Anyone who conveys this program, or a work based on it or on any part of its
+code, must:
+
+  1. keep this NOTICE file, and every copyright and licence notice in the
+     source files, unchanged; and
+  2. show the attribution above in the work's Appropriate Legal Notices, and
+     wherever the work presents its legal or licence information to its
+     users or developers: for example its README, its documentation, or an
+     "About" or "Licences" screen.
+
+
+THIRD-PARTY MATERIAL
+
+dm is built with libraries and assets under their own licences (MIT,
+Apache-2.0, BSD, ISC, Zlib, MPL-2.0, Unicode, OFL and others), which stay
+with them. The Fluent UI System Icons are under the MIT licence
+(desktop/crates/dm-desktop/fonts/LICENSE-FluentSystemIcons.txt).

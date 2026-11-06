@@ -5,7 +5,7 @@
 <p align="center">
   <a href="https://github.com/pranavo72bex/Easy-Download-Manager/releases"><img alt="Latest release" src="https://img.shields.io/github/v/release/pranavo72bex/Easy-Download-Manager?style=for-the-badge&amp;color=2ea44f"></a>
   <a href="https://github.com/pranavo72bex/Easy-Download-Manager/releases"><img alt="Downloads" src="https://img.shields.io/github/downloads/pranavo72bex/Easy-Download-Manager/total?style=for-the-badge"></a>
-  <a href="LICENSE"><img alt="MIT licence" src="https://img.shields.io/badge/licence-MIT-blue?style=for-the-badge"></a>
+  <a href="LICENSE"><img alt="GPL v3 licence" src="https://img.shields.io/badge/licence-GPL--3.0-blue?style=for-the-badge"></a>
   <a href="https://microsoftedge.microsoft.com/addons/detail/ooafpfjpliofcdlnbdkjhonaoebcpnej"><img alt="Microsoft Edge Add-ons" src="https://img.shields.io/badge/Edge-Add--ons-0078D7?style=for-the-badge&amp;logo=microsoftedge&amp;logoColor=white"></a>
   <a href="https://addons.mozilla.org/en-US/firefox/addon/dm-download-manager/"><img alt="Firefox Add-ons" src="https://img.shields.io/badge/Firefox-Add--ons-FF7139?style=for-the-badge&amp;logo=firefoxbrowser&amp;logoColor=white"></a>
 </p>
@@ -539,6 +539,14 @@ See [PRIVACY.md](PRIVACY.md).
 
 ## License
 
-dm is free and open source under the [MIT licence](LICENSE). It has no
-ads, no accounts and no analytics, and it sends nothing about you anywhere
-(see [PRIVACY.md](PRIVACY.md)).
+dm is free and open source under the [GNU General Public License v3.0 or later](LICENSE),
+with additional terms under its section 7(b) in [NOTICE](NOTICE). It has no ads, no
+accounts and no analytics, and it sends nothing about you anywhere (see [PRIVACY.md](PRIVACY.md)).
+
+**Using dm's code in your own project?** You may, under the GPL v3: your project must be
+released under the GPL v3 too, keep the [NOTICE](NOTICE) file, and show this attribution
+in your README (or wherever it shows its licence information):
+
+> Based on [Easy Download Manager (dm)](https://github.com/pranavo72bex/Easy-Download-Manager) by Pranav Jha (pranavo72bex)
+
+Releases up to desktop-v0.8.7 and extension v3.2.1 were published under the MIT licence.
