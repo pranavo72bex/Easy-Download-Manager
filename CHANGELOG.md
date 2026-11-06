@@ -5,6 +5,7 @@ the browser extension (`v*` tags) are versioned separately.
 
 ## Unreleased
 
+- Windows: a torrent site's links reach dm from Microsoft Edge (gaps row 103). In Edge with dm's extension and the release build, on webtorrent.io's free torrents page, a click on a `.torrent` link and one on a magnet link each started a download in dm that reached the swarm (the magnet's 129 MB whole; the browser kept no copy of the `.torrent`). The magnet and `.torrent` handlers Windows itself opens are written by this version's first start; a dm 0.8.3 installed before it wrote none.
 - Windows: dm's memory at rest measured on Windows 11 (working set 64 to 76 MB, private bytes 30.5 MB, 25 threads, about 480 handles) and `scripts/memory-check.py`'s Windows budget set from it, as on macOS: 100 MB working set, 40 MB private (gaps row 137).
 - Windows: a download held by the schedule or the download limit, the window in the tray or minimized, and three progress windows open at once all behave on Windows as on macOS and Linux (`scripts/stress-check.py holds hidden details`, 41 checks; calls answered within 106 ms out of sight, the list current 0.11 s after it is shown; gaps row 24).
 - Windows: the whole behaviour contract holds on Windows, 64 rows of 64 in `scripts/human-qa.py` in a visible window, with Microsoft Edge and a real YouTube video (gaps row 141). Its browser check ended when YouTube's page went to another document while it was being asked something, and every check after it went unrun; a question cut short so is now asked again.
