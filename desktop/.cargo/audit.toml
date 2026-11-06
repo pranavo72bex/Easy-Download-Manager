@@ -19,4 +19,9 @@ ignore = [
     "RUSTSEC-2026-0370",
     "RUSTSEC-2026-0371",
     "RUSTSEC-2026-0372",
+    # paste "unmaintained" (through rav1d, the AV1 decoder of a Linux GIF, gaps
+    # row 54): a macro that joins names while rav1d is compiled, so none of it is
+    # in dm's binary, and no fault is known in it. The line goes when rav1d
+    # moves off it.
+    "RUSTSEC-2024-0436",
 ]

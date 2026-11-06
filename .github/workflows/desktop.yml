@@ -187,8 +187,19 @@ jobs:
           done
           # Without the runner's paths in the binary (scripts/release-flags.sh);
           # Windows keeps its own target flags, which this does not replace.
-          export CARGO_BUILD_RUSTFLAGS="$(sh ../../../scripts/release-flags.sh)"
+          # Set, then exported: `export X="$(…)"` hides the command's failure
+          # (shellcheck SC2155, which failed the packaging lint).
+          CARGO_BUILD_RUSTFLAGS="$(sh ../../../scripts/release-flags.sh)"
+          export CARGO_BUILD_RUSTFLAGS
           cargo packager --release --formats ${{ matrix.formats }}
+        # This step's own: the check below was put between its run and its env,
+        # and took the signing secrets from it.
+        env:
+          SECRET_APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
+          SECRET_APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
+          SECRET_APPLE_ID: ${{ secrets.APPLE_ID }}
+          SECRET_APPLE_PASSWORD: ${{ secrets.APPLE_PASSWORD }}
+          SECRET_APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
 
       - name: No build paths in what ships
         if: runner.os != 'Windows'
@@ -198,12 +209,6 @@ jobs:
           found=$(strings target/release/dm-desktop | grep -c -e "$HOME" -e "$GITHUB_WORKSPACE" || true)
           echo "paths of this runner in the binary: $found"
           test "$found" = 0
-        env:
-          SECRET_APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
-          SECRET_APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
-          SECRET_APPLE_ID: ${{ secrets.APPLE_ID }}
-          SECRET_APPLE_PASSWORD: ${{ secrets.APPLE_PASSWORD }}
-          SECRET_APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
 
       # Fedora, openSUSE and their kin: the same binary, laid out as the
       # Arch package is (desktop/packaging/nfpm.yaml).
