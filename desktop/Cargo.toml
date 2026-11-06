@@ -12,10 +12,27 @@ members = ["crates/dm-core", "crates/dm-protocol", "crates/dm-shell", "crates/dm
 exclude = ["vendor/winit", "vendor/egui-winit"]
 
 [profile.release]
-opt-level = 3
+opt-level = "s"
 lto = true
 codegen-units = 1
 strip = true
+
+# Sized for speed where the work is the CPU's: digests, unpacking, drawing
+# (docs/decisions.md, 2026-11-06). The rest waits on the network.
+[profile.release.package.sha2]
+opt-level = 3
+[profile.release.package.md-5]
+opt-level = 3
+[profile.release.package.crc32fast]
+opt-level = 3
+[profile.release.package.miniz_oxide]
+opt-level = 3
+[profile.release.package.ring]
+opt-level = 3
+[profile.release.package.epaint]
+opt-level = 3
+[profile.release.package.egui]
+opt-level = 3
 
 # Crates built with a change of dm's own (desktop/vendor/README.md).
 [patch.crates-io]

@@ -4186,6 +4186,11 @@ Each was decided by that rule:
 
 `panic = "abort"` would shrink the binary but breaks `tray.rs`, which survives a
 panic with `catch_unwind` (lines 154 and 164), and tokio tasks' panic isolation:
-not done. `opt-level = "s"` trades speed in hashing and segment copying for size;
-it waits for a measurement of both on a release build (25.9 MB, about 110 MB
-resident at rest, idle CPU negligible). The 27-finding audit was not kept.
+not done. `opt-level = "s"` is now the release default, with sha2, md-5, crc32fast,
+miniz_oxide, ring, epaint and egui kept at 3 (the CPU-bound work: digests,
+unpacking, TLS, drawing). Release binary 25,895,328 to 20,516,304 bytes
+(all at "s": 20,152,704). `tests/throughput.rs`, two runs each on this Mac:
+512 MB over 8 connections 1398/2003 MB/s at 3, 1981/1964 at "s"; every other
+line the same within noise. `human-qa.py` on the new release binary: 63 of 64
+rows hold; B25 not pictured (no Screen Recording permission, gaps row 154).
+The 27-finding audit was not kept.
