@@ -53,9 +53,19 @@ async fn tracker_returning(peer: SocketAddr) -> SocketAddr {
 
 struct Swarm {
     _seed: tempfile::TempDir,
-    _session: std::sync::Arc<Session>,
+    session: std::sync::Arc<Session>,
+    /// Where the seeder takes peers.
+    seeder: SocketAddr,
     torrent_url: String,
     magnet: String,
+}
+
+impl Swarm {
+    /// The seeder gone: its session stopped, so it takes no peer. Dropping
+    /// the swarm does not do it, as librqbit's tasks keep the session going.
+    async fn stop_seeding(&self) {
+        self.session.stop().await;
+    }
 }
 
 /// A seeder and tracker on loopback serving `files` under `name`.
@@ -155,7 +165,8 @@ async fn swarm_with(name: &str, files: &[(&str, Vec<u8>)], encrypted_only: bool)
     };
     Swarm {
         _seed: seed,
-        _session: session,
+        session,
+        seeder: addr,
         torrent_url: url,
         magnet,
     }
@@ -720,8 +731,15 @@ async fn a_finished_torrent_kept_shared_serves_another_peer_and_stops_at_its_rat
         .bytes()
         .await
         .unwrap();
-    // The first seeder goes: what the next peer gets, it gets from dm.
-    drop(swarm);
+    // The first seeder goes: what the next peer gets, it gets from dm. Only
+    // dropped, it went on taking peers, and the tracker still names it: on a
+    // loaded machine the other peer, told of it by dm, took the whole file
+    // from it, and dm had sent nothing when the check below gave up.
+    swarm.stop_seeding().await;
+    assert!(
+        std::net::TcpStream::connect_timeout(&swarm.seeder, Duration::from_secs(1)).is_err(),
+        "the first seeder still takes peers"
+    );
 
     let mut port = None;
     for _ in 0..100 {
