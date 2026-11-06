@@ -95,8 +95,10 @@ windows = { version = "0.62", features = [
 [dev-dependencies]
 # The info hash of a torrent another client made (tests/mse_interop.rs).
 sha1 = "0.11"
-# The AV1 reader is tested on every system, though only Linux builds it in.
+# The AV1 reader is tested on every system, though only Linux builds it in;
+# libc for the C library's EAGAIN, rav1d's "not now", on Windows too.
 rav1d = { version = "1.1.0", default-features = false, features = ["bitdepth_8", "bitdepth_16"] }
+libc = "0.2"
 # Random and hostile input for the readers of outside data (tests/fuzz.rs),
 # on stable Rust inside cargo test.
 proptest = "1"

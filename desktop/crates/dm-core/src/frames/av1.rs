@@ -251,9 +251,12 @@ struct Decoder {
 }
 
 /// dav1d says "not now" with -EAGAIN: send more, or take a picture first.
+/// rav1d's EAGAIN is the C library's (`libc::EAGAIN`: 11 on Linux and
+/// Windows, 35 on macOS). Read as an OS error it was "would block" on Linux
+/// and macOS only: Windows' OS errors are its own codes (11 is a bad format
+/// there), so every "not now" was taken for a failure.
 fn again(result: i32) -> bool {
-    result < 0
-        && std::io::Error::from_raw_os_error(-result).kind() == std::io::ErrorKind::WouldBlock
+    result == -libc::EAGAIN
 }
 
 impl Decoder {
@@ -421,4 +424,20 @@ unsafe fn view(picture: &Dav1dPicture) -> Option<Picture<'_>> {
         full_range,
         timestamp: picture.m.timestamp,
     })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::Decoder;
+
+    /// A decoder given nothing yet has no picture to give: rav1d says "not
+    /// now", which is not a failure on any system. On Windows it was read as
+    /// an OS error and taken for one, and no AV1 part was ever decoded there.
+    #[test]
+    fn a_decoder_with_nothing_yet_says_not_now_and_not_a_failure() {
+        let mut decoder = Decoder::open().unwrap();
+        let mut given = 0;
+        decoder.pictures(&mut |_| given += 1).unwrap();
+        assert_eq!(given, 0);
+    }
 }
