@@ -123,9 +123,12 @@ There is no Node, npm or JavaScript test suite; do not add one.
   install Python: `scripts/package.sh` finds a Python that runs; elsewhere call
   `python`.
 - `cargo test --workspace` stops at the first test program that fails, so the
-  crates after it never run: add `--no-fail-fast` to see every failure. The
-  window tests fail one at a time now and then in a full run and pass alone
-  (gaps row 115); re-run the one by name before suspecting a change.
+  crates after it never run: add `--no-fail-fast` to see every failure. A
+  test that fails in a full run and passes alone is most often waiting on
+  something a loaded machine makes slow (a dialog laid out again when an
+  answer comes, a peer still there): re-run it by name, then find what it
+  waits on rather than lengthening its wait blindly (gaps row 115, closed
+  2026-11-07 on Windows).
 - The order a change is checked in, cheapest first: `cargo fmt --check`, both
   clippies, the crates' tests, `scripts/chrome-check.py`, then
   `scripts/human-qa.py` whole.

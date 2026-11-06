@@ -5,6 +5,7 @@ the browser extension (`v*` tags) are versioned separately.
 
 ## Unreleased
 
+- Windows: the whole test suite passes on a four-core Windows computer, three times with four test threads and three times in full (1468 tests; gaps row 115). What failed now and then were the tests, not dm: the schedule tests' "always shut" window was open the minute after midnight; the torrent sharing test's first seeder was only dropped and went on serving; a click in Download details landed before a video's qualities had laid it out again.
 - Fixed: the AV1 reader (a part saved as GIF on Linux) took the decoder's "not now" for a failure everywhere but Linux and macOS: it read the C library's EAGAIN as an operating-system error, which on Windows is another error. Only the tests run it on Windows, where both AV1 tests failed; it now compares with the C library's EAGAIN itself.
 - Fixed (engine): a download's connection left alone after the others stepped aside, on running out of tries, took a new range and left the failed one unfetched; it now tries that same range again, as its comment always said.
 - Fixed (engine): a Metalink whose mirror stopped answering between the first try and the one-mirror-at-a-time tries crashed the download's workers ("task panicked"); that try now fails as any other and the next mirror is tried.
