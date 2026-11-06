@@ -933,7 +933,7 @@ fn the_columns_follow_the_window_until_one_is_dragged() {
     add_url(&mut harness, &world.url("file.zip"), "Add for later");
     harness.run_steps(3);
     let name_width = |h: &Harness<'_, DmApp>| {
-        h.get_by_role_and_label(Role::Button, "Q").rect().left()
+        h.get_by_role_and_label(Role::Button, "Queue").rect().left()
             - h.get_by_role_and_label(Role::Button, "File Name")
                 .rect()
                 .left()
@@ -1198,5 +1198,29 @@ fn a_list_with_room_for_one_row_stays_where_it_was_scrolled() {
     assert!(
         (first - later).abs() < 0.5,
         "the list moved from {first} to {later} by itself"
+    );
+}
+
+/// The queue column's heading is the queue's mark, a list (it said "Q",
+/// which read as a search glass; the maintainer, 2026-11-06): named "Queue"
+/// for a screen reader and in the columns menu, and a click on it still sorts
+/// the list by queue.
+#[test]
+fn the_queue_columns_heading_is_named_and_sorts() {
+    use egui::accesskit::Role;
+    let world = world();
+    let mut harness = world.harness();
+    add_url(&mut harness, &world.url("file.zip"), "Add for later");
+    harness.run_steps(3);
+    assert!(
+        harness.query_by_role_and_label(Role::Button, "Q").is_none(),
+        "the heading still says Q"
+    );
+    harness.get_by_role_and_label(Role::Button, "Queue").click();
+    harness.run_steps(3);
+    assert!(
+        matches!(harness.state().sort, Some((Column::Queue, _))),
+        "a click on the heading did not sort by queue: {:?}",
+        harness.state().sort
     );
 }

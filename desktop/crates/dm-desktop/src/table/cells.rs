@@ -143,6 +143,54 @@ pub(super) fn header_only(app: &mut DmApp, ui: &mut egui::Ui) {
 /// selected row's indicator is drawn.
 pub(super) const LEAD: f32 = 8.0;
 
+/// The queue column's heading: the mark a queue has in the side panel (a
+/// list), where it said "Q", which read as a search glass (the maintainer,
+/// 2026-11-06), and the sort's arrow after it.
+fn queue_heading(ui: &mut egui::Ui, marker: &str, t: &crate::theme::Tokens) -> egui::Response {
+    let size = egui::vec2(
+        if marker.is_empty() { 18.0 } else { 28.0 },
+        ui.spacing().interact_size.y,
+    );
+    let (rect, response) = ui.allocate_exact_size(size, egui::Sense::click());
+    let color = if response.hovered() {
+        ui.visuals().strong_text_color()
+    } else if t.modern {
+        t.text2
+    } else {
+        ui.visuals().text_color()
+    };
+    let icon = egui::Rect::from_center_size(
+        egui::pos2(rect.left() + 8.0, rect.center().y),
+        egui::vec2(14.0, 14.0),
+    );
+    let painter = ui.painter();
+    if !crate::icons::glyph(painter, icon, crate::icons::fluent::LIST, color) {
+        // The classic look, which has no icon font: three lines, a dot
+        // before each, drawn.
+        for row in 0..3 {
+            let y = icon.top() + 3.0 + row as f32 * 4.0;
+            painter.circle_filled(egui::pos2(icon.left() + 2.0, y), 1.0, color);
+            painter.line_segment(
+                [
+                    egui::pos2(icon.left() + 5.0, y),
+                    egui::pos2(icon.right() - 1.0, y),
+                ],
+                egui::Stroke::new(1.0, color),
+            );
+        }
+    }
+    if !marker.is_empty() {
+        painter.text(
+            egui::pos2(icon.right() + 1.0, rect.center().y),
+            egui::Align2::LEFT_CENTER,
+            marker.trim(),
+            egui::TextStyle::Body.resolve(ui.style()),
+            color,
+        );
+    }
+    response
+}
+
 pub(super) fn heading(app: &mut DmApp, ui: &mut egui::Ui, column: Column) {
     let t = crate::theme::Tokens::get(ui.ctx());
     let marker = match app.sort {
@@ -159,7 +207,9 @@ pub(super) fn heading(app: &mut DmApp, ui: &mut egui::Ui, column: Column) {
     };
     // Over the right edge where the numbers under it are.
     let numbers = matches!(column, Column::Size | Column::TimeLeft | Column::Rate);
-    let response = if numbers {
+    let response = if column == Column::Queue {
+        queue_heading(ui, marker, &t)
+    } else if numbers {
         ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
             // Clear of the next column's heading, which it ran into;
             // the numbers under it keep the same gap.
@@ -171,6 +221,12 @@ pub(super) fn heading(app: &mut DmApp, ui: &mut egui::Ui, column: Column) {
         ui.add(egui::Button::new(text).frame(false))
     };
     response.widget_info(|| egui::WidgetInfo::labeled(egui::Role::Button, true, column.title()));
+    // Its heading is an icon: its name said on hover.
+    let response = if column == Column::Queue {
+        response.on_hover_text(column.title())
+    } else {
+        response
+    };
     if response.clicked() {
         app.sort_by(column);
     }

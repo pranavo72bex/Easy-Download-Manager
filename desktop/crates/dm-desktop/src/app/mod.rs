@@ -209,7 +209,9 @@ impl Column {
     pub fn english(self) -> &'static str {
         match self {
             Column::Name => "File Name",
-            Column::Queue => "Q",
+            // Its heading draws the queue's mark; this is its name in the
+            // columns menu and for a screen reader.
+            Column::Queue => "Queue",
             Column::Size => "Size",
             Column::Status => "Status",
             Column::TimeLeft => "Time left",

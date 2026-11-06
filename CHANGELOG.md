@@ -5,6 +5,7 @@ the browser extension (`v*` tags) are versioned separately.
 
 ## Unreleased
 
+- The queue column's heading is the queue's list mark (as in the side panel), named "Queue" on hover and in the columns menu, where it said "Q", which read as a search icon.
 - Torrents: encrypted peer connections (BitTorrent's MSE/PE). A peer that takes only encrypted connections, which refused dm before, is now asked again encrypted; one that connects encrypted is answered (gaps row 150).
 - Fixed (torrents): an incoming peer connection could wait unanswered until the next one arrived, whenever another connection had just been refused (BUGLOG.md BUG-009).
 - Linux: a part of a YouTube video can be saved as a GIF, as on macOS and Windows. dm takes the video's AV1 stream (royalty-free) and decodes it itself, in pure Rust, with nothing to install (gaps row 54).

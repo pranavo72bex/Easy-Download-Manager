@@ -770,20 +770,21 @@ async fn a_finished_torrent_kept_shared_serves_another_peer_and_stops_at_its_rat
         "the other peer's copy is not whole"
     );
 
-    // Its ratio of 1 reached, dm stops sharing and lets go of the file.
+    // Its ratio of 1 reached, dm stops sharing and lets go of the file. The
+    // count of what was sent is read once a second, and under a loaded
+    // machine (the whole suite at once) the peer's fetch itself took most of
+    // the 15 s this once waited: a minute, as the fetch above has.
     let mut stopped = false;
-    for _ in 0..150 {
-        if dm_core::sharing(&done.path).is_none() {
+    let mut last = None;
+    for _ in 0..600 {
+        last = dm_core::sharing(&done.path);
+        if last.is_none() {
             stopped = true;
             break;
         }
         tokio::time::sleep(Duration::from_millis(100)).await;
     }
-    assert!(
-        stopped,
-        "still shared after sending its size: {:?}",
-        dm_core::sharing(&done.path)
-    );
+    assert!(stopped, "still shared after sending its size: {last:?}");
 
     // Stopped at once when its row goes.
     dm_core::stop_sharing(&done.path);
