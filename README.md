@@ -1,23 +1,61 @@
-# Easy Download Manager (dm)
+<h1 align="center">Easy Download Manager (dm)</h1>
 
-A free download manager for Windows, macOS and Linux. It downloads files
-faster by using several connections at once, picks up where it left off
-when your internet drops, and takes over the downloads you start in your
-browser.
+<p align="center"><strong>Faster downloads, picked up where they left off.</strong></p>
+
+<p align="center">
+  <a href="https://github.com/pranavo72bex/Easy-Download-Manager/releases"><img alt="Latest release" src="https://img.shields.io/github/v/release/pranavo72bex/Easy-Download-Manager?style=for-the-badge&amp;color=2ea44f"></a>
+  <a href="https://github.com/pranavo72bex/Easy-Download-Manager/releases"><img alt="Downloads" src="https://img.shields.io/github/downloads/pranavo72bex/Easy-Download-Manager/total?style=for-the-badge"></a>
+  <a href="LICENSE"><img alt="MIT licence" src="https://img.shields.io/badge/licence-MIT-blue?style=for-the-badge"></a>
+  <a href="https://microsoftedge.microsoft.com/addons/detail/ooafpfjpliofcdlnbdkjhonaoebcpnej"><img alt="Microsoft Edge Add-ons" src="https://img.shields.io/badge/Edge-Add--ons-0078D7?style=for-the-badge&amp;logo=microsoftedge&amp;logoColor=white"></a>
+  <a href="https://addons.mozilla.org/en-US/firefox/addon/dm-download-manager/"><img alt="Firefox Add-ons" src="https://img.shields.io/badge/Firefox-Add--ons-FF7139?style=for-the-badge&amp;logo=firefoxbrowser&amp;logoColor=white"></a>
+</p>
 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="docs/screenshot-dark.png">
   <img alt="The dm window: a menu row with a search box, a toolbar, a list of places on the left, and the downloads as a table with their size, status, time left and speed" src="docs/screenshot.png">
 </picture>
 
-You install two things, both free:
+<p align="center">
+  <a href="https://github.com/pranavo72bex/Easy-Download-Manager/releases">Download dm</a> ·
+  <a href="#install">Install</a> ·
+  <a href="docs/user-guide.md">User guide</a> ·
+  <a href="#for-developers">Build from source</a>
+</p>
 
-1. **The dm app**, which does the downloading.
-2. **The browser extension**, which sends your downloads to the app.
+dm is a free download manager for Windows, macOS and Linux. It downloads files
+faster by using several connections at once, picks up where it left off
+when your internet drops, and takes over the downloads you start in your
+browser. You install two things, both free: **the dm app**, which does the
+downloading, and **the browser extension**, which sends your downloads to it.
 
----
+## What it does
 
-## Step 1 — Download the files
+Click any picture to see it at full size.
+
+| Feature | Preview |
+| --- | --- |
+| **Several connections at once**<br>A file is split into parts fetched side by side, and a slow part is helped by the others. | <a href="docs/screenshot.png"><img src="docs/screenshot.png" width="260" alt="The download list"></a> |
+| **Resume after a drop**<br>A lost connection, a sleep or a restart: the download goes on from where it stopped. | <a href="docs/progress.png"><img src="docs/progress.png" width="260" alt="A download's progress window"></a> |
+| **Takes over the browser's downloads**<br>Click a link and it lands in dm, not the browser. Alt-click leaves it with the browser. | |
+| **Videos from the page**<br>Play a video and click **Download video** in its corner, then pick a quality. YouTube needs nothing extra. | |
+| **Queues, schedule and limits**<br>Queues, a scheduler, a speed limit for everything or for one site, and a folder per site. | <a href="docs/settings.png"><img src="docs/settings.png" width="260" alt="Options"></a> |
+| **Driven from a terminal or an AI assistant**<br>`dm-desktop list`, `pause`, `resume`; or any MCP client, with no key and nothing sent off your computer. | |
+
+## Supported
+
+| Kind | What dm takes |
+| --- | --- |
+| **Web** | `http://`, `https://`, through HTTP or SOCKS5 proxies, with sign-ins and cookies |
+| **FTP** | `ftp://` and FTPS |
+| **Torrents** | magnet links and `.torrent` files |
+| **Streams** | HLS and DASH playlists, `rtmp://`, `rtmpt://`, `rtsp://`, `rtsps://`, `mms://` |
+| **Browsers** | Chrome, Edge, Brave, Vivaldi, Opera and Firefox |
+| **Systems** | Windows 10 and 11, macOS on Apple chips, Linux (`.deb`, `.rpm`, AppImage, AUR) |
+| **Languages** | English, Español, Português, Français, Deutsch, Italiano, Nederlands, Polski, Русский, Bahasa Indonesia, Türkçe, 简体中文, 日本語, 한국어 |
+
+## Install
+
+### Step 1 — Download the files
 
 Open the **[Releases page](https://github.com/pranavo72bex/Easy-Download-Manager/releases)**
 and, under the newest release, open **Assets**. Download the file for your
@@ -41,12 +79,12 @@ Not built yet: Macs with an Intel chip.
 
 How the Windows installer is signed: see the [Code signing policy](#code-signing-policy).
 
-## Step 2 — Install the app
+### Step 2 — Install the app
 
 dm is not signed with a paid certificate yet, so your computer will warn
 you the first time. That is expected; here is how to get past it.
 
-### Windows
+#### Windows
 
 1. If your browser says the file "isn't commonly downloaded" or might be
    harmful, open its downloads list and choose **Keep** (in Edge: **…** →
@@ -56,7 +94,7 @@ you the first time. That is expected; here is how to get past it.
    **Run anyway**.
 4. Click through the installer.
 
-### Windows, portable (no installer)
+#### Windows, portable (no installer)
 
 Prefer not to install anything, or want dm on a USB stick? Download
 `dm_…_x64-portable.zip` instead, unzip it anywhere and double-click
@@ -66,7 +104,7 @@ to the computer; delete the folder and dm is gone. A portable dm does not start
 when you sign in. To let the browser extension hand downloads to this copy, run
 `dm-desktop.exe --register` once in its folder (and again if you move it).
 
-### Mac
+#### Mac
 
 1. Double-click `dm_…_aarch64.dmg`.
 2. Drag **dm** into the **Applications** folder.
@@ -77,7 +115,7 @@ when you sign in. To let the browser extension hand downloads to this copy, run
 
 Always open dm from **Applications**, not from the downloaded disk image.
 
-### Ubuntu, Debian, Linux Mint
+#### Ubuntu, Debian, Linux Mint
 
 Double-click `dm_…_amd64.deb` and click **Install**. Or, in a terminal in
 the folder you downloaded it to:
@@ -86,7 +124,7 @@ the folder you downloaded it to:
 sudo apt install ./dm_*_amd64.deb
 ```
 
-### Fedora, openSUSE, RHEL
+#### Fedora, openSUSE, RHEL
 
 In a terminal in the folder you downloaded it to:
 
@@ -95,7 +133,7 @@ sudo dnf install ./dm-*.rpm        # Fedora, RHEL
 sudo zypper install ./dm-*.rpm     # openSUSE
 ```
 
-### Any other Linux (AppImage)
+#### Any other Linux (AppImage)
 
 1. Right-click `dm_…_x86_64.AppImage` → **Properties** → **Permissions**,
    and tick **Allow executing file as program**.
@@ -104,7 +142,7 @@ sudo zypper install ./dm-*.rpm     # openSUSE
 Keep the AppImage where it is once you have opened it: your browser is
 told where it lives. (If you move it, open it once from its new place.)
 
-### Arch Linux
+#### Arch Linux
 
 From the AUR, where [dm-appimage](https://aur.archlinux.org/packages/dm-appimage)
 installs the release's AppImage (packaged and kept up by
@@ -122,7 +160,7 @@ cd Easy-Download-Manager/desktop/packaging
 makepkg -si
 ```
 
-## Step 3 — Open dm once
+### Step 3 — Open dm once
 
 Open **dm** from your Start menu, Applications folder or app menu. That is
 all it takes: the first time it opens, dm tells your browsers where it is.
@@ -135,16 +173,16 @@ each browser: **Microsoft Edge**, **Firefox** and **Chrome and others**.
 Click yours and it opens the page you add it from. (The same buttons are in
 **Options › Browser**.)
 
-## Step 4 — Add the extension
+### Step 4 — Add the extension
 
-### Microsoft Edge
+#### Microsoft Edge
 
 dm is on Microsoft Edge Add-ons, Microsoft's own store.
 
 1. Open **[dm on Microsoft Edge Add-ons](https://microsoftedge.microsoft.com/addons/detail/ooafpfjpliofcdlnbdkjhonaoebcpnej)** in Edge.
 2. Click **Get**, then **Add extension**.
 
-### Chrome, Brave, Vivaldi and Opera
+#### Chrome, Brave, Vivaldi and Opera
 
 1. Unzip `dm-chrome-….zip`. Move the folder it makes somewhere it can stay,
    such as your Documents folder. **Do not delete this folder later** — the
@@ -159,7 +197,7 @@ dm is on Microsoft Edge Add-ons, Microsoft's own store.
 4. Click **Load unpacked** and choose the folder from step 1.
 5. Close the browser completely and open it again.
 
-### Firefox
+#### Firefox
 
 dm is on Firefox Add-ons, Mozilla's own store.
 
@@ -191,7 +229,7 @@ extension turn it off. When dm's was the only download listed, the panel
 closes again by itself; with older downloads listed it stays open showing
 them, until you click elsewhere or press Esc.
 
-## Step 5 — Try it
+### Step 5 — Try it
 
 Click a download link on any website, for example a `.zip` or `.exe` file.
 It appears in dm instead of in the browser, and downloads there.
@@ -238,7 +276,10 @@ It appears in dm instead of in the browser, and downloads there.
   computer's language when it has it. Chinese, Japanese and Korean are drawn
   in your computer's own font for them.
 
-### From a terminal
+## More
+
+<details>
+<summary><strong>From a terminal</strong></summary>
 
 Turn on **Options › General › Allow the command line to control dm** (off until you do), or start dm with `--control 0` (also
 `--headless --control 0` for no window), and another terminal can see and
@@ -257,7 +298,10 @@ over the loopback address with a token only your account can read, and
 prints no cookies or sign-ins. (`dm` rather than `dm-desktop` on the
 Fedora, openSUSE, Arch and AppImage installs.)
 
-### From an AI assistant (MCP)
+</details>
+
+<details>
+<summary><strong>From an AI assistant (MCP)</strong></summary>
 
 dm can be driven by any AI client that speaks the Model Context Protocol
 (Claude Desktop and others), using the client's own account: dm needs no key
@@ -289,7 +333,10 @@ downloaded file and deleting a download stay a person's click in the window.
 Untick the box and the assistant is refused at once, with a message that says why. If dm is restarted, the assistant reconnects on
 its next request.
 
-### How video downloads work
+</details>
+
+<details>
+<summary><strong>How video downloads work</strong></summary>
 
 You do not need to install anything for video.
 
@@ -313,7 +360,10 @@ checks you are not a bot lets the download through.
 Queues, the Scheduler, the Grabber, a page's links and torrents are described in
 [docs/user-guide.md](docs/user-guide.md), which dm's **Help** menu opens.
 
-## If something is not working
+</details>
+
+<details>
+<summary><strong>If something is not working</strong></summary>
 
 - **Downloads still go to the browser.** Click the dm icon in the browser's
   toolbar: it says whether dm is connected, and if not, why. Check that
@@ -346,7 +396,10 @@ Queues, the Scheduler, the Grabber, a page's links and torrents are described in
   in dm choose it under **Options › Advanced › Network › Cookies file**. dm then
   sends those cookies itself, to the site they belong to.
 
-## Uninstall
+</details>
+
+<details>
+<summary><strong>Uninstall</strong></summary>
 
 First tell your browsers dm is going, and remove its login item (Start on
 login), so nothing is left pointing at a program that is not there. Quit dm,
@@ -386,43 +439,23 @@ The window's size and place are kept in one more folder:
 `%APPDATA%\dm\data` on Windows, `~/Library/Application Support/dm` on a
 Mac, `~/.local/share/dm` on Linux.
 
-## Use it responsibly
+</details>
 
-Only download what you have the right to download. dm does not get around
-DRM, paywalls, sign-ins or any other protection: what a website does not
-let you download, dm does not either.
+## Downloads
 
-## Free, with nothing tracked
+- [The newest release](https://github.com/pranavo72bex/Easy-Download-Manager/releases): Windows, macOS and Linux, and the Chrome extension
+- [dm on Microsoft Edge Add-ons](https://microsoftedge.microsoft.com/addons/detail/ooafpfjpliofcdlnbdkjhonaoebcpnej)
+- [dm on Firefox Add-ons](https://addons.mozilla.org/en-US/firefox/addon/dm-download-manager/)
+- [Build from source](#for-developers)
 
-dm is free and open source under the [MIT licence](LICENSE). It has no
-ads, no accounts and no analytics, and it sends nothing about you anywhere
-(see [PRIVACY.md](PRIVACY.md)).
+## Documentation
 
-## Code signing policy
-
-dm is applying to [SignPath Foundation](https://signpath.org) for free code
-signing of the Windows installer, through [SignPath.io](https://signpath.io).
-Until a certificate is issued the installer is **not signed** (Step 2 says
-how to open it). Once it is, this is the policy:
-
-- Only what this repository builds is signed: the Windows installer and the
-  program inside it, built from this source by GitHub Actions
-  ([desktop.yml](.github/workflows/desktop.yml)). Nothing made elsewhere is
-  signed with dm's certificate.
-- Committers and reviewers:
-  [pranavo72bex](https://github.com/pranavo72bex) (the project's members are
-  listed under [Contributors](https://github.com/pranavo72bex/Easy-Download-Manager/graphs/contributors)).
-  A change from anyone else is reviewed by a committer before it is merged.
-- Approvers: [pranavo72bex](https://github.com/pranavo72bex), the
-  repository's owner. Every signing request is approved by hand.
-- Everyone above signs in to GitHub and SignPath with two-factor
-  authentication.
-
-Privacy: dm sends nothing about you anywhere. It reaches other computers
-only to fetch what you ask it to download, and, each with its own switch,
-to check GitHub for a new version (off until you turn it on) and to fetch
-the video helper from GitHub (on, and Options › Downloads turns it off).
-See [PRIVACY.md](PRIVACY.md).
+- [User guide](docs/user-guide.md): queues, the Scheduler, the Grabber, a page's links and torrents
+- [How it works](docs/how-it-works.md)
+- [Testing](docs/testing.md)
+- [Where to start changing it](AGENTS.md)
+- [The open work list](docs/gaps.md)
+- [Privacy](PRIVACY.md)
 
 ## For developers
 
@@ -468,3 +501,41 @@ python3 qa/tests/run.py          # the scenarios on this computer, no Docker
 
 Reports (JSON and JUnit per run, and each container's log) go to
 `qa/reports/`. What the suite found is in [BUGLOG.md](BUGLOG.md).
+
+## Use it responsibly
+
+Only download what you have the right to download. dm does not get around
+DRM, paywalls, sign-ins or any other protection: what a website does not
+let you download, dm does not either.
+
+## Code signing policy
+
+dm is applying to [SignPath Foundation](https://signpath.org) for free code
+signing of the Windows installer, through [SignPath.io](https://signpath.io).
+Until a certificate is issued the installer is **not signed** (Step 2 says
+how to open it). Once it is, this is the policy:
+
+- Only what this repository builds is signed: the Windows installer and the
+  program inside it, built from this source by GitHub Actions
+  ([desktop.yml](.github/workflows/desktop.yml)). Nothing made elsewhere is
+  signed with dm's certificate.
+- Committers and reviewers:
+  [pranavo72bex](https://github.com/pranavo72bex) (the project's members are
+  listed under [Contributors](https://github.com/pranavo72bex/Easy-Download-Manager/graphs/contributors)).
+  A change from anyone else is reviewed by a committer before it is merged.
+- Approvers: [pranavo72bex](https://github.com/pranavo72bex), the
+  repository's owner. Every signing request is approved by hand.
+- Everyone above signs in to GitHub and SignPath with two-factor
+  authentication.
+
+Privacy: dm sends nothing about you anywhere. It reaches other computers
+only to fetch what you ask it to download, and, each with its own switch,
+to check GitHub for a new version (off until you turn it on) and to fetch
+the video helper from GitHub (on, and Options › Downloads turns it off).
+See [PRIVACY.md](PRIVACY.md).
+
+## License
+
+dm is free and open source under the [MIT licence](LICENSE). It has no
+ads, no accounts and no analytics, and it sends nothing about you anywhere
+(see [PRIVACY.md](PRIVACY.md)).
