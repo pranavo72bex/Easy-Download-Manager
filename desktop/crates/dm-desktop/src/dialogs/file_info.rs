@@ -515,8 +515,12 @@ pub(super) fn file_info(app: &mut DmApp, ctx: &egui::Context) {
                             });
                             ui.end_row();
                             // As a GIF: moving pictures with no sound,
-                            // decoded by the system (macOS so far).
-                            if dm_core::gif::possible() {
+                            // decoded by the system (macOS, Windows) or, on
+                            // Linux, by dm from a YouTube video's AV1 stream.
+                            if d.urls
+                                .first()
+                                .is_some_and(|u| dm_core::gif::possible_for(u))
+                            {
                                 ui.label(t("Part as"));
                                 ui.horizontal(|ui| {
                                     if ui.selectable_label(!d.gif, t("Video")).clicked() {

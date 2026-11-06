@@ -4,6 +4,7 @@
 //! the page:
 //!
 //!     cargo run -p dm-core --example youtube_read -- <watch-url>...
+//!     DM_CODEC=av01 cargo run -p dm-core --example youtube_read -- <watch-url>...
 //!
 //! It reads only; nothing is downloaded. Its staging folder, and the tools it
 //! fetches for YouTube's challenges, are in a temporary one.
@@ -26,16 +27,37 @@ async fn main() {
     let client = dm_core::client();
     for url in urls {
         let started = std::time::Instant::now();
-        let read = youtube::read(
-            &client,
-            &url,
-            Quality::Best,
-            None,
-            false,
-            None,
-            staging.path(),
-        )
-        .await;
+        // With DM_CODEC (av01, as a GIF on Linux asks), the picture in that
+        // codec, from MP4 streams as a part is, at most 720 tall.
+        let read = match std::env::var("DM_CODEC").ok().as_deref() {
+            Some(codec) => {
+                youtube::read_at(
+                    &client,
+                    &url,
+                    Quality::UpTo(720),
+                    Some("mp4"),
+                    None,
+                    None,
+                    true,
+                    Some(codec),
+                    None,
+                    staging.path(),
+                )
+                .await
+            }
+            None => {
+                youtube::read(
+                    &client,
+                    &url,
+                    Quality::Best,
+                    None,
+                    false,
+                    None,
+                    staging.path(),
+                )
+                .await
+            }
+        };
         let took = started.elapsed().as_secs_f64();
         match read {
             Ok(json) => {
@@ -63,6 +85,16 @@ async fn main() {
                     {
                         println!("ADDRESS {first}");
                     }
+                }
+                for chosen in value["requested_formats"].as_array().into_iter().flatten() {
+                    println!(
+                        "CHOSE {} {} {}",
+                        chosen["vcodec"].as_str().unwrap_or(""),
+                        chosen["acodec"].as_str().unwrap_or(""),
+                        chosen["height"]
+                            .as_u64()
+                            .map_or(String::new(), |h| format!("{h}p"))
+                    );
                 }
                 println!(
                     "OK    {url}  {formats} formats, {with_address} with an address, best {best}p, {took:.1} s, title {:?}",

@@ -17,10 +17,22 @@ pub fn possible() -> bool {
     {
         crate::mf::h264_decoder()
     }
-    #[cfg(not(any(target_os = "macos", windows)))]
+    // From the video's AV1 stream, decoded by dm's own reader (`frames/av1.rs`).
+    #[cfg(target_os = "linux")]
+    {
+        true
+    }
+    #[cfg(not(any(target_os = "macos", windows, target_os = "linux")))]
     {
         false
     }
+}
+
+/// Whether a part of the video at `url` can be made a GIF here. On Linux it
+/// is made from the video's AV1 stream, which only YouTube's pages are read
+/// for by dm itself; a stream caught elsewhere is H.264.
+pub fn possible_for(url: &str) -> bool {
+    possible() && (!cfg!(target_os = "linux") || crate::youtube::video_id(url).is_some())
 }
 
 /// Frames a second, and the most pixels across, of a GIF made of a part.
@@ -307,6 +319,20 @@ fn lzw(indices: &[u8], min_size: u32) -> Vec<u8> {
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn a_gif_is_offered_where_the_part_can_be_decoded() {
+        let youtube = "https://www.youtube.com/watch?v=jNQXAC9IVRw";
+        let stream = "https://cdn.example/live/index.m3u8";
+        if cfg!(target_os = "linux") {
+            // From YouTube's AV1 stream only: a stream caught elsewhere is H.264.
+            assert!(possible_for(youtube));
+            assert!(!possible_for(stream));
+        } else {
+            assert_eq!(possible_for(youtube), possible());
+            assert_eq!(possible_for(stream), possible());
+        }
+    }
+
     use super::*;
 
     /// An LZW stream read back as GIF's decoder reads it.

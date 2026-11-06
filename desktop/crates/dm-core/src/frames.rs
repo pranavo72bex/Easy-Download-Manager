@@ -1,13 +1,16 @@
 //! Pictures of a video, for a part saved as GIF: its H.264 samples decoded
 //! by the system's own decoder (VideoToolbox on macOS, called directly; on
 //! Windows Media Foundation's source reader, `frames/win.rs`), a few a
-//! second, made small as each is decoded. Elsewhere there is none dm can
-//! use yet, and that is said in words.
+//! second, made small as each is decoded. On Linux, which has no decoder dm
+//! can use, the part is taken from the video's AV1 stream and decoded by
+//! rav1d (`frames/av1.rs`).
 
 use std::path::Path;
 
 use crate::gif::Frame;
 
+#[cfg(any(target_os = "linux", test))]
+mod av1;
 #[cfg(windows)]
 mod win;
 
@@ -22,7 +25,11 @@ pub fn read(path: &Path, fps: u32, width: u32) -> Result<(u16, u16, Vec<Frame>),
     {
         win::read(path, fps.max(1), width.max(16))
     }
-    #[cfg(not(any(target_os = "macos", windows)))]
+    #[cfg(target_os = "linux")]
+    {
+        av1::read(path, fps.max(1), width.max(16))
+    }
+    #[cfg(not(any(target_os = "macos", windows, target_os = "linux")))]
     {
         let _ = (path, fps, width);
         Err(
@@ -35,7 +42,10 @@ pub fn read(path: &Path, fps: u32, width: u32) -> Result<(u16, u16, Vec<Frame>),
 /// RGB at `w` by `h` from BGRA rows (`stride` bytes each) of the rectangle
 /// `(x, y, cw, ch)`: each output pixel the average of the source pixels it
 /// covers, so small text and edges do not shimmer.
-#[cfg_attr(not(any(target_os = "macos", windows, test)), allow(dead_code))]
+#[cfg_attr(
+    not(any(target_os = "macos", windows, target_os = "linux", test)),
+    allow(dead_code)
+)]
 fn shrink(
     bgra: &[u8],
     stride: usize,
@@ -505,6 +515,84 @@ mod mac {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// The mean red and blue of an RGB picture.
+    fn red_blue(rgb: &[u8]) -> (u32, u32) {
+        let n = (rgb.len() / 3).max(1) as u32;
+        let (r, b) = rgb.chunks(3).fold((0u32, 0u32), |(r, b), px| {
+            (r + u32::from(px[0]), b + u32::from(px[2]))
+        });
+        (r / n, b / n)
+    }
+
+    /// An AV1 MP4 (one second red, one blue, made by an AV1 encoder) read by
+    /// dm's AV1 reader, the Linux route to a GIF (gaps row 54): twelve
+    /// pictures a second, its size kept, red then blue.
+    #[test]
+    fn an_av1_video_is_read_to_pictures_red_then_blue() {
+        let fixture =
+            Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/mp4/red-blue.av1.mp4");
+        let (w, h, frames) = av1::read(&fixture, 12, 480).unwrap();
+        assert_eq!((w, h), (320, 180));
+        assert!(
+            (22..=25).contains(&frames.len()),
+            "{} pictures",
+            frames.len()
+        );
+        for frame in &frames {
+            assert_eq!(frame.rgb.len(), 320 * 180 * 3);
+        }
+        let (r, b) = red_blue(&frames[1].rgb);
+        assert!(
+            r > 150 && b < 90,
+            "the first second is not red: r {r}, b {b}"
+        );
+        let (r, b) = red_blue(&frames[frames.len() - 2].rgb);
+        assert!(
+            b > 150 && r < 90,
+            "the second second is not blue: r {r}, b {b}"
+        );
+        // Smaller where asked: at most 160 across, its shape kept.
+        let (w, h, _) = av1::read(&fixture, 12, 160).unwrap();
+        assert_eq!((w, h), (160, 90));
+        // And written as a GIF.
+        let gif = crate::gif::encode(320, 180, &frames).unwrap();
+        assert_eq!(&gif[..6], b"GIF89a");
+    }
+
+    /// A part cut by dm's own cutter (an edit list over the samples) gives
+    /// the pictures of its span alone: from half a second, a second long, so
+    /// red for its first half and blue after.
+    #[test]
+    fn a_cut_av1_part_gives_the_pictures_of_its_span_only() {
+        let dir = tempfile::tempdir().unwrap();
+        let fixture =
+            Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/mp4/red-blue.av1.mp4");
+        let part = dir.path().join("part.mp4");
+        crate::mp4mux::join_cut(&[fixture], &[], &part, Some((500, 1500)), None).unwrap();
+        let (_, _, frames) = av1::read(&part, 12, 480).unwrap();
+        assert!(
+            (10..=13).contains(&frames.len()),
+            "{} pictures",
+            frames.len()
+        );
+        let (r, _) = red_blue(&frames[0].rgb);
+        assert!(r > 150, "the part does not start red: r {r}");
+        let (_, b) = red_blue(&frames[frames.len() - 1].rgb);
+        assert!(b > 150, "the part does not end blue: b {b}");
+    }
+
+    /// A picture that is not AV1 is refused in words, not decoded as noise.
+    #[test]
+    fn a_part_that_is_not_av1_is_refused_in_words() {
+        let h264 =
+            Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/mp4/picture.f137.mp4");
+        let Err(said) = av1::read(&h264, 12, 480) else {
+            panic!("an H.264 part was decoded as AV1");
+        };
+        assert!(said.contains("AV1"), "{said}");
+        assert!(av1::read(Path::new("/nowhere/at/all.mp4"), 12, 480).is_err());
+    }
 
     #[test]
     fn a_picture_shrinks_by_averaging_and_keeps_its_crop() {

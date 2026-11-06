@@ -4300,3 +4300,21 @@ and dm leave the computer differently (a VPN or proxy in the browser alone).
 No site was found where it fails, so `Start.ip` is not built; it is what to
 build if one is (reqwest's `resolve`, falling back to DNS). Row 122 measured
 the same day: without a sign-in nothing failed for want of the page's data.
+
+## 2026-11-06: A GIF on Linux from the AV1 stream (gaps row 54)
+
+At the maintainer's word ("implement it"), reversing the earlier "not
+proposed": Linux has no H.264 decoder dm can use, and one of dm's own was not
+wanted (patents; openh264 built from source has no licence from Cisco). AV1 is
+royalty-free, and YouTube offers most videos in it inside MP4, which dm's
+cutter already handles. A part asked for as GIF on Linux takes the AV1 picture
+(`youtube::read_for`, codec `av01`, at most 720 tall: a GIF is 480 across and
+a decoder without assembly is slow on more), and `frames/av1.rs` decodes its
+samples with rav1d 1.1.0 (BSD-2-Clause, a Rust port of dav1d) built without
+its assembly, so no assembler is needed and the build stays pure Rust; it is a
+dependency of Linux builds only (and of the tests everywhere). Its dav1d calls
+are `unsafe`, each with its reason. Pictures are made RGB with BT.601 or
+BT.709 as the sequence header says, limited or full range. "Part as GIF" is
+offered on Linux for YouTube addresses only (`gif::possible_for`): a stream
+caught elsewhere is H.264. Checked on Linux: a real YouTube part to a GIF in
+8 s (release).

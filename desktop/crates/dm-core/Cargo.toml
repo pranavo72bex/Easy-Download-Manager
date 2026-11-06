@@ -67,6 +67,11 @@ symphonia-codec-aac = "0.6.1"
 symphonia-core = "0.6.1"
 
 # Calls into the C library that std does not wrap. Already in the tree through tokio.
+# A GIF of a video's part on Linux, from its AV1 stream (gaps row 54): pure
+# Rust, without its assembly (no assembler needed to build). BSD-2-Clause.
+[target.'cfg(target_os = "linux")'.dependencies]
+rav1d = { version = "1.1.0", default-features = false, features = ["bitdepth_8", "bitdepth_16"] }
+
 [target.'cfg(unix)'.dependencies]
 libc = "0.2"
 
@@ -88,6 +93,8 @@ windows = { version = "0.62", features = [
 ] }
 
 [dev-dependencies]
+# The AV1 reader is tested on every system, though only Linux builds it in.
+rav1d = { version = "1.1.0", default-features = false, features = ["bitdepth_8", "bitdepth_16"] }
 # Random and hostile input for the readers of outside data (tests/fuzz.rs),
 # on stable Rust inside cargo test.
 proptest = "1"

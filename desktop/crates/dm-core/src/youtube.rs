@@ -819,14 +819,28 @@ pub async fn read_for(
     } else {
         options.container.as_deref()
     };
+    // A part saved as GIF on Linux is made from the AV1 stream, which dm
+    // decodes itself (`frames/av1.rs`); no taller than 720, as a GIF is 480
+    // across and a decoder without the system's help is slow on more.
+    let av1_gif = part && options.gif && cfg!(target_os = "linux");
+    let (quality, codec) = if av1_gif {
+        let at_most = match options.quality {
+            Quality::UpTo(height) => Quality::UpTo(height.min(720)),
+            _ => Quality::UpTo(720),
+        };
+        (at_most, Some("av01"))
+    } else {
+        (options.quality, None)
+    };
     read_at(
         &client,
         url,
-        options.quality,
+        quality,
         container,
         options.frame_rate,
         options.caption.clone(),
         part,
+        codec,
         options.sign_in.as_ref(),
         staging,
     )
@@ -845,7 +859,7 @@ pub async fn read(
     staging: &Path,
 ) -> Result<String, Error> {
     read_at(
-        client, url, quality, container, None, None, mp4_only, sign_in, staging,
+        client, url, quality, container, None, None, mp4_only, None, sign_in, staging,
     )
     .await
 }
@@ -861,6 +875,7 @@ pub async fn read_at(
     frame_rate: Option<u32>,
     caption: Option<(String, bool)>,
     mp4_only: bool,
+    codec: Option<&str>,
     sign_in: Option<&crate::cookies::SignIn>,
     staging: &Path,
 ) -> Result<String, Error> {
@@ -868,7 +883,7 @@ pub async fn read_at(
     tokio::time::timeout(
         WITHIN,
         read_within(
-            client, &id, quality, container, frame_rate, caption, mp4_only, sign_in, staging,
+            client, &id, quality, container, frame_rate, caption, mp4_only, codec, sign_in, staging,
         ),
     )
     .await
@@ -884,6 +899,7 @@ async fn read_within(
     frame_rate: Option<u32>,
     caption: Option<(String, bool)>,
     mp4_only: bool,
+    codec: Option<&str>,
     sign_in: Option<&crate::cookies::SignIn>,
     staging: &Path,
 ) -> Result<String, Error> {
@@ -1039,8 +1055,19 @@ async fn read_within(
     let cuttable: Vec<Format> = formats
         .iter()
         .filter(|f| !mp4_only || f.container == "mp4" || f.container == "m4a")
+        // A picture in the codec asked for (AV1, for a GIF made on Linux).
+        .filter(|f| !f.video || codec.is_none_or(|c| f.codec.starts_with(c)))
         .cloned()
         .collect();
+    if let Some(codec) = codec {
+        if !cuttable.iter().any(|f| f.video) {
+            return Err(Error::Internal(if codec == "av01" {
+                "this video has no AV1 stream, which a GIF is made from on Linux".into()
+            } else {
+                format!("this video has no {codec} stream")
+            }));
+        }
+    }
     let chosen = if muxed {
         choose(&cuttable, quality, container, frame_rate).map(|mut pair| {
             pair.truncate(1);

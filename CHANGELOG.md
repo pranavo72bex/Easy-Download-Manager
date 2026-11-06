@@ -5,6 +5,7 @@ the browser extension (`v*` tags) are versioned separately.
 
 ## Unreleased
 
+- Linux: a part of a YouTube video can be saved as a GIF, as on macOS and Windows. dm takes the video's AV1 stream (royalty-free) and decodes it itself, in pure Rust, with nothing to install (gaps row 54).
 - Torrents: each file has a priority, High, Normal or Low, in Properties beside its tick. The High files are fetched first and the Low ones once every other file is whole (gaps row 149).
 - Security: release builds carry nothing of the computer that built them (its paths, its user name), in the app or the extension; the README's pictures no longer show a computer's temporary folder.
 - Licence: dm is now under the GNU General Public License v3.0 or later, with an attribution term (`NOTICE`): a work built on dm's code must be GPL too and say it is based on dm. Releases up to desktop-v0.8.7 and extension v3.2.1 stay MIT (gaps row 151).
