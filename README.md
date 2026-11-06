@@ -30,16 +30,19 @@ downloading, and **the browser extension**, which sends your downloads to it.
 
 ## What it does
 
-Click any picture to see it at full size.
-
-| Feature | Preview |
+| Feature | What happens |
 | --- | --- |
-| **Several connections at once**<br>A file is split into parts fetched side by side, and a slow part is helped by the others. | <a href="docs/screenshot.png"><img src="docs/screenshot.png" width="260" alt="The download list"></a> |
-| **Resume after a drop**<br>A lost connection, a sleep or a restart: the download goes on from where it stopped. | <a href="docs/progress.png"><img src="docs/progress.png" width="260" alt="A download's progress window"></a> |
-| **Takes over the browser's downloads**<br>Click a link and it lands in dm, not the browser. Alt-click leaves it with the browser. | |
-| **Videos from the page**<br>Play a video and click **Download video** in its corner, then pick a quality. YouTube needs nothing extra. | |
-| **Queues, schedule and limits**<br>Queues, a scheduler, a speed limit for everything or for one site, and a folder per site. | <a href="docs/settings.png"><img src="docs/settings.png" width="260" alt="Options"></a> |
-| **Driven from a terminal or an AI assistant**<br>`dm-desktop list`, `pause`, `resume`; or any MCP client, with no key and nothing sent off your computer. | |
+| **Several connections at once** | A file is split into parts fetched side by side, and a slow part is helped by the others. |
+| **Resume after a drop** | A lost connection, a sleep or a restart: the download goes on from where it stopped. |
+| **Takes over the browser's downloads** | Click a link and it lands in dm, not the browser. Alt-click leaves it with the browser. |
+| **Videos from the page** | Play a video and click **Download video** in its corner, then pick a quality. YouTube needs nothing extra. |
+| **Queues, schedule and limits** | Queues, a scheduler, a speed limit for everything or for one site, and a folder per site. |
+| **Driven from a terminal or an AI assistant** | `dm-desktop list`, `pause`, `resume`; or any MCP client, with no key and nothing sent off your computer. |
+
+<p align="center">
+  <a href="docs/progress.png"><img src="docs/progress.png" width="380" alt="A download's progress window"></a>
+  <a href="docs/settings.png"><img src="docs/settings.png" width="380" alt="Options"></a>
+</p>
 
 ## Supported
 
