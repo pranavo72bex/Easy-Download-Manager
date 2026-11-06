@@ -5,6 +5,7 @@ the browser extension (`v*` tags) are versioned separately.
 
 ## Unreleased
 
+- Windows: a download held by the schedule or the download limit, the window in the tray or minimized, and three progress windows open at once all behave on Windows as on macOS and Linux (`scripts/stress-check.py holds hidden details`, 41 checks; calls answered within 106 ms out of sight, the list current 0.11 s after it is shown; gaps row 24).
 - Windows: the whole behaviour contract holds on Windows, 64 rows of 64 in `scripts/human-qa.py` in a visible window, with Microsoft Edge and a real YouTube video (gaps row 141). Its browser check ended when YouTube's page went to another document while it was being asked something, and every check after it went unrun; a question cut short so is now asked again.
 - Windows: the whole test suite passes on a four-core Windows computer, three times with four test threads and three times in full (1468 tests; gaps row 115). What failed now and then were the tests, not dm: the schedule tests' "always shut" window was open the minute after midnight; the torrent sharing test's first seeder was only dropped and went on serving; a click in Download details landed before a video's qualities had laid it out again.
 - Fixed: the AV1 reader (a part saved as GIF on Linux) took the decoder's "not now" for a failure everywhere but Linux and macOS: it read the C library's EAGAIN as an operating-system error, which on Windows is another error. Only the tests run it on Windows, where both AV1 tests failed; it now compares with the C library's EAGAIN itself.
