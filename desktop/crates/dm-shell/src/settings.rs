@@ -474,27 +474,58 @@ impl Settings {
         }
         read.recent_urls.clone_from(&self.recent_urls);
         read.last_folders = self.last_folders.clone();
-        // Never a program to run from someone else's file: the command run
-        // after every download stays this computer's own, so a settings file
-        // passed around cannot make dm start something.
-        read.on_complete.clone_from(&self.on_complete);
-        // Nor a proxy script from someone else's file: it is a program dm runs, in a sandbox,
-        // and it decides where every request goes (security review, 2026-11-08).
-        read.proxy.script.clone_from(&self.proxy.script);
-        read.schedule
-            .run_when_done
-            .clone_from(&self.schedule.run_when_done);
-        // A queue's own hours run a program too: each keeps this computer's,
-        // and a queue the file adds runs none.
-        for (name, schedule) in &mut read.queue_schedules {
-            schedule.run_when_done = self
-                .queue_schedules
-                .get(name)
-                .map(|mine| mine.run_when_done.clone())
-                .unwrap_or_default();
-        }
+        // Never a program to run from someone else's file, so a settings file passed around
+        // cannot make dm start something.
+        read.keep_programs_of(self);
         Ok(read.clamped())
     }
+
+    /// Puts back `mine`'s value of every setting that makes dm run something: the command
+    /// after each download, the program at the end of the shared schedule's hours and of each
+    /// queue's own (a queue `mine` does not have runs none), and the proxy script, which is a
+    /// program dm runs (in a sandbox) and decides where every request goes. One list, for a
+    /// settings file imported and for a script driving the window (security reviews,
+    /// 2026-11-07 and 08). Says which of them were changed back.
+    pub fn keep_programs_of(&mut self, mine: &Settings) -> KeptPrograms {
+        let mut kept = KeptPrograms::default();
+        if self.on_complete != mine.on_complete {
+            self.on_complete.clone_from(&mine.on_complete);
+            kept.command = true;
+        }
+        if self.proxy.script != mine.proxy.script {
+            self.proxy.script.clone_from(&mine.proxy.script);
+            kept.proxy_script = true;
+        }
+        if self.schedule.run_when_done != mine.schedule.run_when_done {
+            self.schedule
+                .run_when_done
+                .clone_from(&mine.schedule.run_when_done);
+            kept.schedule = true;
+        }
+        for (name, schedule) in &mut self.queue_schedules {
+            let theirs = mine
+                .queue_schedules
+                .get(name)
+                .map(|s| s.run_when_done.as_str())
+                .unwrap_or_default();
+            if schedule.run_when_done != theirs {
+                schedule.run_when_done = theirs.to_string();
+                kept.schedule = true;
+            }
+        }
+        kept
+    }
+}
+
+/// Which settings that run something [`Settings::keep_programs_of`] changed back.
+#[derive(Debug, Default, Clone, Copy, PartialEq, Eq)]
+pub struct KeptPrograms {
+    /// The command run after each download.
+    pub command: bool,
+    /// A program run at the end of the scheduled hours, shared or a queue's own.
+    pub schedule: bool,
+    /// The proxy script.
+    pub proxy_script: bool,
 }
 
 /// One entry in Options › Sign-ins.
@@ -1028,9 +1059,7 @@ impl Settings {
         if let Some(store) = secrets::store() {
             let ns = dm_core::secretstore::namespace(path);
             let (moved, note) = settings.take_passwords_from(store, &ns);
-            if note.is_some() {
-                settings.keep_stored_passwords = true;
-            }
+            settings.keep_stored_passwords |= note.is_some();
             if moved {
                 // Passwords the file held in clear are in the store now: write it again
                 // without them.

@@ -4480,3 +4480,20 @@ read on while dm sent the browser's name. One `engine_wide` in `shell.rs` now se
 and every change, at the maintainer's standing word of 2026-11-07 ("if found bug or improvement
 just implement it"); contract row B51 ("the change applies at once and is kept") is what it now
 does, so its words stand.
+
+## 2026-11-08: eframe patched so each dialog's window has its own AccessKit adapter (gaps row 160)
+
+Every dialog became a window of its own on 2026-11-01 (contract row B42), and eframe 0.37's
+glow backend gives AccessKit to the root window only, so a screen reader read none of them.
+Chosen: a copy of eframe 0.37.0 in `desktop/vendor/eframe`, used through `[patch.crates-io]`
+as winit and egui-winit are, with one change in `src/native/glow_integration.rs` (search
+`dm:`): the proxy the root's adapter was given is kept, and a window made after it (a dialog,
+or the root made again) is created hidden, given an adapter, and shown as asked (AccessKit
+panics on a window already shown). Only the root's adapter may turn AccessKit off, since the
+switch is egui's one context's. Behind `ADAPTER_PER_WINDOW`, off on Windows until it is
+checked there with Narrator, at the maintainer's word to leave Windows to its own session.
+Ruled out: dialogs drawn inside the main window again (B42 is the maintainer's choice); an
+AccessKit tree of the dialogs grafted onto the root's (AccessKit has one tree per window, and
+a screen reader finds controls by window). On an eframe upgrade the change is carried over,
+or dropped once upstream gives each viewport an adapter.
+

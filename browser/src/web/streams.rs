@@ -73,14 +73,11 @@ pub async fn on_response_started(details: JsValue) {
 /// its server's type may not say (Bilibili calls both `video/mp4`; gaps row 155). A failure
 /// leaves it as its type said.
 async fn read_track(tab: i64, url: &str, requester: &str) {
-    if !decide::may_reread(url, requester) {
-        return;
-    }
     if !STREAMS.with(|s| s.borrow_mut().wants_track_read(tab, url)) {
         return;
     }
     let page = PAGES.with(|p| p.borrow().now(tab));
-    let bytes = match fetch_start(url, decide::TRACK_READ_CAP, 4000.0).await {
+    let bytes = match fetch_start(url, requester, decide::TRACK_READ_CAP, 4000.0).await {
         Ok(bytes) => bytes,
         Err(why) => {
             log(
@@ -99,11 +96,7 @@ async fn read_track(tab: i64, url: &str, requester: &str) {
     if !STREAMS.with(|s| s.borrow_mut().read_track(tab, url, sound, height)) {
         return;
     }
-    let after = STREAMS.with(|s| s.borrow().raw(tab));
-    let item = to_js(&serde_json::json!({ streams_key(tab): after }));
-    if let Err(why) = call("storage.session", "set", &[item]).await {
-        log("debug", &format!("a tab's streams were not kept: {why}"));
-    }
+    keep_streams(tab).await;
 }
 
 /// A form a page sent (its body, as `background.js` read it): kept a moment
@@ -267,14 +260,11 @@ pub(super) async fn renewed(url: &str) -> String {
 /// line, and a master playlist's renditions stop being lines of their own.
 /// A failure leaves the line as it was.
 async fn describe_playlist(tab: i64, url: &str, requester: &str) {
-    if !decide::may_reread(url, requester) {
-        return;
-    }
     if !STREAMS.with(|s| s.borrow_mut().wants_description(tab, url)) {
         return;
     }
     let page = PAGES.with(|p| p.borrow().now(tab));
-    let body = match fetch_text(url, decide::PLAYLIST_READ_CAP, 4000.0).await {
+    let body = match fetch_text(url, requester, decide::PLAYLIST_READ_CAP, 4000.0).await {
         Ok(body) => body,
         Err(why) => {
             log("debug", &format!("a playlist was not read: {why}"));
@@ -290,11 +280,8 @@ async fn describe_playlist(tab: i64, url: &str, requester: &str) {
     }
     // A master playlist says nothing of how long the video plays; one of its renditions does,
     // and the line says it, so two videos of one page are told apart (gaps row 155).
-    if let Some(rendition) = STREAMS
-        .with(|s| s.borrow().rendition_for_length(tab, url))
-        .filter(|rendition| decide::may_reread(rendition, url))
-    {
-        match fetch_text(&rendition, decide::PLAYLIST_READ_CAP, 4000.0).await {
+    if let Some(rendition) = STREAMS.with(|s| s.borrow().rendition_for_length(tab, url)) {
+        match fetch_text(&rendition, url, decide::PLAYLIST_READ_CAP, 4000.0).await {
             Ok(media) if PAGES.with(|p| p.borrow().still(tab, page)) => {
                 if let Some(seconds) = decide::hls_length(&media) {
                     STREAMS.with(|s| s.borrow_mut().lengthen(tab, url, seconds));
@@ -307,11 +294,7 @@ async fn describe_playlist(tab: i64, url: &str, requester: &str) {
             ),
         }
     }
-    let after = STREAMS.with(|s| s.borrow().raw(tab));
-    let item = to_js(&serde_json::json!({ streams_key(tab): after }));
-    if let Err(why) = call("storage.session", "set", &[item]).await {
-        log("debug", &format!("a tab's streams were not kept: {why}"));
-    }
+    keep_streams(tab).await;
 }
 
 /// A tab's streams as kept in the session's storage.
@@ -353,4 +336,14 @@ pub(super) async fn streams_of(tab: i64) -> Vec<decide::Stream> {
         STREAMS.with(|s| s.borrow_mut().restore(tab, kept));
     }
     STREAMS.with(|s| s.borrow().of(tab))
+}
+
+/// Writes a tab's streams as this worker knows them to the session's storage, which outlives
+/// the worker; a failure is only logged.
+async fn keep_streams(tab: i64) {
+    let after = STREAMS.with(|s| s.borrow().raw(tab));
+    let item = to_js(&serde_json::json!({ streams_key(tab): after }));
+    if let Err(why) = call("storage.session", "set", &[item]).await {
+        log("debug", &format!("a tab's streams were not kept: {why}"));
+    }
 }

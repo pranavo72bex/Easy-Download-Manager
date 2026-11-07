@@ -208,25 +208,7 @@ pub async fn evaluate(
         .await
         .map_err(|e| format!("could not write the proxy script: {e}"))?;
     let _gone = crate::videopage::RemoveOnDrop(file.clone());
-    let mut command = tokio::process::Command::new(engine);
-    // Deno with no permissions reaches neither files nor programs nor the network, as the
-    // YouTube solver runs it (`youtube::run_js`).
-    let deno = engine
-        .file_stem()
-        .is_some_and(|stem| stem.to_string_lossy().eq_ignore_ascii_case("deno"));
-    if deno {
-        command.args([
-            "run",
-            "--ext=js",
-            "--no-code-cache",
-            "--no-prompt",
-            "--no-remote",
-            "--no-lock",
-            "--no-config",
-            "--no-npm",
-        ]);
-    }
-    command.arg(&file);
+    let mut command = crate::videopage::js_command(engine, &file);
     crate::no_window_async(&mut command);
     command
         .stdin(std::process::Stdio::null())

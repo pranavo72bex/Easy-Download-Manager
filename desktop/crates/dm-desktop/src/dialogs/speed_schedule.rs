@@ -166,7 +166,7 @@ pub(super) fn scheduler(app: &mut DmApp, ctx: &egui::Context) {
     const BESIDE: f32 = 660.0;
     let beside = *draft
         .beside
-        .get_or_insert_with(|| ctx.content_rect().width() - sides(ctx) >= BESIDE + 40.0);
+        .get_or_insert_with(|| super::room(ctx).width() - sides(ctx) >= BESIDE + 40.0);
     let mut dialog = window(ctx, "Scheduler");
     if beside {
         dialog = dialog.min_width(BESIDE);

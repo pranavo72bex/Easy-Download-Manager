@@ -16,7 +16,7 @@ pub fn menu_bottom_id() -> egui::Id {
 pub(super) fn window(ctx: &egui::Context, title: &'static str) -> Dialog<'static> {
     // Below the menu bar: Options and Properties opened over it, while the
     // per-download windows kept clear of it.
-    let mut room = ctx.content_rect();
+    let mut room = super::room(ctx);
     if let Some(bottom) = ctx.data(|d| d.get_temp::<f32>(menu_bottom_id())) {
         room.min.y = room.min.y.max(bottom).min(room.max.y - 160.0);
     }

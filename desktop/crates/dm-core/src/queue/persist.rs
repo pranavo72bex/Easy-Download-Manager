@@ -471,7 +471,6 @@ impl Secret {
     }
 }
 
-/// Where the secrets of the queue at `queue_file` are kept.
 /// A file of secrets that could not be opened or read, moved aside so the next save (which
 /// writes only what it has, and removes the file when that is nothing) does not delete it: a
 /// store that was locked for a moment, or not yet running at login, must not cost every row's
@@ -484,6 +483,7 @@ fn kept_aside(kept: &std::path::Path) -> String {
     }
 }
 
+/// Where the secrets of the queue at `queue_file` are kept.
 pub(super) fn secrets_file(queue_file: &std::path::Path) -> PathBuf {
     queue_file.with_file_name("secrets.json")
 }

@@ -357,7 +357,7 @@ pub(super) fn add_url(app: &mut DmApp, ctx: &egui::Context) {
     window(ctx, "Add URL").open(&mut open).show(ctx, |ui| {
         // As wide as the window allows: at 200% text a fixed 420 ran the
         // dialog past the window's edge.
-        let wide = (ctx.content_rect().width() - 160.0).clamp(200.0, 420.0);
+        let wide = (super::room(ctx).width() - 160.0).clamp(200.0, 420.0);
         let address = focused(field(ui, t("Address"), &mut d.address, wide), focus);
         // What was said of the last address goes when it is changed: the
         // error stayed under a good one.

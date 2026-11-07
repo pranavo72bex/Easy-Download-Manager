@@ -43,7 +43,7 @@ pub(super) fn complete(app: &mut DmApp, ctx: &egui::Context) {
     // In the corner above the status bar, out of the way of the rows a
     // person is clicking while a batch finishes, rather than over them in
     // the middle; resizable, and no wider than the window.
-    let screen = ctx.content_rect();
+    let screen = super::room(ctx);
     let width = (screen.width() - 32.0).clamp(280.0, 440.0);
     Dialog::new(t("Download complete"))
         .id(window_id("Download complete"))

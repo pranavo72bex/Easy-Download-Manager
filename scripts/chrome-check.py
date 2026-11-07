@@ -840,12 +840,17 @@ def human_click(base, origin, link):
     person does: a real pointer, at the link's place, not a script's click."""
     tab = open_tab(base, f"{origin}/page.html")
     loaded(tab, "/page.html", f"[id={json.dumps(link)}]")
-    # Scrolled to first, as a person scrolls to a link below the fold.
-    x, y = tab.evaluate(f"""(() => {{ const el = document.getElementById({json.dumps(link)});
-      el.scrollIntoView({{block: 'center'}}); const r = el.getBoundingClientRect();
-      return [r.left + 5, r.top + r.height / 2]; }})()""")
-    click_at(tab, x, y)
+    press_element(tab, link)
     return tab
+
+
+def press_element(tab, element_id, centre=False):
+    """Presses the real pointer on an element of the page, scrolled to first as a person
+    scrolls to one below the fold: near its left end (a link's first word), or its middle."""
+    x, y = tab.evaluate(f"""(() => {{ const el = document.getElementById({json.dumps(element_id)});
+      el.scrollIntoView({{block: 'center'}}); const r = el.getBoundingClientRect();
+      return [{'r.left + r.width / 2' if centre else 'r.left + 5'}, r.top + r.height / 2]; }})()""")
+    click_at(tab, x, y)
 
 
 def click(base, origin, link):
@@ -1866,15 +1871,10 @@ def main():
         names = ["plain", "onclick", "button", "blank", "icon", "windowopen", "synthetic"]
         # Pressed with the mouse, as a person does: a magnet a page opens by script goes to dm
         # only for the person's own press, which a script's click() is not.
-        def press(element_id):
-            x, y = tab.evaluate(f"""(() => {{ const el = document.getElementById('{element_id}');
-              el.scrollIntoView({{block: 'center'}}); const r = el.getBoundingClientRect();
-              return [r.left + r.width / 2, r.top + r.height / 2]; }})()""")
-            click_at(tab, x, y)
         for n in range(1, 8):
-            press(f"m{n}")
+            press_element(tab, f"m{n}", centre=True)
             time.sleep(1.0)
-        press("m8")
+        press_element(tab, "m8", centre=True)
         time.sleep(3.0)
         def magnets():
             return {name for r in queue_rows(engine_home) for name in names

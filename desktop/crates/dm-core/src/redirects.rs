@@ -206,23 +206,33 @@ fn referer_across(page: &HeaderValue, to: &Url) -> Option<HeaderValue> {
 /// inside (a server at home, a test's) may go on to another inside address.
 /// Judged by the address as written, not by what a name resolves to.
 pub(crate) fn inward(to: &Url, previous: &[Url]) -> bool {
+    // The same hosts as the extension's `decide::streams::inside` (dm-core may not depend on
+    // dm-protocol, where one copy for both would go): this computer, a private or link-local
+    // network, a provider's shared address space, and the names only a local network answers.
+    fn inside_v4(ip: std::net::Ipv4Addr) -> bool {
+        let [a, b, ..] = ip.octets();
+        ip.is_loopback()
+            || ip.is_link_local()
+            || ip.is_private()
+            || ip.is_unspecified()
+            || (a == 100 && (64..128).contains(&b))
+    }
     fn inside(url: &Url) -> bool {
         match url.host() {
-            Some(url::Host::Ipv4(ip)) => {
-                ip.is_loopback() || ip.is_link_local() || ip.is_private() || ip.is_unspecified()
-            }
+            Some(url::Host::Ipv4(ip)) => inside_v4(ip),
             Some(url::Host::Ipv6(ip)) => {
                 ip.is_loopback()
                     || ip.is_unspecified()
                     || ip.is_unique_local()
                     || ip.is_unicast_link_local()
-                    || ip
-                        .to_ipv4_mapped()
-                        .is_some_and(|v4| v4.is_loopback() || v4.is_link_local() || v4.is_private())
+                    || ip.to_ipv4_mapped().is_some_and(inside_v4)
             }
             Some(url::Host::Domain(name)) => {
                 let name = name.to_ascii_lowercase();
-                name == "localhost" || name.ends_with(".localhost")
+                name == "localhost"
+                    || [".localhost", ".local", ".internal", ".lan", ".home.arpa"]
+                        .iter()
+                        .any(|suffix| name.ends_with(suffix))
             }
             None => false,
         }
@@ -254,6 +264,10 @@ mod tests {
             "http://[fd00::5]/f",
             "http://[::ffff:127.0.0.1]/f",
             "http://0.0.0.0/f",
+            "http://printer.local/f",
+            "http://nas.lan/f",
+            "http://router.home.arpa/f",
+            "http://100.64.0.1/f",
         ] {
             assert!(inward(&url(to), &public), "from public to {to}");
             assert!(!inward(&url(to), &home), "from inside to {to}");

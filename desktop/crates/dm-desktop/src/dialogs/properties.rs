@@ -62,12 +62,12 @@ pub(super) fn properties(app: &mut DmApp, ctx: &egui::Context) {
         // No wider than the window leaves room for, however long a name,
         // path or referrer: they wrap, rather than pushing the buttons off
         // the screen.
-        let room = (ctx.content_rect().width() - 16.0 - sides(ctx)).clamp(320.0, 620.0);
+        let room = (super::room(ctx).width() - 16.0 - sides(ctx)).clamp(320.0, 620.0);
         // A close box in its title bar, as every other window has.
         let mut shut = true;
         // Below the menu bar, as the progress window keeps.
         let below = {
-            let mut below = ctx.content_rect();
+            let mut below = super::room(ctx);
             below.min.y = app.menu_bottom.max(below.top()).min(below.bottom() - 120.0);
             below
         };
@@ -77,10 +77,6 @@ pub(super) fn properties(app: &mut DmApp, ctx: &egui::Context) {
         let step = nth;
         nth += 1.0;
         let tall = (below.height() - 16.0).max(160.0);
-        // The fields' own height, measured here against dm's window: inside the dialog, which
-        // is a window of its own (contract row B42), the window measured is the dialog's, and
-        // the fields were held to its first, small size (about 120 points, 2026-11-07).
-        let fields_tall = (below.height() - 150.0).max(120.0);
         let cramped = ctx
             .memory(|m| m.area_rect(window))
             .is_some_and(|was| was.height() >= tall - 8.0);
@@ -119,9 +115,10 @@ pub(super) fn properties(app: &mut DmApp, ctx: &egui::Context) {
                 };
                 // The fields scroll inside a window too short for them, so
                 // the buttons below stay on the screen.
+                let tall = (super::room(ctx).height() - 150.0).max(120.0);
                 egui::ScrollArea::vertical()
                     .id_salt(("props-scroll", id))
-                    .max_height(fields_tall)
+                    .max_height(tall)
                     .show(ui, |ui| {
                         egui::Grid::new(("props", id))
                             .num_columns(2)

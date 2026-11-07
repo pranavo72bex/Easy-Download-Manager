@@ -2608,12 +2608,11 @@ fn whole_files_by_ranges_are_not_lines_beside_a_manifest_nor_change_a_plain_mp4(
     let lines = streams.of(3);
     assert!(lines.iter().all(|s| !s.by_ranges), "{lines:?}");
     // A plain MP4 a <video> fetches from its first byte stays the file it always was.
-    let plain = ranged_answer(
+    let mut plain = ranged_answer(
         "https://cdn.example/clip.mp4",
         "video/mp4",
         "bytes 0-/9000000",
     );
-    let mut plain = plain;
     plain.kind = "media".into();
     let found = stream_seen(&plain).unwrap();
     assert_eq!((found.kind, found.by_ranges), (StreamKind::File, false));

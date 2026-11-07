@@ -617,6 +617,7 @@ fn a_script_driving_the_window_cannot_set_the_program_a_queues_hours_run() {
         ..dm_core::Schedule::default()
     };
     wanted.queue_schedules.insert("Main queue".into(), hours);
+    wanted.proxy.script = "http://evil.example/p.pac".into();
     harness.state_mut().apply_settings(wanted).unwrap();
     let saved = harness.state().backend().settings();
     let kept = saved
@@ -624,4 +625,5 @@ fn a_script_driving_the_window_cannot_set_the_program_a_queues_hours_run() {
         .get("Main queue")
         .map(|s| s.run_when_done.as_str());
     assert_eq!(kept, Some(""), "{kept:?}");
+    assert_eq!(saved.proxy.script, "", "a script set the proxy script");
 }

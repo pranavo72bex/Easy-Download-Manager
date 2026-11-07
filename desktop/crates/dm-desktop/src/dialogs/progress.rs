@@ -127,7 +127,7 @@ pub(super) fn progress(app: &mut DmApp, ctx: &egui::Context) {
         // No wider or taller than the screen leaves room for: a long
         // status (a server's refusal, with where to sign in) wraps, and a
         // window too tall scrolls rather than running off the bottom.
-        let screen = ctx.content_rect();
+        let screen = super::room(ctx);
         let room = (screen.width() - 16.0 - sides(ctx)).clamp(300.0, 560.0);
         // Below the menu bar and the toolbar, which it opened over and hid (kept on screen, a tall window was
         // pushed back up over Add URL).

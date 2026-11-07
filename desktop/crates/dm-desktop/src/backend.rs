@@ -639,10 +639,7 @@ impl Backend {
     /// (`admit`): it was taken against wherever dm was started, and the file
     /// went there.
     pub fn move_to(&self, id: Id, dir: &std::path::Path) -> Result<std::path::PathBuf, String> {
-        let typed = dir.to_string_lossy();
-        let dir = dm_shell::settings::full_folder(&typed, None).ok_or_else(|| {
-            format!("the folder must be a full path, such as ~/Downloads, not {typed:?}")
-        })?;
+        let dir = full_folder(&dir.to_string_lossy())?;
         self.block_on(self.queue.move_to(id, &dir))
     }
 
@@ -759,12 +756,16 @@ fn admit(url: &str, mut with: AddOptions) -> Result<AddOptions, String> {
         return Err(why);
     }
     if let Some(typed) = with.save_dir.take().filter(|f| !f.trim().is_empty()) {
-        let full = dm_shell::settings::full_folder(&typed, None).ok_or_else(|| {
-            format!("the folder must be a full path, such as ~/Downloads, not {typed:?}")
-        })?;
-        with.save_dir = Some(full.display().to_string());
+        with.save_dir = Some(full_folder(&typed)?.display().to_string());
     }
     Ok(with)
+}
+
+/// A folder typed for a row, as a full path (`~` is the home folder), or why not.
+fn full_folder(typed: &str) -> Result<std::path::PathBuf, String> {
+    dm_shell::settings::full_folder(typed, None).ok_or_else(|| {
+        format!("the folder must be a full path, such as ~/Downloads, not {typed:?}")
+    })
 }
 
 /// An address with no user or password in it.

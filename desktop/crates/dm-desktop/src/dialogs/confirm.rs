@@ -339,7 +339,7 @@ pub(super) fn confirm_exit(app: &mut DmApp, ctx: &egui::Context) {
         ));
     }
     // Narrower on a screen that has not the room, as the other dialogs.
-    let width = EXIT_WIDTH.min(ctx.content_rect().width() - 48.0).max(220.0);
+    let width = EXIT_WIDTH.min(super::room(ctx).width() - 48.0).max(220.0);
     window(ctx, "Exit dm?").show(ctx, |ui| {
         // One width and room for three lines whatever the words say: a
         // download finishing while the question is open changes them, and
@@ -400,7 +400,7 @@ pub(super) fn confirm_close(app: &mut DmApp, ctx: &egui::Context) {
         return;
     }
     let (mut keep, mut exit) = (false, false);
-    let width = EXIT_WIDTH.min(ctx.content_rect().width() - 48.0).max(220.0);
+    let width = EXIT_WIDTH.min(super::room(ctx).width() - 48.0).max(220.0);
     window(ctx, "Keep running in the tray?").show(ctx, |ui| {
         ui.set_width(width);
         ui.add(

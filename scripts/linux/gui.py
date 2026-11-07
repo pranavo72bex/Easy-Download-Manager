@@ -32,6 +32,9 @@ import sys
 import tempfile
 import time
 
+sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent.parent))
+import drawn  # noqa: E402  (scripts/drawn.py: where dm says it drew words)
+
 BINARY = pathlib.Path(os.environ.get("DM_BINARY", "/target/debug/dm-desktop"))
 RESULTS = []
 
@@ -184,120 +187,68 @@ print(json.dumps({"at": found[0] if found else None, "roles": sorted(seen)}))
 """
 
 
+FIELD_ROLES = ("text", "entry", "spin button", "slider")
+
+
 def where(role, name, contains=False):
-    """Where on screen dm's control of this role and name is, read over
-    AT-SPI as a screen reader reads it: its centre, or None. With
-    `contains`, a name that starts with `name` counts (menu items)."""
-    # With a dialog open, its own words first: the main window behind it takes no clicks, and
-    # holds many of the same words ("Browser", "Properties", "OK").
-    if role not in ("text", "entry", "spin button", "slider"):
-        first = dialog_point(ORACLE, name, contains)
-        if first:
-            return first
-    # With a dialog open, what it has not drawn is scrolled out of its view: AT-SPI, which
-    # reaches dialogs too (row 160), would place it outside the dialog's window.
-    if dialog_texts(ORACLE)[1]:
-        return None
-    out = x(sys.executable, "-c", WHERE, role, name, "1" if contains else "0").stdout.strip().splitlines()
-    at = json.loads(out[-1]).get("at") if out else None
-    # A control in one of dm's dialogs, each a window of its own that AT-SPI does not reach
-    # (eframe gives only the main window to the accessibility bus; gaps row 160): where dm
-    # itself says it drew those words. A field is reached by its focus, not here.
-    if at is None and role not in ("text", "entry", "spin button", "slider"):
-        at = dialog_point(ORACLE, name, contains)
-    return at
+    """Where on screen dm's control of this role and name is: its centre, or None. With
+    `contains`, a name that starts with `name` counts (menu items).
+
+    With a dialog open (each a window of its own, B42) only the dialog counts, as the main
+    window behind it takes no clicks, and only where dm says it drew those words: AT-SPI
+    reaches a dialog too, but gives a control its whole rectangle even where the dialog has
+    scrolled it out of view, which can be a point inside the window on top of another control
+    (a click meant for a switch below the fold toggled nothing, 2026-11-08). A field in a
+    dialog is reached by `click_field`, from its label. With no dialog open, AT-SPI, as a
+    screen reader reads the window."""
+    texts, inner = drawn.dialog(ORACLE)
+    if inner:
+        return None if role in FIELD_ROLES else drawn.point(texts, inner, name, contains)
+    return atspi_where(role, name, contains)
 
 
 def dialog_texts(call):
-    """The words drawn in dm's one open dialog window, with that window's place on screen, as
-    dm itself says it drew them (`ui.windows`, `ui.texts`): ([], None) where not one is open."""
-    if not call:
-        return [], None
-    try:
-        dialogs = [d for d in (call("ui.windows") or {}).get("dialogs") or [] if d.get("inner")]
-        texts = [t for t in (call("ui.texts") or {}).get("texts") or [] if t.get("window") == "dialog"]
-    except (OSError, RuntimeError, ValueError):
-        return [], None
-    if len(dialogs) != 1:
-        return [], None
-    return texts, dialogs[0]["inner"]
+    return drawn.dialog(call)
 
 
 def dialog_point(call, words, contains=False):
-    """Where on screen the words `words` are drawn in one of dm's dialogs, each a window of
-    its own (contract row B42), whose controls AT-SPI does not reach (gaps row 160): the dialog
-    window's place plus the words' place inside it, both dm's own account. Only where to aim;
-    the click itself is the real pointer's. None where it is not shown."""
-    texts, inner = dialog_texts(call)
-    found = [t for t in texts if (words in t.get("text", "") if contains else t.get("text") == words)]
-    if not found:
-        return None
-    r = found[0]["rect"]
-    return [int(inner[0] + (r[0] + r[2]) / 2), int(inner[1] + (r[1] + r[3]) / 2)]
+    return drawn.dialog_point(call, words, contains)
 
 
 def dialog_value(label):
-    """What dm draws on the row of `label`, to its right, in its open dialog (a number's value,
-    a field's text): None where nothing is."""
-    texts, _ = dialog_texts(ORACLE)
-    labels = [t for t in texts if t.get("text") == label]
-    if not labels:
-        return None
-    lx0, ly0, lx1, ly1 = labels[0]["rect"]
-    middle = (ly0 + ly1) / 2
-    beside = sorted((t for t in texts if t["rect"][0] > lx1 and abs((t["rect"][1] + t["rect"][3]) / 2 - middle) < 8),
-                    key=lambda t: t["rect"][0])
-    return beside[0]["text"] if beside else None
+    """What dm draws beside `label` in its open dialog, or None."""
+    return drawn.value(drawn.dialog(ORACLE)[0], label)
 
 
 def dialog_field_point(call, label):
-    """Where to click into the field a dialog labels `label`: the hint or text drawn on the
-    label's own row to its right, where there is one (a form's row, its hint shown); a
-    folder's box, just left of the Browse… under its label; else just below the label, where
-    dm's `field` puts the box. A long label wrapped onto several lines is found by its
-    first."""
-    texts, inner = dialog_texts(call)
-    labels = [t for t in texts if t.get("text") == label
-              or (len(t.get("text", "")) > 30 and label.startswith(t["text"].rstrip()))]
-    if not labels:
-        return None
-    lx0, ly0, lx1, ly1 = labels[0]["rect"]
-    middle = (ly0 + ly1) / 2
-    beside = sorted((t for t in texts if t["rect"][0] > lx1 and abs((t["rect"][1] + t["rect"][3]) / 2 - middle) < 8),
-                    key=lambda t: t["rect"][0])
-    if beside:
-        r = beside[0]["rect"]
-        return [int(inner[0] + r[0] + 6), int(inner[1] + (r[1] + r[3]) / 2)]
-    # Only under a long label (a sentence over a folder's box): a short one may have its own box
-    # with a folder's below it, as Move/Rename's Name pattern has.
-    browse = sorted((t for t in texts if t.get("text") == "Browse…" and 0 <= t["rect"][1] - ly0 < 80
-                     and len(labels[0].get("text", "")) > 30),
-                    key=lambda t: t["rect"][1])
-    if browse:
-        r = browse[0]["rect"]
-        return [int(inner[0] + r[0] - 80), int(inner[1] + (r[1] + r[3]) / 2)]
-    # dm's `field` puts its label over the box where the dialog lays things out downwards.
-    return [int(inner[0] + lx0 + 40), int(inner[1] + ly1 + 12)]
+    texts, inner = drawn.dialog(call)
+    return drawn.field_point(texts, inner, label) if inner else None
 
 
 def scrolled_to(words, contains=False, field=False):
-    """Where `words` are in dm's open dialog once it is scrolled down to them, a few notches
-    of the wheel at a time, as a person scrolls a long tab looking for them; None when no
-    dialog is open or they never show."""
-    if not dialog_texts(ORACLE)[1]:
-        return None
-    # Down first, a few notches at a time, then back up: what was looked for may be above.
-    for notches in [3] * 10 + [-3] * 20:
-        at = dialog_field_point(ORACLE, words) if field else dialog_point(ORACLE, words, contains)
-        if at:
-            return at
-        scroll_dialog(notches)
+    """Where `words` (or, with `field`, the field they label) are in dm's open dialog once it
+    is scrolled to them, a few notches of the wheel at a time, down to the end of the page and
+    then back up, as a person looks through a long tab; None when no dialog is open or they
+    never show."""
+    for notches in (3, -3):
+        last = None
+        for _ in range(20):
+            texts, inner = drawn.dialog(ORACLE)
+            if not inner:
+                return None
+            at = drawn.field_point(texts, inner, words) if field else drawn.point(texts, inner, words, contains)
+            if at:
+                return at
+            seen = [t.get("text") for t in texts]
+            if seen == last:
+                break  # the end of the page: the wheel moved nothing
+            last = seen
+            scroll_dialog(notches, inner)
     return None
 
 
 def atspi_where(role, name, contains=False):
-    """Where AT-SPI alone (what a screen reader reads) says the control is, with none of
-    `where`'s help from dm's own account."""
+    """Where AT-SPI alone (what a screen reader reads) says the control is."""
     out = x(sys.executable, "-c", WHERE, role, name, "1" if contains else "0").stdout.strip().splitlines()
     return json.loads(out[-1]).get("at") if out else None
 
@@ -556,9 +507,10 @@ def field_at(name):
 def click_field(name):
     """Clicks into the field labelled `name` and selects what it holds."""
     # In a dialog's own window (see `where`): aimed at from its label, as dm drew it.
-    at = wait_for(lambda: dialog_field_point(ORACLE, name)
-                  or (None if dialog_texts(ORACLE)[1] else field_at(name)), 10) \
-        or scrolled_to(name, field=True)
+    def found():
+        texts, inner = drawn.dialog(ORACLE)
+        return drawn.field_point(texts, inner, name) if inner else field_at(name)
+    at = wait_for(found, 10) or scrolled_to(name, field=True)
     if not at:
         return False
     x("xdotool", "mousemove", "--sync", str(at[0]), str(at[1]))
@@ -599,20 +551,11 @@ def add_url_by_hand(url, then="Start now"):
 def main_point(words):
     """Where dm says it drew `words` in its main window, on screen."""
     geo = win_geo()
-    if not (ORACLE and geo):
-        return None
-    try:
-        texts = [t for t in (ORACLE("ui.texts") or {}).get("texts") or []
-                 if t.get("window") == "main" and t.get("text") == words]
-    except (OSError, RuntimeError, ValueError):
-        return None
-    if not texts:
-        return None
-    r = texts[0]["rect"]
-    return [int(geo["X"] + (r[0] + r[2]) / 2), int(geo["Y"] + (r[1] + r[3]) / 2)]
+    return drawn.main_point(ORACLE, geo and (geo["X"], geo["Y"]), words)
 
 
 def dialog_open_list():
+    """The titles of dm's open dialogs, as dm lists them."""
     try:
         return (ORACLE("ui.inspect") or {}).get("dialogs") or [] if ORACLE else []
     except (OSError, RuntimeError, ValueError):
@@ -620,32 +563,22 @@ def dialog_open_list():
 
 
 def dialog_open(title):
-    """Whether dm has the dialog of that title open (each a window of its own, B42, whose
-    title is the system's title bar, not words drawn in it): dm's own list of them."""
-    try:
-        return title in ((ORACLE("ui.inspect") or {}).get("dialogs") or []) if ORACLE else False
-    except (OSError, RuntimeError, ValueError):
-        return False
+    """Whether dm has the dialog of that title open (a window of its own, B42, whose title is
+    the system's title bar, not words drawn in it)."""
+    return title in dialog_open_list()
 
 
 def settle():
-    """Closes a Download complete dialog or progress window if one is up,
-    as a person clears it before doing the next thing: each brought to the
-    front by its title (a window of its own, B42) and closed with Escape.
-    With the pop-ups off for most of the session there is usually nothing
-    to close."""
+    """Closes a Download complete dialog or progress window if one is up, as a person clears
+    it before doing the next thing: brought to the front by its title and closed with
+    Escape. With the pop-ups off for most of the session there is usually nothing to close."""
     for _ in range(6):
-        try:
-            open_now = (ORACLE("ui.inspect") or {}).get("dialogs") or [] if ORACLE else []
-        except (OSError, RuntimeError, ValueError):
-            open_now = []
-        stray = [d for d in open_now if d in ("Download complete", "Download progress")]
-        if not stray and not (where("*", "Download complete") or where("*", "Download progress", True)):
+        stray = [d for d in dialog_open_list() if d in ("Download complete", "Download progress")]
+        if not stray:
             return
-        for title in stray[:1]:
-            found = x("xdotool", "search", "--onlyvisible", "--name", f"^{title}$").stdout.split()
-            if found:
-                x("xdotool", "windowactivate", "--sync", found[-1])
+        found = x("xdotool", "search", "--onlyvisible", "--name", f"^{stray[0]}$").stdout.split()
+        if found:
+            x("xdotool", "windowactivate", "--sync", found[-1])
         key("Escape")
         time.sleep(0.4)
 
@@ -851,20 +784,20 @@ def open_options_tab(label, expect):
     return False
 
 
-def scroll_dialog(notches=12):
-    """The wheel over the dialog, as a person scrolls a long tab: over dm's open dialog
-    window, where one is (a window of its own, B42), else over dm's window."""
-    _, inner = dialog_texts(ORACLE)
-    if inner:
-        x("xdotool", "mousemove", "--sync", str(int((inner[0] + inner[2]) / 2)), str(int((inner[1] + inner[3]) / 2)))
-        x("xdotool", "click", "--repeat", str(abs(notches)), "--delay", "40", "5" if notches > 0 else "4")
-        time.sleep(0.5)
-        return
+def scroll_dialog(notches=12, inner=None):
+    """The wheel over dm's open dialog window (or dm's window where none is open), as a person
+    scrolls a long tab: down for a positive number of notches, up for a negative one."""
+    inner = inner or drawn.dialog(ORACLE)[1]
     geo = win_geo()
-    if geo:
-        x("xdotool", "mousemove", "--sync", str(geo["X"] + geo["WIDTH"] // 2), str(geo["Y"] + geo["HEIGHT"] // 2))
-        x("xdotool", "click", "--repeat", "12", "--delay", "40", "5")
-        time.sleep(0.5)
+    if inner:
+        at = [int((inner[0] + inner[2]) / 2), int((inner[1] + inner[3]) / 2)]
+    elif geo:
+        at = [geo["X"] + geo["WIDTH"] // 2, geo["Y"] + geo["HEIGHT"] // 2]
+    else:
+        return
+    x("xdotool", "mousemove", "--sync", str(at[0]), str(at[1]))
+    x("xdotool", "click", "--repeat", str(abs(notches)), "--delay", "40", "5" if notches > 0 else "4")
+    time.sleep(0.5)
 
 
 def options_by_hand(home):
@@ -895,7 +828,7 @@ def options_by_hand(home):
     key("ctrl+comma")
     wait_for(lambda: where("*", "General"), 10)
     check("opened again, the value is still there",
-          open_options_tab("Downloads", recording) and dialog_value(recording) == "45", str(dialog_value(recording)))
+          open_options_tab("Downloads", recording) and (shown := dialog_value(recording)) == "45", str(shown))
     click_field(recording)
     type_text("0", delay=120)
     key("Return")
@@ -920,8 +853,11 @@ def human_session(home, env, app):
         # Read as a screen reader reads it (Orca reads AT-SPI): the dialog is a window of its
         # own, given its own AccessKit adapter by dm's eframe (gaps row 160), so its buttons are
         # there, not only the main window's.
-        check("a screen reader finds the dialog's own buttons (OK and Cancel)",
-              bool(wait_for(lambda: atspi_where("push button", "OK") and atspi_where("push button", "Cancel"), 10)))
+        def read_in_dialog():
+            inner = drawn.dialog(ORACLE)[1]
+            return inner and all(drawn.within(atspi_where("push button", b), inner) for b in ("OK", "Cancel"))
+        check("a screen reader finds the dialog's own buttons (OK and Cancel), in the dialog's window",
+              bool(wait_for(read_in_dialog, 10)))
         type_text(url)
         check("its OK, clicked after typing the address, opens Download details",
               click("push button", "OK") and wait_for(lambda: where("push button", "Start now"), 10))
@@ -966,7 +902,8 @@ def human_session(home, env, app):
         # the check sees it.
         done = wait_for(lambda: state_of(home, prog) == "completed", 60)
         saw_complete = done and wait_for(lambda: dialog_open("Download complete") or where("*", "Download complete"), 8)
-        check("a completion dialog appears when it finishes", saw_complete)
+        check("a completion dialog appears when it finishes", saw_complete,
+              f"show_complete {settings_of(home).get('show_complete')}, {state_of(home, prog)}")
         settle()
         check("and it closes", not dialog_open("Download complete") and not where("*", "Download complete"))
         # Back off, so the rest of the session is not covered by pop-ups.

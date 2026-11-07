@@ -44,7 +44,7 @@ pub(super) fn options(app: &mut DmApp, ctx: &egui::Context) {
     // OK sat below the bottom edge.
     // Below the menu bar, as every dialog keeps.
     let menu_bottom = app.menu_bottom.max(0.0);
-    let room_below = ctx.content_rect().height() - menu_bottom - 16.0;
+    let room_below = super::room(ctx).height() - menu_bottom - 16.0;
     let tall = room_below.clamp(240.0, 680.0);
     let Some(d) = app.dialogs.options.as_mut() else {
         return;
@@ -53,7 +53,7 @@ pub(super) fn options(app: &mut DmApp, ctx: &egui::Context) {
     let (mut ok, mut cancel) = (false, false);
     // No wider than the window: at 200% text in a 960-point window the
     // tabs, the title and OK were off its edges.
-    let wide = (ctx.content_rect().width() - sides(ctx)).clamp(320.0, 660.0);
+    let wide = (super::room(ctx).width() - sides(ctx)).clamp(320.0, 660.0);
     // The settings of the tab picked, drawn in whichever layout fits.
     let settings = |ui: &mut egui::Ui, d: &mut OptionsDialog| {
         let fresh = std::mem::take(&mut d.fresh);

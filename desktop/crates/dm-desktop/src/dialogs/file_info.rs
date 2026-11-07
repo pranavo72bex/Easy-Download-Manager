@@ -317,7 +317,7 @@ pub(super) fn file_info(app: &mut DmApp, ctx: &egui::Context) {
     let mut cancel = false;
     // No wider than the window: a warning in it wraps rather than pushing
     // Start now off the edge.
-    let room = (ctx.content_rect().width() - sides(ctx)).clamp(360.0, 600.0);
+    let room = (super::room(ctx).width() - sides(ctx)).clamp(360.0, 600.0);
     window(ctx, "Download details")
         .max_width(room)
         .open(&mut open)

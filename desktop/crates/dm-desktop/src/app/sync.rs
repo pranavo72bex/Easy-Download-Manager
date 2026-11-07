@@ -673,37 +673,21 @@ impl DmApp {
     /// Puts settings into force, and puts the window's copy back when that
     /// fails rather than leaving it showing what is not in force.
     pub fn apply_settings(&mut self, mut wanted: Settings) -> Result<(), String> {
-        // The command run when a download finishes is a person's to set, as
-        // a settings file imported never sets it.
-        if self.by_script() && wanted.on_complete != self.applied.on_complete {
-            wanted.on_complete.clone_from(&self.applied.on_complete);
-            self.said = "The command to run when a download finishes was not changed: a script was driving the window a moment ago; set it again".to_string().into();
-        }
-        if self.by_script() && wanted.schedule.run_when_done != self.applied.schedule.run_when_done
-        {
-            wanted
-                .schedule
-                .run_when_done
-                .clone_from(&self.applied.schedule.run_when_done);
-            self.said = "The program to run when the scheduled downloads are done was not changed: a script was driving the window a moment ago; set it again".to_string().into();
-        }
-        // A queue's own hours run a program as the shared ones do.
+        // What makes dm run something is a person's to set, as a settings file imported never
+        // sets it (`Settings::keep_programs_of`).
         if self.by_script() {
-            let mut kept = false;
-            for (name, schedule) in &mut wanted.queue_schedules {
-                let mine = self
-                    .applied
-                    .queue_schedules
-                    .get(name)
-                    .map(|s| s.run_when_done.clone())
-                    .unwrap_or_default();
-                if schedule.run_when_done != mine {
-                    schedule.run_when_done = mine;
-                    kept = true;
-                }
-            }
-            if kept {
-                self.said = "The program to run when the scheduled downloads are done was not changed: a script was driving the window a moment ago; set it again".to_string().into();
+            let kept = wanted.keep_programs_of(&self.applied);
+            let said = if kept.command {
+                Some("The command to run when a download finishes was not changed: a script was driving the window a moment ago; set it again")
+            } else if kept.schedule {
+                Some("The program to run when the scheduled downloads are done was not changed: a script was driving the window a moment ago; set it again")
+            } else if kept.proxy_script {
+                Some("The proxy script was not changed: a script was driving the window a moment ago; set it again")
+            } else {
+                None
+            };
+            if let Some(said) = said {
+                self.said = said.to_string().into();
             }
         }
         let watch_changed = wanted.watch_clipboard != self.applied.watch_clipboard;

@@ -94,6 +94,8 @@ of dm's became a window of its own (contract row B42) no dialog reached a screen
 reader: AT-SPI (Orca) found the main window's controls and none of Add URL's, Options'
 or the close question's (gaps row 160). The proxy given to the root's adapter is kept,
 and a window made after it is created hidden, given an adapter of its own, then shown
-as asked (AccessKit panics on a window already shown). Not on Windows, whose build is
-as published (`cfg(not(target_os = "windows"))`). Checked: `scripts/linux-gui-check.sh`
-asks AT-SPI alone for Add URL's OK and Cancel. MIT OR Apache-2.0, as published.
+as asked (AccessKit panics on a window already shown); the root made again later gets
+one the same way, and only the root's adapter may turn AccessKit off for all. Not on
+Windows, whose build is as published (`ADAPTER_PER_WINDOW`). Checked:
+`scripts/linux-gui-check.sh` asks AT-SPI alone for Add URL's OK and Cancel, inside the
+dialog's window. MIT OR Apache-2.0, as published.

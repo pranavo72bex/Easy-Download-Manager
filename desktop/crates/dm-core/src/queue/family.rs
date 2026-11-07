@@ -71,10 +71,10 @@ fn family(url: &str) -> Option<String> {
     if labels.len() < 3 || host.parse::<std::net::IpAddr>().is_ok() {
         return Some(host);
     }
-    if SHARED
-        .iter()
-        .any(|shared| host.ends_with(&format!(".{shared}")))
-    {
+    if SHARED.iter().any(|shared| {
+        host.strip_suffix(shared)
+            .is_some_and(|rest| rest.ends_with('.'))
+    }) {
         return Some(host);
     }
     // `example.co.uk`: a short second-level label under a two-letter country

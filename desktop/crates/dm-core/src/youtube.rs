@@ -1411,28 +1411,9 @@ async fn run_js(program: &str, staging: &Path) -> Result<String, Error> {
     // Deno first where it is installed: run with no permissions it can
     // reach neither files nor programs, which QuickJS's command line does
     // not prevent.
-    let mut command = match (crate::videopage::deno(), quickjs) {
-        (None, Some(qjs)) => {
-            let mut c = tokio::process::Command::new(qjs);
-            c.arg(&file);
-            c
-        }
-        (Some(deno), _) => {
-            let mut c = tokio::process::Command::new(deno);
-            c.args([
-                "run",
-                "--ext=js",
-                "--no-code-cache",
-                "--no-prompt",
-                "--no-remote",
-                "--no-lock",
-                "--no-config",
-                "--no-npm",
-            ])
-            .arg(&file);
-            c
-        }
-        (None, None) => {
+    let mut command = match crate::videopage::deno().or(quickjs) {
+        Some(engine) => crate::videopage::js_command(&engine, &file),
+        None => {
             let why = not_fetched.map_or(String::new(), |e| {
                 format!(" (QuickJS could not be fetched: {e})")
             });

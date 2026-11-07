@@ -66,6 +66,17 @@ pub fn may_reread(target: &str, from: &str) -> bool {
     !inside(&host) || dm_protocol::host_of(from) == host
 }
 
+/// An IPv4 address on this computer, a private or link-local network, or a provider's shared
+/// space (carrier-grade NAT): not the web. The same hosts as dm-core's `redirects::inward`.
+fn inside_v4(v4: std::net::Ipv4Addr) -> bool {
+    let [a, b, ..] = v4.octets();
+    v4.is_loopback()
+        || v4.is_private()
+        || v4.is_link_local()
+        || v4.is_unspecified()
+        || (a == 100 && (64..128).contains(&b))
+}
+
 /// A host on this computer or a private network.
 fn inside(host: &str) -> bool {
     if host.is_empty() {
@@ -81,18 +92,10 @@ fn inside(host: &str) -> bool {
         return true;
     }
     match host.parse::<std::net::IpAddr>() {
-        Ok(std::net::IpAddr::V4(v4)) => {
-            let [a, b, ..] = v4.octets();
-            v4.is_loopback()
-                || v4.is_private()
-                || v4.is_link_local()
-                || v4.is_unspecified()
-                // Carrier-grade NAT: a provider's network, not the web.
-                || (a == 100 && (64..128).contains(&b))
-        }
+        Ok(std::net::IpAddr::V4(v4)) => inside_v4(v4),
         Ok(std::net::IpAddr::V6(v6)) => {
             if let Some(v4) = v6.to_ipv4_mapped() {
-                return inside(&v4.to_string());
+                return inside_v4(v4);
             }
             v6.is_loopback()
                 || v6.is_unspecified()
@@ -342,10 +345,7 @@ pub fn track_of(url: &str) -> Option<Stream> {
     let plain = host
         .bytes()
         .all(|b| b.is_ascii_alphanumeric() || b == b'.' || b == b'-');
-    if !plain
-        || !(host == "googlevideo.com" || host.ends_with(".googlevideo.com"))
-        || !path.ends_with("videoplayback")
-    {
+    if !plain || !youtube_edge(host) || !path.ends_with("videoplayback") {
         return None;
     }
     let itag = param(url, "itag").and_then(|v| v.parse::<u32>().ok());
@@ -943,6 +943,21 @@ pub fn pieces_of(url: &str, mime: &str) -> Option<Stream> {
     })
 }
 
+/// YouTube's edge servers, whose pieces `track_of` reads by their itags.
+fn youtube_edge(host: &str) -> bool {
+    host == "googlevideo.com" || host.ends_with(".googlevideo.com")
+}
+
+/// The kind and line of a picture or a sound fetched as a file in ranges: a picture called by
+/// its height where that is known.
+fn ranged_line(sound: bool, height: Option<u32>) -> (StreamKind, String) {
+    match (sound, height) {
+        (true, _) => (StreamKind::Sound, RANGED_SOUND.to_string()),
+        (false, Some(h)) => (StreamKind::Picture, format!("{h}p {RANGED_PICTURE}")),
+        (false, None) => (StreamKind::Picture, RANGED_PICTURE.to_string()),
+    }
+}
+
 /// What a picture and a sound found by [`ranged_of`] are called. A file with one of these names
 /// and no partner is a whole file all the same, and is offered as one.
 const RANGED_PICTURE: &str = "video file";
@@ -969,7 +984,7 @@ pub fn ranged_of(url: &str, mime: &str, content_range: Option<&str>) -> Option<S
     let (authority, rest) = url.split_once("://")?.1.split_once('/')?;
     let host = authority.split(':').next().unwrap_or(authority);
     // YouTube's pieces are read by `track_of`, which knows its itags.
-    if host == "googlevideo.com" || host.ends_with(".googlevideo.com") {
+    if youtube_edge(host) {
         return None;
     }
     let (path, query) = rest.split_once('?')?;
@@ -1010,11 +1025,7 @@ pub fn ranged_of(url: &str, mime: &str, content_range: Option<&str>) -> Option<S
     let size = content_range
         .and_then(|value| value.rsplit_once('/'))
         .and_then(|(_, total)| total.trim().parse::<u64>().ok());
-    let (kind, label) = if sound {
-        (StreamKind::Sound, RANGED_SOUND.to_string())
-    } else {
-        (StreamKind::Picture, RANGED_PICTURE.to_string())
-    };
+    let (kind, label) = ranged_line(sound, None);
     Some(Stream {
         url: whole,
         kind,
@@ -1053,18 +1064,17 @@ pub fn whole_by_ranges(
         "video/mp4" => false,
         _ => return None,
     };
-    let (authority, rest) = url.split_once("://")?.1.split_once('/')?;
-    let host = authority.split(':').next().unwrap_or(authority);
-    if host == "googlevideo.com" || host.ends_with(".googlevideo.com") {
+    if youtube_edge(&dm_protocol::host_of(url)) {
         return None;
     }
-    let path = rest.split(['?', '#']).next().unwrap_or("");
-    let extension = path
+    let name = url
+        .split(['?', '#'])
+        .next()
+        .unwrap_or("")
         .rsplit('/')
         .next()
-        .and_then(|name| name.rsplit_once('.'))
-        .map(|(_, e)| e.to_ascii_lowercase())
-        .unwrap_or_default();
+        .unwrap_or("");
+    let extension = dm_protocol::extension_of(name).unwrap_or_default();
     if !matches!(extension.as_str(), "m4s" | "mp4" | "m4v" | "m4a") {
         return None;
     }
@@ -1075,11 +1085,7 @@ pub fn whole_by_ranges(
     if excluded::address(url).is_some() {
         return None;
     }
-    let (kind, label) = if sound {
-        (StreamKind::Sound, RANGED_SOUND.to_string())
-    } else {
-        (StreamKind::Picture, RANGED_PICTURE.to_string())
-    };
+    let (kind, label) = ranged_line(sound, None);
     Some(Stream {
         url: url.to_string(),
         kind,
@@ -1093,8 +1099,9 @@ pub fn whole_by_ranges(
 }
 
 /// How many bytes of a file found by [`whole_by_ranges`] are read for what it is: an MP4's
-/// `moov` comes first in such a file, and is a few kilobytes.
-pub const TRACK_READ_CAP: usize = 64 * 1024;
+/// `moov` comes first in such a file, and its first track's header and handler are in its
+/// first kilobytes (about one in Bilibili's files).
+pub const TRACK_READ_CAP: usize = 16 * 1024;
 
 /// What an MP4 file's first bytes say it holds: its first track's handler, picture
 /// (`vide`) or sound (`soun`), and a picture's height from its track header. `None` for bytes
@@ -1404,11 +1411,7 @@ impl Streams {
         else {
             return false;
         };
-        let (kind, label) = match (sound, height) {
-            (true, _) => (StreamKind::Sound, RANGED_SOUND.to_string()),
-            (false, Some(h)) => (StreamKind::Picture, format!("{h}p {RANGED_PICTURE}")),
-            (false, None) => (StreamKind::Picture, RANGED_PICTURE.to_string()),
-        };
+        let (kind, label) = ranged_line(sound, height);
         let changed = stream.kind != kind || stream.label != label;
         stream.kind = kind;
         stream.label = label;

@@ -127,10 +127,9 @@ struct GlutinWindowContext {
     viewports: OrderedViewportIdMap<Viewport>,
     viewport_from_window: HashMap<WindowId, ViewportId>,
 
-    /// dm: the proxy the root window's AccessKit adapter was given, for the adapter each further
-    /// window is given as it is made (every dialog of dm's is a window of its own). Set once the
-    /// root's adapter is up. Not on Windows, whose build stays as published.
-    #[cfg(all(feature = "accesskit", not(target_os = "windows")))]
+    /// dm: the proxy the root window's AccessKit adapter was given, kept for the adapter each
+    /// window made after it is given (every dialog of dm's is a window of its own). Set only
+    /// where [`ADAPTER_PER_WINDOW`] is.
     accesskit_proxy: Option<EventLoopProxy<UserEvent>>,
     window_from_viewport: OrderedViewportIdMap<WindowId>,
 
@@ -197,6 +196,31 @@ impl Drop for Viewport {
 }
 
 // ----------------------------------------------------------------------------
+
+/// dm: whether each window made after the root is given an AccessKit adapter of its own. Not
+/// on Windows, whose build is left as published until it is checked there (gaps row 160).
+const ADAPTER_PER_WINDOW: bool = cfg!(all(feature = "accesskit", not(target_os = "windows")));
+
+/// dm: gives `window` an AccessKit adapter of its own (a no-op without the feature, where no
+/// proxy is ever kept).
+#[cfg(feature = "accesskit")]
+fn attach_accesskit(
+    egui_winit: &mut egui_winit::State,
+    event_loop: &ActiveEventLoop,
+    window: &Window,
+    proxy: EventLoopProxy<UserEvent>,
+) {
+    egui_winit.init_accesskit(event_loop, window, proxy);
+}
+
+#[cfg(not(feature = "accesskit"))]
+fn attach_accesskit(
+    _egui_winit: &mut egui_winit::State,
+    _event_loop: &ActiveEventLoop,
+    _window: &Window,
+    _proxy: EventLoopProxy<UserEvent>,
+) {
+}
 
 fn create_window_for_viewport(
     egui_ctx: &egui::Context,
@@ -388,8 +412,7 @@ impl<'app> GlowWinitApp<'app> {
         #[cfg(feature = "accesskit")]
         {
             let event_loop_proxy = self.repaint_proxy.lock().clone();
-            #[cfg(not(target_os = "windows"))]
-            {
+            if ADAPTER_PER_WINDOW {
                 glutin.accesskit_proxy = Some(event_loop_proxy.clone());
             }
             let viewport = glutin.viewports.get_mut(&ViewportId::ROOT).unwrap(); // we always have a root
@@ -618,7 +641,12 @@ impl WinitApp for GlowWinitApp<'_> {
 
         if let Some(running) = &self.running {
             let mut glutin = running.glutin.borrow_mut();
+            // dm: AccessKit is on or off for egui's one context, so only the root window's
+            // adapter may turn it off: another's going (a dialog closed) must not stop the
+            // main window's and every other window's being read.
             if let Some(viewport_id) = glutin.viewport_from_window.get(&event.window_id).copied()
+                && !(viewport_id != ViewportId::ROOT
+                    && matches!(event.window_event, accesskit_winit::WindowEvent::AccessibilityDeactivated))
                 && let Some(viewport) = glutin.viewports.get_mut(&viewport_id)
                 && let Some(egui_winit) = &mut viewport.egui_winit
             {
@@ -1353,7 +1381,6 @@ impl GlutinWindowContext {
             clipboard_shortcuts: native_options.clipboard_shortcuts,
             window_from_viewport,
             focused_viewport: Some(ViewportId::ROOT),
-            #[cfg(all(feature = "accesskit", not(target_os = "windows")))]
             accesskit_proxy: None,
         };
 
@@ -1391,22 +1418,22 @@ impl GlutinWindowContext {
             .get_mut(&viewport_id)
             .expect("viewport doesn't exist");
 
-        // dm: a window made after the root's AccessKit adapter is made hidden, given an adapter
-        // of its own, and then shown as asked (AccessKit refuses a window already shown): so a
-        // screen reader reaches each of dm's dialogs, not the main window alone.
-        #[cfg(all(feature = "accesskit", not(target_os = "windows")))]
-        let mut show_after_accesskit: Option<bool> = None;
+        // dm: a window made once the root's AccessKit adapter is up (a dialog's, or the root's
+        // own made again) is made hidden, given an adapter of its own, and then shown as asked,
+        // as AccessKit refuses a window already shown.
+        let mut show_after_accesskit = None;
         let window = if let Some(window) = &mut viewport.window {
             window
         } else {
             log::debug!("Creating a window for viewport {viewport_id:?}");
-            #[cfg_attr(not(all(feature = "accesskit", not(target_os = "windows"))), expect(unused_mut))]
-            let mut builder = viewport.builder.clone();
-            #[cfg(all(feature = "accesskit", not(target_os = "windows")))]
-            if viewport_id != ViewportId::ROOT && self.accesskit_proxy.is_some() {
-                show_after_accesskit = Some(builder.visible.unwrap_or(true));
-                builder.visible = Some(false);
-            }
+            let builder = if self.accesskit_proxy.is_some() {
+                let mut hidden = viewport.builder.clone();
+                show_after_accesskit = Some(hidden.visible.unwrap_or(true));
+                hidden.visible = Some(false);
+                std::borrow::Cow::Owned(hidden)
+            } else {
+                std::borrow::Cow::Borrowed(&viewport.builder)
+            };
             let (window, viewport_info) =
                 create_window_for_viewport(&self.egui_ctx, &self.gl_config, &builder, event_loop)?;
             viewport.info = viewport_info;
@@ -1427,15 +1454,16 @@ impl GlutinWindowContext {
             egui_winit
         });
 
-        #[cfg(all(feature = "accesskit", not(target_os = "windows")))]
         if let (Some(show), Some(proxy), Some(egui_winit)) = (
             show_after_accesskit,
             self.accesskit_proxy.clone(),
             viewport.egui_winit.as_mut(),
         ) {
-            egui_winit.init_accesskit(event_loop, window, proxy);
+            attach_accesskit(egui_winit, event_loop, window, proxy);
             if show {
                 window.set_visible(true);
+                // Read again shown: what was read of it hidden says it is not.
+                egui_winit::update_viewport_info(&mut viewport.info, &self.egui_ctx, window, false);
             }
         }
 

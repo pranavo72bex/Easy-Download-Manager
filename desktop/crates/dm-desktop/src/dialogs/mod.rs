@@ -51,6 +51,14 @@ pub use asks::NameAsk;
 use asks::*;
 use complete::*;
 use confirm::*;
+/// The room dm's own window has: its content rectangle. Inside a dialog, which is a window of
+/// its own (contract row B42), `ctx.content_rect()` is the dialog's, and a dialog that sized
+/// itself by it was held to its own first, small size (File properties, 2026-11-07). Read for
+/// the main window wherever it is asked, so every dialog measures the same room.
+pub(crate) fn room(ctx: &egui::Context) -> egui::Rect {
+    ctx.input_for(egui::ViewportId::ROOT, |i| i.content_rect())
+}
+
 pub(crate) use controls::*;
 use file_info::*;
 pub use frame::*;
@@ -1024,7 +1032,7 @@ pub fn show(app: &mut DmApp, ctx: &egui::Context) {
     };
     if let Some(alpha) = smoke {
         ctx.layer_painter(egui::LayerId::background()).rect_filled(
-            ctx.content_rect(),
+            room(ctx),
             0.0,
             egui::Color32::from_black_alpha(alpha),
         );
@@ -1112,7 +1120,7 @@ fn hold_the_window(app: &DmApp, ctx: &egui::Context) {
     if !app.dialogs.modal() {
         return;
     }
-    let room = ctx.content_rect();
+    let room = room(ctx);
     let held = egui::Area::new(egui::Id::unique("dm-dialogs-hold-the-window"))
         .order(egui::Order::Foreground)
         .fixed_pos(room.min)

@@ -105,43 +105,60 @@ pub(super) async fn sleep(ms: f64) {
 /// cookies, by the host permission): at most `cap` bytes and `ms`
 /// milliseconds. The body is read as it arrives and cut at the cap, never
 /// whole; `Err` says why there is no text.
-pub(super) async fn fetch_text(url: &str, cap: usize, ms: f64) -> Result<String, String> {
-    fetch_bytes(url, cap, ms, false)
+pub(super) async fn fetch_text(
+    url: &str,
+    from: &str,
+    cap: usize,
+    ms: f64,
+) -> Result<String, String> {
+    fetch_bytes(url, from, cap, ms, false)
         .await
         .map(|bytes| String::from_utf8_lossy(&bytes).into_owned())
 }
 
 /// The first `cap` bytes of a file, asked for by range with the browser's own session, as
 /// [`fetch_text`] fetches; a server that answers the whole file is read as far as `cap`.
-pub(super) async fn fetch_start(url: &str, cap: usize, ms: f64) -> Result<Vec<u8>, String> {
-    fetch_bytes(url, cap, ms, true).await
+pub(super) async fn fetch_start(
+    url: &str,
+    from: &str,
+    cap: usize,
+    ms: f64,
+) -> Result<Vec<u8>, String> {
+    fetch_bytes(url, from, cap, ms, true).await
 }
 
 /// What [`fetch_text`] and [`fetch_start`] share: `start` asks for the first `cap` bytes by
 /// range and keeps what came as far as `cap`, where a playlist longer than `cap` is refused.
 ///
-/// A redirect is an error, never followed: the address was checked before the fetch
-/// (`decide::may_reread`), and a public server answering it with a redirect to a router or a
-/// printer would otherwise have the worker ask that, with the browser's session (security
+/// `from` is the page or playlist that named `url`: an address on this computer or a private
+/// network is fetched only for one on that very host (`decide::may_reread`). A redirect is an
+/// error, never followed, as the address it leads to was never checked: a public server would
+/// otherwise send the worker on to a router or a printer, with the browser's session (security
 /// review, 2026-11-08). A playlist behind a redirect is left undescribed.
-async fn fetch_bytes(url: &str, cap: usize, ms: f64, start: bool) -> Result<Vec<u8>, String> {
+async fn fetch_bytes(
+    url: &str,
+    from: &str,
+    cap: usize,
+    ms: f64,
+    start: bool,
+) -> Result<Vec<u8>, String> {
+    if !decide::may_reread(url, from) {
+        return Err(
+            "an address on this computer or a private network, for another site's page".into(),
+        );
+    }
     let global: JsValue = js_sys::global().into();
     let controller = Reflect::get(&global, &"AbortController".into())
         .ok()
         .and_then(|c| c.dyn_into::<Function>().ok())
         .and_then(|ctor| Reflect::construct(&ctor, &Array::new()).ok());
-    let init = if start {
-        to_js(&serde_json::json!({
-            "credentials": "include",
-            "cache": "no-store",
-            "redirect": "error",
-            "headers": { "Range": format!("bytes=0-{}", cap.saturating_sub(1)) },
-        }))
-    } else {
-        to_js(
-            &serde_json::json!({ "credentials": "include", "cache": "no-store", "redirect": "error" }),
-        )
-    };
+    let mut options =
+        serde_json::json!({ "credentials": "include", "cache": "no-store", "redirect": "error" });
+    if start {
+        options["headers"] =
+            serde_json::json!({ "Range": format!("bytes=0-{}", cap.saturating_sub(1)) });
+    }
+    let init = to_js(&options);
     if let Some(signal) = controller.as_ref().map(|c| field(c, "signal")) {
         if signal.is_object() {
             let _ = Reflect::set(&init, &"signal".into(), &signal);

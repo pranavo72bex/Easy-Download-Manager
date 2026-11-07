@@ -246,7 +246,7 @@ pub(super) fn find(app: &mut DmApp, ctx: &egui::Context) {
     let mut next = false;
     // Never over the row it found: moved above or below that row where
     // it would cover it, else in the middle.
-    let screen = ctx.content_rect();
+    let screen = super::room(ctx);
     let found = app.cursor.and_then(|id| app.row_rects.get(&id)).copied();
     let size = ctx
         .memory(|m| m.area_rect(window_id("Find")))

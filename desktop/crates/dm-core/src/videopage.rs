@@ -40,6 +40,31 @@ pub(crate) fn deno() -> Option<PathBuf> {
     which("deno")
 }
 
+/// The command that runs the JavaScript program in `file` with `engine`: Deno with no
+/// permissions at all (it then reaches neither files nor programs nor the network, which
+/// QuickJS's command line does not prevent), or QuickJS as it is. One place for the flags, for
+/// YouTube's challenges (`youtube::run_js`) and a proxy script (`pac::evaluate`).
+pub(crate) fn js_command(engine: &Path, file: &Path) -> tokio::process::Command {
+    let mut command = tokio::process::Command::new(engine);
+    let deno = engine
+        .file_stem()
+        .is_some_and(|stem| stem.to_string_lossy().eq_ignore_ascii_case("deno"));
+    if deno {
+        command.args([
+            "run",
+            "--ext=js",
+            "--no-code-cache",
+            "--no-prompt",
+            "--no-remote",
+            "--no-lock",
+            "--no-config",
+            "--no-npm",
+        ]);
+    }
+    command.arg(file);
+    command
+}
+
 /// The QuickJS that can run YouTube's player challenges, if any: the one dm
 /// fetched, or one installed.
 pub(crate) fn quickjs() -> Option<PathBuf> {
