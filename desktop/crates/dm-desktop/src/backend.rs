@@ -635,8 +635,15 @@ impl Backend {
     }
 
     /// Moves a finished file into `dir`; see `Queue::move_to`.
+    /// A folder typed as a relative path is refused, as a new download's is
+    /// (`admit`): it was taken against wherever dm was started, and the file
+    /// went there.
     pub fn move_to(&self, id: Id, dir: &std::path::Path) -> Result<std::path::PathBuf, String> {
-        self.block_on(self.queue.move_to(id, dir))
+        let typed = dir.to_string_lossy();
+        let dir = dm_shell::settings::full_folder(&typed, None).ok_or_else(|| {
+            format!("the folder must be a full path, such as ~/Downloads, not {typed:?}")
+        })?;
+        self.block_on(self.queue.move_to(id, &dir))
     }
 
     /// A playable file of what a download has fetched so far.

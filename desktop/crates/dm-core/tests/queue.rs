@@ -188,6 +188,29 @@ async fn downloads_run_together_but_not_all_at_once() {
         .all(|e| e.state == DownloadState::Completed));
 }
 
+/// A finished file moved to a folder typed as a relative path is refused: it was taken against
+/// wherever dm had been started, and the file went there (Move/Rename, 2026-11-08).
+#[tokio::test]
+async fn a_finished_file_is_not_moved_to_a_relative_folder() {
+    let (addr, _) = serve().await;
+    let dir = tempdir();
+    let q = queue(dir.path(), 1);
+    let id = q.add(&format!("http://{addr}/moved.bin")).await.unwrap();
+    q.run().await;
+    let before = q.get(id).await.unwrap().path;
+    let refused = q
+        .move_to(id, std::path::Path::new("Archive {n} ({name})"))
+        .await
+        .unwrap_err();
+    assert!(refused.contains("full path"), "{refused}");
+    assert_eq!(q.get(id).await.unwrap().path, before);
+    assert!(std::path::Path::new(&before).exists());
+    // A full path is moved to, as before.
+    let elsewhere = dir.path().join("elsewhere");
+    let moved = q.move_to(id, &elsewhere).await.unwrap();
+    assert_eq!(moved.parent(), Some(elsewhere.as_path()));
+}
+
 #[tokio::test]
 async fn the_order_things_were_added_is_the_order_they_are_listed() {
     let (addr, _) = serve().await;

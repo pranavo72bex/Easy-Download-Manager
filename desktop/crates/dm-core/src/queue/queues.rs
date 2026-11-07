@@ -96,6 +96,13 @@ impl Queue {
             Some(_) => return Err("only a finished download can be moved".into()),
             None => return Err("there is no such download".into()),
         };
+        // A relative folder is wherever this process was started: never where a person meant.
+        if !dir.is_absolute() {
+            return Err(format!(
+                "the folder must be a full path, not {:?}",
+                dir.display().to_string()
+            ));
+        }
         if from.parent() == Some(dir) {
             return Ok(from);
         }
