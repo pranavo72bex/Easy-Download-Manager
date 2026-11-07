@@ -106,6 +106,17 @@ those systems. Row 30 waits on Google letting the Linux container's Brave reach
 YouTube; row 47 needs an iPhone; row 20 a disposable machine; row 5 native
 readers; row 51 the next tagged extension release; row 151 is a periodic search.
 
+### The macOS and Linux session (2026-11-07, beside the Windows one)
+
+Run on the maintainer's Mac at the same time as the Windows session, so the
+two do not take the same row. Taken here: row 155 (a) and (b), approved by
+the maintainer on 2026-11-07 ("Approve (a) and (b)"); row 105 (dm.app
+installed on this Mac, with the maintainer's OK of 2026-11-07); row 157 (a
+source review of `desktop-v0.8.7..HEAD`); row 158 measured on macOS, to see
+whether the slow large file is Windows' alone. Left to Windows: rows 156 and
+158's Windows profile, and every step above. Row 154 stays waiting (no Screen
+Recording permission given). Each push here is rebased on the branch first.
+
 ### State audit, 2026-10-28
 
 Reported: a paused download's details window showing Stop instead of Resume,
