@@ -8,24 +8,46 @@
 //! event for as long as dm ran, so a long session grew by about three
 //! handles a finished download. The toasts here go straight to the Action
 //! Center, with no banner, and are taken out of it again: nothing is shown.
+//!
+//! A kept handle a toast grows with every toast, round after round; what
+//! Windows' own worker threads and late releases hold comes and goes and
+//! does not. So the toasts go in rounds, the count is read once things have
+//! settled, and the limit is half a handle a toast over all the rounds: far
+//! above the coming and going (+15 for thirty, seen once beside the whole
+//! suite), far below one handle kept a toast.
 
 #![cfg(windows)]
 
 use dm_desktop::toast::{heard, remove_group, show_unseen, MOST_HEARD};
+use std::time::Duration;
+use windows_sys::Win32::System::Threading::{GetCurrentProcess, GetProcessHandleCount};
 
+/// The handles this process holds now, as Task Manager counts them.
 fn handles() -> i64 {
-    let out = std::process::Command::new("powershell")
-        .args([
-            "-NoProfile",
-            "-Command",
-            &format!("(Get-Process -Id {}).HandleCount", std::process::id()),
-        ])
-        .output()
-        .unwrap();
-    String::from_utf8_lossy(&out.stdout).trim().parse().unwrap()
+    let mut count = 0u32;
+    // SAFETY: the current process's pseudo-handle needs no closing; `count`
+    // is written when the call succeeds.
+    let counted = unsafe { GetProcessHandleCount(GetCurrentProcess(), &mut count) };
+    assert_ne!(counted, 0, "{}", std::io::Error::last_os_error());
+    i64::from(count)
+}
+
+/// The fewest handles held over a second, once a second has passed: a
+/// handle Windows is about to let go is not counted.
+fn settled() -> i64 {
+    std::thread::sleep(Duration::from_secs(1));
+    (0..10)
+        .map(|_| {
+            std::thread::sleep(Duration::from_millis(100));
+            handles()
+        })
+        .min()
+        .unwrap()
 }
 
 const GROUP: &str = "dm-handles-test";
+const ROUND: usize = 30;
+const ROUNDS: usize = 3;
 
 fn plain(n: usize, what: &str) {
     for i in 0..n {
@@ -50,34 +72,42 @@ fn toasts_give_their_handles_back() {
     // they send back (about twenty handles), is not the toasts'.
     plain(10, "warming up");
     with_a_click(30, "warming up");
-    std::thread::sleep(std::time::Duration::from_secs(3));
-    let start = handles();
-    plain(30, "plain");
-    std::thread::sleep(std::time::Duration::from_secs(2));
-    let after_plain = handles();
-    with_a_click(30, "a file");
-    std::thread::sleep(std::time::Duration::from_secs(2));
-    let after_click = handles();
+    let start = settled();
+    let after_plain: Vec<i64> = (0..ROUNDS)
+        .map(|round| {
+            plain(ROUND, &format!("plain {round}"));
+            settled()
+        })
+        .collect();
+    let after_click: Vec<i64> = (0..ROUNDS)
+        .map(|round| {
+            with_a_click(ROUND, &format!("a file {round}"));
+            settled()
+        })
+        .collect();
     let still_heard = heard();
     let _ = remove_group(GROUP);
+    let middle = after_plain[ROUNDS - 1];
+    let end = after_click[ROUNDS - 1];
     println!(
-        "HANDLES at rest {start}; 30 plain toasts {:+}; 30 with a click {:+}; {still_heard} heard",
-        after_plain - start,
-        after_click - after_plain
+        "HANDLES at rest {start}; after each {ROUND} plain toasts {after_plain:?}; \
+         after each {ROUND} with a click {after_click:?}; {still_heard} heard"
     );
     assert!(
         still_heard <= MOST_HEARD,
         "{still_heard} toasts still heard"
     );
-    // notify-rust's kept three each, 90 for thirty, either kind.
+    // notify-rust's kept three each, 270 for ninety, either kind.
+    let toasts = (ROUND * ROUNDS) as i64;
+    let most = toasts / 2;
     assert!(
-        after_plain - start <= 10,
-        "30 toasts with nothing to open kept {} handles",
-        after_plain - start
+        middle - start <= most,
+        "{toasts} toasts with nothing to open kept {} handles (from {start}: {after_plain:?})",
+        middle - start
     );
     assert!(
-        after_click - after_plain <= 10,
-        "30 toasts with a file to open kept {} handles",
-        after_click - after_plain
+        end - middle <= most,
+        "{toasts} toasts with a file to open kept {} handles (from {middle}: {after_click:?})",
+        end - middle
     );
 }
