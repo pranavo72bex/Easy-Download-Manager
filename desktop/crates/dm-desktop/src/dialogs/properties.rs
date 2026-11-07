@@ -77,6 +77,10 @@ pub(super) fn properties(app: &mut DmApp, ctx: &egui::Context) {
         let step = nth;
         nth += 1.0;
         let tall = (below.height() - 16.0).max(160.0);
+        // The fields' own height, measured here against dm's window: inside the dialog, which
+        // is a window of its own (contract row B42), the window measured is the dialog's, and
+        // the fields were held to its first, small size (about 120 points, 2026-11-07).
+        let fields_tall = (below.height() - 150.0).max(120.0);
         let cramped = ctx
             .memory(|m| m.area_rect(window))
             .is_some_and(|was| was.height() >= tall - 8.0);
@@ -115,10 +119,9 @@ pub(super) fn properties(app: &mut DmApp, ctx: &egui::Context) {
                 };
                 // The fields scroll inside a window too short for them, so
                 // the buttons below stay on the screen.
-                let tall = (ctx.content_rect().height() - 150.0).max(120.0);
                 egui::ScrollArea::vertical()
                     .id_salt(("props-scroll", id))
-                    .max_height(tall)
+                    .max_height(fields_tall)
                     .show(ui, |ui| {
                         egui::Grid::new(("props", id))
                             .num_columns(2)
